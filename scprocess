@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+
+# PATH="${PATH:+${PATH}:}/home/macnairw/packages/scProcess/scprocess.py"
+
+# example call:
+# scprocess /home/macnairw/packages/scProcess/configs/config-myrf_mice.yaml
+
+import argparse
+import os
+import yaml
+import pandas as pd
+import re
+import glob
+import subprocess
+
+
+# find fastq files for a sample
+def find_fastq_files(fastqs_dir, sample, read):
+  # get all files
+  all_fs    = glob.glob(f"{fastqs_dir}/*{sample}*")
+
+  # get all reads
+  re_R1     = re.compile('.*_R1.*\\.fastq(\\.gz)?$')
+  R1_fs     = [ f for f in all_fs if re_R1.match(f) ]
+  R1_fs     = sorted(R1_fs)
+  re_R2     = re.compile('.*_R2.*\\.fastq(\\.gz)?$')
+  R2_fs     = [ f for f in all_fs if re_R2.match(f) ]
+  R2_fs     = sorted(R2_fs)
+
+  # check they match
+  R1_chk    = [ re.sub("_R1", "", f) for f in R1_fs ]
+  R2_chk    = [ re.sub("_R2", "", f) for f in R2_fs ]
+  assert R1_chk == R2_chk, "R1 and R2 fastq files do not match for " + sample
+
+  if read == "R1":
+    sel_fs = R1_fs
+  elif read == "R2":
+    sel_fs = R2_fs
+
+  return sel_fs
+
+
+# function to exclude samples without valid fastq files
+def exclude_samples_without_fastq_files(FASTQS_DIR, PROJ_DIR, SAMPLES):
+  # get parameters
+
+  # get fastq files for each sample
+  chk_samples   = []
+  for sample in SAMPLES:
+    R1_fs = find_fastq_files(fastqs_dir, sample, "R1")
+    if len(R1_fs) > 0:
+      chk_samples.append(sample)
+    else:
+      print(f"WARNING: no fastq files found for sample {sample}; excluded")
+
+  return chk_samples
+
+
+def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
+  print('doing some checks on inputs')
+  # check configfile exists
+  assert os.path.exists(configfile), \
+    f"Config file {configfile} does not exist"
+
+  # open configfile
+  with open(configfile, "r") as stream:
+    config      = yaml.safe_load(stream)
+
+  # check that proj_dir exists and is a directory
+  assert "proj_dir" in config, "proj_dir not in config file"
+  assert os.path.isdir(config["proj_dir"]), \
+    f"proj_dir {config['proj_dir']} is not a directory"
+  proj_dir    = config["proj_dir"] 
+  
+  # check that proj_dir is a workflowr directory 
+  wflowr_fs_ls = ['_workflowr.yml', '.gitignore', '.Rprofile', '.gitattributes',
+            'analysis/_site.yml', 'analysis/about.Rmd', 'analysis/index.Rmd', 'analysis/license.Rmd', 'public/.nojekyll']
+  
+  wflowr_fs_ful_ls = [os.path.join(proj_dir, f) for f in wflowr_fs_ls]
+  assert all([os.path.isfile(f) for f in wflowr_fs_ful_ls]), \
+    f"proj_dir {config['proj_dir']} is not a workflowr project; you can create a workflowr project using newproj"
+
+  # check that sample metadata exists, has sample_id present
+  assert "sample_metadata" in config, "sample_metadata not specified in config file"
+  assert os.path.isfile(config["sample_metadata"]), \
+    f"sample_metadata {config['sample_metadata']} is not a valid file"
+
+  # load up sample metadata
+  sample_df   = pd.read_csv(config["sample_metadata"])
+  assert "sample_id" in sample_df.columns, \
+    "sample_id not present in sample metadata"
+  assert all(sample_df[ "sample_id" ].value_counts() == 1), \
+    "sample_id values in metadata csv not unique"
+
+  # check whether metadata_vars are present in sample metadata
+  if "metadata_vars" in config:
+    assert isinstance(config["metadata_vars"], list), \
+      "metadata_vars must be a list"
+    for var in config["metadata_vars"]:
+      assert var in sample_df.columns, \
+        f"metadata_var {var} not present in sample metadata"
+
+  # check fastq directory exists
+  assert "fastq_dir" in config, "fastq_dir not in config file"
+  assert os.path.isdir(config["fastq_dir"]), \
+    f"fastq_dir {fastq_dir} is not a directory"
+  fastq_dir = config["fastq_dir"]
+  
+  # check that some fastq files exist
+  samples_ls  = exclude_samples_without_fastq_files(fastq_dir, proj_dir, sample_df["sample_id"].tolist())
+  assert len(samples_ls) > 0, \
+    "No fastq files found in fastq_dir"
+
+  # print which files will be processed
+  print(f"Processing {len(samples_ls)} samples:")
+  print('  ' + ', '.join(samples_ls))
+  print('bash '+ f'{sc_dir}/scprocess.sh'+ ' ' +snakefile+ ' '+ os.path.abspath(configfile) + ' '+ proj_dir+ ' '+ rule+ ' '+ extraargs)
+
+  # start snakemake
+  subprocess.call(['bash', f'{sc_dir}/scprocess.sh', snakefile, os.path.abspath(configfile), proj_dir, rule, extraargs])
+
+
+if __name__ == '__main__':
+  # define scprocess directory
+  sc_dir    = os.path.dirname(os.path.realpath(__file__))
+  # sc_dir    = "/home/macnairw/packages/scProcess/"
+
+  # define arguments
+  parser    = argparse.ArgumentParser(description = 'snakemake workflows for processing single cell RNAseq data.')
+  parser.add_argument("configfile", type = str, 
+    help = "Required. YAML file specifying what you want to run, and any non-default parameters")
+  parser.add_argument("-r", "--rule", type = str, default = "all",
+    choices = [
+        "all", "combine_scDblFinder_outputs", "copy_template_rmds", "make_dbl_files_df",
+        "make_sce_input_df", "make_sce_object", "render_template_rmds", 
+        "run_harmony", "run_marker_genes", "run_qc", 
+        "all_alevin_fry", "all_cellbender", "all_htmls", "all_label_and_subset", "all_zoom"
+        ],
+    help = '''
+       Leave empty to run the whole workflow, in alternative select the rule you want to run.
+       ''')
+  parser.add_argument("-n", "--dry-run", action="store_true", 
+    help = '''
+       "dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.
+       ''')
+  parser.add_argument("-E", "--extraargs", type = str, 
+    help = '''
+       extra snakamake arguments. Must be provided within quotes and begin with a whitespace.
+       For example, to have a dryrun: -E " -n"
+       ''')
+       
+  # get arguments
+  args      = parser.parse_args()
+
+  # select snakefile corresponding to workflow
+  snakefile = os.path.join(sc_dir, "workflow_std.smk")
+    
+  # set default rule to all
+  if args.rule == "":
+    rule    = "all"
+  else:
+    rule = args.rule  
+  
+  extraargs = ''
+  if args.extraargs:
+    extraargs = args.extraargs
+  if args.dry_run:
+    extraargs = extraargs + " -np"
+  
+  # print(sc_dir, args.configfile, snakefile, rule)   
+  # call bsub thing
+  run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs)
+
+
+ 

@@ -7,13 +7,13 @@ your_name: your name
 affiliation: where you work
 date_stamp: "2050-01-01"
 sample_metadata: /home/mkoder/projects/Agarwal_2020/data/metadata/Agarwal_2020_trimmed_metadata.csv
+scprocess_data_dir: /projects/site/pred/neurogenomics/users/macnairw/scprocess_data
+index_dir_name: "refdata-gex_GRCh38-2024"
 # exclude_samples: [sample1, sample2]
 # metadata_vars: [test1,test2]
 setup:
-  scprocess_data_dir: /projects/site/pred/neurogenomics/users/macnairw/scprocess_data
   fasta: /projects/site/pred/neurogenomics/users/macnairw/reference_genomes/fasta/genome.fa #reference genome to be used for the expanded reference construction
   gtf: /projects/site/pred/neurogenomics/users/macnairw/reference_genomes/genes/genes.gtf
-  index_dir_name: "refdata-gex_GRCh38-2024"
   use_decoys: True
 alevin:
   species: human # current options are 'mouse' and 'human', this shouldn't matter for mapping
