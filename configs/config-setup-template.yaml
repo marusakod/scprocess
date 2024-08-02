@@ -1,0 +1,11 @@
+scprocess_data_dir: /Users/marusa/Projects/scprocess_data
+genome:
+  species:
+    name: human_2020 # other options include human_2024, mouse_2020, mouse_2024; multiple options can be specified
+    decoys: True # this is optional, will default to true for all specified species
+  custom:
+    name: [worm, donkey]
+    fasta: [/path/to/worm.genome.fa, /path/to/donkey.genome.fa]
+    gtf: [/path/to/worm.genes.gtf, /path/to/donkey.genes.gtf]
+    decoys: [True, True]
+    mito_str: ["^mt-", "^mt-"] # string that defines how to find mitochondrial genes
