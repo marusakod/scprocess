@@ -1,0 +1,63 @@
+import argparse
+import os
+import yaml
+import pandas as pd
+import re
+import glob
+import subprocess
+
+
+
+def run_scsetup(sc_dir, configfile, snakefile, extraargs):
+  print('doing some checks on inputs')
+  # check configfile exists
+  assert os.path.exists(configfile), \
+    f"Config file {configfile} does not exist"
+ 
+  # get scprocess_data_dir; should be defined in .bashrc
+  scprocess_data_dir = os.getenv('SCPROCESS_DATA_DIR')
+
+  if scprocess_data_dir:
+    print(f'SCPROCESS_DATA_DIR it set to: {scprocess_data_dir}')
+  else:
+    raise ValueError('SCPROCESS_DATA_DIR is not defined in .bashrc')
+    
+  # start snakemake
+  subprocess.call(['bash', f'{sc_dir}/scsetup.sh', snakefile, os.path.abspath(configfile), extraargs])
+
+
+if __name__ == '__main__':
+  # define scprocess directory
+  sc_dir    = os.path.dirname(os.path.realpath(__file__))
+  # sc_dir    = "/home/macnairw/packages/scProcess/"
+
+  # define arguments
+  parser    = argparse.ArgumentParser(description = 'setup for scprocess: a snakemake workflow for processing single cell RNAseq data.')
+  parser.add_argument("configfile", type = str, 
+    help = "Required. YAML file specifying what you want to run, and any non-default parameters")
+  parser.add_argument("-n", "--dry-run", action="store_true", 
+    help = '''
+       "dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.
+       ''')
+  parser.add_argument("-E", "--extraargs", type = str, 
+    help = '''
+       extra snakamake arguments. Must be provided within quotes and begin with a whitespace.
+       For example, to have a dryrun: -E " -n"
+       ''')
+       
+  # get arguments
+  args      = parser.parse_args()
+
+  # select snakefile corresponding to workflow
+  snakefile = os.path.join(sc_dir, "setup_rules.smk")
+
+  # sort out extra arguments
+  extraargs = ''
+  if args.extraargs:
+    extraargs = args.extraargs
+  if args.dry_run:
+    extraargs = extraargs + " -np"
+  
+  # call bsub thing
+  run_scsetup(sc_dir, args.configfile, snakefile, extraargs)
+

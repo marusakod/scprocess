@@ -1,0 +1,9 @@
+name: py_libs
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.10.0
+  - pandas 
+  - pyyaml
+  - pyranges
