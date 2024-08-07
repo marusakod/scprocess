@@ -16,15 +16,12 @@ import re
 
 def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCESS_DATA_DIR):
 
-  # make a dataframe with all params and later update
-  PARAMS_DF = pd.DataFrame({
-    'genome_name':GENOME_NAMES, 
-    'fasta_f': FASTA_FS, 
-    'gft_f':GTF_FS, 
-    'mito_str': MITO_STRS, 
-    'decoy':DECOYS
+  # make dictionaries with all parameters that will be updated later
+  fasta_dict = dict(zip(GENOME_NAMES, FASTA_FS))
+  gtf_dict = dict(zip(GENOME_NAMES, GTF_FS))
+  mito_str_dict = dict(zip(GENOME_NAMES, MITO_STRS))
+  decoys_dict = dict(zip(GENOME_NAMES, DECOYS))
 
-  })
 
   # crete directory for reference genomes inside scprocess data
   ref_dir = os.path.join(SCPROCESS_DATA_DIR, 'reference_genomes')
@@ -32,7 +29,7 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
 
   # sort out predefined genomes
   pre_gnomes = {'human_2020', 'human_2024', 'mouse_2020', 'mouse_2024'}
-  all_gnomes = set(GENOME_NAMES) # only unique values bc decoys can be both True and False
+  all_gnomes = set(GENOME_NAMES)
 
 # which predefined genomes are in params_df
   names = list(pre_gnomes & all_gnomes)
@@ -52,13 +49,13 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
       l = refs_10x_links_dict[n]
       gnome_fs = get_predefined_gnomes(ref_dir= ref_dir, name = n, link = l )
       # add fasta_f and gtf_f to dicts
-      PARAMS_DF.loc[PARAMS_DF['genome_name'] == n, 'fasta_f'] = gnome_fs[1]
-      PARAMS_DF.loc[PARAMS_DF['genome_name'] == n, 'gtf_f'] = gnome_fs[0]
+      fasta_dict[n] =  gnome_fs[1]
+      gtf_dict[n] = gnome_fs[0]
     # define mito strings for predefined genomes
   
     for  n in names:
       mito_str = "^MT-" if 'human_' in n else "^mt-"
-      PARAMS_DF.loc[PARAMS_DF['genome_name'] == n, 'mito_str'] = mito_str
+      mito_str_dict[n] = mito_str
 
 # sort out custom genomes
   cust_names = list(all_gnomes - pre_gnomes)
@@ -67,9 +64,10 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
     # create directories for custom genomes in ref_dir and symlinks for fasta and gtf files 
     for cn in cust_names:
       # get original fasta
-      cn_fasta = PARAMS_DF[PARAMS_DF['genome_name'] == cn]['fasta_f'].unique().tolist()
+      cn_fasta = fasta_dict[cn]
       # get original gtf
-      cn_gtf = PARAMS_DF[PARAMS_DF['genome_name'] == cn]['gtf_f'].unique().tolist()
+      cn_gtf = gtf_dict[cn]
+
       
       cn_ref_dir = os.path.join(ref_dir, cn)
       os.makedirs(cn_ref_dir, exist_ok = True)
@@ -78,14 +76,12 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
       os.symlink(cn_fasta, fasta_sym)
       os.symlink(cn_gtf, gtf_sym)
 
-      # update paths to fasta and gtf files in params_df
-      PARAMS_DF.loc[PARAMS_DF['genome_name'] == cn, 'fasta_f'] = fasta_sym
-      PARAMS_DF.loc[PARAMS_DF['genome_name'] == cn, 'gtf_f'] = gtf_sym
+      # update paths to fasta and gtf files in dicts
+      fasta_dict[cn] = fasta_sym
+      gtf_dict[cn] = gtf_sym
   
   # make a txt file from all gtf files
   print('Creating txt files from gtf')
-  gtf_df = PARAMS_DF[['genome_name', 'gtf_f']].drop_duplicates()
-  gtf_dict = gtf_df.set_index('genome_name')['gtf_f'].to_dict()
   gtf_txt_dict = {}
  
   for n, gtf in gtf_dict.items():
@@ -96,9 +92,12 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
     # update dictionary 
     gtf_txt_dict.update({n:out_txt_f})
 
-  
-  # add gtf_txt_fs to params_df and return a csv file with all specified parameters
-  PARAMS_DF['gtf_txt_f'] = PARAMS_DF['genome_name'].map(gtf_txt_dict)
+  # create one dataframe from all dictionaries 
+  PARAMS_DF = pd.DataFrame([fasta_dict, gtf_dict, mito_str_dict, decoys_dict])
+  PARAMS_DF = PARAMS_DF.T
+  PARAMS_DF.columns = ['fasta_f', 'gtf_f', 'mito_str', 'decoy']
+  PARAMS_DF.index.name = 'genome_name'
+  PARAMS_DF.reset_index(inplace=True)
   
   out_csv_f = os.path.join(SCPROCESS_DATA_DIR, 'setup_parameters.csv')
   PARAMS_DF.to_csv(out_csv_f, index = False)
@@ -222,44 +221,42 @@ def save_gtf_as_txt(gtf_f, gtf_txt_f):
 
 
 # function that gets params for simpleaf index
-def parse_setup_params_for_af(combn, params_csv):
+def parse_setup_params_for_af(genome, params_csv):
  # read params csv created in rule get_reference_genomes
  params_df = pd.read_csv(params_csv, dtype={'decoy': bool})
 
- # split genome name and decoy
- sep = '_'
- gnome, _sep, _after = combn.rpartition(sep)
- _before, _sep, dcoy = combn.rpartition(sep)
- dcoy = bool(dcoy)
- # get all parameters for af from params_df
- filt_params_df = params_df[(params_df['genome_name'] == gnome) & (params_df['decoy'] == dcoy)]
+ filt_params_df = params_df[(params_df['genome_name'] == genome)] 
  filt_params_df = filt_params_df.reset_index(drop=True)
  fasta_f = filt_params_df.loc[0, 'fasta_f']
  gtf_f  = filt_params_df.loc[0, 'gtf_f']
-
+ dcoy = filt_params_df.loc[0, 'decoy']
+ 
  # make name for alevin index directory
  if dcoy:
   w_dcoy = 'yes'
  else:
   w_dcoy = 'no'
 
- return gnome, fasta_f, gtf_f, w_dcoy
+ return fasta_f, gtf_f, w_dcoy
 
 
 
 # function that makes simpleaf index
-def make_af_idx(combn, params_csv, scprocess_data_dir, idx_out_dir, cores):
+def make_af_idx(genome, params_csv, scprocess_data_dir, cores):
   # get af params for combn
-  gnome, fasta_f, gtf_f, w_dcoy = parse_setup_params_for_af(combn, params_csv)
+  fasta_f, gtf_f, w_dcoy = parse_setup_params_for_af(genome, params_csv)
 
   if w_dcoy == 'yes':
-    print('Creating alevin index for ' + gnome + ' with decoys in ' + idx_out_dir )
+    print('Creating alevin index for ' + genome + ' with decoys in ' + idx_out_dir )
   else:
-    print('Creating alevin index for ' + gnome + ' in ' + idx_out_dir )
+    print('Creating alevin index for ' + genome + ' in ' + idx_out_dir )
    
   # create af home directory
   af_home = os.path.join(scprocess_data_dir, 'alevin_fry_home')
   os.makedirs(af_home, exist_ok=True)
+
+  # specify output directory for index
+  idx_out_dir = os.path.join(af_home, genome)
   
   # define whether or not to include --decoy-paths flag
   decoy_flag = f"--decoy-paths {fasta_f}" if w_dcoy == 'yes' else ""
@@ -305,7 +302,7 @@ if __name__ == "__main__":
 
     # parsers for get_genome_params
   parser_getgnomes = subparsers.add_parser('get_genome_params')
-  parser_getgnomes.add_argument('genome_names', type=list, help='list with all genome names')
+  parser_getgnomes.add_argument('genomes', type=list, help='list with all genome names')
   parser_getgnomes.add_argument('fasta_fs', type=list, help='list with paths to all fasta files')
   parser_getgnomes.add_argument('gtf_fs', type=list, help='list with paths to all gtf files')
   parser_getgnomes.add_argument('mito_str', type=list, help='list with all mitochondrial gene identifiers')
@@ -314,10 +311,9 @@ if __name__ == "__main__":
 
     # parser for make_af_idx
   parser_afidx = subparsers.add_parser('make_af_idx')
-  parser_afidx.add_argument('combn', type=str, help="combination of genome name and whether or not decoys should be used i.e. 'human_2024'")
+  parser_afidx.add_argument('genome', type=str, help="genome name")
   parser_afidx.add_argument('params', type=str, help='path to csv file with all parameters (output of get_genome_params)')
   parser_afidx.add_argument('scp_data_dir', type=str)
-  parser_afidx.add_argument('out_dir', type = str, help= "path to alevin index output directory")
   parser_afidx.add_argument('cores', type=int)
   
   args = parser.parse_args()
@@ -325,9 +321,9 @@ if __name__ == "__main__":
   if args.function_name == 'get_scprocess_data':
       get_scprocess_data(args.scp_data_dir)
   elif args.function_name == 'get_genome_params':
-      get_genome_params(args.genome_names, args.fasta_fs, args.gtf_fs, args.mito_str, args.decoys, args.scp_data_dir)
+      get_genome_params(args.genomes, args.fasta_fs, args.gtf_fs, args.mito_str, args.decoys, args.scp_data_dir)
   elif args.function_name == 'make_af_idx':
-      make_af_idx(args.combn, args.params, args.scp_data_dir, args.out_dir, args.cores)
+      make_af_idx(args.genome, args.params, args.scp_data_dir, args.cores)
   else:
     parser.print_help()
 

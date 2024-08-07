@@ -8,11 +8,11 @@ import subprocess
 import numpy as np
 
 
-def get_setup_parameters(configfile):
+def get_setup_parameters(config):
 
   # open configfile
-  with open(configfile, "r") as stream:
-    config      = yaml.safe_load(stream)
+  #with open(configfile, "r") as stream:
+  #  config      = yaml.safe_load(stream)
 
   # check that genome is in config
   assert "genome" in config, "genome not defined in config file"
@@ -35,6 +35,9 @@ def get_setup_parameters(configfile):
     names = config['genome']['tenx']['name']
     if isinstance(names, str):
       names = [names]
+
+    # check that all genome names are unique
+    assert len(names) == len(set(names)), "Duplicated genome names are not allowed!"
     
     assert np.isin(names, allowed_names), "unrecognized 10x genome name"
      
@@ -71,10 +74,13 @@ def get_setup_parameters(configfile):
     cust_names = config['genome']['custom']['name']
     if isinstance(cust_names, str):
       cust_names =[cust_names]
+
+    # check that all genome names are unique
+    assert len(cust_names) == len(set(cust_names)), "Duplicated genome names are not allowed!"
     
     # check that custom names don't overlap with predefined names
     assert len(set(cust_names) & set(allowed_names)) == 0, \
-      "Some names for custom genomes overlap with predifined genome names; please define other names for custom genomes"
+      "Some names for custom genomes overlap names for 10x genomes; please define other names for custom genomes"
 
     cust_fastas = config['genome']['custom']['fasta']
     if isinstance(cust_fastas, str):
@@ -117,12 +123,6 @@ def get_setup_parameters(configfile):
     all_mito_str.extend(cust_mito_strs)
     all_dcoys.extend(cust_decoys)
 
-    
-  # make sure that all combinations of genome_name and decoy are unique
-  name_dcoy_combns = ['_'.join(combn) for combn in zip(all_genome_names, [str(d) for d in all_dcoys])]
-  assert len(all_genome_names) == len(set(name_dcoy_combns)), \
-    "some combinations of genome name and decoy setting are duplicated"
-  
   # return lists with all params
-  return all_genome_names, all_fasta_fs, all_gtf_fs, all_mito_str, all_dcoys, name_dcoy_combns
+  return all_genome_names, all_fasta_fs, all_gtf_fs, all_mito_str, all_dcoys
   
