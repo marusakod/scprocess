@@ -130,6 +130,6 @@ rule build_af_indices:
   threads: 16
   shell:
     """
-    python3 scripts/setup.py make_af_idx {wildcards.genome} {input.ref_params_f} {SCPROCESS_DATA_DIR} {threads}
+    python3 scripts/build_af_index.py {wildcards.genome} {input.ref_params_f} {SCPROCESS_DATA_DIR} {threads}
 
     """

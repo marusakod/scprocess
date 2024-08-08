@@ -4,6 +4,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - pandas=2.2.2
   - _libgcc_mutex=0.1
   - _openmp_mutex=4.5
   - alevin-fry=0.10.0

@@ -1,7 +1,7 @@
 # functions for setting up scprocess_data
 
 import pandas as pd
-#import pyranges as pr
+import pyranges as pr
 import gzip
 import argparse
 import os
@@ -222,75 +222,6 @@ def save_gtf_as_txt(gtf_f, gtf_txt_f):
     return
 
 
-# function that gets params for simpleaf index
-def parse_setup_params_for_af(genome, params_csv):
- # read params csv created in rule get_reference_genomes
- params_df = pd.read_csv(params_csv, dtype={'decoy': bool})
-
- filt_params_df = params_df[(params_df['genome_name'] == genome)] 
- filt_params_df = filt_params_df.reset_index(drop=True)
- fasta_f = filt_params_df.loc[0, 'fasta_f']
- gtf_f  = filt_params_df.loc[0, 'gtf_f']
- dcoy = filt_params_df.loc[0, 'decoy']
- 
- # make name for alevin index directory
- if dcoy:
-  w_dcoy = 'yes'
- else:
-  w_dcoy = 'no'
-
- return fasta_f, gtf_f, w_dcoy
-
-
-
-# function that makes simpleaf index
-def make_af_idx(genome, params_csv, scprocess_data_dir, cores):
-  # get af params for combn
-  fasta_f, gtf_f, w_dcoy = parse_setup_params_for_af(genome, params_csv)
-  
-  # create af home directory
-  af_home = os.path.join(scprocess_data_dir, 'alevin_fry_home')
-  os.makedirs(af_home, exist_ok=True)
-
-  # specify output directory for index
-  idx_out_dir = os.path.join(af_home, genome)
-
-  if w_dcoy == 'yes':
-    print('Creating alevin index for ' + genome + ' with decoys in ' + idx_out_dir )
-  else:
-    print('Creating alevin index for ' + genome + ' in ' + idx_out_dir )
-     
-  # define whether or not to include --decoy-paths flag
-  decoy_flag = f"--decoy-paths {fasta_f}" if w_dcoy == 'yes' else ""
-
-  # code for making index
-  bash_script = f"""
-  #!/bin/bash
-  ulimit -n 2048
-
-  # simpleaf configuration
-  export ALEVIN_FRY_HOME={af_home}
-  simpleaf set-paths
-  
-  cd $ALEVIN_FRY_HOME
-
-  simpleaf index \
-  --output {idx_out_dir} \
-  --fasta {fasta_f} \
-  --gtf {gtf_f} \
-  {decoy_flag} \
-  --overwrite \
-  --threads {cores}
-  """
-
-  # run bash script
-  subprocess.run(bash_script, shell=True, executable='/bin/bash', check=True)
-
-  print('Done')
-  
-  return
-
-
 def list_of_strings(arg):
     return arg.split(',')
 
@@ -321,21 +252,12 @@ if __name__ == "__main__":
   parser_getgnomes.add_argument('decoys', type=list_of_bools, help='list with bool values definiing whether or not to use decoys when building indices with simpleaf')
   parser_getgnomes.add_argument('scp_data_dir', type=str)
 
-    # parser for make_af_idx
-  parser_afidx = subparsers.add_parser('make_af_idx')
-  parser_afidx.add_argument('genome', type=str, help="genome name")
-  parser_afidx.add_argument('params', type=str, help='path to csv file with all parameters (output of get_genome_params)')
-  parser_afidx.add_argument('scp_data_dir', type=str)
-  parser_afidx.add_argument('cores', type=int)
-  
   args = parser.parse_args()
 
   if args.function_name == 'get_scprocess_data':
       get_scprocess_data(args.scp_data_dir)
   elif args.function_name == 'get_genome_params':
       get_genome_params(args.genomes, args.fasta_fs, args.gtf_fs, args.mito_str, args.decoys, args.scp_data_dir)
-  elif args.function_name == 'make_af_idx':
-      make_af_idx(args.genome, args.params, args.scp_data_dir, args.cores)
   else:
     parser.print_help()
 
