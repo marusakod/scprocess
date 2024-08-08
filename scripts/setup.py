@@ -272,17 +272,17 @@ def make_af_idx(genome, params_csv, scprocess_data_dir, cores):
 
   # simpleaf configuration
   export ALEVIN_FRY_HOME={af_home}
-  simpleaf set-paths
+  #simpleaf set-paths
   
   cd $ALEVIN_FRY_HOME
 
-  simpleaf index \
-  --output {idx_out_dir} \
-  --fasta {fasta_f} \
-  --gtf {gtf_f} \
-  {decoy_flag} \
-  --overwrite \
-  --threads {cores}
+  #simpleaf index \
+  #--output {idx_out_dir} \
+  #--fasta {fasta_f} \
+  #--gtf {gtf_f} \
+  #{decoy_flag} \
+  #--overwrite \
+  #--threads {cores}
   """
 
   # run bash script
