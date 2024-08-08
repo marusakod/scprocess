@@ -160,8 +160,13 @@ def get_scprocess_data(scprocess_data_dir):
   os.chdir(scprocess_data_dir)
 
   # download tar archive from scprocessData and extract
-  subprocess.run('wget -O - https://github.com/marusakod/scprocessData/releases/download/v0.1.0/scprocess_data_archive.tar.gz | tar xvf - --strip-components=1',
+  subprocess.run('wget https://github.com/marusakod/scprocessData/releases/download/v0.1.0/scprocess_data_archive.tar.gz',
   shell=True, capture_output=False)
+  
+  subprocess.run('tar xvf scprocess_data_archive.tar.gz --strip-components=1', shell=True, capture_output=False)
+
+  # remove tar archive
+  os.remove('scprocess_data_archive.tar.gz')
   
   # check if all necessary directories are there
   dirs_ls = ["cellranger_ref", "gmt_pathways", "marker_genes", "xgboost"]
@@ -244,19 +249,19 @@ def parse_setup_params_for_af(genome, params_csv):
 def make_af_idx(genome, params_csv, scprocess_data_dir, cores):
   # get af params for combn
   fasta_f, gtf_f, w_dcoy = parse_setup_params_for_af(genome, params_csv)
-
-  if w_dcoy == 'yes':
-    print('Creating alevin index for ' + genome + ' with decoys in ' + idx_out_dir )
-  else:
-    print('Creating alevin index for ' + genome + ' in ' + idx_out_dir )
-   
+  
   # create af home directory
   af_home = os.path.join(scprocess_data_dir, 'alevin_fry_home')
   os.makedirs(af_home, exist_ok=True)
 
   # specify output directory for index
   idx_out_dir = os.path.join(af_home, genome)
-  
+
+  if w_dcoy == 'yes':
+    print('Creating alevin index for ' + genome + ' with decoys in ' + idx_out_dir )
+  else:
+    print('Creating alevin index for ' + genome + ' in ' + idx_out_dir )
+     
   # define whether or not to include --decoy-paths flag
   decoy_flag = f"--decoy-paths {fasta_f}" if w_dcoy == 'yes' else ""
 
