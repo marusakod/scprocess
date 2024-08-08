@@ -1,0 +1,10 @@
+genome:
+  tenx:
+    name: human_2024 # other options include human_2024, mouse_2020, mouse_2024; multiple options can be specified (duplicated names are not alowed)
+    decoys: True # this is optional, will default to true for all specified tenx genomes
+  custom:
+    name: 'mouse' # duplicated names are not allowed, can include multiple names inside []
+    fasta: '/Users/marusa/Projects/reference_genomes/refdata-gex-mm10-2020-A/fasta/genome.fa'
+    gtf: '/Users/marusa/Projects/reference_genomes/refdata-gex-mm10-2020-A/genes/genes.gtf'
+    decoys: False # this is optzional, will default to true for all specified tenx genomes
+    mito_str: "^mt-" # string that defines how to find mitochondrial genes

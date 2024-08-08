@@ -42,9 +42,9 @@ def get_setup_parameters(config):
     assert np.isin(names, allowed_names), "unrecognized 10x genome name"
      
     # set defaults
-    fasta_fs = [None] * len(names)
-    gtf_fs = [None] * len(names)
-    mito_strs = [None] * len(names)
+    fasta_fs = ['None'] * len(names)
+    gtf_fs = ['None'] * len(names)
+    mito_strs = ['None'] * len(names)
     decoys = [False] * len(names)
     
     # change defaults for decoys if available
@@ -123,6 +123,17 @@ def get_setup_parameters(config):
     all_mito_str.extend(cust_mito_strs)
     all_dcoys.extend(cust_decoys)
 
+    # convert decoy list to strings
+    all_dcoys = [str(b) for b in all_dcoys]
+
+    # convert all lists to a single string with commas between elements
+    genome_names_str = ','.join(all_genome_names)
+    fasta_fs_str = ','.join(all_fasta_fs)
+    gtf_fs_str = ','.join(all_gtf_fs)
+    mito_one_str = ','.join(all_mito_str)
+    decoys_str = ','.join(all_dcoys)
+
+
   # return lists with all params
-  return all_genome_names, all_fasta_fs, all_gtf_fs, all_mito_str, all_dcoys
-  
+  return genome_names_str, fasta_fs_str, gtf_fs_str, mito_one_str, decoys_str
+  #return all_genome_names, all_fasta_fs, all_gtf_fs, all_mito_str, all_dcoys

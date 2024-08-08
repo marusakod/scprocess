@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import argparse
 import os
 import yaml
@@ -49,7 +51,7 @@ if __name__ == '__main__':
   args      = parser.parse_args()
 
   # select snakefile corresponding to workflow
-  snakefile = os.path.join(sc_dir, "setup_rules.smk")
+  snakefile = os.path.join(sc_dir, "setup_rules_test.smk")
 
   # sort out extra arguments
   extraargs = ''

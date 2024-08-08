@@ -35,8 +35,7 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
   names = list(pre_gnomes & all_gnomes)
   
   if(len(names) != 0):
-    print('Downloading 10x genomes for ' + ', '.join(names))
-
+    
     refs_10x_links_dict ={
       'human_2020': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2020-A.tar.gz", 
       'human_2024': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2024-A.tar.gz", 
@@ -73,8 +72,11 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
       os.makedirs(cn_ref_dir, exist_ok = True)
       fasta_sym = os.path.join(cn_ref_dir, 'genes.fa')
       gtf_sym = os.path.join(cn_ref_dir, 'genes.gtf')
-      os.symlink(cn_fasta, fasta_sym)
-      os.symlink(cn_gtf, gtf_sym)
+
+      if not os.path.exists(fasta_sym):
+        os.symlink(cn_fasta, fasta_sym)
+      if not os.path.exists(gtf_sym):
+        os.symlink(cn_gtf, gtf_sym)
 
       # update paths to fasta and gtf files in dicts
       fasta_dict[cn] = fasta_sym
@@ -121,7 +123,7 @@ def get_predefined_gnomes(ref_dir, name, link):
   os.chdir(gnome_dir)
         
   # download reference into that dir
-  # subprocess.run(f'wget {link}', shell=True)
+  subprocess.run(f'wget {link}', shell=True)
         
   # list tar contents
   tar_out= subprocess.run(f'tar -tzf {tball}', shell=True, capture_output=True, text=True)
@@ -142,7 +144,7 @@ def get_predefined_gnomes(ref_dir, name, link):
       subprocess.run(f'gunzip {f}', shell=True, capture_output=False)
 
   # delete the tarball
-  #os.remove(tball)
+  os.remove(tball)
   print('Done!')
 
   return [os.path.join(gnome_dir, 'genes.gtf'), os.path.join(gnome_dir, 'genome.fa')]
@@ -160,9 +162,6 @@ def get_scprocess_data(scprocess_data_dir):
   # download tar archive from scprocessData and extract
   subprocess.run('wget -O - https://github.com/marusakod/scprocessData/releases/download/v0.1.0/scprocess_data_archive.tar.gz | tar xvf - --strip-components=1',
   shell=True, capture_output=False)
-  
-  # remove tar archive
-  os.remove('scprocess_data_archive.tar.gz')
   
   # check if all necessary directories are there
   dirs_ls = ["cellranger_ref", "gmt_pathways", "marker_genes", "xgboost"]
@@ -289,6 +288,16 @@ def make_af_idx(genome, params_csv, scprocess_data_dir, cores):
   return
 
 
+def list_of_strings(arg):
+    return arg.split(',')
+
+def list_of_bools(arg):
+    str_ls = arg.split(',')
+    bool_list = [bool(s) for s in str_ls]
+    return bool_list
+
+
+
   # make some functions executable from the command line (make_af_idx, get_genome_params, get_scprocess_data)
 
 
@@ -302,11 +311,11 @@ if __name__ == "__main__":
 
     # parsers for get_genome_params
   parser_getgnomes = subparsers.add_parser('get_genome_params')
-  parser_getgnomes.add_argument('genomes', type=list, help='list with all genome names')
-  parser_getgnomes.add_argument('fasta_fs', type=list, help='list with paths to all fasta files')
-  parser_getgnomes.add_argument('gtf_fs', type=list, help='list with paths to all gtf files')
-  parser_getgnomes.add_argument('mito_str', type=list, help='list with all mitochondrial gene identifiers')
-  parser_getgnomes.add_argument('decoys', type=list, help='list with bool values definiing whether or not to use decoys when building indices with simpleaf')
+  parser_getgnomes.add_argument('genomes', type=list_of_strings, help='list with all genome names')
+  parser_getgnomes.add_argument('fasta_fs', type=list_of_strings, help='list with paths to all fasta files')
+  parser_getgnomes.add_argument('gtf_fs', type=list_of_strings, help='list with paths to all gtf files')
+  parser_getgnomes.add_argument('mito_str', type=list_of_strings, help='list with all mitochondrial gene identifiers')
+  parser_getgnomes.add_argument('decoys', type=list_of_bools, help='list with bool values definiing whether or not to use decoys when building indices with simpleaf')
   parser_getgnomes.add_argument('scp_data_dir', type=str)
 
     # parser for make_af_idx
