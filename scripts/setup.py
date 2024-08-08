@@ -1,16 +1,14 @@
 # functions for setting up scprocess_data
 
 import pandas as pd
-import pyranges as pr
+#import pyranges as pr
 import gzip
 import argparse
 import os
-import yaml
 import re
 import glob
 import subprocess
 import numpy as np
-import re
 
 #configfile = '/Users/marusa/Projects/scprocess_test/configs/config-setup-template.yaml'
 
@@ -272,17 +270,17 @@ def make_af_idx(genome, params_csv, scprocess_data_dir, cores):
 
   # simpleaf configuration
   export ALEVIN_FRY_HOME={af_home}
-  #simpleaf set-paths
+  simpleaf set-paths
   
   cd $ALEVIN_FRY_HOME
 
-  #simpleaf index \
-  #--output {idx_out_dir} \
-  #--fasta {fasta_f} \
-  #--gtf {gtf_f} \
-  #{decoy_flag} \
-  #--overwrite \
-  #--threads {cores}
+  simpleaf index \
+  --output {idx_out_dir} \
+  --fasta {fasta_f} \
+  --gtf {gtf_f} \
+  {decoy_flag} \
+  --overwrite \
+  --threads {cores}
   """
 
   # run bash script
