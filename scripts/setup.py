@@ -284,7 +284,7 @@ def make_af_idx(genome, params_csv, scprocess_data_dir, cores):
   """
 
   # run bash script
-  subprocess.Popen(bash_script, shell=True, executable='/bin/bash', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  subprocess.run(bash_script, shell=True, executable='/bin/bash', check=True)
 
   print('Done')
   
