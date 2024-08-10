@@ -141,6 +141,8 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   subprocess.call(['bash', f'{sc_dir}/scprocess.sh', snakefile, os.path.abspath(configfile), proj_dir, rule, extraargs])
 
 
+
+
 if __name__ == '__main__':
   # define scprocess directory
   sc_dir    = os.path.dirname(os.path.realpath(__file__))
@@ -152,10 +154,8 @@ if __name__ == '__main__':
     help = "Required. YAML file specifying what you want to run, and any non-default parameters")
   parser.add_argument("-r", "--rule", type = str, default = "all",
     choices = [
-        "all", "combine_scDblFinder_outputs", "copy_template_rmds", "make_dbl_files_df",
-        "make_sce_input_df", "make_sce_object", "render_template_rmds", 
-        "run_harmony", "run_marker_genes", "run_qc", 
-        "all_alevin_fry", "all_cellbender", "all_htmls", "all_label_and_subset", "all_zoom"
+        "all", "htmls", "alevin_fry", "cellbender", "make_sce", "qc", "integration", 
+        "marker_genes", "label_and_subset", "metacells", "pb_empties", "zoom"
         ],
     help = '''
        Leave empty to run the whole workflow, in alternative select the rule you want to run.
@@ -174,7 +174,7 @@ if __name__ == '__main__':
   args      = parser.parse_args()
 
   # select snakefile corresponding to workflow
-  snakefile = os.path.join(sc_dir, "workflow_std.smk")
+  snakefile = os.path.join(sc_dir, "rules.smk")
     
   # set default rule to all
   if args.rule == "":
@@ -191,6 +191,8 @@ if __name__ == '__main__':
   # print(sc_dir, args.configfile, snakefile, rule)   
   # call bsub thing
   run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs)
+
+
 
 
  
