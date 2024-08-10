@@ -9,12 +9,12 @@ from snakemake.utils import validate, min_version
 
 from scprocess_utils import *
 
-SCPOCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
+SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 # get parameters
 PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP = \
   get_project_parameters(config)
 SPECIES, AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY_F = \
-  get_alevin_parameters(config, SCPOCESS_DATA_DIR)
+  get_alevin_parameters(config, SCPROCESS_DATA_DIR)
 
 # specify locations
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
