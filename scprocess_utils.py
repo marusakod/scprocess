@@ -37,7 +37,7 @@ def find_fastq_files(fastqs_dir, sample, read):
 
 
 # function to exclude samples without valid fastq files
-def exclude_samples_without_fastq_files(FASTQ_DIR, PROJ_DIR, SAMPLES):
+def exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES):
  
 
   # get fastq files for each sample
