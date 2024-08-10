@@ -128,7 +128,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   fastq_dir = config["fastq_dir"]
   
   # check that some fastq files exist
-  samples_ls  = exclude_samples_without_fastq_files(fastq_dir, proj_dir, sample_df["sample_id"].tolist())
+  samples_ls  = exclude_samples_without_fastq_files(fastq_dir, sample_df["sample_id"].tolist())
   assert len(samples_ls) > 0, \
     "No fastq files found in fastq_dir"
 
