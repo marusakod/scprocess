@@ -41,13 +41,13 @@ def find_fastq_files(fastqs_dir, sample, read):
 
 
 # function to exclude samples without valid fastq files
-def exclude_samples_without_fastq_files(FASTQS_DIR, PROJ_DIR, SAMPLES):
+def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES):
   # get parameters
 
   # get fastq files for each sample
   chk_samples   = []
   for sample in SAMPLES:
-    R1_fs = find_fastq_files(fastqs_dir, sample, "R1")
+    R1_fs = find_fastq_files(FASTQS_DIR, sample, "R1")
     if len(R1_fs) > 0:
       chk_samples.append(sample)
     else:
@@ -58,10 +58,31 @@ def exclude_samples_without_fastq_files(FASTQS_DIR, PROJ_DIR, SAMPLES):
 
 def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   print('doing some checks on inputs')
+  
+  # check that SCPROCESS_DATA_DIR exists
+  scprocess_data_dir = os.getenv('SCPROCESS_DATA_DIR')
+
+  if not scprocess_data_dir:
+    raise ValueError('SCPROCESS_DATA_DIR is not defined in .bashrc')
+  
+  assert os.path.isdir(scprocess_data_dir), \
+   "SCPROCESS_DATA_DIR is not a directory"
+  
+  # check that spcrocess_data_dir has some files
+  scsetup_dirs = ['cellranger_ref', 'gmt_pathways', 'marker_genes', 'xgboost', 'alevin_fry_home']
+  scsetup_fulL_dirs = [os.path.join(scprocess_data_dir, d) for d in scsetup_dirs]
+  scsetup_csv = os.path.join(scprocess_data_dir,'setup_parameters.csv')
+
+  assert all([os.path.isdir(d) for d in scsetup_fulL_dirs]), \
+   f"Some directories in {scprocess_data_dir} are missing; consider (re)running scsetup"
+  
+  assert os.path.isfile(scsetup_csv), \
+   f"{scsetup_csv} is missing; consider (re)running scsetup"
+
   # check configfile exists
   assert os.path.exists(configfile), \
     f"Config file {configfile} does not exist"
-
+  
   # open configfile
   with open(configfile, "r") as stream:
     config      = yaml.safe_load(stream)

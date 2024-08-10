@@ -15,7 +15,7 @@ def parse_setup_params_for_af(genome, params_csv):
  # read params csv created in rule get_reference_genomes
  params_df = pd.read_csv(params_csv, dtype={'decoy': bool})
 
- filt_params_df = params_df[(params_df['genome_name'] == genome)] 
+ filt_params_df = params_df[params_df['genome_name'] == genome] 
  filt_params_df = filt_params_df.reset_index(drop=True)
  fasta_f = filt_params_df.loc[0, 'fasta_f']
  gtf_f  = filt_params_df.loc[0, 'gtf_f']
@@ -79,7 +79,6 @@ def make_af_idx(genome, params_csv, scprocess_data_dir, cores):
   return
 
 
-#{wildcards.genome} {input.ref_params_f} {SCPROCESS_DATA_DIR} {threads}
 # make script executable from the command line
 if __name__ == '__main__':
     # Define arguments

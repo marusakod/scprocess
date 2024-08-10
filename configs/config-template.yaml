@@ -7,17 +7,11 @@ your_name: your name
 affiliation: where you work
 date_stamp: "2050-01-01"
 sample_metadata: /home/mkoder/projects/Agarwal_2020/data/metadata/Agarwal_2020_trimmed_metadata.csv
-scprocess_data_dir: /projects/site/pred/neurogenomics/users/macnairw/scprocess_data
-index_dir_name: "refdata-gex_GRCh38-2024"
 # exclude_samples: [sample1, sample2]
 # metadata_vars: [test1,test2]
-setup:
-  fasta: /projects/site/pred/neurogenomics/users/macnairw/reference_genomes/fasta/genome.fa #reference genome to be used for the expanded reference construction
-  gtf: /projects/site/pred/neurogenomics/users/macnairw/reference_genomes/genes/genes.gtf
-  use_decoys: True
 alevin:
-  species: human # current options are 'mouse' and 'human', this shouldn't matter for mapping
-  chemistry: 10xv2 # 10x chemistry for experiment; options are 10xv3 (default), and 10xv2
+  species: human # has to match a value in the genome_name column of setup_parameters.csv in SCPROCESS_DATA_DIR
+  chemistry: # optional; path to csv file with columns sample_id and version; valid versions are '3LT', '3v2', '5v1', '5v2', '3v3', 'multiome'
 # cellbender:
 #   do_cellbender: True
 #   version: 'v0.3.0'
@@ -68,15 +62,15 @@ alevin:
 #     vascular:     ['Vascular_Fibro']
 #     T_NK_B_cell:  ['T_NK_B_cell']
 #     neurons:      ['Neurons']
-zoom:
-  cl_grp1:
-    sel_cls: [cl06]   # which clusters to include?
-    zoom_res: 0.2               # what resolution?
-    n_hvgs: 1000                # how many HVGs to use for PCA
-    n_dims: 20                  # how many PC dimensions to integrate over
-    min_n_sample: 10            # what is the minimum number of cells needed to keep a sample?
-    min_n_cl: 100               # what is the minimum number of cells needed to keep a cluster?
-    n_train: 1000               # how many cells per cluster should we use for training
+#zoom:
+#  cl_grp1:
+#    sel_cls: [cl06]   # which clusters to include?
+#    zoom_res: 0.2               # what resolution?
+#    n_hvgs: 1000                # how many HVGs to use for PCA
+#    n_dims: 20                  # how many PC dimensions to integrate over
+#    min_n_sample: 10            # what is the minimum number of cells needed to keep a sample?
+#    min_n_cl: 100               # what is the minimum number of cells needed to keep a cluster?
+#    n_train: 1000               # how many cells per cluster should we use for training
 # resources:
 #   mb_run_alevin_fry: 8192               # default value for this rule
 #   mb_save_alevin_to_h5: 8192            # values are in MB, for the whole job (NOT per thread)

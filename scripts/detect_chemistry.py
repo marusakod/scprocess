@@ -103,56 +103,87 @@ def detect_sample_chemistry(fastq_dir, sample, wl_dict, r1_max=3):
          af_chem = '10xv2'
          exp_ori = 'both'
     elif version == 'flex':
-         af_chem = 'custom'
-         exp_ori = 'custom'
+         af_chem = None
+         exp_ori = None
+    elif version == '3v1':
+         af_chem = None
+         exp_ori = None
     else:
          af_chem = '10xv3'
          exp_ori = 'fw'
 
     # Summarize output  
-    chem_stats_df = pd.DataFrame([{
+    chem_stats_df = pd.DataFrame({
         'sample_id': sample,
         'n_R1_fastqs': len(R1_f), 
         'max_pct_overlap': round(max(max_values) * 100, 1),
         'version': version, 
         'af_chem': af_chem, 
-        'exoected_ori': exp_ori
-    }])
+        'expected_ori': exp_ori, 
+        'wl_f': wl_dict[version]
+    })
 
     return chem_stats_df
 
 # function to process all samples in parallel
-def process_samples(fastq_dir, meta_f, wl_dict, chem_stats_f, num_cores):
-    meta = pd.read_csv(meta_f, header=0, index_col=False)
-    samples = list(meta['sample_id'])
-    
-    with multiprocessing.Pool(processes=num_cores) as pool:
-        results = pool.starmap(detect_sample_chemistry, [(fastq_dir, s, wl_dict) for s in samples])
+def process_samples(fastq_dir, SAMPLES, wl_dict, chem_stats_f, num_cores, custom_chem_f = None):
+
+    # check if custom chemistry file exists 
+    if custom_chem_f:
+     # read file
+     chem_df = pd.read_csv(custom_chem_f)
+     chem_df = pd.DataFrame({
+        'sample_id': ['sample1', 'sample2'],
+        'version': ['3v3', '5v2']
+     })
+     
+     # check that all samples are in the custom file
+     for s in SAMPLES:
+        assert s in chem_df['sample_id'].tolist(), \
+         f"Sample {s} missing from {custom_chem_f}"
+
+     # check if all chemistries are valid
+     valid_chems = ['3LT', '3v2', '5v1', '5v2', '3v3', 'multiome']
+     assert all([c in valid_chems for c in chem_df['version'].tolist()]), \
+      f"10x chemistries specified in {custom_chem_f} are not valid. Valid values are: {', '.join(valid_chems)}"
+     
+     # define af_chem and expected_ori based on version
+     chem_df['af_chem'] = chem_df['version'].apply(lambda x: '10xv2' if x in ['3v2', '5v1', '5v2'] else '10xv3')
+     chem_df['wl_chem'] = chem_df['version'].apply(lambda x: '3v2_5v1_5v2' if x in ['3v2', '5v1', '5v2'] else x)
+     chem_df['expected_ori'] = chem_df['version'].apply(lambda x: 'fw' if x in ['3LT', '3v2', '3v3', 'multiome'] else 'both')
+     # get the right whitelists
+     chem_df['wl_f'] = [wl_dict[c] for c in chem_df['wl_chem'].tolist()]
+
+    else:
+     with multiprocessing.Pool(processes= num_cores) as pool:
+      results = pool.starmap(detect_sample_chemistry, [(fastq_dir, s, wl_dict) for s in SAMPLES])
 
     # concatenate all data frames in the list
-    all_chem_df = pd.concat(results, ignore_index=True)
+      chem_df = pd.concat(results, ignore_index=True)
+
     # Save to CSV
-    all_chem_df.to_csv(chem_stats_f, index=False)
+    chem_df.to_csv(chem_stats_f, index=False)
 
     print('Done!')
+    return
 
 
-def main():
+def list_of_strings(arg):
+    return arg.split(',')
+
+
+if __name__ == "__main__":
     # get argument values
     argParser = argparse.ArgumentParser()
-    argParser.add_argument("-f", "--fastqdir", help="project directory", required=True)
-    argParser.add_argument("-m", "--metaf", help="path to metadata file", required=True)
-    argParser.add_argument("-o", "--outf", help="path to output file", required=True)
-    argParser.add_argument("-b", "--barcodes", help=".csv file with paths to barcode whitelists", required=True)
-    argParser.add_argument("-c", "--cores", help="number of cores to use", type=int, default=multiprocessing.cpu_count())
+    argParser.add_argument("-f", "--fastqdir", type=str, help="project directory", required=True)
+    argParser.add_argument("-s", "--samples", type =list_of_strings, help="path to metadata file", required=True)
+    argParser.add_argument("-o", "--outf", type=str,  help="path to output file", required=True)
+    argParser.add_argument("-b", "--barcodes", type = str, help=".csv file with paths to barcode whitelists", required=True)
+    argParser.add_argument("-c", "--cores", type = int, help="number of cores to use", default= 1)
 
     args = argParser.parse_args()
 
-    fastqdir = args.fastqdir
-    meta_f = args.metaf
-    out_f = args.outf
     wl_csv_f = args.barcodes
-    num_cores = args.cores
 
     # get whitelist files
     wl_df = pd.read_csv(wl_csv_f)
@@ -165,7 +196,5 @@ def main():
         wl_dict[chem] = np.loadtxt(barcodes_f, dtype='str')
 
     # process samples in parallel
-    process_samples(fastq_dir=fastqdir, meta_f=meta_f, wl_dict=wl_dict, chem_stats_f=out_f, num_cores=num_cores)
+    process_samples(fastq_dir=args.fastqdir, SAMPLES=args.samples, wl_dict=wl_dict, chem_stats_f=args.outf, num_cores=args.cores)
 
-if __name__ == "__main__":
-    main()

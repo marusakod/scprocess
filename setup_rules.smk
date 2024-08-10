@@ -9,12 +9,12 @@ import subprocess
 import numpy as np
 import sys
 
-from setup_utils import get_genome_params
+from setup_utils import *
 
 SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 
 # get parameters from configfile
-GENOMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS = get_setup_parameters(config) 
+GENOMES_STR, FASTA_FS, GTF_FS, MITO_STRS, DECOYS = get_setup_parameters(config) 
 
 
 rule all:
@@ -116,7 +116,7 @@ rule get_reference_genomes:
   threads: 1
   shell:
     """
-    python3 scripts/setup.py get_genome_params {GENOMES} {FASTA_FS} {GTF_FS} {MITO_STRS} {DECOYS} {SCPROCESS_DATA_DIR}
+    python3 scripts/setup.py get_genome_params {GENOMES_STR} {FASTA_FS} {GTF_FS} {MITO_STRS} {DECOYS} {SCPROCESS_DATA_DIR}
     
     """
 

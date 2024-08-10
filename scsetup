@@ -23,6 +23,10 @@ def run_scsetup(sc_dir, configfile, snakefile, extraargs):
     print(f'SCPROCESS_DATA_DIR it set to: {scprocess_data_dir}')
   else:
     raise ValueError('SCPROCESS_DATA_DIR is not defined in .bashrc')
+  
+  # check that scprocess_data_dir is a directory
+  assert os.path.isdir(scprocess_data_dir), \
+   "SCPROCESS_DATA_DIR is not a directory"
     
   # start snakemake
   subprocess.call(['bash', f'{sc_dir}/scsetup.sh', snakefile, os.path.abspath(configfile), extraargs])

@@ -1,0 +1,8 @@
+name: chem_detection_env
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.12.0
+  - pandas 
+  - seqkit
