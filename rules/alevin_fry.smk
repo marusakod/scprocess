@@ -5,7 +5,7 @@ import re
 
 rule detect_chemistry:
   input: 
-    wl_f  = SCPROCESS_DATA_DIR + 'cellranger_ref/cellranger_whitelists.csv'
+    wl_f  = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_whitelists.csv'
   threads: 8
   retries: 5
   resources:    
