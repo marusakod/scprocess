@@ -93,9 +93,9 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
     gtf_txt_dict.update({n:out_txt_f})
 
   # create one dataframe from all dictionaries 
-  PARAMS_DF = pd.DataFrame([fasta_dict, gtf_dict, mito_str_dict, decoys_dict])
+  PARAMS_DF = pd.DataFrame([fasta_dict, gtf_dict, gtf_txt_dict, mito_str_dict, decoys_dict])
   PARAMS_DF = PARAMS_DF.T
-  PARAMS_DF.columns = ['fasta_f', 'gtf_f', 'mito_str', 'decoy']
+  PARAMS_DF.columns = ['fasta_f', 'gtf_f', 'gtf_txt_f', 'mito_str', 'decoy']
   PARAMS_DF.index.name = 'genome_name'
   PARAMS_DF.reset_index(inplace=True)
   

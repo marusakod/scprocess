@@ -135,7 +135,7 @@ def get_alevin_parameters(config, scprocess_data_dir):
      "Custom chemistry file doesn't exist"
 
   # get mito strings from setup params
-  AF_MITO_STR = setup_params[setup_params['genome_name'] == SPECIES, 'mito_str']
+  AF_MITO_STR = setup_params.loc[setup_params['genome_name'] == SPECIES, 'mito_str'].values[0]
 
   # get af index directory and check if exists
   AF_HOME_DIR = os.path.join(scprocess_data_dir, 'alevin_fry_home') # check if this exists in scprocess script
@@ -144,7 +144,7 @@ def get_alevin_parameters(config, scprocess_data_dir):
     f"alevin index for {SPECIES} doesn't exist"
   
   # get gtf txt file, check that exists
-  AF_GTF_DT_F = setup_params[setup_params['genome_name'] == SPECIES, 'gtf_txt_f']
+  AF_GTF_DT_F = setup_params.loc[setup_params['genome_name'] == SPECIES, 'gtf_txt_f'].values[0]
 
   return SPECIES, AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY_F
 
