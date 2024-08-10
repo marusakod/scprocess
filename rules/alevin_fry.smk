@@ -11,7 +11,7 @@ rule detect_chemistry:
   resources:    
     mem_mb = 8192
   conda: 
-    'envs/chem_detection.yml'
+    '../envs/chem_detection.yml'
   output:
     chem_f = af_dir + '/chemistry_stats.csv'
   shell:
@@ -24,8 +24,8 @@ rule detect_chemistry:
 rule run_alevin_fry:
   input:
     chem_stats  = af_dir + '/chemistry_stats.csv',
-    R1_fs      = lambda wildcards: ",".join(find_fastq_files(fastqs_dir, wildcards.sample, "R1")),
-    R2_fs      = lambda wildcards: ",".join(find_fastq_files(fastqs_dir, wildcards.sample, "R2"))
+    R1_fs      = lambda wildcards: find_fastq_files(fastqs_dir, wildcards.sample, "R1"),
+    R2_fs      = lambda wildcards: find_fastq_files(fastqs_dir, wildcards.sample, "R2")
   threads: 16
   retries: 5
   resources:
@@ -37,13 +37,13 @@ rule run_alevin_fry:
     cols_f      = af_dir + '/af_{sample}/af_quant/alevin/quants_mat_cols.txt',
     rows_f      = af_dir + '/af_{sample}/af_quant/alevin/quants_mat_rows.txt'
   conda:
-    'envs/alevin_fry.yml'
+    '../envs/alevin_fry.yml'
   shell:
     """
     python3 scripts/simpleaf_quant.py \
     {wildcards.sample} \
     {input.chem_stats} \
-    {ALEVIN_FRY_HOME} \
+    {AF_HOME_DIR} \
     {af_dir} \
     {AF_INDEX_DIR} \
     {input.R1_fs} \
@@ -64,7 +64,7 @@ rule save_alevin_to_h5:
   resources:
     mem_mb      = 8192
   conda: 
-   'envs/rlibs.yaml'
+   '../envs/rlibs.yml'
   shell:
     """
     Rscript -e "source('scripts/alevin_fry.R'); \
