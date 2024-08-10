@@ -55,7 +55,7 @@ def exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES):
 # get list of samples
 def get_project_parameters(config):
   # check expected variables are in the config file
-  for v in ["proj_dir", "fastq_dir" "short_tag", "full_tag", "date_stamp", "your_name", "affiliation", "sample_metadata"]:
+  for v in ["proj_dir", "fastq_dir", "short_tag", "full_tag", "date_stamp", "your_name", "affiliation", "sample_metadata"]:
     assert v in config, f"{v} not in config file"
 
   ## what is specified in config directory?
