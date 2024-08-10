@@ -23,7 +23,7 @@ rule detect_chemistry:
 
 rule run_alevin_fry:
   input:
-    chem_stats  = af_dir + 'chemistry_stats.csv'
+    chem_stats  = af_dir + 'chemistry_stats.csv',
     R1_fs      = lambda wildcards: ",".join(find_fastq_files(fastqs_dir, wildcards.sample, "R1")),
     R2_fs      = lambda wildcards: ",".join(find_fastq_files(fastqs_dir, wildcards.sample, "R2"))
   threads: 16
