@@ -29,6 +29,9 @@ rule run_alevin_fry:
   threads: 8
   resources:
     mem_mb      = 16384
+  params:
+    R1_fs_str= lambda wildcards, input: ','.join(input.R1_fs),
+    R2_fs_str= lambda wildcards, input: ','.join(input.R2_fs)
   output:
     fry_dir     = directory(af_dir + '/af_{sample}/af_quant/'),
     rad_f       = temp(af_dir + '/af_{sample}/af_map/map.rad'),
@@ -39,7 +42,7 @@ rule run_alevin_fry:
     '../envs/alevin_fry.yml'
   shell:
     """
-    python3 scripts/simpleaf_quant.py {wildcards.sample} {input.chem_stats} {AF_HOME_DIR} {af_dir} {AF_INDEX_DIR} {input.R1_fs} {input.R2_fs} {threads}
+    python3 scripts/simpleaf_quant.py {wildcards.sample} {input.chem_stats} {AF_HOME_DIR} {af_dir} {AF_INDEX_DIR} {params.R1_fs_str} {params.R2_fs_str} {threads}
 
     """
 

@@ -28,8 +28,8 @@ def get_simpleaf_counts(sample, chem_csv, AF_HOME_DIR, af_out_dir, AF_INDEX_DIR,
 
     # get params
     AF_CHEMISTRY, whitelist_f, exp_ori = parse_params_for_af_quant(sample, chem_csv)
-    R1_fs = ','.join(R1_fs)
-    R2_fs = ','.join(R2_fs)
+    #R1_fs = ','.join(R1_fs)
+    #R2_fs = ','.join(R2_fs)
 
     bash_script = f"""
     #!/bin/bash
