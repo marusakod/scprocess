@@ -126,7 +126,9 @@ def detect_sample_chemistry(fastq_dir, sample, wl_dict, r1_max=3):
     return chem_stats_df
 
 # function to process all samples in parallel
-def process_samples(fastq_dir, SAMPLES, wl_dict, chem_stats_f, num_cores, custom_chem_f = None):
+def process_samples(fastq_dir, SAMPLE_STR, wl_dict, chem_stats_f, num_cores, custom_chem_f = None):
+
+    SAMPLES = list_of_strings(SAMPLE_STR)
 
     # check if custom chemistry file exists 
     if custom_chem_f:
@@ -176,7 +178,7 @@ if __name__ == "__main__":
     # get argument values
     argParser = argparse.ArgumentParser()
     argParser.add_argument("-f", "--fastqdir", type=str, help="project directory", required=True)
-    argParser.add_argument("-s", "--samples", type =list_of_strings, help="path to metadata file", required=True)
+    argParser.add_argument("-s", "--samples", type =str, help="path to metadata file", required=True)
     argParser.add_argument("-o", "--outf", type=str,  help="path to output file", required=True)
     argParser.add_argument("-b", "--barcodes", type = str, help=".csv file with paths to barcode whitelists", required=True)
     argParser.add_argument("-c", "--cores", type = int, help="number of cores to use", default= 1)
@@ -188,13 +190,15 @@ if __name__ == "__main__":
     # get whitelist files
     wl_df = pd.read_csv(wl_csv_f)
     
+    # get directory of all whitelists
+    wl_dir = os.path.dirname(wl_csv_f)
     # dictionary to hold whitelist data
     wl_dict = {}
     for index, row in wl_df.iterrows():
         chem = row['chemistry']
-        barcodes_f = row['barcodes_f']
+        barcodes_f = os.path.join(wl_dir, row['barcodes_f'])
         wl_dict[chem] = np.loadtxt(barcodes_f, dtype='str')
 
     # process samples in parallel
-    process_samples(fastq_dir=args.fastqdir, SAMPLES=args.samples, wl_dict=wl_dict, chem_stats_f=args.outf, num_cores=args.cores)
+    process_samples(fastq_dir=args.fastqdir, SAMPLE_STR =args.samples, wl_dict=wl_dict, chem_stats_f=args.outf, num_cores=args.cores)
 

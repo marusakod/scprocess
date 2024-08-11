@@ -7,7 +7,6 @@ rule detect_chemistry:
   input: 
     wl_f  = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_whitelists.csv'
   threads: 8
-  retries: 5
   resources:    
     mem_mb = 8192
   conda: 
@@ -15,8 +14,9 @@ rule detect_chemistry:
   output:
     chem_f = af_dir + '/chemistry_stats.csv'
   shell:
-    """  
-    python3 scripts/detect_chemistry.py {FASTQ_DIR} {SAMPLE_STR} {input.wl_f} {output.chem_f} {threads}
+    """ 
+    mkdir -p {af_dir}  
+    python3 scripts/detect_chemistry.py -f {FASTQ_DIR} -s {SAMPLE_STR} -b {input.wl_f} -o {output.chem_f} -c {threads}
     
     """
     
@@ -26,8 +26,7 @@ rule run_alevin_fry:
     chem_stats  = af_dir + '/chemistry_stats.csv',
     R1_fs      = lambda wildcards: find_fastq_files(fastqs_dir, wildcards.sample, "R1"),
     R2_fs      = lambda wildcards: find_fastq_files(fastqs_dir, wildcards.sample, "R2")
-  threads: 16
-  retries: 5
+  threads: 8
   resources:
     mem_mb      = 16384
   output:
@@ -60,7 +59,6 @@ rule save_alevin_to_h5:
     cb_yaml_f   = af_dir + '/af_{sample}/bender_params_{sample}_' + DATE_STAMP + '.yaml',
     knee_data_f = af_dir + '/af_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
   threads: 1
-  retries: 5
   resources:
     mem_mb      = 8192
   conda: 
