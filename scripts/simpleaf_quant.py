@@ -29,7 +29,7 @@ def get_simpleaf_counts(sample, chem_csv, AF_HOME_DIR, af_out_dir, AF_INDEX_DIR,
     # get params
     AF_CHEMISTRY, whitelist_f, exp_ori = parse_params_for_af_quant(sample, chem_csv)
     R1_fs = ','.join(R1_fs)
-    R2_fs = ',',join(R2_fs)
+    R2_fs = ','.join(R2_fs)
 
     bash_script = f"""
     #!/bin/bash
@@ -38,14 +38,10 @@ def get_simpleaf_counts(sample, chem_csv, AF_HOME_DIR, af_out_dir, AF_INDEX_DIR,
     export ALEVIN_FRY_HOME="{AF_HOME_DIR}"
     simpleaf set-paths
   
-    # get read1 and read2 files 
-    R1_fs=$(echo {R1_fs} | sed "s/ /,/g")
-    R2_fs=$(echo {R2_fs} | sed "s/ /,/g")
-
     # simpleaf quantfication
     simpleaf quant \
-      --reads1 $R1_fs  \
-      --reads2 $R2_fs  \
+      --reads1 {R1_fs}  \
+      --reads2 {R2_fs}  \
       --threads {cores} \
       --index {AF_INDEX_DIR}/index \
       --chemistry {AF_CHEMISTRY} --resolution cr-like \
@@ -54,6 +50,8 @@ def get_simpleaf_counts(sample, chem_csv, AF_HOME_DIR, af_out_dir, AF_INDEX_DIR,
       --unfiltered-pl {whitelist_f} --min-reads 1 \
       --output {af_out_dir}/af_{sample}
     """
+	
+
     print('Running simpleaf quant for ' + sample)
     # run bash script
     subprocess.run(bash_script, shell=True, executable='/bin/bash', check=True)

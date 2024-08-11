@@ -46,7 +46,8 @@ rule run_alevin_fry:
     {af_dir} \
     {AF_INDEX_DIR} \
     {input.R1_fs} \
-    {input.R2_fs} \{threads}
+    {input.R2_fs} \
+    {threads}
 
     """
 
