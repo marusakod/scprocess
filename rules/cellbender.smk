@@ -115,7 +115,7 @@ if DO_CELLBENDER:
       tmp_f     = temp(cb_dir + '/bender_{sample}/ckpt.tar.gz')
     threads: 1
     resources:
-      mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_CELLBENDER,
+      mem_mb      = 8192,
       nvidia_gpu  = 1
     singularity:
       CELLBENDER_IMAGE
@@ -205,7 +205,7 @@ rule get_cellbender_qc_metrics:
     cb_qc_f     = cb_dir + '/bender_{sample}/bender_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz'
   threads: 1
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_GET_CELLBENDER_QC_METRICS
+    mem_mb      = 8192
   conda: 
    '../envs/rlibs.yml'
   shell:
