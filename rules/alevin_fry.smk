@@ -24,8 +24,8 @@ rule detect_chemistry:
 rule run_alevin_fry:
   input:
     chem_stats  = af_dir + '/chemistry_stats.csv',
-    R1_fs      = lambda wildcards: find_fastq_files(fastqs_dir, wildcards.sample, "R1"),
-    R2_fs      = lambda wildcards: find_fastq_files(fastqs_dir, wildcards.sample, "R2")
+    R1_fs      = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.sample, "R1"),
+    R2_fs      = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.sample, "R2")
   threads: 8
   resources:
     mem_mb      = 16384
@@ -39,15 +39,7 @@ rule run_alevin_fry:
     '../envs/alevin_fry.yml'
   shell:
     """
-    python3 scripts/simpleaf_quant.py \
-    {wildcards.sample} \
-    {input.chem_stats} \
-    {AF_HOME_DIR} \
-    {af_dir} \
-    {AF_INDEX_DIR} \
-    {input.R1_fs} \
-    {input.R2_fs} \
-    {threads}
+    python3 scripts/simpleaf_quant.py {wildcards.sample} {input.chem_stats} {AF_HOME_DIR} {af_dir} {AF_INDEX_DIR} {input.R1_fs} {input.R2_fs} {threads}
 
     """
 

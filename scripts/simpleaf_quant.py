@@ -9,7 +9,7 @@ def parse_params_for_af_quant(sample, chem_csv):
     # read dataframe with chemistries
  chem_df = pd.read_csv(chem_csv)
  filt_chem_df = chem_df[chem_df['sample_id'] == sample]
- filt_chem_df = filt_chem_df.reset_index(drop = TRUE)
+ filt_chem_df = filt_chem_df.reset_index(drop = True)
  chem = filt_chem_df.loc[0, 'version']
 
  assert chem in ['3v3', '3v2_5v1_5v2'], \
