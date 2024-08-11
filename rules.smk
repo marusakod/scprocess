@@ -15,6 +15,9 @@ PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, ME
   get_project_parameters(config)
 SPECIES, AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY_F = \
   get_alevin_parameters(config, SCPROCESS_DATA_DIR)
+CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, DO_CELLBENDER, CUSTOM_CELLBENDER_PARAMS_F, \
+FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, \
+CELLBENDER_LEARNING_RATE = get_cellbender_parameters(config)
 
 # specify locations
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
@@ -53,10 +56,17 @@ rule all:
       af_dir    + '/af_{sample}/af_quant/alevin/quants_mat_rows.txt',
       af_dir    + '/af_{sample}/af_counts_mat.h5',
       af_dir    + '/af_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
-      af_dir    + '/af_{sample}/bender_params_{sample}_' + DATE_STAMP + '.yaml'
-      ], sample = SAMPLES)
+      af_dir    + '/af_{sample}/bender_params_{sample}_' + DATE_STAMP + '.yaml',
+      # cellbender
+      cb_dir    + '/bender_{sample}/bender_{sample}_' + DATE_STAMP + '.h5',
+      cb_dir    + '/bender_{sample}/bender_{sample}_' + DATE_STAMP + '_filtered.h5',
+      cb_dir    + '/bender_{sample}/bender_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz',
+      ], sample = SAMPLES), 
+      # find bender bad samples
+      cb_dir    + '/bender_bad_samples_' + DATE_STAMP + '.txt'
 
 
 # define rules that are needed
 include: "rules/alevin_fry.smk"
+include: "rules/cellbender.smk"
 
