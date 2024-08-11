@@ -37,7 +37,7 @@ def extract_raw_seqs_from_fq(fastq_all):
 
 
 # Function to detect chemistry for one sample
-def detect_sample_chemistry(fastq_dir, sample, wl_dict, r1_max=3):
+def detect_sample_chemistry(fastq_dir, sample, wl_bcs_dict, wl_path_dict, r1_max=3):
    
     # Get list with R1 fastqs
     R1_f = find_R1_files(fastq_dir, sample)
@@ -48,7 +48,7 @@ def detect_sample_chemistry(fastq_dir, sample, wl_dict, r1_max=3):
         R1_f = random.sample(R1_f, r1_max)
 
     # Store overlap proportions 
-    overlap_dict = {chem: [] for chem in wl_dict}
+    overlap_dict = {chem: [] for chem in wl_bcs_dict}
 
     for file in R1_f:
         print(f'Extracting barcodes from ' + file)
@@ -65,7 +65,7 @@ def detect_sample_chemistry(fastq_dir, sample, wl_dict, r1_max=3):
         print(f'Number of unique barcodes: {n}')
 
         # calculate fraction of barcodes in each whitelist
-        for chem, wl in wl_dict.items():
+        for chem, wl in wl_bcs_dict.items():
             overlap = sum(np.in1d(barcodes, wl)) / n
             print(f'Overlap with whitelist {chem}: {overlap:.1%}')
             overlap_dict[chem].append(overlap)
@@ -114,21 +114,36 @@ def detect_sample_chemistry(fastq_dir, sample, wl_dict, r1_max=3):
 
     # Summarize output  
     chem_stats_df = pd.DataFrame({
-        'sample_id': sample,
-        'n_R1_fastqs': len(R1_f), 
-        'max_pct_overlap': round(max(max_values) * 100, 1),
-        'version': version, 
-        'af_chem': af_chem, 
-        'expected_ori': exp_ori, 
-        'wl_f': wl_dict[version]
+        'sample_id': [sample],
+        'n_R1_fastqs': [len(R1_f)], 
+        'max_pct_overlap': [round(max(max_values) * 100, 1)],
+        'version': [version], 
+        'af_chem': [af_chem], 
+        'expected_ori': [exp_ori], 
+        'wl_f': [wl_path_dict[version]]
     })
 
     return chem_stats_df
 
 # function to process all samples in parallel
-def process_samples(fastq_dir, SAMPLE_STR, wl_dict, chem_stats_f, num_cores, custom_chem_f = None):
+def process_samples(fastq_dir, SAMPLE_STR, wl_path_f, chem_stats_f, num_cores, custom_chem_f = None):
+     
+    # convert sample string to list
+    SAMPLES =list_of_strings(SAMPLE_STR)
 
-    SAMPLES = list_of_strings(SAMPLE_STR)
+    # get whitelists and their paths
+    wl_df = pd.read_csv(wl_path_f)
+
+    wl_dir = os.path.dirname(wl_path_f)
+    
+    wl_path_dict = {}
+    wl_bcs_dict = {}
+    for index, row in wl_df.iterrows():
+        chem = row['chemistry']
+        barcodes_f = os.path.join(wl_dir, row['barcodes_f'])
+        wl_bcs_dict[chem] = np.loadtxt(barcodes_f, dtype='str')
+        wl_path_dict[chem] = barcodes_f
+    
 
     # check if custom chemistry file exists 
     if custom_chem_f:
@@ -154,11 +169,11 @@ def process_samples(fastq_dir, SAMPLE_STR, wl_dict, chem_stats_f, num_cores, cus
      chem_df['wl_chem'] = chem_df['version'].apply(lambda x: '3v2_5v1_5v2' if x in ['3v2', '5v1', '5v2'] else x)
      chem_df['expected_ori'] = chem_df['version'].apply(lambda x: 'fw' if x in ['3LT', '3v2', '3v3', 'multiome'] else 'both')
      # get the right whitelists
-     chem_df['wl_f'] = [wl_dict[c] for c in chem_df['wl_chem'].tolist()]
+     chem_df['wl_f'] = [wl_path_dict[c] for c in chem_df['wl_chem'].tolist()]
 
     else:
      with multiprocessing.Pool(processes= num_cores) as pool:
-      results = pool.starmap(detect_sample_chemistry, [(fastq_dir, s, wl_dict) for s in SAMPLES])
+      results = pool.starmap(detect_sample_chemistry, [(fastq_dir, s, wl_bcs_dict, wl_path_dict) for s in SAMPLES])
 
     # concatenate all data frames in the list
       chem_df = pd.concat(results, ignore_index=True)
@@ -181,24 +196,12 @@ if __name__ == "__main__":
     argParser.add_argument("-s", "--samples", type =str, help="path to metadata file", required=True)
     argParser.add_argument("-o", "--outf", type=str,  help="path to output file", required=True)
     argParser.add_argument("-b", "--barcodes", type = str, help=".csv file with paths to barcode whitelists", required=True)
+    argParser.add_argument("-v", "--version", type = str, help="csv files where chemistry is defined for each sample", required=False)
     argParser.add_argument("-c", "--cores", type = int, help="number of cores to use", default= 1)
 
     args = argParser.parse_args()
 
-    wl_csv_f = args.barcodes
-
-    # get whitelist files
-    wl_df = pd.read_csv(wl_csv_f)
-    
-    # get directory of all whitelists
-    wl_dir = os.path.dirname(wl_csv_f)
-    # dictionary to hold whitelist data
-    wl_dict = {}
-    for index, row in wl_df.iterrows():
-        chem = row['chemistry']
-        barcodes_f = os.path.join(wl_dir, row['barcodes_f'])
-        wl_dict[chem] = np.loadtxt(barcodes_f, dtype='str')
 
     # process samples in parallel
-    process_samples(fastq_dir=args.fastqdir, SAMPLE_STR =args.samples, wl_dict=wl_dict, chem_stats_f=args.outf, num_cores=args.cores)
+    process_samples(fastq_dir=args.fastqdir, SAMPLE_STR =args.samples, wl_path_f=args.barcodes, chem_stats_f=args.outf, num_cores=args.cores, custom_chem_f= args.version)
 
