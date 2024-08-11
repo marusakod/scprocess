@@ -62,7 +62,7 @@ def get_simpleaf_counts(sample, chem_csv, AF_HOME_DIR, af_out_dir, AF_INDEX_DIR,
 
 # make script work from command line
 
-if __name__ == '__main:__':
+if __name__ == "__main__":
    parser = argparse.ArgumentParser()
    parser.add_argument('sample', type = str)
    parser.add_argument('chem_csv', type=str)

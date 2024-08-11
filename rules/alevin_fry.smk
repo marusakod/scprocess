@@ -42,6 +42,7 @@ rule run_alevin_fry:
     '../envs/alevin_fry.yml'
   shell:
     """
+
     python3 scripts/simpleaf_quant.py {wildcards.sample} {input.chem_stats} {AF_HOME_DIR} {af_dir} {AF_INDEX_DIR} {params.R1_fs_str} {params.R2_fs_str} {threads}
 
     """
