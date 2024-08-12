@@ -35,8 +35,7 @@ if DO_CELLBENDER:
       sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
     output:
       sce_all_f   = sce_dir + '/sce_' + ('bender' if DO_CELLBENDER else 'alevin') + '_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
-    threads: 16
-      retries: 5
+    threads: 8
     resources:
       mem_mb    = 8192
     conda:
@@ -60,8 +59,7 @@ else:
       sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
     output:
       sce_all_f   = sce_dir + '/sce_' + ('bender' if DO_CELLBENDER else 'alevin') + '_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
-    threads: 16
-      retries: 5
+    threads: 8
     resources:
       mem_mb    = 8192
     conda:

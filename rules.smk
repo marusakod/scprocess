@@ -20,6 +20,11 @@ FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, 
 CELLBENDER_LEARNING_RATE = get_cellbender_parameters(config)
 SCE_BENDER_PROB = \
   get_make_sce_parameters(config)
+DBL_MIN_FEATS = \
+  get_doublet_id_parameters(config)
+QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_FEATS, \
+  QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, QC_FILTER_BENDER = \
+  get_qc_parameters(config)
 
 # specify locations
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
