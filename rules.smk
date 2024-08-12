@@ -18,6 +18,8 @@ SPECIES, AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY_F = \
 CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, DO_CELLBENDER, CUSTOM_CELLBENDER_PARAMS_F, \
 FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, \
 CELLBENDER_LEARNING_RATE = get_cellbender_parameters(config)
+SCE_BENDER_PROB = \
+  get_make_sce_parameters(config)
 
 # specify locations
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
@@ -63,10 +65,15 @@ rule all:
       cb_dir    + '/bender_{sample}/bender_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz',
       ], sample = SAMPLES), 
       # find bender bad samples
-      cb_dir    + '/bender_bad_samples_' + DATE_STAMP + '.txt'
+      cb_dir    + '/bender_bad_samples_' + DATE_STAMP + '.txt', 
+      # make sce input df
+      sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+      # make sce
+      sce_dir   + '/sce_' + ('bender' if DO_CELLBENDER else 'alevin') + '_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
 
 
 # define rules that are needed
 include: "rules/alevin_fry.smk"
 include: "rules/cellbender.smk"
+include: "rules/make_sce.smk"
 

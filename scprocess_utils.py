@@ -211,3 +211,26 @@ def get_cellbender_parameters(config):
     FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE
 
 
+def get_make_sce_parameters(config):  
+  # set default values
+  SCE_BENDER_PROB = 0.5
+
+  # change defaults if specified
+  if ('make_sce' in config) and (config['make_sce'] is not None):
+    if 'sce_bender_prob' in config['make_sce']:
+      SCE_BENDER_PROB = config['make_sce']['sce_bender_prob']
+
+  return SCE_BENDER_PROB
+
+
+# define doublet_id parameters
+def get_doublet_id_parameters(config):  
+  # set default values
+  DBL_MIN_FEATS = 100
+
+  # change defaults if specified
+  if ('doublet_id' in config) and (config['doublet_id'] is not None):
+    if 'dbl_min_feats' in config['doublet_id']:
+      DBL_MIN_FEATS = config['doublet_id']['dbl_min_feats']
+
+  return DBL_MIN_FEATS
