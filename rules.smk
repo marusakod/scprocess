@@ -67,7 +67,10 @@ rule all:
       # cellbender
       cb_dir    + '/bender_{sample}/bender_{sample}_' + DATE_STAMP + '.h5',
       cb_dir    + '/bender_{sample}/bender_{sample}_' + DATE_STAMP + '_filtered.h5',
-      cb_dir    + '/bender_{sample}/bender_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz',
+      cb_dir    + '/bender_{sample}/bender_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', 
+      # doublet id
+      dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       ], sample = SAMPLES), 
       # find bender bad samples
       cb_dir    + '/bender_bad_samples_' + DATE_STAMP + '.txt', 
@@ -75,10 +78,19 @@ rule all:
       sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       # make sce
       sce_dir   + '/sce_' + ('bender' if DO_CELLBENDER else 'alevin') + '_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+      # doublet_id
+      dbl_dir   + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+      dbl_dir   + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      dbl_dir   + '/scDblFinder_combined_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      # qc
+      qc_dir    + '/qc_dt_'   + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      qc_dir    + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
 
 
 # define rules that are needed
 include: "rules/alevin_fry.smk"
 include: "rules/cellbender.smk"
 include: "rules/make_sce.smk"
+include: "rules/doublet_id.smk"
+include: "rules/qc.smk"
 

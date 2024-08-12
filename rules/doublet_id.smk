@@ -1,0 +1,62 @@
+# snakemake rule for running scDblFinder on sce object
+
+localrules: make_dbl_files_df
+
+rule run_scDblFinder:
+  input:
+    cb_bad_f    = cb_dir + '/bender_bad_samples_' + DATE_STAMP + '.txt',
+    sce_all_f   = sce_dir + '/sce_' + ('bender' if DO_CELLBENDER else 'alevin') + '_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+  output:
+    dbl_f       = dbl_dir + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz',
+    dimred_f    = dbl_dir + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz'
+  threads: 1
+  resources:
+    mem_mb      = 8192
+  conda: 
+   '../envs/rlibs.yml'
+  shell:
+   """
+    # run scDblFinder
+    Rscript -e "source('scripts/doublet_id.R'); main_doublet_id('{wildcards.sample}', '{input.sce_all_f}', \
+    '{input.cb_bad_f}', '{output.dbl_f}', '{output.dimred_f}', min_feats = {DBL_MIN_FEATS})"
+   """
+
+
+# input strings to make_sce_object were suuuuuper long, so we use a df instead
+rule make_dbl_files_df:
+  input:
+    scdbl_ls    = expand(dbl_dir + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz', sample = SAMPLES),
+    dimred_ls   = expand(dbl_dir + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz', sample = SAMPLES)
+  output:
+    dbl_fs_f    = dbl_dir + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+  run:
+    # make pandas dataframe of cellbender outputs
+    df = pd.DataFrame({
+      'sample_id':  SAMPLES,
+      'dbl_f':      input.scdbl_ls,
+      'dimred_f':   input.dimred_ls
+    })
+
+    # save dataframe
+    df.to_csv(output.dbl_fs_f, index = False)
+
+
+rule combine_scDblFinder_outputs:
+  input:
+    dbl_fs_f        = dbl_dir + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+  output:
+    # doublet_id
+    combn_dbl_f     = dbl_dir + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    combn_dimred_f  = dbl_dir + '/scDblFinder_combined_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+  threads: 8
+  resources:
+    mem_mb    = 8192
+  conda: 
+    '../envs/rlibs.yml'
+  shell:
+    """
+    # combine scDblFinder outputs
+    Rscript -e "source('scripts/doublet_id.R'); \
+      combine_scDblFinder_outputs(dbl_fs_f = '{input.dbl_fs_f}', combn_dbl_f = '{output.combn_dbl_f}', \
+      combn_dimred_f = '{output.combn_dimred_f}', n_cores = {threads})"
+    """
