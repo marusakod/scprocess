@@ -319,9 +319,9 @@ def get_integration_parameters(config, mito_str):
 
 
 # define marker_genes parameters
-def get_marker_genes_parameters(config, SPECIES): 
+def get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR): 
   # set some more default values
-  MKR_GSEA_DIR    = "/projects/site/pred/neurogenomics/resources/scprocess_data/data/gmt_pathways"
+  MKR_GSEA_DIR    = os.path.join(SCPROCESS_DATA_DIR, 'gmt_pathways')
   MKR_MIN_CL_SIZE = 1e2
   MKR_MIN_CELLS   = 10
   MKR_NOT_OK_RE   = "(lincRNA|lncRNA|pseudogene|antisense)"
@@ -330,17 +330,13 @@ def get_marker_genes_parameters(config, SPECIES):
   MKR_MAX_ZERO_P  = 0.5
   MKR_GSEA_CUT    = 0.1
 
-  # specify canonical marker file
-  if SPECIES == "human":
-    MKR_CANON_F     = "/projects/site/pred/neurogenomics/resources/scprocess_data/data/marker_genes/canonical_brain_celltype_markers_human_2023-10-17.txt"
-  elif SPECIES == "mouse":
-    MKR_CANON_F     = "/projects/site/pred/neurogenomics/resources/scprocess_data/data/marker_genes/canonical_brain_celltype_markers_mouse_2023-10-17.txt"
-  elif SPECIES == "human_ebv":
-    MKR_CANON_F     = "/projects/site/pred/neurogenomics/resources/scprocess_data/data/marker_genes/canonical_brain_celltype_markers_human_2023-10-17.txt"
-  elif SPECIES == "cyno":
-    MKR_CANON_F     = "/projects/site/pred/neurogenomics/resources/scprocess_data/data/marker_genes/canonical_brain_celltype_markers_human_2023-10-17.txt"
+  # specify canonical marker file; this should depend on both species and organ; could be added to config as input param
+  if SPECIES in ["human_2020", "human_2024"]:
+    MKR_CANON_F     = os.path.join(SCPROCESS_DATA_DIR,"marker_genes/canonical_brain_celltype_markers_human_2023-10-17.txt")
+  elif SPECIES in ["mouse_2020", "mouse_2024"]:
+    MKR_CANON_F     = os.path.join(SCPROCESS_DATA_DIR,"marker_genes/canonical_brain_celltype_markers_mouse_2023-10-17.txt")
   else:
-    ValueError(f"MKR_CANON_F not defined for species {SPECIES}")
+    MKR_CANON_F = ""
 
   # change defaults if specified
   if ('marker_genes' in config) and (config['marker_genes'] is not None):
