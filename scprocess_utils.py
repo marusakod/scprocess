@@ -284,17 +284,10 @@ def get_qc_parameters(config):
 
 
 # define integration parameters
-def get_integration_parameters(config): 
+def get_integration_parameters(config, mito_str): 
   # set default values
-  SPECIES       = config["alevin"]["species"]
-  if SPECIES == "human":
-    INT_EXC_REGEX   = "^MT-"
-  elif SPECIES == "mouse":
-    INT_EXC_REGEX   = "^mt-"
-  elif SPECIES == "human_ebv":
-    INT_EXC_REGEX   = "^MT-"
-  elif SPECIES == "cyno":
-    INT_EXC_REGEX   = "^(ATP6|ATP8|COX1|COX2|COX3|CYTB|ND1|ND2|ND3|ND4|ND4L|ND5|ND6)$"
+  INT_EXC_REGEX   = mito_str
+
 
   # set some more default values
   INT_N_DIMS      = 50

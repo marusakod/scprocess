@@ -26,7 +26,7 @@ QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_F
   QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, QC_FILTER_BENDER = \
   get_qc_parameters(config)
 INT_EXC_REGEX, INT_N_HVGS, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES = \
-  get_integration_parameters(config)
+  get_integration_parameters(config, AF_MITO_STR)
 
 # specify locations
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
