@@ -25,6 +25,8 @@ DBL_MIN_FEATS = \
 QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_FEATS, \
   QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, QC_FILTER_BENDER = \
   get_qc_parameters(config)
+INT_EXC_REGEX, INT_N_HVGS, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES = \
+  get_integration_parameters(config)
 
 # specify locations
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
@@ -84,7 +86,11 @@ rule all:
       dbl_dir   + '/scDblFinder_combined_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
       # qc
       qc_dir    + '/qc_dt_'   + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      qc_dir    + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      qc_dir    + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+      # integration
+      int_dir   + '/sce_clean_'           + FULL_TAG + '_' + DATE_STAMP + '.rds',
+      int_dir   + '/integrated_dt_'       + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      int_dir   + '/harmony_hvgs_'        + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
 
 
 # define rules that are needed
@@ -93,4 +99,5 @@ include: "rules/cellbender.smk"
 include: "rules/make_sce.smk"
 include: "rules/doublet_id.smk"
 include: "rules/qc.smk"
+include: "rules/integration.smk"
 
