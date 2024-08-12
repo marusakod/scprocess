@@ -29,20 +29,20 @@ rule make_sce_input_df:
     df.to_csv(output.sce_df, index = False)
 
 
-rule make_sce_object:
-  input:
-    sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
-  output:
-    sce_all_f   = sce_dir + '/sce_' + ('bender' if DO_CELLBENDER else 'alevin') + '_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
-  threads: 16
-  retries: 5
-  resources:
-    mem_mb    = 8192
-  conda:
-    '../envs/rlibs.yml'
-  run:
-    if DO_CELLBENDER:      
-      shell("""
+if DO_CELLBENDER:
+  rule make_sce_object:
+    input:
+      sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    output:
+      sce_all_f   = sce_dir + '/sce_' + ('bender' if DO_CELLBENDER else 'alevin') + '_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+    threads: 16
+      retries: 5
+    resources:
+      mem_mb    = 8192
+    conda:
+      '../envs/rlibs.yml'
+    shell:
+      """
         Rscript -e "source('scripts/make_sce.R'); \
           save_cellbender_as_sce( \
             sce_df      = '{input.sce_df}', \
@@ -52,9 +52,22 @@ rule make_sce_object:
             sce_f       = '{output.sce_all_f}', \
             bender_prob = {SCE_BENDER_PROB}, \
             n_cores     = {threads})"
-        """)
-    else:
-      shell("""
+      """
+else:
+  localrules: make_sce_object
+  rule make_sce_object:
+    input:
+      sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    output:
+      sce_all_f   = sce_dir + '/sce_' + ('bender' if DO_CELLBENDER else 'alevin') + '_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+    threads: 16
+      retries: 5
+    resources:
+      mem_mb    = 8192
+    conda:
+      '../envs/rlibs.yml'
+    shell:
+      """
         Rscript -e "source('scripts/make_sce.R'); \
           save_alevin_h5_as_sce( \
             sce_df      = '{input.sce_df}', \
@@ -65,5 +78,5 @@ rule make_sce_object:
             sce_f       = '{output.sce_all_f}', \
             min_counts  = {QC_HARD_MIN_COUNTS}, \
             n_cores     = {threads})"
-        """)
+      """
 
