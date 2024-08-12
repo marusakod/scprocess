@@ -77,7 +77,7 @@ rule all:
       # make sce input df
       sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       # make sce
-      sce_dir   + '/sce_' + ('bender' if DO_CELLBENDER else 'alevin') + '_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+      sce_dir   + '/sce_' + ('bender' if DO_CELLBENDER else 'alevin') + '_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
       # doublet_id
       dbl_dir   + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       dbl_dir   + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',

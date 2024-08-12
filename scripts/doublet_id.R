@@ -8,6 +8,7 @@ suppressMessages({
   library('SingleCellExperiment')
   library('scater')
   library('Matrix')
+  library('tidyverse')
 
   library('scDblFinder')
   library('BiocParallel')
