@@ -53,7 +53,7 @@ rule save_alevin_to_h5:
     fry_dir     = af_dir + '/af_{sample}/af_quant/'
   output: 
     h5_f        = af_dir + '/af_{sample}/af_counts_mat.h5',
-    cb_yaml_f   = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml',
+    amb_yaml_f   = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml',
     knee_data_f = af_dir + '/af_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
   threads: 1
   resources:
@@ -64,6 +64,6 @@ rule save_alevin_to_h5:
     """
     Rscript -e "source('scripts/alevin_fry.R'); \
       save_alevin_h5_calculate_cb_params('{wildcards.sample}', '{input.fry_dir}', \
-        '{output.h5_f}', '{output.cb_yaml_f}', '{output.knee_data_f}')"
+        '{output.h5_f}', '{output.amb_yaml_f}', '{output.knee_data_f}')"
     """
 

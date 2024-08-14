@@ -6,11 +6,11 @@ import pandas as pd
 
 localrules: exclude_bad_cellbender_samples
 
-def parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, sample, cb_yaml_f,
+def parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, sample, amb_yaml_f,
                          FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE):
 
     # get cellbender parameters from yaml file
-    with open(cb_yaml_f) as f:
+    with open(amb_yaml_f) as f:
         cb_params = yaml.load(f, Loader=yaml.FullLoader)
         
     # get parameters for cellbender
@@ -141,7 +141,7 @@ if AMBIENT_METHOD == 'cellbender':
   rule run_ambient:
     input:
       h5_f      = af_dir + '/af_{sample}/af_counts_mat.h5',
-      cb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
+      amb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
     params:
       expected_cells          = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
@@ -224,7 +224,7 @@ elif AMBIENT_METHOD == 'decontx':
   rule run_ambient:
     input:
       h5_f      = af_dir + '/af_{sample}/af_counts_mat.h5',
-      cb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
+      amb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
     params:
       expected_cells          = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
@@ -292,7 +292,7 @@ else:
   rule run_ambient:
     input:
       h5_f      = af_dir + '/af_{sample}/af_counts_mat.h5',
-      cb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
+      amb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
     params:
       expected_cells          = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
@@ -357,9 +357,9 @@ else:
 rule get_barcode_qc_metrics:
   input:
     af_h5_f     = af_dir + '/af_{sample}/af_counts_mat.h5',
-    amb_yaml_f  = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
+    amb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
   params:
-    expected_cells = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+    expected_cells          = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[0]
   output:
