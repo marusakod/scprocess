@@ -4,8 +4,8 @@ localrules: make_dbl_files_df
 
 rule run_scDblFinder:
   input:
-    cb_bad_f    = cb_dir + '/bender_bad_samples_' + DATE_STAMP + '.txt',
-    sce_all_f   = sce_dir + '/sce_' + ('bender' if DO_CELLBENDER else 'alevin') + '_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+    cb_bad_f    = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',
+    sce_all_f   = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   output:
     dbl_f       = dbl_dir + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz',
     dimred_f    = dbl_dir + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz'
