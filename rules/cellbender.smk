@@ -381,8 +381,8 @@ rule get_barcode_qc_metrics:
 
 rule get_ambient_sample_statistics:
   input:
-    metrics_fs  = af_dir + '/af_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
-    amb_yaml_fs = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
+    metrics_fs  = expand(af_dir + '/af_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=SAMPLES),
+    amb_yaml_fs = expand(amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml', sample=SAMPLES)
   output:
     smpl_stats_f    = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt'
   run:
