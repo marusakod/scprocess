@@ -1,5 +1,6 @@
 # QC of cellbender input parameters
 
+
 suppressPackageStartupMessages({
   library('data.table')
   library('magrittr')
@@ -15,86 +16,324 @@ suppressPackageStartupMessages({
   library('ggbeeswarm')
   library('BiocParallel')
   library('robustbase')
+
+  library("decontX")
+  library("strex")
+  library("testit")
+  library('yaml')
+
 })
 
-# proj_dir    = "/projects/site/pred/neurogenomics/users/macnairw/Ramesh_2020"
-# af_h5_f     = file.path(proj_dir, 
-#   "output/Ramesh01_alevin_fry/af_SRR12483473/af_counts_mat.h5")
-# cb_h5_f     = file.path(proj_dir, 
-#   "output/Ramesh02_cellbender/bender_SRR12483473/bender_SRR12483473_2023-08-23.h5")
-# knee_data_f   = file.path(proj_dir, "output/Ramesh01_alevin_fry/af_SRR12483473/knee_plot_data_SRR12483473_2023-08-23.txt.gz")
+# get matrix with (decontx cleaned) cells and a list of barcodes called as cells
+get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, sel_s, af_mat_f,
+                                      knee_1 = NULL, knee_2 = NULL, inf_1 = NULL,
+                                      total_included = NULL , exp_cells = NULL,
+                                      empty_start = NULL, empty_end = NULL,
+                                      cell_calls_method = c('barcodeRanks', 'emptyDrops'),
+                                      ncores = 4, niters = 1000, hvg_n = 2000,
+                                      ambient_method = c('none', 'decontx')){
+  # check inputs
+  call_m = match.arg(cell_calls_method)
+  amb_m = match.arg(ambient_method)
 
-save_cellbender_qc_metrics <- function(knee_data_f, af_h5_f, cb_h5_f, cb_qc_f, do_cellbender) {
-  # get expected cells from cellbender yaml
-  knee_dt     = knee_data_f %>% fread
-  n_exp_cells = knee_dt$expected_cells %>% unique
-  exp_cells   = knee_dt$barcode[ 1:n_exp_cells ]
+  # load alevin matrix
+  af_mat = .get_alevin_mx(af_mat_f = af_mat_f, sel_s = '')
+
+  # call cells and empties
+  cell_empty_bcs = call_cells_and_empties(af_mat, knee_1, knee_2, inf_1, inf_2,
+                                          total_included, exp_cells, empty_start, empty_end,
+                                          ncores, niters, call_m)
+  message('Cells and empty droplets found for ', sel_s)
+
+  # get matrix with cells
+  cell_bc_df = data.frame(barcode = cell_empty_bcs[["cells"]])
+  cell_mat = af_mat[, cell_bc_df$barcode]
+
+  # do ambient correction
+  if(ambient_method == 'none'){
+
+    message("Ambient RNA removal method is 'none'. Saving uncorrected count matrix for ", sel_s )
+    # return uncorrected matrix with just cells
+    write.csv(cell_bc_df, out_bcs_f, col.names = FALSE, quote = FALSE)
+    write10xCounts(out_mat_f, cell_mat, version = "3", overwrite = TRUE)
+
+
+  }else{
+
+    message("Running 'decontx' for ", sel_s)
+    # get empty matrix
+    empty_mat = af_mat[, cell_empty_bcs[["empty"]]]
+    dcx_res = decontX(x = cell_mat, background = empty_mat, varGenes = hvg_n)
+
+    # save decontaminated matrix
+    clean_mat = dcx_res$decontXcounts %>% round()
+    write10xCounts(dcx_f, clean_mat, version = "3", overwrite = TRUE)
+
+    # save barcodes
+    clean_bcs_df = data.frame(barcode = colnames(clean_mat))
+    write.csv(clean_bcs_df, out_bcs_f, col.names = FALSE, quote = FALSE)
+
+    # add save contamination proportions and decontx cluster assignment
+    dcx_params = data.frame(barcode = colnames(clean_mat),
+                            pct.contamination = dcx_res$contamination,
+                            dcx_cluster = dcx_res$z %>% sprintf("cl%02d", .) %>% factor)
+
+    fwrite(dcx_params, out_dcx_f)
+
+    message("'decontx' completed for ", sel_s)
+
+  }
+
+  return(NULL)
+}
+
+
+call_cells_and_empties <- function(af_mat,
+                       knee_1 = NULL, knee_2 = NULL, inf_1 = NULL,
+                       total_included = NULL , exp_cells = NULL,
+                       empty_start = NULL, empty_end = NULL,
+                       ncores = 4, n_iters = 1000,
+                       call_method = c('barcodeRanks', 'emptyDrops')){
+
+  # get barcode ranks
+  ranks = barcodeRanks(af_mat) %>% as.data.frame() %>%
+    rownames_to_column('barcode') %>%
+    arrange(rank)
+
+  # get empty droplets
+  if(is.null(empty_start) & is.null(empty_end)){
+
+    empty_locs = .get_empty_plateau(ranks_df = ranks,
+                                    inf1 = inf_1,
+                                    total_inc = total_included,
+                                    knee2 = knee_2)
+
+
+  }else{
+    empty_locs = c(empty_start, empty_end)
+  }
+
+  # get indices of empty barcodes
+  empty_bcs   = ranks %>%
+    filter(between(rank, empty_locs[1], empty_locs[2])) %>%
+    pull(barcode)
+  empty_idx = which(colnames(af_mat) %in% empty_bcs)
+
+  if(call_method == 'barcodeRanks'){
+    assert_that(!is.null(exp_cells))
+    cell_bcs = ranks$barcode[1: exp_cells]
+
+
+  }else{
+
+    # get sum of s+u+a counts (instead of this maybe try removing genes with v low expression)
+    # doing this because othewise takes too long
+    af_mat_sum =.sum_SUA(af_mat)
+
+    bpparam = MulticoreParam(workers = ncores, progressbar = TRUE)
+    # call cells
+
+    edrops_res = emptyDrops(m = af_mat_sum,
+                            niters = n_iters,
+                            BPPARAM = bpparam,
+                            known.empty = empty_idx,
+                            retain =  knee1)
+
+    # get cell barcodes
+    cell_bcs = edrops_res %>% as.data.frame() %>%
+      filter(FDR <= fdr_thr) %>%
+      rownames()
+
+  }
+
+  # return a list with both cell barcodes and empty barcodes
+  empty_cell_bcs_ls = list(empty = empty_bcs,
+                           cells = cell_bcs)
+  return(empty_cell_bcs_ls)
+
+}
+
+
+
+# sum spliced, unspliced and ambiguous counts for same gene
+.sum_SUA <- function(sua_mat){
+  types = c('_S$', '_U$', '_A')
+  mats = lapply(types, function(t) af_mat[grepl(t, rownames(af_mat)), ])
+  # check if symbols are all in the same order
+  genes = lapply(mats, function(m) rownames(m) %>% str_before_first(pattern = '_'))
+
+  assert("gene names in split matrices don't match",
+         sapply(genes, function(gs) identical(gs, genes[[1]])) %>% all())
+
+  # remove suffixes from rownames
+  mats = lapply(mats, function(m){
+    rownames(m) = str_before_first(rownames(m), pattern = '_')
+    m
+  })
+
+  mats_sum = mats[[1]] + mats[[2]] + mats[[3]]
+  return(mats_sum)
+
+}
+
+
+
+.get_alevin_mx <- function(af_mat_f, sel_s){
+  # get this file
+  h5_filt   = H5Fopen(af_mat_f, flags = "H5F_ACC_RDONLY" )
+
+  # get indices of barcodes
+  mat       = sparseMatrix(
+    i = as.vector(h5_filt$matrix$indices +1),
+    p = as.vector(h5_filt$matrix$indptr),
+    x = as.vector(h5_filt$matrix$data),
+    repr = "C",
+    dims = h5_filt$matrix$shape
+  ) %>% as("TsparseMatrix")
+
+  # add names
+  bcs           = h5_filt$matrix$barcodes
+  colnames(mat) = paste0(sel_s, ":", bcs)
+  rownames(mat) = h5_filt$matrix$features$name
+
+  return(mat)
+}
+
+
+.get_empty_plateau <- function(ranks_df, inf1, total_inc, knee2){
+
+  # calculate empty plateau
+  inf1_x = unique(ranks_df[ranks_df$total == inf1, "rank"])
+
+  empty_start = ranks_df %>% mutate(n = 1:nrow(.)) %>%
+    filter( between(rank, inf1_x, total_inc)) %>%
+    pull(n) %>%
+    log10 %>%
+    mean() %>%
+    10^.
+
+  empty_end = unique(ranks_df[ranks_df$total == knee2, "rank"])
+  empty_plateau = c(empty_start, empty_end) %>% as.numeric
+
+  return(empty_plateau)
+}
+
+#
+# save_cellbender_qc_metrics <- function(knee_data_f, af_h5_f, cb_h5_f, cb_qc_f, do_cellbender) {
+#   # get expected cells from cellbender yaml
+#   knee_dt     = knee_data_f %>% fread
+#   n_exp_cells = knee_dt$expected_cells %>% unique
+#   exp_cells   = knee_dt$barcode[ 1:n_exp_cells ]
+#
+#   # get alevin counts
+#   af_dt       = .get_alevin_USA_sums(af_h5_f, exp_cells)
+#   if (as.logical(do_cellbender)) {
+#     cb_dt       = .get_cellbender_USA_sums(cb_h5_f, exp_cells)
+#     assert_that( all( sort(af_dt$barcode) == sort(cb_dt$barcode) ))
+#
+#     # join together
+#     cb_qc_dt    = merge(af_dt, cb_dt, by = "barcode") %>%
+#       setkey("barcode") %>% .[ exp_cells ]
+#   } else {
+#     cb_qc_dt    = af_dt %>%
+#       setkey("barcode") %>% .[ exp_cells ]
+#   }
+#   fwrite(cb_qc_dt, file = cb_qc_f)
+# }
+#
+#
+# .get_alevin_USA_sums <- function(af_h5_f, exp_cells) {
+#   sce_af      = read10xCounts(af_h5_f)
+#   af_idx      = sce_af$Barcode %in% exp_cells
+#   mat_af      = counts(sce_af)[, af_idx ] %>%
+#     as("sparseMatrix") %>%
+#     set_colnames(sce_af$Barcode[ af_idx ])
+#
+#   af_dt       = .get_usa_dt(mat_af, "af")
+#
+#   return(af_dt)
+# }
+
+
+
+save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_cells, ambient_method) {
+
+  # read in the yaml file
+  amb_yaml = yaml::read_yaml(test_yaml)
+
+  # get the right ambient matrix file path from yaml
+  if(ambient_method == 'cellbender'){
+    # get unfiltered cellbender matrix
+    amb_mat_f = amb_yaml$cb_full_f
+  }else if(ambient_method == 'decontx'){
+    amb_mat_f = amb_yaml$dcx_filt_f
+  }else{
+    amb_mat_f = amb_yaml$cell_filt_f
+  }
 
   # get alevin counts
-  af_dt       = .get_alevin_USA_sums(af_h5_f, exp_cells)
-  if (as.logical(do_cellbender)) {
-    cb_dt       = .get_cellbender_USA_sums(cb_h5_f, exp_cells)
-    assert_that( all( sort(af_dt$barcode) == sort(cb_dt$barcode) ))
+  af_mat = .get_alevin_mx(af_h5_f, '')
 
-    # join together
-    cb_qc_dt    = merge(af_dt, cb_dt, by = "barcode") %>% 
+  if(ambient_method == 'cellbender'){
+    # get ranks
+    ranks = barcodeRanks(af_mat) %>% as.data.frame() %>%
+      rownames_to_column('barcode') %>%
+      arrange(rank)
+
+    # get expected barcodes
+    exp_cells = ranks$barcode[1:expected_cells]
+
+    # get cellbender matrix
+    cb_mat = .get_alevin_mx(amb_mat_f, '')
+
+    # restrict to barcodes that we care about
+    af_filt_mat = af_mat[, exp_cells]
+    cb_filt_mat = cb_mat[, exp_cells]
+
+    # sum s/u/a counts for each barcode
+    af_dt = .get_usa_dt(af_filt_mat, prefix = 'af')
+    cb_dt = .get_usa_dt(cb_filt_mat, prefix = 'cb')
+
+    # merge together
+    qc_dt = merge(af_dt, cb_dt, by = 'barcode') %>%
       setkey("barcode") %>% .[ exp_cells ]
-  } else {
-    cb_qc_dt    = af_dt %>% 
-      setkey("barcode") %>% .[ exp_cells ]
+
+  }else if(ambient_method == 'decontx'){
+
+    # get decontx matrix
+    dcx_mat = .get_alevin_mx(amb_mat_f, '')
+    # get same barcodes from raw alevin mat
+    af_filt_mat = af_mat[, colnames(dcx_mat)]
+
+    # sum s/u/a counts for each barcode
+    af_dt = .get_usa_dt(af_filt_mat, prefix = 'af')
+    dcx_dt = .get_usa_dt(dcx_mat, prefix = 'dcx')
+
+    # merge together
+    qc_dt = merge(af_dt, dcx_dt, by = 'barcode')
+
+  }else{
+
+    cell_mat = .get_alevin_mx(amb_mat_f, '')
+    qc_dt = .get_usa_dt(cell_mat, prefix = 'af')
+
   }
-  fwrite(cb_qc_dt, file = cb_qc_f)
+
+  return(qc_dt)
+
 }
+
 
 .get_usa_dt <- function(mat, prefix) {
   # get counts
   usa_ls      = c("S", "U", "A")
-  sums_ls     = usa_ls %>% sapply( function(x) 
-      colSums(mat[ str_detect(rownames(mat), paste0("_", x, "$")), ]) )
-  usa_dt      = sums_ls %>% set_colnames(paste0(prefix, "_", usa_ls)) %>% 
+  sums_ls     = usa_ls %>% sapply( function(x)
+    colSums(mat[ str_detect(rownames(mat), paste0("_", x, "$")), ]) )
+  usa_dt      = sums_ls %>% set_colnames(paste0(prefix, "_", usa_ls)) %>%
     as.data.table(keep.rownames = "barcode")
-  return(usa_dt)  
+  return(usa_dt)
 }
 
-.get_alevin_USA_sums <- function(af_h5_f, exp_cells) {
-  sce_af      = read10xCounts(af_h5_f)
-  af_idx      = sce_af$Barcode %in% exp_cells
-  mat_af      = counts(sce_af)[, af_idx ] %>% 
-    as("sparseMatrix") %>% 
-    set_colnames(sce_af$Barcode[ af_idx ])
-
-  af_dt       = .get_usa_dt(mat_af, "af")
-
-  return(af_dt)
-}
-
-.get_cellbender_USA_sums <- function(cb_h5_f, exp_cells) {
-  # get this file
-  h5_full     = H5Fopen( cb_h5_f, flags = "H5F_ACC_RDONLY" )
-
-  # get indices of barcodes
-  cb_mat      = sparseMatrix(
-    i = as.vector(h5_full$matrix$indices +1),
-    p = as.vector(h5_full$matrix$indptr),
-    x = as.vector(h5_full$matrix$data),
-    repr = "C",
-    dims = h5_full$matrix$shape
-  )
-  assert_that( all(dim(cb_mat) == h5_full$matrix$shape) )
-
-  # convert to TsparseMatrix
-  cb_mat      = cb_mat %>% as("TsparseMatrix")
-
-  # add names
-  colnames(cb_mat) = h5_full$matrix$barcodes
-  rownames(cb_mat) = h5_full$matrix$features$name
-
-  # restrict to barcodes that we actually care about
-  cb_mat      = cb_mat[, exp_cells]
-  cb_dt       = .get_usa_dt(cb_mat, "cb")
-
-  return(cb_dt)
-}
 
 # get_bender_log_file <- function(sample_name, bender_dir) {
 #   b_dir_full <- file.path(bender_dir, paste0('bender_', sample_name))
@@ -111,8 +350,8 @@ get_bender_log <- function(f, sample) {
   }
   bender_df <- tibble(
     sample_id                   = sample,
-    cb_prior_empty              = .get_match(ll, '(Prior on counts for cells is )([0-9]+)'),
-    cb_prior_cells              = .get_match(ll, '(Prior on counts [infor]{2,3} empty droplets is )([0-9]+)'),
+    cb_prior_cells              = .get_match(ll, '(Prior on counts for cells is )([0-9]+)'),
+    cb_prior_empty              = .get_match(ll, '(Prior on counts [infor]{2,3} empty droplets is )([0-9]+)'),
     excluding_bc_w_counts_below = .get_match(ll, '(Excluding barcodes with counts below )([0-9]+)'),
     used_probable_cell_barcodes = .get_match(ll, '(Using )([0-9]+)( probable cell barcodes)'),
     used_additional_barcodes    = .get_match(ll, '(plus an additional )([0-9]+)( barcodes)'),
@@ -146,16 +385,21 @@ get_bender_knee_params <- function(ranks_df, custom_df) {
   d1 <- predict(fit, deriv=1)
   d1_inf <- d1$y[ which.min(abs(d1$x - inf_1_x))[1] ]
   d1_total <- d1$y[ which.min(abs(d1$x - total_thr))[1] ]
- 
+
   # return(c(d1_inf, d1_total) %>% setNames(c('slope_inf1', 'slope_total_included')))
   final <- ranks_df %>% dplyr::select(sample_id, knee1, inf1, knee2, inf2, total_droplets_included, expected_cells) %>%
     distinct()
   # if there are custom parameters for this sample, use those
+  if(!is.null(custom_df)){
+
   custom_idx <- custom_df$sample_id %in% unique(ranks_df$sample_id)
   if ( any(custom_idx) ) {
     final$total_droplets_included <- custom_df[ custom_idx, ]$total_droplets_included
     final$expected_cells <- custom_df[ custom_idx, ]$expected_cells
   }
+
+  }
+
   final <- final %>%
     mutate(slope_inf1 = d1_inf,
            slope_total_included = d1_total) %>%
@@ -407,36 +651,50 @@ total_expected_pct_barplots <- function(params_qc) {
   return(g)
 }
 
-get_bender_sample_level_qc <- function(qc, sel_s, do_cbender){
+get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'decontx')){
+
+  amb = match.arg(amb_method)
+
   sum_qc <- qc %>%
     as_tibble() %>%
     dplyr::select(-barcode) %>%
     rowwise()
-  if (do_cbender == FALSE) {
-    sum_qc <- sum_qc %>% 
-      mutate(
-        cb_S = af_S,
-        cb_U = af_U,
-        cb_A = af_A
-      )
-  }
-  sum_qc <- sum_qc %>% 
+
+  if(amb == 'cellbender'){
+  sum_qc <- sum_qc %>%
     mutate(af_all = sum(af_S, af_U, af_A),
            cb_all = sum(cb_S, cb_U, cb_A)) %>%
     colSums()
 
-  bender_qc <- c((sum_qc['af_S']/sum_qc['af_all']) *100,
+  smpl_qc <- c((sum_qc['af_S']/sum_qc['af_all']) *100,
                  (sum_qc['cb_S']/sum_qc['cb_all'])*100,
                  sum_qc['af_all'],
                  sum_qc['af_all'] - sum_qc['cb_all'])
 
-  names(bender_qc) <- c('af_spliced_pct', 'cb_spliced_pct', 'af_all', 'removed')
-  bender_qc$sample_id <- sel_s
+  }else{
+    sum_qc <- sum_qc %>%
+      mutate(af_all = sum(af_S, af_U, af_A),
+             cb_all = sum(dcx_S, dxc_U, dcx_A)) %>%
+      colSums()
 
-  return(bender_qc)
-}
+    smpl_qc <- c((sum_qc['af_S']/sum_qc['af_all']) *100,
+                   (sum_qc['dcx_S']/sum_qc['dcx_all'])*100,
+                   sum_qc['af_all'],
+                   sum_qc['af_all'] - sum_qc['dxc_all'])
 
-get_cb_sample_qc_outliers <- function(qc_df, var1, var2){
+
+  }
+
+  names(smpl_qc) <- c('af_spliced_pct', 'amb_spliced_pct', 'af_all', 'removed')
+  smpl_qc$sample_id <- sel_s
+
+  return(smpl_qc)
+  }
+
+
+
+
+get_amb_sample_qc_outliers <- function(qc_df, var1, var2){
   bivar <-  qc_df %>% dplyr::select(all_of(c(var1, var2)))
   mcd <- robustbase::covMcd(bivar)
   chi_thr <- chi_threshold <- qchisq(0.95, df = 2)
@@ -445,7 +703,7 @@ get_cb_sample_qc_outliers <- function(qc_df, var1, var2){
   return(outliers_df)
 }
 
-make_cb_sample_qc_oulier_plots <- function(qc_df, var1, var2, outliers_df,
+make_amb_sample_qc_oulier_plots <- function(qc_df, var1, var2, outliers_df,
                                            x_title, y_title, y_thr = NULL, x_thr = NULL){
 
   p <- ggplot(qc_df, aes(x = get(var1), y = get(var2))) +
@@ -469,9 +727,5 @@ make_cb_sample_qc_oulier_plots <- function(qc_df, var1, var2, outliers_df,
   return(p)
 
 }
-
-
-
-
 
 

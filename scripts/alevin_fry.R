@@ -41,7 +41,11 @@ save_alevin_h5_calculate_cb_params <- function(sample, fry_dir, h5_f, cb_yaml_f,
     sprintf("sample: %s",                     sample),
     sprintf("total_droplets_included: %.0f",  unique(bender_ps$total_droplets_included) ),
     sprintf("expected_cells: %.0f",           unique(bender_ps$expected_cells) ),
-    sprintf("low_count_threshold: %.0f",      unique(bender_ps$low_count_threshold) )
+    sprintf("low_count_threshold: %.0f",      unique(bender_ps$low_count_threshold) ),
+    sprintf("knee_1: %.0f",                   unique(bender_ps$knee1)),
+    sprintf("inflection_1: %.0f",             unique(bender_ps$inf1)),
+    sprintf("knee_2: %.0f",                   unique(bender_ps$knee2)),
+    sprintf("inflection_2: %.0f",             unique(bender_ps$inf2))
   ), con = con_obj)
   close(con_obj)
 }

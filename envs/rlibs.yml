@@ -6,6 +6,9 @@ channels:
 dependencies:
 - r-base=4.3.2
 - r-assertthat=0.2.1
+- r-workflowr
+- r-yaml
+- bioconductor-decontX
 - bioconductor-BiocParallel=1.36.0
 - bioconductor-BiocStyle=2.30.0
 - r-circlize=0.4.15

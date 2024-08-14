@@ -15,9 +15,9 @@ PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, ME
   get_project_parameters(config)
 SPECIES, AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY_F = \
   get_alevin_parameters(config, SCPROCESS_DATA_DIR)
-CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, DO_CELLBENDER, CUSTOM_CELLBENDER_PARAMS_F, \
-FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, \
-CELLBENDER_LEARNING_RATE = get_cellbender_parameters(config)
+CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CUSTOM_PARAMS_F, CELL_CALLS_METHOD, \
+FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE = \
+  get_ambient_parameters(config)
 SCE_BENDER_PROB = \
   get_make_sce_parameters(config)
 DBL_MIN_FEATS = \
@@ -34,7 +34,7 @@ MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MK
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
 code_dir      = f"{PROJ_DIR}/code"
 af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_alevin_fry"
-cb_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_cellbender"
+amb_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_cellbender"
 sce_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_make_sce"
 dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
 qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
@@ -67,21 +67,21 @@ rule all:
       af_dir    + '/af_{sample}/af_quant/alevin/quants_mat_rows.txt',
       af_dir    + '/af_{sample}/af_counts_mat.h5',
       af_dir    + '/af_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
-      af_dir    + '/af_{sample}/bender_params_{sample}_' + DATE_STAMP + '.yaml',
-      # cellbender
-      cb_dir    + '/bender_{sample}/bender_{sample}_' + DATE_STAMP + '.h5',
-      cb_dir    + '/bender_{sample}/bender_{sample}_' + DATE_STAMP + '_filtered.h5',
-      cb_dir    + '/bender_{sample}/bender_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', 
+      af_dir    + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml',
+      # ambient (cellbender, decontx or nothing)
+      amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
+      # barcode qc metrics
+      amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz',
       # doublet id
       dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
       dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       ], sample = SAMPLES), 
-      # find bender bad samples
-      cb_dir    + '/bender_bad_samples_' + DATE_STAMP + '.txt', 
+      # ambient sample statistics
+      amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',  
       # make sce input df
       sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       # make sce
-      sce_dir   + '/sce_' + ('bender' if DO_CELLBENDER else 'alevin') + '_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+      sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
       # doublet_id
       dbl_dir   + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       dbl_dir   + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',

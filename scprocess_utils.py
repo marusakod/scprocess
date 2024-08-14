@@ -52,6 +52,29 @@ def exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES):
   return chk_samples
 
 
+def render_html(proj_dir, template_f, template_dict, rmd_f):
+  if not os.path.isfile(rmd_f):
+    # read the contents of the template_f file
+    with open(template_f, 'r') as f:
+      template_str = f.read()
+
+    # create a string.Template object using the contents of the file
+    from string import Template
+    template    = Template(template_str)
+    filled_str  = template.substitute(template_dict)
+    with open(rmd_f, 'w') as f:
+      f.write(filled_str)
+
+  # render rmd file via Rscript
+  bash_str = f"""
+    # render rmd files
+    Rscript -e "source('scripts/render_reports.R'); \
+      render_reports('{proj_dir}', rmd_ls_concat = '{rmd_f}')"
+    """
+  subprocess.run(bash_str, shell = True)
+
+
+
 # get list of samples
 def get_project_parameters(config):
   # check expected variables are in the config file
@@ -209,6 +232,84 @@ def get_cellbender_parameters(config):
   
   return CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, DO_CELLBENDER, CUSTOM_CELLBENDER_PARAMS_F, \
     FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE
+
+
+
+# ambient
+def get_ambient_parameters(config):
+  # set default values
+  AMBIENT_METHOD                = 'cellbender'
+  CELLBENDER_VERSION            = 'v0.3.0'
+  CELLBENDER_PROP_MAX_KEPT      = 0.9
+  CUSTOM_PARAMS_F               = None
+  FORCE_EXPECTED_CELLS          = None
+  FORCE_TOTAL_DROPLETS_INCLUDED = None
+  FORCE_LOW_COUNT_THRESHOLD     = None
+  CELLBENDER_LEARNING_RATE      = 1e-4
+  CELL_CALLS_METHOD             = 'barcodeRanks'
+
+  # change defaults if specified
+  if ('ambient' in config) and (config['ambient'] is not None):
+    if 'ambient_method' in config['ambient']:
+      AMBIENT_METHOD                 = config['ambient']['ambient_method']
+    if 'cellbender_version' in config['ambient']:
+      CELLBENDER_VERSION            = config['ambient']['cellbender_version']
+    if 'cb_max_prop_kept' in config['ambient']:
+      CELLBENDER_PROP_MAX_KEPT      = config['ambient']['cb_max_prop_kept']
+    if 'custom_params' in config['ambient']:
+      CUSTOM_PARAMS_F    = config['ambient']['custom_params']
+    if 'force_expected_cells' in config['ambient']:
+      FORCE_EXPECTED_CELLS          = config['ambient']['force_expected_cells']
+    if 'force_total_droplets_included' in config['ambient']:
+      FORCE_TOTAL_DROPLETS_INCLUDED = config['ambient']['force_total_droplets_included']
+    if 'force_low_count_threshold' in config['ambient']:
+      FORCE_LOW_COUNT_THRESHOLD     = config['ambient']['force_low_count_threshold']
+    if 'learning_rate' in config['ambient']:
+      CELLBENDER_LEARNING_RATE      = config['ambient']['learning_rate']
+
+  # get cellbender image (maybe skip this if cellbender is not selected?)
+  if CELLBENDER_VERSION == 'v0.3.0':
+    CELLBENDER_IMAGE              = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.3.0'
+  elif CELLBENDER_VERSION == 'v0.2.0':
+    CELLBENDER_IMAGE              = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.2.0'
+  else:
+    raise ValueError(f"selected cellbender version {CELLBENDER_VERSION} not supported")
+
+  # some checks on custom parameters for cellbender
+  if CUSTOM_PARAMS_F is not None: 
+    assert os.path.exists(CUSTOM_PARAMS_F), \
+      f"specified path {CUSTOM_PARAMS_F} does not exist"
+    
+    # get params  
+    params_df   = pd.read_csv(CUSTOM_PARAMS_F)
+    meta_df     = pd.read_csv(config["sample_metadata"])
+
+    # check if sample ids in custom params file match sample ids in metadata
+    for s in params_df['sample_id'].tolist():
+        assert s in meta_df['sample_id'].tolist(), \
+         f"sample_id {s} in {CUSTOM_PARAMS_F} not present in metadata"
+    
+    # depending on ambient method and cell calls method check which columns need to be present in the custom file
+    # Check the columns based on AMBIENT_METHOD and CELL_CALLS_METHOD
+    if AMBIENT_METHOD == 'cellbender':
+        expected_columns = ['sample_id', 'total_droplets_included', 'expected_cells', 'low_count_threshold', 'learning_rate', 'empty_start', 'empty_end']
+    else:
+        if CELL_CALLS_METHOD == 'emptyDrops':
+            expected_columns = ['retain', 'empty_start', 'empty_end']
+        elif CELL_CALLS_METHOD == 'barcodeRanks':
+            expected_columns = ['expected_cells', 'empty_start', 'empty_end']
+        else:
+            raise ValueError(f"Unsupported CELL_CALLS_METHOD: {CELL_CALLS_METHOD}")
+
+    # Verify that the columns in params_df match the expected columns
+    assert all(params_df.columns.values == expected_columns), \
+        f"column names in {CUSTOM_PARAMS_F} are not correct. Expected columns: {expected_columns}"
+      
+      
+  return CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CUSTOM_PARAMS_F, CELL_CALLS_METHOD, \
+    FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE
+
+
 
 
 def get_make_sce_parameters(config):  

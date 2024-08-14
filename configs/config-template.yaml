@@ -12,11 +12,12 @@ sample_metadata: /home/mkoder/projects/Agarwal_2020/data/metadata/Agarwal_2020_t
 alevin:
   species: human # has to match a value in the genome_name column of setup_parameters.csv in SCPROCESS_DATA_DIR
   chemistry: # optional; path to csv file with columns sample_id and version; valid versions are '3LT', '3v2', '5v1', '5v2', '3v3', 'multiome'
-# cellbender:
-#   do_cellbender: True
-#   version: 'v0.3.0'
-#   custom_cellbender_params: /path/to/file/with/custom_cellbender_parameters.csv
-#   cb_max_prop_kept: 0.9
+ambient:
+  ambient_method: cellbender # other options are 'none' and 'decontx'
+  cellbender_version: 'v0.3.0' # ignored for other methods
+  custom_params: /path/to/file/with/custom_parameters.csv # the format of this file should be different depending on selected method
+  cb_max_prop_kept: 0.9 # only relevant for cellbender, ignored for other methods
+  cell_calling: barcodeRanks # other option is 'emptyDrops' # if cellbender is selected, cell calling will automatically be done by cellbender
 # make_sce:
 #   sce_bender_prob: 0.5 # what probability of being a cell is required to be kept as a cell?
 # doublet_id:
