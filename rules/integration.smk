@@ -2,7 +2,7 @@
 
 rule run_harmony:
   input:
-    sce_all_f   = sce_dir + '/sce_' + ('bender' if DO_CELLBENDER else 'alevin') + '_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+    sce_all_f   = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
     keep_f      = qc_dir  + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     dbl_f       = dbl_dir + '/scDblFinder_combined_outputs_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz'
   output:
