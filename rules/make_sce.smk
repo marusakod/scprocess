@@ -75,7 +75,7 @@ if AMBIENT_METHOD == 'cellbender':
     conda:
       '../envs/rlibs.yml'
     shell:
-    """
+      """
         # save sce object
         Rscript -e "source('scripts/make_sce.R'); \
           save_cellbender_as_sce( \
@@ -86,7 +86,7 @@ if AMBIENT_METHOD == 'cellbender':
             sce_f       = '{output.sce_all_f}', \
             bender_prob = {SCE_BENDER_PROB}, \
             n_cores     = {threads})"
-    """
+      """
 else:
   localrules: make_sce_object
   rule mke_sce_object:
@@ -100,7 +100,7 @@ else:
     conda:
       '../envs/rlibs.yml'
     shell:
-    """
+      """
         Rscript -e "source('scripts/make_sce.R'); \
           save_noncb_as_sce ( \
             sce_df              = '{input.sce_df}', \
@@ -111,5 +111,5 @@ else:
             sce_f               = '{output.sce_all_f}', \
             min_counts          = {QC_HARD_MIN_COUNTS}, \
             n_cores             = {threads})"
-    """
+      """
 
