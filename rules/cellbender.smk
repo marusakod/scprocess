@@ -372,7 +372,6 @@ rule get_barcode_qc_metrics:
   shell:
     """
     # save barcode stats
-    export R_LIBS_USER='{RLIBS_DIR}'
     Rscript -e "source('scripts/cellbender.R'); \
       save_barcode_qc_metrics('{input.af_h5_f}', '{input.amb_yaml_f}', \
         '{output.bc_qc_f}', '{params.expected_cells}', '{AMBIENT_METHOD}')"
