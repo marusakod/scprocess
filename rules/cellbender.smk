@@ -44,65 +44,66 @@ localrules: exclude_bad_cellbender_samples
 #   return EXPECTED_CELLS, TOTAL_DROPLETS_INCLUDED, LOW_COUNT_THRESHOLD, LEARNING_RATE
 
 
-
 def parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, sample, cb_yaml_f,
-  FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD):
+                         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE):
 
-  # get cellbender parameters from yaml file
-  with open(cb_yaml_f) as f:
-    cb_params   = yaml.load(f, Loader=yaml.FullLoader)
-  # get parameters for cellbender
-  EXPECTED_CELLS          = cb_params['expected_cells']
-  TOTAL_DROPLETS_INCLUDED = cb_params['total_droplets_included']
-  LOW_COUNT_THRESHOLD     = cb_params['low_count_threshold']
-  KNEE_1                  = cb_params['knee_1']
-  INFLECTION_1            = cb_params['inflection_1']
-  KNEE_2                  = cb_params['knee_2']
-  INFLECTION_2            = cb_params['inflection_2']
-  LEARNING_RATE           = CELLBENDER_LEARNING_RATE
-  # additional custom parameters for decontx and none
-  EMPTY_START             = None
-  EMPTY_END               = None
+    # get cellbender parameters from yaml file
+    with open(cb_yaml_f) as f:
+        cb_params = yaml.load(f, Loader=yaml.FullLoader)
+        
+    # get parameters for cellbender
+    EXPECTED_CELLS = cb_params['expected_cells']
+    TOTAL_DROPLETS_INCLUDED = cb_params['total_droplets_included']
+    LOW_COUNT_THRESHOLD = cb_params['low_count_threshold']
+    KNEE_1 = cb_params['knee_1']
+    INFLECTION_1 = cb_params['inflection_1']
+    KNEE_2 = cb_params['knee_2']
+    INFLECTION_2 = cb_params['inflection_2']
+    LEARNING_RATE = CELLBENDER_LEARNING_RATE
+    
+    # additional custom parameters for decontx and none
+    EMPTY_START = None
+    EMPTY_END = None
 
+    # force parameters if needed (this is ignored if method is not cellbender)
+    if FORCE_EXPECTED_CELLS is not None:
+        EXPECTED_CELLS = FORCE_EXPECTED_CELLS
+    if FORCE_TOTAL_DROPLETS_INCLUDED is not None:
+        TOTAL_DROPLETS_INCLUDED = FORCE_TOTAL_DROPLETS_INCLUDED
+    if FORCE_LOW_COUNT_THRESHOLD is not None:
+        LOW_COUNT_THRESHOLD = FORCE_LOW_COUNT_THRESHOLD
 
-  # force parameters if needed (this is ignored if method is not cellbender)
-  if FORCE_EXPECTED_CELLS is not None:
-    EXPECTED_CELLS          = FORCE_EXPECTED_CELLS
-  if FORCE_TOTAL_DROPLETS_INCLUDED is not None:
-    TOTAL_DROPLETS_INCLUDED = FORCE_TOTAL_DROPLETS_INCLUDED
-  if FORCE_LOW_COUNT_THRESHOLD is not None:
-    LOW_COUNT_THRESHOLD     = FORCE_LOW_COUNT_THRESHOLD
+    # load up custom parameters if exists
+    if CUSTOM_PARAMS_F is not None:
+        params_df = pd.read_csv(CUSTOM_PARAMS_F)
+        
+        # if sample is in custom parameters, then use parameters from there
+        if params_df['sample_id'].str.contains(sample).any():
+            # subset custom params df 
+            filt_params_df = params_df[params_df['sample_id'] == sample]
+            filt_params_df = filt_params_df.reset_index(drop=True)
+            fasta_f = filt_params_df.loc[0, 'fasta_f']
 
-  # load up custom parameters if exists
-  if CUSTOM_PARAMS_F is not None:
-    params_df   = pd.read_csv(CUSTOM_PARAMS_F)
-    # if sample is in custom parameters, then use parameters from there
-    if params_df['sample_id'].str.contains(sample).any():
-      # subset custom params df 
-      filt_params_df = params_df[params_df['sample_id'] == sample] 
-      filt_params_df = filt_params_df.reset_index(drop=True)
-      fasta_f = filt_params_df.loc[0, 'fasta_f']
+            print(f'using custom parameters for {sample}')
+            
+            if AMBIENT_METHOD == 'cellbender':
+                EXPECTED_CELLS = int(filt_params_df.loc[0, 'expected_cells'])
+                TOTAL_DROPLETS_INCLUDED = int(filt_params_df.loc[0, 'total_droplets_included'])
+                LOW_COUNT_THRESHOLD = int(filt_params_df.loc[0, 'low_count_threshold'])
+                LEARNING_RATE = filt_params_df.loc[0, 'learning_rate']
+                
+            else:
+                if CELL_CALLS_METHOD == 'emptyDrops':
+                    KNEE_1 = int(filt_params_df.loc[0, 'retain'])
+                    EMPTY_START = int(filt_params_df.loc[0, 'empty_start'])
+                    EMPTY_END = int(filt_params_df.loc[0, 'empty_end'])
+                else:
+                    EXPECTED_CELLS = int(filt_params_df.loc[0, 'expected_cells'])
+                    EMPTY_START = int(filt_params_df.loc[0, 'empty_start'])
+                    EMPTY_END = int(filt_params_df.loc[0, 'empty_end'])
 
-      print(f'using custom parameters for {sample}')
-      if AMBIENT_METHOD == 'cellbender':
-        EXPECTED_CELLS          = int(filt_params_df.loc[0, 'expected_cells'])
-        TOTAL_DROPLETS_INCLUDED = int(filt_params_df.loc[0, 'total_droplets_included'])
-        LOW_COUNT_THRESHOLD     = int(filt_params_df.loc[0, 'low_count_threshold'])
-        LEARNING_RATE           = filt_params_df.loc[0, 'learning_rate']
-      else:
-        if CELL_CALLS_METHOD == 'emptyDrops':
-            KNEE_1 = int(filt_params_df.loc[0, 'retain'])
-            EMPTY_START = int(filt_params_df.loc[0,'empty_start'])
-            EMPTY_END = int(filt_params_df.loc[0, 'empty_end'])
-        else:
-            EXPECTED_CELLS = int(filt_params_df.loc[0,'expected_cells'])
-            EMPTY_START = int(filt_params_df.loc[0, 'empty_start'])
-            EMPTY_END = int(filt_params_df.loc[0,'empty_end'])
-
-  return EXPECTED_CELLS, TOTAL_DROPLETS_INCLUDED, LOW_COUNT_THRESHOLD, LEARNING_RATE, \
-      KNEE_1, INFLECTION_1, KNEE_2, INFLECTION_2, EMPTY_START, EMPTY_END
-
-
+    return EXPECTED_CELLS, TOTAL_DROPLETS_INCLUDED, LOW_COUNT_THRESHOLD, LEARNING_RATE, \
+           KNEE_1, INFLECTION_1, KNEE_2, INFLECTION_2, EMPTY_START, EMPTY_END
 
 
 
