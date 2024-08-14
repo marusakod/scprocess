@@ -177,10 +177,10 @@ if AMBIENT_METHOD == 'cellbender':
       cd $amb_dir
 
       # define output files
-      cb_full_f = amb_dir + '/ambient_{sample}/bender_{sample}_' + DATE_STAMP + '.h5',
-      cb_filt_f = amb_dir + '/ambient_{sample}/bender_{sample}_' + DATE_STAMP + '_filtered.h5',
-      cb_bcs_f  = amb_dir + '/ambient_{sample}/bender_{sample}_' + DATE_STAMP + '_cell_barcodes.csv'
-      tmp_f     = temp(amb_dir + '/ambient_{sample}/ckpt.tar.gz')
+      cb_full_f = amb_dir + '/ambient_{wildcards.sample}/bender_{wildcards.sample}_' + DATE_STAMP + '.h5',
+      cb_filt_f = amb_dir + '/ambient_{wildcards.sample}/bender_{wildcards.sample}_' + DATE_STAMP + '_filtered.h5',
+      cb_bcs_f  = amb_dir + '/ambient_{wildcards.sample}/bender_{wildcards.sample}_' + DATE_STAMP + '_cell_barcodes.csv'
+      tmp_f     = temp(amb_dir + '/ambient_{wildcards.sample}/ckpt.tar.gz')
 
       
       if [ $EXPECTED_CELLS -eq 0 ]; then
@@ -257,9 +257,9 @@ elif AMBIENT_METHOD == 'decontx':
     shell:
       """
       # define output file names
-      dcx_filt_f = amb_dir + '/ambient_{sample}/decontx_{sample}_' + DATE_STAMP + '_filtered.h5',
-      dcx_bcs_f  = amb_dir + '/ambient_{sample}/decontx_{sample}_' + DATE_STAMP + '_cell_barcodes.csv'
-      dcx_params_f = amb_dir + '/ambient_{sample}/decontx_{sample}_' + DATE_STAMP + '_params.txt.gz'
+      dcx_filt_f = amb_dir + '/ambient_{wildcards.sample}/decontx_{wildcards.sample}_' + DATE_STAMP + '_filtered.h5',
+      dcx_bcs_f  = amb_dir + '/ambient_{wildcards.sample}/decontx_{wildcards.sample}_' + DATE_STAMP + '_cell_barcodes.csv'
+      dcx_params_f = amb_dir + '/ambient_{wildcards.sample}/decontx_{wildcards.sample}_' + DATE_STAMP + '_params.txt.gz'
 
       # run cell calling and decontamination
    
@@ -268,7 +268,7 @@ elif AMBIENT_METHOD == 'decontx':
       out_mat_f = $dcx_filt_f, \
       out_bcs_f = $dcx_bcs_f, \
       out_dcx_f = $dcx_params_f, \
-      sel_s = '{sample}', \
+      sel_s = '{wildcards.sample}', \
       af_mat_f = '{input.h5_f}', \
       knee_1 = '{params.knee_1}', \
       knee_2 = '{params.knee_2}', \
@@ -325,15 +325,15 @@ else:
     shell:
       """
       # define output file names
-      cell_filt_f = amb_dir + '/ambient_{sample}/uncorrected_{sample}_' + DATE_STAMP + '_filtered.h5',
-      cell_bcs_f  = amb_dir + '/ambient_{sample}/uncorrected_{sample}_' + DATE_STAMP + '_cell_barcodes.csv'
+      cell_filt_f = amb_dir + '/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_' + DATE_STAMP + '_filtered.h5',
+      cell_bcs_f  = amb_dir + '/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_' + DATE_STAMP + '_cell_barcodes.csv'
 
       # run cell calling and decontamination
       Rscript -e "source('scripts/cellbender.R'); \
       get_cell_mat_and_barcodes(
       out_mat_f = $cell_filt_f, \
       out_bcs_f = $cell_bcs_f, \
-      sel_s = '{sample}', \
+      sel_s = '{wildcards.sample}', \
       af_mat_f = '{input.h5_f}', \
       knee_1 = '{params.knee_1}', \
       knee_2 = '{params.knee_2}', \
