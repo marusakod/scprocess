@@ -49,8 +49,8 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
                                           empty_start = empty_start,
                                           empty_end = empty_end,
                                           ncores = ncores,
-                                          niters = niters,
-                                          cell_method = call_m)
+                                          n_iters = niters,
+                                          call_method = call_m)
                                           
   message('Cells and empty droplets found for ', sel_s)
 
@@ -63,7 +63,7 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
 
     message("Ambient RNA removal method is 'none'. Saving uncorrected count matrix for ", sel_s )
     # return uncorrected matrix with just cells
-    write.csv(cell_bc_df, out_bcs_f, col.names = FALSE, quote = FALSE)
+    write.table(cell_bc_df, out_bcs_f, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = ',')
     write10xCounts(out_mat_f, cell_mat, version = "3", overwrite = TRUE)
 
 
@@ -80,7 +80,7 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
 
     # save barcodes
     clean_bcs_df = data.frame(barcode = colnames(clean_mat))
-    write.csv(clean_bcs_df, out_bcs_f, col.names = FALSE, quote = FALSE)
+    write.table(clean_bcs_df, out_bcs_f, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = ',')
 
     # add save contamination proportions and decontx cluster assignment
     dcx_params = data.frame(barcode = colnames(clean_mat),
@@ -121,6 +121,8 @@ call_cells_and_empties <- function(af_mat,
   }else{
     empty_locs = c(empty_start, empty_end)
   }
+
+ print(empty_locs)
 
   # get indices of empty barcodes
   empty_bcs   = ranks %>%
