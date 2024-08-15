@@ -193,7 +193,7 @@ call_cells_and_empties <- function(af_mat,
 
   # add names
   bcs           = h5_filt$matrix$barcodes
-  colnames(mat) = paste0(sel_s, ":", bcs)
+  colnames(mat) = paste0(sel_s, bcs)
   rownames(mat) = h5_filt$matrix$features$name
 
   return(mat)
@@ -259,7 +259,7 @@ call_cells_and_empties <- function(af_mat,
 save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_cells, ambient_method) {
 
   # read in the yaml file
-  amb_yaml = yaml::read_yaml(test_yaml)
+  amb_yaml = yaml::read_yaml(amb_out_yaml)
 
   # get the right ambient matrix file path from yaml
   if(ambient_method == 'cellbender'){
