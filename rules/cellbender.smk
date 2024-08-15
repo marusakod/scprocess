@@ -171,8 +171,11 @@ if AMBIENT_METHOD == 'cellbender':
       LOW_COUNT_THRESHOLD={params.low_count_threshold}
       LEARNING_RATE={params.learning_rate}
 
-      # change to cellbender directory
-      amb_dir=$(dirname {output.cb_full_f})
+      # create main ambient directory
+      mkdir -p {amb_dir}
+
+      # change to sample ambient directory
+      amb_dir=$(dirname {output.ambient_yaml_out})
       mkdir -p $amb_dir
       cd $amb_dir
 
@@ -209,10 +212,10 @@ if AMBIENT_METHOD == 'cellbender':
       fi
 
       # Create the output yaml file
-      echo "  cb_full_f: $cb_full_f" >> {output.ambient_yaml_out}
-      echo "  cb_filt_f: $cb_filt_f" >> {output.ambient_yaml_out}
-      echo "  cb_bcs_f: $cb_bcs_f" >> {output.ambient_yaml_out}
-      echo "  tmp_f: $tmp_f" >> {output.ambient_yaml_out}
+      echo "cb_full_f: $cb_full_f" >> {output.ambient_yaml_out}
+      echo "cb_filt_f: $cb_filt_f" >> {output.ambient_yaml_out}
+      echo "cb_bcs_f: $cb_bcs_f" >> {output.ambient_yaml_out}
+      #echo "tmp_f: $tmp_f" >> {output.ambient_yaml_out}
 
       # check whether temp file was actually made; if not, make an empty one
       if [ ! -f $tmp_f ]; then
@@ -256,10 +259,31 @@ elif AMBIENT_METHOD == 'decontx':
       '../envs/rlibs.yml'
     shell:
       """
+      # create main ambient directory
+      mkdir -p {amb_dir}
+
+      # change to sample ambient directory
+      amb_dir=$(dirname {output.ambient_yaml_out})
+      mkdir -p $amb_dir
+      cd $amb_dir
+
+  
       # define output file names
       dcx_filt_f = "{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_filtered.h5",
       dcx_bcs_f  = "{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
       dcx_params_f = "{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_params.txt.gz"
+
+      # get empty locs
+      EMPTY_START={params.empty_start}
+      EMPTY_END={params.empty_end}
+
+      if [ "$EMPTY_START" == "None" ]; then
+          EMPTY_START=NULL
+      fi
+
+      if [ "$EMPTY_END" == "None" ]; then
+          EMPTY_END=NULL
+      fi
 
       # run cell calling and decontamination
    
@@ -270,21 +294,21 @@ elif AMBIENT_METHOD == 'decontx':
       out_dcx_f = $dcx_params_f, \
       sel_s = '{wildcards.sample}', \
       af_mat_f = '{input.h5_f}', \
-      knee_1 = '{params.knee_1}', \
-      knee_2 = '{params.knee_2}', \
-      inf_1 = '{params.inflection_1}', \
-      n_cores = {threads}, \
-      total_included = '{params.total_droplets_included}', \
-      exp_cells = '{params.expected_cells}', \
-      empty_start = '{params.empty_start}', \
-      empty_end = '{params.empty_end}', \
+      knee_1 = {params.knee_1}, \
+      knee_2 = {params.knee_2}, \
+      inf_1 = {params.inflection_1}, \
+      ncores = {threads}, \
+      total_included = {params.total_droplets_included}, \
+      exp_cells = {params.expected_cells}, \
+      empty_start = {params.empty_start}, \
+      empty_end = {params.empty_end}, \
       cell_calls_method = '{CELL_CALLS_METHOD}', \
       ambient_method = '{AMBIENT_METHOD}')
 
       # Create the output yaml file
-      echo "  dcx_filt_f: $dcx_filt_f" >> {output.ambient_yaml_out}
-      echo "  dcx_bcs_f: $dcx_bcs_f" >> {output.ambient_yaml_out}
-      echo "  dcx_params_f: $dcx_params_f" >> {output.ambient_yaml_out}
+      echo "dcx_filt_f: $dcx_filt_f" >> {output.ambient_yaml_out}
+      echo "dcx_bcs_f: $dcx_bcs_f" >> {output.ambient_yaml_out}
+      echo "dcx_params_f: $dcx_params_f" >> {output.ambient_yaml_out}
 
       """
 else:
@@ -324,9 +348,32 @@ else:
       mem_mb    = 8192
     shell:
       """
+      # create main ambient directory
+      mkdir -p {amb_dir}
+
+      # change to sample ambient directory
+      amb_dir=$(dirname {output.ambient_yaml_out})
+      mkdir -p $amb_dir
+      cd $amb_dir
+
+
       # define output file names
       cell_filt_f = "{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_filtered.h5",
       cell_bcs_f  = "{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
+
+
+      # get empty locs
+      EMPTY_START={params.empty_start}
+      EMPTY_END={params.empty_end}
+
+      if [ "$EMPTY_START" == "None" ]; then
+          EMPTY_START=NULL
+      fi
+
+      if [ "$EMPTY_END" == "None" ]; then
+          EMPTY_END=NULL
+      fi
+
 
       # run cell calling and decontamination
       Rscript -e "source('scripts/cellbender.R'); \
@@ -335,20 +382,20 @@ else:
       out_bcs_f = $cell_bcs_f, \
       sel_s = '{wildcards.sample}', \
       af_mat_f = '{input.h5_f}', \
-      knee_1 = '{params.knee_1}', \
-      knee_2 = '{params.knee_2}', \
-      inf_1 = '{params.inflection_1}', \
-      total_included = '{params.total_droplets_included}', \
-      exp_cells = '{params.expected_cells}', \
-      empty_start = '{params.empty_start}', \
-      empty_end = '{params.empty_end}', \
-      n_cores = {threads}, \
+      knee_1 = {params.knee_1}, \
+      knee_2 = {params.knee_2}, \
+      inf_1 = {params.inflection_1}, \
+      total_included = {params.total_droplets_included}, \
+      exp_cells = {params.expected_cells}, \
+      empty_start = {params.empty_start}, \
+      empty_end = {params.empty_end}, \
+      ncores = {threads}, \
       cell_calls_method = '{CELL_CALLS_METHOD}', \
       ambient_method = '{AMBIENT_METHOD}')
 
       # Create the output yaml file
-      echo "  cell_filt_f: $cell_filt_f" >> {output.ambient_yaml_out}
-      echo "  cell_bcs_f: $cell_bcs_f" >> {output.ambient_yaml_out}
+      echo "cell_filt_f: $cell_filt_f" >> {output.ambient_yaml_out}
+      echo "cell_bcs_f: $cell_bcs_f" >> {output.ambient_yaml_out}
 
       """
 

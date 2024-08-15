@@ -34,7 +34,7 @@ MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MK
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
 code_dir      = f"{PROJ_DIR}/code"
 af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_alevin_fry"
-amb_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_cellbender"
+amb_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
 sce_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_make_sce"
 dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
 qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
