@@ -40,9 +40,18 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
   af_mat = .get_alevin_mx(af_mat_f = af_mat_f, sel_s = '')
 
   # call cells and empties
-  cell_empty_bcs = call_cells_and_empties(af_mat, knee_1, knee_2, inf_1, inf_2,
-                                          total_included, exp_cells, empty_start, empty_end,
-                                          ncores, niters, call_m)
+  cell_empty_bcs = call_cells_and_empties(af_mat = af_mat,
+                                          knee_1 = knee_1,
+                                          knee_2 = knee_2,
+                                          inf_1 = inf_1,
+                                          total_included = total_included,
+                                          exp_cells = exp_cells,
+                                          empty_start = empty_start,
+                                          empty_end = empty_end,
+                                          ncores = ncores,
+                                          niters = niters,
+                                          cell_method = call_m)
+                                          
   message('Cells and empty droplets found for ', sel_s)
 
   # get matrix with cells
