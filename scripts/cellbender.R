@@ -76,7 +76,7 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
 
     # save decontaminated matrix
     clean_mat = dcx_res$decontXcounts %>% round()
-    write10xCounts(dcx_f, clean_mat, version = "3", overwrite = TRUE)
+    write10xCounts(out_mat_f, clean_mat, version = "3", overwrite = TRUE)
 
     # save barcodes
     clean_bcs_df = data.frame(barcode = colnames(clean_mat))
@@ -101,7 +101,7 @@ call_cells_and_empties <- function(af_mat,
                        knee_1 = NULL, knee_2 = NULL, inf_1 = NULL,
                        total_included = NULL , exp_cells = NULL,
                        empty_start = NULL, empty_end = NULL,
-                       ncores = 4, n_iters = 1000,
+                       ncores = 4, n_iters = 1000, fdr_thr = 0.001, 
                        call_method = c('barcodeRanks', 'emptyDrops')){
 
   # get barcode ranks
@@ -148,7 +148,7 @@ call_cells_and_empties <- function(af_mat,
                             niters = n_iters,
                             BPPARAM = bpparam,
                             known.empty = empty_idx,
-                            retain =  knee1)
+                            retain =  knee_1)
 
     # get cell barcodes
     cell_bcs = edrops_res %>% as.data.frame() %>%
@@ -169,7 +169,7 @@ call_cells_and_empties <- function(af_mat,
 # sum spliced, unspliced and ambiguous counts for same gene
 .sum_SUA <- function(sua_mat){
   types = c('_S$', '_U$', '_A')
-  mats = lapply(types, function(t) af_mat[grepl(t, rownames(af_mat)), ])
+  mats = lapply(types, function(t) sua_mat[grepl(t, rownames(sua_mat)), ])
   # check if symbols are all in the same order
   genes = lapply(mats, function(m) rownames(m) %>% str_before_first(pattern = '_'))
 
