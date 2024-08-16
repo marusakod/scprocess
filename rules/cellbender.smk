@@ -265,8 +265,6 @@ elif AMBIENT_METHOD == 'decontx':
       # change to sample ambient directory
       amb_dir=$(dirname {output.ambient_yaml_out})
       mkdir -p $amb_dir
-      cd $amb_dir
-
   
       # define output file names
       dcx_filt_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_filtered.h5",
@@ -289,9 +287,9 @@ elif AMBIENT_METHOD == 'decontx':
    
       Rscript -e "source('scripts/cellbender.R'); \
       get_cell_mat_and_barcodes(
-      out_mat_f = $dcx_filt_f, \
-      out_bcs_f = $dcx_bcs_f, \
-      out_dcx_f = $dcx_params_f, \
+      out_mat_f = '$dcx_filt_f', \
+      out_bcs_f = '$dcx_bcs_f', \
+      out_dcx_f = '$dcx_params_f', \
       sel_s = '{wildcards.sample}', \
       af_mat_f = '{input.h5_f}', \
       knee_1 = {params.knee_1}, \
@@ -300,10 +298,10 @@ elif AMBIENT_METHOD == 'decontx':
       ncores = {threads}, \
       total_included = {params.total_droplets_included}, \
       exp_cells = {params.expected_cells}, \
-      empty_start = {params.empty_start}, \
-      empty_end = {params.empty_end}, \
+      empty_start = $EMPTY_START, \
+      empty_end = $EMPTY_END, \
       cell_calls_method = '{CELL_CALLS_METHOD}', \
-      ambient_method = '{AMBIENT_METHOD}')
+      ambient_method = '{AMBIENT_METHOD}')"
 
       # Create the output yaml file
       echo "dcx_filt_f: $dcx_filt_f" >> {output.ambient_yaml_out}
@@ -354,9 +352,7 @@ else:
       # change to sample ambient directory
       amb_dir=$(dirname {output.ambient_yaml_out})
       mkdir -p $amb_dir
-      cd $amb_dir
-
-
+      
       # define output file names
       cell_filt_f="{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_filtered.h5",
       cell_bcs_f="{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
@@ -378,8 +374,8 @@ else:
       # run cell calling and decontamination
       Rscript -e "source('scripts/cellbender.R'); \
       get_cell_mat_and_barcodes(
-      out_mat_f = $cell_filt_f, \
-      out_bcs_f = $cell_bcs_f, \
+      out_mat_f = '$cell_filt_f', \
+      out_bcs_f = '$cell_bcs_f', \
       sel_s = '{wildcards.sample}', \
       af_mat_f = '{input.h5_f}', \
       knee_1 = {params.knee_1}, \
@@ -387,11 +383,11 @@ else:
       inf_1 = {params.inflection_1}, \
       total_included = {params.total_droplets_included}, \
       exp_cells = {params.expected_cells}, \
-      empty_start = {params.empty_start}, \
-      empty_end = {params.empty_end}, \
+      empty_start = $EMPTY_START, \
+      empty_end = $EMPTY_END, \
       ncores = {threads}, \
       cell_calls_method = '{CELL_CALLS_METHOD}', \
-      ambient_method = '{AMBIENT_METHOD}')
+      ambient_method = '{AMBIENT_METHOD}')"
 
       # Create the output yaml file
       echo "cell_filt_f: $cell_filt_f" >> {output.ambient_yaml_out}
