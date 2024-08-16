@@ -733,11 +733,15 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
   # get a list of all matrices
   if(ambient_method == 'decontx'){
-  all_cell_mat_fs = samples_dt$dcx_filt_f
+  all_cell_mat_fs = samples_dt$dcx_filt
 
   }else{
-  all_cell_mat_fs = samples_dt$cell_filt_f
+  all_cell_mat_fs = samples_dt$bcs_filt
   }
+
+  # get gene annotations
+  message('  loading gene annotations')
+  gene_annots = .get_gene_annots(gtf_dt_f)
 
   # get sce objects
    message(' making sce objects for all samples')
@@ -797,7 +801,8 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 .get_one_nonbender_sce <- function(mat_f, sel_s, mito_str, gene_annots, min_counts) {
 
   # read matrix
-  counts = .get_alevin_mx(af_mat_f = mat_f, sel_s = sel_s)
+  counts = .get_alevin_mx(af_mat_f = mat_f, sel_s = paste0(sel_s, ':'))
+
 
   # exclude barcodes with v low counts (maybe remove?)
   keep_idx    = colSums(counts) >= min_counts

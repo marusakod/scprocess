@@ -69,7 +69,7 @@ if AMBIENT_METHOD == 'cellbender':
       sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
     output:
       sce_all_f   = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
-    threads: 16
+    threads: 8
     resources:
       mem_mb    = 8192
     conda:
@@ -79,7 +79,7 @@ if AMBIENT_METHOD == 'cellbender':
         # save sce object
         Rscript -e "source('scripts/make_sce.R'); \
           save_cellbender_as_sce( \
-            sce_df      = '{input.sce_df}', \
+            sce_df_f    = '{input.sce_df}', \
             metadata_f  = '{METADATA_F}', \
             gtf_dt_f    = '{AF_GTF_DT_F}', \
             mito_str    = '{AF_MITO_STR}', \
@@ -94,7 +94,7 @@ else:
       sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
     output:
       sce_all_f   = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
-    threads: 16
+    threads: 8
     resources:
       mem_mb    = 8192
     conda:
@@ -103,7 +103,7 @@ else:
       """
         Rscript -e "source('scripts/make_sce.R'); \
           save_noncb_as_sce ( \
-            sce_df              = '{input.sce_df}', \
+            sce_df_f            = '{input.sce_df}', \
             ambient_method      = '{AMBIENT_METHOD}', \
             metadata_f          = '{METADATA_F}', \
             gtf_dt_f            = '{AF_GTF_DT_F}', \

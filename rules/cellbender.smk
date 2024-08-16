@@ -180,8 +180,8 @@ if AMBIENT_METHOD == 'cellbender':
       cd $amb_dir
 
       # define output files
-      cb_full_f="{amb_dir)/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}.h5",
-      cb_filt_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_filtered.h5",
+      cb_full_f="{amb_dir)/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}.h5"
+      cb_filt_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_filtered.h5"
       cb_bcs_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv'
       #tmp_f=temp(amb_dir + '/ambient_{wildcards.sample}/ckpt.tar.gz')
 
@@ -267,7 +267,7 @@ elif AMBIENT_METHOD == 'decontx':
       mkdir -p $amb_dir
   
       # define output file names
-      dcx_filt_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_filtered.h5",
+      dcx_filt_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_filtered.h5"
       dcx_bcs_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
       dcx_params_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_params.txt.gz"
 
@@ -354,7 +354,7 @@ else:
       mkdir -p $amb_dir
       
       # define output file names
-      cell_filt_f="{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_filtered.h5",
+      cell_filt_f="{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_filtered.h5"
       cell_bcs_f="{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
 
 
@@ -400,7 +400,7 @@ else:
 rule get_barcode_qc_metrics:
   input:
     af_h5_f     = af_dir + '/af_{sample}/af_counts_mat.h5',
-    amb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
+    amb_yaml_f = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
   params:
     expected_cells          = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
@@ -417,7 +417,7 @@ rule get_barcode_qc_metrics:
     # save barcode stats
     Rscript -e "source('scripts/cellbender.R'); \
       save_barcode_qc_metrics('{input.af_h5_f}', '{input.amb_yaml_f}', \
-        '{output.bc_qc_f}', '{params.expected_cells}', '{AMBIENT_METHOD}')"
+        '{output.bc_qc_f}', {params.expected_cells}, '{AMBIENT_METHOD}')"
     """
 
 

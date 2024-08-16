@@ -282,6 +282,7 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_ce
     amb_mat_f = amb_yaml$cell_filt_f
   }
 
+  
   # get alevin counts
   af_mat = .get_alevin_mx(af_h5_f, '')
 
@@ -329,8 +330,10 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_ce
     qc_dt = .get_usa_dt(cell_mat, prefix = 'af')
 
   }
+  
+  fwrite(qc_dt, out_qc_f)
 
-  return(qc_dt)
+  return(NULL)
 
 }
 
