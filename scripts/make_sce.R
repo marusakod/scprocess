@@ -20,19 +20,6 @@ suppressPackageStartupMessages({
   library("scuttle")
 })
 
-# source('/home/macnairw/packages/scprocess/scripts/make_sce.R')
-# metadata_f  = file.path("/projects/site/pred/neurogenomics/users/macnairw/scprocess_testing",
-#   "data/metadata/scprocess_testing_metadata.csv")
-# sce_df_f    = "output/test03_make_sce/sce_samples_test_2050-01-01.csv"
-# gtf_dt_f    = file.path("/projects/site/pred/neurogenomics/resources/scprocess_data",
-#   "data/reference_genome/refdata-gex-GRCh38-2020-A-rRNA/refdata-gex-GRCh38-2020-A-rRNA_gtf_dt.txt.gz")
-# mito_str = "^MT-"
-# sce_f       = 'output/test03_make_sce/sce_bender_all_test_2050-01-01.rds'
-# bender_prob = 0.5
-# n_cores     = 8
-# debug(save_cellbender_as_sce)
-# save_cellbender_as_sce(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce_f,
-#   bender_prob = bender_prob, n_cores = n_cores)
 
 source('scripts/cellbender.R') # to get the function that reads a matrix from .h5 file
 
@@ -165,87 +152,6 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
   # close h5 object
   H5Fclose(h5_filt)
 
-  # # load with dropletutils
-  # sce_10x     = read10xCounts(cb_filt_f)
-  # mat_chk     = counts(sce_10x) %>% as('sparseMatrix') %>% as('TsparseMatrix')
-
-  # # get this file
-  # h5_full     = H5Fopen( cb_full_f, flags = "H5F_ACC_RDONLY" )
-
-  # # get indices of barcodes
-  # mat         = sparseMatrix(
-  #   i = as.vector(h5_full$matrix$indices +1),
-  #   p = as.vector(h5_full$matrix$indptr),
-  #   x = as.vector(h5_full$matrix$data),
-  #   repr = "C",
-  #   dims = h5_full$matrix$shape
-  # )
-  # assert_that( all(dim(mat) == h5_full$matrix$shape) )
-
-  # # convert to TsparseMatrix
-  # mat         = mat %>% as("TsparseMatrix")
-
-  # # add names
-  # colnames(mat) = paste0(sel_s, ":", h5_full$matrix$barcodes)
-  # rownames(mat) = h5_full$matrix$features$name
-
-  # # find barcodes with nuclei or cells in them
-  # latents_idx = h5_full$droplet_latents$barcode_indices_for_latents
-  # if (is.null(latents_idx)) {
-  #   latents_idx = h5_full$matrix$barcode_indices_for_latents
-  # }
-
-  # # restrict to just these
-  # assert_that( !is.null(latents_idx) )
-  # idx         = seq.int(ncol(mat)) %in% (latents_idx + 1)
-  # mat         = mat[, idx, drop = FALSE]
-
-  # # find latent cell probabilities
-  # latents     = h5_full$matrix$barcodes[ latents_idx + 1 ]
-  # cell_probs  = h5_full$droplet_latents$cell_probability
-  # if (is.null(cell_probs)) {
-  #   cell_probs  = h5_full$matrix$latent_cell_probability
-  # }
-  # # assign barcode!
-  # names(cell_probs) = latents
-
-  # # extract barcodes
-  # barcodes    = h5_full$matrix$barcodes[ idx ]
-  # assert_that( length(setdiff(barcodes, latents)) == 0 & length(setdiff(latents, barcodes)) == 0 )
-  # bc_sums     = colSums(mat)
-  # assert_that( length(bc_sums) == length(barcodes) )
-
-  # # assemble dataframe
-  # bender_dt   = data.table(
-  #   cell_id     = paste0(sel_s, ":", barcodes),
-  #   barcode     = barcodes,
-  #   prob_cell   = cell_probs[barcodes],
-  #   bc_count    = bc_sums
-  # ) %>%
-  #   .[, bender_n_used   := .N ] %>%
-  #   .[, bender_n_ok     := sum(prob_cell > 0.5) ] %>%
-  #   .[, bender_prop_ok  := bender_n_ok / bender_n_used ] %>%
-  #   .[, bender_logit_ok := qlogis( (bender_n_ok + 1) / (bender_n_used + 2) ) ]
-  # assert_that( all(bender_dt$cell_id == colnames(mat)) )
-
-  # # check against filtered
-  # h5_filt     = H5Fopen( cb_filt_f, flags = "H5F_ACC_RDONLY" )
-  # ok_bcs      = h5_filt$matrix$barcodes
-  # test_bcs    = bender_dt[ prob_cell > 0.5 ]$barcode
-  # assert_that( length(setdiff(test_bcs, ok_bcs)) == 0 & length(setdiff(ok_bcs, test_bcs)) == 0 )
-
-  # # restrict to barcodes above threshold
-  # keep_idx    = which(bender_dt$prob_cell > bender_prob)
-  # mat         = mat[, keep_idx, drop = FALSE]
-  # bender_dt   = bender_dt[ keep_idx ]
-
-  # # to test if resulting matrix is equal to filtered:
-  # # order_bcs = test_bcs[match(ok_bcs, test_bcs)]
-  # # mat = mat[, order_bcs, drop = FALSE]
-
-  # # close h5 objects
-  # H5Fclose(h5_full)
-  # H5Fclose(h5_filt)
 
   return(list(mat = mat, bender_dt = bender_dt))
 }
@@ -402,16 +308,6 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
   if ("NC_007605.1" %in% levels(gene_annots$chromosome))
     gene_annots[, chromosome := chromosome %>% fct_relevel("NC_007605.1", after = Inf) ]
 
-  # # get gene annotations
-  # gtf_dt      = rtracklayer::import(gtf_dt_f) %>%
-  #   as.data.table
-
-  # # restrict to just genes
-  # gene_annots   = gtf_dt[ type == "gene" ] %>%
-  #   .[, .(ensembl_id = gene_id, symbol = gene_name, gene_type,
-  #     chromosome = seqnames %>% fct_infreq, start, end, width, strand)] %>%
-  #   .[, gene_id := paste0(symbol, '_', ensembl_id) ] %>%
-  #   setcolorder("gene_id")
   assert_that( all(table(gene_annots$gene_id) == 1) )
 
   return(gene_annots)
@@ -442,21 +338,6 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
   return(sce_out)
 }
 
-.add_gene_annots_alevin <- function(sce, gene_annots) {
-  # get current rows
-  setkey(gene_annots, 'gene_id')
-  assert_that( all(rownames(sce) %in% gene_annots$gene_id) )
-
-  # add better annotations
-  annots_dt     = gene_annots[ rownames(sce) ]
-  annots_df     = annots_dt[, .(gene_id, ensembl_id, symbol, gene_type)] %>%
-    as('DataFrame') %>% set_rownames(.$gene_id)
-
-  # add to object
-  rowData(sce)  = annots_df
-
-  return(sce)
-}
 
 .add_qc_metrics <- function(sce, mito_str, bpparam) {
   mt_gs     = str_detect(rownames(sce), mito_str)
@@ -647,82 +528,6 @@ calc_gene_totals <- function(sce_input) {
   return(gene_totals_dt)
 }
 
-# save_alevin_h5_as_sce <- function(sce_df_f, af_dir, metadata_f, gtf_dt_f, mito_str, sce_f,
-#   min_counts = 100, n_cores = 8) {
-#   # unpack some inputs
-#   samples_dt  = fread(sce_df_f)
-#   samples     = samples_dt$sample_id
-#   fry_dir_ls  = file.path(af_dir, sprintf("af_%s/af_quant", samples))
-#
-#   # check some inputs
-#   assert_that(
-#     length(samples) == length(fry_dir_ls)
-#   )
-#   assert_that(
-#     all(str_detect(fry_dir_ls, samples)),
-#     all( file.exists(fry_dir_ls) )
-#   )
-#
-#   # check h5 files are ok
-#   h5closeAll()
-#
-#   message('loading unfiltered alevin outputs into sce')
-#   message('  getting gene annotations')
-#   gene_annots = .get_gene_annots(gtf_dt_f)
-#
-#   # run this in parallel
-#   message('  getting each sample')
-#   bpparam     = MulticoreParam(workers = n_cores, tasks = length(samples))
-#   on.exit(bpstop(bpparam))
-#   sce_ls      = bplapply(seq_along(samples), function(i) {
-#     # get sample and file
-#     sel_s       = samples[[ i ]]
-#     message(sel_s)
-#     fry_dir     = fry_dir_ls[[ i ]]
-#
-#     # turn into sce
-#     sce         = .get_one_alevin_sce(fry_dir, sel_s, mito_str, gene_annots, min_counts)
-#
-#     return(sce)
-#     }, BPPARAM = bpparam)
-#
-#   # check no surprises
-#   assert_that( length(unique(sapply(sce_ls, nrow))) == 1 )
-#
-#   # concatenate counts matrices
-#   message('  joining many matrices (takes a while)')
-#   counts_mat  = lapply(sce_ls, counts) %>% .join_spmats
-#
-#   # double-check for weird genes
-#   weird_gs = str_detect(rownames(counts_mat), "unassigned_gene")
-#   assert_that( all(!weird_gs) )
-#
-#   # get annotations for cells
-#   message('  joining colData info')
-#   cells_dt    = sce_ls %>%
-#     lapply(function(s) colData(s) %>% as.data.frame %>% as.data.table) %>%
-#     rbindlist
-#   assert_that( all.equal(colnames(counts_mat), cells_dt$cell_id) )
-#
-#   # put into one big file
-#   message('  making sce object')
-#   sce         = SingleCellExperiment(list(counts = counts_mat),
-#     colData = cells_dt)
-#
-#   # get annotations for rows
-#   message('  adding gene annotations')
-#   assert_that( all(rownames(counts_mat) %in% gene_annots$gene_id) )
-#   sce         = .add_gene_annots_alevin(sce, gene_annots)
-#   rm(sce_ls); gc()
-#
-#   message('  adding metadata')
-#   sce         = sce %>% .add_metadata(metadata_f)
-#
-#   message('  saving file')
-#   saveRDS(sce, file = sce_f, compress = FALSE)
-#   message('done!')
-# }
-#
 
 
 save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mito_str, sce_f,
@@ -786,7 +591,7 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
   # get annotations for rows
   message('  adding gene annotations')
   assert_that( all(rownames(counts_mat) %in% gene_annots$gene_id) )
-  sce         = .add_gene_annots_alevin(sce, gene_annots)
+  sce         = .add_gene_annots(sce, gene_annots)
   rm(sce_ls); gc()
 
   message('  adding metadata')
