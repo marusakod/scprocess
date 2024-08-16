@@ -180,10 +180,10 @@ if AMBIENT_METHOD == 'cellbender':
       cd $amb_dir
 
       # define output files
-      cb_full_f = "{amb_dir)/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}.h5",
-      cb_filt_f = "{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_filtered.h5",
-      cb_bcs_f  = "{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv'
-      #tmp_f     = temp(amb_dir + '/ambient_{wildcards.sample}/ckpt.tar.gz')
+      cb_full_f="{amb_dir)/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}.h5",
+      cb_filt_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_filtered.h5",
+      cb_bcs_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv'
+      #tmp_f=temp(amb_dir + '/ambient_{wildcards.sample}/ckpt.tar.gz')
 
       
       if [ $EXPECTED_CELLS -eq 0 ]; then
@@ -269,9 +269,9 @@ elif AMBIENT_METHOD == 'decontx':
 
   
       # define output file names
-      dcx_filt_f = "{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_filtered.h5",
-      dcx_bcs_f  = "{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
-      dcx_params_f = "{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_params.txt.gz"
+      dcx_filt_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_filtered.h5",
+      dcx_bcs_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
+      dcx_params_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_params.txt.gz"
 
       # get empty locs
       EMPTY_START={params.empty_start}
@@ -358,8 +358,8 @@ else:
 
 
       # define output file names
-      cell_filt_f = "{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_filtered.h5",
-      cell_bcs_f  = "{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
+      cell_filt_f="{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_filtered.h5",
+      cell_bcs_f="{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
 
 
       # get empty locs
