@@ -25,25 +25,31 @@ suppressMessages({
 })
 
 
-main_doublet_id <- function(sel_sample, sce_f, cb_bad_f, dbl_f, dimred_f, min_feats = 100, min_cells = 100) {
+main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_method,  dbl_f, dimred_f, min_feats = 100, min_cells = 100){
   message('running scDblFinder')
+
+  # if ambient method is cellbender exclude bad samples
+  smpl_status = FALSE
+
+  if(ambient_method == 'cellbender'){
   # loading file with bad bender samples
   message(' loading cellbender sample stats file')
-  cb_bad_df = fread(cb_bad_f)
-  cb_smpl_status = cb_bad_df %>%
-    filter(sample_id == sel_sample) %>% pull(bad_sample) %>% unique()
+  sample_stats_df = fread(sample_stats_f)
+  smpl_status = sample_stats_df %>%
+    filter(sample_id == sel_sample) %>%
+    pull(bad_sample) %>% unique()
 
-  if(cb_smpl_status){
+  }
+
+  if(smpl_status){
     message('  sample ', sel_sample, ' has been excluded. Saving empty results file')
     file.create(dbl_f)
     file.create(dimred_f)
     message('done!')
 
     return(NULL)
+    
   }else{
-
-
-  # check if sample is bad; if it is touch output files
 
   # load sce file
   message('  loading sce object')
@@ -85,7 +91,7 @@ main_doublet_id <- function(sel_sample, sce_f, cb_bad_f, dbl_f, dimred_f, min_fe
   fwrite(dimred_dt, file = dimred_f)
   message('done!')
 
-  return(dbl_dt)
+  return(NULL)
   }
 }
 

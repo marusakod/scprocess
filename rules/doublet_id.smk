@@ -4,7 +4,7 @@ localrules: make_dbl_files_df
 
 rule run_scDblFinder:
   input:
-    cb_bad_f    = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',
+    smpl_stats_f    = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',
     sce_all_f   = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   output:
     dbl_f       = dbl_dir + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz',
@@ -18,7 +18,7 @@ rule run_scDblFinder:
    """
     # run scDblFinder
     Rscript -e "source('scripts/doublet_id.R'); main_doublet_id('{wildcards.sample}', '{input.sce_all_f}', \
-    '{input.cb_bad_f}', '{output.dbl_f}', '{output.dimred_f}', min_feats = {DBL_MIN_FEATS})"
+    '{input.smpl_stats_f}', '{AMBIENT_METHOD}', '{output.dbl_f}', '{output.dimred_f}', min_feats = {DBL_MIN_FEATS})"
    """
 
 
