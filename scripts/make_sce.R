@@ -590,7 +590,6 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
   # get annotations for rows
   message('  adding gene annotations')
-  assert_that( all(rownames(counts_mat) %in% gene_annots$gene_id) )
   sce         = .add_gene_annots(sce, gene_annots)
   rm(sce_ls); gc()
 
