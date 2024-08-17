@@ -21,5 +21,5 @@ rule run_qc:
         min_feats = {QC_MIN_FEATS}, min_mito = {QC_MIN_MITO}, max_mito = {QC_MAX_MITO}, \
         min_splice = {QC_MIN_SPLICE}, max_splice = {QC_MAX_SPLICE}, \
         min_cells = {QC_MIN_CELLS}, filter_bender = '{QC_FILTER_BENDER}', \
-        qc_f = '{output.qc_f}', keep_f = '{output.keep_f}')"
+        amb_method = '{AMBIENT_METHOD}', qc_f = '{output.qc_f}', keep_f = '{output.keep_f}')"
     """

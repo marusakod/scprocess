@@ -36,20 +36,9 @@ prob_brks   = c(0.5, 0.9, 0.99, 0.999, 0.9999, 0.99999, 0.999999) %>% qlogis
 prob_labs   = c("50%", "90%", "99%", "99.9%", "99.99%", "99.999%", "99.9999%")
 
 
-# sce_f       = "output/csf03_make_sce/sce_bender_all_csf_2023-06-29.rds"
-# dbl_f       = "output/csf04_doublet_id/scDblFinder_outputs_csf_2023-06-29.txt.gz"
-# min_counts  = 500
-# min_feats   = 300
-# max_mito    = 0.5
-# keep_mito   = 0.1
-# keep_splice = 1
-# min_cells   = 500
-# qc_f        = "output/csf05_qc/qc_dt_csf_2023-06-29.txt.gz"
-# keep_f      = "output/csf05_qc/keep_dt_csf_2023-06-29.txt.gz"
-
 main_qc <- function(sce_f, dbl_f,
   hard_min_counts, hard_min_feats, hard_max_mito,
-  min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, min_cells, filter_bender,
+  min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, min_cells, filter_bender, amb_method, 
   qc_f, keep_f) {
   # check inputs
   filter_bender = as.logical(filter_bender)
@@ -58,20 +47,20 @@ main_qc <- function(sce_f, dbl_f,
     .[, .(cell_id, sample_id, dbl_class = class)]
   sngl_ids      = dbl_dt[ dbl_class == 'singlet' ]$cell_id
 
-  # # load cellbender probabilities
-  # eps         = 1e-7
-  # bender_dt   = fread(bender_p_f) %>%
-  #   .[, logit_prob := prob_cell %>% pmin(1 - eps) %>% pmax(eps) %>% qlogis ]
-  # assert_that( all(!is.infinite(bender_dt$logit_prob)) )
-
+  if(amb_method == 'cellbender'){
+    annot_vars = c('bender_n_ok', 'bender_n_used',
+      'bender_prop_ok', 'bender_logit_ok')
+  }else{
+    annot_vars = NULL
+  }
   # load sce file, get QC data
   sce         = readRDS(sce_f) %>% .[, dbl_dt$cell_id ]
   qc_all      = make_qc_dt(colData(sce),
     sample_var  = 'sample_id',
     qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced'),
-    annot_vars  = c('bender_n_ok', 'bender_n_used',
-      'bender_prop_ok', 'bender_logit_ok')
+    annot_vars  = annot_vars
     )
+
   # some checks
   assert_that( all(sort(qc_all$cell_id) == sort(dbl_dt$cell_id)))
   assert_that( all( !is.na(qc_all$logit_splice) ) )
@@ -79,10 +68,13 @@ main_qc <- function(sce_f, dbl_f,
   # restrict to singlets
   qc_all        = qc_all[ cell_id %in% sngl_ids ]
 
+
+  if(amb_method == 'cellbender'){  
   # processing / calculations
   bender_chks   = calc_bender_chks(qc_all)
   qc_all        = qc_all %>%
     merge(bender_chks[, .(sample_id, bender_ok)], by = "sample_id")
+  }
 
   # restrict to samples with enough cells
   qc_dt         = qc_all %>%
@@ -99,8 +91,11 @@ main_qc <- function(sce_f, dbl_f,
     .[ logit_spliced >  qlogis(min_splice) ] %>%
     .[ logit_spliced <  qlogis(max_splice) ]
 
+  if(amb_method == 'cellbender'){
   if (filter_bender)
     keep_dt       = keep_dt[ bender_ok == TRUE ]
+  }
+
 
   # exclude samples with v few cells
   n_dt          = keep_dt[, .N, by = sample_id]
