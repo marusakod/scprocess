@@ -98,7 +98,7 @@ rule render_html_alevin_fry:
 # render_html_ambient
 rule render_html_ambient: # some outputs are the same as outputs in render_html_alevin_fry
   input:
-    expand( cb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', sample = SAMPLES )
+    expand( amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', sample = SAMPLES )
   output:
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_ambient.html"

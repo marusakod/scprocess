@@ -106,7 +106,7 @@ rule all:
       code_dir  + '/utils.R',
       code_dir  + '/ambient.R', 
       # markdowns
-      rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd'
+      rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
       rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
       # reports
       docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',
