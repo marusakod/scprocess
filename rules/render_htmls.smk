@@ -47,7 +47,7 @@ rule render_html_alevin_fry:
     cp scripts/utils.R {output.r_utils_f}
     cp scripts/ambient.R {output.r_amb_f}
 
-    if [ "{EXC_SAMPLES}" = 'None' ]; then
+    if [ "{EXC_SAMPLES}" == "None" ]; then
         exc_samples_ls='""'
     else
         exc_samples_ls='c("'$(IFS='","'; echo "${EXC_SAMPLES[*]}")'")'
@@ -110,27 +110,27 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
   shell:
     """
         # checking if any samples have to be excluded
-        if [ "{EXC_SAMPLES}" = 'None' ]; then
+        if [ "{EXC_SAMPLES}" == "None" ]; then
             exc_samples_ls='""'
         else
             exc_samples_ls='c("'$(IFS='","'; echo "${EXC_SAMPLES[*]}")'")'
         fi
 
         # checking if custom params file exists
-        if [ "{CUSTOM_PARAMS_F}" = 'None' ]; then
+        if [ "{CUSTOM_PARAMS_F}" == "None" ]; then
             custom_f='""'
         else
             custom_f=$(realpath {CUSTOM_PARAMS_F})
         fi
 
         # checking whether knees and sample_qc plots need to be displayed in html
-        if [ "{AMBIENT_METHOD}" = 'cellbender' ]; then
+        if [ "{AMBIENT_METHOD}" == "cellbender" ]; then
             eval_knee=1
         else
             eval_knee=0
         fi
 
-        if [ "{AMBIENT_METHOD}" = 'none' ]; then
+        if [ "{AMBIENT_METHOD}" == "none" ]; then
             eval_smpl_qc=0
         else
             eval_smpl_qc=1
