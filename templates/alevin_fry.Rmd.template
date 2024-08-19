@@ -1,0 +1,132 @@
+---
+title: "Knee plot diagnostics"
+author:
+- name: ${YOUR_NAME}
+  affiliation:
+  - ${AFFILIATION}
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+    toc: true
+    toc_float: true
+    number_sections: false
+---
+
+This file contain barcode rank plots with predicted cellbender parameters and plots with slope ratio otliers. Users can run just the alevin step of scprocess and then decide whether they want to use custom parameters for cellbender. 
+
+# Setup / definitions
+
+## Markdown setup
+
+```{r setup_knitr, include=FALSE}
+library('BiocStyle')
+knitr::opts_chunk$$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
+knitr::opts_knit$$set( root.dir='..' )
+# workflowr::wflow_build(files='analysis/${SHORT_TAG}_cellbender.Rmd', view=F, verbose=T, delete_cache=F)
+```
+
+## Helper functions
+
+```{r setup_helpers, message=FALSE, cache=FALSE}
+source('code/utils.R')
+source('code/cellbender.R')
+```
+
+## Inputs
+
+```{r setup_input}
+# define files for calculating pseudobulk marker genes
+meta_f      = "${meta_f}"
+exc_samples = ${exc_samples_ls}
+
+# files with barcode ranks and cellbender parameters
+af_dir      = "${af_dir}"
+knee_dirs <- af_dir %>% 
+  list.files(pattern = '^knee_plot_data_.*${DATE_STAMP}.*', recursive = TRUE, full.names = TRUE)
+names(knee_dirs) <- gsub('.*\\/knee_plot_data_(.+)_.*.txt.gz.*', '\\1', knee_dirs)
+
+# check that these are ok
+assert_that( length(knee_dirs) > 0 )
+assert_that( all(file.exists(knee_dirs)) )
+```
+
+# Load inputs
+
+```{r load_metadata}
+# get nice ordering for samples
+meta_dt   = fread(meta_f)
+s_lvls    = meta_dt$$sample_id %>% setdiff(exc_samples)
+```
+
+```{r load_knee_dfs}
+knee_dfs <- lapply(knee_dirs, FUN = read_delim, delim = ",", show_col_types = FALSE)
+```
+
+# Processing / calculations
+
+```{r get_qc_df}
+bender_knees_df = lapply(knee_dfs, get_bender_knee_params, custom_df = NULL) %>% bind_rows
+```
+
+```{r arrange_samples_for_qc_plots}
+# get total sample number
+sample_n <- nrow(bender_knees_df)
+
+# arrange samples into groups of 20 acoording to their total included vs infection 1 ration
+slope_ratio_ordered_samples <- bender_knees_df %>%
+  arrange(desc(slope_ratio)) %>%
+  pull(sample_id)
+
+# arrange samples into groups of 20 according to their expected cells vs total included ratio
+exp_tot_ratio_orderd_samples <- bender_knees_df %>%
+  arrange(desc(expected_total_ratio)) %>%
+  pull(sample_id)
+
+# split long vector into subsets
+n_per_plot  = 12
+num_subsets = ceiling(sample_n/n_per_plot)
+index_vec_for_split <- rep(1:num_subsets, each = n_per_plot, length.out = sample_n)
+
+# split sample_id vec into a list of subvectors
+slope_ratio_split_l <- split(slope_ratio_ordered_samples, index_vec_for_split)
+exp_tot_ratio_split_l <- split(exp_tot_ratio_orderd_samples, index_vec_for_split)
+```
+
+# Analysis
+
+## Barcode rank plots (ordered by ratio of knee1 to empty plateau){.tabset}
+Plots are annotated with suggested cellbender parameters
+
+```{r knee_plots_slope_ordered, fig.height = 8, fig.width = 12, results = 'asis'}
+for (i in 1:length(slope_ratio_split_l) ) {
+  # get knee dfs for all selected samples
+  samples <- slope_ratio_split_l[[i]]
+  name <- sprintf('sample chunk #%d', i)
+  knees <- knee_dfs[samples]
+  cat('### ', name, '\n')
+  print(plot_barcode_ranks_w_params(knees, bender_knees_df, bender_priors_df))
+  cat('\n\n')
+}
+```
+
+## Barcode rank plots (ordered by expected/total ratio){.tabset}
+
+Plots are annotated with suggested cellbender parameters.
+```{r knee_plots_exp_tot_ordered, fig.height = 8, fig.width = 12, results='asis'}
+for (i in 1:length(exp_tot_ratio_split_l) ) {
+  # get knee dfs for all selected samples
+  samples <- exp_tot_ratio_split_l[[i]]
+  name <- sprintf('sample chunk #%d', i)
+  knees <- knee_dfs[samples]
+  cat('### ', name, '\n')
+  print(plot_barcode_ranks_w_params(knees, bender_knees_df, bender_priors_df))
+  cat('\n\n')
+}
+```
+
+## Dotplot with slope ratio and expected/total ratio
+
+```{r bender_params_qc_box}
+print(make_cb_params_boxplot(bender_knees_df, log = TRUE, scales = 'free'))
+```

@@ -1,0 +1,139 @@
+---
+title: "Cell-level QC"
+author:
+- name: ${YOUR_NAME}
+  affiliation: 
+  - ${AFFILIATION}
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+    toc: true
+    toc_float: true
+    number_sections: false
+---
+
+# Setup / definitions
+
+## Libraries
+
+```{r setup_knitr, include=FALSE}
+library('BiocStyle')
+knitr::opts_chunk$$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
+knitr::opts_knit$$set( root.dir='..' )
+# workflowr::wflow_build(files='analysis/${SHORT_TAG}_qc.Rmd', view=F, verbose=T, delete_cache=T)
+```
+
+```{r setup_libs, collapse=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
+```
+
+## Helper functions
+
+```{r setup_helpers, message=FALSE, cache=FALSE}
+source('code/utils.R')
+source('code/qc.R')
+n_cores     = ${threads}
+setDTthreads(n_cores)
+```
+
+## Inputs
+
+```{r setup_input}
+# define qc metric files
+meta_f      = "${meta_f}"
+qc_f        = "${qc_dt_f}"
+keep_f      = "${qc_keep_f}"
+
+# set default values
+hard_min_counts = ${QC_HARD_MIN_COUNTS}
+hard_min_feats  = ${QC_HARD_MIN_FEATS}
+hard_max_mito   = ${QC_HARD_MAX_MITO}
+min_counts      = ${QC_MIN_COUNTS}
+min_feats       = ${QC_MIN_FEATS}
+min_mito        = ${QC_MIN_MITO}
+max_mito        = ${QC_MAX_MITO}
+min_splice      = ${QC_MIN_SPLICE}
+max_splice      = ${QC_MAX_SPLICE}
+min_cells       = ${QC_MIN_CELLS}
+
+# specifications for SampleQC
+qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
+qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') %>% 
+  setNames(qc_names)
+```
+
+# Load inputs
+
+```{r load_qc_values}
+qc_dt       = fread(qc_f)
+keep_dt     = fread(keep_f)
+kept_dt     = qc_dt[ cell_id %in% keep_dt$$cell_id ]
+```
+
+```{r load_metadata}
+# get nice ordering for samples
+meta_dt     = fread(meta_f)
+s_lvls      = meta_dt$$sample_id %>% intersect(unique(qc_dt$$sample_id))
+```
+
+```{r make_threshold_dt}
+thrshlds_ls = list(
+  log_counts    = log10(min_counts),
+  log_feats     = log10(min_feats),
+  logit_mito    = c(qlogis(min_mito), qlogis(max_mito)),
+  logit_spliced = c(qlogis(min_splice), qlogis(max_splice))
+)
+thrshlds_dt = lapply(names(thrshlds_ls), function(nn) {
+  data.table( qc_var = nn, cut_point = thrshlds_ls[[ nn ]] )
+  }) %>% rbindlist
+thrshlds_dt = thrshlds_dt[ !is.infinite(cut_point) ]
+```
+
+# Analysis
+
+## Sample QC metric ranges, marginals{.tabset}
+
+```{r plot_qc_ranges_marginals, fig.height = 10, fig.width = 9, results = 'asis'}
+suppressWarnings({
+  cat("### Pre-QC\n")
+  print(plot_qc_ranges_marginals(qc_dt, s_lvls, qc_names, qc_lu, thrshlds_dt))
+  cat("\n\n")
+  cat("### After light QC\n")
+  print(plot_qc_ranges_marginals(kept_dt, s_lvls, qc_names, qc_lu, thrshlds_dt))
+  cat("\n\n")
+})
+```
+
+## Sample QC metric ranges, pairwise{.tabset}
+
+```{r plot_qc_ranges_pairwise, fig.height = 7, fig.width = 8, results = 'asis'}
+cat("### Pre-QC\n")
+print(plot_qc_ranges_pairwise(qc_dt, qc_names, qc_lu, thrshlds_dt))
+cat("\n\n")
+cat("### After light QC\n")
+print(plot_qc_ranges_pairwise(kept_dt, qc_names, qc_lu, thrshlds_dt))
+cat("\n\n")
+```
+
+## QC metrics scatterplots{.tabset}
+
+```{r plot_qc_metric_scatters, fig.height = 6, fig.width = 8, results = 'asis'}
+for (s in s_lvls) {
+  qc_tmp      = qc_dt[ sample_id == s ]
+  if (nrow(qc_tmp) == 1)
+    next
+  cat('### ', s, '\n')
+  print(plot_qc_metric_scatter(qc_tmp, qc_names, qc_lu, thrshlds_dt))
+  cat('\n\n')
+}
+```
+
+## How many cells and samples retained?
+
+```{r print_totals_excluded}
+calc_qc_summary(qc_dt, kept_dt) %>% knitr::kable()
+```
+
+```{r session_info, include=TRUE, echo=TRUE, results='markup'}
+devtools::session_info()
+```

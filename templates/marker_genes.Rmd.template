@@ -1,0 +1,235 @@
+---
+title: "Marker genes"
+author:
+- name: ${YOUR_NAME}
+  affiliation: 
+  - ${AFFILIATION}
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+    toc: true
+    toc_float: true
+    number_sections: false
+---
+
+# Setup / definitions
+
+## Libraries
+
+```{r setup_knitr, include=FALSE}
+library('BiocStyle')
+knitr::opts_chunk$$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
+knitr::opts_knit$$set( root.dir='..' )
+# workflowr::wflow_build(files='analysis/${SHORT_TAG}_marker_genes_${INT_SEL_RES}.Rmd', view=F, verbose=T, delete_cache=F)
+```
+
+```{r setup_libs, collapse=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
+```
+
+## Helper functions
+
+```{r setup_helpers, message=FALSE, cache=FALSE}
+source('code/utils.R')
+source('code/integration.R')
+source('code/marker_genes.R')
+n_cores     = ${threads}
+setDTthreads(n_cores)
+```
+
+## Inputs
+
+```{r setup_input}
+# define files for calculating pseudobulk marker genes
+meta_f        = "${meta_f}"
+gtf_dt_f      = "${gtf_dt_f}"
+pb_f          = "${pb_f}"
+hmny_f        = "${hmny_f}"
+mkrs_f        = "${mkrs_f}"
+canon_f       = "${canon_f}"
+hvgs_f        = "${hvgs_f}"
+
+# fgsea files
+fgsea_go_bp_f = "${fgsea_go_bp_f}"
+fgsea_go_cc_f = "${fgsea_go_cc_f}"
+fgsea_go_mf_f = "${fgsea_go_mf_f}"
+fgsea_paths_f = "${fgsea_paths_f}"
+fgsea_hlmk_f  = "${fgsea_hlmk_f}"
+
+# parameters for here
+not_ok_re     = "${MKR_NOT_OK_RE}"
+exc_regex     = "${INT_EXC_REGEX}"
+sel_res       = ${INT_SEL_RES}
+min_cpm_mkr   = ${MKR_MIN_CPM_MKR}
+min_cells     = ${MKR_MIN_CELLS}
+
+# parameters for FGSEA
+gsea_cut      = ${MKR_GSEA_CUT}
+
+# define nice order for plotting
+cl_ord        = NULL
+
+# define metadata variables for plotting
+metadata_vars = ${meta_vars_ls}
+if (all(metadata_vars == ""))
+  metadata_vars = NULL
+```
+
+# Load inputs
+
+```{r load_metadata}
+meta_dt       = meta_f %>% fread
+assert_that( all(metadata_vars %in% names(meta_dt)) )
+```
+
+```{r load_harmony_clusters}
+harmony_dt    = fread(hmny_f) %>% .[ !is.na(UMAP1) ] %>% 
+  .[, c("sample_id", "cell_id", "integration", "UMAP1", "UMAP2", 
+    str_subset(names(.), "RNA_snn_res")), with = FALSE] %>% 
+  .[, cluster := get(paste0("RNA_snn_res.", sel_res))]
+hmny_dt       = harmony_dt[, .(sample_id, cell_id, UMAP1, UMAP2, cluster)] %>% 
+  merge(meta_dt, by = "sample_id")
+```
+
+```{r load_gene_biotypes}
+biotypes_dt   = load_gene_biotypes(gtf_dt_f)
+```
+
+```{r load_cpms}
+cpms_dt     = readRDS(pb_f) %>% 
+  make_logcpms_all(lib_size_method = "edger", 
+    exc_regex = exc_regex, min_cells = min_cells, n_cores = n_cores) %>% 
+  merge(biotypes_dt[, .(gene_id, gene_type)], by = "gene_id")
+```
+
+```{r load_canonical_markers}
+canon_dt    = fread(canon_f) %>% 
+  .[, gene_id   := sprintf("%s_%s", symbol, ensembl_id) ]
+assert_that( all( canon_dt$$gene_id %in% unique(cpms_dt$$gene_id) ) )
+```
+
+```{r load_hvgs}
+hvgs_dt     = fread(hvgs_f) %>% 
+  .[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
+  .[ order(-vst_var) ]
+```
+
+```{r load_pb_markers}
+# calculate markers
+mkrs_dt     = fread(mkrs_f)
+if (is.null(cl_ord))
+  cl_ord      = sort(unique(mkrs_dt$$cluster))
+```
+
+# Processing / calculations
+
+```{r get_top_markers}
+# select top markers
+top_dt      = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
+  get_top_markers
+top_min_dt  = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
+  .[ logcpm.sel >= log(min_cpm_mkr + 1) ] %>% 
+  get_top_markers
+```
+
+```{r calc_gsea_pb}
+# do GSEA
+fgsea_fs        = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f)
+names(fgsea_fs) = str_extract(fgsea_fs, "(go_bp|go_cc|go_mf|paths|hlmk)")
+
+# load fgsea results
+gsea_ls         = lapply(fgsea_fs, fread) %>% setNames(names(fgsea_fs))
+```
+
+# Analysis
+
+## Clusters over UMAP{.tabset}
+
+```{r plot_harmony_clusters_sel_res, fig.height = 5, fig.width = 11}
+g_cl    = plot_umap_cluster(
+  umap_dt   = harmony_dt[, .(cell_id, UMAP1, UMAP2) ], 
+  clust_dt  = harmony_dt[, .(cell_id, cluster = get(paste0('RNA_snn_res.', sel_res))) ],
+  name      = sprintf('res = %s', sel_res))
+g_dens  = plot_umap_density(harmony_dt[, .(cell_id, UMAP1, UMAP2) ])
+g       = g_cl + g_dens
+print(g)
+```
+
+## Cluster splits by metadata variables
+
+```{r plot_clusters_by_metadata, fig.height = 8, fig.width = 7, results = 'asis'}
+if (!is.null(metadata_vars))
+  (plot_clusters_by_metadata(meta_dt, harmony_dt, 
+    meta_vars = metadata_vars, cl_order = cl_ord))
+```
+
+## Metadata variables over UMAP{.tabset}
+
+```{r plot_metadata_over_UMAP, fig.height = 6, fig.width = 8, results = 'asis'}
+for (meta_var in metadata_vars) {
+  cat('###', meta_var, '\n')
+  print(plot_clusters_annotated_by_densities(hmny_dt, meta_var))
+  cat('\n\n')
+}
+```
+
+## Canonical marker genes{.tabset}
+
+```{r plot_canonical_markers, fig.height = 8, fig.width = 8, results = "asis"}
+for (gn in unique(canon_dt$$group)) {
+  cat('### ', gn, '\n')
+  sel_dt    = canon_dt[ group == gn ]
+  print(plot_selected_genes(sel_dt, cpms_dt, cl_order = cl_ord))
+  cat('\n\n')
+}
+```
+
+## Highly variable genes{.tabset}
+
+```{r plot_hvgs_pb_hmny, fig.height = 8, fig.width = 8, results = "asis"}
+n_pages = 10
+per_p   = 10
+p       = 1
+for (i in seq(1, n_pages * per_p, by = per_p)) {
+  cat('### page', p, '\n'); p = p + 1
+  sel_hvgs  = hvgs_dt[ i:(i + 9) ]
+  print(plot_selected_genes(sel_hvgs, cpms_dt, cl_order = cl_ord))
+  cat('\n\n')
+}
+```
+
+## Top marker genes (min expression){.tabset}
+
+```{r plot_top_markers_pb_min, fig.height = 8, fig.width = 8, results = "asis"}
+for (sel_cl in cl_ord) {
+  cat('###', sel_cl, '\n')
+  print(plot_top_marker_genes(sel_cl, top_min_dt, cpms_dt, cl_order = cl_ord))
+  cat('\n\n')
+}
+```
+
+## Top marker genes{.tabset}
+
+```{r plot_top_markers_pb, fig.height = 8, fig.width = 8, results = "asis"}
+for (sel_cl in cl_ord) {
+  cat('###', sel_cl, '\n')
+  print(plot_top_marker_genes(sel_cl, top_dt, cpms_dt, cl_order = cl_ord))
+  cat('\n\n')
+}
+```
+
+## GSEA characterisation of `harmony` clusters{.tabset}
+
+```{r plot_gsea_results_pb, fig.height = 12, fig.width = 8, results = "asis"}
+for (p in names(gsea_ls)) {
+  cat('### ', p, '\n')
+  dt    = gsea_ls[[p]] %>% .[ gsea_var == "z_score" ]
+  plot_gsea_dotplot(dt, gsea_cut = gsea_cut, n_top_paths = 5, max_nes = 2,
+    size_range = c(10, 200), what = "pos_only", cl_order = cl_ord) %>% print
+  cat('\n\n')
+}
+```
+
+```{r session_info, include=TRUE, echo=TRUE, results='markup'}
+devtools::session_info()
+```

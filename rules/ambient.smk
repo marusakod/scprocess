@@ -275,11 +275,11 @@ elif AMBIENT_METHOD == 'decontx':
       EMPTY_START={params.empty_start}
       EMPTY_END={params.empty_end}
 
-      if [ "$EMPTY_START" == "None" ]; then
+      if [ "$EMPTY_START" = "None" ]; then
           EMPTY_START=NULL
       fi
 
-      if [ "$EMPTY_END" == "None" ]; then
+      if [ "$EMPTY_END" = "None" ]; then
           EMPTY_END=NULL
       fi
 
@@ -362,11 +362,11 @@ else:
       EMPTY_START={params.empty_start}
       EMPTY_END={params.empty_end}
 
-      if [ "$EMPTY_START" == "None" ]; then
+      if [ "$EMPTY_START" = "None" ]; then
           EMPTY_START=NULL
       fi
 
-      if [ "$EMPTY_END" == "None" ]; then
+      if [ "$EMPTY_END" = "None" ]; then
           EMPTY_END=NULL
       fi
 

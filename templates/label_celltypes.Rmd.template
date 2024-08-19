@@ -1,0 +1,121 @@
+---
+title: "Cell type labelling with XGBoost"
+author:
+- name: ${YOUR_NAME}
+  affiliation: 
+  - ${AFFILIATION}
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+    toc: true
+    toc_float: true
+    number_sections: false
+---
+
+# Setup / definitions
+
+## Libraries
+
+```{r setup_knitr, include=FALSE}
+library('BiocStyle')
+knitr::opts_chunk$$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
+knitr::opts_knit$$set( root.dir='..' )
+# workflowr::wflow_build(files='analysis/${SHORT_TAG}_label_celltypes.Rmd', view=F, verbose=T, delete_cache=F)
+```
+
+```{r setup_libs, collapse=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
+```
+
+## Helper functions
+
+```{r setup_helpers, message=FALSE, cache=FALSE}
+source('code/utils.R')
+source('code/integration.R')
+source('code/label_celltypes.R')
+n_cores     = ${threads}
+setDTthreads(n_cores)
+```
+
+## Inputs
+
+```{r setup_input}
+# define files for xgboost
+guesses_f   = "${guesses_f}"
+
+# which harmony clusters?
+xgb_f       = "${LBL_XGB_F}"
+sel_res_cl  = "${LBL_SEL_RES_CL}"
+min_pred    = ${LBL_MIN_PRED}
+min_cl_prop = ${LBL_MIN_CL_PROP}
+min_cl_size = ${LBL_MIN_CL_SIZE}
+```
+
+# Load inputs
+
+```{r load_guesses}
+# get celltype labels
+cl_lvls       = xgb_f %>% readRDS %>% .$$cl_lvls
+
+# get predictions
+guesses_dt    = guesses_f %>% fread( na.strings = "" )
+
+# get resolutions used
+res_ls        = names(guesses_dt) %>% 
+  str_extract("RNA_snn_res\\.([0-9]*[.])?[0-9]+") %>% unique %>% sort
+assert_that( sel_res_cl %in% res_ls )
+res_ls        = sel_res_cl %>% c(setdiff(res_ls, sel_res_cl))
+
+# format nicely
+guesses_melt  = get_guesses_melt(guesses_dt, res_ls, cl_lvls, min_cl_size)
+```
+
+# Processing / calculations
+
+```{r blank}
+```
+
+# Analysis
+
+## `harmony` clusters vs `XGBoost`-predicted cell types{.tabset}
+
+```{r plot_cls_vs_pred, fig.height = 5, fig.width = 13, results = 'asis'}
+# plot
+for (sel_res in res_ls) {
+  # make confusion matrix
+  guesses_sel = guesses_melt[ res == sel_res, .(cell_id, prediction = cl_pred_raw)]
+  hmny_sel    = guesses_melt[ res == sel_res, .(cell_id, cl_hmny = cl_hmny %>% factor)]
+  confuse_dt  = calc_confuse_dt(guesses_sel, hmny_sel, "prediction", "cl_hmny")
+
+  # plot heatmap
+  cat('### res = ', sel_res, '\n', sep = '')
+  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", "cl_hmny", 
+    plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
+  cat('\n\n')
+}
+```
+
+## `XGBoost`-predicted cell types over UMAP{.tabset}
+
+```{r plot_umap_pred, fig.height = 5, fig.width = 12, results = 'asis'}
+# plot
+for (sel_res in res_ls) {
+  # make confusion matrix
+  guesses_sel = guesses_melt[ res == sel_res ]
+  umap_sel    = guesses_sel[, .(cell_id, UMAP1, UMAP2)]
+  g_cl        = plot_umap_cluster(umap_sel, 
+    guesses_sel[, .(cell_id, cluster = cl_hmny)], "harmony\ncluster")
+  g_pred      = plot_umap_cluster(umap_sel, 
+    guesses_sel[, .(cell_id, cluster = cl_pred)], "prediction")
+  g = g_cl + g_pred
+
+  # plot umaps
+  cat('### res = ', sel_res, '\n', sep = '')
+  print(g)
+  cat('\n\n')
+}
+```
+
+```{r session_info, include=TRUE, echo=TRUE, results='markup'}
+devtools::session_info()
+```

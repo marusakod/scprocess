@@ -34,7 +34,7 @@ MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MK
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
 code_dir      = f"{PROJ_DIR}/code"
 af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_alevin_fry"
-amb_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
+amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
 sce_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_make_sce"
 dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
 qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
@@ -101,15 +101,25 @@ rule all:
       mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
       mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
       mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
-      mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz'
+      mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
+      # code
+      code_dir  + '/utils.R',
+      code_dir  + '/ambient.R', 
+      # markdowns
+      rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd'
+      rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
+      # reports
+      docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',
+      docs_dir  + '/' + SHORT_TAG + '_ambient.html'
 
 
 # define rules that are needed
 include: "rules/alevin_fry.smk"
-include: "rules/cellbender.smk"
+include: "rules/ambient.smk"
 include: "rules/make_sce.smk"
 include: "rules/doublet_id.smk"
 include: "rules/qc.smk"
 include: "rules/integration.smk"
 include: "rules/marker_genes.smk"
+include: "rules/render_htmls.smk"
 

@@ -51,27 +51,27 @@ def exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES):
 
   return chk_samples
 
+# # this is now a R-only function that does this in scripts/
+# def render_html(proj_dir, template_f, template_dict, rmd_f):
+#   if not os.path.isfile(rmd_f):
+#     # read the contents of the template_f file
+#     with open(template_f, 'r') as f:
+#       template_str = f.read()
 
-def render_html(proj_dir, template_f, template_dict, rmd_f):
-  if not os.path.isfile(rmd_f):
-    # read the contents of the template_f file
-    with open(template_f, 'r') as f:
-      template_str = f.read()
+#     # create a string.Template object using the contents of the file
+#     from string import Template
+#     template    = Template(template_str)
+#     filled_str  = template.substitute(template_dict)
+#     with open(rmd_f, 'w') as f:
+#       f.write(filled_str)
 
-    # create a string.Template object using the contents of the file
-    from string import Template
-    template    = Template(template_str)
-    filled_str  = template.substitute(template_dict)
-    with open(rmd_f, 'w') as f:
-      f.write(filled_str)
-
-  # render rmd file via Rscript
-  bash_str = f"""
-    # render rmd files
-    Rscript -e "source('scripts/render_reports.R'); \
-      render_reports('{proj_dir}', rmd_ls_concat = '{rmd_f}')"
-    """
-  subprocess.run(bash_str, shell = True)
+#   # render rmd file via Rscript
+#   bash_str = f"""
+#     # render rmd files
+#     Rscript -e "source('scripts/render_reports.R'); \
+#       render_reports('{proj_dir}', rmd_ls_concat = '{rmd_f}')"
+#     """
+#   subprocess.run(bash_str, shell = True)
 
 
 

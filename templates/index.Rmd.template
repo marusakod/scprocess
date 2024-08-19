@@ -1,0 +1,24 @@
+---
+title: "[insert title]"
+author:
+- name: ${YOUR_NAME}
+  affiliation: 
+  - ${AFFILIATION}
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+    toc: true
+    toc_float: true
+    number_sections: false
+---
+
+<!-- workflowr::wflow_build(files='analysis/index.Rmd', view=F, verbose=T, delete_cache=T) -->
+
+# Pre-processing
+
+- CellBender checks ([link](${SHORT_TAG}_cellbender.html))
+- QC filtering ([link](${SHORT_TAG}_qc.html))
+- Integrating ([link](${SHORT_TAG}_integration.html))
+- Highly variable and marker genes at pseudobulk level ([link](${SHORT_TAG}_marker_genes.html))
+

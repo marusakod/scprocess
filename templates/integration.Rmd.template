@@ -1,0 +1,163 @@
+---
+title: "Integration with Harmony"
+author:
+- name: ${YOUR_NAME}
+  affiliation: 
+  - ${AFFILIATION}
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+    toc: true
+    toc_float: true
+    number_sections: false
+---
+
+# Setup / definitions
+
+## Libraries
+
+```{r setup_knitr, include=FALSE}
+library('BiocStyle')
+knitr::opts_chunk$$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
+knitr::opts_knit$$set( root.dir='..' )
+# workflowr::wflow_build(files='analysis/${SHORT_TAG}_integration.Rmd', view=F, verbose=T, delete_cache=F)
+```
+
+```{r setup_libs, collapse=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
+```
+
+## Helper functions
+
+```{r setup_helpers, message=FALSE, cache=FALSE}
+source('code/utils.R')
+source('code/cellbender.R')
+source('code/integration.R')
+n_cores     = ${threads}
+setDTthreads(n_cores)
+```
+
+## Inputs
+
+```{r setup_input}
+# inputs via reprocessing
+sce_all_f   = "${sce_all_f}"
+qc_f        = "${qc_dt_f}"
+keep_f      = "${qc_keep_f}"
+
+# define QC lookups
+qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
+qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') %>% 
+  setNames(qc_names)
+
+# define harmony inputs
+hmny_f      = "${hmny_f}"
+hvgs_f      = "${hmny_hvgs_f}"
+res_ls      = ${INT_RES_LS}
+sel_res     = ${INT_SEL_RES}
+dbl_cl_prop = ${INT_DBL_CL_PROP}
+```
+
+# Load inputs
+
+```{r load_qc_results}
+keep_ids    = fread(keep_f) %>% use_series('cell_id')
+qc_melt     = fread(qc_f) %>% 
+  melt(id = 'cell_id', measure = qc_names, val = 'qc_val', var = 'qc_var') %>%
+  .[, qc_full := qc_lu[ qc_var ] ] %>%
+  .[, qc_var  := factor(qc_var, levels = qc_names) ] %>%
+  .[, qc_full := fct_reorder(qc_full, as.integer(qc_var)) ] %>% 
+  .[ !is.na(qc_val) ]
+```
+
+```{r load_harmony_results}
+hmny_all    = fread(hmny_f)
+```
+
+```{r extract_dbl_checks}
+hmny_dbl    = hmny_all %>% 
+  .[, .(sample_id, cell_id, UMAP1 = dbl_UMAP1, UMAP2 = dbl_UMAP2, is_dbl, dbl_cluster)]
+```
+
+```{r extract_normal_harmony}
+hmny_dt    = hmny_all[ !is.na(UMAP1) ] %>% 
+  .[, c("sample_id", "cell_id", "integration", "UMAP1", "UMAP2", 
+    str_subset(names(hmny_all), "RNA_snn_res")), with = FALSE]
+```
+
+# Processing / calculations
+
+```{r extract_clusters}
+clusts_dt   = hmny_dt %>% 
+  melt(measure = patterns('RNA_snn_res'), var = 'resolution', val = 'cluster') %>% 
+  .[, .(integration, sample_id, cell_id, 
+    resolution = str_extract(resolution, "(?<=res\\.)(.+)"), cluster)]
+```
+
+# Analysis
+
+
+## Check doublets over UMAP
+
+```{r plot_doublet_harmony, fig.height = 5, fig.width = 11}
+g_dbl   = plot_umap_doublets(hmny_dbl)
+g_dens  = plot_umap_density(hmny_dbl[, .(cell_id, UMAP1, UMAP2) ])
+g       = g_dbl + g_dens
+print(g)
+```
+
+## Check doublet clusters
+
+```{r plot_doublet_clusters, fig.height = 4, fig.width = 6}
+( plot_doublet_clusters(hmny_dbl, dbl_cl_prop) )
+```
+
+## Clusters over UMAP{.tabset}
+
+```{r plot_clusters_harmony, fig.height = 5, fig.width = 11, results = "asis"}
+for (res in res_ls) {
+  cat('### ', res, '\n')
+  g_cl    = plot_umap_cluster(
+    umap_dt   = hmny_dt[, .(cell_id, UMAP1, UMAP2) ], 
+    clust_dt  = hmny_dt[, .(cell_id, cluster = get(paste0('RNA_snn_res.', res))) ],
+    name      = sprintf('res = %s', res))
+  g_dens  = plot_umap_density(hmny_dt[, .(cell_id, UMAP1, UMAP2) ])
+  g       = g_cl + g_dens
+  print(g)
+  cat('\n\n')
+}
+```
+
+## Check that clusters are well-mixed{.tabset}
+
+```{r plot_entropy_selected_clusters, fig.height = 5, fig.width = 7, results = "asis"}
+for (res in res_ls) {
+  cat('### ', res, '\n')
+  input_dt  = hmny_dt[, .(sample_id, cell_id, cluster = get(paste0('RNA_snn_res.', res)))]
+  suppressWarnings(print(plot_cluster_entropies(input_dt, what = "norm")))
+  cat('\n\n')
+}
+```
+
+## Check QC metrics of clusters{.tabset}
+
+```{r plot_qc_distns, fig.height = 8, fig.width = 10, results = 'asis'}
+for (res in res_ls) {
+  cat('### ', res, '\n')
+  suppressWarnings(print(plot_cluster_qc_distns(
+    qc_melt, 
+    clust_dt  = hmny_dt[, .(cell_id, cluster = get(paste0('RNA_snn_res.', res)))], 
+    name      = res)))
+  cat('\n\n')
+}
+```
+
+
+# Outputs
+
+```{r save_outputs}
+```
+
+```{r session_info, include=TRUE, echo=TRUE, results='markup'}
+devtools::session_info()
+```
