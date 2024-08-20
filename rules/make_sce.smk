@@ -69,7 +69,7 @@ if AMBIENT_METHOD == 'cellbender':
       sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
     output:
       sce_all_f   = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
-    threads: 8
+    threads: 4
     resources:
       mem_mb    = 8192
     conda:
@@ -89,12 +89,12 @@ if AMBIENT_METHOD == 'cellbender':
       """
 else:
   localrules: make_sce_object
-  rule mke_sce_object:
+  rule make_sce_object:
     input:
       sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
     output:
       sce_all_f   = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
-    threads: 8
+    threads: 4
     resources:
       mem_mb    = 8192
     conda:

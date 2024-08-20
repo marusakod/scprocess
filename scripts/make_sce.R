@@ -21,7 +21,7 @@ suppressPackageStartupMessages({
 })
 
 
-source('scripts/cellbender.R') # to get the function that reads a matrix from .h5 file
+source('scripts/ambient.R') # to get the function that reads a matrix from .h5 file
 
 
 save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce_f,
