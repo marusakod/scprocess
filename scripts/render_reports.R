@@ -30,8 +30,10 @@ make_rmd_from_temp(temp_f, temp_ls, rmd_f)
 
 # render html
 
-workflowr::wflow_build( files = rmd_f, view = FALSE,
- verbose = TRUE, delete_cache = TRUE)
+# workflowr::wflow_build( files = rmd_f, view = FALSE,
+#  verbose = TRUE, delete_cache = TRUE)
+return(NULL)
+
 
 }
 

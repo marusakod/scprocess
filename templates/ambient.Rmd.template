@@ -21,8 +21,8 @@ params:
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
-knitr::opts_chunk$$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
-knitr::opts_knit$$set( root.dir='..' )
+knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
+knitr::opts_knit$set( root.dir='..' )
 # workflowr::wflow_build(files='analysis/${SHORT_TAG}_cellbender.Rmd', view=F, verbose=T, delete_cache=F)
 
 # establish conditions
@@ -40,10 +40,8 @@ source('code/cellbender.R')
 ## Inputs
 
 ```{r setup_input}
-meta_f      = "${meta_f}"
-exc_samples = ${exc_samples_ls}
-amb_method = "${ambient_method}"
-# do_cbender  = as.logical('${do_cellbender}')
+samples      = "${SAMPLE_STR}"
+amb_method = "${AMBIENT_METHOD}"
 custom_f = '${custom_f}'
 
 # files with barcode ranks and cellbender parameters
@@ -70,7 +68,7 @@ assert_that( all(file.exists(knee_dirs)) )
 ```{r load_metadata}
 # get sample order
 meta_dt   = fread(meta_f)
-s_lvls    = meta_dt$$sample_id %>% setdiff(exc_samples)
+s_lvls    = meta_dt$sample_id %>% setdiff(exc_samples)
 if (file.exists(custom_f)) {
   custom_df = read_delim(custom_f, delim = ",", show_col_types = FALSE)
   custom_smpls = custom_df$sample_id
@@ -141,17 +139,17 @@ empty_umis_df <- lapply(s_lvls , FUN = function(smpl){
   if(smpl %in% custom_smpls){
     if(amb_method == 'cellbender'){
       total_inc = custom_df %>% filter(sample_id == smpl) %>% pull(total_droplets_included)
-      empty_umi = df[ which.min(abs(df$$rank - total_inc)), "total"]
+      empty_umi = df[ which.min(abs(df$rank - total_inc)), "total"]
     }else{ # if ambient method is decontx
       empty_start = custom_df %>% filter(sample_id == smpl) %>% pull(empty_start)
       empty_end = custom_df %>% filter(sample_id == smpl) %>% pull(empty_end)
-      empty_s_y = df[ which.min(abs(df$$rank - empty_start)), "total"]
-      empty_e_y = df[ which.min(abs(df$$rank - empty_end)), "total"]
+      empty_s_y = df[ which.min(abs(df$rank - empty_start)), "total"]
+      empty_e_y = df[ which.min(abs(df$rank - empty_end)), "total"]
       empty_umi  = mean(empty_s_y, empty_e_y) # maybe take something else?
     }
   }else{
-  total_inc = unique(df$$total_droplets_included)
-  empty_umi= df[ which.min(abs(df$$rank - total_inc)), "total"]
+  total_inc = unique(df$total_droplets_included)
+  empty_umi= df[ which.min(abs(df$rank - total_inc)), "total"]
   }
 
   return(empty_umi_df = data.frame(sample_id = smpl,
@@ -164,7 +162,7 @@ empty_umis_df <- lapply(s_lvls , FUN = function(smpl){
 
 ```{r get_all_reads_n, eval=eval_sample_qc_plots}
 # sum all the UMI counts from knee plots
-all_reads_n = sapply(knee_dfs, function(k_df) sum(k_df$$total))
+all_reads_n = sapply(knee_dfs, function(k_df) sum(k_df$total))
 all_reads_n_df = data.frame(sample_id = names(knee_dfs),
                             total_reads = all_reads_n)
 

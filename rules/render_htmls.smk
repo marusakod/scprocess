@@ -28,71 +28,71 @@
 
 
 # render_html_alevin_fry
-rule render_html_alevin_fry:
-  output:
-    r_utils_f   = f"{code_dir}/utils.R",
-    r_amb_f      = f"{code_dir}/ambient.R",
-    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_alevin_fry.Rmd",
-    html_f      = f"{docs_dir}/{SHORT_TAG}_alevin_fry.html"
-  threads: 1
-  resources:
-    mem_mb      = 4096
-  conda:
-    '../envs/rlibs.yml'
-  shell:
-    """
-    # copy R code over
-    echo "copying relevant R files over"
+# rule render_html_alevin_fry:
+#   output:
+#     r_utils_f   = f"{code_dir}/utils.R",
+#     r_amb_f      = f"{code_dir}/ambient.R",
+#     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_alevin_fry.Rmd",
+#     html_f      = f"{docs_dir}/{SHORT_TAG}_alevin_fry.html"
+#   threads: 1
+#   resources:
+#     mem_mb      = 4096
+#   conda:
+#     '../envs/rlibs.yml'
+#   shell:
+#     """
+#     # copy R code over
+#     echo "copying relevant R files over"
     
-    cp scripts/utils.R {output.r_utils_f}
-    cp scripts/ambient.R {output.r_amb_f}
+#     cp scripts/utils.R {output.r_utils_f}
+#     cp scripts/ambient.R {output.r_amb_f}
 
-    if [ "{EXC_SAMPLES}" == "None" ]; then
-        exc_samples_ls='""'
-    else
-        exc_samples_ls='c("'$(IFS='","'; echo "${EXC_SAMPLES[*]}")'")'
-    fi
+#     if [ "{EXC_SAMPLES}" == "None" ]; then
+#         exc_samples_ls='""'
+#     else
+#         exc_samples_ls='c("'$(IFS='","'; echo "${EXC_SAMPLES[*]}")'")'
+#     fi
 
 
-    meta_f=$(realpath {METADATA_F})
-    af_dir=$(realpath {af_dir})
+#     meta_f=$(realpath {METADATA_F})
+#     af_dir=$(realpath {af_dir})
     
 
-    # define what we will substitute in
-    echo "setting up template"
+#     # define what we will substitute in
+#     echo "setting up template"
 
-    sub_ls=$(jq -n \
-            --arg YOUR_NAME "{YOUR_NAME}" \
-            --arg AFFILIATION "{AFFILIATION}" \
-            --arg SHORT_TAG "{SHORT_TAG}" \
-            --arg DATE_STAMP "{DATE_STAMP}" \
-            --arg meta_f "$meta_f" \
-            --arg exc_samples_ls "$exc_samples_ls" \
-            --arg af_dir "$af_dir" \
-            '{
-                YOUR_NAME: $YOUR_NAME,
-                AFFILIATION: $AFFILIATION,
-                SHORT_TAG: $SHORT_TAG,
-                DATE_STAMP: $DATE_STAMP,
-                meta_f: $meta_f,
-                exc_samples_ls: $exc_samples_ls,
-                af_dir: $af_dir
-            }')
-
-
-    # make and render Rmd file
-    template_f="templates/alevin_fry.Rmd.template"
-    echo "rendering html"
+#     sub_ls=$(jq -n \
+#             --arg YOUR_NAME "{YOUR_NAME}" \
+#             --arg AFFILIATION "{AFFILIATION}" \
+#             --arg SHORT_TAG "{SHORT_TAG}" \
+#             --arg DATE_STAMP "{DATE_STAMP}" \
+#             --arg meta_f "$meta_f" \
+#             --arg exc_samples_ls "$exc_samples_ls" \
+#             --arg af_dir "$af_dir" \
+#             '{
+#                 YOUR_NAME: $YOUR_NAME,
+#                 AFFILIATION: $AFFILIATION,
+#                 SHORT_TAG: $SHORT_TAG,
+#                 DATE_STAMP: $DATE_STAMP,
+#                 meta_f: $meta_f,
+#                 exc_samples_ls: $exc_samples_ls,
+#                 af_dir: $af_dir
+#             }')
 
 
-    Rscript -e "source('scripts/render_reports.R'); \
-    render_reports(
-    proj_dir = '{PROJ_DIR}', \
-    temp_f = '{template_f}', \
-    temp_ls = $sub_ls, \
-    rmd_f = '{output.rmd_f}')"
+#     # make and render Rmd file
+#     template_f="templates/alevin_fry.Rmd.template"
+#     echo "rendering html"
 
-    """
+
+#     Rscript -e "source('scripts/render_reports.R'); \
+#     render_reports(
+#     proj_dir = '{PROJ_DIR}', \
+#     temp_f = '{template_f}', \
+#     temp_ls = $sub_ls, \
+#     rmd_f = '{output.rmd_f}')"
+
+#     """
 
 
 # render_html_ambient
@@ -100,8 +100,8 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
   input:
     expand( amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', sample = SAMPLES )
   output:
-    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd",
-    html_f      = f"{docs_dir}/{SHORT_TAG}_ambient.html"
+    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd"
+    #html_f      = f"{docs_dir}/{SHORT_TAG}_ambient.html"
   threads: 1
   resources:
     mem_mb      = 4096
@@ -109,18 +109,12 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
     '../envs/rlibs.yml'
   shell:
     """
-        # checking if any samples have to be excluded
-        if [ "{EXC_SAMPLES}" == "None" ]; then
-            exc_samples_ls='""'
-        else
-            exc_samples_ls='c("'$(IFS='","'; echo "${EXC_SAMPLES[*]}")'")'
-        fi
-
+            
         # checking if custom params file exists
         if [ "{CUSTOM_PARAMS_F}" == "None" ]; then
-            custom_f='""'
+            custom_f=""
         else
-            custom_f=$(realpath {CUSTOM_PARAMS_F})
+            custom_f={CUSTOM_PARAMS_F}
         fi
 
         # checking whether knees and sample_qc plots need to be displayed in html
@@ -135,31 +129,25 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
         else
             eval_smpl_qc=1
         fi
-
-        # get some paths 
-        meta_f=$(realpath {METADATA_F})
-        af_dir=$(realpath {af_dir})
         
         sub_ls=$(jq -n \
                 --arg YOUR_NAME "{YOUR_NAME}" \
                 --arg AFFILIATION "{AFFILIATION}" \
                 --arg SHORT_TAG "{SHORT_TAG}" \
                 --arg DATE_STAMP "{DATE_STAMP}" \
-                --arg meta_f "$meta_f" \
-                --arg exc_samples_ls "$exc_samples_ls" \
-                --arg ambient_method "{AMBIENT_METHOD}" \
-                --arg eval_knee $eval_knee \
-                --arg eval_smpl_qc $eval_smpl_qc \
+                --arg SAMPLE_STR "{SAMPLE_STR}" \
+                --arg AMBIENT_METHOD "{AMBIENT_METHOD}" \
+                --argjson eval_knee $eval_knee \
+                --argjson eval_smpl_qc $eval_smpl_qc \
                 --arg custom_f "$custom_f" \
-                --arg af_dir "$af_dir" \
+                --arg af_dir "{af_dir}" \
                 '{
                     YOUR_NAME: $YOUR_NAME,
                     AFFILIATION: $AFFILIATION,
                     SHORT_TAG: $SHORT_TAG,
                     DATE_STAMP: $DATE_STAMP,
-                    meta_f: $meta_f,
-                    exc_samples_ls: $exc_samples_ls,
-                    ambient_method: $ambient_method, 
+                    SAMPLE_STR: $SAMPLE_STR,
+                    AMBIENT_METHOD: $AMBIENT_METHOD, 
                     eval_knee: $eval_knee, 
                     eval_smpl_qc: $eval_smpl_qc, 
                     custom_f: $custom_f, 
@@ -167,15 +155,19 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
                 }')
 
         # Make and render Rmd file
-        template_f="templates/ambient.Rmd.template"
+        template_f=$(realpath templates/ambient.Rmd.template)
 
         echo "Rendering html"
+        echo "$template_f"
+        echo "$sub_ls"
+        
+        echo "Rendering html"
         Rscript -e "source('scripts/render_reports.R'); \
-          render_reports(
-          proj_dir = '{PROJ_DIR}', \
-          temp_f = '{template_f}', \
-          temp_ls = $sub_ls, \
-          rmd_f = '{output.rmd_f}')"
+        render_reports(
+        proj_dir = '{proj_dir}', \
+        temp_f =  '$template_f', \
+        temp_ls = $sub_ls, \
+        rmd_f = '{output.rmd_f}')"
     """
 
 # rule render_html_qc:
