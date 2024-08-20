@@ -285,7 +285,7 @@ elif AMBIENT_METHOD == 'decontx':
 
       # run cell calling and decontamination
    
-      Rscript -e "source('scripts/cellbender.R'); \
+      Rscript -e "source('scripts/ambient.R'); \
       get_cell_mat_and_barcodes(
       out_mat_f = '$dcx_filt_f', \
       out_bcs_f = '$dcx_bcs_f', \
@@ -372,7 +372,7 @@ else:
 
 
       # run cell calling and decontamination
-      Rscript -e "source('scripts/cellbender.R'); \
+      Rscript -e "source('scripts/ambient.R'); \
       get_cell_mat_and_barcodes(
       out_mat_f = '$cell_filt_f', \
       out_bcs_f = '$cell_bcs_f', \
@@ -415,7 +415,7 @@ rule get_barcode_qc_metrics:
   shell:
     """
     # save barcode stats
-    Rscript -e "source('scripts/cellbender.R'); \
+    Rscript -e "source('scripts/ambient.R'); \
       save_barcode_qc_metrics('{input.af_h5_f}', '{input.amb_yaml_f}', \
         '{output.bc_qc_f}', {params.expected_cells}, '{AMBIENT_METHOD}')"
     """

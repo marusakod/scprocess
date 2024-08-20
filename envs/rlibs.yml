@@ -55,4 +55,4 @@ dependencies:
 - r-tidyverse=2.0.0
 - r-uwot=0.1.16
 - r-viridis=0.6.4
-
+- jq
