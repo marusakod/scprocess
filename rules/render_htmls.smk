@@ -27,7 +27,7 @@
 
 
 
-# render_html_alevin_fry
+# # render_html_alevin_fry
 # rule render_html_alevin_fry:
 #   output:
 #     r_utils_f   = f"{code_dir}/utils.R",
@@ -109,65 +109,24 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
     '../envs/rlibs.yml'
   shell:
     """
-            
-        # checking if custom params file exists
-        if [ "{CUSTOM_PARAMS_F}" == "None" ]; then
-            custom_f=""
-        else
-            custom_f={CUSTOM_PARAMS_F}
-        fi
-
-        # checking whether knees and sample_qc plots need to be displayed in html
-        if [ "{AMBIENT_METHOD}" == "cellbender" ]; then
-            eval_knee=1
-        else
-            eval_knee=0
-        fi
-
-        if [ "{AMBIENT_METHOD}" == "none" ]; then
-            eval_smpl_qc=0
-        else
-            eval_smpl_qc=1
-        fi
-        
-        sub_ls=$(jq -n \
-                --arg YOUR_NAME "{YOUR_NAME}" \
-                --arg AFFILIATION "{AFFILIATION}" \
-                --arg SHORT_TAG "{SHORT_TAG}" \
-                --arg DATE_STAMP "{DATE_STAMP}" \
-                --arg SAMPLE_STR "{SAMPLE_STR}" \
-                --arg AMBIENT_METHOD "{AMBIENT_METHOD}" \
-                --argjson eval_knee $eval_knee \
-                --argjson eval_smpl_qc $eval_smpl_qc \
-                --arg custom_f "$custom_f" \
-                --arg af_dir "{af_dir}" \
-                '{
-                    YOUR_NAME: $YOUR_NAME,
-                    AFFILIATION: $AFFILIATION,
-                    SHORT_TAG: $SHORT_TAG,
-                    DATE_STAMP: $DATE_STAMP,
-                    SAMPLE_STR: $SAMPLE_STR,
-                    AMBIENT_METHOD: $AMBIENT_METHOD, 
-                    eval_knee: $eval_knee, 
-                    eval_smpl_qc: $eval_smpl_qc, 
-                    custom_f: $custom_f, 
-                    af_dir: $af_dir
-                }')
-
-        # Make and render Rmd file
         template_f=$(realpath templates/ambient.Rmd.template)
-
-        echo "Rendering html"
-        echo "$template_f"
-        echo "$sub_ls"
+        rule="ambient"
         
         echo "Rendering html"
         Rscript -e "source('scripts/render_reports.R'); \
         render_reports(
+        rule_name = '$rule', \
         proj_dir = '{proj_dir}', \
         temp_f =  '$template_f', \
-        temp_ls = $sub_ls, \
-        rmd_f = '{output.rmd_f}')"
+        rmd_f = '{output.rmd_f}', \
+        YOUR_NAME = '{YOUR_NAME}', \
+        AFFILIATION = '{AFFILIATION}', \
+        SHORT_TAG = '{SHORT_TAG}', \
+        DATE_STAMP = '{DATE_STAMP}', \
+        SAMPLE_STR = '{SAMPLE_STR}', \
+        AMBIENT_METHOD = '{AMBIENT_METHOD}', \
+        CUSTOM_PARAMS_F = '{CUSTOM_PARAMS_F}', \
+        af_dir = '{af_dir}')"
     """
 
 # rule render_html_qc:

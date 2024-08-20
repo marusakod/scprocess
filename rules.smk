@@ -101,13 +101,13 @@ rule all:
       mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
       mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
       mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
-      mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz'
+      mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz',
       # code
       #code_dir  + '/utils.R',
       #code_dir  + '/ambient.R', 
       # markdowns
       #rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
-      #rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd'
+      rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd'
       # reports
       #docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',
       #docs_dir  + '/' + SHORT_TAG + '_ambient.html'
@@ -121,5 +121,5 @@ include: "rules/doublet_id.smk"
 include: "rules/qc.smk"
 include: "rules/integration.smk"
 include: "rules/marker_genes.smk"
-#include: "rules/render_htmls.smk"
+include: "rules/render_htmls.smk"
 

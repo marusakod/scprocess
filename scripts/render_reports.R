@@ -1,58 +1,160 @@
 # render_reports.R
-suppressPackageStartupMessages({
-  library('stringr')
-  library('assertthat')
-  library('workflowr')
-  library('glue')
-})
+ suppressPackageStartupMessages({
+    library('stringr')
+    library('assertthat')
+    library('workflowr')
+    library('glue')
+  })
 
-# function that replaces placeholder strings in template Rmds and renders html reports
+  # function that replaces placeholder strings in template Rmds and renders html reports
 
-# commented this out because we don't use lists with rmd files
-# render_reports <- function(proj_dir, rmd_ls_concat) {
-#   rmd_ls    = rmd_ls_concat %>% str_split(" ") %>% unlist
-#   print(rmd_ls)
-#   print(proj_dir)
-#   setwd(proj_dir)
-#   assert_that( all(file.exists(rmd_ls)) )
+  render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
-#   for (rmd_f in rmd_ls)
-#     workflowr::wflow_build( files = rmd_f, view = FALSE,
-#       verbose = TRUE, delete_cache = TRUE )
-# }
+    setwd(proj_dir)
 
-render_reports <- function(proj_dir, temp_f, temp_ls, rmd_f){
- 
-setwd(proj_dir) 
-# make Rmd file
-message('Creating Rmd file from template ', temp_f)
-make_rmd_from_temp(temp_f, temp_ls, rmd_f)
+    # get list with all values that need to be replaced in the template
+    temp_ls = get_sub_ls(rule_name, ...)
+    print(temp_ls)
 
-# render html
+    # make Rmd file
+    message('Creating Rmd file from template ', temp_f)
+    make_rmd_from_temp(temp_f, temp_ls, rmd_f)
 
-# workflowr::wflow_build( files = rmd_f, view = FALSE,
-#  verbose = TRUE, delete_cache = TRUE)
-return(NULL)
+    # render html
 
+    # workflowr::wflow_build( files = rmd_f, view = FALSE,
+    #  verbose = TRUE, delete_cache = TRUE)
 
-}
+  }
 
 
 
-make_rmd_from_temp <- function(temp_f, temp_ls, rmd_f){
- if(!file.exists(rmd_f)){
-  # read remplate file
-  temp_str = readLines(temp_f, warn = FALSE)
-  
-  # convert into one long string
-  temp_str = paste(temp_str, collapse = "\n")
+  make_rmd_from_temp <- function(temp_f, temp_ls, rmd_f){
+    if(!file.exists(rmd_f)){
+      # read remplate file
+      temp_str = readLines(temp_f, warn = FALSE)
 
-  # substitute placeholders
-  rmd_str = glue(temp_str, .envir = as.environment(temp_ls), .open = "${", .close = "}")
+      # convert into one long string
+      temp_str = paste(temp_str, collapse = "\n")
 
-  # write to rmd file
-  writeLines(rmd_str, rmd_f)
- }
+      # substitute placeholders
+      rmd_str = glue(temp_str, .envir = as.environment(temp_ls), .open = "${", .close = "}")
+
+      # write to rmd file
+      writeLines(rmd_str, rmd_f)
+    }
 
 
-}
+  }
+
+
+  get_sub_ls <- function(rule = c('af', 'ambient', 'qc', 'integration', 'markers', 'cell_labels', 'zoom', 'pb_empties'), ...){
+
+    sel_rule = match.arg(rule)
+
+    # get additional arguments
+    add_args = list(...)
+    add_args_names = names(add_args)
+
+    # checki if all extra args for a specific rule are there
+    if(sel_rule == 'ambient'){
+      req_names = c('YOUR_NAME','AFFILIATION', 'SHORT_TAG',
+                    'DATE_STAMP', 'SAMPLE_STR', 'AMBIENT_METHOD',
+                    'CUSTOM_PARAMS_F', 'af_dir')
+
+      assert_that(all(req_names %in% add_args_names))
+
+      # make a list
+      if(add_args[['CUSTOM_PARAMS_F']] == 'None'){
+        custom_f = ""
+      }else{
+        custom_f = add_args[['CUSTOM_PARAMS_F']]
+      }
+
+      if(add_args[['AMBIENT_METHOD']] == 'cellbender'){
+        eval_knee = TRUE
+      }else{
+        eval_knee = FALSE
+      }
+
+      if(add_args[['AMBIENT_METHOD']] == 'none'){
+        eval_smpl_qc = TRUE
+      }else{
+        eval_smpl_qc = FALSE
+      }
+
+      params_ls = add_args[c('YOUR_NAME', 'AFFILIATION','SHORT_TAG','DATE_STAMP', 'AMBIENT_METHOD', 'SAMPLE_STR', 'af_dir')]
+      params_ls = c(params_ls, list(eval_knee = eval_knee, eval_smpl_qc = eval_smpl_qc, custom_f = custom_f))
+    }else if(sel_rule == 'af'){
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+                    'DATE_STAMP', 'SAMPLE_STR','AMBIENT_METHOD',
+                    'CUSTOM_PARAMS_F', 'af_dir')
+
+      assert_that(all(req_names %in% add_args_names))
+
+      # make a list
+      if(add_args[['CUSTOM_PARAMS_F']] == 'None'){
+        custom_f = ""
+      }else{
+        custom_f = add_args[['CUSTOM_PARAMS_F']]
+      }
+
+      params_ls = add_args[c('YOUR_NAME', 'AFFILIATION', 'DATE_STAMP', 'AMBIENT_METHOD', 'SAMPLE_STR', 'af_dir')]
+      params_ls = c(params_ls, list(custom_f = custom_f))
+
+    }else if(sel_rule == 'qc'){
+
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+                    'DATE_STAMP', 'threads', 'METADATA_F',
+                    'qc_dt_f', 'qc_keep_f', 'QC_HARD_MIN_COUNTS',
+                    'QC_HARD_MIN_FEATS', 'QC_HARD_MAX_MITO',
+                    'QC_MIN_COUNTS', 'QC_MIN_FEATS',
+                    'QC_MIN_MITO', 'QC_MAX_MITO', 'QC_MIN_SPLICE',
+                    'QC_MAX_SPLICE', 'QC_MIN_CELLS',
+                    'QC_FILTER_BENDER')
+
+      assertthat(all(req_names %in% add_args_names))
+
+      params_ls = add_args[req_names]
+
+    }else if(sel_rule == 'integration'){
+
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+                    'DATE_STAMP', 'threads', 'sce_all_f',
+                    'qc_dt_f', 'qc_keep_f', 'hmny_f', 'hmny_hvgs_f',
+                    'INT_RES_LS', 'INT_SEL_RES', 'INT_DBL_CL_PROP') # don't forget to join int_res_ls into a single string before using
+
+      assertthat(all(req_names %in% add_args_names))
+
+      params_ls = add_args[req_names]
+
+    }else if(sel_rule == 'markers'){
+
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+                    'DATE_STAMP', 'threads', 'METADATA_F',
+                    'meta_vars_ls', # this has to be first joined in the 'params' bit of the rule
+                    'AF_GTF_DT_F', 'hmny_f', 'fgsea_go_bp_f',
+                    'fgsea_go_cc_f', 'fgsea_go_mf_f',
+                    'fgsea_paths_f', 'fgsea_hlmk_f', 'INT_EXC_REGEX',
+                    'INT_SEL_RES',
+                    'MKR_NOT_OK_RE', 'MKR_MIN_CPM_MKR', 'MKR_MIN_CELLS', 'MKR_GSEA_CUT', 'SPECIES')
+
+      assertthat(all(req_names %in% add_args_names))
+
+      # based on species determine whether code chunks with gsea results shoudl be eval or not
+      if(add_args[['SPECIES']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){
+        eval_fgsea = TRUE
+      }else{
+        eval_fgsea = FALSE
+      }
+
+      params_ls = c(add_args[setdiff(req_names, 'SPECIES')], list(eval_fgsea = eval_fgsea))
+    }else{
+
+      return(NULL)
+
+    }
+
+    return(params_ls)
+
+  }
