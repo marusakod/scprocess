@@ -1,6 +1,3 @@
-# This is a snakefile for scprocess setup
-# todo: run python scripts in a better way inside all rules, maybe with python3 ... (would need argparse in setup.py script)
-
 import pandas as pd
 import os
 import re
@@ -8,14 +5,17 @@ import glob
 import subprocess
 import numpy as np
 import sys
+import warnings
 
-from setup_utils import *
+
+from setup_utils import get_setup_parameters
 
 SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 
+#configfile = '/Users/marusa/Projects/scprocess_test/configs/config-setup-test.yaml'
 # get parameters from configfile
 GENOMES_STR, FASTA_FS, GTF_FS, MITO_STRS, DECOYS = get_setup_parameters(config) 
-
+GENOMES = GENOMES_STR.split(',')
 
 rule all:
     input:
@@ -51,9 +51,9 @@ rule all:
         SCPROCESS_DATA_DIR + '/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt',
         SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/allowed_cls_Siletti_Macnair_2024-03-11.csv',
         SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/xgboost_obj_hvgs_Siletti_Macnair_2024-03-11.rds',
-        # rule get reference genomes
+        # rule get_reference_genomes 
         SCPROCESS_DATA_DIR + '/setup_parameters.csv', 
-        # rule build_af_indices
+         # rule build_af_indices
         expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/simpleaf_index_log.json', genome=GENOMES)
 
 
@@ -95,8 +95,6 @@ rule download_scprocess_repo_data:
     xgb_rds_f         = SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/xgboost_obj_hvgs_Siletti_Macnair_2024-03-11.rds'
   conda:
     'envs/py_env.yml'
-  resources:
-    mem_mb = 100
   threads: 1
   shell:
     """
@@ -115,14 +113,11 @@ rule get_reference_genomes:
     mem_mb = 8192
   threads: 1
   shell:
-    """
+    """  
     python3 scripts/setup.py get_genome_params {GENOMES_STR} {FASTA_FS} {GTF_FS} {MITO_STRS} {DECOYS} {SCPROCESS_DATA_DIR}
     
     """
 
-
-
-# rule for making alevin indices
 rule build_af_indices:
   input: 
     ref_params_f = SCPROCESS_DATA_DIR + '/setup_parameters.csv'
@@ -135,6 +130,6 @@ rule build_af_indices:
   threads: 16
   shell:
     """
-    python3 scripts/setup.py make_af_idx {wildcards.genome} {input.ref_params_f} {SCPROCESS_DATA_DIR} {threads}
+    python3 scripts/build_af_index.py {wildcards.genome} {input.ref_params_f} {SCPROCESS_DATA_DIR} {threads}
 
     """

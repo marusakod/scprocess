@@ -55,7 +55,7 @@ if __name__ == '__main__':
   args      = parser.parse_args()
 
   # select snakefile corresponding to workflow
-  snakefile = os.path.join(sc_dir, "setup_rules_test.smk")
+  snakefile = os.path.join(sc_dir, "setup_rules.smk")
 
   # sort out extra arguments
   extraargs = ''
