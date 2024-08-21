@@ -1,4 +1,4 @@
-# render_reports.R
+
  suppressPackageStartupMessages({
     library('stringr')
     library('assertthat')
@@ -8,19 +8,18 @@
 
   # function that replaces placeholder strings in template Rmds and renders html reports
 
-  render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
+render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
-    setwd(proj_dir)
+  setwd(proj_dir)
 
-    # get list with all values that need to be replaced in the template
-    temp_ls = get_sub_ls(rule_name, ...)
-    print(temp_ls)
+  # get list with all values that need to be replaced in the template
+   temp_ls = get_sub_ls(rule_name, ...)
+ 
+  # make Rmd file
+   message('Creating Rmd file from template ', temp_f)
+   make_rmd_from_temp(temp_f, temp_ls, rmd_f)
 
-    # make Rmd file
-    message('Creating Rmd file from template ', temp_f)
-    make_rmd_from_temp(temp_f, temp_ls, rmd_f)
-
-    # render html
+   message('Rendering html')
 
     # workflowr::wflow_build( files = rmd_f, view = FALSE,
     #  verbose = TRUE, delete_cache = TRUE)
@@ -30,6 +29,7 @@
 
 
   make_rmd_from_temp <- function(temp_f, temp_ls, rmd_f){
+
     if(!file.exists(rmd_f)){
       # read remplate file
       temp_str = readLines(temp_f, warn = FALSE)
@@ -43,8 +43,6 @@
       # write to rmd file
       writeLines(rmd_str, rmd_f)
     }
-
-
   }
 
 
@@ -56,7 +54,7 @@
     add_args = list(...)
     add_args_names = names(add_args)
 
-    # checki if all extra args for a specific rule are there
+    # check if all extra args for a specific rule are present
     if(sel_rule == 'ambient'){
       req_names = c('YOUR_NAME','AFFILIATION', 'SHORT_TAG',
                     'DATE_STAMP', 'SAMPLE_STR', 'AMBIENT_METHOD',
@@ -78,13 +76,14 @@
       }
 
       if(add_args[['AMBIENT_METHOD']] == 'none'){
-        eval_smpl_qc = TRUE
-      }else{
         eval_smpl_qc = FALSE
+      }else{
+        eval_smpl_qc = TRUE
       }
 
-      params_ls = add_args[c('YOUR_NAME', 'AFFILIATION','SHORT_TAG','DATE_STAMP', 'AMBIENT_METHOD', 'SAMPLE_STR', 'af_dir')]
+      params_ls = add_args[setdiff(req_names, 'CUSTOM_PARAMS_F')]
       params_ls = c(params_ls, list(eval_knee = eval_knee, eval_smpl_qc = eval_smpl_qc, custom_f = custom_f))
+
     }else if(sel_rule == 'af'){
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
                     'DATE_STAMP', 'SAMPLE_STR','AMBIENT_METHOD',
@@ -99,13 +98,13 @@
         custom_f = add_args[['CUSTOM_PARAMS_F']]
       }
 
-      params_ls = add_args[c('YOUR_NAME', 'AFFILIATION', 'DATE_STAMP', 'AMBIENT_METHOD', 'SAMPLE_STR', 'af_dir')]
+      params_ls = add_args[setdiff(req_names, 'CUSTOM_PARAMS_F')]
       params_ls = c(params_ls, list(custom_f = custom_f))
 
     }else if(sel_rule == 'qc'){
 
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
-                    'DATE_STAMP', 'threads', 'METADATA_F',
+                    'DATE_STAMP', 'threads', 'meta_f',
                     'qc_dt_f', 'qc_keep_f', 'QC_HARD_MIN_COUNTS',
                     'QC_HARD_MIN_FEATS', 'QC_HARD_MAX_MITO',
                     'QC_MIN_COUNTS', 'QC_MIN_FEATS',

@@ -19,8 +19,8 @@ output:
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
-knitr::opts_chunk$$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
-knitr::opts_knit$$set( root.dir='..' )
+knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
+knitr::opts_knit$set( root.dir='..' )
 # workflowr::wflow_build(files='analysis/${SHORT_TAG}_qc.Rmd', view=F, verbose=T, delete_cache=T)
 ```
 
@@ -67,13 +67,13 @@ qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') 
 ```{r load_qc_values}
 qc_dt       = fread(qc_f)
 keep_dt     = fread(keep_f)
-kept_dt     = qc_dt[ cell_id %in% keep_dt$$cell_id ]
+kept_dt     = qc_dt[ cell_id %in% keep_dtcell_id ]
 ```
 
 ```{r load_metadata}
 # get nice ordering for samples
 meta_dt     = fread(meta_f)
-s_lvls      = meta_dt$$sample_id %>% intersect(unique(qc_dt$$sample_id))
+s_lvls      = meta_dt$sample_id %>% intersect(unique(qc_dt$sample_id))
 ```
 
 ```{r make_threshold_dt}

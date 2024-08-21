@@ -19,8 +19,8 @@ output:
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
-knitr::opts_chunk$$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
-knitr::opts_knit$$set( root.dir='..' )
+knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
+knitr::opts_knit$set( root.dir='..' )
 # workflowr::wflow_build('analysis/${SHORT_TAG}_zoom_${zoom_name}.Rmd', view = F, verbose = T, delete_cache = F)
 ```
 
@@ -116,7 +116,7 @@ cpms_dt     = readRDS(pb_f) %>%
 ```{r load_canonical_markers}
 canon_dt    = fread(canon_f) %>% 
   .[, gene_id   := sprintf("%s_%s", symbol, ensembl_id) ]
-assert_that( all( canon_dt$$gene_id %in% unique(cpms_dt$$gene_id) ) )
+assert_that( all( canon_dt$gene_id %in% unique(cpms_dt$gene_id) ) )
 ```
 
 ```{r load_hvgs}
@@ -129,7 +129,7 @@ hvgs_dt     = fread(hvgs_f) %>%
 # calculate markers
 mkrs_dt     = fread(mkrs_f)
 if (is.null(cl_ord))
-  cl_ord      = sort(unique(mkrs_dt$$cluster))
+  cl_ord      = sort(unique(mkrs_dt$cluster))
 ```
 
 # Processing / calculations
@@ -192,7 +192,7 @@ if (!is.null(metadata_vars))
 ## Canonical marker genes{.tabset}
 
 ```{r plot_canonical_markers, fig.height = 8, fig.width = 8, results = "asis"}
-for (gn in unique(canon_dt$$group)) {
+for (gn in unique(canon_dt$group)) {
   cat('### ', gn, '\n')
   sel_dt    = canon_dt[ group == gn ]
   print(plot_selected_genes(sel_dt, cpms_dt, cl_order = cl_ord))

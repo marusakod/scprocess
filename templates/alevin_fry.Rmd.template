@@ -21,8 +21,8 @@ This file contain barcode rank plots with predicted cellbender parameters and pl
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
-knitr::opts_chunk$$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
-knitr::opts_knit$$set( root.dir='..' )
+knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
+knitr::opts_knit$set( root.dir='..' )
 # workflowr::wflow_build(files='analysis/${SHORT_TAG}_cellbender.Rmd', view=F, verbose=T, delete_cache=F)
 ```
 
@@ -30,15 +30,15 @@ knitr::opts_knit$$set( root.dir='..' )
 
 ```{r setup_helpers, message=FALSE, cache=FALSE}
 source('code/utils.R')
-source('code/cellbender.R')
+source('code/ambient.R')
 ```
 
 ## Inputs
 
 ```{r setup_input}
 # define files for calculating pseudobulk marker genes
-meta_f      = "${meta_f}"
-exc_samples = ${exc_samples_ls}
+samples = "${SAMPLE_STR}"
+custom_f = "${custom_f}"
 
 # files with barcode ranks and cellbender parameters
 af_dir      = "${af_dir}"
@@ -56,7 +56,7 @@ assert_that( all(file.exists(knee_dirs)) )
 ```{r load_metadata}
 # get nice ordering for samples
 meta_dt   = fread(meta_f)
-s_lvls    = meta_dt$$sample_id %>% setdiff(exc_samples)
+s_lvls    = meta_dt$sample_id %>% setdiff(exc_samples)
 ```
 
 ```{r load_knee_dfs}
