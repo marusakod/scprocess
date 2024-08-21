@@ -114,6 +114,12 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
       assert_that(all(req_names %in% add_args_names))
 
+      if(add_args[['QC_FILTER_BENDER']] == 'False'){
+        add_args[['QC_FILTER_BENDER']] = FALSE
+      }else{
+        add_args[['QC_FILTER_BENDER']] = TRUE
+      }
+
       params_ls = add_args[req_names]
 
     }else if(sel_rule == 'integration'){

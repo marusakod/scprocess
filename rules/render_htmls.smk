@@ -139,7 +139,7 @@ rule render_html_qc:
     qc_dt_f = '{input.qc_f}', \
     qc_keep_f = '{input.keep_f}', \
     QC_HARD_MIN_COUNTS = {QC_HARD_MIN_COUNTS}, \
-    QC_HARD_MIN_FEATS = {QC_HARD_MIN_FEATS), \
+    QC_HARD_MIN_FEATS = {QC_HARD_MIN_FEATS}, \
     QC_HARD_MAX_MITO = {QC_HARD_MAX_MITO}, \
     QC_MIN_COUNTS = {QC_MIN_COUNTS}, \
     QC_MIN_FEATS = {QC_MIN_FEATS}, \
@@ -148,7 +148,7 @@ rule render_html_qc:
     QC_MIN_SPLICE = {QC_MIN_SPLICE}, \
     QC_MAX_SPLICE = {QC_MAX_SPLICE}, \
     QC_MIN_CELLS = {QC_MIN_CELLS}, \
-    QC_FILTER_BENDER = {QC_FILTER_BENDER})"
+    QC_FILTER_BENDER = '{QC_FILTER_BENDER}')"
     
     """
 
@@ -311,11 +311,11 @@ rule render_html_marker_genes:
     fgsea_hlmk_f = '{input.fgsea_hlmk_f}', \
     INT_EXC_REGEX = '{INT_EXC_REGEX}', \
     INT_SEL_RES = {INT_SEL_RES}, \
-    MKR_NOT_OK_RE = {MKR_NOT_OK_RE}, \
+    MKR_NOT_OK_RE = '{MKR_NOT_OK_RE}', \
     MKR_MIN_CPM_MKR = {MKR_MIN_CPM_MKR}, \
     MKR_MIN_CELLS = {MKR_MIN_CELLS}, \
     MKR_GSEA_CUT = {MKR_GSEA_CUT}, \
-    SPECIES = '{SPECIES}'})"
+    SPECIES = '{SPECIES}')"
 
     """
 
