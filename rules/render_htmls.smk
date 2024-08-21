@@ -156,7 +156,7 @@ rule render_html_qc:
 
 rule render_html_integration:
   input:
-    sce_f       = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+    sce_f       = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
     qc_f        = qc_dir  + '/qc_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     keep_f      = qc_dir  + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     harmony_f   = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
@@ -168,7 +168,7 @@ rule render_html_integration:
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_integration.Rmd"
     #html_f      = f"{docs_dir}/{SHORT_TAG}_integration.html"
   params: 
-    int_res_ls = ','.join(INT_RES_LS)
+    int_res_ls = ','.join(map(str, INT_RES_LS))
   threads: 1
   conda:
     '../envs/rlibs.yml'

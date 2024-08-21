@@ -112,7 +112,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
                     'QC_MAX_SPLICE', 'QC_MIN_CELLS',
                     'QC_FILTER_BENDER')
 
-      assertthat(all(req_names %in% add_args_names))
+      assert_that(all(req_names %in% add_args_names))
 
       params_ls = add_args[req_names]
 
@@ -121,24 +121,24 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
                     'DATE_STAMP', 'threads', 'sce_all_f',
                     'qc_dt_f', 'qc_keep_f', 'hmny_f', 'hmny_hvgs_f',
-                    'INT_RES_LS', 'INT_SEL_RES', 'INT_DBL_CL_PROP') # don't forget to join int_res_ls into a single string before using
+                    'INT_RES_LS', 'INT_SEL_RES', 'INT_DBL_CL_PROP') 
 
-      assertthat(all(req_names %in% add_args_names))
+      assert_that(all(req_names %in% add_args_names))
 
       params_ls = add_args[req_names]
 
     }else if(sel_rule == 'markers'){
 
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
-                    'DATE_STAMP', 'threads', 'METADATA_F',
+                    'DATE_STAMP', 'threads', 'meta_f',
                     'meta_vars_ls', # this has to be first joined in the 'params' bit of the rule
-                    'AF_GTF_DT_F', 'hmny_f', 'fgsea_go_bp_f',
+                    'gtf_dt_f', 'hmny_f', 'pb_f', 'mkrs_f', 'canon_f', 'hvgs_f', 'fgsea_go_bp_f',
                     'fgsea_go_cc_f', 'fgsea_go_mf_f',
                     'fgsea_paths_f', 'fgsea_hlmk_f', 'INT_EXC_REGEX',
                     'INT_SEL_RES',
                     'MKR_NOT_OK_RE', 'MKR_MIN_CPM_MKR', 'MKR_MIN_CELLS', 'MKR_GSEA_CUT', 'SPECIES')
 
-      assertthat(all(req_names %in% add_args_names))
+      assert_that(all(req_names %in% add_args_names))
 
       # based on species determine whether code chunks with gsea results shoudl be eval or not
       if(add_args[['SPECIES']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){
@@ -148,9 +148,44 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
       }
 
       params_ls = c(add_args[setdiff(req_names, 'SPECIES')], list(eval_fgsea = eval_fgsea))
-    }else{
 
-      return(NULL)
+    }else if(sel_rule == 'cell_labels'){
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+                    'DATE_STAMP', 'threads' ,'guesses_f', 
+                    'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED', 
+                    'LBL_MIN_CL_PROP', 'LBL_MIN_CL_SIZE')
+
+      assert_that(all(req_names %in% add_args_names))
+
+      params_ls = add_args[req_names]
+    }else if(sel_rule == 'zoom'){
+
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+                    'DATE_STAMP', 'threads', 'zoom_name', 'zoom_res', 
+                    'meta_f', 'meta_vars_ls', # meta_vars_ls should be made one string
+                    'gtf_dt_f', 'sce_sub_f', 'hmny_f', 'pb_f', 'mkrs_f',
+                    'hvgs_f', 'canon_f', 'fgsea_go_bp_f','fgsea_go_cc_f',
+                    'fgsea_go_mf_f', 'fgsea_paths_f', 'fgsea_hlmk_f','INT_DBL_CL_PROP', 
+                    'INT_EXC_REGEX', 'MKR_NOT_OK_RE','MKR_MIN_CPM_MKR','MKR_MIN_CELLS','MKR_GSEA_CUT', 'SPECIES')
+
+      assert_that(all(req_names %in% add_args_names))
+      
+      if(add_args[['SPECIES']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){
+        eval_fgsea = TRUE
+      }else{
+        eval_fgsea = FALSE
+      }
+
+       params_ls = c(add_args[setdiff(req_names, 'SPECIES')], list(eval_fgsea = eval_fgsea))
+
+    }else if(sel_rule == 'pb_empties'){
+        req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+                    'DATE_STAMP', 'threads', 'guesses_f', 'empty_csv_f',
+                    'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED', 'LBL_MIN_CL_PROP', 
+                    'LBL_MIN_CL_SIZE', 'LBL_MIN_CL_SIZE')
+
+        assert_that(all(req_names %in% add_args_names))
+        params_ls = add_args[req_names]
 
     }
 

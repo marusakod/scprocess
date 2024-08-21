@@ -103,11 +103,21 @@ rule all:
       mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
       mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz',
       # code
-      #code_dir  + '/utils.R',
-      #code_dir  + '/ambient.R', 
+      code_dir  + '/utils.R',
+      code_dir  + '/ambient.R',
+      code_dir  + '/qc.R', 
+      code_dir  + '/make_sce.R',
+      code_dir  + '/doublet_id.R',
+      code_dir  + '/integration.R', 
+      # code_dir  + '/label_celltypes.R',
+      code_dir  + '/marker_genes.R',
       # markdowns
-      #rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
-      rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd'
+      rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
+      rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd', 
+      rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
+      rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
+      #rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
+      rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.Rmd'
       # reports
       #docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',
       #docs_dir  + '/' + SHORT_TAG + '_ambient.html'
