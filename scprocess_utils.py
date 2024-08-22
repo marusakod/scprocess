@@ -375,7 +375,7 @@ def get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
 
 
 # define marker_genes parameters
-def get_label_celltypes_parameters(config, SPECIES): 
+def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR): 
   # set some more default values
   LBL_XGB_F       = None
   LBL_XGB_CLS_F   = None
@@ -405,7 +405,9 @@ def get_label_celltypes_parameters(config, SPECIES):
       assert len(LBL_SCE_SUBSETS) == len(set(LBL_SCE_SUBSETS)), "sce_subsets contains duplicate entries"
 
     # pick labeller
-    xgb_dir         = '/projects/site/pred/neurogenomics/resources/scprocess_data/data/xgboost'
+    xgb_dir         = os.path.join(SCPROCESS_DATA_DIR, 'xgboost')
+    assert os.path.isdir(xgb_dir)
+    
     if SPECIES in ['human_2020', 'human_2024']:
       if LBL_TISSUE == 'brain_cns':    
         # get cluster levels
