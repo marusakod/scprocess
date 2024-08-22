@@ -123,6 +123,16 @@ rule all:
       #docs_dir  + '/' + SHORT_TAG + '_ambient.html'
 
 
+rule label_and_subset:
+  input:
+    lbl_dir   + '/sce_subset_specifications_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    expand([
+      lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
+      ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] ),
+    rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
+
+
 # define rules that are needed
 include: "rules/alevin_fry.smk"
 include: "rules/ambient.smk"
@@ -132,4 +142,5 @@ include: "rules/qc.smk"
 include: "rules/integration.smk"
 include: "rules/marker_genes.smk"
 include: "rules/render_htmls.smk"
+include: "rules/label_and_subset.smk"
 
