@@ -406,7 +406,7 @@ def get_label_celltypes_parameters(config, SPECIES):
 
     # pick labeller
     xgb_dir         = '/projects/site/pred/neurogenomics/resources/scprocess_data/data/xgboost'
-    if SPECIES == 'human':
+    if SPECIES in ['human_2020', 'human_2024']:
       if LBL_TISSUE == 'brain_cns':    
         # get cluster levels
         # LBL_XGB_F       = "/projects/site/pred/neurogenomics/resources/scprocess_data/data/xgboost/xgboost_obj_hvgs_Bryois_2022_2023-09-18.rds"
@@ -419,10 +419,8 @@ def get_label_celltypes_parameters(config, SPECIES):
         LBL_XGB_CLS_F   = os.path.join(xgb_dir, "Siletti_Macnair-2024-03-11/allowed_cls_Siletti_Macnair_2024-03-11.csv")
       else:
         raise ValueError(f"Unknown 'lbl_tissue' value in species {SPECIES}: {LBL_TISSUE}")
-    elif SPECIES == 'mouse':
-      raise ValueError('sorry no mouse classifiers implemented yet, please bug Will...')
     else:
-      raise ValueError(f'sorry species {SPECIES} not recognised')
+        raise ValueError(f"cell type labelling not supported for species {SPECIES}")
 
     # check these are ok
     assert os.path.isfile(LBL_XGB_F)
