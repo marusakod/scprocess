@@ -42,7 +42,7 @@ rule lbl_save_subset_sces:
       s = None if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] )
   threads: 4
   params:
-      sub_names: ' '.join([*LBL_SCE_SUBSETS])
+    sub_names = ' '.join([*LBL_SCE_SUBSETS])
   conda:
     '../envs/rlibs.yml'
   resources:
@@ -52,7 +52,7 @@ rule lbl_save_subset_sces:
     # make dataframe with subset specifications
     python3 -c "
     LBL_SCE_SUBSETS = {LBL_SCE_SUBSETS}
-    df = pd.concat([ pd.DataFrame({'subset_name': k, 'guess': v}) for k, v in LBL_SCE_SUBSETS.items() ])
+    df = pd.concat([ pd.DataFrame({{'subset_name': k, 'guess': v}}) for k, v in LBL_SCE_SUBSETS.items() ])
     df.to_csv({output.subsets_df}, index = False)
     "
       # save sce object

@@ -127,13 +127,12 @@ rule all:
 
 rule label_and_subset:
   input:
+    lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+    lbl_dir + '/xgboost_guesses_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     lbl_dir   + '/sce_subset_specifications_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     expand([
       lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
-      ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] ),
-    rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
-
+      ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] )
 
 # define rules that are needed
 include: "rules/alevin_fry.smk"

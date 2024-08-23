@@ -35,6 +35,7 @@ echo snakemake ${SM_ARGS} \
   --rerun-incomplete \
   --verbose \
   --use-conda \
+  $rule
 
  snakemake ${SM_ARGS} \
   --snakefile $snakefile \
@@ -42,4 +43,4 @@ echo snakemake ${SM_ARGS} \
   --rerun-incomplete \
   --verbose \
   --use-conda \
-
+  $rule

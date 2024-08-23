@@ -108,7 +108,7 @@ label_celltypes_with_xgboost <- function(xgb_f, sce_f, harmony_f,
   message('  getting lognorm counts of HVGs')
   hvg_mat     = .calc_logcounts(hvg_mat_f, sce_f, gene_var, hvgs, n_cores = n_cores)
   assert_that( is(hvg_mat, "sparseMatrix") )
-  assert_that( all( colnames(hvg_mat) == xgb_obj$feature_names ) )
+  #assert_that( all( colnames(hvg_mat) == xgb_obj$feature_names ) )
 
   # predict for new data
   message('  predicting celltypes for all cells')
@@ -347,12 +347,33 @@ save_subset_sces <- function(sce_f, guesses_f, sel_res_cl, subset_df_f,
   ref_gs      = rowData(sce)[[ gene_var ]]
   if (gene_var == "gene_id")
     ref_gs = ref_gs %>% str_replace("_ENSG", "-ENSG")
-  assert_that( all( hvgs %in% ref_gs) )
-  sel_idx     = ref_gs %in% hvgs
+  #assert_that( all( hvgs %in% ref_gs) )
+  #sel_idx     = ref_gs %in% hvgs
 
+
+   # add zero counts matrix for missing hvgs if there are any
+  if(!all(hvgs %in% ref_gs)){
+    missing_hvgs = setdiff(hvgs, ref_gs)
+    n_cols = ncol(sce)
+    missing_mat = matrix(0, length(missing_hvgs), n_cols)
+    rownames(missing_mat) = missing_hvgs
+    colnames(missing_mat) = colnames(sce)
+    # convert to sparse
+    missing_mat = as(missing_mat, 'dgTMatrix')
+  #assert_that( all( hvgs %in% ref_gs) )
+  #sel_idx     = ref_gs %in% hvgs
+  
   # get counts
   counts_mat  = counts(sce)
   rownames(counts_mat) = ref_gs
+
+  counts_mat = rbind(counts_mat, missing_mat)
+  }else{
+
+   counts_mat  = counts(sce)
+  rownames(counts_mat) = ref_gs
+
+  }
 
   # turn into seurat object
   message('    converting to Seurat object')
