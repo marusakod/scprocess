@@ -17,24 +17,30 @@ rule zoom_one_zoom:
     zoom_fgsea_hlmk_f   = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_hlmk_' + DATE_STAMP +'.txt.gz',
     zoom_imputed_f      = zoom_dir + '/{zoom_name}/' + 'zoom_imputed_dt_' + FULL_TAG + '_{zoom_name}_{zoom_res}_' + DATE_STAMP +'.txt.gz'
   params:
-    zoom_name   = '{zoom_name}',
-    zoom_res    = '{zoom_res}'
-  threads: 8
-  retries: 5
+    zoom_sel_cls      = ' '.join(ZOOM_SPEC_LS[ '{zoom_name}' ]['sel_cls']),
+    zoom_res          = ZOOM_SPEC_LS[ '{zoom_name}' ]['zoom_res'],
+    zoom_n_dims       = ZOOM_SPEC_LS[ '{zoom_name}' ]['n_dims'],
+    zoom_n_hvgs       = ZOOM_SPEC_LS[ '{zoom_name}' ]['n_hvgs'],
+    zoom_min_n_sample = ZOOM_SPEC_LS[ '{zoom_name}' ]['min_n_sample'],
+    zoom_min_n_cl     = ZOOM_SPEC_LS[ '{zoom_name}' ]['min_n_cl'],
+    zoom_n_train      = ZOOM_SPEC_LS[ '{zoom_name}' ]['n_train']
+  threads: 4
+  conda:
+    '../envs/rlibs.yml'
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_ZOOM_RUN_ZOOM
-  run:
-    # extract useful values
-    ZOOM_SEL_CLS        = ZOOM_SPEC_LS[ params.zoom_name ]['sel_cls']
-    ZOOM_RES            = ZOOM_SPEC_LS[ params.zoom_name ]['zoom_res']
-    ZOOM_N_DIMS         = ZOOM_SPEC_LS[ params.zoom_name ]['n_dims']
-    ZOOM_N_HVGS         = ZOOM_SPEC_LS[ params.zoom_name ]['n_hvgs']
-    ZOOM_MIN_N_SAMPLE   = ZOOM_SPEC_LS[ params.zoom_name ]['min_n_sample']
-    ZOOM_MIN_N_CL       = ZOOM_SPEC_LS[ params.zoom_name ]['min_n_cl']
-    ZOOM_N_TRAIN        = ZOOM_SPEC_LS[ params.zoom_name ]['n_train']
+    mem_mb      = 8192
+  shell:
+    """
+  
+    ZOOM_SEL_CLS={params.zoom_sel_cls} 
+    ZOOM_RES={params.zoom_res} 
+    ZOOM_N_DIMS={params.zoom_n_dims} 
+    ZOOM_N_HVGS={params.zoom_n_hvgs}
+    ZOOM_MIN_N_SAMPLE={params.zoom_min_n_sample}
+    ZOOM_MIN_N_CL={params.zoom_min_n_cl} 
+    ZOOM_N_TRAIN={params.zoom_n_train} 
 
-    # run shell
-    shell("""
+  
     Rscript -e "\
     source('scripts/utils.R'); source('scripts/integration.R'); \
     source('scripts/marker_genes.R'); source('scripts/zoom.R'); \
@@ -46,4 +52,5 @@ rule zoom_one_zoom:
       '{MKR_NOT_OK_RE}', '{MKR_GSEA_DIR}', {MKR_MIN_CPM_GO}, {MKR_MAX_ZERO_P}, {MKR_GSEA_CUT}, {MKR_MIN_CELLS}, \
       '{params.zoom_name}', '{ZOOM_SEL_CLS}', {ZOOM_RES}, {ZOOM_N_HVGS}, {ZOOM_N_DIMS}, \
       {ZOOM_MIN_N_SAMPLE}, {ZOOM_MIN_N_CL}, {ZOOM_N_TRAIN}, n_cores = {threads})"
-    """)
+
+    """
