@@ -17,13 +17,13 @@ rule zoom_one_zoom:
     zoom_fgsea_hlmk_f   = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_hlmk_' + DATE_STAMP +'.txt.gz',
     zoom_imputed_f      = zoom_dir + '/{zoom_name}/' + 'zoom_imputed_dt_' + FULL_TAG + '_{zoom_name}_{zoom_res}_' + DATE_STAMP +'.txt.gz'
   params:
-    zoom_sel_cls      = ' '.join(ZOOM_SPEC_LS[ '{zoom_name}' ]['sel_cls']),
-    zoom_res          = ZOOM_SPEC_LS[ '{zoom_name}' ]['zoom_res'],
-    zoom_n_dims       = ZOOM_SPEC_LS[ '{zoom_name}' ]['n_dims'],
-    zoom_n_hvgs       = ZOOM_SPEC_LS[ '{zoom_name}' ]['n_hvgs'],
-    zoom_min_n_sample = ZOOM_SPEC_LS[ '{zoom_name}' ]['min_n_sample'],
-    zoom_min_n_cl     = ZOOM_SPEC_LS[ '{zoom_name}' ]['min_n_cl'],
-    zoom_n_train      = ZOOM_SPEC_LS[ '{zoom_name}' ]['n_train']
+    zoom_sel_cls      = lambda wildcards: ' '.join(ZOOM_SPEC_LS[wildcards.zoom_name]['sel_cls']),
+    zoom_res          = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['zoom_res'],
+    zoom_n_dims       = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['n_dims'],
+    zoom_n_hvgs       = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['n_hvgs'],
+    zoom_min_n_sample = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['min_n_sample'],
+    zoom_min_n_cl     = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['min_n_cl'],
+    zoom_n_train      = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['n_train']
   threads: 4
   conda:
     '../envs/rlibs.yml'
@@ -50,7 +50,7 @@ rule zoom_one_zoom:
       '{SPECIES}', '{AF_GTF_DT_F}', \
       {INT_SEL_RES}, '{INT_EXC_REGEX}', {INT_DBL_RES}, {INT_DBL_CL_PROP}, {INT_THETA}, \
       '{MKR_NOT_OK_RE}', '{MKR_GSEA_DIR}', {MKR_MIN_CPM_GO}, {MKR_MAX_ZERO_P}, {MKR_GSEA_CUT}, {MKR_MIN_CELLS}, \
-      '{params.zoom_name}', '{ZOOM_SEL_CLS}', {ZOOM_RES}, {ZOOM_N_HVGS}, {ZOOM_N_DIMS}, \
-      {ZOOM_MIN_N_SAMPLE}, {ZOOM_MIN_N_CL}, {ZOOM_N_TRAIN}, n_cores = {threads})"
+      '{wildcards.zoom_name}', '$ZOOM_SEL_CLS', $ZOOM_RES, $ZOOM_N_HVGS, $ZOOM_N_DIMS, \
+      $ZOOM_MIN_N_SAMPLE, $ZOOM_MIN_N_CL, $ZOOM_N_TRAIN, n_cores = {threads})"
 
     """

@@ -11,13 +11,13 @@ import subprocess
 
 def __get_cl_ls(config, mito_str):
   # get parameters
-  PROJ_DIR, SHORT_TAG, FULL_TAG, _, _, _, _, _, _, _, DATE_STAMP = \
+  PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, _, _, _, _, _, _, DATE_STAMP = \
     get_project_parameters(config)
   _, _, _, _, _, _, _, INT_SEL_RES = \
     get_integration_parameters(config, mito_str)
 
   # specify harmony outputs
-  int_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}06_integration"
+  int_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
   hmny_f      = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
 
   # get list of clusters

@@ -31,7 +31,7 @@ MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MK
   get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
 LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_SCE_SUBSETS = \
   get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
-ZOOM_NAMES, ZOOM_SPEC_LS = get_zoom_parameters(config)
+ZOOM_NAMES, ZOOM_SPEC_LS = get_zoom_parameters(config, AF_MITO_STR)
 
 # specify locations
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
@@ -50,6 +50,13 @@ empty_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_empties"
 zoom_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_zoom"
 rmd_dir       = f"{PROJ_DIR}/analysis"
 docs_dir      = f"{PROJ_DIR}/public"
+
+
+# make nice zoom variables
+zoom_df       = pd.DataFrame({ \
+  'zoom_name': ZOOM_NAMES, \
+  'zoom_res': [ ZOOM_SPEC_LS[ zn ][ 'zoom_res' ] for zn in ZOOM_NAMES] \
+  })
 
 # exclude any samples without fastq files
 SAMPLES       = exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES)
@@ -140,9 +147,9 @@ rule zoom:
   input:
     expand( '%s/{zoom_name}/zoom_imputed_dt_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
         (zoom_dir, FULL_TAG, DATE_STAMP), \
-      zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ]),
-    expand("%s/%s09_zoom_{zoom_name}_{zoom_res}.html" % (docs_dir, SHORT_TAG), \
       zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ])
+    #expand("%s/%s09_zoom_{zoom_name}_{zoom_res}.html" % (docs_dir, SHORT_TAG), \
+    #  zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ])
 
       
 
