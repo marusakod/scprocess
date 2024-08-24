@@ -9,6 +9,50 @@ import datetime
 import subprocess
 
 
+def __get_cl_ls(config, mito_str):
+  # get parameters
+  PROJ_DIR, SHORT_TAG, FULL_TAG, _, _, _, _, _, _, _, DATE_STAMP = \
+    get_project_parameters(config)
+  _, _, _, _, _, _, _, INT_SEL_RES = \
+    get_integration_parameters(config, mito_str)
+
+  # specify harmony outputs
+  int_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}06_integration"
+  hmny_f      = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+
+  # get list of clusters
+  hmny_dt     = pd.read_csv(hmny_f)
+  cl_col      = f"RNA_snn_res.{INT_SEL_RES}"
+  cl_ls       = list(hmny_dt[cl_col].unique())
+  cl_ls       = [cl for cl in cl_ls if str(cl) != "nan"]
+  cl_ls       = sorted(cl_ls)
+
+  return(cl_ls)
+
+
+def __get_one_zoom_parameters(config, zoom_name, cl_ls):
+  # unpack
+  this_zoom   = config['zoom'][ zoom_name ]
+
+  # check parameters
+  p_names     = this_zoom.keys()
+  req_names   = [ "sel_cls", "n_hvgs", "n_dims", "zoom_res", "min_n_sample", "min_n_cl", "n_train" ]
+  missing_ns  = [ p_name for p_name in req_names if p_name not in p_names ]
+  assert len(missing_ns) == 0, f"the following parameters are missing from zoom {zoom_name}:\n{'_'.join(missing_ns)}"
+
+  # check one by one
+  assert set( this_zoom[ "sel_cls" ] ).issubset( cl_ls )
+  assert this_zoom[ "zoom_res" ] > 0
+  assert isinstance(this_zoom[ "n_hvgs" ], int)
+  assert isinstance(this_zoom[ "n_dims" ], int)
+  assert isinstance(this_zoom[ "min_n_cl" ], int)
+  assert isinstance(this_zoom[ "n_train" ], int)
+
+  # add name to dictionary
+  this_zoom[ 'zoom_name' ] = zoom_name
+
+  return this_zoom
+
 
 # find fastq files for a sample
 def find_fastq_files(fastqs_dir, sample, read):
@@ -481,12 +525,12 @@ def get_pb_empties_parameters(config):
 
 
 # define marker_genes parameters
-def get_zoom_parameters(config): 
+def get_zoom_parameters(config, MITO_STR): 
   if ('zoom' not in config) or (config['zoom'] is None):
     ZOOM_NAMES    = []
     ZOOM_SPEC_LS  = []
   else:
-    cl_ls         = __get_cl_ls(config)
+    cl_ls         = __get_cl_ls(config, MITO_STR)
     ZOOM_NAMES    = list(config['zoom'].keys())
     ZOOM_SPEC_LS  = dict(zip(
       ZOOM_NAMES,
@@ -571,5 +615,3 @@ def get_resource_parameters(config):
     MB_META_SAVE_METACELLS, \
     MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
     MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD
-
-
