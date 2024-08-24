@@ -30,7 +30,7 @@ suppressPackageStartupMessages({
   library('dplyr')
   library('rhdf5')
   library('Matrix')
-  library('Matrix.utils')
+  # library('Matrix.utils')
   library('edgeR')
 })
 
@@ -284,17 +284,17 @@ make_pb_empty <- function(af_paths_f, gtf_dt_f, custom_empties_f, pb_empty_f, em
   return(mat)
 }
 
-.sum_SUA <- function(SUA_mx){
+# .sum_SUA <- function(SUA_mx){
   
-  rownames(SUA_mx) = gsub('_S$|_U$|_A$', '', rownames(SUA_mx))
+#   rownames(SUA_mx) = gsub('_S$|_U$|_A$', '', rownames(SUA_mx))
   
-  SUA_agg = Matrix.utils::aggregate.Matrix(SUA_mx,
-                                           groupings = factor(rownames(SUA_mx),
-                                                              levels = unique(rownames(SUA_mx))),
-                                           FUN = sum)
+#   SUA_agg = Matrix.utils::aggregate.Matrix(SUA_mx,
+#                                            groupings = factor(rownames(SUA_mx),
+#                                                               levels = unique(rownames(SUA_mx))),
+#                                            FUN = sum)
   
-  return(SUA_agg)
-}
+#   return(SUA_agg)
+# }
 
 plot_empty_plateau <- function(knees, empty_plat_df) {
   # get sample order

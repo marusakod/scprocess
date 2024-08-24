@@ -67,7 +67,7 @@ rule make_pb_empty:
     '../envs/rlibs.yml'
   shell:
     """
-    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
     make_pb_empty( \
       af_paths_f = '{input.af_paths_f}', gtf_dt_f = '{AF_GTF_DT_F}', \
       custom_empties_f = '{PB_CUSTOM_EMPTIES_F}', empty_locs_f = '{output.empty_locs_f}', \
@@ -87,7 +87,7 @@ rule calc_empty_genes:
     mem_mb      = 8192
   shell:
     """
-    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
     calc_empty_genes(pb_cells_f = '{input.pb_subset_f}', \
       pb_empty_f = '{input.pb_empty_f}', empty_gs_f = '{output.empty_gs_f}')"
     """
@@ -109,7 +109,7 @@ rule make_pb_all:
     '../envs/rlibs.yml'
   shell:
     """
-    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
     make_pb_subset(sce_f = '{input.sce_all_f}', af_paths_f = '{input.af_paths_f}', \
       pb_f = '{output.pb_all_f}', n_cores = {threads})"
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
