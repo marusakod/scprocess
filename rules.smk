@@ -33,6 +33,7 @@ LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL
   get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
 ZOOM_NAMES, ZOOM_SPEC_LS = get_zoom_parameters(config, AF_MITO_STR)
 META_SUBSETS, META_MAX_CELLS = get_metacells_parameters(config)
+PB_CUSTOM_EMPTIES_F, PB_SUBSETS, PB_DO_ALL = get_pb_empties_parameters(config)
 
 # specify locations
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
@@ -151,6 +152,18 @@ rule zoom:
       zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ])
     #expand("%s/%s09_zoom_{zoom_name}_{zoom_res}.html" % (docs_dir, SHORT_TAG), \
     #  zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ])
+
+rule pb_empties:
+  input:
+    pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+    expand([
+      pb_dir + '/pb_subset_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.rds'
+      ], subset = PB_SUBSETS ),
+    expand([
+      empty_dir + '/edger_empty_genes_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.txt.gz'
+      ], subset = PB_SUBSETS ),
+    (pb_dir + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if PB_DO_ALL else [],
+    (empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz') if PB_DO_ALL else []
 
 
 rule metacells:
