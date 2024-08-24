@@ -32,6 +32,7 @@ MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MK
 LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_SCE_SUBSETS = \
   get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
 ZOOM_NAMES, ZOOM_SPEC_LS = get_zoom_parameters(config, AF_MITO_STR)
+META_SUBSETS, META_MAX_CELLS = get_metacells_parameters(config)
 
 # specify locations
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
@@ -151,6 +152,16 @@ rule zoom:
     #expand("%s/%s09_zoom_{zoom_name}_{zoom_res}.html" % (docs_dir, SHORT_TAG), \
     #  zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ])
 
+
+rule metacells:
+  input:
+    expand([
+      meta_dir  + '/metacells_sce_' + FULL_TAG + '_{subset}_{max_cells}_' + DATE_STAMP + '.rds'
+      ], subset = META_SUBSETS, max_cells = META_MAX_CELLS ),
+    expand([
+      meta_dir  + '/metacells_map_' + FULL_TAG + '_{subset}_{max_cells}_' + DATE_STAMP + '.txt.gz'
+      ], subset = META_SUBSETS, max_cells = META_MAX_CELLS )
+
       
 
 # define rules that are needed
@@ -164,3 +175,4 @@ include: "rules/marker_genes.smk"
 include: "rules/render_htmls.smk"
 include: "rules/label_and_subset.smk"
 include: "rules/zoom.smk"
+include: "rules/metacells.smk"
