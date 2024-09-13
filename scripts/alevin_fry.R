@@ -14,7 +14,8 @@ suppressPackageStartupMessages({
 
 
 # load counts data into sce object
-save_alevin_h5_calculate_cb_params <- function(sample, fry_dir, h5_f, cb_yaml_f, knee_data_f) {
+save_alevin_h5_calculate_amb_params <- function(sample, fry_dir, h5_f, cb_yaml_f, knee_data_f, 
+                                               knee1, inf1, knee2, inf2, exp_cells, total_included, low_count_thr){
   # load the data
   sce       = loadFry(fry_dir,
                       outputFormat = list(S = c("S"), U = c("U"), A = c("A")))
@@ -31,8 +32,33 @@ save_alevin_h5_calculate_cb_params <- function(sample, fry_dir, h5_f, cb_yaml_f,
   # save to h5 file
   write10xCounts(h5_f, split_mat, version = "3", overwrite = TRUE)
 
-  # estimate cellbender parameters, write to csv
-  bender_ps   = calc_cellbender_params(split_mat, sample)
+  # convert custom knees, shins and cellbender params to integers
+  knee1           = as.integer(knee1)
+  inf1            = as.integer(inf1)
+  knee2           = as.integer(knee2)
+  inf2            = as.integer(inf2)
+  exp_cells       = as.integer(exp_cells)
+  total_included  = as.integer(total_included)
+  low_count_thr   = as.integer(low_count_threshold)
+
+  # check if low count threshold is defined
+  if(is.na(low_count_thr)){
+    low_count_thr = 'inf2'
+  }
+  
+  # estimate ambient(cellbender) parameters, write to csv
+  bender_ps   = calc_cellbender_params(
+    split_mat = split_mat,
+    sel_s = sample,
+    knee1 = knee1,
+    inf1 = inf1,
+    knee2 = knee2,
+    inf2 = inf2, 
+    low_count_threshold = low_count_thr,
+    expected_cells = exp_cells, 
+    total_included = total_included
+  )
+                                       
   fwrite(bender_ps, file = knee_data_f)
 
   # write these parameters to yaml file
@@ -58,7 +84,9 @@ save_alevin_h5_calculate_cb_params <- function(sample, fry_dir, h5_f, cb_yaml_f,
 # low_count_threshold: 'inf2', 'knee2' or a specific library_size;
 # low count threshold can be equal to second knee or second inflection or can be set manually
 calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umis_cells = NULL,
-                                   rank_empty_plateau = NULL, low_count_threshold = 'inf2') {
+                                   rank_empty_plateau = NULL, low_count_threshold = 'inf2', 
+                                   expected_cells, total_included, 
+                                   knee1 = NA, inf1 = NA, knee2 = NA, inf2 = NA) {
   # some checks on inputs
   if ( 'character' %in% class(low_count_threshold) ) {
     # check is the value of low_count_threshold is valid
@@ -67,14 +95,16 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
   }
 
   # get first knee
-  knee1_ls  = .get_knee_and_inf_1(split_mat, min_umis_cells)
+  knee1_ls  = .get_knee_and_inf_1(split_mat, min_umis_cells, knee1, inf1, knee2)
 
   # get second knee
   knee2_ls  = .get_knee_and_inf_2(split_mat, knee1_ls$ranks_df,
-                                  rank_empty_plateau, min_umis_empty, knee1_ls$infl1_x)
+                                  rank_empty_plateau, min_umis_empty, knee1_ls$infl1_x,
+                                  knee2, inf2)
 
   # get parameters
-  params_ls = .get_params_ls(knee1_ls, knee2_ls, low_count_threshold)
+  params_ls = .get_params_ls(knee1_ls, knee2_ls, low_count_threshold =low_count_threshold, 
+                             expected_cells = expected_cells, total_included = total_included )
 
   # return a dataframe with ranks and all parameters
   bender_ps = knee1_ls$ranks_df %>%
@@ -92,12 +122,21 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
   return(bender_ps)
 }
 
-.get_knee_and_inf_1 <- function(split_mat, min_umis_cells) {
-  if (!is.null(min_umis_cells)) {
+.get_knee_and_inf_1 <- function(split_mat, min_umis_cells, knee1 = NA, inf1 = NA, knee2 = NA) {
+  # check if custom knees and shins are defined
+  if(all(sapply(c(knee1, inf1, knee2), function(p) !is.na(p)))){
+      low = median(c(knee2, inf1))
+
+      ranks_obj = barcodeRanks( split_mat, lower = low )
+      sel_knee    = c(
+      inflection  = inf1,
+      knee        = knee1)
+    )
+  }else if(!is.null(min_umis_cells)) {
     # if min_umis_cells is specified use it as 'lower' parameter in barcodeRanks()
     # to find the first knee and inflection
     # min_umis_cells should be below expected first knee and inflection and ideally
-    # above the second knee (on x axis)
+    # above the second knee (on y axis)
     ranks_obj   = barcodeRanks( split_mat, lower = min_umis_cells )
     sel_knee    = c(
       inflection  = as.integer(round(as.numeric(as.character(metadata(ranks_obj)$inflection)))),
@@ -146,10 +185,24 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
 }
 
 .get_knee_and_inf_2 <- function(split_mat, ranks_df, rank_empty_plateau,
-                                min_umis_empty, infl1_x) {
+                                min_umis_empty, infl1_x, 
+                                knee2, inf2) {
   # if rank_empty_plateau is specified use it to select barcodes for second call to barcodeRanks()
   # rank_empty_plateau should ideally be above expected second knee and inflection (on y axis)
-  if (!is.null(rank_empty_plateau)) {
+  if(all(sapply(c(knee2, inf2), function(p) !is.na(p)))){
+    # find umi values in ranks_df closest to predefined knee and shin 
+
+    inf2_idx = which.min( abs(ranks_df$total - inf2) )[1]
+    inf2_corr = ranks_df[ inf2_idx, "total" ]
+
+    knee2_idx = which.min( abs(ranks_df$total - knee2) )[1]
+    knee2_corr = ranks_df[ knee2_idx, "total"]
+
+      sel_knee    = c(
+      inflection  = inf_corr,
+      knee        = knee2_corr)
+    )
+  }else if (!is.null(rank_empty_plateau)) {
     # restrict to barcodes below specified threshold
     ranks_smol  = ranks_df %>%
       filter(rank > rank_empty_plateau) %>%
@@ -209,6 +262,8 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
   return(list(sel_knee = sel_knee, knee2_x = knee2_x))
 }
 
+
+
 .calc_small_knee_cuts_ls <- function(ranks_df, min_umis_empty, infl1_x) {
   # pick a 'total' value below which there are still enough data points to run
   # barcodeRanks(), barcodeRanks() need as least 3 unique 'total' (library size) values
@@ -233,15 +288,19 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
   return( cuts )
 }
 
-.get_params_ls <- function(knee1_ls, knee2_ls, low_count_threshold) {
+.get_params_ls <- function(knee1_ls, knee2_ls,
+                          low_count_threshold, expected_cells = NA, total_included = NA) {
   # unpack some things
   ranks_df  = knee1_ls$ranks_df
   infl1_x   = knee1_ls$infl1_x
   knee2_x   = knee2_ls$knee2_x
 
+  if(is.na(expected_cells)){
   # get expected cells: 90% of barcodes above 1st inflection point
   expected_cells  = round(0.9 * infl1_x)
+  }
 
+  if(is.na(total_included)){
   # get total_droplets_included: halfway between 1st inflection point and
   # second knee on the log10 scale
   total_included  = ranks_df %>% mutate(n = 1:nrow(.)) %>%
@@ -251,6 +310,7 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
     mean() %>%
     10^. %>%
     round()
+  }
 
   # get low count threshold
   if ( "character" %in% class(low_count_threshold) ) {
@@ -285,23 +345,6 @@ get_knee_inf_combn <- function(mx, lower) {
   knee <- as.integer(round(as.numeric(as.character(metadata(br)$knee))))
   paste(inf, knee, sep = '_')
 }
-
-# calc_knee_data_dt <- function(bc_ranks, bender_ps) {
-#   knee_data_dt  = bc_ranks %>% as.data.table %>%
-#     .[, .(n_bc = .N), by = .(lib_size = total) ] %>%
-#     .[ order(-lib_size) ] %>%
-#     .[, bc_rank := cumsum(n_bc) ]
-#   knee_data_dt  = rbind(
-#     knee_data_dt,
-#     data.table(
-#       bender_param  = names(bender_ps),
-#       bc_rank       = bender_ps %>% unlist
-#       ),
-#     fill = TRUE
-#   )
-#
-#   return(knee_data_dt)
-# }
 
 .do_knee_plot <- function(bc_ranks, sample) {
   library('data.table'); library('magrittr')

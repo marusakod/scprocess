@@ -6,66 +6,39 @@ import pandas as pd
 
 localrules: exclude_bad_cellbender_samples
 
-def parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, sample, amb_yaml_f,
-                         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE):
+def parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, amb_yaml_f, sample, CELLBENDER_LEARNING_RATE):
 
     # get cellbender parameters from yaml file
     with open(amb_yaml_f) as f:
-        cb_params = yaml.load(f, Loader=yaml.FullLoader)
+        amb_params = yaml.load(f, Loader=yaml.FullLoader)
         
     # get parameters for cellbender
-    EXPECTED_CELLS = cb_params['expected_cells']
-    TOTAL_DROPLETS_INCLUDED = cb_params['total_droplets_included']
-    LOW_COUNT_THRESHOLD = cb_params['low_count_threshold']
-    KNEE_1 = cb_params['knee_1']
-    INFLECTION_1 = cb_params['inflection_1']
-    KNEE_2 = cb_params['knee_2']
-    INFLECTION_2 = cb_params['inflection_2']
+    EXPECTED_CELLS = amb_params['expected_cells']
+    TOTAL_DROPLETS_INCLUDED = amb_params['total_droplets_included']
+    LOW_COUNT_THRESHOLD = amb_params['low_count_threshold']
+    KNEE_1 = amb_params['knee_1']
+    INFLECTION_1 = amb_params['inflection_1']
+    KNEE_2 = amb_params['knee_2']
+    INFLECTION_2 = amb_params['inflection_2']
     LEARNING_RATE = CELLBENDER_LEARNING_RATE
-    
-    # additional custom parameters for decontx and none
-    EMPTY_START = None
-    EMPTY_END = None
 
-    # force parameters if needed (this is ignored if method is not cellbender)
-    if FORCE_EXPECTED_CELLS is not None:
-        EXPECTED_CELLS = FORCE_EXPECTED_CELLS
-    if FORCE_TOTAL_DROPLETS_INCLUDED is not None:
-        TOTAL_DROPLETS_INCLUDED = FORCE_TOTAL_DROPLETS_INCLUDED
-    if FORCE_LOW_COUNT_THRESHOLD is not None:
-        LOW_COUNT_THRESHOLD = FORCE_LOW_COUNT_THRESHOLD
 
-    # load up custom parameters if exists
-    if CUSTOM_PARAMS_F is not None:
-        params_df = pd.read_csv(CUSTOM_PARAMS_F)
-        
-        # if sample is in custom parameters, then use parameters from there
-        if params_df['sample_id'].str.contains(sample).any():
-            # subset custom params df 
-            filt_params_df = params_df[params_df['sample_id'] == sample]
-            filt_params_df = filt_params_df.reset_index(drop=True)
-            fasta_f = filt_params_df.loc[0, 'fasta_f']
+    # check if cellbender specific parameters are defined for individual samples 
+    if AMBIENT_METHOD == 'cellbender':
+      if CUSTOM_SAMPLE_PARAMS_F is not None:
+        with open(CUSTOM_SAMPLE_PARAMS_F) as f:
+          custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
+        # get all samples with custom params
+          custom_smpls = list(custom_smpl_params.keys())
 
-            print(f'using custom parameters for {sample}')
-            
-            if AMBIENT_METHOD == 'cellbender':
-                EXPECTED_CELLS = int(filt_params_df.loc[0, 'expected_cells'])
-                TOTAL_DROPLETS_INCLUDED = int(filt_params_df.loc[0, 'total_droplets_included'])
-                LOW_COUNT_THRESHOLD = int(filt_params_df.loc[0, 'low_count_threshold'])
-                LEARNING_RATE = filt_params_df.loc[0, 'learning_rate']
-                
-            else:
-                if CELL_CALLS_METHOD == 'emptyDrops':
-                    KNEE_1 = int(filt_params_df.loc[0, 'retain'])
-                    EMPTY_START = int(filt_params_df.loc[0, 'empty_start'])
-                    EMPTY_END = int(filt_params_df.loc[0, 'empty_end'])
-                else:
-                    EXPECTED_CELLS = int(filt_params_df.loc[0, 'expected_cells'])
-                    EMPTY_START = int(filt_params_df.loc[0, 'empty_start'])
-                    EMPTY_END = int(filt_params_df.loc[0, 'empty_end'])
+          if sample in custom_smpls:
+        # check if cellbender is defined
+            if 'cellbender' in custom_smpl_params[sample] and (custom_smpl_params[sample]['cellbender'] is not None):
+              if 'learning_rate' in custom_smpl_params[sample]['cellbender']: 
+                LEARNING_RATE = custom_smpl_params[sample]['cellbender']['learning_rate']
 
     return EXPECTED_CELLS, TOTAL_DROPLETS_INCLUDED, LOW_COUNT_THRESHOLD, LEARNING_RATE, \
-           KNEE_1, INFLECTION_1, KNEE_2, INFLECTION_2, EMPTY_START, EMPTY_END
+           KNEE_1, INFLECTION_1, KNEE_2, INFLECTION_2
 
 
 
@@ -158,8 +131,9 @@ if AMBIENT_METHOD == 'cellbender':
     output:
         ambient_yaml_out = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
     threads: 1
+    retries: RETRIES
     resources:
-      mem_mb      = 8192,
+      mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT,
       nvidia_gpu  = 1
     singularity:
       CELLBENDER_IMAGE
@@ -243,18 +217,13 @@ elif AMBIENT_METHOD == 'decontx':
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[5],
       knee_2                  = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
-        FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[6],
-      empty_start             = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
-        FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[8],
-      empty_end               = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
-        FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[9]
+        FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[6]
     output:
       ambient_yaml_out = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
     threads: 4
+    retries: RETRIES
     resources:
-      mem_mb    = 8192
+      mem_mb    = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
     conda: 
       '../envs/rlibs.yml'
     shell:
@@ -271,18 +240,6 @@ elif AMBIENT_METHOD == 'decontx':
       dcx_bcs_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
       dcx_params_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_params.txt.gz"
 
-      # get empty locs
-      EMPTY_START={params.empty_start}
-      EMPTY_END={params.empty_end}
-
-      if [ "$EMPTY_START" == "None" ]; then
-          EMPTY_START=NULL
-      fi
-
-      if [ "$EMPTY_END" == "None" ]; then
-          EMPTY_END=NULL
-      fi
-
       # run cell calling and decontamination
    
       Rscript -e "source('scripts/ambient.R'); \
@@ -298,8 +255,6 @@ elif AMBIENT_METHOD == 'decontx':
       ncores = {threads}, \
       total_included = {params.total_droplets_included}, \
       exp_cells = {params.expected_cells}, \
-      empty_start = $EMPTY_START, \
-      empty_end = $EMPTY_END, \
       cell_calls_method = '{CELL_CALLS_METHOD}', \
       ambient_method = '{AMBIENT_METHOD}')"
 
@@ -330,20 +285,15 @@ else:
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[5],
       knee_2                  = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
-        FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[6],
-      empty_start             = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
-        FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[8],
-      empty_end               = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
-        FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[9]
+        FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[6]
     output:
       ambient_yaml_out = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
     threads: 4
+    retries: RETRIES
     conda:
       '../envs/rlibs.yml'
     resources:
-      mem_mb    = 8192
+      mem_mb    = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
     shell:
       """
       # create main ambient directory
@@ -358,19 +308,6 @@ else:
       cell_bcs_f="{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
 
 
-      # get empty locs
-      EMPTY_START={params.empty_start}
-      EMPTY_END={params.empty_end}
-
-      if [ "$EMPTY_START" == "None" ]; then
-          EMPTY_START=NULL
-      fi
-
-      if [ "$EMPTY_END" == "None" ]; then
-          EMPTY_END=NULL
-      fi
-
-
       # run cell calling and decontamination
       Rscript -e "source('scripts/ambient.R'); \
       get_cell_mat_and_barcodes(
@@ -383,8 +320,6 @@ else:
       inf_1 = {params.inflection_1}, \
       total_included = {params.total_droplets_included}, \
       exp_cells = {params.expected_cells}, \
-      empty_start = $EMPTY_START, \
-      empty_end = $EMPTY_END, \
       ncores = {threads}, \
       cell_calls_method = '{CELL_CALLS_METHOD}', \
       ambient_method = '{AMBIENT_METHOD}')"
@@ -408,10 +343,11 @@ rule get_barcode_qc_metrics:
   output:
     bc_qc_f     = amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz'
   threads: 1
+  retries: RETRIES
   conda:
     '../envs/rlibs.yml'
   resources:
-    mem_mb      = 8192
+    mem_mb      = lambda wildcards, attempt: attempt * MB_GET_BARCODE_QC_METRICS
   shell:
     """
     # save barcode stats

@@ -57,18 +57,11 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
     # check if all extra args for a specific rule are present
     if(sel_rule == 'ambient'){
       req_names = c('YOUR_NAME','AFFILIATION', 'SHORT_TAG',
-                    'DATE_STAMP', 'SAMPLE_STR', 'AMBIENT_METHOD',
-                    'CUSTOM_PARAMS_F', 'af_dir')
+                    'DATE_STAMP', 'SAMPLE_STR', 'AMBIENT_METHOD', 'af_dir')
 
       assert_that(all(req_names %in% add_args_names))
 
-      # make a list
-      if(add_args[['CUSTOM_PARAMS_F']] == 'None'){
-        custom_f = ""
-      }else{
-        custom_f = add_args[['CUSTOM_PARAMS_F']]
-      }
-
+      
       if(add_args[['AMBIENT_METHOD']] == 'cellbender'){
         eval_knee = TRUE
       }else{
@@ -81,25 +74,17 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
         eval_smpl_qc = TRUE
       }
 
-      params_ls = add_args[setdiff(req_names, 'CUSTOM_PARAMS_F')]
-      params_ls = c(params_ls, list(eval_knee = eval_knee, eval_smpl_qc = eval_smpl_qc, custom_f = custom_f))
+      params_ls = add_args
+      params_ls = c(params_ls, list(eval_knee = eval_knee, eval_smpl_qc = eval_smpl_qc))
 
     }else if(sel_rule == 'af'){
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
-                    'DATE_STAMP', 'SAMPLE_STR','AMBIENT_METHOD',
-                    'CUSTOM_PARAMS_F', 'af_dir')
+                    'DATE_STAMP', 'SAMPLE_STR','AMBIENT_METHOD','af_dir')
 
       assert_that(all(req_names %in% add_args_names))
 
-      # make a list
-      if(add_args[['CUSTOM_PARAMS_F']] == 'None'){
-        custom_f = ""
-      }else{
-        custom_f = add_args[['CUSTOM_PARAMS_F']]
-      }
 
-      params_ls = add_args[setdiff(req_names, 'CUSTOM_PARAMS_F')]
-      params_ls = c(params_ls, list(custom_f = custom_f))
+      params_ls = add_args
 
     }else if(sel_rule == 'qc'){
 

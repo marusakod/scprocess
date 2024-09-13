@@ -23,7 +23,6 @@ params:
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
 knitr::opts_knit$set( root.dir='..' )
-# workflowr::wflow_build(files='analysis/${SHORT_TAG}_cellbender.Rmd', view=F, verbose=T, delete_cache=F)
 
 # establish conditions
 eval_knee_plot = params$knee_plot
@@ -34,17 +33,15 @@ eval_sample_qc_plots = params$sample_qc_plots
 
 ```{r setup_helpers, message=FALSE, cache=FALSE}
 source('code/utils.R')
-source('code/cellbender.R')
+source('code/ambient.R')
 ```
 
 ## Inputs
 
 ```{r setup_input}
-samples      = "${SAMPLE_STR}"
 amb_method = "${AMBIENT_METHOD}"
-custom_f = '${custom_f}'
 
-# files with barcode ranks and cellbender parameters
+# files with barcode ranks and knee parameters
 amb_dir     = 'output/${SHORT_TAG}_ambient'
 af_dir      = "${af_dir}"
 
@@ -66,24 +63,18 @@ assert_that( all(file.exists(knee_dirs)) )
 # Load inputs
 
 ```{r load_metadata}
-# get sample order
-meta_dt   = fread(meta_f)
-s_lvls    = meta_dt$sample_id %>% setdiff(exc_samples)
-if (file.exists(custom_f)) {
-  custom_df = read_delim(custom_f, delim = ",", show_col_types = FALSE)
-  custom_smpls = custom_df$sample_id
-} else {
-  custom_df = NULL
-  custom_smpls = NULL
-}
+# get sample ids
+s_lvls    =  "${SAMPLE_STR}" %>% 
+  str_split(pattern = ',') %>% unlist()
+
 ```
 
 ```{r load_cellbender_logs}
 if (amb_method == 'cellbender') {
-  bender_log_fs <- sapply(s_lvls,
+  bender_log_fs = sapply(s_lvls,
     function(s) sprintf("%s/ambient_%s/bender_%s_${DATE_STAMP}.log", amb_dir, s, s))
   assert_that( all(file.exists(bender_log_fs)) )
-  bender_priors_df <- mapply(f = bender_log_fs, sample = s_lvls, FUN = get_bender_log,
+  bender_priors_df = mapply(f = bender_log_fs, sample = s_lvls, FUN = get_bender_log,
     SIMPLIFY = FALSE) %>% bind_rows
 } else {
   bender_priors_df = NULL
@@ -91,18 +82,18 @@ if (amb_method == 'cellbender') {
 ```
 
 ```{r load_knee_dfs}
-knee_dfs <- lapply(knee_dirs, FUN = read_delim, delim = ",", show_col_types = FALSE)
+knee_dfs = lapply(knee_dirs, FUN = read_delim, delim = ",", show_col_types = FALSE)
 ```
 
 ```{r load_cb_qc_dfs}
-barcode_qc_dfs <- lapply(barcode_qc_dirs, FUN = read_delim, delim = ",", show_col_types = FALSE)
+barcode_qc_dfs = lapply(barcode_qc_dirs, FUN = read_delim, delim = ",", show_col_types = FALSE)
 ```
 
 # Processing / calculations
 
 ```{r get_knee_qc_df, eval=eval_knee_plot}
 if(ambient_method == 'cellbender'){
-bender_knees_df = lapply(knee_dfs, get_bender_knee_params, custom_df) %>% bind_rows
+bender_knees_df = lapply(knee_dfs, get_knee_params) %>% bind_rows
 }else{
 bender_knees_df = NULL
 }
@@ -110,47 +101,35 @@ bender_knees_df = NULL
 
 ```{r arrange_samples_for_knee_plots, eval=eval_knee_plot}
 # get total sample number
-sample_n <- nrow(bender_knees_df)
+sample_n = nrow(bender_knees_df)
 
 # arrange samples into groups of 20 acoording to their total included vs infection 1 ration
-slope_ratio_ordered_samples <- bender_knees_df %>%
+slope_ratio_ordered_samples = bender_knees_df %>%
   arrange(desc(slope_ratio)) %>%
   pull(sample_id)
 
 # arrange samples into groups of 20 according to their expected cells vs total included ratio
-exp_tot_ratio_orderd_samples <- bender_knees_df %>%
+exp_tot_ratio_orderd_samples = bender_knees_df %>%
   arrange(desc(expected_total_ratio)) %>%
   pull(sample_id)
 
 # split long vector into subsets
 n_per_plot  = 12
 num_subsets = ceiling(sample_n/n_per_plot)
-index_vec_for_split <- rep(1:num_subsets, each = n_per_plot, length.out = sample_n)
+index_vec_for_split = rep(1:num_subsets, each = n_per_plot, length.out = sample_n)
 
 # split sample_id vec into a list of subvectors
-slope_ratio_split_l <- split(slope_ratio_ordered_samples, index_vec_for_split)
-exp_tot_ratio_split_l <- split(exp_tot_ratio_orderd_samples, index_vec_for_split)
+slope_ratio_split_l = split(slope_ratio_ordered_samples, index_vec_for_split)
+exp_tot_ratio_split_l = split(exp_tot_ratio_orderd_samples, index_vec_for_split)
 ```
 
 ```{r get_empty_plateau_umi, eval=eval_sample_qc_plots}
 
-empty_umis_df <- lapply(s_lvls , FUN = function(smpl){
-  df = knee_dfs[[smpl]] %>% as.data.frame()
-  if(smpl %in% custom_smpls){
-    if(amb_method == 'cellbender'){
-      total_inc = custom_df %>% filter(sample_id == smpl) %>% pull(total_droplets_included)
-      empty_umi = df[ which.min(abs(df$rank - total_inc)), "total"]
-    }else{ # if ambient method is decontx
-      empty_start = custom_df %>% filter(sample_id == smpl) %>% pull(empty_start)
-      empty_end = custom_df %>% filter(sample_id == smpl) %>% pull(empty_end)
-      empty_s_y = df[ which.min(abs(df$rank - empty_start)), "total"]
-      empty_e_y = df[ which.min(abs(df$rank - empty_end)), "total"]
-      empty_umi  = mean(empty_s_y, empty_e_y) # maybe take something else?
-    }
-  }else{
+empty_umis_df = lapply(s_lvls , FUN = function(smpl){
+  
   total_inc = unique(df$total_droplets_included)
   empty_umi= df[ which.min(abs(df$rank - total_inc)), "total"]
-  }
+  
 
   return(empty_umi_df = data.frame(sample_id = smpl,
                                    total_umi = empty_umi))
@@ -170,7 +149,7 @@ all_reads_n_df = data.frame(sample_id = names(knee_dfs),
 
 
 ```{r get_sample_level_qc, eval=eval_sample_qc_plots}
-amb_sample_qc <- mapply(qc = barcode_qc_dfs,
+amb_sample_qc = mapply(qc = barcode_qc_dfs,
                        sel_s = names(barcode_qc_dfs),
                        amb_mathod = amb_method,
                        FUN = get_amb_sample_level_qc,
@@ -207,9 +186,9 @@ Plots are annotated with suggested and used cellbender parameters.
 ```{r knee_plots_slope_ordered, fig.height = 8, fig.width = 12, results = 'asis', eval=eval_knee_plot}
 for (i in 1:length(slope_ratio_split_l) ) {
   # get knee dfs for all selected samples
-  samples <- slope_ratio_split_l[[i]]
-  name <- sprintf('sample chunk #%d', i)
-  knees <- knee_dfs[samples]
+  samples = slope_ratio_split_l[[i]]
+  name = sprintf('sample chunk #%d', i)
+  knees = knee_dfs[samples]
   cat('### ', name, '\n')
   print(plot_barcode_ranks_w_params(knees, bender_knees_df, bender_priors_df))
   cat('\n\n')
@@ -223,9 +202,9 @@ Plots are annotated with suggested and used cellbender parameters.
 ```{r knee_plots_exp_tot_ordered, fig.height = 8, fig.width = 12, results='asis', eval=eval_knee_plot}
 for (i in 1:length(exp_tot_ratio_split_l) ) {
   # get knee dfs for all selected samples
-  samples <- exp_tot_ratio_split_l[[i]]
-  name <- sprintf('sample chunk #%d', i)
-  knees <- knee_dfs[samples]
+  samples = exp_tot_ratio_split_l[[i]]
+  name = sprintf('sample chunk #%d', i)
+  knees = knee_dfs[samples]
   cat('### ', name, '\n')
   print(plot_barcode_ranks_w_params(knees, bender_knees_df, bender_priors_df))
   cat('\n\n')
@@ -235,11 +214,11 @@ for (i in 1:length(exp_tot_ratio_split_l) ) {
 ## Sample qc plots
 ```{r cb_sample_qc_plots, fig.width=6, fig.height=6, eval=eval_sample_qc_plots}
 
-x_titles <- c('% spliced before ambient RNA removal', 'empty plateau UMI', '% reads in cells', '% spliced before ambient RNA removal')
-y_titles <- c('% spliced after ambient RNA removal', rep('% removed', 3))
+x_titles = c('% spliced before ambient RNA removal', 'empty plateau UMI', '% reads in cells', '% spliced before ambient RNA removal')
+y_titles = c('% spliced after ambient RNA removal', rep('% removed', 3))
 
 
-amb_sample_qc_plots <- mapply(var1 = all_vars1,
+amb_sample_qc_plots = mapply(var1 = all_vars1,
                              var2 = all_vars2,
                              outliers_df = outliers_dfs,
                              x_title = x_titles,
@@ -252,6 +231,3 @@ amb_sample_qc_plots <- mapply(var1 = all_vars1,
 print(do.call('grid.arrange', c(amb_sample_qc_plots, ncol = 2)))
 
 ```
-
-
-

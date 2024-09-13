@@ -70,8 +70,9 @@ if AMBIENT_METHOD == 'cellbender':
     output:
       sce_all_f   = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
     threads: 4
+    retries: RETRIES
     resources:
-      mem_mb    = 8192
+      mem_mb    =  lambda wildcards, attempt: attempt * MB_MAKE_SCE_OBJECT
     conda:
       '../envs/rlibs.yml'
     shell:
@@ -95,8 +96,9 @@ else:
     output:
       sce_all_f   = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
     threads: 4
+    retries: RETRIES 
     resources:
-      mem_mb    = 8192
+      mem_mb    = lambda wildcards, attempt: attempt * MB_MAKE_SCE_OBJECT
     conda:
       '../envs/rlibs.yml'
     shell:

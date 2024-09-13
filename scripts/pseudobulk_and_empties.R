@@ -68,7 +68,7 @@ make_pb_subset <- function(sce_f, af_paths_f, pb_f, n_cores = 8) {
   message('done!')
 }
 
-make_pb_empty <- function(af_paths_f, gtf_dt_f, custom_empties_f, pb_empty_f, empty_locs_f, 
+make_pb_empty <- function(af_paths_f, gtf_dt_f, pb_empty_f, empty_locs_f, 
   n_cores = 8) {
   message('create pseudobulk matrix for empty droplets')
 
@@ -93,8 +93,7 @@ make_pb_empty <- function(af_paths_f, gtf_dt_f, custom_empties_f, pb_empty_f, em
   
   # calculate empty plateau's
   empty_locs_ls = bplapply(af_knee_ls, FUN = .get_empty_plateau, BPPARAM = bpparam) %>% 
-    setNames(sample_ls) %>% 
-    .add_custom_empty_params(custom_empties_f, sample_ls)
+    setNames(sample_ls)
 
   # create data.frame for saving
   empty_locs_df = data.frame(
@@ -211,20 +210,6 @@ make_pb_empty <- function(af_paths_f, gtf_dt_f, custom_empties_f, pb_empty_f, em
   return(empty_plateau)
 }
 
-.add_custom_empty_params <- function(empty_locs_ls, custom_empties_f, sample_ls) {
-  # substitute custom empty plateau's
-  if (custom_empties_f == 'None')
-    return(empty_locs_ls)
-
-  # get custom params
-  custom_params = fread(custom_empties_f) %>% .[ sample_id %in% sample_ls ]
-  for ( i in 1:nrow(custom_params) ) {
-    s     = custom_params[i]$sample_id
-    empty_locs_ls[[s]] = c(custom_params[i]$empty_start, custom_params[i]$empty_end)
-  }
-
-  return(empty_locs_ls)
-}
 
 .get_one_empty_pb <- function(sample_id, af_mat_f, af_knee_f, empty_locs) {
   # get full alevin matrix

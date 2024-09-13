@@ -27,8 +27,7 @@ suppressPackageStartupMessages({
 # get matrix with (decontx cleaned) cells and a list of barcodes called as cells
 get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, sel_s, af_mat_f,
                                       knee_1 = NULL, knee_2 = NULL, inf_1 = NULL,
-                                      total_included = NULL , exp_cells = NULL,
-                                      empty_start = NULL, empty_end = NULL,
+                                      total_included = NULL , exp_cells = NULL
                                       cell_calls_method = c('barcodeRanks', 'emptyDrops'),
                                       ncores = 4, niters = 1000, hvg_n = 2000,
                                       ambient_method = c('none', 'decontx')){
@@ -46,8 +45,6 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
                                           inf_1 = inf_1,
                                           total_included = total_included,
                                           exp_cells = exp_cells,
-                                          empty_start = empty_start,
-                                          empty_end = empty_end,
                                           ncores = ncores,
                                           n_iters = niters,
                                           call_method = call_m)
@@ -100,7 +97,6 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
 call_cells_and_empties <- function(af_mat,
                        knee_1 = NULL, knee_2 = NULL, inf_1 = NULL,
                        total_included = NULL , exp_cells = NULL,
-                       empty_start = NULL, empty_end = NULL,
                        ncores = 4, n_iters = 1000, fdr_thr = 0.001, 
                        call_method = c('barcodeRanks', 'emptyDrops')){
 
@@ -110,17 +106,10 @@ call_cells_and_empties <- function(af_mat,
     arrange(rank)
 
   # get empty droplets
-  if(is.null(empty_start) & is.null(empty_end)){
-
     empty_locs = .get_empty_plateau(ranks_df = ranks,
                                     inf1 = inf_1,
                                     total_inc = total_included,
                                     knee2 = knee_2)
-
-
-  }else{
-    empty_locs = c(empty_start, empty_end)
-  }
 
  print(empty_locs)
 
@@ -377,44 +366,34 @@ get_bender_log <- function(f, sample) {
 }
 
 # find slope at first inflection and total droplets included & expected_cells/total ratio
-get_bender_knee_params <- function(ranks_df, custom_df) {
-  total_thr <- unique(ranks_df$total_droplets_included) %>%
+get_knee_params <- function(ranks_df) {
+  total_thr = unique(ranks_df$total_droplets_included) %>%
     log10()
-  inf1 <- unique(ranks_df$inf1)
+  inf1 = unique(ranks_df$inf1)
 
   # get x coordinate of inf1
-  inf_1_x <- ranks_df[ranks_df$total == as.integer(as.character(inf1)), ] %>%
+  inf_1_x = ranks_df[ranks_df$total == as.integer(as.character(inf1)), ] %>%
     .$rank %>% .[1] %>% log10()
 
   # fit curve to all points
-  ranks_df <- ranks_df %>% filter(total > 5) %>%
+  ranks_df = ranks_df %>% filter(total > 5) %>%
     mutate(ranks_log  = log10(rank),
            total_log = log10(total)) %>%
     distinct()
 
-  fit <- smooth.spline(x = ranks_df$ranks_log, y = ranks_df$total_log)
-  fitted.vals <- 10^fitted(fit)
+  fit = smooth.spline(x = ranks_df$ranks_log, y = ranks_df$total_log)
+  fitted.vals = 10^fitted(fit)
 
   # get value of the first derivative at total included and inflection1
-  d1 <- predict(fit, deriv=1)
-  d1_inf <- d1$y[ which.min(abs(d1$x - inf_1_x))[1] ]
-  d1_total <- d1$y[ which.min(abs(d1$x - total_thr))[1] ]
+  d1 = predict(fit, deriv=1)
+  d1_inf = d1$y[ which.min(abs(d1$x - inf_1_x))[1] ]
+  d1_total = d1$y[ which.min(abs(d1$x - total_thr))[1] ]
 
   # return(c(d1_inf, d1_total) %>% setNames(c('slope_inf1', 'slope_total_included')))
-  final <- ranks_df %>% dplyr::select(sample_id, knee1, inf1, knee2, inf2, total_droplets_included, expected_cells) %>%
+  final = ranks_df %>% dplyr::select(sample_id, knee1, inf1, knee2, inf2, total_droplets_included, expected_cells) %>%
     distinct()
-  # if there are custom parameters for this sample, use those
-  if(!is.null(custom_df)){
-
-  custom_idx <- custom_df$sample_id %in% unique(ranks_df$sample_id)
-  if ( any(custom_idx) ) {
-    final$total_droplets_included <- custom_df[ custom_idx, ]$total_droplets_included
-    final$expected_cells <- custom_df[ custom_idx, ]$expected_cells
-  }
-
-  }
-
-  final <- final %>%
+  
+  final = final %>%
     mutate(slope_inf1 = d1_inf,
            slope_total_included = d1_total) %>%
     mutate(slope_ratio = abs(slope_total_included)/abs(slope_inf1),
@@ -475,10 +454,9 @@ make_br_plot1 <- function(ranks) { # ranks == output of calc_cellbender_params()
   return(p)
 }
 
-# ranks: list of outputs from calc_cellbender_params()
-# bender_knees_df: merged output from get_params_qc() for all samples
-# order_by: whether the samples in the plot should be ordered by slope ratio or ratio expected/total
-plot_barcode_ranks_w_params <- function(knees, bender_knees_df, bender_priors_df = NULL) {
+
+
+plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, bender_priors_df = NULL) {
   # get sample order
   s_ord <- names(knees)
 
@@ -496,7 +474,7 @@ plot_barcode_ranks_w_params <- function(knees, bender_knees_df, bender_priors_df
 
   knee_vars <- c('sample_id', 'knee1', 'inf1', 'knee2', 'inf2',
     'total_droplets_included', 'expected_cells')
-  lines_knees <- bender_knees_df[ bender_knees_df$sample_id %in% s_ord, knee_vars] %>%
+  lines_knees <- ambient_knees_df[ambient_knees_df$sample_id %in% s_ord, knee_vars] %>%
     reshape2::melt(., id = "sample_id") %>%
     mutate(
       axis = case_when(
@@ -563,45 +541,45 @@ find_outlier <- function(x) {
 
 # boxplots of log ratios of slopes and barcode percents
 # log: get outliers on the log10 scale
-make_cb_params_boxplot <- function(params_qc, log = FALSE, scales = 'fixed') {
-  all_scales_opts <- c('fixed', 'free')
-  scale <- match.arg(scales, all_scales_opts)
+make_amb_params_dotplot <- function(params_qc, log = FALSE, scales = 'fixed') {
+  all_scales_opts = c('fixed', 'free')
+  scale = match.arg(scales, all_scales_opts)
 
   # get outliers
-  outliers_te <- params_qc$expected_total_ratio %>%
+  outliers_te = params_qc$expected_total_ratio %>%
     set_names(params_qc$sample_id)
 
-  outliers_slopes <- params_qc$slope_ratio %>%
+  outliers_slopes = params_qc$slope_ratio %>%
     set_names(params_qc$sample_id)
 
   if (log == TRUE) {
-    outliers_te <- outliers_te %>% log10()
-    outliers_slopes <- outliers_slopes %>% log10()
+    outliers_te = outliers_te %>% log10()
+    outliers_slopes = outliers_slopes %>% log10()
   }
 
-  outliers_te <- outliers_te %>%
+  outliers_te = outliers_te %>%
     find_outlier(.) %>%
     .[.] %>%
     names()
 
-  outliers_slopes <- outliers_slopes %>%
+  outliers_slopes = outliers_slopes %>%
     find_outlier(.) %>%
     .[.] %>%
     names()
 
-  plot_df <- params_qc %>% dplyr::select(sample_id, slope_ratio, expected_total_ratio) %>%
+  plot_df = params_qc %>% dplyr::select(sample_id, slope_ratio, expected_total_ratio) %>%
     reshape2::melt(., id = "sample_id") %>%
     mutate(is.outlier_slope = case_when(sample_id %in% outliers_slopes ~ TRUE,
                                   TRUE ~ FALSE)) %>%
     mutate(is.outlier_te = case_when(sample_id %in% outliers_te ~ TRUE,
          TRUE ~ FALSE))
 
-  outlier_df_slope <- plot_df %>% filter(is.outlier_slope == TRUE) %>%
+  outlier_df_slope = plot_df %>% filter(is.outlier_slope == TRUE) %>%
     filter(variable == 'slope_ratio')
-  outlier_df_te <- plot_df %>% filter(is.outlier_te == TRUE) %>%
+  outlier_df_te = plot_df %>% filter(is.outlier_te == TRUE) %>%
     filter(variable == 'expected_total_ratio')
 
- pl <-  ggplot(plot_df, aes(x = variable, y = value) ) +
+ pl =  ggplot(plot_df, aes(x = variable, y = value) ) +
     geom_quasirandom( fill = 'grey', shape = 21, size = 3 ) +
     labs(x = NULL, y = 'ratio') +
     ggrepel::geom_text_repel(data = outlier_df_slope, mapping = aes(label = sample_id)) +
@@ -612,11 +590,11 @@ make_cb_params_boxplot <- function(params_qc, log = FALSE, scales = 'fixed') {
           axis.title.y = element_text(size = 12))
 
   if (log == TRUE) {
-    pl  <- pl + scale_y_log10()
+    pl  = pl + scale_y_log10()
   }
 
   if (scales == 'free') {
-   pl <-  pl + facet_wrap(~variable, scales ='free') +
+   pl =  pl + facet_wrap(~variable, scales ='free') +
       theme(axis.text.x  = element_blank(),
             axis.ticks.x = element_blank(),
             strip.text = element_text(size = 12))
@@ -625,68 +603,30 @@ make_cb_params_boxplot <- function(params_qc, log = FALSE, scales = 'fixed') {
  return(pl)
 }
 
-total_expected_pct_barplots <- function(params_qc) {
-  params_qc <- params_qc %>%
-    mutate(additional_barcodes = total_droplets_included - expected_cells)
 
-  # find outliers based on slope ratio
-  outliers <- params_qc$expected_total_ratio %>%
-    set_names(params_qc$sample_id) %>%
-    find_outlier(.) %>%
-    .[.] %>%
-    names()
-
-  plot_df <- params_qc %>% dplyr::select(additional_barcodes, expected_cells, sample_id) %>%
-    reshape2::melt() %>%
-    mutate(is.outlier = case_when(sample_id %in% outliers ~ TRUE,
-                                  TRUE ~ FALSE))
-
-  outlier_df <- plot_df %>%
-    mutate(value = 1) %>%
-    dplyr::select(-variable) %>%
-    distinct()
-
-  plot_df$variable <- gsub('_', ' ',  plot_df$variable)
-
-  g = ggplot(plot_df, aes(x = sample_id, y = value, fill = variable)) +
-    geom_bar(position="fill", stat="identity") +
-    geom_bar(data = outlier_df, mapping = aes(x = sample_id, y = value, color = is.outlier),
-             position = 'fill', stat = 'identity', inherit.aes = FALSE, alpha = 0, size = 1) +
-    theme_light() +
-    theme(axis.text.y = element_blank(),
-          axis.ticks.y = element_blank(),
-          panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-    labs(x = NULL, y= '# of barcodes', fill = NULL) +
-    scale_fill_manual(values = c('#CCD1D1', '#85C1E9')) +
-    scale_color_manual(values = c('white', '#C0392B'), breaks = c(FALSE, TRUE))
-
-  return(g)
-}
 
 get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'decontx')){
 
   amb = match.arg(amb_method)
 
-  sum_qc <- qc %>%
+  sum_qc = qc %>%
     as_tibble() %>%
     dplyr::select(-barcode) %>%
     rowwise()
 
   if(amb == 'cellbender'){
-  sum_qc <- sum_qc %>%
+  sum_qc = sum_qc %>%
     mutate(af_all = sum(af_S, af_U, af_A),
            cb_all = sum(cb_S, cb_U, cb_A)) %>%
     colSums()
 
-  smpl_qc <- c((sum_qc['af_S']/sum_qc['af_all']) *100,
+  smpl_qc = c((sum_qc['af_S']/sum_qc['af_all']) *100,
                  (sum_qc['cb_S']/sum_qc['cb_all'])*100,
                  sum_qc['af_all'],
                  sum_qc['af_all'] - sum_qc['cb_all'])
 
   }else{
-    sum_qc <- sum_qc %>%
+    sum_qc = sum_qc %>%
       mutate(af_all = sum(af_S, af_U, af_A),
              cb_all = sum(dcx_S, dxc_U, dcx_A)) %>%
       colSums()
@@ -699,8 +639,8 @@ get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'dec
 
   }
 
-  names(smpl_qc) <- c('af_spliced_pct', 'amb_spliced_pct', 'af_all', 'removed')
-  smpl_qc$sample_id <- sel_s
+  names(smpl_qc) = c('af_spliced_pct', 'amb_spliced_pct', 'af_all', 'removed')
+  smpl_qc$sample_id = sel_s
 
   return(smpl_qc)
   }
@@ -709,33 +649,35 @@ get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'dec
 
 
 get_amb_sample_qc_outliers <- function(qc_df, var1, var2){
-  bivar <-  qc_df %>% dplyr::select(all_of(c(var1, var2)))
-  mcd <- robustbase::covMcd(bivar)
-  chi_thr <- chi_threshold <- qchisq(0.95, df = 2)
-  outliers_df <- qc_df[which(mcd$mah > chi_threshold), ]
+  bivar =  qc_df %>% dplyr::select(all_of(c(var1, var2)))
+  mcd = robustbase::covMcd(bivar)
+  chi_thr = chi_threshold <- qchisq(0.95, df = 2)
+  outliers_df = qc_df[which(mcd$mah > chi_threshold), ]
 
   return(outliers_df)
 }
 
+
+
 make_amb_sample_qc_oulier_plots <- function(qc_df, var1, var2, outliers_df,
                                            x_title, y_title, y_thr = NULL, x_thr = NULL){
 
-  p <- ggplot(qc_df, aes(x = get(var1), y = get(var2))) +
+  p = ggplot(qc_df, aes(x = get(var1), y = get(var2))) +
     geom_point(shape = 21, fill = 'grey', color = 'black') +
     labs(x = x_title,
          y = y_title) +
     theme_classic()
 
   if(nrow(outliers_df) != 0){
-    p <- p + geom_text_repel(data = outliers_df, mapping = aes(label = sample_id), size = 3)
+    p = p + geom_text_repel(data = outliers_df, mapping = aes(label = sample_id), size = 3)
   }
 
   if(!is.null(y_thr)){
-    p <- p + geom_hline(yintercept = y_thr, linewidth = 0.2, linetype = 'dashed')
+    p = p + geom_hline(yintercept = y_thr, linewidth = 0.2, linetype = 'dashed')
   }
 
   if(!is.null(x_thr)){
-    p <- p + geom_vline(xintercept = x_thr, linewidth = 0.2, linetype = 'dashed')
+    p = p + geom_vline(xintercept = x_thr, linewidth = 0.2, linetype = 'dashed')
   }
 
   return(p)

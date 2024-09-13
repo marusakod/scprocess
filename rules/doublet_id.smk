@@ -10,8 +10,9 @@ rule run_scDblFinder:
     dbl_f       = dbl_dir + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz',
     dimred_f    = dbl_dir + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz'
   threads: 1
+  retries: RETRIES 
   resources:
-    mem_mb      = 8192
+    mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_SCDBLFINDER
   conda: 
    '../envs/rlibs.yml'
   shell:
@@ -49,8 +50,9 @@ rule combine_scDblFinder_outputs:
     combn_dbl_f     = dbl_dir + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     combn_dimred_f  = dbl_dir + '/scDblFinder_combined_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 8
+  retries: RETRIES 
   resources:
-    mem_mb    = 8192
+    mem_mb    = lambda wildcards, attempt: attempt * MB_COMBINE_SCDBLFINDER_OUTPUTS
   conda: 
     '../envs/rlibs.yml'
   shell:

@@ -38,8 +38,9 @@ rule make_pb_subset:
   output:
     pb_subset_f = pb_dir + '/pb_subset_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.rds'
   threads: 4
+  retries: RETRIES 
   resources:
-    mem_mb      = 8192
+    mem_mb  = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
   conda: 
     '../envs/rlibs.yml'
   shell:
@@ -61,8 +62,9 @@ rule make_pb_empty:
     pb_empty_f    = pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
     empty_locs_f  = pb_dir + '/empty_plateau_locations_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   threads: 4
+  retries: RETRIES 
   resources:
-    mem_mb      = 8192
+    mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
   conda: 
     '../envs/rlibs.yml'
   shell:
@@ -70,7 +72,7 @@ rule make_pb_empty:
     Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
     make_pb_empty( \
       af_paths_f = '{input.af_paths_f}', gtf_dt_f = '{AF_GTF_DT_F}', \
-      custom_empties_f = '{PB_CUSTOM_EMPTIES_F}', empty_locs_f = '{output.empty_locs_f}', \
+      empty_locs_f = '{output.empty_locs_f}', \
       pb_empty_f = '{output.pb_empty_f}', n_cores = {threads})"
     """
 
@@ -83,8 +85,9 @@ rule calc_empty_genes:
     pb_empty_f  = pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   output:
     empty_gs_f  = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.txt.gz'
+  retries: RETRIES 
   resources:
-    mem_mb      = 8192
+    mem_mb      = lambda wildcards, attempt: attempt * MB_PB_CALC_EMPTY_GENES
   shell:
     """
     Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
@@ -103,8 +106,9 @@ rule make_pb_all:
     pb_all_f    = pb_dir + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
     empty_gs_f  = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz'
   threads: 4
+  retries: RETRIES 
   resources:
-    mem_mb      = 8192
+    mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
   conda: 
     '../envs/rlibs.yml'
   shell:

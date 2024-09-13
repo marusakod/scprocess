@@ -98,9 +98,9 @@ def exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES):
 
 
 # get list of samples
-def get_project_parameters(config):
+def get_project_parameters(config, scprocess_data_dir):
   # check expected variables are in the config file
-  for v in ["proj_dir", "fastq_dir", "short_tag", "full_tag", "date_stamp", "your_name", "affiliation", "sample_metadata"]:
+  for v in ["proj_dir", "fastq_dir", "short_tag", "full_tag", "date_stamp", "your_name", "affiliation", "sample_metadata", "species"]:
     assert v in config, f"{v} not in config file"
 
   ## what is specified in config directory?
@@ -111,6 +111,17 @@ def get_project_parameters(config):
   YOUR_NAME     = config["your_name"]
   AFFILIATION   = config["affiliation"]
   DATE_STAMP    = config["date_stamp"]
+  SPECIES       = config["species"]
+
+  # check if selected species is valid
+  setup_params_f  = os.path.join(scprocess_data_dir, 'setup_parameters.csv')
+
+    # from setup_parameters.csv get valid values for species
+  setup_params= pd.read_csv(setup_params_f)
+  valid_species = setup_params['genome_name'].tolist()
+
+  assert SPECIES in valid_species, \
+   f"species {SPECIES} not defined"
 
   # check whether date is given as datetime object
   if isinstance(DATE_STAMP, datetime.date):
@@ -140,6 +151,21 @@ def get_project_parameters(config):
     to_keep       = set(SAMPLES) - set(EXC_SAMPLES)
     SAMPLES       = [s for s in SAMPLES if s in to_keep]
 
+
+  # check custom sample config file if exists
+  CUSTOM_SAMPLE_PARAMS_F = None
+  if('custom_sample_params' in config) and (config['custom_sample_params'] is not None):
+    CUSTOM_SAMPLE_PARAMS_F = config["custom_sample_params"]
+    # check if exists
+    assert os.path.isfile(CUSTOM_SAMPLE_PARAMS_F)
+    # open the file and check if all samples can be found in SAMPLES
+    with open(CUSTOM_SAMPLE_PARAMS_F) as f:
+      custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
+      custom_smpls = list(custom_smpl_params.keys())
+      for s in custom_smpls:
+        assert s in SAMPLES, f"{s} in custom_sample_params file doesn't match any sample ids in the metadata"
+
+
   # sort out metadata variables
   METADATA_VARS = []
   if ('metadata_vars' in config) and (config['metadata_vars'] is not None):
@@ -147,38 +173,33 @@ def get_project_parameters(config):
     for var in METADATA_VARS:
       assert var in samples_df.columns, f"{var} not in sample metadata"
 
-  return PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP
+  return PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES
 
 
 # define alevin parameters
-def get_alevin_parameters(config, scprocess_data_dir):
+def get_alevin_parameters(config, scprocess_data_dir, SPECIES):
 
   # check that alevin is in config
   assert "alevin" in config, \
     "alevin not defined in config file"
-
+  
+  # check that chemistry is defined in the config
+  assert 'chemistry' in config['alevin'], \
+    "chemistry not defined in config file"
+  
+  # get chemisty
+  CHEMISTRY = config['alevin']['chemistry']
+  # check if valid
+  valid_chems = ['3LT', '3v2', '5v1', '5v2', '3v3', 'multiome']
+  assert CHEMISTRY in valid_chems, \
+    "chemistry not valid"
+  
+  # get setup params
   setup_params_f  = os.path.join(scprocess_data_dir, 'setup_parameters.csv')
 
-  # from setup_parameters.csv get valid values for species
+    # from setup_parameters.csv get valid values for species
   setup_params= pd.read_csv(setup_params_f)
-  valid_species = setup_params['genome_name'].tolist()
-  
-  # check that species is defined in alevin and is valid
-  assert "species" in config['alevin'], \
-    "species not defined in configfile"
-  
-  SPECIES = config['alevin']['species']
-  
-  assert SPECIES in valid_species, \
-   f"species {SPECIES} not defined"
-  
-  # get chemistry file if defined
-  CHEMISTRY_F = None
-  if 'chemistry' in config['alevin']:
-    CHEMISTRY_F = config['alevin']['chemistry']
-    assert os.path.isfile(CHEMISTRY_F), \
-     "Custom chemistry file doesn't exist"
-
+     
   # get mito strings from setup params
   AF_MITO_STR = setup_params.loc[setup_params['genome_name'] == SPECIES, 'mito_str'].values[0]
 
@@ -191,7 +212,7 @@ def get_alevin_parameters(config, scprocess_data_dir):
   # get gtf txt file, check that exists
   AF_GTF_DT_F = setup_params.loc[setup_params['genome_name'] == SPECIES, 'gtf_txt_f'].values[0]
 
-  return SPECIES, AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY_F
+  return AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY
 
 
 # ambient
@@ -200,7 +221,6 @@ def get_ambient_parameters(config):
   AMBIENT_METHOD                = 'cellbender'
   CELLBENDER_VERSION            = 'v0.3.0'
   CELLBENDER_PROP_MAX_KEPT      = 0.9
-  CUSTOM_PARAMS_F               = None
   FORCE_EXPECTED_CELLS          = None
   FORCE_TOTAL_DROPLETS_INCLUDED = None
   FORCE_LOW_COUNT_THRESHOLD     = None
@@ -211,20 +231,20 @@ def get_ambient_parameters(config):
   if ('ambient' in config) and (config['ambient'] is not None):
     if 'ambient_method' in config['ambient']:
       AMBIENT_METHOD                 = config['ambient']['ambient_method']
+    if 'cell_calling' in config['ambient']:
+      CELL_CALLS_METHOD             = config['ambient']['cell_calling']
     if 'cellbender_version' in config['ambient']:
       CELLBENDER_VERSION            = config['ambient']['cellbender_version']
     if 'cb_max_prop_kept' in config['ambient']:
       CELLBENDER_PROP_MAX_KEPT      = config['ambient']['cb_max_prop_kept']
-    if 'custom_params' in config['ambient']:
-      CUSTOM_PARAMS_F    = config['ambient']['custom_params']
-    if 'force_expected_cells' in config['ambient']:
+    if 'cb_force_expected_cells' in config['ambient']:
       FORCE_EXPECTED_CELLS          = config['ambient']['force_expected_cells']
-    if 'force_total_droplets_included' in config['ambient']:
+    if 'cb_force_total_droplets_included' in config['ambient']:
       FORCE_TOTAL_DROPLETS_INCLUDED = config['ambient']['force_total_droplets_included']
-    if 'force_low_count_threshold' in config['ambient']:
+    if 'cb_force_low_count_threshold' in config['ambient']:
       FORCE_LOW_COUNT_THRESHOLD     = config['ambient']['force_low_count_threshold']
-    if 'learning_rate' in config['ambient']:
-      CELLBENDER_LEARNING_RATE      = config['ambient']['learning_rate']
+    if 'cb_force_learning_rate' in config['ambient']:
+      CELLBENDER_LEARNING_RATE      = config['ambient']['cb_force_learning_rate']
 
   # get cellbender image (maybe skip this if cellbender is not selected?)
   if CELLBENDER_VERSION == 'v0.3.0':
@@ -235,37 +255,8 @@ def get_ambient_parameters(config):
     raise ValueError(f"selected cellbender version {CELLBENDER_VERSION} not supported")
 
   # some checks on custom parameters for cellbender
-  if CUSTOM_PARAMS_F is not None: 
-    assert os.path.exists(CUSTOM_PARAMS_F), \
-      f"specified path {CUSTOM_PARAMS_F} does not exist"
-    
-    # get params  
-    params_df   = pd.read_csv(CUSTOM_PARAMS_F)
-    meta_df     = pd.read_csv(config["sample_metadata"])
-
-    # check if sample ids in custom params file match sample ids in metadata
-    for s in params_df['sample_id'].tolist():
-        assert s in meta_df['sample_id'].tolist(), \
-         f"sample_id {s} in {CUSTOM_PARAMS_F} not present in metadata"
-    
-    # depending on ambient method and cell calls method check which columns need to be present in the custom file
-    # Check the columns based on AMBIENT_METHOD and CELL_CALLS_METHOD
-    if AMBIENT_METHOD == 'cellbender':
-        expected_columns = ['sample_id', 'total_droplets_included', 'expected_cells', 'low_count_threshold', 'learning_rate', 'empty_start', 'empty_end']
-    else:
-        if CELL_CALLS_METHOD == 'emptyDrops':
-            expected_columns = ['retain', 'empty_start', 'empty_end']
-        elif CELL_CALLS_METHOD == 'barcodeRanks':
-            expected_columns = ['expected_cells', 'empty_start', 'empty_end']
-        else:
-            raise ValueError(f"Unsupported CELL_CALLS_METHOD: {CELL_CALLS_METHOD}")
-
-    # Verify that the columns in params_df match the expected columns
-    assert all(params_df.columns.values == expected_columns), \
-        f"column names in {CUSTOM_PARAMS_F} are not correct. Expected columns: {expected_columns}"
       
-      
-  return CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CUSTOM_PARAMS_F, CELL_CALLS_METHOD, \
+  return CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
     FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE
 
 
@@ -494,14 +485,11 @@ def get_metacells_parameters(config):
 # define pseudobulk parameters
 def get_pb_empties_parameters(config): 
   # set some more default values
-  PB_CUSTOM_EMPTIES_F = None
   PB_SUBSETS          = []
   PB_DO_ALL           = False
 
   # change defaults if specified
   if ('pb_empties' in config) and (config['pb_empties'] is not None):
-    if 'custom_empties_f' in config['pb_empties']:
-      PB_CUSTOM_EMPTIES_F = config['pb_empties']['custom_empties_f']
     if 'subsets' in config['pb_empties']:
       PB_SUBSETS          = config['pb_empties']['subsets']
 
@@ -511,17 +499,7 @@ def get_pb_empties_parameters(config):
     PB_DO_ALL     = True
     PB_SUBSETS    = [x for x in PB_SUBSETS if x != "all"]
 
-  # check that files exist
-  if PB_CUSTOM_EMPTIES_F is not None:
-    # check whether custom empties file exists
-    if not os.path.isfile(PB_CUSTOM_EMPTIES_F):
-      PROJ_DIR            = config["proj_dir"]
-      PB_CUSTOM_EMPTIES_F = os.path.join(PROJ_DIR, PB_CUSTOM_EMPTIES_F)
-
-    # does this exist?
-    assert os.path.isfile(PB_CUSTOM_EMPTIES_F), f"custom empties file {PB_CUSTOM_EMPTIES_F} does not exist"
-
-  return PB_CUSTOM_EMPTIES_F, PB_SUBSETS, PB_DO_ALL
+  return PB_SUBSETS, PB_DO_ALL
 
 
 # define marker_genes parameters
@@ -543,28 +521,31 @@ def get_zoom_parameters(config, MITO_STR):
 # get rule resource parameters
 def get_resource_parameters(config):
   # set default values
+  RETRIES                         = 1
   MB_RUN_ALEVIN_FRY               = 8192
   MB_SAVE_ALEVIN_TO_H5            = 8192
-  MB_RUN_CELLBENDER               = 32768
-  MB_GET_CELLBENDER_QC_METRICS    = 4096
+  MB_RUN_AMBIENT                  = 8192
+  MB_GET_BARCODE_QC_METRICS       = 4096
   MB_RUN_SCDBLFINDER              = 4096
   MB_COMBINE_SCDBLFINDER_OUTPUTS  = 8192
-  MB_RUN_QC                       = 16384
-  MB_MAKE_SCE_OBJECT              = 16384
-  MB_RUN_HARMONY                  = 16384
-  MB_RUN_MARKER_GENES             = 24576
+  MB_RUN_QC                       = 8192
+  MB_MAKE_SCE_OBJECT              = 8192
+  MB_RUN_HARMONY                  = 8192
+  MB_RUN_MARKER_GENES             = 8192
   MB_HTML_MARKER_GENES            = 8192
-  MB_LBL_LABEL_CELLTYPES          = 16384
-  MB_LBL_SAVE_SUBSET_SCES         = 16384
+  MB_LBL_LABEL_CELLTYPES          = 8192
+  MB_LBL_SAVE_SUBSET_SCES         = 8192
   MB_LBL_RENDER_TEMPLATE_RMD      = 4096
-  MB_META_SAVE_METACELLS          = 16384
+  MB_META_SAVE_METACELLS          = 8192
   MB_PB_MAKE_PBS                  = 8192
   MB_PB_CALC_EMPTY_GENES          = 8192
-  MB_ZOOM_RUN_ZOOM                = 16384
+  MB_ZOOM_RUN_ZOOM                = 8192
   MB_ZOOM_RENDER_TEMPLATE_RMD     = 4096
 
   # change defaults if specified
   if ('resources' in config) and (config['resources'] is not None):
+    if 'retries' in config['resources']:
+      RETRIES                         = config['resources']['retries']
     if 'mb_run_alevin_fry' in config['resources']:
       MB_RUN_ALEVIN_FRY               = config['resources']['mb_run_alevin_fry']
     if 'mb_save_alevin_to_h5' in config['resources']:
@@ -604,8 +585,8 @@ def get_resource_parameters(config):
     if 'mb_zoom_render_template_rmd' in config['resources']:
       MB_ZOOM_RENDER_TEMPLATE_RMD     = config['resources']['mb_zoom_render_template_rmd']
 
-  return MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
-    MB_RUN_CELLBENDER, MB_GET_CELLBENDER_QC_METRICS, \
+  return RETRIES, MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
+    MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
     MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
     MB_RUN_QC, \
     MB_MAKE_SCE_OBJECT, \
@@ -615,3 +596,5 @@ def get_resource_parameters(config):
     MB_META_SAVE_METACELLS, \
     MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
     MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD
+
+

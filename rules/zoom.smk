@@ -25,10 +25,11 @@ rule zoom_one_zoom:
     zoom_min_n_cl     = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['min_n_cl'],
     zoom_n_train      = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['n_train']
   threads: 4
+  retries: RETRIES
   conda:
     '../envs/rlibs.yml'
   resources:
-    mem_mb      = 8192
+    mem_mb      = lambda wildcards, attempt: attempt * MB_ZOOM_RUN_ZOOM
   shell:
     """
   

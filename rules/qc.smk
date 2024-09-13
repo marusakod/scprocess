@@ -8,8 +8,9 @@ rule run_qc:
     qc_f        = qc_dir  + '/qc_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     keep_f      = qc_dir  + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 8
+  retries: RETRIES 
   resources:
-    mem_mb      = 8192
+    mem_mb      =   lambda wildcards, attempt: attempt * MB_RUN_QC
   conda:
     '../envs/rlibs.yml'
   shell:

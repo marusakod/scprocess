@@ -13,8 +13,9 @@ rule run_marker_genes:
     fgsea_paths_f = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
     fgsea_hlmk_f  = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz'
   threads: 8
+  retries: RETRIES
   resources:
-    mem_mb      = 16384
+    mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_MARKER_GENES
   conda: 
     '../envs/rlibs.yml'
   shell:

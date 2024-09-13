@@ -20,10 +20,11 @@ rule meta_save_metacells:
     celltype    = '{celltype}',
     max_cells   = '{max_cells}'
   threads: 4
+  retries: RETRIES
   conda:
     '../envs/rlibs.yml'
   resources:
-    mem_mb      = 8192
+    mem_mb      = lambda wildcards, attempt: attempt * MB_META_SAVE_METACELLS
   shell:
     """
     # save sce object

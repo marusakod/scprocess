@@ -10,8 +10,9 @@ rule run_harmony:
     hvgs_f      = int_dir + '/harmony_hvgs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     sce_clean_f = int_dir + '/sce_clean_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   threads: 8
+  retries: RETRIES 
   resources:
-    mem_mb      = 8192
+    mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_HARMONY
   conda: 
     '../envs/rlibs.yml'
   shell:

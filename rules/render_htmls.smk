@@ -8,8 +8,9 @@
 #     rmd_f       = f'{rmd_dir}/index.Rmd',
 #     html_f      = f'{docs_dir}/index.html'
 #   threads: 1
+#   retries: RETRIES 
 #   resources:
-#     mem_mb      = 4096
+#     mem_mb      =  lambda wildcards, attempt: attempt * 4096
 #   run:
 #     # define what we will substitute in
 #     print('setting up template')
@@ -31,10 +32,11 @@ rule render_html_alevin_fry:
     r_utils_f   = f"{code_dir}/utils.R",
     r_amb_f      = f"{code_dir}/ambient.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_alevin_fry.Rmd"
-    #html_f      = f"{docs_dir}/{SHORT_TAG}_alevin_fry.html"
+    html_f      = f"{docs_dir}/{SHORT_TAG}_alevin_fry.html"
   threads: 1
+  retries: RETRIES
   resources:
-    mem_mb      = 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * 4096
   conda:
     '../envs/rlibs.yml'
   shell:
@@ -61,7 +63,6 @@ rule render_html_alevin_fry:
         DATE_STAMP = '{DATE_STAMP}', \
         SAMPLE_STR = '{SAMPLE_STR}', \
         AMBIENT_METHOD = '{AMBIENT_METHOD}', \
-        CUSTOM_PARAMS_F = '{CUSTOM_PARAMS_F}', \
         af_dir = '{af_dir}')"
 
     """
@@ -75,8 +76,9 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd"
     #html_f      = f"{docs_dir}/{SHORT_TAG}_ambient.html"
   threads: 1
+  retries: RETRIES 
   resources:
-    mem_mb      = 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * 4096
   conda:
     '../envs/rlibs.yml'
   shell:
@@ -96,7 +98,6 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
         DATE_STAMP = '{DATE_STAMP}', \
         SAMPLE_STR = '{SAMPLE_STR}', \
         AMBIENT_METHOD = '{AMBIENT_METHOD}', \
-        CUSTOM_PARAMS_F = '{CUSTOM_PARAMS_F}', \
         af_dir = '{af_dir}')"
     """
 
@@ -107,12 +108,13 @@ rule render_html_qc:
   output:
     r_qc_f      = f"{code_dir}/qc.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_qc.Rmd"
-    #html_f      = f"{docs_dir}/{SHORT_TAG}_qc.html"
+    html_f      = f"{docs_dir}/{SHORT_TAG}_qc.html"
   threads: 1
+  retries: RETRIES 
   conda:
     '../envs/rlibs.yml'
   resources:
-    mem_mb      = 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * 4096
   shell:
     """
     # copy R code over
@@ -170,10 +172,11 @@ rule render_html_integration:
   params: 
     int_res_ls = ','.join(map(str, INT_RES_LS))
   threads: 1
+  retries: RETRIES 
   conda:
     '../envs/rlibs.yml'
   resources:
-    mem_mb      = 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * 4096
   shell:
     """
     # copy R code over
@@ -207,47 +210,48 @@ rule render_html_integration:
     """
 
 
-# # # render_html_label_celltypes
-# rule render_html_label_celltypes:
-#   input:
-#     r_mkr_f     = f'{code_dir}/marker_genes.R',
-#     guesses_f   = f'{lbl_dir}/xgboost_guesses_{FULL_TAG}_{DATE_STAMP}.txt.gz'
-#   output:
-#     r_lbl_f     = f'{code_dir}/label_celltypes.R',
-#     rmd_f       = f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd'
-#     #html_f      = f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
-#   threads: 1
-#   resources:
-#     mem_mb      = 4096
-#   conda: 
-#     '../envs/rlibs.yml'
-#   shell:
-#     """
-#     # copy R code over
-#     echo "copying relevant R files over"
-#     cp scripts/label_celltypes.R {output.r_lbl_f}
+# # render_html_label_celltypes
+rule render_html_label_celltypes:
+  input:
+    r_mkr_f     = f'{code_dir}/marker_genes.R',
+    guesses_f   = f'{lbl_dir}/xgboost_guesses_{FULL_TAG}_{DATE_STAMP}.txt.gz'
+  output:
+    r_lbl_f     = f'{code_dir}/label_celltypes.R',
+    rmd_f       = f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd'
+    #html_f      = f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
+  threads: 1
+  retries: RETRIES
+  resources:
+    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+  conda: 
+    '../envs/rlibs.yml'
+  shell:
+    """
+    # copy R code over
+    echo "copying relevant R files over"
+    cp scripts/label_celltypes.R {output.r_lbl_f}
 
-#     template_f=$(realpath templates/label_celltypes.Rmd.template)
-#     rule="cell_labels"
+    template_f=$(realpath templates/label_celltypes.Rmd.template)
+    rule="cell_labels"
 
-#     Rscript -e "source('scripts/render_reports.R'); \
-#     render_reports(
-#     rule_name = '$rule', \
-#     proj_dir = '{PROJ_DIR}', \
-#     temp_f =  '$template_f', \
-#     rmd_f = '{output.rmd_f}', \
-#     YOUR_NAME = '{YOUR_NAME}', \
-#     AFFILIATION = '{AFFILIATION}', \
-#     SHORT_TAG = '{SHORT_TAG}', \
-#     DATE_STAMP = '{DATE_STAMP}', \
-#     threads = {threads}, \
-#     guesses_f = '{input.guesses_f'}', \
-#     LBL_XGB_F = '{LBL_XGB_F}', \
-#     LBL_SEL_RES_CL = {LBL_SEL_RES_CL}, \
-#     LBL_MIN_PRED = {LBL_MIN_PRED}, \
-#     LBL_MIN_CL_PROP = {LBL_MIN_CL_PROP}, \
-#     LBL_MIN_CL_SIZE = {LBL_MIN_CL_SIZE})"
-#     """
+    Rscript -e "source('scripts/render_reports.R'); \
+    render_reports(
+    rule_name = '$rule', \
+    proj_dir = '{PROJ_DIR}', \
+    temp_f =  '$template_f', \
+    rmd_f = '{output.rmd_f}', \
+    YOUR_NAME = '{YOUR_NAME}', \
+    AFFILIATION = '{AFFILIATION}', \
+    SHORT_TAG = '{SHORT_TAG}', \
+    DATE_STAMP = '{DATE_STAMP}', \
+    threads = {threads}, \
+    guesses_f = '{input.guesses_f'}', \
+    LBL_XGB_F = '{LBL_XGB_F}', \
+    LBL_SEL_RES_CL = {LBL_SEL_RES_CL}, \
+    LBL_MIN_PRED = {LBL_MIN_PRED}, \
+    LBL_MIN_CL_PROP = {LBL_MIN_CL_PROP}, \
+    LBL_MIN_CL_SIZE = {LBL_MIN_CL_SIZE})"
+    """
 
 
 # # render_html_marker_genes
@@ -268,12 +272,13 @@ rule render_html_marker_genes:
     rmd_f       = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.Rmd'
     #html_f      = f'{docs_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.html'
   threads: 8
+  retries: RETRIES
   params: 
     meta_vars = ','.join(METADATA_VARS)
   conda: 
     '../envs/rlibs.yml'
   resources:
-    mem_mb      = 8192
+    mem_mb      = lambda wildcards, attempt: attempt * MB_HTML_MARKER_GENES
   shell:
     """
     # copy R code over
@@ -320,124 +325,126 @@ rule render_html_marker_genes:
     """
 
 
-# # # render_html_zoom
-# rule render_html_zoom:
-#   input:
-#     zoom_sce_sub_f      = zoom_dir + '/{zoom_name}/' + 'zoom_sce_clean_' + FULL_TAG + '_{zoom_name}_{zoom_res}_' + DATE_STAMP +'.rds',
-#     zoom_hmny_f         = zoom_dir + '/{zoom_name}/' + 'zoom_integrated_dt_' + FULL_TAG + '_{zoom_name}_{zoom_res}_' + DATE_STAMP +'.txt.gz',
-#     zoom_pb_f           = zoom_dir + '/{zoom_name}/' + 'zoom_pb_' + FULL_TAG + '_{zoom_name}_{zoom_res}_' + DATE_STAMP +'.rds',
-#     zoom_mkrs_f         = zoom_dir + '/{zoom_name}/' + 'zoom_pb_marker_genes_' + FULL_TAG + '_{zoom_name}_{zoom_res}_' + DATE_STAMP +'.txt.gz',
-#     zoom_hvgs_f         = zoom_dir + '/{zoom_name}/' + 'zoom_pb_hvgs_' + FULL_TAG + '_{zoom_name}_{zoom_res}_' + DATE_STAMP +'.txt.gz',
-#     zoom_fgsea_go_bp_f  = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_go_bp_' + DATE_STAMP +'.txt.gz',
-#     zoom_fgsea_go_cc_f  = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_go_cc_' + DATE_STAMP +'.txt.gz',
-#     zoom_fgsea_go_mf_f  = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_go_mf_' + DATE_STAMP +'.txt.gz',
-#     zoom_fgsea_paths_f  = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_paths_' + DATE_STAMP +'.txt.gz',
-#     zoom_fgsea_hlmk_f   = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_hlmk_' + DATE_STAMP +'.txt.gz'
-#   output:
-#     r_zoom_f    = f"{code_dir}/zoom.R",
-#     rmd_f       = rmd_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.Rmd'
-#     #html_f      = docs_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.html'
-#   params:
-#     zoom_name   = '{zoom_name}',
-#     zoom_res    = '{zoom_res}', 
-#     meta_vars   = ','.join(METADATA_VARS)
-#   threads: 1
-#   conda: 
-#     '../envs/rlibs.yml'
-#   resources:
-#     mem_mb = 8192
-#   shell:
-#     """
-#     # copy R code over
-#     echo "copying relevant R files over"
-#     cp scripts/zoom.R {output.r_zoom_f}
+# # render_html_zoom
+rule render_html_zoom:
+  input:
+    zoom_sce_sub_f      = zoom_dir + '/{zoom_name}/' + 'zoom_sce_clean_' + FULL_TAG + '_{zoom_name}_{zoom_res}_' + DATE_STAMP +'.rds',
+    zoom_hmny_f         = zoom_dir + '/{zoom_name}/' + 'zoom_integrated_dt_' + FULL_TAG + '_{zoom_name}_{zoom_res}_' + DATE_STAMP +'.txt.gz',
+    zoom_pb_f           = zoom_dir + '/{zoom_name}/' + 'zoom_pb_' + FULL_TAG + '_{zoom_name}_{zoom_res}_' + DATE_STAMP +'.rds',
+    zoom_mkrs_f         = zoom_dir + '/{zoom_name}/' + 'zoom_pb_marker_genes_' + FULL_TAG + '_{zoom_name}_{zoom_res}_' + DATE_STAMP +'.txt.gz',
+    zoom_hvgs_f         = zoom_dir + '/{zoom_name}/' + 'zoom_pb_hvgs_' + FULL_TAG + '_{zoom_name}_{zoom_res}_' + DATE_STAMP +'.txt.gz',
+    zoom_fgsea_go_bp_f  = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_go_bp_' + DATE_STAMP +'.txt.gz',
+    zoom_fgsea_go_cc_f  = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_go_cc_' + DATE_STAMP +'.txt.gz',
+    zoom_fgsea_go_mf_f  = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_go_mf_' + DATE_STAMP +'.txt.gz',
+    zoom_fgsea_paths_f  = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_paths_' + DATE_STAMP +'.txt.gz',
+    zoom_fgsea_hlmk_f   = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_hlmk_' + DATE_STAMP +'.txt.gz'
+  output:
+    r_zoom_f    = f"{code_dir}/zoom.R",
+    rmd_f       = rmd_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.Rmd'
+    #html_f      = docs_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.html'
+  params:
+    zoom_name   = '{zoom_name}',
+    zoom_res    = '{zoom_res}', 
+    meta_vars   = ','.join(METADATA_VARS)
+  threads: 1
+  retries: RETRIES 
+  conda: 
+    '../envs/rlibs.yml'
+  resources:
+    mem_mb =  lambda wildcards, attempt: attempt * 8192
+  shell:
+    """
+    # copy R code over
+    echo "copying relevant R files over"
+    cp scripts/zoom.R {output.r_zoom_f}
 
-#     template_f=$(realpath templates/zoom.Rmd.template)
-#     rule="zoom"
+    template_f=$(realpath templates/zoom.Rmd.template)
+    rule="zoom"
 
-#     Rscript -e "source('scripts/render_reports.R'); \
-#     render_reports(
-#     rule_name = '$rule', \
-#     proj_dir = '{PROJ_DIR}', \
-#     temp_f =  '$template_f', \
-#     rmd_f = '{output.rmd_f}', \
-#     YOUR_NAME = '{YOUR_NAME}', \
-#     AFFILIATION = '{AFFILIATION}', \
-#     SHORT_TAG = '{SHORT_TAG}', \
-#     DATE_STAMP = '{DATE_STAMP}', \
-#     threads = {threads}, \
-#     zoom_name = '{params.zoom_name}', \
-#     zoom_res = {params.zoom_res}, \
-#     meta_f = '{METADATA_F}', \
-#     meta_vars_ls = '{params.meta_vars}', \
-#     gtf_dt_f = '{AF_GTF_DT_F}', \
-#     sce_sub_f = '{input.zoom_sce_sub_f}', \
-#     hmny_f = '{input.zoom_hmny_f}', \
-#     pb_f = '{input.zoom_pb_f}', \
-#     mkrs_f = '{input.zoom_mkrs_f}', \
-#     hvgs_f = '{input.zoom_hvgs_f}', \
-#     canon_f = '{MKR_CANON_F}', \
-#     fgsea_go_bp_f = '{input.zoom_fgsea_go_bp_f}', \
-#     fgsea_go_cc_f = '{input.zoom_fgsea_go_cc_f}', \
-#     fgsea_go_mf_f = '{input.zoom_fgsea_go_mf_f}', \
-#     fgsea_paths_f = '{input.zoom_fgsea_paths_f}', \
-#     fgsea_hlmk_f = '{input.zoom_fgsea_hlmk_f}', \
-#     INT_DBL_CL_PROP = {INT_DBL_CL_PROP}, \
-#     INT_EXC_REGEX = '{INT_EXC_REGEX}', \
-#     MKR_NOT_OK_RE = '{MKR_NOT_OK_RE}', \
-#     MKR_MIN_CPM_MKR = {MKR_MIN_CPM_MKR}, \
-#     MKR_MIN_CELLS = {MKR_MIN_CELLS}, \
-#     MKR_GSEA_CUT = {MKR_GSEA_CUT}, \
-#     SPECIES = '{SPECIES}')"
+    Rscript -e "source('scripts/render_reports.R'); \
+    render_reports(
+    rule_name = '$rule', \
+    proj_dir = '{PROJ_DIR}', \
+    temp_f =  '$template_f', \
+    rmd_f = '{output.rmd_f}', \
+    YOUR_NAME = '{YOUR_NAME}', \
+    AFFILIATION = '{AFFILIATION}', \
+    SHORT_TAG = '{SHORT_TAG}', \
+    DATE_STAMP = '{DATE_STAMP}', \
+    threads = {threads}, \
+    zoom_name = '{params.zoom_name}', \
+    zoom_res = {params.zoom_res}, \
+    meta_f = '{METADATA_F}', \
+    meta_vars_ls = '{params.meta_vars}', \
+    gtf_dt_f = '{AF_GTF_DT_F}', \
+    sce_sub_f = '{input.zoom_sce_sub_f}', \
+    hmny_f = '{input.zoom_hmny_f}', \
+    pb_f = '{input.zoom_pb_f}', \
+    mkrs_f = '{input.zoom_mkrs_f}', \
+    hvgs_f = '{input.zoom_hvgs_f}', \
+    canon_f = '{MKR_CANON_F}', \
+    fgsea_go_bp_f = '{input.zoom_fgsea_go_bp_f}', \
+    fgsea_go_cc_f = '{input.zoom_fgsea_go_cc_f}', \
+    fgsea_go_mf_f = '{input.zoom_fgsea_go_mf_f}', \
+    fgsea_paths_f = '{input.zoom_fgsea_paths_f}', \
+    fgsea_hlmk_f = '{input.zoom_fgsea_hlmk_f}', \
+    INT_DBL_CL_PROP = {INT_DBL_CL_PROP}, \
+    INT_EXC_REGEX = '{INT_EXC_REGEX}', \
+    MKR_NOT_OK_RE = '{MKR_NOT_OK_RE}', \
+    MKR_MIN_CPM_MKR = {MKR_MIN_CPM_MKR}, \
+    MKR_MIN_CELLS = {MKR_MIN_CELLS}, \
+    MKR_GSEA_CUT = {MKR_GSEA_CUT}, \
+    SPECIES = '{SPECIES}')"
 
-#     """
+    """
 
 
-# # render_html_empties
-# rule render_html_empties:
-#   input:
-#     r_int_f     = f'{code_dir}/{SHORT_TAG}06_integration.R',
-#     guesses_f   = lbl_dir + '/xgboost_guesses_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-#     empty_csv_f = f'{lbl_dir}/empties_{FULL_TAG}_{DATE_STAMP}.csv',
-#     empty_gs_ls = expand( [lbl_dir + '/empty_genes' + '/empty_genes_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.txt.gz'], \
-#     subset = None if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] )
-#   output:
-#     r_pb_f      = f'{code_dir}/pseudobulk_and_empties.R',
-#     rmd_f       = f'{rmd_dir}/{SHORT_TAG}_empties.Rmd'
-#     #html_f      = f'{docs_dir}/{SHORT_TAG}_empties.html'
-#   threads: 1
-#   resources:
-#     mem_mb      = 4096
-#   conda: 
-#     '../envs/rlibs.yml'
-#   shell:
-#     """
-#     # copy R code over
-#     echo "copying relevant R files over"
-#     cp scripts/pseudobulk_and_empties.R {output.r_pb_f}
+# render_html_empties
+rule render_html_empties:
+  input:
+    r_int_f     = f'{code_dir}/{SHORT_TAG}06_integration.R',
+    guesses_f   = lbl_dir + '/xgboost_guesses_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    empty_csv_f = f'{lbl_dir}/empties_{FULL_TAG}_{DATE_STAMP}.csv',
+    empty_gs_ls = expand( [lbl_dir + '/empty_genes' + '/empty_genes_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.txt.gz'], \
+    subset = None if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] )
+  output:
+    r_pb_f      = f'{code_dir}/pseudobulk_and_empties.R',
+    rmd_f       = f'{rmd_dir}/{SHORT_TAG}_empties.Rmd'
+    #html_f      = f'{docs_dir}/{SHORT_TAG}_empties.html'
+  threads: 1
+  retries: RETRIES 
+  resources:
+    mem_mb      = lambda wildcards, attempt: attempt * 4096
+  conda: 
+    '../envs/rlibs.yml'
+  shell:
+    """
+    # copy R code over
+    echo "copying relevant R files over"
+    cp scripts/pseudobulk_and_empties.R {output.r_pb_f}
 
-#     template_f=$(realpath templates/empties.Rmd.template)
-#     rule="pb_empties"
+    template_f=$(realpath templates/empties.Rmd.template)
+    rule="pb_empties"
 
     
-#     Rscript -e "source('scripts/render_reports.R'); \
-#     render_reports(
-#     rule_name = '$rule', \
-#     proj_dir = '{PROJ_DIR}', \
-#     temp_f =  '$template_f', \
-#     rmd_f = '{output.rmd_f}', \
-#     YOUR_NAME = '{YOUR_NAME}', \
-#     AFFILIATION = '{AFFILIATION}', \
-#     SHORT_TAG = '{SHORT_TAG}', \
-#     DATE_STAMP = '{DATE_STAMP}', \
-#     threads = {threads}, \
-#     guesses_f = '{input.guesses_f}', \
-#     empty_csv_f = '{input.empty_csv_f}', \
-#     LBL_XGB_F = '{LBL_XGB_F}', \
-#     LBL_SEL_RES_CL = {LBL_SEL_RES_CL}, \
-#     LBL_MIN_PRED = {LBL_MIN_PRED}, \
-#     LBL_MIN_CL_PROP = {LBL_MIN_CL_PROP}, \
-#     LBL_MIN_CL_SIZE = {LBL_MIN_CL_SIZE})"
+    Rscript -e "source('scripts/render_reports.R'); \
+    render_reports(
+    rule_name = '$rule', \
+    proj_dir = '{PROJ_DIR}', \
+    temp_f =  '$template_f', \
+    rmd_f = '{output.rmd_f}', \
+    YOUR_NAME = '{YOUR_NAME}', \
+    AFFILIATION = '{AFFILIATION}', \
+    SHORT_TAG = '{SHORT_TAG}', \
+    DATE_STAMP = '{DATE_STAMP}', \
+    threads = {threads}, \
+    guesses_f = '{input.guesses_f}', \
+    empty_csv_f = '{input.empty_csv_f}', \
+    LBL_XGB_F = '{LBL_XGB_F}', \
+    LBL_SEL_RES_CL = {LBL_SEL_RES_CL}, \
+    LBL_MIN_PRED = {LBL_MIN_PRED}, \
+    LBL_MIN_CL_PROP = {LBL_MIN_CL_PROP}, \
+    LBL_MIN_CL_SIZE = {LBL_MIN_CL_SIZE})"
      
-#     """
+    """
 

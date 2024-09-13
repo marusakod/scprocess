@@ -161,7 +161,7 @@ def get_scprocess_data(scprocess_data_dir):
   subprocess.run('wget https://github.com/marusakod/scprocessData/releases/download/v0.1.0/scprocess_data_archive.tar.gz',
   shell=True, capture_output=False)
   
-  subprocess.run('tar xvf scprocess_data_archive.tar.gz --strip-components=1', shell=True, capture_output=False)
+  subprocess.run('tar xvf scprocess_data_archive.tar.gz', shell=True, capture_output=False)
 
   # remove tar archive
   os.remove('scprocess_data_archive.tar.gz')

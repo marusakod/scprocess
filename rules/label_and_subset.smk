@@ -15,8 +15,9 @@ rule lbl_label_celltypes:
     hvg_mat_f   = lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
     guesses_f   = lbl_dir + '/xgboost_guesses_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 4
+  retries: RETRIES 
   resources:
-    mem_mb      = 8192
+    mem_mb      = lambda wildcards, attempt: attempt * MB_LBL_LABEL_CELLTYPES
   conda: 
     '../envs/rlibs.yml'
   shell:
@@ -41,12 +42,13 @@ rule lbl_save_subset_sces:
     sce_ls      = expand( [lbl_dir +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'], 
       s = None if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] )
   threads: 4
+  retries: RETRIES 
   params:
     sub_names = ' '.join([*LBL_SCE_SUBSETS])
   conda:
     '../envs/rlibs.yml'
   resources:
-    mem_mb      = 8192
+    mem_mb = lambda wildcards, attempt: attempt * MB_LBL_SAVE_SUBSET_SCES
   shell:
     """
     # Make dataframe with subset specifications
