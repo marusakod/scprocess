@@ -154,7 +154,7 @@ def get_project_parameters(config, scprocess_data_dir):
 
   # check custom sample config file if exists
   CUSTOM_SAMPLE_PARAMS_F = None
-  if('custom_sample_params' in config) and (config['custom_sample_params'] is not None):
+  if ('custom_sample_params' in config) and (config['custom_sample_params'] is not None):
     CUSTOM_SAMPLE_PARAMS_F = config["custom_sample_params"]
     # check if exists
     assert os.path.isfile(CUSTOM_SAMPLE_PARAMS_F)

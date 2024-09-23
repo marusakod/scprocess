@@ -22,20 +22,19 @@ def parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, amb_yaml_f, sam
     INFLECTION_2 = amb_params['inflection_2']
     LEARNING_RATE = CELLBENDER_LEARNING_RATE
 
-
     # check if cellbender specific parameters are defined for individual samples 
     if AMBIENT_METHOD == 'cellbender':
-      if CUSTOM_SAMPLE_PARAMS_F is not None:
-        with open(CUSTOM_SAMPLE_PARAMS_F) as f:
-          custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
-        # get all samples with custom params
-          custom_smpls = list(custom_smpl_params.keys())
+        if CUSTOM_SAMPLE_PARAMS_F is not None:
+            with open(CUSTOM_SAMPLE_PARAMS_F) as f:
+                custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
+            # get all samples with custom params
+            custom_smpls = list(custom_smpl_params.keys())
 
-          if sample in custom_smpls:
-        # check if cellbender is defined
-            if 'cellbender' in custom_smpl_params[sample] and (custom_smpl_params[sample]['cellbender'] is not None):
-              if 'learning_rate' in custom_smpl_params[sample]['cellbender']: 
-                LEARNING_RATE = custom_smpl_params[sample]['cellbender']['learning_rate']
+            if sample in custom_smpls:
+                # check if cellbender is defined
+                if 'cellbender' in custom_smpl_params[sample] and (custom_smpl_params[sample]['cellbender'] is not None):
+                    if 'learning_rate' in custom_smpl_params[sample]['cellbender']: 
+                        LEARNING_RATE = custom_smpl_params[sample]['cellbender']['learning_rate']
 
     return EXPECTED_CELLS, TOTAL_DROPLETS_INCLUDED, LOW_COUNT_THRESHOLD, LEARNING_RATE, \
            KNEE_1, INFLECTION_1, KNEE_2, INFLECTION_2
@@ -116,16 +115,16 @@ if AMBIENT_METHOD == 'cellbender':
       h5_f      = af_dir + '/af_{sample}/af_counts_mat.h5',
       amb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
     params:
-      expected_cells          = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      expected_cells          = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[0],
-      total_droplets_included = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      total_droplets_included = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[1],
-      low_count_threshold     = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      low_count_threshold     = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[2],
-      learning_rate           = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      learning_rate           = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[3]
     output:
@@ -203,19 +202,19 @@ elif AMBIENT_METHOD == 'decontx':
       h5_f      = af_dir + '/af_{sample}/af_counts_mat.h5',
       amb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
     params:
-      expected_cells          = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      expected_cells          = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[0],
-      total_droplets_included = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      total_droplets_included = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[1],
-      knee_1                  = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      knee_1                  = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[4],
-      inflection_1            = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      inflection_1            = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[5],
-      knee_2                  = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      knee_2                  = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[6]
     output:
@@ -271,19 +270,19 @@ else:
       h5_f      = af_dir + '/af_{sample}/af_counts_mat.h5',
       amb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
     params:
-      expected_cells          = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      expected_cells          = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[0],
-      total_droplets_included = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      total_droplets_included = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[1],
-      knee_1                  = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      knee_1                  = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[4],
-      inflection_1            = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      inflection_1            = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[5],
-      knee_2                  = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+      knee_2                  = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[6]
     output:
@@ -337,7 +336,7 @@ rule get_barcode_qc_metrics:
     af_h5_f     = af_dir + '/af_{sample}/af_counts_mat.h5',
     amb_yaml_f = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
   params:
-    expected_cells          = lambda wildcards: parse_ambient_params(CUSTOM_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
+    expected_cells          = lambda wildcards: parse_ambient_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, CELL_CALLS_METHOD, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml',
         FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE)[0]
   output:

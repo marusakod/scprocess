@@ -27,7 +27,7 @@ suppressPackageStartupMessages({
 # get matrix with (decontx cleaned) cells and a list of barcodes called as cells
 get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, sel_s, af_mat_f,
                                       knee_1 = NULL, knee_2 = NULL, inf_1 = NULL,
-                                      total_included = NULL , exp_cells = NULL
+                                      total_included = NULL , exp_cells = NULL, 
                                       cell_calls_method = c('barcodeRanks', 'emptyDrops'),
                                       ncores = 4, niters = 1000, hvg_n = 2000,
                                       ambient_method = c('none', 'decontx')){

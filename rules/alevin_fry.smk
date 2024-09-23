@@ -12,26 +12,24 @@ import os
 
 # check if custom chemistry and knees are defined for a sample
 def parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, sample):
-     # set defaults
-    SAMPLE_CHEMISTRY = CHEMISTRY, 
-  
+    # set defaults
+    SAMPLE_CHEMISTRY = CHEMISTRY
+    
     if CUSTOM_SAMPLE_PARAMS_F is not None: 
         with open(CUSTOM_SAMPLE_PARAMS_F) as f:
             custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
         # get all samples with custom params
             custom_smpls = list(custom_smpl_params.keys())
 
-
             valid_chems = ['3LT', '3v2', '5v1', '5v2', '3v3', 'multiome']
 
             if sample in custom_smpls:
-        # check if chemistry is defined
-                if 'chemisty' in custom_smpl_params[sample] and (custom_smpl_params[sample]['chemistry'] is not None):
+                # check if chemistry is defined
+                if 'chemistry' in custom_smpl_params[sample] and (custom_smpl_params[sample]['chemistry'] is not None):
                     SAMPLE_CHEMISTRY = custom_smpl_params[sample]['chemistry']
                     # check if valid
                     assert SAMPLE_CHEMISTRY in valid_chems, \
                         f"chemistry not valid for sample {sample}"
-
 
     # get expected ori, af chemistry and whitelist f
     if SAMPLE_CHEMISTRY in ['3v2', '5v1', '5v2']:
@@ -42,13 +40,12 @@ def parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, s
     if SAMPLE_CHEMISTRY in ['5v1', '5v2']:
         EXPECTED_ORI = 'rc'
     else:
-        EXPECTED_ORI  = 'fw'
+        EXPECTED_ORI = 'fw'
 
     wl_df_f = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref/cellranger_whitelists.csv')
     wl_df = pd.read_csv(wl_df_f)
     wl_f = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'barcodes_f'].values[0]
     WHITELIST_F = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref', wl_f)
-
 
     return AF_CHEMISTRY, EXPECTED_ORI, WHITELIST_F
 
@@ -79,7 +76,7 @@ def parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, sample,
 
   # check custom_sample_params_f for sample specific params
 
-   if CUSTOM_SAMPLE_PARAMS_F is not None: 
+  if CUSTOM_SAMPLE_PARAMS_F is not None: 
       with open(CUSTOM_SAMPLE_PARAMS_F) as f:
         custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
         # get all samples with custom params
@@ -176,7 +173,7 @@ rule save_alevin_to_h5:
       FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD)[2], 
     inf2          = lambda wildcards: parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, wildcards.sample, 
       FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD)[3],
-    exp_cells     = lambda wildcards: parse_knee_finder_params(CUSTOM_SAMPLE_PARAMSD_F, AMBIENT_METHOD, wildcards.sample, 
+    exp_cells     = lambda wildcards: parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, wildcards.sample, 
       FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD)[4], 
     total_inc     = lambda wildcards: parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, wildcards.sample, 
       FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD)[5], 
