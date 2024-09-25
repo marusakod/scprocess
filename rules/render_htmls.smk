@@ -31,7 +31,7 @@ rule render_html_alevin_fry:
   output:
     r_utils_f   = f"{code_dir}/utils.R",
     r_amb_f      = f"{code_dir}/ambient.R",
-    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_alevin_fry.Rmd"
+    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_alevin_fry.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_alevin_fry.html"
   threads: 1
   retries: RETRIES
@@ -73,7 +73,7 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
   input:
     expand( amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', sample = SAMPLES )
   output:
-    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd"
+    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_ambient.html"
   threads: 1
   retries: RETRIES 
@@ -107,7 +107,7 @@ rule render_html_qc:
     keep_f      = qc_dir  + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
     r_qc_f      = f"{code_dir}/qc.R",
-    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_qc.Rmd"
+    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_qc.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_qc.html"
   threads: 1
   retries: RETRIES 
@@ -167,7 +167,7 @@ rule render_html_integration:
     r_sce_f     = f"{code_dir}/make_sce.R",
     r_dbl_f     = f"{code_dir}/doublet_id.R",
     r_int_f     = f"{code_dir}/integration.R",
-    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_integration.Rmd"
+    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_integration.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_integration.html"
   params: 
     int_res_ls = ','.join(map(str, INT_RES_LS))
@@ -217,7 +217,7 @@ rule render_html_label_celltypes:
     guesses_f   = f'{lbl_dir}/xgboost_guesses_{FULL_TAG}_{DATE_STAMP}.txt.gz'
   output:
     r_lbl_f     = f'{code_dir}/label_celltypes.R',
-    rmd_f       = f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd'
+    rmd_f       = f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd',
     html_f      = f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
   threads: 1
   retries: RETRIES
@@ -269,7 +269,7 @@ rule render_html_marker_genes:
     fgsea_hlmk_f = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz'
   output:
     r_mkr_f     = f'{code_dir}/marker_genes.R',
-    rmd_f       = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.Rmd'
+    rmd_f       = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.Rmd',
     html_f      = f'{docs_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.html'
   threads: 8
   retries: RETRIES
@@ -340,7 +340,7 @@ rule render_html_zoom:
     zoom_fgsea_hlmk_f   = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_hlmk_' + DATE_STAMP +'.txt.gz'
   output:
     #r_zoom_f    = f"{code_dir}/zoom.R",
-    rmd_f       = rmd_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.Rmd'
+    rmd_f       = rmd_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.Rmd',
     html_f      = docs_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.html'
   params:
     zoom_name   = '{zoom_name}',
@@ -409,7 +409,7 @@ rule render_html_empties:
     subset = None if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] )
   output:
     r_pb_f      = f'{code_dir}/pseudobulk_and_empties.R',
-    rmd_f       = f'{rmd_dir}/{SHORT_TAG}_empties.Rmd'
+    rmd_f       = f'{rmd_dir}/{SHORT_TAG}_empties.Rmd',
     html_f      = f'{docs_dir}/{SHORT_TAG}_empties.html'
   threads: 1
   retries: RETRIES 

@@ -138,14 +138,12 @@ rule all:
       rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd', 
       rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
       rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
-      rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
       rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.Rmd', 
       # reports
       docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',
       docs_dir  + '/' + SHORT_TAG + '_ambient.html', 
       docs_dir  + '/' + SHORT_TAG + '_qc.html', 
       docs_dir  + '/' + SHORT_TAG + '_integration.html',
-      docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html',
       docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.html',
 
 rule label_and_subset:
