@@ -25,12 +25,37 @@
 #     render_html(PROJ_DIR, template_f, sub_dict, output.rmd_f)
 
 
+# copy R scripts to code directory (not for rules that only run if specifically called)rule copy_r_code:
+rule copy_r_code:
+  output: 
+    r_utils_f   = f"{code_dir}/utils.R",
+    r_amb_f     = f"{code_dir}/ambient.R",
+    r_qc_f      = f"{code_dir}/qc.R",
+    r_sce_f     = f"{code_dir}/make_sce.R",
+    r_dbl_f     = f"{code_dir}/doublet_id.R",
+    r_int_f     = f"{code_dir}/integration.R",
+    r_mkr_f     = f"{code_dir}/marker_genes.R"
+  shell: 
+    """
+    echo "copying relevant R files over"
+    
+    cp scripts/utils.R {output.r_utils_f}
+    cp scripts/ambient.R {output.r_amb_f}
+    cp scripts/SampleQC.R {output.r_qc_f}
+    cp scripts/make_sce.R {output.r_sce_f}
+    cp scripts/doublet_id.R {output.r_dbl_f}
+    cp scripts/integration.R {output.r_int_f}
+    cp scripts/marker_genes.R {output.r_mkr_f}
+        
+    """
+
+ 
+
+
 
 
 rule render_html_alevin_fry:
   output:
-    r_utils_f   = f"{code_dir}/utils.R",
-    r_amb_f      = f"{code_dir}/ambient.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_alevin_fry.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_alevin_fry.html"
   threads: 1
@@ -43,9 +68,6 @@ rule render_html_alevin_fry:
     """
     echo "copying relevant R files over"
     
-    cp scripts/utils.R {output.r_utils_f}
-    cp scripts/ambient.R {output.r_amb_f}
-
     # make and render Rmd file
     template_f=$(realpath templates/alevin_fry.Rmd.template)
     rule="af"
@@ -106,7 +128,6 @@ rule render_html_qc:
     qc_f        = qc_dir  + '/qc_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     keep_f      = qc_dir  + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
-    r_qc_f      = f"{code_dir}/qc.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_qc.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_qc.html"
   threads: 1
@@ -117,10 +138,7 @@ rule render_html_qc:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
   shell:
     """
-    # copy R code over
-    echo "copying relevant R files over"
-    cp scripts/SampleQC.R {output.r_qc_f}
-
+  
     #define rule and template
     template_f=$(realpath templates/SampleQC.Rmd.template)
     rule="qc"
@@ -164,9 +182,6 @@ rule render_html_integration:
     harmony_f   = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     hvgs_f      = int_dir   + '/harmony_hvgs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
-    r_sce_f     = f"{code_dir}/make_sce.R",
-    r_dbl_f     = f"{code_dir}/doublet_id.R",
-    r_int_f     = f"{code_dir}/integration.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_integration.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_integration.html"
   params: 
@@ -179,12 +194,6 @@ rule render_html_integration:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
   shell:
     """
-    # copy R code over
-    echo "copying relevant R files over"
-    cp scripts/make_sce.R {output.r_sce_f}
-    cp scripts/doublet_id.R {output.r_dbl_f}
-    cp scripts/integration.R {output.r_int_f}
-    
     template_f=$(realpath templates/integration.Rmd.template)
     rule="integration"
     
@@ -268,7 +277,6 @@ rule render_html_marker_genes:
     fgsea_paths_f = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
     fgsea_hlmk_f = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz'
   output:
-    r_mkr_f     = f'{code_dir}/marker_genes.R',
     rmd_f       = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.Rmd',
     html_f      = f'{docs_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.html'
   threads: 8
@@ -281,9 +289,6 @@ rule render_html_marker_genes:
     mem_mb      = lambda wildcards, attempt: attempt * MB_HTML_MARKER_GENES
   shell:
     """
-    # copy R code over
-    echo "copying relevant R files over"
-    cp scripts/marker_genes.R {output.r_mkr_f}
 
     template_f=$(realpath templates/marker_genes.Rmd.template)
     rule="markers"
