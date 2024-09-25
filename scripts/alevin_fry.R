@@ -39,7 +39,7 @@ save_alevin_h5_calculate_amb_params <- function(sample, fry_dir, h5_f, cb_yaml_f
   inf2            = as.integer(inf2)
   exp_cells       = as.integer(exp_cells)
   total_included  = as.integer(total_included)
-  low_count_thr   = as.integer(low_count_threshold)
+  low_count_thr   = as.integer(low_count_thr)
 
   # check if low count threshold is defined
   if(is.na(low_count_thr)){
@@ -130,7 +130,7 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
       ranks_obj = barcodeRanks( split_mat, lower = low )
       sel_knee    = c(
       inflection  = inf1,
-      knee        = knee1)
+      knee        = knee1
     )
   }else if(!is.null(min_umis_cells)) {
     # if min_umis_cells is specified use it as 'lower' parameter in barcodeRanks()
@@ -199,8 +199,8 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
     knee2_corr = ranks_df[ knee2_idx, "total"]
 
       sel_knee    = c(
-      inflection  = inf_corr,
-      knee        = knee2_corr)
+      inflection  = inf2_corr,
+      knee        = knee2_corr
     )
   }else if (!is.null(rank_empty_plateau)) {
     # restrict to barcodes below specified threshold

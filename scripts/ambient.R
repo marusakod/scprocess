@@ -203,10 +203,12 @@ call_cells_and_empties <- function(af_mat,
 .get_empty_plateau <- function(ranks_df, inf1, total_inc, knee2){
 
   # calculate empty plateau
-  inf1_x = unique(ranks_df[ranks_df$total == inf1, "rank"])
+
+   infl1_idx = which.min( abs(ranks_df$total - inf1) )[1]
+   infl1_x   = ranks_df[ infl1_idx, "rank" ]
 
   empty_start = ranks_df %>% mutate(n = 1:nrow(.)) %>%
-    filter( between(rank, inf1_x, total_inc)) %>%
+    filter( between(rank, infl1_x, total_inc)) %>%
     pull(n) %>%
     log10 %>%
     mean() %>%
@@ -217,6 +219,7 @@ call_cells_and_empties <- function(af_mat,
 
   return(empty_plateau)
 }
+
 
 #
 # save_cellbender_qc_metrics <- function(knee_data_f, af_h5_f, cb_h5_f, cb_qc_f, do_cellbender) {

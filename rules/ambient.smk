@@ -320,7 +320,8 @@ else:
 rule get_barcode_qc_metrics:
   input:
     af_h5_f     = af_dir + '/af_{sample}/af_counts_mat.h5',
-    amb_yaml_f = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
+    amb_yaml_f = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
+    knee_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
   params:
     expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0]

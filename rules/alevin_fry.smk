@@ -144,8 +144,8 @@ rule run_alevin_fry:
   
     # simpleaf quantfication
     simpleaf quant \
-      --reads1 {R1_fs}  \
-      --reads2 {R2_fs}  \
+      --reads1 $R1_fs  \
+      --reads2 $R2_fs  \
       --threads {threads} \
       --index {AF_INDEX_DIR}/index \
       --chemistry {params.af_chemistry} --resolution cr-like \
