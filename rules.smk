@@ -140,9 +140,8 @@ rule all:
       rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
       rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
       rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.Rmd'
-      reports
-      docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',
-      docs_dir  + '/' + SHORT_TAG + '_ambient.html'
+     # docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',
+     # docs_dir  + '/' + SHORT_TAG + '_ambient.html'
 
 
 rule label_and_subset:
@@ -152,16 +151,19 @@ rule label_and_subset:
    lbl_dir   + '/sce_subset_specifications_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
    expand([
      lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
-     ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] )
+     ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] ), 
+   rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd'
 
 
 rule zoom:
  input:
    expand( '%s/{zoom_name}/zoom_imputed_dt_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
        (zoom_dir, FULL_TAG, DATE_STAMP), \
-     zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ])
-    expand("%s/%s09_zoom_{zoom_name}_{zoom_res}.html" % (docs_dir, SHORT_TAG), \
-     zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ])
+     zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ]), 
+   expand("%s/%s_zoom_{zoom_name}_{zoom_res}.Rmd" % (docs_dir, SHORT_TAG), \
+     zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ])   
+ #expand("%s/%s_zoom_{zoom_name}_{zoom_res}.html" % (docs_dir, SHORT_TAG), \
+    # zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ])
 
 rule pb_empties:
  input:

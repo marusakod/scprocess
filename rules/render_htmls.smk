@@ -245,9 +245,9 @@ rule render_html_label_celltypes:
     SHORT_TAG = '{SHORT_TAG}', \
     DATE_STAMP = '{DATE_STAMP}', \
     threads = {threads}, \
-    guesses_f = '{input.guesses_f'}', \
+    guesses_f = '{input.guesses_f}', \
     LBL_XGB_F = '{LBL_XGB_F}', \
-    LBL_SEL_RES_CL = {LBL_SEL_RES_CL}, \
+    LBL_SEL_RES_CL = '{LBL_SEL_RES_CL}', \
     LBL_MIN_PRED = {LBL_MIN_PRED}, \
     LBL_MIN_CL_PROP = {LBL_MIN_CL_PROP}, \
     LBL_MIN_CL_SIZE = {LBL_MIN_CL_SIZE})"
@@ -339,7 +339,7 @@ rule render_html_zoom:
     zoom_fgsea_paths_f  = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_paths_' + DATE_STAMP +'.txt.gz',
     zoom_fgsea_hlmk_f   = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_hlmk_' + DATE_STAMP +'.txt.gz'
   output:
-    r_zoom_f    = f"{code_dir}/zoom.R",
+    #r_zoom_f    = f"{code_dir}/zoom.R",
     rmd_f       = rmd_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.Rmd'
     #html_f      = docs_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.html'
   params:
