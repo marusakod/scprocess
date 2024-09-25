@@ -32,7 +32,7 @@ rule render_html_alevin_fry:
     r_utils_f   = f"{code_dir}/utils.R",
     r_amb_f      = f"{code_dir}/ambient.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_alevin_fry.Rmd"
-    #html_f      = f"{docs_dir}/{SHORT_TAG}_alevin_fry.html"
+    html_f      = f"{docs_dir}/{SHORT_TAG}_alevin_fry.html"
   threads: 1
   retries: RETRIES
   resources:
@@ -74,7 +74,7 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
     expand( amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', sample = SAMPLES )
   output:
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd"
-    #html_f      = f"{docs_dir}/{SHORT_TAG}_ambient.html"
+    html_f      = f"{docs_dir}/{SHORT_TAG}_ambient.html"
   threads: 1
   retries: RETRIES 
   resources:
@@ -108,7 +108,7 @@ rule render_html_qc:
   output:
     r_qc_f      = f"{code_dir}/qc.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_qc.Rmd"
-    #html_f      = f"{docs_dir}/{SHORT_TAG}_qc.html"
+    html_f      = f"{docs_dir}/{SHORT_TAG}_qc.html"
   threads: 1
   retries: RETRIES 
   conda:
@@ -168,7 +168,7 @@ rule render_html_integration:
     r_dbl_f     = f"{code_dir}/doublet_id.R",
     r_int_f     = f"{code_dir}/integration.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_integration.Rmd"
-    #html_f      = f"{docs_dir}/{SHORT_TAG}_integration.html"
+    html_f      = f"{docs_dir}/{SHORT_TAG}_integration.html"
   params: 
     int_res_ls = ','.join(map(str, INT_RES_LS))
   threads: 1
@@ -218,7 +218,7 @@ rule render_html_label_celltypes:
   output:
     r_lbl_f     = f'{code_dir}/label_celltypes.R',
     rmd_f       = f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd'
-    #html_f      = f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
+    html_f      = f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
   threads: 1
   retries: RETRIES
   resources:
@@ -270,7 +270,7 @@ rule render_html_marker_genes:
   output:
     r_mkr_f     = f'{code_dir}/marker_genes.R',
     rmd_f       = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.Rmd'
-    #html_f      = f'{docs_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.html'
+    html_f      = f'{docs_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.html'
   threads: 8
   retries: RETRIES
   params: 
@@ -341,7 +341,7 @@ rule render_html_zoom:
   output:
     #r_zoom_f    = f"{code_dir}/zoom.R",
     rmd_f       = rmd_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.Rmd'
-    #html_f      = docs_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.html'
+    html_f      = docs_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.html'
   params:
     zoom_name   = '{zoom_name}',
     zoom_res    = '{zoom_res}', 
@@ -410,7 +410,7 @@ rule render_html_empties:
   output:
     r_pb_f      = f'{code_dir}/pseudobulk_and_empties.R',
     rmd_f       = f'{rmd_dir}/{SHORT_TAG}_empties.Rmd'
-    #html_f      = f'{docs_dir}/{SHORT_TAG}_empties.html'
+    html_f      = f'{docs_dir}/{SHORT_TAG}_empties.html'
   threads: 1
   retries: RETRIES 
   resources:

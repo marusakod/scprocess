@@ -139,10 +139,14 @@ rule all:
       rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
       rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
       rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
-      rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.Rmd'
-     # docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',
-     # docs_dir  + '/' + SHORT_TAG + '_ambient.html'
-
+      rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.Rmd', 
+      # reports
+      docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',
+      docs_dir  + '/' + SHORT_TAG + '_ambient.html', 
+      docs_dir  + '/' + SHORT_TAG + '_qc.html', 
+      docs_dir  + '/' + SHORT_TAG + '_integration.html',
+      docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html',
+      docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.html',
 
 rule label_and_subset:
  input:
@@ -152,8 +156,8 @@ rule label_and_subset:
    expand([
      lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
      ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] ), 
-   rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd'
-
+   rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
+   docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
 
 rule zoom:
  input:
@@ -161,9 +165,9 @@ rule zoom:
        (zoom_dir, FULL_TAG, DATE_STAMP), \
      zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ]), 
    expand("%s/%s_zoom_{zoom_name}_{zoom_res}.Rmd" % (docs_dir, SHORT_TAG), \
-     zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ])   
- #expand("%s/%s_zoom_{zoom_name}_{zoom_res}.html" % (docs_dir, SHORT_TAG), \
-    # zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ])
+     zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ]),   
+   expand("%s/%s_zoom_{zoom_name}_{zoom_res}.html" % (docs_dir, SHORT_TAG), \
+     zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ])
 
 rule pb_empties:
  input:

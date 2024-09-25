@@ -21,8 +21,12 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
    message('Rendering html')
 
-    # workflowr::wflow_build( files = rmd_f, view = FALSE,
-    #  verbose = TRUE, delete_cache = TRUE)
+   workflowr::wflow_build(
+    files = rmd_f,
+    view = FALSE,
+    verbose = TRUE,
+    delete_cache = TRUE
+    )
 
   }
 
