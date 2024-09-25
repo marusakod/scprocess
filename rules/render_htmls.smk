@@ -32,7 +32,7 @@ rule render_html_alevin_fry:
     r_utils_f   = f"{code_dir}/utils.R",
     r_amb_f      = f"{code_dir}/ambient.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_alevin_fry.Rmd"
-    html_f      = f"{docs_dir}/{SHORT_TAG}_alevin_fry.html"
+    #html_f      = f"{docs_dir}/{SHORT_TAG}_alevin_fry.html"
   threads: 1
   retries: RETRIES
   resources:
@@ -108,7 +108,7 @@ rule render_html_qc:
   output:
     r_qc_f      = f"{code_dir}/qc.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_qc.Rmd"
-    html_f      = f"{docs_dir}/{SHORT_TAG}_qc.html"
+    #html_f      = f"{docs_dir}/{SHORT_TAG}_qc.html"
   threads: 1
   retries: RETRIES 
   conda:
