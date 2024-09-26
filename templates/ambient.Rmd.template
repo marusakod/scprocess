@@ -231,3 +231,11 @@ amb_sample_qc_plots = mapply(var1 = all_vars1,
 print(do.call('grid.arrange', c(amb_sample_qc_plots, ncol = 2)))
 
 ```
+
+
+
+# Outputs
+
+```{r session_info, include=TRUE, echo=TRUE, results='markup'}
+devtools::session_info()
+```
