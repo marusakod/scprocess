@@ -31,7 +31,7 @@ knitr::opts_knit$set( root.dir='..' )
 
 ```{r setup_helpers, message=FALSE, cache=FALSE}
 source('code/utils.R')
-source('code/cellbender.R')
+source('code/ambient.R')
 source('code/integration.R')
 n_cores     = ${threads}
 setDTthreads(n_cores)
@@ -53,7 +53,8 @@ qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') 
 # define harmony inputs
 hmny_f      = "${hmny_f}"
 hvgs_f      = "${hmny_hvgs_f}"
-res_ls      = ${INT_RES_LS}
+res_ls      = "${INT_RES_LS}" %>%
+ str_split(pattern = ',') %>% unlist() %>% as.numeric()
 sel_res     = ${INT_SEL_RES}
 dbl_cl_prop = ${INT_DBL_CL_PROP}
 ```
@@ -154,9 +155,6 @@ for (res in res_ls) {
 
 
 # Outputs
-
-```{r save_outputs}
-```
 
 ```{r session_info, include=TRUE, echo=TRUE, results='markup'}
 devtools::session_info()
