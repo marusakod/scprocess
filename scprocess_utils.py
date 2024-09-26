@@ -9,10 +9,10 @@ import datetime
 import subprocess
 
 
-def __get_cl_ls(config, mito_str):
+def __get_cl_ls(config, mito_str, scprocess_data_dir):
   # get parameters
-  PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, _, _, _, _, _, _, DATE_STAMP = \
-    get_project_parameters(config)
+  PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, _, _, _, _, _, _, DATE_STAMP, _, _ = \
+    get_project_parameters(config, scprocess_data_dir)
   _, _, _, _, _, _, _, INT_SEL_RES = \
     get_integration_parameters(config, mito_str)
 
@@ -503,12 +503,12 @@ def get_pb_empties_parameters(config):
 
 
 # define marker_genes parameters
-def get_zoom_parameters(config, MITO_STR): 
+def get_zoom_parameters(config, MITO_STR, scprocess_data_dir): 
   if ('zoom' not in config) or (config['zoom'] is None):
     ZOOM_NAMES    = []
     ZOOM_SPEC_LS  = []
   else:
-    cl_ls         = __get_cl_ls(config, MITO_STR)
+    cl_ls         = __get_cl_ls(config, MITO_STR, scprocess_data_dir)
     ZOOM_NAMES    = list(config['zoom'].keys())
     ZOOM_SPEC_LS  = dict(zip(
       ZOOM_NAMES,
