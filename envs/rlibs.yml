@@ -17,6 +17,7 @@ dependencies:
 - r-Hmisc
 - r-plyr
 - r-irlba
+- r-devtools
 - bioconductor-decontX
 - bioconductor-BiocParallel=1.36.0
 - bioconductor-BiocStyle=2.30.0

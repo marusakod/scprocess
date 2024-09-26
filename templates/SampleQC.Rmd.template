@@ -45,7 +45,7 @@ qc_f        = "${qc_dt_f}"
 keep_f      = "${qc_keep_f}"
 
 # set default values
-ambient_method  = ${AMBIENT_METHOD}
+ambient_method  = "${AMBIENT_METHOD}"
 hard_min_counts = ${QC_HARD_MIN_COUNTS}
 hard_min_feats  = ${QC_HARD_MIN_FEATS}
 hard_max_mito   = ${QC_HARD_MAX_MITO}

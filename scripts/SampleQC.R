@@ -141,10 +141,11 @@ plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds
     .[, qc_full   := fct_reorder(qc_full, as.integer(qc_var)) ]
 
   # calculate medians etc
+if(amb_method == 'cellbender'){
   qc_meds = qc_melt %>%
   .[, .(
     log10_N = log10(.N),
-    bender_logit_ok = if (amb_method == 'cellbender') unique(bender_logit_ok) else NULL,
+    bender_logit_ok =  unique(bender_logit_ok),
     q50 = median(qc_val, na.rm = TRUE),
     q10 = quantile(qc_val, 0.1, na.rm = TRUE),
     q90 = quantile(qc_val, 0.9, na.rm = TRUE),
@@ -152,6 +153,18 @@ plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds
     q975 = quantile(qc_val, 0.975, na.rm = TRUE)
   ),
   by = c('sample_id', 'qc_var', 'qc_full')]
+  }else{
+    qc_meds = qc_melt %>%
+  .[, .(
+    log10_N = log10(.N),
+    q50 = median(qc_val, na.rm = TRUE),
+    q10 = quantile(qc_val, 0.1, na.rm = TRUE),
+    q90 = quantile(qc_val, 0.9, na.rm = TRUE),
+    q025 = quantile(qc_val, 0.025, na.rm = TRUE),
+    q975 = quantile(qc_val, 0.975, na.rm = TRUE)
+  ),
+  by = c('sample_id', 'qc_var', 'qc_full')]
+  }
 
   # order_dt  = qc_meds[ qc_var == 'logit_mito' ] %>% .[ order(sample_id) ]
   # qc_meds   = qc_meds[, sample_id := factor(sample_id, levels = order_dt$sample_id) ]
