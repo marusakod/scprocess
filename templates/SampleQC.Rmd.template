@@ -45,6 +45,7 @@ qc_f        = "${qc_dt_f}"
 keep_f      = "${qc_keep_f}"
 
 # set default values
+amb_method      = ${AMBIENT_METHOD}
 hard_min_counts = ${QC_HARD_MIN_COUNTS}
 hard_min_feats  = ${QC_HARD_MIN_FEATS}
 hard_max_mito   = ${QC_HARD_MAX_MITO}
@@ -67,7 +68,7 @@ qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') 
 ```{r load_qc_values}
 qc_dt       = fread(qc_f)
 keep_dt     = fread(keep_f)
-kept_dt     = qc_dt[ cell_id %in% keep_dtcell_id ]
+kept_dt     = qc_dt[ cell_id %in% keep_dt$cell_id ]
 ```
 
 ```{r load_metadata}

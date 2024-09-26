@@ -158,6 +158,7 @@ rule render_html_qc:
     meta_f = '{METADATA_F}', \
     qc_dt_f = '{input.qc_f}', \
     qc_keep_f = '{input.keep_f}', \
+    AMBIENT_METHOD = '{AMBIENT_METHOD}', \
     QC_HARD_MIN_COUNTS = {QC_HARD_MIN_COUNTS}, \
     QC_HARD_MIN_FEATS = {QC_HARD_MIN_FEATS}, \
     QC_HARD_MAX_MITO = {QC_HARD_MAX_MITO}, \

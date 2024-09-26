@@ -375,8 +375,11 @@ get_knee_params <- function(ranks_df) {
   inf1 = unique(ranks_df$inf1)
 
   # get x coordinate of inf1
-  inf_1_x = ranks_df[ranks_df$total == as.integer(as.character(inf1)), ] %>%
-    .$rank %>% .[1] %>% log10()
+  infl1_idx = which.min( abs(ranks_df$total - inf1) )[1]
+
+  # get x coordinate of inf1
+  inf_1_x = ranks_df[ infl1_idx, "rank" ] %>%
+    log10()
 
   # fit curve to all points
   ranks_df = ranks_df %>% filter(total > 5) %>%
