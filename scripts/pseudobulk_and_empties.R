@@ -194,10 +194,14 @@ make_pb_empty <- function(af_paths_f, gtf_dt_f, pb_empty_f, empty_locs_f,
   knee_df = fread(knee_f) %>% as.data.frame()
   
   # calculate empty plateau
-  inf1_x = unique(knee_df[knee_df$total == unique(knee_df$inf1), "rank"])
+  infl1 = unique(knee_df$inf1)
+
+  infl1_idx = which.min( abs(knee_df$total - infl1) )[1]
+  infl1_x   = knee_df[ infl1_idx, "rank" ]
+  
     
   empty_start = knee_df %>% mutate(n = 1:nrow(.)) %>%
-    filter( between(rank, inf1_x,  unique(knee_df$total_droplets_included))) %>%
+    filter( between(rank, infl1_x,  unique(knee_df$total_droplets_included))) %>%
     pull(n) %>%
     log10 %>%
     mean() %>%
