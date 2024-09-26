@@ -157,15 +157,59 @@ rule label_and_subset:
    rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
    docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
 
+
 rule zoom:
- input:
-   expand( '%s/{zoom_name}/zoom_imputed_dt_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
-       (zoom_dir, FULL_TAG, DATE_STAMP), \
-     zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ]), 
-   expand("%s/%s_zoom_{zoom_name}_{zoom_res}.Rmd" % (docs_dir, SHORT_TAG), \
-     zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ]),   
-   expand("%s/%s_zoom_{zoom_name}_{zoom_res}.html" % (docs_dir, SHORT_TAG), \
-     zip, zoom_name = zoom_df[ 'zoom_name' ], zoom_res = zoom_df[ 'zoom_res' ])
+  input:
+    # zoom_imputed_dt
+    expand('%s/{zoom_name}/zoom_imputed_dt_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
+           (zoom_dir, FULL_TAG, DATE_STAMP), \
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+    # zoom_sce_clean
+    expand('%s/{zoom_name}/zoom_sce_clean_%s_{zoom_name}_{zoom_res}_%s.rds' % \
+           (zoom_dir, FULL_TAG, DATE_STAMP), \
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+    # zoom_integrated_dt
+    expand('%s/{zoom_name}/zoom_integrated_dt_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
+           (zoom_dir, FULL_TAG, DATE_STAMP), \
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+    # zoom_pb
+    expand('%s/{zoom_name}/zoom_pb_%s_{zoom_name}_{zoom_res}_%s.rds' % \
+           (zoom_dir, FULL_TAG, DATE_STAMP), \
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+    # zoom_pb_marker_genes
+    expand('%s/{zoom_name}/zoom_pb_marker_genes_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
+           (zoom_dir, FULL_TAG, DATE_STAMP), \
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+    # zoom_pb_hvgs
+    expand('%s/{zoom_name}/zoom_pb_hvgs_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
+           (zoom_dir, FULL_TAG, DATE_STAMP), \
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+    # zoom_fgsea_go_bp
+    expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_go_bp_%s.txt.gz' % \
+           (zoom_dir, FULL_TAG, DATE_STAMP), \
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+    # zoom_fgsea_go_cc
+    expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_go_cc_%s.txt.gz' % \
+           (zoom_dir, FULL_TAG, DATE_STAMP), \
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+    # zoom_fgsea_go_mf
+    expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_go_mf_%s.txt.gz' % \
+           (zoom_dir, FULL_TAG, DATE_STAMP), \
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+    # zoom_fgsea_paths
+    expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_paths_%s.txt.gz' % \
+           (zoom_dir, FULL_TAG, DATE_STAMP), \
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+    # zoom_fgsea_hlmk
+    expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_hlmk_%s.txt.gz' % \
+           (zoom_dir, FULL_TAG, DATE_STAMP), \
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+    # Rmd and html files
+    expand('%s/%s_zoom_{zoom_name}_{zoom_res}.Rmd' % (docs_dir, SHORT_TAG), \
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+    expand('%s/%s_zoom_{zoom_name}_{zoom_res}.html' % (docs_dir, SHORT_TAG), \
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res'])
+
 
 rule pb_empties:
  input:
