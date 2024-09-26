@@ -128,7 +128,7 @@ calc_bender_chks <- function(qc_all, mad_cutoff = 3) {
   return(bender_chks)
 }
 
-plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds_dt) {
+plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds_dt, amb_method) {
   # melt, add names
   qc_melt   = copy(qc_input) %>%
     melt(measure = qc_names, val = 'qc_val', var = 'qc_var') %>%
@@ -141,17 +141,17 @@ plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds
     .[, qc_full   := fct_reorder(qc_full, as.integer(qc_var)) ]
 
   # calculate medians etc
-  qc_meds   = qc_melt %>%
-    .[, .(
-      log10_N         = log10(.N),
-      bender_logit_ok = unique(bender_logit_ok),
-      q50             = median(qc_val, na.rm = TRUE),
-      q10             = quantile(qc_val, 0.1, na.rm = TRUE),
-      q90             = quantile(qc_val, 0.9, na.rm = TRUE),
-      q025            = quantile(qc_val, 0.025, na.rm = TRUE),
-      q975            = quantile(qc_val, 0.975, na.rm = TRUE)
-      ),
-      by = c('sample_id', 'qc_var', 'qc_full')]
+  qc_meds = qc_melt %>%
+  .[, .(
+    log10_N = log10(.N),
+    bender_logit_ok = if (amb_method == 'cellbender') unique(bender_logit_ok) else NULL,
+    q50 = median(qc_val, na.rm = TRUE),
+    q10 = quantile(qc_val, 0.1, na.rm = TRUE),
+    q90 = quantile(qc_val, 0.9, na.rm = TRUE),
+    q025 = quantile(qc_val, 0.025, na.rm = TRUE),
+    q975 = quantile(qc_val, 0.975, na.rm = TRUE)
+  ),
+  by = c('sample_id', 'qc_var', 'qc_full')]
 
   # order_dt  = qc_meds[ qc_var == 'logit_mito' ] %>% .[ order(sample_id) ]
   # qc_meds   = qc_meds[, sample_id := factor(sample_id, levels = order_dt$sample_id) ]
@@ -220,10 +220,12 @@ plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds
   return(g)
 }
 
-plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt) {
+plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt, amb_method) {
   # add logit ok to names
+  if(amb_method == 'cellbender'){
   qc_names  = c(qc_names, 'bender_logit_ok')
   qc_lu     = c(qc_lu, bender_logit_ok = "bender cell pct.")
+  }
 
   # calc medians etc
   qc_meds   = qc_input %>%
@@ -237,8 +239,12 @@ plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt) {
       q975      = quantile(qc_val, 0.975, na.rm = TRUE)
       ),
       by = c('sample_id', 'qc_var')] %>%
-    .[, qc_full := qc_lu[ qc_var ] ] %>%
+    .[, qc_full := qc_lu[ qc_var ] ]
+
+    if(amb_method == 'cellbender'){
+    qc_meds = qc_meds %>%
     .[ qc_var == "bender_logit_ok", q50 := pmin(q50, qlogis(0.999)) ]
+    }
 
   # make pairwise plot
   pairs_dt  = merge(qc_meds, qc_meds,
@@ -248,6 +254,43 @@ plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt) {
     .[, qc_var.y  := factor(qc_var.y, levels = qc_names) ] %>%
     .[, qc_full.y := fct_reorder(qc_full.y, as.integer(qc_var.y)) ] %>%
     .[ as.integer(qc_var.x) > as.integer(qc_var.y) ]
+  
+  scales_x_ls = list(
+        qc_full.x == "library size"    ~
+          scale_x_continuous(breaks = log_brks, labels = log_labs),
+        qc_full.x == "no. of features" ~
+          scale_x_continuous(breaks = log_brks, labels = log_labs),
+        qc_full.x == "mito pct."        ~
+          scale_x_continuous(breaks = logit_brks, labels = logit_labs),
+        qc_full.x == "spliced pct."     ~
+          scale_x_continuous(breaks = splice_brks, labels = splice_labs)
+  )
+
+  scales_y_ls = list(
+        qc_full.y == "library size"    ~
+          scale_y_continuous(breaks = log_brks, labels = log_labs),
+        qc_full.y == "no. of features" ~
+          scale_y_continuous(breaks = log_brks, labels = log_labs),
+        qc_full.y == "mito pct."        ~
+          scale_y_continuous(breaks = logit_brks, labels = logit_labs),
+        qc_full.y == "spliced pct."     ~
+          scale_y_continuous(breaks = splice_brks, labels = splice_labs)
+  )
+
+  if(amb_method == 'cellbender'){
+    # add bender cell pct. to scales
+    scales_x_ls = c(scales_x_ls, 
+    qc_full.x == "bender cell pct." ~
+          scale_x_continuous(breaks = logit_brks, labels = logit_labs)
+          )
+
+    scales_y_ls = c(scales_y_ls, 
+    qc_full.y == "bender cell pct." ~
+          scale_y_continuous(breaks = logit_brks, labels = logit_labs)
+    )
+
+  }
+
 
   # make plot
   g = ggplot(pairs_dt) +
@@ -269,30 +312,8 @@ plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt) {
     guides(fill = guide_legend(override.aes = list(size = 3, shape = 21) ) ) +
     facet_grid( qc_full.y ~ qc_full.x, scales = 'free' ) +
     facetted_pos_scales(
-      x = list(
-        qc_full.x == "library size"    ~
-          scale_x_continuous(breaks = log_brks, labels = log_labs),
-        qc_full.x == "no. of features" ~
-          scale_x_continuous(breaks = log_brks, labels = log_labs),
-        qc_full.x == "mito pct."        ~
-          scale_x_continuous(breaks = logit_brks, labels = logit_labs),
-        qc_full.x == "spliced pct."     ~
-          scale_x_continuous(breaks = splice_brks, labels = splice_labs),
-        qc_full.x == "bender cell pct." ~
-          scale_x_continuous(breaks = logit_brks, labels = logit_labs)
-        ),
-      y = list(
-        qc_full.y == "library size"    ~
-          scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_full.y == "no. of features" ~
-          scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_full.y == "mito pct."        ~
-          scale_y_continuous(breaks = logit_brks, labels = logit_labs),
-        qc_full.y == "spliced pct."     ~
-          scale_y_continuous(breaks = splice_brks, labels = splice_labs),
-        qc_full.y == "bender cell pct." ~
-          scale_y_continuous(breaks = logit_brks, labels = logit_labs)
-        )
+      x = scales_x_ls,
+      y = scales_y_ls
       ) +
     theme_bw() +
     theme(

@@ -45,7 +45,7 @@ qc_f        = "${qc_dt_f}"
 keep_f      = "${qc_keep_f}"
 
 # set default values
-amb_method      = ${AMBIENT_METHOD}
+ambient_method  = ${AMBIENT_METHOD}
 hard_min_counts = ${QC_HARD_MIN_COUNTS}
 hard_min_feats  = ${QC_HARD_MIN_FEATS}
 hard_max_mito   = ${QC_HARD_MAX_MITO}
@@ -97,10 +97,10 @@ thrshlds_dt = thrshlds_dt[ !is.infinite(cut_point) ]
 ```{r plot_qc_ranges_marginals, fig.height = 10, fig.width = 9, results = 'asis'}
 suppressWarnings({
   cat("### Pre-QC\n")
-  print(plot_qc_ranges_marginals(qc_dt, s_lvls, qc_names, qc_lu, thrshlds_dt))
+  print(plot_qc_ranges_marginals(qc_dt, s_lvls, qc_names, qc_lu, thrshlds_dt, ambient_method))
   cat("\n\n")
   cat("### After light QC\n")
-  print(plot_qc_ranges_marginals(kept_dt, s_lvls, qc_names, qc_lu, thrshlds_dt))
+  print(plot_qc_ranges_marginals(kept_dt, s_lvls, qc_names, qc_lu, thrshlds_dt, ambient_method))
   cat("\n\n")
 })
 ```
@@ -109,10 +109,10 @@ suppressWarnings({
 
 ```{r plot_qc_ranges_pairwise, fig.height = 7, fig.width = 8, results = 'asis'}
 cat("### Pre-QC\n")
-print(plot_qc_ranges_pairwise(qc_dt, qc_names, qc_lu, thrshlds_dt))
+print(plot_qc_ranges_pairwise(qc_dt, qc_names, qc_lu, thrshlds_dt, ambient_method))
 cat("\n\n")
 cat("### After light QC\n")
-print(plot_qc_ranges_pairwise(kept_dt, qc_names, qc_lu, thrshlds_dt))
+print(plot_qc_ranges_pairwise(kept_dt, qc_names, qc_lu, thrshlds_dt, ambient_method))
 cat("\n\n")
 ```
 
