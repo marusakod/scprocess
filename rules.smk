@@ -132,7 +132,8 @@ rule all:
       code_dir  + '/doublet_id.R',
       code_dir  + '/integration.R', 
       code_dir  + '/label_celltypes.R',
-      code_dir  + '/marker_genes.R', 
+      code_dir  + '/marker_genes.R',
+      code_dir  + '/zoom.R', 
       # markdowns
       rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
       rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd', 
@@ -203,9 +204,9 @@ rule zoom:
     # zoom_fgsea_hlmk
     expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_hlmk_%s.txt.gz' % \
            (zoom_dir, FULL_TAG, DATE_STAMP), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']), 
     # Rmd and html files
-    expand('%s/%s_zoom_{zoom_name}_{zoom_res}.Rmd' % (docs_dir, SHORT_TAG), \
+    expand('%s/%s_zoom_{zoom_name}_{zoom_res}.Rmd' % (rmd_dir, SHORT_TAG), \
            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
     expand('%s/%s_zoom_{zoom_name}_{zoom_res}.html' % (docs_dir, SHORT_TAG), \
            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res'])

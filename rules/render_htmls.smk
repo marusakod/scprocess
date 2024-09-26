@@ -34,7 +34,8 @@ rule copy_r_code:
     r_sce_f     = f"{code_dir}/make_sce.R",
     r_dbl_f     = f"{code_dir}/doublet_id.R",
     r_int_f     = f"{code_dir}/integration.R",
-    r_mkr_f     = f"{code_dir}/marker_genes.R"
+    r_mkr_f     = f"{code_dir}/marker_genes.R",
+    r_zoom_f	= f"{code_dir}/zoom.R"
   shell: 
     """
     echo "copying relevant R files over"
@@ -46,7 +47,7 @@ rule copy_r_code:
     cp scripts/doublet_id.R {output.r_dbl_f}
     cp scripts/integration.R {output.r_int_f}
     cp scripts/marker_genes.R {output.r_mkr_f}
-        
+    cp scripts/zoom.R {output.r_zoom_f}        
     """
 
  
@@ -345,7 +346,6 @@ rule render_html_zoom:
     zoom_fgsea_paths_f  = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_paths_' + DATE_STAMP +'.txt.gz',
     zoom_fgsea_hlmk_f   = zoom_dir + '/{zoom_name}/' + 'zoom_fgsea_' + FULL_TAG + '_{zoom_name}_{zoom_res}_hlmk_' + DATE_STAMP +'.txt.gz'
   output:
-    #r_zoom_f    = f"{code_dir}/zoom.R",
     rmd_f       = rmd_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.Rmd',
     html_f      = docs_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{zoom_res}.html'
   params:
@@ -360,9 +360,6 @@ rule render_html_zoom:
     mem_mb =  lambda wildcards, attempt: attempt * 8192
   shell:
     """
-    # copy R code over
-    echo "copying relevant R files over"
-    cp scripts/zoom.R {output.r_zoom_f}
 
     template_f=$(realpath templates/zoom.Rmd.template)
     rule="zoom"
