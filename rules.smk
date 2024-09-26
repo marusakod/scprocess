@@ -131,7 +131,6 @@ rule all:
       code_dir  + '/make_sce.R',
       code_dir  + '/doublet_id.R',
       code_dir  + '/integration.R', 
-      code_dir  + '/label_celltypes.R',
       code_dir  + '/marker_genes.R',
       code_dir  + '/zoom.R', 
       # markdowns
@@ -155,6 +154,7 @@ rule label_and_subset:
    expand([
      lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
      ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] ), 
+   code_dir  + '/label_celltypes.R',
    rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
    docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
 
