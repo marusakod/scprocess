@@ -63,7 +63,7 @@ keep_dt     = fread(keep_f)
 kept_dt     = qc_dt[ cell_id %in% keep_dt$cell_id ]
 ```
 
-```{r load_metadata, include = FALSE
+```{r load_metadata, include = FALSE}
 # get nice ordering for samples
 meta_dt     = fread(meta_f)
 s_lvls      = meta_dt$sample_id %>% intersect(unique(qc_dt$sample_id))

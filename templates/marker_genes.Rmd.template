@@ -102,7 +102,7 @@ hvgs_dt     = fread(hvgs_f) %>%
 ```{r load_heatmap_markers, include = FALSE}
 canon_dt    = fread(canon_f) %>% 
   .[, gene_id   := sprintf("%s_%s", symbol, ensembl_id) ]
-assert_that( all( canon_dt$$gene_id %in% unique(cpms_dt$$gene_id) ) )
+assert_that( all( canon_dt$gene_id %in% unique(cpms_dt$gene_id) ) )
 top_hvgs    = hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs" ]
 mkrs_ls     = list( brain = canon_dt, HVGs = top_hvgs )
 ```

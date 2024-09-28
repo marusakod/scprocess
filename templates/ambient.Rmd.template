@@ -122,10 +122,11 @@ exp_tot_ratio_split_l = split(exp_tot_ratio_orderd_samples, index_vec_for_split)
 knee_width = 12
 knee_height = 8
 
-if(sample_n <= 4){
+s_len = length(s_lvls)
+if(s_len <= 4){
   knee_height = ceiling(8 * 1/3)
-  knee_width = ceiling(12 * sample_n/4)
-}else if(sample_n > 4 & sample_n <= 8){
+  knee_width = ceiling(12 * s_len/4)
+}else if(s_len > 4 & s_len <= 8){
   knee_height = ceiling(8* 2/3)
 }
 
