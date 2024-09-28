@@ -13,9 +13,7 @@ output:
     number_sections: false
 ---
 
-# Setup / definitions
 
-## Libraries
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
@@ -24,12 +22,8 @@ knitr::opts_knit$set( root.dir='..' )
 # workflowr::wflow_build(files='analysis/${SHORT_TAG}_integration.Rmd', view=F, verbose=T, delete_cache=F)
 ```
 
-```{r setup_libs, collapse=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
-```
 
-## Helper functions
-
-```{r setup_helpers, message=FALSE, cache=FALSE}
+```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
 source('code/utils.R')
 source('code/ambient.R')
 source('code/integration.R')
@@ -37,9 +31,8 @@ n_cores     = ${threads}
 setDTthreads(n_cores)
 ```
 
-## Inputs
 
-```{r setup_input}
+```{r setup_input, include = FALSE}
 # inputs via reprocessing
 sce_all_f   = "${sce_all_f}"
 qc_f        = "${qc_dt_f}"
@@ -59,9 +52,8 @@ sel_res     = ${INT_SEL_RES}
 dbl_cl_prop = ${INT_DBL_CL_PROP}
 ```
 
-# Load inputs
 
-```{r load_qc_results}
+```{r load_qc_results, include = FALSE}
 keep_ids    = fread(keep_f) %>% use_series('cell_id')
 qc_melt     = fread(qc_f) %>% 
   melt(id = 'cell_id', measure = qc_names, val = 'qc_val', var = 'qc_var') %>%
@@ -71,31 +63,28 @@ qc_melt     = fread(qc_f) %>%
   .[ !is.na(qc_val) ]
 ```
 
-```{r load_harmony_results}
+```{r load_harmony_results, include = FALSE}
 hmny_all    = fread(hmny_f)
 ```
 
-```{r extract_dbl_checks}
+```{r extract_dbl_checks, include = FALSE}
 hmny_dbl    = hmny_all %>% 
   .[, .(sample_id, cell_id, UMAP1 = dbl_UMAP1, UMAP2 = dbl_UMAP2, is_dbl, dbl_cluster)]
 ```
 
-```{r extract_normal_harmony}
+```{r extract_normal_harmony, include = FALSE}
 hmny_dt    = hmny_all[ !is.na(UMAP1) ] %>% 
   .[, c("sample_id", "cell_id", "integration", "UMAP1", "UMAP2", 
     str_subset(names(hmny_all), "RNA_snn_res")), with = FALSE]
 ```
 
-# Processing / calculations
 
-```{r extract_clusters}
+```{r extract_clusters, include = FALSE}
 clusts_dt   = hmny_dt %>% 
   melt(measure = patterns('RNA_snn_res'), var = 'resolution', val = 'cluster') %>% 
   .[, .(integration, sample_id, cell_id, 
     resolution = str_extract(resolution, "(?<=res\\.)(.+)"), cluster)]
 ```
-
-# Analysis
 
 
 ## Check doublets over UMAP
@@ -153,9 +142,3 @@ for (res in res_ls) {
 }
 ```
 
-
-# Outputs
-
-```{r session_info, include=TRUE, echo=TRUE, results='markup'}
-devtools::session_info()
-```

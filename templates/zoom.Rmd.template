@@ -13,23 +13,16 @@ output:
     number_sections: false
 ---
 
-# Setup / definitions
-
-## Libraries
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
-knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
-knitr::opts_knit$set( root.dir='..' )
-# workflowr::wflow_build('analysis/${SHORT_TAG}_zoom_${zoom_name}.Rmd', view = F, verbose = T, delete_cache = F)
+knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', warnings = FALSE)
+knitr::opts_knit$set( root.dir='..' ) F)
 ```
 
-```{r setup_libs, collapse=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
-```
 
-## Helper functions
 
-```{r setup_helpers, message=FALSE, cache=FALSE}
+```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
 source('code/utils.R')
 source('code/integration.R')
 source('code/marker_genes.R')
@@ -38,9 +31,9 @@ n_cores     = 4
 setDTthreads(n_cores)
 ```
 
-## Inputs
 
-```{r setup_input}
+
+```{r setup_input, include = FALSE}
 # define selected group
 zoom_name     = "${zoom_name}"
 zoom_res      = ${zoom_res}
@@ -80,61 +73,60 @@ if (all(metadata_vars == ""))
   metadata_vars = NULL
 ```
 
-# Load inputs
 
-```{r load_metadata}
+
+```{r load_metadata, include = FALSE}
 meta_dt       = meta_f %>% fread
 assert_that( all(metadata_vars %in% names(meta_dt)) )
 ```
 
-```{r load_harmony_results}
+```{r load_harmony_results, include = FALSE}
 hmny_all    = fread(hmny_f)
 ```
 
-```{r extract_dbl_checks}
+```{r extract_dbl_checks, include = FALSE}
 hmny_dbl    = hmny_all %>% 
   .[, .(sample_id, cell_id, UMAP1 = dbl_UMAP1, UMAP2 = dbl_UMAP2, is_dbl, dbl_cluster)]
 ```
 
-```{r extract_normal_harmony}
+```{r extract_normal_harmony, include = FALSE}
 hmny_dt    = hmny_all[ !is.na(UMAP1) ] %>% 
   .[, cluster := get(paste0("RNA_snn_res.", zoom_res))] %>% 
   .[, .(sample_id, cell_id, integration, UMAP1, UMAP2, cluster)]
 ```
 
-```{r load_gene_biotypes}
+```{r load_gene_biotypes, include = FALSE}
 biotypes_dt   = load_gene_biotypes(gtf_dt_f)
 ```
 
-```{r load_cpms}
+```{r load_cpms, include = FALSE}
 cpms_dt     = readRDS(pb_f) %>% 
   make_logcpms_all(lib_size_method = "edger", 
     exc_regex = exc_regex, min_cells = min_cells, n_cores = n_cores) %>% 
   merge(biotypes_dt[, .(gene_id, gene_type)], by = "gene_id")
 ```
 
-```{r load_canonical_markers}
+```{r load_canonical_markers, include = FALSE}
 canon_dt    = fread(canon_f) %>% 
   .[, gene_id   := sprintf("%s_%s", symbol, ensembl_id) ]
 assert_that( all( canon_dt$gene_id %in% unique(cpms_dt$gene_id) ) )
 ```
 
-```{r load_hvgs}
+```{r load_hvgs, include = FALSE}
 hvgs_dt     = fread(hvgs_f) %>% 
   .[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
   .[ order(-vst_var) ]
 ```
 
-```{r load_pb_markers}
+```{r load_pb_markers, include = FALSE}
 # calculate markers
 mkrs_dt     = fread(mkrs_f)
 if (is.null(cl_ord))
   cl_ord      = sort(unique(mkrs_dt$cluster))
 ```
 
-# Processing / calculations
 
-```{r get_top_markers}
+```{r get_top_markers, include = FALSE}
 # select top markers
 top_dt      = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
   get_top_markers
@@ -143,7 +135,7 @@ top_min_dt  = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>%
   get_top_markers
 ```
 
-```{r calc_gsea_pb}
+```{r calc_gsea_pb, include = FALSE}
 # do GSEA
 fgsea_fs        = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f)
 names(fgsea_fs) = str_extract(fgsea_fs, "(go_bp|go_cc|go_mf|paths|hlmk)")
@@ -152,7 +144,6 @@ names(fgsea_fs) = str_extract(fgsea_fs, "(go_bp|go_cc|go_mf|paths|hlmk)")
 gsea_ls         = lapply(fgsea_fs, fread) %>% setNames(names(fgsea_fs))
 ```
 
-# Analysis
 
 ## Check doublets over UMAP
 
@@ -246,6 +237,3 @@ for (p in names(gsea_ls)) {
 }
 ```
 
-```{r session_info, include=TRUE, echo=TRUE, results='markup'}
-devtools::session_info()
-```

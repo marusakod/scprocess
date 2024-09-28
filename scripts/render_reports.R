@@ -61,25 +61,42 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
     # check if all extra args for a specific rule are present
     if(sel_rule == 'ambient'){
       req_names = c('YOUR_NAME','AFFILIATION', 'SHORT_TAG',
-                    'DATE_STAMP', 'SAMPLE_STR', 'AMBIENT_METHOD', 'af_dir')
+                    'DATE_STAMP', 'SAMPLE_STR', 'AMBIENT_METHOD', 'af_dir', 
+                    'knee_pl_exp_tot_ord_tit',
+                    'sample_qc_pl')
 
       assert_that(all(req_names %in% add_args_names))
 
       
       if(add_args[['AMBIENT_METHOD']] == 'cellbender'){
-        eval_knee = TRUE
+        eval_knee = TRUE, 
+        knee_pl_slope_ord_tit =
+         '## Barcode rank plots (ordered by expected/total ratio){.tabset}\nPlots are annotated with suggested and used cellbender parameters.'
+        knee_pl_exp_tot_ord_tit =
+         '## Barcode rank plots (ordered by expected/total ratio){.tabset}\nPlots are annotated with suggested and used cellbender parameters.'
       }else{
         eval_knee = FALSE
+        knee_pl_slope_ord_tit = ''
+        knee_pl_exp_tot_ord_tit = ''
       }
 
       if(add_args[['AMBIENT_METHOD']] == 'none'){
         eval_smpl_qc = FALSE
+         sample_qc_pl = ''
       }else{
         eval_smpl_qc = TRUE
+        sample_qc_pl = '## Sample qc plots'
       }
 
       params_ls = add_args
-      params_ls = c(params_ls, list(eval_knee = eval_knee, eval_smpl_qc = eval_smpl_qc))
+      params_ls = c(
+        params_ls, 
+        list(eval_knee = eval_knee,
+             eval_smpl_qc = eval_smpl_qc, 
+             knee_pl_slope_ord_tit = knee_pl_slope_ord_tit, 
+             knee_pl_exp_tot_ord_tit = knee_pl_exp_tot_ord_tit, 
+             sample_qc_pl = sample_qc_pl)
+      )
 
     }else if(sel_rule == 'af'){
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',

@@ -1605,3 +1605,84 @@ plot_selected_genes_umap <- function(sel_dt, cols_to_rows = 1.25) {
     labs( colour = "scaled log\nexpression\n(max val. = 1)" )
 }
 
+
+
+plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cpm = 10, 
+  pseudocount = 10, annotate_genes = TRUE, cluster_rows = TRUE) {
+  # unpack
+  sel_gs      = panel_dt$symbol
+
+  # get marker values
+  missing_gs  = setdiff( sel_gs, unique(mkrs_dt$symbol))
+  if ( length(missing_gs) > 0 )
+    message('the following genes are not in the marker genes file:\n  ', 
+      paste(missing_gs, collapse = ','))
+  mkrs_sel    = mkrs_dt[ (symbol %in% sel_gs) ]
+  min_cpm     = 10
+  max_cpms    = mkrs_sel[, .(max_logcpm = max(logcpm.sel)), by = symbol ]
+  keep_gs     = max_cpms[ max_logcpm >= log(min_cpm + pseudocount) ]$symbol
+  mkrs_sel    = mkrs_sel[ symbol %in% keep_gs ]
+
+  # make nice matrices
+  log2fc_mat  = mkrs_sel %>% 
+    .[, .(symbol, cluster, log2fc = logFC) ] %>% 
+    dcast( symbol ~ cluster, value.var = 'log2fc' ) %>% 
+    as.matrix(rownames = 'symbol')
+
+  # annotate with adjusted p-values
+  fdr_mat     = mkrs_sel %>% 
+    .[, .(symbol, cluster, 
+      signif = ifelse( logcpm.sel < log(min_cpm + 1), '',
+        ifelse( (FDR > 0.05) | (logFC < 0), '', 
+          ifelse(FDR > 0.01, '*', ifelse(FDR > 0.001, '**', '***'))))) ] %>%
+    dcast( symbol ~ cluster, value.var = 'signif', fill = '' ) %>% 
+    as.matrix(rownames = 'symbol') %>% t
+
+  # make colours
+  fc_cols     = cols_fn(seq(-max_fc, max_fc, 1), res = 0.1, 
+    pal = "RdBu", pal_dir = -1, range = "natural")
+
+  # define annotations
+  .lbl_fn <- function(j, i, x, y, width, height, fill)
+    grid.text(sprintf("%s", fdr_mat[i, j]), 
+      x, y, gp = gpar(fontsize = 6))
+  lgd         = list(title = "log2fc in\ncluster", at = c(-max_fc, 0, max_fc), 
+    direction = "vertical")
+
+  # maybe do annotations
+  n_genesets  = length(unique(panel_dt$geneset))
+  if (annotate_genes & (n_genesets > 1)) {
+    # label with buckets
+    col_lvls    = panel_dt[ symbol %in% keep_gs ]$geneset %>% fct_inorder %>% levels
+    cols_dt     = panel_dt[, .(symbol,  geneset = geneset %>% factor(levels = col_lvls))] %>%
+      setkey('symbol') %>% .[ rownames(log2fc_mat) ]
+    col_cols    = MetBrewer::met.brewer( name = 'Signac', n = length(col_lvls), 
+        type = 'discrete' ) %>% setNames(col_lvls)
+    col_annots  = HeatmapAnnotation(
+      geneset    = cols_dt$geneset,
+      col         = list(geneset = col_cols),
+      annotation_name_side = "right", 
+      annotation_legend_param = list(
+        geneset = list(ncol = 3, labels_gp = gpar(fontsize = 8))
+      ) )
+    col_split   = cols_dt$geneset
+  } else {
+    col_annots  = NULL
+    col_split   = NULL
+  }
+
+  # heatmap
+  hm_obj      = Heatmap(
+    matrix = t(log2fc_mat), col = fc_cols, 
+    cell_fun = .lbl_fn,
+    cluster_rows = cluster_rows, cluster_columns = TRUE,
+    column_split = col_split, cluster_column_slices = FALSE, column_title = NULL,
+    column_names_gp = gpar( fontsize = 8 ),
+    top_annotation = col_annots,
+    heatmap_legend_param = lgd,
+    row_names_side = "left", column_names_side = "top",
+    na_col = "grey"
+    )
+
+  return(hm_obj)
+}

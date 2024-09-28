@@ -13,9 +13,6 @@ output:
     number_sections: false
 ---
 
-# Setup / definitions
-
-## Libraries
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
@@ -24,12 +21,8 @@ knitr::opts_knit$set( root.dir='..' )
 # workflowr::wflow_build(files='analysis/${SHORT_TAG}_label_celltypes.Rmd', view=F, verbose=T, delete_cache=F)
 ```
 
-```{r setup_libs, collapse=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
-```
 
-## Helper functions
-
-```{r setup_helpers, message=FALSE, cache=FALSE}
+```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
 source('code/utils.R')
 source('code/integration.R')
 source('code/label_celltypes.R')
@@ -37,9 +30,8 @@ n_cores     = ${threads}
 setDTthreads(n_cores)
 ```
 
-## Inputs
 
-```{r setup_input}
+```{r setup_input, include = FALSE}
 # define files for xgboost
 guesses_f   = "${guesses_f}"
 
@@ -51,9 +43,8 @@ min_cl_prop = ${LBL_MIN_CL_PROP}
 min_cl_size = ${LBL_MIN_CL_SIZE}
 ```
 
-# Load inputs
 
-```{r load_guesses}
+```{r load_guesses, include = FALSE}
 # get celltype labels
 cl_lvls       = xgb_f %>% readRDS %>% .$cl_lvls
 
@@ -69,13 +60,6 @@ res_ls        = sel_res_cl %>% c(setdiff(res_ls, sel_res_cl))
 # format nicely
 guesses_melt  = get_guesses_melt(guesses_dt, res_ls, cl_lvls, min_cl_size)
 ```
-
-# Processing / calculations
-
-```{r blank}
-```
-
-# Analysis
 
 ## `harmony` clusters vs `XGBoost`-predicted cell types{.tabset}
 
@@ -114,8 +98,4 @@ for (sel_res in res_ls) {
   print(g)
   cat('\n\n')
 }
-```
-
-```{r session_info, include=TRUE, echo=TRUE, results='markup'}
-devtools::session_info()
 ```

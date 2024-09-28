@@ -13,9 +13,7 @@ output:
     number_sections: false
 ---
 
-# Setup / definitions
 
-## Libraries
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
@@ -24,21 +22,16 @@ knitr::opts_knit$set( root.dir='..' )
 # workflowr::wflow_build(files='analysis/${SHORT_TAG}_qc.Rmd', view=F, verbose=T, delete_cache=T)
 ```
 
-```{r setup_libs, collapse=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
-```
 
-## Helper functions
-
-```{r setup_helpers, message=FALSE, cache=FALSE}
+```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
 source('code/utils.R')
 source('code/qc.R')
 n_cores     = ${threads}
 setDTthreads(n_cores)
 ```
 
-## Inputs
 
-```{r setup_input}
+```{r setup_input, include = FALSE}
 # define qc metric files
 meta_f      = "${meta_f}"
 qc_f        = "${qc_dt_f}"
@@ -63,21 +56,20 @@ qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') 
   setNames(qc_names)
 ```
 
-# Load inputs
 
-```{r load_qc_values}
+```{r load_qc_values, include = FALSE}
 qc_dt       = fread(qc_f)
 keep_dt     = fread(keep_f)
 kept_dt     = qc_dt[ cell_id %in% keep_dt$cell_id ]
 ```
 
-```{r load_metadata}
+```{r load_metadata, include = FALSE
 # get nice ordering for samples
 meta_dt     = fread(meta_f)
 s_lvls      = meta_dt$sample_id %>% intersect(unique(qc_dt$sample_id))
 ```
 
-```{r make_threshold_dt}
+```{r make_threshold_dt, include = FALSE}
 thrshlds_ls = list(
   log_counts    = log10(min_counts),
   log_feats     = log10(min_feats),
@@ -90,7 +82,6 @@ thrshlds_dt = lapply(names(thrshlds_ls), function(nn) {
 thrshlds_dt = thrshlds_dt[ !is.infinite(cut_point) ]
 ```
 
-# Analysis
 
 ## Sample QC metric ranges, marginals{.tabset}
 
@@ -135,6 +126,3 @@ for (s in s_lvls) {
 calc_qc_summary(qc_dt, kept_dt) %>% knitr::kable()
 ```
 
-```{r session_info, include=TRUE, echo=TRUE, results='markup'}
-devtools::session_info()
-```
