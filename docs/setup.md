@@ -1,21 +1,15 @@
 # Getting started
 
 ## Prerequisits
-### System requirements
+
 #### Hardware
+
 scprocess runs on Linux systems that meet these minimum requirements:
+
 * processor?
 * RAM? 
 * OS? Linux
 * GPU with CUDA support (only required if you select CellBender as ambient method)
-
-This is what they have for Cell Ranger:
-Cell Ranger ARC pipelines run on Linux systems that meet these minimum requirements:
-
-* 8-core Intel or AMD processor (48 cores recommended)
-* 64GB RAM (320GB recommended)
-* 1TB free disk space
-* 64-bit CentOS/RedHat 6.0 or Ubuntu 12.04; See the 10x Genomics OS Support page for details.
 
 #### Software
 
@@ -23,76 +17,68 @@ scprocess requires snakemake and conda. See the [snakemake manual](https://snake
 
 ## Installation
 
-Clone the github repository:
-```
-git clone https://github.com/wmacnair/scprocess.git
+1. Clone the github repository:
 
-```
-Add scprocess to your path. Go into your `.bashrc` file and add the following line:
+    ```
+    git clone https://github.com/wmacnair/scprocess.git
 
-```bash
-export PATH=/PATH/TO/YOUR/FOLDER/scprocess:${PATH}
-```
+    ```
+
+2.  Add scprocess to your path. Open your `.bashrc` file and add the following line:
+
+    ```bash
+    export PATH=/PATH/TO/YOUR/FOLDER/scprocess:${PATH}
+    ```
+
 ## Scprocess data directory setup
 
-Create a directory that will store all data necessary for running scprocess. Add a path to that directory to your `.bashrc` file using:
+1. Create a directory that will store all data necessary for running scprocess
 
-```bash
+2. Add the following line to your `.bashrc` file:
 
-export SCPROCESS_DATA_DIR=/path/to/scprocess_data_directory
+    ```bash
 
-```
-Create a config file. Example file:
+    export SCPROCESS_DATA_DIR=/path/to/scprocess_data_directory
 
-```yaml
-genome:
-  tenx:
-    name: human_2024 
-    decoys: True 
-  custom:
-    name: 'mouse' 
-    fasta: '/path/to/fasta/genome.fa'
-    gtf: '/path/to/genes/genes.gtf'
-    decoys: False 
-    mito_str: "^mt-" 
-```
+    ```
 
-Valid values for tenx genome names are: `human_2024`, `human_2020`, `mouse_2024` and `mouse_2020`. Multiple names can be specified; duplicated names are not allowed! Describe what tenx means and what custom means (where do tenx genomes come from)
+3. Create a configuration `.yaml` file with information about reference genomes that you would like to use: 
 
-Specifying `decoys` is optional and will default to `True` for all genomes.
+    ```yaml
+    genome:
+      tenx:
+      - name: human_2024 
+      custom:
+      - name: mouse
+        fasta: '/path/to/genome.fa'
+        gtf: '/path/to/genes.gtf'
+        decoys: False
+        mito_str: "^mt-"
+    ```
 
-Add a note here, referencing something from Rob showing that decoys make sense.
+      You can select one of the pre-built human or mouse reference genomes from 10x Genomics by adding their names to the `tenx` section of the configuration file. Valid names for 10x Genomics reference genomes include: `human_2024`, `human_2020`, `mouse_2024`, and `mouse_2020`.
 
-Example config file for multiple genomes:
+      To use custom reference genomes, you need to provide the following parametrs in the `custom` section of the configuration file: 
 
-```yaml
-genome:
-  tenx:
-    name: [human_2024, mouse_2024] 
-    decoys: [True, False]
-  custom:
-    name: ['mouse', 'zebrafish']
-    fasta: ['/path/to/mouse/fasta/genome.fa', 'path/to/zebrafish/fasta/genome.fa']
-    gtf: ['/path/to/mouse/genes/genes.gtf', 'path/to/zebrafish/genes/genes.gtf']
-    decoys: [True, False] 
-    mito_str: ["^mt-"]
-```
+      * Paths to FASTA and GTF files.
+      * The `mito_str` parameter, a regular expression pattern used to identify mitochondrial genes in your genome annotation.
 
-Fininsh setting up scprocess data directory using:
+      The `decoys` parameter is optional. If not specified, it defaults to `True` for all genomes.
 
-```
-scsetup /path/to/setup_config.yaml
+    !!! info "More about decoys"
+        scprocess utilizes simpleaf, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter in `scsetup` it to `True`. This option allows simpleaf to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to [Srivastava et al., 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02151-8).
 
-```
+  4. Fininsh setting up scprocess data directory with:
+
+      ```
+      scsetup /path/to/setup_config.yaml
+
+      ```
 
 ## Project directory setup
 
-
-scprocess relies on the `workflowr` project directory structure to ensure that analyses are systematically organized and sherable. [Workflowr](https://workflowr.github.io/workflowr/) is an R package that enhances project management by integrating R markdown for literate programming, Git for version control, and automated website generation for presenting results. By incorporating workflowr into scprocess, users benefit from a streamlined workflow where each analysis step is documented, versioned and linked to it's coresponding code and environment.
+scprocess relies on the ['Workflowr'](https://workflowr.github.io/workflowr/) project directory template. You can create a new `workflowr` project using:
 
 ```
 newproj project_name -w /path/to/project/directory
-
 ```
-
-

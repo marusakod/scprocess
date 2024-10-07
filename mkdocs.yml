@@ -1,5 +1,8 @@
 site_name: scprocess documentation
 theme:
+  font:
+    text: Helvetica Neue
+    code: Roboto Mono
   icon:
     admonition:
       note: fontawesome/solid/note-sticky
@@ -56,5 +59,6 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.mark
   - attr_list
+  - md_in_html
 extra_css:
   - stylesheets/extra.css

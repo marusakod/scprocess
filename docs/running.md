@@ -6,12 +6,15 @@ scprocess /path/to/config.yaml
 ```
 
 If you want to run a dry run you can add a `-n` or `--dry-run` flag to this command.
-In case you need to use other snakemake options that are not included in scprocess, you can use the `-E` or `--extraargs` flag. It accepts any text and converts it into a string. The argument of `-E` has to be between quotes. For example, if you need to run a dry-run (use another example cause there is already -n for dryrun): 
+In case you need to use other snakemake options that are not included in scprocess, you can use the `-E` or `--extraargs` flag. The argument of `-E` has to be between quotes. For example, if you need to run a dry-run (use another example cause there is already -n for dryrun): 
 
 ```
-scprocess $CONFIGFILE -E " -np "
+scprocess /path/to/config.yaml -E " -np "
 ```
-Add here that it's useful to add a max memory and max threads argument here (If you're not using a cluster). `--cores` will overwrite all threads specified in rules (what if we want to everwrite just what is > than max_cores?)
+
+By default scprocess will run `rule all` which includes simpleaf, ambient RNA removal (optional), doublet detection and qc filtering, integration and marker gene identification. If you want to run each rule separatelly you have to specify the rule using the `-r` or `--rule` flag. The following rules canr run after `rule all` is completed:  `rule label_and_subset`, `rule zoom`, `rule pb_empties`. 
+
+How to set a global max memory option for all rules? `--cores` will overwrite all threads specified in rules (what if we want to everwrite just what is > than max_cores?)
 
 ### config file
 
@@ -28,31 +31,53 @@ short_tag: test
 your_name: John Doe
 affiliation: where you work
 sample_metadata: /path/to/metadata
-alevin:
-  species: human_2024
+species: human_2024
+date_stamp: "2050-01-01"
+custom_sample_params: /path/to/file/with/custom_parameters.yaml
 ```
 
 * `proj_dir`: path to workflowr project directory (can be created with `newproj` function); has to always be an absolute path
-* `fastq_dir`: path to directory with .fastq files. Fastq files need to contain sample id in the name as well as '_R1_' an '_R2_' labels for read one and read two respectievelly. If this is a relative path, scprocess will assume that's in the `proj_dir`
-* `full_tag`: Project label; will be added to some filenames
+* `fastq_dir`: path to directory with .fastq files. Fastq files need to contain sample id in the name as well as `_R1_` an `_R2_` labels for read one and read two respectievelly. If this is a relative path, scprocess will assume that's in the `proj_dir`
+* `full_tag`: project label; will be added to some filenames
 * `short_tag`: short project label; will be added to some filenames
 * `your_name`: will appear in html outputs
 * `affiliation`: will appear in html outputs
 * `sample_metadata`: path to .csv file with sample metadata; has to contain column named 'sample_id' with values matching sample ids in fastq files; If this is a relative path, scprocess will assume that's in the `proj_dir`
-* `species`: has to match one of the values in the 'genome_name' column of the `setup_parameters.csv` file which is created with the `scsetup` function; (it might make sense to move species outside of the alevin section, next to other reqired params?)
+* `species`: has to match one of the values in the 'genome_name' column of the `setup_parameters.csv` file which is created with the `scsetup` function; 
+* `date_stamp`: will be appended to names of output files. It has to be in "YYYY-MM-DD" format
+* `custom_sample_params`: file with optional custom parameters for each sample (you can set custom chemistry, custom ambient and custom cellbender parameters for each sample). Example of a `custom_sample_params`file:
+
+```yaml
+
+sample_1:
+  chemistry: 5v2
+  ambient:
+    knee1: 4100
+    shin1: 580
+    knee2: 29
+    shin2: 16
+sample_2: 
+  chemistry: 5v2
+  ambient:
+    knee1: 1100
+    shin1: 200
+    knee2: 12
+    shin2: 5
+sample_3: 
+  cellbender:
+    total_droplets_included: 20000
+
+```
 
 #### Optional parameters
 
 ```yaml
-
-date_stamp: "2050-01-01"
 exclude_samples: [sample1, sample2]
 metadata_vars: [test1, test2]
 ```
 
-* `date_stamp` you can add a specific date to the config which will be appended to output filenames. If you don't specify this in the config, scprocess will use the currect date (which is annoying if it runs for more than 1 day cause than it will start from scratch.)
 * `exclude_samples`: list of all samples that you don't want to include in the analysis
-* `metadata_vars`: list of all metadata variables in `sample_metadata` that will be used for making plots (which plots? in which .html report?)
+* `metadata_vars`: list of all metadata variables in `sample_metadata` that will be used for making plots (which plots, in which reports)
 
 
 ##### Simpleaf
@@ -60,10 +85,10 @@ metadata_vars: [test1, test2]
 ```yaml
 
 alevin:
-  species: human 
-  chemistry: /path/to/sample/chemistry_file.csv
+  chemistry:
 ```
-scprocess will detect the chemistry automatically. Alternatively you can add a `chemistry` parameter to the config file which should be path to csv file with columns 'sample_id' and 'version'; valid versions are '3LT', '3v2', '5v1', '5v2', '3v3', 'multiome'. Add a note that 'multiome' here is referring exclusivelly to gene expression data generated with 10x multiome kit, and that scprocess currently doesn not support analysis of ATACseq multiome data. 
+
+`chemistry`: this is not an optiononal parameter. Values can be '3LT', '3v2', '5v1', '5v2', '3v3' and 'multiome'. 'multiome' reffers exclusivelly to gene expression data generated with 10x multiome kit. scprocess currently doesn not support analysis of ATACseq multiome data. 
 
 
 ##### Ambient RNA removal
@@ -73,22 +98,27 @@ scprocess will detect the chemistry automatically. Alternatively you can add a `
 ambient:
   ambient_method: cellbender 
   cellbender_version: 'v0.3.0'
-  custom_params: /path/to/file/with/custom_parameters.csv
   cb_max_prop_kept: 0.9 
-  cell_calling: barcodeRanks 
+  cell_calling: barcodeRanks
 
 ```
 
 * `ambient_method`: options are `cellbender`, `none` or `decontx` Default is `cellbender`(maybe change this)
-* `cellbender_version`: options are `'v0.3.0'` and `'v0.2.0'`; (check if those are really version names; Why do we have 2 versions available); this parameter is only considered if `cellbender` is selected as ambient method. 
-* `custom_params`: describe what the format of this file should be like for each individual method (add examples and show on one example knee plot how the thresholds should be set)
-
-if ambient method is `cellbender`, the `custom_params` file should include columns 'sample_id', 'total_droplets_included', 'expected_cells', 'low_count_threshold', 'learning_rate', 'empty_start' and 'empty_end'. (empty start and empty end are actually needed for the pb_empties rule not here)
-
-if another ambient method is selected than the format of the `custom_params` file depends on the method selected for cell calling. If `cell_calling` is set to `barcodeRanks`, column names need to include 'expected_cells', 'empty_start' and 'empty_end'. If `cell_calling` is set to `emptyDrops`, columna names need to include 'retain', 'empty_start' and 'empty_end'. 
-
+* `cellbender_version`: options are `'v0.3.0'` and `'v0.2.0'` (maybe not necessary to have to versions available?); this parameter is only considered if `cellbender` is selected as ambient method. 
+* `custom_params`: path to .csv file with custom ambient parameters
+* `cb_force_expected_cells` : force `--expected-cells` parameter to be the same for all samples; only valid if `cellbender`is selected as the ambient method
+* `cb_force_total_droplets_included`: force `--total-droplets-included` parameter to be the same for all samples; only valid if `cellbender`is selected as ambient method
+* `cb_force_low_count_threshold`: force `--low-count-threshold` parameter to be the same for all samples; only valid if `cellbender`is selected as ambient method
+* `cb_force_learning_rate`: force `--learning-rate`parameter to bet the same for all samples; only valid if `cellbender` is selected as ambient method.
 * `cb_max_prop_kept`: default is 0.9; this is only relevant if ambient method is `cellbender`. This excludes samples for which cellbender calls > 90% of total_droplets_indluded as cells. 
 * `cell_calling`: this param is only considered when ambient method is `none`or `decontx`. Options include `barcodeRanks` and `emptyDrops`
+
+
+!!! note "How to select the right ambient parameters"
+
+    We recommend checking knee plots after running alevin to see if detected ambient parameters look ok; If they don't look ok we recommend changing the knee1, knee2, shin1, and shin2 parameters in the `custom_sample_params` file (later steps will also depend on these calculations). An easy way to find custom sample parameters is to run the `plotKnee` function in scprocess (This function requires `plotly.express` and `packaging` and maybe sth else that doesn't come with snakemake).
+    
+    If the thresholds look ok and there is still an error with cellbender you can either set parameters like total_droplets_included, learning_rate etc. globally for all samples by specifying `cb_force_total_droplets_included` etc. or set them for specific samples only in the `custom_sample_params` file. 
 
 
 ##### Make sce object
@@ -99,7 +129,7 @@ make_sce:
   sce_bender_prob: 0.5
 
 ```
-you can set the `sce_bender_prob` parameter which is only relevant when selected ambient method is cellbender. Meaning: what probability of being a cell is required to be kept as a cell?
+* `sce_bender_prob`: what probability of being a cell is required to be kept as a cell? Only relevant when selected ambient method is `cellbender`.
 
 ##### Doublet removal
 
@@ -149,7 +179,7 @@ integration:
 * `int_n_hvgs`: number of HVGs to use for PCA
 * `int_n_dims`number of PCs to use for integration
 * `int_dbl_res`resolution for clustering to get extra doublets
-* `int_dbl_cl_prop`proportion of doublet cells in doublet cluster to exclude that cluster
+* `int_dbl_cl_prop` proportion of doublet cells in a cluster to exclude that cluster
 * `int_theta` theta parameter for Harmony integration. 0 means no extra mixing of batch variable, 2 is default, which encourages batch mixing. At the moment our default is 0.1.
 * `int_res_ls` list of cluster resolutions for Harmony clustering
 * `int_sel_res` selected cluster resolution (for marker genes?)

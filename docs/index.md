@@ -1,24 +1,25 @@
-# What is scprocess?
+# What is scprocess? <img src="assets/images/scprocess_logo.png" alt="image title" align="right" width="360" height="180">
 
-Scprocess is a Snakemake pipeline designed to simplify and automate common analysis steps involved in processing single-cell and single-nuclei RNA sequencing data.
+Scprocess is a Snakemake pipeline designed to streamline and automate critical analysis steps in single-cell and single-nuclei RNA sequencing data processing. This end-to-end, scalable solution efficiently manages data generated with 10x Genomics technology, starting from raw sequencing files and performing key tasks such as read alignment and quantification, quality control filtering, batch correction, marker gene identification, and cell type labeling. Scprocess generates outputs ready for various downstream analyses and produces comprehansive reports. 
 
-## Scope and purpose
-Scprocess offers a comprehansive, automated solution for efficiently processing single cell RNA sequencing data. Starting from raw sequencing files, this pipeline performs crucial tasks such as read alignment, quantification, and extensive quality control,  data integration, batch correction, marker gene identification, and cell type labelling. Scprocess generates publication-ready results, including detailed HTML reports. It's particularly well-suited for handling large datasets. Scprocess is optimized for single cell gene expression data generated with using 10x technology. 
+---
+
+
+### Steps
 
 Scprocess performs a series of steps which include:
 
-### Steps
 * Read alignment and quantification: This step utilizes [simpleaf](https://academic.oup.com/bioinformatics/article/39/10/btad614/7295550), a powerful and flexible alternative for 10x's Cellranger. Simpleaf separately reports count for spliced and unspliced transcripts.
 
 * Ambient RNA removal (optional): Users can select between [Cellbender](https://www.nature.com/articles/s41592-023-01943-7) and [Decontx](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-1950-6) to remove ambient RNA
 
-* Doublet identification: scproces offers standard doublet detection with [scDblFinder](https://f1000research.com/articles/10-979/v2. Additionally scprocess uses scDblFinder estimates to detect clusters that are enrichhed in doublets. 
+* Doublet identification: scproces offers standard doublet detection with [scDblFinder](https://f1000research.com/articles/10-979/v2.) Additionally scprocess uses scDblFinder estimates to detect clusters that are enrichhed in doublets. 
 
-* QC (SampleQC)
+* QC
 * Integration using harmony
 * Marker gene identification using pseudobulk values
 * Optimised selection of highly variable genes 
-* Human brain celltype annotation with a classifier trained on human single cell atlas from [Siletti et.al](https://www.science.org/doi/10.1126/science.add7046)
+* Human brain cell type annotation with a classifier trained on human single cell atlas from [Siletti et.al](https://www.science.org/doi/10.1126/science.add7046)
 * Subclustering
 * Metacells?
 
