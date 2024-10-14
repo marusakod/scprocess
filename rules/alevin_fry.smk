@@ -21,7 +21,7 @@ def parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, s
         # get all samples with custom params
             custom_smpls = list(custom_smpl_params.keys())
 
-            valid_chems = ['3LT', '3v2', '5v1', '5v2', '3v3', 'multiome']
+            valid_chems = ['3LT', '3v2', '5v1', '5v2', '3v3', 'multiome', '3v4', '5v3']
 
             if sample in custom_smpls:
                 # check if chemistry is defined
@@ -37,7 +37,7 @@ def parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, s
     else: 
         AF_CHEMISTRY = '10xv3'
 
-    if SAMPLE_CHEMISTRY in ['5v1', '5v2']:
+    if SAMPLE_CHEMISTRY in ['5v1', '5v2', '5v3']:
         EXPECTED_ORI = 'rc'
     else:
         EXPECTED_ORI = 'fw'

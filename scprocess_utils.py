@@ -190,7 +190,7 @@ def get_alevin_parameters(config, scprocess_data_dir, SPECIES):
   # get chemisty
   CHEMISTRY = config['alevin']['chemistry']
   # check if valid
-  valid_chems = ['3LT', '3v2', '5v1', '5v2', '3v3', 'multiome']
+  valid_chems = ['3LT', '3v2', '5v1', '5v2', '3v3', 'multiome', '3v4', '5v3']
   assert CHEMISTRY in valid_chems, \
     "chemistry not valid"
   

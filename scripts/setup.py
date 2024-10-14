@@ -158,7 +158,7 @@ def get_scprocess_data(scprocess_data_dir):
   os.chdir(scprocess_data_dir)
 
   # download tar archive from scprocessData and extract
-  subprocess.run('wget https://github.com/marusakod/scprocessData/releases/download/v0.1.0/scprocess_data_archive.tar.gz',
+  subprocess.run('wget https://github.com/marusakod/scprocessData/releases/download/v0.1.2/scprocess_data_archive.tar.gz',
   shell=True, capture_output=False)
   
   subprocess.run('tar xvf scprocess_data_archive.tar.gz', shell=True, capture_output=False)
