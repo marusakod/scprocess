@@ -190,7 +190,7 @@ outliers_dfs <- mapply(var1 = all_vars1,
 
 ${knee_pl_slope_ord_tit}
 
-```{r knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results = 'asis', eval=eval_knee_plot}
+```{r knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results = 'asis', eval=eval_knee_plot, include =eval_knee_plot}
 for (i in 1:length(slope_ratio_split_l) ) {
   # get knee dfs for all selected samples
   samples = slope_ratio_split_l[[i]]
@@ -205,7 +205,7 @@ for (i in 1:length(slope_ratio_split_l) ) {
 ${knee_pl_exp_tot_ord_tit}
 
 
-```{r knee_plots_exp_tot_ordered, fig.height = knee_height, fig.width = knee_width, results='asis', eval=eval_knee_plot}
+```{r knee_plots_exp_tot_ordered, fig.height = knee_height, fig.width = knee_width, results='asis', eval=eval_knee_plot, include = eval_knee_plot}
 for (i in 1:length(exp_tot_ratio_split_l) ) {
   # get knee dfs for all selected samples
   samples = exp_tot_ratio_split_l[[i]]
@@ -219,7 +219,7 @@ for (i in 1:length(exp_tot_ratio_split_l) ) {
 
 ${sample_qc_pl}
 
-```{r cb_sample_qc_plots, fig.width=6, fig.height=6, eval=eval_sample_qc_plots}
+```{r cb_sample_qc_plots, fig.width=6, fig.height=6, eval=eval_sample_qc_plots, include = eval_sample_qc_plots}
 
 x_titles = c('% spliced before ambient RNA removal', 'empty plateau UMI', '% reads in cells', '% spliced before ambient RNA removal')
 y_titles = c('% spliced after ambient RNA removal', rep('% removed', 3))

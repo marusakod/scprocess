@@ -1,4 +1,12 @@
 site_name: scprocess documentation
+nav:
+    - Home: index.md
+    - Introduction: introduction.md
+    - Getting started: setup.md
+    - Usage: usage.md
+    - Quick start tutorial: tutorial.md
+    - Reference: reference.md
+    - Troubleshooting: troubleshooting.md
 theme:
   font:
     text: Helvetica Neue
