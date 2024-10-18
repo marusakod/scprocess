@@ -4,7 +4,7 @@
 
 #### Hardware
 
-scprocess runs on Linux systems that meet these minimum requirements:
+{{ software_name }} runs on Linux systems that meet these minimum requirements:
 
 * processor?
 * RAM? 
@@ -13,7 +13,7 @@ scprocess runs on Linux systems that meet these minimum requirements:
 
 #### Software
 
-scprocess requires snakemake and conda. See the [snakemake manual](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html) and the [conda user guide](https://docs.anaconda.com/miniconda/) for help with the installation.
+{{ software_name }} requires snakemake and conda. See the [snakemake manual](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html) and the [conda user guide](https://docs.anaconda.com/miniconda/) for help with the installation.
 
 ## Installation
 
@@ -24,7 +24,7 @@ scprocess requires snakemake and conda. See the [snakemake manual](https://snake
 
     ```
 
-2.  Add scprocess to your path. Open your `.bashrc` file and add the following line:
+2.  Add {{ software_name }} to your path. Open your `.bashrc` file and add the following line:
 
     ```bash
     export PATH=/PATH/TO/YOUR/FOLDER/scprocess:${PATH}
@@ -32,7 +32,7 @@ scprocess requires snakemake and conda. See the [snakemake manual](https://snake
 
 ## Scprocess data directory setup
 
-1. Create a directory that will store all data necessary for running scprocess
+1. Create a directory that will store all data necessary for running {{ software_name }}
 
 2. Add the following line to your `.bashrc` file:
 
@@ -48,17 +48,9 @@ scprocess requires snakemake and conda. See the [snakemake manual](https://snake
     genome:
       tenx:
       - name: human_2024 
-      custom:
-      - name: mouse
-        fasta: '/path/to/genome.fa'
-        gtf: '/path/to/genes.gtf'
-        decoys: False
-        mito_str: "^mt-"
+      - name: mouse_2024
     ```
-
-      You can select one of the pre-built human or mouse reference genomes from 10x Genomics by adding their names to the `tenx` section of the configuration file. Valid names for 10x Genomics reference genomes include: `human_2024`, `human_2020`, `mouse_2024`, and `mouse_2020`.
-
-      To use custom reference genomes, you need to provide the following parametrs in the `custom` section of the configuration file: 
+      
 
       * Paths to FASTA and GTF files.
       * The `mito_str` parameter, a regular expression pattern used to identify mitochondrial genes in your genome annotation.
@@ -66,7 +58,7 @@ scprocess requires snakemake and conda. See the [snakemake manual](https://snake
       The `decoys` parameter is optional. If not specified, it defaults to `True` for all genomes.
 
     !!! info "More about decoys"
-        scprocess utilizes simpleaf, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter in `scsetup` it to `True`. This option allows simpleaf to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to [Srivastava et al., 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02151-8).
+        {{ software_name }} utilizes simpleaf, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter in `scsetup` it to `True`. This option allows simpleaf to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to [Srivastava et al., 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02151-8).
 
   4. Fininsh setting up scprocess data directory with:
 
@@ -75,10 +67,6 @@ scprocess requires snakemake and conda. See the [snakemake manual](https://snake
 
       ```
 
-## Project directory setup
+## Cluster setup
 
-scprocess relies on the ['Workflowr'](https://workflowr.github.io/workflowr/) project directory template. You can create a new `workflowr` project using:
-
-```
-newproj project_name -w /path/to/project/directory
-```
+Describe here that you need to define a profile file is you want to run {{ software_name }} on a cluster using a slurm or lsf scheduler. Give examples of profile files for both slurm and lsf. Mentioned that each cluster might have specific settings - you need to modify profile file accordingly.

@@ -3,3 +3,21 @@
   border-width: 0;
   border-left-width: 4px;
 }
+.software-name {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 85%;
+  background-color: #f5f5f5;
+  padding: 2px 4px;
+  border-radius: 5px;
+  color: purple; /* Custom color for the software name */
+}
+img[alt="empties_cells"] {
+    float: right;
+    width: 500px;
+    height: 280px;
+}
+img[alt="all_knee_examples"] {
+  float: center;
+  width: 1000px;
+  height: 280px;
+}
