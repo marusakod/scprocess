@@ -1,7 +1,6 @@
 # Welcome to scprocess documentation <img src="assets/images/scprocess_logo.png" alt="image title" align="right" width="360" height="180">
 
-Scprocess is a snakemake pipeline for processing of high throughtput single cell and single nuclei RNA sequencing data. 
-
+Scprocess is a snakemake pipeline for processing of high throughput single cell and single nuclei RNA sequencing data. 
 
 For a brief survey of the package and its current capabilities, you can read the [Introduction](introduction.md).
 
