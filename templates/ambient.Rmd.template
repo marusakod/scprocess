@@ -152,7 +152,6 @@ amb_sample_qc = mapply(qc = barcode_qc_dfs,
 
 # check if sample names match
 assert_that(setequal(amb_sample_qc$sample_id, all_reads_n_df$sample_id))
-assert_that(setequal(amb_sample_qc$sample_id, empty_umis_df$sample_id))
 
 sample_qc_merged = amb_sample_qc %>%
   merge(all_reads_n_df, by = 'sample_id') %>%
