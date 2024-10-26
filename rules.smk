@@ -146,17 +146,17 @@ rule all:
       docs_dir  + '/' + SHORT_TAG + '_integration.html',
       docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.html',
 
-rule label_and_subset:
- input:
-   lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-   lbl_dir + '/xgboost_guesses_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-   lbl_dir   + '/sce_subset_specifications_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-   expand([
-     lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
-     ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] ), 
-   code_dir  + '/label_celltypes.R',
-   rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
-   docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
+#rule label_and_subset:
+# input:
+#   lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+#   lbl_dir + '/xgboost_guesses_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+#   lbl_dir   + '/sce_subset_specifications_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+#   expand([
+#     lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
+#     ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] ), 
+#   code_dir  + '/label_celltypes.R',
+#   rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
+#   docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
 
 
 rule zoom:
@@ -245,7 +245,7 @@ include: "rules/qc.smk"
 include: "rules/integration.smk"
 include: "rules/marker_genes.smk"
 include: "rules/render_htmls.smk"
-include: "rules/label_and_subset.smk"
+#include: "rules/label_and_subset.smk"
 include: "rules/zoom.smk"
 include: "rules/metacells.smk"
 include: "rules/pb_empties.smk"
