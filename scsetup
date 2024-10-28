@@ -10,11 +10,8 @@ import subprocess
 
 
 
-def run_scsetup(sc_dir, configfile, snakefile, extraargs):
+def run_scsetup(sc_dir, snakefile, extraargs):
   print('doing some checks on inputs')
-  # check configfile exists
-  assert os.path.exists(configfile), \
-    f"Config file {configfile} does not exist"
  
   # get scprocess_data_dir; should be defined in .bashrc
   scprocess_data_dir = os.getenv('SCPROCESS_DATA_DIR')
@@ -27,6 +24,11 @@ def run_scsetup(sc_dir, configfile, snakefile, extraargs):
   # check that scprocess_data_dir is a directory
   assert os.path.isdir(scprocess_data_dir), \
    "SCPROCESS_DATA_DIR is not a directory"
+  
+  # check that config file exists
+  configfile = os.path.join(scprocess_data_dir, '.scprocess_setup.yaml')
+  assert os.path.exists(configfile), \
+    f"Config file {configfile} does not exist"
     
   # start snakemake
   subprocess.call(['bash', f'{sc_dir}/scsetup.sh', snakefile, os.path.abspath(configfile), extraargs])
@@ -39,8 +41,6 @@ if __name__ == '__main__':
 
   # define arguments
   parser    = argparse.ArgumentParser(description = 'setup for scprocess: a snakemake workflow for processing single cell RNAseq data.')
-  parser.add_argument("configfile", type = str, 
-    help = "Required. YAML file specifying what you want to run, and any non-default parameters")
   parser.add_argument("-n", "--dry-run", action="store_true", 
     help = '''
        "dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.
@@ -65,5 +65,5 @@ if __name__ == '__main__':
     extraargs = extraargs + " -np"
   
   # call bsub thing
-  run_scsetup(sc_dir, args.configfile, snakefile, extraargs)
+  run_scsetup(sc_dir, snakefile, extraargs)
 

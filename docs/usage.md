@@ -68,33 +68,35 @@ scprocess /path/to/config.yaml -r label_and_subset
 
 ## Best practices
 
-The default parameters in the configuration file are suitable for running {{ software_name }} on the [example dataset](tutorial.md). Here are some of the most important things to consider when you are running {{ software_name }} on your own datset:
+The default parameters in the configuration file are suitable for running {{ software_name }} on the [example dataset](tutorial.md). Here are some of the most important things to consider when you are running {{ software_name }} on your own datset [consider changing max_spliced_pct default to 75%]:
 
 ### Setting parameters for ambient contamination removal
 
 #### Ambient method
 
-By default {{ software_name }} scprocess will use `decontx` for ambient RNA removal which doesn't require GPU. If GPU is available we recommend using `cellbender` for ambient RNA decontamination as it was found to perform better than other related algorithms in [the lastest benchmark](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-023-02978-x).
+By default {{ software_name }} scprocess will use `decontx` for ambient RNA removal which doesn't require GPU. If GPU is available we recommend using `cellbender` for ambient RNA decontamination as it was found to perform better than other related algorithms in [the lastest benchmark](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-023-02978-x) 
 
 #### Knee parameters
 
-
 ![empties_cells](assets/images/knee_plot_with_cells_and_empties.png)
-Both algorithms for ambient RNA decontamination available in {{ software_name }} estimate background noise from empty droplets. Therefore, correctly identifying the subset of barcodes corresponding to empty droplets is critical. In the barcode-rank "knee plot," where barcodes are ranked in descending order based on their library size, two distinct plateaus are typically observed: the first plateau represents droplets containing cells with high RNA content, while the second corresponds to empty droplets containing ambient RNA.
+Both algorithms for ambient RNA decontamination available in {{ software_name }} estimate background noise from empty droplets. Therefore, correctly identifying the subset of barcodes corresponding to empty droplets is critical. In the barcode-rank "knee plot", where barcodes are ranked in descending order based on their library size, two distinct plateaus are typically observed: the first plateau represents droplets containing cells with high RNA content, while the second corresponds to empty droplets containing ambient RNA.
 
-{{ software_name }} identifies the cell-containing and empty droplet populations by detecting key transition points on the barcode-rank curve —namely, the inflection and knee points. These points allow {{ software_name }} to infer the optimal parameters for both `decontx` and `cellbender`. Additionally, {{ software_name }} uses these estimates in the optional pb_empties rule to identify genes enriched in empty droplets.
+{{ software_name }} identifies the cell-containing and empty droplet populations by detecting key transition points on the barcode-rank curve — namely, the inflection and knee points. These points allow {{ software_name }} to infer the optimal parameters for both `decontx` and `cellbender`. Additionally, {{ software_name }} uses these estimates in the optional `pb_empties` rule to identify genes enriched in empty droplets.
 
-We recommend verifying the accuracy of these parameters by inspecting knee plots after running `simpleaf`. The two main parameters inferred by {{ software_name }} based on transition points in the barcode-rank curve are `expected_cells` and the `empty_pateau_line` (which corresponds to the `--total-droplets-included` parameter in `cellbender`). The `empty_pateau_line` should extend a few thousand barcodes into the second plateau.
+We recommend verifying the accuracy of these parameters by inspecting knee plots after running `simpleaf`. The two main parameters inferred by {{ software_name }} based on transition points in the barcode-rank curve are `expected_cells` and the `empty_pateau_middle` (which corresponds to the `--total-droplets-included` parameter in `cellbender`). The `empty_pateau_middle` should extend a few thousand barcodes into the second plateau.
 
 ![all_knee_examples](assets/images/all_knee_examples.png)
 
+---
+
+<div class="img-caption">Three examples of knee plots with four transition points (<code>knee1</code>, <code>shin1</code>, <code>knee2</code>, <code>shin2</code>) represented by purple horizontal lines and two inferred parameters (<code>expected_cells</code> and <code>empty_plateau_middle</code>) represented by blue vertical lines. In example A.) a knee plot with two clearly distunguished plateaus and properly predicted parameters is shown. In example B.) the same knee plot is shown, however the predicted paramters are wrong. Example C.) represents a sample with very high ambient RNA contamination making it impossible to distinguish the cells and empty droplets populations by eye. </div>
 
 To identify problematic samples, {{ software_name }} computes two diagnostic ratios:
 
-* `expected_cells`/`empty_pateau_line` ratio: this helps assess whether the estimated number of cells is reasonable compared to the total barcodes included.
-* `slope_ratio`: This is the ratio of the slope of the barcode-rank curve in the empty droplet region compared to the slope at the first inflection poin. Samples with a high slope ratio, as seen in 'Example 3,' are likely problematic because the empty droplet plateau is not clearly distinguishable. In such cases, ambient RNA contamination algorithms like `decontx` and `cellbender` may struggle to accurately estimate background noise, and we recommend considering removing these samples from further analysis.
+* `expected_cells`/`empty_pateau_middle` ratio: this helps assess whether the estimated number of cells is reasonable compared to the empty_plateau_middle. In example B this ratio would be increased [but so would be the slope ratio so maybe not the best example]
+* `slope_ratio`: This is the ratio of the slope of the barcode-rank curve in the empty droplet region compared to the slope at the first inflection poin. Samples with a high slope ratio, as seen in example C,' are likely problematic because the empty droplet plateau is not clearly distinguishable. In such cases, ambient RNA contamination algorithms like `decontx` and `cellbender` may struggle to accurately estimate background noise, and we recommend considering removing these samples from further analysis.
 
-If {{ software_name }} fails to estimate the knee plot parameters but the barcode-rank curve appears normal, we suggest manually adjusting the knee1, knee2, shin1, and shin2 parameters in the custom_sample_params file. A convenient way to fine-tune these parameters is by using the `plotKnee` function in {{ software_name }}. This function (which requires `plotly.express`, `packaging`, and .. whicha are not included with Snakemake) allows for easy visualization and adjustment of knee points.
+If {{ software_name }} fails to estimate the knee plot parameters but the barcode-rank curve appears normal, we suggest manually adjusting the `knee1`, `knee2`, `shin1`, and `shin2` parameters in the `custom_sample_params` file. A convenient way to fine-tune these parameters is by using the [`plotKnee`](reference.md#plotknee) function in {{ software_name }}. This allows for easy visualization and adjustment of knee points.
     
 
 ### Setting QC parameters

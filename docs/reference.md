@@ -1,6 +1,18 @@
 # Reference
 
-## setup config file
+## Functions
+
+### `scsetup`
+
+### `newproj`
+
+### {{ software_name }}
+
+### `plotKnee`
+
+## Configuration files
+
+### .scprocess_setup.yaml
 
 ```yaml
 genome:
@@ -14,7 +26,24 @@ genome:
       mito_str: "^mt-"
 ```
 
-## config file
+tenx: valid values are `human_2024`, `mouse_2024`, `human_2020` and `mouse_2020` 
+
+#### 10x Genomics prebuild references
+    
+Human and mouse reference genomes from 10x Genomics can be downloaded with `scsetup` by adding `tenx` to the `.scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.  
+
+#### Custom references
+
+* `fasta`: path to FASTA file 
+* `gtf`: path to GTF file that has to contain columns `Feature`, `gene_id`, `gene_name`, `gene_type`, `Chromosome`, `Start`, `End`, `Strand` [mabye something else? is the format of these files always the same?]
+* `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `True` for all genomes. 
+* `mito_str`: regular expression used to identify genes in the mitochondial genome (example for mouse: "^mt-")
+
+!!! info "More about decoys"
+    {{ software_name }} utilizes simpleaf, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter in `scsetup` it to `True`. This option allows simpleaf to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to [Srivastava et al., 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02151-8).
+
+
+### scprocess config file
 
 This is an example config file for {{ software_name }} with all parameters and their default values:
 
@@ -114,7 +143,7 @@ resources:
   mb_lbl_render_template_rmd: 4096      
 
 ```
-### Required parameters
+#### Required parameters
 
 * `proj_dir`: path to workflowr project directory (can be created with `newproj` function); has to always be an absolute path
 * `fastq_dir`: path to directory with .fastq files. Fastq files need to contain sample id in the name as well as `_R1_` an `_R2_` labels for read one and read two respectievelly. If this is a relative path, {{ software_name }} will assume that's in the `proj_dir`
@@ -122,12 +151,12 @@ resources:
 * `short_tag`: short project label; will be added to some filenames
 * `your_name`: will appear in html outputs
 * `affiliation`: will appear in html outputs
-* `sample_metadata`: path to .csv file with sample metadata; If this is a relative path, {{ software_name }} will assume that's in the `proj_dir`
+* `sample_metadata`: path to .csv file with sample metadata; If this is a relative path, {{ software_name }} will assume that's in the `proj_dir`. Spaces in column names are not allowed
 * `species`: has to match one of the values in the 'genome_name' column of the `setup_parameters.csv` file which is created with the `scsetup` function; 
 * `date_stamp`: will be appended to names of output files. It has to be in "YYYY-MM-DD" format
 * `chemistry`: Values can be '3LT', '3v2', '3v3', '3v4', '5v1', '5v2', '5v3' and 'multiome'. 'multiome' refers exclusivelly to gene expression data generated with 10x multiome kit. {{ software_name }} currently doesn not support analysis of ATACseq multiome data. 
 
-### Optional parameters
+#### Optional parameters
 
 * `custom_sample_params`: file with optional custom parameters for each sample (you can set custom chemistry, custom ambient and custom cellbender parameters for each sample). Example of a `custom_sample_params`file:
 
@@ -154,7 +183,7 @@ sample_3:
 * `exclude_samples`: list of all samples that you don't want to include in the analysis
 * `metadata_vars`: list of all metadata variables in `sample_metadata` that will be used for making plots (which plots, in which reports)
 
-#### ambient
+##### ambient
 
 * `ambient_method`: options are `cellbender`, `none` or `decontx` Default is `cellbender`(maybe change this)
 * `cellbender_version`: options are `'v0.3.0'` and `'v0.2.0'` (maybe not necessary to have to versions available?); this parameter is only considered if `cellbender` is selected as ambient method. 
@@ -165,14 +194,14 @@ sample_3:
 * `cb_max_prop_kept`: default is 0.9; this is only relevant if ambient method is `cellbender`. This excludes samples for which cellbender calls > 90% of total_droplets_indluded as cells. 
 * `cell_calling`: this param is only considered when ambient method is `none`or `decontx`. Options include `barcodeRanks` and `emptyDrops`
 
-#### make_sce
+##### make_sce
 
 * `sce_bender_prob`: what probability of being a cell is required to be kept as a cell? Only relevant when selected ambient method is `cellbender`.
 
-#### doublet_id
+##### doublet_id
 * `dbl_min_feats`: How many features does a cell need to have to be included in scDblFinder calculations?
 
-#### qc
+##### qc
 
 * `qc_min_counts`thresholding for cells to keep: minimum number of UMIs per cell
 * `qc_min_feats`thresholding for cells to keep: minimum number of features per cell
@@ -182,7 +211,7 @@ sample_3:
 * `qc_max_splice`thresholding for cells to keep: maximum proportion of spliced reads
 * `qc_min_cells`: samples are only kept if they have at least this many cells after QC
 
-#### integration
+##### integration
 
 * `int_n_hvgs`: number of HVGs to use for PCA
 * `int_n_dims`number of PCs to use for integration
@@ -192,7 +221,7 @@ sample_3:
 * `int_res_ls` list of cluster resolutions for Harmony clustering
 * `int_sel_res` selected cluster resolution (for marker genes?)
 
-#### marker_genes
+##### marker_genes
 * `mkr_min_cl_size` minimum number of cells in a cluster for that cluster to have marker genes calculated
 * `mkr_min_cells` minimum number of cells present in a pseudobulk sample for that sample to be used to calculate marker genes
 * `mkr_not_ok_re` regular expression for gene types to exclude from marker gene plotting
@@ -201,7 +230,7 @@ sample_3:
 * `mkr_max_zero_p` maximum proportion of pseudobulk samples for a cell type that can have zero counts for a gene to be used in GO analysis
 * `mkr_gsea_cut` FDR cutoff for GSEA analysis
 
-#### label_celltypes
+##### label_celltypes
 
 * `lbl_tissue`: which tissue do you want to label? (at present we only offer "brain_cns" :D)
 * `lbl_sel_res_cl`: selected cluster resolution for cell type labelling (higher should be better)
@@ -210,7 +239,7 @@ sample_3:
 * `lbl_min_cl_size`: minimum number of cells in a cluster for that cluster to be labelled
 * `sce_subsets`: specification of sce subsets to be saved. spec should be name, followed by list of celltypes to include. valid labels for brain_cns: 'OPC_COP', 'Oligodendrocyte', 'Astrocyte', 'Ependymal', 'Choroid_plexus', 'Micro_Mono', 'Vascular_Fibro', 'T_NK_B_cell', 'Neurons'
 
-#### zoom
+##### zoom
 * `sel_cls: [cl06]`: which clusters to include?  
 * `zoom_res`: what resolution?
 * `n_hvgs`: how many HVGs to use for PCA
@@ -219,15 +248,15 @@ sample_3:
 * `min_n_cl`:  what is the minimum number of cells needed to keep a cluster?
 * `n_train`: how many cells per cluster should we use for training
 
-#### metacells
+##### metacells
 * `subset`: 
 * `max_cells`:
 
-#### pseudobulk
+##### pseudobulk
 * `celltypes`:
 
 
-#### Resources
+##### Resources
 * `retries`
 * `mb_run_alevin_fry`: values are in MB for the whole job, not per thread
 * `mb_save_alevin_to_h5`
