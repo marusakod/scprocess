@@ -301,7 +301,7 @@ def get_qc_parameters(config):
   QC_MIN_MITO         = 0
   QC_MAX_MITO         = 0.1
   QC_MIN_SPLICE       = 0
-  QC_MAX_SPLICE       = 1
+  QC_MAX_SPLICE       = 0.75
   QC_MIN_CELLS        = 500
   QC_FILTER_BENDER    = False
 

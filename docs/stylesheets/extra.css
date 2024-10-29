@@ -4,13 +4,14 @@
   border-left-width: 4px;
 }
 .software-name {
-  font-family: 'Roboto Mono', monospace;
-  font-size: 85%;
-  background-color: #ebdbec;
-  padding: 2px 4px;
-  border-radius: 5px;
-  color: purple; /* Custom color for the software name */
-}
+    font-family: 'Roboto Mono', monospace;
+    font-size: 85%;
+    color: #a569bd;
+    background-color: rgba(224, 201, 216, 0.5);/* Light background */
+    padding: 2px 4px;
+    border-radius: 5px;
+    color: purple; /* Custom color for the software name */
+  }
 img[alt="empties_cells"] {
     float: right;
     width: 500px;

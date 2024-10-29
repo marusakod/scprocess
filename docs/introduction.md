@@ -8,7 +8,8 @@
 
 {{ software_name }} consists of a series of core steps, organized under the main Snakemake rule - `rule all`. Additional optional steps are available to extend the core analyses as needed. The diagram below outlines all steps, with detailed descriptions provided in the following sections.
 
-![workflow_chart](assets/images/scprocess_workflow_diagram.png)
+![workflow_chart](assets/images/scprocess_workflow_diagram_white_bg.png#only-light)
+![workflow_chart](assets/images/scprocess_workflow_diagram_black_bg.png#only-dark)
 
 ---
 <div class="img-caption"> The figure illustrates all steps in {{ software_name }}, including those grouped under <code>rule all</code> and optional steps. {{ software_name }} requires three input file types: raw single-cell FASTQ files generated with 10x Genomics technology, sample metadata, and a configuration file specifying analysis parameters. Specific software packages used are listed for individual steps. Some steps process samples independently, while others operate on a combined dataset with multiple samples. Several steps also generate HTML reports with diagnostic plots, enabling users to inspect the results at key points in the workflow. </div>
