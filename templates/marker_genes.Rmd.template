@@ -62,7 +62,8 @@ gsea_cut      = ${MKR_GSEA_CUT}
 cl_ord        = NULL
 
 # define metadata variables for plotting
-metadata_vars = "${meta_vars_ls}"
+metadata_vars = "${meta_vars_ls}" %>% 
+  str_split(pattern = ",") %>% unlist()
 if (all(metadata_vars == ""))
   metadata_vars = NULL
 ```
