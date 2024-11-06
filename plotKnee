@@ -59,11 +59,11 @@ if __name__ == '__main__':
   # define arguments
   parser = argparse.ArgumentParser(description='setup for scprocess: a snakemake workflow for processing single cell RNAseq data.')
   parser.add_argument("-c", "--configfile", type=str, nargs='?', default=None,
-                      help="YAML file specifying what you want to run, and any non-default parameters")
+                      help="path to configuration file used for running scprocess")
   parser.add_argument("-s", "--sample", type=str, required=True,
                       help='sample_id')
-  parser.add_argument("-k", "--knee_f", type=str, default=None,
-                      help="Path to the knee file directly")
+  parser.add_argument("-k", "--kneefile", type=str, default=None,
+                      help="Path to knee file")
 
   # get arguments
   args = parser.parse_args()
@@ -71,7 +71,7 @@ if __name__ == '__main__':
   if args.knee_f:
     knee_f = args.knee_f
   else:
-    assert args.configfile, "Either --configfile (-c) or --knee_f (-k) must be provided"
+    assert args.configfile, "Either --configfile (-c) or --kneefile (-k) must be provided"
     
     # open config file and get project directory
     with open(args.configfile) as f:

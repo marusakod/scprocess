@@ -2,7 +2,7 @@
 
 ## Basic usage
 
-Considering required hardware is available, all software is installed and you have sucesfully completed the [setup of scprocess data directory](setup.md#scprocess-data-directory-setup) directory you can run {{ software_name }} on your dataset by following the steps outlined bellow:
+Considering required hardware is available, all software is installed and you have successfully completed the [setup of scprocess data directory](setup.md#scprocess-data-directory-setup) directory you can run {{ software_name }} on your dataset by following the steps outlined bellow:
 
 1. [Prepare project directory](usage.md#1-prepare-project-directory)
 2. [Prepare input files](usage.md#2-prepare-input-files)
@@ -29,9 +29,9 @@ newproj project_name -w /path/to/project/directory
 * metadata: a CSV file with sample information. The only required column in the metadata file is `sample_id` with values matching `[Sample ID]` labels included in FASTQ file names.
 
 
-### 3. Prepare configuration file (config.yaml)
+### 3. Prepare configuration file
 
-{{ software_name }} requires a config.yaml where you can specify project parameters. This is an example of a configuration file with all [required parameters](reference.md#required-parameters).
+{{ software_name }} requires a configuration YAML file where you can specify analysis parameters. This is an example of a configuration file with all [required parameters](reference.md#required-parameters).
 
 ```yaml
 proj_dir: /path/to/proj/directory
@@ -43,6 +43,8 @@ affiliation: where you work
 sample_metadata: /path/to/metadata.csv
 species: human_2024
 date_stamp: "2025-01-01"
+alevin:
+ chemistry: 3v3
 ```
 
 ### 4. Run the analysis
@@ -59,7 +61,7 @@ If you want to run a dry run you can add a `-n` or `--dry-run` flag to this comm
 scprocess /path/to/config.yaml -E " --max-threads 8 "
 ```
 
-By default {{ software_name }} will run `rule all` which includes all 'core steps/rules' (point to introduction tab). The 'optional steps/rules' (`rule label_and_subset`, `rule zoom`, `rule pb_empties`) can run only after `rule all` is completed and have to be specifically requested. Additionally, you can run individual rules that generate HTML outputs (`run_alevin_fry`, `run_ambient`, `run_qc`, `run_integration`, `run_marker_genes`). This is useful if you want to inspect the html outputs first and then continue with the anylsis. can To run each rule separatelly you have to specify the rule using the `-r` or `--rule` flag e.g.
+By default {{ software_name }} will run `rule all` which includes all [core steps](introduction.md#rule-all-steps). The [optional steps](introduction.md#optional-steps) (`rule label_and_subset`, `rule zoom`, `rule pb_empties`) can run only after `rule all` is completed and have to be specifically requested. Additionally, you can run individual rules that generate HTML outputs (`run_alevin_fry`, `run_ambient`, `run_qc`, `run_integration`, `run_marker_genes`). This is useful if you want to inspect the html outputs first and then continue with the analysis. can To run each rule separately you have to specify the rule using the `-r` or `--rule` flag e.g.
 
 ```
 scprocess /path/to/config.yaml -r label_and_subset
@@ -68,13 +70,13 @@ scprocess /path/to/config.yaml -r label_and_subset
 
 ## Best practices
 
-The default parameters in the configuration file are suitable for running {{ software_name }} on the [example dataset](tutorial.md). Here are some of the most important things to consider when you are running {{ software_name }} on your own datset [consider changing max_spliced_pct default to 75%]:
+The default parameters in the configuration file are suitable for running {{ software_name }} on the [example dataset](tutorial.md). Here are some of the most important things to consider when you are running {{ software_name }} on your own dataset:
 
 ### Setting parameters for ambient contamination removal
 
 #### Ambient method
 
-By default {{ software_name }} scprocess will use `decontx` for ambient RNA removal which doesn't require GPU. If GPU is available we recommend using `cellbender` for ambient RNA decontamination as it was found to perform better than other related algorithms in [the lastest benchmark](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-023-02978-x) 
+By default {{ software_name }} will use `decontx` for ambient RNA removal which doesn't require GPU. If GPU is available we recommend using `cellbender` for ambient RNA decontamination as it was found to perform better than other related algorithms in [the latest benchmark](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-023-02978-x) 
 
 #### Knee parameters
 
@@ -83,23 +85,25 @@ Both algorithms for ambient RNA decontamination available in {{ software_name }}
 
 {{ software_name }} identifies the cell-containing and empty droplet populations by detecting key transition points on the barcode-rank curve — namely, the inflection and knee points. These points allow {{ software_name }} to infer the optimal parameters for both `decontx` and `cellbender`. Additionally, {{ software_name }} uses these estimates in the optional `pb_empties` rule to identify genes enriched in empty droplets.
 
-We recommend verifying the accuracy of these parameters by inspecting knee plots after running `simpleaf`. The two main parameters inferred by {{ software_name }} based on transition points in the barcode-rank curve are `expected_cells` and the `empty_pateau_middle` (which corresponds to the `--total-droplets-included` parameter in `cellbender`). The `empty_pateau_middle` should extend a few thousand barcodes into the second plateau.
+We recommend verifying the accuracy of these parameters by inspecting knee plots after running `simpleaf`. The two main parameters inferred by {{ software_name }} based on transition points in the barcode-rank curve are `expected_cells` and the `empty_plateau_middle` (which corresponds to the `--total-droplets-included` parameter in `cellbender`). The `empty_plateau_middle` should extend a few thousand barcodes into the second plateau.
 
 ![all_knee_examples](assets/images/all_knee_examples.png)
 
 ---
 
-<div class="img-caption">Three examples of knee plots with four transition points (<code>knee1</code>, <code>shin1</code>, <code>knee2</code>, <code>shin2</code>) represented by purple horizontal lines and two inferred parameters (<code>expected_cells</code> and <code>empty_plateau_middle</code>) represented by blue vertical lines. In example A.) a knee plot with two clearly distunguished plateaus and properly predicted parameters is shown. In example B.) the same knee plot is shown, however the predicted paramters are wrong. Example C.) represents a sample with very high ambient RNA contamination making it impossible to distinguish the cells and empty droplets populations by eye. </div>
+<div class="img-caption">Three examples of knee plots with four transition points (<code>knee1</code>, <code>shin1</code>, <code>knee2</code>, <code>shin2</code>) represented by purple horizontal lines and two inferred parameters (<code>expected_cells</code> and <code>empty_plateau_middle</code>) represented by blue vertical lines. In example A.) a knee plot with two clearly distinguished plateaus and properly predicted parameters is shown. In example B.) the same knee plot is shown, however the predicted parameters are wrong. Example C.) represents a sample with very high ambient RNA contamination making it impossible to distinguish the cells and empty droplets populations by eye. </div>
 
 To identify problematic samples, {{ software_name }} computes two diagnostic ratios:
 
-* `expected_cells`/`empty_pateau_middle` ratio: this helps assess whether the estimated number of cells is reasonable compared to the empty_plateau_middle. In example B this ratio would be increased [but so would be the slope ratio so maybe not the best example]
-* `slope_ratio`: This is the ratio of the slope of the barcode-rank curve in the empty droplet region compared to the slope at the first inflection poin. Samples with a high slope ratio, as seen in example C,' are likely problematic because the empty droplet plateau is not clearly distinguishable. In such cases, ambient RNA contamination algorithms like `decontx` and `cellbender` may struggle to accurately estimate background noise, and we recommend considering removing these samples from further analysis.
+* `expected_cells`/`empty_plateau_middle` ratio: this helps assess whether the estimated number of cells is reasonable compared to the empty_plateau_middle. In example B this ratio would be increased [but so would be the slope ratio so maybe not the best example]
+* `slope_ratio`: This is the ratio of the slope of the barcode-rank curve in the empty droplet region compared to the slope at the first inflection point. Samples with a high slope ratio, as seen in example C,' are likely problematic because the empty droplet plateau is not clearly distinguishable. In such cases, ambient RNA contamination algorithms like `decontx` and `cellbender` may struggle to accurately estimate background noise, and we recommend considering removing these samples from further analysis.
 
 If {{ software_name }} fails to estimate the knee plot parameters but the barcode-rank curve appears normal, we suggest manually adjusting the `knee1`, `knee2`, `shin1`, and `shin2` parameters in the `custom_sample_params` file. A convenient way to fine-tune these parameters is by using the [`plotKnee`](reference.md#plotknee) function in {{ software_name }}. This allows for easy visualization and adjustment of knee points.
     
 
 ### Setting QC parameters
+
+Depending on whether you are using {{ software_name }} on single cell or single nuclei data you may want to consider adjusting the default threshold for maximum allowed spliced proportion (the `qc_max_splice` parameter) in the configuration file. [Anything else?]
     
 ### Managing resources
 

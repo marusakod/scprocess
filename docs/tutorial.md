@@ -40,7 +40,7 @@ test_project/
 └── _workflowr.yml
 
 ```
-In thee `analysis/` directory, {{ software_name }} will store all R Markdown files that are used to create html reports in the `public/` directory. In the `code/` directory all R scrips used in {{ software_name }} will be stored.
+In thee `analysis/` directory, {{ software_name }} will store all R Markdown files that are used to create HTML reports in the `public/` directory. In the `code/` directory all R scrips used in {{ software_name }} will be stored.
 
 `data/` directory is a convenient place where we can store FASTQ files and sample metadata that we need for the analysis. We will therefore create a `fastqs` directory as well as `metadata` directory inside `data/`. 
 
@@ -53,7 +53,7 @@ To download all necessary input files for {{ software_name }} run the following 
 
 !!! warning "File size"
     
-    The size of FASTQ files is aproximatelly 7.2 GB. Download may take a while.
+    The size of FASTQ files is approximately 7.2 GB. Download may take a while.
 
 ```bash
 # download all raw sequencing files into data/fastqs
@@ -63,7 +63,7 @@ curl -s https://api.github.com/repos/marusakod/scprocessData/releases/tags/v0.1.
 | tr -d \" \
 | wget -c --show-progress -P data/fastqs -i -
 
-# extract raw sequencning files
+# extract raw sequencing files
 for file in data/fastqs/*.tar.gz; do tar -xzvf "$file" -C data/fastqs && rm "$file"; done
 
 # download sample metadata into data/metadata
@@ -100,7 +100,7 @@ Note that the first column of the sample metadata file (`sample_id`) contains va
 
 ## Creating a configuration file
 
-Next we will create a configuration file in the `test_project` root directory where we will specify all the parameters for running {{ software_name }}. We will name this file `config_test_project.yaml`. In addition to [required parameters](reference.md#required-parameters) we will add the `metadata_vars` parameter which allows us to speficy additional metadata variables that will be used for visualisation. Note that the `proj_dir` parameter is an absolute path, while for `fastq_dir` and `sample_metadata` we can use relative paths becasue we stored raw data and sample metadata inside the project directory.
+Next we will create a configuration file in the `test_project` root directory where we will specify all the parameters for running {{ software_name }}. We will name this file `config_test_project.yaml`. In addition to [required parameters](reference.md#required-parameters) we will add the `metadata_vars` parameter which allows us to specify additional metadata variables that will be used for visualization. Note that the `proj_dir` parameter is an absolute path, while for `fastq_dir` and `sample_metadata` we can use relative paths because we stored raw data and sample metadata inside the project directory.
 
 !!! Question "Which reference genome should I pick?"
 
@@ -117,7 +117,7 @@ Next we will create a configuration file in the `test_project` root directory wh
 [adjust thresholds for qc metrics because it's single nuclei and add canonical marker genes for brain]
     
 ```bash
-proj_dir: /abolute/path/to/test_project # replace with correct absolute path 
+proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
 fastq_dir: data/fastqs
 full_tag: test_project
 short_tag: test
@@ -131,7 +131,7 @@ alevin:
   chemistry: 3v3
 ```
 
-## Running scprocess
+## Running {{ software_name }}
 
 We are now ready to run {{ software_name }} using:
 

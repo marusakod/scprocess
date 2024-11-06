@@ -73,7 +73,7 @@ if __name__ == '__main__':
 
     # Define arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('name', type=str)
+    parser.add_argument('-n', '--name', type=str)
     parser.add_argument("-w", "--where", type=str)
 
     # Get arguments

@@ -1,4 +1,4 @@
-# What is scprocess?
+# What is {{ software_name }}?
 
 {{ software_name }} is a Snakemake pipeline designed to automate the analysis of single-cell and single-nuclei RNA sequencing data. This comprehensive solution effectively handles data generated using 10x Genomics technology. Starting from raw sequencing files, {{ software_name }} performs a series of standard analysis steps, delivering outputs suitable for a variety of downstream analyses. The pipeline supports analyses across multiple samples, enabling researchers to gain a complete understanding of their datasets while ensuring reproducibility and scalability in their workflows.
 
@@ -22,15 +22,15 @@
 
 * #### Ambient RNA removal (optional)
 
-    In droplet-based assays, cells or nuclei are encapsulated in droplets, but some freely floating RNA can also be captured. This RNA is referred to as ambient RNA. Ambient RNA contamination is particularly common in single-nucleus assays due to residual cytoplasmic material and harsh isolation protocols that can cause nuclei to rupture. Since ambient RNA can interfere with results of downstream analysis, it is beneficial to remove this contamination in silico. In {{ software_name }}, users can select from [`Cellbender`](https://www.nature.com/articles/s41592-023-01943-7) and [`DecontX`](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-1950-6) to remove ambient RNA. 
+    In droplet-based assays, cells or nuclei are encapsulated in droplets, but some freely floating RNA can also be captured. This RNA is referred to as ambient RNA. Ambient RNA contamination is particularly common in single-nucleus assays due to residual cytoplasmic material and harsh isolation protocols that can cause nuclei to rupture. Since ambient RNA can interfere with results of downstream analysis, it is beneficial to remove this contamination *in silico*. In {{ software_name }}, users can select from [`Cellbender`](https://www.nature.com/articles/s41592-023-01943-7) and [`DecontX`](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-1950-6) to remove ambient RNA. 
 
 * #### Cell calling
 
-    {{ software_name }} employs several options for detecting barcodes that correspond to cell-containing droplets. When `Cellbender` is used for ambient RNA removal, its built-in method generates a filtered counts matrix. Alternatively, if `DecontX` is selected or ambient RNA removal is skipped, users can choose between `barcodeRanks` and `emptyDrops` methods from the [`DropletUtils`](https://bioconductor.org/packages/release/bioc/html/DropletUtils.html) R package. `barcodeRanks` separates cell-containing and empty droplet populations by detecting key transition points on the barcode-rank curve while `emptyDrops` applies a probabilistic model to separate true cells from ambient RNA-containing droplets.
+    {{ software_name }} employs several options for detecting barcodes that correspond to cell-containing droplets. When `Cellbender` is used for ambient RNA removal, its built-in method generates a filtered counts matrix. Alternatively, if `DecontX` is selected or ambient RNA removal is skipped, users can choose between `barcodeRanks` and `emptyDrops` methods from the [`DropletUtils`](https://bioconductor.org/packages/release/bioc/html/DropletUtils.html) R package. `barcodeRanks` separates cell-containing and empty droplet populations by detecting key transition points on the barcode-rank curve while `emptyDrops` tests each barcode for significant deviations from the ambient profile.
 
 * #### Doublet detection
     
-    Doublets, formed when two cells are captured in the same droplet, can distort single-cell RNA-seq results. {{ software_name }} addresses this by using [`scDblFinder`](https://f1000research.com/articles/10-979/v2) for doublet detection. Additionally, {{ software_name }} integrates `scDblFinder`-flagged doublets with cells that pass the QC filtering step. This allows users to detect doublet-enriched clusters which can be removed from downstram anylsis. 
+    Doublets, formed when two cells are captured in the same droplet, can distort single-cell RNA-seq results. {{ software_name }} addresses this by using [`scDblFinder`](https://f1000research.com/articles/10-979/v2) for doublet detection. Additionally, {{ software_name }} integrates `scDblFinder`-flagged doublets with cells that pass the QC filtering step. This allows users to detect doublet-enriched clusters which can be removed from downstream analysis. 
 
 * #### QC filtering
 
@@ -38,7 +38,7 @@
 
 * #### Integration (Batch correction)
 
-    In multi-sample analyses, various factors can introduce batch effects that obscure true biological signals. {{ software_name }} uses [`Harmony`](https://www.nature.com/articles/s41592-019-0619-0) to address this by aligning cells across batches based on shared expression patterns, ensuring that clustering and downstream analyses reflect true biological relationships rather than technical variation.
+    In multi-sample analyses, various factors can introduce batch effects that obscure true biological signals. {{ software_name }} uses [`Harmony`](https://www.nature.com/articles/s41592-019-0619-0) to address this by aligning cells across batches based on shared expression profiles, ensuring that clustering and downstream analyses reflect true biological relationships rather than technical variation.
 
 * #### Marker gene identification
 
@@ -46,7 +46,7 @@
 
 ### Optional steps
 
-* #### Celltype labelling
+* #### Cell type labelling
 
     {{ software_name }} provides automated cell type annotation using XGBoost classifiers for various tissue types, including human and mouse brain, as well as human and mouse peripheral blood mononuclear cells (PBMCs). Classifiers for cell type annotation are trained on the following datasets:
 

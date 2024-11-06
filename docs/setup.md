@@ -8,7 +8,7 @@
  
 * Operating system: Linux
 * [processor? List all processors that we tested on? The only problematic part is probably alevin]
-* [RAM? depend on how big the dataset is]
+* [RAM? depends on how big the dataset is]
 * [CPU?]
 * [GPU with CUDA support (only required if you select CellBender as ambient method)]
 
@@ -20,15 +20,15 @@
 
 1. Clone the github repository:
 
-  ```
-  git clone https://github.com/marusakod/scprocess_test.git
-  ```
+    ```
+    git clone https://github.com/marusakod/scprocess_test.git
+    ```
 
 2.  Add {{ software_name }} to your path. Open your `.bashrc` file and add the following line:
 
-  ```bash
-  export PATH=/PATH/TO/YOUR/FOLDER/scprocess:${PATH}
-  ```
+    ```bash
+    export PATH=/PATH/TO/YOUR/FOLDER/scprocess:${PATH}
+    ```
 
 ## Scprocess data directory setup
 
@@ -36,46 +36,45 @@
 
 2. Add the following line to your `.bashrc` file:
 
-```bash
-export SCPROCESS_DATA_DIR=/path/to/scprocess_data_directory
-```
-
-3. Create a configuration file `.scprocess_setup.yaml` in the scprocess data directory you just created, with the contents as follows:
-
-```yaml
-genome:
-  tenx:
-  - name: human_2024 
-  - name: mouse_2024 
-```
-
-This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) genomes from 10x Genomics. For more information on how to structure the `.scprocess_setup.yaml` see the [`Reference`](reference.md#setup-config-file) section
-
-??? tip "Save some space by removing the reference genome used in the tutorial"
-    `scsetup` will automatically download the `human_2024` reference genome and build an alevin index with [decoys](reference.md#setup-config-file). This index will be used for running {{ software_name }} on a [tutorial dataset](tutorial.md). If you would like the use the exact same index for running {{ software_name }} on your own dataset you still have to list `human_2024` as one of your options in the `.scprocess_setup.yaml` file. If that is not the case, {{ software_name }} will create a reference index named `human_2024_default` in `$SCPROCESS_DATA_DIR`. To remove this reference (after running the tutorial) use:
-    
     ```bash
-    rm -rf $SCPROCESS_DATA_DIR/reference_genomes/human_2024_default
-    rm -rf $SCPROCESS_DATA_DIR/alevin_fry_home/human_2024_default
-
-    # optionally remove the setup_parameters.csv file where all genomes available in $SCPROCESS_DATA_DIR are listed
-    
-    awk -F',' '$1 != "human_2024_default"' $SCPROCESS_DATA_DIR/setup_parameters.csv > $SCPROCESS_DATA_DIR/temp.csv && mv $SCPROCESS_DATA_DIR/temp.csv $SCPROCESS_DATA_DIR/setup_parameters.csv 
-
+    export SCPROCESS_DATA_DIR=/path/to/scprocess_data_directory
     ```
+
+3. Create a configuration file `.scprocess_setup.yaml` in the {{ software_name }}data directory you just created, with the contents as follows:
+
+    ```yaml
+    genome:
+      tenx:
+      - name: human_2024 
+      - name: mouse_2024 
+    ```
+
+    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) genomes from 10x Genomics. For more information on how to structure the `.scprocess_setup.yaml` see the [`Reference`](reference.md#setup-config-file) section
+
+    ??? tip "Save some space by removing the reference genome used in the tutorial"
+        `scsetup` will automatically download the `human_2024` reference genome and build an alevin index with [decoys](reference.md#setup-config-file). This index will be used for running {{ software_name }} on a [tutorial dataset](tutorial.md). If you would like the use the exact same index for running {{ software_name }} on your own dataset you still have to list `human_2024` as one of the options in the `.scprocess_setup.yaml` file. If that is not the case, {{ software_name }} will create a reference index named `human_2024_default` in `$SCPROCESS_DATA_DIR`. To remove this reference (after running the tutorial) use:
+    
+        ```bash
+        rm -rf $SCPROCESS_DATA_DIR/reference_genomes/human_2024_default
+        rm -rf $SCPROCESS_DATA_DIR/alevin_fry_home/human_2024_default
+
+        # optionally remove the setup_parameters.csv file where all genomes available in $SCPROCESS_DATA_DIR are listed
+    
+        awk -F',' '$1 != "human_2024_default"' $SCPROCESS_DATA_DIR/setup_parameters.csv > $SCPROCESS_DATA_DIR/temp.csv && mv $SCPROCESS_DATA_DIR/temp.csv $SCPROCESS_DATA_DIR/setup_parameters.csv 
+        ```
     
 
 4. Finish setting up scprocess data directory with:
 
-```bash
-scsetup
-```
+    ```bash
+    scsetup
+    ```
 
 ## Cluster setup
 
-When running {{ software_name }} on a cluster with a job scheduler like SLURM or LSF, it's common to define a configuration profile. A profile defines default cluster settings, such as resource allocation (CPUs, memory, runtime) and job submission commands. {{ software_name }} comes with two predefined configuration profiles stored in the `profile` directory: `profile/slurm_default` and `profile/lsf_default` for SLURM and LSF respectivelly. You can add additional profiles or edit one of the profiles that already exists in {{ software_name }}. [The structure of the profile will depend on the version of Snakemake and cluster settings.]
+When running {{ software_name }} on a cluster with a job scheduler like SLURM or LSF, it's common to define a configuration profile. A profile defines default cluster settings, such as resource allocation (CPUs, memory, runtime) and job submission commands. {{ software_name }} comes with two predefined configuration profiles stored in the `profile` directory: `profile/slurm_default` and `profile/lsf_default` for SLURM and LSF respectively. You can add additional profiles or edit one of the profiles that already exists in {{ software_name }}. [The structure of the profile will depend on the version of `snakemake` and cluster settings.]
 
-`scsetup` and `scprocess` commands will run in "cluster mode" if you add the `-E " --workflow-profile={profile_name} "` option. Example for SLURM:
+`scsetup` and `scprocess` commands will run in cluster mode if you add the `-E " --workflow-profile={profile_name} "` option. Example for SLURM:
 
 ```bash
 scsetup -E " --workflow-profile=slurm_default "
