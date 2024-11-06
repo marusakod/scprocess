@@ -29,7 +29,7 @@ Once you have written the config file (correctly!), these outputs are generated 
 ---
 <div class="img-caption"> The figure illustrates all steps in {{ software_name }}, including those grouped under <code>rule all</code> and optional steps. Specific software packages used are listed for individual steps. Some steps process samples independently, while others operate on a combined dataset with multiple samples. Several steps also generate HTML reports with diagnostic plots, enabling users to inspect the results at key points in the workflow. </div>
 
-### `rule all` steps
+### Standard pipeline steps
 
 * #### Read alignment and quantification
     

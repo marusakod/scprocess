@@ -1,6 +1,6 @@
 # Getting started
 
-## Prerequisits
+## Prerequisites
 
 #### Hardware
 
@@ -30,7 +30,7 @@
     export PATH=/PATH/TO/YOUR/FOLDER/scprocess:${PATH}
     ```
 
-## Scprocess data directory setup
+## {{ software_name }} data directory setup
 
 1. Create a directory that will store all necessary data for running {{ software_name }}
 
@@ -40,7 +40,7 @@
     export SCPROCESS_DATA_DIR=/path/to/scprocess_data_directory
     ```
 
-3. Create a configuration file `.scprocess_setup.yaml` in the {{ software_name }}data directory you just created, with the contents as follows:
+3. Create a configuration file `.scprocess_setup.yaml` in the {{ software_name }} data directory you just created, with the contents as follows:
 
     ```yaml
     genome:
@@ -49,7 +49,7 @@
       - name: mouse_2024 
     ```
 
-    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) genomes from 10x Genomics. For more information on how to structure the `.scprocess_setup.yaml` see the [`Reference`](reference.md#setup-config-file) section
+    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) genomes from 10x Genomics. For more information on how to structure the `.scprocess_setup.yaml` see the [`Reference`](reference.md#setup-config-file) section.
 
     ??? tip "Save some space by removing the reference genome used in the tutorial"
         `scsetup` will automatically download the `human_2024` reference genome and build an alevin index with [decoys](reference.md#setup-config-file). This index will be used for running {{ software_name }} on a [tutorial dataset](tutorial.md). If you would like the use the exact same index for running {{ software_name }} on your own dataset you still have to list `human_2024` as one of the options in the `.scprocess_setup.yaml` file. If that is not the case, {{ software_name }} will create a reference index named `human_2024_default` in `$SCPROCESS_DATA_DIR`. To remove this reference (after running the tutorial) use:
