@@ -2,10 +2,10 @@
 
 ## `scsetup`
 
-**Description**: Download all data required for {{ software_name }} and index reference genomes for simpleaf.
+**Description**: Download all data required for {{ software_name }} and index reference genomes for `simpleaf`.
 
 **Parameters**:
-The command requires a configuration file named `.scprocess_setup.yaml` located in {{ software_name }} data directory (for instructions on how to set up the {{ software_name }} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, user has to specify which reference genome will be made available for {{ software_name }} for example:
+The command requires a configuration file named `.scprocess_setup.yaml` located in {{ software_name }} data directory (for instructions on how to set up the {{ software_name }} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, the user has to specify which reference genome will be made available for {{ software_name }}. For example:
 
 ```yaml
 genome:
@@ -20,7 +20,7 @@ genome:
       mito_str: "^mt-"
 ```
 
-Prebuild human and mouse reference genomes from 10x Genomics can be downloaded with `scsetup` by adding `tenx` to the `.scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.  
+Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with `scsetup` by adding `tenx` to the `.scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.  
 
 Names and specifications for custom references should be listed in the `custom` section of the `.scprocess_setup.yaml` file. For each `custom` genome users have to provide the following parameters:
 
@@ -33,7 +33,7 @@ Optional parameters for both `tenx` and `custom` references are:
 * `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `True` for all genomes. 
 
 !!! info "More about decoys"
-    {{ software_name }} utilizes simpleaf, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter in `scsetup` it to `True`. This option allows simpleaf to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to [Srivastava et al., 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02151-8).
+    {{ software_name }} utilizes `simpleaf`, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter in `scsetup` is set to `True`. This option allows `simpleaf` to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to [Srivastava et al., 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02151-8).
 
 
 ## `newproj`
@@ -47,7 +47,7 @@ Optional parameters for both `tenx` and `custom` references are:
 
 ## `plotKnee`
 
-**Description**: Create an interactive barcode-rank plot. Can only be used once `rule run_alevin_fry` is completed.
+**Description**: Create an interactive barcode-rank plot. Can only be used once `rule run_alevin_fry` is completed (see [Rules](reference.md#rules)).
 
 **Parameters**:
 
@@ -63,9 +63,9 @@ Specify either `-k`/`--kneefile` or `-c`/`--configfile`:
 
 **Parameters**:
 
-* `-n`/`--dry-run`: dry run
-* `-E`/`--extraagrs`: additional snakemake arguments.
-* `-r`/`--rule`: rule to run; options: `all`, `label_and_subset`, `zoom`, `pb_empties`, `run_alevin_fry`, `run_ambient`, `run_qc`, `run_integration`, `run_marker_genes`.
+* `-n`/`--dry-run`: This makes {{ software_name }} perform a trial run that doesn't create any new files. This is helpful for (1) checking that the various input files and parameter settings are likely to work, and (2) checking what work will be done by {{ software_name }}.
+* `-E`/`--extraagrs`: `snakemake` is a sophisticated package with many options that can be set by the user. This argument allows users to set additional arguments; see [here](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for `snakemake`'s documentation of command line arguments.
+* `-r`/`--rule`: Specifies which rule {{ software_name }} should run. The options are: `all`, `label_and_subset`, `zoom`, `pb_empties`, `run_alevin_fry`, `run_ambient`, `run_qc`, `run_integration`, `run_marker_genes`. See [Rules](reference.md#rules) for details.
 
 
 ### configuration file
@@ -74,7 +74,7 @@ This is an example config file for {{ software_name }} with all parameters and t
 
 === "default values"
 
-    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 13 14"
+    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11"
       proj_dir: 
       fastq_dir:  
       full_tag: 
@@ -84,11 +84,11 @@ This is an example config file for {{ software_name }} with all parameters and t
       sample_metadata:
       species:
       date_stamp:
+      alevin:
+        chemistry:
       custom_sample_params:
       exclude_samples:
       metadata_vars:
-      alevin:
-        chemistry:
       ambient:
         ambient_method: decontx
         cellbender_version: 'v0.3.0'
@@ -167,7 +167,7 @@ This is an example config file for {{ software_name }} with all parameters and t
 
 === "placeholders"
 
-    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 13 14"
+    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11"
       proj_dir: /path/to/proj/directory #
       fastq_dir: /path/to/directory/with/fastq/files 
       full_tag: test_project 
@@ -177,11 +177,11 @@ This is an example config file for {{ software_name }} with all parameters and t
       sample_metadata: /path/to/metadata.csv
       species: human_2024
       date_stamp: "2050-01-01" 
+      alevin:
+        chemistry: 3v3
       custom_sample_params: /path/to/file/with/custom_parameters.yaml # modify
       exclude_samples: [sample1, sample2]
       metadata_vars: [test1, test2]
-      alevin:
-        chemistry: 3v3
       ambient:
         ambient_method: decontx
         cellbender_version: 'v0.3.0'
@@ -273,13 +273,15 @@ This is an example config file for {{ software_name }} with all parameters and t
 * `short_tag`: abbreviated project label, used in output directory names.
 * `your_name`: author’s name, displayed in HTML outputs.
 * `affiliation`: author’s affiliation, displayed in HTML outputs.
-* `sample_metadata`: Path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed.
+* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed.
 * `species`: must match one of the values in the `genome_name` column of `setup_parameters.csv` (created by `scsetup`).
 * `date_stamp`: start date of the analysis, formatted as `"YYYY-MM-DD"`.
 * `chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).
 
 #### Optional parameters
 
+##### general
+ 
 * `custom_sample_params`: YAML file with optional custom parameters for each sample (custom chemistry, custom ambient and custom cellbender parameters can be specified for each sample). Example:
 
 ```yaml
@@ -434,5 +436,9 @@ sample_3:
 * `mb_lbl_label_celltypes`: maximum memory required (in MB) to label cell types. Value applies to the entire job, not per thread.
 * `mb_lbl_save_subset_sces`: maximum memory required (in MB) to save `SingleCellExperiment` objects with cell subsets. Value applies to the entire job, not per thread.
 * `mb_lbl_render_template_rmd`: maximum memory required (in MB) to render HTML document from markdown template. Value applies to the entire job, not per thread.
+
+## Rules
+
+[add all rules]
 
 
