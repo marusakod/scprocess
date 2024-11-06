@@ -2,7 +2,7 @@
 
 ## Basic usage
 
-Considering required hardware is available, all software is installed and you have successfully completed the [setup of scprocess data directory](setup.md#scprocess-data-directory-setup) directory you can run {{ software_name }} on your dataset by following the steps outlined bellow:
+Assuming the required hardware is available, all software is installed and you have successfully completed the [setup of scprocess data directory](setup.md#scprocess-data-directory-setup) directory, you can run {{ software_name }} on your dataset by following the steps outlined below:
 
 1. [Prepare project directory](usage.md#1-prepare-project-directory)
 2. [Prepare input files](usage.md#2-prepare-input-files)
@@ -12,7 +12,7 @@ Considering required hardware is available, all software is installed and you ha
 
 ### 1. Prepare project directory
 
-{{ software_name }} relies on the ['Workflowr'](https://workflowr.github.io/workflowr/) project directory template. You can create a new `workflowr` project using:
+{{ software_name }} relies on the [`workflowr`](https://workflowr.github.io/workflowr/) project directory template. You can create a new `workflowr` project using:
 
 ```
 newproj project_name -w /path/to/project/directory
@@ -22,11 +22,11 @@ newproj project_name -w /path/to/project/directory
 
 {{ software_name }} requires 2 types of input files:
 
-* FASTQ files generated using 10x Genomics technology: names of FASTQ files have to contain a `[Sample ID]` in the name as well as `_R1_` an `_R2_` labels for read one (forward read) and read two (reverse read) respectievelly e.g.
+* **FASTQ files** generated using 10x Genomics technology: names of FASTQ files have to contain a `[Sample ID]` in the name as well as `_R1_` an `_R2_` labels for read one (forward read) and read two (reverse read) respectively. For example:
 
-    `[Sample ID]*_R1_*.fastq.gz` and `[Sample ID]*_R2_*.fastq.gz` where `*` can be replaced with any character.
+    `[Sample ID]*_R1_*.fastq.gz` and `[Sample ID]*_R2_*.fastq.gz`, where `*` can be replaced with any character.
 
-* metadata: a CSV file with sample information. The only required column in the metadata file is `sample_id` with values matching `[Sample ID]` labels included in FASTQ file names.
+* **metadata**: a CSV file with sample information. The only required column in the metadata file is `sample_id` with values matching `[Sample ID]` labels included in FASTQ file names.
 
 
 ### 3. Prepare configuration file
