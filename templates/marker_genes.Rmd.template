@@ -70,7 +70,13 @@ if (all(metadata_vars == ""))
 
 ```{r load_metadata, include = FALSE}
 meta_dt       = meta_f %>% fread
+if(!is.null(metadata_vars)){
 assert_that( all(metadata_vars %in% names(meta_dt)) )
+}
+```
+
+```r 
+
 ```
 
 ```{r load_harmony_clusters, include = FALSE}
@@ -149,7 +155,7 @@ print(g)
 
 ## Cluster splits by metadata variables
 
-```{r plot_clusters_by_metadata, fig.height = 8, fig.width = 7, results = 'asis'}
+```{r plot_clusters_by_metadata, fig.height = 8, fig.width = 7}
 if (!is.null(metadata_vars))
   (plot_clusters_by_metadata(meta_dt, harmony_dt, 
     meta_vars = metadata_vars, cl_order = cl_ord))
