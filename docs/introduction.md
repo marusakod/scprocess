@@ -2,20 +2,6 @@
 
 {{ software_name }} is a Snakemake pipeline designed to automate the analysis of single-cell and single-nuclei RNA sequencing data. This comprehensive solution effectively handles data generated using 10x Genomics technology. Starting from raw sequencing files, {{ software_name }} performs a series of standard analysis steps, delivering outputs suitable for a variety of downstream analyses. The pipeline supports analyses across multiple samples, enabling researchers to gain a complete understanding of their datasets while ensuring reproducibility and scalability in their workflows.
 
-{{ software_name }} requires three input file types:
-
-- raw single-cell FASTQ files generated with 10x Genomics technology;
-- sample metadata; and
-- a configuration file specifying analysis parameters.
-
-The outputs from {{ software_name }} include:
-
-- counts matrix of QC-ed cells/nuclei with doublets and ambient RNA removed;
-- batch-corrected embedding of all cells in the dataset, with clusters based on this embedding; and
-- marker genes identified for all clusters.
-
-Once you have written the config file (correctly!), these outputs are generated automatically with one command line entry.
-
 ---
 
 ## Steps
