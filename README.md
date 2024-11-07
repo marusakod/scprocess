@@ -1,7 +1,7 @@
 To view the `scprocess` documentation locally, follow these steps:
 1. Clone the repository
 ```
-git clone https://github.com/yourusername/scprocess_test.git
+git clone https://github.com/marusakod/scprocess_test.git
 ```
 2. Install MkDocs and MkDocs Macros plugin
 ```
