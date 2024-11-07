@@ -62,7 +62,7 @@ If you want to run a dry run you can add a `-n` or `--dry-run` flag to this comm
 scprocess /path/to/config.yaml -E " --max-threads 8 "
 ```
 
-By default {{ software_name }} will run `rule all` which includes all [core steps](introduction.md#rule-all-steps). The [optional steps](introduction.md#optional-steps) (`rule label_and_subset`, `rule zoom`, `rule pb_empties`) can run only after `rule all` is completed and have to be specifically requested. Additionally, you can run individual rules that generate HTML outputs (`run_alevin_fry`, `run_ambient`, `run_qc`, `run_integration`, `run_marker_genes`). This is useful if you want to inspect the html outputs first and then continue with the analysis. can To run each rule separately you have to specify the rule using the `-r` or `--rule` flag e.g.
+By default {{ software_name }} will run rule `all` which includes all [core steps](introduction.md#rule-all-steps). The [optional steps](introduction.md#optional-steps) (rules `label_and_subset`, `zoom`, `pb_empties`) can run only after  rule `all` is completed and have to be specifically requested. Additionally, you can run individual rules that generate HTML outputs (`simpleaf`, `ambient`, `qc`, `integration`, `marker_genes`). This is useful if you want to inspect the html outputs first and then continue with the analysis. To run each rule separately you have to specify the rule using the `-r` or `--rule` flag e.g.
 
 ```
 scprocess /path/to/config.yaml -r label_and_subset

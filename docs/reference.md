@@ -70,11 +70,12 @@ Specify either `-k`/`--kneefile` or `-c`/`--configfile`:
     + `label_and_subset`: cell type annotation using a pre-trained classifier or a custom annotation file. 
     + `zoom`: reintegration, subclustering and marker gene identification for selected cluster groups.
     + `pb_empties`: generation of pseubodulk samples from annotated cells and empty droplets.
-    + `run_alevin_fry`: read alignment and quantification using `simpleaf`.
-    + `run_ambient`: ambient RNA removal.
-    + `run_qc`: qc filtering.
-    + `run_integration`: integration with `Harmony`.
-    + `run_marker_genes`: marker gene identification.
+    + `simpleaf`: read alignment and quantification using `simpleaf`.
+    + `ambient`: ambient RNA removal.
+    + `qc`: qc filtering.
+    + `integration`: integration with `Harmony`.
+    + `marker_genes`: marker gene identification.
+
 
 
 ### configuration file
@@ -282,7 +283,7 @@ This is an example config file for {{ software_name }} with all parameters and t
 * `short_tag`: abbreviated project label, used in output directory names.
 * `your_name`: author’s name, displayed in HTML outputs.
 * `affiliation`: author’s affiliation, displayed in HTML outputs.
-* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed.
+* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R_`and `_R2_`strings.
 * `species`: must match one of the values in the `genome_name` column of `setup_parameters.csv` (created by `scsetup`).
 * `date_stamp`: start date of the analysis, formatted as `"YYYY-MM-DD"`.
 * `chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).

@@ -13,7 +13,7 @@ rule lbl_label_celltypes:
     harmony_f   = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
     hvg_mat_f   = lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-    guesses_f   = lbl_dir + '/xgboost_guesses_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    guesses_f   = lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 4
   retries: RETRIES 
   resources:
@@ -36,7 +36,7 @@ rule lbl_label_celltypes:
 rule lbl_save_subset_sces:
   input:
     sce_clean_f = f'{int_dir}/sce_clean_{FULL_TAG}_{DATE_STAMP}.rds',
-    guesses_f   = f'{lbl_dir}/xgboost_guesses_{FULL_TAG}_{DATE_STAMP}.txt.gz'
+    guesses_f   = f'{lbl_dir}/cell_annotations_{FULL_TAG}_{DATE_STAMP}.txt.gz'
   output:
     subsets_df  = f'{lbl_dir}/sce_subset_specifications_{FULL_TAG}_{DATE_STAMP}.csv',
     sce_ls      = expand( [lbl_dir +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'], 

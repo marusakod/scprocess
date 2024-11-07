@@ -158,7 +158,7 @@ if __name__ == '__main__':
     help = "Required. YAML file specifying what you want to run, and any non-default parameters")
   parser.add_argument("-r", "--rule", type = str, default = "all",
     choices = [
-        "all", "htmls", "alevin_fry", "cellbender", "make_sce", "qc", "integration", 
+        "all", "simpleaf", "ambient", "qc", "integration", 
         "marker_genes", "label_and_subset", "metacells", "pb_empties", "zoom"
         ],
     help = '''
