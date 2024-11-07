@@ -26,7 +26,7 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
   os.makedirs(ref_dir, exist_ok = True)
 
   # sort out predefined genomes
-  pre_gnomes = {'human_2020', 'human_2024', 'tutorial_human_2024', 'mouse_2020', 'mouse_2024'}
+  pre_gnomes = {'human_2020', 'human_2024','mouse_2020', 'mouse_2024'}
   all_gnomes = set(GENOME_NAMES)
 
 # which predefined genomes to download
@@ -38,8 +38,7 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
       'human_2020': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2020-A.tar.gz", 
       'human_2024': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2024-A.tar.gz", 
       'mouse_2020': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-mm10-2020-A.tar.gz", 
-      'mouse_2024': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz",
-      'human_2024_default': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2024-A.tar.gz"
+      'mouse_2024': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz"
     }
 
     # download all required genomes from 10x

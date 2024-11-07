@@ -119,14 +119,9 @@ def get_setup_parameters(config):
     all_dcoys = [str(b) for b in all_dcoys]
 
     # check if reference for tutorial needs to be added
-    if 'human_2024' in all_genome_names:
-      # chek if with decoys
-      test_gnome_idx  = np.where(all_genome_names == 'human_2024')[0].tolist()[0]
-      test_gnome_dcoy = all_dcoys[test_gnome_idx]
-
-      if test_gnome_dcoy == 'False':
-       all_genome_names.append('human_2024_default')
-       all_dcoys.append('True')
+    if 'human_2024' not in all_genome_names:
+      all_genome_names.append('human_2024')
+      all_dcoys.append('True')
 
 
     # convert all lists to a single string with commas between elements
