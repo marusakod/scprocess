@@ -65,7 +65,16 @@ Specify either `-k`/`--kneefile` or `-c`/`--configfile`:
 
 * `-n`/`--dry-run`: This makes {{ software_name }} perform a trial run that doesn't create any new files. This is helpful for (1) checking that the various input files and parameter settings are likely to work, and (2) checking what work will be done by {{ software_name }}.
 * `-E`/`--extraagrs`: `snakemake` is a sophisticated package with many options that can be set by the user. This argument allows users to set additional arguments; see [here](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for `snakemake`'s documentation of command line arguments.
-* `-r`/`--rule`: Specifies which rule {{ software_name }} should run. The options are: `all`, `label_and_subset`, `zoom`, `pb_empties`, `run_alevin_fry`, `run_ambient`, `run_qc`, `run_integration`, `run_marker_genes`. See [Rules](reference.md#rules) for details.
+* `-r`/`--rule`: Specifies which rule {{ software_name }} should run. The options are:
+    + `all`: default; includes all [Standard pipeline steps](introduction.md#standard-pipeline-steps)
+    + `label_and_subset`: cell type annotation using a pre-trained classifier or a custom annotation file. 
+    + `zoom`: reintegration, subclustering and marker gene identification for selected cluster groups.
+    + `pb_empties`: generation of pseubodulk samples from annotated cells and empty droplets.
+    + `run_alevin_fry`: read alignment and quantification using `simpleaf`.
+    + `run_ambient`: ambient RNA removal.
+    + `run_qc`: qc filtering.
+    + `run_integration`: integration with `Harmony`.
+    + `run_marker_genes`: marker gene identification.
 
 
 ### configuration file
@@ -392,16 +401,6 @@ sample_3:
     + `mouse_pbmc`: tbd
 
 ##### zoom
-* `sel_cls`: which clusters to include?
-* `zoom_res`: what resolution?
-* `n_hvgs`: how many HVGs to use for PCA
-* `n_dims`: how many PC dimensions to integrate over
-* `min_n_sample`: what is the minimum number of cells needed to keep a sample?
-* `min_n_cl`:  what is the minimum number of cells needed to keep a cluster?
-* `n_train`: how many cells per cluster should we use for training
-
-
-##### zoom
 * `sel_cls`: clusters to include in the analysis.
 * `zoom_res`: resolution setting for the analysis.
 * `n_hvgs`: number of HVGs.
@@ -409,7 +408,6 @@ sample_3:
 * `min_n_sample`: minimum number of cells required to retain a sample in the analysis.
 * `min_n_cl`: minimum number of cells required to retain a cluster in the analysis.
 * `n_train`: number of cells per cluster to use for training.
-
 
 ##### metacells
 
@@ -437,8 +435,5 @@ sample_3:
 * `mb_lbl_save_subset_sces`: maximum memory required (in MB) to save `SingleCellExperiment` objects with cell subsets. Value applies to the entire job, not per thread.
 * `mb_lbl_render_template_rmd`: maximum memory required (in MB) to render HTML document from markdown template. Value applies to the entire job, not per thread.
 
-## Rules
-
-[add all rules]
 
 

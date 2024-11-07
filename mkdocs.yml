@@ -55,6 +55,8 @@ theme:
     primary: deep purple
     accent: purple
 markdown_extensions:
+  - toc:
+      permalink: true
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite

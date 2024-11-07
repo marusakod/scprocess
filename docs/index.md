@@ -1,3 +1,9 @@
+---
+hide:
+  - navigation
+  - toc
+---
+
 # Welcome to {{ software_name }} documentation <img src="assets/images/scprocess_logo.png" alt="image title" align="right" width="360" height="180">
 
 {{ software_name }} is a snakemake pipeline for processing of high throughput single cell and single nuclei RNA sequencing data. 

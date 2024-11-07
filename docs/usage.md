@@ -28,6 +28,7 @@ newproj project_name -w /path/to/project/directory
 
 * **metadata**: a CSV file with sample information. The only required column in the metadata file is `sample_id` with values matching `[Sample ID]` labels included in FASTQ file names.
 
+To see examples of input files go to [Quick start tutorial](tutorial.md#creating-a-new-project-directory-and-preparing-input-data). 
 
 ### 3. Prepare configuration file
 

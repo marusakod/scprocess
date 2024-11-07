@@ -103,20 +103,6 @@ Note that the first column of the sample metadata file (`sample_id`) contains va
 ## Creating a configuration file
 
 Next we will create a configuration file in the `test_project` root directory where we will specify all the parameters for running {{ software_name }}. We will name this file `config_test_project.yaml`. In addition to [required parameters](reference.md#required-parameters), we will add the optional parameter `metadata_vars` which allows us to specify additional metadata variables that will be used for visualization. Note that the `proj_dir` parameter is an absolute path, while for `fastq_dir` and `sample_metadata` we can use relative paths because we stored raw data and sample metadata inside the project directory.
-
-!!! Question "Which reference genome should I pick?"
-
-    The choice of the `species` parameter for this tutorial depends on the parameters used for running `scsetup`. You can look for the appropriate value using:
-
-    ```bash
-    if grep -q 'human_2024_default' $SCPROCESS_DATA_DIR/setup_parameters.csv; then
-      echo "human_2024_default"
-    elif grep -q 'human_2024' $SCPROCESS_DATA_DIR/setup_parameters.csv; then
-      echo "human_2024"
-    fi
-    ```
-
-[adjust thresholds for qc metrics because it's single nuclei and add canonical marker genes for brain]
     
 ```bash
 proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
@@ -126,7 +112,7 @@ short_tag: test
 your_name: Test user
 affiliation: Unemployed
 sample_metadata: data/metadata/test_project_metadata.csv
-species: human_2024_default # or human_2024 if available
+species: human_2024
 date_stamp: "2025-01-01"
 metadata_vars: [Sex, Diagnosis]
 alevin:
@@ -144,6 +130,14 @@ scprocess config_test_project.yaml
 ```
 
 ## Inspecting outputs of `rule all`
+
+??? warning "Tutorial results may vary from your {{ software_name }} outputs"
+    
+    If you modify the default settings for the `human_2024` genome in `.scprocess_setup.yaml`, the results you obtain from running {{ software_name }} on the tutorial dataset may differ slightly from those shown in this guide.
+
+    
+    
+
 
 
 ## Optional steps
