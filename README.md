@@ -5,7 +5,7 @@ git clone https://github.com/marusakod/scprocess_test.git
 ```
 2. Install MkDocs and MkDocs Macros plugin
 ```
-pip install mkdocs
+pip install mkdocs-material
 pip install mkdocs-macros-plugin
 ```
 3. From `scprocess_test` main directory run:
