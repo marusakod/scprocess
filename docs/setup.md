@@ -40,7 +40,7 @@
     export SCPROCESS_DATA_DIR=/path/to/scprocess_data_directory
     ```
 
-3. Create a configuration file `.scprocess_setup.yaml` in the {{ software_name }} data directory you just created, with the contents as follows:
+3. Create a configuration file `.scprocess_setup.yaml` in the SCPROCESS_DATA_DIR directory you just created, with the contents as follows:
 
     ```yaml
     genome:
