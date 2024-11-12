@@ -115,21 +115,21 @@ def get_setup_parameters(config):
     all_mito_str.extend(cust_mito_strs)
     all_dcoys.extend(cust_decoys)
 
-    # convert decoy list to strings
-    all_dcoys = [str(b) for b in all_dcoys]
+  # convert decoy list to strings
+  all_dcoys = [str(b) for b in all_dcoys]
 
-    # check if reference for tutorial needs to be added
-    if 'human_2024' not in all_genome_names:
-      all_genome_names.append('human_2024')
-      all_dcoys.append('True')
+  # check if reference for tutorial needs to be added
+  if 'human_2024' not in all_genome_names:
+    all_genome_names.append('human_2024')
+    all_dcoys.append('True')
 
 
-    # convert all lists to a single string with commas between elements
-    genome_names_str = ','.join(all_genome_names)
-    fasta_fs_str = ','.join(all_fasta_fs)
-    gtf_fs_str = ','.join(all_gtf_fs)
-    mito_one_str = ','.join(all_mito_str)
-    decoys_str = ','.join(all_dcoys)
+   # convert all lists to a single string with commas between elements
+  genome_names_str = ','.join(all_genome_names)
+  fasta_fs_str = ','.join(all_fasta_fs)
+  gtf_fs_str = ','.join(all_gtf_fs)
+  mito_one_str = ','.join(all_mito_str)
+  decoys_str = ','.join(all_dcoys)
 
 
   # return lists with all params
