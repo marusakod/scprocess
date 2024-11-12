@@ -634,13 +634,13 @@ get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'dec
   }else{
     sum_qc = sum_qc %>%
       mutate(af_all = sum(af_S, af_U, af_A),
-             cb_all = sum(dcx_S, dxc_U, dcx_A)) %>%
+             dcx_all = sum(dcx_S, dcx_U, dcx_A)) %>%
       colSums()
 
     smpl_qc <- c((sum_qc['af_S']/sum_qc['af_all']) *100,
                    (sum_qc['dcx_S']/sum_qc['dcx_all'])*100,
                    sum_qc['af_all'],
-                   sum_qc['af_all'] - sum_qc['dxc_all'])
+                   sum_qc['af_all'] - sum_qc['dcx_all'])
 
 
   }
@@ -656,6 +656,7 @@ get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'dec
 
 get_amb_sample_qc_outliers <- function(qc_df, var1, var2){
   bivar =  qc_df %>% dplyr::select(all_of(c(var1, var2)))
+
   mcd = robustbase::covMcd(bivar)
   chi_thr = chi_threshold <- qchisq(0.95, df = 2)
   outliers_df = qc_df[which(mcd$mah > chi_threshold), ]

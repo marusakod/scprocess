@@ -16,7 +16,7 @@ theme:
       note: fontawesome/solid/note-sticky
       abstract: fontawesome/solid/book
       info: fontawesome/solid/circle-info
-      tip: fontawesome/solid/bullhorn
+      tip: fontawesome/solid/fire-flame-curved
       success: fontawesome/solid/check
       question: fontawesome/solid/circle-question
       warning: fontawesome/solid/triangle-exclamation
@@ -55,6 +55,8 @@ theme:
     primary: deep purple
     accent: purple
 markdown_extensions:
+  - toc:
+      permalink: true
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
@@ -65,8 +67,13 @@ markdown_extensions:
   - footnotes
   - pymdownx.details
   - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.mark
   - attr_list
   - md_in_html
 extra_css:
   - stylesheets/extra.css
+plugins:
+  - search
+  - macros

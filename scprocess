@@ -101,10 +101,11 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   assert all([os.path.isfile(f) for f in wflowr_fs_ful_ls]), \
     f"proj_dir {config['proj_dir']} is not a workflowr project; you can create a workflowr project using newproj"
 
-  # check that sample metadata exists, has sample_id present
+  # check that sample metadata exists, has sample_id present, no spaces in column names 
   assert "sample_metadata" in config, "sample_metadata not specified in config file"
   assert os.path.isfile(config["sample_metadata"]), \
     f"sample_metadata {config['sample_metadata']} is not a valid file"
+  
 
   # load up sample metadata
   sample_df   = pd.read_csv(config["sample_metadata"])
@@ -112,6 +113,9 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
     "sample_id not present in sample metadata"
   assert all(sample_df[ "sample_id" ].value_counts() == 1), \
     "sample_id values in metadata csv not unique"
+  
+  assert not any(' ' in col for col in sample_df.columns), \
+    "some column names in metadata csv contain spaces."
 
   # check whether metadata_vars are present in sample metadata
   if "metadata_vars" in config:
@@ -154,7 +158,7 @@ if __name__ == '__main__':
     help = "Required. YAML file specifying what you want to run, and any non-default parameters")
   parser.add_argument("-r", "--rule", type = str, default = "all",
     choices = [
-        "all", "htmls", "alevin_fry", "cellbender", "make_sce", "qc", "integration", 
+        "all", "simpleaf", "ambient", "qc", "integration", 
         "marker_genes", "label_and_subset", "metacells", "pb_empties", "zoom"
         ],
     help = '''
@@ -195,4 +199,3 @@ if __name__ == '__main__':
 
 
 
- 

@@ -85,7 +85,7 @@ barcode_qc_dfs = lapply(barcode_qc_dirs, FUN = read_delim, delim = ",", show_col
 
 
 ```{r get_knee_qc_df, eval=eval_knee_plot, include = FALSE}
-if(ambient_method == 'cellbender'){
+if(amb_method == 'cellbender'){
 bender_knees_df = lapply(knee_dfs, get_knee_params) %>% bind_rows
 }else{
 bender_knees_df = NULL
@@ -133,27 +133,11 @@ if(s_len <= 4){
 ```
 
 
-```{r get_empty_plateau_umi, eval=eval_sample_qc_plots, include = FALSE}
-
-empty_umis_df = lapply(s_lvls , FUN = function(smpl){
-  
-  total_inc = unique(df$total_droplets_included)
-  empty_umi= df[ which.min(abs(df$rank - total_inc)), "total"]
-  
-
-  return(empty_umi_df = data.frame(sample_id = smpl,
-                                   total_umi = empty_umi))
-}) %>%
-  bind_rows()
-
-```
-
-
 ```{r get_all_reads_n, eval=eval_sample_qc_plots, include = FALSE}
 # sum all the UMI counts from knee plots
 all_reads_n = sapply(knee_dfs, function(k_df) sum(k_df$total))
 all_reads_n_df = data.frame(sample_id = names(knee_dfs),
-                            total_reads = all_reads_n)
+                            total_UMI = all_reads_n)
 
 ```
 
@@ -161,30 +145,35 @@ all_reads_n_df = data.frame(sample_id = names(knee_dfs),
 ```{r get_sample_level_qc, eval=eval_sample_qc_plots, include = FALSE}
 amb_sample_qc = mapply(qc = barcode_qc_dfs,
                        sel_s = names(barcode_qc_dfs),
-                       amb_mathod = amb_method,
+                       amb_method = amb_method,
                        FUN = get_amb_sample_level_qc,
                        SIMPLIFY = FALSE) %>% bind_rows() %>%
   mutate(pct_removed = (removed/af_all)*100)
 
 # check if sample names match
 assert_that(setequal(amb_sample_qc$sample_id, all_reads_n_df$sample_id))
-assert_that(setequal(amb_sample_qc$sample_id, empty_umis_df$sample_id))
 
 sample_qc_merged = amb_sample_qc %>%
   merge(all_reads_n_df, by = 'sample_id') %>%
-  merge(empty_umis_df , by = 'sample_id')  %>%
-  mutate(pct_reads_in_cells = (af_all/total_reads)*100)
+  mutate(pct_reads_in_cells = (af_all/total_UMI)*100)
 
 
-# find outliers
-all_vars1 <- c('af_spliced_pct', 'total_UMI', 'pct_reads_in_cells', 'af_spliced_pct')
-all_vars2 <- c('amb_spliced_pct', rep('pct_removed', 3))
+# find outliers if more than 2 samples exists
+if(length(s_lvls) > 2){
 
-outliers_dfs <- mapply(var1 = all_vars1,
+all_vars1 = c('af_spliced_pct', 'total_UMI', 'pct_reads_in_cells', 'af_spliced_pct')
+all_vars2 = c('amb_spliced_pct', rep('pct_removed', 3))
+
+outliers_dfs = mapply(var1 = all_vars1,
                        var2 = all_vars2,
                        FUN = get_amb_sample_qc_outliers,
                        MoreArgs = list(qc_df = sample_qc_merged),
                        SIMPLIFY = FALSE)
+
+}else{
+  # make empty df
+  outliers_df = data.frame()
+}
 ```
 
 

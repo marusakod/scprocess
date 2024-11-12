@@ -144,19 +144,77 @@ rule all:
       docs_dir  + '/' + SHORT_TAG + '_ambient.html', 
       docs_dir  + '/' + SHORT_TAG + '_qc.html', 
       docs_dir  + '/' + SHORT_TAG + '_integration.html',
-      docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.html',
+      docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.html'
+
+
+rule simpleaf:
+  input:
+    expand( 
+      [
+      af_dir    + '/af_{sample}/af_quant/',
+      af_dir    + '/af_{sample}/af_quant/alevin/quants_mat.mtx',
+      af_dir    + '/af_{sample}/af_quant/alevin/quants_mat_cols.txt',
+      af_dir    + '/af_{sample}/af_quant/alevin/quants_mat_rows.txt',
+      af_dir    + '/af_{sample}/af_counts_mat.h5',
+      af_dir    + '/af_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
+      af_dir    + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml',
+      ],
+     sample = SAMPLES), 
+     rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
+     docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html'
+
+
+rule ambient:
+  input: 
+    expand(amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
+    sample = SAMPLES),
+    amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', 
+    amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt', 
+    rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd', 
+    docs_dir  + '/' + SHORT_TAG + '_ambient.html'
+
+rule qc:
+  input:     
+    qc_dir    + '/qc_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    qc_dir    + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_qc.html'
+
+
+rule integration:
+  input:     
+    int_dir   + '/sce_clean_'           + FULL_TAG + '_' + DATE_STAMP + '.rds',
+    int_dir   + '/integrated_dt_'       + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    int_dir   + '/harmony_hvgs_'        + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_integration.html'
+
+
+rule marker_genes:
+  input:     
+    mkr_dir   + '/pb_'              + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.rds',
+    mkr_dir   + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/pb_hvgs_'         + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz',
+    rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.Rmd',
+    docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.html'
+
 
 rule label_and_subset:
- input:
-   lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-   lbl_dir + '/xgboost_guesses_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-   lbl_dir   + '/sce_subset_specifications_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-   expand([
-     lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
-     ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] ), 
-   code_dir  + '/label_celltypes.R',
-   rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
-   docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
+input:
+  lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+  lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+  lbl_dir   + '/sce_subset_specifications_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+  expand([
+    lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
+    ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] ), 
+  code_dir  + '/label_celltypes.R',
+  rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
+  docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
 
 
 rule zoom:

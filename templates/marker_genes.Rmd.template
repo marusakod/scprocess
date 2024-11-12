@@ -62,14 +62,21 @@ gsea_cut      = ${MKR_GSEA_CUT}
 cl_ord        = NULL
 
 # define metadata variables for plotting
-metadata_vars = "${meta_vars_ls}"
+metadata_vars = "${meta_vars_ls}" %>% 
+  str_split(pattern = ",") %>% unlist()
 if (all(metadata_vars == ""))
   metadata_vars = NULL
 ```
 
 ```{r load_metadata, include = FALSE}
 meta_dt       = meta_f %>% fread
+if(!is.null(metadata_vars)){
 assert_that( all(metadata_vars %in% names(meta_dt)) )
+}
+```
+
+```r 
+
 ```
 
 ```{r load_harmony_clusters, include = FALSE}
@@ -148,7 +155,7 @@ print(g)
 
 ## Cluster splits by metadata variables
 
-```{r plot_clusters_by_metadata, fig.height = 8, fig.width = 7, results = 'asis'}
+```{r plot_clusters_by_metadata, fig.height = 8, fig.width = 7}
 if (!is.null(metadata_vars))
   (plot_clusters_by_metadata(meta_dt, harmony_dt, 
     meta_vars = metadata_vars, cl_order = cl_ord))

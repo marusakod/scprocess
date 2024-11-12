@@ -1,5 +1,5 @@
-scprocess_test.sublime-project
-scprocess_test.sublime-workspace
+*.sublime-project
+*.sublime-workspace
 ._*
 .snakemake/
 __pycache__/

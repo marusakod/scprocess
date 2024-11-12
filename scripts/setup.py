@@ -26,10 +26,10 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
   os.makedirs(ref_dir, exist_ok = True)
 
   # sort out predefined genomes
-  pre_gnomes = {'human_2020', 'human_2024', 'mouse_2020', 'mouse_2024'}
+  pre_gnomes = {'human_2020', 'human_2024','mouse_2020', 'mouse_2024'}
   all_gnomes = set(GENOME_NAMES)
 
-# which predefined genomes are in params_df
+# which predefined genomes to download
   names = list(pre_gnomes & all_gnomes)
   
   if(len(names) != 0):
@@ -260,5 +260,4 @@ if __name__ == "__main__":
       get_genome_params(args.genomes, args.fasta_fs, args.gtf_fs, args.mito_str, args.decoys, args.scp_data_dir)
   else:
     parser.print_help()
-
 

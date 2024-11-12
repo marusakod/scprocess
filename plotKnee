@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+
+import plotly.express as px
+from plotly.offline import plot
+import pandas as pd
+import gzip
+import yaml
+import os
+import argparse
+
+
+def plot_live_knee(knee_f, sample):
+
+  assert os.path.isfile(knee_f), \
+    f"knee file for {sample} doesn't exist. To generate the file run rule 'alevin_fry'"
+
+  # read knee file
+  with gzip.open(knee_f, 'rt') as file:
+    knee_df = pd.read_csv(file, delimiter=',')
+
+  # make plot
+  fig = px.scatter(
+    knee_df,
+    x='rank',
+    y='total',
+    title=f"sample_id: {sample}",
+    log_x=True, 
+    log_y=True, 
+    labels={'rank': 'barcode rank', 'total': 'library size'}
+  )
+ 
+  fig.update_traces(marker=dict(color='black', size=5))
+
+  # update the layout to set background colors
+  fig.update_layout(
+    plot_bgcolor='white', 
+    paper_bgcolor='white',
+    xaxis=dict(
+        gridcolor='#e5e7e9',
+        zerolinecolor='#e5e7e9'
+    ),
+    yaxis=dict(
+        gridcolor='#e5e7e9',
+        zerolinecolor='#e5e7e9'
+    ),
+    autosize=False,
+    width=800,
+    height=800
+  )
+
+  # open plot in browser
+  plot(fig, auto_open=True)
+
+
+if __name__ == '__main__':
+  # define scprocess directory
+  sc_dir = os.path.dirname(os.path.realpath(__file__))
+
+  # define arguments
+  parser = argparse.ArgumentParser(description='setup for scprocess: a snakemake workflow for processing single cell RNAseq data.')
+  parser.add_argument("-c", "--configfile", type=str, nargs='?', default=None,
+                      help="path to configuration file used for running scprocess")
+  parser.add_argument("-s", "--sample", type=str, required=True,
+                      help='sample_id')
+  parser.add_argument("-k", "--kneefile", type=str, default=None,
+                      help="Path to knee file")
+
+  # get arguments
+  args = parser.parse_args()
+
+  if args.knee_f:
+    knee_f = args.knee_f
+  else:
+    assert args.configfile, "Either --configfile (-c) or --kneefile (-k) must be provided"
+    
+    # open config file and get project directory
+    with open(args.configfile) as f:
+      config = yaml.load(f, Loader=yaml.FullLoader)
+  
+    proj_dir = config['proj_dir']
+    short_tag = config['short_tag']
+    date_stamp = config['date_stamp']
+
+    knee_dir = f"{proj_dir}/output/{short_tag}_alevin_fry/af_{args.sample}"
+    knee_f = f"{knee_dir}/knee_plot_data_{args.sample}_{date_stamp}.txt.gz"
+
+  # call function
+  plot_live_knee(knee_f, args.sample)

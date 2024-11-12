@@ -172,6 +172,11 @@ def get_project_parameters(config, scprocess_data_dir):
     METADATA_VARS  = config["metadata_vars"]
     for var in METADATA_VARS:
       assert var in samples_df.columns, f"{var} not in sample metadata"
+      # check that there are less than 10 unique values (otherwise probably not a categorical variable)
+      uniq_vals = len(set(samples_df[var].tolist()))
+      assert uniq_vals <= 10, \
+        f"{var} variable has more than 10 unique values"
+  
 
   return PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES
 
@@ -218,7 +223,7 @@ def get_alevin_parameters(config, scprocess_data_dir, SPECIES):
 # ambient
 def get_ambient_parameters(config):
   # set default values
-  AMBIENT_METHOD                = 'cellbender'
+  AMBIENT_METHOD                = 'decontx'
   CELLBENDER_VERSION            = 'v0.3.0'
   CELLBENDER_PROP_MAX_KEPT      = 0.9
   FORCE_EXPECTED_CELLS          = None
@@ -296,7 +301,7 @@ def get_qc_parameters(config):
   QC_MIN_MITO         = 0
   QC_MAX_MITO         = 0.1
   QC_MIN_SPLICE       = 0
-  QC_MAX_SPLICE       = 1
+  QC_MAX_SPLICE       = 0.75
   QC_MIN_CELLS        = 500
   QC_FILTER_BENDER    = False
 
