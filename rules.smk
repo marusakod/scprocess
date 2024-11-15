@@ -205,16 +205,16 @@ rule marker_genes:
 
 
 rule label_and_subset:
-input:
-  lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-  lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-  lbl_dir   + '/sce_subset_specifications_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-  expand([
-    lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
+  input:
+    lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+    lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    lbl_dir   + '/sce_subset_specifications_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    expand([
+      lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
     ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] ), 
-  code_dir  + '/label_celltypes.R',
-  rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
-  docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
+    code_dir  + '/label_celltypes.R',
+    rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
+    docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
 
 
 rule zoom:
@@ -272,23 +272,23 @@ rule zoom:
 
 rule pb_empties:
  input:
-   pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-   expand([
+    pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+    expand([
      pb_dir + '/pb_subset_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.rds'
      ], subset = PB_SUBSETS ),
-   expand([
+    expand([
      empty_dir + '/edger_empty_genes_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.txt.gz'
      ], subset = PB_SUBSETS ),
-   (pb_dir + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if PB_DO_ALL else [],
-   (empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz') if PB_DO_ALL else []
+     (pb_dir + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if PB_DO_ALL else [],
+     (empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz') if PB_DO_ALL else []
 
 
 rule metacells:
  input:
-   expand([
+    expand([
      meta_dir  + '/metacells_sce_' + FULL_TAG + '_{subset}_{max_cells}_' + DATE_STAMP + '.rds'
      ], subset = META_SUBSETS, max_cells = META_MAX_CELLS ),
-   expand([
+    expand([
      meta_dir  + '/metacells_map_' + FULL_TAG + '_{subset}_{max_cells}_' + DATE_STAMP + '.txt.gz'
      ], subset = META_SUBSETS, max_cells = META_MAX_CELLS )
 
