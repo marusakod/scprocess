@@ -204,7 +204,7 @@ rule marker_genes:
     docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.html'
 
 
-rule label_and_subset:
+rule label_celltypes:
   input:
     lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
     lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
