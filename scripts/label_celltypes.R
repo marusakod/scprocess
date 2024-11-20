@@ -93,8 +93,32 @@ train_celltype_labeller <- function(sce_f, hvgs_xgb_f, xgb_f, allowed_f,
 }
 
 label_celltypes_with_xgboost <- function(xgb_f, sce_f, harmony_f, 
-  hvg_mat_f, guesses_f, gene_var = c("gene_id", "ensembl_id"), 
+  hvg_mat_f, guesses_f, custom_labels_f, gene_var = c("gene_id", "ensembl_id"), 
   min_pred = 0.5, min_cl_prop = 0.5, min_cl_size = 100, n_cores = 4) {
+ 
+  # check inputs
+  if(custom_labels_f != ""){
+    cust_lbls = fread(custom_labels_f)
+    # check if cell_ids match cell_ids in sce_f
+    sce = readRDS(sce_f)
+    sce_cells = colData(sce)$cell_id
+
+    cell_ids_olap = intersect(sce_cells, cust_lbls$cell_id)
+
+    assert_that(
+      length(cell_ids_olap) != 0, 
+      msg = "values in cell_id column of the custom_labels file don't match cell_id values in the sce object"
+      )
+    
+    cell_ids_df = data.table(cell_id = sce_cells) %>%
+    merge(cust_lbls, by = 'cell_id', all.x = TRUE, all.y = FALSE)
+    
+    # write file with celltype annotations
+    fwrite(cell_ids_df, file = guesses_f)
+    # write empty hvg_mat_f
+    file.create(hvg_mat_f)
+  
+  }else{
   # check inputs
   assert_that( file.exists(xgb_f) )
   gene_var    = match.arg(gene_var)
@@ -123,10 +147,11 @@ label_celltypes_with_xgboost <- function(xgb_f, sce_f, harmony_f,
   message('  saving results')
   fwrite(guesses_dt, file = guesses_f)
   message('done.')
+  }
 }
 
 save_subset_sces <- function(sce_f, guesses_f, sel_res_cl, subset_df_f, 
-  sce_ls_concat, subset_names_concat, allowed_cls_f, n_cores = 4) {
+  sce_ls_concat, subset_names_concat, allowed_cls_f, custom_labels_f, n_cores = 4) {
   message('saving sce subsets')
   # unpack inputs
   sce_ls        = sce_ls_concat %>% str_split(" ") %>% unlist
@@ -140,13 +165,23 @@ save_subset_sces <- function(sce_f, guesses_f, sel_res_cl, subset_df_f,
   message('  subset specifications:')
   print(subsets_dt)
   assert_that( length(setdiff(subset_names, subsets_dt$subset_name)) == 0 )
-  allowed_cls = allowed_cls_f %>% fread(sep = ",") %>% .$cluster
+
+  if(custom_labels_f != ""){
+    custom_labels = fread(custom_labels_f)
+    allowed_cls = custom_labels$label %>% unique
+    guess_col_name = 'label'
+  }else{
+    allowed_cls = allowed_cls_f %>% fread(sep = ",") %>% .$cluster
+    guess_col_name = paste0("cl_pred_", sel_res_cl)
+  }
+  
   assert_that( length(setdiff(subsets_dt$guess, allowed_cls)) == 0 )
 
+  
   # load guesses
   guesses_all = fread(guesses_f)
-  assert_that( paste0("cl_pred_", sel_res_cl) %in% names(guesses_all) )
-  guesses_dt  = guesses_all[, .(cell_id, guess = get(paste0("cl_pred_", sel_res_cl))) ]
+  assert_that( guess_col_name %in% names(guesses_all) )
+  guesses_dt  = guesses_all[, .(cell_id, guess = get(guess_col_name)) ]
 
   # load sce
   sce         = readRDS(sce_f)
