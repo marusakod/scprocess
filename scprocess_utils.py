@@ -489,10 +489,10 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
       custom_labels = pd.read_csv(CUSTOM_LABELS_F)
       cols = custom_labels.columns
       valid_cols = ['cell_id', 'label']
-      assert cols in valid_cols, \
+      assert all(c in valid_cols for c in cols), \
         f"Column names in {CUSTOM_LABELS_F} are incorrect."
  
-  return LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_SCE_SUBSETS, CUSTOM_LABELS_F
+  return LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_SCE_SUBSETS, LBL_TISSUE, CUSTOM_LABELS_F
 
 
 # define metacells parameters

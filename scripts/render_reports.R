@@ -187,7 +187,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
                               " an XGBoost classifier trained on annotated data from the ",
                               train_data_str
                               )
-        hmap_title = "`harmony`clusters vs `XGBoost`-predicted cell types.{tabset}"
+        hmap_title = "`harmony`clusters vs `XGBoost`-predicted cell types{.tabset}"
         hmap_txt = "heatmap with xgboost annotations vs harmony clusters"
         umap_title = "XGBoost`-predicted cell types over UMAP{.tabset}"
         umap_txt = paste0("For each cluster the most frequent prediction labels are shown")
@@ -202,7 +202,8 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
                          "over a UMAP, together with clusters at resolution ", 
                          add_args[["INT_SEL_RES"]])
       }
-
+       
+       params_ls = add_args
        params_ls = c(
         params_ls, 
         list(eval_boost   = eval_boost,

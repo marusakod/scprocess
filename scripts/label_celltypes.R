@@ -30,7 +30,7 @@ suppressPackageStartupMessages({
 train_celltype_labeller <- function(sce_f, hvgs_xgb_f, xgb_f, allowed_f,
   clusters_dt, meta_dt, clust_var = "cluster", use_all_samples = FALSE, meta_vars = NULL, 
   min_n_cl = 200, n_train = 1000, n_dims = 50, sel_gs = NULL, n_hvgs = 2000, 
-  seed = 123, n_cores = 4) 
+  seed = 123, n_cores = 4) {
   # randomly sample evenly across lesion types, until we have >= 500 of each type
   if (use_all_samples) {
     message('  using all samples')
@@ -107,7 +107,7 @@ label_celltypes_with_xgboost <- function(xgb_f, sce_f, harmony_f,
     sce_cells_df = as.data.table(colData(sce)) %>%
     .[, .(sample_id, cell_id, UMAP1, UMAP2, cl_hmny = get(sel_res_full))]
 
-    cell_ids_olap = intersect(sce_cells$cell_id, cust_lbls$cell_id)
+    cell_ids_olap = intersect(sce_cells_df$cell_id, cust_lbls$cell_id)
 
     assert_that(
       length(cell_ids_olap) != 0, 

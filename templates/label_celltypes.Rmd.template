@@ -24,7 +24,7 @@ knitr::opts_knit$set( root.dir='..' )
 
 # establish conditions
 eval_boost = params$is_xgboost
-eval_custom = !params$is_xgboost
+eval_cust = !params$is_xgboost
 ```
 
 
@@ -99,14 +99,14 @@ for (sel_res in res_ls) {
 ```{r plot_cls_vs_cust_anno, fig.height = 5, fig.width = 13, eval = eval_cust, include = eval_cust}
   # make confusion matrix
 
-  guesses_sel = guesses_dt[, .(cell_id, prediction = cl_hmny)]
+  guesses_sel = guesses_dt[, .(cell_id, prediction = label %>% factor)]
   hmny_sel    = guesses_dt[, .(cell_id, cl_hmny = cl_hmny %>% factor)]
   confuse_dt  = calc_confuse_dt(guesses_sel, hmny_sel, "prediction", "cl_hmny")
 
   # plot heatmap
   draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", "cl_hmny", 
     plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
-}
+
 ```
 
 
@@ -141,9 +141,8 @@ for (sel_res in res_ls) {
 ```
 
 
-```{r plot_custom_anno_umap, fig.height = 5, fig.width = 12, eval = eval_custom, include = eval_custom}
+```{r plot_custom_anno_umap, fig.height = 5, fig.width = 12, eval = eval_cust, include = eval_cust}
 # plot
-for (sel_res in res_ls) {
   umap_sel    = guesses_dt[, .(cell_id, UMAP1, UMAP2)]
   g_cl        = plot_umap_cluster(umap_sel, 
     guesses_dt[, .(cell_id, cluster = cl_hmny)], "harmony\ncluster")
@@ -151,10 +150,8 @@ for (sel_res in res_ls) {
     guesses_dt[, .(cell_id, cluster = label)], "prediction")
   g = g_cl + g_pred
 
-  # plot umaps
-  cat('### res = ', sel_res, '\n', sep = '')
+  # plot umap
   print(g)
-  cat('\n\n')
-}
+ 
 ```
 
