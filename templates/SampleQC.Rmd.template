@@ -85,6 +85,18 @@ thrshlds_dt = thrshlds_dt[ !is.infinite(cut_point) ]
 
 ## Sample QC metric ranges, marginals{.tabset}
 
+An overview of quality control (QC) metrics for all samples, both before and after filtering. The QC metrics include:
+* `no. cells` : total number of barcodes called as cells for each sample. Samples with less than `r min_cells` cells are excluded from further analysis.
+* `library size` : sum of counts across all features for each cell with log-transformed values displayed. Cells with library size less than `r min_counts` are excluded from further analysis.
+* `no. of features` : number of unique features with non-zero counts for each cell with log-transformed values displayed. Cells with less than `r min_feats` unique features are excluded from further analysis.
+* `mito pct.` : the proportion of reads that mapped to genes in the mitochondrial genome. High proportions are indicative of poor-quality cells (compromised membranes allow individual RNA molecules to escape while retaining mitochondria,
+leading to an increased relative abundance of mitochondrial transcript) or nuclei (incomplete removal of cytoplasm).
+Logit-transformed values are displayed as applying the logit (inverse logistic) transformation to mitochondrial proportions yields approximately Gaussian distributions. Cells with mitochondrial proportions exceeding `r max_mito` are excluded from further analysis. 
+* spliced pct.: the proportion of spliced reads. In single-nuclei RNA sequencing, high spliced proportions may indicate inadequate removal of cytoplasmic material from the nuclei.
+Logit-transformed values are displayed as applying the logit  (inverse logistic) transformation to spliced proportions results in approximately Gaussian distributions.
+Cells with spliced proportions greater than `r max_splice` are excluded from further analysis. 
+
+
 ```{r plot_qc_ranges_marginals, fig.height = 10, fig.width = 9, results = 'asis'}
 suppressWarnings({
   cat("### Pre-QC\n")
@@ -98,6 +110,10 @@ suppressWarnings({
 
 ## Sample QC metric ranges, pairwise{.tabset}
 
+Summary of QC metrics for each sample is obtained by aggregating transcript values across all cells. For each sample, the QC metrics previously described above - library size, number of features, mitochondrial proportion, and spliced proportion - are calculated and visualized in a
+pairwise QC plot to facilitate the exploration of relationships between all pairs of QC metrics. 
+
+
 ```{r plot_qc_ranges_pairwise, fig.height = 7, fig.width = 8, results = 'asis'}
 cat("### Pre-QC\n")
 print(plot_qc_ranges_pairwise(qc_dt, qc_names, qc_lu, thrshlds_dt, ambient_method))
@@ -108,6 +124,8 @@ cat("\n\n")
 ```
 
 ## QC metrics scatterplots{.tabset}
+
+Pairwise relationships of (QC) metrics at individual cell level, rather than aggregating data across samples. 
 
 ```{r plot_qc_metric_scatters, fig.height = 6, fig.width = 8, results = 'asis'}
 for (s in s_lvls) {
@@ -121,6 +139,8 @@ for (s in s_lvls) {
 ```
 
 ## How many cells and samples retained?
+
+Table summarizing the number of cells before and after qc filtering. [some_number] samples are excluded from further analysis due to insufficient number of cells.
 
 ```{r print_totals_excluded}
 calc_qc_summary(qc_dt, kept_dt) %>% knitr::kable()

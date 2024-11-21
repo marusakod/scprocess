@@ -95,7 +95,7 @@ if(sample_n <= 4){
 ```
 
 
-## Barcode rank plots something that means a lot to me and this is great when this cute little country girl cought my eye, let's get outa here 
+## Barcode rank plots
 
 For each sample, barcodes are ranked in descending order based on their library size (number of unique molecular identifiers).
 Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high RNA content, while the second represents empty droplets containing ambient RNA. 
@@ -105,7 +105,7 @@ Two main parameters infered by `scprocess` based on transition points are `expec
 The absence of a clear empty plateau indicates poor sample quality due to ambient RNA contamination.
 
 
-### Barcode rank plots ordered by slope ration.{tabset}
+### Barcode rank plots ordered by slope ratio{.tabset}
 
 The slope ratio helps identify low-quality samples with high ambient RNA contamination.
 This ratio is calculated by dividing the slope of the barcode-rank curve in the empty droplet plateau by the slope at the first inflection point.
