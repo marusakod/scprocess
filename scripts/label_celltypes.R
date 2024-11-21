@@ -30,7 +30,7 @@ suppressPackageStartupMessages({
 train_celltype_labeller <- function(sce_f, hvgs_xgb_f, xgb_f, allowed_f,
   clusters_dt, meta_dt, clust_var = "cluster", use_all_samples = FALSE, meta_vars = NULL, 
   min_n_cl = 200, n_train = 1000, n_dims = 50, sel_gs = NULL, n_hvgs = 2000, 
-  seed = 123, n_cores = 4) {
+  seed = 123, n_cores = 4) 
   # randomly sample evenly across lesion types, until we have >= 500 of each type
   if (use_all_samples) {
     message('  using all samples')
@@ -93,7 +93,7 @@ train_celltype_labeller <- function(sce_f, hvgs_xgb_f, xgb_f, allowed_f,
 }
 
 label_celltypes_with_xgboost <- function(xgb_f, sce_f, harmony_f, 
-  hvg_mat_f, guesses_f, custom_labels_f, gene_var = c("gene_id", "ensembl_id"), 
+  hvg_mat_f, guesses_f, custom_labels_f, int_sel_res,  gene_var = c("gene_id", "ensembl_id"), 
   min_pred = 0.5, min_cl_prop = 0.5, min_cl_size = 100, n_cores = 4) {
  
   # check inputs
@@ -101,16 +101,20 @@ label_celltypes_with_xgboost <- function(xgb_f, sce_f, harmony_f,
     cust_lbls = fread(custom_labels_f)
     # check if cell_ids match cell_ids in sce_f
     sce = readRDS(sce_f)
-    sce_cells = colData(sce)$cell_id
 
-    cell_ids_olap = intersect(sce_cells, cust_lbls$cell_id)
+    sel_res_full = paste0("RNA_snn_res.", int_sel_res)
+
+    sce_cells_df = as.data.table(colData(sce)) %>%
+    .[, .(sample_id, cell_id, UMAP1, UMAP2, cl_hmny = get(sel_res_full))]
+
+    cell_ids_olap = intersect(sce_cells$cell_id, cust_lbls$cell_id)
 
     assert_that(
       length(cell_ids_olap) != 0, 
-      msg = "values in cell_id column of the custom_labels file don't match cell_id values in the sce object"
+      msg = "values in cell_id column of the 'custom_labels' file don't match cell_id values in the sce object"
       )
     
-    cell_ids_df = data.table(cell_id = sce_cells) %>%
+    cell_ids_df = sce_cells_df %>%
     merge(cust_lbls, by = 'cell_id', all.x = TRUE, all.y = FALSE)
     
     # write file with celltype annotations

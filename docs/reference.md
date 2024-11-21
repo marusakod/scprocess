@@ -67,7 +67,7 @@ Specify either `-k`/`--kneefile` or `-c`/`--configfile`:
 * `-E`/`--extraagrs`: `snakemake` is a sophisticated package with many options that can be set by the user. This argument allows users to set additional arguments; see [here](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for `snakemake`'s documentation of command line arguments.
 * `-r`/`--rule`: Specifies which rule {{ software_name }} should run. The options are:
     + `all`: default; includes all [Standard pipeline steps](introduction.md#standard-pipeline-steps)
-    + `label_and_subset`: cell type annotation using a pre-trained classifier or a custom annotation file. 
+    + `label_celltypes`: cell type annotation using a pre-trained classifier or a custom annotation file. 
     + `zoom`: reintegration, subclustering and marker gene identification for selected cluster groups.
     + `pb_empties`: generation of pseubodulk samples from annotated cells and empty droplets.
     + `simpleaf`: read alignment and quantification using `simpleaf`.
@@ -390,7 +390,7 @@ sample_3:
 ##### label_celltypes
 
 * `custom_labels`: path to CSV file containing cell type annotations, with two columns: `cell_id` and `label`. Entries in the `cell_id` column should be formatted as `sample_id:cell_barcode` and must match `cell_id` values in the `SingleCellExperiment` object (`sce_clean_[full_tag]_[date_stamp].rds`) located in `output/[short_tag]_integration` directory. `NA` values will be assigned to all cells with missing annotations.
-* `lbl_tissue`: target tissue for cell type labeling. Options are `brain_cns`, `human_cns`, `mouse_cns`, `human_pbmc`, and `mouse_pbmc`.
+* `lbl_tissue`: target tissue for cell type labeling. Options are `human_cns`, `mouse_cns`, `human_pbmc`, and `mouse_pbmc`.
 * `lbl_sel_res_cl`: selected cluster resolution for cell type labeling; higher values are recommended for optimal performance.
 * `lbl_min_pred`: minimum probability threshold for assigning a cell to a cell type.
 * `lbl_min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.
