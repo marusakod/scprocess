@@ -1,7 +1,6 @@
 # General configurations
 executor: slurm
 latency-wait: 10
-reason: True
 show-failed-logs: True
 keep-going: True
 printshellcmds: True
