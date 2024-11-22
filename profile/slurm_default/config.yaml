@@ -1,13 +1,15 @@
 # General configurations
+executor: slurm
 latency-wait: 10
 reason: True
 show-failed-logs: True
 keep-going: True
 printshellcmds: True
 rerun-incomplete: True
-jobname: "{rule}.{jobid}"
-
-# Job scheduling configurations
 max-jobs-per-second: 1
 max-status-checks-per-second: 10
 jobs: 20
+default-resources:
+  runtime: 1h
+  mem_mb: 3700
+
