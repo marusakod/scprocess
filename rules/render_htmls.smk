@@ -227,7 +227,7 @@ rule render_html_integration:
 rule render_html_label_celltypes:
   input:
     r_mkr_f     = f'{code_dir}/marker_genes.R',
-    guesses_f   = f'{lbl_dir}/xgboost_guesses_{FULL_TAG}_{DATE_STAMP}.txt.gz'
+    guesses_f   = f'{lbl_dir}/cell_annotations_{FULL_TAG}_{DATE_STAMP}.txt.gz'
   output:
     r_lbl_f     = f'{code_dir}/label_celltypes.R',
     rmd_f       = f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd',
@@ -260,6 +260,9 @@ rule render_html_label_celltypes:
     threads = {threads}, \
     guesses_f = '{input.guesses_f}', \
     LBL_XGB_F = '{LBL_XGB_F}', \
+    CUSTOM_LABELS_F = '{CUSTOM_LABELS_F}', \
+    INT_SEL_RES = '{INT_SEL_RES}', \
+    LBL_TISSUE = '{LBL_TISSUE}', \
     LBL_SEL_RES_CL = '{LBL_SEL_RES_CL}', \
     LBL_MIN_PRED = {LBL_MIN_PRED}, \
     LBL_MIN_CL_PROP = {LBL_MIN_CL_PROP}, \

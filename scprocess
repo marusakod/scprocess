@@ -159,7 +159,7 @@ if __name__ == '__main__':
   parser.add_argument("-r", "--rule", type = str, default = "all",
     choices = [
         "all", "simpleaf", "ambient", "qc", "integration", 
-        "marker_genes", "label_and_subset", "metacells", "pb_empties", "zoom"
+        "marker_genes", "label_celltypes", "metacells", "pb_empties", "zoom"
         ],
     help = '''
        Leave empty to run the whole workflow, in alternative select the rule you want to run.

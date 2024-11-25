@@ -86,8 +86,13 @@ clusts_dt   = hmny_dt %>%
     resolution = str_extract(resolution, "(?<=res\\.)(.+)"), cluster)]
 ```
 
+Cells that passed quality control filtering were integrated with `Harmony` together with doublets identified using scDblfinder. Clustering of cells at a high resolution is then performed. Cells that appear in clusters which are enriched in doublets are excluded from further analysis.
+Integration of cells and clustering is repeated after removing doublet enriched clusters.
+
 
 ## Check doublets over UMAP
+
+The plot displays a binned UMAP with the proportion of doublets as well as the number of doublets in each bin. 
 
 ```{r plot_doublet_harmony, fig.height = 5, fig.width = 11}
 g_dbl   = plot_umap_doublets(hmny_dbl)
@@ -96,13 +101,17 @@ g       = g_dbl + g_dens
 print(g)
 ```
 
-## Check doublet clusters
+## Doublet proportions in clusters
+
+The plot shows the proportion of doublets for each cluster in relation to the total number of cells in that cluster. Clusters with a doublet proportion exceeding `r dbl_cl_prop` are excluded from further analysis.
 
 ```{r plot_doublet_clusters, fig.height = 4, fig.width = 6}
 ( plot_doublet_clusters(hmny_dbl, dbl_cl_prop) )
 ```
 
 ## Clusters over UMAP{.tabset}
+
+Clustering of data is performed at different resolution values. For each value the clusters are displayed over a UMAP together with a plot showing the density of cells. 
 
 ```{r plot_clusters_harmony, fig.height = 5, fig.width = 11, results = "asis"}
 for (res in res_ls) {
@@ -118,7 +127,10 @@ for (res in res_ls) {
 }
 ```
 
-## Check that clusters are well-mixed{.tabset}
+## Evaluating cluster distribution across samples{.tabset}
+
+This plot visualizes the relationship between the entropy of clusters and the maximum percentage of cells from a single sample within each cluster (higher values suggest that a cluster predominantly contains cells from a single sample).
+Entropy measures how evenly distributed cells are across samples within each cluster—higher entropy indicates that cells from different samples are more evenly distributed, while lower entropy suggests that a cluster is dominated by cells from a small number of samples.
 
 ```{r plot_entropy_selected_clusters, fig.height = 5, fig.width = 7, results = "asis"}
 for (res in res_ls) {
@@ -130,6 +142,8 @@ for (res in res_ls) {
 ```
 
 ## Check QC metrics of clusters{.tabset}
+
+Distributions of QC metrics (library size, number of features, mitochondrial proportion, and spliced proportion) are shown for each cluster across different resolution values.
 
 ```{r plot_qc_distns, fig.height = 8, fig.width = 10, results = 'asis'}
 for (res in res_ls) {

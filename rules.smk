@@ -29,7 +29,7 @@ INT_EXC_REGEX, INT_N_HVGS, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, 
   get_integration_parameters(config, AF_MITO_STR)
 MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, MKR_CANON_F = \
   get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
-LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_SCE_SUBSETS = \
+LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_SCE_SUBSETS, LBL_TISSUE, CUSTOM_LABELS_F = \
  get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
 ZOOM_NAMES, ZOOM_SPEC_LS = get_zoom_parameters(config, AF_MITO_STR, SCPROCESS_DATA_DIR)
 META_SUBSETS, META_MAX_CELLS = get_metacells_parameters(config)
@@ -204,17 +204,17 @@ rule marker_genes:
     docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.html'
 
 
-rule label_and_subset:
-input:
-  lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-  lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-  lbl_dir   + '/sce_subset_specifications_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-  expand([
-    lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
+rule label_celltypes:
+  input:
+    lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+    lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    lbl_dir   + '/sce_subset_specifications_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    expand([
+      lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
     ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] ), 
-  code_dir  + '/label_celltypes.R',
-  rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
-  docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
+    code_dir  + '/label_celltypes.R',
+    rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
+    docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
 
 
 rule zoom:
@@ -272,23 +272,23 @@ rule zoom:
 
 rule pb_empties:
  input:
-   pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-   expand([
+    pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+    expand([
      pb_dir + '/pb_subset_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.rds'
      ], subset = PB_SUBSETS ),
-   expand([
+    expand([
      empty_dir + '/edger_empty_genes_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.txt.gz'
      ], subset = PB_SUBSETS ),
-   (pb_dir + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if PB_DO_ALL else [],
-   (empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz') if PB_DO_ALL else []
+     (pb_dir + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if PB_DO_ALL else [],
+     (empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz') if PB_DO_ALL else []
 
 
 rule metacells:
  input:
-   expand([
+    expand([
      meta_dir  + '/metacells_sce_' + FULL_TAG + '_{subset}_{max_cells}_' + DATE_STAMP + '.rds'
      ], subset = META_SUBSETS, max_cells = META_MAX_CELLS ),
-   expand([
+    expand([
      meta_dir  + '/metacells_map_' + FULL_TAG + '_{subset}_{max_cells}_' + DATE_STAMP + '.txt.gz'
      ], subset = META_SUBSETS, max_cells = META_MAX_CELLS )
 
