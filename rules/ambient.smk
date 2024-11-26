@@ -124,12 +124,12 @@ if AMBIENT_METHOD == 'cellbender':
       learning_rate           = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[3]
     output:
-        ambient_yaml_out = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
+        ambient_yaml_out = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
+        tmp_f            = temp(amb_dir + '/ambient_{sample}/ckpt.tar.gz')
     threads: 1
     retries: RETRIES
     resources:
-      mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT,
-      nvidia_gpu  = 1
+      mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
     singularity:
       CELLBENDER_IMAGE
     shell:
@@ -152,7 +152,7 @@ if AMBIENT_METHOD == 'cellbender':
       cb_full_f="{amb_dir)/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}.h5"
       cb_filt_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_filtered.h5"
       cb_bcs_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv'
-      #tmp_f=temp(amb_dir + '/ambient_{wildcards.sample}/ckpt.tar.gz')
+      tmp_f=temp(amb_dir + '/ambient_{wildcards.sample}/ckpt.tar.gz')
 
       
       if [ $EXPECTED_CELLS -eq 0 ]; then

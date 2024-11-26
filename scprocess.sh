@@ -34,7 +34,7 @@ echo snakemake ${SM_ARGS} \
   --configfile $configfile \
   --rerun-incomplete \
   --verbose \
-  --use-conda \
+  --software-deployment-method conda apptainer \
   $rule
 
  snakemake ${SM_ARGS} \
@@ -42,5 +42,5 @@ echo snakemake ${SM_ARGS} \
   --configfile $configfile \
   --rerun-incomplete \
   --verbose \
-  --use-conda \
+  --software-deployment-method conda apptainer \
   $rule
