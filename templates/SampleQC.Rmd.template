@@ -86,13 +86,17 @@ thrshlds_dt = thrshlds_dt[ !is.infinite(cut_point) ]
 ## Sample QC metric ranges, marginals{.tabset}
 
 An overview of quality control (QC) metrics for all samples, both before and after filtering. The QC metrics include:
+
 * `no. cells` : total number of barcodes called as cells for each sample. Samples with less than `r min_cells` cells are excluded from further analysis.
+
 * `library size` : sum of counts across all features for each cell with log-transformed values displayed. Cells with library size less than `r min_counts` are excluded from further analysis.
+
 * `no. of features` : number of unique features with non-zero counts for each cell with log-transformed values displayed. Cells with less than `r min_feats` unique features are excluded from further analysis.
+
 * `mito pct.` : the proportion of reads that mapped to genes in the mitochondrial genome. High proportions are indicative of poor-quality cells (compromised membranes allow individual RNA molecules to escape while retaining mitochondria,
-leading to an increased relative abundance of mitochondrial transcript) or nuclei (incomplete removal of cytoplasm).
-Logit-transformed values are displayed as applying the logit (inverse logistic) transformation to mitochondrial proportions yields approximately Gaussian distributions. Cells with mitochondrial proportions exceeding `r max_mito` are excluded from further analysis. 
-* spliced pct.: the proportion of spliced reads. In single-nuclei RNA sequencing, high spliced proportions may indicate inadequate removal of cytoplasmic material from the nuclei.
+leading to an increased relative abundance of mitochondrial transcript) or nuclei (incomplete removal of cytoplasm). Logit-transformed values are displayed as applying the logit (inverse logistic) transformation to mitochondrial proportions yields approximately Gaussian distributions. Cells with mitochondrial proportions exceeding `r max_mito` are excluded from further analysis. 
+
+* `spliced pct.` : the proportion of spliced reads. In single-nuclei RNA sequencing, high spliced proportions may indicate inadequate removal of cytoplasmic material from the nuclei.
 Logit-transformed values are displayed as applying the logit  (inverse logistic) transformation to spliced proportions results in approximately Gaussian distributions.
 Cells with spliced proportions greater than `r max_splice` are excluded from further analysis. 
 

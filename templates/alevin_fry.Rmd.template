@@ -117,7 +117,7 @@ for (i in 1:length(slope_ratio_split_l) ) {
   samples = slope_ratio_split_l[[i]]
   name = sprintf('sample chunk #%d', i)
   knees = knee_dfs[samples]
-  cat('### ', name, '\n')
+  cat('#### ', name, '\n')
   print(plot_barcode_ranks_w_params(knees, ambient_knees_df, bender_priors_df = NULL))
   cat('\n\n')
 }
@@ -135,7 +135,7 @@ for (i in 1:length(exp_tot_ratio_split_l) ) {
   samples <- exp_tot_ratio_split_l[[i]]
   name <- sprintf('sample chunk #%d', i)
   knees <- knee_dfs[samples]
-  cat('### ', name, '\n')
+  cat('#### ', name, '\n')
   print(plot_barcode_ranks_w_params(knees, ambient_knees_df, bender_priors_df = NULL))
   cat('\n\n')
 }

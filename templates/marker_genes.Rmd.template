@@ -189,7 +189,7 @@ The resulting log 2 fold change values (calculated using edgeR) per cluster are 
 
 ```{r plot_canonical_markers_heatmap, fig.height = 9, fig.width = 10, results = 'asis'}
 for (nn in names(mkrs_ls)) {
-  cat("### ", nn, "\n")
+  cat("#### ", nn, "\n")
   draw( plot_heatmap_of_selected_genes(mkrs_dt, mkrs_ls[[nn]]),
     heatmap_legend_side = "bottom", annotation_legend_side = "bottom", merge_legend = TRUE )
   cat("\n\n")
@@ -205,7 +205,7 @@ n_pages = 10
 per_p   = 10
 p       = 1
 for (i in seq(1, n_pages * per_p, by = per_p)) {
-  cat('### page', p, '\n'); p = p + 1
+  cat('#### page', p, '\n'); p = p + 1
   sel_hvgs  = hvgs_dt[ i:(i + 9) ]
   print(plot_selected_genes(sel_hvgs, cpms_dt, cl_order = cl_ord))
   cat('\n\n')
@@ -219,7 +219,7 @@ Normalized pseudobulk expression values of top 100? marker genes with a minimum 
 
 ```{r plot_top_markers_pb_min, fig.height = 8, fig.width = 8, results = "asis"}
 for (sel_cl in cl_ord) {
-  cat('###', sel_cl, '\n')
+  cat('####', sel_cl, '\n')
   print(plot_top_marker_genes(sel_cl, top_min_dt, cpms_dt, cl_order = cl_ord))
   cat('\n\n')
 }
@@ -231,7 +231,7 @@ Normalized pseudobulk expression values of top 100? marker genes with FDR < 0.05
 
 ```{r plot_top_markers_pb, fig.height = 8, fig.width = 8, results = "asis"}
 for (sel_cl in cl_ord) {
-  cat('###', sel_cl, '\n')
+  cat('####', sel_cl, '\n')
   print(plot_top_marker_genes(sel_cl, top_dt, cpms_dt, cl_order = cl_ord))
   cat('\n\n')
 }
