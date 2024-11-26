@@ -4,7 +4,7 @@ import numpy as np
 import yaml
 import pandas as pd
 
-localrules: exclude_bad_cellbender_samples
+localrules: get_ambient_sample_statistics
 
 def parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, sample, amb_yaml_f, CELLBENDER_LEARNING_RATE):
 
@@ -192,7 +192,6 @@ if AMBIENT_METHOD == 'cellbender':
       fi
       """
 elif AMBIENT_METHOD == 'decontx':
-  localrules: run_ambient
   rule run_ambient:
     input:
       h5_f      = af_dir + '/af_{sample}/af_counts_mat.h5',

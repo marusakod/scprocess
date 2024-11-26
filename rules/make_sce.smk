@@ -89,7 +89,6 @@ if AMBIENT_METHOD == 'cellbender':
             n_cores     = {threads})"
       """
 else:
-  localrules: make_sce_object
   rule make_sce_object:
     input:
       sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv'

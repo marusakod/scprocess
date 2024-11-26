@@ -3,10 +3,8 @@ executor: slurm
 latency-wait: 10
 show-failed-logs: True
 keep-going: True
+scheduler: greedy
 printshellcmds: True
-rerun-incomplete: True
-max-jobs-per-second: 1
-max-status-checks-per-second: 10
 jobs: 20
 default-resources:
   runtime: 1h
