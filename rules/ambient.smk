@@ -149,10 +149,10 @@ if AMBIENT_METHOD == 'cellbender':
       cd $amb_dir
 
       # define output files
-      cb_full_f="{amb_dir)/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}.h5"
+      cb_full_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}.h5"
       cb_filt_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_filtered.h5"
-      cb_bcs_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv'
-      tmp_f=temp(amb_dir + '/ambient_{wildcards.sample}/ckpt.tar.gz')
+      cb_bcs_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
+      tmp_f="{output.tmp_f}"
 
       
       if [ $EXPECTED_CELLS -eq 0 ]; then
@@ -160,7 +160,7 @@ if AMBIENT_METHOD == 'cellbender':
         # run cellbender
         cellbender remove-background \
           --input {input.h5_f} \
-          --output {output.cb_full_f} \
+          --output $cb_full_f \
           --total-droplets-included $TOTAL_DROPLETS_INCLUDED \
           --low-count-threshold $LOW_COUNT_THRESHOLD \
           --learning-rate $LEARNING_RATE \
@@ -171,7 +171,7 @@ if AMBIENT_METHOD == 'cellbender':
         # run cellbender
         cellbender remove-background \
           --input {input.h5_f} \
-          --output {output.cb_full_f} \
+          --output $cb_full_f \
           --expected-cells $EXPECTED_CELLS \
           --total-droplets-included $TOTAL_DROPLETS_INCLUDED \
           --low-count-threshold $LOW_COUNT_THRESHOLD \

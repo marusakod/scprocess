@@ -34,13 +34,15 @@ echo snakemake ${SM_ARGS} \
   --configfile $configfile \
   --rerun-incomplete \
   --verbose \
-  --software-deployment-method conda apptainer \
-  $rule
+  --use-conda \
+  --use-singularity \
+  --singularity-args "--cleanenv --nv --bind /tmp,$proj_dir" $rule
 
  snakemake ${SM_ARGS} \
   --snakefile $snakefile \
   --configfile $configfile \
   --rerun-incomplete \
   --verbose \
-  --software-deployment-method conda apptainer \
-  $rule
+  --use-conda \
+  --use-singularity \
+  --singularity-args "--cleanenv --nv --bind /tmp,$proj_dir" $rule

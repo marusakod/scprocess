@@ -12,7 +12,6 @@ default-resources:
 set-resources:
   run_ambient:
     slurm_extra: "'--gpus=1'"
-set-resources:
   run_harmony:
     runtime: 6h
 
