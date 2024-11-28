@@ -45,7 +45,7 @@ def run_scsetup(sc_dir, snakefile, extraargs):
       f"cluster configuration file {profile_f} does not exist"
     
     # add snakemake flag
-    extraargs = extraargs + ' --worflow-profile ' + profile_dir
+    extraargs = extraargs + ' --workflow-profile ' + profile_dir
     
   # start snakemake
   subprocess.call(['bash', f'{sc_dir}/scsetup.sh', snakefile, os.path.abspath(configfile), extraargs])

@@ -80,7 +80,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
    f"{scsetup_csv} is missing; consider (re)running scsetup"
   
   # check if cluster profile is defined
-  setup_configfile = os.path.join(scprocess_data_dir, 'scprocess_setup.yaml')
+  setup_configfile = os.path.join(scprocess_data_dir, '.scprocess_setup.yaml')
   assert os.path.exists(setup_configfile), \
     f".scprocess_setup.yaml does not exist in {scprocess_data_dir}"
 
@@ -98,7 +98,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
       f"cluster configuration file {profile_f} does not exist"
     
     # add snakemake flag
-    extraargs = extraargs + ' --worflow-profile ' + profile_dir
+    extraargs = extraargs + ' --workflow-profile ' + profile_dir
 
 
   # check configfile exists
