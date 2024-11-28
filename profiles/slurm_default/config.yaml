@@ -3,15 +3,13 @@ executor: slurm
 latency-wait: 10
 show-failed-logs: True
 keep-going: True
-scheduler: greedy
+scheduler: greedy   
 printshellcmds: True
 jobs: 20
 default-resources:
   runtime: 3h
   mem_mb: 4096
 set-resources:
-  run_ambient:
-    slurm_extra: "'--gpus=1'"
   run_harmony:
-    runtime: 6h
+    runtime: 12h
 

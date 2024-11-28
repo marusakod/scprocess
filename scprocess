@@ -78,6 +78,28 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   
   assert os.path.isfile(scsetup_csv), \
    f"{scsetup_csv} is missing; consider (re)running scsetup"
+  
+  # check if cluster profile is defined
+  setup_configfile = os.path.join(scprocess_data_dir, 'scprocess_setup.yaml')
+  assert os.path.exists(setup_configfile), \
+    f".scprocess_setup.yaml does not exist in {scprocess_data_dir}"
+
+  with open(setup_configfile, "r") as stream:
+    setup_config      = yaml.safe_load(stream)
+
+  if ('profile' in setup_config) and setup_config['profile'] is not None:
+    profile = setup_config['profile']
+    
+    # check if profile exists
+    profile_dir = os.path.join(sc_dir, 'profiles', profile)
+    profile_f   = os.path.join(profile_dir, 'config.yaml')
+
+    assert os.path.isfile(profile_f), \
+      f"cluster configuration file {profile_f} does not exist"
+    
+    # add snakemake flag
+    extraargs = extraargs + ' --worflow-profile ' + profile_dir
+
 
   # check configfile exists
   assert os.path.exists(configfile), \
@@ -195,7 +217,4 @@ if __name__ == '__main__':
   # print(sc_dir, args.configfile, snakefile, rule)   
   # call bsub thing
   run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs)
-
-
-
 

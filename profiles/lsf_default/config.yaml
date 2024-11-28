@@ -1,0 +1,15 @@
+executor: lsf
+latency-wait: 10
+show-failed-logs: True
+keep-going: True
+scheduler: greedy   
+printshellcmds: True
+jobs: 20
+default-resources:
+  runtime: 3h  # change this with queue
+  mem_mb: 4096 #change this
+set-resources:
+  run_harmony:
+    runtime: 12h # change this with queue
+  run_ambient:
+    slurm_extra: "'--gpus=1'" # change this
