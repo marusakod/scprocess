@@ -68,8 +68,8 @@ if __name__ == '__main__':
   # get arguments
   args = parser.parse_args()
 
-  if args.knee_f:
-    knee_f = args.knee_f
+  if args.kneefile:
+    knee_f = args.kneefile
   else:
     assert args.configfile, "Either --configfile (-c) or --kneefile (-k) must be provided"
     
