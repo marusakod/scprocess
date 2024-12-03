@@ -14,7 +14,7 @@ SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 
 #configfile = '/Users/marusa/Projects/scprocess_test/configs/config-setup-test.yaml'
 # get parameters from configfile
-GENOMES_STR, FASTA_FS, GTF_FS, MITO_STRS, DECOYS = get_setup_parameters(config) 
+GENOMES_STR, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, RRNAS = get_setup_parameters(config) 
 GENOMES = GENOMES_STR.split(',')
 
 rule all:
