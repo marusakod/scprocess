@@ -12,6 +12,7 @@ genome:
   tenx:
     - name: human_2024 
     - decoys: True
+    - rrnas: True
   custom:
     - name: custom_genome_name
       fasta: '/path/to/genome.fa'
@@ -31,6 +32,16 @@ Names and specifications for custom references should be listed in the `custom` 
 Optional parameters for both `tenx` and `custom` references are:
 
 * `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `True` for all genomes. 
+
+Optional paramater specific for `tenx` references is:
+
+* `rrnas`: whether or not ribosomal RNAs should be included in the reference. If not specified it defaults to `True` for all `tenx` genomes.
+
+
+!!! note "Impact of custom parameters for `tenx` genomes on `scsetup` runtime"
+
+    When configuring `tenx` genomes with their default values, `scsetup` will download prebuilt indices optimized for `simpleaf`. However, if the default parameters are modified (e.g., setting `rrnas` or `decoys` to `False`), scsetup will build the indices from scratch during execution, which will increase the runtime.
+
 
 !!! info "More about decoys"
     {{ software_name }} utilizes `simpleaf`, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter in `scsetup` is set to `True`. This option allows `simpleaf` to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to [Srivastava et al., 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02151-8).

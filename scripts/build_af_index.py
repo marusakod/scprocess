@@ -28,11 +28,11 @@ def parse_setup_params_for_af(genome, params_csv):
   w_dcoy = 'no'
 
  # get zenodo urls for prebuild indices
- zenodo_idx_urls = { # change this urls
-   'human_2020': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2020-A.tar.gz", 
-   'human_2024': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2024-A.tar.gz", 
-   'mouse_2020': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-mm10-2020-A.tar.gz", 
-   'mouse_2024': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz"
+ zenodo_idx_urls = { 
+   'human_2020': "https://zenodo.org/records/14247195/files/alevin-idx_human_2020_rrna.tar.gz", 
+   'human_2024': "https://zenodo.org/records/14247195/files/alevin-idx_human_2024_rrna.tar.gz", 
+   'mouse_2020': "https://zenodo.org/records/14247195/files/alevin-idx_mouse_2020_rrna.tar.gz", 
+   'mouse_2024': "https://zenodo.org/records/14247195/files/alevin-idx_mouse_2024_rrna.tar.gz"
  }
 
  # check if prebuild genome is available
@@ -68,7 +68,7 @@ def make_af_idx(genome, params_csv, scprocess_data_dir, idx_url, cores):
     idx_name = f'alevin-idx_{genome}_rrna.tar.gz'
 
     # untar
-    subprocess.run(f'tar xvf {idx_name}', shell=True, capture_output=False)
+    subprocess.run(f'tar --strip-components=1 -xvf {idx_name}', shell=True, capture_output=False)
     # remove tar archive
     os.remove(idx_name)
 
