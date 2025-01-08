@@ -114,7 +114,7 @@ rule get_reference_genomes:
   threads: 1
   shell:
     """  
-    python3 scripts/setup.py get_genome_params {GENOMES_STR} {FASTA_FS} {GTF_FS} {MITO_STRS} {DECOYS} {SCPROCESS_DATA_DIR}
+    python3 scripts/setup.py get_genome_params {GENOMES_STR} {FASTA_FS} {GTF_FS} {MITO_STRS} {DECOYS} {RRNAS} {SCPROCESS_DATA_DIR}
     
     """
 

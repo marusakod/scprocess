@@ -38,15 +38,21 @@ def parse_setup_params_for_af(genome, params_csv):
  # check if prebuild genome is available
  idx_url = None
 
- if genome in zenodo_idx_urls and dcoy == 'yes' and rrna == True and fasta_f is None and gtf_f is None:
-   idx_url = zenodo_idx_urls[genome]
-
+ if (
+    genome in zenodo_idx_urls and 
+    dcoy and  # This works because `dcoy` is a boolean
+    rrna and  # This works because `rrna` is a boolean
+    (pd.isna(fasta_f) or fasta_f == "") and  # Check for NaN or empty string
+    (pd.isna(gtf_f) or gtf_f == "")         # Check for NaN or empty string
+ ):
+    idx_url = zenodo_idx_urls[genome]
+ 
  return fasta_f, gtf_f, w_dcoy, idx_url
 
 
 
 # function that makes simpleaf index
-def make_af_idx(genome, params_csv, scprocess_data_dir, idx_url, cores):
+def make_af_idx(genome, params_csv, scprocess_data_dir, cores):
   # get af params for combn
   fasta_f, gtf_f, w_dcoy, idx_url = parse_setup_params_for_af(genome, params_csv)
   

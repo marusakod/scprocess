@@ -122,7 +122,7 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, RRNAS, 
        f"More than one gtf.txt file found in {out_dir}"
       
       out_txt_f = os.path.join(out_dir, 'genes_gtf.txt.gz')
-      os.rename(txt_f, out_txt_f)
+      os.rename(txt_f[0], out_txt_f)
       gtf_txt_dict.update({n:out_txt_f})
 
     else:
@@ -155,7 +155,7 @@ def build_10x_genome_w_rrna(ref_dir, name):
    print(f"Creating {name} 10x genome with rRNAs")
  
    # get bash script to download gtf and fasta
-   bash_f = f"sripts/build_10x_style_genomes/build_10x_style_{name}_genome_w_rRNAs.sh"
+   bash_f = f"scripts/build_10x_style_genomes/build_10x_style_{name}_genome_w_rRNAs.sh"
    bash_f = os.path.realpath(bash_f)
 
    # create a new directory for the specified genome and switch to it
@@ -292,9 +292,8 @@ def list_of_strings(arg):
 
 def list_of_bools(arg):
     str_ls = arg.split(',')
-    bool_list = [bool(s) for s in str_ls]
+    bool_list = [True if s == 'True' else False for s in str_ls]
     return bool_list
-
 
 
   # make some functions executable from the command line (make_af_idx, get_genome_params, get_scprocess_data)
@@ -315,6 +314,7 @@ if __name__ == "__main__":
   parser_getgnomes.add_argument('gtf_fs', type=list_of_strings, help='list with paths to all gtf files')
   parser_getgnomes.add_argument('mito_str', type=list_of_strings, help='list with all mitochondrial gene identifiers')
   parser_getgnomes.add_argument('decoys', type=list_of_bools, help='list with bool values definiing whether or not to use decoys when building indices with simpleaf')
+  parser_getgnomes.add_argument('rrnas', type=list_of_bools, help='list with bool values definiing whether or not to include ribosomal rrnas for simpleaf index')
   parser_getgnomes.add_argument('scp_data_dir', type=str)
 
   args = parser.parse_args()
@@ -322,7 +322,7 @@ if __name__ == "__main__":
   if args.function_name == 'get_scprocess_data':
       get_scprocess_data(args.scp_data_dir)
   elif args.function_name == 'get_genome_params':
-      get_genome_params(args.genomes, args.fasta_fs, args.gtf_fs, args.mito_str, args.decoys, args.scp_data_dir)
+      get_genome_params(args.genomes, args.fasta_fs, args.gtf_fs, args.mito_str, args.decoys, args.rrnas, args.scp_data_dir)
   else:
     parser.print_help()
 
