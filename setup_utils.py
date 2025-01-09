@@ -25,6 +25,7 @@ def get_setup_parameters(config):
   all_genome_names = []
   all_fasta_fs     = []
   all_gtf_fs       = []
+  all_idx_dirs     = []
   all_mito_str     = []
   all_dcoys        = []
   all_rrnas        = []
@@ -33,14 +34,21 @@ def get_setup_parameters(config):
 
   if('tenx' in config['genome']):
     
-    names  = [entry['name'] for entry in config['genome']['tenx']]
-    decoys = [entry.get('decoys', None) for entry in config['genome']['tenx']]
-    rrnas  = [entry.get('rrnas', None) for entry in config['genome']['tenx']]
+    names      = [entry['name'] for entry in config['genome']['tenx']]
+    decoys     = [entry.get('decoys', None) for entry in config['genome']['tenx']]
+    rrnas      = [entry.get('rrnas', None) for entry in config['genome']['tenx']]
+    index_dirs = [entry.get('index_dir', None) for entry in config['genome']['tenx']]
     
     # check that all genome names are unique
     assert len(names) == len(set(names)), "Duplicated genome names are not allowed!"
     
     assert all(name in allowed_names for name in names), "unrecognized 10x genome name"
+
+    # check that all specified index dirs are valid
+    for idx_dir in index_dirs:
+      if idx_dir is not None:
+         assert check_valid_index(idx_dir), \
+          "Alevin index incomplete"
      
     # set defaults
     fasta_fs = ['None'] * len(names)
@@ -58,28 +66,37 @@ def get_setup_parameters(config):
     all_genome_names.extend(names)
     all_fasta_fs.extend(fasta_fs)
     all_gtf_fs.extend(gtf_fs)
+    all_idx_dirs.extend(index_dirs)
     all_mito_str.extend(mito_strs)
     all_dcoys.extend(decoys)
     all_rrnas.extend(rrnas)
 
     # check custom entries  
   if 'custom' in config['genome']:
-      # check if all required entries are specified
+    # check if all required entries are specified
 
     has_name_key      = ['name' in entry for entry in config['genome']['custom']]
     assert all(has_name_key), \
      "missing 'name' in custom genome specification"
-    has_fasta_key     = ['fasta' in entry for entry in config['genome']['custom']]
-    assert all(has_fasta_key), \
-     "missing 'fasta' in custom genome specification"
     has_gtf_key       = ['gtf' in entry for entry in config['genome']['custom']]
     assert all(has_gtf_key), \
      "missing 'gtf' in custom genome specification"
     has_mito_str_key  = ['mito_str' in entry for entry in config['genome']['custom']]
     assert all(has_mito_str_key), \
       "missing 'mito_str' in custom genome specification"
+    
+    # check that either 'fasta' or 'index_dir' is present in each entry
+    has_fasta_or_index_dir =  [('fasta' in entry or 'index dir' in entry) for entry in config['genome']['custom']]
+    assert all(has_fasta_or_index_dir), \
+        "Each custom genome requires either 'fasta' or 'index_dir'"
+    
+    # check for mutual exclusivity (don't allow both 'fasta' and 'index_dir')
+    no_both_fasta_and_index_dir = [not('fasta' in entry and 'index_dir' in entry) for entry in config['genome']['custom']]
+    assert all(no_both_fasta_and_index_dir), \
+        "Custom genome cannot have both 'fasta' and 'index_dir' defined at the same time"
+
         
-    cust_names = [entry['name'] for entry in config['genome']['custom']]
+    cust_names     = [entry['name'] for entry in config['genome']['custom']]
 
     # check that all genome names are unique
     assert len(cust_names) == len(set(cust_names)), "Duplicated genome names are not allowed!"
@@ -90,6 +107,7 @@ def get_setup_parameters(config):
 
     cust_fastas =  [entry['fasta'] for entry in config['genome']['custom']]
     cust_gtfs =  [entry['gtf'] for entry in config['genome']['custom']]
+    cust_index_dirs = [entry.get('index_dir', None) for entry in config['genome']['custom']]
     cust_mito_strs = [entry['mito_str'] for entry in config['genome']['custom']]
       
     # get decoys
@@ -102,20 +120,28 @@ def get_setup_parameters(config):
     cust_params_ls_len = {len(lst) for lst in [cust_names, cust_fastas, cust_gtfs, cust_mito_strs, cust_decoys]}
     assert len(cust_params_ls_len) == 1, "custom parameters don't have the same lengths"
     
-    #check if fasta and gtf files exist
+    # check if all specified fastas exist
     for fa in cust_fastas:
-      assert os.path.isfile(fa), \
-        f"file {fa} specified in configfile doesn't exist"
-          
+      if fa is not None:
+        assert os.path.isfile(fa), \
+          f"file {fa} specified in configfile doesn't exist"
+      
+    # check if all specified index directories are ok
+    for idx_dir in cust_index_dirs:
+      if idx_dir is not None:
+         assert check_valid_index(idx_dir), \
+          "Alevin index incomplete"
+
+    # check if gtf files exist
     for gtf in cust_gtfs:
       assert os.path.isfile(gtf), \
         f"file {gtf} specified in configfile doesn't exist"
         
-
     # update params lists
     all_genome_names.extend(cust_names)
     all_fasta_fs.extend(cust_fastas)
     all_gtf_fs.extend(cust_gtfs)
+    all_idx_dirs.extend(cust_index_dirs)
     all_mito_str.extend(cust_mito_strs)
     all_dcoys.extend(cust_decoys)
     all_rrnas.extend(cust_rrnas)
@@ -144,6 +170,38 @@ def get_setup_parameters(config):
   # return lists with all params
   return genome_names_str, fasta_fs_str, gtf_fs_str, mito_one_str, decoys_str, rrnas_str
 
+
+def check_valid_index(idx_path):
+   
+    # check if main directory exists
+    if not os.path.isdir(idx_path):
+        raise ValueError(f"The provided path '{idx_path}' is not a valid directory.")
+
+    # define expected directories and files
+    req_dirs = {
+        "index_dir": os.path.join(idx_path, 'index'),
+        "ref_dir": os.path.join(idx_path, 'ref')
+    }
+    req_fs = {
+        "index_info.json": os.path.join(idx_path, 'index_info.json'),
+        "simpleaf_index_log.json": os.path.join(idx_path, 'simpleaf_index_log.json'),
+        "gene_id_to_name.tsv": os.path.join(req_dirs["ref_dir"], 'gene_id_to_name.tsv'),
+        "roers_make-ref.json": os.path.join(req_dirs["ref_dir"], 'roers_make-ref.json'),
+        "roers_ref.fa": os.path.join(req_dirs["ref_dir"], 'roers_ref.fa'),
+        "t2g_3col.tsv": os.path.join(req_dirs["ref_dir"], 't2g_3col.tsv')
+    }
+
+    # Check required directories
+    for dir_name, dir_path in req_dirs.items():
+        if not os.path.isdir(dir_path):
+            raise ValueError(f"The required directory '{dir_name}' is missing at '{idx_path}'.")
+
+    # Check required files
+    missing_fs = [file_name for file_name, file_path in req_fs.items() if not os.path.isfile(file_path)]
+    if missing_fs:
+        raise ValueError(f"The following required files are missing: {', '.join(missing_fs)}")
+
+    return True
 
 
   

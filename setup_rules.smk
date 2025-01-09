@@ -14,7 +14,7 @@ SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 
 #configfile = '/Users/marusa/Projects/scprocess_test/configs/config-setup-test.yaml'
 # get parameters from configfile
-GENOMES_STR, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, RRNAS = get_setup_parameters(config) 
+GENOMES_STR, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DECOYS, RRNAS = get_setup_parameters(config) 
 GENOMES = GENOMES_STR.split(',')
 
 rule all:
@@ -114,7 +114,7 @@ rule get_reference_genomes:
   threads: 1
   shell:
     """  
-    python3 scripts/setup.py get_genome_params {GENOMES_STR} {FASTA_FS} {GTF_FS} {MITO_STRS} {DECOYS} {RRNAS} {SCPROCESS_DATA_DIR}
+    python3 scripts/setup.py get_genome_params {GENOMES_STR} {FASTA_FS} {GTF_FS} {INDEX_DIRS} {MITO_STRS} {DECOYS} {RRNAS} {SCPROCESS_DATA_DIR}
     
     """
 

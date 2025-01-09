@@ -11,8 +11,10 @@ The command requires a configuration file named `.scprocess_setup.yaml` located 
 genome:
   tenx:
     - name: human_2024 
-    - decoys: True
-    - rrnas: True
+      decoys: True
+      rrnas: True
+    - name: mouse_2024
+      index_dir: /path/to/prebuild/alevin/index
   custom:
     - name: custom_genome_name
       fasta: '/path/to/genome.fa'
@@ -25,22 +27,25 @@ Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded w
 
 Names and specifications for custom references should be listed in the `custom` section of the `.scprocess_setup.yaml` file. For each `custom` genome users have to provide the following parameters:
 
-* `fasta`: path to FASTA file 
+* one of:
+    + `fasta`: path to FASTA file
+    + `index_dir`: path to prebuild alevin index; when specified `decoys` option is ignored
 * `gtf`: path to GTF file [(specific format?)]
 * `mito_str`: regular expression used to identify genes in the mitochondial genome (example for mouse: `"^mt-"`)
 
 Optional parameters for both `tenx` and `custom` references are:
 
-* `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `True` for all genomes. 
+* `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `True` for all genomes.
 
-Optional paramater specific for `tenx` references is:
+Optional paramaters for `tenx` references are:
 
 * `rrnas`: whether or not ribosomal RNAs should be included in the reference. If not specified it defaults to `True` for all `tenx` genomes.
+* `index_dir`: path to prebuild alevin index; when specified `rrnas` and `decoys` options are ignored. 
 
 
 !!! note "Impact of custom parameters for `tenx` genomes on `scsetup` runtime"
 
-    When configuring `tenx` genomes with their default values, `scsetup` will download prebuilt indices optimized for `simpleaf`. However, if the default parameters are modified (e.g., setting `rrnas` or `decoys` to `False`), scsetup will build the indices from scratch during execution, which will increase the runtime.
+    When configuring `tenx` genomes with their default values, `scsetup` will download prebuilt indices optimized for `simpleaf`. However, if the default parameters are modified (e.g., setting `rrnas` or `decoys` to `False`), `scsetup` will build the indices from scratch during execution, which will increase the runtime.
 
 
 !!! info "More about decoys"
