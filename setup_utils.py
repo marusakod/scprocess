@@ -37,23 +37,17 @@ def get_setup_parameters(config):
     names      = [entry['name'] for entry in config['genome']['tenx']]
     decoys     = [entry.get('decoys', None) for entry in config['genome']['tenx']]
     rrnas      = [entry.get('rrnas', None) for entry in config['genome']['tenx']]
-    index_dirs = [entry.get('index_dir', 'None') for entry in config['genome']['tenx']]
     
     # check that all genome names are unique
     assert len(names) == len(set(names)), "Duplicated genome names are not allowed!"
     
     assert all(name in allowed_names for name in names), "unrecognized 10x genome name"
-
-    # check that all specified index dirs are valid
-    for idx_dir in index_dirs:
-      if idx_dir is not None:
-         assert check_valid_index(idx_dir), \
-          "Alevin index incomplete"
      
     # set defaults
     fasta_fs = ['None'] * len(names)
     gtf_fs = ['None'] * len(names)
     mito_strs = ['None'] * len(names)
+    index_dirs = ['None'] * len(names)
     
     decoys = [True if d is None else d for d in decoys]
     rrnas  = [True if r is None else r for r in rrnas]

@@ -13,14 +13,16 @@ genome:
     - name: human_2024 
       decoys: True
       rrnas: True
-    - name: mouse_2024
-      index_dir: /path/to/prebuild/alevin/index
   custom:
     - name: custom_genome_name
-      fasta: '/path/to/genome.fa'
-      gtf: '/path/to/genes.gtf'
+      fasta: /path/to/genome.fa
+      gtf: /path/to/genes.gtf
       decoys: True
       mito_str: "^mt-"
+    - name: custom_genome_name2
+      index_dir: /path/to/prebuild/alevin/index
+      gtf: /path/to/genes.gtf
+      mito_str: "^MT-"
 ```
 
 Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with `scsetup` by adding `tenx` to the `.scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.  
@@ -37,11 +39,9 @@ Optional parameters for both `tenx` and `custom` references are:
 
 * `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `True` for all genomes.
 
-Optional paramaters for `tenx` references are:
+Optional paramater for `tenx` references is:
 
 * `rrnas`: whether or not ribosomal RNAs should be included in the reference. If not specified it defaults to `True` for all `tenx` genomes.
-* `index_dir`: path to prebuild alevin index; when specified `rrnas` and `decoys` options are ignored. 
-
 
 !!! note "Impact of custom parameters for `tenx` genomes on `scsetup` runtime"
 

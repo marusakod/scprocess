@@ -48,19 +48,6 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DEC
 
     # download all required genomes from 10x
     for n in names:
-      # if index dir exists make symlinks (ignore values for decoys and rrna)
-      idx_dir = idx_dict[n]
-
-      if idx_dir != 'None':
-        print(f"Using premade index for {n}. Ignoring 'decoys' and 'rrnas' parameters")
-        af_idx_dir = os.path.join(af_dir, n)
-        os.makedirs(af_idx_dir, exist_ok=True)
-        
-        print(idx_dir)
-        print(af_idx_dir)
-        create_idx_symlinks(idx_dir, af_idx_dir)
-      
-      else:
         # if rna and decoy download a prebuild index
         dcoys = decoys_dict[n]
         rrnas = rrnas_dict[n]
