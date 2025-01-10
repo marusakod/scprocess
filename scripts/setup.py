@@ -51,11 +51,13 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DEC
       # if index dir exists make symlinks (ignore values for decoys and rrna)
       idx_dir = idx_dict[n]
 
-      if idx_dir is not None:
+      if idx_dir != 'None':
         print(f"Using premade index for {n}. Ignoring 'decoys' and 'rrnas' parameters")
         af_idx_dir = os.path.join(af_dir, n)
         os.makedirs(af_idx_dir, exist_ok=True)
-
+        
+        print(idx_dir)
+        print(af_idx_dir)
         create_idx_symlinks(idx_dir, af_idx_dir)
       
       else:
@@ -315,23 +317,25 @@ def save_gtf_as_txt(gtf_f, gtf_txt_f):
     return
 
 
-
 def create_idx_symlinks(src_dir, target_dir):
-    
-  for item in os.listdir(src_dir):
-    src_path = os.path.join(src_dir, item)
-    dest_path = os.path.join(target_dir, item)
-
-    # Create symlink if it doesn't already exist
-    if not os.path.exists(dest_path):
-      if os.path.isdir(src_path):
-        os.symlink(src_path, dest_path, target_is_directory=True)
-      else:
-        os.symlink(src_path, dest_path)
-    else:
-      print(f"Symlink already exists: {dest_path}")
-
-  return
+    for root, _, files in os.walk(src_dir): 
+        # get relative path from src_dir to current directory
+        rel_path = os.path.relpath(root, src_dir)
+        
+        # map relative path to target_dir
+        target_root = os.path.join(target_dir, rel_path)
+        
+        os.makedirs(target_root, exist_ok=True)
+        
+        # create symlinks for files
+        for f in files:
+            src_file_path = os.path.join(root, f)
+            target_file_path = os.path.join(target_root, f)
+            
+            if not os.path.exists(target_file_path):
+                os.symlink(src_file_path, target_file_path)
+            else:
+                print(f"Symlink already exists: {target_file_path}")
 
 
 
@@ -360,6 +364,7 @@ if __name__ == "__main__":
   parser_getgnomes.add_argument('genomes', type=list_of_strings, help='list with all genome names')
   parser_getgnomes.add_argument('fasta_fs', type=list_of_strings, help='list with paths to all fasta files')
   parser_getgnomes.add_argument('gtf_fs', type=list_of_strings, help='list with paths to all gtf files')
+  parser_getgnomes.add_argument('idx_dirs', type =list_of_strings, help='list with paths to prebuild alevin indices' )
   parser_getgnomes.add_argument('mito_str', type=list_of_strings, help='list with all mitochondrial gene identifiers')
   parser_getgnomes.add_argument('decoys', type=list_of_bools, help='list with bool values definiing whether or not to use decoys when building indices with simpleaf')
   parser_getgnomes.add_argument('rrnas', type=list_of_bools, help='list with bool values definiing whether or not to include ribosomal rrnas for simpleaf index')
@@ -370,7 +375,7 @@ if __name__ == "__main__":
   if args.function_name == 'get_scprocess_data':
       get_scprocess_data(args.scp_data_dir)
   elif args.function_name == 'get_genome_params':
-      get_genome_params(args.genomes, args.fasta_fs, args.gtf_fs, args.mito_str, args.decoys, args.rrnas, args.scp_data_dir)
+      get_genome_params(args.genomes, args.fasta_fs, args.gtf_fs, args.idx_dirs, args.mito_str, args.decoys, args.rrnas, args.scp_data_dir)
   else:
     parser.print_help()
 

@@ -9,6 +9,7 @@ import warnings
 
 
 from setup_utils import get_setup_parameters
+from setup_utils import check_valid_index
 
 SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 

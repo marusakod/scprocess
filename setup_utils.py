@@ -10,8 +10,8 @@ import numpy as np
 
 def get_setup_parameters(config):
 
-  # open configfile
-  #with open(configfile, "r") as stream:
+  # # open configfile
+  # with open(configfile, "r") as stream:
   #  config      = yaml.safe_load(stream)
 
   # check that genome is in config
@@ -37,7 +37,7 @@ def get_setup_parameters(config):
     names      = [entry['name'] for entry in config['genome']['tenx']]
     decoys     = [entry.get('decoys', None) for entry in config['genome']['tenx']]
     rrnas      = [entry.get('rrnas', None) for entry in config['genome']['tenx']]
-    index_dirs = [entry.get('index_dir', None) for entry in config['genome']['tenx']]
+    index_dirs = [entry.get('index_dir', 'None') for entry in config['genome']['tenx']]
     
     # check that all genome names are unique
     assert len(names) == len(set(names)), "Duplicated genome names are not allowed!"
@@ -156,11 +156,16 @@ def get_setup_parameters(config):
     all_genome_names.append('human_2024')
     all_dcoys.append('True')
     all_rrnas.append('True')
+    all_fasta_fs.append('None')
+    all_gtf_fs.append('None')
+    all_idx_dirs.append('None')
+    all_mito_str.append('None')
 
 
    # convert all lists to a single string with commas between elements
   genome_names_str = ','.join(all_genome_names)
   fasta_fs_str     = ','.join(all_fasta_fs)
+  idx_dirs_str     = ','.join(all_idx_dirs)
   gtf_fs_str       = ','.join(all_gtf_fs)
   mito_one_str     = ','.join(all_mito_str)
   decoys_str       = ','.join(all_dcoys)
@@ -168,8 +173,7 @@ def get_setup_parameters(config):
 
 
   # return lists with all params
-  return genome_names_str, fasta_fs_str, gtf_fs_str, mito_one_str, decoys_str, rrnas_str
-
+  return genome_names_str, fasta_fs_str, gtf_fs_str, idx_dirs_str, mito_one_str, decoys_str, rrnas_str
 
 def check_valid_index(idx_path):
    
@@ -202,6 +206,5 @@ def check_valid_index(idx_path):
         raise ValueError(f"The following required files are missing: {', '.join(missing_fs)}")
 
     return True
-
 
   
