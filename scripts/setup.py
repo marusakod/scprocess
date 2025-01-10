@@ -26,10 +26,6 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DEC
   ref_dir = os.path.join(SCPROCESS_DATA_DIR, 'reference_genomes')
   os.makedirs(ref_dir, exist_ok = True)
 
-  #create directory for alevin indices inside scprocess data
-  af_dir = os.path.join(SCPROCESS_DATA_DIR, 'alevin_fry_home')
-  os.makedirs(af_dir, exist_ok= True)
-
   # sort out predefined genomes
   pre_gnomes = {'human_2020', 'human_2024','mouse_2020', 'mouse_2024'}
   all_gnomes = set(GENOME_NAMES)
@@ -53,8 +49,8 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DEC
         rrnas = rrnas_dict[n]
       
         if dcoys and rrnas:
-          fasta_dict[n] = None
-          gtf_dict[n] = None
+          fasta_dict[n] = 'None'
+          gtf_dict[n] = 'None'
 
         elif not dcoys and rrnas:
           gnome_fs = build_10x_genome_w_rrna(ref_dir = ref_dir, name = n)
@@ -96,12 +92,8 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DEC
       gtf_dict[cn] = gtf_sym
       
       # create symlink to index if exists othewise symlink to fasta
-      if cn_idx_dir is not None:
-        print(f"Using premade index for {cn}. Ignoring 'decoys' parameter")
-        cn_af_idx_dir = os.path.join(af_dir, n)
-        os.makedirs(cn_af_idx_dir, exist_ok=True)
-
-        create_idx_symlinks(cn_idx_dir, cn_af_idx_dir)
+      if cn_idx_dir !=  'None':
+        print(f"Premade index will be used for {cn}. Ignoring 'decoys' parameter")
         
       else:
         fasta_sym = os.path.join(cn_ref_dir, 'genes.fa')
@@ -118,7 +110,7 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DEC
 
   for n, gtf in gtf_dict.items():
 
-    if gtf is None:
+    if gtf == 'None':
        
       zenodo_gtf_urls ={ 
         'human_2020': "https://zenodo.org/records/14247195/files/human_2020_rrna_genes_gtf.txt.gz", 
@@ -153,12 +145,13 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DEC
 
 
   # create one dataframe from all dictionaries 
-  PARAMS_DF = pd.DataFrame([fasta_dict, gtf_dict, gtf_txt_dict, mito_str_dict, decoys_dict, rrnas_dict])
+  PARAMS_DF = pd.DataFrame([fasta_dict, idx_dict, gtf_dict, gtf_txt_dict, mito_str_dict, decoys_dict, rrnas_dict])
   PARAMS_DF = PARAMS_DF.T
-  PARAMS_DF.columns = ['fasta_f', 'gtf_f', 'gtf_txt_f', 'mito_str', 'decoy', 'rrna']
+  PARAMS_DF.columns = ['fasta_f', 'index_dir', 'gtf_f', 'gtf_txt_f', 'mito_str', 'decoy', 'rrna']
   PARAMS_DF.index.name = 'genome_name'
   PARAMS_DF.reset_index(inplace=True)
-  
+  PARAMS_DF.replace('None', np.nan, inplace=True)  
+
   out_csv_f = os.path.join(SCPROCESS_DATA_DIR, 'setup_parameters.csv')
   PARAMS_DF.to_csv(out_csv_f, index = False)
   
@@ -302,28 +295,6 @@ def save_gtf_as_txt(gtf_f, gtf_txt_f):
         gene_annots_sorted.to_csv(f, sep='\t', index=False)
         
     return
-
-
-def create_idx_symlinks(src_dir, target_dir):
-    for root, _, files in os.walk(src_dir): 
-        # get relative path from src_dir to current directory
-        rel_path = os.path.relpath(root, src_dir)
-        
-        # map relative path to target_dir
-        target_root = os.path.join(target_dir, rel_path)
-        
-        os.makedirs(target_root, exist_ok=True)
-        
-        # create symlinks for files
-        for f in files:
-            src_file_path = os.path.join(root, f)
-            target_file_path = os.path.join(target_root, f)
-            
-            if not os.path.exists(target_file_path):
-                os.symlink(src_file_path, target_file_path)
-            else:
-                print(f"Symlink already exists: {target_file_path}")
-
 
 
 def list_of_strings(arg):

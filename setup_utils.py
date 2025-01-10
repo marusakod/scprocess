@@ -80,7 +80,7 @@ def get_setup_parameters(config):
       "missing 'mito_str' in custom genome specification"
     
     # check that either 'fasta' or 'index_dir' is present in each entry
-    has_fasta_or_index_dir =  [('fasta' in entry or 'index dir' in entry) for entry in config['genome']['custom']]
+    has_fasta_or_index_dir =  [('fasta' in entry or 'index_dir' in entry) for entry in config['genome']['custom']]
     assert all(has_fasta_or_index_dir), \
         "Each custom genome requires either 'fasta' or 'index_dir'"
     
@@ -99,9 +99,9 @@ def get_setup_parameters(config):
     assert len(set(cust_names) & set(allowed_names)) == 0, \
       "Some names for custom genomes overlap names for 10x genomes; please define other names for custom genomes"
 
-    cust_fastas =  [entry['fasta'] for entry in config['genome']['custom']]
+    cust_fastas =  [entry.get('fasta', 'None') for entry in config['genome']['custom']]
     cust_gtfs =  [entry['gtf'] for entry in config['genome']['custom']]
-    cust_index_dirs = [entry.get('index_dir', None) for entry in config['genome']['custom']]
+    cust_index_dirs = [entry.get('index_dir', 'None') for entry in config['genome']['custom']]
     cust_mito_strs = [entry['mito_str'] for entry in config['genome']['custom']]
       
     # get decoys
@@ -116,13 +116,13 @@ def get_setup_parameters(config):
     
     # check if all specified fastas exist
     for fa in cust_fastas:
-      if fa is not None:
+      if fa != 'None':
         assert os.path.isfile(fa), \
           f"file {fa} specified in configfile doesn't exist"
       
     # check if all specified index directories are ok
     for idx_dir in cust_index_dirs:
-      if idx_dir is not None:
+      if idx_dir != 'None':
          assert check_valid_index(idx_dir), \
           "Alevin index incomplete"
 
