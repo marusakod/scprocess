@@ -160,7 +160,7 @@ rule run_alevin_fry:
     R2_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.sample, "R2"),
     hto_R1_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.sample, "R1") if check_multiplexing(wildcards.sample, POOL_IDS, DEMUX_TYPE) else None,
     hto_R2_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.sample, "R2") if check_multiplexing(wildcards.sample, POOL_IDS, DEMUX_TYPE) else None, 
-    t2g_f         = af_dir + '/t2g_adt.tsv' if check_multiplexing(wildcards.sample, POOL_IDS, DEMUX_TYPE) else None
+    t2g_f         = lambda wildcards: af_dir + '/t2g_adt.tsv' if check_multiplexing(wildcards.sample, POOL_IDS, DEMUX_TYPE) else None
   threads: 8
   retries: RETRIES
   resources:
@@ -169,7 +169,7 @@ rule run_alevin_fry:
     af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[0],
     exp_ori       = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[1],
     whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[2],
-    demultiplex   = lambda wildcards: if check_multiplexing(wildcards.sample, POOL_IDS, DEMUX_TYPE) else 0
+    demultiplex   = lambda wildcards: 1 if check_multiplexing(wildcards.sample, POOL_IDS, DEMUX_TYPE) else 0
   output:
     fry_dir     = directory(af_dir + '/af_{sample}/af_quant/'),
     rad_f       = temp(af_dir + '/af_{sample}/af_map/map.rad'),

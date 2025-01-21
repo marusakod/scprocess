@@ -619,9 +619,9 @@ def get_multiplexing_parameters(config, PROJ_DIR, SAMPLES):
       # check if feature reference file has necesarry columns
       feature_ref = pd.read_csv(FEATURE_REF)
       assert all(col in feature_ref.columns for col in ["hto_id", "sequence"])
-      assert all(feature_ref["hto_id"].value_counts == 1), \
+      assert all(feature_ref["hto_id"].value_counts() == 1), \
        "hto_id values in feature reference csv file not unique"
-      hto_ids = feature_ref["hto_id"]
+      hto_ids = feature_ref["hto_id"].tolist()
 
       # check if all hto_id values in sample metadata match the ones in feature reference
       assert all(hto in hto_ids for hto in list(set(sample_df["hto_id"]))), \
