@@ -13,6 +13,10 @@ SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 # get parameters
 PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES = \
   get_project_parameters(config, SCPROCESS_DATA_DIR)
+
+# exclude all samples without fastq files
+SAMPLES       = exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES)
+
 AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY = \
   get_alevin_parameters(config, SCPROCESS_DATA_DIR, SPECIES)
 CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
@@ -34,6 +38,8 @@ LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL
 ZOOM_NAMES, ZOOM_SPEC_LS = get_zoom_parameters(config, AF_MITO_STR, SCPROCESS_DATA_DIR)
 META_SUBSETS, META_MAX_CELLS = get_metacells_parameters(config)
 PB_SUBSETS, PB_DO_ALL = get_pb_empties_parameters(config)
+DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, HTO_METADATA_F, \
+DUMUX_F, BATCH_VAR, POOL_IDS = get_multiplexing_parameters(config, PROJ_DIR, SAMPLES)
 RETRIES, MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
   MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
   MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
@@ -72,8 +78,6 @@ zoom_df       = pd.DataFrame({ \
  'zoom_res': [ ZOOM_SPEC_LS[ zn ][ 'zoom_res' ] for zn in ZOOM_NAMES] \
  })
 
-# exclude any samples without fastq files
-SAMPLES       = exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES)
 # join all samples into a single string
 SAMPLE_STR = ','.join(SAMPLES)
 

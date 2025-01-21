@@ -547,6 +547,130 @@ def get_zoom_parameters(config, MITO_STR, scprocess_data_dir):
   return ZOOM_NAMES, ZOOM_SPEC_LS
 
 
+def get_multiplexing_parameters(config, PROJ_DIR, SAMPLES):
+  #set defaults
+  DEMUX_TYPE     = None
+  HTO_FASTQ_DIR  = None
+  FEATURE_REF    = None
+  HTO_METADATA_F = None
+  DUMUX_F        = None
+  BATCH_VAR      = "sample_id"
+  POOL_IDS       = None
+  
+  if ('multiplexing' in config) and (config['multiplexing'] is not None):
+    assert 'sample_metadata' in config['multiplexing'], \
+       "path to sample metadata missing in the 'multiplexing' section of the config file"
+    HTO_METADATA_F  = config['multiplexing']['sample_metadata']
+
+    if not os.path.isabs(HTO_METADATA_F):
+      HTO_METADATA_F = os.path.join(PROJ_DIR, HTO_METADATA_F)
+      
+    assert os.path.isfile(HTO_METADATA_F), \
+      f"sample metadata file {HTO_METADATA_F} doesn't exist"
+    
+    sample_df   = pd.read_csv(HTO_METADATA_F)
+
+    assert 'demux_type' in config['multiplexing']
+    DEMUX_TYPE = config['multiplexing']['demux_type']
+    assert DEMUX_TYPE in ["af", "custom"], \
+      "Invalid value of 'demux_type' parameter. Must be either 'af' or 'custom'"
+    
+    if DEMUX_TYPE == 'af':
+      # check if fastqs and feature ref are specified and valid
+      assert 'fastq_dir' in config['multiplexing'], \
+       "path to directory with antibody capture fastq files not specified in the config file"
+      
+      assert 'feature_ref' in config['multiplexing'], \
+       "path to feature reference csv file not specified in the config file"
+      
+      HTO_FASTQ_DIR   = config['multiplexing']['fastq_dir']
+      FEATURE_REF     = config['multiplexing']['feature_ref']
+
+      # check if valid
+      if not os.path.isabs(HTO_FASTQ_DIR): 
+        HTO_FASTQ_DIR = os.path.join(PROJ_DIR, HTO_FASTQ_DIR)
+      
+      assert os.path.isdir(HTO_FASTQ_DIR), \
+        f"fastq_dir {HTO_FASTQ_DIR} is not valid"
+      
+      if not os.path.isabs(FEATURE_REF):
+        FEATURE_REF = os.path.join(PROJ_DIR, FEATURE_REF)
+      
+      assert os.path.isfile(FEATURE_REF), \
+        f"feature reference file {FEATURE_REF} doesn't exist"
+      
+      # check metadata
+      for col in ["pool_id", "sample_id", "hto_id"]:
+        assert col in sample_df.columns, \
+         f"{col} not present in sample metadata"
+   
+      assert all(sample_df[ "sample_id" ].value_counts() == 1), \
+        "sample_id values in metadata csv not unique"
+      
+      POOL_IDS = list(set(sample_df["pool_id"]))
+      assert all(s in SAMPLES for s in POOL_IDS), \
+        "One or more values of 'pool_id' in sample metadata don't match 'sample_id' in the main sample metdata file"
+      
+      # check that fastq files exist for all pooled samples
+      hto_samples_ls  = exclude_samples_without_fastq_files(HTO_FASTQ_DIR, POOL_IDS)
+      assert len(hto_samples_ls) == len(POOL_IDS), \
+        "One or more pooled samples are missing fastq files in {HTO_FASTQ_DIR}"
+            
+      # check if feature reference file has necesarry columns
+      feature_ref = pd.read_csv(FEATURE_REF)
+      assert all(col in feature_ref.columns for col in ["hto_id", "sequence"])
+      assert all(feature_ref["hto_id"].value_counts == 1), \
+       "hto_id values in feature reference csv file not unique"
+      hto_ids = feature_ref["hto_id"]
+
+      # check if all hto_id values in sample metadata match the ones in feature reference
+      assert all(hto in hto_ids for hto in list(set(sample_df["hto_id"]))), \
+        "One or more 'hto_id' values in sample metadata don't match 'hto_id' values in the feature reference csv file"
+      
+    else:
+      assert 'demux_tbl' in config['multiplexing'], \
+       "path to csv file with demultiplexing information is missing"
+      
+      DEMUX_F = config['multiplexing']['demux_tbl']
+      # check if valid
+      if not os.path.isabs(DEMUX_F):
+       DEMUX_F = os.path.join(PROJ_DIR, DEMUX_F)
+
+      assert os.path.isfile(DEMUX_F), \
+       f"file {DEMUX_F} doesn't exist"
+      
+      # check metadata
+      for col in ["pool_id", "sample_id"]:
+        assert col in sample_df.columns, \
+         f"{col} not present in sample metadata"
+   
+      assert all(sample_df[ "sample_id" ].value_counts() == 1), \
+        "sample_id values in metadata csv not unique"
+       
+      demux_dt = pd.read_csv(DEMUX_F)
+      for col in ["pool_id", "sample_id", "cell_id"]:
+        assert col in demux_dt.columns, \
+        f"{col} not present in 'demux_dt"
+
+      # check if samples in metadata and demux_dt match
+      assert set(demux_dt['sample_id']) == set(sample_df['sample_id']), \
+        "Unique values for 'sample_id' don't match in 'demux_dt' and 'sample_metadata'"
+
+      POOL_IDS = list(set(demux_dt["pool_id"]))
+      assert all(s in SAMPLES for s in POOL_IDS), \
+        "One or more values of 'pool_id' in 'demux_dt' don't match 'sample_id' in the main sample metdata file"
+      
+    if 'batch_var' in config['multiplexing']:
+      BATCH_VAR = config['multiplexing']['batch_var']
+      assert BATCH_VAR in ["sample_id", "pool_id"], \
+       "Invalid value of 'batch_var' parameter. Must be either 'sample_id' or 'pool_id'"
+      
+  return DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, HTO_METADATA_F, DUMUX_F, BATCH_VAR, POOL_IDS
+
+      
+
+
+  
 # get rule resource parameters
 def get_resource_parameters(config):
   # set default values
