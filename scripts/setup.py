@@ -12,15 +12,16 @@ import numpy as np
 
 #configfile = '/Users/marusa/Projects/scprocess_test/configs/config-setup-template.yaml'
 
-def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCESS_DATA_DIR):
+def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DECOYS, RRNAS, SCPROCESS_DATA_DIR):
 
   # make dictionaries with all parameters that will be updated later
-  fasta_dict = dict(zip(GENOME_NAMES, FASTA_FS))
-  gtf_dict = dict(zip(GENOME_NAMES, GTF_FS))
+  fasta_dict    = dict(zip(GENOME_NAMES, FASTA_FS))
+  gtf_dict      = dict(zip(GENOME_NAMES, GTF_FS))
+  idx_dict      = dict(zip(GENOME_NAMES, INDEX_DIRS))
   mito_str_dict = dict(zip(GENOME_NAMES, MITO_STRS))
-  decoys_dict = dict(zip(GENOME_NAMES, DECOYS))
-
-
+  decoys_dict   = dict(zip(GENOME_NAMES, DECOYS))
+  rrnas_dict    = dict(zip(GENOME_NAMES, RRNAS))
+  
   # crete directory for reference genomes inside scprocess data
   ref_dir = os.path.join(SCPROCESS_DATA_DIR, 'reference_genomes')
   os.makedirs(ref_dir, exist_ok = True)
@@ -33,7 +34,7 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
   names = list(pre_gnomes & all_gnomes)
   
   if(len(names) != 0):
-    
+
     refs_10x_links_dict ={
       'human_2020': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2020-A.tar.gz", 
       'human_2024': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2024-A.tar.gz", 
@@ -43,13 +44,27 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
 
     # download all required genomes from 10x
     for n in names:
-      l = refs_10x_links_dict[n]
-      gnome_fs = get_predefined_gnomes(ref_dir= ref_dir, name = n, link = l )
-      # add fasta_f and gtf_f to dicts
-      fasta_dict[n] =  gnome_fs[1]
-      gtf_dict[n] = gnome_fs[0]
+        # if rna and decoy download a prebuild index
+        dcoys = decoys_dict[n]
+        rrnas = rrnas_dict[n]
+      
+        if dcoys and rrnas:
+          fasta_dict[n] = 'None'
+          gtf_dict[n] = 'None'
+
+        elif not dcoys and rrnas:
+          gnome_fs = build_10x_genome_w_rrna(ref_dir = ref_dir, name = n)
+          fasta_dict[n] = gnome_fs[1]
+          gtf_dict[n] = gnome_fs[0]
+
+        else:
+          l = refs_10x_links_dict[n]
+          gnome_fs = get_predefined_gnomes(ref_dir= ref_dir, name = n, link = l )
+          # add fasta_f and gtf_f to dicts
+          fasta_dict[n] =  gnome_fs[1]
+          gtf_dict[n] = gnome_fs[0]
+    
     # define mito strings for predefined genomes
-  
     for  n in names:
       mito_str = "^MT-" if 'human_' in n else "^mt-"
       mito_str_dict[n] = mito_str
@@ -64,47 +79,107 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCE
       cn_fasta = fasta_dict[cn]
       # get original gtf
       cn_gtf = gtf_dict[cn]
+      # get index dir
+      cn_idx_dir = idx_dict[cn]
 
-      
       cn_ref_dir = os.path.join(ref_dir, cn)
       os.makedirs(cn_ref_dir, exist_ok = True)
-      fasta_sym = os.path.join(cn_ref_dir, 'genes.fa')
       gtf_sym = os.path.join(cn_ref_dir, 'genes.gtf')
-
-      if not os.path.exists(fasta_sym):
-        os.symlink(cn_fasta, fasta_sym)
+     
       if not os.path.exists(gtf_sym):
         os.symlink(cn_gtf, gtf_sym)
-
-      # update paths to fasta and gtf files in dicts
-      fasta_dict[cn] = fasta_sym
+      
       gtf_dict[cn] = gtf_sym
+      
+      # create symlink to index if exists othewise symlink to fasta
+      if cn_idx_dir !=  'None':
+        print(f"Premade index will be used for {cn}. Ignoring 'decoys' parameter")
+        
+      else:
+        fasta_sym = os.path.join(cn_ref_dir, 'genes.fa')
+        fasta_dict[cn] = fasta_sym
+        if not os.path.exists(fasta_sym):
+          os.symlink(cn_fasta, fasta_sym)
+
+        fasta_dict[cn] = fasta_sym
   
-  # make a txt file from all gtf files
-  print('Creating txt files from gtf')
+
+  # make a txt file from all gtf files (or download from zenodo)
+  
   gtf_txt_dict = {}
- 
+
   for n, gtf in gtf_dict.items():
-    # define output file
-    out_txt_f = os.path.join(os.path.dirname(gtf), 'genes_gtf.txt.gz')
-    # convert .gtf to .txt
-    save_gtf_as_txt(gtf, out_txt_f)
-    # update dictionary 
-    gtf_txt_dict.update({n:out_txt_f})
+
+    if gtf == 'None':
+       
+      zenodo_gtf_urls ={ 
+        'human_2020': "https://zenodo.org/records/14247195/files/human_2020_rrna_genes_gtf.txt.gz", 
+        'human_2024': "https://zenodo.org/records/14247195/files/human_2024_rrna_genes_gtf.txt.gz", 
+        'mouse_2020': "https://zenodo.org/records/14247195/files/mouse_2020_rrna_genes_gtf.txt.gz", 
+        'mouse_2024': "https://zenodo.org/records/14247195/files/mouse_2024_rrna_genes_gtf.txt.gz"
+      }
+
+      url = zenodo_gtf_urls[n]
+
+      print(f'Downloading gtf txt file for {n}')
+      out_dir = os.path.join(ref_dir, n)
+      subprocess.run(f"wget -P {out_dir} {url}", shell=True)
+      # rename gtf txt file
+      txt_f     = glob.glob( out_dir + '/*genes_gtf.txt.gz')
+
+      assert len(txt_f) == 1, \
+       f"More than one gtf.txt file found in {out_dir}"
+      
+      out_txt_f = os.path.join(out_dir, 'genes_gtf.txt.gz')
+      os.rename(txt_f[0], out_txt_f)
+      gtf_txt_dict.update({n:out_txt_f})
+
+    else:
+      print(f'Creating txt files from gtf for {n}')
+      # define output file
+      out_txt_f = os.path.join(os.path.dirname(gtf), 'genes_gtf.txt.gz')
+      # convert .gtf to .txt
+      save_gtf_as_txt(gtf, out_txt_f)
+      # update dictionary 
+      gtf_txt_dict.update({n:out_txt_f})
+
 
   # create one dataframe from all dictionaries 
-  PARAMS_DF = pd.DataFrame([fasta_dict, gtf_dict, gtf_txt_dict, mito_str_dict, decoys_dict])
+  PARAMS_DF = pd.DataFrame([fasta_dict, idx_dict, gtf_dict, gtf_txt_dict, mito_str_dict, decoys_dict, rrnas_dict])
   PARAMS_DF = PARAMS_DF.T
-  PARAMS_DF.columns = ['fasta_f', 'gtf_f', 'gtf_txt_f', 'mito_str', 'decoy']
+  PARAMS_DF.columns = ['fasta_f', 'index_dir', 'gtf_f', 'gtf_txt_f', 'mito_str', 'decoy', 'rrna']
   PARAMS_DF.index.name = 'genome_name'
   PARAMS_DF.reset_index(inplace=True)
-  
+  PARAMS_DF.replace('None', np.nan, inplace=True)  
+
   out_csv_f = os.path.join(SCPROCESS_DATA_DIR, 'setup_parameters.csv')
   PARAMS_DF.to_csv(out_csv_f, index = False)
   
   print(f'Completed writing genomes in {SCPROCESS_DATA_DIR}')
   return 
   
+
+
+def build_10x_genome_w_rrna(ref_dir, name):
+   
+   print(f"Creating {name} 10x genome with rRNAs")
+ 
+   # get bash script to download gtf and fasta
+   bash_f = f"scripts/build_10x_style_genomes/build_10x_style_{name}_genome_w_rRNAs.sh"
+   bash_f = os.path.realpath(bash_f)
+
+   # create a new directory for the specified genome and switch to it
+   gnome_dir = os.path.join(ref_dir, name)
+   os.makedirs(gnome_dir, exist_ok=True)
+   os.chdir(gnome_dir)
+
+   # run bash script that downloads gtf and 
+   subprocess.run(bash_f, shell=True)
+
+   print('Done!')
+
+   return [os.path.join(gnome_dir, 'genes.gtf'), os.path.join(gnome_dir, 'genome.fa')]
+
 
 
 # get refrence genomes from 10x
@@ -227,9 +302,8 @@ def list_of_strings(arg):
 
 def list_of_bools(arg):
     str_ls = arg.split(',')
-    bool_list = [bool(s) for s in str_ls]
+    bool_list = [True if s == 'True' else False for s in str_ls]
     return bool_list
-
 
 
   # make some functions executable from the command line (make_af_idx, get_genome_params, get_scprocess_data)
@@ -248,8 +322,10 @@ if __name__ == "__main__":
   parser_getgnomes.add_argument('genomes', type=list_of_strings, help='list with all genome names')
   parser_getgnomes.add_argument('fasta_fs', type=list_of_strings, help='list with paths to all fasta files')
   parser_getgnomes.add_argument('gtf_fs', type=list_of_strings, help='list with paths to all gtf files')
+  parser_getgnomes.add_argument('idx_dirs', type =list_of_strings, help='list with paths to prebuild alevin indices' )
   parser_getgnomes.add_argument('mito_str', type=list_of_strings, help='list with all mitochondrial gene identifiers')
   parser_getgnomes.add_argument('decoys', type=list_of_bools, help='list with bool values definiing whether or not to use decoys when building indices with simpleaf')
+  parser_getgnomes.add_argument('rrnas', type=list_of_bools, help='list with bool values definiing whether or not to include ribosomal rrnas for simpleaf index')
   parser_getgnomes.add_argument('scp_data_dir', type=str)
 
   args = parser.parse_args()
@@ -257,7 +333,7 @@ if __name__ == "__main__":
   if args.function_name == 'get_scprocess_data':
       get_scprocess_data(args.scp_data_dir)
   elif args.function_name == 'get_genome_params':
-      get_genome_params(args.genomes, args.fasta_fs, args.gtf_fs, args.mito_str, args.decoys, args.scp_data_dir)
+      get_genome_params(args.genomes, args.fasta_fs, args.gtf_fs, args.idx_dirs, args.mito_str, args.decoys, args.rrnas, args.scp_data_dir)
   else:
     parser.print_help()
 

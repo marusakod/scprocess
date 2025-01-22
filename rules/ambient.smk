@@ -4,7 +4,7 @@ import numpy as np
 import yaml
 import pandas as pd
 
-localrules: exclude_bad_cellbender_samples
+localrules: get_ambient_sample_statistics
 
 def parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, sample, amb_yaml_f, CELLBENDER_LEARNING_RATE):
 
@@ -124,12 +124,12 @@ if AMBIENT_METHOD == 'cellbender':
       learning_rate           = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[3]
     output:
-        ambient_yaml_out = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
+        ambient_yaml_out = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
+        tmp_f            = temp(amb_dir + '/ambient_{sample}/ckpt.tar.gz')
     threads: 1
     retries: RETRIES
     resources:
-      mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT,
-      nvidia_gpu  = 1
+      mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
     singularity:
       CELLBENDER_IMAGE
     shell:
@@ -149,10 +149,10 @@ if AMBIENT_METHOD == 'cellbender':
       cd $amb_dir
 
       # define output files
-      cb_full_f="{amb_dir)/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}.h5"
+      cb_full_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}.h5"
       cb_filt_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_filtered.h5"
-      cb_bcs_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv'
-      #tmp_f=temp(amb_dir + '/ambient_{wildcards.sample}/ckpt.tar.gz')
+      cb_bcs_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
+      tmp_f="{output.tmp_f}"
 
       
       if [ $EXPECTED_CELLS -eq 0 ]; then
@@ -160,7 +160,7 @@ if AMBIENT_METHOD == 'cellbender':
         # run cellbender
         cellbender remove-background \
           --input {input.h5_f} \
-          --output {output.cb_full_f} \
+          --output $cb_full_f \
           --total-droplets-included $TOTAL_DROPLETS_INCLUDED \
           --low-count-threshold $LOW_COUNT_THRESHOLD \
           --learning-rate $LEARNING_RATE \
@@ -171,7 +171,7 @@ if AMBIENT_METHOD == 'cellbender':
         # run cellbender
         cellbender remove-background \
           --input {input.h5_f} \
-          --output {output.cb_full_f} \
+          --output $cb_full_f \
           --expected-cells $EXPECTED_CELLS \
           --total-droplets-included $TOTAL_DROPLETS_INCLUDED \
           --low-count-threshold $LOW_COUNT_THRESHOLD \
@@ -192,7 +192,6 @@ if AMBIENT_METHOD == 'cellbender':
       fi
       """
 elif AMBIENT_METHOD == 'decontx':
-  localrules: run_ambient
   rule run_ambient:
     input:
       h5_f      = af_dir + '/af_{sample}/af_counts_mat.h5',

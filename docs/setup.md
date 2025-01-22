@@ -72,48 +72,52 @@
 
 ## Cluster setup
 
-When running {{ software_name }} on a cluster with a job scheduler like SLURM or LSF, it's common to define a configuration profile. A profile defines default cluster settings, such as resource allocation (CPUs, memory, runtime) and job submission commands. {{ software_name }} comes with two predefined configuration profiles stored in the `profile` directory: `profile/slurm_default` and `profile/lsf_default` for SLURM and LSF respectively. You can add additional profiles or edit one of the profiles that already exists in {{ software_name }}. [The structure of the profile will depend on the version of `snakemake` and cluster settings.]
+When running {{ software_name }} on a cluster with a job scheduler like SLURM or LSF, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{ software_name }} comes with two predefined configuration profiles stored in the `profiles` directory: `profiles/slurm_default` and `profiles/lsf_default` for SLURM and LSF respectively. You can add additional profiles or edit one of the profiles that already exists in {{ software_name }}. To run `scsetup` and {{ software_name }} in cluster mode add the name of the configuration profile to `.scprocess_setup.yaml` file e.g:
 
-`scsetup` and `scprocess` commands will run in cluster mode if you add the `-E " --workflow-profile={profile_name} "` option. Example for SLURM:
-
-```bash
-scsetup -E " --workflow-profile=slurm_default "
+```yaml
+profile: slurm_default
 ```
 
+Note that default configuration profiles define resource requirements for default {{ software_name }} parameters. If GPU is available and you would like to select `cellbender` for [ambient RNA removal](introduction.md#ambient-rna-removal-optional), add the highlighted section to the configuration profile:
 
+=== "profiles/slurm_default/congif.yaml"
 
-=== "profile/slurm_default/congif.yaml"
-
-    ```yaml
-    set-resources:
-      big_job:
-        cpus_per_task: 3
-        mem_mb: 2000
-        runtime: "1h"
-      small_job:
-        cpus_per_task: 1
-        mem_mb: 1000
-        runtime: 10
-    ```
-
-=== "profile/lsf_default/congif.yaml"
-
-    ```yaml
-    snakefile: Snakefile
-    cores: 1
+    ```yaml hl_lines="14 15"
+    executor: slurm
     latency-wait: 10
-    reason: True
     show-failed-logs: True
     keep-going: True
+    scheduler: greedy   
     printshellcmds: True
-    rerun-incomplete: True
-    restart-times: 3
-    jobname: "{rule}.{jobid}"           
-    max-jobs-per-second: 1                
-    max-status-checks-per-second: 10      
-    jobs: 100                              
-    cluster: "bsub --output=\"{proj_dir}/.log/{rule}/sample={wildcards.sample}/%J.out\" --error=\"{proj_dir}/.log/{rule}/sample={wildcards.sample}/%J.err\""
+    jobs: 20
+    default-resources:
+      runtime: 3h
+      mem_mb: 4096
+    set-resources:
+      run_harmony:
+        runtime: 12h
+      run_ambient:
+        slurm_extra: "'--gpus=1'"
+    ```
 
+=== "profiles/lsf_default/congif.yaml"
+
+    ```yaml hl_lines="14 15"
+    executor: lsf
+    latency-wait: 10
+    show-failed-logs: True
+    keep-going: True
+    scheduler: greedy   
+    printshellcmds: True
+    jobs: 20
+    default-resources:
+      runtime: 3h  # change this with queue
+      mem_mb: 4096 #change this
+    set-resources:
+      run_harmony:
+        runtime: 12h # change this with queue
+      run_ambient:
+        slurm_extra: "'--gpus=1'" # change this
     ```
 
 

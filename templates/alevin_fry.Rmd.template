@@ -95,8 +95,21 @@ if(sample_n <= 4){
 ```
 
 
-## Barcode rank plots (ordered by ratio of knee1 to empty plateau){.tabset}
-Plots are annotated with suggested ambient parameters
+## Barcode rank plots
+
+For each sample, barcodes are ranked in descending order based on their library size (number of unique molecular identifiers).
+Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high RNA content, while the second represents empty droplets containing ambient RNA. 
+Key transition points on the curve (inflection and knee points), are annotated with horizontal lines.
+Two main parameters infered by `scprocess` based on transition points are `expected_cells` and `empty_plateau_middle`.
+`empty_plateau_middle‘ should extend a few thousand barcodes into the second plateau. 
+The absence of a clear empty plateau indicates poor sample quality due to ambient RNA contamination.
+
+
+### Barcode rank plots ordered by slope ratio{.tabset}
+
+The slope ratio helps identify low-quality samples with high ambient RNA contamination.
+This ratio is calculated by dividing the slope of the barcode-rank curve in the empty droplet plateau by the slope at the first inflection point.
+Samples are ordered from highest to lowest based on the slope ratio.
 
 ```{r knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results = 'asis'}
 for (i in 1:length(slope_ratio_split_l) ) {
@@ -104,13 +117,16 @@ for (i in 1:length(slope_ratio_split_l) ) {
   samples = slope_ratio_split_l[[i]]
   name = sprintf('sample chunk #%d', i)
   knees = knee_dfs[samples]
-  cat('### ', name, '\n')
+  cat('#### ', name, '\n')
   print(plot_barcode_ranks_w_params(knees, ambient_knees_df, bender_priors_df = NULL))
   cat('\n\n')
 }
 ```
 
-## Barcode rank plots (ordered by expected/total ratio){.tabset}
+### Barcode rank plots ordered by `expected_cells`/`empty_plateau_middle` ratio{.tabset}
+
+Inaccurate detection of the transition points (knee and inflection points) in the barcode-rank curve can lead to incorrect estimates of barcodes corresponding to cells or empty droplets.
+To evaluate this, samples are ordered by the ratio of `expected_cells` to `empty_plateau_middle`.
 
 Plots are annotated with suggested ambient parameters.
 ```{r knee_plots_exp_tot_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
@@ -119,13 +135,16 @@ for (i in 1:length(exp_tot_ratio_split_l) ) {
   samples <- exp_tot_ratio_split_l[[i]]
   name <- sprintf('sample chunk #%d', i)
   knees <- knee_dfs[samples]
-  cat('### ', name, '\n')
+  cat('#### ', name, '\n')
   print(plot_barcode_ranks_w_params(knees, ambient_knees_df, bender_priors_df = NULL))
   cat('\n\n')
 }
 ```
 
-## Dotplot with slope ratio and expected/total ratio
+## Dotplot with slope ratio and `expected_cells`/`empty_plateau_middle`
+
+Both the slope ratio and the expected cells/total droplets ratio are displayed in a dot plot, where each dot represents a sample.
+Outliers are labeled with their corresponding `sample_id` values.
 
 ```{r ambient_params_qc_box}
 print(make_amb_params_dotplot(ambient_knees_df, log = TRUE, scales = 'free'))

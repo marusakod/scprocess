@@ -6,7 +6,7 @@ localrules: make_sce_input_df
 def make_sce_input_df(AMBIENT_METHOD, smpl_stats_f, samples_ls, ambient_outs_yamls):
     # Load sample stats (only needed for cellbender)
     if AMBIENT_METHOD == 'cellbender':
-        sample_stats = pd.read_csv(smpl_stats_f, sep=',')
+        sample_stats = pd.read_csv(smpl_stats_f, delimiter='\t')
         ok_samples = sample_stats[~sample_stats['bad_sample']]['sample_id'].tolist()
 
     # Initialize an empty list to collect dataframes
@@ -89,7 +89,6 @@ if AMBIENT_METHOD == 'cellbender':
             n_cores     = {threads})"
       """
 else:
-  localrules: make_sce_object
   rule make_sce_object:
     input:
       sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv'

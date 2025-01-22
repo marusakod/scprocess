@@ -9,12 +9,13 @@ import warnings
 
 
 from setup_utils import get_setup_parameters
+from setup_utils import check_valid_index
 
 SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 
 #configfile = '/Users/marusa/Projects/scprocess_test/configs/config-setup-test.yaml'
 # get parameters from configfile
-GENOMES_STR, FASTA_FS, GTF_FS, MITO_STRS, DECOYS = get_setup_parameters(config) 
+GENOMES_STR, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DECOYS, RRNAS = get_setup_parameters(config) 
 GENOMES = GENOMES_STR.split(',')
 
 rule all:
@@ -23,11 +24,11 @@ rule all:
         SCPROCESS_DATA_DIR + '/marker_genes/canonical_brain_celltype_markers_human_2023-10-17.txt',
         SCPROCESS_DATA_DIR + '/marker_genes/canonical_brain_celltype_markers_mouse_2023-10-17.txt',
         SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3LT.txt',
-        SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3v1.txt',
         SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3v2_5v1_5v2.txt',
         SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3v3.txt',
-        SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_flex.txt',
         SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_multiome_gex.txt',
+        SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3v4.txt',
+        SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_5v3.txt',
         SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_whitelists.csv',
         SCPROCESS_DATA_DIR + '/gmt_pathways/c1.all.v2023.1.Hs.symbols.gmt',
         SCPROCESS_DATA_DIR + '/gmt_pathways/c2.all.v2023.1.Hs.symbols.gmt',
@@ -65,10 +66,10 @@ rule download_scprocess_repo_data:
     brain_mkrs_hsa    = SCPROCESS_DATA_DIR + '/marker_genes/canonical_brain_celltype_markers_human_2023-10-17.txt',
     brain_mkrs_mmu    = SCPROCESS_DATA_DIR + '/marker_genes/canonical_brain_celltype_markers_mouse_2023-10-17.txt',
     wl_3lt            = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3LT.txt',
-    wl_3v1            = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3v1.txt',
     wl_3v2_5v1_5v2    = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3v2_5v1_5v2.txt',
     wl_3v3            = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3v3.txt',
-    wl_flex           = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_flex.txt',
+    wl_3v4	      = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3v4.txt',
+    wl_5v3	      = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_5v3.txt',
     wl_multiome       = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_multiome_gex.txt',
     all_wl            = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_whitelists.csv',
     gmt_f_1           = SCPROCESS_DATA_DIR + '/gmt_pathways/c1.all.v2023.1.Hs.symbols.gmt',
@@ -114,7 +115,7 @@ rule get_reference_genomes:
   threads: 1
   shell:
     """  
-    python3 scripts/setup.py get_genome_params {GENOMES_STR} {FASTA_FS} {GTF_FS} {MITO_STRS} {DECOYS} {SCPROCESS_DATA_DIR}
+    python3 scripts/setup.py get_genome_params {GENOMES_STR} {FASTA_FS} {GTF_FS} {INDEX_DIRS} {MITO_STRS} {DECOYS} {RRNAS} {SCPROCESS_DATA_DIR}
     
     """
 

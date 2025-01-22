@@ -11,26 +11,42 @@ The command requires a configuration file named `.scprocess_setup.yaml` located 
 genome:
   tenx:
     - name: human_2024 
-    - decoys: True
+      decoys: True
+      rrnas: True
   custom:
     - name: custom_genome_name
-      fasta: '/path/to/genome.fa'
-      gtf: '/path/to/genes.gtf'
+      fasta: /path/to/genome.fa
+      gtf: /path/to/genes.gtf
       decoys: True
       mito_str: "^mt-"
+    - name: custom_genome_name2
+      index_dir: /path/to/prebuild/alevin/index
+      gtf: /path/to/genes.gtf
+      mito_str: "^MT-"
 ```
 
 Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with `scsetup` by adding `tenx` to the `.scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.  
 
 Names and specifications for custom references should be listed in the `custom` section of the `.scprocess_setup.yaml` file. For each `custom` genome users have to provide the following parameters:
 
-* `fasta`: path to FASTA file 
+* one of:
+    + `fasta`: path to FASTA file
+    + `index_dir`: path to prebuild alevin index; when specified `decoys` option is ignored
 * `gtf`: path to GTF file [(specific format?)]
 * `mito_str`: regular expression used to identify genes in the mitochondial genome (example for mouse: `"^mt-"`)
 
 Optional parameters for both `tenx` and `custom` references are:
 
-* `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `True` for all genomes. 
+* `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `True` for all genomes.
+
+Optional paramater for `tenx` references is:
+
+* `rrnas`: whether or not ribosomal RNAs should be included in the reference. If not specified it defaults to `True` for all `tenx` genomes.
+
+!!! note "Impact of custom parameters for `tenx` genomes on `scsetup` runtime"
+
+    When configuring `tenx` genomes with their default values, `scsetup` will download prebuilt indices optimized for `simpleaf`. However, if the default parameters are modified (e.g., setting `rrnas` or `decoys` to `False`), `scsetup` will build the indices from scratch during execution, which will increase the runtime.
+
 
 !!! info "More about decoys"
     {{ software_name }} utilizes `simpleaf`, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter in `scsetup` is set to `True`. This option allows `simpleaf` to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to [Srivastava et al., 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02151-8).
@@ -67,7 +83,7 @@ Specify either `-k`/`--kneefile` or `-c`/`--configfile`:
 * `-E`/`--extraagrs`: `snakemake` is a sophisticated package with many options that can be set by the user. This argument allows users to set additional arguments; see [here](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for `snakemake`'s documentation of command line arguments.
 * `-r`/`--rule`: Specifies which rule {{ software_name }} should run. The options are:
     + `all`: default; includes all [Standard pipeline steps](introduction.md#standard-pipeline-steps)
-    + `label_and_subset`: cell type annotation using a pre-trained classifier or a custom annotation file. 
+    + `label_celltypes`: cell type annotation using a pre-trained classifier or a custom annotation file. 
     + `zoom`: reintegration, subclustering and marker gene identification for selected cluster groups.
     + `pb_empties`: generation of pseubodulk samples from annotated cells and empty droplets.
     + `simpleaf`: read alignment and quantification using `simpleaf`.
@@ -390,7 +406,7 @@ sample_3:
 ##### label_celltypes
 
 * `custom_labels`: path to CSV file containing cell type annotations, with two columns: `cell_id` and `label`. Entries in the `cell_id` column should be formatted as `sample_id:cell_barcode` and must match `cell_id` values in the `SingleCellExperiment` object (`sce_clean_[full_tag]_[date_stamp].rds`) located in `output/[short_tag]_integration` directory. `NA` values will be assigned to all cells with missing annotations.
-* `lbl_tissue`: target tissue for cell type labeling. Options are `brain_cns`, `human_cns`, `mouse_cns`, `human_pbmc`, and `mouse_pbmc`.
+* `lbl_tissue`: target tissue for cell type labeling. Options are `human_cns`, `mouse_cns`, `human_pbmc`, and `mouse_pbmc`.
 * `lbl_sel_res_cl`: selected cluster resolution for cell type labeling; higher values are recommended for optimal performance.
 * `lbl_min_pred`: minimum probability threshold for assigning a cell to a cell type.
 * `lbl_min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.

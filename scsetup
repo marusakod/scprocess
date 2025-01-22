@@ -29,6 +29,23 @@ def run_scsetup(sc_dir, snakefile, extraargs):
   configfile = os.path.join(scprocess_data_dir, '.scprocess_setup.yaml')
   assert os.path.exists(configfile), \
     f"Config file {configfile} does not exist"
+  
+  with open(configfile, "r") as stream:
+    config      = yaml.safe_load(stream)
+  
+  # check if cluster profile is defined
+  if ('profile' in config) and config['profile'] is not None:
+    profile = config['profile']
+    
+    # check if profile exists
+    profile_dir = os.path.join(sc_dir, 'profiles', profile)
+    profile_f   = os.path.join(profile_dir, 'config.yaml')
+
+    assert os.path.isfile(profile_f), \
+      f"cluster configuration file {profile_f} does not exist"
+    
+    # add snakemake flag
+    extraargs = extraargs + ' --workflow-profile ' + profile_dir
     
   # start snakemake
   subprocess.call(['bash', f'{sc_dir}/scsetup.sh', snakefile, os.path.abspath(configfile), extraargs])

@@ -78,6 +78,28 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   
   assert os.path.isfile(scsetup_csv), \
    f"{scsetup_csv} is missing; consider (re)running scsetup"
+  
+  # check if cluster profile is defined
+  setup_configfile = os.path.join(scprocess_data_dir, '.scprocess_setup.yaml')
+  assert os.path.exists(setup_configfile), \
+    f".scprocess_setup.yaml does not exist in {scprocess_data_dir}"
+
+  with open(setup_configfile, "r") as stream:
+    setup_config      = yaml.safe_load(stream)
+
+  if ('profile' in setup_config) and setup_config['profile'] is not None:
+    profile = setup_config['profile']
+    
+    # check if profile exists
+    profile_dir = os.path.join(sc_dir, 'profiles', profile)
+    profile_f   = os.path.join(profile_dir, 'config.yaml')
+
+    assert os.path.isfile(profile_f), \
+      f"cluster configuration file {profile_f} does not exist"
+    
+    # add snakemake flag
+    extraargs = extraargs + ' --workflow-profile ' + profile_dir
+
 
   # check configfile exists
   assert os.path.exists(configfile), \
@@ -99,16 +121,20 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   
   wflowr_fs_ful_ls = [os.path.join(proj_dir, f) for f in wflowr_fs_ls]
   assert all([os.path.isfile(f) for f in wflowr_fs_ful_ls]), \
-    f"proj_dir {config['proj_dir']} is not a workflowr project; you can create a workflowr project using newproj"
+    f"proj_dir {config['proj_dir']} is not a workflowr project; you can create a workflowr project using the newproj function"
 
   # check that sample metadata exists, has sample_id present, no spaces in column names 
   assert "sample_metadata" in config, "sample_metadata not specified in config file"
-  assert os.path.isfile(config["sample_metadata"]), \
-    f"sample_metadata {config['sample_metadata']} is not a valid file"
   
+  meta_path = config["sample_metadata"]
+  if not os.path.isabs(meta_path):
+    meta_path = os.path.join(proj_dir, meta_path)
+    
+  assert os.path.isfile(meta_path), \
+     f"sample metadata {meta_path} is not a valid file"
 
   # load up sample metadata
-  sample_df   = pd.read_csv(config["sample_metadata"])
+  sample_df   = pd.read_csv(meta_path)
   assert "sample_id" in sample_df.columns, \
     "sample_id not present in sample metadata"
   assert all(sample_df[ "sample_id" ].value_counts() == 1), \
@@ -127,12 +153,21 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
 
   # check fastq directory exists
   assert "fastq_dir" in config, "fastq_dir not in config file"
-  assert os.path.isdir(config["fastq_dir"]), \
-    f"fastq_dir {fastq_dir} is not a directory"
+
   fastq_dir = config["fastq_dir"]
+  if not os.path.isabs(fastq_dir):
+    fastq_dir = os.path.join(proj_dir, fastq_dir)
+  
+  assert os.path.isdir(fastq_dir), \
+    f"fastq_dir {fastq_dir} is not a valid directory"
+  
+  # check that samples don't have '_R1' or '_R2' in their names 
+  all_samples_ls = sample_df["sample_id"].tolist()
+  assert all('_R1' not in s and '_R2' not in s for s in all_samples_ls), \
+    "One or more sample_id values contain '_R1' or '_R2'. Please ensure all elements exclude these substrings"
   
   # check that some fastq files exist
-  samples_ls  = exclude_samples_without_fastq_files(fastq_dir, sample_df["sample_id"].tolist())
+  samples_ls  = exclude_samples_without_fastq_files(fastq_dir, all_samples_ls)
   assert len(samples_ls) > 0, \
     "No fastq files found in fastq_dir"
 
@@ -141,7 +176,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   print('  ' + ', '.join(samples_ls))
   print('bash '+ f'{sc_dir}/scprocess.sh'+ ' ' +snakefile+ ' '+ os.path.abspath(configfile) + ' '+ proj_dir+ ' '+ rule+ ' '+ extraargs)
 
-  # start snakemake
+  # start snakemake 
   subprocess.call(['bash', f'{sc_dir}/scprocess.sh', snakefile, os.path.abspath(configfile), proj_dir, rule, extraargs])
 
 
@@ -159,7 +194,7 @@ if __name__ == '__main__':
   parser.add_argument("-r", "--rule", type = str, default = "all",
     choices = [
         "all", "simpleaf", "ambient", "qc", "integration", 
-        "marker_genes", "label_and_subset", "metacells", "pb_empties", "zoom"
+        "marker_genes", "label_celltypes", "metacells", "pb_empties", "zoom"
         ],
     help = '''
        Leave empty to run the whole workflow, in alternative select the rule you want to run.
@@ -195,7 +230,4 @@ if __name__ == '__main__':
   # print(sc_dir, args.configfile, snakefile, rule)   
   # call bsub thing
   run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs)
-
-
-
 

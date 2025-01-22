@@ -83,32 +83,51 @@ save_alevin_h5_calculate_amb_params <- function(sample, fry_dir, h5_f, cb_yaml_f
 # rank_empty_plateau: rank of any barcode within the empty droplet plateau
 # low_count_threshold: 'inf2', 'knee2' or a specific library_size;
 # low count threshold can be equal to second knee or second inflection or can be set manually
+
 calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umis_cells = NULL,
                                    rank_empty_plateau = NULL, low_count_threshold = 'inf2', 
-                                   expected_cells, total_included, 
+                                   expected_cells = NA, total_included =NA, 
                                    knee1 = NA, inf1 = NA, knee2 = NA, inf2 = NA) {
   # some checks on inputs
-  if ( 'character' %in% class(low_count_threshold) ) {
+  if ( class(low_count_threshold) == 'character') {
     # check is the value of low_count_threshold is valid
     assert('low_count_threshold needs to be either "knee2", "inf2" or an integer',
            any(low_count_threshold %in% c('knee2', 'inf2')))
   }
 
   # get first knee
-  knee1_ls  = .get_knee_and_inf_1(split_mat, min_umis_cells, knee1, inf1, knee2)
+  knee1_ls  = .get_knee_and_inf_1(
+    split_mat,
+    min_umis_cells,
+    knee1,
+    inf1,
+    knee2
+    )
+
 
   # get second knee
-  knee2_ls  = .get_knee_and_inf_2(split_mat, knee1_ls$ranks_df,
-                                  rank_empty_plateau, min_umis_empty, knee1_ls$infl1_x,
-                                  knee2, inf2)
+  knee2_ls  = .get_knee_and_inf_2(
+    split_mat,
+    knee1_ls$ranks_dt,
+    rank_empty_plateau,
+    min_umis_empty,
+    knee1_ls$infl1_x,
+    knee2,
+    inf2
+    )
 
   # get parameters
-  params_ls = .get_params_ls(knee1_ls, knee2_ls, low_count_threshold =low_count_threshold, 
-                             expected_cells = expected_cells, total_included = total_included )
+  params_ls = .get_params_ls(
+    knee1_ls,
+    knee2_ls,
+    low_count_threshold =low_count_threshold,
+    expected_cells = expected_cells,
+    total_included = total_included
+    )
 
   # return a dataframe with ranks and all parameters
-  bender_ps = knee1_ls$ranks_df %>%
-    mutate(
+  bender_ps = knee1_ls$ranks_dt %>%
+    .[, `:=`(
       sample_id               = sel_s,
       knee1                   = knee1_ls$sel_knee[ 'knee' ],
       inf1                    = knee1_ls$sel_knee[ 'inflection' ],
@@ -117,7 +136,8 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
       total_droplets_included = params_ls$total_included,
       low_count_threshold     = params_ls$lc,
       expected_cells          = params_ls$expected_cells
-    ) %>% as.data.table( keep.rownames = "barcode" )
+    )]
+    
 
   return(bender_ps)
 }
@@ -132,6 +152,7 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
       inflection  = inf1,
       knee        = knee1
     )
+  
   }else if(!is.null(min_umis_cells)) {
     # if min_umis_cells is specified use it as 'lower' parameter in barcodeRanks()
     # to find the first knee and inflection
@@ -170,43 +191,44 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
   }
 
   # convert rankings object to data.frame
-  ranks_df = ranks_obj %>%
-    as.data.frame() %>%
-    arrange(rank)
+  ranks_dt = ranks_obj %>% as.data.frame() %>%
+    as.data.table(keep.rownames = TRUE) %>%
+    setnames("rn", "barcode") %>%
+    .[order(rank)]
 
   # get x coordinates of selected inflection point (as.character is used because
   # as.integer() only returns the wrong number)
-  infl1_idx = which.min( abs(ranks_df$total - sel_knee[1]) )[1]
-  # infl1_idx  = ranks_df$total == as.integer(as.character(sel_knee[1]))[1]
-  infl1_x   = ranks_df[ infl1_idx, "rank" ]
+  infl1_idx = which.min( abs(ranks_dt$total - sel_knee[1]) )[1]
+  infl1_x   = ranks_dt[ infl1_idx, rank ]
 
   # put list of outputs together
-  return(list(ranks_df = ranks_df, sel_knee = sel_knee, infl1_x = infl1_x))
+  return(list(ranks_dt = ranks_dt, sel_knee = sel_knee, infl1_x = infl1_x))
 }
 
-.get_knee_and_inf_2 <- function(split_mat, ranks_df, rank_empty_plateau,
+.get_knee_and_inf_2 <- function(split_mat, ranks_dt, rank_empty_plateau,
                                 min_umis_empty, infl1_x, 
                                 knee2, inf2) {
+
   # if rank_empty_plateau is specified use it to select barcodes for second call to barcodeRanks()
   # rank_empty_plateau should ideally be above expected second knee and inflection (on y axis)
   if(all(sapply(c(knee2, inf2), function(p) !is.na(p)))){
-    # find umi values in ranks_df closest to predefined knee and shin 
+    # find umi values in ranks_dt closest to predefined knee and shin 
 
-    inf2_idx = which.min( abs(ranks_df$total - inf2) )[1]
-    inf2_corr = ranks_df[ inf2_idx, "total" ]
+    inf2_idx = which.min( abs(ranks_dt$total - inf2) )[1]
+    inf2_corr = ranks_dt[ inf2_idx, total]
 
-    knee2_idx = which.min( abs(ranks_df$total - knee2) )[1]
-    knee2_corr = ranks_df[ knee2_idx, "total"]
+    knee2_idx = which.min( abs(ranks_dt$total - knee2) )[1]
+    knee2_corr = ranks_dt[ knee2_idx, total]
 
       sel_knee    = c(
       inflection  = inf2_corr,
       knee        = knee2_corr
     )
+
   }else if (!is.null(rank_empty_plateau)) {
-    # restrict to barcodes below specified threshold
-    ranks_smol  = ranks_df %>%
-      filter(rank > rank_empty_plateau) %>%
-      rownames(.)
+    # restrict to barcodes below (with higher ranks) specified threshold
+    ranks_smol  = ranks_dt[rank > rank_empty_plateau, barcode]
+    
 
     # use barcodeRanks to find knee
     ranks_obj   = barcodeRanks(split_mat[, ranks_smol], lower = min_umis_empty)
@@ -217,14 +239,12 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
   } else {
     # if rank_empty_plateaus is not specified, filter barcodes based on multiple
     # different thresholds and select knee+inflection with most votes
-    cuts        = .calc_small_knee_cuts_ls(ranks_df, min_umis_empty, infl1_x)
+    cuts        = .calc_small_knee_cuts_ls(ranks_dt, min_umis_empty, infl1_x)
 
     # rerun barcode ranks excluding everything above cuts
     ranks_ls    = lapply(cuts, function(this_cut) {
       # restrict to this cut
-      ranks_smol  = ranks_df %>%
-        filter( rank > this_cut ) %>%
-        rownames(.)
+      ranks_smol  = ranks_dt[rank > this_cut, barcode]
 
       # run barcodeRanks, extract knee values
       ranks_obj   = barcodeRanks( split_mat[, ranks_smol], lower = min_umis_empty )
@@ -256,33 +276,32 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
   }
 
   # get rank corresponding to the second knee
-  knee2_x = subset(ranks_df, total == sel_knee[ 'knee' ]) %>%
-    .$rank %>% unique()
+  knee2_x = ranks_dt[total == sel_knee['knee'], rank] %>%
+    unique()
 
   return(list(sel_knee = sel_knee, knee2_x = knee2_x))
 }
 
 
 
-.calc_small_knee_cuts_ls <- function(ranks_df, min_umis_empty, infl1_x) {
+.calc_small_knee_cuts_ls <- function(ranks_dt, min_umis_empty, infl1_x) {
   # pick a 'total' value below which there are still enough data points to run
   # barcodeRanks(), barcodeRanks() need as least 3 unique 'total' (library size) values
-  last        = tail(unique(ranks_df$total[ranks_df$total > min_umis_empty]), n = 3)[1]
-  last_x      = ranks_df[ ranks_df$total == last, "rank" ] %>% .[1]
+  last        = tail(unique(ranks_dt[total > min_umis_empty, total]), n = 3)[1]
+  last_x      = ranks_dt[total == last, rank] %>% .[1]
 
   # get what is in the middle of the last barcode and first inflection point on the log scale
   # we want to land approximatelly at the end of the empty_droplet_plateau
-  middle      = ranks_df %>% mutate(n = 1:nrow(.)) %>%
-    filter( between(rank, infl1_x, last_x) ) %>%
-    pull(n) %>%
-    log10 %>%
-    mean() %>%
-    10^.
-  # middle      = c(infl1_x, last_x) ) %>% log10 %>% mean() %>%
-  #   10^. %>% round()
+  middle = copy(ranks_dt) %>%
+  .[, n:= 1:.N] %>%
+  .[rank %between% c(infl1_x, last_x), n] %>%
+  log10() %>%
+  mean() %>%
+  10^.
 
   # pick 10 values (including infection one and middle value) to be used to filter
   # barcodes for second knee and inflection detection
+
   cuts      = 10^seq(log10(infl1_x), log10(middle), length.out = 10)
 
   return( cuts )
@@ -291,25 +310,26 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
 .get_params_ls <- function(knee1_ls, knee2_ls,
                           low_count_threshold, expected_cells = NA, total_included = NA) {
   # unpack some things
-  ranks_df  = knee1_ls$ranks_df
+  ranks_dt  = knee1_ls$ranks_dt
   infl1_x   = knee1_ls$infl1_x
   knee2_x   = knee2_ls$knee2_x
 
   if(is.na(expected_cells)){
-  # get expected cells: 90% of barcodes above 1st inflection point
-  expected_cells  = round(0.9 * infl1_x)
+  # expected cells at first inflection point
+  expected_cells  = infl1_x
   }
 
   if(is.na(total_included)){
   # get total_droplets_included: halfway between 1st inflection point and
   # second knee on the log10 scale
-  total_included  = ranks_df %>% mutate(n = 1:nrow(.)) %>%
-    filter(between(rank, infl1_x, knee2_x)) %>%
-    pull(n) %>%
-    log10 %>%
-    mean() %>%
-    10^. %>%
-    round()
+  total_included = copy(ranks_dt) %>%
+  .[, n:= 1:.N] %>%
+  .[rank %between% c(infl1_x, knee2_x), n] %>%
+  log10() %>%
+  mean() %>%
+  10^. %>%
+  round()
+  
   }
 
   # get low count threshold
@@ -322,8 +342,8 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
   } else {
     # if low_count_threshold is an integer, check that it's bigger than
     # total_droplets_included and expected_cells
-    expected_x  = ranks_df[ which.min(abs(ranks_df$rank - expected_cells)), "total"]
-    total_x     = ranks_df[ which.min(abs(ranks_df$rank - total_included)), "total"]
+    expected_x = ranks_dt[which.min(abs(rank - expected_cells)), total]
+    total_x    = ranks_dt[which.min(abs(rank - total_included)), total]
     assert('low count threshold exceeds expected_cells and/or total_droplets_included',
            (low_count_threshold < expected_x) & (low_count_threshold < total_x))
 
@@ -338,25 +358,5 @@ calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umi
   ))
 }
 
-# get combined knee and inflection
-get_knee_inf_combn <- function(mx, lower) {
-  br <- barcodeRanks(mx, lower)
-  inf <- as.integer(round(as.numeric(as.character(metadata(br)$inflection))))
-  knee <- as.integer(round(as.numeric(as.character(metadata(br)$knee))))
-  paste(inf, knee, sep = '_')
-}
 
-.do_knee_plot <- function(bc_ranks, sample) {
-  library('data.table'); library('magrittr')
-  plot_dt   = bc_ranks %>% as.data.table %>%
-    .[, .(n_bc = .N), by = .(lib_size = total) ] %>% .[ order(-lib_size) ] %>%
-    .[, bc_rank := cumsum(n_bc) ]
-  g = ggplot(plot_dt) +
-    aes( x = bc_rank, y = lib_size ) +
-    geom_line() +
-    scale_x_log10( breaks = c(1, 1e1, 1e2, 1e3, 1e4, 1e5),
-                   labels = c("1", "10", "100", "1k", "10k", "100k")) +
-    scale_y_log10() +
-    theme_classic()
-  sprintf("knee_plot_%s.png", sample) %>% ggsave(h = 4, w = 7)
-}
+

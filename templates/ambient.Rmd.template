@@ -132,51 +132,6 @@ if(s_len <= 4){
 
 ```
 
-
-```{r get_all_reads_n, eval=eval_sample_qc_plots, include = FALSE}
-# sum all the UMI counts from knee plots
-all_reads_n = sapply(knee_dfs, function(k_df) sum(k_df$total))
-all_reads_n_df = data.frame(sample_id = names(knee_dfs),
-                            total_UMI = all_reads_n)
-
-```
-
-
-```{r get_sample_level_qc, eval=eval_sample_qc_plots, include = FALSE}
-amb_sample_qc = mapply(qc = barcode_qc_dfs,
-                       sel_s = names(barcode_qc_dfs),
-                       amb_method = amb_method,
-                       FUN = get_amb_sample_level_qc,
-                       SIMPLIFY = FALSE) %>% bind_rows() %>%
-  mutate(pct_removed = (removed/af_all)*100)
-
-# check if sample names match
-assert_that(setequal(amb_sample_qc$sample_id, all_reads_n_df$sample_id))
-
-sample_qc_merged = amb_sample_qc %>%
-  merge(all_reads_n_df, by = 'sample_id') %>%
-  mutate(pct_reads_in_cells = (af_all/total_UMI)*100)
-
-
-# find outliers if more than 2 samples exists
-if(length(s_lvls) > 2){
-
-all_vars1 = c('af_spliced_pct', 'total_UMI', 'pct_reads_in_cells', 'af_spliced_pct')
-all_vars2 = c('amb_spliced_pct', rep('pct_removed', 3))
-
-outliers_dfs = mapply(var1 = all_vars1,
-                       var2 = all_vars2,
-                       FUN = get_amb_sample_qc_outliers,
-                       MoreArgs = list(qc_df = sample_qc_merged),
-                       SIMPLIFY = FALSE)
-
-}else{
-  # make empty df
-  outliers_df = data.frame()
-}
-```
-
-
 ${knee_pl_slope_ord_tit}
 
 ```{r knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results = 'asis', eval=eval_knee_plot, include =eval_knee_plot}
@@ -206,27 +161,6 @@ for (i in 1:length(exp_tot_ratio_split_l) ) {
 }
 ```
 
-${sample_qc_pl}
-
-```{r cb_sample_qc_plots, fig.width=6, fig.height=6, eval=eval_sample_qc_plots, include = eval_sample_qc_plots}
-
-x_titles = c('% spliced before ambient RNA removal', 'empty plateau UMI', '% reads in cells', '% spliced before ambient RNA removal')
-y_titles = c('% spliced after ambient RNA removal', rep('% removed', 3))
-
-
-amb_sample_qc_plots = mapply(var1 = all_vars1,
-                             var2 = all_vars2,
-                             outliers_df = outliers_dfs,
-                             x_title = x_titles,
-                             y_title = y_titles,
-                             x_thr = list(NULL, NULL, 70, NULL), # 70 is selected as threshold for % reads in cells based on 10x recommendations
-                             FUN = make_amb_sample_qc_oulier_plots,
-                             MoreArgs = list(qc_df = sample_qc_merged),
-                             SIMPLIFY = FALSE)
-
-print(do.call('grid.arrange', c(amb_sample_qc_plots, ncol = 2)))
-
-```
 
 
 
