@@ -122,8 +122,7 @@ if POOL_IDS is not None and DEMUX_TYPE == "af":
     retries: RETRIES
     resources:
       mem_mb = 4096
-    output:
-      adt_idx_dir = directory(af_dir + '/adt_index/'), 
+    output: 
       adt_f       = af_dir + '/adt.tsv',
       t2g_f       = af_dir + '/t2g_adt.tsv',
       idx_log_f   = af_dir + '/adt_index/ref_indexing.log'
@@ -131,23 +130,24 @@ if POOL_IDS is not None and DEMUX_TYPE == "af":
       '../envs/alevin_fry.yml'
     shell:
       """
+      cd {af_dir}
       # create a tsv file from feature ref file
       awk -F "," '
-        NR == 1 {
-          for (i = 1; i <= NF; i++) {
+        NR == 1 {{
+          for (i = 1; i <= NF; i++) {{
             if ($i == "hto_id") hto_id_col = i
             if ($i == "sequence") seq_col = i
-          }
-        }
-        NR > 1 {
+          }}
+        }}
+        NR > 1 {{
           print $hto_id_col "\t" $seq_col
-        }' {input.feature_ref_f} > {output.adt_f}
+        }}' {input.feature_ref_f} > {output.adt_f}
 
       # 
-      salmon index -t {output.adt_f} -i {output.adt_idx_dir} --features -k7
+      salmon index -t {output.adt_f} -i adt_index --features -k7
       
       # Make gene-to-transcript mapping file
-      awk '{print $1"\t"$1;}' {output.adt_f} > {output.t2g_f}
+      awk '{{print $1"\t"$1;}}' {output.adt_f} > {output.t2g_f}
       """
 
 
@@ -188,6 +188,9 @@ rule run_alevin_fry:
         HTO_R1_fs=$(echo {input.hto_R1_fs} | sed "s/ /,/g")
         HTO_R2_fs=$(echo {input.hto_R2_fs} | sed "s/ /,/g")
     fi
+    
+    export ALEVIN_FRY_HOME="{AF_HOME_DIR}"
+    simpleaf set-paths
 
     # RNA Quantification
     simpleaf quant \

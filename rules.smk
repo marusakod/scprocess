@@ -87,7 +87,6 @@ rule all:
     # Conditional ADT index outputs
     *(
      [
-     af_dir + '/adt_index/',
      af_dir + '/adt.tsv',
      af_dir + '/t2g_adt.tsv',
      af_dir + '/adt_index/ref_indexing.log',
