@@ -10,13 +10,12 @@ from snakemake.utils import validate, min_version
 from scprocess_utils import *
 
 SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
+
 # get parameters
-PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES = \
+PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, \
+EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES, \
+DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS = \
   get_project_parameters(config, SCPROCESS_DATA_DIR)
-
-# exclude all samples without fastq files
-SAMPLES       = exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES)
-
 AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY = \
   get_alevin_parameters(config, SCPROCESS_DATA_DIR, SPECIES)
 CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
@@ -38,8 +37,6 @@ LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL
 ZOOM_NAMES, ZOOM_SPEC_LS = get_zoom_parameters(config, AF_MITO_STR, SCPROCESS_DATA_DIR)
 META_SUBSETS, META_MAX_CELLS = get_metacells_parameters(config)
 PB_SUBSETS, PB_DO_ALL = get_pb_empties_parameters(config)
-DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, HTO_METADATA_F, \
-DUMUX_F, BATCH_VAR, POOL_IDS = get_multiplexing_parameters(config, PROJ_DIR, SAMPLES)
 RETRIES, MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
   MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
   MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
@@ -78,7 +75,16 @@ zoom_df       = pd.DataFrame({ \
  'zoom_res': [ ZOOM_SPEC_LS[ zn ][ 'zoom_res' ] for zn in ZOOM_NAMES] \
  })
 
+
+# exclude all samples without fastq files
+if DEMUX_TYPE is not None:
+ POOL_IDS = exclude_samples_without_fastq_files(FASTQ_DIR, POOL_IDS, HTO=False)
+ POOL_IDS = exclude_samples_without_fastq_files(HTO_FASTQ_DIR, POOL_IDS, HTO=True)
+else:
+ SAMPLES  = exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES,HTO=False)
+
 # join all samples into a single string
+POOL_STR   = ','.join(POOL_IDS)
 SAMPLE_STR = ','.join(SAMPLES)
 
 # one rule to rule them all
@@ -87,10 +93,10 @@ rule all:
     # Conditional ADT index outputs
     *(
      [
-     af_dir + '/adt.tsv',
-     af_dir + '/t2g_adt.tsv',
-     af_dir + '/adt_index/ref_indexing.log',
-     ] if POOL_IDS is not None and DEMUX_TYPE == "af" else []), 
+     af_dir + '/hto.tsv',
+     af_dir + '/t2g_hto.tsv',
+     af_dir + '/hto_index/ref_indexing.log',
+     ] if DEMUX_TYPE == "af" else []), 
     expand(
       [
       # alevin_fry
@@ -108,7 +114,7 @@ rule all:
       # doublet id
       dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
       dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-      ], sample = SAMPLES), 
+      ], sample =  POOL_IDS if DEMUX_TYPE is not None else SAMPLES), 
       # ambient sample statistics
       amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',  
       # make sce input df
@@ -170,7 +176,7 @@ rule simpleaf:
       af_dir    + '/af_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
       af_dir    + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml',
       ],
-     sample = SAMPLES), 
+     sample = POOL_IDS if DEMUX_TYPE is not None else SAMPLES), 
      rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
      docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html'
 
@@ -178,7 +184,7 @@ rule simpleaf:
 rule ambient:
   input: 
     expand(amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
-    sample = SAMPLES),
+    sample = POOL_IDS if DEMUX_TYPE is not None else SAMPLES),
     amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', 
     amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt', 
     rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd', 

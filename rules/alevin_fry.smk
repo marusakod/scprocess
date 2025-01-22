@@ -50,9 +50,6 @@ def parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, s
     return AF_CHEMISTRY, EXPECTED_ORI, WHITELIST_F
 
 
-# check if sample needs to be demultiplexed using simpleaf
-def check_multiplexing(sample, POOL_IDS, DEMUX_TYPE):
-    return DEMUX_TYPE == 'af' and sample in POOL_IDS
 
 
 def parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, sample, 
@@ -113,9 +110,9 @@ def parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, sample,
   return KNEE_1, INF_1, KNEE_2, INF_2, EXPECTED_CELLS, TOTAL_DROPLETS_INCLUDED, LOW_COUNT_THRESHOLD
 
 
-# build adt index if at least one multiplexed sample with htos
-if POOL_IDS is not None and DEMUX_TYPE == "af":
-  rule build_adt_index:
+# build hto index if at least one multiplexed sample with htos
+if DEMUX_TYPE == "af":
+  rule build_hto_index:
     input:
       feature_ref_f = FEATURE_REF
     threads: 8
@@ -123,9 +120,9 @@ if POOL_IDS is not None and DEMUX_TYPE == "af":
     resources:
       mem_mb = 4096
     output: 
-      adt_f       = af_dir + '/adt.tsv',
-      t2g_f       = af_dir + '/t2g_adt.tsv',
-      idx_log_f   = af_dir + '/adt_index/ref_indexing.log'
+      hto_f       = af_dir + '/hto.tsv',
+      t2g_f       = af_dir + '/t2g_hto.tsv',
+      idx_log_f   = af_dir + '/hto_index/ref_indexing.log'
     conda:
       '../envs/alevin_fry.yml'
     shell:
@@ -141,26 +138,20 @@ if POOL_IDS is not None and DEMUX_TYPE == "af":
         }}
         NR > 1 {{
           print $hto_id_col "\t" $seq_col
-        }}' {input.feature_ref_f} > {output.adt_f}
+        }}' {input.feature_ref_f} > {output.hto_f}
 
       # 
-      salmon index -t {output.adt_f} -i adt_index --features -k7
+      salmon index -t {output.hto_f} -i hto_index --features -k7
       
       # Make gene-to-transcript mapping file
-      awk '{{print $1"\t"$1;}}' {output.adt_f} > {output.t2g_f}
+      awk '{{print $1"\t"$1;}}' {output.hto_f} > {output.t2g_f}
       """
-
-
-
 
 
 rule run_alevin_fry:
   input:
     R1_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.sample, "R1"),
-    R2_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.sample, "R2"),
-    hto_R1_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.sample, "R1") if check_multiplexing(wildcards.sample, POOL_IDS, DEMUX_TYPE) else None,
-    hto_R2_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.sample, "R2") if check_multiplexing(wildcards.sample, POOL_IDS, DEMUX_TYPE) else None, 
-    t2g_f         = lambda wildcards: af_dir + '/t2g_adt.tsv' if check_multiplexing(wildcards.sample, POOL_IDS, DEMUX_TYPE) else None
+    R2_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.sample, "R2")
   threads: 8
   retries: RETRIES
   resources:
@@ -168,8 +159,7 @@ rule run_alevin_fry:
   params:
     af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[0],
     exp_ori       = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[1],
-    whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[2],
-    demultiplex   = lambda wildcards: 1 if check_multiplexing(wildcards.sample, POOL_IDS, DEMUX_TYPE) else 0
+    whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[2]
   output:
     fry_dir     = directory(af_dir + '/af_{sample}/af_quant/'),
     rad_f       = temp(af_dir + '/af_{sample}/af_map/map.rad'),
@@ -184,15 +174,11 @@ rule run_alevin_fry:
     R1_fs=$(echo {input.R1_fs} | sed "s/ /,/g")
     R2_fs=$(echo {input.R2_fs} | sed "s/ /,/g")
 
-    if [ "{params.demultiplex}" = "True" ]; then
-        HTO_R1_fs=$(echo {input.hto_R1_fs} | sed "s/ /,/g")
-        HTO_R2_fs=$(echo {input.hto_R2_fs} | sed "s/ /,/g")
-    fi
-    
+
     export ALEVIN_FRY_HOME="{AF_HOME_DIR}"
     simpleaf set-paths
 
-    # RNA Quantification
+    # RNA quantification
     simpleaf quant \
       --reads1 $R1_fs  \
       --reads2 $R2_fs  \
@@ -203,19 +189,54 @@ rule run_alevin_fry:
       --t2g-map {AF_INDEX_DIR}/index/t2g_3col.tsv \
       --unfiltered-pl {params.whitelist_f} --min-reads 1 \
       --output {af_dir}/af_{wildcards.sample}
+    """
 
-    if [ "{params.demultiplex}" = "1" ]; then
-        # ADT Quantification
-        simpleaf quant \
-          --reads1 $HTO_R1_fs \
-          --reads2 $HTO_R2_fs \
-          --threads {threads} \
-          --index {af_dir}/adt_index \
-          --chemistry {params.af_chemistry} --resolution cr-like \
-          --expected-ori fw --unfiltered-pl \
-          --t2g-map {input.t2g_f} \
-          --output {af_dir}/af_{wildcards.sample}/adt_quant
-    fi
+
+if DEMUX_TYPE == "af":
+  rule run_alevin_fry_hto:
+    input:
+      hto_R1_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.sample, "R1")
+      hto_R2_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.sample, "R2") 
+      t2g_f         = af_dir + '/t2g_hto.tsv'
+  threads: 8
+  retries: RETRIES
+  resources:
+    mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_ALEVIN_FRY
+  params:
+    af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[0],
+    whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[2]
+  output:
+    fry_dir     = directory(af_dir + '/af_{sample}/af_quant/'),
+    rad_f       = temp(af_dir + '/af_{sample}/af_map/map.rad'),
+    mtx_f       = af_dir + '/af_{sample}/af_quant/alevin/quants_mat.mtx',
+    cols_f      = af_dir + '/af_{sample}/af_quant/alevin/quants_mat_cols.txt',
+    rows_f      = af_dir + '/af_{sample}/af_quant/alevin/quants_mat_rows.txt'
+  conda:
+    '../envs/alevin_fry.yml'
+  shell:
+    """
+    # Process input strings
+    
+    HTO_R1_fs=$(echo {input.hto_R1_fs} | sed "s/ /,/g")
+    HTO_R2_fs=$(echo {input.hto_R2_fs} | sed "s/ /,/g")
+    
+    export ALEVIN_FRY_HOME="{AF_HOME_DIR}"
+    simpleaf set-paths
+
+    # HTO quantification
+    simpleaf quant \
+      --reads1 $HTO_R1_fs \
+      --reads2 $HTO_R2_fs \
+      --no-piscem \
+      --threads {threads} \
+      --index {af_dir}/hto_index \
+      --chemistry {params.af_chemistry} --resolution cr-like \
+      --expected-ori fw \
+      --unfiltered-pl {params.whitelist_f} \
+      --min-reads 1 \
+      --t2g-map {input.t2g_f} \
+      --output {af_dir}/af_hto_{wildcards.sample}
+    
     """
 
 

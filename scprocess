@@ -41,7 +41,7 @@ def find_fastq_files(fastqs_dir, sample, read):
 
 
 # function to exclude samples without valid fastq files
-def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES):
+def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES, HTO = False):
   # get parameters
 
   # get fastq files for each sample
@@ -51,7 +51,10 @@ def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES):
     if len(R1_fs) > 0:
       chk_samples.append(sample)
     else:
-      print(f"WARNING: no fastq files found for sample {sample}; excluded")
+      if HTO:
+        print(f"WARNING: no hto fastq files found for sample {sample}; excluded")
+      else:
+        print(f"WARNING: no fastq files found for sample {sample}; excluded")
 
   return chk_samples
 
@@ -122,17 +125,50 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   wflowr_fs_ful_ls = [os.path.join(proj_dir, f) for f in wflowr_fs_ls]
   assert all([os.path.isfile(f) for f in wflowr_fs_ful_ls]), \
     f"proj_dir {config['proj_dir']} is not a workflowr project; you can create a workflowr project using newproj"
+  
+  # check if samples are multiplexed using htos
+  sample_var = "sample_id" # id to use for matching with fastq files
+  demux_type = None
+  hto_fastq_dir = None
+
+  if ('multiplexing' in config) and (config['multiplexing'] is not None):
+    assert 'demux_type' in config['multiplexing']
+    demux_type = config['multiplexing']['demux_type']
+    assert demux_type in ["af", "custom"], \
+      "Invalid value of 'demux_type' parameter. Must be either 'af' or 'custom'"
 
   # check that sample metadata exists, has sample_id present, no spaces in column names 
   assert "sample_metadata" in config, "sample_metadata not specified in config file"
-  assert os.path.isfile(config["sample_metadata"]), \
-    f"sample_metadata {config['sample_metadata']} is not a valid file"
+  sample_metadata = config['sample_metadata']
+  if not os.path.isabs(sample_metadata):
+    sample_metadata = os.path.join(proj_dir, sample_metadata)
+    
+  assert os.path.isfile(sample_metadata), \
+     f"sample metadata {sample_metadata} is not a valid file"
   
-
   # load up sample metadata
-  sample_df   = pd.read_csv(config["sample_metadata"])
+  sample_df   = pd.read_csv(sample_metadata)
   assert "sample_id" in sample_df.columns, \
     "sample_id not present in sample metadata"
+  
+  if demux_type is not None:
+    sample_var = "pool_id"
+    assert "pool_id" in sample_df.columns, \
+     "pool_id not present in sample metadata"
+    if demux_type == 'af':
+     assert "hto_id" in sample_df.columns, \
+      "hto_id not present in sample metadata"
+     # check that hto fastq path is present
+     assert "fastq_dir" in config['multiplexing'], \
+      "fastq_dir missing from 'multiplexing' section in the config file"
+     hto_fastq_dir = config['multiplexing']['fastq_dir'] 
+     if not os.path.isabs(hto_fastq_dir):
+       hto_fastq_dir = os.path.join(proj_dir, hto_fastq_dir)
+     assert os.path.isdir(hto_fastq_dir), \
+       f"{hto_fastq_dir} is not a valid directory"
+  
+
+
   assert all(sample_df[ "sample_id" ].value_counts() == 1), \
     "sample_id values in metadata csv not unique"
   
@@ -149,12 +185,24 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
 
   # check fastq directory exists
   assert "fastq_dir" in config, "fastq_dir not in config file"
-  assert os.path.isdir(config["fastq_dir"]), \
-    f"fastq_dir {fastq_dir} is not a directory"
-  fastq_dir = config["fastq_dir"]
+  fastq_dir = config['fastq_dir']
+  if not os.path.isabs(fastq_dir):
+    fastq_dir = os.path.join(proj_dir, fastq_dir)
+  assert os.path.isdir(fastq_dir), \
+    f"{fastq_dir} if not a valid directory"
+  
+  
+  samples_ls = sample_df[sample_var].tolist()
+  # check that samples don't have '_R1' or '_R2' in their names 
+  assert all('_R1' not in s and '_R2' not in s for s in samples_ls), \
+    f"One or more {sample_var} values contain '_R1' or '_R2'. Please ensure all elements exclude these substrings"
   
   # check that some fastq files exist
-  samples_ls  = exclude_samples_without_fastq_files(fastq_dir, sample_df["sample_id"].tolist())
+  samples_ls  = exclude_samples_without_fastq_files(fastq_dir, samples_ls, HTO=False)
+
+  if demux_type == 'af':
+   samples_ls  = exclude_samples_without_fastq_files(hto_fastq_dir, samples_ls , HTO=True)
+
   assert len(samples_ls) > 0, \
     "No fastq files found in fastq_dir"
 

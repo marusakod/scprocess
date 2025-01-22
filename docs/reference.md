@@ -97,8 +97,11 @@ This is an example config file for {{ software_name }} with all parameters and t
       alevin:
         chemistry:
       custom_sample_params:
-      exclude_samples:
+      exclude:
+        sample_id:
+        pooll_id:
       metadata_vars:
+      multiplexing:
       ambient:
         ambient_method: decontx
         cellbender_version: 'v0.3.0'
@@ -190,7 +193,9 @@ This is an example config file for {{ software_name }} with all parameters and t
       alevin:
         chemistry: 3v3
       custom_sample_params: /path/to/file/with/custom_parameters.yaml # modify
-      exclude_samples: [sample1, sample2]
+      exclude:
+        sample_id: [sample1, sample2]
+        pool_id: [pool1, pool2]
       metadata_vars: [test1, test2]
       ambient:
         ambient_method: decontx
@@ -314,9 +319,17 @@ sample_3:
     total_droplets_included: 20000
 ```
 
-* `exclude_samples`: list of all samples that should be excluded from the analysis.
+* `exclude`: list of all samples that should be excluded from the analysis. Samples can be listed under `pool_id`(if multiplexed) or `sample_id`
 * `metadata_vars`: list of all variables in `sample_metadata` file. Enables plotting of cell proportions associated with specific metadata values per cluster and in binned UMAPs, with facets representing each variable’s unique values to help assess whether cells with certain annotations are concentrated in specific clusters/UMAP regions, or if they are evenly distributed.
 
+
+##### multiplexing
+
+* `demux_type`: `af` if demultiplexing of samples should be performed with {{ software_name }} or `custom` if demultiplexing results will be used as input to {{ software_name }}
+* `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. Required if `demux_type` is `af`. 
+* `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `af`.
+* `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `ambiguous`. Required if `demux_type` is `af`. 
+* `batch_var`: variable to use for integration with `harmony`. Options are `pool_id` or `sample_id`. 
 
 ##### ambient
 
@@ -426,7 +439,7 @@ sample_3:
 * `mb_run_alevin_fry`: maximum memory required (in MB) for running `simpleaf`. Value applies to the entire job, not per thread.
 * `mb_save_alevin_to_h5`:  maximum memory required (in MB) to save `simpleaf` output to H5 format. Value applies to the entire job, not per thread.
 * `mb_run_ambient`: maximum memory required (in MB) to run the ambient RNA removal step. Value applies to the entire job, not per thread.
-* `mb_get_ambient_qc_metrics`: maximum memory required (in MB) to obtain quality control metrics related to ambient RNA removal. Value applies to the entire job, not per thread.
+* `mb_get_barcode_qc_metrics`: maximum memory required (in MB) to obtain quality control metrics related to ambient RNA removal. Value applies to the entire job, not per thread.
 * `mb_run_scdblfinder`: maximum memory required (in MB) to run `scDblFinder` for doublet detection. Value applies to the entire job, not per thread.
 * `mb_combine_scdblfinder_outputs`: maximum memory required (in MB) to combine `scDblFinder` outputs across samples. Value applies to the entire job, not per thread.
 * `mb_make_sce_object`: maximum memory required (in MB) to create a `SingleCellExperiment` object. Value applies to the entire job, not per thread.
