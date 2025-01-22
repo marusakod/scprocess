@@ -254,7 +254,6 @@ elif AMBIENT_METHOD == 'decontx':
 
       """
 else:
-  localrules: run_ambient
   rule run_ambient:
     input:
       h5_f      = af_dir + '/af_{sample}/af_counts_mat.h5',
