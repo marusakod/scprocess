@@ -206,11 +206,11 @@ if DEMUX_TYPE == "af":
     af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[0],
     whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[2]
   output:
-    fry_dir     = directory(af_dir + '/af_{sample}/af_quant/'),
-    rad_f       = temp(af_dir + '/af_{sample}/af_map/map.rad'),
-    mtx_f       = af_dir + '/af_{sample}/af_quant/alevin/quants_mat.mtx',
-    cols_f      = af_dir + '/af_{sample}/af_quant/alevin/quants_mat_cols.txt',
-    rows_f      = af_dir + '/af_{sample}/af_quant/alevin/quants_mat_rows.txt'
+    fry_dir     = directory(af_dir + '/af_hto_{sample}/af_quant/'),
+    rad_f       = temp(af_dir + '/af_hto_{sample}/af_map/map.rad'),
+    mtx_f       = af_dir + '/af_hto_{sample}/af_quant/alevin/quants_mat.mtx',
+    cols_f      = af_dir + '/af_hto_{sample}/af_quant/alevin/quants_mat_cols.txt',
+    rows_f      = af_dir + '/af_hto_{sample}/af_quant/alevin/quants_mat_rows.txt'
   conda:
     '../envs/alevin_fry.yml'
   shell:
@@ -244,7 +244,7 @@ rule save_alevin_to_h5:
   input: 
     fry_dir     = af_dir + '/af_{sample}/af_quant/'
   output: 
-    h5_f        = af_dir + '/af_{sample}/af_counts_mat.h5',
+    h5_f        = af_dir + '/af_{sample}/af_hto_counts_mat.h5',
     amb_yaml_f   = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml',
     knee_data_f = af_dir + '/af_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
   params:
@@ -275,5 +275,26 @@ rule save_alevin_to_h5:
         '{output.h5_f}', '{output.amb_yaml_f}', '{output.knee_data_f}', \
         '{params.knee1}', '{params.inf1}', '{params.knee2}', '{params.inf2}',
         '{params.exp_cells}', '{params.total_inc}', '{params.low_count_thr}')"
+    """
+
+
+if DEMUX_TYPE == 'af':
+  rule save_alevin_hto_to_h5:
+    input: 
+      fry_dir     = af_dir + '/af_hto_{sample}/af_quant/'
+    output: 
+      h5_f        = af_dir + '/af_hto_{sample}/af_counts_mat.h5',
+      knee_data_f = af_dir + '/af_hto_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
+  threads: 1
+  retries: RETRIES
+  resources:
+    mem_mb = lambda wildcards, attempt: attempt * MB_SAVE_ALEVIN_TO_H5
+  conda: 
+   '../envs/rlibs.yml'
+  shell:
+    """
+    Rscript -e "source('scripts/alevin_fry.R'); \
+      save_alevin_hto('{wildcards.sample}', '{input.fry_dir}', \
+        '{output.h5_f}', '{output.knee_data_f}')"
     """
 

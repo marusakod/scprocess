@@ -16,21 +16,8 @@ suppressPackageStartupMessages({
 # load counts data into sce object
 save_alevin_h5_calculate_amb_params <- function(sample, fry_dir, h5_f, cb_yaml_f, knee_data_f, 
                                                knee1, inf1, knee2, inf2, exp_cells, total_included, low_count_thr){
-  # load the data
-  sce       = loadFry(fry_dir,
-                      outputFormat = list(S = c("S"), U = c("U"), A = c("A")))
-  split_mat = assayNames(sce) %>% lapply(function(n) {
-    mat       = assay(sce, n)
-    rownames(mat) = paste0(rownames(mat), "_", n)
-    return(mat)
-  }) %>% do.call(rbind, .)
-
-  # remove zero cols
-  split_mat = split_mat[, colSums(split_mat) > 0]
-  message("number of barcodes kept: ", ncol(split_mat))
-
-  # save to h5 file
-  write10xCounts(h5_f, split_mat, version = "3", overwrite = TRUE)
+  # load the data, save to h5
+  split_mat = save_alevin_h5(fry_dir, h5_f)
 
   # convert custom knees, shins and cellbender params to integers
   knee1           = as.integer(knee1)
@@ -75,6 +62,47 @@ save_alevin_h5_calculate_amb_params <- function(sample, fry_dir, h5_f, cb_yaml_f
   ), con = con_obj)
   close(con_obj)
 }
+
+
+save_alevin_hto  <- function(sample, fry_dir, h5_f, knee_data_f){
+  # save alevin
+  split_mat save_alevin_h5(fry_dir, h5_f)
+
+  # save knee data
+  ranks_obj = barcodeRanks( split_mat )
+  
+  ranks_dt = ranks_obj %>% as.data.frame() %>%
+    as.data.table(keep.rownames = TRUE) %>%
+    setnames("rn", "barcode") %>%
+    .[order(rank)] %>%
+    .[, sample_id:=sample]
+ 
+  fwrite(ranks_dt, knee_data_f)
+
+}
+
+save_alevin_h5 <- function(fry_dir, h5_f){
+
+ # load the data
+  sce       = loadFry(fry_dir,
+                      outputFormat = list(S = c("S"), U = c("U"), A = c("A")))
+  split_mat = assayNames(sce) %>% lapply(function(n) {
+    mat       = assay(sce, n)
+    rownames(mat) = paste0(rownames(mat), "_", n)
+    return(mat)
+  }) %>% do.call(rbind, .)
+
+  # remove zero cols
+  split_mat = split_mat[, colSums(split_mat) > 0]
+  message("number of barcodes kept: ", ncol(split_mat))
+
+  # save to h5 file
+  write10xCounts(h5_f, split_mat, version = "3", overwrite = TRUE)
+
+  return(split_mat)
+
+}
+
 
 # split_mat: matrix with split spliced, unspliced, ambiguous counts (could also be a normal matrix)
 # sample: sample_id

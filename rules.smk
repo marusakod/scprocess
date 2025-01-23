@@ -87,16 +87,31 @@ else:
 POOL_STR   = ','.join(POOL_IDS)
 SAMPLE_STR = ','.join(SAMPLES)
 
+# alevin hto index outputs (optional)
+hto_index_outs = [
+    af_dir + '/hto.tsv',
+    af_dir + '/t2g_hto.tsv',
+    af_dir + '/hto_index/ref_indexing.log'
+  ] if DEMUX_TYPE == "af" else []
+
+# alevin hto quantification outputs (optional)
+hto_af_outs = expand(
+  [
+  af_dir    + '/af_hto_{sample}/af_quant/',
+  af_dir    + '/af_hto_{sample}/af_quant/alevin/quants_mat.mtx',
+  af_dir    + '/af_hto_{sample}/af_quant/alevin/quants_mat_cols.txt',
+  af_dir    + '/af_hto_{sample}/af_quant/alevin/quants_mat_rows.txt',
+  af_dir    + '/af_hto_{sample}/af_hto_counts_mat.h5',
+  af_dir    + '/af_hto_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
+  ], sample = POOL_IDS if DEMUX_TYPE is not None else SAMPLES
+) if DEMUX_TYPE == 'af' else []
+
 # one rule to rule them all
 rule all:
   input:
-    # Conditional ADT index outputs
-    *(
-     [
-     af_dir + '/hto.tsv',
-     af_dir + '/t2g_hto.tsv',
-     af_dir + '/hto_index/ref_indexing.log',
-     ] if DEMUX_TYPE == "af" else []), 
+    # hto outputs
+    hto_index_outs, 
+    hto_af_outs, 
     expand(
       [
       # alevin_fry
@@ -166,6 +181,8 @@ rule all:
 
 rule simpleaf:
   input:
+    hto_index_outs, 
+    hto_af_outs,
     expand( 
       [
       af_dir    + '/af_{sample}/af_quant/',
@@ -324,3 +341,11 @@ include: "rules/label_and_subset.smk"
 include: "rules/zoom.smk"
 include: "rules/metacells.smk"
 include: "rules/pb_empties.smk"
+
+
+a = *(
+     [
+     af_dir + '/hto.tsv',
+     af_dir + '/t2g_hto.tsv',
+     af_dir + '/hto_index/ref_indexing.log'
+     ] if DEMUX_TYPE == "af" else [])
