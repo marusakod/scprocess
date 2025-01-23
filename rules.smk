@@ -97,12 +97,12 @@ hto_index_outs = [
 # alevin hto quantification outputs (optional)
 hto_af_outs = expand(
   [
-  af_dir    + '/af_hto_{sample}/af_quant/',
-  af_dir    + '/af_hto_{sample}/af_quant/alevin/quants_mat.mtx',
-  af_dir    + '/af_hto_{sample}/af_quant/alevin/quants_mat_cols.txt',
-  af_dir    + '/af_hto_{sample}/af_quant/alevin/quants_mat_rows.txt',
-  af_dir    + '/af_hto_{sample}/af_hto_counts_mat.h5',
-  af_dir    + '/af_hto_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
+  af_dir    + '/af_{sample}/hto/af_quant/',
+  af_dir    + '/af_{sample}/hto/af_quant/alevin/quants_mat.mtx',
+  af_dir    + '/af_{sample}/hto/af_quant/alevin/quants_mat_cols.txt',
+  af_dir    + '/af_{sample}/hto/af_quant/alevin/quants_mat_rows.txt',
+  af_dir    + '/af_{sample}/hto/af_hto_counts_mat.h5',
+  af_dir    + '/af_{sample}/hto/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
   ], sample = POOL_IDS if DEMUX_TYPE is not None else SAMPLES
 ) if DEMUX_TYPE == 'af' else []
 
@@ -115,13 +115,13 @@ rule all:
     expand(
       [
       # alevin_fry
-      af_dir    + '/af_{sample}/af_quant/',
-      af_dir    + '/af_{sample}/af_quant/alevin/quants_mat.mtx',
-      af_dir    + '/af_{sample}/af_quant/alevin/quants_mat_cols.txt',
-      af_dir    + '/af_{sample}/af_quant/alevin/quants_mat_rows.txt',
-      af_dir    + '/af_{sample}/af_counts_mat.h5',
-      af_dir    + '/af_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
-      af_dir    + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat.mtx',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat_cols.txt',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat_rows.txt',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_counts_mat.h5',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml',
       # ambient (cellbender, decontx or nothing)
       amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
       # barcode qc metrics
@@ -185,13 +185,13 @@ rule simpleaf:
     hto_af_outs,
     expand( 
       [
-      af_dir    + '/af_{sample}/af_quant/',
-      af_dir    + '/af_{sample}/af_quant/alevin/quants_mat.mtx',
-      af_dir    + '/af_{sample}/af_quant/alevin/quants_mat_cols.txt',
-      af_dir    + '/af_{sample}/af_quant/alevin/quants_mat_rows.txt',
-      af_dir    + '/af_{sample}/af_counts_mat.h5',
-      af_dir    + '/af_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
-      af_dir    + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat.mtx',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat_cols.txt',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat_rows.txt',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_counts_mat.h5',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
+      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml',
       ],
      sample = POOL_IDS if DEMUX_TYPE is not None else SAMPLES), 
      rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
@@ -341,11 +341,3 @@ include: "rules/label_and_subset.smk"
 include: "rules/zoom.smk"
 include: "rules/metacells.smk"
 include: "rules/pb_empties.smk"
-
-
-a = *(
-     [
-     af_dir + '/hto.tsv',
-     af_dir + '/t2g_hto.tsv',
-     af_dir + '/hto_index/ref_indexing.log'
-     ] if DEMUX_TYPE == "af" else [])

@@ -81,7 +81,6 @@ def find_fastq_files(fastqs_dir, sample, read):
 
 
 # function to exclude samples without valid fastq files
-# function to exclude samples without valid fastq files
 def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES, HTO = False):
   # get parameters
 
@@ -115,6 +114,7 @@ def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
   
   if ('multiplexing' in config) and (config['multiplexing'] is not None):
     POOL_IDS = sample_metadata["pool_id"].tolist()
+    DEMUX_TYPE = config['multiplexing']['demux_type']
 
     if DEMUX_TYPE == 'af':
       # check feature ref specified and valid

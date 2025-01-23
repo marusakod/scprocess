@@ -161,11 +161,11 @@ rule run_alevin_fry:
     exp_ori       = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[1],
     whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[2]
   output:
-    fry_dir     = directory(af_dir + '/af_{sample}/af_quant/'),
-    rad_f       = temp(af_dir + '/af_{sample}/af_map/map.rad'),
-    mtx_f       = af_dir + '/af_{sample}/af_quant/alevin/quants_mat.mtx',
-    cols_f      = af_dir + '/af_{sample}/af_quant/alevin/quants_mat_cols.txt',
-    rows_f      = af_dir + '/af_{sample}/af_quant/alevin/quants_mat_rows.txt'
+    fry_dir     = directory(af_dir + '/af_{sample}/' +  ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/'),
+    rad_f       = temp(af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/af_map/map.rad'),
+    mtx_f       = af_dir + '/af_{sample}/'  + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat.mtx',
+    cols_f      = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') +'af_quant/alevin/quants_mat_cols.txt',
+    rows_f      = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') +'af_quant/alevin/quants_mat_rows.txt'
   conda:
     '../envs/alevin_fry.yml'
   shell:
@@ -173,7 +173,16 @@ rule run_alevin_fry:
     # Process input strings
     R1_fs=$(echo {input.R1_fs} | sed "s/ /,/g")
     R2_fs=$(echo {input.R2_fs} | sed "s/ /,/g")
+    
 
+    # make output directory
+    out_dir="{af_dir}/af_{wildcards.sample}"
+    mkdir -p $out_dir
+
+    # add subdirectory if multiplexed samples
+    if [ "{DEMUX_TYPE}" == "af" ]; then
+        out_dir="$out_dir/rna"
+    fi
 
     export ALEVIN_FRY_HOME="{AF_HOME_DIR}"
     simpleaf set-paths
@@ -188,65 +197,69 @@ rule run_alevin_fry:
       --expected-ori {params.exp_ori} \
       --t2g-map {AF_INDEX_DIR}/index/t2g_3col.tsv \
       --unfiltered-pl {params.whitelist_f} --min-reads 1 \
-      --output {af_dir}/af_{wildcards.sample}
+      --output $out_dir
+      --
     """
 
 
 if DEMUX_TYPE == "af":
   rule run_alevin_fry_hto:
     input:
-      hto_R1_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.sample, "R1")
-      hto_R2_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.sample, "R2") 
+      hto_R1_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.sample, "R1"), 
+      hto_R2_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.sample, "R2"),
       t2g_f         = af_dir + '/t2g_hto.tsv'
-  threads: 8
-  retries: RETRIES
-  resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_ALEVIN_FRY
-  params:
-    af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[0],
-    whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[2]
-  output:
-    fry_dir     = directory(af_dir + '/af_hto_{sample}/af_quant/'),
-    rad_f       = temp(af_dir + '/af_hto_{sample}/af_map/map.rad'),
-    mtx_f       = af_dir + '/af_hto_{sample}/af_quant/alevin/quants_mat.mtx',
-    cols_f      = af_dir + '/af_hto_{sample}/af_quant/alevin/quants_mat_cols.txt',
-    rows_f      = af_dir + '/af_hto_{sample}/af_quant/alevin/quants_mat_rows.txt'
-  conda:
-    '../envs/alevin_fry.yml'
-  shell:
-    """
-    # Process input strings
+    threads: 8
+    retries: RETRIES
+    resources:
+      mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_ALEVIN_FRY
+    params:
+      af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[0],
+      whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[2]
+    output:
+      fry_dir     = directory(af_dir + '/af_{sample}/hto/af_quant/'),
+      rad_f       = temp(af_dir + '/af_{sample}/hto/af_map/map.rad'),
+      mtx_f       = af_dir + '/af_{sample}/hto/af_quant/alevin/quants_mat.mtx',
+      cols_f      = af_dir + '/af_{sample}/hto/af_quant/alevin/quants_mat_cols.txt',
+      rows_f      = af_dir + '/af_{sample}/hto/af_quant/alevin/quants_mat_rows.txt'
+    conda:
+      '../envs/alevin_fry.yml'
+    shell:
+      """
+      # Process input strings
     
-    HTO_R1_fs=$(echo {input.hto_R1_fs} | sed "s/ /,/g")
-    HTO_R2_fs=$(echo {input.hto_R2_fs} | sed "s/ /,/g")
+      HTO_R1_fs=$(echo {input.hto_R1_fs} | sed "s/ /,/g")
+      HTO_R2_fs=$(echo {input.hto_R2_fs} | sed "s/ /,/g")
     
-    export ALEVIN_FRY_HOME="{AF_HOME_DIR}"
-    simpleaf set-paths
+      export ALEVIN_FRY_HOME="{AF_HOME_DIR}"
+      simpleaf set-paths
 
-    # HTO quantification
-    simpleaf quant \
-      --reads1 $HTO_R1_fs \
-      --reads2 $HTO_R2_fs \
-      --no-piscem \
-      --threads {threads} \
-      --index {af_dir}/hto_index \
-      --chemistry {params.af_chemistry} --resolution cr-like \
-      --expected-ori fw \
-      --unfiltered-pl {params.whitelist_f} \
-      --min-reads 1 \
-      --t2g-map {input.t2g_f} \
-      --output {af_dir}/af_hto_{wildcards.sample}
+      out_dir="{af_dir}/af_{wildcards.sample}"
+      mkdir -p $out_dir
+
+      # HTO quantification
+      simpleaf quant \
+        --reads1 $HTO_R1_fs \
+        --reads2 $HTO_R2_fs \
+        --no-piscem \
+        --threads {threads} \
+        --index {af_dir}/hto_index \
+        --chemistry {params.af_chemistry} --resolution cr-like \
+        --expected-ori fw \
+        --unfiltered-pl {params.whitelist_f} \
+        --min-reads 1 \
+        --t2g-map {input.t2g_f} \
+        --output $out_dir/hto
     
-    """
+      """
 
 
 rule save_alevin_to_h5:
   input: 
-    fry_dir     = af_dir + '/af_{sample}/af_quant/'
+    fry_dir     = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/'
   output: 
-    h5_f        = af_dir + '/af_{sample}/af_hto_counts_mat.h5',
-    amb_yaml_f   = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml',
-    knee_data_f = af_dir + '/af_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
+    h5_f        = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_counts_mat.h5',
+    amb_yaml_f   = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml',
+    knee_data_f = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
   params:
     knee1         = lambda wildcards: parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, wildcards.sample, 
       FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD)[0],
@@ -281,20 +294,21 @@ rule save_alevin_to_h5:
 if DEMUX_TYPE == 'af':
   rule save_alevin_hto_to_h5:
     input: 
-      fry_dir     = af_dir + '/af_hto_{sample}/af_quant/'
+      fry_dir     = af_dir + '/af_{sample}/hto/af_quant/'
     output: 
-      h5_f        = af_dir + '/af_hto_{sample}/af_counts_mat.h5',
-      knee_data_f = af_dir + '/af_hto_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
-  threads: 1
-  retries: RETRIES
-  resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_SAVE_ALEVIN_TO_H5
-  conda: 
-   '../envs/rlibs.yml'
-  shell:
-    """
-    Rscript -e "source('scripts/alevin_fry.R'); \
-      save_alevin_hto('{wildcards.sample}', '{input.fry_dir}', \
-        '{output.h5_f}', '{output.knee_data_f}')"
-    """
+      h5_f        = af_dir + '/af_{sample}/hto/af_hto_counts_mat.h5',
+      knee_data_f = af_dir + '/af_{sample}/hto/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
+    threads: 1
+    retries: RETRIES
+    resources:
+      mem_mb = lambda wildcards, attempt: attempt * MB_SAVE_ALEVIN_TO_H5
+    conda: 
+      '../envs/rlibs.yml'
+    shell:
+      """
+      Rscript -e "source('scripts/alevin_fry.R'); \
+        save_alevin_hto('{wildcards.sample}', '{input.fry_dir}', \
+          '{output.h5_f}', '{output.knee_data_f}')"
+      """
+
 
