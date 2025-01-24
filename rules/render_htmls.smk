@@ -57,7 +57,7 @@ rule copy_r_code:
 
 rule render_html_alevin_fry:
   input:
-    expand(af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=SAMPLES)
+    expand(af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=runs)
   output:
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_alevin_fry.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_alevin_fry.html"
@@ -96,7 +96,7 @@ rule render_html_alevin_fry:
 # render_html_ambient
 rule render_html_ambient: # some outputs are the same as outputs in render_html_alevin_fry
   input:
-    expand( amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', sample = SAMPLES )
+    expand( amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', sample = runs )
   output:
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_ambient.html"

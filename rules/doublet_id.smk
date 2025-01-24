@@ -26,8 +26,8 @@ rule run_scDblFinder:
 # input strings to make_sce_object were suuuuuper long, so we use a df instead
 rule make_dbl_files_df:
   input:
-    scdbl_ls    = expand(dbl_dir + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz', sample = samples),
-    dimred_ls   = expand(dbl_dir + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz', sample = samples)
+    scdbl_ls    = expand(dbl_dir + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz', sample = runs),
+    dimred_ls   = expand(dbl_dir + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz', sample = runs)
   output:
     dbl_fs_f    = dbl_dir + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   run:
