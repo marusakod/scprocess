@@ -87,6 +87,8 @@ else:
 POOL_STR   = ','.join(POOL_IDS)
 SAMPLE_STR = ','.join(SAMPLES)
 
+samples = POOL_IDS if DEMUX_TYPE is not None else SAMPLES
+
 # alevin hto index outputs (optional)
 hto_index_outs = [
     af_dir + '/hto.tsv',
@@ -103,7 +105,7 @@ hto_af_outs = expand(
   af_dir    + '/af_{sample}/hto/af_quant/alevin/quants_mat_rows.txt',
   af_dir    + '/af_{sample}/hto/af_hto_counts_mat.h5',
   af_dir    + '/af_{sample}/hto/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
-  ], sample = POOL_IDS if DEMUX_TYPE is not None else SAMPLES
+  ], sample = samples
 ) if DEMUX_TYPE == 'af' else []
 
 # one rule to rule them all
@@ -129,7 +131,7 @@ rule all:
       # doublet id
       dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
       dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-      ], sample =  POOL_IDS if DEMUX_TYPE is not None else SAMPLES), 
+      ], sample =  samples), 
       # ambient sample statistics
       amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',  
       # make sce input df
@@ -193,7 +195,7 @@ rule simpleaf:
       af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
       af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml',
       ],
-     sample = POOL_IDS if DEMUX_TYPE is not None else SAMPLES), 
+     sample = samples), 
      rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
      docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html'
 

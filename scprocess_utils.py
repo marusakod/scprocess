@@ -113,7 +113,7 @@ def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
   EXC_POOLS      = ""
   
   if ('multiplexing' in config) and (config['multiplexing'] is not None):
-    POOL_IDS = sample_metadata["pool_id"].tolist()
+    POOL_IDS = list(set(sample_metadata["pool_id"].tolist()))
     DEMUX_TYPE = config['multiplexing']['demux_type']
 
     if DEMUX_TYPE == 'af':

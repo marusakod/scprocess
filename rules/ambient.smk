@@ -342,11 +342,11 @@ rule get_barcode_qc_metrics:
 
 rule get_ambient_sample_statistics:
   input:
-    metrics_fs  = expand(af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=SAMPLES),
-    amb_yaml_fs = expand(amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml', sample=SAMPLES)
+    metrics_fs  = expand(af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=samples),
+    amb_yaml_fs = expand(amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml', sample=samples)
   output:
     smpl_stats_f    = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt'
   run:
-    sample_stats_df   = extract_sample_statistics(AMBIENT_METHOD, SAMPLES, input.metrics_fs, input.amb_yaml_fs,
+    sample_stats_df   = extract_sample_statistics(AMBIENT_METHOD, samples, input.metrics_fs, input.amb_yaml_fs,
       CUSTOM_SAMPLE_PARAMS_F, CELLBENDER_PROP_MAX_KEPT)
     sample_stats_df.to_csv(output.smpl_stats_f, sep = '\t', index = False)
