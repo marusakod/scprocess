@@ -66,7 +66,7 @@ save_alevin_h5_calculate_amb_params <- function(sample, fry_dir, h5_f, cb_yaml_f
 
 save_alevin_hto  <- function(sample, fry_dir, h5_f, knee_data_f){
   # save alevin
-  split_mat save_alevin_h5(fry_dir, h5_f)
+  split_mat = save_alevin_h5(fry_dir, h5_f)
 
   # save knee data
   ranks_obj = barcodeRanks( split_mat )
