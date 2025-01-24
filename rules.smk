@@ -88,6 +88,7 @@ POOL_STR   = ','.join(POOL_IDS)
 SAMPLE_STR = ','.join(SAMPLES)
 
 runs = POOL_IDS if DEMUX_TYPE is not None else SAMPLES
+runs_str = ','.join(runs)
 
 # alevin hto index outputs (optional)
 hto_index_outs = [

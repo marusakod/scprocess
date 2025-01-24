@@ -86,7 +86,7 @@ rule render_html_alevin_fry:
         AFFILIATION = '{AFFILIATION}', \
         SHORT_TAG = '{SHORT_TAG}', \
         DATE_STAMP = '{DATE_STAMP}', \
-        SAMPLE_STR = '{SAMPLE_STR}', \
+        SAMPLE_STR = '{runs_str}', \
         AMBIENT_METHOD = '{AMBIENT_METHOD}', \
         af_dir = '{af_dir}')"
 
@@ -121,7 +121,7 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
         AFFILIATION = '{AFFILIATION}', \
         SHORT_TAG = '{SHORT_TAG}', \
         DATE_STAMP = '{DATE_STAMP}', \
-        SAMPLE_STR = '{SAMPLE_STR}', \
+        SAMPLE_STR = '{runs_str}', \
         AMBIENT_METHOD = '{AMBIENT_METHOD}', \
         af_dir = '{af_dir}')"
     """

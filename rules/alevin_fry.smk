@@ -162,7 +162,7 @@ rule run_alevin_fry:
     whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[2]
   output:
     fry_dir     = directory(af_dir + '/af_{sample}/' +  ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/'),
-    rad_f       = temp(af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/af_map/map.rad'),
+    rad_f       = temp(af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_map/map.rad'),
     mtx_f       = af_dir + '/af_{sample}/'  + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat.mtx',
     cols_f      = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') +'af_quant/alevin/quants_mat_cols.txt',
     rows_f      = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') +'af_quant/alevin/quants_mat_rows.txt'
@@ -198,7 +198,6 @@ rule run_alevin_fry:
       --t2g-map {AF_INDEX_DIR}/index/t2g_3col.tsv \
       --unfiltered-pl {params.whitelist_f} --min-reads 1 \
       --output $out_dir
-      --
     """
 
 

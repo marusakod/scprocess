@@ -347,6 +347,6 @@ rule get_ambient_sample_statistics:
   output:
     smpl_stats_f    = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt'
   run:
-    sample_stats_df   = extract_sample_statistics(AMBIENT_METHOD, samples, input.metrics_fs, input.amb_yaml_fs,
+    sample_stats_df   = extract_sample_statistics(AMBIENT_METHOD, runs, input.metrics_fs, input.amb_yaml_fs,
       CUSTOM_SAMPLE_PARAMS_F, CELLBENDER_PROP_MAX_KEPT)
     sample_stats_df.to_csv(output.smpl_stats_f, sep = '\t', index = False)
