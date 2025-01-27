@@ -11,6 +11,8 @@ output:
     toc: true
     toc_float: true
     number_sections: false
+params:
+    hto_plots: ${eval_hto_plots} # should be true if demux_type is 'af'
 ---
 
 ```{r setup_knitr, include=FALSE}
@@ -24,48 +26,79 @@ source('code/utils.R')
 source('code/ambient.R')
 ```
 
-
-```{r setup_input, include = FALSE}
-
-# files with barcode ranks and cellbender parameters
-af_dir      = "${af_dir}"
-knee_dirs <- af_dir %>% 
-  list.files(pattern = '^knee_plot_data_.*${DATE_STAMP}.*', recursive = TRUE, full.names = TRUE)
-names(knee_dirs) <- gsub('.*\\/knee_plot_data_(.+)_.*.txt.gz.*', '\\1', knee_dirs)
-
-# check that these are ok
-assert_that( length(knee_dirs) > 0 )
-assert_that( all(file.exists(knee_dirs)) )
-```
-
-
-```{r load_metadata, include = FALSE}
+```{r get_samples, include = FALSE}
 # get all sample ids 
-s_lvls    =  "${SAMPLE_STR}" %>% 
+s_lvls    =  "${RUNS_STR}" %>% 
   str_split(pattern = ',') %>% unlist()
 
 ```
 
-```{r load_knee_dfs, include = FALSE}
-knee_dfs = lapply(knee_dirs, FUN = read_delim, delim = ",", show_col_types = FALSE)
+```{r setup_input, include = FALSE}
+
+# files with barcode ranks and ambient parameters
+af_dir      = "${af_dir}"
+af_rna_dir  = "${af_rna_dir}"
+demux_type  = "${DEMUX_TYPE}"
+
+rna_smpl_dirs = sprintf(paste0(af_dir, '/', af_%s', '/', af_rna_dir), s_lvls)
+hto_smpl_dirs = sprintf(paste0(af_dir, ,/', af_%s', '/hto' ), s_lvls)
+
+rna_knee_fs = sapply(
+  rna_smpl_dirs,
+  function(d) list.files(d, pattern = 'knee_plot_data_(.+)_.*.txt.gz.*', recursive = FALSE, full.names = TRUE)
+) %>%
+setNames(s_lvls)
+
+
+# check that these are ok
+assert_that( length(rna_knee_fs) > 0 )
+assert_that( all(file.exists(rna_knee_fs)) )
+
+if(demux_type == 'af'){
+# find knee files also for htos
+hto_knee_fs = sapply(
+  hto_smpl_dirs, 
+  function(d) list.files(d, pattern = ''knee_plot_data_(.+)_.*.txt.gz.*', recursive = FALSE, full.names = TRUE)
+) %>%
+setNames(s_lvls)
+
+assert_that( lengt(hto_knee_fs) > 0)
+assert_that( all(files.exists(hto_knee_fs)))
+}
+
 ```
 
 
-```{r get_knee_params, include = FALSE}
-ambient_knees_df = lapply(knee_dfs, get_knee_params) %>% bind_rows()
+```{r load_rna_knee_dfs, include = FALSE}
+rna_knee_dfs = lapply(rna_knee_fs, FUN = read_delim, delim = ",", show_col_types = FALSE)
 ```
 
-```{r arrange_samples_for_qc_plots, include = FALSE}
+```{r load_hto_knee_dfs, include = FALSE, eval = hto_plots}
+hto_knee_dfs = lapply(hto_knee_fs, FUN = read_delim, delim = ",", show_col_types = FALSE)
+```
+
+
+```{r get_rna_knee_params, include = FALSE}
+rna_knee_params_df = lapply(rna_knee_dfs, get_knee_params) %>% bind_rows()
+```
+
+
+```{r get_hto_knee_params, include = FALSE, eval = hto_plots}
+hto_kne_params_df = lapply(hto_knee_dfs, get_knee_params) %>% bind_rows()
+```
+
+
+```{r arrange_samples_for_rna_qc_plots, include = FALSE}
 # get total sample number
-sample_n = nrow(ambient_knees_df)
+sample_n = nrow(rna_knee_params_df)
 
 # arrange samples into groups of 12 acoording to their total included vs infection 1 ratio
-slope_ratio_ordered_samples = ambient_knees_df %>%
+slope_ratio_ordered_samples = rna_knee_params_df %>%
   arrange(desc(slope_ratio)) %>%
   pull(sample_id)
 
 # arrange samples into groups of 12 according to their expected cells vs total included ratio
-exp_tot_ratio_orderd_samples = ambient_knees_df %>%
+exp_tot_ratio_orderd_samples = rna_knee_params_df %>%
   arrange(desc(expected_total_ratio)) %>%
   pull(sample_id)
 
@@ -78,6 +111,32 @@ index_vec_for_split = rep(1:num_subsets, each = n_per_plot, length.out = sample_
 slope_ratio_split_l = split(slope_ratio_ordered_samples, index_vec_for_split)
 exp_tot_ratio_split_l = split(exp_tot_ratio_orderd_samples, index_vec_for_split)
 ```
+
+
+```{r arrange_samples_for_rna_qc_plots, include = FALSE}
+# get total sample number
+sample_n = nrow(hto_knee_params_df)
+
+# arrange samples into groups of 12 acoording to their total included vs infection 1 ratio
+slope_ratio_ordered_samples = rna_knee_params_df %>%
+  arrange(desc(slope_ratio)) %>%
+  pull(sample_id)
+
+# arrange samples into groups of 12 according to their expected cells vs total included ratio
+exp_tot_ratio_orderd_samples = rna_knee_params_df %>%
+  arrange(desc(expected_total_ratio)) %>%
+  pull(sample_id)
+
+# split long vector into subsets
+n_per_plot  = 12
+num_subsets = ceiling(sample_n/n_per_plot)
+index_vec_for_split = rep(1:num_subsets, each = n_per_plot, length.out = sample_n)
+
+# split sample_id vec into a list of subvectors
+slope_ratio_split_l = split(slope_ratio_ordered_samples, index_vec_for_split)
+exp_tot_ratio_split_l = split(exp_tot_ratio_orderd_samples, index_vec_for_split)
+```
+
 
 ```{r get_knee_plot_dims, include = FALSE}
 
@@ -93,7 +152,6 @@ if(sample_n <= 4){
 }
 
 ```
-
 
 ## Barcode rank plots
 
@@ -116,9 +174,9 @@ for (i in 1:length(slope_ratio_split_l) ) {
   # get knee dfs for all selected samples
   samples = slope_ratio_split_l[[i]]
   name = sprintf('sample chunk #%d', i)
-  knees = knee_dfs[samples]
+  knees = rna_knee_dfs[samples]
   cat('#### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knees, ambient_knees_df, bender_priors_df = NULL))
+  print(plot_barcode_ranks_w_params(knees, rna_knee_params_df, bender_priors_df = NULL))
   cat('\n\n')
 }
 ```
@@ -132,21 +190,60 @@ Plots are annotated with suggested ambient parameters.
 ```{r knee_plots_exp_tot_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
 for (i in 1:length(exp_tot_ratio_split_l) ) {
   # get knee dfs for all selected samples
-  samples <- exp_tot_ratio_split_l[[i]]
-  name <- sprintf('sample chunk #%d', i)
-  knees <- knee_dfs[samples]
+  samples = exp_tot_ratio_split_l[[i]]
+  name = sprintf('sample chunk #%d', i)
+  knees = rna_knee_dfs[samples]
   cat('#### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knees, ambient_knees_df, bender_priors_df = NULL))
+  print(plot_barcode_ranks_w_params(knees, rna_knee_params_df, bender_priors_df = NULL))
   cat('\n\n')
 }
 ```
+
 
 ## Dotplot with slope ratio and `expected_cells`/`empty_plateau_middle`
 
 Both the slope ratio and the expected cells/total droplets ratio are displayed in a dot plot, where each dot represents a sample.
 Outliers are labeled with their corresponding `sample_id` values.
 
-```{r ambient_params_qc_box}
-print(make_amb_params_dotplot(ambient_knees_df, log = TRUE, scales = 'free'))
+```{r ambient_params_qc_dot}
+print(make_amb_params_dotplot(rna_knee_params_df, log = TRUE, scales = 'free'))
 ```
 
+${hto_main_title}
+${hto_sub_title1}
+
+
+```{r hto_knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results='asis', eval = hto_plot}
+for (i in 1:length(slope_ratio_split_l) ) {
+  # get knee dfs for all selected samples
+  samples = slope_ratio_split_l[[i]]
+  name = sprintf('sample chunk #%d', i)
+  knees = hto_knee_dfs[samples]
+  cat('#### ', name, '\n')
+  print(plot_barcode_ranks_w_params(knees, hto_knee_params_df, bender_priors_df = NULL))
+  cat('\n\n')
+}
+```
+
+${hto_sub_title2}
+
+```{r hto_knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results='asis', eval = hto_plots}
+for (i in 1:length(exp_tot_ratio_split_l)) ) {
+  # get knee dfs for all selected samples
+  samples = exp_tot_ratio_split_l[[i]]
+  name = sprintf('sample chunk #%d', i)
+  knees = hto_knee_dfs[samples]
+  cat('#### ', name, '\n')
+  print(plot_barcode_ranks_w_params(knees, hto_knee_params_df, bender_priors_df = NULL))
+  cat('\n\n')
+}
+```
+
+${hto_sub_title3} Dotplot with slope ratio and `expected_cells`/`empty_plateau_middle`
+
+Both the slope ratio and the expected cells/total droplets ratio are displayed in a dot plot, where each dot represents a sample.
+Outliers are labeled with their corresponding `sample_id` values.
+
+```{r hto_params_qc_dot, eval = hto_plots}
+print(make_amb_params_dotplot(hto_knee_params_df, log = TRUE, scales = 'free'))
+```

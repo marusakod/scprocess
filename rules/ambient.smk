@@ -112,17 +112,17 @@ def extract_sample_statistics(AMBIENT_METHOD, samples_ls, metrics_fs_ls, ambient
 if AMBIENT_METHOD == 'cellbender':
   rule run_ambient:
     input:
-      h5_f      = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '')  + 'af_counts_mat.h5',
-      amb_yaml_f = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml'
+      h5_f      = af_dir + '/af_{sample}/' + af_rna_dir  + 'af_counts_mat.h5',
+      amb_yaml_f = af_dir + '/af_{sample}/' + af_rna_dir + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml'
     params:
       expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
       total_droplets_included = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
       low_count_threshold     = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[2],
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[2],
       learning_rate           = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[3]
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[3]
     output:
         ambient_yaml_out = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
         tmp_f            = temp(amb_dir + '/ambient_{sample}/ckpt.tar.gz')
@@ -194,19 +194,19 @@ if AMBIENT_METHOD == 'cellbender':
 elif AMBIENT_METHOD == 'decontx':
   rule run_ambient:
     input:
-      h5_f       = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_counts_mat.h5',
-      amb_yaml_f = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml'
+      h5_f       = af_dir + '/af_{sample}/' + af_rna_dir + 'af_counts_mat.h5',
+      amb_yaml_f = af_dir + '/af_{sample}/' + af_rna_dir + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml'
     params:
       expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
       total_droplets_included = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
       knee_1                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[4],
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[4],
       inflection_1            = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[5],
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[5],
       knee_2                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[6]
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[6]
     output:
       ambient_yaml_out = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
     threads: 4
@@ -256,19 +256,19 @@ elif AMBIENT_METHOD == 'decontx':
 else:
   rule run_ambient:
     input:
-      h5_f      = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_counts_mat.h5',
-      amb_yaml_f = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml'
+      h5_f      = af_dir + '/af_{sample}/' + af_rna_dir + 'af_counts_mat.h5',
+      amb_yaml_f = af_dir + '/af_{sample}/' + af_rna_dir + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml'
     params:
       expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
       total_droplets_included = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
       knee_1                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[4],
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[4],
       inflection_1            = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[5],
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[5],
       knee_2                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[6]
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[6]
     output:
       ambient_yaml_out = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
     threads: 4
@@ -317,12 +317,12 @@ else:
 
 rule get_barcode_qc_metrics:
   input:
-    af_h5_f     = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_counts_mat.h5',
+    af_h5_f     = af_dir + '/af_{sample}/' + af_rna_dir + 'af_counts_mat.h5',
     amb_yaml_f = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
-    knee_yaml_f = af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml'
+    knee_yaml_f = af_dir + '/af_{sample}/' + af_rna_dir + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml'
   params:
     expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0]
+        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0]
   output:
     bc_qc_f     = amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz'
   threads: 1
@@ -342,7 +342,7 @@ rule get_barcode_qc_metrics:
 
 rule get_ambient_sample_statistics:
   input:
-    metrics_fs  = expand(af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=runs),
+    metrics_fs  = expand(af_dir + '/af_{sample}/' + af_rna_dir + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=runs),
     amb_yaml_fs = expand(amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml', sample=runs)
   output:
     smpl_stats_f    = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt'

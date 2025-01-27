@@ -14,39 +14,11 @@ suppressPackageStartupMessages({
 
 
 # load counts data into sce object
-save_alevin_h5_calculate_amb_params <- function(sample, fry_dir, h5_f, cb_yaml_f, knee_data_f, 
-                                               knee1, inf1, knee2, inf2, exp_cells, total_included, low_count_thr){
+save_alevin_h5_ambient_params <- function(sample, fry_dir, h5_f, cb_yaml_f, knee_data_f, 
+                                          knee1, inf1, knee2, inf2, exp_cells, total_included, low_count_thr){
   # load the data, save to h5
-  split_mat = save_alevin_h5(fry_dir, h5_f)
-
-  # convert custom knees, shins and cellbender params to integers
-  knee1           = as.integer(knee1)
-  inf1            = as.integer(inf1)
-  knee2           = as.integer(knee2)
-  inf2            = as.integer(inf2)
-  exp_cells       = as.integer(exp_cells)
-  total_included  = as.integer(total_included)
-  low_count_thr   = as.integer(low_count_thr)
-
-  # check if low count threshold is defined
-  if(is.na(low_count_thr)){
-    low_count_thr = 'inf2'
-  }
-  
-  # estimate ambient(cellbender) parameters, write to csv
-  bender_ps   = calc_cellbender_params(
-    split_mat = split_mat,
-    sel_s = sample,
-    knee1 = knee1,
-    inf1 = inf1,
-    knee2 = knee2,
-    inf2 = inf2, 
-    low_count_threshold = low_count_thr,
-    expected_cells = exp_cells, 
-    total_included = total_included
-  )
-                                       
-  fwrite(bender_ps, file = knee_data_f)
+  bender_ps = save_alevin_h5_knee_params_df(sample, fry_dir, h5_f, knee_data_f, 
+                                            knee1, inf1, knee2, inf2, exp_cells, total_included, low_count_thr)
 
   # write these parameters to yaml file
   con_obj     = file(cb_yaml_f)
@@ -64,25 +36,9 @@ save_alevin_h5_calculate_amb_params <- function(sample, fry_dir, h5_f, cb_yaml_f
 }
 
 
-save_alevin_hto  <- function(sample, fry_dir, h5_f, knee_data_f){
-  # save alevin
-  split_mat = save_alevin_h5(fry_dir, h5_f)
-
-  # save knee data
-  ranks_obj = barcodeRanks( split_mat )
-  
-  ranks_dt = ranks_obj %>% as.data.frame() %>%
-    as.data.table(keep.rownames = TRUE) %>%
-    setnames("rn", "barcode") %>%
-    .[order(rank)] %>%
-    .[, sample_id:=sample]
- 
-  fwrite(ranks_dt, knee_data_f)
-
-}
-
-save_alevin_h5 <- function(fry_dir, h5_f){
-
+save_alevin_h5_knee_params_df <- function(sample, fry_dir, h5_f  knee_data_f, 
+                                          knee1 = '', inf1 = '', knee2 = '', inf2 ='',
+                                          exp_cells ='', total_included ='', low_count_thr =''){
  # load the data
   sce       = loadFry(fry_dir,
                       outputFormat = list(S = c("S"), U = c("U"), A = c("A")))
@@ -99,7 +55,36 @@ save_alevin_h5 <- function(fry_dir, h5_f){
   # save to h5 file
   write10xCounts(h5_f, split_mat, version = "3", overwrite = TRUE)
 
-  return(split_mat)
+  # convert custom knees, shins and cellbender params to integers
+  knee1           = as.integer(knee1)
+  inf1            = as.integer(inf1)
+  knee2           = as.integer(knee2)
+  inf2            = as.integer(inf2)
+  exp_cells       = as.integer(exp_cells)
+  total_included  = as.integer(total_included)
+  low_count_thr   = as.integer(low_count_thr)
+
+  # check if low count threshold is defined
+  if(is.na(low_count_thr)){
+    low_count_thr = 'inf2'
+  }
+  
+  # estimate ambient(cellbender) parameters, write to csv
+  bender_ps   = calc_ambient_params(
+    split_mat = split_mat,
+    sel_s = sample,
+    knee1 = knee1,
+    inf1 = inf1,
+    knee2 = knee2,
+    inf2 = inf2, 
+    low_count_threshold = low_count_thr,
+    expected_cells = exp_cells, 
+    total_included = total_included
+  )
+                                       
+  fwrite(bender_ps, file = knee_data_f)
+
+  return(bender_ps)
 
 }
 
@@ -112,7 +97,7 @@ save_alevin_h5 <- function(fry_dir, h5_f){
 # low_count_threshold: 'inf2', 'knee2' or a specific library_size;
 # low count threshold can be equal to second knee or second inflection or can be set manually
 
-calc_cellbender_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umis_cells = NULL,
+calc_ambient_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umis_cells = NULL,
                                    rank_empty_plateau = NULL, low_count_threshold = 'inf2', 
                                    expected_cells = NA, total_included =NA, 
                                    knee1 = NA, inf1 = NA, knee2 = NA, inf2 = NA) {

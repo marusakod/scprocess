@@ -54,6 +54,7 @@ RETRIES, MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
 code_dir      = f"{PROJ_DIR}/code"
 af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_alevin_fry"
+af_rna_dir    = 'rna/' if DEMUX_TYPE == 'af' else ''
 amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
 sce_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_make_sce"
 dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
@@ -88,7 +89,7 @@ POOL_STR   = ','.join(POOL_IDS)
 SAMPLE_STR = ','.join(SAMPLES)
 
 runs = POOL_IDS if DEMUX_TYPE is not None else SAMPLES
-runs_str = ','.join(runs)
+RUNS_STR = ','.join(runs)
 
 # alevin hto index outputs (optional)
 hto_index_outs = [
@@ -119,13 +120,13 @@ rule all:
     expand(
       [
       # alevin_fry
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/',
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat.mtx',
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat_cols.txt',
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat_rows.txt',
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_counts_mat.h5',
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_quant/',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_quant/alevin/quants_mat_cols.txt',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_quant/alevin/quants_mat_rows.txt',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_counts_mat.h5',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml',
       # ambient (cellbender, decontx or nothing)
       amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
       # barcode qc metrics
@@ -189,13 +190,13 @@ rule simpleaf:
     hto_af_outs,
     expand( 
       [
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/',
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat.mtx',
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat_cols.txt',
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_quant/alevin/quants_mat_rows.txt',
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'af_counts_mat.h5',
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
-      af_dir    + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_quant/',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_quant/alevin/quants_mat_cols.txt',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_quant/alevin/quants_mat_rows.txt',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_counts_mat.h5',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
+      af_dir    + '/af_{sample}/' + af_rna_dir + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml',
       ],
      sample = runs), 
      rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',

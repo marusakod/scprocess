@@ -57,7 +57,7 @@ rule copy_r_code:
 
 rule render_html_alevin_fry:
   input:
-    expand(af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=runs)
+    expand(af_dir + '/af_{sample}/' + af_rna_dir + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=runs)
   output:
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_alevin_fry.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_alevin_fry.html"
@@ -78,17 +78,19 @@ rule render_html_alevin_fry:
     # rendering html
     Rscript -e "source('scripts/render_reports.R'); \
         render_reports(
-        rule_name = '$rule', \
-        proj_dir = '{PROJ_DIR}', \
-        temp_f =  '$template_f', \
-        rmd_f = '{output.rmd_f}', \
-        YOUR_NAME = '{YOUR_NAME}', \
-        AFFILIATION = '{AFFILIATION}', \
-        SHORT_TAG = '{SHORT_TAG}', \
-        DATE_STAMP = '{DATE_STAMP}', \
-        SAMPLE_STR = '{runs_str}', \
+        rule_name      = '$rule', \
+        proj_dir       = '{PROJ_DIR}', \
+        temp_f         =  '$template_f', \
+        rmd_f          = '{output.rmd_f}', \
+        YOUR_NAME      = '{YOUR_NAME}', \
+        AFFILIATION    = '{AFFILIATION}', \
+        SHORT_TAG      = '{SHORT_TAG}', \
+        DATE_STAMP     = '{DATE_STAMP}', \
+        RUNS_STR       = '{RUNS_STR}', \
         AMBIENT_METHOD = '{AMBIENT_METHOD}', \
-        af_dir = '{af_dir}')"
+        DEMUX_TYPE     = '{DEMUX_TYPE}'
+        af_dir         = '{af_dir}', \
+        af_rna_dir     = '{af_rna_dir}')"
 
     """
 
