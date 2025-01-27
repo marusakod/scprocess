@@ -19,6 +19,9 @@ params:
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', warnings = FALSE)
 knitr::opts_knit$set( root.dir='..' )
+
+
+eval_hto_plots = params$hto_plots
 ```
 
 ```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
@@ -40,8 +43,8 @@ af_dir      = "${af_dir}"
 af_rna_dir  = "${af_rna_dir}"
 demux_type  = "${DEMUX_TYPE}"
 
-rna_smpl_dirs = sprintf(paste0(af_dir, '/', af_%s', '/', af_rna_dir), s_lvls)
-hto_smpl_dirs = sprintf(paste0(af_dir, ,/', af_%s', '/hto' ), s_lvls)
+rna_smpl_dirs = sprintf(paste0(af_dir, '/', 'af_%s', '/', af_rna_dir), s_lvls)
+hto_smpl_dirs = sprintf(paste0(af_dir,'/', 'af_%s', '/hto' ), s_lvls)
 
 rna_knee_fs = sapply(
   rna_smpl_dirs,
@@ -58,12 +61,12 @@ if(demux_type == 'af'){
 # find knee files also for htos
 hto_knee_fs = sapply(
   hto_smpl_dirs, 
-  function(d) list.files(d, pattern = ''knee_plot_data_(.+)_.*.txt.gz.*', recursive = FALSE, full.names = TRUE)
+  function(d) list.files(d, pattern = 'knee_plot_data_(.+)_.*.txt.gz.*', recursive = FALSE, full.names = TRUE)
 ) %>%
 setNames(s_lvls)
 
-assert_that( lengt(hto_knee_fs) > 0)
-assert_that( all(files.exists(hto_knee_fs)))
+assert_that( length(hto_knee_fs) > 0)
+assert_that( all(file.exists(hto_knee_fs)))
 }
 
 ```
@@ -73,7 +76,7 @@ assert_that( all(files.exists(hto_knee_fs)))
 rna_knee_dfs = lapply(rna_knee_fs, FUN = read_delim, delim = ",", show_col_types = FALSE)
 ```
 
-```{r load_hto_knee_dfs, include = FALSE, eval = hto_plots}
+```{r load_hto_knee_dfs, include = FALSE, eval = eval_hto_plots}
 hto_knee_dfs = lapply(hto_knee_fs, FUN = read_delim, delim = ",", show_col_types = FALSE)
 ```
 
@@ -83,8 +86,8 @@ rna_knee_params_df = lapply(rna_knee_dfs, get_knee_params) %>% bind_rows()
 ```
 
 
-```{r get_hto_knee_params, include = FALSE, eval = hto_plots}
-hto_kne_params_df = lapply(hto_knee_dfs, get_knee_params) %>% bind_rows()
+```{r get_hto_knee_params, include = FALSE, eval = eval_hto_plots}
+hto_knee_params_df = lapply(hto_knee_dfs, get_knee_params) %>% bind_rows()
 ```
 
 
@@ -113,9 +116,7 @@ exp_tot_ratio_split_l = split(exp_tot_ratio_orderd_samples, index_vec_for_split)
 ```
 
 
-```{r arrange_samples_for_rna_qc_plots, include = FALSE}
-# get total sample number
-sample_n = nrow(hto_knee_params_df)
+```{r arrange_samples_for_hto_qc_plots, include = FALSE}
 
 # arrange samples into groups of 12 acoording to their total included vs infection 1 ratio
 slope_ratio_ordered_samples = rna_knee_params_df %>%
@@ -213,7 +214,7 @@ ${hto_main_title}
 ${hto_sub_title1}
 
 
-```{r hto_knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results='asis', eval = hto_plot}
+```{r hto_knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results='asis', eval = eval_hto_plots}
 for (i in 1:length(slope_ratio_split_l) ) {
   # get knee dfs for all selected samples
   samples = slope_ratio_split_l[[i]]
@@ -227,8 +228,8 @@ for (i in 1:length(slope_ratio_split_l) ) {
 
 ${hto_sub_title2}
 
-```{r hto_knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results='asis', eval = hto_plots}
-for (i in 1:length(exp_tot_ratio_split_l)) ) {
+```{r hto_knee_plots_exp_tot_ordered, fig.height = knee_height, fig.width = knee_width, results='asis', eval = eval_hto_plots}
+for (i in 1:length(exp_tot_ratio_split_l)) {
   # get knee dfs for all selected samples
   samples = exp_tot_ratio_split_l[[i]]
   name = sprintf('sample chunk #%d', i)
@@ -244,6 +245,6 @@ ${hto_sub_title3} Dotplot with slope ratio and `expected_cells`/`empty_plateau_m
 Both the slope ratio and the expected cells/total droplets ratio are displayed in a dot plot, where each dot represents a sample.
 Outliers are labeled with their corresponding `sample_id` values.
 
-```{r hto_params_qc_dot, eval = hto_plots}
+```{r hto_params_qc_dot, eval = eval_hto_plots}
 print(make_amb_params_dotplot(hto_knee_params_df, log = TRUE, scales = 'free'))
 ```

@@ -88,7 +88,7 @@ rule render_html_alevin_fry:
         DATE_STAMP     = '{DATE_STAMP}', \
         RUNS_STR       = '{RUNS_STR}', \
         AMBIENT_METHOD = '{AMBIENT_METHOD}', \
-        DEMUX_TYPE     = '{DEMUX_TYPE}'
+        DEMUX_TYPE     = '{DEMUX_TYPE}', \
         af_dir         = '{af_dir}', \
         af_rna_dir     = '{af_rna_dir}')"
 
@@ -123,7 +123,7 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
         AFFILIATION = '{AFFILIATION}', \
         SHORT_TAG = '{SHORT_TAG}', \
         DATE_STAMP = '{DATE_STAMP}', \
-        SAMPLE_STR = '{runs_str}', \
+        SAMPLE_STR = '{RUNS_STR}', \
         AMBIENT_METHOD = '{AMBIENT_METHOD}', \
         af_dir = '{af_dir}')"
     """
