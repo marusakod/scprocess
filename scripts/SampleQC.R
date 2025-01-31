@@ -38,13 +38,13 @@ prob_labs   = c("50%", "90%", "99%", "99.9%", "99.99%", "99.999%", "99.9999%")
 
 main_qc <- function(sce_f, dbl_f,
   hard_min_counts, hard_min_feats, hard_max_mito,
-  min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, min_cells, filter_bender, amb_method, 
+  min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, min_cells, filter_bender, amb_method,
   qc_f, keep_f) {
   # check inputs
   filter_bender = as.logical(filter_bender)
   # load doublet info
   dbl_dt        = dbl_f %>% fread %>%
-    .[, .(cell_id, sample_id, dbl_class = class)]
+    .[, .(cell_id, sample_id)]
   sngl_ids      = dbl_dt[ dbl_class == 'singlet' ]$cell_id
 
   if(amb_method == 'cellbender'){
@@ -69,7 +69,7 @@ main_qc <- function(sce_f, dbl_f,
   qc_all        = qc_all[ cell_id %in% sngl_ids ]
 
 
-  if(amb_method == 'cellbender'){  
+  if(amb_method == 'cellbender'){
   # processing / calculations
   bender_chks   = calc_bender_chks(qc_all)
   qc_all        = qc_all %>%
@@ -106,7 +106,7 @@ main_qc <- function(sce_f, dbl_f,
 
   # check that that worked
   assert_that( all(keep_dt[, .N, by = sample_id]$N >= min_cells) )
-  assert_that( all(dbl_dt[ cell_id %in% keep_ids ]$class == "singlet") )
+  assert_that( all(dbl_dt[ cell_id %in% keep_ids ]$dbl_class == "singlet") )
 
   # record which kept
   qc_all    = qc_all %>%
@@ -166,9 +166,6 @@ if(amb_method == 'cellbender'){
   by = c('sample_id', 'qc_var', 'qc_full')]
   }
 
-  # order_dt  = qc_meds[ qc_var == 'logit_mito' ] %>% .[ order(sample_id) ]
-  # qc_meds   = qc_meds[, sample_id := factor(sample_id, levels = order_dt$sample_id) ]
-  # qc_melt   = qc_melt[, sample_id := factor(sample_id, levels = order_dt$sample_id) ]
 
   # bar width
   bar_w     = 0.4
@@ -267,7 +264,7 @@ plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt, amb_
     .[, qc_var.y  := factor(qc_var.y, levels = qc_names) ] %>%
     .[, qc_full.y := fct_reorder(qc_full.y, as.integer(qc_var.y)) ] %>%
     .[ as.integer(qc_var.x) > as.integer(qc_var.y) ]
-  
+
   scales_x_ls = list(
         qc_full.x == "library size"    ~
           scale_x_continuous(breaks = log_brks, labels = log_labs),
@@ -292,12 +289,12 @@ plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt, amb_
 
   if(amb_method == 'cellbender'){
     # add bender cell pct. to scales
-    scales_x_ls = c(scales_x_ls, 
+    scales_x_ls = c(scales_x_ls,
     qc_full.x == "bender cell pct." ~
           scale_x_continuous(breaks = logit_brks, labels = logit_labs)
           )
 
-    scales_y_ls = c(scales_y_ls, 
+    scales_y_ls = c(scales_y_ls,
     qc_full.y == "bender cell pct." ~
           scale_y_continuous(breaks = logit_brks, labels = logit_labs)
     )
@@ -307,14 +304,7 @@ plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt, amb_
 
   # make plot
   g = ggplot(pairs_dt) +
-    # geom_linerange( aes( x = q50.x, ymin = q025.y, ymax = q975.y ),
-    #   size = 0.1, colour = 'grey', alpha = 0.8 ) +
-    # geom_linerange( aes( y = q50.y, xmin = q025.x, xmax = q975.x ),
-    #   size = 0.1, colour = 'grey', alpha = 0.8 ) +
-    # geom_linerange( aes( x = q50.x, ymin = q10.y, ymax = q90.y ),
-    #   size = 0.5, colour = 'grey', alpha = 0.8 ) +
-    # geom_linerange( aes( y = q50.y, xmin = q10.x, xmax = q90.x ),
-    #   size = 0.5, colour = 'grey', alpha = 0.8 ) +
+
     geom_point(
       aes( x = q50.x, y = q50.y, size = log10_N ),
       colour = 'black', shape = 21, alpha = 0.8
@@ -541,15 +531,7 @@ plot_totals_split_by_meta <- function(pre_dt, post_dt, meta_dt) {
   return(g)
 }
 
-# # # how to plot just annotations (by making 0*0 heatmap matrix):
 
-# # hc = hclust(dist(matrix(rnorm(100), 10)))
-# # Heatmap(matrix(nc = 0, nr = 10), cluster_rows = hc,
-# #     right_annotation = rowAnnotation(
-# #         foo = anno_points(1:10),
-# #         sth = 1:10,
-# #         bar = anno_barplot(1:10)),
-# #     row_split = 2)
 
 plot_qc_summary_heatmap <- function(qc_stats, meta_input) {
   # make matrix of z-scores
@@ -626,9 +608,6 @@ plot_qc_summary_heatmap <- function(qc_stats, meta_input) {
     annotation_name_side='top', show_legend = c(donor = FALSE)
   )
 
-  # # split rows by MS / not
-  # row_split   = ifelse(rows_dt$diagnosis == 'CTR', 'CTR', 'MS')
-
   # do column titles
   var_lookup  = c(
     log10_N       = "no. cells",
@@ -666,9 +645,9 @@ calc_qc_summary <- function(qc_dt, kept_dt) {
 }
 
 
-# add SampleQC functions
 
-############## FUNCTIONS FORM SampleQC
+
+############## FUNCTIONS FORM SampleQC package
 
 # from make_qc_dt.R
 make_qc_dt <- function(qc_df, sample_var = 'sample_id',

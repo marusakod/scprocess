@@ -27,7 +27,7 @@ suppressPackageStartupMessages({
 
 run_harmony <- function(sce_all_f, keep_f, dbl_f,
   exc_regex, n_hvgs, n_dims, dbl_res, dbl_cl_prop, theta, res_ls_concat,
-  harmony_f, hvgs_f, sce_clean_f, n_cores = 4) {
+  harmony_f, hvgs_f, sce_clean_f, batch_var, n_cores = 4) {
   # unpack inputs
   res_ls      = res_ls_concat %>% str_split(" ") %>% unlist %>% as.numeric
 
@@ -39,13 +39,14 @@ run_harmony <- function(sce_all_f, keep_f, dbl_f,
 
   message('  loading relevant cell ids')
   keep_ids    = fread(keep_f) %>% .$cell_id
-  dbl_ids     = fread(dbl_f) %>% .[ class == "doublet" ] %>% .$cell_id
+  dbl_ids     = fread(dbl_f) %>% .[ dbl_class == "doublet" ] %>% .$cell_id
   load_ids    = c(keep_ids, dbl_ids)
 
   message('  loading sce')
   assert_that( length(keep_ids) > 0 )
   sce_dbl     = readRDS(sce_all_f) %>% .[, load_ids ]
   assert_that("sample_id" %in% colnames(colData(sce_dbl)))
+  assert_that(batch_var %in% colnames(colData(sce_dbl)))
 
   # exclude genes if requested
   if (!is.null(exc_regex)) {
@@ -68,7 +69,7 @@ run_harmony <- function(sce_all_f, keep_f, dbl_f,
 
   # run harmony including doublets
   message('  running Harmony to find more doublets')
-  hmny_dbl    = .run_one_harmony(seu_dbl, n_hvgs, n_dims, theta = 0, dbl_res)
+  hmny_dbl    = .run_one_harmony(seu_dbl, batch_var,  n_hvgs, n_dims, theta = 0, dbl_res)
   dbl_data    = .calc_dbl_data(hmny_dbl, dbl_ids, dbl_res, dbl_cl_prop)
 
   # make new seurat object without these doublets
@@ -83,7 +84,7 @@ run_harmony <- function(sce_all_f, keep_f, dbl_f,
       )
   })
   rm(seu_dbl); gc()
-  hmny_ok     = .run_one_harmony(seu_ok, n_hvgs, n_dims, theta = theta, res_ls)
+  hmny_ok     = .run_one_harmony(seu_ok, batch_var, n_hvgs, n_dims, theta = theta, res_ls)
 
   # join these together
   hmny_dt     = merge(hmny_ok, dbl_data, by = c("sample_id", "cell_id"), all = TRUE)
@@ -110,15 +111,19 @@ run_harmony <- function(sce_all_f, keep_f, dbl_f,
   message('done!')
 }
 
-.run_one_harmony <- function(seu_obj, n_hvgs, n_dims, theta = 0, res_ls) {
+.run_one_harmony <- function(seu_obj, batch_var,  n_hvgs, n_dims, theta = 0, res_ls) {
   message('    normalizing and finding HVGs')
+
   seu_obj   = seu_obj %>%
     NormalizeData( verbose = FALSE ) %>%
     FindVariableFeatures( nfeatures = n_hvgs, verbose = FALSE ) %>%
     ScaleData( verbose = FALSE )
 
+  # check if batch variable is in seurat object
+  assert_that(batch_var %in% colnames(seu[[ ]]))
+
   # check whether we have one or more values of batch
-  n_samples       = seu_obj$sample_id %>% unique %>% length
+  n_samples       = seu_obj[[ batch_var ]] %>% unique %>% length
   is_one_batch    = n_samples == 1
   this_reduction  = ifelse(is_one_batch, "pca", "harmony")
   if (is_one_batch) {
@@ -134,7 +139,7 @@ run_harmony <- function(sce_all_f, keep_f, dbl_f,
     message('    running Harmony and UMAP')
     seu_obj   = seu_obj %>%
       RunPCA( npcs = n_dims, verbose = FALSE ) %>%
-      RunHarmony( c("sample_id"), theta = theta, verbose = TRUE ) %>%
+      RunHarmony( batch_var, theta = theta, verbose = TRUE ) %>%
       RunUMAP( reduction = this_reduction, dims = 1:n_dims, verbose = FALSE  )
   }
 

@@ -110,6 +110,10 @@ hto_af_outs = expand(
   ], sample = runs
 ) if DEMUX_TYPE == 'af' else []
 
+# seurat demultiplexing outputs (optional)
+
+hto_sce_f = (sce_dir + '/sce_cells_htos_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if DEMUX_TYPE == 'af' else []
+
 
 # one rule to rule them all
 rule all:
@@ -141,6 +145,8 @@ rule all:
       sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       # make sce
       sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
+      # make hto sce
+      hto_sce_f, 
       # doublet_id
       dbl_dir   + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       dbl_dir   + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',

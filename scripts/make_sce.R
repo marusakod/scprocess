@@ -24,11 +24,19 @@ suppressPackageStartupMessages({
 source('scripts/ambient.R') # to get the function that reads a matrix from .h5 file
 
 
-save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce_f,
-  bender_prob = 0.5, n_cores = 8) {
+save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce_f, demux_f,
+  bender_prob = 0.5, n_cores = 8, demux_type = "", samples) {
+
+  # get name of run column
+  if(demux_type == ""){
+    run = 'sample_id'
+  }else{
+    run = 'pool_id'
+  }
+
   # unpack some inputs
   samples_dt  = fread(sce_df_f)
-  samples     = samples_dt$sample_id
+  samples     = samples_dt[, get(run)]
   cb_full_ls  = samples_dt$cb_full
   cb_filt_ls  = samples_dt$cb_filt
 
@@ -64,7 +72,7 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
     bender_ls   = .get_one_bender_outputs(cb_full_f, cb_filt_f, sel_s, bender_prob)
 
     # turn into sce
-    sce         = .make_one_sce(bender_ls, sel_s, gene_annots, mito_str)
+    sce         = .make_one_sce(bender_ls, sel_s, run, gene_annots, mito_str)
 
     return(sce)
     }, BPPARAM = bpparam)
@@ -103,13 +111,114 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
   message(sprintf("  the following %d genes were selected as mitochondrial: ", sum(mt_gs)))
   message("    ", rowData(sce)$symbol[ mt_gs ] %>% paste(collapse = ", "))
 
+  # add metadata
   message('  adding metadata')
-  sce         = sce %>% .add_metadata(metadata_f)
+  if(demux_type != ""){
+    sce = sce %>%.add_demux_metadata(metadata_f, demux_f, demux_type)
+
+    # remove any unwanted sample_ids from the object
+    sce = sce[, colData(sce)$sample_id %in% samples]
+
+  }else{
+    sce = sce %>% .add_metadata(metadata_f)
+  }
 
   message('  saving file')
   saveRDS(sce, file = sce_f, compress = FALSE)
   message('done!')
 }
+
+
+
+save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mito_str, sce_f, demux_f,
+                              min_counts = 100, n_cores = 8, demux_type = "", samples ) {
+  # get name of run column
+  if(demux_type == ""){
+    run = 'sample_id'
+  }else{
+    run = 'pool_id'
+  }
+
+  # unpack some inputs
+  samples_dt  = fread(sce_df_f)
+  samples     = samples_dt[, get(run)]
+
+  # get a list of all matrices
+  if(ambient_method == 'decontx'){
+    all_cell_mat_fs = samples_dt$dcx_filt
+
+  }else{
+    all_cell_mat_fs = samples_dt$bcs_filt
+  }
+
+  # get gene annotations
+  message('  loading gene annotations')
+  gene_annots = .get_gene_annots(gtf_dt_f)
+
+  # get sce objects
+  message(' making sce objects for all samples')
+  bpparam     = MulticoreParam(workers = n_cores, tasks = length(samples))
+  on.exit(bpstop(bpparam))
+  sce_ls      = bplapply(seq_along(samples), function(i) {
+    # get sample and file
+    sel_s       = samples[[ i ]]
+    message(sel_s)
+    mat_f     = all_cell_mat_fs[[ i ]]
+
+    # turn into sce
+    sce         = .get_one_nonbender_sce(mat_f, sel_s, mito_str, gene_annots, min_counts)
+
+    return(sce)
+  }, BPPARAM = bpparam)
+
+
+  # check no surprises
+  assert_that( length(unique(sapply(sce_ls, nrow))) == 1 )
+
+  # concatenate counts matrices
+  message('  joining many matrices (takes a while)')
+  counts_mat  = lapply(sce_ls, counts) %>% .join_spmats
+
+  # double-check for weird genes
+  weird_gs = str_detect(rownames(counts_mat), "unassigned_gene")
+  assert_that( all(!weird_gs) )
+
+  # get annotations for cells
+  message('  joining colData info')
+  cells_dt    = sce_ls %>%
+    lapply(function(s) colData(s) %>% as.data.frame %>% as.data.table) %>%
+    rbindlist
+  assert_that( all.equal(colnames(counts_mat), cells_dt$cell_id) )
+
+  # put into one big file
+  message('  making sce object')
+  sce         = SingleCellExperiment(list(counts = counts_mat),
+                                     colData = cells_dt)
+
+  # get annotations for rows
+  message('  adding gene annotations')
+  sce         = .add_gene_annots(sce, gene_annots)
+  rm(sce_ls); gc()
+
+  # add metadata
+  message('  adding metadata')
+  if(demux_type != ""){
+    sce = sce %>%.add_demux_metadata(metadata_f, demux_f, demux_type)
+
+    # remove any unwanted sample_ids from the object
+    sce = sce[, colData(sce)$sample_id %in% samples]
+
+  }else{
+    sce = sce %>% .add_metadata(metadata_f)
+  }
+
+  message('  saving file')
+  saveRDS(sce, file = sce_f, compress = FALSE)
+  message('done!')
+}
+
+
+
 
 .get_one_bender_outputs <- function(cb_full_f, cb_filt_f, sel_s, bender_prob) {
   # get this file
@@ -156,7 +265,8 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
   return(list(mat = mat, bender_dt = bender_dt))
 }
 
-.make_one_sce <- function(bender_ls, sel_s, gene_annots, mito_str) {
+
+.make_one_sce <- function(bender_ls, sel_s, run_var, gene_annots, mito_str) {
   # unpack inputs
   mat         = bender_ls$mat
   bender_dt   = bender_ls$bender_dt
@@ -209,7 +319,7 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
 
   # make sce object
   sce_tmp             = SingleCellExperiment( assays = list(counts = counts_mat) )
-  sce_tmp$sample_id   = sel_s
+  sce_tmp[[run_var]]  = sel_s
   sce_tmp$cell_id     = colnames(counts_mat)
 
   # add to sce object
@@ -349,6 +459,7 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
   return(sce)
 }
 
+
 .add_metadata <- function(sce, metadata_f) {
   # get all metadata
   metadata_all  = fread(metadata_f)
@@ -371,151 +482,71 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
 }
 
 
-# maybe useful for later...
+.add_demux_metadata <- function(sce, metadata_f, demux_f, demux_type){
+  metadata_all = fread(metadata_f)
+  assert_that( all(unique(sce$pool_id) %in% metadata_all$pool_id))
 
-get_bcs_dt <- function(fry_dirs, name_regex, n_cores) {
-  # get subdirectories
-  fry_subs  = lapply(fry_dirs, function(fry_dir)
-    .get_fry_sub_dirs(fry_dir, name_regex, what = 'qc')) %>%
-    do.call(c, .)
+  coldata_in = colData(sce) %>% as.data.frame() %>% as.data.table()
 
-  # load featureDump.txt from each
-  message('loading barcodes:\n  ', appendLF = FALSE)
-  bpparam   = MulticoreParam(workers = n_cores, tasks = length(fry_subs))
-  on.exit(bpstop(bpparam))
-  bcs_dt    = bplapply(names(fry_subs), function(fry_name) {
-    message(fry_name, " ", appendLF = FALSE)
-    # get date
-    fry_sub   = fry_subs[[fry_name]]
+  if(demux_type == 'af'){
+    hto_sce = readRDS(demux_f)
 
-    # get date
-    fs        = list.files(fry_sub, recursive = FALSE )
-    date_str  = fs %>% str_subset("outs_alevin_[0-9]{4}-[0-9]{2}-[0-9]{2}") %>%
-      str_extract("[0-9]{4}-[0-9]{2}-[0-9]{2}") %>% unique %>%
-      sort(decreasing = TRUE) %>% .[ 1 ]
-    fry_dir   = paste0('outs_fry_', date_str)
-    alvn_dir  = paste0('outs_alevin_', date_str)
+    # get demultiplexing metadata
+    hto_coldata = colData(hto_sce) %>% as.data.frame() %>% as.data.table() %>%
+     # fix labels of doublets from the same sample
+    .[, c("hto1", "hto2") := tstrsplit(HTO_classification, "_", fixed = TRUE)] %>%
+    .[, hto_id := fifelse(hto1 == hto2, hto1, HTO_classification)] %>%
+    .[, c('hto1', 'hto2'): NULL] %>%
+     setnames("HTO_classification.global", "demux_class")
 
-    # get data
-    tmp_dt    = readAlevinFryQC(
-        mapDir    = file.path(fry_sub, alvn_dir),
-        permitDir = file.path(fry_sub, fry_dir),
-        quantDir  = file.path(fry_sub, fry_dir)
-      ) %>% use_series('cbTable') %>% as.data.table %>%
-      .[, sample_id := fry_name]
-    }, BPPARAM = bpparam) %>% rbindlist %>%
-    setcolorder('sample_id') %>% janitor::clean_names(.)
-  message()
+    coldata_out = hto_coldata %>%
+    # merge with sample metadata
+     merge(metadata_all, by = c("hto_id", "pool_id"), all_x = TRUE) %>%
+    # merge with rest of sce metadata
+     merge(coldata_in, by = c("cell_id", "pool_id"))
 
-  return(bcs_dt)
-}
+  }else if(demux_type == 'custom'){
+    demux_out = fread(demux_f)  %>%
+      .[, cell_id := paste(pool_id, cell_id, sep = ":" )]
 
-make_alevinQC_reports <- function(fry_dirs, save_dir, overwrite = FALSE) {
-  # get all directories
-  fry_subs  = lapply(fry_dirs, function(fry_dir)
-    .get_fry_sub_dirs(fry_dir, name_regex, what = 'qc')) %>% do.call(c, .)
+    common_bcs = length(intersect(demux_out$cell_id), coldata_in$cell_id)
+    assert_that(common_bcs > 0)
 
-  # for each one, make report
-  for (fry_name in names(fry_subs)) {
-    # get relevant subdirectory
-    fry_sub   = fry_subs[[fry_name]]
-    # check if already done
-    report_f  = sprintf('alevinQC_%s.html', fry_name)
-    if (file.exists(file.path(save_dir, report_f)) & overwrite == FALSE) {
-      message(fry_name, ' report already done; skipping')
-      message()
-      next
+    message(common_bcs, " matching between custom demultiplexing file and input sce")
+    # discard all cells in demux_output but not in sce
+    trash_h = length(setdiff(demux_out$cell_id, coldata_in$cell_id))
+    message(trash_n, " cells from custom demultiplexing file discared")
+
+    coldata_out = coldata_in %>%
+      merge(demux_out, by = 'cell_id', all.x = TRUE, all.y = FALSE) %>%
+      merge(metadata_all, by =c('pool_id', 'sample_id'))
+
+    # check if column global class exists and if ok
+    if('class' %in% colnames(demux_out)){
+      class_vals == unique(demux_out$class)
+      assert_that(all(class_vals %in% c("singlet", "negative", "doublet")))
+
+      # label cells in sce but not in demux_output as "Negative"
+      coldata_out = coldata_out %>%
+      .[is.na(class()), class := "negative"] %>%
+      setnames('class', 'demux_class')
+    }else{
+      coldata_out = coldata_out %>%
+      .[, demux_class:= fifelse(is.na(sample_id), "negative", "singlet")]
     }
-
-    message()
-    message('making alevinQC report for ', fry_name)
-
-    # else make report
-    alevinQC::alevinFryQCReport(
-      mapDir    = file.path(fry_sub, 'outs_alevin'),
-      permitDir = file.path(fry_sub, 'outs_fry'),
-      quantDir  = file.path(fry_sub, 'outs_fry'),
-      sampleId = fry_name, outputFile = report_f, outputDir = save_dir,
-      forceOverwrite = overwrite
-      )
   }
+
+  coldata_df    = coldata_out %>% as('DataFrame') %>% set_rownames(.$cell_id)
+  assert_that( all(colnames(sce) == coldata_df$cell_id) )
+
+  # put updated metadata back to original sce
+  colData(sce)  = coldata_df
+  assert_that( !is.null(colnames(sce)) )
+
+  return(sce)
+
 }
 
-plot_knees <- function(bcs_dt, what = c('barcodes', 'genes'), do_facet = TRUE) {
-  what        = match.arg(what)
-  # log_brks    = outer(c(1,3), 10^seq(0, 7)) %>% as.vector %>% sort %>% log10
-  # log_labs    = c("1", "3", "10", "30", "100", "300", "1k", "3k", "10k", "30k",
-  #   "100k", "300k", "1M", "3M", "10M", "30M")
-
-  if (what == 'barcodes') {
-    # what to summarise by?
-    agg_var     = 'original_freq'
-    permit_ls   = c(TRUE, FALSE)
-
-    # define breaks
-    x_brks      = 10^seq(0, 7) %>% log10
-    x_labs      = c("1", "10", "100", "1k", "10k", "100k", "1M", "10M")
-    y_brks      = x_brks
-    y_labs      = x_labs
-
-    # define labels
-    x_lab       = "Cell barcode rank"
-    y_lab       = "Cell barcode frequency"
-
-    # what to do with x axis
-    .trans_fn   = log10
-
-  } else {
-    # what to summarise by?
-    agg_var     = 'nbr_genes_above_zero'
-    permit_ls   = c(TRUE)
-
-    # define breaks
-    x_brks      = seq(0, 2e4, 5e3)
-    x_labs      = as.character(x_brks)
-    y_brks      = c(0, 10^seq(0, 7)) %>% `+`(1) %>% log10
-    y_labs      = c("0", "1", "10", "100", "1k", "10k", "100k", "1M", "10M")
-
-    # define labels
-    x_lab       = "Cell barcode rank"
-    y_lab       = "No. genes observed"
-
-    # what to do with x axis
-    .trans_fn   = identity
-  }
-  assert_that( length(x_brks) == length(x_labs) )
-  assert_that( length(y_brks) == length(y_labs) )
-
-  # aggregate
-  plot_dt     = bcs_dt[ in_permit_list %in% permit_ls ] %>%
-    setnames(agg_var, 'agg_var', skip_absent = TRUE) %>%
-    .[, .(n_bc = .N), by = c("sample_id", "agg_var", "in_permit_list") ] %>%
-    .[ order(sample_id, -agg_var) ] %>%
-    .[, cum_bcs   := cumsum(n_bc), by = sample_id ] %>%
-    .[, n_ok      := max(.SD[ in_permit_list == TRUE ]$cum_bcs), by = sample_id ] %>%
-    .[, sample_id := fct_reorder(sample_id, n_ok) ]
-
-  # make plot
-  g = ggplot(plot_dt) +
-    aes(x = .trans_fn(cum_bcs), y = log10(agg_var), group = sample_id ) +
-    geom_step( aes(color = in_permit_list),
-      alpha = ifelse(do_facet, 1, 0.5), direction = 'vh' ) +
-    # scale_x_continuous( breaks = log_brks, labels = log_labs ) +
-    scale_x_continuous( breaks = x_brks, labels = x_labs ) +
-    scale_y_continuous( breaks = y_brks, labels = y_labs ) +
-    scale_color_manual(values = c(`TRUE` = "black", `FALSE` = "grey")) +
-    theme_bw() +
-    theme(
-      panel.grid.minor = element_blank(),
-      panel.grid.major.x = element_blank(),
-      axis.title = element_text(size = 12)) +
-    labs(x = x_lab, y = y_lab)
-
-  if (do_facet)
-    g = g + facet_wrap( ~ sample_id )
-
-  return(g)
-}
 
 calc_gene_totals <- function(sce_input) {
   gene_totals_dt  = rowData(sce_input) %>% as.data.frame %>%
@@ -526,79 +557,6 @@ calc_gene_totals <- function(sce_input) {
     .[, gene_cpm      := gene_total / sum(gene_total) * 1e6 ]
 
   return(gene_totals_dt)
-}
-
-
-
-save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mito_str, sce_f,
-                                  min_counts = 100, n_cores = 8) {
-  # unpack some inputs
-  samples_dt  = fread(sce_df_f)
-  samples     = samples_dt$sample_id
-
-  # get a list of all matrices
-  if(ambient_method == 'decontx'){
-  all_cell_mat_fs = samples_dt$dcx_filt
-
-  }else{
-  all_cell_mat_fs = samples_dt$bcs_filt
-  }
-
-  # get gene annotations
-  message('  loading gene annotations')
-  gene_annots = .get_gene_annots(gtf_dt_f)
-
-  # get sce objects
-   message(' making sce objects for all samples')
-   bpparam     = MulticoreParam(workers = n_cores, tasks = length(samples))
-  on.exit(bpstop(bpparam))
-  sce_ls      = bplapply(seq_along(samples), function(i) {
-    # get sample and file
-    sel_s       = samples[[ i ]]
-    message(sel_s)
-    mat_f     = all_cell_mat_fs[[ i ]]
-
-    # turn into sce
-    sce         = .get_one_nonbender_sce(mat_f, sel_s, mito_str, gene_annots, min_counts)
-
-    return(sce)
-    }, BPPARAM = bpparam)
-
-
-  # check no surprises
-  assert_that( length(unique(sapply(sce_ls, nrow))) == 1 )
-
-  # concatenate counts matrices
-  message('  joining many matrices (takes a while)')
-  counts_mat  = lapply(sce_ls, counts) %>% .join_spmats
-
-  # double-check for weird genes
-  weird_gs = str_detect(rownames(counts_mat), "unassigned_gene")
-  assert_that( all(!weird_gs) )
-
-  # get annotations for cells
-  message('  joining colData info')
-  cells_dt    = sce_ls %>%
-    lapply(function(s) colData(s) %>% as.data.frame %>% as.data.table) %>%
-    rbindlist
-  assert_that( all.equal(colnames(counts_mat), cells_dt$cell_id) )
-
-  # put into one big file
-  message('  making sce object')
-  sce         = SingleCellExperiment(list(counts = counts_mat),
-                                     colData = cells_dt)
-
-  # get annotations for rows
-  message('  adding gene annotations')
-  sce         = .add_gene_annots(sce, gene_annots)
-  rm(sce_ls); gc()
-
-  message('  adding metadata')
-  sce         = sce %>% .add_metadata(metadata_f)
-
-  message('  saving file')
-  saveRDS(sce, file = sce_f, compress = FALSE)
-  message('done!')
 }
 
 
@@ -690,3 +648,254 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
   return(sce_tmp)
 }
+
+
+save_hto_sce <- function(sce_df_f, sce_hto_f){
+  # unpack some inputs
+  samples_dt  = fread(sce_df_f)
+  samples     = samples_dt$pool_id
+  bcs_ls      = samples_dt$bcs_csv
+  hto_mats_ls = samples_dt$hto_f
+  trans_ls    = samples_dt$wl_trans_f
+
+  # demultiplex each pool and get sce hto objects
+  bpparam     = MulticoreParam(workers = n_cores, tasks = length(samples))
+  on.exit(bpstop(bpparam))
+
+  message("  demultiplexing with hto counts")
+  sce_ls      = bplapply(seq_along(samples), function(i) {
+    # get sample and file
+    sel_s       = samples[[ i ]]
+    message(sel_s)
+
+    bcs_f     = bcs_ls[[ i ]]
+    hto_mat_f = hto_mats_ls[[ i ]]
+    trans_f   = trans_ls[[ i ]]
+
+    hto_sce = .get_one_hto_sce(sel_s, bcs_f, hto_mat_fm, trans_f)
+    return(hto_sce)
+  }, BPPARAM = bpparam)
+
+  # check no surprises
+  assert_that( length(unique(sapply(sce_ls, nrow))) == 1 )
+
+  # concatenate counts matrices
+  message('  joining many hto matrices (takes a while)')
+  counts_mat  = lapply(sce_ls, counts) %>% .join_spmats
+
+  # get annotations for cells
+  message('  joining colData info')
+  cells_dt    = sce_ls %>%
+    lapply(function(s) colData(s) %>% as.data.frame %>% as.data.table) %>%
+    rbindlist
+  assert_that( all.equal(colnames(counts_mat), cells_dt$cell_id) )
+
+  rm(sce_ls); gc()
+
+  # put into one big file
+  message('  making sce object')
+  sce = SingleCellExperiment(
+    list(counts = counts_mat),
+    colData = cells_dt
+    )
+
+  messafe(' saving hto sce object')
+  saveRDS(sce, file = sce_hto_f, compress = FALSE)
+  message('done!')
+
+}
+
+
+.get_one_hto_sce <- function(sel_s, bcs_f, hto_mat_f, trans_f){
+  # get file for barcode translation
+  bc_dict = trans_f %>% fread(header = FALSE) %>%
+    set_colnames(c("bc_rna", "bc_hto"))
+
+  # get all barcodes called as cells
+  cell_bcs = fread(bcs_f, header = FALSE) %>%
+    set_colnames("cell_bc")
+
+  # get hto counts
+  hto_counts = .get_alevin_mx(hto_mat_f, sel_s = '')
+
+  # translate hto bcs to match rna barcodes
+  hto_true_bcs = bc_dict[bc_hto %chin% colnames(hto_counts)] %>%
+    .[order(match(bc_hto, colnames(hto_counts))), bc_rna]
+  colnames(hto_counts) = hto_true_bcs
+
+  # keep only cell barcodes
+  hto_counts = hto_counts[, hto_true_bcs]
+  colnames(hto_counts) = paste(sel_s, colnames(hto_counts), sep = ':')
+
+  # create a seurat object
+  hto_seu = CreateSeuratObject(counts = hto_counts, assay = 'HTO')
+  hto_seu = NormalizeData(hto_seu, assay = "HTO", normalization.method = "CLR")
+
+  message("  demultiplexing sample ", sel_s)
+  hto_seu = HTODemux(hto_seu, assay = "HTO", positive.quantile = 0.99)
+
+  # get demultiplexing metadata
+  demux_dt  = hto_seu[[]] %>% as.data.table(keep.rownames = "cell_id") %>%
+    .[, .(cell_id, HTO_classification, HTO_classification.global, hash.ID)] %>%
+    .[, guess := hash.ID %>% str_replace_all("-", "_") ] %>%
+    .[, hash.ID := NULL] %>%
+    .[, pool_id := sel_s] %>%
+    .[, HTO_classification.global := tolower(HTO_classification.global)]
+
+  # get sce object
+  hto_sce = SingleCellExperiment(list(counts = hto_counts),
+                       colData = demux_dt)
+
+  return(hto_sce)
+
+}
+
+
+
+
+
+# maybe useful for later...
+#
+# get_bcs_dt <- function(fry_dirs, name_regex, n_cores) {
+#   # get subdirectories
+#   fry_subs  = lapply(fry_dirs, function(fry_dir)
+#     .get_fry_sub_dirs(fry_dir, name_regex, what = 'qc')) %>%
+#     do.call(c, .)
+#
+#   # load featureDump.txt from each
+#   message('loading barcodes:\n  ', appendLF = FALSE)
+#   bpparam   = MulticoreParam(workers = n_cores, tasks = length(fry_subs))
+#   on.exit(bpstop(bpparam))
+#   bcs_dt    = bplapply(names(fry_subs), function(fry_name) {
+#     message(fry_name, " ", appendLF = FALSE)
+#     # get date
+#     fry_sub   = fry_subs[[fry_name]]
+#
+#     # get date
+#     fs        = list.files(fry_sub, recursive = FALSE )
+#     date_str  = fs %>% str_subset("outs_alevin_[0-9]{4}-[0-9]{2}-[0-9]{2}") %>%
+#       str_extract("[0-9]{4}-[0-9]{2}-[0-9]{2}") %>% unique %>%
+#       sort(decreasing = TRUE) %>% .[ 1 ]
+#     fry_dir   = paste0('outs_fry_', date_str)
+#     alvn_dir  = paste0('outs_alevin_', date_str)
+#
+#     # get data
+#     tmp_dt    = readAlevinFryQC(
+#         mapDir    = file.path(fry_sub, alvn_dir),
+#         permitDir = file.path(fry_sub, fry_dir),
+#         quantDir  = file.path(fry_sub, fry_dir)
+#       ) %>% use_series('cbTable') %>% as.data.table %>%
+#       .[, sample_id := fry_name]
+#     }, BPPARAM = bpparam) %>% rbindlist %>%
+#     setcolorder('sample_id') %>% janitor::clean_names(.)
+#   message()
+#
+#   return(bcs_dt)
+# }
+
+# make_alevinQC_reports <- function(fry_dirs, save_dir, overwrite = FALSE) {
+#   # get all directories
+#   fry_subs  = lapply(fry_dirs, function(fry_dir)
+#     .get_fry_sub_dirs(fry_dir, name_regex, what = 'qc')) %>% do.call(c, .)
+#
+#   # for each one, make report
+#   for (fry_name in names(fry_subs)) {
+#     # get relevant subdirectory
+#     fry_sub   = fry_subs[[fry_name]]
+#     # check if already done
+#     report_f  = sprintf('alevinQC_%s.html', fry_name)
+#     if (file.exists(file.path(save_dir, report_f)) & overwrite == FALSE) {
+#       message(fry_name, ' report already done; skipping')
+#       message()
+#       next
+#     }
+#
+#     message()
+#     message('making alevinQC report for ', fry_name)
+#
+#     # else make report
+#     alevinQC::alevinFryQCReport(
+#       mapDir    = file.path(fry_sub, 'outs_alevin'),
+#       permitDir = file.path(fry_sub, 'outs_fry'),
+#       quantDir  = file.path(fry_sub, 'outs_fry'),
+#       sampleId = fry_name, outputFile = report_f, outputDir = save_dir,
+#       forceOverwrite = overwrite
+#       )
+#   }
+# }
+
+# plot_knees <- function(bcs_dt, what = c('barcodes', 'genes'), do_facet = TRUE) {
+#   what        = match.arg(what)
+#
+#   if (what == 'barcodes') {
+#     # what to summarise by?
+#     agg_var     = 'original_freq'
+#     permit_ls   = c(TRUE, FALSE)
+#
+#     # define breaks
+#     x_brks      = 10^seq(0, 7) %>% log10
+#     x_labs      = c("1", "10", "100", "1k", "10k", "100k", "1M", "10M")
+#     y_brks      = x_brks
+#     y_labs      = x_labs
+#
+#     # define labels
+#     x_lab       = "Cell barcode rank"
+#     y_lab       = "Cell barcode frequency"
+#
+#     # what to do with x axis
+#     .trans_fn   = log10
+#
+#   } else {
+#     # what to summarise by?
+#     agg_var     = 'nbr_genes_above_zero'
+#     permit_ls   = c(TRUE)
+#
+#     # define breaks
+#     x_brks      = seq(0, 2e4, 5e3)
+#     x_labs      = as.character(x_brks)
+#     y_brks      = c(0, 10^seq(0, 7)) %>% `+`(1) %>% log10
+#     y_labs      = c("0", "1", "10", "100", "1k", "10k", "100k", "1M", "10M")
+#
+#     # define labels
+#     x_lab       = "Cell barcode rank"
+#     y_lab       = "No. genes observed"
+#
+#     # what to do with x axis
+#     .trans_fn   = identity
+#   }
+#   assert_that( length(x_brks) == length(x_labs) )
+#   assert_that( length(y_brks) == length(y_labs) )
+#
+#   # aggregate
+#   plot_dt     = bcs_dt[ in_permit_list %in% permit_ls ] %>%
+#     setnames(agg_var, 'agg_var', skip_absent = TRUE) %>%
+#     .[, .(n_bc = .N), by = c("sample_id", "agg_var", "in_permit_list") ] %>%
+#     .[ order(sample_id, -agg_var) ] %>%
+#     .[, cum_bcs   := cumsum(n_bc), by = sample_id ] %>%
+#     .[, n_ok      := max(.SD[ in_permit_list == TRUE ]$cum_bcs), by = sample_id ] %>%
+#     .[, sample_id := fct_reorder(sample_id, n_ok) ]
+#
+#   # make plot
+#   g = ggplot(plot_dt) +
+#     aes(x = .trans_fn(cum_bcs), y = log10(agg_var), group = sample_id ) +
+#     geom_step( aes(color = in_permit_list),
+#       alpha = ifelse(do_facet, 1, 0.5), direction = 'vh' ) +
+#     # scale_x_continuous( breaks = log_brks, labels = log_labs ) +
+#     scale_x_continuous( breaks = x_brks, labels = x_labs ) +
+#     scale_y_continuous( breaks = y_brks, labels = y_labs ) +
+#     scale_color_manual(values = c(`TRUE` = "black", `FALSE` = "grey")) +
+#     theme_bw() +
+#     theme(
+#       panel.grid.minor = element_blank(),
+#       panel.grid.major.x = element_blank(),
+#       axis.title = element_text(size = 12)) +
+#     labs(x = x_lab, y = y_lab)
+#
+#   if (do_facet)
+#     g = g + facet_wrap( ~ sample_id )
+#
+#   return(g)
+# }
+
+
+

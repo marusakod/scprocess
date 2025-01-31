@@ -48,7 +48,7 @@ main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_me
     message('done!')
 
     return(NULL)
-    
+
   }else{
 
   # load sce file
@@ -75,6 +75,28 @@ main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_me
     multiSampleMode = 'singleModel', verbose = FALSE ) %>%
     as.data.table(keep.rownames = 'cell_id') %>%
     .[, sample_id := sel_sample ] %>% setcolorder("sample_id")
+
+  # check if class is available from demultiplexing
+  if('demux_class' %in% colnames(colData(sce))){
+    #extract demux_class
+    demux_dt = colData(sce) %>% as.data.table(keep.rownames = 'cell_id') %>%
+      .[, .(cell_id, sample_id, demux_class)]
+
+    # define dt to combine scdbl and demux class
+    dbl_dict = data.table(
+      class        = c('doublet', 'singlet', 'singlet', 'doublet', 'singlet', 'doublet'),
+      demux_class  = c('negative', 'negative', 'doublet', 'singlet', 'singlet', 'doublet'),
+      dbl_class    = c('doublet', 'negative', 'doublet', 'doublet', 'singlet', 'doublet')
+    )
+
+    dbl_dt = dbl_dt %>%
+      merge(demux_dt, by = c('cell_id', 'sample_id'), all.x = TRUE, all.y = FALSE) %>%
+      merge(dbl_dict, by = c('class', 'demux_class')) %>%
+      setnames("class", "scdbl_class")
+  }else{
+    dbl_dt = dbl_dt %>% setnames("class", "dbl_class")
+  }
+
   setkeyv(dbl_dt, "cell_id")
   dbl_dt      = dbl_dt[ colnames(sce) ]
 
@@ -137,7 +159,7 @@ combine_scDblFinder_outputs <- function(dbl_fs_f, combn_dbl_f, combn_dimred_f, n
   dbl_ls      = dbl_ls[ sapply(dbl_ls, nrow) > 0 ]
 
   # get common columns, that we want
-  first_cols  = c('sample_id', 'cell_id', 'class')
+  first_cols  = c('sample_id', 'cell_id', 'dbl_class')
   exc_cols    = c('type', 'src')
   col_counts  = lapply(dbl_ls, colnames) %>% unlist %>% table
   keep_cols   = names(col_counts)[ col_counts == length(dbl_ls) ]
@@ -161,16 +183,16 @@ scdblfinder_diagnostic_plot <- function(s, sc_dbl_dt, dimred_dt) {
     dimred_dt[ sample_id == s ],
     sc_dbl_dt,
     by = 'cell_id') %>%
-    .[, is_doublet := class == 'doublet' ]
+    .[dbl_class != 'negative', is_doublet := dbl_class == 'doublet' ]
 
   # calc prop doublet
   prop_dbl  = mean(plot_dt$is_doublet)
 
   # calc cutoff
-  if ( 'doublet' %in% plot_dt$class ) {
+  if ( 'doublet' %in% plot_dt$dbl_class ) {
     cut_val   = mean(c(
-      plot_dt[ class == 'singlet' ]$score %>% max,
-      plot_dt[ class == 'doublet' ]$score %>% min
+      plot_dt[ dbl_class == 'singlet' ]$score %>% max,
+      plot_dt[ dbl_class == 'doublet' ]$score %>% min
       ))
   } else {
     cut_val   = 1

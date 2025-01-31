@@ -27,7 +27,7 @@ suppressPackageStartupMessages({
 # get matrix with (decontx cleaned) cells and a list of barcodes called as cells
 get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, sel_s, af_mat_f,
                                       knee_1 = NULL, knee_2 = NULL, inf_1 = NULL,
-                                      total_included = NULL , exp_cells = NULL, 
+                                      total_included = NULL , exp_cells = NULL,
                                       cell_calls_method = c('barcodeRanks', 'emptyDrops'),
                                       ncores = 4, niters = 1000, hvg_n = 2000,
                                       ambient_method = c('none', 'decontx')){
@@ -48,7 +48,7 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
                                           ncores = ncores,
                                           n_iters = niters,
                                           call_method = call_m)
-                                          
+
   message('Cells and empty droplets found for ', sel_s)
 
   # get matrix with cells
@@ -97,7 +97,7 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
 call_cells_and_empties <- function(af_mat,
                        knee_1 = NULL, knee_2 = NULL, inf_1 = NULL,
                        total_included = NULL , exp_cells = NULL,
-                       ncores = 4, n_iters = 1000, fdr_thr = 0.001, 
+                       ncores = 4, n_iters = 1000, fdr_thr = 0.001,
                        call_method = c('barcodeRanks', 'emptyDrops')){
 
   # get barcode ranks
@@ -194,7 +194,7 @@ call_cells_and_empties <- function(af_mat,
   # add names
   bcs           = h5_filt$matrix$barcodes
   colnames(mat) = paste0(sel_s, bcs)
-  rownames(mat) = h5_filt$matrix$features$name
+  rownames(mat) = as.character(h5_filt$matrix$features$name)
 
   return(mat)
 }
@@ -274,7 +274,7 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_ce
     amb_mat_f = amb_yaml$cell_filt_f
   }
 
-  
+
   # get alevin counts
   af_mat = .get_alevin_mx(af_h5_f, '')
 
@@ -322,7 +322,7 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_ce
     qc_dt = .get_usa_dt(cell_mat, prefix = 'af')
 
   }
-  
+
   fwrite(qc_dt, out_qc_f)
 
   return(NULL)
@@ -398,7 +398,7 @@ get_knee_params <- function(ranks_df) {
   # return(c(d1_inf, d1_total) %>% setNames(c('slope_inf1', 'slope_total_included')))
   final = ranks_df %>% dplyr::select(sample_id, knee1, inf1, knee2, inf2, total_droplets_included, expected_cells) %>%
     distinct()
-  
+
   final = final %>%
     mutate(slope_inf1 = d1_inf,
            slope_total_included = d1_total) %>%
