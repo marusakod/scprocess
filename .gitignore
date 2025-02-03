@@ -1,1 +1,7 @@
 __pycache__
+.cache/
+.ipython/
+.jupyter/
+.snakemake/
+logs/
+*.sublime-*
