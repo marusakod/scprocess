@@ -11,26 +11,42 @@ The command requires a configuration file named `.scprocess_setup.yaml` located 
 genome:
   tenx:
     - name: human_2024 
-    - decoys: True
+      decoys: True
+      rrnas: True
   custom:
     - name: custom_genome_name
-      fasta: '/path/to/genome.fa'
-      gtf: '/path/to/genes.gtf'
+      fasta: /path/to/genome.fa
+      gtf: /path/to/genes.gtf
       decoys: True
       mito_str: "^mt-"
+    - name: custom_genome_name2
+      index_dir: /path/to/prebuild/alevin/index
+      gtf: /path/to/genes.gtf
+      mito_str: "^MT-"
 ```
 
 Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with `scsetup` by adding `tenx` to the `.scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.  
 
 Names and specifications for custom references should be listed in the `custom` section of the `.scprocess_setup.yaml` file. For each `custom` genome users have to provide the following parameters:
 
-* `fasta`: path to FASTA file 
+* one of:
+    + `fasta`: path to FASTA file
+    + `index_dir`: path to prebuild alevin index; when specified `decoys` option is ignored
 * `gtf`: path to GTF file [(specific format?)]
 * `mito_str`: regular expression used to identify genes in the mitochondial genome (example for mouse: `"^mt-"`)
 
 Optional parameters for both `tenx` and `custom` references are:
 
-* `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `True` for all genomes. 
+* `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `True` for all genomes.
+
+Optional paramater for `tenx` references is:
+
+* `rrnas`: whether or not ribosomal RNAs should be included in the reference. If not specified it defaults to `True` for all `tenx` genomes.
+
+!!! note "Impact of custom parameters for `tenx` genomes on `scsetup` runtime"
+
+    When configuring `tenx` genomes with their default values, `scsetup` will download prebuilt indices optimized for `simpleaf`. However, if the default parameters are modified (e.g., setting `rrnas` or `decoys` to `False`), `scsetup` will build the indices from scratch during execution, which will increase the runtime.
+
 
 !!! info "More about decoys"
     {{ software_name }} utilizes `simpleaf`, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter in `scsetup` is set to `True`. This option allows `simpleaf` to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to [Srivastava et al., 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02151-8).
