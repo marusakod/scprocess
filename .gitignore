@@ -1,5 +1,10 @@
 *.sublime-project
 *.sublime-workspace
 ._*
+.cache/
+.ipython/
+.jupyter/
 .snakemake/
 __pycache__/
+logs/
+lsf.yaml
