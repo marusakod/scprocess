@@ -101,7 +101,7 @@ def exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES):
 def get_project_parameters(config, scprocess_data_dir):
   # check expected variables are in the config file
   for v in ["proj_dir", "fastq_dir", "short_tag", "full_tag", "date_stamp", "your_name", "affiliation", "sample_metadata", "species"]:
-    assert v in config, f"{v} not in config file"
+    assert v in config, f"{v} needs to be an entry at the top level of the config file"
 
   ## what is specified in config directory?
   PROJ_DIR      = config["proj_dir"]
