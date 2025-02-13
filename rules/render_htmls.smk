@@ -130,7 +130,7 @@ if DEMUX_TYPE == 'af':
           RUNS_STR       = '{RUNS_STR}', \
           AMBIENT_METHOD = '{AMBIENT_METHOD}', \
           DEMUX_TYPE     = '{DEMUX_TYPE}', \
-          af_dir         = '{af_dir}' \
+          af_dir         = '{af_dir}')"
 
       """
 

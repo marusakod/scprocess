@@ -17,9 +17,6 @@ output:
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', warnings = FALSE)
 knitr::opts_knit$set( root.dir='..' )
-
-
-eval_hto_plots = params$hto_plots
 ```
 
 ```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
