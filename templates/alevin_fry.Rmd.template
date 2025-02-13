@@ -60,7 +60,7 @@ rna_knee_dfs = lapply(rna_knee_fs, FUN = read_delim, delim = ",", show_col_types
 
 
 ```{r get_rna_knee_params, include = FALSE}
-rna_knee_params_df = lapply(rna_knee_dfs, get_knee_params) %>% bind_rows()
+rna_knee_params_df = lapply(rna_knee_dfs, get_knee_params, demux_type) %>% bind_rows()
 ```
 
 ```{r arrange_samples_for_rna_qc_plots, include = FALSE}

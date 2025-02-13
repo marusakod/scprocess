@@ -369,9 +369,9 @@ get_bender_log <- function(f, sample) {
 }
 
 # find slope at first inflection and total droplets included & expected_cells/total ratio
-get_knee_params <- function(ranks_df) {
-  total_thr = unique(ranks_df$total_droplets_included) %>%
-    log10()
+get_knee_params <- function(ranks_df, demux_type) {
+  total_thr = unique(ranks_df$total_droplets_included) %>% log10()
+
   inf1 = unique(ranks_df$inf1)
 
   # get x coordinate of inf1
@@ -395,8 +395,15 @@ get_knee_params <- function(ranks_df) {
   d1_inf = d1$y[ which.min(abs(d1$x - inf_1_x))[1] ]
   d1_total = d1$y[ which.min(abs(d1$x - total_thr))[1] ]
 
-  # return(c(d1_inf, d1_total) %>% setNames(c('slope_inf1', 'slope_total_included')))
-  final = ranks_df %>% dplyr::select(sample_id, knee1, inf1, knee2, inf2, total_droplets_included, expected_cells) %>%
+  if(demux_type != ''){
+    sample_var = 'pool_id'
+  }else{
+    sample_var = 'sample_id'
+  }
+  
+  keep_cols = c(sample_var, 'knee1', 'inf1', 'knee2', 'inf2', 'total_droplets_included', 'expected_cells')
+
+  final = ranks_df %>% dplyr::select(all_of(keep_cols)) %>%
     distinct()
 
   final = final %>%
