@@ -25,7 +25,7 @@ suppressMessages({
 })
 
 
-main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_method,  dbl_f, dimred_f, min_feats = 100, min_cells = 100){
+main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_method, dbl_f, dimred_f, min_feats = 100, min_cells = 100){
   message('running scDblFinder')
 
   # if ambient method is cellbender exclude bad samples
@@ -131,16 +131,19 @@ main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_me
   return(dimred_dt)
 }
 
-# source('scripts/doublet_id.R');
-# combine_scDblFinder_outputs(fs_concat = "/projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/dbl_myrf1A/scDblFinder_myrf1A_outputs_2023-07-05.txt.gz /projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/dbl_myrf1B/scDblFinder_myrf1B_outputs_2023-07-05.txt.gz /projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/dbl_myrf2A/scDblFinder_myrf2A_outputs_2023-07-05.txt.gz", combined_f = "/projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/scDblFinder_combined_outputs_myrf_mice_2023-07-05.txt.gz", n_cores = 4)
-# combine_scDblFinder_dimreds(fs_concat = "/projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/dbl_myrf1A/scDblFinder_myrf1A_dimreds_2023-07-05.txt.gz /projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/dbl_myrf1B/scDblFinder_myrf1B_dimreds_2023-07-05.txt.gz /projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/dbl_myrf2A/scDblFinder_myrf2A_dimreds_2023-07-05.txt.gz", combined_f = "/projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/scDblFinder_combined_dimreds_myrf_mice_2023-07-05.txt.gz", n_cores = 4)
 
-combine_scDblFinder_outputs <- function(dbl_fs_f, combn_dbl_f, combn_dimred_f, n_cores) {
+combine_scDblFinder_outputs <- function(dbl_fs_f, combn_dbl_f, combn_dimred_f, demux_type, n_cores) {
   setDTthreads(n_cores)
+
+  if(demux_type != ""){
+    sample_var = 'pool_id'
+  }else{
+    sample_var = 'sample_id'
+  }
 
   # unpack some inputs
   dbl_fs_dt   = fread(dbl_fs_f)
-  samples     = dbl_fs_dt$sample_id
+  samples     = dbl_fs_dt[, get(sample_var)]
   dbl_fs      = dbl_fs_dt$dbl_f
   dimred_fs   = dbl_fs_dt$dimred_f
 
@@ -159,7 +162,7 @@ combine_scDblFinder_outputs <- function(dbl_fs_f, combn_dbl_f, combn_dimred_f, n
   dbl_ls      = dbl_ls[ sapply(dbl_ls, nrow) > 0 ]
 
   # get common columns, that we want
-  first_cols  = c('sample_id', 'cell_id', 'dbl_class')
+  first_cols  = c(sample_var, 'cell_id', 'dbl_class')
   exc_cols    = c('type', 'src')
   col_counts  = lapply(dbl_ls, colnames) %>% unlist %>% table
   keep_cols   = names(col_counts)[ col_counts == length(dbl_ls) ]

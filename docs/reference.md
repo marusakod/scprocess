@@ -206,6 +206,11 @@ This is an example config file for {{ software_name }} with all parameters and t
         cb_force_total_droplets_included: 20000
         cb_force_low_count_threshold: 5
         cb_force_learning_rate: 0.001
+      multiplexing:
+        demux_type: af
+        fastq_dir: /path/to/directory/with/hto_fastq/files 
+        feature_ref: /path/to/feature_ref.csv
+        batch_var: sample_id
       make_sce:
         sce_bender_prob: 0.5
       doublet_id:

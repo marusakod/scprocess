@@ -128,18 +128,22 @@ if AMBIENT_METHOD == 'cellbender':
       mem_mb    =  lambda wildcards, attempt: attempt * MB_MAKE_SCE_OBJECT
     conda:
       '../envs/rlibs.yml'
+    params:
+      demux_type = "" if DEMUX_TYPE is None else DEMUX_TYPE
     shell:
       """
         # save sce object
         Rscript -e "source('scripts/make_sce.R'); \
           save_cellbender_as_sce( \
-            sce_df_f    = '{input.sce_df}', \
-            metadata_f  = '{METADATA_F}', \
-            gtf_dt_f    = '{AF_GTF_DT_F}', \
-            mito_str    = '{AF_MITO_STR}', \
-            sce_f       = '{output.sce_all_f}', \
-            bender_prob = {SCE_BENDER_PROB}, \
-            n_cores     = {threads})"
+            sce_df_f       = '{input.sce_df}', \
+            metadata_f     = '{METADATA_F}', \
+            gtf_dt_f       = '{AF_GTF_DT_F}', \
+            mito_str       = '{AF_MITO_STR}', \
+            sce_f          = '{output.sce_all_f}', \
+            bender_prob    = {SCE_BENDER_PROB}, \
+            n_cores        = {threads}, \
+            demux_type     = '{params.demux_type}', \
+            keep_smpls_str = '{SAMPLE_STR}')"
       """
 else:
   rule make_sce_object:
@@ -154,6 +158,8 @@ else:
       mem_mb    = lambda wildcards, attempt: attempt * MB_MAKE_SCE_OBJECT
     conda:
       '../envs/rlibs.yml'
+    params:
+      demux_type = "" if DEMUX_TYPE is None else DEMUX_TYPE
     shell:
       """
         Rscript -e "source('scripts/make_sce.R'); \
@@ -165,6 +171,8 @@ else:
             mito_str            = '{AF_MITO_STR}', \
             sce_f               = '{output.sce_all_f}', \
             min_counts          = {QC_HARD_MIN_COUNTS}, \
-            n_cores             = {threads})"
+            n_cores             = {threads}, \
+            demux_type          = '{params.demux_type}', \
+            keep_smpls_str      = '{SAMPLE_STR}')"
       """
 

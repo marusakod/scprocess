@@ -111,9 +111,11 @@ hto_af_outs = expand(
 ) if DEMUX_TYPE == 'af' else []
 
 # seurat demultiplexing outputs (optional)
-
 hto_sce_f = (sce_dir + '/sce_cells_htos_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if DEMUX_TYPE == 'af' else []
 
+# mutliplxing report (optional)
+hto_rmd_f  = (rmd_dir   + '/' + SHORT_TAG + '_multiplexing.Rmd') if DEMUX_TYPE == 'af' else []
+hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_multiplexing.html') if DEMUX_TYPE == 'af' else []
 
 # one rule to rule them all
 rule all:
@@ -182,13 +184,14 @@ rule all:
       rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
       rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
       rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.Rmd', 
+      hto_rmd_f, 
       # reports
       docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',
       docs_dir  + '/' + SHORT_TAG + '_ambient.html', 
       docs_dir  + '/' + SHORT_TAG + '_qc.html', 
       docs_dir  + '/' + SHORT_TAG + '_integration.html',
-      docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.html'
-
+      docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.html', 
+      hto_html_f 
 
 rule simpleaf:
   input:

@@ -25,7 +25,7 @@ source('scripts/ambient.R') # to get the function that reads a matrix from .h5 f
 
 
 save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce_f, demux_f,
-  bender_prob = 0.5, n_cores = 8, demux_type = "", samples) {
+  bender_prob = 0.5, n_cores = 8, demux_type = "", keep_smpls_str) {
 
   # get name of run column
   if(demux_type == ""){
@@ -117,7 +117,8 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
     sce = sce %>%.add_demux_metadata(metadata_f, demux_f, demux_type)
 
     # remove any unwanted sample_ids from the object
-    sce = sce[, colData(sce)$sample_id %in% samples]
+    keep_smpls = str_split(keep_smpls_str, pattern = ',') %>% unlist()
+    sce = sce[, colData(sce)$sample_id %in% keep_smpls]
 
   }else{
     sce = sce %>% .add_metadata(metadata_f)
@@ -131,7 +132,7 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
 
 
 save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mito_str, sce_f, demux_f,
-                              min_counts = 100, n_cores = 8, demux_type = "", samples ) {
+                              min_counts = 100, n_cores = 8, demux_type = "", keep_smpls_str ) {
   # get name of run column
   if(demux_type == ""){
     run = 'sample_id'
@@ -204,9 +205,10 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
   message('  adding metadata')
   if(demux_type != ""){
     sce = sce %>%.add_demux_metadata(metadata_f, demux_f, demux_type)
-
+    
+    keep_smpls = str_split(keep_smpls_str, pattern = ',') %>% unlist()
     # remove any unwanted sample_ids from the object
-    sce = sce[, colData(sce)$sample_id %in% samples]
+    sce = sce[, colData(sce)$sample_id %in% keep_smpls]
 
   }else{
     sce = sce %>% .add_metadata(metadata_f)

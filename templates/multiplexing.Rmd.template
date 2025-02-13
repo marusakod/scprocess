@@ -1,5 +1,5 @@
 ---
-title: "Knee plot diagnostics"
+title: "Multiplexing diagnostics"
 author:
 - name: ${YOUR_NAME}
   affiliation:
@@ -38,37 +38,31 @@ s_lvls    =  "${RUNS_STR}" %>%
 
 # files with barcode ranks and ambient parameters
 af_dir      = "${af_dir}"
-af_rna_dir  = "${af_rna_dir}"
-demux_type  = "${DEMUX_TYPE}"
 
-rna_smpl_dirs = sprintf(paste0(af_dir, '/', 'af_%s', '/', af_rna_dir), s_lvls)
+hto_smpl_dirs = sprintf(paste0(af_dir,'/', 'af_%s', '/hto' ), s_lvls)
 
-rna_knee_fs = sapply(
-  rna_smpl_dirs,
+# find hto knees
+hto_knee_fs = sapply(
+  hto_smpl_dirs, 
   function(d) list.files(d, pattern = 'knee_plot_data_(.+)_.*.txt.gz.*', recursive = FALSE, full.names = TRUE)
 ) %>%
 setNames(s_lvls)
 
-# check that these are ok
-assert_that( length(rna_knee_fs) > 0 )
-assert_that( all(file.exists(rna_knee_fs)) )
-
+assert_that( length(hto_knee_fs) > 0)
+assert_that( all(file.exists(hto_knee_fs)))
+}
 
 ```
 
-
-```{r load_rna_knee_dfs, include = FALSE}
-rna_knee_dfs = lapply(rna_knee_fs, FUN = read_delim, delim = ",", show_col_types = FALSE)
+```{r load_hto_knee_dfs, include = FALSE}
+hto_knee_dfs = lapply(hto_knee_fs, FUN = read_delim, delim = ",", show_col_types = FALSE)
 ```
 
-
-```{r get_rna_knee_params, include = FALSE}
-rna_knee_params_df = lapply(rna_knee_dfs, get_knee_params) %>% bind_rows()
+```{r get_hto_knee_params, include = FALSE}
+hto_knee_params_df = lapply(hto_knee_dfs, get_knee_params) %>% bind_rows()
 ```
 
-```{r arrange_samples_for_rna_qc_plots, include = FALSE}
-# get total sample number
-sample_n = nrow(rna_knee_params_df)
+```{r arrange_samples_for_hto_qc_plots, include = FALSE}
 
 # arrange samples into groups of 12 acoording to their total included vs infection 1 ratio
 slope_ratio_ordered_samples = rna_knee_params_df %>%
@@ -114,21 +108,20 @@ Two main parameters infered by `scprocess` based on transition points are `expec
 `empty_plateau_middle‘ should extend a few thousand barcodes into the second plateau. 
 The absence of a clear empty plateau indicates poor sample quality due to ambient RNA contamination.
 
-
 ### Barcode rank plots ordered by slope ratio{.tabset}
 
 The slope ratio helps identify low-quality samples with high ambient RNA contamination.
 This ratio is calculated by dividing the slope of the barcode-rank curve in the empty droplet plateau by the slope at the first inflection point.
 Samples are ordered from highest to lowest based on the slope ratio.
 
-```{r knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results = 'asis'}
+```{r hto_knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
 for (i in 1:length(slope_ratio_split_l) ) {
   # get knee dfs for all selected samples
   samples = slope_ratio_split_l[[i]]
   name = sprintf('sample chunk #%d', i)
-  knees = rna_knee_dfs[samples]
+  knees = hto_knee_dfs[samples]
   cat('#### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knees, rna_knee_params_df, bender_priors_df = NULL))
+  print(plot_barcode_ranks_w_params(knees, hto_knee_params_df, bender_priors_df = NULL))
   cat('\n\n')
 }
 ```
@@ -138,25 +131,30 @@ for (i in 1:length(slope_ratio_split_l) ) {
 Inaccurate detection of the transition points (knee and inflection points) in the barcode-rank curve can lead to incorrect estimates of barcodes corresponding to cells or empty droplets.
 To evaluate this, samples are ordered by the ratio of `expected_cells` to `empty_plateau_middle`.
 
-Plots are annotated with suggested ambient parameters.
-```{r knee_plots_exp_tot_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
-for (i in 1:length(exp_tot_ratio_split_l) ) {
+
+```{r hto_knee_plots_exp_tot_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
+for (i in 1:length(exp_tot_ratio_split_l)) {
   # get knee dfs for all selected samples
   samples = exp_tot_ratio_split_l[[i]]
   name = sprintf('sample chunk #%d', i)
-  knees = rna_knee_dfs[samples]
+  knees = hto_knee_dfs[samples]
   cat('#### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knees, rna_knee_params_df, bender_priors_df = NULL))
+  print(plot_barcode_ranks_w_params(knees, hto_knee_params_df, bender_priors_df = NULL))
   cat('\n\n')
 }
 ```
-
 
 ## Dotplot with slope ratio and `expected_cells`/`empty_plateau_middle`
 
 Both the slope ratio and the expected cells/total droplets ratio are displayed in a dot plot, where each dot represents a sample.
 Outliers are labeled with their corresponding `sample_id` values.
 
-```{r ambient_params_qc_dot}
-print(make_amb_params_dotplot(rna_knee_params_df, log = TRUE, scales = 'free'))
+```{r hto_params_qc_dot}
+print(make_amb_params_dotplot(hto_knee_params_df, log = TRUE, scales = 'free'))
 ```
+
+## Table with global demultiplexing results (how many singlets, doublets, negatives)
+
+##  Ridge plots with enrichment for selected HTOs
+
+##  Pairs of HTO signals to confirm mutual exclusivity in singlets

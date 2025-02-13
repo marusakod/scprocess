@@ -47,7 +47,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
   }
 
 
-  get_sub_ls <- function(rule = c('af', 'ambient', 'qc', 'integration', 'markers', 'cell_labels', 'zoom', 'pb_empties'), ...){
+  get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'integration', 'markers', 'cell_labels', 'zoom', 'pb_empties'), ...){
 
     sel_rule = match.arg(rule)
 
@@ -100,34 +100,17 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
       assert_that(all(req_names %in% add_args_names))
 
-      if(add_args[['DEMUX_TYPE']] == 'af'){
-        eval_hto_plots = TRUE
-        hto_main_title =
-         'HTO diagnostics'
-        hto_sub_title1 =
-         '## Barcode rank plots (ordered by slope ratio){.tabset}'
-        hto_sub_title2 =
-         '## Barcode rank plots (ordered by expected/total ratio){.tabset}'
-        hto_sub_title3 =
-         'Dotplot with slope ratio and `expected_cells`/`empty_plateau_middle`'
-      }else{
-        eval_hto_plots = FALSE
-        hto_main_title = ''
-        hto_sub_title1 = ''
-        hto_sub_title2 = ''
-        hto_sub_title3 = ''
-      }
+      params_ls = add_args
 
+    }else if(sel_rule == 'multiplexing'){
+
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+                    'DATE_STAMP', 'RUNS_STR','AMBIENT_METHOD',
+                    'DEMUX_TYPE', 'af_dir')
+
+      assert_that(all(req_names %in% add_args_names))
 
       params_ls = add_args
-      params_ls = c(
-        params_ls, 
-        list(eval_hto_plots = eval_hto_plots,
-             hto_main_title = hto_main_title,
-             hto_sub_title1 = hto_sub_title1, 
-             hto_sub_title2 = hto_sub_title2, 
-             hto_sub_title3 = hto_sub_title3)
-      )
 
     }else if(sel_rule == 'qc'){
 

@@ -94,6 +94,45 @@ rule render_html_alevin_fry:
 
     """
 
+if DEMUX_TYPE == 'af':
+  rule render_html_multiplexing:
+    input:
+      expand(af_dir + '/af_{sample}/hto' + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=runs)
+    output:
+      rmd_f       = f"{rmd_dir}/{SHORT_TAG}_multiplexing.Rmd",
+      html_f      = f"{docs_dir}/{SHORT_TAG}_multiplexing.html"
+    threads: 1
+      retries: RETRIES
+    resources:
+      mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    conda:
+      '../envs/rlibs.yml'
+    shell:
+      """
+      echo "copying relevant R files over"
+    
+      # make and render Rmd file
+      template_f=$(realpath templates/multiplexing.Rmd.template)
+      rule="multiplexing"
+
+      # rendering html
+      Rscript -e "source('scripts/render_reports.R'); \
+          render_reports(
+          rule_name      = '$rule', \
+          proj_dir       = '{PROJ_DIR}', \
+          temp_f         =  '$template_f', \
+          rmd_f          = '{output.rmd_f}', \
+          YOUR_NAME      = '{YOUR_NAME}', \
+          AFFILIATION    = '{AFFILIATION}', \
+          SHORT_TAG      = '{SHORT_TAG}', \
+          DATE_STAMP     = '{DATE_STAMP}', \
+          RUNS_STR       = '{RUNS_STR}', \
+          AMBIENT_METHOD = '{AMBIENT_METHOD}', \
+          DEMUX_TYPE     = '{DEMUX_TYPE}', \
+          af_dir         = '{af_dir}' \
+
+      """
+
 
 # render_html_ambient
 rule render_html_ambient: # some outputs are the same as outputs in render_html_alevin_fry
