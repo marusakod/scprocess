@@ -56,7 +56,7 @@ def make_sce_input_df(AMBIENT_METHOD, DEMUX_TYPE, SCPROCESS_DATA_DIR, SAMPLE_CHE
             sce_df = pd.DataFrame({
                  run : [sample],
                 'bcs_filt': [amb_outs['cell_filt_f']], 
-                'bcs_csv' : [amb_outs['cell_bcs_f']]
+                'bcs_csv': [amb_outs['cell_bcs_f']]
             })
 
         # Add path to af hto file and barcode tranlation file if DEMUX_TYPE is "af"
@@ -81,7 +81,7 @@ def make_sce_input_df(AMBIENT_METHOD, DEMUX_TYPE, SCPROCESS_DATA_DIR, SAMPLE_CHE
 rule make_sce_input_df:
   input:
      smpl_stats_f    = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',
-     amb_yaml_fs = expand( amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml', sample = runs)
+     amb_yaml_fs = expand( amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml', sample = runs),
      hto_h5_fs   = expand(af_dir + '/af_{sample}/hto/af_hto_counts_mat.h5', sample = runs) if DEMUX_TYPE == "af" else []
   output:
     sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
@@ -101,6 +101,7 @@ if DEMUX_TYPE == 'af':
       sce_hto_f   = sce_dir + '/sce_cells_htos_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
     threads: 4
     retries: RETRIES
+    resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_MAKE_SCE_OBJECT
     conda:
      '../envs/rlibs.yml'

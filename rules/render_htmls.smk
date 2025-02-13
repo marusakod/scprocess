@@ -1,3 +1,4 @@
+
 # rules to render html files
 
 # localrules: render_html_index
@@ -97,12 +98,12 @@ rule render_html_alevin_fry:
 if DEMUX_TYPE == 'af':
   rule render_html_multiplexing:
     input:
-      expand(af_dir + '/af_{sample}/hto' + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=runs)
+      expand(af_dir + '/af_{sample}/hto/' + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=runs)
     output:
       rmd_f       = f"{rmd_dir}/{SHORT_TAG}_multiplexing.Rmd",
       html_f      = f"{docs_dir}/{SHORT_TAG}_multiplexing.html"
     threads: 1
-      retries: RETRIES
+    retries: RETRIES
     resources:
       mem_mb      =  lambda wildcards, attempt: attempt * 4096
     conda:
