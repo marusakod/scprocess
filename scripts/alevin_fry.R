@@ -17,7 +17,7 @@ suppressPackageStartupMessages({
 save_alevin_h5_ambient_params <- function(sample, fry_dir, h5_f, cb_yaml_f, knee_data_f, demux_type,
                                           knee1, inf1, knee2, inf2, exp_cells, total_included, low_count_thr){
   # load the data, save to h5
-  bender_ps = save_alevin_h5_knee_params_df(sample, fry_dir, h5_f, knee_data_f, hto_mat = 0, demux_type,
+  bender_ps = save_alevin_h5_knee_params_df(sample, fry_dir, h5_f, knee_data_f, hto_mat = 0, demux_type, 
                                             knee1, inf1, knee2, inf2, exp_cells, total_included, low_count_thr)
 
   # write these parameters to yaml file
@@ -36,18 +36,19 @@ save_alevin_h5_ambient_params <- function(sample, fry_dir, h5_f, cb_yaml_f, knee
 }
 
 
-save_alevin_h5_knee_params_df <- function(sample, fry_dir, h5_f,  knee_data_f, hto_mat = 0,
-                                          knee1 = '', inf1 = '', knee2 = '', inf2 ='', demux_type,
+save_alevin_h5_knee_params_df <- function(sample, fry_dir, h5_f,  knee_data_f, hto_mat = 0, demux_type,
+                                          knee1 = '', inf1 = '', knee2 = '', inf2 ='',
                                           exp_cells ='', total_included ='', low_count_thr =''){
  # load the data
   if(hto_mat){
-  sce = loadFry(fry_dir)
-  mat = counts(sce)
+    sce = loadFry(fry_dir)
+    mat = counts(sce)
   }else{
-  sce = loadFry(
-    fry_dir,
-    outputFormat = list(S = c("S"), U = c("U"), A = c("A"))
-    )
+     sce = loadFry(
+      fry_dir,
+      outputFormat = list(S = c("S"), U = c("U"), A = c("A"))
+      )
+      
   mat = assayNames(sce) %>% lapply(function(n) {
     mat       = assay(sce, n)
     rownames(mat) = paste0(rownames(mat), "_", n)
@@ -147,7 +148,7 @@ calc_ambient_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umis_c
     )
 
   # return a dataframe with ranks and all parameters
-  if(mutliplexing != ""){
+  if(multiplexing != ""){
     run = 'pool_id'
   }else{
     run = 'sample_id'

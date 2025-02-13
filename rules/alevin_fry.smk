@@ -284,10 +284,20 @@ rule save_alevin_to_h5:
   shell:
     """
     Rscript -e "source('scripts/alevin_fry.R'); \
-      save_alevin_h5_ambient_params('{wildcards.sample}', '{input.fry_dir}', \
-        '{output.h5_f}', '{output.amb_yaml_f}', '{output.knee_data_f}', '{params.demux_type}', \
-        '{params.knee1}', '{params.inf1}', '{params.knee2}', '{params.inf2}',
-        '{params.exp_cells}', '{params.total_inc}', '{params.low_count_thr}')"
+      save_alevin_h5_ambient_params( \
+        sample        = '{wildcards.sample}', \
+        fry_dir       = '{input.fry_dir}', \
+        h5_f          = '{output.h5_f}', \
+        cb_yaml_f     = '{output.amb_yaml_f}', \
+        knee_data_f   = '{output.knee_data_f}', \
+        demux_type    = '{params.demux_type}', \
+        knee1         = '{params.knee1}', \
+        inf1          = '{params.inf1}', \
+        knee2         = '{params.knee2}', \
+        inf2          = '{params.inf2}', \
+        exp_cells     = '{params.exp_cells}', \
+        total_included= '{params.total_inc}', \
+        low_count_thr = '{params.low_count_thr}')"
     """
 
 
