@@ -2,6 +2,7 @@
 import warnings
 import yaml
 import pandas as pd
+import math
 import os
 import re
 import glob
@@ -173,7 +174,10 @@ def get_project_parameters(config, scprocess_data_dir):
     for var in METADATA_VARS:
       assert var in samples_df.columns, f"{var} not in sample metadata"
       # check that there are less than 10 unique values (otherwise probably not a categorical variable)
-      uniq_vals = len(set(samples_df[var].tolist()))
+      var_vals  = samples_df[var].tolist()
+      if all(isinstance(x, float) and math.isnan(x) for x in var_vals):
+        continue
+      uniq_vals = len(set(var_vals))
       assert uniq_vals <= 10, \
         f"{var} variable has more than 10 unique values"
   
