@@ -74,7 +74,7 @@ slope_ratio_ordered_samples = rna_knee_params_df %>%
 
 # arrange samples into groups of 12 according to their expected cells vs total included ratio
 exp_tot_ratio_orderd_samples = rna_knee_params_df %>%
-  .[order(-expected_total_ratio)) %>%
+  .[order(-expected_total_ratio)] %>%
   .[, get(sample_var)]
 
 # split long vector into subsets

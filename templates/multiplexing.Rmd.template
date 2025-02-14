@@ -60,6 +60,9 @@ hto_knee_params_df = lapply(hto_knee_dfs, FUN = get_knee_params, sample_var = sa
 
 ```{r arrange_samples_for_hto_qc_plots, include = FALSE}
 
+# get total sample number
+sample_n = nrow(hto_knee_params_df)
+
 # arrange samples into groups of 12 acoording to their slope ratio
 slope_ratio_ordered_samples = hto_knee_params_df %>%
   .[order(-slope_ratio)] %>%
@@ -67,7 +70,7 @@ slope_ratio_ordered_samples = hto_knee_params_df %>%
 
 # arrange samples into groups of 12 according to their expected cells vs total included ratio
 exp_tot_ratio_orderd_samples = hto_knee_params_df %>%
-  .[order(-expected_total_ratio)) %>%
+  .[order(-expected_total_ratio)] %>%
   .[, get(sample_var)]
 
 # split long vector into subsets
