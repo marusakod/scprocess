@@ -35,6 +35,7 @@ s_lvls    =  "${RUNS_STR}" %>%
 
 # files with barcode ranks and ambient parameters
 af_dir      = "${af_dir}"
+demux_type  = "${DEMUX_TYPE}"
 
 hto_smpl_dirs = sprintf(paste0(af_dir,'/', 'af_%s', '/hto' ), s_lvls)
 
@@ -47,27 +48,27 @@ setNames(s_lvls)
 
 assert_that( length(hto_knee_fs) > 0)
 assert_that( all(file.exists(hto_knee_fs)))
-}
+
 
 ```
 
 ```{r load_hto_knee_dfs, include = FALSE}
-hto_knee_dfs = lapply(hto_knee_fs, FUN = read_delim, delim = ",", show_col_types = FALSE)
+hto_knee_dfs = lapply(hto_knee_fs, FUN = fread)
 ```
 
 ```{r get_hto_knee_params, include = FALSE}
-hto_knee_params_df = lapply(hto_knee_dfs, get_knee_params) %>% bind_rows()
+hto_knee_params_df = lapply(hto_knee_dfs, FUN = get_knee_params, demux_type=demux_type) %>% bind_rows()
 ```
 
 ```{r arrange_samples_for_hto_qc_plots, include = FALSE}
 
 # arrange samples into groups of 12 acoording to their total included vs infection 1 ratio
-slope_ratio_ordered_samples = rna_knee_params_df %>%
+slope_ratio_ordered_samples = hto_knee_params_df %>%
   arrange(desc(slope_ratio)) %>%
   pull(sample_id)
 
 # arrange samples into groups of 12 according to their expected cells vs total included ratio
-exp_tot_ratio_orderd_samples = rna_knee_params_df %>%
+exp_tot_ratio_orderd_samples = hto_knee_params_df %>%
   arrange(desc(expected_total_ratio)) %>%
   pull(sample_id)
 
