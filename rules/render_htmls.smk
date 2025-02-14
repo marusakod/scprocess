@@ -77,7 +77,7 @@ rule render_html_alevin_fry:
     rule="af"
 
     # rendering html
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
         render_reports(
         rule_name      = '$rule', \
         proj_dir       = '{PROJ_DIR}', \
@@ -117,7 +117,7 @@ if DEMUX_TYPE == 'af':
       rule="multiplexing"
 
       # rendering html
-      Rscript -e "source('scripts/render_reports.R'); \
+      Rscript --vanilla -e "source('scripts/render_reports.R'); \
           render_reports(
           rule_name      = '$rule', \
           proj_dir       = '{PROJ_DIR}', \
@@ -153,7 +153,7 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
         template_f=$(realpath templates/ambient.Rmd.template)
         rule="ambient"
         
-        Rscript -e "source('scripts/render_reports.R'); \
+        Rscript --vanilla -e "source('scripts/render_reports.R'); \
         render_reports(
         rule_name = '$rule', \
         proj_dir = '{PROJ_DIR}', \
@@ -189,7 +189,7 @@ rule render_html_qc:
     rule="qc"
 
     # rendering html
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
     rule_name = '$rule', \
     proj_dir = '{PROJ_DIR}', \
@@ -243,7 +243,7 @@ rule render_html_integration:
     template_f=$(realpath templates/integration.Rmd.template)
     rule="integration"
     
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
     rule_name = '$rule', \
     proj_dir = '{PROJ_DIR}', \
@@ -289,7 +289,7 @@ rule render_html_label_celltypes:
     template_f=$(realpath templates/label_celltypes.Rmd.template)
     rule="cell_labels"
 
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
     rule_name = '$rule', \
     proj_dir = '{PROJ_DIR}', \
@@ -344,7 +344,7 @@ rule render_html_marker_genes:
 
     # define what we will substitute in
 
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
     rule_name = '$rule', \
     proj_dir = '{PROJ_DIR}', \
@@ -411,7 +411,7 @@ rule render_html_zoom:
     template_f=$(realpath templates/zoom.Rmd.template)
     rule="zoom"
 
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
     rule_name = '$rule', \
     proj_dir = '{PROJ_DIR}', \
@@ -477,7 +477,7 @@ rule render_html_empties:
     rule="pb_empties"
 
     
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
     rule_name = '$rule', \
     proj_dir = '{PROJ_DIR}', \
