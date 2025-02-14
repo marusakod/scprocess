@@ -14,10 +14,10 @@ suppressPackageStartupMessages({
 
 
 # load counts data into sce object
-save_alevin_h5_ambient_params <- function(sample, fry_dir, h5_f, cb_yaml_f, knee_data_f, demux_type,
+save_alevin_h5_ambient_params <- function(sample, fry_dir, h5_f, cb_yaml_f, knee_data_f, sample_var,
                                           knee1, inf1, knee2, inf2, exp_cells, total_included, low_count_thr){
   # load the data, save to h5
-  bender_ps = save_alevin_h5_knee_params_df(sample, fry_dir, h5_f, knee_data_f, hto_mat = 0, demux_type, 
+  bender_ps = save_alevin_h5_knee_params_df(sample, fry_dir, h5_f, knee_data_f, hto_mat = 0, sample_var, 
                                             knee1, inf1, knee2, inf2, exp_cells, total_included, low_count_thr)
 
   # write these parameters to yaml file
@@ -36,7 +36,7 @@ save_alevin_h5_ambient_params <- function(sample, fry_dir, h5_f, cb_yaml_f, knee
 }
 
 
-save_alevin_h5_knee_params_df <- function(sample, fry_dir, h5_f,  knee_data_f, hto_mat = 0, demux_type,
+save_alevin_h5_knee_params_df <- function(sample, fry_dir, h5_f,  knee_data_f, hto_mat = 0, sample_var,
                                           knee1 = '', inf1 = '', knee2 = '', inf2 ='',
                                           exp_cells ='', total_included ='', low_count_thr =''){
  # load the data
@@ -85,7 +85,7 @@ save_alevin_h5_knee_params_df <- function(sample, fry_dir, h5_f,  knee_data_f, h
     inf1 = inf1,
     knee2 = knee2,
     inf2 = inf2,
-    multiplexing = demux_type,
+    sample_var = sample_var,
     low_count_threshold = low_count_thr,
     expected_cells = exp_cells,
     total_included = total_included
@@ -108,7 +108,7 @@ save_alevin_h5_knee_params_df <- function(sample, fry_dir, h5_f,  knee_data_f, h
 
 calc_ambient_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umis_cells = NULL,
                                    rank_empty_plateau = NULL, low_count_threshold = 'inf2',
-                                   expected_cells = NA, total_included =NA, multiplexing = "",
+                                   expected_cells = NA, total_included =NA, sample_var= "sample_id",
                                    knee1 = NA, inf1 = NA, knee2 = NA, inf2 = NA) {
   # some checks on inputs
   if ( class(low_count_threshold) == 'character') {
@@ -148,14 +148,8 @@ calc_ambient_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umis_c
     )
 
   # return a dataframe with ranks and all parameters
-  if(multiplexing != ""){
-    run = 'pool_id'
-  }else{
-    run = 'sample_id'
-  }
-
   bender_ps = knee1_ls$ranks_dt %>%
-    .[, (run):= sel_s] %>%
+    .[, (sample_var):= sel_s] %>%
     .[, `:=`(
       knee1                   = knee1_ls$sel_knee[ 'knee' ],
       inf1                    = knee1_ls$sel_knee[ 'inflection' ],

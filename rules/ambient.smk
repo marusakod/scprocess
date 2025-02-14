@@ -44,15 +44,9 @@ def parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, sample, amb_yam
 
 # metrics_fs_ls is the list of knee files (this should exist for all ambient methods)
 # this function should run in the last rule
-def extract_sample_statistics(AMBIENT_METHOD, DEMUX_TYPE, samples_ls, metrics_fs_ls, ambient_outs_yamls, custom_f, max_kept=0.9):
+def extract_sample_statistics(AMBIENT_METHOD, SAMPLE_VAR, samples_ls, metrics_fs_ls, ambient_outs_yamls, custom_f, max_kept=0.9):
     kept_arr = []
     totals_arr = []
-
-    # get correct run label
-    if DEMUX_TYPE is not None:
-     run = 'pool_id'
-    else:
-     run = 'sample_id'
 
     for sample, metrics_f, ambient_outs_yaml in zip(samples_ls, metrics_fs_ls, ambient_outs_yamls):
         # Load ambient outs YAML file
@@ -80,7 +74,7 @@ def extract_sample_statistics(AMBIENT_METHOD, DEMUX_TYPE, samples_ls, metrics_fs
 
     if AMBIENT_METHOD != 'cellbender':
         sample_df = pd.DataFrame({
-            run : samples_ls,
+            SAMPLE_VAR : samples_ls,
             'kept_droplets': kept_arr
         })
     else:
@@ -89,12 +83,12 @@ def extract_sample_statistics(AMBIENT_METHOD, DEMUX_TYPE, samples_ls, metrics_fs
         # Replace dodgy totals values with custom if need be
         if custom_f is not None and os.path.isfile(custom_f):
             # Load up custom parameters
-            custom_df = pd.read_csv(custom_f)[[run, 'total_droplets_included']]
+            custom_df = pd.read_csv(custom_f)[[SAMPLE_VAR, 'total_droplets_included']]
 
             # Iterate through rows
             samples_arr = np.array(samples_ls)
             for idx, row in custom_df.iterrows():
-                match_idx = np.where(samples_arr == row[run])
+                match_idx = np.where(samples_arr == row[SAMPLE_VAR])
                 totals_arr[match_idx] = row['total_droplets_included']
 
         # Do some calculations
@@ -103,7 +97,7 @@ def extract_sample_statistics(AMBIENT_METHOD, DEMUX_TYPE, samples_ls, metrics_fs
 
         # Assemble into dataframe
         sample_df = pd.DataFrame({
-            run : samples_ls,
+            SAMPLE_VAR : samples_ls,
             'total_droplets': totals_arr,
             'kept_droplets': kept_arr,
             'prop_kept_by_cb': prop_kept,
@@ -353,6 +347,6 @@ rule get_ambient_sample_statistics:
   output:
     smpl_stats_f    = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt'
   run:
-    sample_stats_df   = extract_sample_statistics(AMBIENT_METHOD, DEMUX_TYPE, runs, input.metrics_fs, input.amb_yaml_fs,
+    sample_stats_df   = extract_sample_statistics(AMBIENT_METHOD, SAMPLE_VAR, runs, input.metrics_fs, input.amb_yaml_fs,
       CUSTOM_SAMPLE_PARAMS_F, CELLBENDER_PROP_MAX_KEPT)
     sample_stats_df.to_csv(output.smpl_stats_f, sep = '\t', index = False)

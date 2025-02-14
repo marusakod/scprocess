@@ -273,8 +273,7 @@ rule save_alevin_to_h5:
     total_inc     = lambda wildcards: parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, wildcards.sample, 
       FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD)[5], 
     low_count_thr = lambda wildcards: parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, wildcards.sample, 
-      FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD)[6], 
-    demux_type    = "" if DEMUX_TYPE is None else DEMUX_TYPE
+      FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD)[6]
   threads: 1
   retries: RETRIES
   resources:
@@ -290,7 +289,7 @@ rule save_alevin_to_h5:
         h5_f          = '{output.h5_f}', \
         cb_yaml_f     = '{output.amb_yaml_f}', \
         knee_data_f   = '{output.knee_data_f}', \
-        demux_type    = '{params.demux_type}', \
+        sample_var    = '{SAMPLE_VAR}', \
         knee1         = '{params.knee1}', \
         inf1          = '{params.inf1}', \
         knee2         = '{params.knee2}', \
@@ -308,8 +307,6 @@ if DEMUX_TYPE == 'af':
     output: 
       h5_f        = af_dir + '/af_{sample}/hto/af_hto_counts_mat.h5',
       knee_data_f = af_dir + '/af_{sample}/hto/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
-    params:
-      demux_type = "" if DEMUX_TYPE is None else DEMUX_TYPE
     threads: 1
     retries: RETRIES
     resources:
@@ -323,7 +320,7 @@ if DEMUX_TYPE == 'af':
           sample      = '{wildcards.sample}', \
           fry_dir     = '{input.fry_dir}', \
           hto_mat     = 1, \
-          demux_type  = '{params.demux_type}', \
+          sample_var  = '{SAMPLE_VAR}', \
           h5_f        = '{output.h5_f}', \
           knee_data_f = '{output.knee_data_f}')"
       """

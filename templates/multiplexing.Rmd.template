@@ -35,7 +35,7 @@ s_lvls    =  "${RUNS_STR}" %>%
 
 # files with barcode ranks and ambient parameters
 af_dir      = "${af_dir}"
-demux_type  = "${DEMUX_TYPE}"
+sample_var  = "${SAMPLE_VAR}"
 
 hto_smpl_dirs = sprintf(paste0(af_dir,'/', 'af_%s', '/hto' ), s_lvls)
 
@@ -48,8 +48,6 @@ setNames(s_lvls)
 
 assert_that( length(hto_knee_fs) > 0)
 assert_that( all(file.exists(hto_knee_fs)))
-
-
 ```
 
 ```{r load_hto_knee_dfs, include = FALSE}
@@ -57,20 +55,20 @@ hto_knee_dfs = lapply(hto_knee_fs, FUN = fread)
 ```
 
 ```{r get_hto_knee_params, include = FALSE}
-hto_knee_params_df = lapply(hto_knee_dfs, FUN = get_knee_params, demux_type=demux_type) %>% bind_rows()
+hto_knee_params_df = lapply(hto_knee_dfs, FUN = get_knee_params, sample_var = sample_var) %>% rbindlist()
 ```
 
 ```{r arrange_samples_for_hto_qc_plots, include = FALSE}
 
-# arrange samples into groups of 12 acoording to their total included vs infection 1 ratio
+# arrange samples into groups of 12 acoording to their slope ratio
 slope_ratio_ordered_samples = hto_knee_params_df %>%
-  arrange(desc(slope_ratio)) %>%
-  pull(sample_id)
+  .[order(-slope_ratio)] %>%
+  .[, get(sample_var)]
 
 # arrange samples into groups of 12 according to their expected cells vs total included ratio
 exp_tot_ratio_orderd_samples = hto_knee_params_df %>%
-  arrange(desc(expected_total_ratio)) %>%
-  pull(sample_id)
+  .[order(-expected_total_ratio)) %>%
+  .[, get(sample_var)]
 
 # split long vector into subsets
 n_per_plot  = 12
@@ -119,7 +117,7 @@ for (i in 1:length(slope_ratio_split_l) ) {
   name = sprintf('sample chunk #%d', i)
   knees = hto_knee_dfs[samples]
   cat('#### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knees, hto_knee_params_df, bender_priors_df = NULL))
+  print(plot_barcode_ranks_w_params(knees, hto_knee_params_df, sample_var = sample_var, bender_priors_df = NULL))
   cat('\n\n')
 }
 ```
@@ -137,7 +135,7 @@ for (i in 1:length(exp_tot_ratio_split_l)) {
   name = sprintf('sample chunk #%d', i)
   knees = hto_knee_dfs[samples]
   cat('#### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knees, hto_knee_params_df, bender_priors_df = NULL))
+  print(plot_barcode_ranks_w_params(knees, hto_knee_params_df, sample_var = sample_var, bender_priors_df = NULL))
   cat('\n\n')
 }
 ```
@@ -148,7 +146,7 @@ Both the slope ratio and the expected cells/total droplets ratio are displayed i
 Outliers are labeled with their corresponding `sample_id` values.
 
 ```{r hto_params_qc_dot}
-print(make_amb_params_dotplot(hto_knee_params_df, log = TRUE, scales = 'free'))
+print(make_amb_params_dotplot(hto_knee_params_df, sample_var = sample_var, scales = 'free'))
 ```
 
 ## Table with global demultiplexing results (how many singlets, doublets, negatives)

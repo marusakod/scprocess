@@ -104,7 +104,7 @@ def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES, HTO = False):
 
 def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
   #set defaults
-  DEMUX_TYPE     = None
+  DEMUX_TYPE     = ""
   HTO_FASTQ_DIR  = None
   FEATURE_REF    = None
   DEMUX_F        = ""
@@ -237,10 +237,10 @@ def get_project_parameters(config, scprocess_data_dir):
   get_multiplexing_parameters(config, PROJ_DIR, samples_df)
 
   # define sample variable for alevin, ambient, doublets
-  if DEMUX_TYPE is not None:
-    sample_var = "pool_id"
+  if DEMUX_TYPE != "":
+    SAMPLE_VAR = "pool_id"
   else:
-    sample_var = "sample_id"
+    SAMPLE_VAR = "sample_id"
 
   # remove some samples
   EXC_SAMPLES   = None
@@ -266,7 +266,7 @@ def get_project_parameters(config, scprocess_data_dir):
     with open(CUSTOM_SAMPLE_PARAMS_F) as f:
       custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
       custom_smpls = list(custom_smpl_params.keys())
-      if DEMUX_TYPE is not None:
+      if DEMUX_TYPE != "":
         for s in custom_smpls:
           assert s in POOL_IDS, f"{s} in custom_sample_params file doesn't match any pool_id values in sample_metadata"
       else:
@@ -288,7 +288,7 @@ def get_project_parameters(config, scprocess_data_dir):
 
   return PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, \
     METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES, \
-    DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS
+    DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_VAR
 
 
 # define alevin parameters

@@ -39,13 +39,8 @@ rule make_dbl_files_df:
     dbl_fs_f    = dbl_dir + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   run:
     # make pandas dataframe of cellbender outputs
-    if DEMUX_TYPE is not None:
-     sample_var = 'pool_id'
-    else:
-     sample_var = 'sample_id'
-
     df = pd.DataFrame({
-      sample_var:   runs,
+      SAMPLE_VAR:   runs,
       'dbl_f':      input.scdbl_ls,
       'dimred_f':   input.dimred_ls
     })
@@ -65,8 +60,6 @@ rule combine_scDblFinder_outputs:
   retries: RETRIES 
   resources:
     mem_mb    = lambda wildcards, attempt: attempt * MB_COMBINE_SCDBLFINDER_OUTPUTS
-  params:
-      demux_type = "" if DEMUX_TYPE is None else DEMUX_TYPE
   conda: 
     '../envs/rlibs.yml'
   shell:
@@ -77,6 +70,6 @@ rule combine_scDblFinder_outputs:
         dbl_fs_f        = '{input.dbl_fs_f}',
         combn_dbl_f     = '{output.combn_dbl_f}', \
         combn_dimred_f  = '{output.combn_dimred_f}', \
-        demux_type      = '{params.demux_type}', \
+        demux_type      = '{DEMUX_TYPE}', \
         n_cores = {threads})"
     """

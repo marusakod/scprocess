@@ -14,7 +14,7 @@ SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 # get parameters
 PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, \
 EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES, \
-DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS = \
+DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_VAR = \
   get_project_parameters(config, SCPROCESS_DATA_DIR)
 AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY = \
   get_alevin_parameters(config, SCPROCESS_DATA_DIR, SPECIES)
@@ -78,7 +78,7 @@ zoom_df       = pd.DataFrame({ \
 
 
 # exclude all samples without fastq files
-if DEMUX_TYPE is not None:
+if DEMUX_TYPE != "":
  POOL_IDS = exclude_samples_without_fastq_files(FASTQ_DIR, POOL_IDS, HTO=False)
  POOL_IDS = exclude_samples_without_fastq_files(HTO_FASTQ_DIR, POOL_IDS, HTO=True)
 else:
@@ -88,7 +88,7 @@ else:
 POOL_STR   = ','.join(POOL_IDS)
 SAMPLE_STR = ','.join(SAMPLES)
 
-runs = POOL_IDS if DEMUX_TYPE is not None else SAMPLES
+runs = POOL_IDS if DEMUX_TYPE != "" else SAMPLES
 RUNS_STR = ','.join(runs)
 
 # alevin hto index outputs (optional)
@@ -215,7 +215,7 @@ rule simpleaf:
 rule ambient:
   input: 
     expand(amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
-    sample = POOL_IDS if DEMUX_TYPE is not None else SAMPLES),
+    sample = POOL_IDS if DEMUX_TYPE != "" else SAMPLES),
     amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', 
     amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt', 
     rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd', 

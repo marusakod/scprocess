@@ -3,14 +3,8 @@
 localrules: make_sce_input_df
 
 
-def make_sce_input_df(AMBIENT_METHOD, DEMUX_TYPE, SCPROCESS_DATA_DIR, SAMPLE_CHEMISTRY,
+def make_sce_input_df(AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_VAR, SCPROCESS_DATA_DIR, SAMPLE_CHEMISTRY,
                      smpl_stats_f, samples_ls, ambient_outs_yamls, hto_h5_fs):
-
-        # get the right run variable
-    if DEMUX_TYPE is not None:
-      run = 'pool_id'
-    else:
-      run = 'sample_id'
 
     # Load sample stats (only needed for cellbender)
     if AMBIENT_METHOD == 'cellbender':
@@ -39,7 +33,7 @@ def make_sce_input_df(AMBIENT_METHOD, DEMUX_TYPE, SCPROCESS_DATA_DIR, SAMPLE_CHE
         # Determine the correct matrix file paths based on ambient method
         if AMBIENT_METHOD == 'cellbender':
             sce_df = pd.DataFrame({
-                 run : [sample],
+                SAMPLE_VAR : [sample],
                 'cb_full': [amb_outs['cb_full_f']],
                 'cb_filt': [amb_outs['cb_filt_f']], 
                 'bcs_csv': [amb_outs['cb_bcs_f']]
@@ -48,13 +42,13 @@ def make_sce_input_df(AMBIENT_METHOD, DEMUX_TYPE, SCPROCESS_DATA_DIR, SAMPLE_CHE
             sce_df = sce_df[sce_df[run].isin(ok_samples)]
         elif AMBIENT_METHOD == 'decontx':
             sce_df = pd.DataFrame({
-                run : [sample],
+                SAMPLE_VAR : [sample],
                 'dcx_filt': [amb_outs['dcx_filt_f']],
                 'bcs_csv' : [amb_outs['dcx_bcs_f']]
             })
         else:
             sce_df = pd.DataFrame({
-                 run : [sample],
+                SAMPLE_VAR : [sample],
                 'bcs_filt': [amb_outs['cell_filt_f']], 
                 'bcs_csv': [amb_outs['cell_bcs_f']]
             })
@@ -129,8 +123,6 @@ if AMBIENT_METHOD == 'cellbender':
       mem_mb    =  lambda wildcards, attempt: attempt * MB_MAKE_SCE_OBJECT
     conda:
       '../envs/rlibs.yml'
-    params:
-      demux_type = "" if DEMUX_TYPE is None else DEMUX_TYPE
     shell:
       """
         # save sce object
@@ -143,7 +135,7 @@ if AMBIENT_METHOD == 'cellbender':
             sce_f          = '{output.sce_all_f}', \
             bender_prob    = {SCE_BENDER_PROB}, \
             n_cores        = {threads}, \
-            demux_type     = '{params.demux_type}', \
+            demux_type     = '{DEMUX_TYPE}', \
             keep_smpls_str = '{SAMPLE_STR}')"
       """
 else:
@@ -159,8 +151,6 @@ else:
       mem_mb    = lambda wildcards, attempt: attempt * MB_MAKE_SCE_OBJECT
     conda:
       '../envs/rlibs.yml'
-    params:
-      demux_type = "" if DEMUX_TYPE is None else DEMUX_TYPE
     shell:
       """
         Rscript -e "source('scripts/make_sce.R'); \
@@ -173,7 +163,7 @@ else:
             sce_f               = '{output.sce_all_f}', \
             min_counts          = {QC_HARD_MIN_COUNTS}, \
             n_cores             = {threads}, \
-            demux_type          = '{params.demux_type}', \
+            demux_type          = '{DEMUX_TYPE}', \
             keep_smpls_str      = '{SAMPLE_STR}')"
       """
 

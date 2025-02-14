@@ -89,7 +89,7 @@ rule render_html_alevin_fry:
         DATE_STAMP     = '{DATE_STAMP}', \
         RUNS_STR       = '{RUNS_STR}', \
         AMBIENT_METHOD = '{AMBIENT_METHOD}', \
-        DEMUX_TYPE     = '{DEMUX_TYPE}', \
+        SAMPLE_VAR     = '{SAMPLE_VAR}', \
         af_dir         = '{af_dir}', \
         af_rna_dir     = '{af_rna_dir}')"
 
@@ -129,7 +129,7 @@ if DEMUX_TYPE == 'af':
           DATE_STAMP     = '{DATE_STAMP}', \
           RUNS_STR       = '{RUNS_STR}', \
           AMBIENT_METHOD = '{AMBIENT_METHOD}', \
-          DEMUX_TYPE     = '{DEMUX_TYPE}', \
+          SAMPLE_VAR     = '{SAMPLE_VAR}', \
           af_dir         = '{af_dir}')"
 
       """
