@@ -85,7 +85,7 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
   counts_mat  = lapply(sce_ls, counts) %>% .join_spmats
 
   # remove weird genes
-  weird_gs    = str_detect(rownames(counts_mat), "unassigned_gene")
+x  weird_gs    = str_detect(rownames(counts_mat), "unassigned_gene")
   if ( any( weird_gs ) ) {
     warnings("removing some weird genes with names like 'unassigned_gene_1'")
     counts_mat  = counts_mat[ !weird_gs, ]
@@ -652,7 +652,7 @@ calc_gene_totals <- function(sce_input) {
 }
 
 
-save_hto_sce <- function(sce_df_f, sce_hto_f){
+save_hto_sce <- function(sce_df_f, sce_hto_f, n_cores){
   # unpack some inputs
   samples_dt  = fread(sce_df_f)
   samples     = samples_dt$pool_id
@@ -674,7 +674,7 @@ save_hto_sce <- function(sce_df_f, sce_hto_f){
     hto_mat_f = hto_mats_ls[[ i ]]
     trans_f   = trans_ls[[ i ]]
 
-    hto_sce = .get_one_hto_sce(sel_s, bcs_f, hto_mat_fm, trans_f)
+    hto_sce = .get_one_hto_sce(sel_s, bcs_f, hto_mat_f, trans_f)
     return(hto_sce)
   }, BPPARAM = bpparam)
 

@@ -3,8 +3,51 @@
 localrules: make_sce_input_df
 
 
-def make_sce_input_df(AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_VAR, SCPROCESS_DATA_DIR, SAMPLE_CHEMISTRY,
-                     smpl_stats_f, samples_ls, ambient_outs_yamls, hto_h5_fs):
+
+# check if custom chemistry and knees are defined for a sample
+def parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, sample):
+    # set defaults
+    SAMPLE_CHEMISTRY = CHEMISTRY
+    
+    if CUSTOM_SAMPLE_PARAMS_F is not None: 
+        with open(CUSTOM_SAMPLE_PARAMS_F) as f:
+            custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
+        # get all samples with custom params
+            custom_smpls = list(custom_smpl_params.keys())
+
+            valid_chems = ['3LT', '3v2', '5v1', '5v2', '3v3', 'multiome', '3v4', '5v3']
+
+            if sample in custom_smpls:
+                # check if chemistry is defined
+                if 'chemistry' in custom_smpl_params[sample] and (custom_smpl_params[sample]['chemistry'] is not None):
+                    SAMPLE_CHEMISTRY = custom_smpl_params[sample]['chemistry']
+                    # check if valid
+                    assert SAMPLE_CHEMISTRY in valid_chems, \
+                        f"chemistry not valid for sample {sample}"
+
+    # get expected ori, af chemistry and whitelist f
+    if SAMPLE_CHEMISTRY in ['3v2', '5v1', '5v2']:
+        AF_CHEMISTRY = '10xv2' 
+    else: 
+        AF_CHEMISTRY = '10xv3'
+
+    if SAMPLE_CHEMISTRY in ['5v1', '5v2', '5v3']:
+        EXPECTED_ORI = 'rc'
+    else:
+        EXPECTED_ORI = 'fw'
+
+    wl_df_f = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref/cellranger_whitelists.csv')
+    wl_df = pd.read_csv(wl_df_f)
+    wl_f = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'barcodes_f'].values[0]
+    WHITELIST_F = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref', wl_f)
+
+    return AF_CHEMISTRY, EXPECTED_ORI, WHITELIST_F, SAMPLE_CHEMISTRY
+
+
+
+def make_sce_input_df(AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_VAR, SCPROCESS_DATA_DIR,
+                      smpl_stats_f, samples_ls, ambient_outs_yamls, hto_h5_fs, 
+		      CUSTOM_SAMPLE_PARAMS_F = CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY = CHEMISTRY):
 
     # Load sample stats (only needed for cellbender)
     if AMBIENT_METHOD == 'cellbender':
@@ -57,6 +100,8 @@ def make_sce_input_df(AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_VAR, SCPROCESS_DATA_DIR
         if DEMUX_TYPE == 'af':
             sce_df['hto_f'] = hto_h5_f
 
+            _, _, _, SAMPLE_CHEMISTRY = parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, sample)
+
             wl_df_f = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref/cellranger_whitelists.csv')
             wl_df = pd.read_csv(wl_df_f)
             wl_trans_f = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'translation_f'].values[0]
@@ -81,7 +126,16 @@ rule make_sce_input_df:
     sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   run:
     # anything else needed for AMBIENT METHOD??
-    df =  make_sce_input_df(AMBIENT_METHOD, DEMUX_TYPE, input.smpl_stats_f, runs, input.amb_yaml_fs)
+    df =  make_sce_input_df(
+      AMBIENT_METHOD = AMBIENT_METHOD,
+      DEMUX_TYPE = DEMUX_TYPE,
+      SAMPLE_VAR = SAMPLE_VAR,
+      SCPROCESS_DATA_DIR = SCPROCESS_DATA_DIR,
+      smpl_stats_f = input.smpl_stats_f,
+      samples_ls = runs,
+      ambient_outs_yamls = input.amb_yaml_fs,
+      hto_h5_fs = input.hto_h5_fs
+      )
     # save dataframe
     df.to_csv(output.sce_df, index = False)
 
@@ -105,7 +159,7 @@ if DEMUX_TYPE == 'af':
         Rscript -e "source('scripts/make_sce.R'); \
           save_hto_sce( \
             sce_df_f    = '{input.sce_df}', \
-            sce_f       = '{output.sce_hto_f}' \
+            sce_hto_f   = '{output.sce_hto_f}', \
             n_cores     = {threads})"
      """
 
