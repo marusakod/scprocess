@@ -25,9 +25,9 @@ suppressMessages({
 })
 
 
-main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_method, dbl_f, dimred_f, min_feats = 100, min_cells = 100){
+main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, sample_var = 'sample_id', ambient_method, dbl_f, dimred_f, min_feats = 100, min_cells = 100){
   message('running scDblFinder')
-
+  
   # if ambient method is cellbender exclude bad samples
   smpl_status = FALSE
 
@@ -35,11 +35,7 @@ main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_me
   # loading file with bad bender samples
   message(' loading cellbender sample stats file')
   sample_stats_df = fread(sample_stats_f)
-  smpl_status = sample_stats_df %>%
-    filter(sample_id == sel_sample) %>%
-    pull(bad_sample) %>% unique()
-
-  }
+  smpl_status = unique(sample_stats_df[get(sample_var) == sel_sample, bad_sample])
 
   if(smpl_status){
     message('  sample ', sel_sample, ' has been excluded. Saving empty results file')
@@ -54,7 +50,7 @@ main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_me
   # load sce file
   message('  loading sce object')
   sce         = sce_f %>% readRDS
-  sample_idx  = sce$sample_id == sel_sample
+  sample_idx  = sce[[sample_var]] == sel_sample
   sce         = sce[, sample_idx ]
 
   # exclude tiny cells
@@ -62,25 +58,26 @@ main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_me
   assert_that( 'detected' %in% colnames(colData(sce)) )
   keep_idx    = sce$detected >= min_feats
   if (sum(keep_idx) < min_cells)
-    browser()
+
   assert_that( sum(keep_idx) >= min_cells,
     msg = "insufficient cells to run scDblFinder :(")
   message(sprintf('    keeping %d / %d cells (%.0f%%)',
     sum(keep_idx), length(keep_idx), 100 * sum(keep_idx) / length(keep_idx)))
   sce         = sce[, keep_idx]
 
-  # run in parallel
   message('  running scDblFinder')
   dbl_dt      = scDblFinder(sce, returnType = 'table',
     multiSampleMode = 'singleModel', verbose = FALSE ) %>%
     as.data.table(keep.rownames = 'cell_id') %>%
-    .[, sample_id := sel_sample ] %>% setcolorder("sample_id")
+    .[, (sample_var) := sel_sample ] %>% setcolorder(sample_var) %>%
+    # keep just real cells
+    .[type == 'real']
 
   # check if class is available from demultiplexing
   if('demux_class' %in% colnames(colData(sce))){
     #extract demux_class
     demux_dt = colData(sce) %>% as.data.table(keep.rownames = 'cell_id') %>%
-      .[, .(cell_id, sample_id, demux_class)]
+      .[, c("cell_id", sample_var, "demux_class"), with = FALSE]
 
     # define dt to combine scdbl and demux class
     dbl_dict = data.table(
@@ -90,7 +87,7 @@ main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_me
     )
 
     dbl_dt = dbl_dt %>%
-      merge(demux_dt, by = c('cell_id', 'sample_id'), all.x = TRUE, all.y = FALSE) %>%
+      merge(demux_dt, by = c('cell_id', sample_var), all.x = TRUE, all.y = FALSE) %>%
       merge(dbl_dict, by = c('class', 'demux_class')) %>%
       setnames("class", "scdbl_class")
   }else{
@@ -132,14 +129,8 @@ main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_me
 }
 
 
-combine_scDblFinder_outputs <- function(dbl_fs_f, combn_dbl_f, combn_dimred_f, demux_type, n_cores) {
+combine_scDblFinder_outputs <- function(dbl_fs_f, sample_var, combn_dbl_f, combn_dimred_f, demux_type, n_cores) {
   setDTthreads(n_cores)
-
-  if(demux_type != ""){
-    sample_var = 'pool_id'
-  }else{
-    sample_var = 'sample_id'
-  }
 
   # unpack some inputs
   dbl_fs_dt   = fread(dbl_fs_f)

@@ -22,9 +22,10 @@ rule run_scDblFinder:
       main_doublet_id( \
         sel_sample      = '{wildcards.sample}', \
         sce_f           = '{input.sce_all_f}', \
-        sample_stats_f  = '{input.smpl_stats_f}' \
+        sample_stats_f  = '{input.smpl_stats_f}', \
         ambient_method  = '{AMBIENT_METHOD}', \
         dbl_f           = '{output.dbl_f}', \
+        sample_var      = '{SAMPLE_VAR}', \
         dimred_f        = '{output.dimred_f}', \
         min_feats       = {DBL_MIN_FEATS})"
    """
@@ -67,7 +68,8 @@ rule combine_scDblFinder_outputs:
     # combine scDblFinder outputs
     Rscript -e "source('scripts/doublet_id.R'); \
       combine_scDblFinder_outputs( \
-        dbl_fs_f        = '{input.dbl_fs_f}',
+        dbl_fs_f        = '{input.dbl_fs_f}', \
+        sample_var      = '{SAMPLE_VAR}', \
         combn_dbl_f     = '{output.combn_dbl_f}', \
         combn_dimred_f  = '{output.combn_dimred_f}', \
         demux_type      = '{DEMUX_TYPE}', \
