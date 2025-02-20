@@ -190,6 +190,7 @@ if AMBIENT_METHOD == 'cellbender':
             bender_prob    = {SCE_BENDER_PROB}, \
             n_cores        = {threads}, \
             demux_type     = '{DEMUX_TYPE}', \
+	    demux_f	   = '{input.demux_f}', \
             keep_smpls_str = '{SAMPLE_STR}')"
       """
 else:
@@ -218,6 +219,7 @@ else:
             min_counts          = {QC_HARD_MIN_COUNTS}, \
             n_cores             = {threads}, \
             demux_type          = '{DEMUX_TYPE}', \
+	    demux_f		= '{input.demux_f}', \
             keep_smpls_str      = '{SAMPLE_STR}')"
       """
 
