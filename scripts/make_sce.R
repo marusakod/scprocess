@@ -155,7 +155,7 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
     mat_f     = all_cell_mat_fs[[ i ]]
 
     # turn into sce
-    sce         = .get_one_nonbender_sce(mat_f, sel_s, mito_str, gene_annots, min_counts)
+    sce         = .get_one_nonbender_sce(mat_f, sel_s, mito_str, gene_annots, min_counts, sample_var)
 
     return(sce)
   }, BPPARAM = bpparam)
@@ -474,6 +474,7 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
 .add_demux_metadata <- function(sce, metadata_f, demux_f, demux_type){
 
+  
   metadata_all = fread(metadata_f)
   assert_that( all(unique(sce$pool_id) %in% metadata_all$pool_id))
 
@@ -495,7 +496,7 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
     # merge with sample metadata
      merge(metadata_all, by = c("hto_id", "pool_id"), all.x = TRUE) %>%
     # merge with rest of sce metadata
-     merge(coldata_in, by = c("cell_id", "pool_id"))
+     merge(coldata_in, by = c("cell_id", "pool_id"), all.x = TRUE)
 
   }else if(demux_type == 'custom'){
     demux_out = fread(demux_f)  %>%
@@ -713,10 +714,14 @@ save_hto_sce <- function(sce_df_f, sce_hto_f, n_cores){
   # translate hto bcs to match rna barcodes
   hto_true_bcs = bc_dict[bc_hto %chin% colnames(hto_counts)] %>%
     .[order(match(bc_hto, colnames(hto_counts))), bc_rna]
+
   colnames(hto_counts) = hto_true_bcs
 
   # keep only cell barcodes
-  hto_counts = hto_counts[, hto_true_bcs]
+  keep_bcs = cell_bcs %>%
+  .[cell_bc %chin% colnames(hto_counts), cell_bc]
+
+  hto_counts = hto_counts[, keep_bcs]
   colnames(hto_counts) = paste(sel_s, colnames(hto_counts), sep = ':')
 
   # create a seurat object
