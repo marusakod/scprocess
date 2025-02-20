@@ -474,17 +474,17 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
 .add_demux_metadata <- function(sce, metadata_f, demux_f, demux_type){
 
-  
+  browser()
   metadata_all = fread(metadata_f)
   assert_that( all(unique(sce$pool_id) %in% metadata_all$pool_id))
-
-  # get all hto_ids that exist 
-  hto_names = metadata_all$hto_id %>% unique()
 
   coldata_in = colData(sce) %>% as.data.frame() %>% as.data.table()
 
   if(demux_type == 'af'){
     hto_sce = readRDS(demux_f)
+
+    # convert all underscores in hto_id column to match seurat output
+    metadata_all$hto_id = gsub('_', '-', metadata_all$hto_id)
 
     # get demultiplexing metadata
     hto_coldata = colData(hto_sce) %>% 
@@ -496,7 +496,11 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
     # merge with sample metadata
      merge(metadata_all, by = c("hto_id", "pool_id"), all.x = TRUE) %>%
     # merge with rest of sce metadata
-     merge(coldata_in, by = c("cell_id", "pool_id"), all.x = TRUE)
+     merge(coldata_in, by = c("cell_id", "pool_id"), all.y = TRUE) %>%
+     # label all cells missing from hto mat as negative
+     .[is.na(demux_class), demux_class := 'negative'] %>%
+     .[is.na(guess), guess := 'Negative'] %>%
+     .[is.na(hto_id),hto_id := 'Negative']
 
   }else if(demux_type == 'custom'){
     demux_out = fread(demux_f)  %>%
@@ -530,6 +534,8 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
   }
 
   coldata_df    = coldata_out %>% as('DataFrame') %>% set_rownames(.$cell_id)
+  coldata_df = coldata_df[colnames(sce), ]
+
   assert_that( all(colnames(sce) == coldata_df$cell_id) )
 
   # put updated metadata back to original sce
