@@ -25,18 +25,11 @@ source('scripts/ambient.R') # to get the function that reads a matrix from .h5 f
 
 
 save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce_f, demux_f,
-  bender_prob = 0.5, n_cores = 8, demux_type = "", keep_smpls_str) {
-
-  # get name of run column
-  if(demux_type == ""){
-    run = 'sample_id'
-  }else{
-    run = 'pool_id'
-  }
+  bender_prob = 0.5, n_cores = 8, demux_type = "", sample_var = 'sample_id', keep_smpls_str) {
 
   # unpack some inputs
   samples_dt  = fread(sce_df_f)
-  samples     = samples_dt[, get(run)]
+  samples     = samples_dt[, get(sample_var)]
   cb_full_ls  = samples_dt$cb_full
   cb_filt_ls  = samples_dt$cb_filt
 
@@ -72,7 +65,7 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
     bender_ls   = .get_one_bender_outputs(cb_full_f, cb_filt_f, sel_s, bender_prob)
 
     # turn into sce
-    sce         = .make_one_sce(bender_ls, sel_s, run, gene_annots, mito_str)
+    sce         = .make_one_sce(bender_ls, sel_s, sample_var, gene_annots, mito_str)
 
     return(sce)
     }, BPPARAM = bpparam)
@@ -85,7 +78,7 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
   counts_mat  = lapply(sce_ls, counts) %>% .join_spmats
 
   # remove weird genes
-x  weird_gs    = str_detect(rownames(counts_mat), "unassigned_gene")
+ weird_gs    = str_detect(rownames(counts_mat), "unassigned_gene")
   if ( any( weird_gs ) ) {
     warnings("removing some weird genes with names like 'unassigned_gene_1'")
     counts_mat  = counts_mat[ !weird_gs, ]
@@ -132,17 +125,12 @@ x  weird_gs    = str_detect(rownames(counts_mat), "unassigned_gene")
 
 
 save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mito_str, sce_f, demux_f,
-                              min_counts = 100, n_cores = 8, demux_type = "", keep_smpls_str ) {
-  # get name of run column
-  if(demux_type == ""){
-    run = 'sample_id'
-  }else{
-    run = 'pool_id'
-  }
+                              min_counts = 100, n_cores = 8, demux_type = "", sample_var = 'sample_id', keep_smpls_str ) {
+
 
   # unpack some inputs
   samples_dt  = fread(sce_df_f)
-  samples     = samples_dt[, get(run)]
+  samples     = samples_dt[, get(sample_var)]
 
   # get a list of all matrices
   if(ambient_method == 'decontx'){
@@ -268,7 +256,7 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 }
 
 
-.make_one_sce <- function(bender_ls, sel_s, run_var, gene_annots, mito_str) {
+.make_one_sce <- function(bender_ls, sel_s, sample_var, gene_annots, mito_str) {
   # unpack inputs
   mat         = bender_ls$mat
   bender_dt   = bender_ls$bender_dt
@@ -321,7 +309,7 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
   # make sce object
   sce_tmp             = SingleCellExperiment( assays = list(counts = counts_mat) )
-  sce_tmp[[run_var]]  = sel_s
+  sce_tmp[[sample_var]]  = sel_s
   sce_tmp$cell_id     = colnames(counts_mat)
 
   # add to sce object
@@ -485,8 +473,12 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
 
 .add_demux_metadata <- function(sce, metadata_f, demux_f, demux_type){
+
   metadata_all = fread(metadata_f)
   assert_that( all(unique(sce$pool_id) %in% metadata_all$pool_id))
+
+  # get all hto_ids that exist 
+  hto_names = metadata_all$hto_id %>% unique()
 
   coldata_in = colData(sce) %>% as.data.frame() %>% as.data.table()
 
@@ -494,16 +486,14 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
     hto_sce = readRDS(demux_f)
 
     # get demultiplexing metadata
-    hto_coldata = colData(hto_sce) %>% as.data.frame() %>% as.data.table() %>%
-     # fix labels of doublets from the same sample
-    .[, c("hto1", "hto2") := tstrsplit(HTO_classification, "_", fixed = TRUE)] %>%
-    .[, hto_id := fifelse(hto1 == hto2, hto1, HTO_classification)] %>%
-    .[, c('hto1', 'hto2'): NULL] %>%
-     setnames("HTO_classification.global", "demux_class")
+    hto_coldata = colData(hto_sce) %>% 
+    as.data.frame() %>% 
+    as.data.table() %>%
+    setnames(old = c("HTO_classification.global", "HTO_classification") ,new = c("demux_class", "hto_id"))
 
     coldata_out = hto_coldata %>%
     # merge with sample metadata
-     merge(metadata_all, by = c("hto_id", "pool_id"), all_x = TRUE) %>%
+     merge(metadata_all, by = c("hto_id", "pool_id"), all.x = TRUE) %>%
     # merge with rest of sce metadata
      merge(coldata_in, by = c("cell_id", "pool_id"))
 
@@ -562,7 +552,7 @@ calc_gene_totals <- function(sce_input) {
 }
 
 
-.get_one_nonbender_sce <- function(mat_f, sel_s, mito_str, gene_annots, min_counts) {
+.get_one_nonbender_sce <- function(mat_f, sel_s, mito_str, gene_annots, min_counts, sample_var) {
 
   # read matrix
   counts = .get_alevin_mx(af_mat_f = mat_f, sel_s = paste0(sel_s, ':'))
@@ -623,9 +613,9 @@ calc_gene_totals <- function(sce_input) {
   mito_detected = colSums(mito_mat > 0 )
 
   # make sce object
-  sce_tmp             = SingleCellExperiment( assays = list(counts = counts_mat) )
-  sce_tmp$sample_id   = sel_s
-  sce_tmp$cell_id     = colnames(counts_mat)
+  sce_tmp               = SingleCellExperiment( assays = list(counts = counts_mat) )
+  sce_tmp[[sample_var]] = sel_s
+  sce_tmp$cell_id       = colnames(counts_mat)
 
   # add to sce object
   sce_tmp$sum         = colSums(counts_mat)
@@ -701,7 +691,7 @@ save_hto_sce <- function(sce_df_f, sce_hto_f, n_cores){
     colData = cells_dt
     )
 
-  messafe(' saving hto sce object')
+  message(' saving hto sce object')
   saveRDS(sce, file = sce_hto_f, compress = FALSE)
   message('done!')
 
