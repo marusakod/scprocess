@@ -474,7 +474,6 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
 .add_demux_metadata <- function(sce, metadata_f, demux_f, demux_type){
 
-  browser()
   metadata_all = fread(metadata_f)
   assert_that( all(unique(sce$pool_id) %in% metadata_all$pool_id))
 

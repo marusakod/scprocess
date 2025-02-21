@@ -16,7 +16,7 @@ rule run_qc:
   shell:
     """
     Rscript -e "source('scripts/SampleQC.R'); \
-      main_qc(sce_f = '{input.sce_all_f}', dbl_f = '{input.dbl_f}', \
+      main_qc(sce_f = '{input.sce_all_f}', dbl_f = '{input.dbl_f}', dbl_smpl_var = '{SAMPLE_VAR}', \
         hard_min_counts = {QC_HARD_MIN_COUNTS}, hard_min_feats = {QC_HARD_MIN_FEATS}, \
         hard_max_mito = {QC_HARD_MAX_MITO}, min_counts = {QC_MIN_COUNTS}, 
         min_feats = {QC_MIN_FEATS}, min_mito = {QC_MIN_MITO}, max_mito = {QC_MAX_MITO}, \

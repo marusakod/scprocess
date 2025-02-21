@@ -120,10 +120,10 @@ run_harmony <- function(sce_all_f, keep_f, dbl_f,
     ScaleData( verbose = FALSE )
 
   # check if batch variable is in seurat object
-  assert_that(batch_var %in% colnames(seu[[ ]]))
+  assert_that(batch_var %in% colnames(seu_obj[[ ]]))
 
   # check whether we have one or more values of batch
-  n_samples       = seu_obj[[ batch_var ]] %>% unique %>% length
+  n_samples       = seu_obj[[]][, batch_var] %>% unique %>% length
   is_one_batch    = n_samples == 1
   this_reduction  = ifelse(is_one_batch, "pca", "harmony")
   if (is_one_batch) {

@@ -36,7 +36,7 @@ prob_brks   = c(0.5, 0.9, 0.99, 0.999, 0.9999, 0.99999, 0.999999) %>% qlogis
 prob_labs   = c("50%", "90%", "99%", "99.9%", "99.99%", "99.999%", "99.9999%")
 
 
-main_qc <- function(sce_f, dbl_f,
+main_qc <- function(sce_f, dbl_f, dbl_smpl_var, 
   hard_min_counts, hard_min_feats, hard_max_mito,
   min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, min_cells, filter_bender, amb_method,
   qc_f, keep_f) {
@@ -44,7 +44,7 @@ main_qc <- function(sce_f, dbl_f,
   filter_bender = as.logical(filter_bender)
   # load doublet info
   dbl_dt        = dbl_f %>% fread %>%
-    .[, .(cell_id, sample_id)]
+    .[, c('cell_id', dbl_smpl_var, 'dbl_class'), with = FALSE]
   sngl_ids      = dbl_dt[ dbl_class == 'singlet' ]$cell_id
 
   if(amb_method == 'cellbender'){

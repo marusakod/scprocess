@@ -44,6 +44,7 @@ main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, sample_var
     message('done!')
 
     return(NULL)
+  }
 
   }else{
 
