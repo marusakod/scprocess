@@ -22,16 +22,21 @@ knitr::opts_knit$set( root.dir='..' )
 ```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
 source('code/utils.R')
 source('code/ambient.R')
+source('code/make_sce.R')
 ```
 
 ```{r get_samples, include = FALSE}
-# get all sample ids 
-s_lvls    =  "${RUNS_STR}" %>% 
+# get all sample ids
+s_lvls    =  "${RUNS_STR}" %>%
   str_split(pattern = ',') %>% unlist()
 
 ```
 
 ```{r setup_input, include = FALSE}
+
+# project metadata
+proj_meta_f = "${METADATA_F}"
+
 
 # files with barcode ranks and ambient parameters
 af_dir      = "${af_dir}"
@@ -41,22 +46,41 @@ hto_smpl_dirs = sprintf(paste0(af_dir,'/', 'af_%s', '/hto' ), s_lvls)
 
 # find hto knees
 hto_knee_fs = sapply(
-  hto_smpl_dirs, 
+  hto_smpl_dirs,
   function(d) list.files(d, pattern = 'knee_plot_data_(.+)_.*.txt.gz.*', recursive = FALSE, full.names = TRUE)
 ) %>%
 setNames(s_lvls)
 
 assert_that( length(hto_knee_fs) > 0)
 assert_that( all(file.exists(hto_knee_fs)))
+
+
+# hto sce
+hto_sce_f = "${sce_hto_f}"
 ```
 
 ```{r load_hto_knee_dfs, include = FALSE}
 hto_knee_dfs = lapply(hto_knee_fs, FUN = fread)
 ```
 
+```{r load_hto_sce, include = FALSE}
+hto_sce = readRDS(hto_sce_f)
+```
+
+```{r load_meta, include=FALSE}
+proj_meta = fread(proj_meta_f)
+```
+
 ```{r get_hto_knee_params, include = FALSE}
 hto_knee_params_df = lapply(hto_knee_dfs, FUN = get_knee_params, sample_var = sample_var) %>% rbindlist()
 ```
+
+```{r get_hto_dt, include = FALSE}
+pool_ids = unique(proj_meta$pool_id)
+sample_ids = unique(proj_meta$sample_id)
+hto_dt_ls = lapply(pool_ids, FUN = get_hto_dt, hto_sce = hto_sce)
+```
+
 
 ```{r arrange_samples_for_hto_qc_plots, include = FALSE}
 
@@ -101,10 +125,10 @@ if(sample_n <= 4){
 ## Barcode rank plots
 
 For each sample, barcodes are ranked in descending order based on their library size (number of unique molecular identifiers).
-Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high RNA content, while the second represents empty droplets containing ambient RNA. 
+Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high RNA content, while the second represents empty droplets containing ambient RNA.
 Key transition points on the curve (inflection and knee points), are annotated with horizontal lines.
 Two main parameters infered by `scprocess` based on transition points are `expected_cells` and `empty_plateau_middle`.
-`empty_plateau_middle‘ should extend a few thousand barcodes into the second plateau. 
+`empty_plateau_middle‘ should extend a few thousand barcodes into the second plateau.
 The absence of a clear empty plateau indicates poor sample quality due to ambient RNA contamination.
 
 ### Barcode rank plots ordered by slope ratio{.tabset}
@@ -152,8 +176,34 @@ Outliers are labeled with their corresponding `sample_id` values.
 print(make_amb_params_dotplot(hto_knee_params_df, sample_var = sample_var, scales = 'free'))
 ```
 
-## Table with global demultiplexing results (how many singlets, doublets, negatives)
+## Table with global demultiplexing results
+```{r demux_out_tbl}
+rbindlist(hto_dt_ls) %>%
+  .[, .(pool_id, class = HTO_classification.global)] %>%
+  .[, count := .N, by = .(pool_id, class) ] %>%
+  unique() %>%
+  dcast(pool_id ~ class) %>%
+  knitr::kable()
+```
 
-##  Ridge plots with enrichment for selected HTOs
+## Distribution of HTOs within a pool per sample
 
-##  Pairs of HTO signals to confirm mutual exclusivity in singlets
+```{r hto_ridges_plot}
+for (i in sample_ids){
+  cat('### ', i, '\n')
+  print(hto_ridges(i, proj_meta = proj_meta, hto_dt_ls = hto_dt_ls){
+  cat('\n\n')
+}
+
+```
+
+## Pairs of HTO signals to confirm mutual exclusivity
+
+```{r hto_pairwise plot}
+for (i in pool_ids){
+  pool_dt_tmp = hto_dt_ls[[i]]
+  cat('### ', i, '\n')
+  print(hto_pairwise(pool_dt = pool_dt_tmp, var = "norm_count")){
+  cat('\n\n')
+}
+```

@@ -14,7 +14,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
   # get list with all values that need to be replaced in the template
    temp_ls = get_sub_ls(rule_name, ...)
- 
+
   # make Rmd file
    message('Creating Rmd file from template ', temp_f)
    make_rmd_from_temp(temp_f, temp_ls, rmd_f)
@@ -62,7 +62,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
       assert_that(all(req_names %in% add_args_names))
 
-      
+
       if(add_args[['AMBIENT_METHOD']] == 'cellbender'){
         eval_knee = TRUE
         knee_pl_slope_ord_tit =
@@ -85,11 +85,11 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
       params_ls = add_args
       params_ls = c(
-        params_ls, 
+        params_ls,
         list(eval_knee                = eval_knee,
-             eval_smpl_qc             = eval_smpl_qc, 
-             knee_pl_slope_ord_tit    = knee_pl_slope_ord_tit, 
-             knee_pl_exp_tot_ord_tit  = knee_pl_exp_tot_ord_tit, 
+             eval_smpl_qc             = eval_smpl_qc,
+             knee_pl_slope_ord_tit    = knee_pl_slope_ord_tit,
+             knee_pl_exp_tot_ord_tit  = knee_pl_exp_tot_ord_tit,
              sample_qc_pl             = sample_qc_pl)
       )
 
@@ -106,6 +106,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
                     'DATE_STAMP', 'RUNS_STR','AMBIENT_METHOD',
+                    'METADATA_F', 'sce_hto_f',
                     'SAMPLE_VAR', 'af_dir')
 
       assert_that(all(req_names %in% add_args_names))
@@ -138,7 +139,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
                     'DATE_STAMP', 'threads', 'sce_all_f',
                     'qc_dt_f', 'qc_keep_f', 'hmny_f', 'hmny_hvgs_f',
-                    'INT_RES_LS', 'INT_SEL_RES', 'INT_DBL_CL_PROP') 
+                    'INT_RES_LS', 'INT_SEL_RES', 'INT_DBL_CL_PROP')
 
       assert_that(all(req_names %in% add_args_names))
 
@@ -168,15 +169,15 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
     }else if(sel_rule == 'cell_labels'){
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
-                    'DATE_STAMP', 'threads' ,'guesses_f', 'CUSTOM_LABELS_F', 'INT_SEL_RES', 
-                    'LBL_TISSUE', 'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED', 
+                    'DATE_STAMP', 'threads' ,'guesses_f', 'CUSTOM_LABELS_F', 'INT_SEL_RES',
+                    'LBL_TISSUE', 'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED',
                     'LBL_MIN_CL_PROP', 'LBL_MIN_CL_SIZE')
 
        assert_that(all(req_names %in% add_args_names))
 
 
       if(add_args[['CUSTOM_LABELS_F']] == ""){
-      
+
         eval_boost = TRUE
 
         if(add_args[["LBL_TISSUE"]] == 'human_cns'){
@@ -205,34 +206,34 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
         hmap_title = "`harmony` clusters vs user defined cell type annotations"
         hmap_txt = "harmony clusters vs user defined cell type annotations"
         umap_title = "user defined cell types over UMAP"
-        umap_txt = paste0("User defined annotations are displayed ", 
-                         "over a UMAP, together with clusters at resolution ", 
+        umap_txt = paste0("User defined annotations are displayed ",
+                         "over a UMAP, together with clusters at resolution ",
                          add_args[["INT_SEL_RES"]])
       }
-       
+
        params_ls = add_args
        params_ls = c(
-        params_ls, 
+        params_ls,
         list(eval_boost   = eval_boost,
-             main_lbl_txt = main_lbl_txt, 
-             hmap_title   = hmap_title, 
-             hmap_txt     = hmap_txt, 
-             umap_title   = umap_title, 
+             main_lbl_txt = main_lbl_txt,
+             hmap_title   = hmap_title,
+             hmap_txt     = hmap_txt,
+             umap_title   = umap_title,
              umap_txt     = umap_txt)
       )
 
     }else if(sel_rule == 'zoom'){
 
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
-                    'DATE_STAMP', 'threads', 'zoom_name', 'zoom_res', 
+                    'DATE_STAMP', 'threads', 'zoom_name', 'zoom_res',
                     'meta_f', 'meta_vars_ls', # meta_vars_ls should be made one string
                     'gtf_dt_f', 'sce_sub_f', 'hmny_f', 'pb_f', 'mkrs_f',
                     'hvgs_f', 'canon_f', 'fgsea_go_bp_f','fgsea_go_cc_f',
-                    'fgsea_go_mf_f', 'fgsea_paths_f', 'fgsea_hlmk_f','INT_DBL_CL_PROP', 
+                    'fgsea_go_mf_f', 'fgsea_paths_f', 'fgsea_hlmk_f','INT_DBL_CL_PROP',
                     'INT_EXC_REGEX', 'MKR_NOT_OK_RE','MKR_MIN_CPM_MKR','MKR_MIN_CELLS','MKR_GSEA_CUT', 'SPECIES')
 
       assert_that(all(req_names %in% add_args_names))
-      
+
       if(add_args[['SPECIES']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){
         eval_fgsea = TRUE
       }else{
@@ -244,7 +245,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
     }else if(sel_rule == 'pb_empties'){
         req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
                     'DATE_STAMP', 'threads', 'guesses_f', 'empty_csv_f',
-                    'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED', 'LBL_MIN_CL_PROP', 
+                    'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED', 'LBL_MIN_CL_PROP',
                     'LBL_MIN_CL_SIZE', 'LBL_MIN_CL_SIZE')
 
         assert_that(all(req_names %in% add_args_names))

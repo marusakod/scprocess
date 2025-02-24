@@ -193,7 +193,7 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
   message('  adding metadata')
   if(demux_type != ""){
     sce = sce %>%.add_demux_metadata(metadata_f, demux_f, demux_type)
-    
+
     keep_smpls = str_split(keep_smpls_str, pattern = ',') %>% unlist()
     # remove any unwanted sample_ids from the object
     sce = sce[, colData(sce)$sample_id %in% keep_smpls]
@@ -486,8 +486,8 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
     metadata_all$hto_id = gsub('_', '-', metadata_all$hto_id)
 
     # get demultiplexing metadata
-    hto_coldata = colData(hto_sce) %>% 
-    as.data.frame() %>% 
+    hto_coldata = colData(hto_sce) %>%
+    as.data.frame() %>%
     as.data.table() %>%
     setnames(old = c("HTO_classification.global", "HTO_classification") ,new = c("demux_class", "hto_id"))
 
@@ -751,6 +751,114 @@ save_hto_sce <- function(sce_df_f, sce_hto_f, n_cores){
   return(hto_sce)
 
 }
+
+
+
+# functions for multiplexing QC
+
+get_hto_dt <- function(pool, hto_sce){
+
+  pool_cells = colData(hto_sce)$pool_id == pool
+  pool_sce = hto_sce[, pool_cells]
+  pool_counts = counts(pool_sce)
+
+  pool_seu = CreateSeuratObject(counts = pool_counts, assay = 'HTO')
+  pool_seu = NormalizeData(pool_seu, assay = "HTO", normalization.method = "CLR")
+
+  pool_meta = colData(pool_sce) %>% as.data.table() %>%
+    .[, hto_total := counts(pool_sce) %>% colSums ] %>%
+    .[, n_htos    := nrow(pool_sce)]
+
+  pool_norm_counts = GetAssayData(pool_seu, assay = "HTO", layer = "data") %>%
+    t() %>%
+    as.data.table(keep.rownames = 'cell_id') %>%
+    melt(id.vars = 'cell_id', variable.name = 'hto_id', value.name = 'norm_count')
+
+  pool_counts = GetAssayData(pool_seu, assay = 'HTO', layer = 'counts') %>%
+    t() %>%
+    as.data.table(keep.rownames = 'cell_id') %>%
+    melt(id.vars = 'cell_id', variable.name = 'hto_id', value.name = 'count')
+
+  pool_all = pool_norm_counts %>%
+    merge(pool_counts, by = c('cell_id', 'hto_id')) %>%
+    merge(pool_meta, by = 'cell_id') %>%
+    .[, prop        := count / sum(count), by = .(pool_id, cell_id) ]  %>%
+    .[, hto_id      := factor(hto_id)]
+
+  return(pool_all)
+
+}
+
+
+hto_ridges <- function(sel_sample, proj_meta, hto_dt_ls){
+
+  # get the right pool dt
+  smpl_meta = proj_meta %>%
+    .[sample_id == sel_sample]
+
+  pool = smpl_meta$pool_id %>% unique()
+  hto_id_smpl = smpl_meta$hto_id %>% unique()
+
+  # get all htos in pool
+  pool_htos = proj_meta %>%
+    .[pool_id == pool, hto_id]
+
+  pool_dt = hto_norm_counts_ls[[pool]] %>%
+    .[guess == hto_id_smpl] %>%
+
+    cols = met.brewer(name="Manet", n= length(pool_htos), type="discrete")
+
+  p = ggplot(pool_dt, aes(x = norm_count, y = hto_id, fill = hto_id)) +
+    geom_density_ridges(scale = 1, alpha = 0.8) +
+    theme_minimal() +
+    labs(
+      title = paste(sel_sample, hto_id_smpl, sep = ', '),
+      x = "hto_counts",
+      y = NULL
+    ) +
+    theme(legend.position = "none") +
+    scale_fill_manual(values = cols)
+
+  return(p)
+}
+
+
+# make pairwise plots
+hto_pairwise <- function(pool_dt, var = c("prop", "norm_count")){
+
+  p_var = match.arg(var)
+
+  plot_dt     = merge(
+    pool_dt[, c('cell_id', 'guess', 'hto_id', p_var), with = FALSE],
+    pool_dt[, c('cell_id', 'guess', 'hto_id', p_var), with = FALSE],
+    by = c("cell_id", "guess"), allow.cartesian = TRUE, suffixes = c(".x", ".y")
+  ) %>%
+    .[ as.integer(hto_id.x) > as.integer(hto_id.y) ]
+
+  hto_vals    = plot_dt$guess %>% unique() %>% setdiff(c('Doublet', 'Negative')) %>% sort
+  cols_tmp    = MetBrewer::met.brewer( name = 'Johnson', n = length(hto_vals),
+                                       type = 'discrete' ) %>% setNames(hto_vals)
+  hto_cols    = c(cols_tmp, Negative = "grey20", Doublet = "grey80")
+
+  x_var = paste0(p_var, '.x')
+  y_var = paste0(p_var, '.y')
+
+  g = ggplot(plot_dt) +
+    aes( x = get(x_var), y = get(y_var), colour = guess ) +
+    geom_point( size = 0.2 ) +
+    scale_x_continuous( breaks = pretty_breaks() ) +
+    scale_y_continuous( breaks = pretty_breaks() ) +
+    scale_colour_manual( values = hto_cols, breaks = names(hto_cols) ) +
+    guides( colour = guide_legend(override.aes = list(size = 3) ) ) +
+    facet_grid( hto_id.y ~ hto_id.x ) +
+    theme_classic() +
+    labs(color = 'HTO guess')
+
+  return(g)
+}
+
+
+
 
 
 
