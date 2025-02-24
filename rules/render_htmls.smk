@@ -36,7 +36,8 @@ rule copy_r_code:
     r_dbl_f     = f"{code_dir}/doublet_id.R",
     r_int_f     = f"{code_dir}/integration.R",
     r_mkr_f     = f"{code_dir}/marker_genes.R",
-    r_zoom_f	= f"{code_dir}/zoom.R"
+    r_zoom_f	  = f"{code_dir}/zoom.R"
+    r_demux_f   = f"{code_dir}/multiplexing.R"
   shell: 
     """
     echo "copying relevant R files over"
@@ -48,12 +49,11 @@ rule copy_r_code:
     cp scripts/doublet_id.R {output.r_dbl_f}
     cp scripts/integration.R {output.r_int_f}
     cp scripts/marker_genes.R {output.r_mkr_f}
-    cp scripts/zoom.R {output.r_zoom_f}        
+    cp scripts/zoom.R {output.r_zoom_f}    
+    cp scripts/multiplexing.R {output.r_demux_f}    
     """
 
  
-
-
 
 
 rule render_html_alevin_fry:

@@ -22,7 +22,7 @@ knitr::opts_knit$set( root.dir='..' )
 ```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
 source('code/utils.R')
 source('code/ambient.R')
-source('code/make_sce.R')
+source('code/multiplexing.R')
 ```
 
 ```{r get_samples, include = FALSE}

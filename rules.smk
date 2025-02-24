@@ -178,6 +178,7 @@ rule all:
       code_dir  + '/integration.R', 
       code_dir  + '/marker_genes.R',
       code_dir  + '/zoom.R', 
+      code_dir  + '/multiplexing.R'
       # markdowns
       rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
       rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd', 
