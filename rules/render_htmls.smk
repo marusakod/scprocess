@@ -98,7 +98,8 @@ rule render_html_alevin_fry:
 if DEMUX_TYPE == 'af':
   rule render_html_multiplexing:
     input:
-      expand(af_dir + '/af_{sample}/hto/' + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=runs)
+      expand(af_dir + '/af_{sample}/hto/' + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=runs), 
+      sce_hto_f = sce_dir + '/sce_cells_htos_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
     output:
       rmd_f       = f"{rmd_dir}/{SHORT_TAG}_multiplexing.Rmd",
       html_f      = f"{docs_dir}/{SHORT_TAG}_multiplexing.html"
@@ -123,11 +124,13 @@ if DEMUX_TYPE == 'af':
           proj_dir       = '{PROJ_DIR}', \
           temp_f         =  '$template_f', \
           rmd_f          = '{output.rmd_f}', \
+          sce_hto_f      = '{input.sce_hto_f}', \
           YOUR_NAME      = '{YOUR_NAME}', \
           AFFILIATION    = '{AFFILIATION}', \
           SHORT_TAG      = '{SHORT_TAG}', \
           DATE_STAMP     = '{DATE_STAMP}', \
           RUNS_STR       = '{RUNS_STR}', \
+          METADATA_F     = '{METADATA_F}', \
           AMBIENT_METHOD = '{AMBIENT_METHOD}', \
           SAMPLE_VAR     = '{SAMPLE_VAR}', \
           af_dir         = '{af_dir}')"
