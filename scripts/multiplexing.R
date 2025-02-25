@@ -175,8 +175,8 @@ hto_ridges <- function(sel_sample, proj_meta, hto_dt_ls){
   pool_htos = proj_meta %>%
     .[pool_id == pool, hto_id]
 
-  pool_dt = hto_norm_counts_ls[[pool]] %>%
-    .[guess == hto_id_smpl] %>%
+  pool_dt = hto_dt_ls[[pool]] %>%
+    .[guess == hto_id_smpl] 
 
     cols = met.brewer(name="Manet", n= length(pool_htos), type="discrete")
 

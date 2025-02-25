@@ -15,7 +15,7 @@ output:
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
-knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', warnings = FALSE)
+knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', warnings = FALSE, message = FALSE)
 knitr::opts_knit$set( root.dir='..' )
 ```
 
@@ -78,7 +78,7 @@ hto_knee_params_df = lapply(hto_knee_dfs, FUN = get_knee_params, sample_var = sa
 ```{r get_hto_dt, include = FALSE}
 pool_ids = unique(proj_meta$pool_id)
 sample_ids = unique(proj_meta$sample_id)
-hto_dt_ls = lapply(pool_ids, FUN = get_hto_dt, hto_sce = hto_sce)
+hto_dt_ls = lapply(pool_ids, FUN = get_hto_dt, hto_sce = hto_sce) %>% setNames(pool_ids)
 ```
 
 
@@ -186,24 +186,24 @@ rbindlist(hto_dt_ls) %>%
   knitr::kable()
 ```
 
-## Distribution of HTOs within a pool per sample
+## Distribution of HTOs within a pool per sample{.tabset}
 
-```{r hto_ridges_plot}
+```{r hto_ridges_plot, results ='asis'}
 for (i in sample_ids){
   cat('### ', i, '\n')
-  print(hto_ridges(i, proj_meta = proj_meta, hto_dt_ls = hto_dt_ls){
+  print(hto_ridges(i, proj_meta = proj_meta, hto_dt_ls = hto_dt_ls))
   cat('\n\n')
 }
 
 ```
 
-## Pairs of HTO signals to confirm mutual exclusivity
+## Pairs of HTO signals to confirm mutual exclusivity{.tabset}
 
-```{r hto_pairwise plot}
+```{r hto_pairwise plot, results = 'asis'}
 for (i in pool_ids){
   pool_dt_tmp = hto_dt_ls[[i]]
   cat('### ', i, '\n')
-  print(hto_pairwise(pool_dt = pool_dt_tmp, var = "norm_count")){
+  print(hto_pairwise(pool_dt = pool_dt_tmp, var = "norm_count"))
   cat('\n\n')
 }
 ```

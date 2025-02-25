@@ -36,7 +36,7 @@ rule copy_r_code:
     r_dbl_f     = f"{code_dir}/doublet_id.R",
     r_int_f     = f"{code_dir}/integration.R",
     r_mkr_f     = f"{code_dir}/marker_genes.R",
-    r_zoom_f	  = f"{code_dir}/zoom.R"
+    r_zoom_f	  = f"{code_dir}/zoom.R", 
     r_demux_f   = f"{code_dir}/multiplexing.R"
   shell: 
     """
