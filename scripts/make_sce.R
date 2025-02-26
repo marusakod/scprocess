@@ -502,30 +502,31 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
      .[is.na(hto_id),hto_id := 'Negative']
 
   }else if(demux_type == 'custom'){
-    demux_out = fread(demux_f)  %>%
+  demux_out = fread(demux_f)  %>%
       .[, cell_id := paste(pool_id, cell_id, sep = ":" )]
 
-    common_bcs = length(intersect(demux_out$cell_id), coldata_in$cell_id)
+    common_bcs = length(intersect(demux_out$cell_id, coldata_in$cell_id))
     assert_that(common_bcs > 0)
 
     message(common_bcs, " matching between custom demultiplexing file and input sce")
     # discard all cells in demux_output but not in sce
-    trash_h = length(setdiff(demux_out$cell_id, coldata_in$cell_id))
+    trash_n = length(setdiff(demux_out$cell_id, coldata_in$cell_id))
     message(trash_n, " cells from custom demultiplexing file discared")
 
     coldata_out = coldata_in %>%
-      merge(demux_out, by = 'cell_id', all.x = TRUE, all.y = FALSE) %>%
-      merge(metadata_all, by =c('pool_id', 'sample_id'))
+      merge(demux_out, by = c('cell_id', 'pool_id'), all.x = TRUE, all.y = FALSE) %>%
+      merge(metadata_all, by =c('pool_id', 'sample_id'), all.x = TRUE)
 
     # check if column global class exists and if ok
     if('class' %in% colnames(demux_out)){
-      class_vals == unique(demux_out$class)
+      class_vals = unique(demux_out$class)
       assert_that(all(class_vals %in% c("singlet", "negative", "doublet")))
 
       # label cells in sce but not in demux_output as "Negative"
       coldata_out = coldata_out %>%
-      .[is.na(class()), class := "negative"] %>%
+      .[is.na(class), class := "negative"] %>%
       setnames('class', 'demux_class')
+
     }else{
       coldata_out = coldata_out %>%
       .[, demux_class:= fifelse(is.na(sample_id), "negative", "singlet")]

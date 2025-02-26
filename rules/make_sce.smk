@@ -168,7 +168,7 @@ if AMBIENT_METHOD == 'cellbender':
   rule make_sce_object:
     input:
       sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-      demux_f     = hto_sce_f if DEMUX_TYPE == 'af' else DEMUX_F
+      demux_f     = hto_sce_f if DEMUX_TYPE == 'af' else ([DEMUX_F] if DEMUX_TYPE == 'custom' else [])
     output:
       sce_all_f   = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
     threads: 4
@@ -198,7 +198,7 @@ else:
   rule make_sce_object:
     input:
       sce_df      = sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-      demux_f     = hto_sce_f if DEMUX_TYPE == 'af' else DEMUX_F
+      demux_f     = hto_sce_f if DEMUX_TYPE == 'af' else ([DEMUX_F] if DEMUX_TYPE == 'custom' else [])
     output:
       sce_all_f   = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
     threads: 4

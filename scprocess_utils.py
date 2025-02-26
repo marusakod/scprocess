@@ -161,7 +161,7 @@ def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
         f"{col} not present in demux_output"
 
       # check if samples in metadata and demux_dt match
-      assert set(demux_dt['sample_id']) == set(sample_metadata['sample_id']), \
+      assert {x for x in set(demux_dt['sample_id']) if pd.notna(x)} == set(sample_metadata['sample_id']), \
         "Unique values for sample_id don't match in demux_output and sample_metadata"
       
       assert set(demux_dt['pool_id']) == set(sample_metadata['pool_id']), \
