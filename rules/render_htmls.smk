@@ -323,11 +323,15 @@ rule render_html_marker_genes:
     mkrs_f      = mkr_dir   + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz', 
     harmony_f   = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     hvgs_f      = mkr_dir   + '/pb_hvgs_'         + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
-    fgsea_bp_f  = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
-    fgsea_cc_f  = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
-    fgsea_mf_f  = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
-    fgsea_paths_f = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
-    fgsea_hlmk_f = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz'
+    **(
+        {  # Include FGSEA outputs **only if** SPECIES is in the allowed list
+            'fgsea_go_bp_f':   mkr_dir + '/fgsea_' + FULL_TAG + f'_{INT_SEL_RES}_go_bp_' + DATE_STAMP + '.txt.gz',
+            'fgsea_go_cc_f':   mkr_dir + '/fgsea_' + FULL_TAG + f'_{INT_SEL_RES}_go_cc_' + DATE_STAMP + '.txt.gz',
+            'fgsea_go_mf_f':   mkr_dir + '/fgsea_' + FULL_TAG + f'_{INT_SEL_RES}_go_mf_' + DATE_STAMP + '.txt.gz',
+            'fgsea_paths_f':   mkr_dir + '/fgsea_' + FULL_TAG + f'_{INT_SEL_RES}_paths_' + DATE_STAMP + '.txt.gz',
+            'fgsea_hlmk_f':    mkr_dir + '/fgsea_' + FULL_TAG + f'_{INT_SEL_RES}_hlmk_' + DATE_STAMP + '.txt.gz'
+        } if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'] else {}
+    )
   output:
     rmd_f       = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.Rmd',
     html_f      = f'{docs_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.html'
@@ -364,13 +368,14 @@ rule render_html_marker_genes:
     hmny_f = '{input.harmony_f}', \
     pb_f = '{input.pb_f}', \
     mkrs_f = '{input.mkrs_f}', \
-    canon_f = '{MKR_CANON_F}', \
+    CUSTOM_MKR_NAMES = '{CUSTOM_MKR_NAMES}', \
+    CUSTOM_MKR_PATHS = '{CUSTOM_MKR_PATHS}', \
     hvgs_f = '{input.hvgs_f}', \
-    fgsea_go_bp_f = '{input.fgsea_bp_f}', \
-    fgsea_go_cc_f = '{input.fgsea_cc_f}', \
-    fgsea_go_mf_f = '{input.fgsea_mf_f}', \
-    fgsea_paths_f = '{input.fgsea_paths_f}', \
-    fgsea_hlmk_f = '{input.fgsea_hlmk_f}', \
+    {f'fgsea_go_bp_f = {output.fgsea_go_bp_f},' if 'fgsea_go_bp_f' in output else ''} \
+    {f'fgsea_go_cc_f = {output.fgsea_go_cc_f},' if 'fgsea_go_cc_f' in output else ''} \
+    {f'fgsea_go_mf_f = {output.fgsea_go_mf_f},' if 'fgsea_go_mf_f' in output else ''} \
+    {f'fgsea_paths_f = {output.fgsea_paths_f},' if 'fgsea_paths_f' in output else ''} \
+    {f'fgsea_hlmk_f  = {output.fgsea_hlmk_f},' if 'fgsea_hlmk_f' in output else ''} \
     INT_EXC_REGEX = '{INT_EXC_REGEX}', \
     INT_SEL_RES = {INT_SEL_RES}, \
     MKR_NOT_OK_RE = '{MKR_NOT_OK_RE}', \

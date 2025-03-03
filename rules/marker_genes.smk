@@ -7,11 +7,15 @@ rule run_marker_genes:
     pb_f          = mkr_dir + '/pb_'              + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.rds',
     mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
     pb_hvgs_f     = mkr_dir + '/pb_hvgs_'         + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
-    fgsea_go_bp_f = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
-    fgsea_go_cc_f = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
-    fgsea_go_mf_f = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
-    fgsea_paths_f = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
-    fgsea_hlmk_f  = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz'
+    **(
+        {  # Include FGSEA outputs **only if** SPECIES is in the allowed list
+            'fgsea_go_bp_f':   mkr_dir + '/fgsea_' + FULL_TAG + f'_{INT_SEL_RES}_go_bp_' + DATE_STAMP + '.txt.gz',
+            'fgsea_go_cc_f':   mkr_dir + '/fgsea_' + FULL_TAG + f'_{INT_SEL_RES}_go_cc_' + DATE_STAMP + '.txt.gz',
+            'fgsea_go_mf_f':   mkr_dir + '/fgsea_' + FULL_TAG + f'_{INT_SEL_RES}_go_mf_' + DATE_STAMP + '.txt.gz',
+            'fgsea_paths_f':   mkr_dir + '/fgsea_' + FULL_TAG + f'_{INT_SEL_RES}_paths_' + DATE_STAMP + '.txt.gz',
+            'fgsea_hlmk_f':    mkr_dir + '/fgsea_' + FULL_TAG + f'_{INT_SEL_RES}_hlmk_' + DATE_STAMP + '.txt.gz'
+        } if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'] else {}
+    )
   threads: 8
   retries: RETRIES
   resources:
@@ -29,11 +33,11 @@ rule run_marker_genes:
         pb_f          = '{output.pb_f}', \
         mkrs_f        = '{output.mkrs_f}', \
         pb_hvgs_f     = '{output.pb_hvgs_f}', \
-        fgsea_go_bp_f = '{output.fgsea_go_bp_f}', \
-        fgsea_go_cc_f = '{output.fgsea_go_cc_f}', \
-        fgsea_go_mf_f = '{output.fgsea_go_mf_f}', \
-        fgsea_paths_f = '{output.fgsea_paths_f}', \
-        fgsea_hlmk_f  = '{output.fgsea_hlmk_f}', \
+        {f'fgsea_go_bp_f = {output.fgsea_go_bp_f},' if 'fgsea_go_bp_f' in output else ''} \
+        {f'fgsea_go_cc_f = {output.fgsea_go_cc_f},' if 'fgsea_go_cc_f' in output else ''} \
+        {f'fgsea_go_mf_f = {output.fgsea_go_mf_f},' if 'fgsea_go_mf_f' in output else ''} \
+        {f'fgsea_paths_f = {output.fgsea_paths_f},' if 'fgsea_paths_f' in output else ''} \
+        {f'fgsea_hlmk_f  = {output.fgsea_hlmk_f},' if 'fgsea_hlmk_f' in output else ''} \
         species       = '{SPECIES}', \
         gtf_dt_f      = '{AF_GTF_DT_F}', \
         gsea_dir      = '{MKR_GSEA_DIR}', \

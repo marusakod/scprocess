@@ -30,8 +30,8 @@ QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_F
   get_qc_parameters(config)
 INT_EXC_REGEX, INT_N_HVGS, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES = \
   get_integration_parameters(config, AF_MITO_STR)
-MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, MKR_CANON_F = \
-  get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
+MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS = \
+  get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
 LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_SCE_SUBSETS, LBL_TISSUE, CUSTOM_LABELS_F = \
  get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
 ZOOM_NAMES, ZOOM_SPEC_LS = get_zoom_parameters(config, AF_MITO_STR, SCPROCESS_DATA_DIR)
@@ -80,9 +80,12 @@ zoom_df       = pd.DataFrame({ \
 # exclude all samples without fastq files
 if DEMUX_TYPE != "":
  POOL_IDS = exclude_samples_without_fastq_files(FASTQ_DIR, POOL_IDS, HTO=False)
- POOL_IDS = exclude_samples_without_fastq_files(HTO_FASTQ_DIR, POOL_IDS, HTO=True)
 else:
  SAMPLES  = exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES,HTO=False)
+
+# exclude all samples without hto fastq files
+if DEMUX_TYPE == "af":
+ POOL_IDS = exclude_samples_without_fastq_files(HTO_FASTQ_DIR, POOL_IDS, HTO=True)
 
 # join all samples into a single string
 POOL_STR   = ','.join(POOL_IDS)
@@ -116,6 +119,18 @@ hto_sce_f = (sce_dir + '/sce_cells_htos_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
 # mutliplxing report (optional)
 hto_rmd_f  = (rmd_dir   + '/' + SHORT_TAG + '_multiplexing.Rmd') if DEMUX_TYPE == 'af' else []
 hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_multiplexing.html') if DEMUX_TYPE == 'af' else []
+
+
+# fgsea outputs (optional)
+fgsea_outs = [
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
+] if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'] else []
+ 
+
 
 # one rule to rule them all
 rule all:
@@ -164,11 +179,8 @@ rule all:
       mkr_dir   + '/pb_'              + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.rds',
       mkr_dir   + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
       mkr_dir   + '/pb_hvgs_'         + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
-      mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
-      mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
-      mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
-      mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
-      mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
+      # fgsea outputs
+      fgsea_outs, 
       # code
       code_dir  + '/utils.R',
       code_dir  + '/ambient.R',

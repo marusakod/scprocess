@@ -27,11 +27,6 @@ calculate_marker_genes <- function(sce_clean_f, pb_f, mkrs_f, pb_hvgs_f,
     is.character(pb_f),
     is.character(mkrs_f),
     is.character(pb_hvgs_f),
-    is.character(fgsea_go_bp_f),
-    is.character(fgsea_go_cc_f),
-    is.character(fgsea_go_mf_f),
-    is.character(fgsea_paths_f),
-    is.character(fgsea_hlmk_f),
     is.character(species),
     is.character(gtf_dt_f),
     is.character(gsea_dir),
@@ -100,16 +95,8 @@ calculate_marker_genes <- function(sce_clean_f, pb_f, mkrs_f, pb_hvgs_f,
 
   calc_fgsea_dt(gsets_list, fgsea_fs, mkrs_tmp, gsea_cut, gsea_var = "z_score",
     n_cores = n_cores)
-  }else{
-    # write empty GSEA files
-    file.create(fgsea_go_bp_f)
-    file.create(fgsea_go_cc_f)
-    file.create(fgsea_go_mf_f)
-    file.create(fgsea_paths_f)
-    file.create(fgsea_hlmk_f)
   }
-
-
+  
   message("done!")
 }
 
@@ -1650,22 +1637,22 @@ plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cp
     direction = "vertical")
 
   # maybe do annotations
-  n_genesets  = length(unique(panel_dt$geneset))
+  n_genesets  = length(unique(panel_dt$label))
   if (annotate_genes & (n_genesets > 1)) {
     # label with buckets
-    col_lvls    = panel_dt[ symbol %in% keep_gs ]$geneset %>% fct_inorder %>% levels
-    cols_dt     = panel_dt[, .(symbol,  geneset = geneset %>% factor(levels = col_lvls))] %>%
+    col_lvls    = panel_dt[ symbol %in% keep_gs ]$label %>% fct_inorder %>% levels
+    cols_dt     = panel_dt[, .(symbol,  label= label %>% factor(levels = col_lvls))] %>%
       setkey('symbol') %>% .[ rownames(log2fc_mat) ]
     col_cols    = MetBrewer::met.brewer( name = 'Signac', n = length(col_lvls), 
         type = 'discrete' ) %>% setNames(col_lvls)
     col_annots  = HeatmapAnnotation(
-      geneset    = cols_dt$geneset,
-      col         = list(geneset = col_cols),
+      label    = cols_dt$label,
+      col      = list(label = col_cols),
       annotation_name_side = "right", 
       annotation_legend_param = list(
-        geneset = list(ncol = 3, labels_gp = gpar(fontsize = 8))
+        label = list(ncol = 3, labels_gp = gpar(fontsize = 8))
       ) )
-    col_split   = cols_dt$geneset
+    col_split   = cols_dt$label
   } else {
     col_annots  = NULL
     col_split   = NULL

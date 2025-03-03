@@ -484,8 +484,64 @@ def get_integration_parameters(config, mito_str):
   return INT_EXC_REGEX, INT_N_HVGS, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES
 
 
+
+def get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
+    
+    CUSTOM_MKR_NAMES = ""
+    CUSTOM_MKR_PATHS = ""
+    
+    if 'custom_sets' in config['marker_genes']:
+      custom_sets = config["marker_genes"]["custom_sets"]
+      mkr_names = []
+      mkr_paths = []
+
+      for i, gene_set in enumerate(custom_sets):
+        assert "name" in gene_set, \
+          f"Entry {i+1} in 'custom_sets' is missing a 'name' field."
+
+        name = gene_set["name"]
+
+        # Check for commas in names
+        assert "," not in name, \
+          f"Custom marker set name '{name}' contains a comma, which is not allowed."
+
+        file_path = gene_set.get("file", os.path.join(SCPROCESS_DATA_DIR, 'marker_genes', f"{name}.csv"))
+
+        if not os.path.isabs(file_path):
+          file_path = os.path.join(PROJ_DIR, file_path)
+
+        assert os.path.isfile(file_path), \
+          f"File not found for marker set '{name}'"
+
+        assert file_path.endswith(".csv"), \
+          f"File for custom marker set '{name}' is not a CSV file"
+
+        # Check CSV file contents
+        mkrs_df = pd.read_csv(file_path)
+ 
+        req_col = "label"
+        opt_cols = ["symbol", "ensembl_id"]
+        
+        assert req_col in mkrs_df.columns, \
+          f"File '{file_path}' is missing the mandatory column 'label'."
+        
+        assert any(col in mkrs_df.columns for col in opt_cols), \
+          f"File '{file_path}' must contain either 'symbol' or 'ensembl_id' column."
+            
+
+        # Store validated values
+        mkr_names.append(name)
+        mkr_paths.append(file_path)
+
+        CUSTOM_MKR_NAMES = ",".join(mkr_names)
+        CUSTOM_MKR_PATHS = ",".join(mkr_paths)
+    
+    return CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS
+        
+
+
 # define marker_genes parameters
-def get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR): 
+def get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR): 
   # set some more default values
   MKR_GSEA_DIR    = os.path.join(SCPROCESS_DATA_DIR, 'gmt_pathways')
   MKR_MIN_CL_SIZE = 1e2
@@ -496,13 +552,6 @@ def get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
   MKR_MAX_ZERO_P  = 0.5
   MKR_GSEA_CUT    = 0.1
 
-  # specify canonical marker file; this should depend on both species and organ; could be added to config as input param
-  if SPECIES in ["human_2020", "human_2024"]:
-    MKR_CANON_F     = os.path.join(SCPROCESS_DATA_DIR,"marker_genes/canonical_brain_celltype_markers_human_2023-10-17.txt")
-  elif SPECIES in ["mouse_2020", "mouse_2024"]:
-    MKR_CANON_F     = os.path.join(SCPROCESS_DATA_DIR,"marker_genes/canonical_brain_celltype_markers_mouse_2023-10-17.txt")
-  else:
-    MKR_CANON_F = ""
 
   # change defaults if specified
   if ('marker_genes' in config) and (config['marker_genes'] is not None):
@@ -521,7 +570,10 @@ def get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
     if 'mkr_gsea_cut' in config['marker_genes']:
       MKR_GSEA_CUT    = config['marker_genes']['mkr_gsea_cut']
 
-  return MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, MKR_CANON_F
+  # get custom marker files
+  CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS = get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
+
+  return MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS
 
 
 # define marker_genes parameters

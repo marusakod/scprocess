@@ -161,8 +161,38 @@ calc_ambient_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umis_c
     )]
 
 
+  # label cells in empty plateau
+  bender_ps = .get_empty_plateau(
+    knee_df        = bender_ps, 
+    inf1           = knee1_ls$sel_knee[ 'inflection' ], 
+    total_included = params_ls$total_included, 
+    knee2          = knee2_ls$sel_knee[ 'knee' ]
+  )
+
   return(bender_ps)
 }
+
+
+
+.get_empty_plateau <- function(knee_df, infl1, total_included, knee2) {
+
+  infl1_idx = which.min(abs(knee_df$total - infl1))[1]
+  infl1_x   = knee_df[infl1_idx, rank] 
+
+  empty_start = copy(knee_df)[, n := .I] %>%
+    .[rank %between% c(infl1_x, total_included), n] %>%  
+    log10() %>%
+    mean() %>%
+    (function(x) 10^x)() 
+
+  empty_end = copy(knee_df)[total == knee2, unique(rank)]  
+
+  knee_df[, in_empty_plateau := fifelse(rank %between% c(empty_start, empty_end), TRUE, FALSE)]
+
+  return(knee_df)
+}
+
+
 
 .get_knee_and_inf_1 <- function(split_mat, min_umis_cells, knee1 = NA, inf1 = NA, knee2 = NA) {
   # check if custom knees and shins are defined
