@@ -487,51 +487,53 @@ def get_integration_parameters(config, mito_str):
 
 def get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
     
+    # set defaults
     CUSTOM_MKR_NAMES = ""
     CUSTOM_MKR_PATHS = ""
     
-    if 'custom_sets' in config['marker_genes']:
-      custom_sets = config["marker_genes"]["custom_sets"]
-      mkr_names = []
-      mkr_paths = []
+    if ('marker_genes' in config) and (config['marker_genes'] is not None):
+      if 'custom_sets' in config["marker_genes"]:
+        custom_sets = config["marker_genes"]["custom_sets"]
+        mkr_names = []
+        mkr_paths = []
 
-      for i, gene_set in enumerate(custom_sets):
-        assert "name" in gene_set, \
-          f"Entry {i+1} in 'custom_sets' is missing a 'name' field."
+        for i, gene_set in enumerate(custom_sets):
+          assert "name" in gene_set, \
+            f"Entry {i+1} in 'custom_sets' is missing a 'name' field."
 
-        name = gene_set["name"]
+          name = gene_set["name"]
 
-        # Check for commas in names
-        assert "," not in name, \
-          f"Custom marker set name '{name}' contains a comma, which is not allowed."
+          # Check for commas in names
+          assert "," not in name, \
+            f"Custom marker set name '{name}' contains a comma, which is not allowed."
 
-        file_path = gene_set.get("file", os.path.join(SCPROCESS_DATA_DIR, 'marker_genes', f"{name}.csv"))
+          file_path = gene_set.get("file", os.path.join(SCPROCESS_DATA_DIR, 'marker_genes', f"{name}.csv"))
 
-        if not os.path.isabs(file_path):
-          file_path = os.path.join(PROJ_DIR, file_path)
+          if not os.path.isabs(file_path):
+            file_path = os.path.join(PROJ_DIR, file_path)
 
-        assert os.path.isfile(file_path), \
-          f"File not found for marker set '{name}'"
+          assert os.path.isfile(file_path), \
+            f"File not found for marker set '{name}'"
 
-        assert file_path.endswith(".csv"), \
-          f"File for custom marker set '{name}' is not a CSV file"
+          assert file_path.endswith(".csv"), \
+            f"File for custom marker set '{name}' is not a CSV file"
 
-        # Check CSV file contents
-        mkrs_df = pd.read_csv(file_path)
+          # Check CSV file contents
+          mkrs_df = pd.read_csv(file_path)
  
-        req_col = "label"
-        opt_cols = ["symbol", "ensembl_id"]
+          req_col = "label"
+          opt_cols = ["symbol", "ensembl_id"]
         
-        assert req_col in mkrs_df.columns, \
-          f"File '{file_path}' is missing the mandatory column 'label'."
+          assert req_col in mkrs_df.columns, \
+            f"File '{file_path}' is missing the mandatory column 'label'."
         
-        assert any(col in mkrs_df.columns for col in opt_cols), \
-          f"File '{file_path}' must contain either 'symbol' or 'ensembl_id' column."
+          assert any(col in mkrs_df.columns for col in opt_cols), \
+            f"File '{file_path}' must contain either 'symbol' or 'ensembl_id' column."
             
 
-        # Store validated values
-        mkr_names.append(name)
-        mkr_paths.append(file_path)
+          # Store validated values
+          mkr_names.append(name)
+          mkr_paths.append(file_path)
 
         CUSTOM_MKR_NAMES = ",".join(mkr_names)
         CUSTOM_MKR_PATHS = ",".join(mkr_paths)
