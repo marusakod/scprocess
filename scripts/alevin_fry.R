@@ -164,7 +164,7 @@ calc_ambient_params <- function(split_mat, sel_s, min_umis_empty = 5, min_umis_c
   # label cells in empty plateau
   bender_ps = .get_empty_plateau(
     knee_df        = bender_ps, 
-    inf1           = knee1_ls$sel_knee[ 'inflection' ], 
+    infl1          = knee1_ls$sel_knee[ 'inflection' ], 
     total_included = params_ls$total_included, 
     knee2          = knee2_ls$sel_knee[ 'knee' ]
   )

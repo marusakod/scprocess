@@ -17,7 +17,7 @@ suppressPackageStartupMessages({
 gsea_regex  = "^(HALLMARK_|GOBP_|GOCC_|GOMF_|BIOCARTA_|REACTOME_|KEGG_)(.+)"
 
 calculate_marker_genes <- function(sce_clean_f, pb_f, mkrs_f, pb_hvgs_f,
-  fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f,
+  fgsea_go_bp_f = "", fgsea_go_cc_f = "", fgsea_go_mf_f = "", fgsea_paths_f = "", fgsea_hlmk_f = "",
   species, gtf_dt_f, gsea_dir,
   sel_res, exc_regex, min_cl_size, min_cells,
   not_ok_re, min_cpm_go, max_zero_p, gsea_cut, n_cores = 4) {
@@ -1432,52 +1432,6 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1_lab, cl2_lab,
         )
       )
 
-  # } else {
-  #   row_annots  = rowAnnotation(
-  #     `orig. only`  = rows_dt$N_orig_only,
-  #     col = list(
-  #       `orig. only` = cols_fn(rows_dt$N_orig_only,
-  #         res = max(rows_dt$N_orig_only) / 8,
-  #         pal = "Greys", pal_dir = 1, range = "has_zero")
-  #        ),
-  #     annotation_name_side = "top"
-  #     )
-  #   col_annots  = HeatmapAnnotation(
-  #     `new only`  = cols_dt$N_cl_only,
-  #     col = list(
-  #       `new only`  = cols_fn(cols_dt$N_cl_only,
-  #         res = max(cols_dt$N_cl_only) / 8,
-  #         pal = "Greys", pal_dir = 1, range = "has_zero")
-  #       ),
-  #     annotation_name_side = "right"
-  #     )
-  # }
-
-  # # split by cell type
-  # if (which_type == "type_fine") {
-  #   orig_lvls   = fine_ord
-  #   row_split   = fine_split[ rownames(data_mat) ] %>% factor(levels = broad_ord)
-  # } else if (which_type == "type_broad") {
-  #   orig_lvls   = broad_ord
-  #   row_split   = NULL
-  # }
-
-  # # put in nice order, always order by log_N
-  # set.seed(20220602)
-
-  # # put matrix in nice order
-  # order_dt    = copy_dt %>%
-  #   dcast.data.table(cl1 ~ cl2, value.var = "log_N", fill = 0) %>%
-  #   melt( id = "cl1", var = "cluster" ) %>%
-  #   .[, cl1 := factor(cl1, levels = orig_lvls) ] %>%
-  #   .[ order(cluster, cl1) ] %>%
-  #   .[, smth_score := ksmooth(as.numeric(cl1), value,
-  #     kernel = "normal", x.points = as.numeric(cl1))$y, by = cluster ] %>%
-  #   .[, .SD[ which.max(smth_score) ], by = cluster ] %>%
-  #   .[ order(cl1) ]
-  # assert_that( all( sort(order_dt$cluster) == colnames(data_mat) ) )
-  # put in nice order
-
   if (do_sort == "no") {
     rows_flag   = FALSE
     cols_flag   = FALSE
@@ -1591,6 +1545,43 @@ plot_selected_genes_umap <- function(sel_dt, cols_to_rows = 1.25) {
       strip.background = element_rect( fill = "white" ), aspect.ratio = 1 ) +
     labs( colour = "scaled log\nexpression\n(max val. = 1)" )
 }
+
+
+
+
+process_custom_markers <- function(custom_f, biotypes_dt, marker_calcs_dt) {
+  cust_mkrs_dt = fread(custom_f)
+  
+  # Ensure symbol is present; if not, try to retrieve it using ensembl_id
+  if (!"symbol" %in% colnames(cust_mkrs_dt)) {
+    # Check if all ensembl_id values are valid
+    assert_that(
+      all(cust_mkrs_dt$ensembl_id %in% biotypes_dt$ensembl_id),
+      msg = sprintf("Warning: Some 'ensembl_id' values in '%s' do not match any in the GTF file.", custom_f)
+    )
+    cust_mkrs_dt = merge(cust_mkrs_dt, biotypes_dt[, .(symbol, ensembl_id)], by = "ensembl_id", all.x = TRUE, all.y = FALSE)
+  } else {
+    # Check if all symbol values are valid
+    assert_that(
+      all(cust_mkrs_dt$symbol %in% biotypes_dt$symbol), 
+      msg = sprintf("Warning: Some 'symbol' values in '%s' do not match any in the GTF file.", custom_f)
+    )
+  }
+  
+  # Check that at least two symbols are in marker_calcs_dt
+  ok_symbols = intersect(marker_calcs_dt$symbol, cust_mkrs_dt$symbol)
+  
+  if (length(ok_symbols) < 2) {
+    message(sprintf(
+      "Skipping '%s': Less than 2 symbols found in the marker genes file. Heatmap for these markers will not be shown.", 
+      custom_f
+    ))
+    return(NULL)
+  }
+   
+  return(cust_mkrs_dt)
+}
+
 
 
 

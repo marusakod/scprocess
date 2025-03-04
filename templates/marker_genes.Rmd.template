@@ -118,35 +118,27 @@ top_hvgs =  hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs" ]
 ```
 
 
-```{r load_heatmap_markers, include = FALSE}
-if(custom_mkr_names_str != ""){
-custom_mkrs_dt_ls    = lapply(custom_mkr_paths, function(custom_f){
-  cust_mkrs_dt = fread(custom_f)
-  if("symbol" %in% colnames(cust_mkrs_dt)){
-    cust_mkrs_dt = cust_mkrs_dt %>%
-       merge(biotypes_dt[, .(symbol, ensembl_id)], by = "symbol", all.x = TRUE, all.y = FALSE) %>%
-      .[, gene_id   := sprintf("%s_%s", symbol, ensembl_id) 
-  }else if("ensembl_id" %in% colnames(cust_mkrs_dt)){
-    cust_mkrs_dt = cust_mkrs_dt %>%
-      merge(biotypes_dt[, .(symbol, ensembl_id)], by = "ensembl_id", all.x = TRUE, all.y = FALSE) %>%
-      .[, gene_id   := sprintf("%s_%s", symbol, ensembl_id) 
-  }
- # assert_that( all( cust_mkrs_dt$gene_id %in% unique(cpms_dt$gene_id) ) )
-
-  return(cust_mkrs_dt)
-})
-
-mkrs_ls = c(custom_mkrs_dt_ls, list(HVGs = top_hvgs))
-}else{
-mkrs_ls = list((HVGs = top_hvgs)
-}
-```
-
 ```{r load_pb_markers, include = FALSE}
 # calculate markers
 mkrs_dt     = fread(mkrs_f)
 if (is.null(cl_ord))
   cl_ord      = sort(unique(mkrs_dt$cluster))
+```
+
+
+```{r load_heatmap_markers, include = FALSE}
+
+if (custom_mkr_names_str != "") {
+  custom_mkrs_dt_ls = lapply(custom_mkr_paths, FUN = process_custom_markers, biotypes_dt = biotypes_dt, marker_calcs_dt = mkrs_dt)
+  
+  # remove NULL elements from list
+  custom_mkrs_dt_ls = Filter(Negate(is.null), custom_mkrs_dt_ls)
+  
+  mkrs_ls = c(custom_mkrs_dt_ls, list(HVGs = top_hvgs))
+} else {
+  mkrs_ls = list(HVGs = top_hvgs)
+}
+
 ```
 
 

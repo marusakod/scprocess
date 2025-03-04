@@ -150,7 +150,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
                     'DATE_STAMP', 'threads', 'meta_f',
                     'meta_vars_ls', # this has to be first joined in the 'params' bit of the rule
-                    'gtf_dt_f', 'hmny_f', 'pb_f', 'mkrs_f', 'custom_f', 'hvgs_f', 'fgsea_go_bp_f',
+                    'gtf_dt_f', 'hmny_f', 'pb_f', 'mkrs_f', 'hvgs_f', 'fgsea_go_bp_f',
                     'fgsea_go_cc_f', 'fgsea_go_mf_f',
                     'fgsea_paths_f', 'fgsea_hlmk_f', 'INT_EXC_REGEX',
                     'INT_SEL_RES', 'CUSTOM_MKR_NAMES', 'CUSTOM_MKR_PATHS',

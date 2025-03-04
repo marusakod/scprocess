@@ -5,12 +5,6 @@ author:
   affiliation:
   - ${AFFILIATION}
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output:
-  workflowr::wflow_html:
-    code_folding: hide
-    toc: true
-    toc_float: true
-    number_sections: false
 ---
 
 ```{r setup_knitr, include=FALSE}
