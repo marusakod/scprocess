@@ -58,8 +58,11 @@ Optional paramater for `tenx` references is:
 
 **Parameters**: 
 
-* `-n`/`--name`: name of new project directory
-* `-w`/`--where`: path to directory where a new project will be created
+* `name` (positional): name of the new `workflowr` project directory
+* `-w`/`--where` (optional): path to the directory where the new project will be created; defaults to the current working directory
+* `-s`/`--sub` (optional): if provided, creates `data/fastqs` and `data/metadata` subdirectories within the project.
+* `-c`/`--config` (optional): if provided, generates a template configuration YAML file for {{ software_name }}
+
 
 ## `plotKnee`
 
