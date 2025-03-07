@@ -5,6 +5,12 @@ author:
   affiliation:
   - ${AFFILIATION}
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  rmdformats::downcute:
+    highlight: textmate
+    code_folding: hide
+    toc_depth: 3
+    css: custom.css
 ---
 
 ```{r setup_knitr, include=FALSE}

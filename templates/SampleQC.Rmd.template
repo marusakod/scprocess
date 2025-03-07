@@ -6,11 +6,11 @@ author:
   - ${AFFILIATION}
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
-  workflowr::wflow_html:
+  rmdformats::downcute:
+    highlight: textmate
     code_folding: hide
-    toc: true
-    toc_float: true
-    number_sections: false
+    toc_depth: 3
+    css: custom.css
 ---
 
 

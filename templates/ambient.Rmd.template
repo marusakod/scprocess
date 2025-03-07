@@ -6,11 +6,11 @@ author:
   - ${AFFILIATION}
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
-  workflowr::wflow_html:
+  rmdformats::downcute:
+    highlight: textmate
     code_folding: hide
-    toc: true
-    toc_float: true
-    number_sections: false
+    toc_depth: 3
+    css: custom.css
 params:
     knee_plot: ${eval_knee} # should be true if ambient method is cellbender
     sample_qc_plots: ${eval_smpl_qc} # should be true if ambient method is cellbender/decontx
