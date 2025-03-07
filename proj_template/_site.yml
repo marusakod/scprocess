@@ -10,8 +10,6 @@ navbar:
   - text: License
     href: license.html
 output:
-  workflowr::wflow_html:
-    toc: yes
-    toc_float: yes
-    theme: cosmo
+  rmdformats::downcute:
     highlight: textmate
+    code_folding: hide

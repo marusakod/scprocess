@@ -16,7 +16,9 @@ output:
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
-knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', warnings = FALSE)
+knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', warnings = FALSE, 
+fig.path = "${PROJ_DIR}/public/figure/${SHORT_TAG}_zoom.Rmd/"
+)
 knitr::opts_knit$set( root.dir='..' ) F)
 ```
 
