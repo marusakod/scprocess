@@ -384,18 +384,9 @@ sample_3:
 * `int_res_ls`: list of cluster resolutions for `Harmony`-based clustering.
 * `int_sel_res`: selected cluster resolution used for identifying marker genes.
 
-
 ##### marker_genes
-* `mkr_min_cl_size` minimum number of cells in a cluster for that cluster to have marker genes calculated
-* `mkr_min_cells` minimum number of cells present in a pseudobulk sample for that sample to be used to calculate marker genes
-* `mkr_not_ok_re` regular expression for gene types to exclude from marker gene plotting
-* `mkr_min_cpm_mkr` minimum number of counts per million in a cell type for a gene to be considered a marker gene
-* `mkr_min_cpm_go` minimum number of counts per million in a cell type for a gene to be used in GO analysis
-* `mkr_max_zero_p` maximum proportion of pseudobulk samples for a cell type that can have zero counts for a gene to be used in GO analysis
-* `mkr_gsea_cut` FDR cutoff for GSEA analysis
 
-
-##### marker_genes
+* `custom_markers`: path to CSV file containing marker genes for visualisation with two columns: `label` (celltype label) and `symbol` (gene symbol). Absolute or from poject directory. 
 * `mkr_min_cl_size`: minimum number of cells required in a cluster to calculate marker genes for that cluster.
 * `mkr_min_cells`: minimum number of cells required in a pseudobulk sample to include it in marker gene calculations.
 * `mkr_not_ok_re`: regular expression pattern to exclude specific gene types from plots showing marker gene expression. 
@@ -403,7 +394,6 @@ sample_3:
 * `mkr_min_cpm_go`: minimum counts per million (CPM) in a cell type required for a gene to be used in Gene Ontology (GO) analysis.
 * `mkr_max_zero_p`: maximum proportion of pseudobulk samples for a cell type that can have zero counts for a gene to be used in GO analysis.
 * `mkr_gsea_cut`: False discovery rate (FDR) cutoff for Gene Set Enrichment Analysis (GSEA).
-
 
 ##### label_celltypes
 

@@ -4,7 +4,7 @@ nav:
     - Introduction: introduction.md
     - Getting started: setup.md
     - Usage: usage.md
-    - Quick start tutorial: tutorial.md
+    - Tutorials: tutorial.md
     - Reference: reference.md
     - Troubleshooting: troubleshooting.md
 theme:

@@ -9,7 +9,7 @@
 ### Overview
 {{ software_name }} consists of a series of core steps, organized under the main Snakemake rule - `rule all`. Additional optional steps are available to extend the core analyses as needed. The diagram below outlines all steps, with detailed descriptions provided in the following sections.
 
-![workflow_chart](assets/images/scprocess_workflow_diagram_white_bg.png#only-light)
+![workflow_chart](assets/images/scprocess_workflow_demux_white_bg.png#only-light)
 ![workflow_chart](assets/images/scprocess_workflow_diagram_black_bg.png#only-dark)
 
 ---
