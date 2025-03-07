@@ -5,6 +5,7 @@ channels:
 - defaults
 dependencies:
 - pandas
+- r-rmdformats
 - r-base=4.3.2
 - r-assertthat=0.2.1
 - r-workflowr
