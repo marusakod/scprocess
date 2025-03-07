@@ -57,7 +57,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
     # check if all extra args for a specific rule are present
     if(sel_rule == 'ambient'){
-      req_names = c('YOUR_NAME','AFFILIATION', 'SHORT_TAG',
+      req_names = c('YOUR_NAME','AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
                     'DATE_STAMP', 'SAMPLE_STR', 'AMBIENT_METHOD', 'af_dir')
 
       assert_that(all(req_names %in% add_args_names))
@@ -94,7 +94,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
       )
 
     }else if(sel_rule == 'af'){
-      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
                     'DATE_STAMP', 'RUNS_STR','AMBIENT_METHOD',
                     'SAMPLE_VAR', 'af_dir', 'af_rna_dir')
 
@@ -104,7 +104,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
     }else if(sel_rule == 'multiplexing'){
 
-      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
                     'DATE_STAMP', 'RUNS_STR','AMBIENT_METHOD',
                     'METADATA_F', 'sce_hto_f',
                     'SAMPLE_VAR', 'af_dir')
@@ -115,7 +115,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
     }else if(sel_rule == 'qc'){
 
-      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
                     'DATE_STAMP', 'threads', 'meta_f',
                     'qc_dt_f', 'qc_keep_f', 'AMBIENT_METHOD', 'QC_HARD_MIN_COUNTS',
                     'QC_HARD_MIN_FEATS', 'QC_HARD_MAX_MITO',
@@ -136,7 +136,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
     }else if(sel_rule == 'integration'){
 
-      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
                     'DATE_STAMP', 'threads', 'sce_all_f',
                     'qc_dt_f', 'qc_keep_f', 'hmny_f', 'hmny_hvgs_f',
                     'INT_RES_LS', 'INT_SEL_RES', 'INT_DBL_CL_PROP')
@@ -147,7 +147,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
     }else if(sel_rule == 'markers'){
 
-      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
                     'DATE_STAMP', 'threads', 'meta_f',
                     'meta_vars_ls', # this has to be first joined in the 'params' bit of the rule
                     'gtf_dt_f', 'hmny_f', 'pb_f', 'mkrs_f', 'hvgs_f', 'fgsea_go_bp_f',
@@ -168,7 +168,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
       params_ls = c(add_args[setdiff(req_names, 'SPECIES')], list(eval_fgsea = eval_fgsea))
 
     }else if(sel_rule == 'cell_labels'){
-      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
                     'DATE_STAMP', 'threads' ,'guesses_f', 'CUSTOM_LABELS_F', 'INT_SEL_RES',
                     'LBL_TISSUE', 'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED',
                     'LBL_MIN_CL_PROP', 'LBL_MIN_CL_SIZE')
@@ -224,7 +224,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
     }else if(sel_rule == 'zoom'){
 
-      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+      req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
                     'DATE_STAMP', 'threads', 'zoom_name', 'zoom_res',
                     'meta_f', 'meta_vars_ls', # meta_vars_ls should be made one string
                     'gtf_dt_f', 'sce_sub_f', 'hmny_f', 'pb_f', 'mkrs_f',
@@ -243,7 +243,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
        params_ls = c(add_args[setdiff(req_names, 'SPECIES')], list(eval_fgsea = eval_fgsea))
 
     }else if(sel_rule == 'pb_empties'){
-        req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
+        req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
                     'DATE_STAMP', 'threads', 'guesses_f', 'empty_csv_f',
                     'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED', 'LBL_MIN_CL_PROP',
                     'LBL_MIN_CL_SIZE', 'LBL_MIN_CL_SIZE')

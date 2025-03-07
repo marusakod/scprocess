@@ -88,6 +88,7 @@ rule render_html_alevin_fry:
         SHORT_TAG      = '{SHORT_TAG}', \
         DATE_STAMP     = '{DATE_STAMP}', \
         RUNS_STR       = '{RUNS_STR}', \
+        PROJ_DIR       = '{PROJ_DIR}', \
         AMBIENT_METHOD = '{AMBIENT_METHOD}', \
         SAMPLE_VAR     = '{SAMPLE_VAR}', \
         af_dir         = '{af_dir}', \
@@ -127,6 +128,7 @@ if DEMUX_TYPE == 'af':
           sce_hto_f      = '{input.sce_hto_f}', \
           YOUR_NAME      = '{YOUR_NAME}', \
           AFFILIATION    = '{AFFILIATION}', \
+          PROJ_DIR       = '{PROJ_DIR}', \
           SHORT_TAG      = '{SHORT_TAG}', \
           DATE_STAMP     = '{DATE_STAMP}', \
           RUNS_STR       = '{RUNS_STR}', \
@@ -164,6 +166,7 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
         rmd_f = '{output.rmd_f}', \
         YOUR_NAME = '{YOUR_NAME}', \
         AFFILIATION = '{AFFILIATION}', \
+        PROJ_DIR    = '{PROJ_DIR}', \
         SHORT_TAG = '{SHORT_TAG}', \
         DATE_STAMP = '{DATE_STAMP}', \
         SAMPLE_STR = '{RUNS_STR}', \
@@ -200,6 +203,7 @@ rule render_html_qc:
     rmd_f = '{output.rmd_f}', \
     YOUR_NAME = '{YOUR_NAME}', \
     AFFILIATION = '{AFFILIATION}', \
+    PROJ_DIR    = '{PROJ_DIR}', \
     SHORT_TAG = '{SHORT_TAG}', \
     DATE_STAMP = '{DATE_STAMP}', \
     threads = {threads}, \
@@ -255,6 +259,7 @@ rule render_html_integration:
     YOUR_NAME = '{YOUR_NAME}', \
     AFFILIATION = '{AFFILIATION}', \
     SHORT_TAG = '{SHORT_TAG}', \
+    PROJ_DIR  = '{PROJ_DIR}', \
     DATE_STAMP = '{DATE_STAMP}', \
     threads = {threads}, \
     sce_all_f = '{input.sce_f}', \
@@ -301,6 +306,7 @@ rule render_html_label_celltypes:
     YOUR_NAME = '{YOUR_NAME}', \
     AFFILIATION = '{AFFILIATION}', \
     SHORT_TAG = '{SHORT_TAG}', \
+    PROJ_DIR = '{PROJ_DIR}', \
     DATE_STAMP = '{DATE_STAMP}', \
     threads = {threads}, \
     guesses_f = '{input.guesses_f}', \
@@ -356,6 +362,7 @@ rule render_html_marker_genes:
         rmd_f = '{output.rmd_f}',
         YOUR_NAME = '{YOUR_NAME}',
         AFFILIATION = '{AFFILIATION}',
+        PROJ_DIR = '{PROJ_DIR}',
         SHORT_TAG = '{SHORT_TAG}',
         DATE_STAMP = '{DATE_STAMP}',
         threads = {threads},
@@ -418,6 +425,7 @@ rule render_html_zoom:
     rmd_f = '{output.rmd_f}', \
     YOUR_NAME = '{YOUR_NAME}', \
     AFFILIATION = '{AFFILIATION}', \
+    PROJ_DIR = '{PROJ_DIR}', \
     SHORT_TAG = '{SHORT_TAG}', \
     DATE_STAMP = '{DATE_STAMP}', \
     threads = {threads}, \
@@ -483,6 +491,7 @@ rule render_html_empties:
     temp_f =  '$template_f', \
     rmd_f = '{output.rmd_f}', \
     YOUR_NAME = '{YOUR_NAME}', \
+    PROJ_DIR = '{PROJ_DIR}', \
     AFFILIATION = '{AFFILIATION}', \
     SHORT_TAG = '{SHORT_TAG}', \
     DATE_STAMP = '{DATE_STAMP}', \
