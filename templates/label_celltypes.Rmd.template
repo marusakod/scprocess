@@ -19,10 +19,10 @@ params:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-fig.path = "${PROJ_DIR}/public/figure/${SHORT_TAG}_label_celltypes.Rmd/"
+fig.path = "figure/${SHORT_TAG}_label_celltypes.Rmd/"
 )
-knitr::opts_knit$set( root.dir='..' )
-# workflowr::wflow_build(files='analysis/${SHORT_TAG}_label_celltypes.Rmd', view=F, verbose=T, delete_cache=F)
+
+knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 
 # establish conditions
 eval_boost = params$is_xgboost
