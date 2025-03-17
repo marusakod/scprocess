@@ -10,6 +10,7 @@ pages:
   artifacts:
     paths:
       - docs
+  publish: docs
   only:
     - main  # Or the branch you want to deploy
 
