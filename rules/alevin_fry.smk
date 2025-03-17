@@ -117,7 +117,7 @@ rule run_alevin_fry:
   input:
     R1_fs      = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.sample, "R1"),
     R2_fs      = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.sample, "R2")
-  threads: 8
+  threads: 32
   retries: RETRIES
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_ALEVIN_FRY

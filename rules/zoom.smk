@@ -49,7 +49,7 @@ rule zoom_one_zoom:
       '{FULL_TAG}', '{DATE_STAMP}', '{zoom_dir}', \
       '{input.hmny_f}', '{input.sce_all_f}', '{input.dbl_f}', \
       '{SPECIES}', '{AF_GTF_DT_F}', \
-      {INT_SEL_RES}, '{INT_EXC_REGEX}', {INT_DBL_RES}, {INT_DBL_CL_PROP}, {INT_THETA}, \
+      {MKR_SEL_RES}, '{INT_EXC_REGEX}', {INT_DBL_RES}, {INT_DBL_CL_PROP}, {INT_THETA}, \
       '{MKR_NOT_OK_RE}', '{MKR_GSEA_DIR}', {MKR_MIN_CPM_GO}, {MKR_MAX_ZERO_P}, {MKR_GSEA_CUT}, {MKR_MIN_CELLS}, \
       '{wildcards.zoom_name}', '$ZOOM_SEL_CLS', $ZOOM_RES, $ZOOM_N_HVGS, $ZOOM_N_DIMS, \
       $ZOOM_MIN_N_SAMPLE, $ZOOM_MIN_N_CL, $ZOOM_N_TRAIN, n_cores = {threads})"

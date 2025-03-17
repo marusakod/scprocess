@@ -10,20 +10,19 @@ import datetime
 import subprocess
 
 
-def __get_cl_ls(config, mito_str, scprocess_data_dir):
+def __get_cl_ls(config, scprocess_data_dir):
   # get parameters
   PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, _, _, _, _, _, _, DATE_STAMP, _, _ = \
     get_project_parameters(config, scprocess_data_dir)
-  _, _, _, _, _, _, _, INT_SEL_RES = \
-    get_integration_parameters(config, mito_str)
-
+  MKR_SEL_RES, _, _, _, _, _, _, _, _, _ = \
+    get_marker_genes_parameters(config, None, scprocess_data_dir)
   # specify harmony outputs
   int_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
   hmny_f      = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
 
   # get list of clusters
   hmny_dt     = pd.read_csv(hmny_f)
-  cl_col      = f"RNA_snn_res.{INT_SEL_RES}"
+  cl_col      = f"RNA_snn_res.{MKR_SEL_RES}"
   cl_ls       = list(hmny_dt[cl_col].unique())
   cl_ls       = [cl for cl in cl_ls if str(cl) != "nan"]
   cl_ls       = sorted(cl_ls)
@@ -356,7 +355,6 @@ def get_integration_parameters(config, mito_str):
   INT_DBL_CL_PROP = 0.5
   INT_THETA       = 0.1
   INT_RES_LS      = [0.1, 0.2, 0.5, 1, 2]
-  INT_SEL_RES     = 0.2
 
   # change defaults if specified
   if ('integration' in config) and (config['integration'] is not None):
@@ -372,15 +370,14 @@ def get_integration_parameters(config, mito_str):
       INT_THETA       = config['integration']['int_theta']
     if 'int_res_ls' in config['integration']:
       INT_RES_LS      = config['integration']['int_res_ls']
-    if 'int_sel_res' in config['integration']:
-      INT_SEL_RES     = config['integration']['int_sel_res']
 
-  return INT_EXC_REGEX, INT_N_HVGS, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES
+  return INT_EXC_REGEX, INT_N_HVGS, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS
 
 
 # define marker_genes parameters
 def get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR): 
   # set some more default values
+  MKR_SEL_RES     = 0.2
   MKR_GSEA_DIR    = os.path.join(SCPROCESS_DATA_DIR, 'gmt_pathways')
   MKR_MIN_CL_SIZE = 1e2
   MKR_MIN_CELLS   = 10
@@ -400,6 +397,8 @@ def get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
 
   # change defaults if specified
   if ('marker_genes' in config) and (config['marker_genes'] is not None):
+    if 'mkr_sel_res' in config['marker_genes']:
+      MKR_SEL_RES     = config['marker_genes']['mkr_sel_res']
     if 'mkr_min_cl_size' in config['marker_genes']:
       MKR_MIN_CL_SIZE = config['marker_genes']['mkr_min_cl_size']
     if 'mkr_min_cells' in config['marker_genes']:
@@ -415,7 +414,7 @@ def get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
     if 'mkr_gsea_cut' in config['marker_genes']:
       MKR_GSEA_CUT    = config['marker_genes']['mkr_gsea_cut']
 
-  return MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, MKR_CANON_F
+  return MKR_SEL_RES, MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, MKR_CANON_F
 
 
 # define marker_genes parameters
@@ -541,7 +540,7 @@ def get_zoom_parameters(config, MITO_STR, scprocess_data_dir):
     ZOOM_NAMES    = []
     ZOOM_SPEC_LS  = []
   else:
-    cl_ls         = __get_cl_ls(config, MITO_STR, scprocess_data_dir)
+    cl_ls         = __get_cl_ls(config, scprocess_data_dir)
     ZOOM_NAMES    = list(config['zoom'].keys())
     ZOOM_SPEC_LS  = dict(zip(
       ZOOM_NAMES,

@@ -131,7 +131,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
                     'DATE_STAMP', 'threads', 'sce_all_f',
                     'qc_dt_f', 'qc_keep_f', 'hmny_f', 'hmny_hvgs_f',
-                    'INT_RES_LS', 'INT_SEL_RES', 'INT_DBL_CL_PROP') 
+                    'INT_RES_LS', 'INT_DBL_CL_PROP') 
 
       assert_that(all(req_names %in% add_args_names))
 
@@ -145,7 +145,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
                     'gtf_dt_f', 'hmny_f', 'pb_f', 'mkrs_f', 'canon_f', 'hvgs_f', 'fgsea_go_bp_f',
                     'fgsea_go_cc_f', 'fgsea_go_mf_f',
                     'fgsea_paths_f', 'fgsea_hlmk_f', 'INT_EXC_REGEX',
-                    'INT_SEL_RES',
+                    'MKR_SEL_RES',
                     'MKR_NOT_OK_RE', 'MKR_MIN_CPM_MKR', 'MKR_MIN_CELLS', 'MKR_GSEA_CUT', 'SPECIES')
 
       assert_that(all(req_names %in% add_args_names))
@@ -161,7 +161,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
     }else if(sel_rule == 'cell_labels'){
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG',
-                    'DATE_STAMP', 'threads' ,'guesses_f', 'CUSTOM_LABELS_F', 'INT_SEL_RES', 
+                    'DATE_STAMP', 'threads' ,'guesses_f', 'CUSTOM_LABELS_F', 'MKR_SEL_RES', 
                     'LBL_TISSUE', 'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED', 
                     'LBL_MIN_CL_PROP', 'LBL_MIN_CL_SIZE')
 
@@ -200,7 +200,7 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
         umap_title = "user defined cell types over UMAP"
         umap_txt = paste0("User defined annotations are displayed ", 
                          "over a UMAP, together with clusters at resolution ", 
-                         add_args[["INT_SEL_RES"]])
+                         add_args[["MKR_SEL_RES"]])
       }
        
        params_ls = add_args

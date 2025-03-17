@@ -218,7 +218,7 @@ rule render_html_integration:
     hmny_f = '{input.harmony_f}', \
     hmny_hvgs_f = '{input.hvgs_f}', \
     INT_RES_LS = '{params.int_res_ls}', \
-    INT_SEL_RES = '{INT_SEL_RES}', \
+    MKR_SEL_RES = '{MKR_SEL_RES}', \
     INT_DBL_CL_PROP = {INT_DBL_CL_PROP})"
     """
 
@@ -261,7 +261,7 @@ rule render_html_label_celltypes:
     guesses_f = '{input.guesses_f}', \
     LBL_XGB_F = '{LBL_XGB_F}', \
     CUSTOM_LABELS_F = '{CUSTOM_LABELS_F}', \
-    INT_SEL_RES = '{INT_SEL_RES}', \
+    MKR_SEL_RES = '{MKR_SEL_RES}', \
     LBL_TISSUE = '{LBL_TISSUE}', \
     LBL_SEL_RES_CL = '{LBL_SEL_RES_CL}', \
     LBL_MIN_PRED = {LBL_MIN_PRED}, \
@@ -274,18 +274,18 @@ rule render_html_label_celltypes:
 rule render_html_marker_genes:
   input:
     r_int_f     = f'{code_dir}/integration.R',
-    pb_f        = mkr_dir + '/pb_'              + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.rds', 
-    mkrs_f      = mkr_dir   + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz', 
+    pb_f        = mkr_dir + '/pb_'              + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.rds', 
+    mkrs_f      = mkr_dir   + '/pb_marker_genes_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz', 
     harmony_f   = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    hvgs_f      = mkr_dir   + '/pb_hvgs_'         + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
-    fgsea_bp_f  = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
-    fgsea_cc_f  = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
-    fgsea_mf_f  = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
-    fgsea_paths_f = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
-    fgsea_hlmk_f = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz'
+    hvgs_f      = mkr_dir   + '/pb_hvgs_'         + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    fgsea_bp_f  = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
+    fgsea_cc_f  = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
+    fgsea_mf_f  = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
+    fgsea_paths_f = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
+    fgsea_hlmk_f = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz'
   output:
-    rmd_f       = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.Rmd',
-    html_f      = f'{docs_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.html'
+    rmd_f       = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{MKR_SEL_RES}.Rmd',
+    html_f      = f'{docs_dir}/{SHORT_TAG}_marker_genes_{MKR_SEL_RES}.html'
   threads: 8
   retries: RETRIES
   params: 
@@ -327,7 +327,7 @@ rule render_html_marker_genes:
     fgsea_paths_f = '{input.fgsea_paths_f}', \
     fgsea_hlmk_f = '{input.fgsea_hlmk_f}', \
     INT_EXC_REGEX = '{INT_EXC_REGEX}', \
-    INT_SEL_RES = {INT_SEL_RES}, \
+    MKR_SEL_RES = {MKR_SEL_RES}, \
     MKR_NOT_OK_RE = '{MKR_NOT_OK_RE}', \
     MKR_MIN_CPM_MKR = {MKR_MIN_CPM_MKR}, \
     MKR_MIN_CELLS = {MKR_MIN_CELLS}, \

@@ -48,7 +48,6 @@ hmny_f      = "${hmny_f}"
 hvgs_f      = "${hmny_hvgs_f}"
 res_ls      = "${INT_RES_LS}" %>%
  str_split(pattern = ',') %>% unlist() %>% as.numeric()
-sel_res     = ${INT_SEL_RES}
 dbl_cl_prop = ${INT_DBL_CL_PROP}
 ```
 

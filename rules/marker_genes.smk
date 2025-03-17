@@ -4,14 +4,14 @@ rule run_marker_genes:
   input:
     sce_clean_f   = int_dir + '/sce_clean_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   output:
-    pb_f          = mkr_dir + '/pb_'              + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.rds',
-    mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
-    pb_hvgs_f     = mkr_dir + '/pb_hvgs_'         + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
-    fgsea_go_bp_f = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
-    fgsea_go_cc_f = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
-    fgsea_go_mf_f = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
-    fgsea_paths_f = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
-    fgsea_hlmk_f  = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz'
+    pb_f          = mkr_dir + '/pb_'              + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.rds',
+    mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    pb_hvgs_f     = mkr_dir + '/pb_hvgs_'         + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    fgsea_go_bp_f = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
+    fgsea_go_cc_f = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
+    fgsea_go_mf_f = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
+    fgsea_paths_f = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
+    fgsea_hlmk_f  = mkr_dir + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz'
   threads: 8
   retries: RETRIES
   resources:
@@ -37,7 +37,7 @@ rule run_marker_genes:
         species       = '{SPECIES}', \
         gtf_dt_f      = '{AF_GTF_DT_F}', \
         gsea_dir      = '{MKR_GSEA_DIR}', \
-        sel_res       = {INT_SEL_RES}, \
+        sel_res       = {MKR_SEL_RES}, \
         exc_regex     = '{INT_EXC_REGEX}', \
         min_cl_size   = {MKR_MIN_CL_SIZE}, \
         min_cells     = {MKR_MIN_CELLS}, \

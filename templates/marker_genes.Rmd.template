@@ -18,7 +18,7 @@ output:
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
 knitr::opts_knit$set( root.dir='..' )
-# workflowr::wflow_build(files='analysis/${SHORT_TAG}_marker_genes_${INT_SEL_RES}.Rmd', view=F, verbose=T, delete_cache=F)
+# workflowr::wflow_build(files='analysis/${SHORT_TAG}_marker_genes_${MKR_SEL_RES}.Rmd', view=F, verbose=T, delete_cache=F)
 ```
 
 
@@ -52,7 +52,7 @@ fgsea_hlmk_f  = "${fgsea_hlmk_f}"
 # parameters for here
 not_ok_re     = "${MKR_NOT_OK_RE}"
 exc_regex     = "${INT_EXC_REGEX}"
-sel_res       = ${INT_SEL_RES}
+sel_res       = ${MKR_SEL_RES}
 min_cpm_mkr   = ${MKR_MIN_CPM_MKR}
 min_cells     = ${MKR_MIN_CELLS}
 

@@ -93,7 +93,7 @@ train_celltype_labeller <- function(sce_f, hvgs_xgb_f, xgb_f, allowed_f,
 }
 
 label_celltypes_with_xgboost <- function(xgb_f, sce_f, harmony_f, 
-  hvg_mat_f, guesses_f, custom_labels_f, int_sel_res,  gene_var = c("gene_id", "ensembl_id"), 
+  hvg_mat_f, guesses_f, custom_labels_f, sel_res,  gene_var = c("gene_id", "ensembl_id"), 
   min_pred = 0.5, min_cl_prop = 0.5, min_cl_size = 100, n_cores = 4) {
  
   # check inputs
@@ -102,10 +102,10 @@ label_celltypes_with_xgboost <- function(xgb_f, sce_f, harmony_f,
     # check if cell_ids match cell_ids in sce_f
     sce = readRDS(sce_f)
 
-    sel_res_full = paste0("RNA_snn_res.", int_sel_res)
+    sel_res_str = paste0("RNA_snn_res.", sel_res)
 
     sce_cells_df = as.data.table(colData(sce)) %>%
-    .[, .(sample_id, cell_id, UMAP1, UMAP2, cl_hmny = get(sel_res_full))]
+    .[, .(sample_id, cell_id, UMAP1, UMAP2, cl_hmny = get(sel_res_str))]
 
     cell_ids_olap = intersect(sce_cells_df$cell_id, cust_lbls$cell_id)
 

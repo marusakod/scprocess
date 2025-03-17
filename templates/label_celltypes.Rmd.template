@@ -44,7 +44,7 @@ guesses_f   = "${guesses_f}"
 # which harmony clusters?
 xgb_f        = "${LBL_XGB_F}"
 sel_res_cl   = "${LBL_SEL_RES_CL}"
-sel_mkrs_res = "${INT_SEL_RES}"
+sel_mkrs_res = "${MKR_SEL_RES}"
 min_pred     = ${LBL_MIN_PRED}
 min_cl_prop  = ${LBL_MIN_CL_PROP}
 min_cl_size  = ${LBL_MIN_CL_SIZE}
