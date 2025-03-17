@@ -3,23 +3,16 @@ image: python:3.8-buster
 before_script:
   - pip install -r mkdocs_reqs.txt
 
-test:
-  stage: test
-  script:
-  - mkdocs build --strict --verbose --site-dir test
-  artifacts:
-    paths:
-    - test
-  rules:
-    - if: $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+stages:
+  - deploy
 
 pages:
   stage: deploy
   script:
-  - mkdocs build --strict --verbose
+    - mkdocs build --strict --verbose
   artifacts:
     paths:
     - public
-  rules:
-    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+  only:
+    - main
 

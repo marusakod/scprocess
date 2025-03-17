@@ -1,5 +1,6 @@
 site_name: scprocess documentation
-site_dir: docs
+docs_dir: "docs"
+site_dir: "public/"
 nav:
     - Home: index.md
     - Introduction: introduction.md
