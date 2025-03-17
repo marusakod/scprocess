@@ -3,6 +3,7 @@ image: python:3.8
 pages:
   script:
     - pip install mkdocs
+    - pip install mkdocs-material
     - mkdocs build
   artifacts:
     paths:
