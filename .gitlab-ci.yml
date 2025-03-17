@@ -1,16 +1,25 @@
-image: python:3.8
+image: python:3.8-buster
+
+before_script:
+  - pip install -r mkdocs_reqs.txt
+
+test:
+  stage: test
+  script:
+  - mkdocs build --strict --verbose --site-dir test
+  artifacts:
+    paths:
+    - test
+  rules:
+    - if: $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
 
 pages:
   stage: deploy
   script:
-    - pip install mkdocs
-    - pip install mkdocs-macros-plugin
-    - pip install mkdocs-material
-    - mkdocs build
+  - mkdocs build --strict --verbose
   artifacts:
     paths:
-      - docs
-  publish: docs
-  only:
-    - main  # Or the branch you want to deploy
+    - public
+  rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
 
