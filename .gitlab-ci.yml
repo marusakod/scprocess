@@ -1,0 +1,12 @@
+image: python:3.8
+
+pages:
+  script:
+    - pip install mkdocs
+    - mkdocs build
+  artifacts:
+    paths:
+      - public
+  only:
+    - main  # Or the branch you want to deploy
+
