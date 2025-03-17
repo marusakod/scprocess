@@ -8,7 +8,7 @@ pages:
     - mkdocs build
   artifacts:
     paths:
-      - public
+      - docs
   only:
     - main  # Or the branch you want to deploy
 
