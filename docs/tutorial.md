@@ -4,7 +4,6 @@ In this section we will run {{ software_name }} on a small single nuclei dataset
 
 To be able to follow this tutorial make sure you completed all the steps in the [Getting started](setup.md) section.
 
-
 ??? Info "More about the tutorial dataset"
 
     This tutorial utilizes postmortem human brain samples from the motor cortex of donors with amyotrophic lateral sclerosis (ALS) associated with the *C9orf72* mutation, along with samples from control donors. The raw data is available in Gene Expression Omnibus under accession [GSE219281](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE219281).
@@ -20,7 +19,7 @@ First we will create a new project directory where all outputs of {{ software_na
 
 ```bash
 # create a new directory called test_project in your current working directory
-newproj test_project -w .
+newproj test_project -s -c
 # change your working directory to test_project
 cd test_project
 
@@ -28,30 +27,28 @@ cd test_project
 Using the command `tree .`, you can inspect the structure of the `test_project` directory:
 
 ```bash
-test_project/
+.
+├── _workflowr.yml
 ├── analysis
-│   ├── about.Rmd
-│   ├── index.Rmd
-│   ├── license.Rmd
-│   └── _site.yml
+│   ├── _site.yml
+│   ├── about.Rmd
+│   ├── index.Rmd
+│   └── license.Rmd
 ├── code
+├── config_test_project.yml
 ├── data
+│   ├── fastqs
+│   └── metadata
 ├── output
 ├── public
-├── test_project.Rproj
-└── _workflowr.yml
+└── test_project.Rproj
 
 ```
 In the `analysis/` directory, {{ software_name }} will store all R Markdown files that are used to create HTML reports in the `public/` directory. In the `code/` directory all R scrips used in {{ software_name }} will be stored.
 
-`data/` directory is a convenient place where we can store FASTQ files and sample metadata that we need for the analysis. We will therefore create a `fastqs` directory as well as `metadata` directory inside `data/`. 
+For storing input FASTQ files and sample metadata for {{ software_name }} we will use the `data/fastqs` and `data/metadata` subdirectories, repectively.
 
-```bash
-mkdir data/fastqs
-mkdir data/metadata
-
-```
-To download all necessary input files for {{ software_name }} run the following lines: 
+To download input files for {{ software_name }} run the following lines: 
 
 !!! warning "File size"
     
@@ -102,8 +99,24 @@ Note that the first column of the sample metadata file (`sample_id`) contains va
 
 ## Creating a configuration file
 
-Next we will create a configuration file in the `test_project` root directory where we will specify all the parameters for running {{ software_name }}. We will name this file `config_test_project.yaml`. In addition to [required parameters](reference.md#required-parameters), we will add the optional parameter `metadata_vars` which allows us to specify additional metadata variables that will be used for visualization. Note that the `proj_dir` parameter is an absolute path, while for `fastq_dir` and `sample_metadata` we can use relative paths because we stored raw data and sample metadata inside the project directory.
-    
+The configuration file template `config_test_project.yaml` was created in the `test_project` root directory with the `newproj` function. In this file, all [required parameters](reference.md#required-parameters) for {{ software_name }} are listed, with some default values already set:
+
+```bash
+proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
+fastq_dir: data/fastqs
+full_tag: test_project
+short_tag: 
+your_name: 
+affiliation:
+sample_metadata: data/metadata/
+species:
+date_stamp: "2025-01-01"
+alevin:
+  chemistry:
+```
+
+Besides setting values for some required parameters, we will add the optional `metadata_vars` parameter, which allows specifying additional metadata variables for visualization. Note that `proj_dir` requires an absolute path, whereas `fastq_dir` and `sample_metadata` can use relative paths since the raw data and sample metadata are stored within the project directory:
+
 ```bash
 proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
 fastq_dir: data/fastqs
@@ -134,11 +147,6 @@ scprocess config_test_project.yaml
 ??? warning "Tutorial results may vary from your {{ software_name }} outputs"
     
     If you modify the default settings for the `human_2024` genome in `.scprocess_setup.yaml`, the results you obtain from running {{ software_name }} on the tutorial dataset may differ slightly from those shown in this guide.
-
-    
-    
-
-
 
 ## Optional steps
 
