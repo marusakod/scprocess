@@ -115,6 +115,10 @@ hto_af_outs = expand(
 
 # seurat demultiplexing outputs (optional)
 hto_sce_f = (sce_dir + '/sce_cells_htos_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if DEMUX_TYPE == 'af' else []
+hto_sce_fs = expand(
+  sce_dir + 'hto_{sample}/sce_cells_htos_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+  sample = runs
+  ) if DEMUX_TYPE = 'af' else []
 
 # mutliplxing report (optional)
 hto_rmd_f  = (rmd_dir   + '/' + SHORT_TAG + '_multiplexing.Rmd') if DEMUX_TYPE == 'af' else []
@@ -162,6 +166,7 @@ rule all:
       sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       # make sce
       sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
+      sce_dir + '/rowdata_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
       # make hto sce
       hto_sce_f, 
       # doublet_id

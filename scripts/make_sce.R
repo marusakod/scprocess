@@ -18,13 +18,14 @@ suppressPackageStartupMessages({
   library("rtracklayer")
   library("Matrix")
   library("scuttle")
+  library("yaml")
 })
 
 
 source('scripts/ambient.R') # to get the function that reads a matrix from .h5 file
 
 
-save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce_f, demux_f,
+save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce_f, rowdata_f, demux_f,
   bender_prob = 0.5, n_cores = 8, demux_type = "", sample_var = 'sample_id', keep_smpls_str) {
 
   # unpack some inputs
@@ -119,12 +120,17 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
 
   message('  saving file')
   saveRDS(sce, file = sce_f, compress = FALSE)
+
+  message('  saving rowdata')
+  rd = rowData(sce)
+  fwrite(rd, file = rowdata_f, quote = FALSE, row.names = FALSE)
+
   message('done!')
 }
 
 
 
-save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mito_str, sce_f, demux_f,
+save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mito_str, sce_f, rowdata_f, demux_f,
                               min_counts = 100, n_cores = 8, demux_type = "", sample_var = 'sample_id', keep_smpls_str ) {
 
 
@@ -204,7 +210,13 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
   message('  saving file')
   saveRDS(sce, file = sce_f, compress = FALSE)
+
+  message('  saving rowdata')
+  rd = rowData(sce)
+  fwrite(rd, file = rowdata_f, quote = FALSE, row.names = FALSE)
+  
   message('done!')
+
 }
 
 
@@ -705,13 +717,38 @@ save_hto_sce <- function(sce_df_f, sce_hto_f, n_cores){
 }
 
 
-.get_one_hto_sce <- function(sel_s, bcs_f, hto_mat_f, trans_f){
-  # get file for barcode translation
+
+
+
+get_one_hto_sce <- function(sel_s, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, ambient_method){
+
+  # if ambient method is cellbender exclude bad samples
+  smpl_status = FALSE
+
+  if(ambient_method == 'cellbender'){
+  # loading file with bad bender samples
+  message(' loading cellbender sample stats file')
+  sample_stats_df = fread(sample_stats_f)
+  smpl_status = unique(sample_stats_df[get(sample_var) == sel_sample, bad_sample])
+
+  if(smpl_status){
+    message('  sample ', sel_sample, ' has been excluded. Saving empty results file')
+    file.create(hto_sce_f)
+    message('done!')
+
+    return(NULL)
+  }
+
+  # get file with all barcodes called as cells
+  yaml_data       = yaml.load_file(amb_yaml_f)
+  bcs_f = yaml_data$bcs_f
+
+# get file for barcode translation
   bc_dict = trans_f %>% fread(header = FALSE) %>%
     set_colnames(c("bc_rna", "bc_hto"))
 
   # get all barcodes called as cells
-  cell_bcs = fread(bcs_f, header = FALSE) %>%
+  cell_bcs = bcs_f %>% fread(header = FALSE) %>%
     set_colnames("cell_bc")
 
   # get hto counts
@@ -740,7 +777,7 @@ save_hto_sce <- function(sce_df_f, sce_hto_f, n_cores){
   # get demultiplexing metadata
   demux_dt  = hto_seu[[]] %>% as.data.table(keep.rownames = "cell_id") %>%
     .[, .(cell_id, HTO_classification, HTO_classification.global, hash.ID)] %>%
-    .[, guess := hash.ID %>% str_replace_all("-", "_") ] %>%
+    .[, guess := hash.ID] %>%
     .[, hash.ID := NULL] %>%
     .[, pool_id := sel_s] %>%
     .[, HTO_classification.global := tolower(HTO_classification.global)]
@@ -749,10 +786,15 @@ save_hto_sce <- function(sce_df_f, sce_hto_f, n_cores){
   hto_sce = SingleCellExperiment(list(counts = hto_counts),
                        colData = demux_dt)
 
-  return(hto_sce)
+  
+  # create output file
+  message(" saving results")
+  saveRDS(hto_sce, file = hto_sce_f, compress = FALSE)
+  
+  message(" done!")
+  return()
 
 }
-
 
 
 # functions for multiplexing QC
