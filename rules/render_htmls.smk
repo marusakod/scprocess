@@ -327,7 +327,7 @@ rule render_html_marker_genes:
     fgsea_paths_f = '{input.fgsea_paths_f}', \
     fgsea_hlmk_f = '{input.fgsea_hlmk_f}', \
     INT_EXC_REGEX = '{INT_EXC_REGEX}', \
-    MKR_SEL_RES = {MKR_SEL_RES}, \
+    MKR_SEL_RES = '{MKR_SEL_RES}', \
     MKR_NOT_OK_RE = '{MKR_NOT_OK_RE}', \
     MKR_MIN_CPM_MKR = {MKR_MIN_CPM_MKR}, \
     MKR_MIN_CELLS = {MKR_MIN_CELLS}, \
