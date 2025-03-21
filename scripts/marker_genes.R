@@ -44,7 +44,7 @@ calculate_marker_genes <- function(sce_clean_f, pb_f, mkrs_f, pb_hvgs_f,
     dir.exists(gsea_dir)
   )
   assert_that(
-    # is.numeric(sel_res),
+    is.numeric(sel_res),
     is.numeric(min_cl_size),
     is.numeric(min_cells),
     is.numeric(min_cpm_go),
@@ -1025,6 +1025,8 @@ plot_clusters_by_metadata <- function(meta_dt, clusts_dt, meta_vars = NULL,
   # join metadata and clusters
   melt_dt   = clusts_dt %>%
     .[, .N, by = .(sample_id, cluster) ] %>%
+    dcast.data.table( sample_id ~ cluster, value.var = "N", fill = 0) %>% 
+    melt.data.table( id = "sample_id", variable.name = "cluster", value.name = "N") %>% 
     merge(meta_dt[, c('sample_id', meta_vars), with = FALSE ], by = "sample_id") %>%
     melt.data.table( measure = meta_vars, var = "meta_var", val = "meta_val" ) %>%
     .[, .(N = sum(N)), by = .(meta_var, meta_val, cluster) ] %>%
@@ -1032,19 +1034,19 @@ plot_clusters_by_metadata <- function(meta_dt, clusts_dt, meta_vars = NULL,
 
   # put clusters in order
   if (!is.null(cl_order)) {
-    melt_dt = melt_dt[ , cluster := factor(cluster, levels = cl_order) ]
+    # in case there are missing clusters:
+    cl_all    = unique(melt_dt$cluster) %>% sort
+    cl_tmp    = c(cl_order, setdiff(cl_all, cl_order))
+    melt_dt = melt_dt[ , cluster := factor(cluster, levels = cl_tmp) ]
   }
-
-  sqrt_brks  = c(1, 3, 10, 30, 1e2, 3e2, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5) %>%
-    `+`(1) %>% sqrt
-  sqrt_labs  = c("1", "3", "10", "30", "100", "300",
-    "1k", "3k", "10k", "30k", "100k", "300k")
-
+  # define palettes
   pal_ls      = c("Greys", "Reds", "Blues", "Greens", "Purples", "Oranges", "YlOrBr")
+
+  # temp function for plotting
   .plot_fn <- function( ii ) {
     this_var  = meta_vars[[ ii ]]
     # plot quasirandom dots facetted by meta_var
-    plot_dt   = melt_dt[ N >= min_cells ] %>% .[ meta_var == this_var ]
+    plot_dt   = melt_dt %>% .[ meta_var == this_var ]
     g = ggplot(plot_dt) +
       aes( x = cluster, y = 100 * prop, fill = meta_val ) +
       geom_col( colour = 'black' ) +
@@ -1556,12 +1558,13 @@ plot_clusters_annotated_by_densities = function(hmny_dt, v) {
   assert_that( v %in% names(hmny_dt) )
   g = ggplot(hmny_dt) +
     aes( x = UMAP1, y = UMAP2 ) +
-    geom_bin2d( bins = 50, aes(fill = after_stat( density ) %>% pmin(0.01) %>% pmax(0.0001)) ) +
-    scale_fill_distiller( palette = "RdBu", trans = "log10", limits = c(0.0001, 0.01) ) +
+    geom_bin2d( bins = 50, aes(fill = after_stat( density ) %>% multiply_by(100) %>% 
+      pmin(1) %>% pmax(0.01)) ) +
+    scale_fill_distiller( palette = "RdBu", trans = "log10", limits = c(0.01, 1) ) +
     facet_wrap( sprintf("~ %s", v) ) +
     theme_classic() +
-    theme( axis.text = element_blank(), panel.grid = element_blank() ) +
-    labs( fill = "density" )
+    theme( axis.text = element_blank(), panel.grid = element_blank(), aspect.ratio = 1 ) +
+    labs( fill = "pct. of\nsample" )
 
   return(g)
 }

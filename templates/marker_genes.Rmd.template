@@ -160,17 +160,16 @@ print(g)
 
 For each cluster the proportion of cells coming from samples associated with specific values of `r metadata_txt` are shown. 
 
-```{r plot_clusters_by_metadata, fig.height = 8, fig.width = 7}
+```{r plot_clusters_by_metadata, fig.height = (2*length(metadata_vars)) + 1, fig.width = 8}
 if (!is.null(metadata_vars))
-  (plot_clusters_by_metadata(meta_dt, harmony_dt, 
-    meta_vars = metadata_vars, cl_order = cl_ord))
+  (plot_clusters_by_metadata(meta_dt, harmony_dt, meta_vars = metadata_vars, cl_order = cl_ord))
 ```
 
 ## Metadata variables over UMAP{.tabset}
 
 The plot shows a binned UMAP with facets corresponding to specific values of `r if (length(metadata_vars) == 1) print(metadata_vars) else print("different metadata variables")` which allows the evaluation of whether cells sharing certain annotations are particularly abundant in some clusters/parts of the UMAP space or evenly distributed. 
 
-```{r plot_metadata_over_UMAP, fig.height = 6, fig.width = 8, results = 'asis'}
+```{r plot_metadata_over_UMAP, fig.height = 3, fig.width = 8, results = 'asis'}
 for (meta_var in metadata_vars) {
   cat('###', meta_var, '\n')
   print(plot_clusters_annotated_by_densities(hmny_dt, meta_var))
