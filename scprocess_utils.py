@@ -236,11 +236,13 @@ def get_project_parameters(config, scprocess_data_dir):
   DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS = \
   get_multiplexing_parameters(config, PROJ_DIR, samples_df)
 
-  # define sample variable for alevin, ambient, doublets
+  # define sample variable for alevin, ambient, doublets and sample mapping dictionary
   if DEMUX_TYPE != "":
     SAMPLE_VAR = "pool_id"
+    SAMPLE_MAPPING = samples_df.groupby("pool_id")["sample_id"].apply(list).to_dict()
   else:
     SAMPLE_VAR = "sample_id"
+    SAMPLE_MAPPING = None
 
   # remove some samples
   EXC_SAMPLES   = None
@@ -288,7 +290,20 @@ def get_project_parameters(config, scprocess_data_dir):
 
   return PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, \
     METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES, \
-    DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_VAR
+    DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_VAR, SAMPLE_MAPPING
+
+
+# remove samples and pools from sample mapping
+def filter_sample_mapping(SAMPLE_MAPPING, POOL_IDS, SAMPLES):
+  if SAMPLE_MAPPING is None:
+    return None
+  # filter to keep specific pool ids
+  SAMPLE_MAPPING = {pool_id: sample_ids for pool_id, sample_ids in SAMPLE_MAPPING.items() if pool_id in POOL_IDS}
+  # filter to keep specific sample_ids
+  for pool_id in SAMPLE_MAPPING:
+    SAMPLE_MAPPING[pool_id] = [sample_id for sample_id in SAMPLE_MAPPING[pool_id] if sample_id in SAMPLES]
+
+  return SAMPLE_MAPPING
 
 
 # define alevin parameters

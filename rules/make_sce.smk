@@ -106,12 +106,12 @@ if DEMUX_TYPE == 'af':
   rule make_hto_sce_objects: 
     input: 
       smpl_stats_f = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',
-      amb_yaml_f   = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
-      hto_h5_f     = af_dir + '/af_{sample}/hto/af_hto_counts_mat.h5'
+      amb_yaml_f   = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
+      hto_h5_f     = af_dir + '/af_{run}/hto/af_hto_counts_mat.h5'
     params:
-      translation_f = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.sample)[3]
+      translation_f = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[3]
     output:
-      sce_hto_f   = sce_dir + '/hto_{sample}/sce_cells_htos_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+      sce_hto_f   = demux_dir + '/demux_{run}/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
     threads: 1
     retries: RETRIES
     resources:
@@ -123,8 +123,8 @@ if DEMUX_TYPE == 'af':
        # save hto sce with demultiplexing info
         Rscript -e "source('scripts/make_sce.R'); \
           get_one_hto_sce( \
-            sel_sample  = '{wildcards.sample}', \
-	    sample_stats_f = '{input.smpl_stats_f}', \
+            sel_sample  = '{wildcards.run}', \
+	          sample_stats_f    = '{input.smpl_stats_f}', \
             amb_yaml_f  = '{input.amb_yaml_f}', \
             hto_mat_f   = '{input.hto_h5_f}', \
             trans_f     = '{params.translation_f}', \

@@ -14,7 +14,7 @@ SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 # get parameters
 PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, \
 EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES, \
-DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_VAR = \
+DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_VAR, SAMPLE_MAPPING = \
   get_project_parameters(config, SCPROCESS_DATA_DIR)
 AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY = \
   get_alevin_parameters(config, SCPROCESS_DATA_DIR, SPECIES)
@@ -56,7 +56,7 @@ code_dir      = f"{PROJ_DIR}/code"
 af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_alevin_fry"
 af_rna_dir    = 'rna/' if DEMUX_TYPE == 'af' else ''
 amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
-sce_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_make_sce"
+demux_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
 dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
 qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
 int_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
@@ -76,16 +76,18 @@ zoom_df       = pd.DataFrame({ \
  'zoom_res': [ ZOOM_SPEC_LS[ zn ][ 'zoom_res' ] for zn in ZOOM_NAMES] \
  })
 
-
 # exclude all samples without fastq files
 if DEMUX_TYPE != "":
  POOL_IDS = exclude_samples_without_fastq_files(FASTQ_DIR, POOL_IDS, HTO=False)
 else:
- SAMPLES  = exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES,HTO=False)
+ SAMPLES  = exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES, HTO=False)
 
 # exclude all samples without hto fastq files
 if DEMUX_TYPE == "af":
  POOL_IDS = exclude_samples_without_fastq_files(HTO_FASTQ_DIR, POOL_IDS, HTO=True)
+
+# exclude pools and samples from sample mapping dictionary
+SAMPLE_MAPPING = filter_sample_mapping(SAMPLE_MAPPING, POOL_IDS, SAMPLES)
 
 # join all samples into a single string
 POOL_STR   = ','.join(POOL_IDS)
@@ -104,34 +106,24 @@ hto_index_outs = [
 # alevin hto quantification outputs (optional)
 hto_af_outs = expand(
   [
-  af_dir    + '/af_{sample}/hto/af_quant/',
-  af_dir    + '/af_{sample}/hto/af_quant/alevin/quants_mat.mtx',
-  af_dir    + '/af_{sample}/hto/af_quant/alevin/quants_mat_cols.txt',
-  af_dir    + '/af_{sample}/hto/af_quant/alevin/quants_mat_rows.txt',
-  af_dir    + '/af_{sample}/hto/af_hto_counts_mat.h5',
-  af_dir    + '/af_{sample}/hto/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz'
-  ], sample = runs
+  af_dir    + '/af_{run}/hto/af_quant/',
+  af_dir    + '/af_{run}/hto/af_quant/alevin/quants_mat.mtx',
+  af_dir    + '/af_{run}/hto/af_quant/alevin/quants_mat_cols.txt',
+  af_dir    + '/af_{run}/hto/af_quant/alevin/quants_mat_rows.txt',
+  af_dir    + '/af_{run}/hto/af_hto_counts_mat.h5',
+  af_dir    + '/af_{run}/hto/knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
+  ], run = runs
 ) if DEMUX_TYPE == 'af' else []
 
 # seurat demultiplexing outputs (optional)
 hto_sce_fs = expand(
-  sce_dir + '/hto_{sample}/sce_cells_htos_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-  sample = runs
+  demux_dir + '/demux_{run}/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+  run = runs
   ) if DEMUX_TYPE == "af" else []
 
 # mutliplxing report (optional)
-hto_rmd_f  = (rmd_dir   + '/' + SHORT_TAG + '_multiplexing.Rmd') if DEMUX_TYPE == 'af' else []
-hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_multiplexing.html') if DEMUX_TYPE == 'af' else []
-
-
-# qc outputs
-qc_fs = expand(
-    [
-        sce_dir + '/qc_{sample}/sce_cells_clean_{sample}_' + DATE_STAMP + '.rds',
-        sce_dir + '/qc_{sample}/qc_dt_{sample}_' + SHORT_TAG + '_' + DATE_STAMP + '.txt.gz'
-    ],
-    sample=runs
-)
+hto_rmd_f  = (rmd_dir   + '/' + SHORT_TAG + '_demultiplexing.Rmd') if DEMUX_TYPE == 'af' else []
+hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_demultiplexing.html') if DEMUX_TYPE == 'af' else []
 
 
 # fgsea outputs (optional)
@@ -144,7 +136,6 @@ fgsea_outs = [
 ] if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'] else []
  
 
-
 # one rule to rule them all
 rule all:
   input:
@@ -154,31 +145,32 @@ rule all:
     expand(
       [
       # alevin_fry
-      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_quant/',
-      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
-      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_quant/alevin/quants_mat_cols.txt',
-      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_quant/alevin/quants_mat_rows.txt',
-      af_dir    + '/af_{sample}/' + af_rna_dir + 'af_counts_mat.h5',
-      af_dir    + '/af_{sample}/' + af_rna_dir + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
-      af_dir    + '/af_{sample}/' + af_rna_dir + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml',
+      af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/',
+      af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
+      af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/alevin/quants_mat_cols.txt',
+      af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/alevin/quants_mat_rows.txt',
+      af_dir    + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
+      af_dir    + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz',
+      af_dir    + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml',
       # ambient (cellbender, decontx or nothing)
-      amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
+      amb_dir   + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
       # barcode qc metrics
-      amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz'
+      amb_dir   + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz'
       # doublet id
-      #dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      #dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-      ], sample =  runs), 
+      dbl_dir   + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      #dbl_dir  + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      ], run =  runs), 
       # ambient sample statistics
       amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',  
-      # make sce input df
-      #sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-      # make sce
-     # sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
-     # sce_dir + '/rowdata_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      # make hto sce
+      # demultiplexing
       hto_sce_fs, 
-      qc_fs 
+      # qc
+      expand(
+        [
+         qc_dir + 'qc_{sample}/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
+         qc_dir + 'qc_{sample}/qc_dt_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+        ], sample = SAMPLES
+      )
       # doublet_id
       #dbl_dir   + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       #dbl_dir   + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',

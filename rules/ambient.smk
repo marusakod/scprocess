@@ -105,20 +105,20 @@ def extract_sample_statistics(AMBIENT_METHOD, SAMPLE_VAR, samples_ls, metrics_fs
 if AMBIENT_METHOD == 'cellbender':
   rule run_ambient:
     input:
-      h5_f      = af_dir + '/af_{sample}/' + af_rna_dir  + 'af_counts_mat.h5',
-      amb_yaml_f = af_dir + '/af_{sample}/' + af_rna_dir + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml'
+      h5_f      = af_dir + '/af_{run}/' + af_rna_dir  + 'af_counts_mat.h5',
+      amb_yaml_f = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml'
     params:
-      expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
-      total_droplets_included = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
-      low_count_threshold     = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[2],
-      learning_rate           = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[3]
+      expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
+      total_droplets_included = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
+      low_count_threshold     = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[2],
+      learning_rate           = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[3]
     output:
-        ambient_yaml_out = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
-        tmp_f            = temp(amb_dir + '/ambient_{sample}/ckpt.tar.gz')
+        ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
+        tmp_f            = temp(amb_dir + '/ambient_{run}/ckpt.tar.gz')
     threads: 1
     retries: RETRIES
     resources:
@@ -142,9 +142,9 @@ if AMBIENT_METHOD == 'cellbender':
       cd $amb_dir
 
       # define output files
-      raw_counts_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}.h5"
-      filt_counts_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_filtered.h5"
-      bcs_f="{amb_dir}/ambient_{wildcards.sample}/bender_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
+      raw_counts_f="{amb_dir}/ambient_{wildcards.run}/bender_{wildcards.run}_{DATE_STAMP}.h5"
+      filt_counts_f="{amb_dir}/ambient_{wildcards.run}/bender_{wildcards.run}_{DATE_STAMP}_filtered.h5"
+      bcs_f="{amb_dir}/ambient_{wildcards.run}/bender_{wildcards.run}_{DATE_STAMP}_cell_barcodes.csv"
       tmp_f="{output.tmp_f}"
 
       
@@ -187,21 +187,21 @@ if AMBIENT_METHOD == 'cellbender':
 elif AMBIENT_METHOD == 'decontx':
   rule run_ambient:
     input:
-      h5_f       = af_dir + '/af_{sample}/' + af_rna_dir + 'af_counts_mat.h5',
-      amb_yaml_f = af_dir + '/af_{sample}/' + af_rna_dir + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml'
+      h5_f       = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
+      amb_yaml_f = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml'
     params:
-      expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
-      total_droplets_included = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
-      knee_1                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[4],
-      inflection_1            = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[5],
-      knee_2                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[6]
+      expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
+      total_droplets_included = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
+      knee_1                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[4],
+      inflection_1            = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[5],
+      knee_2                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[6]
     output:
-      ambient_yaml_out = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
+      ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'
     threads: 4
     retries: RETRIES
     resources:
@@ -218,9 +218,9 @@ elif AMBIENT_METHOD == 'decontx':
       mkdir -p $amb_dir
   
       # define output file names
-      filt_counts_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_filtered.h5"
-      bcs_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
-      dcx_params_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_params.txt.gz"
+      filt_counts_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_filtered.h5"
+      bcs_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_cell_barcodes.csv"
+      dcx_params_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_params.txt.gz"
 
       # run cell calling and decontamination
    
@@ -229,7 +229,7 @@ elif AMBIENT_METHOD == 'decontx':
       out_mat_f = '$filt_counts_f', \
       out_bcs_f = '$bcs_f', \
       out_dcx_f = '$dcx_params_f', \
-      sel_s = '{wildcards.sample}', \
+      sel_s = '{wildcards.run}', \
       af_mat_f = '{input.h5_f}', \
       knee_1 = {params.knee_1}, \
       knee_2 = {params.knee_2}, \
@@ -249,21 +249,21 @@ elif AMBIENT_METHOD == 'decontx':
 else:
   rule run_ambient:
     input:
-      h5_f      = af_dir + '/af_{sample}/' + af_rna_dir + 'af_counts_mat.h5',
-      amb_yaml_f = af_dir + '/af_{sample}/' + af_rna_dir + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml'
+      h5_f      = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
+      amb_yaml_f = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml'
     params:
-      expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
-      total_droplets_included = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
-      knee_1                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[4],
-      inflection_1            = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[5],
-      knee_2                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[6]
+      expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
+      total_droplets_included = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
+      knee_1                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[4],
+      inflection_1            = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[5],
+      knee_2                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[6]
     output:
-      ambient_yaml_out = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml'
+      ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'
     threads: 4
     retries: RETRIES
     conda:
@@ -280,8 +280,8 @@ else:
       mkdir -p $amb_dir
       
       # define output file names
-      filt_counts_f="{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_filtered.h5"
-      bcs_f="{amb_dir}/ambient_{wildcards.sample}/uncorrected_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
+      filt_counts_f="{amb_dir}/ambient_{wildcards.run}/uncorrected_{wildcards.run}_{DATE_STAMP}_filtered.h5"
+      bcs_f="{amb_dir}/ambient_{wildcards.run}/uncorrected_{wildcards.run}_{DATE_STAMP}_cell_barcodes.csv"
 
 
       # run cell calling and decontamination
@@ -289,7 +289,7 @@ else:
       get_cell_mat_and_barcodes(
       out_mat_f = '$filt_counts_f', \
       out_bcs_f = '$bcs_f', \
-      sel_s = '{wildcards.sample}', \
+      sel_s = '{wildcards.run}', \
       af_mat_f = '{input.h5_f}', \
       knee_1 = {params.knee_1}, \
       knee_2 = {params.knee_2}, \
@@ -310,14 +310,14 @@ else:
 
 rule get_barcode_qc_metrics:
   input:
-    af_h5_f     = af_dir + '/af_{sample}/' + af_rna_dir + 'af_counts_mat.h5',
-    amb_yaml_f = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
-    knee_yaml_f = af_dir + '/af_{sample}/' + af_rna_dir + 'ambient_params_{sample}_' + DATE_STAMP + '.yaml'
+    af_h5_f     = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
+    amb_yaml_f = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
+    knee_yaml_f = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml'
   params:
-    expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
-        af_dir + f'/af_{wildcards.sample}/' + af_rna_dir + f'ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0]
+    expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0]
   output:
-    bc_qc_f     = amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz'
+    bc_qc_f     = amb_dir + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz'
   threads: 1
   retries: RETRIES
   conda:
@@ -335,8 +335,8 @@ rule get_barcode_qc_metrics:
 
 rule get_ambient_sample_statistics:
   input:
-    metrics_fs  = expand(af_dir + '/af_{sample}/' + af_rna_dir + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=runs),
-    amb_yaml_fs = expand(amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml', sample=runs)
+    metrics_fs  = expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs),
+    amb_yaml_fs = expand(amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml', run=runs)
   output:
     smpl_stats_f    = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt'
   run:

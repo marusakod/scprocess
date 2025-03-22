@@ -38,7 +38,7 @@ prob_labs   = c("50%", "90%", "99%", "99.9%", "99.99%", "99.999%", "99.9999%")
 
 
 test_qc <- function(
-  sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf_dt_f, ambient_method,
+  sel_sample, meta_f, amb_yaml_f, sample_stats_f,dbl_f, demux_f, gtf_dt_f, ambient_method,
   sce_f, qc_f, hard_min_counts, hard_min_feats, hard_max_mito, min_counts, min_feats,
   min_mito, max_mito, min_splice, max_splice, min_cells, sample_var, demux_type,
   dbl_min_feats
@@ -48,8 +48,9 @@ test_qc <- function(
   qc_files  = unlist(strsplit(qc_f, ","))
 
   # create empty output files (except qc_f)
-  output_files = c(sce_files, sample_stats_f, amb_yaml_f, demux_f, gtf_dt_f)
-  for (file in output_files) {
+  file.create(dbl_f)
+
+  for (file in sce_files) {
     if (!is.na(file) && file != "") {
       dir.create(dirname(file), showWarnings = FALSE, recursive = TRUE)
       file.create(file)
