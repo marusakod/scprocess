@@ -155,7 +155,7 @@ rule all:
       # ambient (cellbender, decontx or nothing)
       amb_dir   + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
       # barcode qc metrics
-      amb_dir   + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz'
+      amb_dir   + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz',
       # doublet id
       dbl_dir   + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       #dbl_dir  + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
@@ -167,8 +167,8 @@ rule all:
       # qc
       expand(
         [
-         qc_dir + 'qc_{sample}/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
-         qc_dir + 'qc_{sample}/qc_dt_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+         qc_dir + '/qc_{sample}/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
+         qc_dir + '/qc_{sample}/qc_dt_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
         ], sample = SAMPLES
       )
       # doublet_id

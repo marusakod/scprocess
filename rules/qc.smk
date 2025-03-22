@@ -29,19 +29,19 @@
 # get output file paths as string
 def get_qc_files_str(run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP):
   if SAMPLE_MAPPING is None:
-    sce_str = f"{qc_dir}/_qc_{run}/sce_cells_clean_{run}_{FULL_TAG}_{DATE_STAMP}.rds"
-    qc_str  = f"{qc_dir}/_qc_{run}/qc_dt_{run}_{FULL_TAG}_{DATE_STAMP}.rds"
+    sce_str = f"{qc_dir}/qc_{run}/sce_cells_clean_{run}_{FULL_TAG}_{DATE_STAMP}.rds"
+    qc_str  = f"{qc_dir}/qc_{run}/qc_dt_{run}_{FULL_TAG}_{DATE_STAMP}.txt.gz"
   else:
     sce_fs_ls = []
     qc_fs_ls  = []
     for s in SAMPLE_MAPPING[run]:
-      sce_fs_ls.append(f"{qc_dir}/_qc_{s}/sce_cells_clean_{s}_{FULL_TAG}_{DATE_STAMP}.rds")
-      qc_fs_ls.append(f"{qc_dir}/_qc_{s}/qc_dt_{s}_{FULL_TAG}_{DATE_STAMP}.rds")
+      sce_fs_ls.append(f"{qc_dir}/qc_{s}/sce_cells_clean_{s}_{FULL_TAG}_{DATE_STAMP}.rds")
+      qc_fs_ls.append(f"{qc_dir}/qc_{s}/qc_dt_{s}_{FULL_TAG}_{DATE_STAMP}.txt.gz")
 
     sce_str = ','.join(sce_fs_ls)
     qc_str =  ','.join(qc_fs_ls)
   
-  return(sce_str, qc_str)
+  return sce_str, qc_str
     
 
 
@@ -51,11 +51,11 @@ rule run_qc:
     amb_yaml_f   = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
     demux_f      = (demux_dir + '/demux_{run}/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if DEMUX_TYPE == 'af' else ([DEMUX_F] if DEMUX_TYPE == 'custom' else [])
   output:
-    sce_f = qc_dir + 'qc_{sample}/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
-    qc_f  = qc_dir + 'qc_{sample}/qc_dt_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    dbl_f = dbl_dir   + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    sce_f = qc_dir  + '/qc_{sample}/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
+    qc_f  = qc_dir  + '/qc_{sample}/qc_dt_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    dbl_f = dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   params:
-    sce_fs_str = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[0]
+    sce_fs_str = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[0],
     qc_fs_str  = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[1]
   threads: 4
   retries: RETRIES
