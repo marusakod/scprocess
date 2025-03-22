@@ -51,8 +51,8 @@ rule run_qc:
     amb_yaml_f   = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
     demux_f      = (demux_dir + '/demux_{run}/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if DEMUX_TYPE == 'af' else ([DEMUX_F] if DEMUX_TYPE == 'custom' else [])
   output:
-    sce_f = qc_dir  + '/qc_{sample}/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
-    qc_f  = qc_dir  + '/qc_{sample}/qc_dt_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    sce_f = qc_dir  + '/qc_{sample}/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample =lambda wildcards: SAMPLE_MAPPING.get(wildcards.run, [wildcards.run] if SAMPLE_MAPPING else [wildcards.run]),
+    qc_f  = qc_dir  + '/qc_{sample}/qc_dt_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample =lambda wildcards: SAMPLE_MAPPING.get(wildcards.run, [wildcards.run] if SAMPLE_MAPPING else [wildcards.run]), 
     dbl_f = dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   params:
     sce_fs_str = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[0],

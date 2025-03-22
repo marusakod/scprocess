@@ -134,7 +134,13 @@ fgsea_outs = [
     mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
     mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
 ] if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'] else []
- 
+
+# generate qc outputs
+ qc_outputs = []
+ for run in runs:
+  samples = SAMPLE_MAPPING.get(run, [run]) if SAMPLE_MAPPING else [run]
+  qc_outputs.extend(expand(qc_dir + '/qc_{sample}/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample = samples))
+  qc_outputs.extend(expand(qc_dir + '/qc_{sample}/qc_dt_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = samples))
 
 # one rule to rule them all
 rule all:
@@ -165,12 +171,7 @@ rule all:
       # demultiplexing
       hto_sce_fs, 
       # qc
-      expand(
-        [
-         qc_dir + '/qc_{sample}/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
-         qc_dir + '/qc_{sample}/qc_dt_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-        ], sample = SAMPLES
-      )
+      qc_outputs
       # doublet_id
       #dbl_dir   + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       #dbl_dir   + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
