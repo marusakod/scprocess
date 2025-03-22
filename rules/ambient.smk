@@ -164,7 +164,7 @@ if AMBIENT_METHOD == 'cellbender':
         # run cellbender
         cellbender remove-background \
           --input {input.h5_f} \
-          --output $cb_full_f \
+          --output $raw_counts_f \
           --expected-cells $EXPECTED_CELLS \
           --total-droplets-included $TOTAL_DROPLETS_INCLUDED \
           --low-count-threshold $LOW_COUNT_THRESHOLD \
@@ -218,7 +218,7 @@ elif AMBIENT_METHOD == 'decontx':
       mkdir -p $amb_dir
   
       # define output file names
-      filt__counts_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_filtered.h5"
+      filt_counts_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_filtered.h5"
       bcs_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_cell_barcodes.csv"
       dcx_params_f="{amb_dir}/ambient_{wildcards.sample}/decontx_{wildcards.sample}_{DATE_STAMP}_params.txt.gz"
 
@@ -226,8 +226,8 @@ elif AMBIENT_METHOD == 'decontx':
    
       Rscript -e "source('scripts/ambient.R'); \
       get_cell_mat_and_barcodes(
-      out_mat_f = '$dcx_filt_f', \
-      out_bcs_f = '$dcx_bcs_f', \
+      out_mat_f = '$filt_counts_f', \
+      out_bcs_f = '$bcs_f', \
       out_dcx_f = '$dcx_params_f', \
       sel_s = '{wildcards.sample}', \
       af_mat_f = '{input.h5_f}', \
@@ -287,8 +287,8 @@ else:
       # run cell calling and decontamination
       Rscript -e "source('scripts/ambient.R'); \
       get_cell_mat_and_barcodes(
-      out_mat_f = '$cell_filt_f', \
-      out_bcs_f = '$cell_bcs_f', \
+      out_mat_f = '$filt_counts_f', \
+      out_bcs_f = '$bcs_f', \
       sel_s = '{wildcards.sample}', \
       af_mat_f = '{input.h5_f}', \
       knee_1 = {params.knee_1}, \

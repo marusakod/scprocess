@@ -114,15 +114,24 @@ hto_af_outs = expand(
 ) if DEMUX_TYPE == 'af' else []
 
 # seurat demultiplexing outputs (optional)
-hto_sce_f = (sce_dir + '/sce_cells_htos_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if DEMUX_TYPE == 'af' else []
 hto_sce_fs = expand(
-  sce_dir + 'hto_{sample}/sce_cells_htos_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+  sce_dir + '/hto_{sample}/sce_cells_htos_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
   sample = runs
-  ) if DEMUX_TYPE = 'af' else []
+  ) if DEMUX_TYPE == "af" else []
 
 # mutliplxing report (optional)
 hto_rmd_f  = (rmd_dir   + '/' + SHORT_TAG + '_multiplexing.Rmd') if DEMUX_TYPE == 'af' else []
 hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_multiplexing.html') if DEMUX_TYPE == 'af' else []
+
+
+# qc outputs
+qc_fs = expand(
+    [
+        sce_dir + '/qc_{sample}/sce_cells_clean_{sample}_' + DATE_STAMP + '.rds',
+        sce_dir + '/qc_{sample}/qc_dt_{sample}_' + SHORT_TAG + '_' + DATE_STAMP + '.txt.gz'
+    ],
+    sample=runs
+)
 
 
 # fgsea outputs (optional)
@@ -155,61 +164,62 @@ rule all:
       # ambient (cellbender, decontx or nothing)
       amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
       # barcode qc metrics
-      amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz',
+      amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz'
       # doublet id
-      dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      #dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      #dbl_dir   + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       ], sample =  runs), 
       # ambient sample statistics
       amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',  
       # make sce input df
-      sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+      #sce_dir + '/sce_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       # make sce
-      sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
-      sce_dir + '/rowdata_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+     # sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
+     # sce_dir + '/rowdata_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
       # make hto sce
-      hto_sce_f, 
+      hto_sce_fs, 
+      qc_fs 
       # doublet_id
-      dbl_dir   + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-      dbl_dir   + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      dbl_dir   + '/scDblFinder_combined_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      #dbl_dir   + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+      #dbl_dir   + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      #dbl_dir   + '/scDblFinder_combined_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
       # qc
-      qc_dir    + '/qc_dt_'   + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      qc_dir    + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+      #qc_dir    + '/qc_dt_'   + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      #qc_dir    + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
       # integration
-      int_dir   + '/sce_clean_'           + FULL_TAG + '_' + DATE_STAMP + '.rds',
-      int_dir   + '/integrated_dt_'       + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      int_dir   + '/harmony_hvgs_'        + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+      #int_dir   + '/sce_clean_'           + FULL_TAG + '_' + DATE_STAMP + '.rds',
+      #int_dir   + '/integrated_dt_'       + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      #int_dir   + '/harmony_hvgs_'        + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
       # marker genes
-      mkr_dir   + '/pb_'              + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.rds',
-      mkr_dir   + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
-      mkr_dir   + '/pb_hvgs_'         + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+      #mkr_dir   + '/pb_'              + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.rds',
+      #mkr_dir   + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+      #mkr_dir   + '/pb_hvgs_'         + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
       # fgsea outputs
-      fgsea_outs, 
+      #fgsea_outs, 
       # code
-      code_dir  + '/utils.R',
-      code_dir  + '/ambient.R',
-      code_dir  + '/qc.R', 
-      code_dir  + '/make_sce.R',
-      code_dir  + '/doublet_id.R',
-      code_dir  + '/integration.R', 
-      code_dir  + '/marker_genes.R',
-      code_dir  + '/zoom.R', 
-      code_dir  + '/multiplexing.R',
+      #code_dir  + '/utils.R',
+      #code_dir  + '/ambient.R',
+      #code_dir  + '/qc.R', 
+      #code_dir  + '/make_sce.R',
+      #code_dir  + '/doublet_id.R',
+      #code_dir  + '/integration.R', 
+      #code_dir  + '/marker_genes.R',
+      #code_dir  + '/zoom.R', 
+      #code_dir  + '/multiplexing.R',
       # markdowns
-      rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
-      rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd', 
-      rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
-      rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
-      rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.Rmd', 
-      hto_rmd_f, 
+      #rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
+      #rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd', 
+      #rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
+      #rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
+      #rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.Rmd', 
+      #hto_rmd_f, 
       # reports
-      docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',
-      docs_dir  + '/' + SHORT_TAG + '_ambient.html', 
-      docs_dir  + '/' + SHORT_TAG + '_qc.html', 
-      docs_dir  + '/' + SHORT_TAG + '_integration.html',
-      docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.html', 
-      hto_html_f 
+      #docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',
+      #docs_dir  + '/' + SHORT_TAG + '_ambient.html', 
+      #docs_dir  + '/' + SHORT_TAG + '_qc.html', 
+      #docs_dir  + '/' + SHORT_TAG + '_integration.html',
+      #docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.html', 
+      #hto_html_f 
 
 rule simpleaf:
   input:

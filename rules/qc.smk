@@ -124,8 +124,8 @@ rule run_qc:
             sce_dir + '/qc_{sample}/qc_dt_{sample}_' + SHORT_TAG + '_' + DATE_STAMP + '.txt.gz',
             sample=SAMPLE_MAPPING[wildcards.run] if DEMUX_TYPE != '' else [wildcards.run]
         )
-    ),
-    threads: 4
+    )
+  threads: 4
   retries: RETRIES
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC

@@ -264,16 +264,12 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_ce
   # read in the yaml file
   amb_yaml = yaml::read_yaml(amb_out_yaml)
 
-  # get the right ambient matrix file path from yaml
+  # get counts matrix
   if(ambient_method == 'cellbender'){
-    # get unfiltered cellbender matrix
-    amb_mat_f = amb_yaml$cb_full_f
-  }else if(ambient_method == 'decontx'){
-    amb_mat_f = amb_yaml$dcx_filt_f
+  amb_mat_f = amb_yaml$raw_counts_f
   }else{
-    amb_mat_f = amb_yaml$cell_filt_f
+  amb_mat_f = amb_yaml$filt_counts_f
   }
-
 
   # get alevin counts
   af_mat = .get_alevin_mx(af_h5_f, '')

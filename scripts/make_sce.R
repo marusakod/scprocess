@@ -718,9 +718,7 @@ save_hto_sce <- function(sce_df_f, sce_hto_f, n_cores){
 
 
 
-
-
-get_one_hto_sce <- function(sel_s, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, ambient_method){
+get_one_hto_sce <- function(sel_sample, sample_stats_f, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, ambient_method){
 
   # if ambient method is cellbender exclude bad samples
   smpl_status = FALSE
@@ -737,6 +735,7 @@ get_one_hto_sce <- function(sel_s, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, am
     message('done!')
 
     return(NULL)
+  }
   }
 
   # get file with all barcodes called as cells
@@ -765,13 +764,13 @@ get_one_hto_sce <- function(sel_s, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, am
   .[cell_bc %chin% colnames(hto_counts), cell_bc]
 
   hto_counts = hto_counts[, keep_bcs]
-  colnames(hto_counts) = paste(sel_s, colnames(hto_counts), sep = ':')
+  colnames(hto_counts) = paste(sel_sample, colnames(hto_counts), sep = ':')
 
   # create a seurat object
   hto_seu = CreateSeuratObject(counts = hto_counts, assay = 'HTO')
   hto_seu = NormalizeData(hto_seu, assay = "HTO", normalization.method = "CLR")
 
-  message("  demultiplexing sample ", sel_s)
+  message("  demultiplexing sample ", sel_sample)
   hto_seu = HTODemux(hto_seu, assay = "HTO", positive.quantile = 0.99)
 
   # get demultiplexing metadata
@@ -779,7 +778,7 @@ get_one_hto_sce <- function(sel_s, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, am
     .[, .(cell_id, HTO_classification, HTO_classification.global, hash.ID)] %>%
     .[, guess := hash.ID] %>%
     .[, hash.ID := NULL] %>%
-    .[, pool_id := sel_s] %>%
+    .[, pool_id := sel_sample] %>%
     .[, HTO_classification.global := tolower(HTO_classification.global)]
 
   # get sce object
@@ -792,7 +791,7 @@ get_one_hto_sce <- function(sel_s, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, am
   saveRDS(hto_sce, file = hto_sce_f, compress = FALSE)
   
   message(" done!")
-  return()
+  return(NULL)
 
 }
 
