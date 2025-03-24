@@ -111,7 +111,7 @@ if DEMUX_TYPE == 'af':
     params:
       translation_f = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[3]
     output:
-      sce_hto_f   = demux_dir + '/demux_{run}/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+      sce_hto_f   = demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
     threads: 1
     retries: RETRIES
     resources:

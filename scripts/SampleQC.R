@@ -38,29 +38,20 @@ prob_labs   = c("50%", "90%", "99%", "99.9%", "99.99%", "99.999%", "99.9999%")
 
 
 test_qc <- function(
-  sel_sample, meta_f, amb_yaml_f, sample_stats_f,dbl_f, demux_f, gtf_dt_f, ambient_method,
+  sel_sample, meta_f, dbl_f, amb_yaml_f, sample_stats_f, demux_f, gtf_dt_f, ambient_method,
   sce_f, qc_f, hard_min_counts, hard_min_feats, hard_max_mito, min_counts, min_feats,
   min_mito, max_mito, min_splice, max_splice, min_cells, sample_var, demux_type,
   dbl_min_feats
 ) {
   # split file paths in case they are comma-separated
   sce_files = unlist(strsplit(sce_f, ","))
-  qc_files  = unlist(strsplit(qc_f, ","))
 
   # create empty output files (except qc_f)
-  file.create(dbl_f)
 
   for (file in sce_files) {
-    if (!is.na(file) && file != "") {
-      dir.create(dirname(file), showWarnings = FALSE, recursive = TRUE)
+      print(file)
       file.create(file)
-    }
   }
-
-  # generate mock qc files
-  for (qc_file in qc_files) {
-    if (!is.na(qc_file) && qc_file != "") {
-      dir.create(dirname(qc_file), showWarnings = FALSE, recursive = TRUE)
 
       # create mock qc data
       qc_data = data.frame(
@@ -69,9 +60,10 @@ test_qc <- function(
       )
 
       # write qc data to a file
-      fwrite(qc_file)
-    }
-  }
+      fwrite(qc_data, qc_f)
+      file.create(dbl_f)
+    
+  
 
   message("Mock QC function executed successfully.")
 }

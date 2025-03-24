@@ -117,7 +117,7 @@ hto_af_outs = expand(
 
 # seurat demultiplexing outputs (optional)
 hto_sce_fs = expand(
-  demux_dir + '/demux_{run}/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+  demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
   run = runs
   ) if DEMUX_TYPE == "af" else []
 
@@ -135,12 +135,6 @@ fgsea_outs = [
     mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
 ] if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'] else []
 
-# generate qc outputs
- qc_outputs = []
- for run in runs:
-  samples = SAMPLE_MAPPING.get(run, [run]) if SAMPLE_MAPPING else [run]
-  qc_outputs.extend(expand(qc_dir + '/qc_{sample}/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample = samples))
-  qc_outputs.extend(expand(qc_dir + '/qc_{sample}/qc_dt_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = samples))
 
 # one rule to rule them all
 rule all:
@@ -163,15 +157,15 @@ rule all:
       # barcode qc metrics
       amb_dir   + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz',
       # doublet id
-      dbl_dir   + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       #dbl_dir  + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       ], run =  runs), 
       # ambient sample statistics
-      amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',  
-      # demultiplexing
-      hto_sce_fs, 
-      # qc
-      qc_outputs
+    amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',  
+    # demultiplexing
+    hto_sce_fs 
+    # qc
       # doublet_id
       #dbl_dir   + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       #dbl_dir   + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
@@ -369,10 +363,10 @@ include: "rules/ambient.smk"
 include: "rules/make_sce.smk"
 include: "rules/doublet_id.smk"
 include: "rules/qc.smk"
-include: "rules/integration.smk"
-include: "rules/marker_genes.smk"
-include: "rules/render_htmls.smk"
-include: "rules/label_and_subset.smk"
-include: "rules/zoom.smk"
-include: "rules/metacells.smk"
-include: "rules/pb_empties.smk"
+#include: "rules/integration.smk"
+#include: "rules/marker_genes.smk"
+#include: "rules/render_htmls.smk"
+#include: "rules/label_and_subset.smk"
+#include: "rules/zoom.smk"
+#include: "rules/metacells.smk"
+#include: "rules/pb_empties.smk"
