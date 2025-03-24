@@ -14,5 +14,5 @@ pages:
     paths:
     - public
   only:
-    - main
+    - main-shpc
 

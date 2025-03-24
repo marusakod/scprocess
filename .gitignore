@@ -7,4 +7,3 @@
 .snakemake/
 __pycache__/
 logs/
-lsf.yaml
