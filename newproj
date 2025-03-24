@@ -64,7 +64,7 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
       message("Loading .Rprofile for the current workflowr project")
       library("workflowr")
     } else {
-      message("workflowr package not installed, please run install.packages(\"workflowr\") to use the workflowr functions")
+      message("workflowr package not installed, please run install.packages(\'workflowr\') to use the workflowr functions")
     }
     """
     rprofile_f = os.path.join(proj_dir, '.Rprofile')

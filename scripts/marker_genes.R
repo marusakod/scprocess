@@ -23,6 +23,7 @@ calculate_marker_genes <- function(sce_clean_f, pb_f, mkrs_f, pb_hvgs_f,
   not_ok_re, min_cpm_go, max_zero_p, gsea_cut, n_cores = 4) {
   # check some inputs
   assert_that(
+    is.character(sel_res),
     is.character(sce_clean_f),
     is.character(pb_f),
     is.character(mkrs_f),
@@ -44,7 +45,6 @@ calculate_marker_genes <- function(sce_clean_f, pb_f, mkrs_f, pb_hvgs_f,
     dir.exists(gsea_dir)
   )
   assert_that(
-    is.numeric(sel_res),
     is.numeric(min_cl_size),
     is.numeric(min_cells),
     is.numeric(min_cpm_go),
