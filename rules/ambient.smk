@@ -44,7 +44,7 @@ def parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, sample, amb_yam
 
 # metrics_fs_ls is the list of knee files (this should exist for all ambient methods)
 # this function should run in the last rule
-def extract_sample_statistics(AMBIENT_METHOD, SAMPLE_VAR, samples_ls, metrics_fs_ls, ambient_outs_yamls, custom_f, max_kept=0.9):
+def extract_ambient_sample_statistics(AMBIENT_METHOD, SAMPLE_VAR, samples_ls, metrics_fs_ls, ambient_outs_yamls, custom_f, max_kept=0.9):
     kept_arr = []
     totals_arr = []
 
@@ -340,6 +340,6 @@ rule get_ambient_sample_statistics:
   output:
     smpl_stats_f    = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt'
   run:
-    sample_stats_df   = extract_sample_statistics(AMBIENT_METHOD, SAMPLE_VAR, runs, input.metrics_fs, input.amb_yaml_fs,
+    sample_stats_df   = extract_ambient_sample_statistics(AMBIENT_METHOD, SAMPLE_VAR, runs, input.metrics_fs, input.amb_yaml_fs,
       CUSTOM_SAMPLE_PARAMS_F, CELLBENDER_PROP_MAX_KEPT)
     sample_stats_df.to_csv(output.smpl_stats_f, sep = '\t', index = False)

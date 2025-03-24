@@ -56,7 +56,8 @@ test_qc <- function(
       # create mock qc data
       qc_data = data.frame(
         cell_id = paste0("cell_", 1:10),
-        sample_id = rep(sel_sample, 10)
+        sample_id = rep(sel_sample, 10), 
+        keep = rep(TRUE, 10)
       )
 
       # write qc data to a file
