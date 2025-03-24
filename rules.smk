@@ -164,8 +164,11 @@ rule all:
       # ambient sample statistics
     amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',  
     # demultiplexing
-    hto_sce_fs 
+    hto_sce_fs,  
     # qc
+    qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    qc_dir  + '/qc_sample_statistics_' + DATE_STAMP + '.csv'
+   
       # doublet_id
       #dbl_dir   + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       #dbl_dir   + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',

@@ -6,7 +6,7 @@ localrules: merge_qc
 
 def extract_qc_sample_statistics(qc_merged_f, QC_MIN_CELLS):
     # Read merged QC file
-    qc_dt = pd.read_csv(qc_merged_f, compression='gzip', sep='\t')
+    qc_dt = pd.read_csv(qc_merged_f, compression='gzip')
     qc_dt = qc_dt[qc_dt["keep"] == True] # only count cells that passed qc
 
     # Count the number of cells per sample
