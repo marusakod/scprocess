@@ -2,7 +2,6 @@ name: simpleaf
 channels:
   - bioconda
   - conda-forge
-  - defaults
 dependencies:
   - pandas=2.2.2
   - _libgcc_mutex=0.1
