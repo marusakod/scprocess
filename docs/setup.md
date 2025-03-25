@@ -18,16 +18,48 @@
 
 ## Installation
 
-1. Clone the github repository:
-
-    ```
-    git clone https://github.com/marusakod/scprocess_test.git
-    ```
-
-2.  Add {{ software_name }} to your path. Open your `.bashrc` file and add the following line:
+1. Clone the Roche gitlab repository:
 
     ```bash
-    export PATH=/PATH/TO/YOUR/FOLDER/scprocess:${PATH}
+    cd ~/packages/ # or wherever you keep your packages
+    git clone https://code.roche.com/macnairw/scprocess
+    ```
+
+    You should be able to see a file _lsf.yaml_ in the top level of the {{ software_name }} directory:
+
+    ```bash
+    cat lsf.yaml
+    # app_profile:
+    #     - none
+    # __default__:
+    #   - '-q short'
+    # run_ambient:
+    #   - "-q short"
+    #     # - "-q long"
+    #     # - "-gpu 'num=1:j_exclusive=yes'"
+    # run_harmony:
+    #   - "-q long"
+    ```
+
+2. Add some things to your `~/.bashrc`:
+
+    ```bash
+    # add scprocess to path
+    echo "export PATH=~/packages/scprocess:${PATH}" >> ~/.bashrc
+    # add some sHPC-specific things
+    echo "alias scprocess='export ROCS_ARCH=sandybridge; source /apps/rocs/init.sh; ml snakemake-lsf/1.0.7-foss-2020a-Python-3.11.3-snakemake-8.23.0; scprocess'" >> ~/.bashrc
+    echo "alias scsetup='export ROCS_ARCH=sandybridge; source /apps/rocs/init.sh; ml snakemake-lsf/1.0.7-foss-2020a-Python-3.11.3-snakemake-8.23.0; scsetup'" >> ~/.bashrc
+    # this code adds some extra lines to the end of your .bashrc file. feel free to put them somewhere more tidy!
+    ```
+
+    Check that this worked:
+
+    ```bash
+    # reload the .bashrc file
+    source ~/.bashrc
+
+    # check that scprocess works
+    scprocess -h
     ```
 
 ## {{ software_name }} data directory setup
