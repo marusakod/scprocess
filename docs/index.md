@@ -10,8 +10,6 @@ hide:
 
 ---
 
-* **Important: Roche users first need to get set up on the sHPC: [sHPC setup](shpc.md).**
-
 * For a brief survey of the package and its current capabilities, you can read the [Introduction](introduction.md).
 
 * For help with installation read the [Getting started](setup.md) section. 
