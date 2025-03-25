@@ -1,31 +1,15 @@
 # Getting started
 
-## Prerequisites
-
-#### Hardware
-
-{{ software_name }} runs on Linux systems that meet these minimum requirements:
- 
-* Operating system: Linux
-* [processor? List all processors that we tested on? The only problematic part is probably alevin]
-* [RAM? depends on how big the dataset is]
-* [CPU?]
-* [GPU with CUDA support (only required if you select CellBender as ambient method)]
-
-#### Software
-
-{{ software_name }} requires `snakemake` and `conda`. See the [snakemake manual](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html) and the [conda user guide](https://docs.anaconda.com/miniconda/) for help with the installation.
-
 ## Installation
 
-1. Clone the Roche gitlab repository:
+1. Clone the Roche GitLab repository:
 
     ```bash
     cd ~/packages/ # or wherever you keep your packages
     git clone https://code.roche.com/macnairw/scprocess
     ```
 
-    You should be able to see a file _lsf.yaml_ in the top level of the {{ software_name }} directory:
+    You should be able to see a `lsf.yaml` file in the top level of the {{ software_name }} directory:
 
     ```bash
     cat lsf.yaml
@@ -41,15 +25,16 @@
     #   - "-q long"
     ```
 
-2. Add some things to your `~/.bashrc`:
+2. Add some things to your `~/.bashrc` (this code adds some extra lines to the end of your `.bashrc` file. Feel free to put them somewhere more tidy!):
 
     ```bash
     # add scprocess to path
     echo "export PATH=~/packages/scprocess:${PATH}" >> ~/.bashrc
+
     # add some sHPC-specific things
     echo "alias scprocess='export ROCS_ARCH=sandybridge; source /apps/rocs/init.sh; ml snakemake-lsf/1.0.7-foss-2020a-Python-3.11.3-snakemake-8.23.0; scprocess'" >> ~/.bashrc
     echo "alias scsetup='export ROCS_ARCH=sandybridge; source /apps/rocs/init.sh; ml snakemake-lsf/1.0.7-foss-2020a-Python-3.11.3-snakemake-8.23.0; scsetup'" >> ~/.bashrc
-    # this code adds some extra lines to the end of your .bashrc file. feel free to put them somewhere more tidy!
+
     ```
 
     Check that this worked:
@@ -102,56 +87,21 @@
     scsetup
     ```
 
-## Cluster setup
+## Cellbender setup
 
-When running {{ software_name }} on a cluster with a job scheduler like SLURM or LSF, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{ software_name }} comes with two predefined configuration profiles stored in the `profiles` directory: `profiles/slurm_default` and `profiles/lsf_default` for SLURM and LSF respectively. You can add additional profiles or edit one of the profiles that already exists in {{ software_name }}. To run `scsetup` and {{ software_name }} in cluster mode add the name of the configuration profile to `.scprocess_setup.yaml` file e.g:
+Note that default configuration profile (`lsf.yaml` file) defines resource requirements for default {{ software_name }} parameters. If you would like to select `cellbender` for [ambient RNA removal](introduction.md#ambient-rna-removal-optional), make sure your `lsf.yaml` contains this highlighted section:
 
-```yaml
-profile: slurm_default
+```yaml hl_lines="5 6 7"
+app_profile:
+    - none
+__default__:
+  - '-q short'
+run_ambient:
+  - "-q long"
+  - "-gpu 'num=1:j_exclusive=yes'"
+run_harmony:
+  - "-q long"
 ```
-
-Note that default configuration profiles define resource requirements for default {{ software_name }} parameters. If GPU is available and you would like to select `cellbender` for [ambient RNA removal](introduction.md#ambient-rna-removal-optional), add the highlighted section to the configuration profile:
-
-=== "profiles/slurm_default/congif.yaml"
-
-    ```yaml hl_lines="14 15"
-    executor: slurm
-    latency-wait: 10
-    show-failed-logs: True
-    keep-going: True
-    scheduler: greedy   
-    printshellcmds: True
-    jobs: 20
-    default-resources:
-      runtime: 3h
-      mem_mb: 4096
-    set-resources:
-      run_harmony:
-        runtime: 12h
-      run_ambient:
-        slurm_extra: "'--gpus=1'"
-    ```
-
-=== "profiles/lsf_default/congif.yaml"
-
-    ```yaml hl_lines="14 15"
-    executor: lsf
-    latency-wait: 10
-    show-failed-logs: True
-    keep-going: True
-    scheduler: greedy   
-    printshellcmds: True
-    jobs: 20
-    default-resources:
-      runtime: 3h  # change this with queue
-      mem_mb: 4096 #change this
-    set-resources:
-      run_harmony:
-        runtime: 12h # change this with queue
-      run_ambient:
-        slurm_extra: "'--gpus=1'" # change this
-    ```
-
 
 
 
