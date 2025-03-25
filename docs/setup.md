@@ -8,6 +8,11 @@
     cd ~/packages/ # or wherever you keep your packages
     git clone https://code.roche.com/macnairw/scprocess
     ```
+    Swith to `main-shpc` branch:
+    
+    ```bash
+    git checkout main-shpc
+    ```
 
     You should be able to see a `lsf.yaml` file in the top level of the {{ software_name }} directory:
 
