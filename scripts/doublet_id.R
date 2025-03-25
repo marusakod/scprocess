@@ -25,9 +25,9 @@ suppressMessages({
 })
 
 
-main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_method,  dbl_f, dimred_f, min_feats = 100, min_cells = 100){
+main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, sample_var = 'sample_id', ambient_method, dbl_f, dimred_f, min_feats = 100, min_cells = 100){
   message('running scDblFinder')
-
+  
   # if ambient method is cellbender exclude bad samples
   smpl_status = FALSE
 
@@ -35,11 +35,7 @@ main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_me
   # loading file with bad bender samples
   message(' loading cellbender sample stats file')
   sample_stats_df = fread(sample_stats_f)
-  smpl_status = sample_stats_df %>%
-    filter(sample_id == sel_sample) %>%
-    pull(bad_sample) %>% unique()
-
-  }
+  smpl_status = unique(sample_stats_df[get(sample_var) == sel_sample, bad_sample])
 
   if(smpl_status){
     message('  sample ', sel_sample, ' has been excluded. Saving empty results file')
@@ -48,13 +44,14 @@ main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_me
     message('done!')
 
     return(NULL)
-    
+  }
+
   }else{
 
   # load sce file
   message('  loading sce object')
   sce         = sce_f %>% readRDS
-  sample_idx  = sce$sample_id == sel_sample
+  sample_idx  = sce[[sample_var]] == sel_sample
   sce         = sce[, sample_idx ]
 
   # exclude tiny cells
@@ -62,19 +59,42 @@ main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_me
   assert_that( 'detected' %in% colnames(colData(sce)) )
   keep_idx    = sce$detected >= min_feats
   if (sum(keep_idx) < min_cells)
-    browser()
+
   assert_that( sum(keep_idx) >= min_cells,
     msg = "insufficient cells to run scDblFinder :(")
   message(sprintf('    keeping %d / %d cells (%.0f%%)',
     sum(keep_idx), length(keep_idx), 100 * sum(keep_idx) / length(keep_idx)))
   sce         = sce[, keep_idx]
 
-  # run in parallel
   message('  running scDblFinder')
   dbl_dt      = scDblFinder(sce, returnType = 'table',
     multiSampleMode = 'singleModel', verbose = FALSE ) %>%
     as.data.table(keep.rownames = 'cell_id') %>%
-    .[, sample_id := sel_sample ] %>% setcolorder("sample_id")
+    .[, (sample_var) := sel_sample ] %>% setcolorder(sample_var) %>%
+    # keep just real cells
+    .[type == 'real']
+
+  # check if class is available from demultiplexing
+  if('demux_class' %in% colnames(colData(sce))){
+    #extract demux_class
+    demux_dt = colData(sce) %>% as.data.table(keep.rownames = 'cell_id') %>%
+      .[, c("cell_id", sample_var, "demux_class"), with = FALSE]
+
+    # define dt to combine scdbl and demux class
+    dbl_dict = data.table(
+      class        = c('doublet', 'singlet', 'singlet', 'doublet', 'singlet', 'doublet'),
+      demux_class  = c('negative', 'negative', 'doublet', 'singlet', 'singlet', 'doublet'),
+      dbl_class    = c('doublet', 'negative', 'doublet', 'doublet', 'singlet', 'doublet')
+    )
+
+    dbl_dt = dbl_dt %>%
+      merge(demux_dt, by = c('cell_id', sample_var), all.x = TRUE, all.y = FALSE) %>%
+      merge(dbl_dict, by = c('class', 'demux_class')) %>%
+      setnames("class", "scdbl_class")
+  }else{
+    dbl_dt = dbl_dt %>% setnames("class", "dbl_class")
+  }
+
   setkeyv(dbl_dt, "cell_id")
   dbl_dt      = dbl_dt[ colnames(sce) ]
 
@@ -109,16 +129,13 @@ main_doublet_id <- function(sel_sample, sce_f, sample_stats_f = NULL, ambient_me
   return(dimred_dt)
 }
 
-# source('scripts/doublet_id.R');
-# combine_scDblFinder_outputs(fs_concat = "/projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/dbl_myrf1A/scDblFinder_myrf1A_outputs_2023-07-05.txt.gz /projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/dbl_myrf1B/scDblFinder_myrf1B_outputs_2023-07-05.txt.gz /projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/dbl_myrf2A/scDblFinder_myrf2A_outputs_2023-07-05.txt.gz", combined_f = "/projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/scDblFinder_combined_outputs_myrf_mice_2023-07-05.txt.gz", n_cores = 4)
-# combine_scDblFinder_dimreds(fs_concat = "/projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/dbl_myrf1A/scDblFinder_myrf1A_dimreds_2023-07-05.txt.gz /projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/dbl_myrf1B/scDblFinder_myrf1B_dimreds_2023-07-05.txt.gz /projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/dbl_myrf2A/scDblFinder_myrf2A_dimreds_2023-07-05.txt.gz", combined_f = "/projects/site/pred/neurogenomics/users/macnairw/myrf_mice/output/myrf04_doublet_id/scDblFinder_combined_dimreds_myrf_mice_2023-07-05.txt.gz", n_cores = 4)
 
-combine_scDblFinder_outputs <- function(dbl_fs_f, combn_dbl_f, combn_dimred_f, n_cores) {
+combine_scDblFinder_outputs <- function(dbl_fs_f, sample_var, combn_dbl_f, combn_dimred_f, demux_type, n_cores) {
   setDTthreads(n_cores)
 
   # unpack some inputs
   dbl_fs_dt   = fread(dbl_fs_f)
-  samples     = dbl_fs_dt$sample_id
+  samples     = dbl_fs_dt[, get(sample_var)]
   dbl_fs      = dbl_fs_dt$dbl_f
   dimred_fs   = dbl_fs_dt$dimred_f
 
@@ -137,7 +154,7 @@ combine_scDblFinder_outputs <- function(dbl_fs_f, combn_dbl_f, combn_dimred_f, n
   dbl_ls      = dbl_ls[ sapply(dbl_ls, nrow) > 0 ]
 
   # get common columns, that we want
-  first_cols  = c('sample_id', 'cell_id', 'class')
+  first_cols  = c(sample_var, 'cell_id', 'dbl_class')
   exc_cols    = c('type', 'src')
   col_counts  = lapply(dbl_ls, colnames) %>% unlist %>% table
   keep_cols   = names(col_counts)[ col_counts == length(dbl_ls) ]
@@ -161,16 +178,16 @@ scdblfinder_diagnostic_plot <- function(s, sc_dbl_dt, dimred_dt) {
     dimred_dt[ sample_id == s ],
     sc_dbl_dt,
     by = 'cell_id') %>%
-    .[, is_doublet := class == 'doublet' ]
+    .[dbl_class != 'negative', is_doublet := dbl_class == 'doublet' ]
 
   # calc prop doublet
   prop_dbl  = mean(plot_dt$is_doublet)
 
   # calc cutoff
-  if ( 'doublet' %in% plot_dt$class ) {
+  if ( 'doublet' %in% plot_dt$dbl_class ) {
     cut_val   = mean(c(
-      plot_dt[ class == 'singlet' ]$score %>% max,
-      plot_dt[ class == 'doublet' ]$score %>% min
+      plot_dt[ dbl_class == 'singlet' ]$score %>% max,
+      plot_dt[ dbl_class == 'doublet' ]$score %>% min
       ))
   } else {
     cut_val   = 1

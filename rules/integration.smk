@@ -19,11 +19,20 @@ rule run_harmony:
     """
     # run harmony
     Rscript -e "source('scripts/integration.R'); \
-      run_harmony(sce_all_f = '{input.sce_all_f}', \
-        keep_f = '{input.keep_f}', dbl_f = '{input.dbl_f}', \
-        exc_regex = '{INT_EXC_REGEX}', n_hvgs = {INT_N_HVGS}, n_dims = {INT_N_DIMS}, \
-        dbl_res = {INT_DBL_RES}, dbl_cl_prop = {INT_DBL_CL_PROP}, \
-        theta = {INT_THETA}, res_ls_concat = '{INT_RES_LS}', \
-        harmony_f = '{output.harmony_f}', hvgs_f = '{output.hvgs_f}', \
-        sce_clean_f = '{output.sce_clean_f}', n_cores = {threads})"
+      run_harmony( \
+        sce_all_f       = '{input.sce_all_f}', \
+        keep_f          = '{input.keep_f}',
+        dbl_f           = '{input.dbl_f}', \
+        exc_regex       = '{INT_EXC_REGEX}', \
+        n_hvgs          = {INT_N_HVGS}, \
+        n_dims          = {INT_N_DIMS}, \
+        dbl_res         = {INT_DBL_RES}, \
+        dbl_cl_prop     = {INT_DBL_CL_PROP}, \
+        theta           = {INT_THETA},
+        res_ls_concat   = '{INT_RES_LS}', \
+        harmony_f       = '{output.harmony_f}',
+        hvgs_f          = '{output.hvgs_f}', \
+        sce_clean_f     = '{output.sce_clean_f}', \
+        batch_var       = '{BATCH_VAR}', \
+        n_cores         = {threads})"
     """

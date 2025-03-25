@@ -1,3 +1,4 @@
+
 # rules to render html files
 
 # localrules: render_html_index
@@ -35,7 +36,8 @@ rule copy_r_code:
     r_dbl_f     = f"{code_dir}/doublet_id.R",
     r_int_f     = f"{code_dir}/integration.R",
     r_mkr_f     = f"{code_dir}/marker_genes.R",
-    r_zoom_f	= f"{code_dir}/zoom.R"
+    r_zoom_f	  = f"{code_dir}/zoom.R", 
+    r_demux_f   = f"{code_dir}/multiplexing.R"
   shell: 
     """
     echo "copying relevant R files over"
@@ -47,17 +49,16 @@ rule copy_r_code:
     cp scripts/doublet_id.R {output.r_dbl_f}
     cp scripts/integration.R {output.r_int_f}
     cp scripts/marker_genes.R {output.r_mkr_f}
-    cp scripts/zoom.R {output.r_zoom_f}        
+    cp scripts/zoom.R {output.r_zoom_f}    
+    cp scripts/multiplexing.R {output.r_demux_f}    
     """
 
  
 
 
-
-
 rule render_html_alevin_fry:
   input:
-    expand(af_dir + '/af_{sample}/' + ('rna/' if DEMUX_TYPE == 'af' else '') + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=SAMPLES)
+    expand(af_dir + '/af_{sample}/' + af_rna_dir + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=runs)
   output:
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_alevin_fry.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_alevin_fry.html"
@@ -76,27 +77,73 @@ rule render_html_alevin_fry:
     rule="af"
 
     # rendering html
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
         render_reports(
-        rule_name = '$rule', \
-        proj_dir = '{PROJ_DIR}', \
-        temp_f =  '$template_f', \
-        rmd_f = '{output.rmd_f}', \
-        YOUR_NAME = '{YOUR_NAME}', \
-        AFFILIATION = '{AFFILIATION}', \
-        SHORT_TAG = '{SHORT_TAG}', \
-        DATE_STAMP = '{DATE_STAMP}', \
-        SAMPLE_STR = '{SAMPLE_STR}', \
+        rule_name      = '$rule', \
+        proj_dir       = '{PROJ_DIR}', \
+        temp_f         =  '$template_f', \
+        rmd_f          = '{output.rmd_f}', \
+        YOUR_NAME      = '{YOUR_NAME}', \
+        AFFILIATION    = '{AFFILIATION}', \
+        SHORT_TAG      = '{SHORT_TAG}', \
+        DATE_STAMP     = '{DATE_STAMP}', \
+        RUNS_STR       = '{RUNS_STR}', \
+        PROJ_DIR       = '{PROJ_DIR}', \
         AMBIENT_METHOD = '{AMBIENT_METHOD}', \
-        af_dir = '{af_dir}')"
+        SAMPLE_VAR     = '{SAMPLE_VAR}', \
+        af_dir         = '{af_dir}', \
+        af_rna_dir     = '{af_rna_dir}')"
 
     """
+
+if DEMUX_TYPE == 'af':
+  rule render_html_multiplexing:
+    input:
+      expand(af_dir + '/af_{sample}/hto/' + 'knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz', sample=runs), 
+      sce_hto_f = sce_dir + '/sce_cells_htos_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+    output:
+      rmd_f       = f"{rmd_dir}/{SHORT_TAG}_multiplexing.Rmd",
+      html_f      = f"{docs_dir}/{SHORT_TAG}_multiplexing.html"
+    threads: 1
+    retries: RETRIES
+    resources:
+      mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    conda:
+      '../envs/rlibs.yml'
+    shell:
+      """
+      echo "copying relevant R files over"
+    
+      # make and render Rmd file
+      template_f=$(realpath templates/multiplexing.Rmd.template)
+      rule="multiplexing"
+
+      # rendering html
+      Rscript --vanilla -e "source('scripts/render_reports.R'); \
+          render_reports(
+          rule_name      = '$rule', \
+          proj_dir       = '{PROJ_DIR}', \
+          temp_f         =  '$template_f', \
+          rmd_f          = '{output.rmd_f}', \
+          sce_hto_f      = '{input.sce_hto_f}', \
+          YOUR_NAME      = '{YOUR_NAME}', \
+          AFFILIATION    = '{AFFILIATION}', \
+          PROJ_DIR       = '{PROJ_DIR}', \
+          SHORT_TAG      = '{SHORT_TAG}', \
+          DATE_STAMP     = '{DATE_STAMP}', \
+          RUNS_STR       = '{RUNS_STR}', \
+          METADATA_F     = '{METADATA_F}', \
+          AMBIENT_METHOD = '{AMBIENT_METHOD}', \
+          SAMPLE_VAR     = '{SAMPLE_VAR}', \
+          af_dir         = '{af_dir}')"
+
+      """
 
 
 # render_html_ambient
 rule render_html_ambient: # some outputs are the same as outputs in render_html_alevin_fry
   input:
-    expand( amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', sample = SAMPLES )
+    expand( amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', sample = runs )
   output:
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_ambient.html"
@@ -111,7 +158,7 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
         template_f=$(realpath templates/ambient.Rmd.template)
         rule="ambient"
         
-        Rscript -e "source('scripts/render_reports.R'); \
+        Rscript --vanilla -e "source('scripts/render_reports.R'); \
         render_reports(
         rule_name = '$rule', \
         proj_dir = '{PROJ_DIR}', \
@@ -119,9 +166,10 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
         rmd_f = '{output.rmd_f}', \
         YOUR_NAME = '{YOUR_NAME}', \
         AFFILIATION = '{AFFILIATION}', \
+        PROJ_DIR    = '{PROJ_DIR}', \
         SHORT_TAG = '{SHORT_TAG}', \
         DATE_STAMP = '{DATE_STAMP}', \
-        SAMPLE_STR = '{SAMPLE_STR}', \
+        SAMPLE_STR = '{RUNS_STR}', \
         AMBIENT_METHOD = '{AMBIENT_METHOD}', \
         af_dir = '{af_dir}')"
     """
@@ -147,7 +195,7 @@ rule render_html_qc:
     rule="qc"
 
     # rendering html
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
     rule_name = '$rule', \
     proj_dir = '{PROJ_DIR}', \
@@ -155,6 +203,7 @@ rule render_html_qc:
     rmd_f = '{output.rmd_f}', \
     YOUR_NAME = '{YOUR_NAME}', \
     AFFILIATION = '{AFFILIATION}', \
+    PROJ_DIR    = '{PROJ_DIR}', \
     SHORT_TAG = '{SHORT_TAG}', \
     DATE_STAMP = '{DATE_STAMP}', \
     threads = {threads}, \
@@ -201,7 +250,7 @@ rule render_html_integration:
     template_f=$(realpath templates/integration.Rmd.template)
     rule="integration"
     
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
     rule_name = '$rule', \
     proj_dir = '{PROJ_DIR}', \
@@ -210,6 +259,7 @@ rule render_html_integration:
     YOUR_NAME = '{YOUR_NAME}', \
     AFFILIATION = '{AFFILIATION}', \
     SHORT_TAG = '{SHORT_TAG}', \
+    PROJ_DIR  = '{PROJ_DIR}', \
     DATE_STAMP = '{DATE_STAMP}', \
     threads = {threads}, \
     sce_all_f = '{input.sce_f}', \
@@ -247,7 +297,7 @@ rule render_html_label_celltypes:
     template_f=$(realpath templates/label_celltypes.Rmd.template)
     rule="cell_labels"
 
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
     rule_name = '$rule', \
     proj_dir = '{PROJ_DIR}', \
@@ -256,6 +306,7 @@ rule render_html_label_celltypes:
     YOUR_NAME = '{YOUR_NAME}', \
     AFFILIATION = '{AFFILIATION}', \
     SHORT_TAG = '{SHORT_TAG}', \
+    PROJ_DIR = '{PROJ_DIR}', \
     DATE_STAMP = '{DATE_STAMP}', \
     threads = {threads}, \
     guesses_f = '{input.guesses_f}', \
@@ -270,72 +321,69 @@ rule render_html_label_celltypes:
     """
 
 
-# # render_html_marker_genes
+# # render_marker_genes
 rule render_html_marker_genes:
   input:
-    r_int_f     = f'{code_dir}/integration.R',
-    pb_f        = mkr_dir + '/pb_'              + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.rds', 
-    mkrs_f      = mkr_dir   + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz', 
-    harmony_f   = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    hvgs_f      = mkr_dir   + '/pb_hvgs_'         + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
-    fgsea_bp_f  = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
-    fgsea_cc_f  = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
-    fgsea_mf_f  = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
-    fgsea_paths_f = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
-    fgsea_hlmk_f = mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz'
+    r_int_f   = f'{code_dir}/integration.R',
+    pb_f      = mkr_dir + '/pb_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.rds',
+    mkrs_f    = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    harmony_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    hvgs_f    = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    **get_conditional_outputs(SPECIES)
   output:
-    rmd_f       = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.Rmd',
-    html_f      = f'{docs_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.html'
+    rmd_f  = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.Rmd',
+    html_f = f'{docs_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.html'
   threads: 8
   retries: RETRIES
-  params: 
-    meta_vars = ','.join(METADATA_VARS)
-  conda: 
-    '../envs/rlibs.yml'
+  params:
+    meta_vars  = ','.join(METADATA_VARS),
+    fgsea_args = lambda wildcards, input: " ".join(
+        [
+            f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}',",
+            f"fgsea_go_cc_f = '{input.get('fgsea_go_cc_f', '')}',",
+            f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}',",
+            f"fgsea_paths_f = '{input.get('fgsea_paths_f', '')}',",
+            f"fgsea_hlmk_f  = '{input.get('fgsea_hlmk_f', '')}',"
+        ]
+    ).strip()
+  conda: '../envs/rlibs.yml'
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_HTML_MARKER_GENES
+    mem_mb = lambda wildcards, attempt: attempt * MB_HTML_MARKER_GENES
   shell:
     """
-
     template_f=$(realpath templates/marker_genes.Rmd.template)
     rule="markers"
 
-    # define what we will substitute in
-
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
-    rule_name = '$rule', \
-    proj_dir = '{PROJ_DIR}', \
-    temp_f =  '$template_f', \
-    rmd_f = '{output.rmd_f}', \
-    YOUR_NAME = '{YOUR_NAME}', \
-    AFFILIATION = '{AFFILIATION}', \
-    SHORT_TAG = '{SHORT_TAG}', \
-    DATE_STAMP = '{DATE_STAMP}', \
-    threads = {threads}, \
-    meta_f = '{METADATA_F}', \
-    meta_vars_ls = '{params.meta_vars}', \
-    gtf_dt_f = '{AF_GTF_DT_F}', \
-    hmny_f = '{input.harmony_f}', \
-    pb_f = '{input.pb_f}', \
-    mkrs_f = '{input.mkrs_f}', \
-    canon_f = '{MKR_CANON_F}', \
-    hvgs_f = '{input.hvgs_f}', \
-    fgsea_go_bp_f = '{input.fgsea_bp_f}', \
-    fgsea_go_cc_f = '{input.fgsea_cc_f}', \
-    fgsea_go_mf_f = '{input.fgsea_mf_f}', \
-    fgsea_paths_f = '{input.fgsea_paths_f}', \
-    fgsea_hlmk_f = '{input.fgsea_hlmk_f}', \
-    INT_EXC_REGEX = '{INT_EXC_REGEX}', \
-    INT_SEL_RES = {INT_SEL_RES}, \
-    MKR_NOT_OK_RE = '{MKR_NOT_OK_RE}', \
-    MKR_MIN_CPM_MKR = {MKR_MIN_CPM_MKR}, \
-    MKR_MIN_CELLS = {MKR_MIN_CELLS}, \
-    MKR_GSEA_CUT = {MKR_GSEA_CUT}, \
-    SPECIES = '{SPECIES}')"
-
+        rule_name = '$rule',
+        proj_dir = '{PROJ_DIR}',
+        temp_f =  '$template_f',
+        rmd_f = '{output.rmd_f}',
+        YOUR_NAME = '{YOUR_NAME}',
+        AFFILIATION = '{AFFILIATION}',
+        PROJ_DIR = '{PROJ_DIR}',
+        SHORT_TAG = '{SHORT_TAG}',
+        DATE_STAMP = '{DATE_STAMP}',
+        threads = {threads},
+        meta_f = '{METADATA_F}',
+        meta_vars_ls = '{params.meta_vars}',
+        gtf_dt_f = '{AF_GTF_DT_F}',
+        hmny_f = '{input.harmony_f}',
+        pb_f = '{input.pb_f}',
+        mkrs_f = '{input.mkrs_f}',
+        CUSTOM_MKR_NAMES = '{CUSTOM_MKR_NAMES}',
+        CUSTOM_MKR_PATHS = '{CUSTOM_MKR_PATHS}',
+        hvgs_f = '{input.hvgs_f}',
+        {params.fgsea_args}
+        INT_EXC_REGEX = '{INT_EXC_REGEX}',
+        INT_SEL_RES = {INT_SEL_RES},
+        MKR_NOT_OK_RE = '{MKR_NOT_OK_RE}',
+        MKR_MIN_CPM_MKR = {MKR_MIN_CPM_MKR},
+        MKR_MIN_CELLS = {MKR_MIN_CELLS},
+        MKR_GSEA_CUT = {MKR_GSEA_CUT},
+        SPECIES = '{SPECIES}')"
     """
-
 
 # # render_html_zoom
 rule render_html_zoom:
@@ -369,7 +417,7 @@ rule render_html_zoom:
     template_f=$(realpath templates/zoom.Rmd.template)
     rule="zoom"
 
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
     rule_name = '$rule', \
     proj_dir = '{PROJ_DIR}', \
@@ -377,6 +425,7 @@ rule render_html_zoom:
     rmd_f = '{output.rmd_f}', \
     YOUR_NAME = '{YOUR_NAME}', \
     AFFILIATION = '{AFFILIATION}', \
+    PROJ_DIR = '{PROJ_DIR}', \
     SHORT_TAG = '{SHORT_TAG}', \
     DATE_STAMP = '{DATE_STAMP}', \
     threads = {threads}, \
@@ -435,13 +484,14 @@ rule render_html_empties:
     rule="pb_empties"
 
     
-    Rscript -e "source('scripts/render_reports.R'); \
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
     rule_name = '$rule', \
     proj_dir = '{PROJ_DIR}', \
     temp_f =  '$template_f', \
     rmd_f = '{output.rmd_f}', \
     YOUR_NAME = '{YOUR_NAME}', \
+    PROJ_DIR = '{PROJ_DIR}', \
     AFFILIATION = '{AFFILIATION}', \
     SHORT_TAG = '{SHORT_TAG}', \
     DATE_STAMP = '{DATE_STAMP}', \

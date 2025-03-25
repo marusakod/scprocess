@@ -25,8 +25,8 @@ def new_proj(sc_dir, name, where):
 
     # Define required files and locations
     f_ls = ['_workflowr.yml', '.gitignore', '.gitattributes',
-            '_site.yml', 'about.Rmd', 'index.Rmd', 'license.Rmd', '.nojekyll']
-    loc_ls = ['.', '.', '.', 'analysis', 'analysis', 'analysis', 'analysis', 'public']
+            '_site.yml', 'custom.css', 'about.Rmd', 'index.Rmd', 'license.Rmd', '.nojekyll']
+    loc_ls = ['.', '.', '.', 'analysis', 'analysis', 'analysis', 'analysis', 'analysis', 'public']
     assert len(f_ls) == len(loc_ls)
 
     # Copy these files to the correct locations

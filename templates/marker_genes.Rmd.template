@@ -6,19 +6,20 @@ author:
   - ${AFFILIATION}
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
-  workflowr::wflow_html:
+  rmdformats::downcute:
+    highlight: textmate
     code_folding: hide
-    toc: true
-    toc_float: true
-    number_sections: false
+    toc_depth: 3
+    css: custom.css
 ---
 
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
-knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
-knitr::opts_knit$set( root.dir='..' )
-# workflowr::wflow_build(files='analysis/${SHORT_TAG}_marker_genes_${INT_SEL_RES}.Rmd', view=F, verbose=T, delete_cache=F)
+knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
+fig.path = "figure/${SHORT_TAG}_marker_genes_${INT_SEL_RES}.Rmd/"
+)
+knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 ```
 
 
@@ -39,7 +40,6 @@ gtf_dt_f      = "${gtf_dt_f}"
 pb_f          = "${pb_f}"
 hmny_f        = "${hmny_f}"
 mkrs_f        = "${mkrs_f}"
-canon_f       = "${canon_f}"
 hvgs_f        = "${hvgs_f}"
 
 # fgsea files
@@ -48,6 +48,17 @@ fgsea_go_cc_f = "${fgsea_go_cc_f}"
 fgsea_go_mf_f = "${fgsea_go_mf_f}"
 fgsea_paths_f = "${fgsea_paths_f}"
 fgsea_hlmk_f  = "${fgsea_hlmk_f}"
+
+# custom markers for heatmap
+custom_mkr_names_str = "${CUSTOM_MKR_NAMES}"
+custom_mkr_paths_str = "${CUSTOM_MKR_PATHS}"
+
+if(custom_mkr_names_str != ""){
+  # make list
+  custom_mkr_names = str_split(custom_mkr_names_str, pattern = ',') %>% unlist()
+  custom_mkr_paths = str_split(custom_mkr_paths_str, pattern = ',') %>% unlist() %>%
+    setNames(custom_mkr_names)
+}
 
 # parameters for here
 not_ok_re     = "${MKR_NOT_OK_RE}"
@@ -104,22 +115,31 @@ cpms_dt     = readRDS(pb_f) %>%
 hvgs_dt     = fread(hvgs_f) %>% 
   .[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
   .[ order(-vst_var) ]
+top_hvgs =  hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs" ]
 ```
 
-
-```{r load_heatmap_markers, include = FALSE}
-canon_dt    = fread(canon_f) %>% 
-  .[, gene_id   := sprintf("%s_%s", symbol, ensembl_id) ]
-assert_that( all( canon_dt$gene_id %in% unique(cpms_dt$gene_id) ) )
-top_hvgs    = hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs" ]
-mkrs_ls     = list( brain = canon_dt, HVGs = top_hvgs )
-```
 
 ```{r load_pb_markers, include = FALSE}
 # calculate markers
 mkrs_dt     = fread(mkrs_f)
 if (is.null(cl_ord))
   cl_ord      = sort(unique(mkrs_dt$cluster))
+```
+
+
+```{r load_heatmap_markers, include = FALSE}
+
+if (custom_mkr_names_str != "") {
+  custom_mkrs_dt_ls = lapply(custom_mkr_paths, FUN = process_custom_markers, biotypes_dt = biotypes_dt, marker_calcs_dt = mkrs_dt)
+  
+  # remove NULL elements from list
+  custom_mkrs_dt_ls = Filter(Negate(is.null), custom_mkrs_dt_ls)
+  
+  mkrs_ls = c(custom_mkrs_dt_ls, list(HVGs = top_hvgs))
+} else {
+  mkrs_ls = list(HVGs = top_hvgs)
+}
+
 ```
 
 

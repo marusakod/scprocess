@@ -1,0 +1,78 @@
+/* Custom styles to override downcute theme */
+
+/* set the entire background to white */
+body, .Main, .Content, .page-content, .Sidebar {
+    background: #ffffff !important;
+}
+
+/* set the inline code background to light mustard */
+.page-content code {
+    background: #fae5bb !important;
+    color: #000000 !important; 
+}
+
+/* ensure code blocks retain default background */
+.page-content pre code {
+    background: var(--code-block-background) !important;
+    color: var(--code-block-text-color) !important;
+}
+
+/* remove the dark mode toggle */
+.dark-theme-toggler {
+    display: none !important;
+}
+
+/* style for tabs */
+.nav-tabs > li > a {
+    color: grey !important; /* Inactive tab text color */
+}
+
+/* active tab text color */
+.nav-tabs > li.active > a,
+.nav-tabs > li.active > a:focus,
+.nav-tabs > li.active > a:hover {
+    color: purple !important; /* Active tab text color */
+    font-weight: bold;
+}
+
+/* if navbar is fixed, add a top margin to prevent overlap */
+.navbar {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 9999;
+}
+
+/* add offset to anchored sections to avoid navbar overlap */
+:target::before {
+    content: "";
+    display: block;
+    height: 50px;  
+    margin-top: -50px;  
+    visibility: hidden;
+}
+
+/* add space to the content area to prevent overlap with the fixed navbar */
+.page-content {
+    margin-top: 5px; 
+    padding-top: 30px;  
+}
+
+/* non-fixed navbar with padding-top for content */
+body, .Main, .Content {
+    padding-top: 10px; 
+}
+
+body, .Sidebar {
+    padding-top: 70px; 
+}
+
+/* change the background color of the navbar */
+.navbar {
+    background-color: #d7bbe0 !important; 
+}
+
+/* change the text color of the navbar links */
+.navbar a {
+    color: #000000 !important; 
+}

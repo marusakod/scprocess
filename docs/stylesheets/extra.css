@@ -27,9 +27,16 @@ img[alt="all_knee_examples"] {
   padding-right: 20px;
 }
 img[alt="workflow_chart"] {
-  float: center;
+  float: block;
+  margin: 0 auto;
   width: 1000px;
-  height: 900px;
+  height: 1000px;
+}
+img[alt="multiplexing"] {
+  display: block;
+  margin: 0 auto;
+  width: 550px;
+  height: 500px;
 }
 .img-caption {
   text-align: left;

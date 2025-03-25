@@ -16,7 +16,7 @@ hide:
 
 * For an explanation how to use {{ software_name }}, along with example code, how to choose parameter settings, tips and best practices, read the [Usage](usage.md) section.
 
-* For a step-by-step tutorial on a small example dataset, see the [Quick start tutorial](tutorial.md) section.
+* For a step-by-step tutorial on small example datasets, see the [Tutorials](tutorial.md) section.
 
 * For details on input arguments and output files, see the [Reference](reference.md) section.
 
