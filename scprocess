@@ -120,7 +120,11 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
             'analysis/_site.yml', 'analysis/about.Rmd', 'analysis/index.Rmd', 'analysis/license.Rmd', 'public/.nojekyll']
   
   wflowr_fs_ful_ls = [os.path.join(proj_dir, f) for f in wflowr_fs_ls]
-  assert all([os.path.isfile(f) for f in wflowr_fs_ful_ls]), \
+  missing_wflow_fs = [ f for f in wflowr_fs_ful_ls if not os.path.isfile(f) ]
+  if len(missing_wflow_fs) > 0:
+    print('missing files in project:')
+    print(missing_wflow_fs)
+  assert len(missing_wflow_fs) == 0, \
     f"proj_dir {config['proj_dir']} is not a workflowr project; you can create a workflowr project using the newproj function"
 
   # check that sample metadata exists, has sample_id present, no spaces in column names 
