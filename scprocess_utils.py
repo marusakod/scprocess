@@ -583,9 +583,9 @@ def get_resource_parameters(config):
     if 'mb_save_alevin_to_h5' in config['resources']:
       MB_SAVE_ALEVIN_TO_H5            = config['resources']['mb_save_alevin_to_h5']
     if 'mb_run_cellbender' in config['resources']:
-      MB_RUN_CELLBENDER               = config['resources']['mb_run_cellbender']
-    if 'mb_get_cellbender_qc_metrics' in config['resources']:
-      MB_GET_CELLBENDER_QC_METRICS    = config['resources']['mb_get_cellbender_qc_metrics']
+      MB_RUN_AMBIENT               = config['resources']['mb_run_ambient']
+    if 'mb_get_barcode_qc_metrics' in config['resources']:
+      MB_GET_BARCODE_QC_METRICS   = config['resources']['mb_get_barcode_qc_metrics']
     if 'mb_run_scdblfinder' in config['resources']:
       MB_RUN_SCDBLFINDER              = config['resources']['mb_run_scdblfinder']
     if 'mb_combine_scdblfinder_outputs' in config['resources']:
