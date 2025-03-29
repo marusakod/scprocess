@@ -582,7 +582,7 @@ def get_resource_parameters(config):
       MB_RUN_ALEVIN_FRY               = config['resources']['mb_run_alevin_fry']
     if 'mb_save_alevin_to_h5' in config['resources']:
       MB_SAVE_ALEVIN_TO_H5            = config['resources']['mb_save_alevin_to_h5']
-    if 'mb_run_cellbender' in config['resources']:
+    if 'mb_run_ambient' in config['resources']:
       MB_RUN_AMBIENT               = config['resources']['mb_run_ambient']
     if 'mb_get_barcode_qc_metrics' in config['resources']:
       MB_GET_BARCODE_QC_METRICS   = config['resources']['mb_get_barcode_qc_metrics']
