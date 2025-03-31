@@ -4,49 +4,88 @@ import pandas as pd
 localrules: merge_qc
 
 
-def extract_qc_sample_statistics(qc_merged_f, QC_MIN_CELLS):
-    # Read merged QC file
-    qc_dt = pd.read_csv(qc_merged_f, compression='gzip')
-    qc_dt = qc_dt[qc_dt["keep"] == True] # only count cells that passed qc
+def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS):
+    import pandas as pd  # Ensure pandas is imported
 
-    # Count the number of cells per sample
+    # load the merged qc file
+    qc_dt = pd.read_csv(qc_merged_f, compression='gzip')
+
+    # filter for cells that passed qc
+    qc_dt = qc_dt[qc_dt["keep"] == True]
+
+    # count the number of cells per sample
     sample_df = (
         qc_dt.groupby('sample_id')
-        .size()  # Counts rows per sample_id
-        .reset_index(name='n_cells')  # Rename count column
+        .size()
+        .reset_index(name='n_cells')
     )
 
-    # Determine which samples do not meet the threshold
-    sample_df['bad_sample'] = sample_df['n_cells'] < QC_MIN_CELLS
+    # identify samples that do not meet the minimum cell threshold
+    sample_df['bad_qc'] = sample_df['n_cells'] < QC_MIN_CELLS
+
+    # handle samples excluded after cellbender
+    if AMBIENT_METHOD == 'cellbender':
+        # load ambient sample stats
+        amb_stats = pd.read_csv(ambient_stats_f)
+        # get bad pools or samples
+        bad_bender = amb_stats.loc[amb_stats['bad_sample'], SAMPLE_VAR].tolist()
+
+        if DEMUX_TYPE != "":
+            bad_bender_samples = []
+            for p in bad_bender:
+                if p in SAMPLE_MAPPING:
+                    bad_bender_samples.extend(SAMPLE_MAPPING[p])
+          
+            assert all(s in SAMPLES for s in bad_bender_samples), \
+                "Some bad bender samples are not in the SAMPLES list."
+        else:
+            bad_bender_samples = bad_bender
+
+        # add bad_bender column to sample_df
+        sample_df['bad_bender'] = sample_df['sample_id'].isin(bad_bender_samples)
+        # label as bad if bad_bender or bad_qc
+        sample_df['bad_sample'] = sample_df['bad_bender'] | sample_df['bad_qc']
+    else:
+        # If not using CellBender, set 'bad_bender' to False for all samples
+        sample_df['bad_sample'] = sample_df['bad_qc']
 
     return sample_df
+
 
 
 # get output file paths as string
 def get_qc_files_str(run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP):
   if SAMPLE_MAPPING is None:
     sce_str = f"{qc_dir}/sce_cells_clean_{run}_{FULL_TAG}_{DATE_STAMP}.rds"
+    smpl_str= run
   else:
     sce_fs_ls = []
+    smpls_ls = []
     for s in SAMPLE_MAPPING[run]:
       sce_fs_ls.append(f"{qc_dir}/sce_cells_clean_{s}_{FULL_TAG}_{DATE_STAMP}.rds")
+      smpls_ls.append(s)
 
-    sce_str = ','.join(sce_fs_ls)
+    sce_str  = ','.join(sce_fs_ls)
+    smpl_str = ','.join(smpls_ls)
   
-  return sce_str
+  return smpl_str, sce_str
     
 
 
 rule run_qc:
   input:
-    smpl_stats_f = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',
+    ambient_stats_f = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',
     amb_yaml_f   = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
     demux_f      = (demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if DEMUX_TYPE == 'af' else ([DEMUX_F] if DEMUX_TYPE == 'custom' else [])
   output:
-    qc_f  = temp(qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'), 
-    dbl_f = dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'    
+    qc_f         = temp(qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'), 
+    coldata_f    = temp(qc_dir + '/coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'),
+    rowdata_f    = temp(qc_dir + '/rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'), 
+    dimred_f     = dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    dbl_f        = dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'    
   params:
-    sce_fs_str = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)
+    all_smpls_str = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[0]
+    sce_fs_str    = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[1]
   threads: 4
   retries: RETRIES
   resources:
@@ -60,13 +99,18 @@ rule run_qc:
           sel_sample     = '{wildcards.run}', \
           meta_f         = '{METADATA_F}', \
           amb_yaml_f     = '{input.amb_yaml_f}', \
-          sample_stats_f = '{input.smpl_stats_f}', \
+          sample_stats_f = '{input.ambient_stats_f}', \
           demux_f        = '{input.demux_f}', \
           gtf_dt_f       = '{AF_GTF_DT_F}', \
           ambient_method = '{AMBIENT_METHOD}', \
-          sce_f          = '{params.sce_fs_str}', \
+          sce_fs_str     = '{params.sce_fs_str}', \
+          all_samples_str = '{params.all_smpls_str}', \
+          rowdata_f       = '{output.rowdata_f}', \
           qc_f           = '{output.qc_f}', \
-          dbl_f		 = '{output.dbl_f}', \
+          coldata_f      = '{output.coldata_f}', \
+          dimred_f       = '{output.dimred_f}', \
+          dbl_f		       = '{output.dbl_f}', \
+          mito_str       = '{AF_MITO_STR}', \
           hard_min_counts= {QC_HARD_MIN_COUNTS}, \
           hard_min_feats = {QC_HARD_MIN_FEATS}, \
           hard_max_mito  = {QC_HARD_MAX_MITO}, \
@@ -76,39 +120,86 @@ rule run_qc:
           max_mito       = {QC_MAX_MITO}, \
           min_splice     = {QC_MIN_SPLICE}, \
           max_splice     = {QC_MAX_SPLICE}, \
-          min_cells      = {QC_MIN_CELLS}, \
           sample_var     = '{SAMPLE_VAR}', \
           demux_type     = '{DEMUX_TYPE}', \
           dbl_min_feats  = {DBL_MIN_FEATS})"
     """
 
+
 # rule that takes all temporary qc files and combines them into a single files (temporary files should be removed)
 rule merge_qc:
   input:
-    qc_f  = expand(qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', run = runs)
+    qc_fs      = expand(qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', run = runs),
+    coldata_fs = expand(qc_dir  + '/coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', run = runs)
   output:
-    qc_merged_f  = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'  
+    qc_merged_f      = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    coldata_merged_f = qc_dir  + '/coldata_dt_all_samples' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 4
   retries: RETRIES
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
   run:
-   # read all input files and concatenate them
-    df_list = [pd.read_csv(f, sep='\t', compression='gzip') for f in input.qc_f]
-    df_merged = pd.concat(df_list, ignore_index=True)
+    # read all nonempty input files and concatenate them
+    qc_df_ls = [
+      pd.read_csv(f, sep='\t', compression='gzip') 
+      for f in input.fs 
+      if open(f, 'r').read(1)  # Check if file is not empty 
+    ]
+    qc_df_merged = pd.concat(qc_df_ls, ignore_index=True)
 
-    # Save the merged dataframe to the output file
-    df_merged.to_csv(output.qc_merged_f, sep='\t', index=False, compression='gzip')
+
+    coldata_df_ls = [
+      pd.read_csv(f, sep='\t', compression='gzip') 
+      for f in input.coldata_fs 
+      if open(f, 'r').read(1)  # Check if file is not empty
+    ]
+    coldata_df_merged = pd.concat(coldata_df_ls, ignore_index=True)
+
+    # save
+    qc_df_merged.to_csv(output.qc_merged_f, sep='\t', index=False, compression='gzip')
+    coldata_df_merged.to_csv(output.coldata_merged_f, sep='\t', index=False, compression='gzip')
 
 
 
+rule merge_rowdata:
+  input:
+    rowdata_fs = expand(qc_dir  + '/rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', run = runs)
+  output:
+    rowdata_merged_f = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+  threads: 4
+  retries: RETRIES
+  resources:
+    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
+  run:
+    # read all nonempty rowdata files 
+    rd_df_ls = [
+      pd.read_csv(f, sep='\t', compression='gzip') 
+      for f in input.fs 
+      if open(f, 'r').read(1)  # Check if file is not empty 
+    ]
+    
+    # check if identical
+    first_rd = rd_df_ls[0]
+    all_ident= all(first_rd.equals(df) for df in rd_df_ls[1:])
+    
+    # save only one dt
+    if all_ident:
+    # Save the first DataFrame if they are all identical
+      first_rf.to_csv(output.rowdata_merged_f, sep='\t', index=False, compression='gzip')
+    else:
+      raise ValueError("Error: rowdata for all sce objects not identical.")
 
-# rule that takes the entire qc file, determines which samples should be excluded and writes a checkpoint csv file.
+
+
+# exclude samples that are bed in bender (all samples that come from bad pools)
+# exclude samples that don't have enough celltypes
+
 rule get_qc_sample_statistics:
   input:
-    qc_merged_f =  qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz' 
+    ambient_stats_f = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',
+    qc_merged_f     = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz' 
   output:
-    smpl_stats_f = qc_dir + '/qc_sample_statistics_' + DATE_STAMP + '.csv'
+    qc_stats_f = qc_dir + '/qc_sample_statistics_' + DATE_STAMP + '.txt'
   run:
-    sample_stats_df = extract_qc_sample_statistics(input.qc_merged_f, QC_MIN_CELLS)
+    sample_stats_df = extract_qc_sample_statistics(input.ambient_stats_f, input.qc_merged_f, SAMPLES, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS)
     sample_stats_df.to_csv(output.smpl_stats_f, sep = '\t', index = False)

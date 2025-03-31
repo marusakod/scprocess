@@ -41,89 +41,61 @@ splice_labs = c("0.01%", "0.03%", "0.1%", "0.3%", "1%", "3%", "10%", "50%",
 prob_brks   = c(0.5, 0.9, 0.99, 0.999, 0.9999, 0.99999, 0.999999) %>% qlogis
 prob_labs   = c("50%", "90%", "99%", "99.9%", "99.99%", "99.999%", "99.9999%")
 
-
-proj_dir = '/projects/site/pred/neurogenomics/users/kodermam'
-
-sel_sample = 'run1'
-meta_f = file.path(proj_dir, 'Miallot_2023/data/metadata/Miallot_2023_pool_metadata.csv')
-sce_fs_str = fread(meta_f) %>% .[pool_id == 'run1', sample_id] %>%
-  paste0('/projects/site/pred/neurogenomics/users/kodermam/Miallot_2023/output/Miallot_qc/sce_cells_clean_', ., '_Miallot_2023_2025-02-09.rds') %>%
-  paste(., collapse = ',')
-
-dimred_f = file.path(proj_dir, 'Miallot_2023/output/Miallot_doublet_id/dbl_run1/scDblFinder_run1_dimreds_Miallot_2023_2025-02-09.txt.gz' )
-dbl_f  = file.path(proj_dir, 'Miallot_2023/output/Miallot_doublet_id/dbl_run1/scDblFinder_run1_outputs_Miallot_2023_2025-02-09.txt.gz')
-amb_yaml_f = file.path(proj_dir, 'Miallot_2023/output/Miallot_ambient/ambient_run1/ambient_run1_2025-02-09_output_paths.yaml')
-sample_stats_f = file.path(proj_dir, 'Miallot_2023/output/Miallot_ambient/ambient_sample_statistics_2025-02-09.txt')
-demux_f = file.path(proj_dir, 'Miallot_2023/output/Miallot_demultiplexing/sce_cells_htos_run1_Miallot_2023_2025-02-09.rds')
-gtf_dt_f = file.path('/projects/site/pred/neurogenomics/users/kodermam/scprocess_data/reference_genomes/mouse_2024/genes_gtf.txt.gz')
-ambient_method = 'none'
-qc_f = file.path(proj_dir, 'Miallot_2023/output/qc_dt_run1_Miallot_2023_2025-02-09.rds')
-rd_f = file.path(proj_dir, 'Miallot_2023/output/rowdata_run1_Miallot_2023_2025-02-09.rds')
-
-hard_min_counts = 200
-hard_min_feats = 100
-hard_max_mito = 0.5
-min_counts = 500 
-min_feats = 300
-min_mito = 0
-max_mito =0.1
-min_splice = 0
-min_cells = 500
-sample_var = 'pool_id'
-demux_type = 'af'
-dbl_min_feats = 100
-mito_str = "^mt-"
-
-# need to source the ambient scrip as well for funciton that reads .h5 files from ambient
-
-# test_qc <- function(
-#   sel_sample, meta_f, dbl_f, amb_yaml_f, sample_stats_f, demux_f, gtf_dt_f, ambient_method,
-#   sce_fs_str, qc_f, hard_min_counts, hard_min_feats, hard_max_mito, min_counts, min_feats,
-#   min_mito, max_mito, min_splice, max_splice, min_cells, sample_var, demux_type,
-#   dbl_min_feats
-# ) {
-#   # split file paths in case they are comma-separated
-#   sce_files = unlist(strsplit(sce_f, ","))
 # 
-#   # create empty output files (except qc_f)
+# proj_dir = '/projects/site/pred/neurogenomics/users/kodermam'
 # 
-#   for (file in sce_files) {
-#       print(file)
-#       file.create(file)
-#   }
+# sel_sample = 'run1'
+# meta_f = file.path(proj_dir, 'Miallot_2023/data/metadata/Miallot_2023_pool_metadata.csv')
+# sce_fs_str = fread(meta_f) %>% .[pool_id == 'run1', sample_id] %>%
+#   paste0('/projects/site/pred/neurogenomics/users/kodermam/Miallot_2023/output/Miallot_qc/sce_cells_clean_', ., '_Miallot_2023_2025-02-09.rds') %>%
+#   paste(., collapse = ',')
 # 
-#       # create mock qc data
-#       qc_data = data.frame(
-#         cell_id = paste0("cell_", 1:10),
-#         sample_id = rep(sel_sample, 10), 
-#         keep = rep(TRUE, 10)
-#       )
+# dimred_f = file.path(proj_dir, 'Miallot_2023/output/Miallot_doublet_id/dbl_run1/scDblFinder_run1_dimreds_Miallot_2023_2025-02-09.txt.gz' )
+# dbl_f  = file.path(proj_dir, 'Miallot_2023/output/Miallot_doublet_id/dbl_run1/scDblFinder_run1_outputs_Miallot_2023_2025-02-09.txt.gz')
+# amb_yaml_f = file.path(proj_dir, 'Miallot_2023/output/Miallot_ambient/ambient_run1/ambient_run1_2025-02-09_output_paths.yaml')
+# sample_stats_f = file.path(proj_dir, 'Miallot_2023/output/Miallot_ambient/ambient_sample_statistics_2025-02-09.txt')
+# demux_f = file.path(proj_dir, 'Miallot_2023/output/Miallot_demultiplexing/sce_cells_htos_run1_Miallot_2023_2025-02-09.rds')
+# gtf_dt_f = file.path('/projects/site/pred/neurogenomics/users/kodermam/scprocess_data/reference_genomes/mouse_2024/genes_gtf.txt.gz')
+# ambient_method = 'none'
+# qc_f = file.path(proj_dir, 'Miallot_2023/output/qc_dt_run1_Miallot_2023_2025-02-09.rds')
+# coldata_f = file.path(proj_dir, 'Miallot_2023/output/qc_dt_run1_Miallot_2023_2025-02-09.rds')
+# rd_f = file.path(proj_dir, 'Miallot_2023/output/rowdata_run1_Miallot_2023_2025-02-09.rds')
 # 
-#       # write qc data to a file
-#       fwrite(qc_data, qc_f)
-#       file.create(dbl_f)
-#     
-#   
-# 
-#   message("Mock QC function executed successfully.")
-# }
-
+# hard_min_counts = 200
+# hard_min_feats = 100
+# hard_max_mito = 0.5
+# min_counts = 500 
+# min_feats = 300
+# min_mito = 0
+# max_mito = 0.1
+# min_splice = 0
+# max_splice = 0.75
+# min_cells = 500
+# sample_var = 'pool_id'
+# demux_type = 'af'
+# dbl_min_feats = 100
+# mito_str = "^mt-"
 
 
 main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf_dt_f,
-                    ambient_method, sce_fs_str, rowdata_f, dbl_f, dimred_f, qc_f, rd_f, mito_str, 
+                    ambient_method, sce_fs_str, all_samples_str, rowdata_f, dbl_f, dimred_f, qc_f, coldata_f, mito_str, 
                     hard_min_counts, hard_min_feats, hard_max_mito,
-                    min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, min_cells,
+                    min_counts, min_feats, min_mito, max_mito, min_splice, max_splice,
                     sample_var = 'sample_id',
                     demux_type = "", dbl_min_feats = 100,
                     dbl_min_cells = 100){
 
-
+  
   # split output files and check if ok
-  sce_fs_ls = str_split(sce_fs_str, pattern = ',') %>% unlist()
+  all_samples = str_split(all_samples_str, pattern = ',') %>% unlist()
+  sce_fs_ls   = str_split(sce_fs_str, pattern = ',') %>% unlist()
   sce_fs_dirs = lapply(sce_fs_ls, FUN = dirname)
-    
+  
   assert_that(all(sapply(sce_fs_dirs, dir.exists)))
+  assert_that(length(all_samples) == length(sce_fs_ls))
+  assert_that(all(str_detect(sce_fs_ls, all_samples)))
+  
+  sce_fs_ls = sce_fs_ls %>% setNames(all_samples)
   
   # check which samples to exclude if cellbender is used
   smpl_status = FALSE
@@ -131,7 +103,7 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   if(ambient_method == 'cellbender'){
   # loading file with bad bender samples
   message(' loading cellbender sample stats file')
-  sample_stats_df = fread(sample_stats_f) %>% .[, bad_sample := FALSE] # remove this
+  sample_stats_df = fread(sample_stats_f) 
   smpl_status = unique(sample_stats_df[get(sample_var) == sel_sample, bad_sample])
   
   if(smpl_status){
@@ -140,7 +112,8 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
     file.create(dbl_dimred_f)
     file.create(dbl_f)
     file.create(qc_f)
-    file.create(rd_f)
+    file.create(rowdata_f)
+    file.create(coldata_f)
     message('done!')
 
     return(NULL)
@@ -181,40 +154,42 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   rd = rowData(sce) %>% as.data.table()
   
   message('  saving row data')
-  fwrite(rd, file = rd_f, quote = FALSE, row.names = FALSE)
+  fwrite(rd, file = rowdata_f, quote = FALSE, row.names = FALSE)
   
-  # do qc filtering, save table with qc for all cells, save sce object with only singlets that pass qc
-  sce_filt = filter_qc(sce, qc_f, hard_min_counts, hard_min_feats, hard_max_mito,
-  min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, min_cells)
-
+  # do qc filtering, save table with qc for all singlets, coldata for all cells, get sce object with only singlets that pass qc
+  sce_filt = filter_qc(sce, qc_f, coldata_f, hard_min_counts, hard_min_feats, hard_max_mito,
+  min_counts, min_feats, min_mito, max_mito, min_splice, max_splice)
   
-  # split pool sce to sample sce if samples are multiplexed
-  if(demux_type != ""){
-    message(' splitting pool sce object to save sce files per sample')
-    keep_smpls = unique(colData(sce_filt)$sample_id)
-    keep_smpls %>% lapply(function(s){
-      smpl_sce = sce_filt[, colData(sce)$sample_id == s]
-      smpl_f = sce_fs[s]
-      saveRDS(smpl_sce, file = smpl_f, compress = FALSE)
-    })
-
-    rm_smpls = setdiff(names(sce_fs), keep_smpls)
-    if(length(rm_smpls) > 0){
-    message(' saving empty files for removed samples')
-    rm_smpls %>% lapply(function(s){
-      file.create(sce_fs[s])
-    })
-
-    }
+  # save sce files
+  if(demux_type == ""){
+    if(ncol(sce_filt) == 0){
+      message("No cells passed qc for sample ", sel_sample, ". Saving empty file")
+      file.create(sce_fs_ls)
     }else{
-    messge(' saving sce')
-    saveRDS(sce_filt, file = sce_f, compress = FALSE)
-
+      assert_that(length(sce_fs_ls) == 1)
+      saveRDS(sce_filt, file =  sce_fs_ls, compress = FALSE)
     }
-
-    # save also rowdata with keep column
+    
+  }else{
+    # save one sce file per sample_id
+    message(' splitting pool sce object and saving one file per sample')
+    
+    # save one file only for samples that were not removed
+    all_samples %>% lapply(function(s){
+      smpl_sce = sce_filt[, colData(sce_filt)$sample_id == s]
+      smpl_f = sce_fs_ls[s]
+      
+      if(ncol(smpl_sce == 0)){
+        message("No cells passed qc for sample ", s, ". Saving empty file")
+        file.create()
+      }else{
+        saveRDS(smpl_sce, file = smpl_f, compress = FALSE)
+      }
+    })
+  }
+   
+    message('done!')
     return(NULL)
-
 }
 
 
@@ -418,9 +393,6 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   mito_sum      = colSums(mito_mat)
   mito_detected = colSums(mito_mat > 0 )
   
-  # exclude mito genes
-  counts_mat = counts_mat[!mt_gs, ]
-
   # make sce object
   sce_tmp               = SingleCellExperiment( assays = list(counts = counts_mat) )
   sce_tmp[[sample_var]] = sel_s
@@ -443,6 +415,9 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   sce_tmp$total_w_ribo  = total_raw
   sce_tmp$total_rrna    = rrna_sum
   sce_tmp$total_mt_rrna = mt_rrna_sum
+  
+  # remove mitochondrial genes
+  sce_tmp = sce_tmp[!mt_gs, ]
 
   # convert to TsparseMatrix
   counts(sce_tmp) = counts(sce_tmp) %>% as("TsparseMatrix")
@@ -575,21 +550,22 @@ run_scdblfinder <- function(sce, sample_var = 'sample_id', ambient_method, dbl_f
 
 
 
-filter_qc <- function(sce, qc_f, hard_min_counts, hard_min_feats, hard_max_mito,
+filter_qc <- function(sce, qc_f, coldata_f, hard_min_counts, hard_min_feats, hard_max_mito,
                       min_counts, min_feats, min_mito, max_mito, 
-                      min_splice, max_splice, min_cells) {
+                      min_splice, max_splice) {
+
+  # store initail coldata
+  coldata_in = colData(sce) %>% as.data.table()
+  
+  # restrict to singlets
+  sce = sce[, sce$dbl_class == 'singlet']
   
   qc_all = make_qc_dt(
     colData(sce),
-    sample_var = 'pool_id', 
+    sample_var = 'sample_id', 
     qc_names = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
     )
 
-  assert_that(all(!is.na(qc_all$logit_spliced)))
-  
-  # restrict to singlets
-  qc_all = qc_all[dbl_class == 'singlet']
-  
   qc_dt = qc_all %>%
     .[log_counts >= log10(hard_min_counts)] %>%
     .[log_feats >= log10(hard_min_feats)] %>%
@@ -604,24 +580,28 @@ filter_qc <- function(sce, qc_f, hard_min_counts, hard_min_feats, hard_max_mito,
     .[logit_spliced > qlogis(min_splice)] %>%
     .[logit_spliced < qlogis(max_splice)]
   
-  # find cells to keep
-  keep_ids = keep_dt$cell_id
-  
-  # get cells that passed all thresholds
-  qc_all = qc_all %>%
-    .[, keep := cell_id %in% keep_ids]
-  
-  # save table with qc results for all barcodes
-  message('  saving column data')
-  fwrite(qc_all, file = qc_f)
+  # record which kept  
+  qc_all    = qc_all %>%
+    .[, keep_hard := cell_id %in% qc_dt$cell_id ] %>%
+    .[, keep      := cell_id %in% keep_dt$cell_id]
   
   # keep just good cells in sce object
   message('  filtering sce object')
   sce_filt = sce[, qc_all$keep]
   
+  # add keep column to original coldata
+  message('  saving column data')
+  coldata_out = coldata_in %>%
+    .[, keep := fifelse(cell_id %chin% sce_filt$cell_id, TRUE, FALSE)]
+  fwrite(coldata_out, file = coldata_f)
+
+  # save table with qc results for all barcodes
+  message('  saving qc data')
+  fwrite(qc_all, file = qc_f)
+  
+  
   return(sce_filt)
 }
-
 
 
 

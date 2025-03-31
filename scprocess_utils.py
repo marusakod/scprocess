@@ -110,11 +110,15 @@ def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
   DEMUX_F        = ""
   BATCH_VAR      = "sample_id"
   POOL_IDS       = ""
+  SAMPLE_IDS     = ""
   EXC_POOLS      = ""
+  SAMPLE_MAPPING = None
   
   if ('multiplexing' in config) and (config['multiplexing'] is not None):
     POOL_IDS = list(set(sample_metadata["pool_id"].tolist()))
+    SAMPLE_IDS = list(sample_metadata["sample_id"].tolist())
     DEMUX_TYPE = config['multiplexing']['demux_type']
+    SAMPLE_MAPPING = sample_metadata.groupby("pool_id")["sample_id"].apply(list).to_dict()
 
     if DEMUX_TYPE == 'af':
       # check feature ref specified and valid
@@ -175,13 +179,19 @@ def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
     if ('exclude' in config) and (config['exclude'] is not None):
       if ('pool_id' in config['exclude']) and (config['exclude']['pool_id'] is not None):
         EXC_POOLS = config['exclude']["pool_id"]
+        EXC_SAMPLES = [] # exclude all samples in excluded pools
         for p in EXC_POOLS:
           if p not in POOL_IDS:
             warnings.warn(f"sample {p} specified in exclude_pools but not in sample_metadata file", UserWarning)
-        to_keep  = set(POOL_IDS) - set(EXC_POOLS)
-        POOL_IDS = [p for p in POOL_IDS if p in to_keep]
+          EXC_SAMPLES.extend(SAMPLE_MAPPING[p])
+
+        pools_to_keep  = set(POOL_IDS) - set(EXC_POOLS)
+        smpls_to_keep  = set(SAMPLE_IDS) - set(EXC_SAMPLES)
+
+        POOL_IDS = [p for p in POOL_IDS if p in pools_to_keep]
+        SAMPLE_IDS = [s for s in SAMPLE_IDS if s in smpls_to_keep]
       
-  return DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS
+  return DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_IDS, SAMPLE_MAPPING
 
       
 
@@ -233,24 +243,24 @@ def get_project_parameters(config, scprocess_data_dir):
   SAMPLES       = samples_df["sample_id"].dropna().tolist()
 
   # get multiplexing params
-  DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS = \
+  DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, POOL_SAMPLES, SAMPLE_MAPPING = \
   get_multiplexing_parameters(config, PROJ_DIR, samples_df)
 
   # define sample variable for alevin, ambient, doublets and sample mapping dictionary
   if DEMUX_TYPE != "":
     SAMPLE_VAR = "pool_id"
-    SAMPLE_MAPPING = samples_df.groupby("pool_id")["sample_id"].apply(list).to_dict()
+    # exclude samples in excluded pools
+    SAMPLES = POOL_SAMPLES
   else:
     SAMPLE_VAR = "sample_id"
-    SAMPLE_MAPPING = None
-
+  
   # remove some samples
   EXC_SAMPLES   = None
   if ('exclude' in config) and (config['exclude'] is not None):
     if ('sample_id' in config['exclude']) and (config['exclude']['sample_id'] is not None):
-      EXC_SAMPLES = config["exclude_samples"]
+      EXC_SAMPLES =  config['exclude']["sample_id"]
       for s in EXC_SAMPLES:
-        if s not in SAMPLES:
+        if s not in samples_df["sample_id"].dropna().tolist():
           warnings.warn(f"sample {s} specified in exclude_samples but not in metadata file", UserWarning)
       to_keep       = set(SAMPLES) - set(EXC_SAMPLES)
       SAMPLES       = [s for s in SAMPLES if s in to_keep]
@@ -295,6 +305,7 @@ def get_project_parameters(config, scprocess_data_dir):
 
 # remove samples and pools from sample mapping
 def filter_sample_mapping(SAMPLE_MAPPING, POOL_IDS, SAMPLES):
+
   if SAMPLE_MAPPING is None:
     return None
   # filter to keep specific pool ids
