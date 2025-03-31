@@ -22,10 +22,9 @@
     #     - none
     # __default__:
     #   - '-q short'
-    # run_ambient:
-    #   - "-q short"
-    #     # - "-q long"
-    #     # - "-gpu 'num=1:j_exclusive=yes'"
+    # run_cellbender:
+    #   - "-q long"
+    #   - "-gpu 'num=1:j_exclusive=yes'"
     # run_harmony:
     #   - "-q long"
     ```
@@ -91,22 +90,5 @@
     ```bash
     scsetup
     ```
-
-## Cellbender setup
-
-Note that default configuration profile (`lsf.yaml` file) defines resource requirements for default {{ software_name }} parameters. If you would like to select `cellbender` for [ambient RNA removal](introduction.md#ambient-rna-removal-optional), make sure your `lsf.yaml` contains this highlighted section:
-
-```yaml hl_lines="5 6 7"
-app_profile:
-    - none
-__default__:
-  - '-q short'
-run_ambient:
-  - "-q long"
-  - "-gpu 'num=1:j_exclusive=yes'"
-run_harmony:
-  - "-q long"
-```
-
 
 
