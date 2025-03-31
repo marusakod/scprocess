@@ -110,7 +110,7 @@ def extract_sample_statistics(AMBIENT_METHOD, samples_ls, metrics_fs_ls, ambient
 
 
 if AMBIENT_METHOD == 'cellbender':
-  rule run_ambient:
+  rule run_cellbender:
     input:
       h5_f      = af_dir + '/af_{sample}/af_counts_mat.h5',
       amb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
@@ -191,8 +191,10 @@ if AMBIENT_METHOD == 'cellbender':
         touch $tmp_f
       fi
       """
-elif AMBIENT_METHOD == 'decontx':
-  rule run_ambient:
+
+
+if AMBIENT_METHOD == 'decontx':
+  rule run_decontx:
     input:
       h5_f      = af_dir + '/af_{sample}/af_counts_mat.h5',
       amb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
@@ -253,8 +255,10 @@ elif AMBIENT_METHOD == 'decontx':
       echo "dcx_params_f: $dcx_params_f" >> {output.ambient_yaml_out}
 
       """
-else:
-  rule run_ambient:
+
+
+if AMBIENT_METHOD == 'none':
+  rule run_cell_calling:
     input:
       h5_f      = af_dir + '/af_{sample}/af_counts_mat.h5',
       amb_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
