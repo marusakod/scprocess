@@ -750,6 +750,7 @@ def get_resource_parameters(config):
   MB_RUN_SCDBLFINDER              = 4096
   MB_COMBINE_SCDBLFINDER_OUTPUTS  = 8192
   MB_RUN_QC                       = 8192
+  MB_RUN_HVGS                     = 8192
   MB_MAKE_SCE_OBJECT              = 8192
   MB_RUN_HARMONY                  = 8192
   MB_RUN_MARKER_GENES             = 8192
@@ -781,6 +782,8 @@ def get_resource_parameters(config):
       MB_COMBINE_SCDBLFINDER_OUTPUTS  = config['resources']['mb_combine_scdblfinder_outputs']
     if 'mb_run_qc' in config['resources']:
       MB_RUN_QC                       = config['resources']['mb_run_qc']
+    if 'mb_run_hvgs' in config['resources']:
+      MB_RUN_HVGS                     = config['resources']['mb_run_hvgs']
     if 'mb_make_sce_object' in config['resources']:
       MB_MAKE_SCE_OBJECT              = config['resources']['mb_make_sce_object']
     if 'mb_run_harmony' in config['resources']:
@@ -809,7 +812,7 @@ def get_resource_parameters(config):
   return RETRIES, MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
     MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
     MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
-    MB_RUN_QC, \
+    MB_RUN_QC, MB_RUN_HVGS, \
     MB_MAKE_SCE_OBJECT, \
     MB_RUN_HARMONY, \
     MB_RUN_MARKER_GENES, MB_HTML_MARKER_GENES, \

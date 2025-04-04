@@ -32,58 +32,131 @@ suppressPackageStartupMessages({
   library('Matrix')
   # library('Matrix.utils')
   library('edgeR')
+  library('yaml')
 })
 
+# sce_fs_yaml = '/projects/site/pred/neurogenomics/users/kodermam/Miallot_2023/output/Miallot_qc/sce_paths_Miallot_2023_2025-02-09.yaml'
+# qc_stats_f  = '/projects/site/pred/neurogenomics/users/kodermam/Miallot_2023/output/Miallot_qc/qc_sample_statistics_2025-02-09.txt'
+# pb_f        = '/projects/site/pred/neurogenomics/users/kodermam/Miallot_2023/output/Miallot_pseudobulk/test_cells_pseudobulk.rds'
+# subset_f = NULL
+# subset_var = NULL
+# n_cores = 2
+# 
 
-# MAKING PSEUDOBULKS 
-make_pb_subset <- function(sce_f, af_paths_f, pb_f, n_cores = 8) {
+make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset_var = NULL, n_cores = 8) {
   # get files
-  af_paths_df   = fread(af_paths_f)
-  sample_ls     = af_paths_df$sample_id
+  sce_fs_ls = yaml::read_yaml(sce_fs_yaml) %>% unlist()
   
-  # load sce objects
-  message('  load sce subsets')
-  sce           = readRDS(sce_f)
+  # remove all samples excluded after qc
+  qc_stats_dt = fread(qc_stats_f)
+  keep_samples = qc_stats_dt[bad_sample == FALSE, sample_id]
   
-  # create pb for each subset (celltype)
-  message('  aggregate sce subsets')
-  pb_mat        = .aggregateData_datatable(sce, by_vars = c('sample_id'), fun = "sum")
+  sce_fs_ls = sce_fs_ls[keep_samples]
   
-  # make sure all samples are in the matrix, if not, add columns with 0
-  missing_samps = setdiff(sample_ls, colnames(pb_mat))
-  if ( length(missing_samps) > 0 ) {
-    missing_cols  = Matrix(0, nrow = nrow(pb_mat), ncol = length(missing_samps), 
-      sparse = TRUE, dimnames = list(rownames(pb_mat), missing_samps))
-    pb_mat        = cbind(pb_mat, missing_cols)
-    pb_mat        = pb_mat[, sample_ls ]    
-  }
+  # set up parallelization
+  bpparam       = MulticoreParam(workers = n_cores, tasks = length(sce_fs_ls))
+  on.exit(bpstop(bpparam))
+  
+  cell_pbs     = bpmapply( sample_id = names(sce_fs_ls), sce_f = unname(sce_fs_ls),
+                            FUN = .get_one_cells_pb, SIMPLIFY = FALSE, BPPARAM = bpparam, 
+                            MoreArgs = list(subset_f = subset_f, subset_var = subset_var))
+  
+  # merge sce objects
+  pb_sce = Reduce(function(x, y) {cbind(x, y)}, cell_pbs)
 
-  # make one object with pb_mats as assays
-  pb            = SingleCellExperiment( pb_mat, rowData = rowData(sce) )
+  # make sure all samples are in the matrix, if not, add columns with 0
+  # missing_samps = setdiff(sample_ls, colnames(pb_mat))
+  # if ( length(missing_samps) > 0 ) {
+  #   missing_cols  = Matrix(0, nrow = nrow(pb_mat), ncol = length(missing_samps), 
+  #     sparse = TRUE, dimnames = list(rownames(pb_mat), missing_samps))
+  #   pb_mat        = cbind(pb_mat, missing_cols)
+  #   pb_mat        = pb_mat[, sample_ls ]    
+  # }
 
   # store
   message('  save')
-  saveRDS(pb, pb_f)
+  saveRDS(pb_sce, pb_f)
   
   message('done!')
 }
 
-make_pb_empty <- function(af_paths_f, gtf_dt_f, pb_empty_f, empty_locs_f, 
-  n_cores = 8) {
-  message('create pseudobulk matrix for empty droplets')
 
+
+.get_one_cells_pb <- function(sample_id, sce_f, subset_f = NULL, subset_var = NULL, 
+                              agg_fn = c("sum", "prop.detected")){
+  agg_fn      = match.arg(agg_fn)
+  
+  message('    loading sce object for sample ', sample_id)
+  sce         = readRDS(sce_f)
+  
+  if(!is.null(subset_var)){
+    if(!is.null(subset_f)){
+      subset_dt = fread(subset_f)
+      assert_that(subset_var %in% colnames(subset_dt))
+      assert_that(all(c("cell_id", "sample_id") %in% colnames(subset_dt)))
+      
+      # keep just cells from sample
+      subset_dt = subset_dt[sample_id == sample_id, ] %>%
+        setkey('cell_id')
+    
+      # check that cells match
+      assert_that(setequal(subset_dt$cell_id, colnames(sce)))
+      
+      subset_dt = subset_dt[colnames(sce)]
+      
+      # add subset_var to sce
+      sce$subset = subset_dt[[ subset_var ]]
+    }else{
+      assert_that(subset_var %in% names(colData(sce)))
+      sce$subset = sce[[ subset_var ]]
+    }
+    
+    message('   run aggregateData')
+    pb_mat = .aggregateData_datatable(sce, by_vars = c("subset", "sample_id"), fun = agg_fn)
+    
+  }else{
+    
+  pb_mat = .aggregateData_datatable(sce, by_vars = c("sample_id"), fun = agg_fn)
+  }
+  
+  pb = SingleCellExperiment( pb_mat, rowData = rowData(sce) )
+  
+}
+
+
+
+
+make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
+                          ambient_method, sample_var = 'sample_id', n_cores = 8) {
+  
+  message('create pseudobulk matrix for empty droplets')
+  
   # get files
   af_paths_df   = fread(af_paths_f)
-  sample_ls     = af_paths_df$sample_id
-  af_mat_ls     = af_paths_df$af_mat_f
-  af_knee_ls    = af_paths_df$af_knee_f
-
+  sample_ls     = af_paths_df[[sample_var]] %>% unique()
+  af_mat_ls     = af_paths_df$af_mat_f %>% unique()
+  af_knee_ls    = af_paths_df$af_knee_f %>% unique()
+  
+  # get bad cellbender samples
+  if(ambient_method == 'cellbender'){
+    amb_stats_dt = fread(amb_stats_f) 
+    bad_samples  = amb_stats_dt[bad_sample == TRUE, get(sample_var)]
+    if(length(bad_samples) != 0){
+      # don't include bad samples into empty pseudobulk matrix
+      keep_idx   = which(!sample_ls %in% bad_samples)
+      samples_ls = samples_ls[keep_idx]
+      af_mat_ls  = af_mat_ls[keep_idx]
+      af_knee_ls = af_knee_ls[keep_idx]
+    }
+  }
+  
   # do some checks
   assert_that( all(
     str_extract(af_mat_ls, '\\/af_.*\\/') == str_extract(af_knee_ls, '\\/af_.*\\/')
   ))
+  
   assert_that(
-    all( str_detect(af_mat_ls, sample_ls) ), 
+    all( str_detect(af_mat_ls, sample_ls) ),
     all( str_detect(af_knee_ls, sample_ls) )
   )
   
@@ -91,40 +164,61 @@ make_pb_empty <- function(af_paths_f, gtf_dt_f, pb_empty_f, empty_locs_f,
   bpparam       = MulticoreParam(workers = n_cores, tasks = length(sample_ls))
   on.exit(bpstop(bpparam))
   
-  # calculate empty plateau's
-  empty_locs_ls = bplapply(af_knee_ls, FUN = .get_empty_plateau, BPPARAM = bpparam) %>% 
-    setNames(sample_ls)
-
-  # create data.frame for saving
-  empty_locs_df = data.frame(
-    sample_id   = names(empty_locs_ls),
-    empty_start = sapply(empty_locs_ls, '[[', 1),
-    empty_end   = sapply(empty_locs_ls, '[[', 2)
-    )
-  fwrite(empty_locs_df, file = empty_locs_f)
-  
   # get empty pseudobulks
-  empty_pbs     = bpmapply( sample_id = sample_ls, af_mat_f = af_mat_ls, 
-    af_knee_f = af_knee_ls, empty_locs = empty_locs_ls, 
-    FUN = .get_one_empty_pb, SIMPLIFY = FALSE, BPPARAM = bpparam)  
+  empty_pbs     = bpmapply( sample_id = sample_ls, af_mat_f = af_mat_ls,
+                            af_knee_f = af_knee_ls,
+                            FUN = .get_one_empty_pb, SIMPLIFY = FALSE, BPPARAM = bpparam)
   pb_empty      = do.call('cbind', empty_pbs)
-
+  
   # get nice rows
-  gtf_dt        = fread(gtf_dt_f) %>% 
-    .[, .(gene_id, ensembl_id, symbol, gene_type)] %>% setkey('ensembl_id')
-  rows_dt       = gtf_dt[ rownames(pb_empty) ]
+  rows_dt  = fread(rowdata_f) %>% setkey('ensembl_id')
+  keep_ids = rows_dt$ensembl_id
+  assert_that(all(keep_ids %in% rownames(pb_empty)))
+  pb_empty = pb_empty[keep_ids, ]
+  rows_dt  = rows_dt[ rownames(pb_empty) ]
   assert_that( all(rownames(pb_empty) == rows_dt$ensembl_id) )
   rownames(pb_empty) = rows_dt$gene_id
-
+  
+  
   # make one object with pb_mats as assays
   pb_empty      = SingleCellExperiment( pb_empty, rowData = rows_dt )
-
+  
   # store
   message(' save')
   saveRDS(pb_empty, pb_empty_f)
   
   message(' done!')
 }
+
+
+.get_one_empty_pb <- function(sample_id, af_mat_f, af_knee_f) {
+  # get full alevin matrix
+  af_mat_SUA  = .get_h5(af_mat_f)
+  af_mat      = .sum_SUA(af_mat_SUA)
+  
+  # get empty barcodes
+  knee_df     = fread(af_knee_f)
+  empty_bcs   = knee_df %>%
+    .[in_empty_plateau == TRUE, barcode]
+  
+  # get empty matrix
+  message('sample ', sample_id, ': extracting empty counts from alevin matrix')
+  assert_that( all(empty_bcs %in% colnames(af_mat)) )
+  empty_mat   = af_mat[, empty_bcs]
+  
+  # sum over all empties per samples
+  empty_pb    = Matrix::rowSums(empty_mat) %>%
+    setNames(rownames(empty_mat)) %>%
+    as.matrix()
+  colnames(empty_pb) = sample_id
+  
+  # make sparse
+  empty_pb    = as(empty_pb, "dgCMatrix")
+  
+  return(empty_pb)
+}
+
+
 
 .aggregateData_datatable <- function(sce, by_vars = c('sample_id'),
   fun = c("sum", "mean", "median", "prop.detected", "num.detected")) {
@@ -189,62 +283,7 @@ make_pb_empty <- function(af_paths_f, gtf_dt_f, pb_empty_f, empty_locs_f,
   return(mat)
 }
 
-.get_empty_plateau <- function(knee_f) {
-  
-  knee_df = fread(knee_f) %>% as.data.frame()
-  
-  # calculate empty plateau
-  infl1 = unique(knee_df$inf1)
 
-  infl1_idx = which.min( abs(knee_df$total - infl1) )[1]
-  infl1_x   = knee_df[ infl1_idx, "rank" ]
-  
-    
-  empty_start = knee_df %>% mutate(n = 1:nrow(.)) %>%
-    filter( between(rank, infl1_x,  unique(knee_df$total_droplets_included))) %>%
-    pull(n) %>%
-    log10 %>%
-    mean() %>%
-    10^.
-    
-  empty_end = unique(knee_df[knee_df$total == unique(knee_df$knee2), "rank"])
-  
-  empty_plateau = c(empty_start, empty_end) %>% as.numeric
-  
-  return(empty_plateau)
-}
-
-
-.get_one_empty_pb <- function(sample_id, af_mat_f, af_knee_f, empty_locs) {
-  # get full alevin matrix
-  af_mat_SUA  = .get_h5(af_mat_f)
-  af_mat      = .sum_SUA(af_mat_SUA)
-  
-  # get empty barcodes
-  knee_df     = fread(af_knee_f) %>% as.data.frame()
-  empty_start = empty_locs[1]
-  empty_end   = empty_locs[2]
-  assert_that(empty_start < empty_end)
-  empty_bcs   = knee_df %>%
-    filter(between(rank, empty_start, empty_end)) %>%
-    pull(barcode)
-  
-  # get empty matrix
-  message('sample ', sample_id, ': extracting empty counts from alevin matrix')
-  assert_that( all(empty_bcs %in% colnames(af_mat)) )
-  empty_mat   = af_mat[, empty_bcs]
-  
-  # sum over all empties per samples
-  empty_pb    = Matrix::rowSums(empty_mat) %>%
-    setNames(rownames(empty_mat)) %>%
-    as.matrix()
-  colnames(empty_pb) = sample_id
-  
-  # make sparse
-  empty_pb    = as(empty_pb, "dgCMatrix")
-  
-  return(empty_pb)
-}
 
 .get_h5 <- function(h5_f, barcodes = NULL) {
   
@@ -273,17 +312,7 @@ make_pb_empty <- function(af_paths_f, gtf_dt_f, pb_empty_f, empty_locs_f,
   return(mat)
 }
 
-# .sum_SUA <- function(SUA_mx){
-  
-#   rownames(SUA_mx) = gsub('_S$|_U$|_A$', '', rownames(SUA_mx))
-  
-#   SUA_agg = Matrix.utils::aggregate.Matrix(SUA_mx,
-#                                            groupings = factor(rownames(SUA_mx),
-#                                                               levels = unique(rownames(SUA_mx))),
-#                                            FUN = sum)
-  
-#   return(SUA_agg)
-# }
+
 
 plot_empty_plateau <- function(knees, empty_plat_df) {
   # get sample order

@@ -41,40 +41,6 @@ splice_labs = c("0.01%", "0.03%", "0.1%", "0.3%", "1%", "3%", "10%", "50%",
 prob_brks   = c(0.5, 0.9, 0.99, 0.999, 0.9999, 0.99999, 0.999999) %>% qlogis
 prob_labs   = c("50%", "90%", "99%", "99.9%", "99.99%", "99.999%", "99.9999%")
 
-# 
-# proj_dir = '/projects/site/pred/neurogenomics/users/kodermam'
-# 
-# sel_sample = 'run1'
-# meta_f = file.path(proj_dir, 'Miallot_2023/data/metadata/Miallot_2023_pool_metadata.csv')
-# sce_fs_str = fread(meta_f) %>% .[pool_id == 'run1', sample_id] %>%
-#   paste0('/projects/site/pred/neurogenomics/users/kodermam/Miallot_2023/output/Miallot_qc/sce_cells_clean_', ., '_Miallot_2023_2025-02-09.rds') %>%
-#   paste(., collapse = ',')
-# 
-# dimred_f = file.path(proj_dir, 'Miallot_2023/output/Miallot_doublet_id/dbl_run1/scDblFinder_run1_dimreds_Miallot_2023_2025-02-09.txt.gz' )
-# dbl_f  = file.path(proj_dir, 'Miallot_2023/output/Miallot_doublet_id/dbl_run1/scDblFinder_run1_outputs_Miallot_2023_2025-02-09.txt.gz')
-# amb_yaml_f = file.path(proj_dir, 'Miallot_2023/output/Miallot_ambient/ambient_run1/ambient_run1_2025-02-09_output_paths.yaml')
-# sample_stats_f = file.path(proj_dir, 'Miallot_2023/output/Miallot_ambient/ambient_sample_statistics_2025-02-09.txt')
-# demux_f = file.path(proj_dir, 'Miallot_2023/output/Miallot_demultiplexing/sce_cells_htos_run1_Miallot_2023_2025-02-09.rds')
-# gtf_dt_f = file.path('/projects/site/pred/neurogenomics/users/kodermam/scprocess_data/reference_genomes/mouse_2024/genes_gtf.txt.gz')
-# ambient_method = 'none'
-# qc_f = file.path(proj_dir, 'Miallot_2023/output/qc_dt_run1_Miallot_2023_2025-02-09.rds')
-# coldata_f = file.path(proj_dir, 'Miallot_2023/output/qc_dt_run1_Miallot_2023_2025-02-09.rds')
-# rd_f = file.path(proj_dir, 'Miallot_2023/output/rowdata_run1_Miallot_2023_2025-02-09.rds')
-# 
-# hard_min_counts = 200
-# hard_min_feats = 100
-# hard_max_mito = 0.5
-# min_counts = 500 
-# min_feats = 300
-# min_mito = 0
-# max_mito = 0.1
-# min_splice = 0
-# max_splice = 0.75
-# min_cells = 500
-# sample_var = 'pool_id'
-# demux_type = 'af'
-# dbl_min_feats = 100
-# mito_str = "^mt-"
 
 
 main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf_dt_f,
@@ -144,7 +110,7 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 
   # do doublet calcs
   message('   starting doublet detection')
-  dbl_dt = run_scdblfinder(sce, sample_var, ambient_method, dbl_f, dimred_f)
+  dbl_dt = run_scdblfinder(sce, sel_sample, sample_var, ambient_method, dbl_f, dimred_f)
   
   message('  adding doublet info to column data')
   # add doublet info to coldata
@@ -176,10 +142,11 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
     
     # save one file only for samples that were not removed
     all_samples %>% lapply(function(s){
+      print(s)
       smpl_sce = sce_filt[, colData(sce_filt)$sample_id == s]
       smpl_f = sce_fs_ls[s]
       
-      if(ncol(smpl_sce == 0)){
+      if(ncol(smpl_sce) == 0){
         message("No cells passed qc for sample ", s, ". Saving empty file")
         file.create()
       }else{
@@ -466,7 +433,7 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 
 
 
-run_scdblfinder <- function(sce, sample_var = 'sample_id', ambient_method, dbl_f, dimred_f, min_feats = 100, min_cells = 100){
+run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_method, dbl_f, dimred_f, min_feats = 100, min_cells = 100){
  
   sample_idx  = sce[[sample_var]] == sel_sample
   sce         = sce[, sample_idx ]

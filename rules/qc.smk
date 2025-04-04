@@ -1,14 +1,14 @@
 # snakemake rule for doing QC on sce object
 import pandas as pd
+import gzip
+import os
 
 localrules: merge_qc
 
 
 def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS):
-    import pandas as pd  # Ensure pandas is imported
-
     # load the merged qc file
-    qc_dt = pd.read_csv(qc_merged_f, compression='gzip')
+    qc_dt = pd.read_csv(qc_merged_f, sep = '\t', compression='gzip')
 
     # filter for cells that passed qc
     qc_dt = qc_dt[qc_dt["keep"] == True]
@@ -46,7 +46,6 @@ def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, AMBIENT_
         # label as bad if bad_bender or bad_qc
         sample_df['bad_sample'] = sample_df['bad_bender'] | sample_df['bad_qc']
     else:
-        # If not using CellBender, set 'bad_bender' to False for all samples
         sample_df['bad_sample'] = sample_df['bad_qc']
 
     return sample_df
@@ -84,7 +83,7 @@ rule run_qc:
     dimred_f     = dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     dbl_f        = dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'    
   params:
-    all_smpls_str = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[0]
+    all_smpls_str = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[0],
     sce_fs_str    = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[1]
   threads: 4
   retries: RETRIES
@@ -94,8 +93,8 @@ rule run_qc:
     '../envs/rlibs.yml'
   shell:
     """
-    Rscript -e "source('scripts/SampleQC.R'); \
-        test_qc( \
+    Rscript -e "source('scripts/SampleQC.R'); source('scripts/ambient.R'); \
+        main_qc( \
           sel_sample     = '{wildcards.run}', \
           meta_f         = '{METADATA_F}', \
           amb_yaml_f     = '{input.amb_yaml_f}', \
@@ -126,14 +125,13 @@ rule run_qc:
     """
 
 
-# rule that takes all temporary qc files and combines them into a single files (temporary files should be removed)
 rule merge_qc:
   input:
     qc_fs      = expand(qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', run = runs),
     coldata_fs = expand(qc_dir  + '/coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', run = runs)
   output:
     qc_merged_f      = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    coldata_merged_f = qc_dir  + '/coldata_dt_all_samples' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    coldata_merged_f = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 4
   retries: RETRIES
   resources:
@@ -141,21 +139,20 @@ rule merge_qc:
   run:
     # read all nonempty input files and concatenate them
     qc_df_ls = [
-      pd.read_csv(f, sep='\t', compression='gzip') 
-      for f in input.fs 
-      if open(f, 'r').read(1)  # Check if file is not empty 
+      pd.read_csv(f, compression='gzip') 
+      for f in input.qc_fs 
+      if gzip.open(f, 'rb').read(1)  
     ]
     qc_df_merged = pd.concat(qc_df_ls, ignore_index=True)
 
-
     coldata_df_ls = [
-      pd.read_csv(f, sep='\t', compression='gzip') 
+      pd.read_csv(f, compression='gzip') 
       for f in input.coldata_fs 
-      if open(f, 'r').read(1)  # Check if file is not empty
+      if gzip.open(f, 'rb').read(1)  
     ]
     coldata_df_merged = pd.concat(coldata_df_ls, ignore_index=True)
 
-    # save
+    # save merged dataframes to output files
     qc_df_merged.to_csv(output.qc_merged_f, sep='\t', index=False, compression='gzip')
     coldata_df_merged.to_csv(output.coldata_merged_f, sep='\t', index=False, compression='gzip')
 
@@ -166,33 +163,29 @@ rule merge_rowdata:
     rowdata_fs = expand(qc_dir  + '/rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', run = runs)
   output:
     rowdata_merged_f = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-  threads: 4
+  threads: 1
   retries: RETRIES
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
   run:
     # read all nonempty rowdata files 
     rd_df_ls = [
-      pd.read_csv(f, sep='\t', compression='gzip') 
-      for f in input.fs 
-      if open(f, 'r').read(1)  # Check if file is not empty 
+      pd.read_csv(f,compression='gzip') 
+      for f in input.rowdata_fs 
+      if gzip.open(f, 'rb').read(1)  # Check if file is not empty 
     ]
     
     # check if identical
     first_rd = rd_df_ls[0]
     all_ident= all(first_rd.equals(df) for df in rd_df_ls[1:])
     
-    # save only one dt
+    # save only one df
     if all_ident:
-    # Save the first DataFrame if they are all identical
-      first_rf.to_csv(output.rowdata_merged_f, sep='\t', index=False, compression='gzip')
+      first_rd.to_csv(output.rowdata_merged_f, sep='\t', index=False, compression='gzip')
     else:
       raise ValueError("Error: rowdata for all sce objects not identical.")
 
 
-
-# exclude samples that are bed in bender (all samples that come from bad pools)
-# exclude samples that don't have enough celltypes
 
 rule get_qc_sample_statistics:
   input:
@@ -202,4 +195,30 @@ rule get_qc_sample_statistics:
     qc_stats_f = qc_dir + '/qc_sample_statistics_' + DATE_STAMP + '.txt'
   run:
     sample_stats_df = extract_qc_sample_statistics(input.ambient_stats_f, input.qc_merged_f, SAMPLES, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS)
-    sample_stats_df.to_csv(output.smpl_stats_f, sep = '\t', index = False)
+    sample_stats_df.to_csv(output.qc_stats_f, sep = '\t', index = False)
+
+
+
+
+# write sce objects paths to a yaml file
+rule make_sce_paths_yaml:
+   input:
+    qc_stats_f  = qc_dir + '/qc_sample_statistics_' + DATE_STAMP + '.txt' # so that this runs after get_qc_sample_statistics
+   output:
+    sces_yaml_f = qc_dir  + '/sce_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml'
+   run:
+    # split paths and sample names
+    fs = [f"{qc_dir}/sce_cells_clean_{s}_{FULL_TAG}_{DATE_STAMP}.rds" for s in SAMPLES]
+    
+    # check that all files exist
+    for f in fs:
+     assert os.path.isfile(f), \
+      f"File {f} doesn't exist"
+
+    # create a dictionary
+    fs_dict = dict(zip(SAMPLES, fs))
+
+    # write to yaml
+    with open(output.sces_yaml_f, 'w') as f:
+     yaml.dump(fs_dict, f, default_flow_style=False)
+

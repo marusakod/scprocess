@@ -40,7 +40,7 @@ PB_SUBSETS, PB_DO_ALL = get_pb_empties_parameters(config)
 RETRIES, MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
   MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
   MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
-  MB_RUN_QC, \
+  MB_RUN_QC, MB_RUN_HVGS, \
   MB_MAKE_SCE_OBJECT, \
   MB_RUN_HARMONY, \
   MB_RUN_MARKER_GENES, MB_HTML_MARKER_GENES, \
@@ -59,6 +59,7 @@ amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
 demux_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
 dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
 qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
+hvg_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_hvg"
 int_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
 mkr_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_marker_genes"
 lbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
@@ -156,26 +157,35 @@ rule all:
       amb_dir   + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
       # barcode qc metrics
       amb_dir   + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz',
+      # qc
+      #qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      #qc_dir  + '/coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+      #qc_dir  + '/rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
       # doublet id
-      qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-      #dbl_dir  + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+      dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       ], run =  runs), 
-      # ambient sample statistics
+    # ambient sample statistics
     amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',  
     # demultiplexing
     hto_sce_fs,  
     # qc
     qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    qc_dir  + '/qc_sample_statistics_' + DATE_STAMP + '.csv'
-   
-      # doublet_id
-      #dbl_dir   + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-      #dbl_dir   + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      #dbl_dir   + '/scDblFinder_combined_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      # qc
-      #qc_dir    + '/qc_dt_'   + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      #qc_dir    + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    qc_dir  + '/qc_sample_statistics_' + DATE_STAMP + '.txt', 
+    qc_dir  + '/sce_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
+    # pseudobulks and empties
+    pb_dir  + '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
+    pb_dir  + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+    empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
+    # hvgs
+    hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    #expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES), 
+    #expand(hvg_dir + '/tmp_calcs_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = SAMPLES), 
+    hvg_dir + '/sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    
       # integration
       #int_dir   + '/sce_clean_'           + FULL_TAG + '_' + DATE_STAMP + '.rds',
       #int_dir   + '/integrated_dt_'       + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
@@ -366,6 +376,8 @@ include: "rules/ambient.smk"
 include: "rules/make_sce.smk"
 include: "rules/doublet_id.smk"
 include: "rules/qc.smk"
+include: "rules/pb_empties.smk"
+include: "rules/hvgs.smk"
 #include: "rules/integration.smk"
 #include: "rules/marker_genes.smk"
 #include: "rules/render_htmls.smk"
