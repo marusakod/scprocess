@@ -55,9 +55,9 @@ def get_one_csr_counts(run, hvg_df, qc_df, qc_sample_df, gene_ids, SAMPLE_VAR, D
 
     # open input file
     with h5py.File(filt_counts_f, 'r') as f:
-        indptr = f['matrix/indptr'][:]
-        indices = f['matrix/indices'][:]
-        data = f['matrix/data'][:]
+        indptr   = f['matrix/indptr'][:]
+        indices  = f['matrix/indices'][:]
+        data     = f['matrix/data'][:]
         features = f['matrix/features/name'][:]
         barcodes = f['matrix/barcodes'][:]
 
@@ -68,7 +68,7 @@ def get_one_csr_counts(run, hvg_df, qc_df, qc_sample_df, gene_ids, SAMPLE_VAR, D
     sua_csc = csc_matrix((data, indices, indptr), shape=(num_rows, num_cols))
 
     # get bad samples
-    bad_samples  = qc_sample_df.loc[qc_df['bad_sample'] == True, 'sample_id'].tolist()
+    bad_samples  = qc_sample_df.loc[ qc_sample_df['bad_sample'] == True, 'sample_id'].tolist()
 
     for s, out_f in zip(samples, out_fs):
 
@@ -89,8 +89,10 @@ def get_one_csr_counts(run, hvg_df, qc_df, qc_sample_df, gene_ids, SAMPLE_VAR, D
         csc, uniq_features = sum_SUA(sua_csc_qc, features)
         
         # get indices of genes to keep
-        gs_keep_idx   = np.where(np.isin(features, gene_ids))[0]
+        gene_ids      = np.array(gene_ids)
+        gs_keep_idx   = np.where(np.isin(uniq_features, gene_ids))[0]
         uniq_features = uniq_features[gs_keep_idx]
+        assert len(uniq_features) != 0, "No features selected"
         csc           = csc[gs_keep_idx, :]
 
         # convert to csr
@@ -121,7 +123,7 @@ def get_csr_counts(hvg_paths_f, qc_f, qc_smpl_stats_f, rowdata_f, SAMPLE_VAR, DE
     rows_df = pd.read_csv(rowdata_f, sep = '\t')
     keep_ids= rows_df['ensembl_id'].tolist()
 
-    qc_sample_df = pd.read_csv(qc_smpl_stats_f)
+    qc_sample_df = pd.read_csv(qc_smpl_stats_f, sep = '\t')
 
     runs = hvg_df[SAMPLE_VAR].unique()
 
@@ -186,7 +188,7 @@ def calculate_feature_stats(sparse_csr, features):
 
 def calculate_stats_for_sample(sample, qc_smpl_stats_f, csr_f, stats_f):
 
-    qc_df = pd.read_csv(qc_smpl_stats_f)
+    qc_df = pd.read_csv(qc_smpl_stats_f, sep = '\t')
     bad_samples = qc_df.loc[qc_df['bad_sample'] == True, 'sample_id'].tolist()
    
     if sample in bad_samples:
@@ -219,7 +221,7 @@ def calculate_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_
     hvg_paths_df = pd.read_csv(hvg_paths_f)
     
     # get list of good samples
-    qc_df = pd.read_csv(qc_smpl_stats_f)
+    qc_df = pd.read_csv(qc_smpl_stats_f, sep = '\t')
     good_samples = qc_df.loc[qc_df['bad_sample'] == False, 'sample_id'].tolist()
 
     # get input files for selectd samples
@@ -237,7 +239,7 @@ def calculate_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_
         files = hvg_paths_df.loc[hvg_paths_df['sample_id'].isin(sel_samples), 'chunked_f'].tolist()
         
         # check how many files were selected, make empty output if no files
-        if not files:
+        if len(files) == 0:
             print(f"No (good) samples found in group '{group}'. Writing an empty output file.")
             open(stats_f, 'w').close()
             return
@@ -261,7 +263,7 @@ def calculate_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_
         results = list(executor.map(read_csr_chunk_p, files))
         
         for csr_chunk, chunk_feats, _ in results:
-            if not features:
+            if len(features) == 0:
                 features = chunk_feats
             
             # Merge chunks column-wise
@@ -308,10 +310,10 @@ if __name__ == "__main__":
     parser_chunkCalcs.add_argument("qc_smpl_stats_f", type=str)
     parser_chunkCalcs.add_argument("stats_f", type=str)
     parser_chunkCalcs.add_argument("chunk", type=int)
-    parser_chunkCalcs.add_argument("chunk_size", type=int)
     parser_chunkCalcs.add_argument("method", type=str)
-    parser_chunkCalcs.add_argument("-g", "--group", type=str, required=False, default= None)
+    parser_chunkCalcs.add_argument("chunk_size", type=int)
     parser_chunkCalcs.add_argument("-v", "--groupvar", type=str, required=False, default=None)
+    parser_chunkCalcs.add_argument("-g", "--group", type=str, required=False, default= None)
     parser_chunkCalcs.add_argument("-n", "--ncores", type=int, required=False, default = 8)
    
     args = parser.parse_args()
@@ -322,7 +324,7 @@ if __name__ == "__main__":
       calculate_stats_for_sample(args.sample, args.input, args.output)
     elif args.function_name == 'calculate_stats_per_chunk':
       calculate_stats_for_chunk(args.hvg_paths_f, args.rowdata_f, args.metadata_f, args.qc_smpl_stats_f,
-                                args.stats_f, args.chunk, args.chunk_size, args.method, args.group, args.group_var, args.ncores)
+                                args.stats_f, args.chunk, args.method, args.chunk_size, args.groupvar, args.group, args.ncores)
     else:
      parser.print_help()
     

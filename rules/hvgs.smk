@@ -100,6 +100,7 @@ if HVG_METHOD == 'sample':
 else:
   rule calc_hvg_stats_per_group:
     input:
+      clean_h5_f  = expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES),
       hvg_paths_f = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       rowdata_f   = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
       qc_smpl_stats_f = qc_dir + '/qc_sample_statistics_' + DATE_STAMP + '.txt'
@@ -112,19 +113,19 @@ else:
       '../envs/hvgs.yml'
     shell:
       """
-      # python3 scripts/hvgs.py calculate_stats_per_chunk \
+      python3 scripts/hvgs.py calculate_stats_per_chunk \
         {input.hvg_paths_f} \
         {input.rowdata_f} \
         {METADATA_F} \
         {input.qc_smpl_stats_f} \
         {output.chunk_calcs_f} \
         {wildcards.chunk} \
+        {HVG_METHOD} \
         {HVG_CHUNK_SIZE} \
-        {HVG_METHOD}
-        {wildcards.group} \
-        {HVG_SPLIT_VAR} \
-        {threads}
-
+        --group {wildcards.group} \
+        --groupvar {HVG_SPLIT_VAR} \
+        --ncores {threads} \
+    
       """
 
 
