@@ -62,7 +62,9 @@ rule make_hvg_df:
 rule make_temp_counts:
   input:
     hvg_paths_f = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    qc_f        = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    qc_f        = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    rowdata_f   = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    qc_stats_f  = qc_dir + '/qc_sample_statistics_' + DATE_STAMP + '.txt'
   output:
     clean_h5_f  = temp(expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES))
   threads: 8
@@ -73,46 +75,99 @@ rule make_temp_counts:
     '../envs/hvgs.yml'
   shell:
     """
-    python3 scripts/hvgs.py get_csr_counts {input.hvg_paths_f} {input.qc_f} {SAMPLE_VAR} {DEMUX_TYPE}
+    python3 scripts/hvgs.py get_csr_counts {input.hvg_paths_f} {input.qc_f} {input.qc_stats_f} {input.rowdata_f} {SAMPLE_VAR} {DEMUX_TYPE}
 
     """
 
-# calculate stats for each sample separatelly  
-rule calc_stats_per_sample:
-  input: 
-    clean_h5_f = hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
-  output:
-    smpl_calcs_f = temp(hvg_dir + '/tmp_calcs_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
-  threads: 1
-  retries: RETRIES
-  resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-  conda:
-    '../envs/hvgs.yml'
-  shell:
-    """
-    python3 scripts/hvgs.py calculate_stats_per_sample {wildcards.sample} {input.clean_h5_f} {output.smpl_calcs_f}
-    """
 
-# combine sample stats
+if HVG_METHOD == 'sample': 
+  # calculate stats for each sample separatelly  
+  rule calc_hvg_stats_per_sample:
+    input: 
+      clean_h5_f = hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
+    output:
+      smpl_calcs_f = temp(hvg_dir + '/tmp_calcs_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+    threads: 1
+    retries: RETRIES
+    resources:
+      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    conda:
+      '../envs/hvgs.yml'
+    shell:
+      """
+      python3 scripts/hvgs.py calculate_stats_per_sample {wildcards.sample} {input.clean_h5_f} {output.smpl_calcs_f}
+      """
+else:
+  rule calc_hvg_stats_per_group:
+    input:
+      hvg_paths_f = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+      rowdata_f   = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+      qc_smpl_stats_f = qc_dir + '/qc_sample_statistics_' + DATE_STAMP + '.txt'
+    output: 
+      chunk_calcs_f = temp(hvg_dir + '/tmp_calcs_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+    threads: 8
+    resources:
+      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    conda:
+      '../envs/hvgs.yml'
+    shell:
+      """
+      # python3 scripts/hvgs.py calculate_stats_per_chunk \
+        {input.hvg_paths_f} \
+        {input.rowdata_f} \
+        {METADATA_F} \
+        {input.qc_smpl_stats_f} \
+        {output.chunk_calcs_f} \
+        {wildcards.chunk} \
+        {HVG_CHUNK_SIZE} \
+        {HVG_METHOD}
+        {wildcards.group} \
+        {HVG_SPLIT_VAR} \
+        {threads}
 
-rule merge_sample_stats:
-  input:
-    smpl_calcs_f      = expand(hvg_dir + '/tmp_calcs_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = SAMPLES),
-  output:
-    smpl_calcs_merged = hvg_dir + '/sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-  threads: 1
-  retries: RETRIES
-  resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-  run:
-    # read all nonempty input files and concatenate them
-    stats_df_ls = [
-      pd.read_csv(f, compression='gzip') 
-      for f in input.smpl_calcs_f 
-      if gzip.open(f, 'rb').read(1)
-    ]
-    stats_df_merged = pd.concat(stats_df_ls, ignore_index= True)
+      """
 
-    stats_df_merged.to_csv(output.smpl_calcs_merged, sep='\t', index=False, compression='gzip')
-   
+
+if HVG_METHOD == 'sample':
+  # combine sample stats
+  rule merge_sample_stats:
+    input:
+      smpl_calcs_f      = expand(hvg_dir + '/tmp_calcs_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = SAMPLES)
+    output:
+      smpl_calcs_merged = hvg_dir + '/sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    threads: 1
+    retries: RETRIES
+    resources:
+      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    run:
+      # read all nonempty input files and concatenate them
+      stats_df_ls = [
+        pd.read_csv(f, compression='gzip') 
+        for f in input.smpl_calcs_f 
+        if gzip.open(f, 'rb').read(1)
+      ]
+      stats_df_merged = pd.concat(stats_df_ls, ignore_index= True)
+
+      stats_df_merged.to_csv(output.smpl_calcs_merged, sep='\t', index=False, compression='gzip')
+else:
+  rule merge_chunk_stats:
+    input:                 
+      chunk_calcs_f = expand(hvg_dir + '/tmp_calcs_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      group=GROUP_NAMES, chunk=range(1, NUM_CHUNKS + 1)),
+    output:
+      chunk_calcs_merged = hvg_dir + '/group_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    threads: 1
+    retries: RETRIES
+    resources:
+      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    run:
+      # read all nonempty input files and concatenate them
+      stats_df_ls = [
+        pd.read_csv(f, compression='gzip') 
+        for f in input.chunk_calcs_f 
+        if gzip.open(f, 'rb').read(1)
+      ]
+      chunk_df_merged = pd.concat(stats_df_ls, ignore_index= True)
+
+      chunk_df_merged.to_csv(output.chunk_calcs_merged, sep='\t', index=False, compression='gzip')
+    

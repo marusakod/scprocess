@@ -21,13 +21,11 @@ AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY = \
 CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
 FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE = \
   get_ambient_parameters(config)
-SCE_BENDER_PROB = \
-  get_make_sce_parameters(config)
-DBL_MIN_FEATS = \
-  get_doublet_id_parameters(config)
 QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_FEATS, \
-  QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, QC_FILTER_BENDER = \
+  QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS = \
   get_qc_parameters(config)
+HVG_METHOD, HVG_SPLIT_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES = \
+  get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F)
 INT_EXC_REGEX, INT_N_HVGS, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES = \
   get_integration_parameters(config, AF_MITO_STR)
 MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS = \
@@ -126,6 +124,12 @@ hto_sce_fs = expand(
 hto_rmd_f  = (rmd_dir   + '/' + SHORT_TAG + '_demultiplexing.Rmd') if DEMUX_TYPE == 'af' else []
 hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_demultiplexing.html') if DEMUX_TYPE == 'af' else []
 
+# hvg outputs
+if HVG_METHOD == 'sample':
+  hvg_stats_f = hvg_dir + '/sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+else:
+  hvg_stats_f = hvg_dir + '/group_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+
 
 # fgsea outputs (optional)
 fgsea_outs = [
@@ -184,7 +188,7 @@ rule all:
     hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     #expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES), 
     #expand(hvg_dir + '/tmp_calcs_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = SAMPLES), 
-    hvg_dir + '/sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    hvg_stats_f
     
       # integration
       #int_dir   + '/sce_clean_'           + FULL_TAG + '_' + DATE_STAMP + '.rds',

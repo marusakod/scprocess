@@ -347,15 +347,6 @@ sample_3:
 * `cb_max_prop_kept`: maximum proportion of droplets, relative to `--total-droplets-included`, that `cellbender` can call as cells. Default is `0.9`, meaning samples are excluded if `cellbender` calls more than 90% of `--total-droplets-included` droplets as cells. Applicable only if `ambient_method` is `cellbender`.
 * `cell_calling`: method for cell calling when `ambient_method` is `none` or `decontx`. Options are `barcodeRanks` and `emptyDrops`.
 
-
-##### make_sce
-
-* `sce_bender_prob`: minimum probability threshold for retaining droplets classified as cells i.e. Only relevant when `ambient_method` is `cellbender`.
-
-
-##### doublet_id
-* `dbl_min_feats`: number of features required for each barcode to be included in scDblFinder calculations.
-
 ##### qc
 
 * `qc_min_counts`: minimum number of UMIs per cell required to retain the cell.
@@ -365,6 +356,7 @@ sample_3:
 * `qc_min_splice`: minimum proportion of spliced reads required to retain the cell.
 * `qc_max_splice`: maximum proportion of spliced reads allowed to retain the cell.
 * `qc_min_cells`: minimum number of cells required in a sample after QC filtering to retain the sample.
+* `dbl_min_feats`: number of features required for each barcode to be included in scDblFinder calculations.
 
 ##### integration
 

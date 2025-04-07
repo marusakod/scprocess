@@ -99,9 +99,6 @@ def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES, HTO = False):
   return chk_samples
 
 
-
-
-
 def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
   #set defaults
   DEMUX_TYPE     = ""
@@ -401,32 +398,6 @@ def get_ambient_parameters(config):
     FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE
 
 
-
-
-def get_make_sce_parameters(config):  
-  # set default values
-  SCE_BENDER_PROB = 0.5
-
-  # change defaults if specified
-  if ('make_sce' in config) and (config['make_sce'] is not None):
-    if 'sce_bender_prob' in config['make_sce']:
-      SCE_BENDER_PROB = config['make_sce']['sce_bender_prob']
-
-  return SCE_BENDER_PROB
-
-
-# define doublet_id parameters
-def get_doublet_id_parameters(config):  
-  # set default values
-  DBL_MIN_FEATS = 100
-
-  # change defaults if specified
-  if ('doublet_id' in config) and (config['doublet_id'] is not None):
-    if 'dbl_min_feats' in config['doublet_id']:
-      DBL_MIN_FEATS = config['doublet_id']['dbl_min_feats']
-
-  return DBL_MIN_FEATS
-
 def get_qc_parameters(config):
   # set default values
   QC_HARD_MIN_COUNTS  = 200
@@ -439,7 +410,7 @@ def get_qc_parameters(config):
   QC_MIN_SPLICE       = 0
   QC_MAX_SPLICE       = 0.75
   QC_MIN_CELLS        = 500
-  QC_FILTER_BENDER    = False
+  DBL_MIN_FEATS       = 100
 
   # change defaults if specified
   if ('qc' in config) and (config['qc'] is not None):
@@ -463,8 +434,9 @@ def get_qc_parameters(config):
       QC_MAX_SPLICE       = config['qc']['qc_max_splice']
     if 'qc_min_cells'       in config['qc']:
       QC_MIN_CELLS        = config['qc']['qc_min_cells']
-    if 'qc_filter_bender'   in config['qc']:
-      QC_FILTER_BENDER    = config['qc']['qc_filter_bender']
+    if 'dbl_min_feats'      in config['qc']:
+      DBL_MIN_FEATS       = config['qc']['dbl_min_feats']
+
 
   # make sure they're consistent
   QC_HARD_MIN_COUNTS  = min(QC_HARD_MIN_COUNTS, QC_MIN_COUNTS)
@@ -472,7 +444,68 @@ def get_qc_parameters(config):
   QC_HARD_MAX_MITO    = max(QC_HARD_MAX_MITO, QC_MAX_MITO)
 
   return QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_FEATS, \
-    QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, QC_FILTER_BENDER
+    QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS
+
+
+
+
+# define hvg parameters 
+def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F): 
+
+  # set defaults
+  HVG_METHOD     = 'sample'
+  HVG_SPLIT_VAR  = None
+  HVG_CHUNK_SIZE = 2000
+  NUM_CHUNKS     = None
+  GROUP_NAMES    = []
+  CHUNK_NAMES    = []
+
+
+  if ('hvg' in config) and (config['hvg'] is not None):
+    if 'method' in config['hvg']:
+      HVG_METHOD      = config['hvg']['method']
+      # check if valid
+      valid_methods = ['sample', 'all', 'groups']
+      assert HVG_METHOD in valid_methods, \
+        f"Invalid hvg method '{HVG_METHOD}'. Must be one of {valid_methods}."
+      
+      if HVG_METHOD == 'all':
+        GROUP_NAMES = ['all_samples']
+      
+      # if method is groups check that group variable is specified
+      if HVG_METHOD == 'groups':
+        assert ('metadata_split_var' in config['hvg']) and (config['hvg']['metadata_split_var'] is not None), \
+          "The 'metadata_split_var' parameter must be defined when the hvg method is 'groups'."
+        HVG_SPLIT_VAR = config['hvg']['metadata_split_var']
+
+        # check that value of metadata_split_var matches a column in sample metadata
+        meta = pd.read_csv(METADATA_F)
+        assert HVG_SPLIT_VAR in meta.columns(), \
+          f"{HVG_SPLIT_VAR} is not a column in the sample metadata file."
+        
+        # check number of unique group values
+        uniq_groups = meta[HVG_SPLIT_VAR].unique().tolist()
+        if len(uniq_groups) == meta.shape[0]:
+          print(f"Number of unique values in '{HVG_SPLIT_VAR}' is the same as the number of samples; switching to 'sample' method for calculating hvgs.")
+          HVG_METHOD = 'sample'
+          HVG_SPLIT_VAR = None
+
+        GROUP_NAMES = uniq_groups
+        # replace spaces with underscores
+        GROUP_NAMES = [n.replace(" ", "_") for n in GROUP_NAMES]
+
+    # get number of gene chunks if method is 'groups' or 'all'
+      if HVG_METHOD in ['groups', 'all']:
+        gtf_df = pd.read_csv(AF_GTF_DT_F,  sep = '\t')
+        num_genes = gtf_df.shape[0]
+
+        NUM_CHUNKS  = (num_genes + HVG_CHUNK_SIZE - 1) // HVG_CHUNK_SIZE
+        
+        # make a list of chunk names
+        CHUNK_NAMES = [f"chunk_{i+1}" for i in range(NUM_CHUNKS)]
+
+  return HVG_METHOD, HVG_SPLIT_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES
+        
 
 
 # define integration parameters
@@ -604,6 +637,7 @@ def get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
   return MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS
 
 
+
 # define marker_genes parameters
 def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR): 
   # set some more default values
@@ -653,7 +687,7 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
     
     if labels == 'xgboost':
       # check that classifier name is valid
-      valid_boosts = ['human_cns', 'mouse_cns', 'human_pmbc', 'mouse_pbmc']
+      valid_boosts = ['human_cns', 'mouse_cns']
       assert LBL_TISSUE in valid_boosts, \
         f"value {LBL_TISSUE} for 'lbl_tissue' parameter is not valid"
  
@@ -683,6 +717,7 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
         f"Column names in {CUSTOM_LABELS_F} are incorrect."
  
   return LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_SCE_SUBSETS, LBL_TISSUE, CUSTOM_LABELS_F
+
 
 
 # define metacells parameters
@@ -721,6 +756,7 @@ def get_pb_empties_parameters(config):
   return PB_SUBSETS, PB_DO_ALL
 
 
+
 # define marker_genes parameters
 def get_zoom_parameters(config, MITO_STR, scprocess_data_dir): 
   if ('zoom' not in config) or (config['zoom'] is None):
@@ -735,8 +771,6 @@ def get_zoom_parameters(config, MITO_STR, scprocess_data_dir):
       ))
 
   return ZOOM_NAMES, ZOOM_SPEC_LS
-
-
 
   
 # get rule resource parameters
