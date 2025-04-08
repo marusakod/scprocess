@@ -10,6 +10,7 @@ import concurrent.futures
 import re
 from scanpy.preprocessing._utils import _get_mean_var
 from functools import partial
+import csv
 
 
 def sum_SUA(sua_mat, row_names):
@@ -204,7 +205,7 @@ def calculate_stats_for_sample(sample, qc_smpl_stats_f, csr_f, stats_f):
     stats_df['sample_id'] = sample
     
     # save
-    stats_df.to_csv(stats_f, sep='\t', index=False, compression='gzip')
+    stats_df.to_csv(stats_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
 
     return
 
@@ -277,7 +278,7 @@ def calculate_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_
         merged_chunk_stats[group_var] = group
 
     # Save the stats to file
-    merged_chunk_stats.to_csv(stats_f, sep='\t', index=False, compression='gzip')
+    merged_chunk_stats.to_csv(stats_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
 
     return
 

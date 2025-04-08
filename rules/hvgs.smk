@@ -1,5 +1,6 @@
 
 import yaml  
+import csv
 
 localrules: make_hvg_df
 localrules: merge_sample_stats
@@ -66,7 +67,7 @@ rule make_temp_counts:
     rowdata_f   = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     qc_stats_f  = qc_dir + '/qc_sample_statistics_' + DATE_STAMP + '.txt'
   output:
-    clean_h5_f  = temp(expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES))
+    clean_h5_f  = expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES)
   threads: 8
   retries: RETRIES
   resources:
@@ -143,7 +144,7 @@ if HVG_METHOD == 'sample':
     run:
       # read all nonempty input files and concatenate them
       stats_df_ls = [
-        pd.read_csv(f, compression='gzip') 
+        pd.read_csv(f, compression='gzip', sep = '\t') 
         for f in input.smpl_calcs_f 
         if gzip.open(f, 'rb').read(1)
       ]
@@ -154,7 +155,7 @@ else:
   rule merge_chunk_stats:
     input:                 
       chunk_calcs_f = expand(hvg_dir + '/tmp_calcs_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      group=GROUP_NAMES, chunk=range(1, NUM_CHUNKS + 1)),
+      group=GROUP_NAMES, chunk=range(NUM_CHUNKS)),
     output:
       chunk_calcs_merged = hvg_dir + '/group_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
     threads: 1
@@ -164,11 +165,11 @@ else:
     run:
       # read all nonempty input files and concatenate them
       stats_df_ls = [
-        pd.read_csv(f, compression='gzip') 
+        pd.read_csv(f, compression='gzip', sep='\t') 
         for f in input.chunk_calcs_f 
         if gzip.open(f, 'rb').read(1)
       ]
       chunk_df_merged = pd.concat(stats_df_ls, ignore_index= True)
 
-      chunk_df_merged.to_csv(output.chunk_calcs_merged, sep='\t', index=False, compression='gzip')
+      chunk_df_merged.to_csv(output.chunk_calcs_merged, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
     
