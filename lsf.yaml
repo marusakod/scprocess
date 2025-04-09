@@ -3,8 +3,8 @@ app_profile:
 __default__:
   - '-q short'
 run_ambient:
-  - "-q short"
-    # - "-q long"
-    # - "-gpu 'num=1:j_exclusive=yes'"
+  # #- "-q short"
+  - "-q long"
+  - "-gpu 'num=1:j_exclusive=yes'"
 run_harmony:
   - "-q long"
