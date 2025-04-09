@@ -180,8 +180,8 @@ This is an example config file for {{ software_name }} with all parameters and t
       resources:
         mb_run_alevin_fry: 8192               
         mb_save_alevin_to_h5: 8192            
-        mb_run_cellbender: 32768            
-        mb_get_cellbender_qc_metrics: 4096    
+        mb_run_ambient: 32768            
+        mb_get_barcode_qc_metrics: 4096    
         mb_run_scdblfinder: 4096             
         mb_combine_scdblfinder_outputs: 8192  
         mb_make_sce_object: 16384             
@@ -279,8 +279,8 @@ This is an example config file for {{ software_name }} with all parameters and t
       resources:
         mb_run_alevin_fry: 8192               
         mb_save_alevin_to_h5: 8192            
-        mb_run_cellbender: 32768            
-        mb_get_cellbender_qc_metrics: 4096    
+        mb_run_ambient: 32768            
+        mb_get_ambient_qc_metrics: 4096    
         mb_run_scdblfinder: 4096             
         mb_combine_scdblfinder_outputs: 8192  
         mb_make_sce_object: 16384             
@@ -445,7 +445,7 @@ sample_3:
 * `mb_run_alevin_fry`: maximum memory required (in MB) for running `simpleaf`. Value applies to the entire job, not per thread.
 * `mb_save_alevin_to_h5`:  maximum memory required (in MB) to save `simpleaf` output to H5 format. Value applies to the entire job, not per thread.
 * `mb_run_ambient`: maximum memory required (in MB) to run the ambient RNA removal step. Value applies to the entire job, not per thread.
-* `mb_get_ambient_qc_metrics`: maximum memory required (in MB) to obtain quality control metrics related to ambient RNA removal. Value applies to the entire job, not per thread.
+* `mb_get_barcode_qc_metrics`: maximum memory required (in MB) to obtain quality control metrics related to ambient RNA removal. Value applies to the entire job, not per thread.
 * `mb_run_scdblfinder`: maximum memory required (in MB) to run `scDblFinder` for doublet detection. Value applies to the entire job, not per thread.
 * `mb_combine_scdblfinder_outputs`: maximum memory required (in MB) to combine `scDblFinder` outputs across samples. Value applies to the entire job, not per thread.
 * `mb_make_sce_object`: maximum memory required (in MB) to create a `SingleCellExperiment` object. Value applies to the entire job, not per thread.
