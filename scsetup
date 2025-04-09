@@ -9,7 +9,6 @@ import glob
 import subprocess
 
 
-
 def run_scsetup(sc_dir, snakefile, extraargs):
   print('doing some checks on inputs')
  

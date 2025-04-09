@@ -90,5 +90,11 @@
     ```bash
     scsetup
     ```
+    If you like, you can do a "dry run" first to see what will happen:
+    ```bash
+    scsetup -n
+    # or
+    # scsetup --dry-run
+    ```
 
 
