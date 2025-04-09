@@ -26,7 +26,7 @@ def run_scsetup(sc_dir, snakefile, extraargs):
    "SCPROCESS_DATA_DIR is not a directory"
   
   # check that config file exists
-  configfile = os.path.join(scprocess_data_dir, '.scprocess_setup.yaml')
+  configfile = os.path.join(scprocess_data_dir, 'scprocess_setup.yaml')
   assert os.path.exists(configfile), \
     f"Config file {configfile} does not exist"
   

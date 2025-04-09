@@ -146,7 +146,7 @@ scprocess config_test_project.yaml
 
 ??? warning "Tutorial results may vary from your {{ software_name }} outputs"
     
-    If you modify the default settings for the `human_2024` genome in `.scprocess_setup.yaml`, the results you obtain from running {{ software_name }} on the tutorial dataset may differ slightly from those shown in this guide.
+    If you modify the default settings for the `human_2024` genome in `scprocess_setup.yaml`, the results you obtain from running {{ software_name }} on the tutorial dataset may differ slightly from those shown in this guide.
 
 ## Optional steps
 

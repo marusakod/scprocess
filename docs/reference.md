@@ -5,7 +5,7 @@
 **Description**: Download all data required for {{ software_name }} and index reference genomes for `simpleaf`.
 
 **Parameters**:
-The command requires a configuration file named `.scprocess_setup.yaml` located in {{ software_name }} data directory (for instructions on how to set up the {{ software_name }} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, the user has to specify which reference genome will be made available for {{ software_name }}. For example:
+The command requires a configuration file named `scprocess_setup.yaml` located in {{ software_name }} data directory (for instructions on how to set up the {{ software_name }} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, the user has to specify which reference genome will be made available for {{ software_name }}. For example:
 
 ```yaml
 genome:
@@ -25,9 +25,9 @@ genome:
       mito_str: "^MT-"
 ```
 
-Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with `scsetup` by adding `tenx` to the `.scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.  
+Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with `scsetup` by adding `tenx` to the `scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.  
 
-Names and specifications for custom references should be listed in the `custom` section of the `.scprocess_setup.yaml` file. For each `custom` genome users have to provide the following parameters:
+Names and specifications for custom references should be listed in the `custom` section of the `scprocess_setup.yaml` file. For each `custom` genome users have to provide the following parameters:
 
 * one of:
     + `fasta`: path to FASTA file

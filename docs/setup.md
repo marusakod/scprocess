@@ -8,7 +8,7 @@
     cd ~/packages/ # or wherever you keep your packages
     git clone https://code.roche.com/macnairw/scprocess
     ```
-    Swith to `main-shpc` branch:
+    Switch to `main-shpc` branch:
     
     ```bash
     git checkout main-shpc
@@ -61,7 +61,7 @@
     export SCPROCESS_DATA_DIR=/path/to/scprocess_data_directory
     ```
 
-3. Create a configuration file `.scprocess_setup.yaml` in the `$SCPROCESS_DATA_DIR` directory you just created, with the contents as follows:
+3. Create a configuration file `scprocess_setup.yaml` in the `$SCPROCESS_DATA_DIR` directory you just created, with the contents as follows:
 
     ```yaml
     genome:
@@ -70,10 +70,10 @@
       - name: mouse_2024 
     ```
 
-    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) genomes from 10x Genomics. For more information on how to structure the `.scprocess_setup.yaml` see the [`Reference`](reference.md#setup-config-file) section.
+    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) genomes from 10x Genomics. For more information on how to structure the `scprocess_setup.yaml` see the [`Reference`](reference.md#setup-config-file) section.
 
     ??? tip "Save some space by removing the reference genome used for the tutorial"
-        [Quick start tutorial](tutorial.md) section demonstrates how to run {{ software_name }} on an example human dataset. In order for users to be able to follow the tutorial `scsetup` will automatically download the `human_2024` reference genome and build an alevin index with [decoys](reference.md#setup-config-file) even if `human_2024` is not listed in the `.scprocess_setup.yaml` file. If you would like to remove this reference genome (after running the tutorial) use:
+        [Quick start tutorial](tutorial.md) section demonstrates how to run {{ software_name }} on an example human dataset. In order for users to be able to follow the tutorial `scsetup` will automatically download the `human_2024` reference genome and build an alevin index with [decoys](reference.md#setup-config-file) even if `human_2024` is not listed in the `scprocess_setup.yaml` file. If you would like to remove this reference genome (after running the tutorial) use:
     
         ```bash
         rm -rf $SCPROCESS_DATA_DIR/reference_genomes/human_2024
