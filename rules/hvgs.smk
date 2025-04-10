@@ -45,6 +45,14 @@ def make_hvgs_input_df(DEMUX_TYPE, SAMPLE_VAR, runs, ambient_outs_yamls, SAMPLE_
 
 
 
+def merge_tmp_files(in_files, out_file):
+
+    df_ls     = [pd.read_csv(f, compression='gzip', sep='\t') for f in in_files if gzip.open(f, 'rb').read(1)]
+    df_merged = pd.concat(df_ls, ignore_index=True)
+    df_merged.to_csv(out_file, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
+
+
+
 # rule to create df with hvg input files and temporary chunked files
 
 rule make_hvg_df: 
@@ -123,14 +131,7 @@ if HVG_METHOD == 'sample':
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
     run:
-      # read all nonempty input files and concatenate them
-      stats_df_ls = [
-        pd.read_csv(f, compression='gzip', sep = '\t') 
-        for f in input.mean_var_f 
-        if gzip.open(f, 'rb').read(1)
-      ]
-      stats_df_merged = pd.concat(stats_df_ls, ignore_index= True)
-      stats_df_merged.to_csv(output.mean_var_merged_f, sep='\t', index=False, compression='gzip')
+      merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
 
 
 else:
@@ -174,15 +175,9 @@ else:
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
     run:
-      # read all nonempty input files and concatenate them
-      stats_df_ls = [
-        pd.read_csv(f, compression='gzip', sep='\t') 
-        for f in input.mean_var_f
-        if gzip.open(f, 'rb').read(1)
-      ]
-      chunk_df_merged = pd.concat(stats_df_ls, ignore_index= True)
+      merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
 
-      chunk_df_merged.to_csv(output.mean_var_merged_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
+
 
 
 # same for sample, groups or all
@@ -204,6 +199,8 @@ rule get_estimated_variances:
       {input.mean_var_merged_f} \
       {HVG_METHOD}
     """
+
+
 
 
 #  calculate sum and sum squares clipped per chunk or per sample
@@ -230,6 +227,7 @@ if HVG_METHOD == 'sample':
         {input.clean_h5_f} \
         {output.tmp_out_f} 
       """
+
   rule merge_sample_std_var_stats:
     input:                 
       std_var_stats_f = expand(hvg_dir + '/tmp_std_var_stats_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = SAMPLES)
@@ -240,16 +238,8 @@ if HVG_METHOD == 'sample':
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
     run:
-      # read all nonempty input files and concatenate them
-      stats_df_ls = [
-        pd.read_csv(f, compression='gzip', sep='\t') 
-        for f in input.std_var_stats_f
-        if gzip.open(f, 'rb').read(1)
-      ]
-      
-      df_merged = pd.concat(stats_df_ls, ignore_index= True)
+      merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
 
-      df_merged.to_csv(output.std_var_stats_merged_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
 else:
   rule get_stats_for_std_variance_for_group:
     input: 
@@ -293,12 +283,4 @@ else:
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
     run:
-      # read all nonempty input files and concatenate them
-      stats_df_ls = [
-        pd.read_csv(f, compression='gzip', sep='\t') 
-        for f in input.std_var_stats_f
-        if gzip.open(f, 'rb').read(1)
-      ]
-      chunk_df_merged = pd.concat(stats_df_ls, ignore_index= True)
-
-      chunk_df_merged.to_csv(output.std_var_stats_merged_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
+      merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
