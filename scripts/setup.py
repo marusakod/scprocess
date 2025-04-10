@@ -33,7 +33,7 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DEC
 # which predefined genomes to download
   names = list(pre_gnomes & all_gnomes)
   
-  if(len(names) != 0):
+  if (len(names) != 0):
 
     refs_10x_links_dict ={
       'human_2020': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2020-A.tar.gz", 
@@ -65,11 +65,11 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DEC
           gtf_dict[n] = gnome_fs[0]
     
     # define mito strings for predefined genomes
-    for  n in names:
+    for n in names:
       mito_str = "^MT-" if 'human_' in n else "^mt-"
       mito_str_dict[n] = mito_str
 
-# sort out custom genomes
+  # sort out custom genomes
   cust_names = list(all_gnomes - pre_gnomes)
   if(len(cust_names) != 0):
     print('Sorting out locations for custom genomes')
@@ -157,7 +157,6 @@ def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DEC
   
   print(f'Completed writing genomes in {SCPROCESS_DATA_DIR}')
   return 
-  
 
 
 def build_10x_genome_w_rrna(ref_dir, name):

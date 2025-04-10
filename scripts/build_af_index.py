@@ -12,69 +12,70 @@ import numpy as np
 
 # function that gets params for simpleaf index
 def parse_setup_params_for_af(genome, params_csv):
- # read params csv created in rule get_reference_genomes
- params_df = pd.read_csv(params_csv, dtype={'decoy': bool})
+  # read params csv created in rule get_reference_genomes
+  params_df       = pd.read_csv(params_csv, dtype={'decoy': bool})
 
- filt_params_df = params_df[params_df['genome_name'] == genome] 
- filt_params_df = filt_params_df.reset_index(drop=True)
- fasta_f        = filt_params_df.loc[0, 'fasta_f']
- gtf_f          = filt_params_df.loc[0, 'gtf_f']
- index_dir      = filt_params_df.loc[0, 'index_dir']
- dcoy           = filt_params_df.loc[0, 'decoy']
- rrna           = filt_params_df.loc[0, 'rrna']
- 
- if dcoy:
-  w_dcoy = 'yes'
- else:
-  w_dcoy = 'no'
+  # get values
+  filt_params_df  = params_df[params_df['genome_name'] == genome] 
+  filt_params_df  = filt_params_df.reset_index(drop=True)
+  fasta_f         = filt_params_df.loc[0, 'fasta_f']
+  gtf_f           = filt_params_df.loc[0, 'gtf_f']
+  index_dir       = filt_params_df.loc[0, 'index_dir']
+  dcoy            = filt_params_df.loc[0, 'decoy']
+  rrna            = filt_params_df.loc[0, 'rrna']
 
- # get zenodo urls for prebuild indices
- zenodo_idx_urls = { 
-   'human_2020': "https://zenodo.org/records/14247195/files/alevin-idx_human_2020_rrna.tar.gz", 
-   'human_2024': "https://zenodo.org/records/14247195/files/alevin-idx_human_2024_rrna.tar.gz", 
-   'mouse_2020': "https://zenodo.org/records/14247195/files/alevin-idx_mouse_2020_rrna.tar.gz", 
-   'mouse_2024': "https://zenodo.org/records/14247195/files/alevin-idx_mouse_2024_rrna.tar.gz"
- }
+  # decide on decoys
+  if dcoy:
+    w_dcoy = 'yes'
+  else:
+    w_dcoy = 'no'
 
- # check if prebuild genome is available
- idx_url = None
+  # get zenodo urls for prebuild indices
+  zenodo_idx_urls = { 
+    'human_2020': "https://zenodo.org/records/14247195/files/alevin-idx_human_2020_rrna.tar.gz", 
+    'human_2024': "https://zenodo.org/records/14247195/files/alevin-idx_human_2024_rrna.tar.gz", 
+    'mouse_2020': "https://zenodo.org/records/14247195/files/alevin-idx_mouse_2020_rrna.tar.gz", 
+    'mouse_2024': "https://zenodo.org/records/14247195/files/alevin-idx_mouse_2024_rrna.tar.gz"
+  }
 
- if (
+  # check if prebuild genome is available
+  idx_url = None
+
+  if (
     genome in zenodo_idx_urls and 
     dcoy and  # This works because `dcoy` is a boolean
     rrna and  # This works because `rrna` is a boolean
-    (pd.isna(fasta_f) or fasta_f == "") and  # Check for NaN or empty string
+    (pd.isna(fasta_f) or fasta_f == "") and # Check for NaN or empty string
     (pd.isna(gtf_f) or gtf_f == "")         # Check for NaN or empty string
- ):
+  ):
     idx_url = zenodo_idx_urls[genome]
- 
- return fasta_f, gtf_f, index_dir, w_dcoy, idx_url
 
+  return fasta_f, gtf_f, index_dir, w_dcoy, idx_url
 
 
 def create_idx_symlinks(src_dir, target_dir):
-    for root, _, files in os.walk(src_dir): 
-        # get relative path from src_dir to current directory
-        rel_path = os.path.relpath(root, src_dir)
-        
-        # map relative path to target_dir
-        target_root = os.path.join(target_dir, rel_path)
-        
-        os.makedirs(target_root, exist_ok=True)
-        
-        # create symlinks for files
-        for f in files:
-            src_file_path = os.path.join(root, f)
-            target_file_path = os.path.join(target_root, f)
-            
-            if not os.path.exists(target_file_path):
-                os.symlink(src_file_path, target_file_path)
-            else:
-                print(f"Symlink already exists: {target_file_path}")
+  for root, _, files in os.walk(src_dir): 
+    # get relative path from src_dir to current directory
+    rel_path = os.path.relpath(root, src_dir)
+    
+    # map relative path to target_dir
+    target_root = os.path.join(target_dir, rel_path)
+    
+    os.makedirs(target_root, exist_ok=True)
+    
+    # create symlinks for files
+    for f in files:
+      src_file_path = os.path.join(root, f)
+      target_file_path = os.path.join(target_root, f)
+      
+      if not os.path.exists(target_file_path):
+        os.symlink(src_file_path, target_file_path)
+      else:
+        print(f"Symlink already exists: {target_file_path}")
 
 
 # function that makes simpleaf index
-def make_af_idx(genome, params_csv, scprocess_data_dir, cores):
+def get_af_idx(genome, params_csv, scprocess_data_dir, cores):
   # get af params for combn
   fasta_f, gtf_f, index_dir, w_dcoy, idx_url = parse_setup_params_for_af(genome, params_csv)
 
@@ -146,15 +147,16 @@ def make_af_idx(genome, params_csv, scprocess_data_dir, cores):
 
 # make script executable from the command line
 if __name__ == '__main__':
-    # Define arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument('genome', type=str)
-    parser.add_argument('params_f', type=str)
-    parser.add_argument('data_dir', type=str)
-    parser.add_argument('cores', type = int)
+  # Define arguments
+  parser = argparse.ArgumentParser()
+  parser.add_argument('genome', type=str)
+  parser.add_argument('params_f', type=str)
+  parser.add_argument('data_dir', type=str)
+  parser.add_argument('cores', type = int)
 
-    # Get arguments
-    args = parser.parse_args()
-    # run funciton that makes index
-    make_af_idx(args.genome, args.params_f, args.data_dir, args.cores)
+  # Get arguments
+  args = parser.parse_args()
+
+  # run function that makes index
+  get_af_idx(args.genome, args.params_f, args.data_dir, args.cores)
 
