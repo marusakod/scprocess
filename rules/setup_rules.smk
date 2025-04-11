@@ -7,7 +7,7 @@ import numpy as np
 import sys
 import warnings
 
-
+sys.path.append('./scripts')
 from setup_utils import get_setup_parameters
 from setup_utils import check_valid_index
 
@@ -93,7 +93,7 @@ rule download_scprocess_files:
     xgb_csv_f        = SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/allowed_cls_Siletti_Macnair_2024-03-11.csv',
     xgb_rds_f        = SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/xgboost_obj_hvgs_Siletti_Macnair_2024-03-11.rds'
   conda:
-    'envs/py_env.yml'
+    '../envs/py_env.yml'
   threads: 1
   shell:
     """
@@ -107,7 +107,7 @@ rule get_reference_genome_data:
   output:
     ref_params_f = SCPROCESS_DATA_DIR + '/setup_parameters.csv'
   conda:
-    'envs/py_env.yml'
+    '../envs/py_env.yml'
   resources:
     mem_mb = 8192
   threads: 1
@@ -124,7 +124,7 @@ rule download_or_build_af_indices:
   output:
     simpleaf_log_f = SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/simpleaf_index_log.json'
   conda:
-    'envs/alevin_fry.yml'
+    '../envs/alevin_fry.yml'
   resources:
     mem_mb = 16384
   threads: 16
