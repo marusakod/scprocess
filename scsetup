@@ -56,11 +56,13 @@ def run_scsetup(sc_dir, snakefile, extraargs):
   subprocess.run(['echo', 'snakemake', 
     "--snakefile", snakefile, 
     "--configfile", os.path.abspath(configfile),
-    "--rerun-incomplete", "--verbose", "--use-conda", *shlex.split(extraargs)])
+    "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", "--use-conda", 
+    *shlex.split(extraargs)])
   subprocess.run(['snakemake', 
     "--snakefile", snakefile, 
     "--configfile", os.path.abspath(configfile),
-    "--rerun-incomplete", "--verbose", "--use-conda", *shlex.split(extraargs)])
+    "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", "--use-conda", 
+    *shlex.split(extraargs)])
 
 
 if __name__ == '__main__':
@@ -75,10 +77,10 @@ if __name__ == '__main__':
     help = '''
       "dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.
       ''')
-  parser.add_argument("-E", "--extraargs", type = str, 
+  parser.add_argument("-E", "--extraargs", action="store", nargs=1, type=str,
     help = '''
-      extra snakamake arguments. Must be provided within quotes and begin with a whitespace.
-      For example, to have a dryrun: -E " -n"
+      extra snakamake arguments. Must be provided within quotes and use an equals sing.
+      For example, to have a dryrun: -E="-n"
       ''')
        
   # get arguments
@@ -90,7 +92,7 @@ if __name__ == '__main__':
   # sort out extra arguments
   extraargs = ''
   if args.extraargs:
-    extraargs = args.extraargs
+    extraargs = args.extraargs[0]
   if args.dry_run:
     extraargs = extraargs + " -np"
   
