@@ -18,6 +18,12 @@ SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 GENOMES_STR, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DECOYS, RRNAS = get_setup_parameters(config) 
 GENOMES = GENOMES_STR.split(',')
 
+# define simpleaf index files
+AF_INDEX_FS = ['simpleaf_index.json', 'piscem_idx_cfish.json', 'piscem_idx.ctab', 'piscem_idx.ectab',
+  'piscem_idx.json', 'piscem_idx.poison', 'piscem_idx.poison.json', 'piscem_idx.refinfo', 'piscem_idx.sshash', 
+  'simpleaf_index.json', 't2g_3col.tsv']
+
+# define top level rule
 rule all:
   input:
     # rule download scprocess repo data
@@ -55,7 +61,7 @@ rule all:
     # rule get_reference_genome_data 
     SCPROCESS_DATA_DIR + '/setup_parameters.csv', 
      # rule download_or_build_af_indices
-    expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/simpleaf_index_log.json', genome=GENOMES)
+    expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/index/{file}', genome=GENOMES, file=AF_INDEX_FS)
 
 
 # rule for getting scprocess data from github repo (maybe not a good idea to have all files as outputs)
@@ -98,7 +104,6 @@ rule download_scprocess_files:
   shell:
     """
     python3 scripts/setup.py get_scprocess_data {SCPROCESS_DATA_DIR}
-
     """
 
 
