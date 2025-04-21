@@ -17,7 +17,7 @@ def run_scsetup(sc_dir, snakefile, extraargs):
   scprocess_data_dir = os.getenv('SCPROCESS_DATA_DIR')
 
   if scprocess_data_dir:
-    print(f'SCPROCESS_DATA_DIR it set to: {scprocess_data_dir}')
+    print(f'SCPROCESS_DATA_DIR is set to: {scprocess_data_dir}')
   else:
     raise ValueError('SCPROCESS_DATA_DIR is not defined in .bashrc')
   

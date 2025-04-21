@@ -8,20 +8,23 @@ import sys
 import warnings
 
 sys.path.append('./scripts')
-from setup_utils import get_setup_parameters
-from setup_utils import check_valid_index
+from setup import get_af_index_parameters
+# from setup_utils import check_valid_index
 
 SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 
 #configfile = '/Users/marusa/Projects/scprocess_test/configs/config-setup-test.yaml'
 # get parameters from configfile
-GENOMES_STR, FASTA_FS, GTF_FS, INDEX_DIRS, MITO_STRS, DECOYS, RRNAS = get_setup_parameters(config) 
-GENOMES = GENOMES_STR.split(',')
+IDX_PARAMS_LS = get_af_index_parameters(config) 
+GENOMES       = list(IDX_PARAMS_LS.keys())
 
 # define simpleaf index files
-AF_INDEX_FS = ['simpleaf_index.json', 'piscem_idx_cfish.json', 'piscem_idx.ctab', 'piscem_idx.ectab',
-  'piscem_idx.json', 'piscem_idx.poison', 'piscem_idx.poison.json', 'piscem_idx.refinfo', 'piscem_idx.sshash', 
+AF_INDEX_FS = ['piscem_idx_cfish.json', 'piscem_idx.ctab', 'piscem_idx.ectab', 'piscem_idx.json', 
+  'piscem_idx.poison', 'piscem_idx.poison.json', 'piscem_idx.refinfo', 'piscem_idx.sshash',
   'simpleaf_index.json', 't2g_3col.tsv']
+
+# define tiny rule
+localrules: save_index_parameters_csv
 
 # define top level rule
 rule all:
@@ -58,10 +61,13 @@ rule all:
     SCPROCESS_DATA_DIR + '/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt',
     SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/allowed_cls_Siletti_Macnair_2024-03-11.csv',
     SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/xgboost_obj_hvgs_Siletti_Macnair_2024-03-11.rds',
+    # rule download_or_build_af_indices
+    # expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/index/{file}', genome=GENOMES, file=AF_INDEX_FS)
+    expand([ SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/index' + f'/{file}' for file in AF_INDEX_FS ], 
+      genome=GENOMES),
+    expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/{genome}_index_params.yaml', genome=GENOMES),
     # rule get_reference_genome_data 
-    SCPROCESS_DATA_DIR + '/setup_parameters.csv', 
-     # rule download_or_build_af_indices
-    expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/index/{file}', genome=GENOMES, file=AF_INDEX_FS)
+    SCPROCESS_DATA_DIR + '/index_parameters.csv'
 
 
 # rule for getting scprocess data from github repo (maybe not a good idea to have all files as outputs)
@@ -108,33 +114,44 @@ rule download_scprocess_files:
 
 
 # rule for downloading reference genome files from 10x and dealing with custom genomes
-rule get_reference_genome_data:
+rule set_up_one_af_index:
   output:
-    ref_params_f = SCPROCESS_DATA_DIR + '/setup_parameters.csv'
-  conda:
-    '../envs/py_env.yml'
-  resources:
-    mem_mb = 8192
-  threads: 1
-  shell:
-    """  
-    python3 scripts/setup.py get_genome_params {GENOMES_STR} {FASTA_FS} {GTF_FS} {INDEX_DIRS} {MITO_STRS} {DECOYS} {RRNAS} {SCPROCESS_DATA_DIR}
-    
-    """
-
-
-rule download_or_build_af_indices:
-  input: 
-    ref_params_f = SCPROCESS_DATA_DIR + '/setup_parameters.csv'
-  output:
-    simpleaf_log_f = SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/simpleaf_index_log.json'
+    [ SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/index' + f'/{file}' \
+      for file in AF_INDEX_FS],
+    SCPROCESS_DATA_DIR + "/alevin_fry_home/{genome}/{genome}_index_params.yaml"
+  params:
+    fasta       = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ]['fasta'],
+    gtf         = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ]['gtf'],
+    index_dir   = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ]['index_dir'],
+    mito_str    = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ]['mito_str'],
+    is_prebuilt = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ]['is_prebuilt'],
+    is_tenx     = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ]['is_tenx'],
+    has_decoys  = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ]['has_decoys'],
+    has_rrna    = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ]['has_rrna']
   conda:
     '../envs/alevin_fry.yml'
   resources:
-    mem_mb = 16384
-  threads: 16
+    mem_mb = 8192
+  threads: 8
+  shell:
+    """  
+    python3 scripts/setup.py set_up_af_index {SCPROCESS_DATA_DIR} {wildcards.genome} \
+      {params.fasta} {params.gtf} {params.index_dir} {params.mito_str} \
+      {params.is_prebuilt} {params.is_tenx} {params.has_decoys} {params.has_rrna} {threads}
+    """
+
+
+rule save_index_parameters_csv:
+  input:
+    yamls   = expand(SCPROCESS_DATA_DIR + "/alevin_fry_home/{genome}/{genome}_index_params.yaml", genome = GENOMES)
+  output:
+    csv     = SCPROCESS_DATA_DIR + '/index_parameters.csv'
+  conda:
+    '../envs/py_env.yml'
+  resources:
+    mem_mb = 512
+  threads: 1
   shell:
     """
-    python3 scripts/build_af_index.py {wildcards.genome} {input.ref_params_f} {SCPROCESS_DATA_DIR} {threads}
-
+    python3 scripts/setup.py save_index_params_csv {output.csv} {input.yamls}
     """
