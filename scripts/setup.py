@@ -372,21 +372,19 @@ def _download_predefined_fasta_and_gtf(ref_dir, genome_name):
   return fasta_f, gtf_f
 
 
-# function that creates symlinks
 def _copy_custom_fasta_and_gtf(ref_dir, genome_name, fasta_f, gtf_f):
   # get index url
   print('Copying fasta and gtf for ' + genome_name)
 
   # create a new directory for the specified genome and switch to it
-  gnome_dir     = os.path.join(ref_dir, genome_name)
-  os.makedirs(gnome_dir, exist_ok = True)
-  os.chdir(gnome_dir)
+  os.makedirs(ref_dir, exist_ok = True)
+  os.chdir(ref_dir)
   subprocess.run(f"rsync {fasta_f} genome.fa", shell=True)
   subprocess.run(f"rsync {gtf_f} genes.gtf", shell=True)
   print('Done.')
 
-  fasta_f   = os.path.join(gnome_dir, 'genome.fa')
-  gtf_f     = os.path.join(gnome_dir, 'genes.gtf')
+  fasta_f   = os.path.join(ref_dir, 'genome.fa')
+  gtf_f     = os.path.join(ref_dir, 'genes.gtf')
 
   return fasta_f, gtf_f
 
@@ -395,7 +393,7 @@ def _build_index_w_simpleaf(genome_name, idx_dir, has_decoy, fasta_f, gtf_f, n_c
   print(f'Creating alevin index for {genome_name} { "with decoys " if has_decoy else "" }in {idx_dir}')
    
   # define whether or not to include --decoy-paths flag
-  decoy_flag  = f"--decoy-paths {fasta_f} \\" if has_decoy else ""
+  decoy_flag  = f"--decoy-paths {fasta_f} " if has_decoy else ""
 
   # code for making index
   bash_script = f"""
@@ -421,9 +419,7 @@ def _build_index_w_simpleaf(genome_name, idx_dir, has_decoy, fasta_f, gtf_f, n_c
     --output ${{TMP_IDX_DIR}} \
     --fasta {fasta_f} \
     --gtf {gtf_f} \
-    {decoy_flag}
-    --overwrite \
-    --threads {n_cores} \
+    {decoy_flag} --overwrite --threads {n_cores} \
     --use-piscem
 
   # copy results to nice place, tidy up

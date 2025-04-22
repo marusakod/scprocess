@@ -19,9 +19,21 @@ IDX_PARAMS_LS = get_af_index_parameters(config)
 GENOMES       = list(IDX_PARAMS_LS.keys())
 
 # define simpleaf index files
-AF_INDEX_FS = ['piscem_idx_cfish.json', 'piscem_idx.ctab', 'piscem_idx.ectab', 'piscem_idx.json', 
-  'piscem_idx.poison', 'piscem_idx.poison.json', 'piscem_idx.refinfo', 'piscem_idx.sshash',
-  'simpleaf_index.json', 't2g_3col.tsv']
+AF_INDEX_FS = [
+  'index/piscem_idx.ctab',
+  'index/piscem_idx.ectab',
+  'index/piscem_idx.json',
+  'index/piscem_idx.refinfo',
+  'index/piscem_idx.sshash',
+  'index/piscem_idx_cfish.json',
+  'index/simpleaf_index.json',
+  'index/t2g_3col.tsv',
+  'ref/gene_id_to_name.tsv',
+  'ref/roers_make-ref.json',
+  'ref/roers_ref.fa',
+  'ref/t2g_3col.tsv',
+  'simpleaf_index_log.json'
+]
 
 # define tiny rule
 localrules: save_index_parameters_csv
@@ -63,8 +75,7 @@ rule all:
     SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/xgboost_obj_hvgs_Siletti_Macnair_2024-03-11.rds',
     # rule download_or_build_af_indices
     # expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/index/{file}', genome=GENOMES, file=AF_INDEX_FS)
-    expand([ SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/index' + f'/{file}' for file in AF_INDEX_FS ], 
-      genome=GENOMES),
+    expand([ SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/' + f'{file}' for file in AF_INDEX_FS], genome=GENOMES),
     expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/{genome}_index_params.yaml', genome=GENOMES),
     # rule get_reference_genome_data 
     SCPROCESS_DATA_DIR + '/index_parameters.csv'
@@ -116,8 +127,7 @@ rule download_scprocess_files:
 # rule for downloading reference genome files from 10x and dealing with custom genomes
 rule set_up_one_af_index:
   output:
-    [ SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/index' + f'/{file}' \
-      for file in AF_INDEX_FS],
+    [ SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/' + f'{file}' for file in AF_INDEX_FS],
     SCPROCESS_DATA_DIR + "/alevin_fry_home/{genome}/{genome}_index_params.yaml"
   params:
     fasta       = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ]['fasta'],
