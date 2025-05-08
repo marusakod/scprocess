@@ -1,0 +1,12 @@
+name: hvgs
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - h5py
+  - numpy
+  - pandas
+  - scanpy
+  - scipy
+  - pyyaml
+  - scikit-misc

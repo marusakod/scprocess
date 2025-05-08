@@ -217,21 +217,22 @@ def calculate_sum_and_sum_squares_cilipped(sparse_csr, estim_vars_df):
     return estim_vars_df
 
 
-def calculate_estimated_vars(estim_vars_f, mean_var_merged_f, hvg_method, span: float = 0.3 ):
+def calculate_estimated_vars(estim_vars_f, mean_var_merged_f, hvg_method, mean_var_df = None, span: float = 0.3 ):
 
-    stats_df  = pd.read_csv(mean_var_merged_f, sep = '\t')
-
-    if hvg_method == 'sample':
-        group_var = 'sample_id'
+    if mean_var_df is None:
+        # read mean var df if not specified
+        assert mean_var_merged_f is not None, 'input file path or dataframe missing'
+        stats_df  = pd.read_csv(mean_var_merged_f, sep = '\t')
     else:
-        group_var = 'group'
+        stats_df = mean_var_df
+
+    group_var = 'sample_id' if hvg_method == 'sample' else 'group'
     
     grouped = stats_df.groupby(group_var)
     all_results = []
 
     for name, group in grouped:
         N = group['n_cells'].unique()[0]
-        print(f"Number of cells is {N}")
             
         num_rows = group.shape[0]
          
@@ -257,11 +258,14 @@ def calculate_estimated_vars(estim_vars_f, mean_var_merged_f, hvg_method, span: 
         group['estimated_variance'] = estimat_var
           
         all_results.append(group)
-
+    
     final_df = pd.concat(all_results)
-    final_df.to_csv(estim_vars_f,  sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
 
-    return
+    if estim_vars_f is not None:
+        final_df.to_csv(estim_vars_f,  sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
+        return
+    else:
+        return final_df
 
 
 def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_num, hvg_method,
@@ -299,25 +303,46 @@ def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_
 
 
 
-def calculate_mean_var_for_sample(sample, qc_smpl_stats_f, csr_f, mean_var_f):
+def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, csr_f, std_var_stats_f):
 
     qc_df = pd.read_csv(qc_smpl_stats_f, sep = '\t')
     bad_samples = qc_df.loc[qc_df['bad_sample'] == True, 'sample_id'].tolist()
    
     if sample in bad_samples:
         # save an empty file
-        open(mean_var_f, 'w').close()
+        open(std_var_stats_f, 'w').close()
         return
     
     # read sparse matrix
     sparse_csr, features, _ = read_full_csr(csr_f)
     
-    # calculate stats
+    # calculate mean and variance
     stats_df = calculate_feature_stats(sparse_csr, features)
     stats_df['sample_id'] = sample
+
+    # calculate estimated variance
+    estim_vars_df = calculate_estimated_vars(
+        estim_vars_f        = None,
+        mean_var_merged_f   = None,
+        hvg_method          = 'sample',
+        mean_var_df         = stats_df
+        )
     
+    # get stats for standardized variance
+   
+    if sample in bad_samples:
+        # save an empty file
+        open(std_var_stats_f, 'w').close()
+        return
+    
+    # read sparse matrix
+    sparse_csr, features, _ = read_full_csr(csr_f)
+
+    # calculate stats
+    stats_df = calculate_sum_and_sum_squares_cilipped(sparse_csr, estim_vars_df)
+
     # save
-    stats_df.to_csv(mean_var_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
+    stats_df.to_csv(std_var_stats_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
 
     return
 
@@ -378,30 +403,30 @@ def calculate_mean_var_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_sta
 
 
 
-def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, estim_vars_f, csr_f, std_var_stats_f):
+# def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, estim_vars_f, csr_f, std_var_stats_f):
 
-    qc_df = pd.read_csv(qc_smpl_stats_f, sep = '\t')
-    bad_samples = qc_df.loc[qc_df['bad_sample'] == True, 'sample_id'].tolist()
+#     qc_df = pd.read_csv(qc_smpl_stats_f, sep = '\t')
+#     bad_samples = qc_df.loc[qc_df['bad_sample'] == True, 'sample_id'].tolist()
    
-    if sample in bad_samples:
-        # save an empty file
-        open(std_var_stats_f, 'w').close()
-        return
+#     if sample in bad_samples:
+#         # save an empty file
+#         open(std_var_stats_f, 'w').close()
+#         return
     
-    # read sparse matrix
-    sparse_csr, features, _ = read_full_csr(csr_f)
+#     # read sparse matrix
+#     sparse_csr, features, _ = read_full_csr(csr_f)
 
-    # get df with estimated variances for sample
-    estim_vars_df = pd.read_csv(estim_vars_f, sep = '\t')
-    estim_vars_smpl = estim_vars_df[estim_vars_df['sample_id'] == sample,]
+#     # get df with estimated variances for sample
+#     estim_vars_df = pd.read_csv(estim_vars_f, sep = '\t')
+#     estim_vars_smpl = estim_vars_df[estim_vars_df['sample_id'] == sample,]
     
-    # calculate stats
-    stats_df = calculate_sum_and_sum_squares_cilipped(sparse_csr, estim_vars_smpl)
+#     # calculate stats
+#     stats_df = calculate_sum_and_sum_squares_cilipped(sparse_csr, estim_vars_smpl)
 
-    # save
-    stats_df.to_csv(std_var_stats_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
+#     # save
+#     stats_df.to_csv(std_var_stats_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
 
-    return
+#     return
 
 
 
@@ -458,6 +483,122 @@ def calculate_std_var_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smp
     return
 
 
+def _calculate_standardized_variance(df):
+    
+    return df.assign(
+        norm_gene_var=lambda d: (
+            1 / ((d['n_cells'] - 1) * np.square(d['reg_std']))
+        ) * (
+            (d['n_cells'] * np.square(d['mean']))
+            + d['squared_counts_sum']
+            - 2 * d['counts_sum'] * d['mean']
+        )
+    )
+
+
+def _get_excluded_genes(empty_gs_fs, hvg_method, stats_df, group_var):
+
+    # get list or dictionary of empty genes to exclude
+    if hvg_method in ['sample', 'all']:
+        empty_dt = pd.read_csv(empty_gs_fs, sep='\t')
+        return empty_dt.loc[empty_dt['is_ambient'], 'gene_id'].tolist()
+    else:
+        empty_fs_ls = empty_gs_fs.split(',')
+        uniq_groups = stats_df[group_var].nunique()
+        assert uniq_groups == len(empty_fs_ls), "Number of empty gene files must match the number of groups"
+        empty_dts = [pd.read_csv(f, sep='\t') for f in empty_fs_ls]
+
+        exc_gs = {}
+        for df in empty_dts:
+            key = df['group'].unique()
+            assert len(key) == 1, "More than one group in dataframe with empty genes"
+            exc_gs[key[0]] = df.loc[df['is_ambient'], 'gene_id'].tolist()
+        
+        return exc_gs
+
+
+def _rank_genes(ranking_df, n_hvgs):
+    # sort and rank genes
+    norm_gene_vars = ranking_df['norm_gene_var'].to_numpy()
+    ranked_norm_gene_vars = np.argsort(np.argsort(-norm_gene_vars))
+    ranked_norm_gene_vars[ranked_norm_gene_vars >= n_hvgs] = np.nan
+    ma_ranked = np.ma.masked_invalid(ranked_norm_gene_vars)
+    
+    return ranked_norm_gene_vars, np.mean(norm_gene_vars), ma_ranked
+
+
+def _process_single_group(stats_df, genes_to_exclude, n_hvgs):
+    
+    ranks_df = stats_df[~stats_df['gene'].isin(genes_to_exclude)]
+    ranked_norm_gene_vars, variances_norm, _ = _rank_genes(ranks_df, n_hvgs)
+
+    out_df                              = stats_df[['gene']].copy()
+    out_df['gene_name']                 = out_df['gene']
+    out_df['highly_variable_nbatches']  = 1  
+    out_df['highly_variable_rank']      = ranked_norm_gene_vars
+    out_df['variances_norm']            = variances_norm
+
+    return out_df
+
+
+def _process_multiple_groups(stats_df, group_var, exc_gs, n_hvgs, hvg_method):
+
+    all_ranked_norm_gene_vars = []
+    norm_gene_vars_list = []
+
+    for group_name, group_df in stats_df.groupby(group_var):
+        genes_to_exclude = exc_gs if hvg_method in ['sample', 'all'] else exc_gs.get(group_name, [])
+        ranks_df = group_df[~group_df['gene'].isin(genes_to_exclude)]
+        ranked_norm_gene_vars, variances, ma_ranked = _rank_genes(ranks_df, n_hvgs)
+
+        all_ranked_norm_gene_vars.append(ranked_norm_gene_vars)
+        norm_gene_vars_list.append(variances)
+
+    # merge metrics across multiple groups 
+    all_ranked_norm_gene_vars = np.array(all_ranked_norm_gene_vars)
+    num_batches_high_var      = np.sum((all_ranked_norm_gene_vars < n_hvgs).astype(int), axis=0)
+    median_ranked             = np.ma.median(np.ma.masked_invalid(all_ranked_norm_gene_vars), axis=0).filled(np.nan)
+    variances_norm            = np.mean(norm_gene_vars_list, axis=0)
+
+    out_df                             = stats_df[['gene']].drop_duplicates().copy()
+    out_df['gene_name']                = out_df['gene']
+    out_df['highly_variable_nbatches'] = num_batches_high_var
+    out_df['highly_variable_rank']     = median_ranked
+    out_df['variances_norm']        = variances_norm
+
+    return out_df
+
+
+# main function to calculate highly variable genes
+def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_fs, hvg_method, n_hvgs, exclude_ambient=True):
+   
+    stats_df  = pd.read_csv(std_var_stats_f, sep='\t')
+    group_var = 'sample_id' if hvg_method == 'sample' else 'group'
+
+    stats_df  = _calculate_standardized_variance(stats_df)
+    exc_gs    = _get_excluded_genes(empty_gs_fs, hvg_method, stats_df, group_var) if exclude_ambient else None
+
+    if stats_df[group_var].nunique() == 1:
+        hvg_df = _process_single_group(stats_df, exc_gs, n_hvgs)
+    else:
+        hvg_df = _process_multiple_groups(stats_df, group_var, exc_gs, n_hvgs, hvg_method)
+
+    sort_cols = ["highly_variable_rank", "highly_variable_nbatches"]
+    sort_ascending = [True, False]
+
+    #  label highly variable genes
+    sorted_index = (
+        hvg_df[sort_cols]
+        .sort_values(sort_cols, ascending=sort_ascending, na_position="last")
+        .index
+    )
+
+    hvg_df["highly_variable"] = False
+    hvg_df.loc[sorted_index[: int(n_hvgs)], "highly_variable"] = True
+
+    hvg_df.to_csv(hvg_f, sep='\t', index=False)
+    return hvg_df
+
 
 
 if __name__ == "__main__":
@@ -475,12 +616,6 @@ if __name__ == "__main__":
     parser_makeCSR.add_argument("-s", "--size", required=False, default= 2000, type = int)
     parser_makeCSR.add_argument("-n", "--ncores", required=False, default= 8, type = int)
     
-    # parser for calculate_mean_var_for_sample
-    parser_sampleCalcs = subparsers.add_parser('calculate_mean_var_for_sample')
-    parser_sampleCalcs.add_argument("sample", type=str)
-    parser_sampleCalcs.add_argument("qc_smpl_stats_f", type=str)
-    parser_sampleCalcs.add_argument("csr_f", type=str)
-    parser_sampleCalcs.add_argument("mean_var_f", type=str)
 
     # parser for calculate_mean_var_for_chunk
     parser_chunkCalcs = subparsers.add_parser('calculate_mean_var_for_chunk')
@@ -506,7 +641,6 @@ if __name__ == "__main__":
     parser_sampleSssc = subparsers.add_parser('calculate_std_var_stats_for_sample')
     parser_sampleSssc.add_argument("sample", type=str)
     parser_sampleSssc.add_argument("qc_smpl_stats_f", type=str)
-    parser_sampleSssc.add_argument("estim_vars_f", type=str)
     parser_sampleSssc.add_argument("csr_f", type=str)
     parser_sampleSssc.add_argument("std_var_stats_f", type=str)
 
@@ -526,6 +660,15 @@ if __name__ == "__main__":
     parser_chunkSssc.add_argument("-g", "--group", type=str, required=False, default= None)
     parser_chunkSssc.add_argument("-n", "--ncores", type=int, required=False, default = 8)
 
+    
+    # parser for calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_fs, hvg_method, n_hvgs, exclude_empty=True
+    parser_getHvgs = subparsers.add_parser('calculate_hvgs')
+    parser_getHvgs.add_argument("std_var_stats_f", type=str)
+    parser_getHvgs.add_argument("hvg_f", type=str)
+    parser_getHvgs.add_argument("empty_gs_f", type=str)
+    parser_getHvgs.add_argument("hvg_method", type=str)
+    parser_getHvgs.add_argument("n_hvgs", type=int)
+    parser_getHvgs.add_argument("-e", "--noambient",required=False, default=True)
    
     args = parser.parse_args()
 
@@ -533,10 +676,6 @@ if __name__ == "__main__":
         get_csr_counts(
             args.hvg_paths_f, args.qc_f, args.qc_smpl_stats_f, args.rowdata_f,
             args.sample_var, args.demux_type, args.size, args.ncores
-        )
-    elif args.function_name == 'calculate_mean_var_for_sample':
-        calculate_mean_var_for_sample(
-            args.sample, args.qc_smpl_stats_f, args.csr_f, args.mean_var_f
         )
     elif args.function_name == 'calculate_mean_var_for_chunk':
         calculate_mean_var_for_chunk(
@@ -550,14 +689,18 @@ if __name__ == "__main__":
         )
     elif args.function_name == 'calculate_std_var_stats_for_sample':
         calculate_std_var_stats_for_sample(
-            args.sample, args.qc_smpl_stats_f, args.estim_vars_f,
-            args.csr_f, args.std_var_stats_f
+            args.sample, args.qc_smpl_stats_f, args.csr_f, args.std_var_stats_f
         )
     elif args.function_name == 'calculate_std_var_stats_for_chunk':
         calculate_std_var_stats_for_chunk(
             args.hvg_paths_f, args.rowdata_f, args.metadata_f, args.qc_smpl_stats_f,
             args.std_var_stats_f, args.estim_vars_f, args.chunk_num,
             args.hvg_method, args.size, args.groupvar, args.group, args.ncores
+        )
+    elif args.function_name == 'calculate_hvgs':
+        calculate_hvgs(
+            args.std_var_stats_f, args.hvg_f, args.empty_gs_f, args.hvg_method, 
+            args.n_hvgs, args.noempty
         )
     else:
         parser.print_help()

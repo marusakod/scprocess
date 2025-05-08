@@ -142,7 +142,6 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
     
     # save one file only for samples that were not removed
     all_samples %>% lapply(function(s){
-      print(s)
       smpl_sce = sce_filt[, colData(sce_filt)$sample_id == s]
       smpl_f = sce_fs_ls[s]
       

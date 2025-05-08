@@ -2,8 +2,7 @@
 import yaml  
 import csv
 
-localrules: make_hvg_df
-localrules: merge_sample_stats
+localrules: make_hvg_df, merge_sample_std_var_stats, merge_group_mean_var, merge_group_std_var_stats
 
 def make_hvgs_input_df(DEMUX_TYPE, SAMPLE_VAR, runs, ambient_outs_yamls, SAMPLE_MAPPING, FULL_TAG, DATE_STAMP, hvg_dir):
 
@@ -99,12 +98,12 @@ rule make_tmp_csr_matrix:
 
 if HVG_METHOD == 'sample': 
   # calculate stats for each sample separatelly  
-  rule calculate_mean_var_for_sample:
+  rule get_stats_for_std_variance_for_sample:
     input: 
       clean_h5_f      = hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
       qc_smpl_stats_f = qc_dir + '/qc_sample_statistics_' + DATE_STAMP + '.txt'
     output:
-      mean_var_f      = temp(hvg_dir + '/tmp_mean_var_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+      std_var_stats_f = temp(hvg_dir + '/tmp_std_var_stats_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 1
     retries: RETRIES
     resources:
@@ -113,29 +112,29 @@ if HVG_METHOD == 'sample':
       '../envs/hvgs.yml'
     shell:
       """
-      python3 scripts/hvgs.py calculate_mean_var_for_sample \
+      python3 scripts/hvgs.py calculate_std_var_stats_for_sample \
         {wildcards.sample} \
         {input.qc_smpl_stats_f} \
         {input.clean_h5_f} \
-        {output.mean_var_f}
+        {output.std_var_stats_f}
 
       """
 
-  rule merge_sample_mean_var:
-    input:
-      mean_var_f        = expand(hvg_dir + '/tmp_mean_var_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = SAMPLES)
+  rule merge_sample_std_var_stats:
+    input:                 
+      std_var_stats_f = expand(hvg_dir + '/tmp_std_var_stats_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = SAMPLES)
     output:
-      mean_var_merged_f = temp(hvg_dir + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+      std_var_stats_merged_f = hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
     threads: 1
     retries: RETRIES
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
     run:
-      merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
+      merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
 
 
 else:
-  rule calculate_mean_var_for_group:
+  rule get_mean_var_for_group:
     input:
       clean_h5_f      = expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES),
       hvg_paths_f     = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
@@ -160,7 +159,7 @@ else:
         {HVG_METHOD} \
         {HVG_CHUNK_SIZE} \
         --group {wildcards.group} \
-        --groupvar {HVG_SPLIT_VAR} \
+        --groupvar {HVG_GROUP_VAR} \
         --ncores {threads} 
     
       """
@@ -178,69 +177,25 @@ else:
       merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
 
 
-
-
-# same for sample, groups or all
-rule get_estimated_variances:
-  input:
-    mean_var_merged_f  = hvg_dir + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-  output:
-    estim_vars_f       = temp(hvg_dir + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
-  threads: 1
-  retries: RETRIES
-  conda:
-    '../envs/hvgs.yml'
-  resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-  shell:
-    """
-    python3 scripts/hvgs.py calculate_estimated_vars \
-      {output.estim_vars_f} \
-      {input.mean_var_merged_f} \
-      {HVG_METHOD}
-    """
-
-
-
-
-#  calculate sum and sum squares clipped per chunk or per sample
-if HVG_METHOD == 'sample':
-  rule get_stats_for_std_variance_for_sample:
-    input: 
-      clean_h5_f      = hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-      estim_vars_f    = hvg_dir + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-      qc_smpl_stats_f = qc_dir  + '/qc_sample_statistics_' + DATE_STAMP + '.txt'
-    output: 
-      std_var_stats_f = temp(hvg_dir + '/tmp_std_var_stats_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+  rule get_estimated_variances:
+    input:
+      mean_var_merged_f  = hvg_dir + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    output:
+      estim_vars_f       = temp(hvg_dir + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 1
     retries: RETRIES
-    resources:
-      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
     conda:
       '../envs/hvgs.yml'
-    shell:
-      """
-      python3 scripts/hvgs.py calculate_std_var_stats_for_sample \
-        {wildcards.sample} \
-        {input.qc_smpl_stats_f} \
-        {input.estim_vars_f} \
-        {input.clean_h5_f} \
-        {output.tmp_out_f} 
-      """
-
-  rule merge_sample_std_var_stats:
-    input:                 
-      std_var_stats_f = expand(hvg_dir + '/tmp_std_var_stats_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = SAMPLES)
-    output:
-      std_var_stats_merged_f = hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-    threads: 1
-    retries: RETRIES
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-    run:
-      merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
+    shell:
+      """
+      python3 scripts/hvgs.py calculate_estimated_vars \
+        {output.estim_vars_f} \
+        {input.mean_var_merged_f} \
+        {HVG_METHOD}
+      """
 
-else:
   rule get_stats_for_std_variance_for_group:
     input: 
       clean_h5_fs     = expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES),
@@ -268,19 +223,46 @@ else:
         {HVG_METHOD} \
         --size {HVG_CHUNK_SIZE} \
         --group {wildcards.group} \
-        --groupvar {HVG_SPLIT_VAR} \
+        --groupvar {HVG_GROUP_VAR} \
         --ncores {threads} \
     
       """
-  rule merge_group_std_var_stats:
-    input:                 
-      std_var_stats_f = expand(hvg_dir + '/tmp_std_var_stats_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      group=GROUP_NAMES, chunk=range(NUM_CHUNKS)),
-    output:
-      std_var_stats_merged_f = hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-    threads: 1
-    retries: RETRIES
-    resources:
-      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-    run:
-      merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
+
+    rule merge_group_std_var_stats:
+      input:                 
+        std_var_stats_f = expand(hvg_dir + '/tmp_std_var_stats_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+        group=GROUP_NAMES, chunk=range(NUM_CHUNKS)),
+      output:
+        std_var_stats_merged_f = hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      threads: 1
+      retries: RETRIES
+      resources:
+        mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+      run:
+        merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
+
+
+rule get_highly_variable_genes:
+  input:
+    std_var_stats_f = hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    empty_gs_fs     = expand(empty_dir + '/edger_empty_genes_{group}_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
+      group = AMBIENT_GENES_GRP_NAMES) 
+  output:
+    hvg_f = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+  threads: 1
+  retries: RETRIES
+  resources:
+     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  shell:
+     """
+     # get input files string
+     empty_fs_str=$(echo {input.empty_gs_fs} | sed "s/ /,/g")
+
+     python 3 scripts/hvgs.py calculate_hvgs \
+      {input.std_var_stats_f} \
+      $empty_fs_str \
+      {HVG_METHOD} \
+      {N_HVGS} \
+      --noambient {EXCLUDE_AMBIENT_GENES} # this should be a bool
+
+    """"

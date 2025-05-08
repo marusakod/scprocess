@@ -111,10 +111,6 @@ This is an example config file for {{ software_name }} with all parameters and t
         cb_force_total_droplets_included:
         cb_force_low_count_threshold:
         cb_force_learning_rate:
-      make_sce:
-        sce_bender_prob: 0.5
-      doublet_id:
-        dbl_min_feats: 100
       qc:
         qc_min_counts: 300   
         qc_min_feats: 300        
@@ -122,9 +118,13 @@ This is an example config file for {{ software_name }} with all parameters and t
         qc_max_mito: 0.1         
         qc_min_splice: 0          
         qc_max_splice: 1          
-        qc_min_cells: 500  
-      integration:
-        int_n_hvgs:       2000               
+        qc_min_cells: 500 
+        dbl_min_feats: 100
+      hvg:
+        hvg_method: sample
+        n_hvgs: 2000
+        exclude_empties: True
+      integration:     
         int_n_dims:       50                 
         int_dbl_res:      4                   
         int_dbl_cl_prop:  0.5                 
@@ -164,8 +164,9 @@ This is an example config file for {{ software_name }} with all parameters and t
       resources:
         mb_run_alevin_fry: 8192               
         mb_save_alevin_to_h5: 8192            
-        mb_run_cellbender: 32768            
-        mb_get_cellbender_qc_metrics: 4096    
+        mb_run_ambient: 32768            
+        mb_get_barcode_qc_metrics: 4096  
+        mb_run_hvgs: 8192  
         mb_run_scdblfinder: 4096             
         mb_combine_scdblfinder_outputs: 8192  
         mb_make_sce_object: 16384             
@@ -211,10 +212,6 @@ This is an example config file for {{ software_name }} with all parameters and t
         fastq_dir: /path/to/directory/with/hto_fastq/files 
         feature_ref: /path/to/feature_ref.csv
         batch_var: sample_id
-      make_sce:
-        sce_bender_prob: 0.5
-      doublet_id:
-        dbl_min_feats: 100
       qc:
         qc_min_counts: 300   
         qc_min_feats: 300        
@@ -223,8 +220,12 @@ This is an example config file for {{ software_name }} with all parameters and t
         qc_min_splice: 0          
         qc_max_splice: 1          
         qc_min_cells: 500  
-      integration:
-        int_n_hvgs:       2000               
+        dbl_min_feats: 100
+      hvg:
+        hvg_method: sample
+        n_hvgs: 2000
+        exclude_empties: True
+      integration:    
         int_n_dims:       50                 
         int_dbl_res:      4                   
         int_dbl_cl_prop:  0.5                 
@@ -270,8 +271,9 @@ This is an example config file for {{ software_name }} with all parameters and t
       resources:
         mb_run_alevin_fry: 8192               
         mb_save_alevin_to_h5: 8192            
-        mb_run_cellbender: 32768            
-        mb_get_cellbender_qc_metrics: 4096    
+        mb_run_ambient: 32768            
+        mb_get_barcode_qc_metrics: 4096    
+        mb_run_hvgs: 8192 
         mb_run_scdblfinder: 4096             
         mb_combine_scdblfinder_outputs: 8192  
         mb_make_sce_object: 16384             
@@ -358,9 +360,18 @@ sample_3:
 * `qc_min_cells`: minimum number of cells required in a sample after QC filtering to retain the sample.
 * `dbl_min_feats`: number of features required for each barcode to be included in scDblFinder calculations.
 
+##### hvg
+
+* `hvg_method`: options: 
+    + `sample` - calculate highly variable genes per sample, then calculate combined ranking across samples; 
+    + `all` - calculate highly variable genes across all cells in the dataset; and
+    + `group` - calculate highly variable genes for each sample group then calculate combined ranking across groups.
+* `hvg_group_var`: if `hvg_method` is `group`, which variable in `sample_metadata` should be used to define sample groups.
+* `n_hvgs`: number of HVGs to use for PCA
+* `exclude_ambient_genes`: if `True`, genes enriched in "empty" droplets relative to cells will be excluded from highly variable genes selection. 
+
 ##### integration
 
-* `int_n_hvgs`: number of HVGs to use for PCA
 * `int_n_dims`number of PCs to use for integration
 * `int_dbl_res`resolution for clustering to get extra doublets
 * `int_dbl_cl_prop` proportion of doublet cells in a cluster to exclude that cluster

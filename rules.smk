@@ -24,9 +24,9 @@ FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, 
 QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_FEATS, \
   QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS = \
   get_qc_parameters(config)
-HVG_METHOD, HVG_SPLIT_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES = \
+HVG_METHOD, HVG_GROUP_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES = \
   get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F)
-INT_EXC_REGEX, INT_N_HVGS, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES = \
+INT_EXC_REGEX, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES = \
   get_integration_parameters(config, AF_MITO_STR)
 MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS = \
   get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
@@ -34,7 +34,7 @@ LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL
  get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
 ZOOM_NAMES, ZOOM_SPEC_LS = get_zoom_parameters(config, AF_MITO_STR, SCPROCESS_DATA_DIR)
 META_SUBSETS, META_MAX_CELLS = get_metacells_parameters(config)
-PB_SUBSETS, PB_DO_ALL = get_pb_empties_parameters(config)
+AMBIENT_GENES_GRP_NAMES, AMBIENT_GENES_GRP_VAR, AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES)
 RETRIES, MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
   MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
   MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
@@ -176,14 +176,18 @@ rule all:
     pb_dir  + '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
     pb_dir  + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-    empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
+    expand(
+      empty_dir + '/edger_empty_genes_{group}_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
+      group = AMBIENT_GENES_GRP_NAMES
+    ),
     # hvgs
     hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     #expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES), 
     #expand(hvg_dir + '/tmp_calcs_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = SAMPLES), 
     #hvg_dir + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     #hvg_dir + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
 
 
     

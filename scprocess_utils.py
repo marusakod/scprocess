@@ -453,12 +453,14 @@ def get_qc_parameters(config):
 def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F): 
 
   # set defaults
-  HVG_METHOD     = 'sample'
-  HVG_SPLIT_VAR  = None
-  HVG_CHUNK_SIZE = 2000
-  NUM_CHUNKS     = None
-  GROUP_NAMES    = []
-  CHUNK_NAMES    = []
+  HVG_METHOD      = 'sample'
+  HVG_GROUP_VAR   = None
+  HVG_CHUNK_SIZE  = 2000
+  N_HVGS          = 2000
+  NUM_CHUNKS      = None
+  EXCLUDE_AMBIENT_GENES = True
+  GROUP_NAMES     = []
+  CHUNK_NAMES     = []
 
 
   if ('hvg' in config) and (config['hvg'] is not None):
@@ -468,27 +470,34 @@ def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
       valid_methods = ['sample', 'all', 'groups']
       assert HVG_METHOD in valid_methods, \
         f"Invalid hvg method '{HVG_METHOD}'. Must be one of {valid_methods}."
+    
+    if 'n_hvgs' in config['hvg']:
+      N_HVGS          = config['hvg']['n_hvgs']
+    
+    if 'exclude_ambient_genes' in config['hvg']:
+      EXCLUDE_AMBIENT_GENES = config['hvg']['exclude_ambient_genes']
+      assert isinstance(EXCLUDE_AMBIENT_GENES, bool), f"'exclude_ambient_genes' should be a boolean"
       
       if HVG_METHOD == 'all':
         GROUP_NAMES = ['all_samples']
       
       # if method is groups check that group variable is specified
       if HVG_METHOD == 'groups':
-        assert ('metadata_split_var' in config['hvg']) and (config['hvg']['metadata_split_var'] is not None), \
-          "The 'metadata_split_var' parameter must be defined when the hvg method is 'groups'."
-        HVG_SPLIT_VAR = config['hvg']['metadata_split_var']
+        assert ('hvg_group_var' in config['hvg']) and (config['hvg']['hvg_group_var'] is not None), \
+          "The 'hvg_group_var' parameter must be defined when the hvg method is 'groups'."
+        HVG_GROUP_VAR = config['hvg']['hvg_group_var']
 
         # check that value of metadata_split_var matches a column in sample metadata
         meta = pd.read_csv(METADATA_F)
-        assert HVG_SPLIT_VAR in meta.columns(), \
-          f"{HVG_SPLIT_VAR} is not a column in the sample metadata file."
+        assert HVG_GROUP_VAR in meta.columns(), \
+          f"{HVG_GROUP_VAR} is not a column in the sample metadata file."
         
         # check number of unique group values
-        uniq_groups = meta[HVG_SPLIT_VAR].unique().tolist()
+        uniq_groups = meta[HVG_GROUP_VAR].unique().tolist()
         if len(uniq_groups) == meta.shape[0]:
-          print(f"Number of unique values in '{HVG_SPLIT_VAR}' is the same as the number of samples; switching to 'sample' method for calculating hvgs.")
+          print(f"Number of unique values in '{HVG_GROUP_VAR}' is the same as the number of samples; switching to 'sample' method for calculating hvgs.")
           HVG_METHOD = 'sample'
-          HVG_SPLIT_VAR = None
+          HVG_GROUP_VAR = None
 
         GROUP_NAMES = uniq_groups
         # replace spaces with underscores
@@ -504,7 +513,7 @@ def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
         # make a list of chunk names
         CHUNK_NAMES = [f"chunk_{i+1}" for i in range(NUM_CHUNKS)]
 
-  return HVG_METHOD, HVG_SPLIT_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES
+  return HVG_METHOD, HVG_GROUP_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES
         
 
 
@@ -516,7 +525,6 @@ def get_integration_parameters(config, mito_str):
 
   # set some more default values
   INT_N_DIMS      = 50
-  INT_N_HVGS      = 2000
   INT_DBL_RES     = 4
   INT_DBL_CL_PROP = 0.5
   INT_THETA       = 0.1
@@ -525,8 +533,6 @@ def get_integration_parameters(config, mito_str):
 
   # change defaults if specified
   if ('integration' in config) and (config['integration'] is not None):
-    if 'int_n_hvgs' in config['integration']:
-      INT_N_HVGS      = config['integration']['int_n_hvgs']
     if 'int_n_dims' in config['integration']:
       INT_N_DIMS      = config['integration']['int_n_dims']
     if 'int_dbl_res' in config['integration']:
@@ -540,7 +546,7 @@ def get_integration_parameters(config, mito_str):
     if 'int_sel_res' in config['integration']:
       INT_SEL_RES     = config['integration']['int_sel_res']
 
-  return INT_EXC_REGEX, INT_N_HVGS, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES
+  return INT_EXC_REGEX, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES
 
 
 
@@ -736,24 +742,45 @@ def get_metacells_parameters(config):
   return META_SUBSETS, META_MAX_CELLS
 
 
-# define pseudobulk parameters
-def get_pb_empties_parameters(config): 
-  # set some more default values
-  PB_SUBSETS          = []
-  PB_DO_ALL           = False
+def get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR ):
+  # get groups for calculating ambient genes
+  if HVG_METHOD == 'group':
+    AMBIENT_GENES_GRP_NAMES = GROUP_NAMES
+    AMBIENT_GENES_GRP_VAR   = HVG_GROUP_VAR
+  else:
+    AMBIENT_GENES_GRP_NAMES = ['all_samples']
+    AMBIENT_GENES_GRP_VAR   = ""
 
-  # change defaults if specified
+  # get parameters for filtering edger results
+  AMBIENT_GENES_LOGFC_THR = 0
+  AMBIENT_GENES_FDR_THR   = 0.01
+  
   if ('pb_empties' in config) and (config['pb_empties'] is not None):
-    if 'subsets' in config['pb_empties']:
-      PB_SUBSETS          = config['pb_empties']['subsets']
+    if 'ambinet_genes_logfc_thr' in config['pb_empties']:
+      AMBIENT_GENES_LOGFC_THR = config['pb_empties']['ambient_genes_logfc_thr']
+    if 'ambient_genes_fdr_thr'   in config['pb_empties']:
+      AMBIENT_GENES_FDR_THR   = config['pb_empties']['ambient_genes_fdr_thr']
+
+  return AMBIENT_GENES_GRP_NAMES, AMBIENT_GENES_GRP_VAR, AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR
+
+# define pseudobulk parameters
+# def get_pb_empties_parameters(config): 
+#   # set some more default values
+#   PB_SUBSETS          = []
+#   PB_DO_ALL           = False
+
+#   # change defaults if specified
+#   if ('pb_empties' in config) and (config['pb_empties'] is not None):
+#     if 'subsets' in config['pb_empties']:
+#       PB_SUBSETS          = config['pb_empties']['subsets']
 
 
-  # parse out empties and all
-  if "all" in PB_SUBSETS:
-    PB_DO_ALL     = True
-    PB_SUBSETS    = [x for x in PB_SUBSETS if x != "all"]
+#   # parse out empties and all
+#   if "all" in PB_SUBSETS:
+#     PB_DO_ALL     = True
+#     PB_SUBSETS    = [x for x in PB_SUBSETS if x != "all"]
 
-  return PB_SUBSETS, PB_DO_ALL
+#   return PB_SUBSETS, PB_DO_ALL
 
 
 
