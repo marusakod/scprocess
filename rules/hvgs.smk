@@ -101,7 +101,8 @@ if HVG_METHOD == 'sample':
   rule get_stats_for_std_variance_for_sample:
     input: 
       clean_h5_f      = hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-      qc_smpl_stats_f = qc_dir + '/qc_sample_statistics_' + DATE_STAMP + '.txt'
+      qc_smpl_stats_f = qc_dir + '/qc_sample_statistics_' + DATE_STAMP + '.txt', 
+      rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
     output:
       std_var_stats_f = temp(hvg_dir + '/tmp_std_var_stats_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 1
@@ -116,6 +117,7 @@ if HVG_METHOD == 'sample':
         {wildcards.sample} \
         {input.qc_smpl_stats_f} \
         {input.clean_h5_f} \
+        {input.rowdata_f} \
         {output.std_var_stats_f}
 
       """
@@ -228,41 +230,40 @@ else:
     
       """
 
-    rule merge_group_std_var_stats:
-      input:                 
-        std_var_stats_f = expand(hvg_dir + '/tmp_std_var_stats_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-        group=GROUP_NAMES, chunk=range(NUM_CHUNKS)),
-      output:
-        std_var_stats_merged_f = hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-      threads: 1
-      retries: RETRIES
-      resources:
-        mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-      run:
-        merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
+  rule merge_group_std_var_stats:
+    input:                 
+      std_var_stats_f = expand(hvg_dir + '/tmp_std_var_stats_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      group=GROUP_NAMES, chunk=range(NUM_CHUNKS)),
+    output:
+      std_var_stats_merged_f = hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    threads: 1
+    retries: RETRIES
+    resources:
+      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    run:
+      merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
 
 
 rule get_highly_variable_genes:
   input:
     std_var_stats_f = hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    empty_gs_fs     = expand(empty_dir + '/edger_empty_genes_{group}_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
-      group = AMBIENT_GENES_GRP_NAMES) 
+    empty_gs_fs     = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz' 
   output:
     hvg_f = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 1
   retries: RETRIES
   resources:
      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  conda:
+    '../envs/hvgs.yml'
   shell:
      """
-     # get input files string
-     empty_fs_str=$(echo {input.empty_gs_fs} | sed "s/ /,/g")
-
-     python 3 scripts/hvgs.py calculate_hvgs \
+     
+     python3 scripts/hvgs.py calculate_hvgs \
       {input.std_var_stats_f} \
-      $empty_fs_str \
+      {output.hvg_f} \
+      {input.empty_gs_fs} \
       {HVG_METHOD} \
-      {N_HVGS} \
-      --noambient {EXCLUDE_AMBIENT_GENES} # this should be a bool
-
-    """"
+      {N_HVGS}
+      # need to add flag to determine whether to remove ambient genes or not!
+     """

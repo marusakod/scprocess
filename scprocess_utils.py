@@ -210,9 +210,9 @@ def get_project_parameters(config, scprocess_data_dir):
   SPECIES       = config["species"]
 
   # check if selected species is valid
-  setup_params_f  = os.path.join(scprocess_data_dir, 'setup_parameters.csv')
+  setup_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
 
-    # from setup_parameters.csv get valid values for species
+    # from index_parameters.csv get valid values for species
   setup_params= pd.read_csv(setup_params_f)
   valid_species = setup_params['genome_name'].tolist()
 
@@ -333,9 +333,9 @@ def get_alevin_parameters(config, scprocess_data_dir, SPECIES):
     "chemistry not valid"
   
   # get setup params
-  setup_params_f  = os.path.join(scprocess_data_dir, 'setup_parameters.csv')
+  setup_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
 
-    # from setup_parameters.csv get valid values for species
+    # from index_parameters.csv get valid values for species
   setup_params= pd.read_csv(setup_params_f)
      
   # get mito strings from setup params
@@ -453,51 +453,52 @@ def get_qc_parameters(config):
 def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F): 
 
   # set defaults
-  HVG_METHOD      = 'sample'
-  HVG_GROUP_VAR   = None
-  HVG_CHUNK_SIZE  = 2000
-  N_HVGS          = 2000
-  NUM_CHUNKS      = None
+  HVG_METHOD     = 'sample'
+  HVG_SPLIT_VAR  = None
+  HVG_CHUNK_SIZE = 2000
+  N_HVGS         = 2000
+  NUM_CHUNKS     = None
   EXCLUDE_AMBIENT_GENES = True
-  GROUP_NAMES     = []
-  CHUNK_NAMES     = []
+  GROUP_NAMES    = []
+  CHUNK_NAMES    = []
 
 
   if ('hvg' in config) and (config['hvg'] is not None):
-    if 'method' in config['hvg']:
-      HVG_METHOD      = config['hvg']['method']
-      # check if valid
-      valid_methods = ['sample', 'all', 'groups']
-      assert HVG_METHOD in valid_methods, \
-        f"Invalid hvg method '{HVG_METHOD}'. Must be one of {valid_methods}."
-    
+
     if 'n_hvgs' in config['hvg']:
       N_HVGS          = config['hvg']['n_hvgs']
     
     if 'exclude_ambient_genes' in config['hvg']:
       EXCLUDE_AMBIENT_GENES = config['hvg']['exclude_ambient_genes']
       assert isinstance(EXCLUDE_AMBIENT_GENES, bool), f"'exclude_ambient_genes' should be a boolean"
+
+    if 'method' in config['hvg']:
+      HVG_METHOD      = config['hvg']['method']
+      # check if valid
+      valid_methods = ['sample', 'all', 'groups']
+      assert HVG_METHOD in valid_methods, \
+        f"Invalid hvg method '{HVG_METHOD}'. Must be one of {valid_methods}."
       
       if HVG_METHOD == 'all':
         GROUP_NAMES = ['all_samples']
       
       # if method is groups check that group variable is specified
       if HVG_METHOD == 'groups':
-        assert ('hvg_group_var' in config['hvg']) and (config['hvg']['hvg_group_var'] is not None), \
-          "The 'hvg_group_var' parameter must be defined when the hvg method is 'groups'."
-        HVG_GROUP_VAR = config['hvg']['hvg_group_var']
+        assert ('metadata_split_var' in config['hvg']) and (config['hvg']['metadata_split_var'] is not None), \
+          "The 'metadata_split_var' parameter must be defined when the hvg method is 'groups'."
+        HVG_SPLIT_VAR = config['hvg']['metadata_split_var']
 
         # check that value of metadata_split_var matches a column in sample metadata
         meta = pd.read_csv(METADATA_F)
-        assert HVG_GROUP_VAR in meta.columns(), \
-          f"{HVG_GROUP_VAR} is not a column in the sample metadata file."
+        assert HVG_SPLIT_VAR in meta.columns(), \
+          f"{HVG_SPLIT_VAR} is not a column in the sample metadata file."
         
         # check number of unique group values
-        uniq_groups = meta[HVG_GROUP_VAR].unique().tolist()
+        uniq_groups = meta[HVG_SPLIT_VAR].unique().tolist()
         if len(uniq_groups) == meta.shape[0]:
-          print(f"Number of unique values in '{HVG_GROUP_VAR}' is the same as the number of samples; switching to 'sample' method for calculating hvgs.")
+          print(f"Number of unique values in '{HVG_SPLIT_VAR}' is the same as the number of samples; switching to 'sample' method for calculating hvgs.")
           HVG_METHOD = 'sample'
-          HVG_GROUP_VAR = None
+          HVG_SPLIT_VAR = None
 
         GROUP_NAMES = uniq_groups
         # replace spaces with underscores
@@ -513,7 +514,9 @@ def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
         # make a list of chunk names
         CHUNK_NAMES = [f"chunk_{i+1}" for i in range(NUM_CHUNKS)]
 
-  return HVG_METHOD, HVG_GROUP_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES
+  return HVG_METHOD, HVG_SPLIT_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES
+
+
         
 
 

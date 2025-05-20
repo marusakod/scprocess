@@ -78,9 +78,10 @@ rule make_pb_all:
 # calculate ambient genes across all samples or per group
 rule calculate_ambient_genes:
   input:
+    pb_empty_f    = pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
     pb_all_f    = pb_dir + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   output:
-    empty_gs_f  = empty_dir + '/edger_empty_genes_{group}_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz' # one file per group
+    empty_gs_f  = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz' # one file per group
   threads: 4
   retries: RETRIES 
   resources:
@@ -91,12 +92,9 @@ rule calculate_ambient_genes:
     """
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     calc_empty_genes(
-      pb_cells_f = '{output.pb_all_f}', \
+      pb_cells_f = '{input.pb_all_f}', \
       pb_empty_f = '{input.pb_empty_f}', \
       fdr_thr    = {AMBIENT_GENES_FDR_THR}, \
       logfc_thr  = {AMBIENT_GENES_LOGFC_THR}, \
-      hvg_method = '{HVG_METHOD}'
-      group      = '{wildcards.group}', \
-      group_var  = '{AMBIENT_GENES_GRP_VAR}', \
       empty_gs_f = '{output.empty_gs_f}')"
     """

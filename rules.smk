@@ -34,7 +34,7 @@ LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL
  get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
 ZOOM_NAMES, ZOOM_SPEC_LS = get_zoom_parameters(config, AF_MITO_STR, SCPROCESS_DATA_DIR)
 META_SUBSETS, META_MAX_CELLS = get_metacells_parameters(config)
-AMBIENT_GENES_GRP_NAMES, AMBIENT_GENES_GRP_VAR, AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES)
+AMBIENT_GENES_GRP_NAMES, AMBIENT_GENES_GRP_VAR, AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR)
 RETRIES, MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
   MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
   MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
@@ -176,16 +176,9 @@ rule all:
     pb_dir  + '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
     pb_dir  + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-    expand(
-      empty_dir + '/edger_empty_genes_{group}_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
-      group = AMBIENT_GENES_GRP_NAMES
-    ),
+    empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz', 
     # hvgs
     hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    #expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES), 
-    #expand(hvg_dir + '/tmp_calcs_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = SAMPLES), 
-    #hvg_dir + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    #hvg_dir + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
 
@@ -351,17 +344,17 @@ rule zoom:
            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res'])
 
 
-rule pb_empties:
- input:
-    pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-    expand([
-     pb_dir + '/pb_subset_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.rds'
-     ], subset = PB_SUBSETS ),
-    expand([
-     empty_dir + '/edger_empty_genes_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.txt.gz'
-     ], subset = PB_SUBSETS ),
-     (pb_dir + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if PB_DO_ALL else [],
-     (empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz') if PB_DO_ALL else []
+#rule pb_empties:
+# input:
+#    pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+#    expand([
+#     pb_dir + '/pb_subset_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.rds'
+#     ], subset = PB_SUBSETS ),
+#    expand([
+#     empty_dir + '/edger_empty_genes_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.txt.gz'
+#     ], subset = PB_SUBSETS ),
+#     (pb_dir + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if PB_DO_ALL else [],
+#     (empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz') if PB_DO_ALL else []
 
 
 rule metacells:

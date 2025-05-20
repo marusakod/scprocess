@@ -348,31 +348,12 @@ plot_empty_plateau <- function(knees, empty_plat_df) {
   return(p)
 }
 
-calc_empty_genes <- function(pb_cells_f, pb_empty_f, meta_f, demux_type, fdr_thr, logfc_thr, hvg_method, group, group_var, empty_gs_f) {
+calc_empty_genes <- function(pb_cells_f, pb_empty_f, fdr_thr, logfc_thr, empty_gs_f) {
   message('calculate empty genes')
   
   message(' load pseudobulk matrices')
   cells_mat   = readRDS(pb_cells_f) %>% assays %>% .[[1]]
   empties_mat = readRDS(pb_empty_f) %>% assays %>% .[[1]]
-  
-  # subset to group if necessary
-  if(hvg_method == 'group'){
-    # get samples in group
-    assert_that(group_var != "")
-    meta_dt = fread(meta_f)
-    keep_dt       = meta_dt[get(group_var) == group]
-    keep_smpls    = intersect(colnames(cells_mat), keep_dt[, sample_id])
-    
-    cells_mat     = cells_mat[, keep_smpls]
-    
-    if(demux_type != ""){
-    # get pools in group if samples are multiplexed
-      keep_pools    = intersect(colnames(empties_mat), keep_dt[, pool_id])
-      empties_mat   = empties_mat[, keep_pools]
-    }else{
-      empties_mat   = empties_mat[, keep_smpls]
-    }
-  }
   
   common_gs   = intersect(rownames(cells_mat), rownames(empties_mat))
   cells_mat   = cells_mat[ common_gs, ]
@@ -381,9 +362,8 @@ calc_empty_genes <- function(pb_cells_f, pb_empty_f, meta_f, demux_type, fdr_thr
   message('  run edgeR')
   empty_genes = .run_edger_empties(cells_mat, empties_mat)
   
-  # add group and label empty genes
+  # label empty genes
   empty_genes = empty_genes %>%
-    .[, group := group] %>%
     .[, is_ambient := fcase(logFC > 0 & FDR < fdr_thr, TRUE, default = FALSE)]
   
   # store
@@ -392,6 +372,7 @@ calc_empty_genes <- function(pb_cells_f, pb_empty_f, meta_f, demux_type, fdr_thr
   
   message('done!')
 }
+
 
 .run_edger_empties <- function(cells_mat, empties_mat) {
   assert_that( nrow(cells_mat) == nrow(empties_mat) )
