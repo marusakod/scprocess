@@ -21,14 +21,12 @@ AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY = \
 CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
 FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE = \
   get_ambient_parameters(config)
-SCE_BENDER_PROB = \
-  get_make_sce_parameters(config)
-DBL_MIN_FEATS = \
-  get_doublet_id_parameters(config)
 QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_FEATS, \
-  QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, QC_FILTER_BENDER = \
+  QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS = \
   get_qc_parameters(config)
-INT_EXC_REGEX, INT_N_HVGS, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES = \
+HVG_METHOD, HVG_GROUP_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES = \
+  get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F)
+INT_EXC_REGEX, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES = \
   get_integration_parameters(config, AF_MITO_STR)
 MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS = \
   get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
@@ -36,11 +34,11 @@ LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL
  get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
 ZOOM_NAMES, ZOOM_SPEC_LS = get_zoom_parameters(config, AF_MITO_STR, SCPROCESS_DATA_DIR)
 META_SUBSETS, META_MAX_CELLS = get_metacells_parameters(config)
-PB_SUBSETS, PB_DO_ALL = get_pb_empties_parameters(config)
+AMBIENT_GENES_GRP_NAMES, AMBIENT_GENES_GRP_VAR, AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR)
 RETRIES, MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
   MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
   MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
-  MB_RUN_QC, \
+  MB_RUN_QC, MB_RUN_HVGS, \
   MB_MAKE_SCE_OBJECT, \
   MB_RUN_HARMONY, \
   MB_RUN_MARKER_GENES, MB_HTML_MARKER_GENES, \
@@ -59,6 +57,7 @@ amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
 demux_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
 dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
 qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
+hvg_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_hvg"
 int_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
 mkr_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_marker_genes"
 lbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
@@ -125,7 +124,6 @@ hto_sce_fs = expand(
 hto_rmd_f  = (rmd_dir   + '/' + SHORT_TAG + '_demultiplexing.Rmd') if DEMUX_TYPE == 'af' else []
 hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_demultiplexing.html') if DEMUX_TYPE == 'af' else []
 
-
 # fgsea outputs (optional)
 fgsea_outs = [
     mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
@@ -156,26 +154,36 @@ rule all:
       amb_dir   + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
       # barcode qc metrics
       amb_dir   + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz',
+      # qc
+      #qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      #qc_dir  + '/coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+      #qc_dir  + '/rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
       # doublet id
-      qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-      #dbl_dir  + '/dbl_{sample}/scDblFinder_{sample}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+      dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       ], run =  runs), 
-      # ambient sample statistics
+    # ambient sample statistics
     amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',  
     # demultiplexing
     hto_sce_fs,  
     # qc
     qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    qc_dir  + '/qc_sample_statistics_' + DATE_STAMP + '.csv'
-   
-      # doublet_id
-      #dbl_dir   + '/doublet_id_files_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-      #dbl_dir   + '/scDblFinder_combined_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      #dbl_dir   + '/scDblFinder_combined_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      # qc
-      #qc_dir    + '/qc_dt_'   + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      #qc_dir    + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    qc_dir  + '/qc_sample_statistics_' + DATE_STAMP + '.txt', 
+    qc_dir  + '/sce_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
+    # pseudobulks and empties
+    pb_dir  + '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
+    pb_dir  + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+    empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz', 
+    # hvgs
+    hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+
+
+    
       # integration
       #int_dir   + '/sce_clean_'           + FULL_TAG + '_' + DATE_STAMP + '.rds',
       #int_dir   + '/integrated_dt_'       + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
@@ -336,17 +344,17 @@ rule zoom:
            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res'])
 
 
-rule pb_empties:
- input:
-    pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-    expand([
-     pb_dir + '/pb_subset_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.rds'
-     ], subset = PB_SUBSETS ),
-    expand([
-     empty_dir + '/edger_empty_genes_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.txt.gz'
-     ], subset = PB_SUBSETS ),
-     (pb_dir + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if PB_DO_ALL else [],
-     (empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz') if PB_DO_ALL else []
+#rule pb_empties:
+# input:
+#    pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+#    expand([
+#     pb_dir + '/pb_subset_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.rds'
+#     ], subset = PB_SUBSETS ),
+#    expand([
+#     empty_dir + '/edger_empty_genes_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.txt.gz'
+#     ], subset = PB_SUBSETS ),
+#     (pb_dir + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if PB_DO_ALL else [],
+#     (empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz') if PB_DO_ALL else []
 
 
 rule metacells:
@@ -366,6 +374,8 @@ include: "rules/ambient.smk"
 include: "rules/make_sce.smk"
 include: "rules/doublet_id.smk"
 include: "rules/qc.smk"
+include: "rules/pb_empties.smk"
+include: "rules/hvgs.smk"
 #include: "rules/integration.smk"
 #include: "rules/marker_genes.smk"
 #include: "rules/render_htmls.smk"

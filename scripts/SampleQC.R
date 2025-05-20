@@ -4,20 +4,25 @@ suppressPackageStartupMessages({
   library('forcats')
   library('assertthat')
   library('stringr')
-
   library('ggplot2')
   library('scales')
   library('patchwork')
   library('ComplexHeatmap')
   library('ggbeeswarm')
   library('ggh4x')
-
   library('Matrix')
   library('SingleCellExperiment')
   library('yaml')
-  # library('SampleQC')
-
   library('BiocParallel')
+  library('scater')
+  library('tidyverse')
+  library('scDblFinder')
+  library('DelayedArray')
+  library('HDF5Array')
+  library('rhdf5')
+  library('ggplot.multistats')
+  library('viridis')
+  library('patchwork')
 })
 
 # define some breaks
@@ -37,76 +42,52 @@ prob_brks   = c(0.5, 0.9, 0.99, 0.999, 0.9999, 0.99999, 0.999999) %>% qlogis
 prob_labs   = c("50%", "90%", "99%", "99.9%", "99.99%", "99.999%", "99.9999%")
 
 
-test_qc <- function(
-  sel_sample, meta_f, dbl_f, amb_yaml_f, sample_stats_f, demux_f, gtf_dt_f, ambient_method,
-  sce_f, qc_f, hard_min_counts, hard_min_feats, hard_max_mito, min_counts, min_feats,
-  min_mito, max_mito, min_splice, max_splice, min_cells, sample_var, demux_type,
-  dbl_min_feats
-) {
-  # split file paths in case they are comma-separated
-  sce_files = unlist(strsplit(sce_f, ","))
-
-  # create empty output files (except qc_f)
-
-  for (file in sce_files) {
-      print(file)
-      file.create(file)
-  }
-
-      # create mock qc data
-      qc_data = data.frame(
-        cell_id = paste0("cell_", 1:10),
-        sample_id = rep(sel_sample, 10), 
-        keep = rep(TRUE, 10)
-      )
-
-      # write qc data to a file
-      fwrite(qc_data, qc_f)
-      file.create(dbl_f)
-    
-  
-
-  message("Mock QC function executed successfully.")
-}
-
-
 
 main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf_dt_f,
-                    ambient_method, sce_f, rowdata_f, dbl_dimred_f, qc_f,
+                    ambient_method, sce_fs_str, all_samples_str, rowdata_f, dbl_f, dimred_f, qc_f, coldata_f, mito_str, 
                     hard_min_counts, hard_min_feats, hard_max_mito,
-                    min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, min_cells,
+                    min_counts, min_feats, min_mito, max_mito, min_splice, max_splice,
                     sample_var = 'sample_id',
                     demux_type = "", dbl_min_feats = 100,
                     dbl_min_cells = 100){
 
-
-  # check if multiple output files are defined if samples are multiplexed
-  if(demux_type != ""){
-    sce_fs = str_split(sce_f, pattern = ',') %>% unlist()
-    sce_fs %>% sapply(function(f) assert_that(grepl('.rds$', f)))
-    # %>% do something to get sample names
-  }
-
+  
+  # split output files and check if ok
+  all_samples = str_split(all_samples_str, pattern = ',') %>% unlist()
+  sce_fs_ls   = str_split(sce_fs_str, pattern = ',') %>% unlist()
+  sce_fs_dirs = lapply(sce_fs_ls, FUN = dirname)
+  
+  assert_that(all(sapply(sce_fs_dirs, dir.exists)))
+  assert_that(length(all_samples) == length(sce_fs_ls))
+  assert_that(all(str_detect(sce_fs_ls, all_samples)))
+  
+  sce_fs_ls = sce_fs_ls %>% setNames(all_samples)
+  
   # check which samples to exclude if cellbender is used
   smpl_status = FALSE
 
   if(ambient_method == 'cellbender'){
   # loading file with bad bender samples
   message(' loading cellbender sample stats file')
-  sample_stats_df = fread(sample_stats_f)
+  sample_stats_df = fread(sample_stats_f) 
   smpl_status = unique(sample_stats_df[get(sample_var) == sel_sample, bad_sample])
-
+  
   if(smpl_status){
     message('  sample ', sel_sample, ' has been excluded. Saving empty results file')
-    file.create(sce_f)
+    lapply(sce_fs_ls, file.create)
     file.create(dbl_dimred_f)
+    file.create(dbl_f)
+    file.create(qc_f)
+    file.create(rowdata_f)
+    file.create(coldata_f)
     message('done!')
 
     return(NULL)
   }
+  }
 
   # get filtered ambient file
-  yaml_data   = yaml.load_file(amb_yaml_f)
+  yaml_data     = yaml.load_file(amb_yaml_f)
   filt_counts_f = yaml_data$filt_counts_f
 
   # get gene annotations
@@ -122,52 +103,102 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   # add metadata
   message('  adding metadata')
   if(demux_type != ""){
-    sce = sce %>% add.demux_metadata(metadata_f, demux_f, demux_type)
-     # remove any unwanted sample_ids from the object
-    keep_smpls = str_split(keep_smpls_str, pattern = ',') %>% unlist()
-    sce = sce[, colData(sce)$sample_id %in% keep_smpls]
-
+    sce = sce %>% .add_demux_metadata(meta_f, demux_f, demux_type)
   }else{
     sce = sce %>% .add_metadata(metadata_f)
   }
 
   # do doublet calcs
-  dbl_dt = run_scdblfinder(sce, sel_sample, dbl_min_feats, dbl_min_cells)
-
+  message('   starting doublet detection')
+  dbl_dt = run_scdblfinder(sce, sel_sample, sample_var, ambient_method, dbl_f, dimred_f)
+  
+  message('  adding doublet info to column data')
   # add doublet info to coldata
-
-  # do qc filtering, save table with qc for all cells, save sce object with only singlets that pass qc
-  sce_filt = filter_qc(sce, hard_min_counts, hard_min_feats, hard_max_mito,
-  min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, min_cells,
-  qc_f)
-
-  # split pool sce to sample sce if samples are multiplexed
-  if(demux_type != ""){
-    message(' splitting pool sce object to save sce files per sample')
-    keep_smpls = unique(colData(sce_filt)$sample_id)
-    keep_smpls %>% lapply(function(s){
-      smpl_sce = sce_filt[, colData(sce)$sample_id == s]
-      smpl_f = sce_fs[s]
-      saveRDS(smpl_sce, file = smpl_f, compress = FALSE)
-    })
-
-    rm_smpls = setdiff(names(sce_fs), keep_smpls)
-    if(length(rm_smpls) > 0){
-    message(' saving empty files for removed samples')
-    rm_smpls %>% lapply(function(s){
-      file.create(sce_fs[s])
-    })
-
-    }
+  sce = .add_dbl_info(sce, dbl_dt, sample_var, demux_type)
+  
+  # save rowdata
+  rd = rowData(sce) %>% as.data.table()
+  
+  message('  saving row data')
+  fwrite(rd, file = rowdata_f, quote = FALSE, row.names = FALSE)
+  
+  # do qc filtering, save table with qc for all singlets, coldata for all cells, get sce object with only singlets that pass qc
+  sce_filt = filter_qc(sce, qc_f, coldata_f, hard_min_counts, hard_min_feats, hard_max_mito,
+  min_counts, min_feats, min_mito, max_mito, min_splice, max_splice)
+  
+  # save sce files
+  if(demux_type == ""){
+    if(ncol(sce_filt) == 0){
+      message("No cells passed qc for sample ", sel_sample, ". Saving empty file")
+      file.create(sce_fs_ls)
     }else{
-    messge(' saving sce')
-    saveRDS(sce_filt, file = sce_f, compress = FALSE)
-
+      assert_that(length(sce_fs_ls) == 1)
+      saveRDS(sce_filt, file =  sce_fs_ls, compress = FALSE)
     }
-
-    # save also rowdata with keep column
+    
+  }else{
+    # save one sce file per sample_id
+    message(' splitting pool sce object and saving one file per sample')
+    
+    # save one file only for samples that were not removed
+    all_samples %>% lapply(function(s){
+      smpl_sce = sce_filt[, colData(sce_filt)$sample_id == s]
+      smpl_f = sce_fs_ls[s]
+      
+      if(ncol(smpl_sce) == 0){
+        message("No cells passed qc for sample ", s, ". Saving empty file")
+        file.create()
+      }else{
+        saveRDS(smpl_sce, file = smpl_f, compress = FALSE)
+      }
+    })
+  }
+   
+    message('done!')
     return(NULL)
+}
 
+
+.add_dbl_info <- function(sce, dbl_dt, sample_var, demux_type = ""){
+  
+  
+  coldata_in    = colData(sce) %>% as.data.frame %>% as.data.table
+  missing_cells = setdiff(coldata_in$cell_id, dbl_dt$cell_id)
+  
+  keep_cols = c("cell_id", sample_var, "dbl_class")
+  by_cols   = c("cell_id", sample_var)
+  if('demux_class' %in% colnames(coldata_in)){
+    by_cols   = c(by_cols, "demux_class")
+    keep_cols = c(keep_cols, c('scdbl_class', 'demux_class'))
+  }
+  
+  dbl_data = dbl_dt %>%
+    .[, ..keep_cols, with = FALSE ]
+  
+  # merge
+  coldata_out = merge(coldata_in, dbl_data, by = by_cols, all.x = TRUE)
+  
+  if(length(missing_cells)!= 0){
+  # set dbl_class to singlet or replace with demux_class if available
+    if("demux_class" %in% colnames(coldata_out)){
+    coldata_out = coldata_out %>%
+      .[is.na(dbl_class), dbl_class := demux_class]
+    }else{
+    coldata_out = coldata_out %>%
+      .[is.na(dbl_class), dbl_class := 'singlet']
+    }
+  }
+  
+  coldata_out = coldata_out %>%
+    as('DataFrame') %>% set_rownames(.$cell_id)
+  
+  coldata_out = coldata_out[colnames(sce), ]
+  # add do sce
+  assert_that( identical(colnames(sce), coldata_out$cell_id))
+  
+  colData(sce)  = coldata_out
+  return(sce)
+  
 }
 
 
@@ -274,7 +305,7 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 
 
 .get_sce <- function(mat_f, sel_s, mito_str, gene_annots, sample_var) {
-
+  
   # read matrix
   mat = .get_alevin_mx(af_mat_f = mat_f, sel_s = paste0(sel_s, ':'))
 
@@ -327,7 +358,7 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   mito_mat      = counts_mat[ mt_gs, ]
   mito_sum      = colSums(mito_mat)
   mito_detected = colSums(mito_mat > 0 )
-
+  
   # make sce object
   sce_tmp               = SingleCellExperiment( assays = list(counts = counts_mat) )
   sce_tmp[[sample_var]] = sel_s
@@ -350,6 +381,9 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   sce_tmp$total_w_ribo  = total_raw
   sce_tmp$total_rrna    = rrna_sum
   sce_tmp$total_mt_rrna = mt_rrna_sum
+  
+  # remove mitochondrial genes
+  sce_tmp = sce_tmp[!mt_gs, ]
 
   # convert to TsparseMatrix
   counts(sce_tmp) = counts(sce_tmp) %>% as("TsparseMatrix")
@@ -398,129 +432,142 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 
 
 
-run_scdblfinder <- function(sce, sel_sample, min_feats, min_cells){
+run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_method, dbl_f, dimred_f, min_feats = 100, min_cells = 100){
+ 
+  sample_idx  = sce[[sample_var]] == sel_sample
+  sce         = sce[, sample_idx ]
+    
+  # exclude tiny cells
   message('  filtering out cells with low counts')
   assert_that( 'detected' %in% colnames(colData(sce)) )
   keep_idx    = sce$detected >= min_feats
   if (sum(keep_idx) < min_cells)
-
+      
   assert_that( sum(keep_idx) >= min_cells,
-    msg = "insufficient cells to run scDblFinder :(")
+               msg = "insufficient cells to run scDblFinder :(")
   message(sprintf('    keeping %d / %d cells (%.0f%%)',
-    sum(keep_idx), length(keep_idx), 100 * sum(keep_idx) / length(keep_idx)))
-  sce_sub  = sce[, keep_idx]
-
+                  sum(keep_idx), length(keep_idx), 100 * sum(keep_idx) / length(keep_idx)))
+  sce         = sce[, keep_idx]
+    
   message('  running scDblFinder')
-  dbl_dt      = scDblFinder(sce_sub, returnType = 'table',
-    multiSampleMode = 'singleModel', verbose = FALSE ) %>%
-    as.data.table(keep.rownames = 'cell_id') %>%
-    .[, (sample_var) := sel_sample ] %>% setcolorder(sample_var) %>%
-    # keep just real cells and relevant columns
-    .[type == 'real', c("cell_id", sample_var, "class"), with = FALSE]
-
+  dbl_dt      = scDblFinder(sce, returnType = 'table',
+                            multiSampleMode = 'singleModel', verbose = FALSE ) %>%
+  as.data.table(keep.rownames = 'cell_id') %>%
+  .[, (sample_var) := sel_sample ] %>% setcolorder(sample_var) %>%
+  # keep just real cells
+  .[type == 'real']
+    
   # check if class is available from demultiplexing
   if('demux_class' %in% colnames(colData(sce))){
     #extract demux_class
-    demux_dt = colData(sce_sub) %>% as.data.table(keep.rownames = 'cell_id') %>%
-      .[, c("cell_id", sample_var, "demux_class"), with = FALSE]
-
+    demux_dt = colData(sce) %>% as.data.table(keep.rownames = 'cell_id') %>%
+    .[, c("cell_id", sample_var, "demux_class"), with = FALSE]
+      
     # define dt to combine scdbl and demux class
     dbl_dict = data.table(
       class        = c('doublet', 'singlet', 'singlet', 'doublet', 'singlet', 'doublet'),
       demux_class  = c('negative', 'negative', 'doublet', 'singlet', 'singlet', 'doublet'),
       dbl_class    = c('doublet', 'negative', 'doublet', 'doublet', 'singlet', 'doublet')
     )
-
+      
     dbl_dt = dbl_dt %>%
-      merge(demux_dt, by = c('cell_id', sample_var), all.x = TRUE, all.y = FALSE) %>%
-      merge(dbl_dict, by = c('class', 'demux_class')) %>%
-      setnames("class", "scdbl_class")
+    merge(demux_dt, by = c('cell_id', sample_var), all.x = TRUE, all.y = FALSE) %>%
+    merge(dbl_dict, by = c('class', 'demux_class')) %>%
+    setnames("class", "scdbl_class")
   }else{
-    dbl_dt = dbl_dt %>% setnames("class", "dbl_class")
+      dbl_dt = dbl_dt %>% setnames("class", "dbl_class")
   }
-
-  # add back all small cells that weren't included in scdblfinder
-  dbl_dt_small = colData(sce[, !keep_idx]) %>%
-  as.data.table() %>%
-  .[, .c("cell_id", sample_var)] %>%
-  .[, class := 'singlet']
-
-  dbl_dt_full = rbindlist(list(dbl_dt, dbl_dt_small), fill = TRUE)
-
-
-  setkeyv(dbl_dt_full, "cell_id")
-
+    
+  setkeyv(dbl_dt, "cell_id")
+  dbl_dt      = dbl_dt[ colnames(sce) ]
+    
   message('  running PCA')
   dimred_dt   = .calc_one_dimred(sce, sel_sample)
-
+    
   # check they match
   assert_that( all(sort(dbl_dt$cell_id) == sort(colnames(sce))) )
   assert_that( all(sort(dimred_dt$cell_id) == sort(dbl_dt$cell_id)) )
-
+    
   # save
-  message('  saving dimred results')
+  message('  saving results')
+  fwrite(dbl_dt, file = dbl_f)
   fwrite(dimred_dt, file = dimred_f)
-
   message('done!')
-
-  return(dbl_dt_full)
-  }
+    
+  return(dbl_dt)
 }
 
 
-filter_qc <- function(sce, hard_min_counts, hard_min_feats, hard_max_mito,
-  min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, min_cells,
-  qc_f) {
+.calc_one_dimred <- function(sce, sel_sample) {
+  # run PCA on this sce
+  sce       = sce %>% logNormCounts %>% runPCA
+  pca_dt    = reducedDim(sce, "PCA") %>%
+    as.data.table %>%
+    .[,1:2] %>% set_colnames(c('pc1', 'pc2'))
+  dimred_dt = data.table(
+    cell_id   = colnames(sce),
+    sample_id = sel_sample
+  ) %>% cbind(pca_dt)
+  
+  return(dimred_dt)
+}
 
-  qc_all      = make_qc_dt(colData(sce),
-    sample_var  = 'sample_id',
-    qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
+
+
+
+
+filter_qc <- function(sce, qc_f, coldata_f, hard_min_counts, hard_min_feats, hard_max_mito,
+                      min_counts, min_feats, min_mito, max_mito, 
+                      min_splice, max_splice) {
+
+  # store initail coldata
+  coldata_in = colData(sce) %>% as.data.table()
+  
+  # restrict to singlets
+  sce = sce[, sce$dbl_class == 'singlet']
+  
+  qc_all = make_qc_dt(
+    colData(sce),
+    sample_var = 'sample_id', 
+    qc_names = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
     )
 
-  # some checks
-  assert_that( all( !is.na(qc_all$logit_splice) ) )
-
-  # restrict to singlets
-  qc_all  = qc_all[ class == 'singlet' ]
-
-  # restrict to samples with enough cells
-  qc_dt         = qc_all %>%
-    .[ log_counts >= log10(hard_min_counts) ] %>%
-    .[ log_feats  >= log10(hard_min_feats)  ] %>%
-    .[ logit_mito <  qlogis(hard_max_mito)  ]
-
-  # filter on splicing
-  keep_dt       = qc_dt %>%
-    .[ log_counts    >= log10(min_counts)  ] %>%
-    .[ log_feats     >= log10(min_feats)   ] %>%
-    .[ logit_mito    >  qlogis(min_mito)   ] %>%
-    .[ logit_mito    <  qlogis(max_mito)   ] %>%
-    .[ logit_spliced >  qlogis(min_splice) ] %>%
-    .[ logit_spliced <  qlogis(max_splice) ]
-
-  # exclude samples with v few cells
-  n_dt          = keep_dt[, .N, by = sample_id]
-  keep_s        = n_dt[ N >= min_cells ]$sample_id
-  keep_dt       = keep_dt[ sample_id %in% keep_s ]
-  keep_ids      = keep_dt$cell_id
-  assert_that( length(keep_ids) > 0 )
-
-  # check that that worked
-  assert_that( all(keep_dt[, .N, by = sample_id]$N >= min_cells) )
-
-  # record which kept
+  qc_dt = qc_all %>%
+    .[log_counts >= log10(hard_min_counts)] %>%
+    .[log_feats >= log10(hard_min_feats)] %>%
+    .[logit_mito < qlogis(hard_max_mito)]
+  
+  # apply additional filtering criteria
+  keep_dt = qc_dt %>%
+    .[log_counts >= log10(min_counts)] %>%
+    .[log_feats >= log10(min_feats)] %>%
+    .[logit_mito > qlogis(min_mito)] %>%
+    .[logit_mito < qlogis(max_mito)] %>%
+    .[logit_spliced > qlogis(min_splice)] %>%
+    .[logit_spliced < qlogis(max_splice)]
+  
+  # record which kept  
   qc_all    = qc_all %>%
     .[, keep_hard := cell_id %in% qc_dt$cell_id ] %>%
-    .[, keep      := cell_id %in% keep_ids ]
+    .[, keep      := cell_id %in% keep_dt$cell_id]
+  
+  # keep just good cells in sce object
+  message('  filtering sce object')
+  sce_filt = sce[, qc_all$keep]
+  
+  # add keep column to original coldata
+  message('  saving column data')
+  coldata_out = coldata_in %>%
+    .[, keep := fifelse(cell_id %chin% sce_filt$cell_id, TRUE, FALSE)]
+  fwrite(coldata_out, file = coldata_f)
 
-  # save table with qc results for all barcodes called as cells (cells that passed qc, doublets, cells that didn't pass)
+  # save table with qc results for all barcodes
+  message('  saving qc data')
   fwrite(qc_all, file = qc_f)
-  # fwrite(keep_dt[, .(sample_id, cell_id)], file = keep_f
-
-  # return sce object with only ok singlets
+  
+  
   return(sce_filt)
 }
-
 
 
 
