@@ -6,20 +6,21 @@ author:
   - ${AFFILIATION}
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
-  workflowr::wflow_html:
+  rmdformats::downcute:
+    highlight: textmate
     code_folding: hide
-    toc: true
-    toc_float: true
-    number_sections: false
+    toc_depth: 3
+    css: custom.css
 ---
 
 
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
-knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png' )
-knitr::opts_knit$set( root.dir='..' )
-# workflowr::wflow_build(files='analysis/${SHORT_TAG}_qc.Rmd', view=F, verbose=T, delete_cache=T)
+knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
+fig.path = "figure/${SHORT_TAG}_qc.Rmd/"
+)
+knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 ```
 
 

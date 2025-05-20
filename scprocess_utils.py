@@ -104,7 +104,7 @@ def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES, HTO = False):
 
 def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
   #set defaults
-  DEMUX_TYPE     = None
+  DEMUX_TYPE     = ""
   HTO_FASTQ_DIR  = None
   FEATURE_REF    = None
   DEMUX_F        = ""
@@ -161,7 +161,7 @@ def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
         f"{col} not present in demux_output"
 
       # check if samples in metadata and demux_dt match
-      assert set(demux_dt['sample_id']) == set(sample_metadata['sample_id']), \
+      assert {x for x in set(demux_dt['sample_id']) if pd.notna(x)} == set(sample_metadata['sample_id']), \
         "Unique values for sample_id don't match in demux_output and sample_metadata"
       
       assert set(demux_dt['pool_id']) == set(sample_metadata['pool_id']), \
@@ -236,11 +236,13 @@ def get_project_parameters(config, scprocess_data_dir):
   DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS = \
   get_multiplexing_parameters(config, PROJ_DIR, samples_df)
 
-  # define sample variable for alevin, ambient, doublets
-  if DEMUX_TYPE is not None:
-    sample_var = "pool_id"
+  # define sample variable for alevin, ambient, doublets and sample mapping dictionary
+  if DEMUX_TYPE != "":
+    SAMPLE_VAR = "pool_id"
+    SAMPLE_MAPPING = samples_df.groupby("pool_id")["sample_id"].apply(list).to_dict()
   else:
-    sample_var = "sample_id"
+    SAMPLE_VAR = "sample_id"
+    SAMPLE_MAPPING = None
 
   # remove some samples
   EXC_SAMPLES   = None
@@ -266,7 +268,7 @@ def get_project_parameters(config, scprocess_data_dir):
     with open(CUSTOM_SAMPLE_PARAMS_F) as f:
       custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
       custom_smpls = list(custom_smpl_params.keys())
-      if DEMUX_TYPE is not None:
+      if DEMUX_TYPE != "":
         for s in custom_smpls:
           assert s in POOL_IDS, f"{s} in custom_sample_params file doesn't match any pool_id values in sample_metadata"
       else:
@@ -288,7 +290,20 @@ def get_project_parameters(config, scprocess_data_dir):
 
   return PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, \
     METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES, \
-    DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS
+    DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_VAR, SAMPLE_MAPPING
+
+
+# remove samples and pools from sample mapping
+def filter_sample_mapping(SAMPLE_MAPPING, POOL_IDS, SAMPLES):
+  if SAMPLE_MAPPING is None:
+    return None
+  # filter to keep specific pool ids
+  SAMPLE_MAPPING = {pool_id: sample_ids for pool_id, sample_ids in SAMPLE_MAPPING.items() if pool_id in POOL_IDS}
+  # filter to keep specific sample_ids
+  for pool_id in SAMPLE_MAPPING:
+    SAMPLE_MAPPING[pool_id] = [sample_id for sample_id in SAMPLE_MAPPING[pool_id] if sample_id in SAMPLES]
+
+  return SAMPLE_MAPPING
 
 
 # define alevin parameters
@@ -484,8 +499,66 @@ def get_integration_parameters(config, mito_str):
   return INT_EXC_REGEX, INT_N_HVGS, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES
 
 
+
+def get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
+    
+    # set defaults
+    CUSTOM_MKR_NAMES = ""
+    CUSTOM_MKR_PATHS = ""
+    
+    if ('marker_genes' in config) and (config['marker_genes'] is not None):
+      if 'custom_sets' in config["marker_genes"]:
+        custom_sets = config["marker_genes"]["custom_sets"]
+        mkr_names = []
+        mkr_paths = []
+
+        for i, gene_set in enumerate(custom_sets):
+          assert "name" in gene_set, \
+            f"Entry {i+1} in 'custom_sets' is missing a 'name' field."
+
+          name = gene_set["name"]
+
+          # Check for commas in names
+          assert "," not in name, \
+            f"Custom marker set name '{name}' contains a comma, which is not allowed."
+
+          file_path = gene_set.get("file", os.path.join(SCPROCESS_DATA_DIR, 'marker_genes', f"{name}.csv"))
+
+          if not os.path.isabs(file_path):
+            file_path = os.path.join(PROJ_DIR, file_path)
+
+          assert os.path.isfile(file_path), \
+            f"File not found for marker set '{name}'"
+
+          assert file_path.endswith(".csv"), \
+            f"File for custom marker set '{name}' is not a CSV file"
+
+          # Check CSV file contents
+          mkrs_df = pd.read_csv(file_path)
+ 
+          req_col = "label"
+          opt_cols = ["symbol", "ensembl_id"]
+        
+          assert req_col in mkrs_df.columns, \
+            f"File '{file_path}' is missing the mandatory column 'label'."
+        
+          assert any(col in mkrs_df.columns for col in opt_cols), \
+            f"File '{file_path}' must contain either 'symbol' or 'ensembl_id' column."
+            
+
+          # Store validated values
+          mkr_names.append(name)
+          mkr_paths.append(file_path)
+
+        CUSTOM_MKR_NAMES = ",".join(mkr_names)
+        CUSTOM_MKR_PATHS = ",".join(mkr_paths)
+    
+    return CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS
+        
+
+
 # define marker_genes parameters
-def get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR): 
+def get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR): 
   # set some more default values
   MKR_GSEA_DIR    = os.path.join(SCPROCESS_DATA_DIR, 'gmt_pathways')
   MKR_MIN_CL_SIZE = 1e2
@@ -496,13 +569,6 @@ def get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
   MKR_MAX_ZERO_P  = 0.5
   MKR_GSEA_CUT    = 0.1
 
-  # specify canonical marker file; this should depend on both species and organ; could be added to config as input param
-  if SPECIES in ["human_2020", "human_2024"]:
-    MKR_CANON_F     = os.path.join(SCPROCESS_DATA_DIR,"marker_genes/canonical_brain_celltype_markers_human_2023-10-17.txt")
-  elif SPECIES in ["mouse_2020", "mouse_2024"]:
-    MKR_CANON_F     = os.path.join(SCPROCESS_DATA_DIR,"marker_genes/canonical_brain_celltype_markers_mouse_2023-10-17.txt")
-  else:
-    MKR_CANON_F = ""
 
   # change defaults if specified
   if ('marker_genes' in config) and (config['marker_genes'] is not None):
@@ -521,7 +587,10 @@ def get_marker_genes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
     if 'mkr_gsea_cut' in config['marker_genes']:
       MKR_GSEA_CUT    = config['marker_genes']['mkr_gsea_cut']
 
-  return MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, MKR_CANON_F
+  # get custom marker files
+  CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS = get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
+
+  return MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS
 
 
 # define marker_genes parameters
@@ -662,7 +731,7 @@ def get_zoom_parameters(config, MITO_STR, scprocess_data_dir):
 # get rule resource parameters
 def get_resource_parameters(config):
   # set default values
-  RETRIES                         = 1
+  RETRIES                         = 0
   MB_RUN_ALEVIN_FRY               = 8192
   MB_SAVE_ALEVIN_TO_H5            = 8192
   MB_RUN_AMBIENT                  = 8192

@@ -198,6 +198,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
     f"One or more {sample_var} values contain '_R1' or '_R2'. Please ensure all elements exclude these substrings"
   
   # check that some fastq files exist
+  samples_ls  = list(dict.fromkeys(samples_ls))
   samples_ls  = exclude_samples_without_fastq_files(fastq_dir, samples_ls, HTO=False)
 
   if demux_type == 'af':

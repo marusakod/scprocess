@@ -17,7 +17,7 @@ suppressPackageStartupMessages({
 gsea_regex  = "^(HALLMARK_|GOBP_|GOCC_|GOMF_|BIOCARTA_|REACTOME_|KEGG_)(.+)"
 
 calculate_marker_genes <- function(sce_clean_f, pb_f, mkrs_f, pb_hvgs_f,
-  fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f,
+  fgsea_go_bp_f = "", fgsea_go_cc_f = "", fgsea_go_mf_f = "", fgsea_paths_f = "", fgsea_hlmk_f = "",
   species, gtf_dt_f, gsea_dir,
   sel_res, exc_regex, min_cl_size, min_cells,
   not_ok_re, min_cpm_go, max_zero_p, gsea_cut, n_cores = 4) {
@@ -27,11 +27,6 @@ calculate_marker_genes <- function(sce_clean_f, pb_f, mkrs_f, pb_hvgs_f,
     is.character(pb_f),
     is.character(mkrs_f),
     is.character(pb_hvgs_f),
-    is.character(fgsea_go_bp_f),
-    is.character(fgsea_go_cc_f),
-    is.character(fgsea_go_mf_f),
-    is.character(fgsea_paths_f),
-    is.character(fgsea_hlmk_f),
     is.character(species),
     is.character(gtf_dt_f),
     is.character(gsea_dir),
@@ -100,16 +95,8 @@ calculate_marker_genes <- function(sce_clean_f, pb_f, mkrs_f, pb_hvgs_f,
 
   calc_fgsea_dt(gsets_list, fgsea_fs, mkrs_tmp, gsea_cut, gsea_var = "z_score",
     n_cores = n_cores)
-  }else{
-    # write empty GSEA files
-    file.create(fgsea_go_bp_f)
-    file.create(fgsea_go_cc_f)
-    file.create(fgsea_go_mf_f)
-    file.create(fgsea_paths_f)
-    file.create(fgsea_hlmk_f)
   }
-
-
+  
   message("done!")
 }
 
@@ -1445,52 +1432,6 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1_lab, cl2_lab,
         )
       )
 
-  # } else {
-  #   row_annots  = rowAnnotation(
-  #     `orig. only`  = rows_dt$N_orig_only,
-  #     col = list(
-  #       `orig. only` = cols_fn(rows_dt$N_orig_only,
-  #         res = max(rows_dt$N_orig_only) / 8,
-  #         pal = "Greys", pal_dir = 1, range = "has_zero")
-  #        ),
-  #     annotation_name_side = "top"
-  #     )
-  #   col_annots  = HeatmapAnnotation(
-  #     `new only`  = cols_dt$N_cl_only,
-  #     col = list(
-  #       `new only`  = cols_fn(cols_dt$N_cl_only,
-  #         res = max(cols_dt$N_cl_only) / 8,
-  #         pal = "Greys", pal_dir = 1, range = "has_zero")
-  #       ),
-  #     annotation_name_side = "right"
-  #     )
-  # }
-
-  # # split by cell type
-  # if (which_type == "type_fine") {
-  #   orig_lvls   = fine_ord
-  #   row_split   = fine_split[ rownames(data_mat) ] %>% factor(levels = broad_ord)
-  # } else if (which_type == "type_broad") {
-  #   orig_lvls   = broad_ord
-  #   row_split   = NULL
-  # }
-
-  # # put in nice order, always order by log_N
-  # set.seed(20220602)
-
-  # # put matrix in nice order
-  # order_dt    = copy_dt %>%
-  #   dcast.data.table(cl1 ~ cl2, value.var = "log_N", fill = 0) %>%
-  #   melt( id = "cl1", var = "cluster" ) %>%
-  #   .[, cl1 := factor(cl1, levels = orig_lvls) ] %>%
-  #   .[ order(cluster, cl1) ] %>%
-  #   .[, smth_score := ksmooth(as.numeric(cl1), value,
-  #     kernel = "normal", x.points = as.numeric(cl1))$y, by = cluster ] %>%
-  #   .[, .SD[ which.max(smth_score) ], by = cluster ] %>%
-  #   .[ order(cl1) ]
-  # assert_that( all( sort(order_dt$cluster) == colnames(data_mat) ) )
-  # put in nice order
-
   if (do_sort == "no") {
     rows_flag   = FALSE
     cols_flag   = FALSE
@@ -1607,6 +1548,43 @@ plot_selected_genes_umap <- function(sel_dt, cols_to_rows = 1.25) {
 
 
 
+
+process_custom_markers <- function(custom_f, biotypes_dt, marker_calcs_dt) {
+  cust_mkrs_dt = fread(custom_f)
+  
+  # Ensure symbol is present; if not, try to retrieve it using ensembl_id
+  if (!"symbol" %in% colnames(cust_mkrs_dt)) {
+    # Check if all ensembl_id values are valid
+    assert_that(
+      all(cust_mkrs_dt$ensembl_id %in% biotypes_dt$ensembl_id),
+      msg = sprintf("Warning: Some 'ensembl_id' values in '%s' do not match any in the GTF file.", custom_f)
+    )
+    cust_mkrs_dt = merge(cust_mkrs_dt, biotypes_dt[, .(symbol, ensembl_id)], by = "ensembl_id", all.x = TRUE, all.y = FALSE)
+  } else {
+    # Check if all symbol values are valid
+    assert_that(
+      all(cust_mkrs_dt$symbol %in% biotypes_dt$symbol), 
+      msg = sprintf("Warning: Some 'symbol' values in '%s' do not match any in the GTF file.", custom_f)
+    )
+  }
+  
+  # Check that at least two symbols are in marker_calcs_dt
+  ok_symbols = intersect(marker_calcs_dt$symbol, cust_mkrs_dt$symbol)
+  
+  if (length(ok_symbols) < 2) {
+    message(sprintf(
+      "Skipping '%s': Less than 2 symbols found in the marker genes file. Heatmap for these markers will not be shown.", 
+      custom_f
+    ))
+    return(NULL)
+  }
+   
+  return(cust_mkrs_dt)
+}
+
+
+
+
 plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cpm = 10, 
   pseudocount = 10, annotate_genes = TRUE, cluster_rows = TRUE) {
   # unpack
@@ -1650,22 +1628,22 @@ plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cp
     direction = "vertical")
 
   # maybe do annotations
-  n_genesets  = length(unique(panel_dt$geneset))
+  n_genesets  = length(unique(panel_dt$label))
   if (annotate_genes & (n_genesets > 1)) {
     # label with buckets
-    col_lvls    = panel_dt[ symbol %in% keep_gs ]$geneset %>% fct_inorder %>% levels
-    cols_dt     = panel_dt[, .(symbol,  geneset = geneset %>% factor(levels = col_lvls))] %>%
+    col_lvls    = panel_dt[ symbol %in% keep_gs ]$label %>% fct_inorder %>% levels
+    cols_dt     = panel_dt[, .(symbol,  label= label %>% factor(levels = col_lvls))] %>%
       setkey('symbol') %>% .[ rownames(log2fc_mat) ]
     col_cols    = MetBrewer::met.brewer( name = 'Signac', n = length(col_lvls), 
         type = 'discrete' ) %>% setNames(col_lvls)
     col_annots  = HeatmapAnnotation(
-      geneset    = cols_dt$geneset,
-      col         = list(geneset = col_cols),
+      label    = cols_dt$label,
+      col      = list(label = col_cols),
       annotation_name_side = "right", 
       annotation_legend_param = list(
-        geneset = list(ncol = 3, labels_gp = gpar(fontsize = 8))
+        label = list(ncol = 3, labels_gp = gpar(fontsize = 8))
       ) )
-    col_split   = cols_dt$geneset
+    col_split   = cols_dt$label
   } else {
     col_annots  = NULL
     col_split   = NULL
