@@ -149,8 +149,7 @@ rule all:
 
 rule simpleaf:
   input:
-    expand( 
-      [
+    expand([
       af_dir    + '/af_{sample}/af_quant/',
       af_dir    + '/af_{sample}/af_quant/alevin/quants_mat.mtx',
       af_dir    + '/af_{sample}/af_quant/alevin/quants_mat_cols.txt',
@@ -158,18 +157,18 @@ rule simpleaf:
       af_dir    + '/af_{sample}/af_counts_mat.h5',
       af_dir    + '/af_{sample}/knee_plot_data_{sample}_' + DATE_STAMP + '.txt.gz',
       af_dir    + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml',
-      ],
-     sample = SAMPLES), 
+      ], sample = SAMPLES),
      rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
      docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html'
 
 
 rule ambient:
-  input: 
-    expand(amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
-    sample = SAMPLES),
-    amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', 
-    amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt', 
+  input:
+    expand([
+      amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
+      amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz'
+      ], sample = SAMPLES),
+    amb_dir   + '/ambient_sample_statistics_' + DATE_STAMP + '.txt', 
     rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd', 
     docs_dir  + '/' + SHORT_TAG + '_ambient.html'
 
