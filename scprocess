@@ -71,7 +71,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   # check that spcrocess_data_dir has some files
   scsetup_dirs = ['cellranger_ref', 'gmt_pathways', 'marker_genes', 'xgboost', 'alevin_fry_home']
   scsetup_fulL_dirs = [os.path.join(scprocess_data_dir, d) for d in scsetup_dirs]
-  scsetup_csv = os.path.join(scprocess_data_dir,'setup_parameters.csv')
+  scsetup_csv = os.path.join(scprocess_data_dir,'index_parameters.csv')
 
   assert all([os.path.isdir(d) for d in scsetup_fulL_dirs]), \
    f"Some directories in {scprocess_data_dir} are missing; consider (re)running scsetup"
@@ -80,7 +80,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
    f"{scsetup_csv} is missing; consider (re)running scsetup"
   
   # check if cluster profile is defined
-  setup_configfile = os.path.join(scprocess_data_dir, '.scprocess_setup.yaml')
+  setup_configfile = os.path.join(scprocess_data_dir, 'scprocess_setup.yaml')
   assert os.path.exists(setup_configfile), \
     f".scprocess_setup.yaml does not exist in {scprocess_data_dir}"
 
@@ -88,7 +88,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
     setup_config      = yaml.safe_load(stream)
 
   if ('profile' in setup_config) and setup_config['profile'] is not None:
-    profile = setup_config['profile']
+    profile     = setup_config['profile']
     
     # check if profile exists
     profile_dir = os.path.join(sc_dir, 'profiles', profile)

@@ -114,11 +114,11 @@ def get_project_parameters(config, scprocess_data_dir):
   SPECIES       = config["species"]
 
   # check if selected species is valid
-  setup_params_f  = os.path.join(scprocess_data_dir, 'setup_parameters.csv')
+  index_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
 
-    # from setup_parameters.csv get valid values for species
-  setup_params= pd.read_csv(setup_params_f)
-  valid_species = setup_params['genome_name'].tolist()
+    # from index_parameters.csv get valid values for species
+  index_params= pd.read_csv(index_params_f)
+  valid_species = index_params['genome_name'].tolist()
 
   assert SPECIES in valid_species, \
    f"species {SPECIES} not defined"
@@ -203,13 +203,13 @@ def get_alevin_parameters(config, scprocess_data_dir, SPECIES):
     "chemistry not valid"
   
   # get setup params
-  setup_params_f  = os.path.join(scprocess_data_dir, 'setup_parameters.csv')
+  index_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
 
-    # from setup_parameters.csv get valid values for species
-  setup_params= pd.read_csv(setup_params_f)
+    # from index_parameters.csv get valid values for species
+  index_params= pd.read_csv(index_params_f)
      
   # get mito strings from setup params
-  AF_MITO_STR = setup_params.loc[setup_params['genome_name'] == SPECIES, 'mito_str'].values[0]
+  AF_MITO_STR = index_params.loc[index_params['genome_name'] == SPECIES, 'mito_str'].values[0]
 
   # get af index directory and check if exists
   AF_HOME_DIR = os.path.join(scprocess_data_dir, 'alevin_fry_home') # check if this exists in scprocess script
@@ -218,7 +218,7 @@ def get_alevin_parameters(config, scprocess_data_dir, SPECIES):
     f"alevin index for {SPECIES} doesn't exist"
   
   # get gtf txt file, check that exists
-  AF_GTF_DT_F = setup_params.loc[setup_params['genome_name'] == SPECIES, 'gtf_txt_f'].values[0]
+  AF_GTF_DT_F = index_params.loc[index_params['genome_name'] == SPECIES, 'gtf_txt_f'].values[0]
 
   return AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY
 
