@@ -13,6 +13,7 @@ from functools import partial
 import csv
 from skmisc.loess import loess
 import numba
+import warnings
 
 
 def sum_SUA(sua_mat, row_names):
@@ -220,7 +221,7 @@ def calculate_sum_and_sum_squares_cilipped(sparse_csr, estim_vars_df):
     return estim_vars_df
 
 
-def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None, mean_var_df = None, span: float = 1 ):
+def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None, mean_var_df = None, span: float = 0.3 ):
 
     if mean_var_df is None:
         # read mean var df if not specified
@@ -247,8 +248,8 @@ def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None,
 
         y = np.log10(var[not_const]) 
         x = np.log10(mean[not_const])
-        model = loess(x, y, span=span, degree=2)
-        model.fit()
+
+        model = safe_loess(x, y, span = span)
         estimat_var[not_const] = model.outputs.fitted_values
         reg_std = np.sqrt(10**estimat_var)
 
@@ -269,6 +270,37 @@ def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None,
         return
     else:
         return final_df
+    
+
+
+def safe_loess(x, y, span, initial_amount=1e-16, max_attempts= 5, seed=1234):
+    attempts = 0
+    amount   = initial_amount
+    
+    while attempts < max_attempts:
+        try:
+            if attempts == 0:
+                x_jitter = x
+            else:
+                # add jitter
+                np.random.seed(seed)
+                jitter = np.random.uniform(-amount, amount, len(x))
+                x_jitter = x + jitter
+        
+            model = loess(x_jitter, y, span=span, degree=2)
+            model.fit()
+            return model
+        
+        except Exception as e:
+            warnings.warn(f"Attempt {attempts + 1} failed: {e}. Increasing jitter amount to {amount * 10}.")
+            # increase jitter for the next attempt
+            amount *= 10
+        
+        attempts += 1
+    
+    raise RuntimeError(f"Failed to fit loess model after {max_attempts} attempts with increasing jitter.")
+
+
 
 
 def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_num, hvg_method,
@@ -411,32 +443,6 @@ def calculate_mean_var_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_sta
 
 
 
-# def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, estim_vars_f, csr_f, std_var_stats_f):
-
-#     qc_df = pd.read_csv(qc_smpl_stats_f, sep = '\t')
-#     bad_samples = qc_df.loc[qc_df['bad_sample'] == True, 'sample_id'].tolist()
-   
-#     if sample in bad_samples:
-#         # save an empty file
-#         open(std_var_stats_f, 'w').close()
-#         return
-    
-#     # read sparse matrix
-#     sparse_csr, features, _ = read_full_csr(csr_f)
-
-#     # get df with estimated variances for sample
-#     estim_vars_df = pd.read_csv(estim_vars_f, sep = '\t')
-#     estim_vars_smpl = estim_vars_df[estim_vars_df['sample_id'] == sample,]
-    
-#     # calculate stats
-#     stats_df = calculate_sum_and_sum_squares_cilipped(sparse_csr, estim_vars_smpl)
-
-#     # save
-#     stats_df.to_csv(std_var_stats_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
-
-#     return
-
-
 
 def calculate_std_var_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, std_var_stats_f, estim_vars_f, chunk_num, hvg_method,
                             chunk_size=2000, group_var=None, group=None, n_cores = 8):
@@ -514,6 +520,7 @@ def _rank_genes(ranking_df, n_hvgs):
     return ranked_norm_gene_vars, norm_gene_vars, ma_ranked
 
 
+
 def _process_single_group(stats_df, empty_gs, n_hvgs, exclude_ambient):
    
     # get genes to exclude
@@ -563,6 +570,8 @@ def _process_multiple_groups(stats_df, group_var, empty_gs, n_hvgs,  exclude_amb
 
     return out_df
 
+
+
 # main function to calculate highly variable genes
 def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, n_hvgs, exclude_ambient=True):
    
@@ -595,6 +604,59 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, n_hvgs, exclu
 
     hvg_df.to_csv(hvg_f, sep='\t', index=False)
     return hvg_df
+
+
+
+# # read top 2000 hvgs from each sample and save file
+def read_top_genes(hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
+    
+    # get all chunked files
+    hvg_paths_df = pd.read_csv(hvg_paths_f)
+    chunked_fs = hvg_paths_df['chunked_f'].tolist()
+    ids        = hvg_paths_df[SAMPLE_VAR].tolist()
+
+    # get all hvgs
+    hvg_df = pd.read_csv(hvg_f, sep='\t')
+    hvg_ids = hvg_df.loc[hvg_df['highly_variable'] == True, 'gene_id'].tolist()
+
+    # extract ensembl ids (maybe keep ensembl is in the df earlier)
+    hvg_ensembl = []
+    for gene in hvg_ids:
+        parts = gene.rsplit('_', 1)
+        hvg_ensembl.append(parts[-1])
+    
+    # initialise hvg matrix
+    top_genes_mat = None
+    all_barcodes  = []
+    # open each file separately and extract highly variable features
+    for f, id in zip(chunked_fs, ids):
+        sample_csr, features, barcodes = read_full_csr(f)
+        hvg_indices = [i for i, feature in enumerate(features) if feature.decode('utf-8') in hvg_ensembl]
+        # hvg_indices = np.where(np.isin(features, hvg_ensembl))[0]
+        csr_chunk = sample_csr[hvg_indices,:]
+        
+        # add sample ids to barcodes
+        barcodes = [f"{id}:{bc.decode('utf-8')}" for bc in barcodes]
+        # Merge to other chunks column-wise
+        all_barcodes.extend(barcodes)
+        top_genes_mat = csr_chunk if top_genes_mat is None else hstack([top_genes_mat, csr_chunk])
+
+    top_genes_csc = top_genes_mat.tocsc()
+    
+    # Save to a new HDF5 file
+    with h5py.File(out_h5_f, 'w') as f:
+        # Save matrix data
+        f.create_dataset('matrix/data', data=top_genes_csc.data)
+        f.create_dataset('matrix/indices', data=top_genes_csc.indices)
+        f.create_dataset('matrix/indptr', data=top_genes_csc.indptr)
+        
+        # Save matrix shape
+        f.create_dataset('matrix/shape', data=top_genes_csc.shape)
+        
+        # Save features and barcodes
+        f.create_dataset('matrix/features/name', data=hvg_ensembl)
+        f.create_dataset('matrix/barcodes', data=all_barcodes)
+
 
 
 
@@ -668,7 +730,14 @@ if __name__ == "__main__":
     parser_getHvgs.add_argument("n_hvgs", type=int)
     parser_getHvgs.add_argument("-e", "--noambient",required=False, default=False)
 
-   
+
+    # parser for read_top_genes()
+    parser_readHvgs = subparsers.add_parser('read_top_genes')
+    parser_readHvgs.add_argument("hvg_paths_f", type=str)
+    parser_readHvgs.add_argument("hvg_f", type=str)
+    parser_readHvgs.add_argument("out_h5_f", type=str)
+    parser_readHvgs.add_argument("sample_var", type=str)
+
     args = parser.parse_args()
 
     if args.function_name == 'get_csr_counts':
@@ -701,31 +770,10 @@ if __name__ == "__main__":
             args.std_var_stats_f, args.hvg_f, args.empty_gs_f, args.hvg_method, 
             args.n_hvgs, args.noambient
         )
+    elif args.function_name == 'read_top_genes':
+        read_top_genes(
+            args.hvg_paths_f, args.hvg_f, args.out_h5_f, args.sample_var
+        )
     else:
         parser.print_help()
     
-
-
-
-# # read top 2000 hvgs from each sample and save file
-# def read_top_genes(files_dt, top_indices):
-
-#     files = pd.read_csv(files_dt)
-#     fs_ls = files['amb_out_f'].tolist()
-    
-#     top_genes_mx = None
-    
-#     for f in fs_ls:
-#         with h5py.File(f, 'r') as f:
-#             num_cols =  f['matrix/shape'][1]
-#             indptr = f['matrix/indptr'][:]
-#             indices = f['matrix/indices'][:]
-#             data = f['matrix/data'][:]
-#             indptr_chunk = indptr[top_indices[0]:top_indices[-1]+1] - indptr[top_indices[0]]
-#             data_chunk = data[indptr_chunk[0]: indptr_chunk[-1]]
-#             indices_chunk = indices[indptr_chunk[0]:indptr_chunk[-1]]
-#             sparse_chunk = csr_matrix((data_chunk, indices_chunk, indptr_chunk - indptr_chunk[0]), shape = (len(top_indices, num_cols)))
-#             top_genes_mx = sparse_chunk if top_genes_mx is None else csr_matrix.hstack([top_genes_mx, sparse_chunk])
-
-#     return top_genes_mx
-

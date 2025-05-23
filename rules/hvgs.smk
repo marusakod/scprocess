@@ -267,3 +267,26 @@ rule get_highly_variable_genes:
       {N_HVGS}
       # need to add flag to determine whether to remove ambient genes or not!
      """
+
+rule create_hvg_matrix:
+  input: 
+    clean_h5_f  = expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES),
+    hvg_paths_f = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    hvg_f       = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+  output:
+    hvg_mat_f   = hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
+  threads: 1
+  retries: RETRIES
+  resources:
+    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  conda:
+    '../envs/hvgs.yml'
+  shell:
+    """
+    python3 scripts/hvgs.py read_top_genes \
+      {input.hvg_paths_f} \
+      {input.hvg_f} \
+      {output.hvg_mat_f} \
+      {SAMPLE_VAR}
+
+    """
