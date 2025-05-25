@@ -384,6 +384,8 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   
   # remove mitochondrial genes
   sce_tmp = sce_tmp[!mt_gs, ]
+  # recalculate library sizes
+  sce_tmp$total_no_mito = colSums(sce_tmp)
 
   # convert to TsparseMatrix
   counts(sce_tmp) = counts(sce_tmp) %>% as("TsparseMatrix")

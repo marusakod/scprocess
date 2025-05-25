@@ -194,8 +194,8 @@ else:
       """
       python3 scripts/hvgs.py calculate_estimated_vars \
         {output.estim_vars_f} \
-        {input.mean_var_merged_f} \
-        {HVG_METHOD}
+        {HVG_METHOD} \
+        {input.mean_var_merged_f}
       """
 
   rule get_stats_for_std_variance_for_group:

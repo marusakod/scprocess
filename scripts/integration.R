@@ -25,9 +25,9 @@ suppressPackageStartupMessages({
   # library('ggh4x')
 })
 
-run_harmony <- function(sce_all_f, keep_f, dbl_f,
-  exc_regex, n_hvgs, n_dims, dbl_res, dbl_cl_prop, theta, res_ls_concat,
-  harmony_f, hvgs_f, sce_clean_f, batch_var, n_cores = 4) {
+run_harmony <- function(hvg_f, coldata_f,
+  exc_regex, n_dims, dbl_res, dbl_cl_prop, theta, res_ls_concat,
+  harmony_f, hvgs_f, batch_var, n_cores = 4) {
   # unpack inputs
   res_ls      = res_ls_concat %>% str_split(" ") %>% unlist %>% as.numeric
 
@@ -38,25 +38,25 @@ run_harmony <- function(sce_all_f, keep_f, dbl_f,
   options( future.globals.maxSize = 2^35 )
 
   message('  loading relevant cell ids')
-  keep_ids    = fread(keep_f) %>% .$cell_id
-  dbl_ids     = fread(dbl_f) %>% .[ dbl_class == "doublet" ] %>% .$cell_id
-  load_ids    = c(keep_ids, dbl_ids)
+  all_coldata = fread(coldata_f)
+  assert_that("sample_id" %in% colnames(all_coldata))
+  assert_that(batch_var %in% colnames(all_coldata))
+  keep_ids    = all_coldata %>% .[keep == TRUE, cell_id]
 
-  message('  loading sce')
+  message('  loading hvg matrix')
   assert_that( length(keep_ids) > 0 )
-  sce_dbl     = readRDS(sce_all_f) %>% .[, load_ids ]
-  assert_that("sample_id" %in% colnames(colData(sce_dbl)))
-  assert_that(batch_var %in% colnames(colData(sce_dbl)))
+  hvg_mat     = .get_alevin_mx(hvg_f, sel_s = '')
+  assert_that(setequal(colnames(hvg_mat), keep_ids))
 
-  # exclude genes if requested
-  if (!is.null(exc_regex)) {
-    exc_idx     = rownames(sce_dbl) %>% str_detect(exc_regex)
-    exc_gs      = rowData(sce_dbl)$symbol[ exc_idx ]
-    sprintf("    excluding %d genes: %s", sum(exc_idx), paste0(exc_gs, collapse = " ")) %>%
-      message
-    sce_dbl     = sce_dbl[ !exc_idx, ]
-  }
-
+  # # exclude genes if requested --> commented out cause mito genes are now exluded in qc step
+  # if (!is.null(exc_regex)) {
+  #   exc_idx     = rownames(sce_dbl) %>% str_detect(exc_regex)
+  #   exc_gs      = rowData(sce_dbl)$symbol[ exc_idx ]
+  #   sprintf("    excluding %d genes: %s", sum(exc_idx), paste0(exc_gs, collapse = " ")) %>%
+  #     message
+  #   sce_dbl     = sce_dbl[ !exc_idx, ]
+  # }
+  
   # turn into seurat object
   message('  prepping seurat object')
   suppressWarnings({
@@ -177,6 +177,37 @@ run_harmony <- function(sce_all_f, keep_f, dbl_f,
 
   return(hmny_dt)
 }
+
+
+# 
+# qc_f.     = '/pmount/projects/site/pred/brain-sc-analysis/studies/Miallot_2023/output/Miallot_qc/qc_dt_all_samples_Miallot_2023_2025-05-08.txt.gz'
+# hvg_mat   = .get_alevin_mx('/pmount/projects/site/pred/brain-sc-analysis/studies/Miallot_2023/output/Miallot_hvg/top_hvgs_counts_Miallot_2023_2025-05-08.h5', sel_s = '')
+# coldata_f = '/pmount/projects/site/pred/brain-sc-analysis/studies/Miallot_2023/output/Miallot_qc/coldata_dt_all_samples_Miallot_2023_2025-05-08.txt.gz'
+# one_sce = readRDS('/pmount/projects/site/pred/brain-sc-analysis/studies/Miallot_2023/output/Miallot_qc/sce_cells_clean_D21_Panth_R1_Miallot_2023_2025-05-08.rds')
+# one_sce = one_sce[, colnames(one_sce) %in% colnames(hvg_mat)]
+# sample = 'D21_Panth_R1'
+
+normalize_hvg_mat = function(hvg_mat, qc_f, scale_f = 10000) {
+
+  coldata = fread(coldata_f) %>%
+    .[keep == TRUE]
+  
+  assert_that(setequal(colnames(hvg_mat), coldata$cell_id))
+  hvg_mat = hvg_mat[, coldata$cell_id]
+  lib_sizes = coldata[, total_no_mito]
+  
+  norm_mat = sweep(hvg_mat, 2, lib_sizes, FUN = "/")
+  norm_mat = norm_mat * scale_f
+  log_norm_mat = log1p(norm_mat)
+  
+  test_dt = data.table(
+    total = lib_sizes, 
+    cell_id = colnames(hvg_mat)
+  )
+
+  return(log_norm_mat)
+}
+
 
 .calc_dbl_data <- function(hmny_dbl, dbl_ids, dbl_res, dbl_cl_prop) {
   # assemble useful doublet data
