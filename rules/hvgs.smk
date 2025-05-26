@@ -290,3 +290,29 @@ rule create_hvg_matrix:
       {SAMPLE_VAR}
 
     """
+
+rule create_doublets_hvg_matrix:
+    input: 
+      hvg_paths_f        = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+      hvg_f              = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+      qc_f               = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      qc_sample_stats_f  = qc_dir  + '/qc_sample_statistics_' + DATE_STAMP + '.txt'
+    output: 
+      dbl_hvg_mat_f      = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
+    threads: 1
+    retries: RETRIES
+    resources:
+      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    conda: 
+      '../envs/hvgs.yml'
+    shell: 
+      """
+      python3 scripts/hvgs.py create_doublets_matrix \
+      {input.hvg_paths_f} \
+      {input.hvg_f} \
+      {input.qc_f} \
+      {input.qc_sample_stats_f} \
+      {output.dbl_hvg_mat_f} \
+      {SAMPLE_VAR}
+
+      """

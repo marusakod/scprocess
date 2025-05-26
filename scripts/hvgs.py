@@ -36,11 +36,14 @@ def sum_SUA(sua_mat, row_names):
     return mats_sum, uniq_genes
 
 
-def get_one_csr_counts(run, hvg_df, keep_df, dbl_df, qc_sample_df, gene_ids, SAMPLE_VAR, DEMUX_TYPE, chunk_size):
+def get_one_csr_counts(run, hvg_df, keep_df, qc_sample_df, gene_ids, SAMPLE_VAR, DEMUX_TYPE, chunk_size):
     
     # get input (ambient) file and output files
     filt_counts_f = hvg_df.loc[hvg_df[SAMPLE_VAR] == run, "amb_filt_f"].values[0]
     out_fs = hvg_df.loc[hvg_df[SAMPLE_VAR] == run, "chunked_f"].tolist()
+
+    # get bad samples
+    bad_samples  = qc_sample_df.loc[ qc_sample_df['bad_sample'] == True, 'sample_id'].tolist()
 
     # get cell ids for each sample
     if DEMUX_TYPE != "":
@@ -49,17 +52,12 @@ def get_one_csr_counts(run, hvg_df, keep_df, dbl_df, qc_sample_df, gene_ids, SAM
         samples = [run]
 
     cell_ids_dict = {}
-    dbl_ids_dict  = {}
 
     for s in samples:
         keep_cells = keep_df.loc[keep_df['sample_id'] == s, "cell_id"].tolist()
-        dbls       = dbl_df.loc[dbl_df['sample_id'] == s, "cell_id"].tolist()
-        dbl_ids    = [bc.replace(run + ":", "", 1) for bc in dbls]
-        dbl_ids    = np.array(dbl_ids)
         cell_ids   = [bc.replace(run + ":", "", 1) for bc in keep_cells]
         cell_ids   = np.array(cell_ids)
         cell_ids_dict[s]  = cell_ids
-        dbl_ids_dict[s]   = dbl_ids
 
     # open input file
     with h5py.File(filt_counts_f, 'r') as f:
@@ -75,9 +73,6 @@ def get_one_csr_counts(run, hvg_df, keep_df, dbl_df, qc_sample_df, gene_ids, SAM
     # make a csc sparse matrix
     sua_csc = csc_matrix((data, indices, indptr), shape=(num_rows, num_cols))
 
-    # get bad samples
-    bad_samples  = qc_sample_df.loc[ qc_sample_df['bad_sample'] == True, 'sample_id'].tolist()
-
     for s, out_f in zip(samples, out_fs):
 
         if s in bad_samples:
@@ -86,18 +81,11 @@ def get_one_csr_counts(run, hvg_df, keep_df, dbl_df, qc_sample_df, gene_ids, SAM
             return
         
         cell_ids = cell_ids_dict[s]
-        dbl_ids  = dbl_ids_dict[s]
-        all_ids  = np.concatenate((cell_ids, dbl_ids))
-        
-        # get doublet status
-        dbl_status = np.isin(all_ids, dbl_ids).astype(int)
-
+    
         # get indices of barcodes to keep
-        keep_idx = np.where(np.isin(barcodes, all_ids))[0]
-
+        keep_idx = np.where(np.isin(barcodes, cell_ids))[0]
         filt_bcs = barcodes[keep_idx]
-        dbl_status = np.isin(filt_bcs, dbl_ids).astype(int)
-       
+        
         # subset matrix
         sua_csc_qc = sua_csc[:, keep_idx]
 
@@ -128,8 +116,7 @@ def get_one_csr_counts(run, hvg_df, keep_df, dbl_df, qc_sample_df, gene_ids, SAM
             # Saving the feature and barcode names
             f.create_dataset('matrix/features/name', data=np.array(uniq_features, dtype='S'), compression='gzip')
             f.create_dataset('matrix/barcodes', data=np.array(filt_bcs, dtype='S'), compression='gzip')
-            f.create_dataset('matrix/doublet_status', data=dbl_status, compression='gzip')
-
+            
         print(f"CSR matrix for {s} successfully saved to {out_f}.")
 
 
@@ -138,7 +125,6 @@ def get_csr_counts(hvg_paths_f, qc_f, qc_smpl_stats_f, rowdata_f, SAMPLE_VAR, DE
     hvg_df  = pd.read_csv(hvg_paths_f)
     qc_df   = pd.read_csv(qc_f, sep = '\t')
     keep_df = qc_df[qc_df["keep"] == True]
-    dbl_df  = qc_df[qc_df["dbl_class"] == "doublet"]
     rows_df = pd.read_csv(rowdata_f, sep = '\t')
     keep_ids= rows_df['ensembl_id'].tolist()
 
@@ -147,101 +133,101 @@ def get_csr_counts(hvg_paths_f, qc_f, qc_smpl_stats_f, rowdata_f, SAMPLE_VAR, DE
     runs = hvg_df[SAMPLE_VAR].unique()
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
-        futures = [executor.submit(get_one_csr_counts, run, hvg_df, keep_df, dbl_df, qc_sample_df, keep_ids, SAMPLE_VAR, DEMUX_TYPE, chunk_size) for run in runs]
+        futures = [executor.submit(get_one_csr_counts, run, hvg_df, keep_df, qc_sample_df, keep_ids, SAMPLE_VAR, DEMUX_TYPE, chunk_size) for run in runs]
 
         for future in concurrent.futures.as_completed(futures):
             future.result()
 
 
-# def read_csr_chunk(file, start_row, end_row):
-#     with h5py.File(file, 'r') as f:
-#         num_cols = f['matrix/shape'][1]
-#         indptr = f['matrix/indptr'][start_row:end_row+1]
-#         start_pos = indptr[0]
-#         end_pos = indptr[-1]
-#         data    = f['matrix/data'][start_pos:end_pos]
-#         indices = f['matrix/indices'][start_pos:end_pos]
-
-#         # get features and barcodes for chunk
-#         features= f['matrix/features/name'][start_row:end_row].astype(str)
-#         barcodes= f['matrix/barcodes'][:].astype(str)
-
-#         # adjust indptr to start at zero for the chunk
-#         indptr_chunk = indptr - start_pos
-
-#     # csr for the chunk
-#     sparse_chunk = csr_matrix((data, indices, indptr_chunk), shape=(end_row - start_row, num_cols))
-    
-#     return sparse_chunk, features, barcodes
-
-
-
-
-# def read_full_csr(file): 
-#     with h5py.File(file, 'r') as f:
-#         indptr   = f['matrix/indptr'][:]  
-#         indices  = f['matrix/indices'][:]  
-#         data     = f['matrix/data'][:]  
-#         features = f['matrix/features/name'][:]  
-#         barcodes = f['matrix/barcodes'][:]  
-
-#         num_rows = f['matrix/shape'][0]  
-#         num_cols = f['matrix/shape'][1]  
-
-#         sparse_csr = csr_matrix((data, indices, indptr), shape=(num_rows, num_cols))
-
-#     return sparse_csr, features, barcodes
-
-
-def read_csr_chunk(file, start_row, end_row, exclude_doublets=True):
+def read_csr_chunk(file, start_row, end_row):
     with h5py.File(file, 'r') as f:
-        num_cols   = f['matrix/shape'][1]
-        indptr     = f['matrix/indptr'][start_row:end_row+1]
-        start_pos  = indptr[0]
-        end_pos    = indptr[-1]
-        data       = f['matrix/data'][start_pos:end_pos]
-        indices    = f['matrix/indices'][start_pos:end_pos]
+        num_cols = f['matrix/shape'][1]
+        indptr = f['matrix/indptr'][start_row:end_row+1]
+        start_pos = indptr[0]
+        end_pos = indptr[-1]
+        data    = f['matrix/data'][start_pos:end_pos]
+        indices = f['matrix/indices'][start_pos:end_pos]
 
+        # get features and barcodes for chunk
+        features= f['matrix/features/name'][start_row:end_row].astype(str)
+        barcodes= f['matrix/barcodes'][:].astype(str)
+
+        # adjust indptr to start at zero for the chunk
         indptr_chunk = indptr - start_pos
-        sparse_chunk = csr_matrix((data, indices, indptr_chunk), shape=(end_row - start_row, num_cols))
 
-        features = f['matrix/features/name'][start_row:end_row].astype(str)
-        barcodes = f['matrix/barcodes'][:].astype(str)
-
-        if exclude_doublets:
-            dbl_status = f['matrix/doublet_status'][:]
-            keep_idx = np.where(dbl_status == 0)[0]
-
-            # filter out doublet columns
-            sparse_chunk = sparse_chunk[:, keep_idx]
-            barcodes = barcodes[keep_idx]
-
+    # csr for the chunk
+    sparse_chunk = csr_matrix((data, indices, indptr_chunk), shape=(end_row - start_row, num_cols))
+    
     return sparse_chunk, features, barcodes
 
 
 
-def read_full_csr(file, exclude_doublets=True): 
+
+def read_full_csr(file): 
     with h5py.File(file, 'r') as f:
-        indptr = f['matrix/indptr'][:]  
-        indices = f['matrix/indices'][:]  
-        data = f['matrix/data'][:]  
-        num_rows = f['matrix/shape'][0]
-        num_cols = f['matrix/shape'][1]
+        indptr   = f['matrix/indptr'][:]  
+        indices  = f['matrix/indices'][:]  
+        data     = f['matrix/data'][:]  
+        features = f['matrix/features/name'][:]  
+        barcodes = f['matrix/barcodes'][:]  
+
+        num_rows = f['matrix/shape'][0]  
+        num_cols = f['matrix/shape'][1]  
 
         sparse_csr = csr_matrix((data, indices, indptr), shape=(num_rows, num_cols))
 
-        features = f['matrix/features/name'][:].astype(str)
-        barcodes = f['matrix/barcodes'][:].astype(str)
-
-        if exclude_doublets:
-            dbl_status = f['matrix/doublet_status'][:]
-            keep_idx = np.where(dbl_status == 0)[0]
-
-            # filter out doublet columns
-            sparse_csr = sparse_csr[:, keep_idx]
-            barcodes = barcodes[keep_idx]
-
     return sparse_csr, features, barcodes
+
+
+# def read_csr_chunk(file, start_row, end_row, exclude_doublets=True):
+#     with h5py.File(file, 'r') as f:
+#         num_cols   = f['matrix/shape'][1]
+#         indptr     = f['matrix/indptr'][start_row:end_row+1]
+#         start_pos  = indptr[0]
+#         end_pos    = indptr[-1]
+#         data       = f['matrix/data'][start_pos:end_pos]
+#         indices    = f['matrix/indices'][start_pos:end_pos]
+
+#         indptr_chunk = indptr - start_pos
+#         sparse_chunk = csr_matrix((data, indices, indptr_chunk), shape=(end_row - start_row, num_cols))
+
+#         features = f['matrix/features/name'][start_row:end_row].astype(str)
+#         barcodes = f['matrix/barcodes'][:].astype(str)
+
+#         if exclude_doublets:
+#             dbl_status = f['matrix/doublet_status'][:]
+#             keep_idx = np.where(dbl_status == 0)[0]
+
+#             # filter out doublet columns
+#             sparse_chunk = sparse_chunk[:, keep_idx]
+#             barcodes = barcodes[keep_idx]
+
+#     return sparse_chunk, features, barcodes
+
+
+
+# def read_full_csr(file, exclude_doublets=True): 
+#     with h5py.File(file, 'r') as f:
+#         indptr = f['matrix/indptr'][:]  
+#         indices = f['matrix/indices'][:]  
+#         data = f['matrix/data'][:]  
+#         num_rows = f['matrix/shape'][0]
+#         num_cols = f['matrix/shape'][1]
+
+#         sparse_csr = csr_matrix((data, indices, indptr), shape=(num_rows, num_cols))
+
+#         features = f['matrix/features/name'][:].astype(str)
+#         barcodes = f['matrix/barcodes'][:].astype(str)
+
+#         if exclude_doublets:
+#             dbl_status = f['matrix/doublet_status'][:]
+#             keep_idx = np.where(dbl_status == 0)[0]
+
+#             # filter out doublet columns
+#             sparse_csr = sparse_csr[:, keep_idx]
+#             barcodes = barcodes[keep_idx]
+
+#     return sparse_csr, features, barcodes
 
 
 
@@ -696,7 +682,7 @@ def read_top_genes(hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
 
     # open each file separately and extract highly variable genes
     for f, id in zip(chunked_fs, ids):
-        sample_csr, features, barcodes = read_full_csr(f, exclude_doublets=False)
+        sample_csr, features, barcodes = read_full_csr(f)
 
         features = np.array(features, dtype=str)
 
@@ -721,6 +707,87 @@ def read_top_genes(hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
         f.create_dataset('matrix/features/name', data=np.array(hvg_ensembl, dtype='S'))
         f.create_dataset('matrix/barcodes', data=np.array(all_barcodes, dtype='S'))
 
+
+def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, SAMPLE_VAR):
+
+    # get all hvgs
+    hvg_df  = pd.read_csv(hvg_f, sep='\t')
+    hvg_ids = hvg_df.loc[hvg_df['highly_variable'] == True, 'gene_id'].tolist()
+    
+    # get qc file with all cells
+    qc_df = pd.read_csv(qc_f, sep = '\t')
+
+    # subset to doublets
+    dbl_df  = qc_df[qc_df["dbl_class"] == "doublet"]
+
+    # extract ensembl ids (maybe keep ensembl is in the df earlier)
+    hvg_ensembl = []
+    for gene in hvg_ids:
+        parts = gene.rsplit('_', 1)
+        hvg_ensembl.append(parts[-1])
+    
+    # initialise doublet matrix
+    doublet_mat  = None
+    all_barcodes = []
+
+    # get samples (or pools) that passed qc
+    hvg_paths_df = pd.read_csv(hvg_paths_f)
+    qc_sample_df = pd.read_csv(qc_smpl_stats_f, sep = '\t')
+    good_samples = qc_sample_df.loc[ qc_sample_df['bad_sample'] == False, "sample_id"].tolist()
+    
+    keep_runs = hvg_paths_df.loc[hvg_paths_df['sample_id'].isin(good_samples), SAMPLE_VAR].unique()
+
+    for run in keep_runs:
+        # get doublets for this run
+        dbls       = dbl_df.loc[dbl_df[SAMPLE_VAR] == run, "cell_id"].tolist()
+        dbl_ids    = np.array(dbls)
+
+        # get ambient output file
+        filt_counts_f =  hvg_paths_df.loc[hvg_paths_df[SAMPLE_VAR] == run, "amb_filt_f"].values[0]
+        # open input file
+        with h5py.File(filt_counts_f, 'r') as f:
+            indptr   = f['matrix/indptr'][:]
+            indices  = f['matrix/indices'][:]
+            data     = f['matrix/data'][:]
+            features = f['matrix/features/name'][:]
+            barcodes = f['matrix/barcodes'][:]
+
+            num_rows = f['matrix/shape'][0]
+            num_cols = f['matrix/shape'][1]
+
+        # make a csc sparse matrix
+        sua_csc = csc_matrix((data, indices, indptr), shape=(num_rows, num_cols))
+        
+        # get indices of barcodes to keep
+        keep_idx = np.where(np.isin(barcodes, dbl_ids))[0]
+        filt_bcs = barcodes[keep_idx]
+
+        # subset matrix
+        sua_csc_dbl =  sua_csc[:, keep_idx]
+
+        # merge splices, unspliced, ambiguous
+        csc, uniq_features = sum_SUA(sua_csc_dbl, features)
+
+        # get indices of highly variable genes
+        hvg_indices = [i for i, feature in enumerate(uniq_features) if feature in hvg_ensembl]
+        csc         = csc[hvg_indices, :]
+
+        # combine matrices and barcodes
+        all_barcodes.extend(filt_bcs)
+        doublet_mat = csc if doublet_mat is None else hstack([doublet_mat, csc])
+
+    # save to a new h5 file
+    with h5py.File(out_h5_f, 'w') as f:
+        f.create_dataset('matrix/data', data=doublet_mat.data)
+        f.create_dataset('matrix/indices', data=doublet_mat.indices)
+        f.create_dataset('matrix/indptr', data=doublet_mat.indptr)
+        f.create_dataset('matrix/shape', data=doublet_mat.shape)
+        f.create_dataset('matrix/features/name', data=np.array(hvg_ensembl, dtype='S'))
+        f.create_dataset('matrix/barcodes', data=np.array(all_barcodes, dtype='S'))
+
+
+        
+        
 
 
 
@@ -802,6 +869,15 @@ if __name__ == "__main__":
     parser_readHvgs.add_argument("out_h5_f", type=str)
     parser_readHvgs.add_argument("sample_var", type=str)
 
+    # parser for create_doublets_matrix()
+    parser_getDoublets = subparsers.add_parser('create_doublets_matrix')
+    parser_getDoublets.add_argument("hvg_paths_f", type=str)
+    parser_getDoublets.add_argument("hvg_f", type=str)
+    parser_getDoublets.add_argument("qc_f", type=str)
+    parser_getDoublets.add_argument("qc_smpl_stats_f", type=str)
+    parser_getDoublets.add_argument("out_h5_f", type=str)
+    parser_getDoublets.add_argument("sample_var", type=str)
+
     args = parser.parse_args()
 
     if args.function_name == 'get_csr_counts':
@@ -837,6 +913,11 @@ if __name__ == "__main__":
     elif args.function_name == 'read_top_genes':
         read_top_genes(
             args.hvg_paths_f, args.hvg_f, args.out_h5_f, args.sample_var
+        )
+    elif args.function_name == 'create_doublets_matrix': 
+        create_doublets_matrix(
+            args.hvg_paths_f, args.hvg_f, args.qc_f, args.qc_smpl_stats_f, 
+            args.out_h5_f, args.sample_var
         )
     else:
         parser.print_help()
