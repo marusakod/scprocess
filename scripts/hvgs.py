@@ -94,6 +94,9 @@ def get_one_csr_counts(run, hvg_df, keep_df, dbl_df, qc_sample_df, gene_ids, SAM
 
         # get indices of barcodes to keep
         keep_idx = np.where(np.isin(barcodes, all_ids))[0]
+
+        filt_bcs = barcodes[keep_idx]
+        dbl_status = np.isin(filt_bcs, dbl_ids).astype(int)
        
         # subset matrix
         sua_csc_qc = sua_csc[:, keep_idx]
@@ -124,7 +127,7 @@ def get_one_csr_counts(run, hvg_df, keep_df, dbl_df, qc_sample_df, gene_ids, SAM
 
             # Saving the feature and barcode names
             f.create_dataset('matrix/features/name', data=np.array(uniq_features, dtype='S'), compression='gzip')
-            f.create_dataset('matrix/barcodes', data=np.array(all_ids, dtype='S'), compression='gzip')
+            f.create_dataset('matrix/barcodes', data=np.array(filt_bcs, dtype='S'), compression='gzip')
             f.create_dataset('matrix/doublet_status', data=dbl_status, compression='gzip')
 
         print(f"CSR matrix for {s} successfully saved to {out_f}.")
