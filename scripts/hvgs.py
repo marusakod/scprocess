@@ -708,6 +708,7 @@ def read_top_genes(hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
         f.create_dataset('matrix/barcodes', data=np.array(all_barcodes, dtype='S'))
 
 
+
 def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, SAMPLE_VAR):
 
     # get all hvgs
@@ -725,6 +726,8 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
     for gene in hvg_ids:
         parts = gene.rsplit('_', 1)
         hvg_ensembl.append(parts[-1])
+
+    hvg_ensembl = np.array(hvg_ensembl)
     
     # initialise doublet matrix
     doublet_mat  = None
@@ -735,7 +738,7 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
     qc_sample_df = pd.read_csv(qc_smpl_stats_f, sep = '\t')
     good_samples = qc_sample_df.loc[ qc_sample_df['bad_sample'] == False, "sample_id"].tolist()
     
-    keep_runs = hvg_paths_df.loc[hvg_paths_df['sample_id'].isin(good_samples), SAMPLE_VAR].unique()
+    keep_runs = hvg_paths_df.loc[hvg_paths_df['sample_id'].isin(good_samples), SAMPLE_VAR].unique().tolist()
 
     for run in keep_runs:
         # get doublets for this run
@@ -754,6 +757,12 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
 
             num_rows = f['matrix/shape'][0]
             num_cols = f['matrix/shape'][1]
+        
+ 
+        # add sample ids to barcodes
+        barcodes = barcodes.astype('<U21')
+        barcodes = [f"{run}:{bc}" for bc in barcodes]  
+        barcodes = np.array(barcodes)
 
         # make a csc sparse matrix
         sua_csc = csc_matrix((data, indices, indptr), shape=(num_rows, num_cols))
@@ -769,6 +778,7 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
         csc, uniq_features = sum_SUA(sua_csc_dbl, features)
 
         # get indices of highly variable genes
+        features    = features.astype('<U21')
         hvg_indices = [i for i, feature in enumerate(uniq_features) if feature in hvg_ensembl]
         csc         = csc[hvg_indices, :]
 
