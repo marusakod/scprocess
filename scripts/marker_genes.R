@@ -300,7 +300,7 @@ make_logcpms_all <- function(pb, lib_size_method = c("edger", "raw", "pearson",
 
   # calculate logcpms
   logcpms_all = bplapply(cl_ls, function(sel_cl) {
-      message(sel_cl)
+      message(sel_cl, appendLF = FALSE)
       # message(sel_cl)
       tmp_dt    = .get_logcpm_dt_one_cl(pb, cl = sel_cl,
         min_cells = min_cells, lib_size_method = lib_size_method)
@@ -562,7 +562,7 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt,
     # fit model to each cluster
     message('  run edgeR on each cluster')
     mkrs_pb_dt  = cl_ls %>% bplapply( function(sel_cl) {
-      message('    ', sel_cl)
+      message('    ', sel_cl, appendLF = FALSE)
       # make design matrix for this celltype
       this_d    = copy(des_all) %>% .[, is_cluster := cluster == sel_cl ] %>%
         model.matrix( ~ is_cluster, data = . )
@@ -712,7 +712,7 @@ calc_fgsea_dt <- function(gsets_list, fgsea_fs, markers_dt, gsea_cut,
     fgsea_f   = fgsea_fs[[p]]
 
     # get pathways
-    message('  ', p)
+    message('  ', p, appendLF = FALSE)
     paths_f   = gsets_list[[p]]
     pathways  = gmtPathways(paths_f)
 

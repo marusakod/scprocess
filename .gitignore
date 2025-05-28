@@ -4,6 +4,8 @@
 .cache/
 .ipython/
 .jupyter/
+.RData
+.Rhistory
 .snakemake/
 __pycache__/
 logs/

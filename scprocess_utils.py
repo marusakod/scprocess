@@ -246,11 +246,11 @@ def get_ambient_parameters(config):
     if 'cb_max_prop_kept' in config['ambient']:
       CELLBENDER_PROP_MAX_KEPT      = config['ambient']['cb_max_prop_kept']
     if 'cb_force_expected_cells' in config['ambient']:
-      FORCE_EXPECTED_CELLS          = config['ambient']['force_expected_cells']
+      FORCE_EXPECTED_CELLS          = config['ambient']['cb_force_expected_cells']
     if 'cb_force_total_droplets_included' in config['ambient']:
-      FORCE_TOTAL_DROPLETS_INCLUDED = config['ambient']['force_total_droplets_included']
+      FORCE_TOTAL_DROPLETS_INCLUDED = config['ambient']['cb_force_total_droplets_included']
     if 'cb_force_low_count_threshold' in config['ambient']:
-      FORCE_LOW_COUNT_THRESHOLD     = config['ambient']['force_low_count_threshold']
+      FORCE_LOW_COUNT_THRESHOLD     = config['ambient']['cb_force_low_count_threshold']
     if 'cb_force_learning_rate' in config['ambient']:
       CELLBENDER_LEARNING_RATE      = config['ambient']['cb_force_learning_rate']
 
