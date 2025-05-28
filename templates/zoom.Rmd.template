@@ -17,7 +17,7 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', warnings = FALSE)
-knitr::opts_knit$set( root.dir='..' ) F)
+knitr::opts_knit$set( root.dir='..' )
 ```
 
 
@@ -68,7 +68,8 @@ gsea_cut      = ${MKR_GSEA_CUT}
 cl_ord        = NULL
 
 # define metadata variables for plotting
-metadata_vars = "${meta_vars_ls}"
+metadata_vars = "${meta_vars_ls}" %>% 
+  str_split(pattern = ",") %>% unlist()
 if (all(metadata_vars == ""))
   metadata_vars = NULL
 ```
@@ -106,16 +107,18 @@ cpms_dt     = readRDS(pb_f) %>%
   merge(biotypes_dt[, .(gene_id, gene_type)], by = "gene_id")
 ```
 
-```{r load_canonical_markers, include = FALSE}
-canon_dt    = fread(canon_f) %>% 
-  .[, gene_id   := sprintf("%s_%s", symbol, ensembl_id) ]
-assert_that( all( canon_dt$gene_id %in% unique(cpms_dt$gene_id) ) )
-```
-
 ```{r load_hvgs, include = FALSE}
 hvgs_dt     = fread(hvgs_f) %>% 
   .[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
   .[ order(-vst_var) ]
+```
+
+```{r load_heatmap_markers, include = FALSE}
+canon_dt    = fread(canon_f) %>% 
+  .[, gene_id   := sprintf("%s_%s", symbol, ensembl_id) ]
+assert_that( all( canon_dt$gene_id %in% unique(cpms_dt$gene_id) ) )
+top_hvgs    = hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs" ]
+mkrs_ls     = list( brain = canon_dt, HVGs = top_hvgs )
 ```
 
 ```{r load_pb_markers, include = FALSE}
@@ -124,7 +127,6 @@ mkrs_dt     = fread(mkrs_f)
 if (is.null(cl_ord))
   cl_ord      = sort(unique(mkrs_dt$cluster))
 ```
-
 
 ```{r get_top_markers, include = FALSE}
 # select top markers
@@ -180,14 +182,16 @@ if (!is.null(metadata_vars))
     meta_vars = metadata_vars, cl_order = cl_ord))
 ```
 
-## Canonical marker genes{.tabset}
+## Heatmaps of marker and variable genes{.tabset}
 
-```{r plot_canonical_markers, fig.height = 8, fig.width = 8, results = "asis"}
-for (gn in unique(canon_dt$group)) {
-  cat('### ', gn, '\n')
-  sel_dt    = canon_dt[ group == gn ]
-  print(plot_selected_genes(sel_dt, cpms_dt, cl_order = cl_ord))
-  cat('\n\n')
+The resulting log 2 fold change values (calculated using edgeR) per cluster are shown for X highly variable genes and selected canonical marker genes.
+
+```{r plot_marker_heatmaps, fig.height = 9, fig.width = 10, results = 'asis'}
+for (nn in names(mkrs_ls)) {
+  cat("### ", nn, "\n")
+  draw( plot_heatmap_of_selected_genes(mkrs_dt, mkrs_ls[[nn]]),
+    heatmap_legend_side = "bottom", annotation_legend_side = "bottom", merge_legend = TRUE )
+  cat("\n\n")
 }
 ```
 

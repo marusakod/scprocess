@@ -19,8 +19,8 @@ rule zoom_one_zoom:
   params:
     zoom_sel_cls      = lambda wildcards: ' '.join(ZOOM_SPEC_LS[wildcards.zoom_name]['sel_cls']),
     zoom_res          = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['zoom_res'],
-    zoom_n_dims       = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['n_dims'],
     zoom_n_hvgs       = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['n_hvgs'],
+    zoom_n_dims       = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['n_dims'],
     zoom_min_n_sample = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['min_n_sample'],
     zoom_min_n_cl     = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['min_n_cl'],
     zoom_n_train      = lambda wildcards: ZOOM_SPEC_LS[wildcards.zoom_name]['n_train']
@@ -32,16 +32,6 @@ rule zoom_one_zoom:
     mem_mb      = lambda wildcards, attempt: attempt * MB_ZOOM_RUN_ZOOM
   shell:
     """
-  
-    ZOOM_SEL_CLS={params.zoom_sel_cls} 
-    ZOOM_RES={params.zoom_res} 
-    ZOOM_N_DIMS={params.zoom_n_dims} 
-    ZOOM_N_HVGS={params.zoom_n_hvgs}
-    ZOOM_MIN_N_SAMPLE={params.zoom_min_n_sample}
-    ZOOM_MIN_N_CL={params.zoom_min_n_cl} 
-    ZOOM_N_TRAIN={params.zoom_n_train} 
-
-  
     Rscript -e "\
     source('scripts/utils.R'); source('scripts/integration.R'); \
     source('scripts/marker_genes.R'); source('scripts/zoom.R'); \
@@ -50,8 +40,9 @@ rule zoom_one_zoom:
       '{input.hmny_f}', '{input.sce_all_f}', '{input.dbl_f}', \
       '{SPECIES}', '{AF_GTF_DT_F}', \
       {MKR_SEL_RES}, '{INT_EXC_REGEX}', {INT_DBL_RES}, {INT_DBL_CL_PROP}, {INT_THETA}, \
-      '{MKR_NOT_OK_RE}', '{MKR_GSEA_DIR}', {MKR_MIN_CPM_GO}, {MKR_MAX_ZERO_P}, {MKR_GSEA_CUT}, {MKR_MIN_CELLS}, \
-      '{wildcards.zoom_name}', '$ZOOM_SEL_CLS', $ZOOM_RES, $ZOOM_N_HVGS, $ZOOM_N_DIMS, \
-      $ZOOM_MIN_N_SAMPLE, $ZOOM_MIN_N_CL, $ZOOM_N_TRAIN, n_cores = {threads})"
+      '{MKR_NOT_OK_RE}', '{MKR_GSEA_DIR}', {MKR_MIN_CPM_GO}, {MKR_MAX_ZERO_P}, \
+      {MKR_GSEA_CUT}, {MKR_MIN_CELLS}, '{wildcards.zoom_name}', '{params.zoom_sel_cls}', \
+      '{params.zoom_res}', {params.zoom_n_hvgs}, {params.zoom_n_dims}, {params.zoom_min_n_sample}, 
+      {params.zoom_min_n_cl}, {params.zoom_n_train}, n_cores = {threads})"
 
     """
