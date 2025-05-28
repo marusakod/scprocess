@@ -7,37 +7,36 @@ import pandas as pd
 localrules: get_ambient_sample_statistics
 
 def parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, sample, amb_yaml_f, CELLBENDER_LEARNING_RATE):
+  # get cellbender parameters from yaml file
+  with open(amb_yaml_f) as f:
+    amb_params = yaml.load(f, Loader=yaml.FullLoader)
+      
+  # get parameters for cellbender
+  EXPECTED_CELLS = amb_params['expected_cells']
+  TOTAL_DROPLETS_INCLUDED = amb_params['total_droplets_included']
+  LOW_COUNT_THRESHOLD = amb_params['low_count_threshold']
+  KNEE_1 = amb_params['knee_1']
+  INFLECTION_1 = amb_params['inflection_1']
+  KNEE_2 = amb_params['knee_2']
+  INFLECTION_2 = amb_params['inflection_2']
+  LEARNING_RATE = CELLBENDER_LEARNING_RATE
 
-    # get cellbender parameters from yaml file
-    with open(amb_yaml_f) as f:
-        amb_params = yaml.load(f, Loader=yaml.FullLoader)
-        
-    # get parameters for cellbender
-    EXPECTED_CELLS = amb_params['expected_cells']
-    TOTAL_DROPLETS_INCLUDED = amb_params['total_droplets_included']
-    LOW_COUNT_THRESHOLD = amb_params['low_count_threshold']
-    KNEE_1 = amb_params['knee_1']
-    INFLECTION_1 = amb_params['inflection_1']
-    KNEE_2 = amb_params['knee_2']
-    INFLECTION_2 = amb_params['inflection_2']
-    LEARNING_RATE = CELLBENDER_LEARNING_RATE
+  # check if cellbender specific parameters are defined for individual samples 
+  if AMBIENT_METHOD == 'cellbender':
+    if CUSTOM_SAMPLE_PARAMS_F is not None:
+      with open(CUSTOM_SAMPLE_PARAMS_F) as f:
+        custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
+      # get all samples with custom params
+      custom_smpls = list(custom_smpl_params.keys())
 
-    # check if cellbender specific parameters are defined for individual samples 
-    if AMBIENT_METHOD == 'cellbender':
-        if CUSTOM_SAMPLE_PARAMS_F is not None:
-            with open(CUSTOM_SAMPLE_PARAMS_F) as f:
-                custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
-            # get all samples with custom params
-            custom_smpls = list(custom_smpl_params.keys())
+      if sample in custom_smpls:
+        # check if cellbender is defined
+        if 'cellbender' in custom_smpl_params[sample] and (custom_smpl_params[sample]['cellbender'] is not None):
+          if 'learning_rate' in custom_smpl_params[sample]['cellbender']: 
+            LEARNING_RATE = custom_smpl_params[sample]['cellbender']['learning_rate']
 
-            if sample in custom_smpls:
-                # check if cellbender is defined
-                if 'cellbender' in custom_smpl_params[sample] and (custom_smpl_params[sample]['cellbender'] is not None):
-                    if 'learning_rate' in custom_smpl_params[sample]['cellbender']: 
-                        LEARNING_RATE = custom_smpl_params[sample]['cellbender']['learning_rate']
-
-    return EXPECTED_CELLS, TOTAL_DROPLETS_INCLUDED, LOW_COUNT_THRESHOLD, LEARNING_RATE, \
-           KNEE_1, INFLECTION_1, KNEE_2, INFLECTION_2
+  return EXPECTED_CELLS, TOTAL_DROPLETS_INCLUDED, LOW_COUNT_THRESHOLD, LEARNING_RATE, \
+    KNEE_1, INFLECTION_1, KNEE_2, INFLECTION_2
 
 
 
@@ -45,68 +44,74 @@ def parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, sample, amb_yam
 # metrics_fs_ls is the list of knee files (this should exist for all ambient methods)
 # this function should run in the last rule
 def extract_sample_statistics(AMBIENT_METHOD, samples_ls, metrics_fs_ls, ambient_outs_yamls, custom_f, max_kept=0.9):
-    kept_arr = []
-    totals_arr = []
+  kept_arr    = []
+  totals_arr  = []
 
-    for sample, metrics_f, ambient_outs_yaml in zip(samples_ls, metrics_fs_ls, ambient_outs_yamls):
-        # Load ambient outs YAML file
-        with open(ambient_outs_yaml) as f:
-            amb_outs = yaml.load(f, Loader=yaml.FullLoader)
+  # loop through all samples
+  for sample, metrics_f, ambient_outs_yaml in zip(samples_ls, metrics_fs_ls, ambient_outs_yamls):
+    # Load ambient outs YAML file
+    with open(ambient_outs_yaml) as f:
+      amb_outs = yaml.load(f, Loader=yaml.FullLoader)
 
-        # Determine the correct barcode file path based on AMBIENT_METHOD
-        if AMBIENT_METHOD == 'cellbender':
-            bc_f = amb_outs['cb_bcs_f']
-        elif AMBIENT_METHOD == 'decontx':
-            bc_f = amb_outs['dcx_bcs_f']
-        else:
-            bc_f = amb_outs['cell_bcs_f']
-
-        # Read the CSV file and count the number of barcodes
-        barcode_count = pd.read_csv(bc_f, header=None).shape[0]
-        kept_arr.append(barcode_count)
-
-        if AMBIENT_METHOD == 'cellbender':
-            # Read the metrics file and get the number of cells called as barcodes
-            total_droplets = pd.read_csv(metrics_f)['total_droplets_included'][0]
-            totals_arr.append(total_droplets)
-
-    kept_arr = np.array(kept_arr)
-
-    if AMBIENT_METHOD != 'cellbender':
-        sample_df = pd.DataFrame({
-            'sample_id': samples_ls,
-            'kept_droplets': kept_arr
-        })
+    # Determine the correct barcode file path based on AMBIENT_METHOD
+    if AMBIENT_METHOD == 'cellbender':
+      bc_f = amb_outs['cb_bcs_f']
+    elif AMBIENT_METHOD == 'decontx':
+      bc_f = amb_outs['dcx_bcs_f']
     else:
-        totals_arr = np.array(totals_arr)
+      bc_f = amb_outs['cell_bcs_f']
 
-        # Replace dodgy totals values with custom if need be
-        if custom_f is not None and os.path.isfile(custom_f):
-            # Load up custom parameters
-            custom_df = pd.read_csv(custom_f)[['sample_id', 'total_droplets_included']]
+    # Read the CSV file and count the number of barcodes
+    barcode_count = pd.read_csv(bc_f, header=None).shape[0]
+    kept_arr.append(barcode_count)
 
-            # Iterate through rows
-            samples_arr = np.array(samples_ls)
-            for idx, row in custom_df.iterrows():
-                match_idx = np.where(samples_arr == row['sample_id'])
-                totals_arr[match_idx] = row['total_droplets_included']
+    if AMBIENT_METHOD == 'cellbender':
+      # Read the metrics file and get the number of cells called as barcodes
+      total_droplets = pd.read_csv(metrics_f)['total_droplets_included'][0]
+      totals_arr.append(total_droplets)
 
-        # Do some calculations
-        prop_kept = kept_arr / totals_arr
-        bad_idx = prop_kept > max_kept
+  kept_arr = np.array(kept_arr)
 
-        # Assemble into dataframe
-        sample_df = pd.DataFrame({
-            'sample_id': samples_ls,
-            'total_droplets': totals_arr,
-            'kept_droplets': kept_arr,
-            'prop_kept_by_cb': prop_kept,
-            'bad_sample': bad_idx
-        })
+  # if 
+  if AMBIENT_METHOD == 'cellbender':
+    totals_arr = np.array(totals_arr)
 
-    return sample_df
+    # Replace dodgy totals values with custom if need be
+    if custom_f is not None and os.path.isfile(custom_f):
+      # Load up custom parameters
+      with open(custom_f) as f:
+        custom_ls = yaml.load(f, Loader=yaml.FullLoader)
+      cb_ls     = {key: value['cellbender'] for key, value in custom_ls.items()}
+      custom_df = pd.DataFrame.from_dict(cb_ls, orient='index')
 
+      # get sample_id column
+      custom_df.reset_index(inplace=True, names="sample_id")
 
+      # Iterate through rows
+      samples_arr = np.array(samples_ls)
+      for idx, row in custom_df.iterrows():
+        match_idx = np.where(samples_arr == row['sample_id'])
+        totals_arr[match_idx] = row['total_droplets_included']
+
+    # Do some calculations
+    prop_kept = kept_arr / totals_arr
+    bad_idx   = prop_kept > max_kept
+
+    # Assemble into dataframe
+    sample_df = pd.DataFrame({
+      'sample_id': samples_ls,
+      'total_droplets': totals_arr,
+      'kept_droplets': kept_arr,
+      'prop_kept_by_cb': prop_kept,
+      'bad_sample':       bad_idx
+    })
+  else:
+    sample_df = pd.DataFrame({
+      'sample_id':      samples_ls,
+      'kept_droplets':  kept_arr
+    })
+
+  return sample_df
 
 
 if AMBIENT_METHOD == 'cellbender':
@@ -322,10 +327,10 @@ if AMBIENT_METHOD == 'none':
 rule get_barcode_qc_metrics:
   input:
     af_h5_f     = af_dir + '/af_{sample}/af_counts_mat.h5',
-    amb_yaml_f = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
+    amb_yaml_f  = amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
     knee_yaml_f = af_dir + '/af_{sample}/ambient_params_{sample}_' + DATE_STAMP + '.yaml'
   params:
-    expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
+    expected_cells  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.sample,
         af_dir + f'/af_{wildcards.sample}/ambient_params_{wildcards.sample}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0]
   output:
     bc_qc_f     = amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz'
@@ -351,6 +356,6 @@ rule get_ambient_sample_statistics:
   output:
     smpl_stats_f    = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt'
   run:
-    sample_stats_df   = extract_sample_statistics(AMBIENT_METHOD, SAMPLES, input.metrics_fs, input.amb_yaml_fs,
+    sample_stats_df = extract_sample_statistics(AMBIENT_METHOD, SAMPLES, input.metrics_fs, input.amb_yaml_fs,
       CUSTOM_SAMPLE_PARAMS_F, CELLBENDER_PROP_MAX_KEPT)
     sample_stats_df.to_csv(output.smpl_stats_f, sep = '\t', index = False)
