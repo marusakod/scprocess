@@ -1,144 +1,154 @@
 # integration.R
 
-
 suppressPackageStartupMessages({
   library('magrittr')
   library('data.table')
   library('forcats')
   library('stringr')
   library('assertthat')
-
   library('BiocParallel')
   library('Seurat')
-  # library('glmGamPoi')
   library('harmony')
   library('scran')
-  # library('reticulate')
-  # use_condaenv("scanpy")
-  # sc        = reticulate::import("scanorama")
   library('uwot')
   library('future')
   library('ggplot.multistats')
-
-  # library('ComplexHeatmap')
-  # library('seriation')
-  # library('ggh4x')
 })
 
-run_harmony <- function(hvg_f, coldata_f,
-  exc_regex, n_dims, dbl_res, dbl_cl_prop, theta, res_ls_concat,
-  harmony_f, hvgs_f, batch_var, n_cores = 4) {
+
+# # example input files
+# coldata_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_qc/coldata_dt_all_samples_Miallot_2023_2025-05-08.txt.gz'
+# hvg_mat_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_hvg/top_hvgs_counts_Miallot_2023_2025-05-08.h5'
+# dbl_hvg_mat_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_hvg/top_hvgs_doublet_counts_Miallot_2023_2025-05-08.h5'
+# res_ls_concat = '0.1 0.2 0.5 1 2'
+# batch_var = 'pool_id'
+# exclude_mito = TRUE
+# cl_method = 'louvain'
+# dbl_res = 4
+# dbl_cl_prop      = 0.5
+
+run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, coldata_f, demux_type, 
+  exclude_mito, reduction, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
+  integration_f, batch_var, n_cores = 4) {
+  
   # unpack inputs
   res_ls      = res_ls_concat %>% str_split(" ") %>% unlist %>% as.numeric
+  
+  # change clustering method to integer
+  if(cl_method == 'louvain'){
+    cl_method = 1
+  }else{
+    cl_method = 1
+  }
 
-  message('running Harmony')
-  # load sce, restrict to ok cells
+  message('running integration')
+ 
   message('  setting up cluster')
   plan("multicore", workers = n_cores)
   options( future.globals.maxSize = 2^35 )
 
   message('  loading relevant cell ids')
+  
   all_coldata = fread(coldata_f)
   assert_that("sample_id" %in% colnames(all_coldata))
   assert_that(batch_var %in% colnames(all_coldata))
-  keep_ids    = all_coldata %>% .[keep == TRUE, cell_id]
+  all_coldata = all_coldata %>%
+    .[keep == TRUE | dbl_class == 'doublet']
 
   message('  loading hvg matrix')
-  assert_that( length(keep_ids) > 0 )
-  hvg_mat     = .get_alevin_mx(hvg_f, sel_s = '')
-  assert_that(setequal(colnames(hvg_mat), keep_ids))
+  hvg_mat     = .get_alevin_mx(hvg_mat_f, sel_s = '')
+  dbl_hvg_mat = .get_alevin_mx(dbl_hvg_mat_f, sel_s = '')
+  assert_that(identical(rownames(hvg_mat), rownames(dbl_hvg_mat)))
 
-  # # exclude genes if requested --> commented out cause mito genes are now exluded in qc step
-  # if (!is.null(exc_regex)) {
-  #   exc_idx     = rownames(sce_dbl) %>% str_detect(exc_regex)
-  #   exc_gs      = rowData(sce_dbl)$symbol[ exc_idx ]
-  #   sprintf("    excluding %d genes: %s", sum(exc_idx), paste0(exc_gs, collapse = " ")) %>%
-  #     message
-  #   sce_dbl     = sce_dbl[ !exc_idx, ]
-  # }
+  # merge matrices with cells and doublets
+  all_mat = cbind(hvg_mat, dbl_hvg_mat)
+  assert_that(setequal(colnames(all_mat), all_coldata$cell_id))
+  
+  all_mat = all_mat[, all_coldata$cell_id]
+  
+  message('  normalizing hvg matrix')
+  all_mat_norm =  normalize_hvg_mat(
+    all_mat, all_coldata, exclude_mito, scale_f = 10000
+    )
   
   # turn into seurat object
-  message('  prepping seurat object')
+  message('  prepping Seurat object')
   suppressWarnings({
+    meta = data.frame(all_coldata)
+    rownames(meta) = meta$cell_id
     seu_dbl     = Seurat::CreateSeuratObject(
-      counts      = counts(sce_dbl),
-      meta.data   = data.frame(colData(sce_dbl)),
+      counts      = all_mat,
+      meta.data   = meta,
       project     = "dummy"
       )
+    # add normalized counts 
+    seu_dbl[['RNA']]$data = all_mat_norm
   })
-
+  
   # run harmony including doublets
-  message('  running Harmony to find more doublets')
-  hmny_dbl    = .run_one_harmony(seu_dbl, batch_var,  n_hvgs, n_dims, theta = 0, dbl_res)
-  dbl_data    = .calc_dbl_data(hmny_dbl, dbl_ids, dbl_res, dbl_cl_prop)
-
-  # make new seurat object without these doublets
+  message('  running integration to find more doublets')
+  
+  if(demux_type == ""){
+    dbl_batch_var = 'sample_id'
+  }else{
+    dbl_batch_var = 'pool_id'
+  }
+  
+  int_dbl     = .run_one_integration(seu_dbl, dbl_batch_var, cl_method, n_dims, theta = 0, dbl_res, reduction)
+  dbl_ids     =  all_coldata[dbl_class == 'doublet', cell_id]
+  dbl_data    = .calc_dbl_data(int_dbl, dbl_ids, dbl_res, dbl_cl_prop)
+  
+  rm(seu_dbl); gc()
+  
+  # make new seurat object without doublets
   message('  running on clean data')
-  ok_ids      = setdiff(keep_ids, dbl_data[ in_dbl_cl == TRUE ]$cell_id)
-  # seu_ok      = seu_dbl[ , ok_ids ]
-  suppressWarnings({
+  ok_ids      = all_coldata[keep == TRUE, cell_id]
+  
+suppressWarnings({
+    meta = data.frame(all_coldata[cell_id %chin% ok_ids])
+    rownames(meta) = meta$cell_id
     seu_ok      = Seurat::CreateSeuratObject(
-      counts      = seu_dbl[['RNA']]$counts[ , ok_ids ],
-      meta.data   = data.frame(colData(sce_dbl)[ ok_ids, ]),
+      counts      = all_mat[, ok_ids], 
+      meta.data   = meta,
       project     = "dummy"
       )
+  
+   # add normalized counts and hvgs
+   seu_ok[['RNA']]$data = all_mat_norm[, ok_ids]
   })
-  rm(seu_dbl); gc()
-  hmny_ok     = .run_one_harmony(seu_ok, batch_var, n_hvgs, n_dims, theta = theta, res_ls)
+  
+  int_ok      = .run_one_integration(seu_ok, batch_var, cl_method, n_dims, theta = theta, res_ls, reduction)        
 
   # join these together
-  hmny_dt     = merge(hmny_ok, dbl_data, by = c("sample_id", "cell_id"), all = TRUE)
+  int_dt      = merge(int_ok, dbl_data, by = c("sample_id", "cell_id"), all = TRUE)
 
   # save outputs
-  fwrite(hmny_dt, file = harmony_f)
-
-  # do HVGs
-  message('  saving HVGs')
-  seu_ok      = seu_ok %>%
-    NormalizeData( verbose = FALSE ) %>%
-    FindVariableFeatures( nfeatures = n_hvgs, verbose = FALSE ) %>%
-    ScaleData( verbose = FALSE )
-  hvgs_dt   = seu_ok@assays$RNA@meta.data %>%
-    as.data.table(keep.rownames = "gene_id") %>%
-    .[, is_hvg := vf_vst_counts_variable ]
-  fwrite(hvgs_dt, file = hvgs_f)
-
-  # make sce file with only ok cells, and nice clusters
-  message('  making nice clean sce')
-  sce       = .annotate_sce_w_harmony(sce_dbl, hmny_ok)
-  message('    saving')
-  saveRDS(sce, file = sce_clean_f, compress = FALSE)
+  fwrite(int_dt, file = integration_f)
+  
   message('done!')
 }
 
-.run_one_harmony <- function(seu_obj, batch_var,  n_hvgs, n_dims, theta = 0, res_ls) {
-  message('    normalizing and finding HVGs')
-
+.run_one_integration <- function(seu_obj, batch_var, cl_method, n_dims, theta = 0, res_ls, reduction) {
+  message('    scaling')
+  
   seu_obj   = seu_obj %>%
-    NormalizeData( verbose = FALSE ) %>%
-    FindVariableFeatures( nfeatures = n_hvgs, verbose = FALSE ) %>%
-    ScaleData( verbose = FALSE )
-
-  # check if batch variable is in seurat object
-  assert_that(batch_var %in% colnames(seu_obj[[ ]]))
+    ScaleData( verbose = FALSE, features = rownames(seu_obj) )
 
   # check whether we have one or more values of batch
   n_samples       = seu_obj[[]][, batch_var] %>% unique %>% length
   is_one_batch    = n_samples == 1
-  this_reduction  = ifelse(is_one_batch, "pca", "harmony")
-  if (is_one_batch) {
-    stop("only one sample; doesn't make sense to do this")
-    # run Seurat pipeline, plus clustering
-    warning('    only one sample; not doing Harmony')
+  this_reduction  = ifelse(is_one_batch, "pca", reduction)
+  
+  if (reduction == 'pca') {
     message('    running UMAP')
     seu_obj   = seu_obj %>%
-      RunPCA( npcs = n_dims, verbose = FALSE ) %>%
+      RunPCA( npcs = n_dims, verbose = FALSE, features = rownames(seu_obj)) %>%
       RunUMAP( reduction = this_reduction, dims = 1:n_dims, verbose = FALSE  )
   } else {
     # run Seurat pipeline, plus clustering
     message('    running Harmony and UMAP')
     seu_obj   = seu_obj %>%
-      RunPCA( npcs = n_dims, verbose = FALSE ) %>%
+      RunPCA( npcs = n_dims, verbose = FALSE, features = rownames(seu_obj)) %>%
       RunHarmony( batch_var, theta = theta, verbose = TRUE ) %>%
       RunUMAP( reduction = this_reduction, dims = 1:n_dims, verbose = FALSE  )
   }
@@ -146,16 +156,16 @@ run_harmony <- function(hvg_f, coldata_f,
   message('    finding clusters')
   seu_obj   = seu_obj %>%
     FindNeighbors( reduction = this_reduction, dims = 1:n_dims, verbose = FALSE  ) %>%
-    FindClusters( resolution = res_ls, verbose = FALSE ) %>%
+    FindClusters(  resolution = res_ls, algorithm = cl_method, verbose = FALSE ) %>%
     identity()
 
   # switch cluster off
   plan("sequential")
 
   message('    recording clusters')
-  clusts_dt   = seu_obj[[]] %>% as.data.table %>% .[, integration := "harmony" ]
+  clusts_dt   = seu_obj[[]] %>% as.data.table %>% .[, reduction := this_reduction ]
   cl_vs       = names(clusts_dt) %>% str_subset('RNA_snn_res\\.')
-  clusts_dt   = clusts_dt[, c('integration', 'cell_id', 'sample_id', cl_vs), with = FALSE ]
+  clusts_dt   = clusts_dt[, c('reduction', 'cell_id', 'sample_id', cl_vs), with = FALSE ]
   for (cl_v in cl_vs) {
     clusts_dt[[ cl_v ]] = clusts_dt[[ cl_v ]] %>% fct_infreq %>% as.integer %>%
       sprintf("cl%02d", .)
@@ -172,38 +182,26 @@ run_harmony <- function(hvg_f, coldata_f,
     setnames(names(.), names(.) %>% str_replace("umap_", "UMAP"))
 
   # join together
-  hmny_dt     = clusts_dt %>% merge(umap_dt, by = "cell_id") %>%
+  integration_dt = clusts_dt %>% merge(umap_dt, by = "cell_id") %>%
     merge(hmny_pca_dt, by = "cell_id")
 
-  return(hmny_dt)
+  return(integration_dt)
 }
 
 
-# 
-# qc_f.     = '/pmount/projects/site/pred/brain-sc-analysis/studies/Miallot_2023/output/Miallot_qc/qc_dt_all_samples_Miallot_2023_2025-05-08.txt.gz'
-# hvg_mat   = .get_alevin_mx('/pmount/projects/site/pred/brain-sc-analysis/studies/Miallot_2023/output/Miallot_hvg/top_hvgs_counts_Miallot_2023_2025-05-08.h5', sel_s = '')
-# coldata_f = '/pmount/projects/site/pred/brain-sc-analysis/studies/Miallot_2023/output/Miallot_qc/coldata_dt_all_samples_Miallot_2023_2025-05-08.txt.gz'
-# one_sce = readRDS('/pmount/projects/site/pred/brain-sc-analysis/studies/Miallot_2023/output/Miallot_qc/sce_cells_clean_D21_Panth_R1_Miallot_2023_2025-05-08.rds')
-# one_sce = one_sce[, colnames(one_sce) %in% colnames(hvg_mat)]
-# sample = 'D21_Panth_R1'
-
-normalize_hvg_mat = function(hvg_mat, qc_f, scale_f = 10000) {
-
-  coldata = fread(coldata_f) %>%
-    .[keep == TRUE]
+normalize_hvg_mat = function(hvg_mat, coldata, exclude_mito, scale_f = 10000) {
   
-  assert_that(setequal(colnames(hvg_mat), coldata$cell_id))
-  hvg_mat = hvg_mat[, coldata$cell_id]
+  if(exclude_mito){
+  coldata = coldata %>%
+    .[, total_no_mito := (total - subsets_mito_sum)]
   lib_sizes = coldata[, total_no_mito]
+  }else{
+  lib_sizes = coldata[, total]
+  }
   
   norm_mat = sweep(hvg_mat, 2, lib_sizes, FUN = "/")
   norm_mat = norm_mat * scale_f
   log_norm_mat = log1p(norm_mat)
-  
-  test_dt = data.table(
-    total = lib_sizes, 
-    cell_id = colnames(hvg_mat)
-  )
 
   return(log_norm_mat)
 }
@@ -224,24 +222,24 @@ normalize_hvg_mat = function(hvg_mat, qc_f, scale_f = 10000) {
   return(dbl_data)
 }
 
-.annotate_sce_w_harmony <- function(sce_dbl, hmny_ok) {
-  # restrict to just ok cells
-  sce       = sce_dbl[ , hmny_ok$cell_id ]
-
-  # get useful harmony variables
-  hmny_vs   = c('UMAP1', 'UMAP2', str_subset(names(hmny_ok), "RNA_snn_res"))
-
-  # add these to sce object
-  for (v in hmny_vs) {
-    if (str_detect(v, "RNA_snn_res")) {
-      colData(sce)[[ v ]] = hmny_ok[[ v ]] %>% factor
-    } else {
-      colData(sce)[[ v ]] = hmny_ok[[ v ]]
-    }
-  }
-
-  return(sce)
-}
+# .annotate_sce_w_harmony <- function(sce_dbl, hmny_ok) {
+#   # restrict to just ok cells
+#   sce       = sce_dbl[ , hmny_ok$cell_id ]
+# 
+#   # get useful harmony variables
+#   hmny_vs   = c('UMAP1', 'UMAP2', str_subset(names(hmny_ok), "RNA_snn_res"))
+# 
+#   # add these to sce object
+#   for (v in hmny_vs) {
+#     if (str_detect(v, "RNA_snn_res")) {
+#       colData(sce)[[ v ]] = hmny_ok[[ v ]] %>% factor
+#     } else {
+#       colData(sce)[[ v ]] = hmny_ok[[ v ]]
+#     }
+#   }
+# 
+#   return(sce)
+# }
 
 plot_umap_density <- function(input_dt) {
   # eps         = 0.001
@@ -250,10 +248,6 @@ plot_umap_density <- function(input_dt) {
       UMAP1 = rescale(UMAP1, to = c(0.05, 0.95)),
       UMAP2 = rescale(UMAP2, to = c(0.05, 0.95))
       )]
-    # .[, UMAP1_trunc := UMAP1 %>% pmin(quantile(UMAP1, 1 - eps)) %>%
-    #   pmax(quantile(UMAP1, eps)) %>% rescale(c(0.05, 0.95)) ] %>%
-    # .[, UMAP2_trunc := UMAP2 %>% pmin(quantile(UMAP2, 1 - eps)) %>%
-    #   pmax(quantile(UMAP2, eps)) %>% rescale(c(0.05, 0.95)) ]
 
   g = ggplot(umap_dt) + aes( x = UMAP1, y = UMAP2 ) +
     geom_bin2d(bins = 50) +

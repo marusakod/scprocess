@@ -124,7 +124,9 @@ This is an example config file for {{ software_name }} with all parameters and t
         hvg_method: sample
         n_hvgs: 2000
         exclude_empties: True
-      integration:     
+      integration:  
+        cl_method: louvain
+        reduction: harmony
         int_n_dims:       50                 
         int_dbl_res:      4                   
         int_dbl_cl_prop:  0.5                 
@@ -225,7 +227,9 @@ This is an example config file for {{ software_name }} with all parameters and t
         hvg_method: sample
         n_hvgs: 2000
         exclude_empties: True
-      integration:    
+      integration:
+        cl_method: louvain
+        reduction: harmony    
         int_n_dims:       50                 
         int_dbl_res:      4                   
         int_dbl_cl_prop:  0.5                 
@@ -359,6 +363,7 @@ sample_3:
 * `qc_max_splice`: maximum proportion of spliced reads allowed to retain the cell.
 * `qc_min_cells`: minimum number of cells required in a sample after QC filtering to retain the sample.
 * `dbl_min_feats`: number of features required for each barcode to be included in scDblFinder calculations.
+* `exclude_mito`: boolean; whether to exclude mitochondrial genes or not
 
 ##### hvg
 
@@ -372,14 +377,8 @@ sample_3:
 
 ##### integration
 
-* `int_n_dims`number of PCs to use for integration
-* `int_dbl_res`resolution for clustering to get extra doublets
-* `int_dbl_cl_prop` proportion of doublet cells in a cluster to exclude that cluster
-* `int_theta` theta parameter for Harmony integration. 0 means no extra mixing of batch variable, 2 is default, which encourages batch mixing. At the moment our default is 0.1.
-* `int_res_ls` list of cluster resolutions for Harmony clustering
-* `int_sel_res` selected cluster resolution (for marker genes?)
-
-* `int_n_hvgs`: number of highly variable genes (HVGs) to use for principal component analysis (PCA).
+* `cl_method`: algorithm used for clustering, options: `leiden`, `louvain`
+* `reduction`: which dimensional reduction to use for clustering and UMAP, options: `pca`, `harmony`
 * `int_n_dims`: number of principal components to use for data integration.
 * `int_dbl_res`: clustering resolution for identification of additional doublets.
 * `int_dbl_cl_prop`: proportion threshold of doublets in a cluster; clusters exceeding this proportion are excluded.

@@ -13,28 +13,53 @@ suppressPackageStartupMessages({
 })
 
 
+integration_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_integration/integrated_dt_Miallot_2023_2025-05-08.txt.gz'
+sces_yaml_f   = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_qc/sce_paths_Miallot_2023_2025-05-08.yaml'
+pb_f          = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/pb_Miallot_2023_0.2_2025-05-08.rds'
+mkrs_f        = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/pb_marker_genes_Miallot_2023_0.2_2025-05-08.txt.gz'
+pb_hvgs_f     = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/pb_hvgs_Miallot_2023_0.2_2025-05-08.txt.gz'
+fgsea_go_bp_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/fgsea_Miallot_2023_0.2_go_bp_2025-05-08.txt.gz'
+fgsea_go_cc_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/fgsea_Miallot_2023_0.2_go_cc_2025-05-08.txt.gz'
+fgsea_go_mf_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/fgsea_Miallot_2023_0.2_go_mf_2025-05-08.txt.gz'
+fgsea_paths_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/fgsea_Miallot_2023_0.2_paths_2025-05-08.txt.gz'
+fgsea_hlmk_f  = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/fgsea_Miallot_2023_0.2_hlmk_2025-05-08.txt.gz'
+species       = 'mouse_2024'
+gtf_dt_f      = '/home/kodermam/packages/scprocess_data/reference_genomes/mouse_2024/mouse_2024_genes_gtf.txt.gz'
+gsea_dir      = '/home/kodermam/packages/scprocess_data/gmt_pathways'
+sel_res       = 0.2
+min_cl_size   = 100.0
+min_cells     = 10
+not_ok_re     = '(lincRNA|lncRNA|pseudogene|antisense)'
+min_cpm_go    = 1
+max_zero_p    = 0.5
+gsea_cut      = 0.1
+n_cores       = 8
+
+
+test_pb_obj = readRDS('/pstore/data/brain-sc-analysis/studies/Bryois_2022/output/Bryois_marker_genes/pb_Bryois_2022_0.2_2024-01-22.rds')
+
+
 # define pathways
 gsea_regex  = "^(HALLMARK_|GOBP_|GOCC_|GOMF_|BIOCARTA_|REACTOME_|KEGG_)(.+)"
 
-calculate_marker_genes <- function(sce_clean_f, pb_f, mkrs_f, pb_hvgs_f,
+calculate_marker_genes <- function(integration_f, sces_yaml_f, pb_f, mkrs_f, pb_hvgs_f,
   fgsea_go_bp_f = "", fgsea_go_cc_f = "", fgsea_go_mf_f = "", fgsea_paths_f = "", fgsea_hlmk_f = "",
   species, gtf_dt_f, gsea_dir,
-  sel_res, exc_regex, min_cl_size, min_cells,
+  sel_res, min_cl_size, min_cells,
   not_ok_re, min_cpm_go, max_zero_p, gsea_cut, n_cores = 4) {
   # check some inputs
   assert_that(
-    is.character(sce_clean_f),
+    is.character(sces_yaml_f),
     is.character(pb_f),
     is.character(mkrs_f),
     is.character(pb_hvgs_f),
     is.character(species),
     is.character(gtf_dt_f),
     is.character(gsea_dir),
-    is.character(exc_regex),
     is.character(not_ok_re)
   )
   assert_that(
-    file.exists(sce_clean_f),
+    file.exists(sces_yaml_f),
     file.exists(gtf_dt_f),
     dir.exists(gsea_dir)
   )
@@ -56,14 +81,14 @@ calculate_marker_genes <- function(sce_clean_f, pb_f, mkrs_f, pb_hvgs_f,
 
   # make_pb_object
   message("  making pseudobulk object")
-  pb          = make_pseudobulk_object(pb_f, sce_clean_f, sel_res,
+  pb   = make_pseudobulk_object(pb_f, integration_f, sces_yaml_f, sel_res,
     min_cl_size = min_cl_size, agg_fn = "sum", n_cores = n_cores)
 
   # calc cpms
   message("  calculating logCPMs")
   cpms_dt     = pb %>%
     make_logcpms_all(lib_size_method = "edger",
-      exc_regex = exc_regex, min_cells = min_cells, n_cores = n_cores) %>%
+      min_cells = min_cells, n_cores = n_cores) %>%
     merge(biotypes_dt[, .(gene_id, gene_type)], by = "gene_id")
   rm(pb); gc()
 
@@ -132,34 +157,96 @@ get_fgsea_genesets <- function(gsea_dir, species) {
 
 }
 
-make_pseudobulk_object <- function(pb_f, sce_f, sel_res, min_cl_size = 1e2,
-  agg_fn = c("sum", "prop.detected"), n_cores = 8) {
-  agg_fn      = match.arg(agg_fn)
 
-  message('    loading sce object')
-  sce         = readRDS(sce_f)
+make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, min_cl_size = 1e2,
+  agg_fn = c("sum", "prop.detected"), n_cores = 8) {
+  
+  agg_fn      = match.arg(agg_fn)
+  
+  message('    loading integration output')
+  hmny_dt     = fread(integration_f) %>%
+    #exclude doublets
+    .[is_dbl == FALSE & in_dbl_cl == FALSE]
 
   message('    excluding tiny clusters')
+  
   cl_var      = paste0("RNA_snn_res.", sel_res)
-  assert_that( cl_var %in% names(colData(sce)))
-  cl_ns       = colData(sce)[[ cl_var ]] %>% table
+  assert_that( cl_var %in% names(hmny_dt))
+  cl_ns       = hmny_dt[[ cl_var ]] %>% table
   keep_cls    = names(cl_ns)[ cl_ns >= min_cl_size ]
-  keep_idx    = colData(sce)[[ cl_var ]] %in% keep_cls
-  sce         = sce[ , keep_idx ]
-
-  message('    adding cluster variable')
-  sce$cluster = sce[[ cl_var ]]
-
-  # otherwise assemble
-  message('    run aggregateData')
-  pb          = aggregateData_datatable(sce, by_vars = c("cluster", "sample_id"), fun = agg_fn)
-
+  hmny_dt     = hmny_dt %>%
+    .[get(cl_var) %in% keep_cls]
+  
+  # make pseudobulks for selected clusters for each sample
+  message('    making pseudobulk counts for individual samples')
+  samples     = hmny_dt$sample_id %>% unique()
+  sce_paths   = yaml::read_yaml(sces_yaml_f)
+  
+  # set up cluster
+  bpparam     = MulticoreParam(workers = n_cores, tasks = length(samples))
+  
+  pb_ls = bplapply(samples, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
+    sce_paths = sce_paths, hmny_dt = hmny_dt, cl_var = cl_var, 
+    keep_cls = keep_cls, agg_fn = agg_fn)
+  
+  message('    merging pseudobulk counts')
+  assay_ls    = lapply(keep_cls, function(cl){
+    assays    = lapply(pb_ls, function(pb) assay(pb, cl))
+    assay_mat = Reduce(cbind, assays)  
+    return(assay_mat)
+  }) %>%
+  setNames(keep_cls)
+  
+  n_cells_ls = sapply(pb_ls, function(pb) int_colData(pb)$n_cells)
+  
+  pb = SingleCellExperiment(assays = assay_ls)
+  pb@metadata$agg_pars = list(
+    assay = "counts", 
+    by    = c("cluster", "sample_id"),
+    fun   = 'sum'
+  )
+  int_colData(pb)$n_cells = n_cells_ls
+  rowData(pb) = rowData(pb_ls[[1]])
+  
   # save results
-  message('  saving outputs')
+  message('   saving outputs')
   saveRDS(pb, file = pb_f, compress = FALSE)
 
   return(pb)
 }
+
+
+.make_one_pseudobulk <- function(sel_s, sce_paths, hmny_dt, cl_var, keep_cls, agg_fn) {
+  
+  message(sel_s)
+  sce_f       = sce_paths[[sel_s]]
+  tmp_sce     = readRDS(sce_f)
+  tmp_hmny    = copy(hmny_dt) %>% .[sample_id == sel_s]
+  tmp_sce     = tmp_sce[, tmp_hmny$cell_id]
+  
+  # add clusters to sce
+  colData(tmp_sce)[["cluster"]] = tmp_hmny[[cl_var]] 
+  
+  pb          = aggregateData_datatable(tmp_sce, by_vars = c("cluster", "sample_id"), fun = agg_fn)
+  
+  # make sure all assays are in the object, if not, add columns with zeros
+  missing_assays = setdiff(keep_cls, assayNames(pb))
+
+  
+  if ( length(missing_assays) > 0 ) {
+    message('  adding assays with zero counts')
+    for(assay in missing_assays){
+    missing_counts  = Matrix(0, nrow = nrow(pb), ncol = 1, 
+       sparse = FALSE, dimnames = list(rownames(pb), sel_s))
+    assay(pb, assay) = missing_counts
+    }
+  }
+  
+  message('done!')
+  return(pb)
+  
+}
+
 
 aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
   fun = c("sum", "mean", "median", "prop.detected", "num.detected")) {
@@ -260,14 +347,12 @@ aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
 
   # add helpful row data
   assert_that( all(rownames(pb) == rownames(sce)) )
-
-  message('done!')
-
   return(pb)
 }
 
 make_logcpms_all <- function(pb, lib_size_method = c("edger", "raw", "pearson",
   "vst", "rlog"), exc_regex = NULL, min_cells = 10, n_cores = 4) {
+  
   # check inputs
   lib_size_method   = match.arg(lib_size_method)
 
@@ -306,6 +391,7 @@ make_logcpms_all <- function(pb, lib_size_method = c("edger", "raw", "pearson",
 
 .get_logcpm_dt_one_cl <- function(pb, cl, min_cells = 10, pseudo_count = 10,
   lib_size_method = c("raw", "edger", "pearson", "vst", "rlog")) {
+
   # check inputs
   lib_size_method   = match.arg(lib_size_method)
 

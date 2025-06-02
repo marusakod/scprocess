@@ -664,7 +664,7 @@ def read_top_genes(hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
     # get all chunked files
     hvg_paths_df = pd.read_csv(hvg_paths_f)
     chunked_fs = hvg_paths_df['chunked_f'].tolist()
-    ids = hvg_paths_df[SAMPLE_VAR].tolist()
+    runs = hvg_paths_df[SAMPLE_VAR].tolist()
 
     # get all hvgs
     hvg_df = pd.read_csv(hvg_f, sep='\t')
@@ -681,7 +681,7 @@ def read_top_genes(hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
     all_barcodes = []
 
     # open each file separately and extract highly variable genes
-    for f, id in zip(chunked_fs, ids):
+    for f, run in zip(chunked_fs, runs):
         sample_csr, features, barcodes = read_full_csr(f)
 
         features = np.array(features, dtype=str)
@@ -689,8 +689,9 @@ def read_top_genes(hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
         hvg_indices = [i for i, feature in enumerate(features) if feature in hvg_ensembl]
         csr_chunk = sample_csr[hvg_indices, :]
 
-        # add sample ids to barcodes
-        barcodes = [f"{id}:{bc}" for bc in barcodes]  
+        barcodes = barcodes.astype('<U21')
+        barcodes = [f"{run}:{bc}" for bc in barcodes]  
+        barcodes = np.array(barcodes)
 
         # merge to other chunks column-wise
         all_barcodes.extend(barcodes)

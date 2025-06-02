@@ -45,13 +45,12 @@ prob_labs   = c("50%", "90%", "99%", "99.9%", "99.99%", "99.999%", "99.9999%")
 
 main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf_dt_f,
                     ambient_method, sce_fs_str, all_samples_str, rowdata_f, dbl_f, dimred_f, qc_f, coldata_f, mito_str, 
-                    hard_min_counts, hard_min_feats, hard_max_mito,
+                    exclude_mito, hard_min_counts, hard_min_feats, hard_max_mito,
                     min_counts, min_feats, min_mito, max_mito, min_splice, max_splice,
                     sample_var = 'sample_id',
                     demux_type = "", dbl_min_feats = 100,
                     dbl_min_cells = 100){
 
-  
   # split output files and check if ok
   all_samples = str_split(all_samples_str, pattern = ',') %>% unlist()
   sce_fs_ls   = str_split(sce_fs_str, pattern = ',') %>% unlist()
@@ -94,7 +93,7 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   gene_annots = .get_gene_annots(gtf_dt_f)
 
   # calculate qc metrics
-  sce = .get_sce(filt_counts_f, sel_sample, mito_str, gene_annots, sample_var)
+  sce = .get_sce(filt_counts_f, sel_sample, mito_str, exclude_mito, gene_annots, sample_var)
 
   # add annotations for rows
   message('  adding gene annotations')
@@ -304,7 +303,7 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 
 
 
-.get_sce <- function(mat_f, sel_s, mito_str, gene_annots, sample_var) {
+.get_sce <- function(mat_f, sel_s, mito_str, exclude_mito, gene_annots, sample_var) {
   
   # read matrix
   mat = .get_alevin_mx(af_mat_f = mat_f, sel_s = paste0(sel_s, ':'))
@@ -340,15 +339,15 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   assert_that( (length(missing_gs) == 0) | (all(str_detect(missing_gs, "unassigned_gene"))) )
 
   # get totals with rRNA genes included
-  total_raw     = colSums(counts_mat)
+  total_raw     = Matrix::colSums(counts_mat)
 
   # get counts for rRNA genes, exclude them
   rrna_ens_ids  = gene_annots[ gene_type == 'rRNA' ]$ensembl_id
   rrna_gs       = rownames(counts_mat) %in% rrna_ens_ids
-  rrna_sum      = colSums(counts_mat[ rrna_gs, ] )
+  rrna_sum      = Matrix::colSums(counts_mat[ rrna_gs, ] )
   mt_rrna_ens_ids   = gene_annots[ gene_type == 'Mt_rRNA' ]$ensembl_id
   mt_rrna_gs        = rownames(counts_mat) %in% mt_rrna_ens_ids
-  mt_rrna_sum       = colSums(counts_mat[ mt_rrna_gs, ] )
+  mt_rrna_sum       = Matrix::colSums(counts_mat[ mt_rrna_gs, ] )
   keep_gs       = and(!rrna_gs, !mt_rrna_gs)
   counts_mat    = counts_mat[ keep_gs, ]
 
@@ -356,8 +355,8 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   mt_ensembls   = gene_annots[ str_detect(gene_annots$symbol, mito_str) ]$ensembl_id
   mt_gs         = rownames(counts_mat) %in% mt_ensembls
   mito_mat      = counts_mat[ mt_gs, ]
-  mito_sum      = colSums(mito_mat)
-  mito_detected = colSums(mito_mat > 0 )
+  mito_sum      = Matrix::colSums(mito_mat)
+  mito_detected = Matrix::colSums(mito_mat > 0 )
   
   # make sce object
   sce_tmp               = SingleCellExperiment( assays = list(counts = counts_mat) )
@@ -365,8 +364,8 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   sce_tmp$cell_id       = colnames(counts_mat)
 
   # add to sce object
-  sce_tmp$sum         = colSums(counts_mat)
-  sce_tmp$detected    = colSums(counts_mat > 0)
+  sce_tmp$sum         = Matrix::colSums(counts_mat)
+  sce_tmp$detected    = Matrix::colSums(counts_mat > 0)
   sce_tmp$subsets_mito_sum = mito_sum
   sce_tmp$subsets_mito_detected = mito_detected
   sce_tmp$subsets_mito_percent = mito_sum / sce_tmp$sum * 100
@@ -382,11 +381,11 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   sce_tmp$total_rrna    = rrna_sum
   sce_tmp$total_mt_rrna = mt_rrna_sum
   
+  if(exclude_mito == 1){
   # remove mitochondrial genes
   sce_tmp = sce_tmp[!mt_gs, ]
-  # recalculate library sizes
-  sce_tmp$total_no_mito = colSums(sce_tmp)
-
+  }
+  
   # convert to TsparseMatrix
   counts(sce_tmp) = counts(sce_tmp) %>% as("TsparseMatrix")
 
