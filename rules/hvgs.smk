@@ -258,14 +258,18 @@ rule get_highly_variable_genes:
     '../envs/hvgs.yml'
   shell:
      """
-     
+     NOAMBIENT_FLAG=""
+     if [ "{EXCLUDE_AMBIENT_GENES}" = "True" ]; then
+       NOAMBIENT_FLAG="--noambient"
+     fi
+
      python3 scripts/hvgs.py calculate_hvgs \
       {input.std_var_stats_f} \
       {output.hvg_f} \
       {input.empty_gs_fs} \
       {HVG_METHOD} \
-      {N_HVGS}
-      # need to add flag to determine whether to remove ambient genes or not!
+      {N_HVGS} \
+      $NOAMBIENT_FLAG
      """
 
 rule create_hvg_matrix:

@@ -189,28 +189,26 @@ rule all:
     mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
     mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
     # fgsea outputs
-    fgsea_outs
-    
-
-      # code
-      #code_dir  + '/utils.R',
-      #code_dir  + '/ambient.R',
-      #code_dir  + '/qc.R', 
-      #code_dir  + '/make_sce.R',
-      #code_dir  + '/doublet_id.R',
-      #code_dir  + '/integration.R', 
-      #code_dir  + '/marker_genes.R',
-      #code_dir  + '/zoom.R', 
-      #code_dir  + '/multiplexing.R',
-      # markdowns
-      #rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
+    fgsea_outs, 
+    # code
+    code_dir  + '/utils.R',
+    code_dir  + '/ambient.R',
+    #code_dir  + '/qc.R', 
+    #code_dir  + '/make_sce.R',
+    #code_dir  + '/doublet_id.R',
+    #code_dir  + '/integration.R', 
+    #code_dir  + '/marker_genes.R',
+    #code_dir  + '/zoom.R', 
+    #code_dir  + '/multiplexing.R',
+    # markdowns
+    rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd', 
       #rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd', 
       #rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
       #rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
       #rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.Rmd', 
       #hto_rmd_f, 
-      # reports
-      #docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',
+    # reports
+    docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html'
       #docs_dir  + '/' + SHORT_TAG + '_ambient.html', 
       #docs_dir  + '/' + SHORT_TAG + '_qc.html', 
       #docs_dir  + '/' + SHORT_TAG + '_integration.html',
@@ -369,14 +367,14 @@ rule metacells:
 # define rules that are needed
 include: "rules/alevin_fry.smk"
 include: "rules/ambient.smk"
-include: "rules/make_sce.smk"
+include: "rules/make_hto_sce.smk"
 include: "rules/doublet_id.smk"
 include: "rules/qc.smk"
 include: "rules/pb_empties.smk"
 include: "rules/hvgs.smk"
 include: "rules/integration.smk"
 include: "rules/marker_genes.smk"
-#include: "rules/render_htmls.smk"
+include: "rules/render_htmls.smk"
 #include: "rules/label_and_subset.smk"
 #include: "rules/zoom.smk"
 #include: "rules/metacells.smk"

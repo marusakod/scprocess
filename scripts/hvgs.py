@@ -179,58 +179,6 @@ def read_full_csr(file):
     return sparse_csr, features, barcodes
 
 
-# def read_csr_chunk(file, start_row, end_row, exclude_doublets=True):
-#     with h5py.File(file, 'r') as f:
-#         num_cols   = f['matrix/shape'][1]
-#         indptr     = f['matrix/indptr'][start_row:end_row+1]
-#         start_pos  = indptr[0]
-#         end_pos    = indptr[-1]
-#         data       = f['matrix/data'][start_pos:end_pos]
-#         indices    = f['matrix/indices'][start_pos:end_pos]
-
-#         indptr_chunk = indptr - start_pos
-#         sparse_chunk = csr_matrix((data, indices, indptr_chunk), shape=(end_row - start_row, num_cols))
-
-#         features = f['matrix/features/name'][start_row:end_row].astype(str)
-#         barcodes = f['matrix/barcodes'][:].astype(str)
-
-#         if exclude_doublets:
-#             dbl_status = f['matrix/doublet_status'][:]
-#             keep_idx = np.where(dbl_status == 0)[0]
-
-#             # filter out doublet columns
-#             sparse_chunk = sparse_chunk[:, keep_idx]
-#             barcodes = barcodes[keep_idx]
-
-#     return sparse_chunk, features, barcodes
-
-
-
-# def read_full_csr(file, exclude_doublets=True): 
-#     with h5py.File(file, 'r') as f:
-#         indptr = f['matrix/indptr'][:]  
-#         indices = f['matrix/indices'][:]  
-#         data = f['matrix/data'][:]  
-#         num_rows = f['matrix/shape'][0]
-#         num_cols = f['matrix/shape'][1]
-
-#         sparse_csr = csr_matrix((data, indices, indptr), shape=(num_rows, num_cols))
-
-#         features = f['matrix/features/name'][:].astype(str)
-#         barcodes = f['matrix/barcodes'][:].astype(str)
-
-#         if exclude_doublets:
-#             dbl_status = f['matrix/doublet_status'][:]
-#             keep_idx = np.where(dbl_status == 0)[0]
-
-#             # filter out doublet columns
-#             sparse_csr = sparse_csr[:, keep_idx]
-#             barcodes = barcodes[keep_idx]
-
-#     return sparse_csr, features, barcodes
-
-
-
 def _calculate_feature_stats(sparse_csr, features, rowdata_f):
 
     mean, var = _get_mean_var(sparse_csr, axis=1 )
@@ -551,7 +499,7 @@ def calculate_std_var_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smp
 
 def _calculate_standardized_variance(df):
     return df.assign(
-        norm_gene_var=lambda d: (
+        variances_norm=lambda d: (
             1 / ((d['n_cells'] - 1) * np.square(d['reg_std']))
         ) * (
             (d['n_cells'] * np.square(d['mean']))
@@ -563,7 +511,7 @@ def _calculate_standardized_variance(df):
 
 def _rank_genes(ranking_df, n_hvgs):
     # sort and rank genes
-    norm_gene_vars = ranking_df['norm_gene_var'].to_numpy()
+    norm_gene_vars = ranking_df['variances_norm'].to_numpy()
     
     ranked_norm_gene_vars = np.argsort(np.argsort(-norm_gene_vars)).astype(float)
     ranked_norm_gene_vars[ranked_norm_gene_vars >= n_hvgs] = np.nan
@@ -572,44 +520,41 @@ def _rank_genes(ranking_df, n_hvgs):
     return ranked_norm_gene_vars, norm_gene_vars, ma_ranked
 
 
-
 def _process_single_group(stats_df, empty_gs, n_hvgs, exclude_ambient):
-   
     # get genes to exclude
     exclude_gs = []
     if exclude_ambient:
         exclude_gs = empty_gs
 
-    ranks_df = stats_df[~stats_df['gene_id'].isin(exclude_gs)]
-    ranked_norm_gene_vars, variances_norm, _ = _rank_genes(ranks_df, n_hvgs)
+    ranks_df   = stats_df[~stats_df['gene_id'].isin(exclude_gs)]    
+    # rank genes
+    ranked_norm_gene_vars, _, _ = _rank_genes(ranks_df, n_hvgs)
 
-    out_df                              = stats_df[['gene_id']].copy()
-    out_df['highly_variable_nbatches']  = 1  
-    out_df['highly_variable_rank']      = ranked_norm_gene_vars
-    out_df['variances_norm']            = variances_norm
+    # create output dataframe
+    out_df = stats_df[['gene_id', 'variances_norm']].copy()
+    out_df['highly_variable_nbatches'] = 1  
+    out_df['highly_variable_rank']     = np.nan
+
+    # assign rankings to nonexcluded genes
+    out_df.loc[~out_df['gene_id'].isin(exclude_gs), 'highly_variable_rank'] = ranked_norm_gene_vars
 
     return out_df
 
 
 
 def _process_multiple_groups(stats_df, group_var, empty_gs, n_hvgs,  exclude_ambient):
+    
     all_ranked_norm_gene_vars = []
     norm_gene_vars_list = []
-     
-    # get genes to exclude
-    exclude_gs = []
-    if exclude_ambient:
-        exclude_gs = empty_gs
 
     for group_name, group_df in stats_df.groupby(group_var):
-        ranks_df = group_df[~group_df['gene_id'].isin(exclude_gs)]
-        ranked_norm_gene_vars, variances, ma_ranked = _rank_genes(ranks_df, n_hvgs)
-
+        ranks_df = _process_single_group(group_df, empty_gs, n_hvgs, exclude_ambient)
+        ranked_norm_gene_vars = ranks_df['highly_variable_rank'].to_numpy()
+        variances             = ranks_df['variances_norm'].to_numpy()
         all_ranked_norm_gene_vars.append(ranked_norm_gene_vars)
         norm_gene_vars_list.append(variances)
-
+        
     # merge metrics across multiple groups
-
     all_ranked_norm_gene_vars = np.array(all_ranked_norm_gene_vars)
     num_batches_high_var = np.sum((all_ranked_norm_gene_vars < n_hvgs).astype(int), axis=0)
     median_ranked = np.ma.median(np.ma.masked_invalid(all_ranked_norm_gene_vars), axis=0).filled(np.nan)
@@ -621,7 +566,6 @@ def _process_multiple_groups(stats_df, group_var, empty_gs, n_hvgs,  exclude_amb
     out_df['variances_norm'] = variances_norm
 
     return out_df
-
 
 
 # main function to calculate highly variable genes
@@ -870,7 +814,7 @@ if __name__ == "__main__":
     parser_getHvgs.add_argument("empty_gs_f", type=str)
     parser_getHvgs.add_argument("hvg_method", type=str)
     parser_getHvgs.add_argument("n_hvgs", type=int)
-    parser_getHvgs.add_argument("-e", "--noambient",required=False, default=False)
+    parser_getHvgs.add_argument("-e", "--noambient", action='store_true')
 
 
     # parser for read_top_genes()

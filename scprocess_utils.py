@@ -439,6 +439,7 @@ def get_qc_parameters(config):
       DBL_MIN_FEATS       = config['qc']['dbl_min_feats']
     if 'exclude_mito'       in config['qc']:
       EXCLUDE_MITO        = config['qc']['exclude_mito']
+      EXCLUDE_MITO        = int(_safe_boolean(EXCLUDE_MITO))
 
 
   # make sure they're consistent
@@ -473,8 +474,8 @@ def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
     
     if 'exclude_ambient_genes' in config['hvg']:
       EXCLUDE_AMBIENT_GENES = config['hvg']['exclude_ambient_genes']
-      assert isinstance(EXCLUDE_AMBIENT_GENES, bool), f"'exclude_ambient_genes' should be a boolean"
-
+      EXCLUDE_AMBIENT_GENES = _safe_boolean(EXCLUDE_AMBIENT_GENES)
+      
     if 'method' in config['hvg']:
       HVG_METHOD      = config['hvg']['method']
       # check if valid
@@ -797,6 +798,18 @@ def get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR ):
 
 #   return PB_SUBSETS, PB_DO_ALL
 
+
+def _safe_boolean(val):
+  if type(val) is bool:
+    res = val
+  elif val in ["True", "true"]:
+    res = True
+  elif val in ["False", "false"]:
+    res = False
+  else:
+    raise ValueError('{val} is not a boolean')
+
+  return res
 
 
 # define marker_genes parameters
