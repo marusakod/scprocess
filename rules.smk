@@ -126,11 +126,11 @@ hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_demultiplexing.html') if DEMUX_TYP
 
 # fgsea outputs (optional)
 fgsea_outs = [
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{INT_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
 ] if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'] else []
 
 
@@ -185,9 +185,9 @@ rule all:
     # integration
     int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     # marker genes
-    mkr_dir + '/pb_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.rds',
-    mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
-    mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    mkr_dir + '/pb_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.rds',
+    mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
     # fgsea outputs
     fgsea_outs, 
     # code
@@ -203,14 +203,14 @@ rule all:
     rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
     rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
     rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
-    rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.Rmd', 
+    rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.Rmd', 
     hto_rmd_f, 
     # reports
     docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',  
     docs_dir  + '/' + SHORT_TAG + '_ambient.html',
     docs_dir  + '/' + SHORT_TAG + '_qc.html',
     docs_dir  + '/' + SHORT_TAG + '_integration.html',
-    docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{INT_SEL_RES}.html',
+    docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.html',
     hto_html_f 
 
 rule simpleaf:
