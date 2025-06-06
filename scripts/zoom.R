@@ -142,9 +142,8 @@ zoom_integrate_within_group <- function(full_tag, date_stamp, zoom_dir,
 }
 
 impute_clusters_for_small_samples <- function(hmny_dt, zoom_res, zoom_sel_cls, 
-  hmny_sub_f, sce_all_f, 
-  hvg_pcs_f, boost_f, pairwise_f, imputed_f,
-  exc_regex, n_hvgs, n_dims, min_n_cl, n_train, n_cores = 4, overwrite = FALSE) {
+  hmny_sub_f, sce_all_f, hvg_pcs_f, boost_f, pairwise_f, imputed_f, exc_regex, 
+  n_hvgs, n_dims, min_n_cl, n_train, n_cores = 4, overwrite = TRUE) {
   if ( all(file.exists(hvg_pcs_f, boost_f, pairwise_f, imputed_f)) & !overwrite ) {
     message("already done!")
     return(NULL)
