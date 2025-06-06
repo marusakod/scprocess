@@ -124,7 +124,9 @@ This is an example config file for {{ software_name }} with all parameters and t
         hvg_method: sample
         n_hvgs: 2000
         exclude_empties: True
-      integration:     
+      integration:  
+        cl_method: louvain
+        reduction: harmony
         int_n_dims:       50                 
         int_dbl_res:      4                   
         int_dbl_cl_prop:  0.5                 
@@ -132,6 +134,9 @@ This is an example config file for {{ software_name }} with all parameters and t
         int_res_ls:       [0.1, 0.2, 0.5, 1]  
         int_sel_res:      0.2
       marker_genes:
+        custom_sets:
+          - name: 
+            file: 
         mkr_min_cl_size: 100                                  
         mkr_min_cells: 10                                      
         mkr_not_ok_re: "(lincRNA|lncRNA|pseudogene|antisense)"  
@@ -225,7 +230,9 @@ This is an example config file for {{ software_name }} with all parameters and t
         hvg_method: sample
         n_hvgs: 2000
         exclude_empties: True
-      integration:    
+      integration:
+        cl_method: louvain
+        reduction: harmony    
         int_n_dims:       50                 
         int_dbl_res:      4                   
         int_dbl_cl_prop:  0.5                 
@@ -233,6 +240,9 @@ This is an example config file for {{ software_name }} with all parameters and t
         int_res_ls:       [0.1, 0.2, 0.5, 1]  
         int_sel_res:      0.2
       marker_genes:
+        custom_sets:
+          - name: mouse_brain
+            file: /path/to/file/with/marker/genes
         mkr_min_cl_size: 100                                  
         mkr_min_cells: 10                                      
         mkr_not_ok_re: "(lincRNA|lncRNA|pseudogene|antisense)"  
@@ -359,6 +369,7 @@ sample_3:
 * `qc_max_splice`: maximum proportion of spliced reads allowed to retain the cell.
 * `qc_min_cells`: minimum number of cells required in a sample after QC filtering to retain the sample.
 * `dbl_min_feats`: number of features required for each barcode to be included in scDblFinder calculations.
+* `exclude_mito`: boolean; whether to exclude mitochondrial genes or not
 
 ##### hvg
 
@@ -372,14 +383,8 @@ sample_3:
 
 ##### integration
 
-* `int_n_dims`number of PCs to use for integration
-* `int_dbl_res`resolution for clustering to get extra doublets
-* `int_dbl_cl_prop` proportion of doublet cells in a cluster to exclude that cluster
-* `int_theta` theta parameter for Harmony integration. 0 means no extra mixing of batch variable, 2 is default, which encourages batch mixing. At the moment our default is 0.1.
-* `int_res_ls` list of cluster resolutions for Harmony clustering
-* `int_sel_res` selected cluster resolution (for marker genes?)
-
-* `int_n_hvgs`: number of highly variable genes (HVGs) to use for principal component analysis (PCA).
+* `cl_method`: algorithm used for clustering, options: `leiden`, `louvain`
+* `reduction`: which dimensional reduction to use for clustering and UMAP, options: `pca`, `harmony`
 * `int_n_dims`: number of principal components to use for data integration.
 * `int_dbl_res`: clustering resolution for identification of additional doublets.
 * `int_dbl_cl_prop`: proportion threshold of doublets in a cluster; clusters exceeding this proportion are excluded.
@@ -389,7 +394,9 @@ sample_3:
 
 ##### marker_genes
 
-* `custom_markers`: path to CSV file containing marker genes for visualisation with two columns: `label` (celltype label) and `symbol` (gene symbol). Absolute or from poject directory. 
+* `custom_sets`: a list of custom marker gene sets, each defined by a unique name and associated file path.
+    + `name`: a string representing the name of the marker gene set
+    + `file`: path to CSV file containing a list of genes in the marker gene set. Must contain column `label` (marker gene category), and `symbol` and/or `ensembl_id`. If not speficied `scprocess` will look for file `$SCPROCESS_DATA_DIR/marker_genes/{name}.csv`
 * `mkr_min_cl_size`: minimum number of cells required in a cluster to calculate marker genes for that cluster.
 * `mkr_min_cells`: minimum number of cells required in a pseudobulk sample to include it in marker gene calculations.
 * `mkr_not_ok_re`: regular expression pattern to exclude specific gene types from plots showing marker gene expression. 

@@ -76,62 +76,141 @@ save_hto_sce <- function(sce_df_f, sce_hto_f, n_cores){
 }
 
 
-.get_one_hto_sce <- function(sel_s, bcs_f, hto_mat_f, trans_f){
+
+
+get_one_hto_sce <- function(sel_sample, sample_stats_f, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, ambient_method){
+  
+  # if ambient method is cellbender exclude bad samples
+  smpl_status = FALSE
+  
+  if(ambient_method == 'cellbender'){
+    # loading file with bad bender samples
+    message(' loading cellbender sample stats file')
+    sample_stats_df = fread(sample_stats_f)
+    smpl_status = unique(sample_stats_df[get(sample_var) == sel_sample, bad_sample])
+    
+    if(smpl_status){
+      message('  sample ', sel_sample, ' has been excluded. Saving empty results file')
+      file.create(hto_sce_f)
+      message('done!')
+      
+      return(NULL)
+    }
+  }
+  
+  # get file with all barcodes called as cells
+  yaml_data       = yaml.load_file(amb_yaml_f)
+  bcs_f = yaml_data$bcs_f
+  
   # get file for barcode translation
   bc_dict = trans_f %>% fread(header = FALSE) %>%
     set_colnames(c("bc_rna", "bc_hto"))
-
+  
   # get all barcodes called as cells
-  cell_bcs = fread(bcs_f, header = FALSE) %>%
+  cell_bcs = bcs_f %>% fread(header = FALSE) %>%
     set_colnames("cell_bc")
-
+  
   # get hto counts
   hto_counts = .get_alevin_mx(hto_mat_f, sel_s = '')
-
+  
   # translate hto bcs to match rna barcodes
   hto_true_bcs = bc_dict[bc_hto %chin% colnames(hto_counts)] %>%
     .[order(match(bc_hto, colnames(hto_counts))), bc_rna]
-
+  
   colnames(hto_counts) = hto_true_bcs
-
+  
   # keep only cell barcodes
   keep_bcs = cell_bcs %>%
-  .[cell_bc %chin% colnames(hto_counts), cell_bc]
-
+    .[cell_bc %chin% colnames(hto_counts), cell_bc]
+  
   hto_counts = hto_counts[, keep_bcs]
-  colnames(hto_counts) = paste(sel_s, colnames(hto_counts), sep = ':')
-
+  colnames(hto_counts) = paste(sel_sample, colnames(hto_counts), sep = ':')
+  
   # create a seurat object
   hto_seu = CreateSeuratObject(counts = hto_counts, assay = 'HTO')
   hto_seu = NormalizeData(hto_seu, assay = "HTO", normalization.method = "CLR")
-
-  message("  demultiplexing sample ", sel_s)
+  
+  message("  demultiplexing sample ", sel_sample)
   hto_seu = HTODemux(hto_seu, assay = "HTO", positive.quantile = 0.99)
-
+  
   # get demultiplexing metadata
   demux_dt  = hto_seu[[]] %>% as.data.table(keep.rownames = "cell_id") %>%
     .[, .(cell_id, HTO_classification, HTO_classification.global, hash.ID)] %>%
-    .[, guess := hash.ID %>% str_replace_all("-", "_") ] %>%
+    .[, guess := hash.ID] %>%
     .[, hash.ID := NULL] %>%
-    .[, pool_id := sel_s] %>%
+    .[, pool_id := sel_sample] %>%
     .[, HTO_classification.global := tolower(HTO_classification.global)]
-
+  
   # get sce object
   hto_sce = SingleCellExperiment(list(counts = hto_counts),
-                       colData = demux_dt)
-
-  return(hto_sce)
-
+                                 colData = demux_dt)
+  
+  
+  # create output file
+  message(" saving results")
+  saveRDS(hto_sce, file = hto_sce_f, compress = FALSE)
+  
+  message(" done!")
+  return(NULL)
+  
 }
+
+
+# 
+# .get_one_hto_sce <- function(sel_s, bcs_f, hto_mat_f, trans_f){
+#   # get file for barcode translation
+#   bc_dict = trans_f %>% fread(header = FALSE) %>%
+#     set_colnames(c("bc_rna", "bc_hto"))
+# 
+#   # get all barcodes called as cells
+#   cell_bcs = fread(bcs_f, header = FALSE) %>%
+#     set_colnames("cell_bc")
+# 
+#   # get hto counts
+#   hto_counts = .get_alevin_mx(hto_mat_f, sel_s = '')
+# 
+#   # translate hto bcs to match rna barcodes
+#   hto_true_bcs = bc_dict[bc_hto %chin% colnames(hto_counts)] %>%
+#     .[order(match(bc_hto, colnames(hto_counts))), bc_rna]
+# 
+#   colnames(hto_counts) = hto_true_bcs
+# 
+#   # keep only cell barcodes
+#   keep_bcs = cell_bcs %>%
+#   .[cell_bc %chin% colnames(hto_counts), cell_bc]
+# 
+#   hto_counts = hto_counts[, keep_bcs]
+#   colnames(hto_counts) = paste(sel_s, colnames(hto_counts), sep = ':')
+# 
+#   # create a seurat object
+#   hto_seu = CreateSeuratObject(counts = hto_counts, assay = 'HTO')
+#   hto_seu = NormalizeData(hto_seu, assay = "HTO", normalization.method = "CLR")
+# 
+#   message("  demultiplexing sample ", sel_s)
+#   hto_seu = HTODemux(hto_seu, assay = "HTO", positive.quantile = 0.99)
+# 
+#   # get demultiplexing metadata
+#   demux_dt  = hto_seu[[]] %>% as.data.table(keep.rownames = "cell_id") %>%
+#     .[, .(cell_id, HTO_classification, HTO_classification.global, hash.ID)] %>%
+#     .[, guess := hash.ID %>% str_replace_all("-", "_") ] %>%
+#     .[, hash.ID := NULL] %>%
+#     .[, pool_id := sel_s] %>%
+#     .[, HTO_classification.global := tolower(HTO_classification.global)]
+# 
+#   # get sce object
+#   hto_sce = SingleCellExperiment(list(counts = hto_counts),
+#                        colData = demux_dt)
+# 
+#   return(hto_sce)
+# 
+# }
 
 
 
 # functions for multiplexing QC
 
-get_hto_dt <- function(pool, hto_sce){
-
-  pool_cells = colData(hto_sce)$pool_id == pool
-  pool_sce = hto_sce[, pool_cells]
+get_hto_dt <- function(pool_sce){
+  
   pool_counts = counts(pool_sce)
 
   pool_seu = CreateSeuratObject(counts = pool_counts, assay = 'HTO')
@@ -146,13 +225,13 @@ get_hto_dt <- function(pool, hto_sce){
     as.data.table(keep.rownames = 'cell_id') %>%
     melt(id.vars = 'cell_id', variable.name = 'hto_id', value.name = 'norm_count')
 
-  pool_counts = GetAssayData(pool_seu, assay = 'HTO', layer = 'counts') %>%
+  pool_counts_long = GetAssayData(pool_seu, assay = "HTO", layer = "counts") %>%
     t() %>%
     as.data.table(keep.rownames = 'cell_id') %>%
     melt(id.vars = 'cell_id', variable.name = 'hto_id', value.name = 'count')
 
   pool_all = pool_norm_counts %>%
-    merge(pool_counts, by = c('cell_id', 'hto_id')) %>%
+    merge(pool_counts_long, by = c('cell_id', 'hto_id')) %>%
     merge(pool_meta, by = 'cell_id') %>%
     .[, prop        := count / sum(count), by = .(pool_id, cell_id) ]  %>%
     .[, hto_id      := factor(hto_id)]
@@ -227,28 +306,6 @@ hto_pairwise <- function(pool_dt, var = c("prop", "norm_count")){
     labs(color = 'HTO guess')
 
   return(g)
-}
-
-
-.get_alevin_mx <- function(af_mat_f, sel_s){
-  # get this file
-  h5_filt   = H5Fopen(af_mat_f, flags = "H5F_ACC_RDONLY" )
-
-  # get indices of barcodes
-  mat       = sparseMatrix(
-    i = as.vector(h5_filt$matrix$indices +1),
-    p = as.vector(h5_filt$matrix$indptr),
-    x = as.vector(h5_filt$matrix$data),
-    repr = "C",
-    dims = h5_filt$matrix$shape
-  ) %>% as("TsparseMatrix")
-
-  # add names
-  bcs           = h5_filt$matrix$barcodes
-  colnames(mat) = paste0(sel_s, bcs)
-  rownames(mat) = as.character(h5_filt$matrix$features$name)
-
-  return(mat)
 }
 
 

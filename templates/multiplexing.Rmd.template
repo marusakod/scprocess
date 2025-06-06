@@ -43,6 +43,7 @@ proj_meta_f = "${METADATA_F}"
 
 # files with barcode ranks and ambient parameters
 af_dir      = "${af_dir}"
+demux_dir   = "${demux_dir}"
 sample_var  = "${SAMPLE_VAR}"
 
 hto_smpl_dirs = sprintf(paste0(af_dir,'/', 'af_%s', '/hto' ), s_lvls)
@@ -57,9 +58,15 @@ setNames(s_lvls)
 assert_that( length(hto_knee_fs) > 0)
 assert_that( all(file.exists(hto_knee_fs)))
 
-
 # hto sce
-hto_sce_f = "${sce_hto_f}"
+hto_sce_fs = sapply(
+  s_lvls, 
+  function(s) list.files(demux_dir, pattern = sprintf('sce_cells_htos_%s.*', s), recursive = FALSE, full.names = TRUE)
+) %>%
+setNames(s_lvls)
+
+assert_that( length(hto_sce_fs) > 0) 
+
 ```
 
 ```{r load_hto_knee_dfs, include = FALSE}
@@ -67,7 +74,7 @@ hto_knee_dfs = lapply(hto_knee_fs, FUN = fread)
 ```
 
 ```{r load_hto_sce, include = FALSE}
-hto_sce = readRDS(hto_sce_f)
+hto_sce_ls = lapply(hto_sce_fs, FUN = readRDS)
 ```
 
 ```{r load_meta, include=FALSE}
@@ -79,9 +86,9 @@ hto_knee_params_df = lapply(hto_knee_dfs, FUN = get_knee_params, sample_var = sa
 ```
 
 ```{r get_hto_dt, include = FALSE}
-pool_ids = unique(proj_meta$pool_id)
+pool_ids   = unique(proj_meta$pool_id)
 sample_ids = unique(proj_meta$sample_id)
-hto_dt_ls = lapply(pool_ids, FUN = get_hto_dt, hto_sce = hto_sce) %>% setNames(pool_ids)
+hto_dt_ls  = lapply(hto_sce_ls, FUN = get_hto_dt)
 ```
 
 

@@ -411,6 +411,7 @@ def get_qc_parameters(config):
   QC_MAX_SPLICE       = 0.75
   QC_MIN_CELLS        = 500
   DBL_MIN_FEATS       = 100
+  EXCLUDE_MITO        = 1
 
   # change defaults if specified
   if ('qc' in config) and (config['qc'] is not None):
@@ -436,6 +437,9 @@ def get_qc_parameters(config):
       QC_MIN_CELLS        = config['qc']['qc_min_cells']
     if 'dbl_min_feats'      in config['qc']:
       DBL_MIN_FEATS       = config['qc']['dbl_min_feats']
+    if 'exclude_mito'       in config['qc']:
+      EXCLUDE_MITO        = config['qc']['exclude_mito']
+      EXCLUDE_MITO        = int(_safe_boolean(EXCLUDE_MITO))
 
 
   # make sure they're consistent
@@ -444,7 +448,7 @@ def get_qc_parameters(config):
   QC_HARD_MAX_MITO    = max(QC_HARD_MAX_MITO, QC_MAX_MITO)
 
   return QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_FEATS, \
-    QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS
+    QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS, EXCLUDE_MITO
 
 
 
@@ -470,8 +474,8 @@ def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
     
     if 'exclude_ambient_genes' in config['hvg']:
       EXCLUDE_AMBIENT_GENES = config['hvg']['exclude_ambient_genes']
-      assert isinstance(EXCLUDE_AMBIENT_GENES, bool), f"'exclude_ambient_genes' should be a boolean"
-
+      EXCLUDE_AMBIENT_GENES = _safe_boolean(EXCLUDE_AMBIENT_GENES)
+      
     if 'method' in config['hvg']:
       HVG_METHOD      = config['hvg']['method']
       # check if valid
@@ -522,11 +526,10 @@ def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
 
 # define integration parameters
 def get_integration_parameters(config, mito_str): 
-  # set default values
-  INT_EXC_REGEX   = mito_str
-
 
   # set some more default values
+  INT_CL_METHOD   = 'leiden'
+  INT_REDUCTION   = 'harmony'
   INT_N_DIMS      = 50
   INT_DBL_RES     = 4
   INT_DBL_CL_PROP = 0.5
@@ -536,6 +539,16 @@ def get_integration_parameters(config, mito_str):
 
   # change defaults if specified
   if ('integration' in config) and (config['integration'] is not None):
+    if 'cl_method' in config['integration']:
+      INT_CL_METHOD    = config['integration']['cl_method']
+      valid_methods = ['leiden', 'louvain']
+      assert INT_CL_METHOD in valid_methods, \
+        f"Invalid clustering algorithm '{INT_CL_METHOD}'. Must be one of {valid_methods}."
+    if 'reduction' in config['integration']:
+      INT_REDUCTION    = config['integration']['reduction']
+      valid_reductions = ['pca', 'harmony']
+      assert INT_REDUCTION in valid_reductions, \
+        f"Invalid reduction option '{INT_REDUCTION}'. Must be one of {valid_reductions}."
     if 'int_n_dims' in config['integration']:
       INT_N_DIMS      = config['integration']['int_n_dims']
     if 'int_dbl_res' in config['integration']:
@@ -549,7 +562,7 @@ def get_integration_parameters(config, mito_str):
     if 'int_sel_res' in config['integration']:
       INT_SEL_RES     = config['integration']['int_sel_res']
 
-  return INT_EXC_REGEX, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES
+  return INT_CL_METHOD, INT_REDUCTION, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES
 
 
 
@@ -571,7 +584,7 @@ def get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
 
           name = gene_set["name"]
 
-          # Check for commas in names
+          # check for commas in names
           assert "," not in name, \
             f"Custom marker set name '{name}' contains a comma, which is not allowed."
 
@@ -586,7 +599,7 @@ def get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
           assert file_path.endswith(".csv"), \
             f"File for custom marker set '{name}' is not a CSV file"
 
-          # Check CSV file contents
+          # check csv file contents
           mkrs_df = pd.read_csv(file_path)
  
           req_col = "label"
@@ -786,6 +799,18 @@ def get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR ):
 #   return PB_SUBSETS, PB_DO_ALL
 
 
+def _safe_boolean(val):
+  if type(val) is bool:
+    res = val
+  elif val in ["True", "true"]:
+    res = True
+  elif val in ["False", "false"]:
+    res = False
+  else:
+    raise ValueError('{val} is not a boolean')
+
+  return res
+
 
 # define marker_genes parameters
 def get_zoom_parameters(config, MITO_STR, scprocess_data_dir): 
@@ -816,7 +841,7 @@ def get_resource_parameters(config):
   MB_RUN_QC                       = 8192
   MB_RUN_HVGS                     = 8192
   MB_MAKE_SCE_OBJECT              = 8192
-  MB_RUN_HARMONY                  = 8192
+  MB_RUN_INTEGRATION              = 8192
   MB_RUN_MARKER_GENES             = 8192
   MB_HTML_MARKER_GENES            = 8192
   MB_LBL_LABEL_CELLTYPES          = 8192
@@ -850,8 +875,8 @@ def get_resource_parameters(config):
       MB_RUN_HVGS                     = config['resources']['mb_run_hvgs']
     if 'mb_make_sce_object' in config['resources']:
       MB_MAKE_SCE_OBJECT              = config['resources']['mb_make_sce_object']
-    if 'mb_run_harmony' in config['resources']:
-      MB_RUN_HARMONY                  = config['resources']['mb_run_harmony']
+    if 'mb_run_integration' in config['resources']:
+      MB_RUN_INTEGRATION              = config['resources']['mb_run_integration']
     if 'mb_run_marker_genes' in config['resources']:
       MB_RUN_MARKER_GENES             = config['resources']['mb_run_marker_genes']
     if 'mb_html_marker_genes' in config['resources']:
@@ -878,7 +903,7 @@ def get_resource_parameters(config):
     MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
     MB_RUN_QC, MB_RUN_HVGS, \
     MB_MAKE_SCE_OBJECT, \
-    MB_RUN_HARMONY, \
+    MB_RUN_INTEGRATION, \
     MB_RUN_MARKER_GENES, MB_HTML_MARKER_GENES, \
     MB_LBL_LABEL_CELLTYPES, MB_LBL_SAVE_SUBSET_SCES, MB_LBL_RENDER_TEMPLATE_RMD, \
     MB_META_SAVE_METACELLS, \

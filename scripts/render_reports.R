@@ -105,9 +105,8 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
     }else if(sel_rule == 'multiplexing'){
 
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
-                    'DATE_STAMP', 'RUNS_STR','AMBIENT_METHOD',
-                    'METADATA_F', 'sce_hto_f',
-                    'SAMPLE_VAR', 'af_dir')
+                    'DATE_STAMP', 'RUNS_STR','AMBIENT_METHOD','METADATA_F',
+                    'SAMPLE_VAR', 'af_dir', 'demux_dir')
 
       assert_that(all(req_names %in% add_args_names))
 
@@ -117,28 +116,20 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
 
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
                     'DATE_STAMP', 'threads', 'meta_f',
-                    'qc_dt_f', 'qc_keep_f', 'AMBIENT_METHOD', 'QC_HARD_MIN_COUNTS',
+                    'qc_dt_f', 'AMBIENT_METHOD', 'QC_HARD_MIN_COUNTS',
                     'QC_HARD_MIN_FEATS', 'QC_HARD_MAX_MITO',
                     'QC_MIN_COUNTS', 'QC_MIN_FEATS',
                     'QC_MIN_MITO', 'QC_MAX_MITO', 'QC_MIN_SPLICE',
-                    'QC_MAX_SPLICE', 'QC_MIN_CELLS',
-                    'QC_FILTER_BENDER')
+                    'QC_MAX_SPLICE', 'QC_MIN_CELLS')
 
       assert_that(all(req_names %in% add_args_names))
 
-      if(add_args[['QC_FILTER_BENDER']] == 'False'){
-        add_args[['QC_FILTER_BENDER']] = FALSE
-      }else{
-        add_args[['QC_FILTER_BENDER']] = TRUE
-      }
-
-      params_ls = add_args[req_names]
+      params_ls = add_args
 
     }else if(sel_rule == 'integration'){
 
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
-                    'DATE_STAMP', 'threads', 'sce_all_f',
-                    'qc_dt_f', 'qc_keep_f', 'hmny_f', 'hmny_hvgs_f',
+                    'DATE_STAMP', 'threads', 'qc_dt_f', 'integration_f', 
                     'INT_RES_LS', 'INT_SEL_RES', 'INT_DBL_CL_PROP')
 
       assert_that(all(req_names %in% add_args_names))
@@ -150,10 +141,9 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
       req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
                     'DATE_STAMP', 'threads', 'meta_f',
                     'meta_vars_ls', # this has to be first joined in the 'params' bit of the rule
-                    'gtf_dt_f', 'hmny_f', 'pb_f', 'mkrs_f', 'hvgs_f', 'fgsea_go_bp_f',
+                    'gtf_dt_f', 'integration_f', 'pb_f', 'mkrs_f', 'hvgs_f', 'fgsea_go_bp_f',
                     'fgsea_go_cc_f', 'fgsea_go_mf_f',
-                    'fgsea_paths_f', 'fgsea_hlmk_f', 'INT_EXC_REGEX',
-                    'INT_SEL_RES', 'CUSTOM_MKR_NAMES', 'CUSTOM_MKR_PATHS',
+                    'fgsea_paths_f', 'fgsea_hlmk_f','INT_SEL_RES', 'CUSTOM_MKR_NAMES', 'CUSTOM_MKR_PATHS',
                     'MKR_NOT_OK_RE', 'MKR_MIN_CPM_MKR', 'MKR_MIN_CELLS', 'MKR_GSEA_CUT', 'SPECIES')
 
       assert_that(all(req_names %in% add_args_names))

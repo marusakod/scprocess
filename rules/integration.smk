@@ -1,38 +1,36 @@
 # snakemake rule for integrating samples with harmony
 
-rule run_harmony:
+rule run_integration:
   input:
-    sce_all_f   = sce_dir + '/sce_cells_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-    keep_f      = qc_dir  + '/keep_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    dbl_f       = dbl_dir + '/scDblFinder_combined_outputs_' + FULL_TAG +'_' + DATE_STAMP + '.txt.gz'
+    hvg_mat_f      = hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
+    dbl_hvg_mat_f  = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
+    coldata_f      = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
-    harmony_f   = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    hvgs_f      = int_dir + '/harmony_hvgs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    sce_clean_f = int_dir + '/sce_clean_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+    integration_f  = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 8
   retries: RETRIES 
   resources:
-    mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_HARMONY
+    mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_INTEGRATION
   conda: 
     '../envs/rlibs.yml'
   shell:
     """
     # run harmony
-    Rscript -e "source('scripts/integration.R'); \
-      run_harmony( \
-        sce_all_f       = '{input.sce_all_f}', \
-        keep_f          = '{input.keep_f}',
-        dbl_f           = '{input.dbl_f}', \
-        exc_regex       = '{INT_EXC_REGEX}', \
-        n_hvgs          = {INT_N_HVGS}, \
-        n_dims          = {INT_N_DIMS}, \
-        dbl_res         = {INT_DBL_RES}, \
-        dbl_cl_prop     = {INT_DBL_CL_PROP}, \
-        theta           = {INT_THETA},
-        res_ls_concat   = '{INT_RES_LS}', \
-        harmony_f       = '{output.harmony_f}',
-        hvgs_f          = '{output.hvgs_f}', \
-        sce_clean_f     = '{output.sce_clean_f}', \
-        batch_var       = '{BATCH_VAR}', \
-        n_cores         = {threads})"
+    Rscript -e "source('scripts/integration.R'); source('scripts/ambient.R');
+      run_integration( 
+        hvg_mat_f        = '{input.hvg_mat_f}', 
+        dbl_hvg_mat_f    = '{input.dbl_hvg_mat_f}', 
+        coldata_f        = '{input.coldata_f}', 
+        demux_type       = '{DEMUX_TYPE}', 
+        exclude_mito     = {EXCLUDE_MITO}, 
+        reduction        = '{INT_REDUCTION}',
+        n_dims           = {INT_N_DIMS}, 
+        cl_method        = '{INT_CL_METHOD}', 
+        dbl_res          = {INT_DBL_RES}, 
+        dbl_cl_prop      = {INT_DBL_CL_PROP}, 
+        theta            = {INT_THETA}, 
+        res_ls_concat    = '{INT_RES_LS}', 
+        integration_f    = '{output.integration_f}', 
+        batch_var        = '{BATCH_VAR}', 
+        n_cores          = {threads})"
     """

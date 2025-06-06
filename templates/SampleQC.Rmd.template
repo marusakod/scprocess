@@ -36,7 +36,6 @@ setDTthreads(n_cores)
 # define qc metric files
 meta_f      = "${meta_f}"
 qc_f        = "${qc_dt_f}"
-keep_f      = "${qc_keep_f}"
 
 # set default values
 ambient_method  = "${AMBIENT_METHOD}"
@@ -60,8 +59,7 @@ qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') 
 
 ```{r load_qc_values, include = FALSE}
 qc_dt       = fread(qc_f)
-keep_dt     = fread(keep_f)
-kept_dt     = qc_dt[ cell_id %in% keep_dt$cell_id ]
+kept_dt     = qc_dt[ keep == TRUE ]
 ```
 
 ```{r load_metadata, include = FALSE}

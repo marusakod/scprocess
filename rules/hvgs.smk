@@ -126,7 +126,7 @@ if HVG_METHOD == 'sample':
     input:                 
       std_var_stats_f = expand(hvg_dir + '/tmp_std_var_stats_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = SAMPLES)
     output:
-      std_var_stats_merged_f = hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      std_var_stats_merged_f = temp(hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 1
     retries: RETRIES
     resources:
@@ -194,8 +194,8 @@ else:
       """
       python3 scripts/hvgs.py calculate_estimated_vars \
         {output.estim_vars_f} \
-        {input.mean_var_merged_f} \
-        {HVG_METHOD}
+        {HVG_METHOD} \
+        {input.mean_var_merged_f}
       """
 
   rule get_stats_for_std_variance_for_group:
@@ -235,7 +235,7 @@ else:
       std_var_stats_f = expand(hvg_dir + '/tmp_std_var_stats_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
       group=GROUP_NAMES, chunk=range(NUM_CHUNKS)),
     output:
-      std_var_stats_merged_f = hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      std_var_stats_merged_f = temp(hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 1
     retries: RETRIES
     resources:
@@ -258,12 +258,65 @@ rule get_highly_variable_genes:
     '../envs/hvgs.yml'
   shell:
      """
-     
+     NOAMBIENT_FLAG=""
+     if [ "{EXCLUDE_AMBIENT_GENES}" = "True" ]; then
+       NOAMBIENT_FLAG="--noambient"
+     fi
+
      python3 scripts/hvgs.py calculate_hvgs \
       {input.std_var_stats_f} \
       {output.hvg_f} \
       {input.empty_gs_fs} \
       {HVG_METHOD} \
-      {N_HVGS}
-      # need to add flag to determine whether to remove ambient genes or not!
+      {N_HVGS} \
+      $NOAMBIENT_FLAG
      """
+
+rule create_hvg_matrix:
+  input: 
+    clean_h5_f  = expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES),
+    hvg_paths_f = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    hvg_f       = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+  output:
+    hvg_mat_f   = hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
+  threads: 1
+  retries: RETRIES
+  resources:
+    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  conda:
+    '../envs/hvgs.yml'
+  shell:
+    """
+    python3 scripts/hvgs.py read_top_genes \
+      {input.hvg_paths_f} \
+      {input.hvg_f} \
+      {output.hvg_mat_f} \
+      {SAMPLE_VAR}
+
+    """
+
+rule create_doublets_hvg_matrix:
+    input: 
+      hvg_paths_f        = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+      hvg_f              = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+      qc_f               = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      qc_sample_stats_f  = qc_dir  + '/qc_sample_statistics_' + DATE_STAMP + '.txt'
+    output: 
+      dbl_hvg_mat_f      = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
+    threads: 1
+    retries: RETRIES
+    resources:
+      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    conda: 
+      '../envs/hvgs.yml'
+    shell: 
+      """
+      python3 scripts/hvgs.py create_doublets_matrix \
+      {input.hvg_paths_f} \
+      {input.hvg_f} \
+      {input.qc_f} \
+      {input.qc_sample_stats_f} \
+      {output.dbl_hvg_mat_f} \
+      {SAMPLE_VAR}
+
+      """

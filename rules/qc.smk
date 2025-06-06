@@ -110,6 +110,7 @@ rule run_qc:
           dimred_f       = '{output.dimred_f}', \
           dbl_f		       = '{output.dbl_f}', \
           mito_str       = '{AF_MITO_STR}', \
+          exclude_mito   = '{EXCLUDE_MITO}', \
           hard_min_counts= {QC_HARD_MIN_COUNTS}, \
           hard_min_feats = {QC_HARD_MIN_FEATS}, \
           hard_max_mito  = {QC_HARD_MAX_MITO}, \

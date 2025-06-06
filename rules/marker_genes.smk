@@ -14,7 +14,8 @@ def get_conditional_outputs(species):
 
 rule run_marker_genes:
   input:
-    sce_clean_f = int_dir + '/sce_clean_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+    sces_yaml_f    = qc_dir  + '/sce_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml',
+    integration_f  = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
     pb_f      = mkr_dir + '/pb_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.rds',
     mkrs_f    = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
@@ -36,7 +37,8 @@ rule run_marker_genes:
   shell:
     """
     Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); calculate_marker_genes(
-        sce_clean_f   = '{input.sce_clean_f}',
+        integration_f = '{input.integration_f}', 
+        sces_yaml_f   = '{input.sces_yaml_f}',
         pb_f          = '{output.pb_f}',
         mkrs_f        = '{output.mkrs_f}',
         pb_hvgs_f     = '{output.pb_hvgs_f}',
@@ -45,7 +47,6 @@ rule run_marker_genes:
         gtf_dt_f      = '{AF_GTF_DT_F}',
         gsea_dir      = '{MKR_GSEA_DIR}',
         sel_res       = {INT_SEL_RES},
-        exc_regex     = '{INT_EXC_REGEX}',
         min_cl_size   = {MKR_MIN_CL_SIZE},
         min_cells     = {MKR_MIN_CELLS},
         not_ok_re     = '{MKR_NOT_OK_RE}',
