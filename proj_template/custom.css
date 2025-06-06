@@ -76,3 +76,8 @@ body, .Sidebar {
 .navbar a {
     color: #000000 !important; 
 }
+
+/* justify text on both sides */
+body {
+    text-align: justify;
+}

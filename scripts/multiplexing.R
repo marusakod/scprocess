@@ -209,10 +209,8 @@ get_one_hto_sce <- function(sel_sample, sample_stats_f, amb_yaml_f, hto_mat_f, t
 
 # functions for multiplexing QC
 
-get_hto_dt <- function(pool, hto_sce){
-
-  pool_cells = colData(hto_sce)$pool_id == pool
-  pool_sce = hto_sce[, pool_cells]
+get_hto_dt <- function(pool_sce){
+  
   pool_counts = counts(pool_sce)
 
   pool_seu = CreateSeuratObject(counts = pool_counts, assay = 'HTO')
@@ -227,13 +225,13 @@ get_hto_dt <- function(pool, hto_sce){
     as.data.table(keep.rownames = 'cell_id') %>%
     melt(id.vars = 'cell_id', variable.name = 'hto_id', value.name = 'norm_count')
 
-  pool_counts = GetAssayData(pool_seu, assay = 'HTO', layer = 'counts') %>%
+  pool_counts_long = GetAssayData(pool_seu, assay = "HTO", layer = "counts") %>%
     t() %>%
     as.data.table(keep.rownames = 'cell_id') %>%
     melt(id.vars = 'cell_id', variable.name = 'hto_id', value.name = 'count')
 
   pool_all = pool_norm_counts %>%
-    merge(pool_counts, by = c('cell_id', 'hto_id')) %>%
+    merge(pool_counts_long, by = c('cell_id', 'hto_id')) %>%
     merge(pool_meta, by = 'cell_id') %>%
     .[, prop        := count / sum(count), by = .(pool_id, cell_id) ]  %>%
     .[, hto_id      := factor(hto_id)]

@@ -13,32 +13,6 @@ suppressPackageStartupMessages({
 })
 
 
-integration_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_integration/integrated_dt_Miallot_2023_2025-05-08.txt.gz'
-sces_yaml_f   = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_qc/sce_paths_Miallot_2023_2025-05-08.yaml'
-pb_f          = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/pb_Miallot_2023_0.2_2025-05-08.rds'
-mkrs_f        = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/pb_marker_genes_Miallot_2023_0.2_2025-05-08.txt.gz'
-pb_hvgs_f     = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/pb_hvgs_Miallot_2023_0.2_2025-05-08.txt.gz'
-fgsea_go_bp_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/fgsea_Miallot_2023_0.2_go_bp_2025-05-08.txt.gz'
-fgsea_go_cc_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/fgsea_Miallot_2023_0.2_go_cc_2025-05-08.txt.gz'
-fgsea_go_mf_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/fgsea_Miallot_2023_0.2_go_mf_2025-05-08.txt.gz'
-fgsea_paths_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/fgsea_Miallot_2023_0.2_paths_2025-05-08.txt.gz'
-fgsea_hlmk_f  = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_marker_genes/fgsea_Miallot_2023_0.2_hlmk_2025-05-08.txt.gz'
-species       = 'mouse_2024'
-gtf_dt_f      = '/home/kodermam/packages/scprocess_data/reference_genomes/mouse_2024/mouse_2024_genes_gtf.txt.gz'
-gsea_dir      = '/home/kodermam/packages/scprocess_data/gmt_pathways'
-sel_res       = 0.2
-min_cl_size   = 100.0
-min_cells     = 10
-not_ok_re     = '(lincRNA|lncRNA|pseudogene|antisense)'
-min_cpm_go    = 1
-max_zero_p    = 0.5
-gsea_cut      = 0.1
-n_cores       = 8
-
-
-test_pb_obj = readRDS('/pstore/data/brain-sc-analysis/studies/Bryois_2022/output/Bryois_marker_genes/pb_Bryois_2022_0.2_2024-01-22.rds')
-
-
 # define pathways
 gsea_regex  = "^(HALLMARK_|GOBP_|GOCC_|GOMF_|BIOCARTA_|REACTOME_|KEGG_)(.+)"
 
@@ -1274,13 +1248,7 @@ plot_gsea_dotplot <- function(gsea_dt, n_top_paths = 10, gsea_cut = 0.05,
     aes(x = cluster, y = path_short, fill = nes_trunc, size = -log10_padj_trunc,
       alpha = signif ) +
     geom_point(shape = 21, colour = 'black')
-  # if (what == 'pos_only') {
-  #   g = g + scale_fill_viridis( limits = c(0, max_nes), breaks = pretty_breaks(),
-  #     option = 'magma' )
-  # } else if (what == 'both') {
-  #   g = g + scale_fill_distiller( palette = "RdBu", limits = c(-max_nes, max_nes),
-  #     breaks = pretty_breaks() )
-  # }
+
   g = g + scale_fill_distiller( palette = "RdBu", limits = c(-max_nes, max_nes),
     breaks = pretty_breaks() )
   g = g + scale_alpha_manual(values = c(signif = 1, not = 0.5)) +

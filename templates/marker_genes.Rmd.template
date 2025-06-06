@@ -38,7 +38,7 @@ setDTthreads(n_cores)
 meta_f        = "${meta_f}"
 gtf_dt_f      = "${gtf_dt_f}"
 pb_f          = "${pb_f}"
-hmny_f        = "${hmny_f}"
+integration_f = "${integration_f}"
 mkrs_f        = "${mkrs_f}"
 hvgs_f        = "${hvgs_f}"
 
@@ -62,7 +62,6 @@ if(custom_mkr_names_str != ""){
 
 # parameters for here
 not_ok_re     = "${MKR_NOT_OK_RE}"
-exc_regex     = "${INT_EXC_REGEX}"
 sel_res       = ${INT_SEL_RES}
 min_cpm_mkr   = ${MKR_MIN_CPM_MKR}
 min_cells     = ${MKR_MIN_CELLS}
@@ -91,12 +90,12 @@ assert_that( all(metadata_vars %in% names(meta_dt)) )
 }
 ```
 
-```{r load_harmony_clusters, include = FALSE}
-harmony_dt    = fread(hmny_f) %>% .[ !is.na(UMAP1) ] %>% 
-  .[, c("sample_id", "cell_id", "integration", "UMAP1", "UMAP2", 
+```{r load_clusters, include = FALSE}
+int_dt    = fread(integration_f) %>% .[ !is.na(UMAP1) ] %>% 
+  .[, c("sample_id", "cell_id", "reduction", "UMAP1", "UMAP2", 
     str_subset(names(.), "RNA_snn_res")), with = FALSE] %>% 
   .[, cluster := get(paste0("RNA_snn_res.", sel_res))]
-hmny_dt       = harmony_dt[, .(sample_id, cell_id, UMAP1, UMAP2, cluster)] %>% 
+int_dt       = int_dt[, .(sample_id, cell_id, UMAP1, UMAP2, cluster)] %>% 
   merge(meta_dt, by = "sample_id")
 ```
 
@@ -107,7 +106,7 @@ biotypes_dt   = load_gene_biotypes(gtf_dt_f)
 ```{r load_cpms, include = FALSE}
 cpms_dt     = readRDS(pb_f) %>% 
   make_logcpms_all(lib_size_method = "edger", 
-    exc_regex = exc_regex, min_cells = min_cells, n_cores = n_cores) %>% 
+    min_cells = min_cells, n_cores = n_cores) %>% 
   merge(biotypes_dt[, .(gene_id, gene_type)], by = "gene_id")
 ```
 
@@ -166,12 +165,12 @@ gsea_ls         = lapply(fgsea_fs, fread) %>% setNames(names(fgsea_fs))
 
 Clustering of data is performed at resolution `r sel_res`. Cluster membership of cells is displayed on a UMAP.
 
-```{r plot_harmony_clusters_sel_res, fig.height = 5, fig.width = 11}
+```{r plot_clusters_sel_res, fig.height = 5, fig.width = 11}
 g_cl    = plot_umap_cluster(
-  umap_dt   = harmony_dt[, .(cell_id, UMAP1, UMAP2) ], 
-  clust_dt  = harmony_dt[, .(cell_id, cluster = get(paste0('RNA_snn_res.', sel_res))) ],
+  umap_dt   = int_dt[, .(cell_id, UMAP1, UMAP2) ], 
+  clust_dt  = int_dt[, .(cell_id, cluster) ],
   name      = sprintf('res = %s', sel_res))
-g_dens  = plot_umap_density(harmony_dt[, .(cell_id, UMAP1, UMAP2) ])
+g_dens  = plot_umap_density(int_dt[, .(cell_id, UMAP1, UMAP2) ])
 g       = g_cl + g_dens
 print(g)
 ```
@@ -182,7 +181,7 @@ For each cluster the proportion of cells coming from samples associated with spe
 
 ```{r plot_clusters_by_metadata, fig.height = 8, fig.width = 7}
 if (!is.null(metadata_vars))
-  (plot_clusters_by_metadata(meta_dt, harmony_dt, 
+  (plot_clusters_by_metadata(meta_dt, int_dt, 
     meta_vars = metadata_vars, cl_order = cl_ord))
 ```
 
@@ -193,7 +192,7 @@ The plot shows a binned UMAP with facets corresponding to specific values of `r 
 ```{r plot_metadata_over_UMAP, fig.height = 6, fig.width = 8, results = 'asis'}
 for (meta_var in metadata_vars) {
   cat('###', meta_var, '\n')
-  print(plot_clusters_annotated_by_densities(hmny_dt, meta_var))
+  print(plot_clusters_annotated_by_densities(int_dt, meta_var))
   cat('\n\n')
 }
 ```
@@ -220,7 +219,7 @@ for (nn in names(mkrs_ls)) {
 
 Normalized pseudobulk expression values for top 100? highly variable genes are shown for each cluster
 
-```{r plot_hvgs_pb_hmny, fig.height = 8, fig.width = 8, results = "asis"}
+```{r plot_hvgs_pb_int, fig.height = 8, fig.width = 8, results = "asis"}
 n_pages = 10
 per_p   = 10
 p       = 1
@@ -257,7 +256,7 @@ for (sel_cl in cl_ord) {
 }
 ```
 
-## GSEA characterisation of `harmony` clusters{.tabset}
+## GSEA characterisation of clusters{.tabset}
 
 GSEA was performed on marker genes for each cluster, using logFC as the ranking variable. Top x pathways grouped into 5 categories with (some threshold) are shown for each cluster.
 

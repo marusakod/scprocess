@@ -134,6 +134,9 @@ This is an example config file for {{ software_name }} with all parameters and t
         int_res_ls:       [0.1, 0.2, 0.5, 1]  
         int_sel_res:      0.2
       marker_genes:
+        custom_sets:
+          - name: 
+            file: 
         mkr_min_cl_size: 100                                  
         mkr_min_cells: 10                                      
         mkr_not_ok_re: "(lincRNA|lncRNA|pseudogene|antisense)"  
@@ -237,6 +240,9 @@ This is an example config file for {{ software_name }} with all parameters and t
         int_res_ls:       [0.1, 0.2, 0.5, 1]  
         int_sel_res:      0.2
       marker_genes:
+        custom_sets:
+          - name: mouse_brain
+            file: /path/to/file/with/marker/genes
         mkr_min_cl_size: 100                                  
         mkr_min_cells: 10                                      
         mkr_not_ok_re: "(lincRNA|lncRNA|pseudogene|antisense)"  
@@ -388,7 +394,9 @@ sample_3:
 
 ##### marker_genes
 
-* `custom_markers`: path to CSV file containing marker genes for visualisation with two columns: `label` (celltype label) and `symbol` (gene symbol). Absolute or from poject directory. 
+* `custom_sets`: a list of custom marker gene sets, each defined by a unique name and associated file path.
+    + `name`: a string representing the name of the marker gene set
+    + `file`: path to CSV file containing a list of genes in the marker gene set. Must contain column `label` (marker gene category), and `symbol` and/or `ensembl_id`. If not speficied `scprocess` will look for file `$SCPROCESS_DATA_DIR/marker_genes/{name}.csv`
 * `mkr_min_cl_size`: minimum number of cells required in a cluster to calculate marker genes for that cluster.
 * `mkr_min_cells`: minimum number of cells required in a pseudobulk sample to include it in marker gene calculations.
 * `mkr_not_ok_re`: regular expression pattern to exclude specific gene types from plots showing marker gene expression. 

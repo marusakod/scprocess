@@ -16,17 +16,6 @@ suppressPackageStartupMessages({
 })
 
 
-# # example input files
-# coldata_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_qc/coldata_dt_all_samples_Miallot_2023_2025-05-08.txt.gz'
-# hvg_mat_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_hvg/top_hvgs_counts_Miallot_2023_2025-05-08.h5'
-# dbl_hvg_mat_f = '/pstore/data/brain-sc-analysis/studies/Miallot_2023/output/Miallot_hvg/top_hvgs_doublet_counts_Miallot_2023_2025-05-08.h5'
-# res_ls_concat = '0.1 0.2 0.5 1 2'
-# batch_var = 'pool_id'
-# exclude_mito = TRUE
-# cl_method = 'louvain'
-# dbl_res = 4
-# dbl_cl_prop      = 0.5
-
 run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, coldata_f, demux_type, 
   exclude_mito, reduction, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
   integration_f, batch_var, n_cores = 4) {

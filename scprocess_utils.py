@@ -584,7 +584,7 @@ def get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
 
           name = gene_set["name"]
 
-          # Check for commas in names
+          # check for commas in names
           assert "," not in name, \
             f"Custom marker set name '{name}' contains a comma, which is not allowed."
 
@@ -599,7 +599,7 @@ def get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
           assert file_path.endswith(".csv"), \
             f"File for custom marker set '{name}' is not a CSV file"
 
-          # Check CSV file contents
+          # check csv file contents
           mkrs_df = pd.read_csv(file_path)
  
           req_col = "label"
