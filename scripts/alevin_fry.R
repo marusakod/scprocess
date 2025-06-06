@@ -12,7 +12,6 @@ suppressPackageStartupMessages({
   library('strex')
 })
 
-
 # load counts data into sce object
 save_alevin_h5_ambient_params <- function(sample, fry_dir, h5_f, cb_yaml_f, knee_data_f, sample_var,
                                           knee1, inf1, knee2, inf2, exp_cells, total_included, low_count_thr){

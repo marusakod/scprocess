@@ -100,7 +100,7 @@ Logit-transformed values are displayed as applying the logit  (inverse logistic)
 Cells with spliced proportions greater than `r max_splice` are excluded from further analysis. 
 
 
-```{r plot_qc_ranges_marginals, fig.height = 10, fig.width = 9, results = 'asis'}
+```{r plot_qc_ranges_marginals, fig.height = max(length(s_lvls)/5 + 0.5, 10), fig.width = 9, results = 'asis'}
 suppressWarnings({
   cat("### Pre-QC\n")
   print(plot_qc_ranges_marginals(qc_dt, s_lvls, qc_names, qc_lu, thrshlds_dt, ambient_method))

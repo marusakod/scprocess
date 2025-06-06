@@ -13,6 +13,7 @@ zoom_integrate_within_group <- function(full_tag, date_stamp, zoom_dir,
   n_cores = 4, seed = 123, overwrite = FALSE) {
   # check some inputs
   assert_that(
+    is.character(zoom_res),
     is.character(full_tag),
     is.character(date_stamp),
     is.character(zoom_dir),
@@ -42,7 +43,6 @@ zoom_integrate_within_group <- function(full_tag, date_stamp, zoom_dir,
     is.numeric(min_cpm_go), 
     is.numeric(max_zero_p), 
     is.numeric(gsea_cut), 
-    is.numeric(zoom_res),
     is.numeric(min_cells), 
     is.numeric(zoom_n_hvgs), 
     is.numeric(zoom_n_dims), 
@@ -142,9 +142,8 @@ zoom_integrate_within_group <- function(full_tag, date_stamp, zoom_dir,
 }
 
 impute_clusters_for_small_samples <- function(hmny_dt, zoom_res, zoom_sel_cls, 
-  hmny_sub_f, sce_all_f, 
-  hvg_pcs_f, boost_f, pairwise_f, imputed_f,
-  exc_regex, n_hvgs, n_dims, min_n_cl, n_train, n_cores = 4, overwrite = FALSE) {
+  hmny_sub_f, sce_all_f, hvg_pcs_f, boost_f, pairwise_f, imputed_f, exc_regex, 
+  n_hvgs, n_dims, min_n_cl, n_train, n_cores = 4, overwrite = TRUE) {
   if ( all(file.exists(hvg_pcs_f, boost_f, pairwise_f, imputed_f)) & !overwrite ) {
     message("already done!")
     return(NULL)
@@ -173,7 +172,7 @@ impute_clusters_for_small_samples <- function(hmny_dt, zoom_res, zoom_sel_cls,
   test_dt     = data_ls$test
 
   # run xgboost
-  boost_obj   = run_boost_watchlist(train_dt, valid_dt, n_cores)
+  boost_obj   = run_xgboost(train_dt, valid_dt, n_cores)
   saveRDS(boost_obj, file = boost_f, compress = FALSE)  
 
   # predict on validation data
@@ -323,7 +322,7 @@ load_train_test_data <- function(clusts_dt, hvg_pcs_dt, min_cells, n_train) {
   ))
 }
 
-run_boost_watchlist <- function(train_dt, valid_dt, n_cores) {
+run_xgboost <- function(train_dt, valid_dt, n_cores) {
   # convert training data to expected format
   train_vars  = colnames(train_dt) %>% setdiff(c("cluster", "cell_id"))
   assert_that( length(train_vars) > 0 )
@@ -344,16 +343,19 @@ run_boost_watchlist <- function(train_dt, valid_dt, n_cores) {
   valid_cl    = valid_dt$cluster
   valid_y     = valid_cl %>% as.integer %>% `-`(1)
 
-  # blah
+  # set up parameters for xgboost
   dtrain      = xgb.DMatrix( data = train_mat, label = train_y )
   dvalid      = xgb.DMatrix( data = valid_mat, label = valid_y )
-  watchlist   = list( train = dtrain, test = dvalid )
+  evals       = list( train = dtrain, eval = dvalid )
+  param       = xgb.params(
+    nthread     = n_cores, 
+    objective   = "multi:softprob", 
+    num_class   = max(train_y) + 1
+  )
 
   # run boost
-  boost_obj   = xgb.train( data = dtrain, watchlist = watchlist, 
-    objective = "multi:softprob", num_class = max(train_y) + 1,
-    nrounds = 100, early_stopping_rounds = 5, 
-    nthread = n_cores, verbose = 2)
+  boost_obj   = xgb.train(params = param, data = dtrain, nrounds = 100, 
+    evals = evals, early_stopping_rounds = 5, verbose = 2)
 
   # # run standard boost
   # boost_obj   = xgboost(

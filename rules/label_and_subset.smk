@@ -27,7 +27,7 @@ rule lbl_label_celltypes:
     label_celltypes_with_xgboost(xgb_f = '{LBL_XGB_F}', 
       sce_f = '{input.sce_clean_f}', harmony_f = '{input.harmony_f}', \
       hvg_mat_f = '{output.hvg_mat_f}', guesses_f = '{output.guesses_f}', \
-      custom_labels_f = '{CUSTOM_LABELS_F}', int_sel_res = {INT_SEL_RES}, \
+      custom_labels_f = '{CUSTOM_LABELS_F}', int_sel_res = {MKR_SEL_RES}, \
       gene_var = '{LBL_GENE_VAR}', min_pred = {LBL_MIN_PRED}, min_cl_prop = {LBL_MIN_CL_PROP}, \
       min_cl_size = {LBL_MIN_CL_SIZE}, n_cores = {threads})"
     """

@@ -9,52 +9,50 @@ import os
 
 # get alevin params
 
-
 # check if custom chemistry and knees are defined for a sample
 def parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, sample):
-    # set defaults
-    SAMPLE_CHEMISTRY = CHEMISTRY
-    
-    if CUSTOM_SAMPLE_PARAMS_F is not None: 
-        with open(CUSTOM_SAMPLE_PARAMS_F) as f:
-            custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
-        # get all samples with custom params
-            custom_smpls = list(custom_smpl_params.keys())
+  # set defaults
+  SAMPLE_CHEMISTRY = CHEMISTRY
 
-            valid_chems = ['3LT', '3v2', '5v1', '5v2', '3v3', 'multiome', '3v4', '5v3']
+  # sort out custom sample parameters
+  if CUSTOM_SAMPLE_PARAMS_F is not None: 
+    with open(CUSTOM_SAMPLE_PARAMS_F) as f:
+      # get all samples with custom params
+      custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
+      custom_smpls = list(custom_smpl_params.keys())
 
-            if sample in custom_smpls:
-                # check if chemistry is defined
-                if 'chemistry' in custom_smpl_params[sample] and (custom_smpl_params[sample]['chemistry'] is not None):
-                    SAMPLE_CHEMISTRY = custom_smpl_params[sample]['chemistry']
-                    # check if valid
-                    assert SAMPLE_CHEMISTRY in valid_chems, \
-                        f"chemistry not valid for sample {sample}"
+      # check each sample
+      valid_chems = ['3LT', '3v2', '3v3', '3v4', '5v1', '5v2', '5v3', 'multiome']
+      if sample in custom_smpls:
+        # check if chemistry is defined
+        if 'chemistry' in custom_smpl_params[sample] and (custom_smpl_params[sample]['chemistry'] is not None):
+          SAMPLE_CHEMISTRY = custom_smpl_params[sample]['chemistry']
+          # check if valid
+          assert SAMPLE_CHEMISTRY in valid_chems, \
+            f"chemistry not valid for sample {sample}"
 
-    # get expected ori, af chemistry and whitelist f
-    if SAMPLE_CHEMISTRY in ['3v2', '5v1', '5v2']:
-        AF_CHEMISTRY = '10xv2' 
-    else: 
-        AF_CHEMISTRY = '10xv3'
+  # get af chemistry and expected orientation
+  if SAMPLE_CHEMISTRY in ['3v2', '5v1', '5v2']:
+    AF_CHEMISTRY = '10xv2' 
+  else: 
+    AF_CHEMISTRY = '10xv3'
+  if SAMPLE_CHEMISTRY in ['5v1', '5v2', '5v3']:
+    EXPECTED_ORI = 'rc'
+  else:
+    EXPECTED_ORI = 'fw'
 
-    if SAMPLE_CHEMISTRY in ['5v1', '5v2', '5v3']:
-        EXPECTED_ORI = 'rc'
-    else:
-        EXPECTED_ORI = 'fw'
+  # sort out whitelist file
+  wl_df_f = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref/cellranger_whitelists.csv')
+  wl_df = pd.read_csv(wl_df_f)
+  wl_f = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'barcodes_f'].values[0]
+  wl_trans_f = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'translation_f'].values[0]
+  WHITELIST_TRANS_F = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref', wl_trans_f)
+  WHITELIST_F = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref', wl_f)
 
-    wl_df_f = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref/cellranger_whitelists.csv')
-    wl_df = pd.read_csv(wl_df_f)
-    wl_f = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'barcodes_f'].values[0]
-    wl_trans_f = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'translation_f'].values[0]
-    WHITELIST_TRANS_F = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref', wl_trans_f)
-    WHITELIST_F = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref', wl_f)
-
-    return AF_CHEMISTRY, EXPECTED_ORI, WHITELIST_F, WHITELIST_TRANS_F
-
-
+  return AF_CHEMISTRY, EXPECTED_ORI, WHITELIST_F, WHITELIST_TRANS_F
 
 def parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, sample, 
-                            FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD):
+  FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD):
   # set defaults
   KNEE_1 = ""
   INF_1 = ""
@@ -64,7 +62,6 @@ def parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, sample,
   EXPECTED_CELLS = ""
   LOW_COUNT_THRESHOLD = ""
 
-
   # check for global cellbender params defined in config
   if AMBIENT_METHOD == 'cellbender':
     if FORCE_EXPECTED_CELLS is not None:
@@ -73,40 +70,37 @@ def parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, sample,
        TOTAL_DROPLETS_INCLUDED = FORCE_TOTAL_DROPLETS_INCLUDED
     if FORCE_LOW_COUNT_THRESHOLD is not None:
        LOW_COUNT_THRESHOLD = FORCE_LOW_COUNT_THRESHOLD
-  
 
   # check custom_sample_params_f for sample specific params
-
   if CUSTOM_SAMPLE_PARAMS_F is not None: 
-      with open(CUSTOM_SAMPLE_PARAMS_F) as f:
-        custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
-        # get all samples with custom params
-        custom_smpls = list(custom_smpl_params.keys())
+    with open(CUSTOM_SAMPLE_PARAMS_F) as f:
+      custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
+      # get all samples with custom params
+      custom_smpls = list(custom_smpl_params.keys())
+      amb_param_names = ['knee1', 'shin1', 'knee2', 'shin2']
+      bender_param_names = ['expected_cells', 'total_droplets_included', 'low_count_threshold']
 
-        amb_param_names = ['knee1', 'shin1', 'knee2', 'shin2']
-        bender_param_names = ['expected_cells', 'total_droplets_included', 'low_count_threshold']
-
-        if sample in custom_smpls:
+      if sample in custom_smpls:
         # check if knees and shins are defined for a sample
-          if 'ambient' in custom_smpl_params[sample] and (custom_smpl_params[sample]['ambient'] is not None):
-            amb_smpl_params = custom_smpl_params[sample]['ambient']
-            for p_names in amb_param_names:
-              assert p_names in list(amb_smpl_params.keys()), \
-                f"{p_names} value missing from 'ambient' for sample {sample}"
-            
-            KNEE_1 = amb_smpl_params['knee1']
-            INF_1 = amb_smpl_params['shin1']
-            KNEE_2 = amb_smpl_params['knee2']
-            INF_2 = amb_smpl_params['shin2']
+        if 'ambient' in custom_smpl_params[sample] and (custom_smpl_params[sample]['ambient'] is not None):
+          amb_smpl_params = custom_smpl_params[sample]['ambient']
+          for p_names in amb_param_names:
+            assert p_names in list(amb_smpl_params.keys()), \
+              f"{p_names} value missing from 'ambient' for sample {sample}"
+          
+          KNEE_1 = amb_smpl_params['knee1']
+          INF_1 = amb_smpl_params['shin1']
+          KNEE_2 = amb_smpl_params['knee2']
+          INF_2 = amb_smpl_params['shin2']
 
         # check if specific cellbender params are defined for a sample
-          if AMBIENT_METHOD == 'cellbender' and 'cellbender' in custom_smpl_params[sample] and (custom_smpl_params[sample]['cellbender'] is not None):
-            if 'expected_cells' in custom_smpl_params[sample]['cellbender']:
-              EXPECTED_CELLS = custom_smpl_params[sample]['cellbender']['expected_cells']
-            if 'total_droplets_included' in custom_smpl_params[sample]['cellbender']:
-              TOTAL_DROPLETS_INCLUDED = custom_smpl_params[sample]['cellbender']['total_droplets_included']
-            if 'low_count_threshould' in custom_smpl_params[sample]['cellbender']:
-              LOW_COUNT_THRESHOLD =  custom_smpl_params[sample]['cellbender']['low_count_threshold']
+        if AMBIENT_METHOD == 'cellbender' and 'cellbender' in custom_smpl_params[sample] and (custom_smpl_params[sample]['cellbender'] is not None):
+          if 'expected_cells' in custom_smpl_params[sample]['cellbender']:
+            EXPECTED_CELLS = custom_smpl_params[sample]['cellbender']['expected_cells']
+          if 'total_droplets_included' in custom_smpl_params[sample]['cellbender']:
+            TOTAL_DROPLETS_INCLUDED = custom_smpl_params[sample]['cellbender']['total_droplets_included']
+          if 'low_count_threshould' in custom_smpl_params[sample]['cellbender']:
+            LOW_COUNT_THRESHOLD =  custom_smpl_params[sample]['cellbender']['low_count_threshold']
 
   return KNEE_1, INF_1, KNEE_2, INF_2, EXPECTED_CELLS, TOTAL_DROPLETS_INCLUDED, LOW_COUNT_THRESHOLD
 
@@ -325,5 +319,3 @@ if DEMUX_TYPE == 'af':
           h5_f        = '{output.h5_f}', \
           knee_data_f = '{output.knee_data_f}')"
       """
-
-

@@ -1,8 +1,11 @@
 __pycache__
+._*
 .cache/
 .ipython/
 .jupyter/
+.RData
+.Rhistory
 .snakemake/
-logs/
 *.sublime-*
+logs/
 lsf.yaml

@@ -1,161 +1,49 @@
 # functions for setting up scprocess_data
 
-import pandas as pd
-import pyranges as pr
-import gzip
+
 import argparse
-import os
-import re
 import glob
-import subprocess
+import gzip
 import numpy as np
+import os
+import pandas as pd
+import re
+import re
+import subprocess
+import warnings
+import yaml
 
-#configfile = '/Users/marusa/Projects/scprocess_test/configs/config-setup-template.yaml'
-
-def get_genome_params(GENOME_NAMES, FASTA_FS, GTF_FS, MITO_STRS, DECOYS, SCPROCESS_DATA_DIR):
-
-  # make dictionaries with all parameters that will be updated later
-  fasta_dict = dict(zip(GENOME_NAMES, FASTA_FS))
-  gtf_dict = dict(zip(GENOME_NAMES, GTF_FS))
-  mito_str_dict = dict(zip(GENOME_NAMES, MITO_STRS))
-  decoys_dict = dict(zip(GENOME_NAMES, DECOYS))
-
-
-  # crete directory for reference genomes inside scprocess data
-  ref_dir = os.path.join(SCPROCESS_DATA_DIR, 'reference_genomes')
-  os.makedirs(ref_dir, exist_ok = True)
-
-  # sort out predefined genomes
-  pre_gnomes = {'human_2020', 'human_2024','mouse_2020', 'mouse_2024'}
-  all_gnomes = set(GENOME_NAMES)
-
-# which predefined genomes to download
-  names = list(pre_gnomes & all_gnomes)
-  
-  if(len(names) != 0):
-    
-    refs_10x_links_dict ={
-      'human_2020': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2020-A.tar.gz", 
-      'human_2024': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2024-A.tar.gz", 
-      'mouse_2020': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-mm10-2020-A.tar.gz", 
-      'mouse_2024': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz"
-    }
-
-    # download all required genomes from 10x
-    for n in names:
-      l = refs_10x_links_dict[n]
-      gnome_fs = get_predefined_gnomes(ref_dir= ref_dir, name = n, link = l )
-      # add fasta_f and gtf_f to dicts
-      fasta_dict[n] =  gnome_fs[1]
-      gtf_dict[n] = gnome_fs[0]
-    # define mito strings for predefined genomes
-  
-    for  n in names:
-      mito_str = "^MT-" if 'human_' in n else "^mt-"
-      mito_str_dict[n] = mito_str
-
-# sort out custom genomes
-  cust_names = list(all_gnomes - pre_gnomes)
-  if(len(cust_names) != 0):
-    print('Sorting out locations for custom genomes')
-    # create directories for custom genomes in ref_dir and symlinks for fasta and gtf files 
-    for cn in cust_names:
-      # get original fasta
-      cn_fasta = fasta_dict[cn]
-      # get original gtf
-      cn_gtf = gtf_dict[cn]
-
-      
-      cn_ref_dir = os.path.join(ref_dir, cn)
-      os.makedirs(cn_ref_dir, exist_ok = True)
-      fasta_sym = os.path.join(cn_ref_dir, 'genes.fa')
-      gtf_sym = os.path.join(cn_ref_dir, 'genes.gtf')
-
-      if not os.path.exists(fasta_sym):
-        os.symlink(cn_fasta, fasta_sym)
-      if not os.path.exists(gtf_sym):
-        os.symlink(cn_gtf, gtf_sym)
-
-      # update paths to fasta and gtf files in dicts
-      fasta_dict[cn] = fasta_sym
-      gtf_dict[cn] = gtf_sym
-  
-  # make a txt file from all gtf files
-  print('Creating txt files from gtf')
-  gtf_txt_dict = {}
- 
-  for n, gtf in gtf_dict.items():
-    # define output file
-    out_txt_f = os.path.join(os.path.dirname(gtf), 'genes_gtf.txt.gz')
-    # convert .gtf to .txt
-    save_gtf_as_txt(gtf, out_txt_f)
-    # update dictionary 
-    gtf_txt_dict.update({n:out_txt_f})
-
-  # create one dataframe from all dictionaries 
-  PARAMS_DF = pd.DataFrame([fasta_dict, gtf_dict, gtf_txt_dict, mito_str_dict, decoys_dict])
-  PARAMS_DF = PARAMS_DF.T
-  PARAMS_DF.columns = ['fasta_f', 'gtf_f', 'gtf_txt_f', 'mito_str', 'decoy']
-  PARAMS_DF.index.name = 'genome_name'
-  PARAMS_DF.reset_index(inplace=True)
-  
-  out_csv_f = os.path.join(SCPROCESS_DATA_DIR, 'setup_parameters.csv')
-  PARAMS_DF.to_csv(out_csv_f, index = False)
-  
-  print(f'Completed writing genomes in {SCPROCESS_DATA_DIR}')
-  return 
-  
+TENX_NAMES    = ['human_2020', 'human_2024', 'mouse_2020', 'mouse_2024']
+TENX_MITOS    = {
+  'human_2020': "^MT-", 
+  'human_2024': "^MT-",
+  'mouse_2020': "^mt-", 
+  'mouse_2024': "^mt-"
+}
+URLS_10X_REFS = {
+  'human_2020': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2020-A.tar.gz", 
+  'human_2024': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCh38-2024-A.tar.gz", 
+  'mouse_2020': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-mm10-2020-A.tar.gz", 
+  'mouse_2024': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz"
+}
+URLS_GTF_TXTS = { 
+  'human_2020': "https://zenodo.org/records/14247195/files/human_2020_rrna_genes_gtf.txt.gz", 
+  'human_2024': "https://zenodo.org/records/14247195/files/human_2024_rrna_genes_gtf.txt.gz", 
+  'mouse_2020': "https://zenodo.org/records/14247195/files/mouse_2020_rrna_genes_gtf.txt.gz", 
+  'mouse_2024': "https://zenodo.org/records/14247195/files/mouse_2024_rrna_genes_gtf.txt.gz"
+}
+URLS_ZEN_IDXS = { 
+  'human_2020': "https://zenodo.org/records/14247195/files/alevin-idx_human_2020_rrna.tar.gz", 
+  'human_2024': "https://zenodo.org/records/14247195/files/alevin-idx_human_2024_rrna.tar.gz", 
+  'mouse_2020': "https://zenodo.org/records/14247195/files/alevin-idx_mouse_2020_rrna.tar.gz", 
+  'mouse_2024': "https://zenodo.org/records/14247195/files/alevin-idx_mouse_2024_rrna.tar.gz"
+}
 
 
-# get refrence genomes from 10x
-def get_predefined_gnomes(ref_dir, name, link):
-
-  print(f'Downloading {name} genome from 10x')
-  
-  # get tarball 
-  tball = link.rsplit('/', 1)[-1]
-  
-  # create a new directory for the specified genome and switch to it
-  gnome_dir = os.path.join(ref_dir, name)
-  os.makedirs(gnome_dir, exist_ok = True)
-  os.chdir(gnome_dir)
-        
-  # download reference into that dir
-  subprocess.run(f'wget {link}', shell=True)
-        
-  # list tar contents
-  tar_out= subprocess.run(f'tar -tzf {tball}', shell=True, capture_output=True, text=True)
-  tball_all_fs = tar_out.stdout.splitlines()
-        
-  # look for genome.fa and genes.gtf (or genes.gtf.gz) files and extract the
-  patt = re.compile(r'(genome\.fa|genes\.gtf(\.gz)?)$') 
-  tball_filt_fs = [file for file in tball_all_fs if patt.search(file)]
-
-  for t in tball_filt_fs:
-    ext_spell = ['tar', '--extract', '--file=' + tball, '--strip-components=2', t]
-    subprocess.run(ext_spell, check=True)
-
-  # unzip
-  gnome_fs = os.listdir()
-  for f in gnome_fs:
-    if f.endswith('.gtf.gz'):
-      subprocess.run(f'gunzip {f}', shell=True, capture_output=False)
-
-  # delete the tarball
-  os.remove(tball)
-  print('Done!')
-
-  return [os.path.join(gnome_dir, 'genes.gtf'), os.path.join(gnome_dir, 'genome.fa')]
-
-
-
-
-# download  marker genes, xgboost objects, barcode whitelists and gmt pathways from github
-def get_scprocess_data(scprocess_data_dir):
-
+def get_scprocess_data(scdata_dir):
   print('Downloading data from scprocessData github repo')
   # switch to scprocess data dir
-  os.chdir(scprocess_data_dir)
+  os.chdir(scdata_dir)
 
   # download tar archive from scprocessData and extract
   subprocess.run('wget https://github.com/marusakod/scprocessData/releases/download/v0.1.2/scprocess_data_archive.tar.gz',
@@ -177,87 +65,496 @@ def get_scprocess_data(scprocess_data_dir):
   return
 
 
-
-# convert genes.gtf file to txt file
-def save_gtf_as_txt(gtf_f, gtf_txt_f):
+def get_af_index_parameters(config):
+  # check that genome is in config
+  assert "genome" in config, "genome not defined in config file"
   
-    gtf = pr.read_gtf(gtf_f, as_df = True)
+  # check that either tenx or custom are in the config 
+  assert 'tenx' in config['genome'] or 'custom' in config['genome'], \
+    "either 'tenx' or 'custom' need to be specified under genome"
 
-    # restrict to just genes
-    gene_annots = gtf[gtf['Feature'] == 'gene']
-    # remove some columnns
-    gene_annots = gene_annots[['gene_id', 'gene_name', 'gene_type', 'Chromosome', 'Start', 'End', 'Strand']]
-    
-    # Rename columns
-    gene_annots.rename(columns={
-        'gene_id': 'ensembl_id',
-        'gene_name': 'symbol',
-        'Chromosome': 'chromosome',
-        'Start': 'start',
-        'End': 'end',
-        'Strand': 'strand'
-    }, inplace=True)
+  # initialize
+  SETUP_LS    = []
 
-    # calculate width and add gene_id column
-    gene_annots['width'] = gene_annots['end'] - gene_annots['start'] + 1
-    gene_annots['gene_id'] = gene_annots['symbol'] + '_' + gene_annots['ensembl_id']
-    
-    # do some sorting of chromosomes 
-    chr_freq = gene_annots['chromosome'].value_counts()
-    gene_annots['chr_freq'] = gene_annots['chromosome'].map(chr_freq)
-    gene_annots_sorted = gene_annots.sort_values(by=['chr_freq', 'start', 'end'], ascending=[False, True, True])
-    gene_annots_sorted = gene_annots_sorted.drop(columns=['chr_freq'])
-    
-    # make gene_id the first column
-    gene_id_col = gene_annots_sorted.pop('gene_id')
-    gene_annots_sorted.insert(0, 'gene_id', gene_id_col)
-    
-    # make sure there are no duplicated gene ids
-    assert gene_annots_sorted['gene_id'].duplicated().sum() == 0
+  # get parameters for all specified tenx genomes
+  if 'tenx' in config['genome']:
+    # get just tenx list
+    tenx_ls     = config['genome']['tenx']
+    for spec_tenx in tenx_ls:
+      SETUP_LS.append(_get_index_parameters_tenx(spec_tenx, TENX_NAMES))
 
-    # save
-    with gzip.open(gtf_txt_f, 'wt') as f:
-        gene_annots_sorted.to_csv(f, sep='\t', index=False)
+  # get parameters for all specified custom genomes
+  if 'custom' in config['genome']:
+    # get just custom list
+    custom_ls     = config['genome']['custom']
+    for spec_custom in custom_ls:
+      SETUP_LS.append(_get_index_parameters_custom(spec_custom, TENX_NAMES))
+
+  # check no duplicate names
+  setup_names = [ s['name'] for s in SETUP_LS ]
+  assert len(setup_names) == len(set(setup_names)), \
+    "Duplicated genome names are not allowed!"
+
+  # check if reference for tutorial needs to be added
+  if 'human_2024' not in setup_names:
+    spec_tmp    = {'name': "human_2024"}
+    setup_names = [ setup_names, 'human_2024' ]
+    SETUP_LS.append( _get_index_parameters_tenx(spec_tmp, TENX_NAMES) )
+
+  # make dictionary instead
+  SETUP_LS    = dict(zip(setup_names, SETUP_LS))
+
+  return SETUP_LS
+
+
+def _get_index_parameters_tenx(spec_tenx, TENX_NAMES):
+  # check that all genome names are unique
+  assert spec_tenx['name'] in TENX_NAMES, f"{spec_tenx['name']} not a recognized 10x genome name"
+
+  # define defaults
+  params_ls   = {
+    "name":         spec_tenx['name'],
+    "gtf":          None,
+    "mito_str":     TENX_MITOS[ spec_tenx['name'] ],
+    "fasta":        None,
+    "index_dir":    None,
+    "is_prebuilt":  False,
+    "is_tenx":      True,
+    "has_decoys":   True,
+    "has_rrna":     True
+  }
+
+  # add decoys
+  if 'decoys' in spec_tenx:
+    params_ls['has_decoys'] = _safe_boolean(spec_tenx['decoys'])
+  if 'rrna' in spec_tenx:
+    params_ls['has_rrna']   = _safe_boolean(spec_tenx['rrna'])
+
+  # add whether is_prebuilt
+  params_ls['is_prebuilt']  = params_ls['has_decoys'] and params_ls['has_rrna']
+
+  return params_ls
+
+
+def _get_index_parameters_custom(spec_custom, TENX_NAMES):
+  # check if all required entries are specified
+  assert 'name'     in spec_custom, "missing 'name' in custom genome specification"
+  assert 'gtf'      in spec_custom, "missing 'gtf' in custom genome specification"
+  assert 'mito_str' in spec_custom, "missing 'mito_str' in custom genome specification"
+  assert spec_custom['name'] not in TENX_NAMES, \
+    f"The name {spec_custom['name']} overlaps with a name for a 10x genome; please use a different name."
+  assert os.path.isfile(spec_custom['gtf']), \
+    f"file {gtf} specified in configfile doesn't exist"
+  has_fasta   = 'fasta' in spec_custom
+  has_index   = 'index_dir' in spec_custom
+  assert has_fasta + has_index == 1, \
+    "Each custom genome requires exactly one of 'fasta' and 'index_dir' to be defined"
+
+  # define defaults
+  params_ls   = {
+    "name":         None,
+    "gtf":          None,
+    "mito_str":     None,
+    "fasta":        None,
+    "index_dir":    None,
+    "is_prebuilt":  False,
+    "is_tenx":      False,
+    "has_decoys":   True,
+    "has_rrna":     True
+  }
+
+  # add some things
+  params_ls['name']     = spec_custom['name']
+  params_ls['gtf']      = spec_custom['gtf']
+  params_ls['mito_str'] = spec_custom['mito_str']
+
+  # add either fasta or index_dir
+  if has_fasta:
+    assert os.path.isfile(spec_custom['fasta']), f"file {fa} specified in configfile doesn't exist"
+    params_ls['fasta'] = spec_custom['fasta']
+  elif has_index:
+    assert _check_valid_index(spec_custom['index']), f"Alevin index for {params_ls['name']} is incomplete."
+    params_ls['index'] = spec_custom['index']
+
+  # add decoys
+  if 'decoys' in spec_custom:
+    params_ls['has_decoys'] = _safe_boolean(spec_custom['decoys'])
+  if 'rrna' in spec_custom:
+    params_ls['has_rrna'] = _safe_boolean(spec_custom['rrna'])
+
+  return params_ls
+
+
+def _safe_boolean(val):
+  if type(val) is bool:
+    res = val
+  elif val in ["True", "true"]:
+    res = True
+  elif val in ["False", "false"]:
+    res = False
+  else:
+    raise ValueError('{val} is not a boolean')
+
+  return res
+
+
+def _check_valid_index(idx_path):
+  # check if main directory exists
+  if not os.path.isdir(idx_path):
+    raise ValueError(f"The provided path '{idx_path}' is not a valid directory.")
+
+  # define expected directories and files
+  req_dirs = {
+    "idx_dir":  os.path.join(idx_path, 'index'),
+    "ref_dir":  os.path.join(idx_path, 'ref')
+  }
+  req_fs = {
+    "index_info.json":          os.path.join(idx_path, 'index_info.json'),
+    "simpleaf_index_log.json":  os.path.join(idx_path, 'simpleaf_index_log.json'),
+    "gene_id_to_name.tsv":      os.path.join(req_dirs["ref_dir"], 'gene_id_to_name.tsv'),
+    "roers_make-ref.json":      os.path.join(req_dirs["ref_dir"], 'roers_make-ref.json'),
+    "roers_ref.fa":             os.path.join(req_dirs["ref_dir"], 'roers_ref.fa'),
+    "t2g_3col.tsv":             os.path.join(req_dirs["ref_dir"], 't2g_3col.tsv')
+  }
+
+  # Check required directories
+  for dir_name, dir_path in req_dirs.items():
+    if not os.path.isdir(dir_path):
+      raise ValueError(f"The required directory '{dir_name}' is missing at '{idx_path}'.")
+
+  # Check required files
+  missing_fs = [file_name for file_name, file_path in req_fs.items() if not os.path.isfile(file_path)]
+  if missing_fs:
+    raise ValueError(f"The following required files are missing: {', '.join(missing_fs)}")
+
+  return True
+
+
+# function that makes simpleaf index
+def set_up_af_index(scdata_dir, genome_name, fasta_f, gtf_f, index_dir, mito_str, is_prebuilt, is_tenx, has_decoy, has_rrna, n_cores):
+  if is_prebuilt:
+    print(f"'is_prebuilt' is True, value is {is_prebuilt}")
+  else:
+    print(f"'is_prebuilt' is False, value is {is_prebuilt}")
+
+  # create output directories
+  ref_dir   = os.path.join(scdata_dir, 'reference_genomes', genome_name)
+  idx_dir   = os.path.join(scdata_dir, 'alevin_fry_home', genome_name)
+  os.makedirs(ref_dir,  exist_ok=True)
+  os.makedirs(idx_dir,  exist_ok=True)
+  gtf_txt_f = os.path.join(ref_dir, f'{genome_name}_genes_gtf.txt.gz')
+
+  # if prebuilt, just download index
+  if is_prebuilt:
+    _download_prebuilt_index(genome_name, idx_dir)
+    _download_gtf_txt_file(genome_name, ref_dir, gtf_txt_f)
+  else:
+    if is_tenx:
+      if has_rrna == True:
+        fasta_f, gtf_f  = _make_10x_fasta_and_gtf_w_rrna(ref_dir, genome_name)
+      else:
+        fasta_f, gtf_f  = _download_predefined_fasta_and_gtf(ref_dir, genome_name)
+    else:
+      # copy custom files
+      fasta_f, gtf_f  = _copy_custom_fasta_and_gtf(ref_dir, genome_name, fasta_f, gtf_f)
+
+    # build index
+    _build_index_w_simpleaf(genome_name, idx_dir, has_decoy, fasta_f, gtf_f, n_cores = n_cores)
+
+    # save gtf_txt file
+    _make_gtf_txt_file(gtf_f, gtf_txt_f)
+
+
+  # create one dataframe from all dictionaries
+  yaml_f    = os.path.join(idx_dir, f"{genome_name}_index_params.yaml")
+  _make_index_params_yaml(yaml_f, genome_name, fasta_f, index_dir, gtf_f, gtf_txt_f, mito_str, has_decoy, has_rrna, is_prebuilt, is_tenx)
+
+  print(f'completed making index for {genome_name} genome in {scdata_dir}.')
+
+  return 
+
+
+def _download_prebuilt_index(genome_name, idx_dir):
+  # get index url
+  print('Downloading alevin index for ' + genome_name)
+  idx_url   = URLS_ZEN_IDXS[genome_name]
+
+  # make output directory
+  os.chdir(idx_dir)
+
+  # download index
+  subprocess.run(f"wget {idx_url}", shell=True)
+  idx_name  = f'alevin-idx_{genome_name}_rrna.tar.gz'
+
+  # untar
+  subprocess.run(f'tar --strip-components=1 -xvf {idx_name}', shell=True, capture_output=False)
+
+  # remove tar archive
+  os.remove(idx_name)
+
+  return
+
+
+def _download_gtf_txt_file(genome_name, ref_dir, gtf_txt_f):
+  # get index url
+  print('Downloading GTF txt file for ' + genome_name)
+  txt_url   = URLS_GTF_TXTS[genome_name]
+
+  # make output directory
+  os.chdir(ref_dir)
+  subprocess.run(f"wget -O {gtf_txt_f} {txt_url}", shell=True)
+
+  return
+
+
+def _make_10x_fasta_and_gtf_w_rrna(ref_dir, genome_name):
+  print(f"Creating {genome_name} 10x genome with rRNAs")
+  # get bash script to download gtf and fasta
+  bash_f     = f"./scripts/build_10x_style_genomes/build_10x_style_{genome_name}_genome_w_rRNAs.sh"
+  bash_f     = os.path.realpath(bash_f)
+
+  # create a new directory for the specified genome and switch to it
+  gnome_dir  = os.path.join(ref_dir, genome_name)
+  os.makedirs(gnome_dir, exist_ok=True)
+  os.chdir(gnome_dir)
+
+  # run bash script that downloads gtf and 
+  subprocess.run(bash_f, shell=True)
+
+  # define files
+  fasta_f   = os.path.join(gnome_dir, 'genome.fa')
+  gtf_f     = os.path.join(gnome_dir, 'genes.gtf')
+  print('Done!')
+
+  return fasta_f, gtf_f
+
+
+def _download_predefined_fasta_and_gtf(ref_dir, genome_name):
+  print(f'Downloading {genome_name} genome from 10x')
+  link          = URLS_10X_REFS[genome_name]
+  # get tarball 
+  tball         = link.rsplit('/', 1)[-1]
+  
+  # create a new directory for the specified genome and switch to it
+  gnome_dir     = os.path.join(ref_dir, genome_name)
+  os.makedirs(gnome_dir, exist_ok = True)
+  os.chdir(gnome_dir)
         
-    return
+  # download reference into that dir
+  subprocess.run(f'wget {link}', shell=True)
+        
+  # list tar contents
+  tar_out       = subprocess.run(f'tar -tzf {tball}', shell=True, capture_output=True, text=True)
+  tball_all_fs  = tar_out.stdout.splitlines()
+        
+  # look for genome.fa and genes.gtf (or genes.gtf.gz) files and extract the
+  patt          = re.compile(r'(genome\.fa|genes\.gtf(\.gz)?)$') 
+  tball_filt_fs = [file for file in tball_all_fs if patt.search(file)]
+
+  # extract everything
+  for t in tball_filt_fs:
+    ext_spell     = ['tar', '--extract', '--file=' + tball, '--strip-components=2', t]
+    subprocess.run(ext_spell, check=True)
+
+  # unzip
+  gnome_fs = os.listdir()
+  for f in gnome_fs:
+    if f.endswith('.gtf.gz'):
+      subprocess.run(f'gunzip {f}', shell=True, capture_output=False)
+
+  # delete the tarball
+  os.remove(tball)
+  print('Done!')
+
+  fasta_f   = os.path.join(gnome_dir, 'genome.fa')
+  gtf_f     = os.path.join(gnome_dir, 'genes.gtf')
+
+  return fasta_f, gtf_f
 
 
-def list_of_strings(arg):
-    return arg.split(',')
+def _copy_custom_fasta_and_gtf(ref_dir, genome_name, fasta_f, gtf_f):
+  # get index url
+  print('Copying fasta and gtf for ' + genome_name)
 
-def list_of_bools(arg):
-    str_ls = arg.split(',')
-    bool_list = [bool(s) for s in str_ls]
-    return bool_list
+  # create a new directory for the specified genome and switch to it
+  os.makedirs(ref_dir, exist_ok = True)
+  os.chdir(ref_dir)
+  subprocess.run(f"rsync {fasta_f} genome.fa", shell=True)
+  subprocess.run(f"rsync {gtf_f} genes.gtf", shell=True)
+  print('Done.')
+
+  fasta_f   = os.path.join(ref_dir, 'genome.fa')
+  gtf_f     = os.path.join(ref_dir, 'genes.gtf')
+
+  return fasta_f, gtf_f
 
 
+def _build_index_w_simpleaf(genome_name, idx_dir, has_decoy, fasta_f, gtf_f, n_cores = 8):
+  print(f'Creating alevin index for {genome_name} { "with decoys " if has_decoy else "" }in {idx_dir}')
+   
+  # define whether or not to include --decoy-paths flag
+  decoy_flag  = f"--decoy-paths {fasta_f} " if has_decoy else ""
 
-  # make some functions executable from the command line (make_af_idx, get_genome_params, get_scprocess_data)
+  # code for making index
+  bash_script = f"""
+  #!/bin/bash
+  ulimit -n 2048
+
+  # simpleaf configuration
+  export ALEVIN_FRY_HOME="/tmp/alevin_fry_home"
+  mkdir -p ${{ALEVIN_FRY_HOME}}
+  if [ ! -d "${{ALEVIN_FRY_HOME}}" ]; then
+    raise error "couldn't create ALEVIN_FRY_HOME directory in /tmp"
+  fi
+  simpleaf set-paths
+
+  # change working directory to tmp directory
+  cd ${{ALEVIN_FRY_HOME}}
+
+  # set up this build
+  TMP_IDX_DIR="${{ALEVIN_FRY_HOME}}/{genome_name}"
+
+  # simpleaf index
+  simpleaf index \
+    --output ${{TMP_IDX_DIR}} \
+    --fasta {fasta_f} \
+    --gtf {gtf_f} \
+    {decoy_flag} --overwrite --threads {n_cores} \
+    --use-piscem
+
+  # copy results to nice place, tidy up
+  rsync -avP ${{TMP_IDX_DIR}}/ {idx_dir}
+  rm -rf ${{ALEVIN_FRY_HOME}}
+  """
+
+  # run bash script
+  print(bash_script)
+  subprocess.run(bash_script, shell=True, executable='/bin/bash', check=True)
+  
+  return
+
+
+def _make_gtf_txt_file(gtf_f, gtf_txt_f):
+  print(f'Creating txt files from gtf')
+  # load gtf
+  import pyranges as pr
+  gtf         = pr.read_gtf(gtf_f, as_df = True)
+
+  # restrict to just genes, remove some columns
+  gene_annots = gtf[ gtf['Feature'] == 'gene' ]
+  gene_annots = gene_annots[['gene_id', 'gene_name', 'gene_type', 'Chromosome', 'Start', 'End', 'Strand']]
+  
+  # Rename columns
+  gene_annots.rename(columns={
+    'gene_id': 'ensembl_id',
+    'gene_name': 'symbol',
+    'Chromosome': 'chromosome',
+    'Start': 'start',
+    'End': 'end',
+    'Strand': 'strand'
+  }, inplace=True)
+
+  # calculate width and add gene_id column
+  gene_annots['width']    = gene_annots['end'] - gene_annots['start'] + 1
+  gene_annots['gene_id']  = gene_annots['symbol'] + '_' + gene_annots['ensembl_id']
+  
+  # do some sorting of chromosomes 
+  chr_freq = gene_annots['chromosome'].value_counts()
+  gene_annots['chr_freq'] = gene_annots['chromosome'].map(chr_freq)
+  gene_annots_sorted = gene_annots.sort_values(by=['chr_freq', 'start', 'end'], ascending=[False, True, True])
+  gene_annots_sorted = gene_annots_sorted.drop(columns=['chr_freq'])
+  
+  # make gene_id the first column
+  gene_id_col = gene_annots_sorted.pop('gene_id')
+  gene_annots_sorted.insert(0, 'gene_id', gene_id_col)
+  
+  # make sure there are no duplicated gene ids
+  assert gene_annots_sorted['gene_id'].duplicated().sum() == 0
+
+  # save
+  with gzip.open(gtf_txt_f, 'wt') as f:
+    gene_annots_sorted.to_csv(f, sep='\t', index=False)
+      
+  return
+
+
+def _make_index_params_yaml(yaml_f, genome_name, fasta_f, index_dir, gtf_f, gtf_txt_f, mito_str, 
+  has_decoy, has_rrna, is_prebuilt, is_tenx):
+  param_ls  = {
+    "genome_name": genome_name, 
+    "fasta_f": fasta_f, 
+    "index_dir": index_dir, 
+    "gtf_f": gtf_f, 
+    "gtf_txt_f": gtf_txt_f, 
+    "mito_str": mito_str, 
+    "has_decoy": has_decoy, 
+    "has_rrna": has_rrna, 
+    "is_prebuilt": is_prebuilt, 
+    "is_tenx": is_tenx
+  }
+  with open(yaml_f, 'w') as f:
+    yaml.dump(param_ls, f)
+
+  return
+
+
+def save_index_params_csv(csv_f, yaml_fs):
+  # load all yamls
+  assert all([ os.path.isfile(f) for f in yaml_fs]), "not all yaml files exist"
+
+  # make df
+  params_df = pd.DataFrame( columns = ["genome_name", "mito_str", "gtf_txt_f"] )
+  for i, yaml_f in enumerate(yaml_fs):
+    with open(yaml_f) as f:
+      yaml_ls = yaml.load(f, Loader=yaml.FullLoader)
+    params_df.loc[i] = [yaml_ls['genome_name'], yaml_ls['mito_str'], yaml_ls['gtf_txt_f']]
+
+  # save to csv
+  params_df.to_csv(csv_f, index = False)
 
 
 if __name__ == "__main__":
-  parser = argparse.ArgumentParser()
-  subparsers = parser.add_subparsers(dest="function_name", help="Name of the function to run")
+  # set up parser
+  parser      = argparse.ArgumentParser()
+  subparsers  = parser.add_subparsers(dest="function_name", help="Name of the function to run")
 
-    # parser for get_scprocess_data
-  parser_getdata = subparsers.add_parser('get_scprocess_data')
-  parser_getdata.add_argument('scp_data_dir', type=str)
+  # parser for get_scprocess_data
+  getdata     = subparsers.add_parser('get_scprocess_data')
+  getdata.add_argument('scdata_dir', type=str)
 
-    # parsers for get_genome_params
-  parser_getgnomes = subparsers.add_parser('get_genome_params')
-  parser_getgnomes.add_argument('genomes', type=list_of_strings, help='list with all genome names')
-  parser_getgnomes.add_argument('fasta_fs', type=list_of_strings, help='list with paths to all fasta files')
-  parser_getgnomes.add_argument('gtf_fs', type=list_of_strings, help='list with paths to all gtf files')
-  parser_getgnomes.add_argument('mito_str', type=list_of_strings, help='list with all mitochondrial gene identifiers')
-  parser_getgnomes.add_argument('decoys', type=list_of_bools, help='list with bool values definiing whether or not to use decoys when building indices with simpleaf')
-  parser_getgnomes.add_argument('scp_data_dir', type=str)
+  # parsers for set_up_af_index
+  get_af      = subparsers.add_parser('set_up_af_index')
+  get_af.add_argument('scdata_dir', type = str)
+  get_af.add_argument('genome', type = str, help = 'genome name')
+  get_af.add_argument('fasta_f', type = str, help = 'path to fasta file')
+  get_af.add_argument('gtf_f', type = str, help = 'path to gtf file')
+  get_af.add_argument('index_dir', type =str, help = 'path to prebuilt alevin index' )
+  get_af.add_argument('mito_str', type = str, help = 'mitochondrial gene identifier')
+  get_af.add_argument('is_prebuilt', type = str, 
+    help = 'bool value defining whether or not the user has specified a prebuilt index')
+  get_af.add_argument('is_tenx', type = str, 
+    help = 'bool value defining whether or not the user has specified an ref genome provided by 10x')
+  get_af.add_argument('has_decoy', type = str, 
+    help = 'bool value defining whether or not to use decoys when building indices with simpleaf')
+  get_af.add_argument('has_rrna', type = str, 
+    help = 'bool value defining whether or not to include ribosomal rrnas for simpleaf index')
+  get_af.add_argument('cores', type = int)
 
+  # parsers for save_index_params_csv
+  save_csv    = subparsers.add_parser('save_index_params_csv')
+  save_csv.add_argument('csv_f', type = str)
+  save_csv.add_argument('yaml_fs', type = str, nargs = "+", help = 'list of yaml files')
+
+  # decide which function
   args = parser.parse_args()
-
   if args.function_name == 'get_scprocess_data':
-      get_scprocess_data(args.scp_data_dir)
-  elif args.function_name == 'get_genome_params':
-      get_genome_params(args.genomes, args.fasta_fs, args.gtf_fs, args.mito_str, args.decoys, args.scp_data_dir)
+    get_scprocess_data(args.scdata_dir)
+  elif args.function_name == 'set_up_af_index':
+    set_up_af_index(args.scdata_dir, args.genome, args.fasta_f, args.gtf_f, args.index_dir, args.mito_str, 
+      _safe_boolean(args.is_prebuilt), _safe_boolean(args.is_tenx), 
+      _safe_boolean(args.has_decoy), _safe_boolean(args.has_rrna), args.cores)
+  elif args.function_name == 'save_index_params_csv':
+    save_index_params_csv(args.csv_f, args.yaml_fs)
   else:
     parser.print_help()
 

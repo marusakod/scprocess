@@ -91,7 +91,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
     setup_config      = yaml.safe_load(stream)
 
   if ('profile' in setup_config) and setup_config['profile'] is not None:
-    profile = setup_config['profile']
+    profile     = setup_config['profile']
     
     # check if profile exists
     profile_dir = os.path.join(sc_dir, 'profiles', profile)
@@ -122,8 +122,8 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   wflowr_fs_ls = ['_workflowr.yml', '.gitignore', '.Rprofile', '.gitattributes',
             'analysis/_site.yml', 'analysis/about.Rmd', 'analysis/index.Rmd', 'analysis/license.Rmd', 'public/.nojekyll']
   
-  wflowr_fs_ful_ls = [os.path.join(proj_dir, f) for f in wflowr_fs_ls]
-  assert all([os.path.isfile(f) for f in wflowr_fs_ful_ls]), \
+  wflowr_fs_full_ls = [os.path.join(proj_dir, f) for f in wflowr_fs_ls]
+  assert all([os.path.isfile(f) for f in wflowr_fs_full_ls]), \
     f"proj_dir {config['proj_dir']} is not a workflowr project; you can create a workflowr project using newproj"
   
   # check if samples are multiplexed using htos
@@ -188,9 +188,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   fastq_dir = config['fastq_dir']
   if not os.path.isabs(fastq_dir):
     fastq_dir = os.path.join(proj_dir, fastq_dir)
-  assert os.path.isdir(fastq_dir), \
-    f"{fastq_dir} if not a valid directory"
-  
+  assert os.path.isdir(fastq_dir), f"{fastq_dir} if not a valid directory"
   
   samples_ls = sample_df[sample_var].tolist()
   # check that samples don't have '_R1' or '_R2' in their names 
@@ -212,10 +210,8 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   print('  ' + ', '.join(samples_ls))
   print('bash '+ f'{sc_dir}/scprocess.sh'+ ' ' +snakefile+ ' '+ os.path.abspath(configfile) + ' '+ proj_dir+ ' '+ rule+ ' '+ extraargs)
 
-  # start snakemake
+  # start snakemake 
   subprocess.call(['bash', f'{sc_dir}/scprocess.sh', snakefile, os.path.abspath(configfile), proj_dir, rule, extraargs])
-
-
 
 
 if __name__ == '__main__':

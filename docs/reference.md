@@ -5,32 +5,48 @@
 **Description**: Download all data required for {{ software_name }} and index reference genomes for `simpleaf`.
 
 **Parameters**:
-The command requires a configuration file named `.scprocess_setup.yaml` located in {{ software_name }} data directory (for instructions on how to set up the {{ software_name }} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, the user has to specify which reference genome will be made available for {{ software_name }}. For example:
+The command requires a configuration file named `scprocess_setup.yaml` located in {{ software_name }} data directory (for instructions on how to set up the {{ software_name }} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, the user has to specify which reference genome will be made available for {{ software_name }}. For example:
 
 ```yaml
 genome:
   tenx:
     - name: human_2024 
-    - decoys: True
+      decoys: True
+      rrnas: True
   custom:
     - name: custom_genome_name
-      fasta: '/path/to/genome.fa'
-      gtf: '/path/to/genes.gtf'
+      fasta: /path/to/genome.fa
+      gtf: /path/to/genes.gtf
       decoys: True
       mito_str: "^mt-"
+    - name: custom_genome_name2
+      index_dir: /path/to/prebuild/alevin/index
+      gtf: /path/to/genes.gtf
+      mito_str: "^MT-"
 ```
 
-Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with `scsetup` by adding `tenx` to the `.scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.  
+Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with `scsetup` by adding `tenx` to the `scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.  
 
-Names and specifications for custom references should be listed in the `custom` section of the `.scprocess_setup.yaml` file. For each `custom` genome users have to provide the following parameters:
+Names and specifications for custom references should be listed in the `custom` section of the `scprocess_setup.yaml` file. For each `custom` genome users have to provide the following parameters:
 
-* `fasta`: path to FASTA file 
+* one of:
+    + `fasta`: path to FASTA file
+    + `index_dir`: path to prebuild alevin index; when specified `decoys` option is ignored
 * `gtf`: path to GTF file [(specific format?)]
 * `mito_str`: regular expression used to identify genes in the mitochondial genome (example for mouse: `"^mt-"`)
 
 Optional parameters for both `tenx` and `custom` references are:
 
-* `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `True` for all genomes. 
+* `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `True` for all genomes.
+
+Optional paramater for `tenx` references is:
+
+* `rrnas`: whether or not ribosomal RNAs should be included in the reference. If not specified it defaults to `True` for all `tenx` genomes.
+
+!!! note "Impact of custom parameters for `tenx` genomes on `scsetup` runtime"
+
+    When configuring `tenx` genomes with their default values, `scsetup` will download prebuilt indices optimized for `simpleaf`. However, if the default parameters are modified (e.g., setting `rrnas` or `decoys` to `False`), `scsetup` will build the indices from scratch during execution, which will increase the runtime.
+
 
 !!! info "More about decoys"
     {{ software_name }} utilizes `simpleaf`, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter in `scsetup` is set to `True`. This option allows `simpleaf` to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to [Srivastava et al., 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02151-8).
@@ -42,8 +58,11 @@ Optional parameters for both `tenx` and `custom` references are:
 
 **Parameters**: 
 
-* `-n`/`--name`: name of new project directory
-* `-w`/`--where`: path to directory where a new project will be created
+* `name` (positional): name of the new `workflowr` project directory
+* `-w`/`--where` (optional): path to the directory where the new project will be created; defaults to the current working directory
+* `-s`/`--sub` (optional): if provided, creates `data/fastqs` and `data/metadata` subdirectories within the project.
+* `-c`/`--config` (optional): if provided, generates a template configuration YAML file for {{ software_name }}
+
 
 ## `plotKnee`
 
@@ -180,8 +199,7 @@ This is an example config file for {{ software_name }} with all parameters and t
         mb_html_marker_genes: 8192            
         mb_lbl_label_celltypes: 16384         
         mb_lbl_save_subset_sces: 16384        
-        mb_lbl_render_template_rmd: 4096      
-
+        mb_lbl_render_template_rmd: 4096
     ```
 
 === "placeholders"
@@ -292,8 +310,7 @@ This is an example config file for {{ software_name }} with all parameters and t
         mb_html_marker_genes: 8192            
         mb_lbl_label_celltypes: 16384         
         mb_lbl_save_subset_sces: 16384        
-        mb_lbl_render_template_rmd: 4096    
-
+        mb_lbl_render_template_rmd: 4096
     ```
 
 
@@ -453,6 +470,3 @@ sample_3:
 * `mb_lbl_label_celltypes`: maximum memory required (in MB) to label cell types. Value applies to the entire job, not per thread.
 * `mb_lbl_save_subset_sces`: maximum memory required (in MB) to save `SingleCellExperiment` objects with cell subsets. Value applies to the entire job, not per thread.
 * `mb_lbl_render_template_rmd`: maximum memory required (in MB) to render HTML document from markdown template. Value applies to the entire job, not per thread.
-
-
-

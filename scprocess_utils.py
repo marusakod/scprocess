@@ -2,6 +2,7 @@
 import warnings
 import yaml
 import pandas as pd
+import math
 import os
 import re
 import glob
@@ -9,20 +10,19 @@ import datetime
 import subprocess
 
 
-def __get_cl_ls(config, mito_str, scprocess_data_dir):
+def __get_cl_ls(config, scprocess_data_dir):
   # get parameters
   PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, _, _, _, _, _, _, DATE_STAMP, _, _ = \
     get_project_parameters(config, scprocess_data_dir)
-  _, _, _, _, _, _, _, INT_SEL_RES = \
-    get_integration_parameters(config, mito_str)
-
+  MKR_SEL_RES, _, _, _, _, _, _, _, _, _ = \
+    get_marker_genes_parameters(config, None, scprocess_data_dir)
   # specify harmony outputs
   int_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
   hmny_f      = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
 
   # get list of clusters
   hmny_dt     = pd.read_csv(hmny_f)
-  cl_col      = f"RNA_snn_res.{INT_SEL_RES}"
+  cl_col      = f"RNA_snn_res.{MKR_SEL_RES}"
   cl_ls       = list(hmny_dt[cl_col].unique())
   cl_ls       = [cl for cl in cl_ls if str(cl) != "nan"]
   cl_ls       = sorted(cl_ls)
@@ -190,14 +190,12 @@ def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
       
   return DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_IDS, SAMPLE_MAPPING
 
-      
-
 
 # get list of samples
 def get_project_parameters(config, scprocess_data_dir):
   # check expected variables are in the config file
   for v in ["proj_dir", "fastq_dir", "short_tag", "full_tag", "date_stamp", "your_name", "affiliation", "sample_metadata", "species"]:
-    assert v in config, f"{v} not in config file"
+    assert v in config, f"{v} needs to be an entry at the top level of the config file"
 
   ## what is specified in config directory?
   PROJ_DIR      = config["proj_dir"]
@@ -210,14 +208,13 @@ def get_project_parameters(config, scprocess_data_dir):
   SPECIES       = config["species"]
 
   # check if selected species is valid
-  setup_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
+  index_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
 
-    # from index_parameters.csv get valid values for species
-  setup_params= pd.read_csv(setup_params_f)
-  valid_species = setup_params['genome_name'].tolist()
+  # from index_parameters.csv get valid values for species
+  index_params= pd.read_csv(index_params_f)
+  valid_species = index_params['genome_name'].tolist()
 
-  assert SPECIES in valid_species, \
-   f"species {SPECIES} not defined"
+  assert SPECIES in valid_species, f"species {SPECIES} not defined"
 
   # check whether date is given as datetime object
   if isinstance(DATE_STAMP, datetime.date):
@@ -290,7 +287,10 @@ def get_project_parameters(config, scprocess_data_dir):
     for var in METADATA_VARS:
       assert var in samples_df.columns, f"{var} not in sample metadata"
       # check that there are less than 10 unique values (otherwise probably not a categorical variable)
-      uniq_vals = len(set(samples_df[var].tolist()))
+      var_vals  = samples_df[var].tolist()
+      if all(isinstance(x, float) and math.isnan(x) for x in var_vals):
+        continue
+      uniq_vals = len(set(var_vals))
       assert uniq_vals <= 10, \
         f"{var} variable has more than 10 unique values"
   
@@ -333,13 +333,13 @@ def get_alevin_parameters(config, scprocess_data_dir, SPECIES):
     "chemistry not valid"
   
   # get setup params
-  setup_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
+  index_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
 
-    # from index_parameters.csv get valid values for species
-  setup_params= pd.read_csv(setup_params_f)
+  # from index_parameters.csv get valid values for species
+  index_params= pd.read_csv(index_params_f)
      
   # get mito strings from setup params
-  AF_MITO_STR = setup_params.loc[setup_params['genome_name'] == SPECIES, 'mito_str'].values[0]
+  AF_MITO_STR = index_params.loc[index_params['genome_name'] == SPECIES, 'mito_str'].values[0]
 
   # get af index directory and check if exists
   AF_HOME_DIR = os.path.join(scprocess_data_dir, 'alevin_fry_home') # check if this exists in scprocess script
@@ -348,7 +348,7 @@ def get_alevin_parameters(config, scprocess_data_dir, SPECIES):
     f"alevin index for {SPECIES} doesn't exist"
   
   # get gtf txt file, check that exists
-  AF_GTF_DT_F = setup_params.loc[setup_params['genome_name'] == SPECIES, 'gtf_txt_f'].values[0]
+  AF_GTF_DT_F = index_params.loc[index_params['genome_name'] == SPECIES, 'gtf_txt_f'].values[0]
 
   return AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY
 
@@ -376,11 +376,11 @@ def get_ambient_parameters(config):
     if 'cb_max_prop_kept' in config['ambient']:
       CELLBENDER_PROP_MAX_KEPT      = config['ambient']['cb_max_prop_kept']
     if 'cb_force_expected_cells' in config['ambient']:
-      FORCE_EXPECTED_CELLS          = config['ambient']['force_expected_cells']
+      FORCE_EXPECTED_CELLS          = config['ambient']['cb_force_expected_cells']
     if 'cb_force_total_droplets_included' in config['ambient']:
-      FORCE_TOTAL_DROPLETS_INCLUDED = config['ambient']['force_total_droplets_included']
+      FORCE_TOTAL_DROPLETS_INCLUDED = config['ambient']['cb_force_total_droplets_included']
     if 'cb_force_low_count_threshold' in config['ambient']:
-      FORCE_LOW_COUNT_THRESHOLD     = config['ambient']['force_low_count_threshold']
+      FORCE_LOW_COUNT_THRESHOLD     = config['ambient']['cb_force_low_count_threshold']
     if 'cb_force_learning_rate' in config['ambient']:
       CELLBENDER_LEARNING_RATE      = config['ambient']['cb_force_learning_rate']
 
@@ -451,8 +451,6 @@ def get_qc_parameters(config):
     QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS, EXCLUDE_MITO
 
 
-
-
 # define hvg parameters 
 def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F): 
 
@@ -521,12 +519,8 @@ def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
   return HVG_METHOD, HVG_SPLIT_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES
 
 
-        
-
-
 # define integration parameters
 def get_integration_parameters(config, mito_str): 
-
   # set some more default values
   INT_CL_METHOD   = 'leiden'
   INT_REDUCTION   = 'harmony'
@@ -535,7 +529,6 @@ def get_integration_parameters(config, mito_str):
   INT_DBL_CL_PROP = 0.5
   INT_THETA       = 0.1
   INT_RES_LS      = [0.1, 0.2, 0.5, 1, 2]
-  INT_SEL_RES     = 0.2
 
   # change defaults if specified
   if ('integration' in config) and (config['integration'] is not None):
@@ -559,73 +552,70 @@ def get_integration_parameters(config, mito_str):
       INT_THETA       = config['integration']['int_theta']
     if 'int_res_ls' in config['integration']:
       INT_RES_LS      = config['integration']['int_res_ls']
-    if 'int_sel_res' in config['integration']:
-      INT_SEL_RES     = config['integration']['int_sel_res']
 
-  return INT_CL_METHOD, INT_REDUCTION, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS, INT_SEL_RES
-
+  return INT_CL_METHOD, INT_REDUCTION, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS
 
 
 def get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
-    
-    # set defaults
-    CUSTOM_MKR_NAMES = ""
-    CUSTOM_MKR_PATHS = ""
-    
-    if ('marker_genes' in config) and (config['marker_genes'] is not None):
-      if 'custom_sets' in config["marker_genes"]:
-        custom_sets = config["marker_genes"]["custom_sets"]
-        mkr_names = []
-        mkr_paths = []
+  
+  # set defaults
+  CUSTOM_MKR_NAMES = ""
+  CUSTOM_MKR_PATHS = ""
+  
+  if ('marker_genes' in config) and (config['marker_genes'] is not None):
+    if 'custom_sets' in config["marker_genes"]:
+      custom_sets = config["marker_genes"]["custom_sets"]
+      mkr_names = []
+      mkr_paths = []
 
-        for i, gene_set in enumerate(custom_sets):
-          assert "name" in gene_set, \
-            f"Entry {i+1} in 'custom_sets' is missing a 'name' field."
+      for i, gene_set in enumerate(custom_sets):
+        assert "name" in gene_set, \
+          f"Entry {i+1} in 'custom_sets' is missing a 'name' field."
 
-          name = gene_set["name"]
+        name = gene_set["name"]
 
-          # check for commas in names
-          assert "," not in name, \
-            f"Custom marker set name '{name}' contains a comma, which is not allowed."
+        # check for commas in names
+        assert "," not in name, \
+          f"Custom marker set name '{name}' contains a comma, which is not allowed."
 
-          file_path = gene_set.get("file", os.path.join(SCPROCESS_DATA_DIR, 'marker_genes', f"{name}.csv"))
+        file_path = gene_set.get("file", os.path.join(SCPROCESS_DATA_DIR, 'marker_genes', f"{name}.csv"))
 
-          if not os.path.isabs(file_path):
-            file_path = os.path.join(PROJ_DIR, file_path)
+        if not os.path.isabs(file_path):
+          file_path = os.path.join(PROJ_DIR, file_path)
 
-          assert os.path.isfile(file_path), \
-            f"File not found for marker set '{name}'"
+        assert os.path.isfile(file_path), \
+          f"File not found for marker set '{name}'"
 
-          assert file_path.endswith(".csv"), \
-            f"File for custom marker set '{name}' is not a CSV file"
+        assert file_path.endswith(".csv"), \
+          f"File for custom marker set '{name}' is not a CSV file"
 
-          # check csv file contents
-          mkrs_df = pd.read_csv(file_path)
- 
-          req_col = "label"
-          opt_cols = ["symbol", "ensembl_id"]
-        
-          assert req_col in mkrs_df.columns, \
-            f"File '{file_path}' is missing the mandatory column 'label'."
-        
-          assert any(col in mkrs_df.columns for col in opt_cols), \
-            f"File '{file_path}' must contain either 'symbol' or 'ensembl_id' column."
-            
+        # check csv file contents
+        mkrs_df = pd.read_csv(file_path)
 
-          # Store validated values
-          mkr_names.append(name)
-          mkr_paths.append(file_path)
+        req_col = "label"
+        opt_cols = ["symbol", "ensembl_id"]
+      
+        assert req_col in mkrs_df.columns, \
+          f"File '{file_path}' is missing the mandatory column 'label'."
+      
+        assert any(col in mkrs_df.columns for col in opt_cols), \
+          f"File '{file_path}' must contain either 'symbol' or 'ensembl_id' column."
+          
 
-        CUSTOM_MKR_NAMES = ",".join(mkr_names)
-        CUSTOM_MKR_PATHS = ",".join(mkr_paths)
-    
-    return CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS
-        
+        # Store validated values
+        mkr_names.append(name)
+        mkr_paths.append(file_path)
+
+      CUSTOM_MKR_NAMES = ",".join(mkr_names)
+      CUSTOM_MKR_PATHS = ",".join(mkr_paths)
+  
+  return CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS
 
 
 # define marker_genes parameters
 def get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR): 
   # set some more default values
+  MKR_SEL_RES     = 0.2
   MKR_GSEA_DIR    = os.path.join(SCPROCESS_DATA_DIR, 'gmt_pathways')
   MKR_MIN_CL_SIZE = 1e2
   MKR_MIN_CELLS   = 10
@@ -638,6 +628,8 @@ def get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
 
   # change defaults if specified
   if ('marker_genes' in config) and (config['marker_genes'] is not None):
+    if 'mkr_sel_res' in config['marker_genes']:
+      MKR_SEL_RES     = config['marker_genes']['mkr_sel_res']
     if 'mkr_min_cl_size' in config['marker_genes']:
       MKR_MIN_CL_SIZE = config['marker_genes']['mkr_min_cl_size']
     if 'mkr_min_cells' in config['marker_genes']:
@@ -656,8 +648,7 @@ def get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
   # get custom marker files
   CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS = get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
 
-  return MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS
-
+  return MKR_SEL_RES, MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS
 
 
 # define marker_genes parameters
@@ -741,7 +732,6 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
   return LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_SCE_SUBSETS, LBL_TISSUE, CUSTOM_LABELS_F
 
 
-
 # define metacells parameters
 def get_metacells_parameters(config): 
   # set some more default values
@@ -772,7 +762,7 @@ def get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR ):
   AMBIENT_GENES_FDR_THR   = 0.01
   
   if ('pb_empties' in config) and (config['pb_empties'] is not None):
-    if 'ambinet_genes_logfc_thr' in config['pb_empties']:
+    if 'ambient_genes_logfc_thr' in config['pb_empties']:
       AMBIENT_GENES_LOGFC_THR = config['pb_empties']['ambient_genes_logfc_thr']
     if 'ambient_genes_fdr_thr'   in config['pb_empties']:
       AMBIENT_GENES_FDR_THR   = config['pb_empties']['ambient_genes_fdr_thr']
@@ -818,7 +808,7 @@ def get_zoom_parameters(config, MITO_STR, scprocess_data_dir):
     ZOOM_NAMES    = []
     ZOOM_SPEC_LS  = []
   else:
-    cl_ls         = __get_cl_ls(config, MITO_STR, scprocess_data_dir)
+    cl_ls         = __get_cl_ls(config, scprocess_data_dir)
     ZOOM_NAMES    = list(config['zoom'].keys())
     ZOOM_SPEC_LS  = dict(zip(
       ZOOM_NAMES,
@@ -863,8 +853,8 @@ def get_resource_parameters(config):
       MB_SAVE_ALEVIN_TO_H5            = config['resources']['mb_save_alevin_to_h5']
     if 'mb_run_ambient' in config['resources']:
       MB_RUN_AMBIENT               = config['resources']['mb_run_ambient']
-    if 'mb_get_barode_qc_metrics' in config['resources']:
-      MB_GET_BARCODE_QC_METRICS    = config['resources']['mb_get_barcode_qc_metrics']
+    if 'mb_get_barcode_qc_metrics' in config['resources']:
+      MB_GET_BARCODE_QC_METRICS   = config['resources']['mb_get_barcode_qc_metrics']
     if 'mb_run_scdblfinder' in config['resources']:
       MB_RUN_SCDBLFINDER              = config['resources']['mb_run_scdblfinder']
     if 'mb_combine_scdblfinder_outputs' in config['resources']:
@@ -909,5 +899,4 @@ def get_resource_parameters(config):
     MB_META_SAVE_METACELLS, \
     MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
     MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD
-
 

@@ -30,7 +30,7 @@ dependencies:
 - bioconductor-edgeR=4.0.2
 - bioconductor-fgsea=1.28.0
 - bioconductor-fishpond=2.8.0
-#- r-xgboost=1.7.5.1
+- r-xgboost=3.0.2
 - r-forcats=1.0.0
 - r-future=1.33.0
 - r-ggbeeswarm=0.7.2

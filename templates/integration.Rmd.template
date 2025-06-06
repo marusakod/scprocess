@@ -46,7 +46,6 @@ qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') 
 integration_f      = "${integration_f}"
 res_ls             = "${INT_RES_LS}" %>%
  str_split(pattern = ',') %>% unlist() %>% as.numeric()
-sel_res     = ${INT_SEL_RES}
 dbl_cl_prop = ${INT_DBL_CL_PROP}
 ```
 

@@ -1,0 +1,18 @@
+image: python:3.8-buster
+
+before_script:
+  - pip install -r mkdocs_reqs.txt
+
+stages:
+  - deploy
+
+pages:
+  stage: deploy
+  script:
+    - mkdocs build --strict --verbose
+  artifacts:
+    paths:
+    - public
+  rules:
+  - if: $CI_COMMIT_BRANCH == 'main-shpc'
+

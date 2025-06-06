@@ -7,7 +7,7 @@ import pandas as pd
 import re
 import glob
 import subprocess
-
+import shlex
 
 
 def run_scsetup(sc_dir, snakefile, extraargs):
@@ -17,7 +17,7 @@ def run_scsetup(sc_dir, snakefile, extraargs):
   scprocess_data_dir = os.getenv('SCPROCESS_DATA_DIR')
 
   if scprocess_data_dir:
-    print(f'SCPROCESS_DATA_DIR it set to: {scprocess_data_dir}')
+    print(f'SCPROCESS_DATA_DIR is set to: {scprocess_data_dir}')
   else:
     raise ValueError('SCPROCESS_DATA_DIR is not defined in .bashrc')
   
@@ -26,7 +26,7 @@ def run_scsetup(sc_dir, snakefile, extraargs):
    "SCPROCESS_DATA_DIR is not a directory"
   
   # check that config file exists
-  configfile = os.path.join(scprocess_data_dir, '.scprocess_setup.yaml')
+  configfile = os.path.join(scprocess_data_dir, 'scprocess_setup.yaml')
   assert os.path.exists(configfile), \
     f"Config file {configfile} does not exist"
   
@@ -47,37 +47,52 @@ def run_scsetup(sc_dir, snakefile, extraargs):
     # add snakemake flag
     extraargs = extraargs + ' --workflow-profile ' + profile_dir
     
-  # start snakemake
-  subprocess.call(['bash', f'{sc_dir}/scsetup.sh', snakefile, os.path.abspath(configfile), extraargs])
+  # change scprocess directory
+  scprocess_dir  = os.path.dirname(__file__)
+  os.chdir(scprocess_dir)
+
+  # change scprocess directory
+  print("starting scprocess setup")
+  subprocess.run(['echo', 'snakemake', 
+    "--snakefile", snakefile, 
+    "--configfile", os.path.abspath(configfile),
+    "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", "--use-conda", 
+    *shlex.split(extraargs)])
+  subprocess.run(['snakemake', 
+    "--snakefile", snakefile, 
+    "--configfile", os.path.abspath(configfile),
+    "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", "--use-conda", 
+    *shlex.split(extraargs)])
 
 
 if __name__ == '__main__':
   # define scprocess directory
   sc_dir    = os.path.dirname(os.path.realpath(__file__))
-  # sc_dir    = "/home/macnairw/packages/scProcess/"
 
   # define arguments
-  parser    = argparse.ArgumentParser(description = 'setup for scprocess: a snakemake workflow for processing single cell RNAseq data.')
+  parser    = argparse.ArgumentParser( description = '''
+    setup for scprocess: a snakemake workflow for processing single cell RNAseq data.
+    ''')
   parser.add_argument("-n", "--dry-run", action="store_true", 
     help = '''
-       "dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.
-       ''')
-  parser.add_argument("-E", "--extraargs", type = str, 
+      "dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.
+      ''')
+  parser.add_argument("-E", "--extraargs", action="store", nargs=1, type=str,
     help = '''
-       extra snakamake arguments. Must be provided within quotes and begin with a whitespace.
-       For example, to have a dryrun: -E " -n"
-       ''')
+      extra snakamake arguments. Must be provided within quotes and use an equals sing.
+      For example, to have a dryrun: -E="-n"
+      ''')
        
   # get arguments
   args      = parser.parse_args()
 
   # select snakefile corresponding to workflow
-  snakefile = os.path.join(sc_dir, "setup_rules.smk")
+  snakefile = os.path.join(sc_dir, "rules/setup_rules.smk")
 
   # sort out extra arguments
   extraargs = ''
   if args.extraargs:
-    extraargs = args.extraargs
+    extraargs = args.extraargs[0]
   if args.dry_run:
     extraargs = extraargs + " -np"
   

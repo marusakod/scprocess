@@ -24,6 +24,7 @@ calculate_marker_genes <- function(integration_f, sces_yaml_f, pb_f, mkrs_f, pb_
   # check some inputs
   assert_that(
     is.character(sces_yaml_f),
+    is.character(sel_res),
     is.character(pb_f),
     is.character(mkrs_f),
     is.character(pb_hvgs_f),
@@ -38,7 +39,6 @@ calculate_marker_genes <- function(integration_f, sces_yaml_f, pb_f, mkrs_f, pb_
     dir.exists(gsea_dir)
   )
   assert_that(
-    is.numeric(sel_res),
     is.numeric(min_cl_size),
     is.numeric(min_cells),
     is.numeric(min_cpm_go),
@@ -128,7 +128,6 @@ get_fgsea_genesets <- function(gsea_dir, species) {
     "Hallmark"
   ) %>% setNames(names(gsets_list))
   return(gsets_list)
-
 }
 
 
@@ -218,7 +217,6 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, mi
   
   message('done!')
   return(pb)
-  
 }
 
 
@@ -346,7 +344,7 @@ make_logcpms_all <- function(pb, lib_size_method = c("edger", "raw", "pearson",
 
   # calculate logcpms
   logcpms_all = bplapply(cl_ls, function(sel_cl) {
-      message(sel_cl)
+      message(sel_cl, appendLF = FALSE)
       # message(sel_cl)
       tmp_dt    = .get_logcpm_dt_one_cl(pb, cl = sel_cl,
         min_cells = min_cells, lib_size_method = lib_size_method)
@@ -609,7 +607,7 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt,
     # fit model to each cluster
     message('  run edgeR on each cluster')
     mkrs_pb_dt  = cl_ls %>% bplapply( function(sel_cl) {
-      message('    ', sel_cl)
+      message('    ', sel_cl, appendLF = FALSE)
       # make design matrix for this celltype
       this_d    = copy(des_all) %>% .[, is_cluster := cluster == sel_cl ] %>%
         model.matrix( ~ is_cluster, data = . )
@@ -759,7 +757,7 @@ calc_fgsea_dt <- function(gsets_list, fgsea_fs, markers_dt, gsea_cut,
     fgsea_f   = fgsea_fs[[p]]
 
     # get pathways
-    message('  ', p)
+    message('  ', p, appendLF = FALSE)
     paths_f   = gsets_list[[p]]
     pathways  = gmtPathways(paths_f)
 
@@ -1072,6 +1070,8 @@ plot_clusters_by_metadata <- function(meta_dt, clusts_dt, meta_vars = NULL,
   # join metadata and clusters
   melt_dt   = clusts_dt %>%
     .[, .N, by = .(sample_id, cluster) ] %>%
+    dcast.data.table( sample_id ~ cluster, value.var = "N", fill = 0) %>% 
+    melt.data.table( id = "sample_id", variable.name = "cluster", value.name = "N") %>% 
     merge(meta_dt[, c('sample_id', meta_vars), with = FALSE ], by = "sample_id") %>%
     melt.data.table( measure = meta_vars, var = "meta_var", val = "meta_val" ) %>%
     .[, .(N = sum(N)), by = .(meta_var, meta_val, cluster) ] %>%
@@ -1079,19 +1079,19 @@ plot_clusters_by_metadata <- function(meta_dt, clusts_dt, meta_vars = NULL,
 
   # put clusters in order
   if (!is.null(cl_order)) {
-    melt_dt = melt_dt[ , cluster := factor(cluster, levels = cl_order) ]
+    # in case there are missing clusters:
+    cl_all    = unique(melt_dt$cluster) %>% sort
+    cl_tmp    = c(cl_order, setdiff(cl_all, cl_order))
+    melt_dt = melt_dt[ , cluster := factor(cluster, levels = cl_tmp) ]
   }
-
-  sqrt_brks  = c(1, 3, 10, 30, 1e2, 3e2, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5) %>%
-    `+`(1) %>% sqrt
-  sqrt_labs  = c("1", "3", "10", "30", "100", "300",
-    "1k", "3k", "10k", "30k", "100k", "300k")
-
+  # define palettes
   pal_ls      = c("Greys", "Reds", "Blues", "Greens", "Purples", "Oranges", "YlOrBr")
+
+  # temp function for plotting
   .plot_fn <- function( ii ) {
     this_var  = meta_vars[[ ii ]]
     # plot quasirandom dots facetted by meta_var
-    plot_dt   = melt_dt[ N >= min_cells ] %>% .[ meta_var == this_var ]
+    plot_dt   = melt_dt %>% .[ meta_var == this_var ]
     g = ggplot(plot_dt) +
       aes( x = cluster, y = 100 * prop, fill = meta_val ) +
       geom_col( colour = 'black' ) +
@@ -1551,12 +1551,13 @@ plot_clusters_annotated_by_densities = function(hmny_dt, v) {
   assert_that( v %in% names(hmny_dt) )
   g = ggplot(hmny_dt) +
     aes( x = UMAP1, y = UMAP2 ) +
-    geom_bin2d( bins = 50, aes(fill = after_stat( density ) %>% pmin(0.01) %>% pmax(0.0001)) ) +
-    scale_fill_distiller( palette = "RdBu", trans = "log10", limits = c(0.0001, 0.01) ) +
+    geom_bin2d( bins = 50, aes(fill = after_stat( density ) %>% multiply_by(100) %>% 
+      pmin(1) %>% pmax(0.01)) ) +
+    scale_fill_distiller( palette = "RdBu", trans = "log10", limits = c(0.01, 1) ) +
     facet_wrap( sprintf("~ %s", v) ) +
     theme_classic() +
-    theme( axis.text = element_blank(), panel.grid = element_blank() ) +
-    labs( fill = "density" )
+    theme( axis.text = element_blank(), panel.grid = element_blank(), aspect.ratio = 1 ) +
+    labs( fill = "pct. of\nsample" )
 
   return(g)
 }
@@ -1601,8 +1602,6 @@ plot_selected_genes_umap <- function(sel_dt, cols_to_rows = 1.25) {
 }
 
 
-
-
 process_custom_markers <- function(custom_f, biotypes_dt, marker_calcs_dt) {
   cust_mkrs_dt = fread(custom_f)
   
@@ -1635,8 +1634,6 @@ process_custom_markers <- function(custom_f, biotypes_dt, marker_calcs_dt) {
    
   return(cust_mkrs_dt)
 }
-
-
 
 
 plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cpm = 10, 

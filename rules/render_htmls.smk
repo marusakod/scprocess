@@ -1,4 +1,3 @@
-
 # rules to render html files
 
 # localrules: render_html_index
@@ -27,7 +26,6 @@
 
 
 # copy R scripts to code directory (not for rules that only run if specifically called)rule copy_r_code:
-
 rule copy_r_code:
   output: 
     r_utils_f   = f"{code_dir}/utils.R",
@@ -252,24 +250,22 @@ rule render_html_integration:
     qc_dt_f       = '{input.qc_dt_f}', \
     integration_f = '{input.integration_f}', \
     INT_RES_LS    = '{params.int_res_ls}', \
-    INT_SEL_RES   = '{INT_SEL_RES}', \
     INT_DBL_CL_PROP = {INT_DBL_CL_PROP})"
     """
 
 
-
-# # render_marker_genes
+# render_marker_genes
 rule render_html_marker_genes:
   input:
     r_int_f       = f'{code_dir}/integration.R',
-    pb_f          = mkr_dir + '/pb_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.rds',
-    mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    pb_f          = mkr_dir + '/pb_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.rds',
+    mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
     integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    hvgs_f        = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{INT_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    hvgs_f        = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
     **get_conditional_outputs(SPECIES)
   output:
-    rmd_f  = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.Rmd',
-    html_f = f'{docs_dir}/{SHORT_TAG}_marker_genes_{INT_SEL_RES}.html'
+    rmd_f  = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{MKR_SEL_RES}.Rmd',
+    html_f = f'{docs_dir}/{SHORT_TAG}_marker_genes_{MKR_SEL_RES}.html'
   threads: 8
   retries: RETRIES
   params:
@@ -293,35 +289,35 @@ rule render_html_marker_genes:
 
     Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
-        rule_name = '$rule',
-        proj_dir = '{PROJ_DIR}',
-        temp_f =  '$template_f',
-        rmd_f = '{output.rmd_f}',
-        YOUR_NAME = '{YOUR_NAME}',
-        AFFILIATION = '{AFFILIATION}',
-        PROJ_DIR = '{PROJ_DIR}',
-        SHORT_TAG = '{SHORT_TAG}',
-        DATE_STAMP = '{DATE_STAMP}',
-        threads = {threads},
-        meta_f = '{METADATA_F}',
-        meta_vars_ls = '{params.meta_vars}',
-        gtf_dt_f = '{AF_GTF_DT_F}',
-        integration_f = '{input.integration_f}',
-        pb_f = '{input.pb_f}',
-        mkrs_f = '{input.mkrs_f}',
-        CUSTOM_MKR_NAMES = '{CUSTOM_MKR_NAMES}',
-        CUSTOM_MKR_PATHS = '{CUSTOM_MKR_PATHS}',
-        hvgs_f = '{input.hvgs_f}',
-        {params.fgsea_args}
-        INT_SEL_RES = {INT_SEL_RES},
-        MKR_NOT_OK_RE = '{MKR_NOT_OK_RE}',
-        MKR_MIN_CPM_MKR = {MKR_MIN_CPM_MKR},
-        MKR_MIN_CELLS = {MKR_MIN_CELLS},
-        MKR_GSEA_CUT = {MKR_GSEA_CUT},
-        SPECIES = '{SPECIES}')"
+      rule_name = '$rule',
+      proj_dir = '{PROJ_DIR}',
+      temp_f =  '$template_f',
+      rmd_f = '{output.rmd_f}',
+      YOUR_NAME = '{YOUR_NAME}',
+      AFFILIATION = '{AFFILIATION}',
+      PROJ_DIR = '{PROJ_DIR}',
+      SHORT_TAG = '{SHORT_TAG}',
+      DATE_STAMP = '{DATE_STAMP}',
+      threads = {threads},
+      meta_f = '{METADATA_F}',
+      meta_vars_ls = '{params.meta_vars}',
+      gtf_dt_f = '{AF_GTF_DT_F}',
+      integration_f = '{input.integration_f}',
+      pb_f = '{input.pb_f}',
+      mkrs_f = '{input.mkrs_f}',
+      CUSTOM_MKR_NAMES = '{CUSTOM_MKR_NAMES}',
+      CUSTOM_MKR_PATHS = '{CUSTOM_MKR_PATHS}',
+      hvgs_f = '{input.hvgs_f}',
+      {params.fgsea_args}
+      MKR_SEL_RES = {MKR_SEL_RES},
+      MKR_NOT_OK_RE = '{MKR_NOT_OK_RE}',
+      MKR_MIN_CPM_MKR = {MKR_MIN_CPM_MKR},
+      MKR_MIN_CELLS = {MKR_MIN_CELLS},
+      MKR_GSEA_CUT = {MKR_GSEA_CUT},
+      SPECIES = '{SPECIES}')"
     """
 
-# # # render_html_label_celltypes
+# # render_html_label_celltypes
 # rule render_html_label_celltypes:
 #   input:
 #     r_mkr_f     = f'{code_dir}/marker_genes.R',
@@ -360,7 +356,7 @@ rule render_html_marker_genes:
 #     guesses_f = '{input.guesses_f}', \
 #     LBL_XGB_F = '{LBL_XGB_F}', \
 #     CUSTOM_LABELS_F = '{CUSTOM_LABELS_F}', \
-#     INT_SEL_RES = '{INT_SEL_RES}', \
+#     MKR_SEL_RES = '{MKR_SEL_RES}', \
 #     LBL_TISSUE = '{LBL_TISSUE}', \
 #     LBL_SEL_RES_CL = '{LBL_SEL_RES_CL}', \
 #     LBL_MIN_PRED = {LBL_MIN_PRED}, \
