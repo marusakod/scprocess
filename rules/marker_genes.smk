@@ -46,7 +46,7 @@ rule run_marker_genes:
       species       = '{SPECIES}',
       gtf_dt_f      = '{AF_GTF_DT_F}',
       gsea_dir      = '{MKR_GSEA_DIR}',
-      sel_res       = {MKR_SEL_RES},
+      sel_res       = '{MKR_SEL_RES}',
       min_cl_size   = {MKR_MIN_CL_SIZE},
       min_cells     = {MKR_MIN_CELLS},
       not_ok_re     = '{MKR_NOT_OK_RE}',

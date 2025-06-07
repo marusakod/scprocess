@@ -166,8 +166,6 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
        hto_fastq_dir = os.path.join(proj_dir, hto_fastq_dir)
      assert os.path.isdir(hto_fastq_dir), \
        f"{hto_fastq_dir} is not a valid directory"
-  
-
 
   assert all(sample_df[ "sample_id" ].value_counts() == 1), \
     "sample_id values in metadata csv not unique"

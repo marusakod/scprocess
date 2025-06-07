@@ -17,7 +17,7 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-  fig.path = "figure/${SHORT_TAG}_marker_genes_${INT_SEL_RES}.Rmd/")
+  fig.path = "figure/${SHORT_TAG}_marker_genes_${MKR_SEL_RES}.Rmd/")
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 # workflowr::wflow_build(files='analysis/${SHORT_TAG}_marker_genes_${MKR_SEL_RES}.Rmd', view=F, verbose=T, delete_cache=F)
 ```
@@ -127,9 +127,9 @@ if (is.null(cl_ord))
 
 
 ```{r load_heatmap_markers, include = FALSE}
-
 if (custom_mkr_names_str != "") {
-  custom_mkrs_dt_ls = lapply(custom_mkr_paths, FUN = process_custom_markers, biotypes_dt = biotypes_dt, marker_calcs_dt = mkrs_dt)
+  custom_mkrs_dt_ls = lapply(custom_mkr_paths, FUN = process_custom_markers, 
+    biotypes_dt = biotypes_dt, marker_calcs_dt = mkrs_dt)
   
   # remove NULL elements from list
   custom_mkrs_dt_ls = Filter(Negate(is.null), custom_mkrs_dt_ls)
@@ -138,7 +138,6 @@ if (custom_mkr_names_str != "") {
 } else {
   mkrs_ls = list(HVGs = top_hvgs)
 }
-
 ```
 
 
@@ -208,8 +207,8 @@ The resulting log 2 fold change values (calculated using edgeR) per cluster are 
 ```{r plot_canonical_markers_heatmap, fig.height = 9, fig.width = 10, results = 'asis'}
 for (nn in names(mkrs_ls)) {
   cat("#### ", nn, "\n")
-  draw( plot_heatmap_of_selected_genes(mkrs_dt, mkrs_ls[[nn]]),
-    heatmap_legend_side = "bottom", annotation_legend_side = "bottom", merge_legend = TRUE )
+  suppressMessages(draw( plot_heatmap_of_selected_genes(mkrs_dt, mkrs_ls[[nn]]),
+    heatmap_legend_side = "bottom", annotation_legend_side = "bottom", merge_legend = TRUE ))
   cat("\n\n")
 }
 ```

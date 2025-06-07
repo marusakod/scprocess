@@ -44,108 +44,57 @@ def parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, sample, amb_yam
 # metrics_fs_ls is the list of knee files (this should exist for all ambient methods)
 # this function should run in the last rule
 def extract_ambient_sample_statistics(AMBIENT_METHOD, SAMPLE_VAR, samples_ls, metrics_fs_ls, ambient_outs_yamls, custom_f, max_kept=0.9):
-    kept_arr = []
-    totals_arr = []
 
-    for sample, metrics_f, ambient_outs_yaml in zip(samples_ls, metrics_fs_ls, ambient_outs_yamls):
-        # Load ambient outs yaml file
-        with open(ambient_outs_yaml) as f:
-            amb_outs = yaml.load(f, Loader=yaml.FullLoader)
+  # loop through samples
+  kept_arr    = []
+  totals_arr  = []
+  for sample, metrics_f, ambient_outs_yaml in zip(samples_ls, metrics_fs_ls, ambient_outs_yamls):
+    # Load ambient outs yaml file
+    with open(ambient_outs_yaml) as f:
+      amb_outs = yaml.load(f, Loader=yaml.FullLoader)
 
-        bc_f = amb_outs['bcs_f']
+    bc_f = amb_outs['bcs_f']
    
-        # count the number of barcodes
-        barcode_count = pd.read_csv(bc_f, header=None).shape[0]
-        kept_arr.append(barcode_count)
-
-        if AMBIENT_METHOD == 'cellbender':
-            # get the number of total droplets included
-            total_droplets = pd.read_csv(metrics_f)['total_droplets_included'][0]
-            totals_arr.append(total_droplets)
-
-    kept_arr = np.array(kept_arr)
-
-    if AMBIENT_METHOD != 'cellbender':
-        sample_df = pd.DataFrame({
-            SAMPLE_VAR : samples_ls,
-            'kept_droplets': kept_arr
-        })
-    else:
-        totals_arr = np.array(totals_arr)
-
-        # replace dodgy totals values with custom if need be
-        if custom_f is not None and os.path.isfile(custom_f):
-            # Load up custom parameters
-            custom_df = pd.read_csv(custom_f)[[SAMPLE_VAR, 'total_droplets_included']]
-
-            samples_arr = np.array(samples_ls)
-            for idx, row in custom_df.iterrows():
-                match_idx = np.where(samples_arr == row[SAMPLE_VAR])
-                totals_arr[match_idx] = row['total_droplets_included']
-
-        # do some calculations
-        prop_kept = kept_arr / totals_arr
-        bad_idx = prop_kept > max_kept
-
-        # assemble into dataframe
-        sample_df = pd.DataFrame({
-            SAMPLE_VAR : samples_ls,
-            'total_droplets': totals_arr,
-            'kept_droplets': kept_arr,
-            'prop_kept_by_cb': prop_kept,
-            'bad_sample': bad_idx
-        })
-
-    return sample_df
-
-    # Read the CSV file and count the number of barcodes
+    # count the number of barcodes
     barcode_count = pd.read_csv(bc_f, header=None).shape[0]
     kept_arr.append(barcode_count)
 
     if AMBIENT_METHOD == 'cellbender':
-      # Read the metrics file and get the number of cells called as barcodes
+      # get the number of total droplets included
       total_droplets = pd.read_csv(metrics_f)['total_droplets_included'][0]
       totals_arr.append(total_droplets)
 
   kept_arr = np.array(kept_arr)
 
-  # if 
-  if AMBIENT_METHOD == 'cellbender':
+  if AMBIENT_METHOD != 'cellbender':
+    sample_df = pd.DataFrame({
+      SAMPLE_VAR : samples_ls,
+      'kept_droplets': kept_arr
+    })
+  else:
     totals_arr = np.array(totals_arr)
 
-    # Replace dodgy totals values with custom if need be
+    # replace dodgy totals values with custom if need be
     if custom_f is not None and os.path.isfile(custom_f):
       # Load up custom parameters
-      with open(custom_f) as f:
-        custom_ls = yaml.load(f, Loader=yaml.FullLoader)
-      cb_ls     = {key: value['cellbender'] for key, value in custom_ls.items()}
-      custom_df = pd.DataFrame.from_dict(cb_ls, orient='index')
+      custom_df = pd.read_csv(custom_f)[[SAMPLE_VAR, 'total_droplets_included']]
 
-      # get sample_id column
-      custom_df.reset_index(inplace=True, names="sample_id")
-
-      # Iterate through rows
       samples_arr = np.array(samples_ls)
       for idx, row in custom_df.iterrows():
-        match_idx = np.where(samples_arr == row['sample_id'])
+        match_idx = np.where(samples_arr == row[SAMPLE_VAR])
         totals_arr[match_idx] = row['total_droplets_included']
 
-    # Do some calculations
+    # do some calculations
     prop_kept = kept_arr / totals_arr
-    bad_idx   = prop_kept > max_kept
+    bad_idx = prop_kept > max_kept
 
-    # Assemble into dataframe
+    # assemble into dataframe
     sample_df = pd.DataFrame({
-      'sample_id': samples_ls,
+      SAMPLE_VAR : samples_ls,
       'total_droplets': totals_arr,
       'kept_droplets': kept_arr,
       'prop_kept_by_cb': prop_kept,
-      'bad_sample':       bad_idx
-    })
-  else:
-    sample_df = pd.DataFrame({
-      'sample_id':      samples_ls,
-      'kept_droplets':  kept_arr
+      'bad_sample': bad_idx
     })
 
   return sample_df

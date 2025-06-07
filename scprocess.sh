@@ -33,7 +33,6 @@ echo snakemake ${SM_ARGS} \
   --snakefile $snakefile \
   --configfile $configfile \
   --rerun-incomplete \
-  --verbose \
   --use-conda \
   --use-singularity \
   --singularity-args "--cleanenv --nv --bind /tmp,$proj_dir" $rule
@@ -42,7 +41,6 @@ echo snakemake ${SM_ARGS} \
   --snakefile $snakefile \
   --configfile $configfile \
   --rerun-incomplete \
-  --verbose \
   --use-conda \
   --use-singularity \
   --singularity-args "--cleanenv --nv --bind /tmp,$proj_dir" $rule
