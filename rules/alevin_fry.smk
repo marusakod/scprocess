@@ -46,7 +46,10 @@ def parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, s
   wl_df = pd.read_csv(wl_df_f)
   wl_f = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'barcodes_f'].values[0]
   wl_trans_f = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'translation_f'].values[0]
-  WHITELIST_TRANS_F = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref', wl_trans_f)
+  if type(wl_trans_f) == 'str':
+    WHITELIST_TRANS_F = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref', wl_trans_f)
+  else:
+    WHITELIST_TRANS_F = None
   WHITELIST_F = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref', wl_f)
 
   return AF_CHEMISTRY, EXPECTED_ORI, WHITELIST_F, WHITELIST_TRANS_F
