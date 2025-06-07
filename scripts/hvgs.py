@@ -46,7 +46,7 @@ def get_one_csr_counts(run, hvg_df, keep_df, qc_sample_df, gene_ids, SAMPLE_VAR,
     bad_samples  = qc_sample_df.loc[ qc_sample_df['bad_sample'] == True, 'sample_id'].tolist()
 
     # get cell ids for each sample
-    if DEMUX_TYPE != "":
+    if DEMUX_TYPE != "none":
         samples = hvg_df.loc[hvg_df[SAMPLE_VAR] == run, "sample_id"].tolist()
     else:
         samples = [run]
@@ -161,8 +161,6 @@ def read_csr_chunk(file, start_row, end_row):
     return sparse_chunk, features, barcodes
 
 
-
-
 def read_full_csr(file): 
     with h5py.File(file, 'r') as f:
         indptr   = f['matrix/indptr'][:]  
@@ -193,7 +191,6 @@ def _calculate_feature_stats(sparse_csr, features, rowdata_f):
     feat_stats_df = pd.merge(feat_stats_df, rows_df, on = 'ensembl_id')
     
     return feat_stats_df
-
 
 
 # minor modifiction of scanpy _sum_and_sum_squares_clipped
@@ -274,7 +271,6 @@ def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None,
         return final_df
     
 
-
 def safe_loess(x, y, span, initial_amount=1e-16, max_attempts= 5, seed=1234):
     attempts = 0
     amount   = initial_amount
@@ -337,7 +333,6 @@ def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_
     return files, total, start_row, end_row
 
 
-
 def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, csr_f, rowdata_f, std_var_stats_f):
 
     qc_df = pd.read_csv(qc_smpl_stats_f, sep = '\t')
@@ -385,8 +380,6 @@ def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, csr_f, rowdata_f
     stats_df.to_csv(std_var_stats_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
 
     return
-
-
 
 
 def calculate_mean_var_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, mean_var_f, chunk_num, hvg_method,
@@ -440,8 +433,6 @@ def calculate_mean_var_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_sta
     merged_chunk_stats.to_csv(mean_var_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
 
     return
-
-
 
 
 def calculate_std_var_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, std_var_stats_f, estim_vars_f, chunk_num, hvg_method,
@@ -541,7 +532,6 @@ def _process_single_group(stats_df, empty_gs, n_hvgs, exclude_ambient):
     return out_df
 
 
-
 def _process_multiple_groups(stats_df, group_var, empty_gs, n_hvgs,  exclude_ambient):
     
     all_ranked_norm_gene_vars = []
@@ -602,8 +592,7 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, n_hvgs, exclu
     return hvg_df
 
 
-
-# # read top 2000 hvgs from each sample and save file
+# read top 2000 hvgs from each sample and save file
 def read_top_genes(hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
     # get all chunked files
     hvg_paths_df = pd.read_csv(hvg_paths_f)
@@ -651,7 +640,6 @@ def read_top_genes(hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
         f.create_dataset('matrix/shape', data=top_genes_csc.shape)
         f.create_dataset('matrix/features/name', data=np.array(hvg_ensembl, dtype='S'))
         f.create_dataset('matrix/barcodes', data=np.array(all_barcodes, dtype='S'))
-
 
 
 def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, SAMPLE_VAR):
@@ -739,11 +727,6 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
         f.create_dataset('matrix/shape', data=doublet_mat.shape)
         f.create_dataset('matrix/features/name', data=np.array(hvg_ensembl, dtype='S'))
         f.create_dataset('matrix/barcodes', data=np.array(all_barcodes, dtype='S'))
-
-
-        
-        
-
 
 
 if __name__ == "__main__":

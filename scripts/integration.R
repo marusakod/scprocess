@@ -77,23 +77,22 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, coldata_f, demux_type,
   # run harmony including doublets
   message('  running integration to find more doublets')
   
-  if(demux_type == ""){
+  if(demux_type == "none"){
     dbl_batch_var = 'sample_id'
   }else{
     dbl_batch_var = 'pool_id'
   }
   
   int_dbl     = .run_one_integration(seu_dbl, dbl_batch_var, cl_method, n_dims, theta = 0, dbl_res, reduction)
-  dbl_ids     =  all_coldata[dbl_class == 'doublet', cell_id]
+  dbl_ids     = all_coldata[dbl_class == 'doublet', cell_id]
   dbl_data    = .calc_dbl_data(int_dbl, dbl_ids, dbl_res, dbl_cl_prop)
-  
   rm(seu_dbl); gc()
   
   # make new seurat object without doublets
   message('  running on clean data')
   ok_ids      = all_coldata[keep == TRUE, cell_id]
   
-suppressWarnings({
+  suppressWarnings({
     meta = data.frame(all_coldata[cell_id %chin% ok_ids])
     rownames(meta) = meta$cell_id
     seu_ok      = Seurat::CreateSeuratObject(
@@ -119,7 +118,6 @@ suppressWarnings({
 
 .run_one_integration <- function(seu_obj, batch_var, cl_method, n_dims, theta = 0, res_ls, reduction) {
   message('    scaling')
-  
   seu_obj   = seu_obj %>%
     ScaleData( verbose = FALSE, features = rownames(seu_obj) )
 

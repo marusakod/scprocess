@@ -101,7 +101,7 @@ def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES, HTO = False):
 
 def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
   #set defaults
-  DEMUX_TYPE     = ""
+  DEMUX_TYPE     = "none"
   HTO_FASTQ_DIR  = None
   FEATURE_REF    = None
   DEMUX_F        = ""
@@ -241,7 +241,7 @@ def get_project_parameters(config, scprocess_data_dir):
   get_multiplexing_parameters(config, PROJ_DIR, samples_df)
 
   # define sample variable for alevin, ambient, doublets and sample mapping dictionary
-  if DEMUX_TYPE != "":
+  if DEMUX_TYPE != "none":
     SAMPLE_VAR = "pool_id"
     # exclude samples in excluded pools
     SAMPLES = POOL_SAMPLES
@@ -252,7 +252,7 @@ def get_project_parameters(config, scprocess_data_dir):
   EXC_SAMPLES   = None
   if ('exclude' in config) and (config['exclude'] is not None):
     if ('sample_id' in config['exclude']) and (config['exclude']['sample_id'] is not None):
-      EXC_SAMPLES =  config['exclude']["sample_id"]
+      EXC_SAMPLES = config['exclude']["sample_id"]
       for s in EXC_SAMPLES:
         if s not in samples_df["sample_id"].dropna().tolist():
           warnings.warn(f"sample {s} specified in exclude_samples but not in metadata file", UserWarning)
@@ -272,7 +272,7 @@ def get_project_parameters(config, scprocess_data_dir):
     with open(CUSTOM_SAMPLE_PARAMS_F) as f:
       custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
       custom_smpls = list(custom_smpl_params.keys())
-      if DEMUX_TYPE != "":
+      if DEMUX_TYPE != "none":
         for s in custom_smpls:
           assert s in POOL_IDS, f"{s} in custom_sample_params file doesn't match any pool_id values in sample_metadata"
       else:
@@ -557,7 +557,6 @@ def get_integration_parameters(config, mito_str):
 
 
 def get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
-  
   # set defaults
   CUSTOM_MKR_NAMES = ""
   CUSTOM_MKR_PATHS = ""
@@ -567,7 +566,6 @@ def get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
       custom_sets = config["marker_genes"]["custom_sets"]
       mkr_names = []
       mkr_paths = []
-
       for i, gene_set in enumerate(custom_sets):
         assert "name" in gene_set, \
           f"Entry {i+1} in 'custom_sets' is missing a 'name' field."

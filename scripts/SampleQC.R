@@ -44,12 +44,10 @@ prob_labs   = c("50%", "90%", "99%", "99.9%", "99.99%", "99.999%", "99.9999%")
 
 
 main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf_dt_f,
-                    ambient_method, sce_fs_str, all_samples_str, rowdata_f, dbl_f, dimred_f, qc_f, coldata_f, mito_str, 
-                    exclude_mito, hard_min_counts, hard_min_feats, hard_max_mito,
-                    min_counts, min_feats, min_mito, max_mito, min_splice, max_splice,
-                    sample_var = 'sample_id',
-                    demux_type = "", dbl_min_feats = 100,
-                    dbl_min_cells = 100){
+  ambient_method, sce_fs_str, all_samples_str, rowdata_f, dbl_f, dimred_f, qc_f, 
+  coldata_f, mito_str, exclude_mito, hard_min_counts, hard_min_feats, hard_max_mito,
+  min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, 
+  sample_var = 'sample_id', demux_type = "none", dbl_min_feats = 100, dbl_min_cells = 100){
 
   # split output files and check if ok
   all_samples = str_split(all_samples_str, pattern = ',') %>% unlist()
@@ -64,25 +62,23 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   
   # check which samples to exclude if cellbender is used
   smpl_status = FALSE
-
-  if(ambient_method == 'cellbender'){
+  if (ambient_method == 'cellbender'){
   # loading file with bad bender samples
   message(' loading cellbender sample stats file')
   sample_stats_df = fread(sample_stats_f) 
   smpl_status = unique(sample_stats_df[get(sample_var) == sel_sample, bad_sample])
-  
-  if(smpl_status){
-    message('  sample ', sel_sample, ' has been excluded. Saving empty results file')
-    lapply(sce_fs_ls, file.create)
-    file.create(dbl_dimred_f)
-    file.create(dbl_f)
-    file.create(qc_f)
-    file.create(rowdata_f)
-    file.create(coldata_f)
-    message('done!')
+    if(smpl_status){
+      message('  sample ', sel_sample, ' has been excluded. Saving empty results file')
+      lapply(sce_fs_ls, file.create)
+      file.create(dbl_dimred_f)
+      file.create(dbl_f)
+      file.create(qc_f)
+      file.create(rowdata_f)
+      file.create(coldata_f)
+      message('done!')
 
-    return(NULL)
-  }
+      return(NULL)
+    }
   }
 
   # get filtered ambient file
@@ -101,10 +97,10 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 
   # add metadata
   message('  adding metadata')
-  if(demux_type != ""){
+  if(demux_type != "none"){
     sce = sce %>% .add_demux_metadata(meta_f, demux_f, demux_type)
   }else{
-    sce = sce %>% .add_metadata(metadata_f)
+    sce = sce %>% .add_metadata(meta_f)
   }
 
   # do doublet calcs
@@ -123,10 +119,10 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   
   # do qc filtering, save table with qc for all singlets, coldata for all cells, get sce object with only singlets that pass qc
   sce_filt = filter_qc(sce, qc_f, coldata_f, hard_min_counts, hard_min_feats, hard_max_mito,
-  min_counts, min_feats, min_mito, max_mito, min_splice, max_splice)
+    min_counts, min_feats, min_mito, max_mito, min_splice, max_splice)
   
   # save sce files
-  if(demux_type == ""){
+  if(demux_type == "none"){
     if(ncol(sce_filt) == 0){
       message("No cells passed qc for sample ", sel_sample, ". Saving empty file")
       file.create(sce_fs_ls)
@@ -158,9 +154,7 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 }
 
 
-.add_dbl_info <- function(sce, dbl_dt, sample_var, demux_type = ""){
-  
-  
+.add_dbl_info <- function(sce, dbl_dt, sample_var, demux_type = "none"){
   coldata_in    = colData(sce) %>% as.data.frame %>% as.data.table
   missing_cells = setdiff(coldata_in$cell_id, dbl_dt$cell_id)
   
@@ -176,8 +170,7 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   
   # merge
   coldata_out = merge(coldata_in, dbl_data, by = by_cols, all.x = TRUE)
-  
-  if(length(missing_cells)!= 0){
+  if(length(missing_cells) != 0){
   # set dbl_class to singlet or replace with demux_class if available
     if("demux_class" %in% colnames(coldata_out)){
     coldata_out = coldata_out %>%
@@ -192,19 +185,18 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
     as('DataFrame') %>% set_rownames(.$cell_id)
   
   coldata_out = coldata_out[colnames(sce), ]
+
   # add do sce
   assert_that( identical(colnames(sce), coldata_out$cell_id))
-  
   colData(sce)  = coldata_out
-  return(sce)
   
+  return(sce)
 }
 
 
-
-.add_metadata <- function(sce, metadata_f) {
+.add_metadata <- function(sce, meta_f) {
   # get all metadata
-  metadata_all  = fread(metadata_f)
+  metadata_all  = fread(meta_f)
   assert_that( "sample_id" %in% names(metadata_all) )
   assert_that( all(unique(sce$sample_id) %in% metadata_all$sample_id) )
 
@@ -224,11 +216,9 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 }
 
 
+.add_demux_metadata <- function(sce, meta_f, demux_f, demux_type){
 
-
-.add_demux_metadata <- function(sce, metadata_f, demux_f, demux_type){
-
-  metadata_all = fread(metadata_f)
+  metadata_all = fread(meta_f)
   assert_that( all(unique(sce$pool_id) %in% metadata_all$pool_id))
 
   coldata_in = colData(sce) %>% as.data.frame() %>% as.data.table()
@@ -304,7 +294,6 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 
 
 .get_sce <- function(mat_f, sel_s, mito_str, exclude_mito, gene_annots, sample_var) {
-  
   # read matrix
   mat = .get_alevin_mx(af_mat_f = mat_f, sel_s = paste0(sel_s, ':'))
 
@@ -382,16 +371,19 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   sce_tmp$total_mt_rrna = mt_rrna_sum
   
   if(exclude_mito == 1){
-  # remove mitochondrial genes
-  sce_tmp = sce_tmp[!mt_gs, ]
+    # remove mitochondrial genes
+    sce_tmp = sce_tmp[!mt_gs, ]
   }
   
   # convert to TsparseMatrix
   counts(sce_tmp) = counts(sce_tmp) %>% as("TsparseMatrix")
 
+  # exclude any zeros
+  nzero_idx   = colSums(counts(sce_tmp)) > 0
+  sce_tmp     = sce_tmp[, nzero_idx]
+
   return(sce_tmp)
 }
-
 
 
 .get_gene_annots <- function(gtf_dt_f) {
@@ -432,7 +424,6 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 }
 
 
-
 run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_method, dbl_f, dimred_f, min_feats = 100, min_cells = 100){
  
   sample_idx  = sce[[sample_var]] == sel_sample
@@ -440,24 +431,21 @@ run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_m
     
   # exclude tiny cells
   message('  filtering out cells with low counts')
-  assert_that( 'detected' %in% colnames(colData(sce)) )
+  # assert_that( 'detected' %in% colnames(colData(sce)) )
+  detected    = colSums(counts(sce) > 0)
   keep_idx    = sce$detected >= min_feats
-  if (sum(keep_idx) < min_cells)
-      
-  assert_that( sum(keep_idx) >= min_cells,
-               msg = "insufficient cells to run scDblFinder :(")
+  assert_that( sum(keep_idx) >= min_cells, msg = "insufficient cells to run scDblFinder :(")
   message(sprintf('    keeping %d / %d cells (%.0f%%)',
-                  sum(keep_idx), length(keep_idx), 100 * sum(keep_idx) / length(keep_idx)))
+    sum(keep_idx), length(keep_idx), 100 * sum(keep_idx) / length(keep_idx)))
   sce         = sce[, keep_idx]
     
   message('  running scDblFinder')
   dbl_dt      = scDblFinder(sce, returnType = 'table',
-                            multiSampleMode = 'singleModel', verbose = FALSE ) %>%
-  as.data.table(keep.rownames = 'cell_id') %>%
-  .[, (sample_var) := sel_sample ] %>% setcolorder(sample_var) %>%
-  # keep just real cells
-  .[type == 'real']
-    
+    multiSampleMode = 'singleModel', verbose = FALSE ) %>%
+    as.data.table(keep.rownames = 'cell_id') %>%
+    .[, (sample_var) := sel_sample ] %>% setcolorder(sample_var) %>%
+    .[ type == 'real' ] # keep just real cells
+  
   # check if class is available from demultiplexing
   if('demux_class' %in% colnames(colData(sce))){
     #extract demux_class
@@ -476,7 +464,7 @@ run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_m
     merge(dbl_dict, by = c('class', 'demux_class')) %>%
     setnames("class", "scdbl_class")
   }else{
-      dbl_dt = dbl_dt %>% setnames("class", "dbl_class")
+    dbl_dt = dbl_dt %>% setnames("class", "dbl_class")
   }
     
   setkeyv(dbl_dt, "cell_id")
@@ -486,8 +474,8 @@ run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_m
   dimred_dt   = .calc_one_dimred(sce, sel_sample)
     
   # check they match
-  assert_that( all(sort(dbl_dt$cell_id) == sort(colnames(sce))) )
-  assert_that( all(sort(dimred_dt$cell_id) == sort(dbl_dt$cell_id)) )
+  assert_that( all(dbl_dt$cell_id == colnames(sce)) )
+  assert_that( all(dimred_dt$cell_id == dbl_dt$cell_id) )
     
   # save
   message('  saving results')

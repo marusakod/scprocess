@@ -2,7 +2,7 @@
 import yaml  
 import csv
 
-localrules: make_hvg_df, merge_sample_std_var_stats, merge_group_mean_var, merge_group_std_var_stats
+localrules: make_hvg_df
 
 def make_hvgs_input_df(DEMUX_TYPE, SAMPLE_VAR, runs, ambient_outs_yamls, SAMPLE_MAPPING, FULL_TAG, DATE_STAMP, hvg_dir):
 
@@ -15,7 +15,7 @@ def make_hvgs_input_df(DEMUX_TYPE, SAMPLE_VAR, runs, ambient_outs_yamls, SAMPLE_
 
         amb_filt_f = amb_outs['filt_counts_f']
 
-        if DEMUX_TYPE != "":
+        if DEMUX_TYPE != "none":
             # get sample ids for pool
             sample_ids = SAMPLE_MAPPING.get(r, [])
 
@@ -53,7 +53,6 @@ def merge_tmp_files(in_files, out_file):
 
 
 # rule to create df with hvg input files and temporary chunked files
-
 rule make_hvg_df: 
   input:
     ambient_yaml_out  = expand([amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'], run = runs)
@@ -92,11 +91,11 @@ rule make_tmp_csr_matrix:
       {DEMUX_TYPE} \
       --size {HVG_CHUNK_SIZE} \
       --ncores {threads}
-
     """
 
 
 if HVG_METHOD == 'sample': 
+  localrules: merge_sample_std_var_stats
   # calculate stats for each sample separatelly  
   rule get_stats_for_std_variance_for_sample:
     input: 
@@ -136,6 +135,8 @@ if HVG_METHOD == 'sample':
 
 
 else:
+  localrules: merge_group_mean_var, merge_group_std_var_stats
+
   rule get_mean_var_for_group:
     input:
       clean_h5_f      = expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES),

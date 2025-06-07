@@ -30,7 +30,7 @@ def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, AMBIENT_
         # get bad pools or samples
         bad_bender = amb_stats.loc[amb_stats['bad_sample'], SAMPLE_VAR].tolist()
 
-        if DEMUX_TYPE != "":
+        if DEMUX_TYPE != "none":
             bad_bender_samples = []
             for p in bad_bender:
                 if p in SAMPLE_MAPPING:

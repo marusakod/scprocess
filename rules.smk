@@ -76,7 +76,7 @@ zoom_df       = pd.DataFrame({ \
  })
 
 # exclude all samples without fastq files
-if DEMUX_TYPE != "":
+if DEMUX_TYPE != "none":
  POOL_IDS = exclude_samples_without_fastq_files(FASTQ_DIR, POOL_IDS, HTO=False)
 else:
  SAMPLES  = exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES, HTO=False)
@@ -92,7 +92,7 @@ SAMPLE_MAPPING = filter_sample_mapping(SAMPLE_MAPPING, POOL_IDS, SAMPLES)
 POOL_STR   = ','.join(POOL_IDS)
 SAMPLE_STR = ','.join(SAMPLES)
 
-runs = POOL_IDS if DEMUX_TYPE != "" else SAMPLES
+runs = POOL_IDS if DEMUX_TYPE != "none" else SAMPLES
 RUNS_STR = ','.join(runs)
 
 # alevin hto index outputs (optional)
@@ -235,7 +235,7 @@ rule simpleaf:
 rule ambient:
   input: 
     expand(amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
-    sample = POOL_IDS if DEMUX_TYPE != "" else SAMPLES),
+      sample = POOL_IDS if DEMUX_TYPE != "none" else SAMPLES),
     amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', 
     amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt', 
     rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd', 
