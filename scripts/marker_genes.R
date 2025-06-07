@@ -1,6 +1,7 @@
 # pb_markers.R
 
 suppressPackageStartupMessages({
+  library("Matrix")
   library("muscat")
   library("SingleCellExperiment")
   library("edgeR")
@@ -18,8 +19,7 @@ gsea_regex  = "^(HALLMARK_|GOBP_|GOCC_|GOMF_|BIOCARTA_|REACTOME_|KEGG_)(.+)"
 
 calculate_marker_genes <- function(integration_f, sces_yaml_f, pb_f, mkrs_f, pb_hvgs_f,
   fgsea_go_bp_f = "", fgsea_go_cc_f = "", fgsea_go_mf_f = "", fgsea_paths_f = "", fgsea_hlmk_f = "",
-  species, gtf_dt_f, gsea_dir,
-  sel_res, min_cl_size, min_cells,
+  species, gtf_dt_f, gsea_dir, sel_res, min_cl_size, min_cells,
   not_ok_re, min_cpm_go, max_zero_p, gsea_cut, n_cores = 4) {
   # check some inputs
   assert_that(
@@ -130,9 +130,8 @@ get_fgsea_genesets <- function(gsea_dir, species) {
   return(gsets_list)
 }
 
-
-make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, min_cl_size = 1e2,
-  agg_fn = c("sum", "prop.detected"), n_cores = 8) {
+make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, 
+  min_cl_size = 1e2, agg_fn = c("sum", "prop.detected"), n_cores = 8) {
   
   agg_fn      = match.arg(agg_fn)
   
@@ -156,9 +155,8 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, mi
   sce_paths   = yaml::read_yaml(sces_yaml_f)
   
   # set up cluster
-  bpparam     = MulticoreParam(workers = n_cores, tasks = length(samples))
-  
-  pb_ls = bplapply(samples, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
+  bpparam     = MulticoreParam(workers = n_cores, tasks = length(samples))  
+  pb_ls       = bplapply(samples, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
     sce_paths = sce_paths, hmny_dt = hmny_dt, cl_var = cl_var, 
     keep_cls = keep_cls, agg_fn = agg_fn)
   
@@ -167,8 +165,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, mi
     assays    = lapply(pb_ls, function(pb) assay(pb, cl))
     assay_mat = Reduce(cbind, assays)  
     return(assay_mat)
-  }) %>%
-  setNames(keep_cls)
+    }) %>% setNames(keep_cls)
   
   n_cells_ls = sapply(pb_ls, function(pb) int_colData(pb)$n_cells)
   
@@ -188,30 +185,26 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, mi
   return(pb)
 }
 
-
 .make_one_pseudobulk <- function(sel_s, sce_paths, hmny_dt, cl_var, keep_cls, agg_fn) {
-  
   message(sel_s)
-  sce_f       = sce_paths[[sel_s]]
-  tmp_sce     = readRDS(sce_f)
-  tmp_hmny    = copy(hmny_dt) %>% .[sample_id == sel_s]
-  tmp_sce     = tmp_sce[, tmp_hmny$cell_id]
+  sce_f     = sce_paths[[sel_s]]
+  tmp_sce   = readRDS(sce_f)
+  tmp_hmny  = copy(hmny_dt) %>% .[sample_id == sel_s]
+  tmp_sce   = tmp_sce[, tmp_hmny$cell_id]
   
   # add clusters to sce
   colData(tmp_sce)[["cluster"]] = tmp_hmny[[cl_var]] 
-  
-  pb          = aggregateData_datatable(tmp_sce, by_vars = c("cluster", "sample_id"), fun = agg_fn)
+  pb        = aggregateData_datatable(tmp_sce, by_vars = c("cluster", "sample_id"), 
+    fun = agg_fn, all_cls = keep_cls)
   
   # make sure all assays are in the object, if not, add columns with zeros
-  missing_assays = setdiff(keep_cls, assayNames(pb))
-
-  
+  missing_assays = setdiff(keep_cls, assayNames(pb))  
   if ( length(missing_assays) > 0 ) {
     message('  adding assays with zero counts')
     for(assay in missing_assays){
-    missing_counts  = Matrix(0, nrow = nrow(pb), ncol = 1, 
-       sparse = FALSE, dimnames = list(rownames(pb), sel_s))
-    assay(pb, assay) = missing_counts
+      missing_counts  = Matrix(0, nrow = nrow(pb), ncol = 1, 
+         sparse = FALSE, dimnames = list(rownames(pb), sel_s))
+      assay(pb, assay) = missing_counts
     }
   }
   
@@ -219,9 +212,8 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, mi
   return(pb)
 }
 
-
 aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
-  fun = c("sum", "mean", "median", "prop.detected", "num.detected")) {
+  fun = c("sum", "mean", "median", "prop.detected", "num.detected"), all_cls) {
   fun       = match.arg(fun)
   assay     = "counts"
 
@@ -292,14 +284,17 @@ aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
   pb          = SingleCellExperiment(mat_ls,
     rowData = rowData(sce), metadata = md)
   cd          = data.frame(colData(sce)[, by_vars])
-  for (i in names(cd)) if (is.factor(cd[[i]]))
-    cd[[i]]     = droplevels(cd[[i]])
-  ns    = table(cd)
+  # for (i in names(cd)) if (is.factor(cd[[i]]))
+  #   cd[[i]]     = droplevels(cd[[i]])
+  cd$cluster  = factor(cd$cluster, levels = all_cls)
+  ns          = table(cd)
   if (length(by_vars) == 2) {
     ns    = asplit(ns, 2)
     ns    = purrr::map(ns, ~c(unclass(.)))
-    } else ns     = c(unclass(ns))
-  int_colData(pb)$n_cells     = ns
+  } else {
+    ns     = c(unclass(ns))
+  }
+  int_colData(pb)$n_cells = ns
   if (length(by_vars) == 2) {
     cd      = colData(sce)
     ids     = colnames(pb)
@@ -323,8 +318,7 @@ aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
 }
 
 make_logcpms_all <- function(pb, lib_size_method = c("edger", "raw", "pearson",
-  "vst", "rlog"), exc_regex = NULL, min_cells = 10, n_cores = 4) {
-  
+  "vst", "rlog"), exc_regex = NULL, min_cells = 10, n_cores = 4) {  
   # check inputs
   lib_size_method   = match.arg(lib_size_method)
 
@@ -373,7 +367,6 @@ make_logcpms_all <- function(pb, lib_size_method = c("edger", "raw", "pearson",
     message("no samples with sufficient cells for ", cl, "; skipping")
     return(NULL)
   }
-
   x           = assay(pb[, use_idx], cl)
 
   # exclude tiny samples
@@ -423,13 +416,13 @@ make_logcpms_all <- function(pb, lib_size_method = c("edger", "raw", "pearson",
   libsizes_dt = data.table( sample_id = colnames(x), lib_size = lib_sizes )
 
   # calculate logcpms
-  logcpm_dt   = x %>%
+  logcpm_dt   = as.matrix(x) %>%
     as.data.table(keep.rownames = "gene_id") %>%
-    melt.data.table(id = "gene_id", value.name = "count",
-      variable.name = "sample_id") %>%
+    melt.data.table(id = "gene_id", value.name = "count", variable.name = "sample_id") %>%
     merge(libsizes_dt, by = "sample_id") %>%
     .[, logcpm      := log(count / lib_size * 1e6 + pseudo_count) ] %>%
-    .[, logcpm_rnd  := log((count + runif(.N, min = 0, max = 0.5)) / lib_size * 1e6 + pseudo_count) ] %>%
+    # .[, logcpm_rnd  := log((count + runif(.N, min = 0, max = 0.5)) / 
+    #   lib_size * 1e6 + pseudo_count) ] %>%
     .[, symbol      := str_extract(gene_id, "^[^_]+") ]
 
   return(logcpm_dt)
@@ -994,7 +987,7 @@ plot_selected_genes <- function(sel_dt, cpms_dt, cl_order = NULL, pseudo_count =
   log_labs  = c('0', '10', '20', '50', '100', '200', '500',
     '1k', '2k', '5k', '10k', '20k', '50k')
   g = ggplot(plot_dt) +
-    aes( x = cluster, y = logcpm_rnd, fill = cluster, size = n_cells ) +
+    aes( x = cluster, y = logcpm, fill = cluster, size = n_cells ) +
     geom_quasirandom( colour = 'black', shape = 21 ) +
     scale_y_continuous( breaks = log_brks, labels = log_labs ) +
     expand_limits( y = (c(0, 100) + 10) %>% log ) +
@@ -1043,7 +1036,7 @@ plot_top_marker_genes <- function(sel_cl, top_mkrs_dt, logcpms_all,
   log_labs  = c('0', '10', '20', '50', '100', '200', '500',
     '1k', '2k', '5k', '10k', '20k', '50k')
   g = ggplot(plot_dt) +
-    aes( x = cluster, y = logcpm_rnd, fill = is_sel, size = n_cells ) +
+    aes( x = cluster, y = logcpm, fill = is_sel, size = n_cells ) +
     geom_quasirandom( colour = 'black', shape = 21 ) +
     scale_y_continuous( breaks = log_brks, labels = log_labs ) +
     expand_limits( y = (c(0, 100) + pseudo_count) %>% log ) +
@@ -1601,7 +1594,6 @@ plot_selected_genes_umap <- function(sel_dt, cols_to_rows = 1.25) {
     labs( colour = "scaled log\nexpression\n(max val. = 1)" )
 }
 
-
 process_custom_markers <- function(custom_f, biotypes_dt, marker_calcs_dt) {
   cust_mkrs_dt = fread(custom_f)
   
@@ -1634,7 +1626,6 @@ process_custom_markers <- function(custom_f, biotypes_dt, marker_calcs_dt) {
    
   return(cust_mkrs_dt)
 }
-
 
 plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cpm = 10, 
   pseudocount = 10, annotate_genes = TRUE, cluster_rows = TRUE) {
@@ -1683,7 +1674,7 @@ plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cp
   if (annotate_genes & (n_genesets > 1)) {
     # label with buckets
     col_lvls    = panel_dt[ symbol %in% keep_gs ]$label %>% fct_inorder %>% levels
-    cols_dt     = panel_dt[, .(symbol,  label= label %>% factor(levels = col_lvls))] %>%
+    cols_dt     = panel_dt[, .(symbol,  label = label %>% factor(levels = col_lvls))] %>%
       setkey('symbol') %>% .[ rownames(log2fc_mat) ]
     col_cols    = MetBrewer::met.brewer( name = 'Signac', n = length(col_lvls), 
         type = 'discrete' ) %>% setNames(col_lvls)
