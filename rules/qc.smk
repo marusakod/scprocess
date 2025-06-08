@@ -6,7 +6,7 @@ import os
 localrules: merge_qc
 
 
-def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS):
+def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, SAMPLE_VAR, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS):
     # load the merged qc file
     qc_dt = pd.read_csv(qc_merged_f, sep = '\t', compression='gzip')
 
@@ -191,7 +191,7 @@ rule get_qc_sample_statistics:
   output:
     qc_stats_f      = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.txt'
   run:
-    sample_stats_df = extract_qc_sample_statistics(input.ambient_stats_f, input.qc_merged_f, SAMPLES, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS)
+    sample_stats_df = extract_qc_sample_statistics(input.ambient_stats_f, input.qc_merged_f, SAMPLES, SAMPLE_VAR, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS)
     sample_stats_df.to_csv(output.qc_stats_f, sep = '\t', index = False)
 
 

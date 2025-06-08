@@ -255,7 +255,7 @@ rule save_alevin_to_h5:
     fry_dir     = af_dir + '/af_{run}/' + af_rna_dir + 'af_quant/'
   output: 
     h5_f        = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
-    amb_yaml_f   = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml',
+    amb_yaml_f  = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml',
     knee_data_f = af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
   params:
     knee1         = lambda wildcards: parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, wildcards.run, 

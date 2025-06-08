@@ -186,19 +186,9 @@ if AMBIENT_METHOD == 'cellbender':
 if AMBIENT_METHOD == 'decontx':
   rule run_decontx:
     input:
-      h5_f       = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
-      amb_yaml_f = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml'
-    params:
-      expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
-      total_droplets_included = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
-      knee_1                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[4],
-      inflection_1            = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[5],
-      knee_2                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[6]
+      h5_f        = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
+      amb_yaml_f  = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml', 
+      knee_data_f = af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
     output:
       ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'
     threads: 4
@@ -223,21 +213,17 @@ if AMBIENT_METHOD == 'decontx':
 
       # run cell calling and decontamination
    
-      Rscript -e "source('scripts/ambient.R'); \
+      Rscript -e "source('scripts/ambient.R'); 
       get_cell_mat_and_barcodes(
-      out_mat_f = '$filt_counts_f', \
-      out_bcs_f = '$bcs_f', \
-      out_dcx_f = '$dcx_params_f', \
-      sel_s = '{wildcards.run}', \
-      af_mat_f = '{input.h5_f}', \
-      knee_1 = {params.knee_1}, \
-      knee_2 = {params.knee_2}, \
-      inf_1 = {params.inflection_1}, \
-      ncores = {threads}, \
-      total_included = {params.total_droplets_included}, \
-      exp_cells = {params.expected_cells}, \
-      cell_calls_method = '{CELL_CALLS_METHOD}', \
-      ambient_method = '{AMBIENT_METHOD}')"
+      out_mat_f = '$filt_counts_f',
+      out_bcs_f = '$bcs_f',
+      out_dcx_f = '$dcx_params_f',
+      sel_s     = '{wildcards.run}',
+      af_mat_f  = '{input.h5_f}',
+      knee_f    = '{input.knee_data_f}',
+      ncores    = {threads},
+      cell_calls_method = '{CELL_CALLS_METHOD}',
+      ambient_method    = '{AMBIENT_METHOD}')"
 
       # Create the output yaml file
       echo "filt_counts_f: $filt_counts_f" >> {output.ambient_yaml_out}
@@ -250,19 +236,9 @@ if AMBIENT_METHOD == 'decontx':
 if AMBIENT_METHOD == 'none':
   rule run_cell_calling:
     input:
-      h5_f      = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
-      amb_yaml_f = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml'
-    params:
-      expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
-      total_droplets_included = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
-      knee_1                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[4],
-      inflection_1            = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[5],
-      knee_2                  = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[6]
+      h5_f        = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
+      amb_yaml_f  = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml',
+      knee_data_f = af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
     output:
       ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'
     threads: 4
@@ -284,29 +260,23 @@ if AMBIENT_METHOD == 'none':
       filt_counts_f="{amb_dir}/ambient_{wildcards.run}/uncorrected_{wildcards.run}_{DATE_STAMP}_filtered.h5"
       bcs_f="{amb_dir}/ambient_{wildcards.run}/uncorrected_{wildcards.run}_{DATE_STAMP}_cell_barcodes.csv"
 
-
       # run cell calling and decontamination
-      Rscript -e "source('scripts/ambient.R'); \
+      Rscript -e "source('scripts/ambient.R');
       get_cell_mat_and_barcodes(
-      out_mat_f = '$filt_counts_f', \
-      out_bcs_f = '$bcs_f', \
-      sel_s = '{wildcards.run}', \
-      af_mat_f = '{input.h5_f}', \
-      knee_1 = {params.knee_1}, \
-      knee_2 = {params.knee_2}, \
-      inf_1 = {params.inflection_1}, \
-      total_included = {params.total_droplets_included}, \
-      exp_cells = {params.expected_cells}, \
-      ncores = {threads}, \
-      cell_calls_method = '{CELL_CALLS_METHOD}', \
-      ambient_method = '{AMBIENT_METHOD}')"
+      out_mat_f = '$filt_counts_f',
+      out_bcs_f = '$bcs_f', 
+      sel_s     = '{wildcards.run}', 
+      af_mat_f  = '{input.h5_f}', 
+      knee_f    = '{input.knee_data_f}', 
+      ncores    = {threads}, 
+      cell_calls_method = '{CELL_CALLS_METHOD}', 
+      ambient_method    = '{AMBIENT_METHOD}')"
 
       # Create the output yaml file
       echo "filt_counts_f: $filt_counts_f" >> {output.ambient_yaml_out}
       echo "bcs_f: $bcs_f" >> {output.ambient_yaml_out}
 
       """
-
 
 
 rule get_barcode_qc_metrics:

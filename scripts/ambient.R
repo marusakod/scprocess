@@ -25,64 +25,71 @@ suppressPackageStartupMessages({
 })
 
 # get matrix with (decontx cleaned) cells and a list of barcodes called as cells
-get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, sel_s, af_mat_f,
-                                      knee_1 = NULL, knee_2 = NULL, inf_1 = NULL,
-                                      total_included = NULL , exp_cells = NULL,
-                                      cell_calls_method = c('barcodeRanks', 'emptyDrops'),
-                                      ncores = 4, niters = 1000, hvg_n = 2000,
-                                      ambient_method = c('none', 'decontx')){
+get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, sel_s, af_mat_f, knee_f, 
+  cell_calls_method = c('barcodeRanks', 'emptyDrops'), ncores = 4, niters = 1000, hvg_n = 2000,
+  ambient_method = c('none', 'decontx')){
+  
   # check inputs
-  call_m = match.arg(cell_calls_method)
-  amb_m = match.arg(ambient_method)
+  call_m  = match.arg(cell_calls_method)
+  amb_m   = match.arg(ambient_method)
 
   # load alevin matrix
-  af_mat = .get_alevin_mx(af_mat_f = af_mat_f, sel_s = '')
-
+  af_mat  = .get_alevin_mx(af_mat_f = af_mat_f, sel_s = '')
+  
+  # load knee
+  knee_dt = fread(knee_f)
+ 
+  message('Looking for cells and empty droplets in sample ', sel_s)
   # call cells and empties
-  cell_empty_bcs = call_cells_and_empties(af_mat = af_mat,
-                                          knee_1 = knee_1,
-                                          knee_2 = knee_2,
-                                          inf_1 = inf_1,
-                                          total_included = total_included,
-                                          exp_cells = exp_cells,
-                                          ncores = ncores,
-                                          n_iters = niters,
-                                          call_method = call_m)
-
-  message('Cells and empty droplets found for ', sel_s)
-
+  cell_empty_bcs = call_cells_and_empties(
+    af_mat  = af_mat,
+    knee_dt = knee_dt,
+    ncores  = ncores,
+    n_iters = niters,
+    call_method = call_m
+    )
+  
   # get matrix with cells
-  cell_bc_df = data.frame(barcode = cell_empty_bcs[["cells"]])
-  cell_mat = af_mat[, cell_bc_df$barcode]
+  cell_mat = af_mat[, cell_empty_bcs[["cells"]]]
 
   # do ambient correction
   if(ambient_method == 'none'){
 
     message("Ambient RNA removal method is 'none'. Saving uncorrected count matrix for ", sel_s )
-    # return uncorrected matrix with just cells
-    write.table(cell_bc_df, out_bcs_f, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = ',')
+    # save list of retained barcodes
+    cell_bcs_dt = data.table(barcode = colnames(cell_mat))
+    fwrite(cell_bcs_dt, out_bcs_f, col.names = FALSE, quote = FALSE)
+    # save matrix
     write10xCounts(out_mat_f, cell_mat, version = "3", overwrite = TRUE)
 
-
   }else{
-
     message("Running 'decontx' for ", sel_s)
     # get empty matrix
     empty_mat = af_mat[, cell_empty_bcs[["empty"]]]
-    dcx_res = decontX(x = cell_mat, background = empty_mat, varGenes = hvg_n)
+    dcx_res   = decontX(x = cell_mat, background = empty_mat, varGenes = hvg_n)
 
-    # save decontaminated matrix
     clean_mat = dcx_res$decontXcounts %>% round()
+    # remove barcodes with no remaining counts
+    keep_idx = which(Matrix::colSums(clean_mat) != 0)
+    message("Keeping ", length(keep_idx), " barcodes with non-zero counts in decontaminated matrix")
+    clean_mat = clean_mat[, keep_idx]
+    
+    message("Saving decontaminated count matrix for ", sel_s)
+    # save list of retained barcodes
+    cell_bcs_dt = data.table(barcode = colnames(clean_mat))
+    fwrite(cell_bcs_dt, out_bcs_f, col.names = FALSE, quote = FALSE)
+    # save matrix
     write10xCounts(out_mat_f, clean_mat, version = "3", overwrite = TRUE)
 
-    # save barcodes
-    clean_bcs_df = data.frame(barcode = colnames(clean_mat))
-    write.table(clean_bcs_df, out_bcs_f, col.names = FALSE, row.names = FALSE, quote = FALSE, sep = ',')
-
-    # add save contamination proportions and decontx cluster assignment
-    dcx_params = data.frame(barcode = colnames(clean_mat),
-                            pct.contamination = dcx_res$contamination,
-                            dcx_cluster = dcx_res$z %>% sprintf("cl%02d", .) %>% factor)
+    # save contamination proportions and decontX cluster assignment
+    dcx_clust  = dcx_res$z %>% sprintf("cl%02d", .) %>% factor
+    dcx_contam = dcx_res$contamination
+    
+    dcx_params = data.table(
+      barcode = colnames(clean_mat),
+      pct.contamination = dcx_contam[keep_idx],
+      dcx_cluster = dcx_clust[keep_idx]
+      )
 
     fwrite(dcx_params, out_dcx_f)
 
@@ -94,61 +101,46 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
 }
 
 
-call_cells_and_empties <- function(af_mat,
-                       knee_1 = NULL, knee_2 = NULL, inf_1 = NULL,
-                       total_included = NULL , exp_cells = NULL,
-                       ncores = 4, n_iters = 1000, fdr_thr = 0.001,
-                       call_method = c('barcodeRanks', 'emptyDrops')){
-
-  # get barcode ranks
-  ranks = barcodeRanks(af_mat) %>% as.data.frame() %>%
-    rownames_to_column('barcode') %>%
-    arrange(rank)
-
-  # get empty droplets
-    empty_locs = .get_empty_plateau(ranks_df = ranks,
-                                    inf1 = inf_1,
-                                    total_inc = total_included,
-                                    knee2 = knee_2)
-
- print(empty_locs)
-
-  # get indices of empty barcodes
-  empty_bcs   = ranks %>%
-    filter(between(rank, empty_locs[1], empty_locs[2])) %>%
-    pull(barcode)
+call_cells_and_empties <- function(af_mat, knee_dt, ncores = 4, n_iters = 1000, fdr_thr = 0.001,
+  call_method = c('barcodeRanks', 'emptyDrops')){
+  
+  # get empty droplets and their indices
+  empty_bcs   = knee_dt %>%
+    .[in_empty_plateau == TRUE, barcode]  
   empty_idx = which(colnames(af_mat) %in% empty_bcs)
 
   if(call_method == 'barcodeRanks'){
-    assert_that(!is.null(exp_cells))
-    cell_bcs = ranks$barcode[1: exp_cells]
-
-
+    exp_cells = knee_dt$expected_cells %>% unique
+    cell_bcs =  knee_dt$barcode[1: exp_cells]
   }else{
-
+    # get retain (threshold for the total umi count above which all barcodes are assumed to contain cells)
+    knee_1 = knee_dt$knee1 %>% unique
     # get sum of s+u+a counts (instead of this maybe try removing genes with v low expression)
-    # doing this because othewise takes too long
+    # doing this because otherwise takes too long
     af_mat_sum =.sum_SUA(af_mat)
-
+  
     bpparam = MulticoreParam(workers = ncores, progressbar = TRUE)
+    
     # call cells
-
-    edrops_res = emptyDrops(m = af_mat_sum,
-                            niters = n_iters,
-                            BPPARAM = bpparam,
-                            known.empty = empty_idx,
-                            retain =  knee_1)
+    edrops_res = emptyDrops(
+      m           = af_mat_sum,
+      niters      = n_iters,
+      BPPARAM     = bpparam,
+      known.empty = empty_idx,
+      retain      = knee_1  
+      )
 
     # get cell barcodes
-    cell_bcs = edrops_res %>% as.data.frame() %>%
-      filter(FDR <= fdr_thr) %>%
-      rownames()
-
+    cell_bcs = edrops_res %>% as.data.table(keep.rownames = 'barcode') %>%
+      .[FDR <= fdr_thr, barcode]
   }
 
-  # return a list with both cell barcodes and empty barcodes
-  empty_cell_bcs_ls = list(empty = empty_bcs,
-                           cells = cell_bcs)
+  # return a list with cell and empty barcodes 
+  empty_cell_bcs_ls = list(
+    empty = empty_bcs,
+    cells = cell_bcs
+    )
+  
   return(empty_cell_bcs_ls)
 
 }
@@ -158,22 +150,23 @@ call_cells_and_empties <- function(af_mat,
 # sum spliced, unspliced and ambiguous counts for same gene
 .sum_SUA <- function(sua_mat){
   types = c('_S$', '_U$', '_A')
-  mats = lapply(types, function(t) sua_mat[grepl(t, rownames(sua_mat)), ])
+  
+  mats  = lapply(types, function(t) sua_mat[grepl(t, rownames(sua_mat)), ])
   # check if symbols are all in the same order
   genes = lapply(mats, function(m) rownames(m) %>% str_before_first(pattern = '_'))
 
-  assert("gene names in split matrices don't match",
-         sapply(genes, function(gs) identical(gs, genes[[1]])) %>% all())
+  assert_that(
+    sapply(genes, function(gs) identical(gs, genes[[1]])) %>% all(), 
+    msg = "gene names in split matrices don't match"
+  )
 
   # remove suffixes from rownames
   mats = lapply(mats, function(m){
     rownames(m) = str_before_first(rownames(m), pattern = '_')
     m
   })
-
   mats_sum = mats[[1]] + mats[[2]] + mats[[3]]
   return(mats_sum)
-
 }
 
 
@@ -198,66 +191,6 @@ call_cells_and_empties <- function(af_mat,
 
   return(mat)
 }
-
-
-.get_empty_plateau <- function(ranks_df, inf1, total_inc, knee2){
-
-  # calculate empty plateau
-
-   infl1_idx = which.min( abs(ranks_df$total - inf1) )[1]
-   infl1_x   = ranks_df[ infl1_idx, "rank" ]
-
-  empty_start = ranks_df %>% mutate(n = 1:nrow(.)) %>%
-    filter( between(rank, infl1_x, total_inc)) %>%
-    pull(n) %>%
-    log10 %>%
-    mean() %>%
-    10^.
-
-  empty_end = unique(ranks_df[ranks_df$total == knee2, "rank"])
-  empty_plateau = c(empty_start, empty_end) %>% as.numeric
-
-  return(empty_plateau)
-}
-
-
-#
-# save_cellbender_qc_metrics <- function(knee_data_f, af_h5_f, cb_h5_f, cb_qc_f, do_cellbender) {
-#   # get expected cells from cellbender yaml
-#   knee_dt     = knee_data_f %>% fread
-#   n_exp_cells = knee_dt$expected_cells %>% unique
-#   exp_cells   = knee_dt$barcode[ 1:n_exp_cells ]
-#
-#   # get alevin counts
-#   af_dt       = .get_alevin_USA_sums(af_h5_f, exp_cells)
-#   if (as.logical(do_cellbender)) {
-#     cb_dt       = .get_cellbender_USA_sums(cb_h5_f, exp_cells)
-#     assert_that( all( sort(af_dt$barcode) == sort(cb_dt$barcode) ))
-#
-#     # join together
-#     cb_qc_dt    = merge(af_dt, cb_dt, by = "barcode") %>%
-#       setkey("barcode") %>% .[ exp_cells ]
-#   } else {
-#     cb_qc_dt    = af_dt %>%
-#       setkey("barcode") %>% .[ exp_cells ]
-#   }
-#   fwrite(cb_qc_dt, file = cb_qc_f)
-# }
-#
-#
-# .get_alevin_USA_sums <- function(af_h5_f, exp_cells) {
-#   sce_af      = read10xCounts(af_h5_f)
-#   af_idx      = sce_af$Barcode %in% exp_cells
-#   mat_af      = counts(sce_af)[, af_idx ] %>%
-#     as("sparseMatrix") %>%
-#     set_colnames(sce_af$Barcode[ af_idx ])
-#
-#   af_dt       = .get_usa_dt(mat_af, "af")
-#
-#   return(af_dt)
-# }
-
-
 
 save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_cells, ambient_method) {
 
@@ -337,20 +270,13 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_ce
 }
 
 
-# get_bender_log_file <- function(sample_name, bender_dir) {
-#   b_dir_full <- file.path(bender_dir, paste0('bender_', sample_name))
-#   log_f <- list.files(b_dir, pattern = '.log', full.names = TRUE)
-#   return(log_f)
-# }
-
-# test comment
 
 get_bender_log <- function(f, sample) {
-  ll <- read_lines(f, n_max = 25)
+  ll =  read_lines(f, n_max = 25)
   .get_match <- function(ll, pat) {
     ll %>% str_subset(pat) %>% str_match(pat) %>% .[, 3] %>% as.integer()
   }
-  bender_df <- tibble(
+  bender_df = tibble(
     sample_id                   = sample,
     cb_prior_cells              = .get_match(ll, '(Prior on counts for cells is )([0-9]+)'),
     cb_prior_empty              = .get_match(ll, '(Prior on counts [infor]{2,3} empty droplets is )([0-9]+)'),
@@ -363,7 +289,6 @@ get_bender_log <- function(f, sample) {
 
   return(bender_df)
 }
-
 
 
 # find slope at first inflection and total droplets included & expected_cells/total ratio
@@ -411,58 +336,6 @@ get_knee_params <- function(ranks_df, sample_var) {
   return(final)
 }
 
-
-
-#make_br_plot1 <- function(ranks) { # ranks == output of calc_cellbender_params()
-  # add knee and inflection to params
-#  knee_data <- ranks %>%
-#    as_tibble() %>%
-#    group_by(lib_size = total) %>%
-#    summarize(n_bc = n()) %>%
-#    arrange(desc(lib_size)) %>%
-#    mutate(bc_rank = cumsum(n_bc))
-#
-#  lines <- ranks[, 4:11] %>% distinct() %>%
-#    reshape2::melt(.) %>%
-#    mutate(axis = c(rep('y', 4), rep('x', 2)),
-#           type = c(rep('cellbender intermediate\nparameter', 4),
-#                    rep('cellbender input\nparameter', 2)))
-#
-#  hlines <- lines %>% filter(axis == 'y')
-#  vlines <- lines %>% filter(axis == 'x')
-#  # plot everything above low count threshold
-#
-#  p_labels =  c("10", "100", "1k", "10k", "100k", "1M")
-#  p_breaks =  c(10, 100, 1000, 10000, 100000, 1000000)
-#
-#  p <- ggplot(knee_data,
-#              aes(x = bc_rank, y = lib_size)) +
-#    geom_line(linewidth = 0.5, color = '#283747') +
-#    scale_x_log10(labels = p_labels,
-#                  breaks = p_breaks) +
-#    scale_y_log10(labels = p_labels,
-#                  breaks = p_breaks) +
-#    theme_light() +
-#    geom_hline(data = hlines,
-#               mapping = aes(yintercept = value, color = type)) +
-#    geom_vline(data = vlines,
-#               mapping = aes(xintercept = value, color = type)) +
-#    theme(panel.grid.major = element_blank(),
-#          panel.grid.minor = element_blank(),
-#          legend.position = 'none') +
-#    labs(x = 'barcode rank',
-#         y = 'library size',
-#         color = NULL,
-#         title = unique(ranks$sample_id),
-#         subtitle = unique(ranks$study_id)) +
-#    scale_color_manual(values = c('#E74C3C', '#5DADE2'),
-#                       breaks = c('cellbender input\nparameter',
-#                                  'cellbender intermediate\nparameter')) +
-#    geom_text_repel(data = hlines, mapping = aes(y = value, x = 10,  label = variable)) +
-#    geom_text_repel(data = vlines, mapping = aes(x = value, y = 100, label = variable), angle = 90)
-#
-#  return(p)
-#}
 
 plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, bender_priors_df = NULL) {
   # get sample order
@@ -667,7 +540,7 @@ get_amb_sample_qc_outliers <- function(qc_df, var1, var2){
 
 
 make_amb_sample_qc_oulier_plots <- function(qc_df, var1, var2, outliers_df,
-                                           x_title, y_title, y_thr = NULL, x_thr = NULL){
+  x_title, y_title, y_thr = NULL, x_thr = NULL){
 
   p = ggplot(qc_df, aes(x = get(var1), y = get(var2))) +
     geom_point(shape = 21, fill = 'grey', color = 'black') +
