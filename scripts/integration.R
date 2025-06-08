@@ -60,7 +60,7 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, de
   all_mat     = cbind(hvg_mat, dbl_hvg_mat)
   
   # subset to both
-  browser()
+  assert_that( setequal(colnames(all_mat), all_coldata$cell_id) )
   keep_ids    = intersect(colnames(all_mat), all_coldata$cell_id)
   all_mat     = all_mat[, keep_ids]
   all_coldata = all_coldata %>% setkey(cell_id) %>% .[ keep_ids ]

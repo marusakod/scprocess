@@ -189,7 +189,7 @@ rule get_qc_sample_statistics:
     ambient_stats_f = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',
     qc_merged_f     = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz' 
   output:
-    qc_stats_f = qc_dir + '/qc_sample_statistics_' + DATE_STAMP + '.txt'
+    qc_stats_f      = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.txt'
   run:
     sample_stats_df = extract_qc_sample_statistics(input.ambient_stats_f, input.qc_merged_f, SAMPLES, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS)
     sample_stats_df.to_csv(output.qc_stats_f, sep = '\t', index = False)
@@ -198,7 +198,7 @@ rule get_qc_sample_statistics:
 # write sce objects paths to a yaml file
 rule make_sce_paths_yaml:
    input:
-    qc_stats_f  = qc_dir + '/qc_sample_statistics_' + DATE_STAMP + '.txt' # so that this runs after get_qc_sample_statistics
+    qc_stats_f  = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.txt' # so that this runs after get_qc_sample_statistics
    output:
     sces_yaml_f = qc_dir  + '/sce_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml'
    run:
