@@ -51,7 +51,6 @@ def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, AMBIENT_
     return sample_df
 
 
-
 # get output file paths as string
 def get_qc_files_str(run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP):
   if SAMPLE_MAPPING is None:
@@ -69,7 +68,6 @@ def get_qc_files_str(run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP):
   
   return smpl_str, sce_str
     
-
 
 rule run_qc:
   input:
@@ -158,7 +156,6 @@ rule merge_qc:
     coldata_df_merged.to_csv(output.coldata_merged_f, sep='\t', index=False, compression='gzip')
 
 
-
 rule merge_rowdata:
   input:
     rowdata_fs = expand(qc_dir  + '/rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', run = runs)
@@ -187,7 +184,6 @@ rule merge_rowdata:
       raise ValueError("Error: rowdata for all sce objects not identical.")
 
 
-
 rule get_qc_sample_statistics:
   input:
     ambient_stats_f = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',
@@ -197,8 +193,6 @@ rule get_qc_sample_statistics:
   run:
     sample_stats_df = extract_qc_sample_statistics(input.ambient_stats_f, input.qc_merged_f, SAMPLES, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS)
     sample_stats_df.to_csv(output.qc_stats_f, sep = '\t', index = False)
-
-
 
 
 # write sce objects paths to a yaml file
