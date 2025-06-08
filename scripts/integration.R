@@ -16,7 +16,7 @@ suppressPackageStartupMessages({
 })
 
 
-run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, coldata_f, demux_type, 
+run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, reduction, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
   integration_f, batch_var, n_cores = 4) {
   
@@ -26,7 +26,11 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, coldata_f, demux_type,
   # change clustering method to integer
   if(cl_method == 'louvain'){
     cl_method = 1
+  } else if (cl_method == 'leiden') { 
+    cl_method = 4
+    stop("sorry leiden doesn't work yet :(")
   }else{
+    message('Using louvain clustering as default')
     cl_method = 1
   }
 
@@ -37,12 +41,15 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, coldata_f, demux_type,
   options( future.globals.maxSize = 2^35 )
 
   message('  loading relevant cell ids')
-  
+  sample_qc   = fread(sample_qc_f)
   all_coldata = fread(coldata_f)
   assert_that("sample_id" %in% colnames(all_coldata))
-  assert_that(batch_var %in% colnames(all_coldata))
+  assert_that("sample_id" %in% colnames(all_coldata))
+  assert_that( setequal(all_coldata$sample_id, sample_qc$sample_id) )
+  ok_samples  = sample_qc[ bad_sample == FALSE ]$sample_id
   all_coldata = all_coldata %>%
-    .[keep == TRUE | dbl_class == 'doublet']
+    .[ keep == TRUE | dbl_class == 'doublet' ] %>% 
+    .[ sample_id %in% ok_samples ]
 
   message('  loading hvg matrix')
   hvg_mat     = .get_alevin_mx(hvg_mat_f, sel_s = '')
@@ -50,10 +57,13 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, coldata_f, demux_type,
   assert_that(identical(rownames(hvg_mat), rownames(dbl_hvg_mat)))
 
   # merge matrices with cells and doublets
-  all_mat = cbind(hvg_mat, dbl_hvg_mat)
-  assert_that(setequal(colnames(all_mat), all_coldata$cell_id))
+  all_mat     = cbind(hvg_mat, dbl_hvg_mat)
   
-  all_mat = all_mat[, all_coldata$cell_id]
+  # subset to both
+  browser()
+  keep_ids    = intersect(colnames(all_mat), all_coldata$cell_id)
+  all_mat     = all_mat[, keep_ids]
+  all_coldata = all_coldata %>% setkey(cell_id) %>% .[ keep_ids ]
   
   message('  normalizing hvg matrix')
   all_mat_norm =  normalize_hvg_mat(
@@ -83,7 +93,8 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, coldata_f, demux_type,
     dbl_batch_var = 'pool_id'
   }
   
-  int_dbl     = .run_one_integration(seu_dbl, dbl_batch_var, cl_method, n_dims, theta = 0, dbl_res, reduction)
+  int_dbl     = .run_one_integration(seu_dbl, dbl_batch_var, cl_method, n_dims, 
+    theta = 0, dbl_res, reduction)
   dbl_ids     = all_coldata[dbl_class == 'doublet', cell_id]
   dbl_data    = .calc_dbl_data(int_dbl, dbl_ids, dbl_res, dbl_cl_prop)
   rm(seu_dbl); gc()
@@ -105,7 +116,8 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, coldata_f, demux_type,
    seu_ok[['RNA']]$data = all_mat_norm[, ok_ids]
   })
   
-  int_ok      = .run_one_integration(seu_ok, batch_var, cl_method, n_dims, theta = theta, res_ls, reduction)        
+  int_ok      = .run_one_integration(seu_ok, batch_var, cl_method, n_dims, 
+    theta = theta, res_ls, reduction)        
 
   # join these together
   int_dt      = merge(int_ok, dbl_data, by = c("sample_id", "cell_id"), all = TRUE)
