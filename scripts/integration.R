@@ -61,9 +61,7 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, de
   
   # subset to both
   assert_that( setequal(colnames(all_mat), all_coldata$cell_id) )
-  keep_ids    = intersect(colnames(all_mat), all_coldata$cell_id)
-  all_mat     = all_mat[, keep_ids]
-  all_coldata = all_coldata %>% setkey(cell_id) %>% .[ keep_ids ]
+  all_mat     = all_mat[, all_coldata$cell_id ]
   
   message('  normalizing hvg matrix')
   all_mat_norm =  normalize_hvg_mat(
