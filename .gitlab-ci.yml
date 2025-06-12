@@ -14,5 +14,5 @@ pages:
     paths:
     - public
   rules:
-  - if: $CI_COMMIT_BRANCH == 'main-shpc'
+  - if: $CI_COMMIT_BRANCH == 'dev-hto'
 
