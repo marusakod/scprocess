@@ -19,7 +19,7 @@ suppressPackageStartupMessages({
 run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, reduction, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
   integration_f, batch_var, n_cores = 4) {
-  
+ 
   # unpack inputs
   res_ls      = res_ls_concat %>% str_split(" ") %>% unlist %>% as.numeric
   
@@ -45,11 +45,10 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, de
   all_coldata = fread(coldata_f)
   assert_that("sample_id" %in% colnames(all_coldata))
   assert_that("sample_id" %in% colnames(all_coldata))
-  assert_that( setequal(all_coldata$sample_id, sample_qc$sample_id) )
   ok_samples  = sample_qc[ bad_sample == FALSE ]$sample_id
   all_coldata = all_coldata %>%
     .[ keep == TRUE | dbl_class == 'doublet' ] %>% 
-    .[ sample_id %in% ok_samples ]
+    .[ sample_id %in% c(ok_samples, "") ]
 
   message('  loading hvg matrix')
   hvg_mat     = .get_alevin_mx(hvg_mat_f, sel_s = '')
