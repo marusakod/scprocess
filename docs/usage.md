@@ -70,22 +70,25 @@ scprocess /path/to/config.yaml -r label_and_subset
 
 ## Analysis of multiplexed samples
 
-Multiplexing strategies allow multiple samples to be processed in a single single-cell sequencing (scRNA-seq) experiment. {{ software_name }} supports the processing of multiplexed samples through two approaches:
+{{ software_name }} supports two approaches for handling multiplexed samples:
 
-* Hashtag oligo (HTO)-based multiplexing: Uses lipid-bound or antibody-conjugated oligonucleotide barcodes to label cells before pooling. {{ software_name }} performs full processing from raw sequencing data, including demultiplexing.
+* **Hashtag oligo (HTO)-based demultiplexing**: {{ software_name }} uses HTO-derived cDNA libraries to generate a count matrix which can be used for sample demultiplexing.
 
-* Pre-demultiplexed data (external demultiplexing outputs) – users can provide an external cell-sample assignment file if they have already demultiplexed the data using a different method (e.g., genetic-based demultiplexing like demuxlet, barcode-based demultiplexing, or other custom strategies).
+* **Outputs of external demultiplexing algorithms**: If the data has already been demultiplexed using an external method (e.g. genetic-based tools like [demuxlet](https://www.nature.com/articles/nbt.4042)), users can provide a cell-sample assignment file to process the data further using {{ software_name }}
 
 ### Input files 
 
-Processing multiplexed samples requires a different format for the input metadata CSV file. In addition to the standard `sample_id` column, the following columns must be included:
+Processing multiplexed samples requires a different format for the sample metadata CSV file. In addition to the standard `sample_id` column, the following columns must be included:
 
-* `pool_id`: specifies the pool to which each sample belongs. Instead of values in `sample_id` column, FASTQ filenames must match values in the `pool_id` column.
-* `hto_id`: required for HTO-based multiplexing. Specifies the hashtag oligo (HTO) label used to tag each sample before pooling.
+* `pool_id`: specifies the pool to which each sample belongs. Instead of values in the `sample_id` column, FASTQ filenames must match values in the `pool_id` column.
+* `hto_id`: only required for HTO-based demultiplexing. Specifies the HTO label used to tag each sample before pooling.
 
-Important: {{ software_name }} assumes that all samples in the dataset are multiplexed.
 
-![multiplexing](assets/images/scprocess_multiplexing_schematic.png)
+!!! Warning "The dataset must consist entirely of either multiplexed or non-multiplexed samples. Mixed datasets are not supported"
+
+
+![multiplexing](assets/images/scprocess_multiplexing_white_bg.png#only-light)
+![multiplexing](assets/images/scprocess_multiplexing_black_bg.png#only-dark)
 
 ---
 

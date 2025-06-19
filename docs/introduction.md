@@ -7,15 +7,15 @@
 ## Steps
 
 ### Overview
-{{ software_name }} consists of a series of core steps, organized under the main Snakemake rule - `rule all`. Additional optional steps are available to extend the core analyses as needed. The diagram below outlines all steps, with detailed descriptions provided in the following sections.
+{{ software_name }} consists of a series of core steps which can be performed in a single execution of the workflow. Additional optional steps are available to extend the core analyses as needed. The diagram below outlines all steps, with detailed descriptions provided in the following sections.
 
-![workflow_chart](assets/images/scprocess_workflow_demux_white_bg.png#only-light)
+![workflow_chart](assets/images/scprocess_workflow_diagram_white_bg.png#only-light)
 ![workflow_chart](assets/images/scprocess_workflow_diagram_black_bg.png#only-dark)
 
 ---
-<div class="img-caption"> The figure illustrates all steps in {{ software_name }}, including those grouped under <code>rule all</code> and optional steps. Specific software packages used are listed for individual steps. Some steps process samples independently, while others operate on a combined dataset with multiple samples. Several steps also generate HTML reports with diagnostic plots, enabling users to inspect the results at key points in the workflow. </div>
+<div class="img-caption"> The figure illustrates all steps in {{ software_name }}. Specific software packages used are listed for individual steps. Several steps generate HTML reports with diagnostic plots, enabling users to inspect the results at key points in the workflow. </div>
 
-### Standard pipeline steps
+### Core pipeline steps
 
 * #### Read alignment and quantification
     
@@ -37,40 +37,39 @@
 
     In addition to removing doublets, {{ software_name }} filters out cells with low library size, low feature counts, high mitochondrial read proportions, and high spliced read proportions using user-defined thresholds. The spliced proportion is a particularly informative metric in single-nuclei RNA-seq, as elevated levels may indicate residual cytoplasmic material. 
 
-* #### Integration (batch correction)
+* #### Generating pseudobulks from cells and empty droplets and ambient gene detection
 
-    In multi-sample analyses, various factors can introduce batch effects that obscure true biological signals. {{ software_name }} uses [`Harmony`](https://www.nature.com/articles/s41592-019-0619-0) to address this by aligning cells across batches based on shared expression profiles, ensuring that clustering and downstream analyses reflect true biological relationships rather than technical variation.
+    {{ software_name }} aggregates counts from both cell-containing and empty droplets into pseudobulk profiles to identify genes enriched in empty droplets—i.e., ambient genes. These ambient genes likely represent residual contamination rather than true biological signals. Identifying them supports cleaner and more accurate downstream analyses and helps prioritize genes less affected by contamination.
+
+* #### Highly variable gene detection
+
+    Highly variable gene detection in {{ software_name }} is performed using the [`Seurat VST`](https://satijalab.org/seurat/reference/findvariablefeatures) method in a chunk-wise or sample-wise manner, enabling the computation of ranking metrics for all genes without the need to load the entire dataset into memory. The efficient generation of a reduced matrix containing only highly variable genes ensures optimal performance in downstream analyses and facilitates the processing of larger datasets.
+
+* #### Integration
+    
+    After identifying highly variable genes, {{ software_name }} proceeds with dimentionality reduction and clustering. In multi-sample analysis, various factors can introduce batch effects that obscure true biological signals. To mitigate this, {{ software_name }} offers the option to compute batch-corrected PCA embeddings using [`Harmony`](https://www.nature.com/articles/s41592-019-0619-0). This ensures that clustering and downstream analyses reflect true biological relationships rather than technical variation.
 
 * #### Marker gene identification
-
-    Once clustering has been completed, typically users will want to annotate them with meaningful labels. A common way to do this is by inspecting marker genes for each cluster, which are typically identified by comparing the expression profile of each cluster against those of all other clusters. In {{ software_name }}, transcript counts for each cluster are aggregated within each sample, and these "pseudobulk" values are compared using [`edgeR`](https://pmc.ncbi.nlm.nih.gov/articles/PMC2796818/). This approach avoids the assumption that cells within the same sample are independent, thereby enhancing the statistical reliability of the results. {{ software_name }} also performs gene set enrichment analysis on all marker genes. Additionally, users have the option to visualize the expression of canonical marker genes specific to different tissue types in the HTML report.
+    
+    Assigning meaningful labels to clusters in single-cell data is essential for interpretation of single cell data. This is commonly achieved by examining marker genes for each cluster, identified by comparing the expression profile of each cluster against all others. In {{ software_name }}, transcript counts are aggregated per cluster within each sample to generate "pseudobulk" values, which are then compared using [`edgeR`](https://pmc.ncbi.nlm.nih.gov/articles/PMC2796818/). This approach avoids the assumption that individual cells from the same sample are independent, thereby enhancing the statistical reliability of the results. {{ software_name }} also performs gene set enrichment analysis on all marker genes and includes visualizations of user-defined gene sets in the HTML report.
 
 ### Optional steps
 
+
+* #### Processing multiplexed samples
+    
+    Multiplexing strategies are commonly used to scale up single-cell experiments by enabling the analysis of multiple samples in a single run. Common approaches include labeling cells in individual samples with lipid-bound or antibody-conjugated oligonucleotides (hashtag oligos, or HTOs) prior to pooling. Alternatively, sample labels can be derived based on differences in genetic backgrounds. {{ software_name }} supports the analysis of multiplexed samples by quantifying HTOs and demultiplexing samples using the [Seurat HTODemux](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-018-1603-1) function. It also accommodates outputs from external demultiplexing tools, enabling seamless processing of samples regardless of the multiplexing strategy employed.
+
 * #### Cell type labelling
 
-    {{ software_name }} provides automated cell type annotation using `XGBoost` classifiers for various tissue types, including human and mouse brain, as well as human and mouse peripheral blood mononuclear cells (PBMCs). Classifiers for cell type annotation are trained on the following datasets:
+    {{ software_name }} provides automated cell type annotation of human and mouse brain datasets using `XGBoost` classifiers Classifiers are trained on the following datasets:
 
     - Human Brain Classifier: [Transcriptomic diversity of cell types across the adult human brain](https://www.science.org/doi/10.1126/science.add7046) [has to be updated]
 
-    - Mouse Brain Classifier: [The molecular cytoarchitecture of the adult mouse brain](https://www.nature.com/articles/s41586-023-06818-7) [work in progress]
+    - Mouse Brain Classifier: [The molecular cytoarchitecture of the adult mouse brain](https://www.nature.com/articles/s41586-023-06818-7) and [A high-resolution transcriptomic and spatial atlas of cell types in the whole mouse brain](https://www.nature.com/articles/s41586-023-06812-z) [work in progress]
 
-    - Human PBMC Classifier: [Multidimensional single-cell analysis of human peripheral blood reveals characteristic features of the immune system landscape in aging and frailty](https://www.nature.com/articles/s43587-022-00198-9#data-availability) [work in progress]
-
-    - Mouse PBMC Classifier: [work in progress]
-
-    In addition to the pre-trained classifiers, {{ software_name }} allows users to provide a custom file with cell type annotations, for example based on annotations via a cell annotation method, which can be used as input for other optional steps (e.g. metacells and pseudobulks).
-
-* #### Subclustering
+* #### Subclustering - not available at the moment
 
     {{ software_name }} provides a subclustering feature that allows users to delve deeper into selected clusters. This approach is particularly useful when a primary cluster encompasses diverse cell states, developmental stages, or activation states that warrant closer examination. By selecting one or multiple clusters of interest, users can initiate a secondary round of integration and clustering within those specific groups.
-
-* #### Merging cells into metacells
-
-    In large datasets, high cell counts can severely hinder or even block downstream analyses. To address this, {{ software_name }} uses the [`SuperCell`](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-022-04861-1) package to merge transcriptionally similar cells into "metacells". By reducing the overall number of data points, this approach accelerates computations and makes larger datasets more manageable.
-
-* #### Generating pseudobulks from cells and empty droplets
-
-    After cell type labeling, {{ software_name }} allows users to aggregate counts from identified cell types and empty droplets into pseudobulks. Additionally {{ software_name }} identifies genes enriched in empty droplets. Such genes likely represent residual contamination, rather than relevant biology, and this step therefore supports cleaner, more accurate downstream analyses and helps prioritize non-contaminating genes.
 
 

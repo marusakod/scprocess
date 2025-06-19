@@ -30,12 +30,12 @@ img[alt="workflow_chart"] {
   float: block;
   margin: 0 auto;
   width: 1000px;
-  height: 1000px;
+  height: 500px;
 }
 img[alt="multiplexing"] {
   display: block;
   margin: 0 auto;
-  width: 550px;
+  width: 850px;
   height: 500px;
 }
 .img-caption {
