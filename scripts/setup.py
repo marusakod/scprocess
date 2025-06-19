@@ -442,6 +442,11 @@ def _make_gtf_txt_file(gtf_f, gtf_txt_f):
 
   # restrict to just genes, remove some columns
   gene_annots = gtf[ gtf['Feature'] == 'gene' ]
+  if "gene_biotype" in gene_annots.columns:
+    gene_annots.rename(columns={
+      'gene_biotype': 'gene_type'
+    }, inplace=True)
+
   gene_annots = gene_annots[['gene_id', 'gene_name', 'gene_type', 'Chromosome', 'Start', 'End', 'Strand']]
   
   # Rename columns
@@ -453,6 +458,9 @@ def _make_gtf_txt_file(gtf_f, gtf_txt_f):
     'End': 'end',
     'Strand': 'strand'
   }, inplace=True)
+
+  # check for any NAs in symbol
+  gene_annots["symbol"] = gene_annots["symbol"].fillna(gene_annots["ensembl_id"])
 
   # calculate width and add gene_id column
   gene_annots['width']    = gene_annots['end'] - gene_annots['start'] + 1
