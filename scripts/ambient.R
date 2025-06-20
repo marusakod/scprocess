@@ -306,9 +306,11 @@ get_knee_params <- function(ranks_df, sample_var) {
   
   # fit curve to all points
   ranks_df = ranks_df %>% 
-    .[total > 5] %>%
-    .[, ranks_log := log10(rank)] %>%
-    .[, total_log := log10(total)] %>%
+    filter(total > 5) %>%
+    mutate(
+      ranks_log = log10(rank),
+      total_log = log10(total)
+      ) %>%
     unique
   
   fit = smooth.spline(x = ranks_df$ranks_log, y = ranks_df$total_log)
@@ -322,16 +324,16 @@ get_knee_params <- function(ranks_df, sample_var) {
   keep_cols = c(sample_var, 'knee1', 'inf1', 'knee2', 'inf2', 'total_droplets_included', 'expected_cells')
   
   final = ranks_df %>%
-    .[, ..keep_cols] %>%
+    select(all_of(keep_cols)) %>%
     unique() %>%
-    .[, `:=`(
+    mutate(
       slope_inf1 = d1_inf,
       slope_total_included = d1_total
-    )] %>% 
-    .[, `:=`(
-    slope_ratio = abs(slope_total_included) / abs(slope_inf1),
-    expected_total_ratio = expected_cells / total_droplets_included
-    )]
+    ) %>% 
+    mutate(
+      slope_ratio = abs(slope_total_included) / abs(slope_inf1),
+      expected_total_ratio = expected_cells / total_droplets_included
+    )
   
   return(final)
 }
@@ -343,18 +345,18 @@ plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, ben
   
   # add knee and inflection to params
   knee_data = lapply(s_ord, function(s) {
-    x = knees[[ s ]]
+    x = knees[[ s ]] %>% as.data.table
     x %>%
-    .[, .(n_bc = .N), by = .(lib_size = total)] %>%
-    .[order(-lib_size)] %>%
-    .[, bc_rank := cumsum(n_bc)] %>%
-    .[, (sample_var) := s]
+      .[, .(n_bc = .N), by = .(lib_size = total)] %>%
+      .[order(-lib_size)] %>%
+      .[, bc_rank := cumsum(n_bc)] %>%
+      .[, (sample_var) := s]
   }) %>% rbindlist()
   
   knee_vars = c(sample_var, 'knee1', 'inf1', 'knee2', 'inf2',
                  'total_droplets_included', 'expected_cells')
   
-  lines_knees = ambient_knees_df %>% 
+  lines_knees = ambient_knees_df %>% as.data.table %>% 
     .[get(sample_var) %in% s_ord, ..knee_vars] %>%
     melt(id.vars = sample_var) %>%
    .[, `:=`(
@@ -368,7 +370,7 @@ plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, ben
     lines_priors = NULL
   } else {
     prior_vars = c(sample_var, 'cb_prior_cells', 'cb_prior_empty')
-    lines_priors = bender_priors_df %>%
+    lines_priors = bender_priors_df %>% as.data.table %>% 
       .[get(sample_var) %in% s_ord, ..prior_vars] %>%
       melt(id.vars= sample_var) %>%
       .[, `:=`(

@@ -1594,8 +1594,9 @@ plot_selected_genes_umap <- function(sel_dt, cols_to_rows = 1.25) {
     labs( colour = "scaled log\nexpression\n(max val. = 1)" )
 }
 
-process_custom_markers <- function(custom_f, biotypes_dt, marker_calcs_dt) {
-  cust_mkrs_dt = fread(custom_f)
+process_custom_markers <- function(custom_f, biotypes_dt, hvgs_dt, marker_calcs_dt) {
+  cust_mkrs_dt  = fread(custom_f)
+  label_lvls    = cust_mkrs_dt$label %>% unique 
   
   # Ensure symbol is present; if not, try to retrieve it using ensembl_id
   if (!"symbol" %in% colnames(cust_mkrs_dt)) {
@@ -1611,6 +1612,10 @@ process_custom_markers <- function(custom_f, biotypes_dt, marker_calcs_dt) {
       all(cust_mkrs_dt$symbol %in% biotypes_dt$symbol), 
       msg = sprintf("Warning: Some 'symbol' values in '%s' do not match any in the GTF file.", custom_f)
     )
+    assert_that(
+      all(cust_mkrs_dt[, .N, by = symbol]$N == 1), 
+      msg = sprintf("Some genes in the following custom markers file are repeated across groups:\n%s", custom_f)
+    )
   }
   
   # Check that at least two symbols are in marker_calcs_dt
@@ -1624,20 +1629,31 @@ process_custom_markers <- function(custom_f, biotypes_dt, marker_calcs_dt) {
     return(NULL)
   }
    
+  # add gene_id
+  if (!('gene_id' %in% names(cust_mkrs_dt))) {
+    gene_lu = hvgs_dt[ symbol %in% cust_mkrs_dt$symbol ] %>% 
+      .[, .SD[ which.max(vst_var) ], by = symbol ] %>% 
+      .[, .(symbol, gene_id) ]
+    cust_mkrs_dt = cust_mkrs_dt %>% merge(gene_lu, by = "symbol")
+  }
+  # put in nice order
+  cust_mkrs_dt = cust_mkrs_dt[, label := factor(label, levels = label_lvls) ] %>% 
+    .[order(label)]
+  
   return(cust_mkrs_dt)
 }
 
 plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cpm = 10, 
   pseudocount = 10, annotate_genes = TRUE, cluster_rows = TRUE) {
   # unpack
-  sel_gs      = panel_dt$symbol
+  sel_gs      = panel_dt$gene_id
 
   # get marker values
-  missing_gs  = setdiff( sel_gs, unique(mkrs_dt$symbol))
+  missing_gs  = setdiff( sel_gs, unique(mkrs_dt$gene_id))
   if ( length(missing_gs) > 0 )
     message('the following genes are not in the marker genes file:\n  ', 
       paste(missing_gs, collapse = ','))
-  mkrs_sel    = mkrs_dt[ (symbol %in% sel_gs) ]
+  mkrs_sel    = mkrs_dt[ (gene_id %in% sel_gs) ]
   min_cpm     = 10
   max_cpms    = mkrs_sel[, .(max_logcpm = max(logcpm.sel)), by = symbol ]
   keep_gs     = max_cpms[ max_logcpm >= log(min_cpm + pseudocount) ]$symbol

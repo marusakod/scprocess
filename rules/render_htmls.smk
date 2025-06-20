@@ -141,7 +141,7 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
   threads: 1
   retries: RETRIES 
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * 8192
   conda:
     '../envs/rlibs.yml'
   shell:
@@ -161,6 +161,7 @@ rule render_html_ambient: # some outputs are the same as outputs in render_html_
         SHORT_TAG = '{SHORT_TAG}', \
         DATE_STAMP = '{DATE_STAMP}', \
         SAMPLE_STR = '{RUNS_STR}', \
+        SAMPLE_VAR     = '{SAMPLE_VAR}', \
         AMBIENT_METHOD = '{AMBIENT_METHOD}', \
         af_dir = '{af_dir}')"
     """

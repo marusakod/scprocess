@@ -129,7 +129,7 @@ if (is.null(cl_ord))
 ```{r load_heatmap_markers, include = FALSE}
 if (custom_mkr_names_str != "") {
   custom_mkrs_dt_ls = lapply(custom_mkr_paths, FUN = process_custom_markers, 
-    biotypes_dt = biotypes_dt, marker_calcs_dt = mkrs_dt)
+    biotypes_dt = biotypes_dt, hvgs_dt = hvgs_dt, marker_calcs_dt = mkrs_dt)
   
   # remove NULL elements from list
   custom_mkrs_dt_ls = Filter(Negate(is.null), custom_mkrs_dt_ls)
@@ -152,11 +152,11 @@ top_min_dt  = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>%
 
 ```{r calc_gsea_pb, include = FALSE}
 # do GSEA
-fgsea_fs        = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f)
-names(fgsea_fs) = str_extract(fgsea_fs, "(go_bp|go_cc|go_mf|paths|hlmk)")
+fgsea_fs      = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f) %>% 
+  setNames(c("go_bp", "go_cc", "go_mf", "paths", "hlmk"))
 
 # load fgsea results
-gsea_ls         = lapply(fgsea_fs, fread) %>% setNames(names(fgsea_fs))
+gsea_ls       = lapply(fgsea_fs, function(f) if(file.exists(f)) {fread(f)} else {return(NULL)}) %>% setNames(names(fgsea_fs))
 ```
 
 
@@ -260,6 +260,8 @@ GSEA was performed on marker genes for each cluster, using logFC as the ranking 
 
 ```{r plot_gsea_results_pb, fig.height = 12, fig.width = 8, results = "asis"}
 for (p in names(gsea_ls)) {
+  if (is.null(gsea_ls[[p]]))
+    next
   cat('### ', p, '\n')
   dt    = gsea_ls[[p]] %>% .[ gsea_var == "z_score" ]
   plot_gsea_dotplot(dt, gsea_cut = gsea_cut, n_top_paths = 5, max_nes = 2,

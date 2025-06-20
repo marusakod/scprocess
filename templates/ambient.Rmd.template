@@ -38,7 +38,8 @@ source('code/ambient.R')
 
 
 ```{r setup_input, include = FALSE}
-amb_method = "${AMBIENT_METHOD}"
+sample_var  = "${SAMPLE_VAR}"
+amb_method  = "${AMBIENT_METHOD}"
 
 # files with barcode ranks and knee parameters
 amb_dir     = 'output/${SHORT_TAG}_ambient'
@@ -90,9 +91,9 @@ barcode_qc_dfs = lapply(barcode_qc_dirs, FUN = read_delim, delim = ",", show_col
 
 ```{r get_knee_qc_df, eval=eval_knee_plot, include = FALSE}
 if(amb_method == 'cellbender'){
-bender_knees_df = lapply(knee_dfs, get_knee_params) %>% bind_rows
+  bender_knees_df = lapply(knee_dfs, get_knee_params, sample_var) %>% bind_rows
 }else{
-bender_knees_df = NULL
+  bender_knees_df = NULL
 }
 ```
 
@@ -145,7 +146,7 @@ for (i in 1:length(slope_ratio_split_l) ) {
   name = sprintf('sample chunk #%d', i)
   knees = knee_dfs[samples]
   cat('### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knees, bender_knees_df, bender_priors_df))
+  print(plot_barcode_ranks_w_params(knees, bender_knees_df, sample_var, bender_priors_df))
   cat('\n\n')
 }
 ```
@@ -160,7 +161,7 @@ for (i in 1:length(exp_tot_ratio_split_l) ) {
   name = sprintf('sample chunk #%d', i)
   knees = knee_dfs[samples]
   cat('### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knees, bender_knees_df, bender_priors_df))
+  print(plot_barcode_ranks_w_params(knees, bender_knees_df, sample_var, bender_priors_df))
   cat('\n\n')
 }
 ```
