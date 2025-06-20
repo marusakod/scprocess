@@ -1,6 +1,42 @@
 # Getting started
 
+
+## Prerequisites
+
+### Hardware
+
+{{ software_name }} runs on Linux systems that meet these minimum requirements:
+ 
+* Operating system: Linux
+* [processor? List all processors that we tested on? The only problematic part is probably alevin]
+* [RAM? depends on how big the dataset is]
+* [CPU?]
+* [GPU with CUDA support (only required if you select CellBender as ambient method)]
+
+### Software
+
+!!! Warning "Ignore this if on Roche shpc"
+
+{{ software_name }} requires `snakemake` and `conda`. See the [snakemake manual](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html) and the [conda user guide](https://docs.anaconda.com/miniconda/) for help with the installation.
+
 ## Installation
+
+### General installation instructions
+
+1. Clone the github repository:
+
+    ```
+    git clone https://github.com/marusakod/scprocess_test.git
+    ```
+
+2.  Add {{ software_name }} to your path. Open your `.bashrc` file and add the following line:
+
+    ```bash
+    export PATH=/PATH/TO/YOUR/FOLDER/scprocess:${PATH}
+    ```
+
+
+### Roche shpc installation
 
 1. Clone the Roche GitLab repository:
 
