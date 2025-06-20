@@ -76,9 +76,21 @@ def extract_ambient_sample_statistics(AMBIENT_METHOD, SAMPLE_VAR, samples_ls, me
 
     # replace dodgy totals values with custom if need be
     if custom_f is not None and os.path.isfile(custom_f):
-      # Load up custom parameters
-      custom_df = pd.read_csv(custom_f)[[SAMPLE_VAR, 'total_droplets_included']]
+      # open custom yaml file 
+      with open(custom_f) as f:
+        all_params  = yaml.load(f, Loader=yaml.FullLoader)
 
+      # get all samples with custom params
+      custom_ls   = [ s for s in all_params.keys() if 'ambient' in all_params[s] ]
+      amb_params  = [ all_params[s]['ambient'] for s in custom_ls ]
+      custom_df   = pd.DataFrame(columns = [SAMPLE_VAR, 'total_droplets_included'])
+      for i, s in enumerate(custom_ls):
+        this_params = amb_params[ i ]
+        if 'total_droplets_included' in this_params:
+          tmp_df      = pd.DataFrame({SAMPLE_VAR: s, 'total_droplets_included': this_params['total_droplets_included']})
+          custom_df   = custom_df.append( tmp_df )
+      
+      # use these to edit totals_arr
       samples_arr = np.array(samples_ls)
       for idx, row in custom_df.iterrows():
         match_idx = np.where(samples_arr == row[SAMPLE_VAR])
