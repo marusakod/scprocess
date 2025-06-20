@@ -321,8 +321,8 @@ rule get_ambient_sample_statistics:
     metrics_fs  = expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs),
     amb_yaml_fs = expand(amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml', run=runs)
   output:
-    smpl_stats_f    = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt'
+    smpl_stats_f  = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   run:
     sample_stats_df   = extract_ambient_sample_statistics(AMBIENT_METHOD, SAMPLE_VAR, runs, input.metrics_fs, input.amb_yaml_fs,
       CUSTOM_SAMPLE_PARAMS_F, CELLBENDER_PROP_MAX_KEPT)
-    sample_stats_df.to_csv(output.smpl_stats_f, sep = '\t', index = False)
+    sample_stats_df.to_csv(output.smpl_stats_f, index = False)

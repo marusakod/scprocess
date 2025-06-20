@@ -163,7 +163,7 @@ rule all:
       dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       ], run =  runs), 
     # ambient sample statistics
-    amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',  
+    amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',  
     # demultiplexing
     hto_sce_fs,  
     # qc
@@ -237,7 +237,7 @@ rule ambient:
     expand(amb_dir + '/ambient_{sample}/ambient_{sample}_' + DATE_STAMP + '_output_paths.yaml',
       sample = POOL_IDS if DEMUX_TYPE != "none" else SAMPLES),
     amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', 
-    amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt', 
+    amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd', 
     docs_dir  + '/' + SHORT_TAG + '_ambient.html'
 

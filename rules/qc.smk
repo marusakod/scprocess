@@ -27,6 +27,7 @@ def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, SAMPLE_V
     if AMBIENT_METHOD == 'cellbender':
         # load ambient sample stats
         amb_stats = pd.read_csv(ambient_stats_f)
+        
         # get bad pools or samples
         bad_bender = amb_stats.loc[amb_stats['bad_sample'], SAMPLE_VAR].tolist()
 
@@ -71,7 +72,7 @@ def get_qc_files_str(run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP):
 
 rule run_qc:
   input:
-    ambient_stats_f = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',
+    ambient_stats_f = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     amb_yaml_f   = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
     demux_f      = (demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if DEMUX_TYPE == 'af' else ([DEMUX_F] if DEMUX_TYPE == 'custom' else [])
   output:
@@ -186,7 +187,7 @@ rule merge_rowdata:
 
 rule get_qc_sample_statistics:
   input:
-    ambient_stats_f = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',
+    ambient_stats_f = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     qc_merged_f     = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz' 
   output:
     qc_stats_f      = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.txt'

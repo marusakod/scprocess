@@ -25,7 +25,7 @@ rule make_pb_input_df: # for empty pseudobulks
 
 rule make_pb_empty:
   input:
-    amb_stats_f   = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt', 
+    amb_stats_f   = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     af_paths_f    = pb_dir +  '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     rowdata_f     = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
