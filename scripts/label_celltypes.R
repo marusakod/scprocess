@@ -28,72 +28,6 @@ suppressPackageStartupMessages({
 })
 
 
-train_celltype_labeller <- function(sce_f, hvgs_xgb_f, xgb_f, allowed_f,
-  clusters_dt, meta_dt, clust_var = "cluster", use_all_samples = FALSE, meta_vars = NULL,
-  min_n_cl = 200, n_train = 1000, n_dims = 50, sel_gs = NULL, n_hvgs = 2000,
-  seed = 123, n_cores = 4) {
-  
-  # randomly sample evenly across lesion types, until we have >= 500 of each type
-  if (use_all_samples) {
-    message('  using all samples')
-    samples_dt  = copy(clusters_dt)
-  } else {
-    message('  getting representative subset of cells for training')
-    set.seed(seed)
-    samples_dt  = .get_representative_subset(clusters_dt, meta_dt,
-      clust_var = clust_var, meta_vars = meta_vars,
-      n_per_type = min_n_cl, min_n = 10)
-    message(sprintf('    %d cells chosen, split like so:', nrow(samples_dt)))
-    samples_dt[, .N, by = 'cluster'] %>% .[ order(-N) ] %>% print
-  }
-  # now subset
-  sel_ids     = samples_dt$cell_id
-  sel_cls     = clusters_dt[ cell_id %in% sel_ids ] %>%
-    .[, .(sample_id, cell_id, cluster = get(clust_var))]
-
-  # get HVGs for these
-  message('  calculate HVGs on these')
-  hvgs_mat    = .get_hvgs_mat(hvgs_xgb_f, sce_f, sel_ids, what = "hvgs",
-    sel_gs = sel_gs, n_hvgs = n_hvgs, n_dims = n_dims, n_cores = n_cores)
-  hvg_gs      = hvgs_mat %>% colnames %>% setdiff(c("cluster", "cell_id"))
-
-  # make data for xgboost
-  message('  split into train/test')
-  set.seed(seed)
-  data_broad  = .load_train_test_data(sel_cls, hvgs_mat, min_n_cl, n_train)
-  train_dt    = data_broad$train
-  valid_dt    = data_broad$valid
-
-  # run xgboost
-  message('  run XGBoost')
-  set.seed(seed)
-  xgb_obj     = .run_boost_watchlist(train_dt, valid_dt, n_cores)
-  xgb_obj$cl_lvls = levels(train_dt$cluster)
-  message('    saving')
-  saveRDS(xgb_obj, file = xgb_f, compress = FALSE)
-  allowed_dt  = data.table( cluster = xgb_obj$cl_lvls )
-  fwrite(allowed_dt, file = allowed_f)
-
-  # predict on validation data
-  message('  print some outputs to show performance on validation data')
-  valid_all   = rbind(data_broad$valid, data_broad$valid_rest)
-  pred_valid  = .get_pred_valid(xgb_obj, valid_all)
-  conf_dt     = .calc_confuse_xgboost_dt(pred_valid)
-  conf_tmp    = .calc_confuse_xgboost_dt(pred_valid[ p_pred > 0.5 ])
-  conf_dt[ (cl_pred != cl_true) & (prop > 0.1) ] %>%
-    .[, .(cl_true, cl_pred, N_true, pct_pred = round(prop * 100, 1))] %>%
-    .[ order(-pct_pred) ] %>%
-    print
-  conf_tmp[ (cl_pred != cl_true) & (prop > 0.01) ] %>%
-    .[, .(cl_true, cl_pred, N_true, pct_pred = round(prop * 100, 1))] %>%
-    .[ order(-pct_pred) ] %>%
-    print
-  conf_tmp[ (cl_pred == cl_true) ] %>% .[ order(prop) ] %>%
-    .[, .(cl_true, N_true, pct_true = round(prop * 100, 1))] %>% print
-
-  message('done.')
-}
-
 label_celltypes_with_xgboost <- function(xgb_f, sces_yaml_f, integration_f, qc_sample_stats_f, 
   hvg_mat_f, guesses_f, custom_labels_f, exclude_mito, sel_res,  gene_var = c("gene_id", "ensembl_id"), 
   min_pred = 0.5, min_cl_prop = 0.5, min_cl_size = 100, n_cores = 4) {
@@ -925,53 +859,7 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
         `cl2 total` = list(at = log_brks, labels = log_labs)
         )
       )
-
-  # } else {
-  #   row_annots  = rowAnnotation(
-  #     `orig. only`  = rows_dt$N_orig_only,
-  #     col = list(
-  #       `orig. only` = cols_fn(rows_dt$N_orig_only,
-  #         res = max(rows_dt$N_orig_only) / 8, 
-  #         pal = "Greys", pal_dir = 1, range = "has_zero")
-  #        ),
-  #     annotation_name_side = "top"
-  #     )
-  #   col_annots  = HeatmapAnnotation(
-  #     `new only`  = cols_dt$N_cl_only,
-  #     col = list(
-  #       `new only`  = cols_fn(cols_dt$N_cl_only,
-  #         res = max(cols_dt$N_cl_only) / 8, 
-  #         pal = "Greys", pal_dir = 1, range = "has_zero")
-  #       ),
-  #     annotation_name_side = "right"
-  #     )
-  # }
-
-  # # split by cell type
-  # if (which_type == "type_fine") {
-  #   orig_lvls   = fine_ord
-  #   row_split   = fine_split[ rownames(data_mat) ] %>% factor(levels = broad_ord)
-  # } else if (which_type == "type_broad") {
-  #   orig_lvls   = broad_ord
-  #   row_split   = NULL
-  # }
-
-  # # put in nice order, always order by log_N
-  # set.seed(20220602)
-  
-  # # put matrix in nice order
-  # order_dt    = copy_dt %>% 
-  #   dcast.data.table(cl1 ~ cl2, value.var = "log_N", fill = 0) %>% 
-  #   melt( id = "cl1", var = "cluster" ) %>% 
-  #   .[, cl1 := factor(cl1, levels = orig_lvls) ] %>% 
-  #   .[ order(cluster, cl1) ] %>%
-  #   .[, smth_score := ksmooth(as.numeric(cl1), value, 
-  #     kernel = "normal", x.points = as.numeric(cl1))$y, by = cluster ] %>%
-  #   .[, .SD[ which.max(smth_score) ], by = cluster ] %>%
-  #   .[ order(cl1) ]
-  # assert_that( all( sort(order_dt$cluster) == colnames(data_mat) ) )
-  # put in nice order
-
+    
   if (do_sort == "no") {
     rows_flag   = FALSE
     cols_flag   = FALSE
