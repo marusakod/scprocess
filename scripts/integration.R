@@ -100,11 +100,10 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, de
   
   # make new seurat object without doublets
   message('  running on clean data')
-  ok_ids      = all_coldata[keep == TRUE, cell_id]
-  
+  ok_ids      = dbl_data[ (is_dbl == FALSE) & (in_dbl_cl == FALSE) ] %>% .$cell_id  
   suppressWarnings({
-    meta = data.frame(all_coldata[cell_id %chin% ok_ids])
-    rownames(meta) = meta$cell_id
+    meta            = data.frame(all_coldata[cell_id %chin% ok_ids])
+    rownames(meta)  = meta$cell_id
     seu_ok      = Seurat::CreateSeuratObject(
       counts      = all_mat[, ok_ids], 
       meta.data   = meta,
@@ -115,6 +114,7 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, de
    seu_ok[['RNA']]$data = all_mat_norm[, ok_ids]
   })
   
+  # run harmony
   int_ok      = .run_one_integration(seu_ok, batch_var, cl_method, n_dims, 
     theta = theta, res_ls, reduction)        
 
