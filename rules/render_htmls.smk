@@ -130,44 +130,48 @@ if DEMUX_TYPE == 'af':
 
       """
 
-
-# render_html_ambient
-rule render_html_ambient: # some outputs are the same as outputs in render_html_alevin_fry
-  input:
-    expand( amb_dir + '/ambient_{sample}/barcodes_qc_metrics_{sample}_' + DATE_STAMP + '.txt.gz', sample = runs )
-  output:
-    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd",
-    html_f      = f"{docs_dir}/{SHORT_TAG}_ambient.html"
-  threads: 1
-  retries: RETRIES 
-  resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
-  conda:
-    '../envs/rlibs.yml'
-  shell:
-    """
-        template_f=$(realpath templates/ambient.Rmd.template)
-        rule="ambient"
+# render_html_cellbender
+if AMBIENT_METHOD == "cellbender": 
+  rule render_html_cellbender: # some outputs are the same as outputs in render_html_alevin_fry
+    input:
+      expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs), 
+      ambient_smpl_stats_f = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt'
+    output:
+      rmd_f       = f"{rmd_dir}/{SHORT_TAG}_cellbender.Rmd",
+      html_f      = f"{docs_dir}/{SHORT_TAG}_cellbender.html"
+    threads: 1
+    retries: RETRIES 
+    resources:
+      mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    conda:
+      '../envs/rlibs.yml'
+    shell:
+      """
+          template_f=$(realpath templates/cellbender.Rmd.template)
+          rule="cellbender"
         
-        Rscript --vanilla -e "source('scripts/render_reports.R'); \
-        render_reports(
-        rule_name = '$rule', \
-        proj_dir = '{PROJ_DIR}', \
-        temp_f =  '$template_f', \
-        rmd_f = '{output.rmd_f}', \
-        YOUR_NAME = '{YOUR_NAME}', \
-        AFFILIATION = '{AFFILIATION}', \
-        PROJ_DIR    = '{PROJ_DIR}', \
-        SHORT_TAG = '{SHORT_TAG}', \
-        DATE_STAMP = '{DATE_STAMP}', \
-        SAMPLE_STR = '{RUNS_STR}', \
-        AMBIENT_METHOD = '{AMBIENT_METHOD}', \
-        af_dir = '{af_dir}')"
-    """
+          Rscript --vanilla -e "source('scripts/render_reports.R'); \
+          render_reports(
+          rule_name    = '$rule', 
+          proj_dir     = '{PROJ_DIR}', 
+          temp_f       =  '$template_f', 
+          rmd_f        = '{output.rmd_f}', 
+          stats_f      = '{input.ambient_smpl_stats_f}', 
+          CELLBENDER_PROP_MAX_KEPT = {CELLBENDER_PROP_MAX_KEPT}, 
+          YOUR_NAME    = '{YOUR_NAME}', 
+          AFFILIATION  = '{AFFILIATION}', 
+          PROJ_DIR     = '{PROJ_DIR}', 
+          SHORT_TAG    = '{SHORT_TAG}', 
+          DATE_STAMP   = '{DATE_STAMP}', 
+          RUNS_STR     = '{RUNS_STR}', 
+          SAMPLE_VAR   = '{SAMPLE_VAR}', 
+          af_dir       = '{af_dir}', 
+          af_rna_dir   = '{af_rna_dir}')"
+      """
 
 rule render_html_qc:
   input:
-    qc_dt_f      = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    qc_dt_f     = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_qc.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_qc.html"
@@ -199,7 +203,6 @@ rule render_html_qc:
     threads = {threads}, \
     meta_f = '{METADATA_F}', \
     qc_dt_f = '{input.qc_dt_f}', \
-    AMBIENT_METHOD = '{AMBIENT_METHOD}', \
     QC_HARD_MIN_COUNTS = {QC_HARD_MIN_COUNTS}, \
     QC_HARD_MIN_FEATS = {QC_HARD_MIN_FEATS}, \
     QC_HARD_MAX_MITO = {QC_HARD_MAX_MITO}, \
@@ -317,52 +320,52 @@ rule render_html_marker_genes:
       SPECIES = '{SPECIES}')"
     """
 
-# # render_html_label_celltypes
-# rule render_html_label_celltypes:
-#   input:
-#     r_mkr_f     = f'{code_dir}/marker_genes.R',
-#     guesses_f   = f'{lbl_dir}/cell_annotations_{FULL_TAG}_{DATE_STAMP}.txt.gz'
-#   output:
-#     r_lbl_f     = f'{code_dir}/label_celltypes.R',
-#     rmd_f       = f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd',
-#     html_f      = f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
-#   threads: 1
-#   retries: RETRIES
-#   resources:
-#     mem_mb      =  lambda wildcards, attempt: attempt * 4096
-#   conda: 
-#     '../envs/rlibs.yml'
-#   shell:
-#     """
-#     # copy R code over
-#     echo "copying relevant R files over"
-#     cp scripts/label_celltypes.R {output.r_lbl_f}
+# render_html_label_celltypes
+rule render_html_label_celltypes:
+  input:
+    r_mkr_f     = f'{code_dir}/marker_genes.R',
+    guesses_f   = f'{lbl_dir}/cell_annotations_{FULL_TAG}_{DATE_STAMP}.txt.gz'
+  output:
+    r_lbl_f     = f'{code_dir}/label_celltypes.R',
+    rmd_f       = f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd',
+    html_f      = f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
+  threads: 1
+  retries: RETRIES
+  resources:
+    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+  conda: 
+    '../envs/rlibs.yml'
+  shell:
+    """
+    # copy R code over
+    echo "copying relevant R files over"
+    cp scripts/label_celltypes.R {output.r_lbl_f}
 
-#     template_f=$(realpath templates/label_celltypes.Rmd.template)
-#     rule="cell_labels"
+    template_f=$(realpath templates/label_celltypes.Rmd.template)
+    rule="cell_labels"
 
-#     Rscript --vanilla -e "source('scripts/render_reports.R'); \
-#     render_reports(
-#     rule_name = '$rule', \
-#     proj_dir = '{PROJ_DIR}', \
-#     temp_f =  '$template_f', \
-#     rmd_f = '{output.rmd_f}', \
-#     YOUR_NAME = '{YOUR_NAME}', \
-#     AFFILIATION = '{AFFILIATION}', \
-#     SHORT_TAG = '{SHORT_TAG}', \
-#     PROJ_DIR = '{PROJ_DIR}', \
-#     DATE_STAMP = '{DATE_STAMP}', \
-#     threads = {threads}, \
-#     guesses_f = '{input.guesses_f}', \
-#     LBL_XGB_F = '{LBL_XGB_F}', \
-#     CUSTOM_LABELS_F = '{CUSTOM_LABELS_F}', \
-#     MKR_SEL_RES = '{MKR_SEL_RES}', \
-#     LBL_TISSUE = '{LBL_TISSUE}', \
-#     LBL_SEL_RES_CL = '{LBL_SEL_RES_CL}', \
-#     LBL_MIN_PRED = {LBL_MIN_PRED}, \
-#     LBL_MIN_CL_PROP = {LBL_MIN_CL_PROP}, \
-#     LBL_MIN_CL_SIZE = {LBL_MIN_CL_SIZE})"
-#     """
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
+    render_reports(
+    rule_name       = '$rule', \
+    proj_dir        = '{PROJ_DIR}', \
+    temp_f          =  '$template_f', \
+    rmd_f           = '{output.rmd_f}', \
+    YOUR_NAME       = '{YOUR_NAME}', \
+    AFFILIATION     = '{AFFILIATION}', \
+    SHORT_TAG       = '{SHORT_TAG}', \
+    PROJ_DIR        = '{PROJ_DIR}', \
+    DATE_STAMP      = '{DATE_STAMP}', \
+    threads         = {threads}, \
+    guesses_f       = '{input.guesses_f}', \
+    LBL_XGB_F       = '{LBL_XGB_F}', \
+    CUSTOM_LABELS_F = '{CUSTOM_LABELS_F}', \
+    MKR_SEL_RES     = '{MKR_SEL_RES}', \
+    LBL_TISSUE      = '{LBL_TISSUE}', \
+    LBL_SEL_RES_CL  = '{LBL_SEL_RES_CL}', \
+    LBL_MIN_PRED    = {LBL_MIN_PRED}, \
+    LBL_MIN_CL_PROP = {LBL_MIN_CL_PROP}, \
+    LBL_MIN_CL_SIZE = {LBL_MIN_CL_SIZE})"
+    """
 
 
 

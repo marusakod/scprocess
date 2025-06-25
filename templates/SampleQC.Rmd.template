@@ -38,7 +38,6 @@ meta_f      = "${meta_f}"
 qc_f        = "${qc_dt_f}"
 
 # set default values
-ambient_method  = "${AMBIENT_METHOD}"
 hard_min_counts = ${QC_HARD_MIN_COUNTS}
 hard_min_feats  = ${QC_HARD_MIN_FEATS}
 hard_max_mito   = ${QC_HARD_MAX_MITO}
@@ -103,10 +102,10 @@ Cells with spliced proportions greater than `r max_splice` are excluded from fur
 ```{r plot_qc_ranges_marginals, fig.height = max(length(s_lvls)/5 + 0.5, 10), fig.width = 9, results = 'asis'}
 suppressWarnings({
   cat("### Pre-QC\n")
-  print(plot_qc_ranges_marginals(qc_dt, s_lvls, qc_names, qc_lu, thrshlds_dt, ambient_method))
+  print(plot_qc_ranges_marginals(qc_dt, s_lvls, qc_names, qc_lu, thrshlds_dt))
   cat("\n\n")
   cat("### After light QC\n")
-  print(plot_qc_ranges_marginals(kept_dt, s_lvls, qc_names, qc_lu, thrshlds_dt, ambient_method))
+  print(plot_qc_ranges_marginals(kept_dt, s_lvls, qc_names, qc_lu, thrshlds_dt))
   cat("\n\n")
 })
 ```
@@ -119,10 +118,10 @@ pairwise QC plot to facilitate the exploration of relationships between all pair
 
 ```{r plot_qc_ranges_pairwise, fig.height = 7, fig.width = 8, results = 'asis'}
 cat("### Pre-QC\n")
-print(plot_qc_ranges_pairwise(qc_dt, qc_names, qc_lu, thrshlds_dt, ambient_method))
+print(plot_qc_ranges_pairwise(qc_dt, qc_names, qc_lu, thrshlds_dt))
 cat("\n\n")
 cat("### After light QC\n")
-print(plot_qc_ranges_pairwise(kept_dt, qc_names, qc_lu, thrshlds_dt, ambient_method))
+print(plot_qc_ranges_pairwise(kept_dt, qc_names, qc_lu, thrshlds_dt))
 cat("\n\n")
 ```
 

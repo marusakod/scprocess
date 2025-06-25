@@ -561,7 +561,7 @@ filter_qc <- function(sce, qc_f, coldata_f, hard_min_counts, hard_min_feats, har
 
 
 
-plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds_dt, amb_method) {
+plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds_dt) {
   # melt, add names
   qc_melt   = copy(qc_input) %>%
     melt(measure = qc_names, val = 'qc_val', var = 'qc_var') %>%
@@ -574,19 +574,6 @@ plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds
     .[, qc_full   := fct_reorder(qc_full, as.integer(qc_var)) ]
 
   # calculate medians etc
-if(amb_method == 'cellbender'){
-  qc_meds = qc_melt %>%
-  .[, .(
-    log10_N = log10(.N),
-    bender_logit_ok =  unique(bender_logit_ok),
-    q50 = median(qc_val, na.rm = TRUE),
-    q10 = quantile(qc_val, 0.1, na.rm = TRUE),
-    q90 = quantile(qc_val, 0.9, na.rm = TRUE),
-    q025 = quantile(qc_val, 0.025, na.rm = TRUE),
-    q975 = quantile(qc_val, 0.975, na.rm = TRUE)
-  ),
-  by = c('sample_id', 'qc_var', 'qc_full')]
-  }else{
     qc_meds = qc_melt %>%
   .[, .(
     log10_N = log10(.N),
@@ -597,8 +584,6 @@ if(amb_method == 'cellbender'){
     q975 = quantile(qc_val, 0.975, na.rm = TRUE)
   ),
   by = c('sample_id', 'qc_var', 'qc_full')]
-  }
-
 
   # bar width
   bar_w     = 0.4
@@ -663,13 +648,8 @@ if(amb_method == 'cellbender'){
   return(g)
 }
 
-plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt, amb_method) {
-  # add logit ok to names
-  if(amb_method == 'cellbender'){
-  qc_names  = c(qc_names, 'bender_logit_ok')
-  qc_lu     = c(qc_lu, bender_logit_ok = "bender cell pct.")
-  }
-
+plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt) {
+ 
   # calc medians etc
   qc_meds   = qc_input %>%
     melt(measure = qc_names, val = 'qc_val', var = 'qc_var') %>%
@@ -683,11 +663,6 @@ plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt, amb_
       ),
       by = c('sample_id', 'qc_var')] %>%
     .[, qc_full := qc_lu[ qc_var ] ]
-
-    if(amb_method == 'cellbender'){
-    qc_meds = qc_meds %>%
-    .[ qc_var == "bender_logit_ok", q50 := pmin(q50, qlogis(0.999)) ]
-    }
 
   # make pairwise plot
   pairs_dt  = merge(qc_meds, qc_meds,
@@ -719,21 +694,6 @@ plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt, amb_
         qc_full.y == "spliced pct."     ~
           scale_y_continuous(breaks = splice_brks, labels = splice_labs)
   )
-
-  if(amb_method == 'cellbender'){
-    # add bender cell pct. to scales
-    scales_x_ls = c(scales_x_ls,
-    qc_full.x == "bender cell pct." ~
-          scale_x_continuous(breaks = logit_brks, labels = logit_labs)
-          )
-
-    scales_y_ls = c(scales_y_ls,
-    qc_full.y == "bender cell pct." ~
-          scale_y_continuous(breaks = logit_brks, labels = logit_labs)
-    )
-
-  }
-
 
   # make plot
   g = ggplot(pairs_dt) +

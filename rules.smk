@@ -36,13 +36,12 @@ ZOOM_NAMES, ZOOM_SPEC_LS = get_zoom_parameters(config, AF_MITO_STR, SCPROCESS_DA
 META_SUBSETS, META_MAX_CELLS = get_metacells_parameters(config)
 AMBIENT_GENES_GRP_NAMES, AMBIENT_GENES_GRP_VAR, AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR)
 RETRIES, MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
-  MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
+  MB_RUN_AMBIENT, \
   MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
   MB_RUN_QC, MB_RUN_HVGS, \
-  MB_MAKE_SCE_OBJECT, \
   MB_RUN_INTEGRATION, \
   MB_RUN_MARKER_GENES, MB_HTML_MARKER_GENES, \
-  MB_LBL_LABEL_CELLTYPES, MB_LBL_SAVE_SUBSET_SCES, MB_LBL_RENDER_TEMPLATE_RMD, \
+  MB_LBL_LABEL_CELLTYPES, MB_LBL_RENDER_TEMPLATE_RMD, \
   MB_META_SAVE_METACELLS, \
   MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
   MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD = \
@@ -133,6 +132,9 @@ fgsea_outs = [
     mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
 ] if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'] else []
 
+# cellbender report (optional)
+bender_rmd_f  = (rmd_dir  + '/' + SHORT_TAG + '_cellbender.Rmd') if AMBIENT_METHOD == 'cellbender' else []
+bender_html_f = (docs_dir + '/' + SHORT_TAG + '_cellbender.html') if AMBIENT_METHOD == 'cellbender' else []
 
 # one rule to rule them all
 rule all:
@@ -152,12 +154,6 @@ rule all:
       af_dir    + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml',
       # ambient (cellbender, decontx or nothing)
       amb_dir   + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
-      # barcode qc metrics
-      amb_dir   + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz',
-      # qc
-      #qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      #qc_dir  + '/coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-      #qc_dir  + '/rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
       # doublet id
       dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
       dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
@@ -200,14 +196,14 @@ rule all:
     code_dir  + '/multiplexing.R',
     # markdowns
     rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
-    rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
+    bender_rmd_f, 
     rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
     rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
     rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.Rmd', 
     hto_rmd_f, 
     # reports
-    docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html',  
-    docs_dir  + '/' + SHORT_TAG + '_ambient.html',
+    docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html', 
+    bender_html_f, 
     docs_dir  + '/' + SHORT_TAG + '_qc.html',
     docs_dir  + '/' + SHORT_TAG + '_integration.html',
     docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.html',
@@ -276,90 +272,71 @@ rule marker_genes:
 rule label_celltypes:
   input:
     lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-    lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    lbl_dir   + '/sce_subset_specifications_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    expand([
-      lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
-    ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] ), 
+    lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     code_dir  + '/label_celltypes.R',
     rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
     docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
+    #lbl_dir   + '/sce_subset_specifications_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    # expand([
+    #   lbl_dir   +'/sce_subset_' + FULL_TAG + '_{s}_' + DATE_STAMP + '.rds'
+    # ], s = [] if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] ), 
+    # code_dir  + '/label_celltypes.R',
+    # rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
+    # docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
 
 
-rule zoom:
-  input:
-    # zoom_imputed_dt
-    expand('%s/{zoom_name}/zoom_imputed_dt_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
-           (zoom_dir, FULL_TAG, DATE_STAMP), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-    # zoom_sce_clean
-    expand('%s/{zoom_name}/zoom_sce_clean_%s_{zoom_name}_{zoom_res}_%s.rds' % \
-           (zoom_dir, FULL_TAG, DATE_STAMP), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-    # zoom_integrated_dt
-    expand('%s/{zoom_name}/zoom_integrated_dt_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
-           (zoom_dir, FULL_TAG, DATE_STAMP), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-    # zoom_pb
-    expand('%s/{zoom_name}/zoom_pb_%s_{zoom_name}_{zoom_res}_%s.rds' % \
-           (zoom_dir, FULL_TAG, DATE_STAMP), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-    # zoom_pb_marker_genes
-    expand('%s/{zoom_name}/zoom_pb_marker_genes_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
-           (zoom_dir, FULL_TAG, DATE_STAMP), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-    # zoom_pb_hvgs
-    expand('%s/{zoom_name}/zoom_pb_hvgs_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
-           (zoom_dir, FULL_TAG, DATE_STAMP), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-    # zoom_fgsea_go_bp
-    expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_go_bp_%s.txt.gz' % \
-           (zoom_dir, FULL_TAG, DATE_STAMP), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-    # zoom_fgsea_go_cc
-    expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_go_cc_%s.txt.gz' % \
-           (zoom_dir, FULL_TAG, DATE_STAMP), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-    # zoom_fgsea_go_mf
-    expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_go_mf_%s.txt.gz' % \
-           (zoom_dir, FULL_TAG, DATE_STAMP), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-    # zoom_fgsea_paths
-    expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_paths_%s.txt.gz' % \
-           (zoom_dir, FULL_TAG, DATE_STAMP), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-    # zoom_fgsea_hlmk
-    expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_hlmk_%s.txt.gz' % \
-           (zoom_dir, FULL_TAG, DATE_STAMP), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']), 
-    # Rmd and html files
-    expand('%s/%s_zoom_{zoom_name}_{zoom_res}.Rmd' % (rmd_dir, SHORT_TAG), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-    expand('%s/%s_zoom_{zoom_name}_{zoom_res}.html' % (docs_dir, SHORT_TAG), \
-           zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res'])
+# rule zoom:
+#   input:
+#     # zoom_imputed_dt
+#     expand('%s/{zoom_name}/zoom_imputed_dt_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
+#            (zoom_dir, FULL_TAG, DATE_STAMP), \
+#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+#     # zoom_sce_clean
+#     expand('%s/{zoom_name}/zoom_sce_clean_%s_{zoom_name}_{zoom_res}_%s.rds' % \
+#            (zoom_dir, FULL_TAG, DATE_STAMP), \
+#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+#     # zoom_integrated_dt
+#     expand('%s/{zoom_name}/zoom_integrated_dt_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
+#            (zoom_dir, FULL_TAG, DATE_STAMP), \
+#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+#     # zoom_pb
+#     expand('%s/{zoom_name}/zoom_pb_%s_{zoom_name}_{zoom_res}_%s.rds' % \
+#            (zoom_dir, FULL_TAG, DATE_STAMP), \
+#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+#     # zoom_pb_marker_genes
+#     expand('%s/{zoom_name}/zoom_pb_marker_genes_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
+#            (zoom_dir, FULL_TAG, DATE_STAMP), \
+#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+#     # zoom_pb_hvgs
+#     expand('%s/{zoom_name}/zoom_pb_hvgs_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
+#            (zoom_dir, FULL_TAG, DATE_STAMP), \
+#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+#     # zoom_fgsea_go_bp
+#     expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_go_bp_%s.txt.gz' % \
+#            (zoom_dir, FULL_TAG, DATE_STAMP), \
+#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+#     # zoom_fgsea_go_cc
+#     expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_go_cc_%s.txt.gz' % \
+#            (zoom_dir, FULL_TAG, DATE_STAMP), \
+#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+#     # zoom_fgsea_go_mf
+#     expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_go_mf_%s.txt.gz' % \
+#            (zoom_dir, FULL_TAG, DATE_STAMP), \
+#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+#     # zoom_fgsea_paths
+#     expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_paths_%s.txt.gz' % \
+#            (zoom_dir, FULL_TAG, DATE_STAMP), \
+#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+#     # zoom_fgsea_hlmk
+#     expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_hlmk_%s.txt.gz' % \
+#            (zoom_dir, FULL_TAG, DATE_STAMP), \
+#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']), 
+#     # Rmd and html files
+#     expand('%s/%s_zoom_{zoom_name}_{zoom_res}.Rmd' % (rmd_dir, SHORT_TAG), \
+#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
+#     expand('%s/%s_zoom_{zoom_name}_{zoom_res}.html' % (docs_dir, SHORT_TAG), \
+#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res'])
 
-
-#rule pb_empties:
-# input:
-#    pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-#    expand([
-#     pb_dir + '/pb_subset_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.rds'
-#     ], subset = PB_SUBSETS ),
-#    expand([
-#     empty_dir + '/edger_empty_genes_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.txt.gz'
-#     ], subset = PB_SUBSETS ),
-#     (pb_dir + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if PB_DO_ALL else [],
-#     (empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz') if PB_DO_ALL else []
-
-
-rule metacells:
- input:
-    expand([
-     meta_dir  + '/metacells_sce_' + FULL_TAG + '_{subset}_{max_cells}_' + DATE_STAMP + '.rds'
-     ], subset = META_SUBSETS, max_cells = META_MAX_CELLS ),
-    expand([
-     meta_dir  + '/metacells_map_' + FULL_TAG + '_{subset}_{max_cells}_' + DATE_STAMP + '.txt.gz'
-     ], subset = META_SUBSETS, max_cells = META_MAX_CELLS )
 
       
 
@@ -374,7 +351,7 @@ include: "rules/hvgs.smk"
 include: "rules/integration.smk"
 include: "rules/marker_genes.smk"
 include: "rules/render_htmls.smk"
-#include: "rules/label_and_subset.smk"
+include: "rules/label_and_subset.smk"
 #include: "rules/zoom.smk"
 #include: "rules/metacells.smk"
 

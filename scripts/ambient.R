@@ -276,7 +276,7 @@ get_bender_log <- function(f, sample) {
   .get_match <- function(ll, pat) {
     ll %>% str_subset(pat) %>% str_match(pat) %>% .[, 3] %>% as.integer()
   }
-  bender_df = tibble(
+  bender_dt = data.table(
     sample_id                   = sample,
     cb_prior_cells              = .get_match(ll, '(Prior on counts for cells is )([0-9]+)'),
     cb_prior_empty              = .get_match(ll, '(Prior on counts [infor]{2,3} empty droplets is )([0-9]+)'),
@@ -285,9 +285,9 @@ get_bender_log <- function(f, sample) {
     used_additional_barcodes    = .get_match(ll, '(plus an additional )([0-9]+)( barcodes)'),
     used_empty_droplets         = .get_match(ll, '(and )([0-9]+)( empty droplets)')
   )
-  assert_that( nrow(bender_df) == 1 )
+  assert_that( nrow(bender_dt) == 1 )
 
-  return(bender_df)
+  return(bender_dt)
 }
 
 
@@ -338,6 +338,7 @@ get_knee_params <- function(ranks_df, sample_var) {
 
 
 plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, bender_priors_df = NULL) {
+
   # get sample order
   s_ord = names(knees)
   
@@ -368,7 +369,7 @@ plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, ben
     lines_priors = NULL
   } else {
     prior_vars = c(sample_var, 'cb_prior_cells', 'cb_prior_empty')
-    lines_priors = bender_priors_df %>%
+    lines_priors = bender_priors_df %>% as.data.table() %>%
       .[get(sample_var) %in% s_ord, ..prior_vars] %>%
       melt(id.vars= sample_var) %>%
       .[, `:=`(

@@ -24,7 +24,7 @@ rule run_integration:
         sample_qc_f      = '{input.sample_qc_f}', 
         coldata_f        = '{input.coldata_f}', 
         demux_type       = '{DEMUX_TYPE}', 
-        exclude_mito     = {EXCLUDE_MITO}, 
+        exclude_mito     = '{EXCLUDE_MITO}', 
         reduction        = '{INT_REDUCTION}',
         n_dims           = {INT_N_DIMS}, 
         cl_method        = '{INT_CL_METHOD}', 

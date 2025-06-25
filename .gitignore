@@ -9,3 +9,4 @@ __pycache__
 *.sublime-*
 logs/
 lsf.yaml
+.DS_Store

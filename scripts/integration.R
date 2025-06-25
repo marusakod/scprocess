@@ -19,6 +19,8 @@ suppressPackageStartupMessages({
 run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, reduction, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
   integration_f, batch_var, n_cores = 4) {
+  
+  exclude_mito = as.logical(exclude_mito)
  
   # unpack inputs
   res_ls      = res_ls_concat %>% str_split(" ") %>% unlist %>% as.numeric

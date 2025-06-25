@@ -27,10 +27,12 @@ suppressPackageStartupMessages({
   library('ggrepel')
 })
 
+
 train_celltype_labeller <- function(sce_f, hvgs_xgb_f, xgb_f, allowed_f,
-  clusters_dt, meta_dt, clust_var = "cluster", use_all_samples = FALSE, meta_vars = NULL, 
-  min_n_cl = 200, n_train = 1000, n_dims = 50, sel_gs = NULL, n_hvgs = 2000, 
+  clusters_dt, meta_dt, clust_var = "cluster", use_all_samples = FALSE, meta_vars = NULL,
+  min_n_cl = 200, n_train = 1000, n_dims = 50, sel_gs = NULL, n_hvgs = 2000,
   seed = 123, n_cores = 4) {
+  
   # randomly sample evenly across lesion types, until we have >= 500 of each type
   if (use_all_samples) {
     message('  using all samples')
@@ -38,20 +40,20 @@ train_celltype_labeller <- function(sce_f, hvgs_xgb_f, xgb_f, allowed_f,
   } else {
     message('  getting representative subset of cells for training')
     set.seed(seed)
-    samples_dt  = .get_representative_subset(clusters_dt, meta_dt, 
-      clust_var = clust_var, meta_vars = meta_vars, 
+    samples_dt  = .get_representative_subset(clusters_dt, meta_dt,
+      clust_var = clust_var, meta_vars = meta_vars,
       n_per_type = min_n_cl, min_n = 10)
     message(sprintf('    %d cells chosen, split like so:', nrow(samples_dt)))
     samples_dt[, .N, by = 'cluster'] %>% .[ order(-N) ] %>% print
   }
   # now subset
   sel_ids     = samples_dt$cell_id
-  sel_cls     = clusters_dt[ cell_id %in% sel_ids ] %>% 
+  sel_cls     = clusters_dt[ cell_id %in% sel_ids ] %>%
     .[, .(sample_id, cell_id, cluster = get(clust_var))]
 
   # get HVGs for these
   message('  calculate HVGs on these')
-  hvgs_mat    = .get_hvgs_mat(hvgs_xgb_f, sce_f, sel_ids, what = "hvgs", 
+  hvgs_mat    = .get_hvgs_mat(hvgs_xgb_f, sce_f, sel_ids, what = "hvgs",
     sel_gs = sel_gs, n_hvgs = n_hvgs, n_dims = n_dims, n_cores = n_cores)
   hvg_gs      = hvgs_mat %>% colnames %>% setdiff(c("cluster", "cell_id"))
 
@@ -78,24 +80,26 @@ train_celltype_labeller <- function(sce_f, hvgs_xgb_f, xgb_f, allowed_f,
   pred_valid  = .get_pred_valid(xgb_obj, valid_all)
   conf_dt     = .calc_confuse_xgboost_dt(pred_valid)
   conf_tmp    = .calc_confuse_xgboost_dt(pred_valid[ p_pred > 0.5 ])
-  conf_dt[ (cl_pred != cl_true) & (prop > 0.1) ] %>% 
-    .[, .(cl_true, cl_pred, N_true, pct_pred = round(prop * 100, 1))] %>% 
-    .[ order(-pct_pred) ] %>% 
-    print
-  conf_tmp[ (cl_pred != cl_true) & (prop > 0.01) ] %>% 
-    .[, .(cl_true, cl_pred, N_true, pct_pred = round(prop * 100, 1))] %>% 
+  conf_dt[ (cl_pred != cl_true) & (prop > 0.1) ] %>%
+    .[, .(cl_true, cl_pred, N_true, pct_pred = round(prop * 100, 1))] %>%
     .[ order(-pct_pred) ] %>%
     print
-  conf_tmp[ (cl_pred == cl_true) ] %>% .[ order(prop) ] %>% 
+  conf_tmp[ (cl_pred != cl_true) & (prop > 0.01) ] %>%
+    .[, .(cl_true, cl_pred, N_true, pct_pred = round(prop * 100, 1))] %>%
+    .[ order(-pct_pred) ] %>%
+    print
+  conf_tmp[ (cl_pred == cl_true) ] %>% .[ order(prop) ] %>%
     .[, .(cl_true, N_true, pct_true = round(prop * 100, 1))] %>% print
 
   message('done.')
 }
 
-label_celltypes_with_xgboost <- function(xgb_f, sce_f, harmony_f, 
-  hvg_mat_f, guesses_f, custom_labels_f, sel_res,  gene_var = c("gene_id", "ensembl_id"), 
+label_celltypes_with_xgboost <- function(xgb_f, sces_yaml_f, integration_f, qc_sample_stats_f, 
+  hvg_mat_f, guesses_f, custom_labels_f, exclude_mito, sel_res,  gene_var = c("gene_id", "ensembl_id"), 
   min_pred = 0.5, min_cl_prop = 0.5, min_cl_size = 100, n_cores = 4) {
- 
+  
+  exclude_mito = as.logical(exclude_mito)
+  
   # check inputs
   if(custom_labels_f != ""){
     cust_lbls = fread(custom_labels_f)
@@ -134,7 +138,12 @@ label_celltypes_with_xgboost <- function(xgb_f, sce_f, harmony_f,
 
   # get values for these genes in new datasets
   message('  getting lognorm counts of HVGs')
-  hvg_mat     = .calc_logcounts(hvg_mat_f, sce_f, gene_var, hvgs, n_cores = n_cores)
+  
+  hvg_mat     = .calc_logcounts(
+    hvg_mat_f, sces_yaml_f, qc_sample_stats_f, gene_var,
+    hvgs, exclude_mito, n_cores = n_cores
+    )
+  
   assert_that( is(hvg_mat, "sparseMatrix") )
   #assert_that( all( colnames(hvg_mat) == xgb_obj$feature_names ) )
 
@@ -144,8 +153,8 @@ label_celltypes_with_xgboost <- function(xgb_f, sce_f, harmony_f,
 
   # label harmony clusters
   message('  predicting majority celltype for each cluster')
-  hmny_dt     = .load_clusters(harmony_f)
-  guesses_dt  = .apply_labels_by_cluster(hmny_dt, preds_dt, min_cl_prop, min_cl_size)
+  int_dt     = .load_clusters(integration_f)
+  guesses_dt  = .apply_labels_by_cluster(int_dt, preds_dt, min_cl_prop, min_cl_size)
 
   # save
   message('  saving results')
@@ -366,8 +375,8 @@ save_subset_sces <- function(sce_f, guesses_f, sel_res_cl, subset_df_f,
   return(save_mat)
 }
 
-.calc_logcounts <- function(hvg_mat_f, sce_f, gene_var, hvgs, 
-  n_cores = 4, overwrite = FALSE) {
+.calc_logcounts <- function(hvg_mat_f, sces_yaml_f, qc_sample_stats_f, gene_var, hvgs, 
+  exclude_mito, n_cores = 4, overwrite = FALSE) {
   if (file.exists(hvg_mat_f) & overwrite == FALSE) {
     message('    already done!')
     hvg_mat   = readRDS(hvg_mat_f)
@@ -379,60 +388,24 @@ save_subset_sces <- function(sce_f, guesses_f, sel_res_cl, subset_df_f,
   plan("multicore", workers = n_cores)
   options( future.globals.maxSize = 2^35 )
 
-  message('    loading sce')
-  sce         = readRDS(sce_f)
-
-  # get selected genes
-  ref_gs      = rowData(sce)[[ gene_var ]]
-  if (gene_var == "gene_id")
-    ref_gs = ref_gs %>% str_replace("_ENSG", "-ENSG")
-  #assert_that( all( hvgs %in% ref_gs) )
-  #sel_idx     = ref_gs %in% hvgs
-
-
-   # add zero counts matrix for missing hvgs if there are any
-  if(!all(hvgs %in% ref_gs)){
-    missing_hvgs = setdiff(hvgs, ref_gs)
-    n_cols = ncol(sce)
-    missing_mat = matrix(0, length(missing_hvgs), n_cols)
-    rownames(missing_mat) = missing_hvgs
-    colnames(missing_mat) = colnames(sce)
-    # convert to sparse
-    missing_mat = as(missing_mat, 'dgTMatrix')
-  #assert_that( all( hvgs %in% ref_gs) )
-  #sel_idx     = ref_gs %in% hvgs
+  qc_dt      = fread(qc_sample_stats_f)
+  ok_samples = qc_dt[bad_sample == FALSE, sample_id]
   
-  # get counts
-  counts_mat  = counts(sce)
-  rownames(counts_mat) = ref_gs
-
-  counts_mat = rbind(counts_mat, missing_mat)
-  }else{
-
-   counts_mat  = counts(sce)
-  rownames(counts_mat) = ref_gs
-
-  }
-
-  # turn into seurat object
-  message('    converting to Seurat object')
-  seu_obj     = Seurat::CreateSeuratObject(
-    counts      = counts_mat,
-    meta.data   = data.frame(colData(sce)),
-    project     = "MS2"
+  sce_fs = yaml::read_yaml(sces_yaml_f)
+  
+  bpparam     = MulticoreParam(workers = n_cores, tasks = length(ok_samples))
+  on.exit(bpstop(bpparam))
+  
+  message('    getting HVG matrix for each sample')
+  hvg_mats = ok_samples %>% bplapply(
+    FUN = .get_one_hvg_mat, BPPARAM = bpparam,
+    sce_fs = sce_fs, hvgs = hvgs,
+    gene_var = gene_var, exclude_mito = exclude_mito
     )
-  rm(sce); gc()
+
+  message('    making one large HVG matrix')
   
-  # run Seurat pipeline, plus clustering    
-  message('    normalising data')
-  seu_obj     = NormalizeData(seu_obj, verbose = FALSE )
-
-  # now use these genes for all cells
-  message('    extracting selected genes')
-  # assert_that( all(hvgs %in% rownames(seu_obj)) )
-  hvg_mat     = GetAssayData(seu_obj, layer = "data", assay = "RNA") %>% 
-    .[ hvgs, ] %>% t
-
+  hvg_mat = do.call('cbind', hvg_mats) %>% t()
   # switch cluster off
   message('    saving')
   saveRDS(hvg_mat, file = hvg_mat_f)
@@ -441,6 +414,53 @@ save_subset_sces <- function(sce_f, guesses_f, sel_res_cl, subset_df_f,
   message('done!')
 
   return(hvg_mat)
+}
+
+
+.get_one_hvg_mat <- function(sel_s, sce_fs, hvgs, gene_var, exclude_mito){
+  
+  message('    loading sce for sample ', sel_s)
+  sce_f = sce_fs[[sel_s]]
+  sce   = readRDS(sce_f)
+  
+  # get selected genes
+  ref_gs      = rowData(sce)[[ gene_var ]]
+  if (gene_var == "gene_id")
+    ref_gs = ref_gs %>% str_replace("_ENSG", "-ENSG")
+  
+  # add zero counts matrix for missing hvgs if there are any
+  if(!all(hvgs %in% ref_gs)){
+    missing_hvgs = setdiff(hvgs, ref_gs)
+    n_cols = ncol(sce)
+    missing_mat = matrix(0, length(missing_hvgs), n_cols)
+    rownames(missing_mat) = missing_hvgs
+    colnames(missing_mat) = colnames(sce)
+    # convert to sparse
+    missing_mat = as(missing_mat, 'dgTMatrix')
+    
+    # get counts
+    counts_mat  = counts(sce)
+    rownames(counts_mat) = ref_gs
+    
+    counts_mat = rbind(counts_mat, missing_mat)
+  }else{
+    
+    counts_mat  = counts(sce)
+    rownames(counts_mat) = ref_gs
+    
+  }
+  # select highly variable genes
+  message('    creating normalized HVG matrix for sample ', sel_s)
+  
+  # normalize
+  coldata      = colData(sce) %>% as.data.table()
+  hvg_mat      = counts_mat[hvgs, ]
+  norm_hvg_mat = normalize_hvg_mat(
+    hvg_mat, coldata, exclude_mito
+  )
+  
+  return(norm_hvg_mat)
+  
 }
 
 .load_train_test_data <- function(clusts_dt, hvgs_mat, min_cells, n_train) {
@@ -602,19 +622,19 @@ save_subset_sces <- function(sce_f, guesses_f, sel_res_cl, subset_df_f,
   return(cls_dt)
 }
 
-.apply_labels_by_cluster <- function(hmny_dt, preds_dt, min_cl_prop, min_cl_size) {
+.apply_labels_by_cluster <- function(int_dt, preds_dt, min_cl_prop, min_cl_size) {
   # melt clusters
   non_cl_vars = c("sample_id", "cell_id", "UMAP1", "UMAP2")
-  hmny_cls    = hmny_dt %>% 
-    melt.data.table( id = non_cl_vars, var = "res_hmny", val = "cl_hmny")
+  int_cls    = int_dt %>% 
+    melt.data.table( id = non_cl_vars, var = "res_int", val = "cl_int")
 
   # exclude tiny clusters
-  hmny_ns     = hmny_cls[, .(N_cl = .N), by = .(res_hmny, cl_hmny) ]
-  keep_cls    = hmny_ns[ N_cl >= min_cl_size ]
+  int_ns     = int_cls[, .(N_cl = .N), by = .(res_int, cl_int) ]
+  keep_cls    = int_ns[ N_cl >= min_cl_size ]
   if ( nrow(keep_cls) > 0 ) {
     message("  excluding some clusters bc they are tiny:")
-    hmny_ns[ N_cl < min_cl_size ] %>% .[ order(res_hmny, cl_hmny) ] %>% print
-    hmny_cls  = hmny_cls %>% merge(hmny_ns, by = c("res_hmny", "cl_hmny")) %>% 
+    int_ns[ N_cl < min_cl_size ] %>% .[ order(res_int, cl_int) ] %>% print
+    int_cls  = int_cls %>% merge(int_ns, by = c("res_hmny", "cl_hmny")) %>% 
       .[, N_cl := NULL ]
   }
 
