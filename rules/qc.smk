@@ -26,7 +26,7 @@ def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, SAMPLE_V
     # handle samples excluded after cellbender
     if AMBIENT_METHOD == 'cellbender':
         # load ambient sample stats
-        amb_stats = pd.read_csv(ambient_stats_f, sep = '\t')
+        amb_stats = pd.read_csv(ambient_stats_f)
         # get bad pools or samples
         bad_bender = amb_stats.loc[amb_stats['bad_sample'], SAMPLE_VAR].tolist()
 

@@ -135,7 +135,7 @@ if AMBIENT_METHOD == "cellbender":
   rule render_html_cellbender: # some outputs are the same as outputs in render_html_alevin_fry
     input:
       expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs), 
-      ambient_smpl_stats_f = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt'
+      ambient_smpl_stats_f = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
     output:
       rmd_f       = f"{rmd_dir}/{SHORT_TAG}_cellbender.Rmd",
       html_f      = f"{docs_dir}/{SHORT_TAG}_cellbender.html"
