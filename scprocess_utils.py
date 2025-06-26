@@ -213,7 +213,7 @@ def get_project_parameters(config, scprocess_data_dir):
   # from index_parameters.csv get valid values for species
   index_params= pd.read_csv(index_params_f)
   valid_species     = index_params['genome_name'].tolist()
-  valid_species_str = ','.join(valid_species)
+  valid_species_str = ', '.join(valid_species)
 
   assert SPECIES in valid_species, f"species {SPECIES} not defined. Valid values are {valid_species_str}"
 

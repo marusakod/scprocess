@@ -11,7 +11,7 @@ rule lbl_label_celltypes:
   input:
     sces_yaml_f        = qc_dir  + '/sce_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml',
     integration_f      = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    qc_sample_stats_f  = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.txt'
+    qc_sample_stats_f  = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output:
     hvg_mat_f   = lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
     guesses_f   = lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'

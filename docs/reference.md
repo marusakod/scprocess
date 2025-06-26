@@ -85,15 +85,15 @@ Specify either `-k`/`--kneefile` or `-c`/`--configfile`:
 * `-n`/`--dry-run`: This makes {{ software_name }} perform a trial run that doesn't create any new files. This is helpful for (1) checking that the various input files and parameter settings are likely to work, and (2) checking what work will be done by {{ software_name }}.
 * `-E`/`--extraagrs`: `snakemake` is a sophisticated package with many options that can be set by the user. This argument allows users to set additional arguments; see [here](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for `snakemake`'s documentation of command line arguments.
 * `-r`/`--rule`: Specifies which rule {{ software_name }} should run. The options are:
-    + `all`: default; includes all [Standard pipeline steps](introduction.md#standard-pipeline-steps)
-    + `label_celltypes`: cell type annotation using a pre-trained classifier or a custom annotation file. 
-    + `zoom`: reintegration, subclustering and marker gene identification for selected cluster groups.
-    + `pb_empties`: generation of pseubodulk samples from annotated cells and empty droplets.
-    + `simpleaf`: read alignment and quantification using `simpleaf`.
-    + `ambient`: ambient RNA removal.
+    + `all`: default; includes all [Core pipeline steps](introduction.md#core-pipeline-steps)
+    + `alevin_fry`: read alignment and quantification using `simpleaf`.
+    + `cellbender`: ambient RNA removal with cellbender.
+    + `demux`: sample demultiplexing.
     + `qc`: qc filtering.
+    + `hvg`: calculation of highly variable genes.
     + `integration`: integration with `Harmony`.
     + `marker_genes`: marker gene identification.
+    + `label_celltypes`: cell type annotation using a pre-trained classifier or a custom annotation file. 
 
 
 
