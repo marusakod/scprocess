@@ -70,7 +70,7 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
     if(smpl_status){
       message('  sample ', sel_sample, ' has been excluded. Saving empty results file')
       lapply(sce_fs_ls, file.create)
-      file.create(dbl_dimred_f)
+      file.create(dimred_f)
       file.create(dbl_f)
       file.create(qc_f)
       file.create(rowdata_f)
