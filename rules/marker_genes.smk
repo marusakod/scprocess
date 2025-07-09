@@ -14,7 +14,7 @@ def get_conditional_outputs(species):
 
 rule run_marker_genes:
   input:
-    sces_yaml_f    = qc_dir  + '/sce_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml',
+    sces_yaml_f    = int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml',
     integration_f  = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
     pb_f      = mkr_dir + '/pb_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.rds',

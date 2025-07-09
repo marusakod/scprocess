@@ -810,6 +810,7 @@ def get_resource_parameters(config):
   MB_RUN_QC                       = 8192
   MB_RUN_HVGS                     = 8192
   MB_RUN_INTEGRATION              = 8192
+  MB_MAKE_CLEAN_SCES              = 8192
   MB_RUN_MARKER_GENES             = 8192
   MB_HTML_MARKER_GENES            = 8192
   MB_LBL_LABEL_CELLTYPES          = 8192
@@ -841,6 +842,8 @@ def get_resource_parameters(config):
       MB_RUN_HVGS                     = config['resources']['mb_run_hvgs']
     if 'mb_run_integration' in config['resources']:
       MB_RUN_INTEGRATION              = config['resources']['mb_run_integration']
+    if 'mb_make_clean_sces' in config['resources']:
+      MB_MAKE_CLEAN_SCES              = config['resources']['mb_make_clean_sces']
     if 'mb_run_marker_genes' in config['resources']:
       MB_RUN_MARKER_GENES             = config['resources']['mb_run_marker_genes']
     if 'mb_html_marker_genes' in config['resources']:
@@ -864,7 +867,7 @@ def get_resource_parameters(config):
     MB_RUN_AMBIENT, \
     MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
     MB_RUN_QC, MB_RUN_HVGS, \
-    MB_RUN_INTEGRATION, \
+    MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, \
     MB_RUN_MARKER_GENES, MB_HTML_MARKER_GENES, \
     MB_LBL_LABEL_CELLTYPES, MB_LBL_RENDER_TEMPLATE_RMD, \
     MB_META_SAVE_METACELLS, \

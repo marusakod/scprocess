@@ -189,11 +189,9 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
   message(sel_s)
   sce_f     = sce_paths[[sel_s]]
   tmp_sce   = readRDS(sce_f)
-  tmp_hmny  = copy(hmny_dt) %>% .[sample_id == sel_s]
-  tmp_sce   = tmp_sce[, tmp_hmny$cell_id]
   
   # add clusters to sce
-  colData(tmp_sce)[["cluster"]] = tmp_hmny[[cl_var]] 
+  colData(tmp_sce)[["cluster"]] = colData(tmp_sce)[[cl_var]] 
   pb        = aggregateData_datatable(tmp_sce, by_vars = c("cluster", "sample_id"), 
     fun = agg_fn, all_cls = keep_cls)
   

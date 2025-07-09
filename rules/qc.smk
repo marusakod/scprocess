@@ -54,13 +54,13 @@ def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, SAMPLE_V
 # get output file paths as string
 def get_qc_files_str(run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP):
   if SAMPLE_MAPPING is None:
-    sce_str = f"{qc_dir}/sce_cells_clean_{run}_{FULL_TAG}_{DATE_STAMP}.rds"
+    sce_str = f"{qc_dir}/sce_cells_tmp_{run}_{FULL_TAG}_{DATE_STAMP}.rds"
     smpl_str= run
   else:
     sce_fs_ls = []
     smpls_ls = []
     for s in SAMPLE_MAPPING[run]:
-      sce_fs_ls.append(f"{qc_dir}/sce_cells_clean_{s}_{FULL_TAG}_{DATE_STAMP}.rds")
+      sce_fs_ls.append(f"{qc_dir}/sce_cells_tmp_{s}_{FULL_TAG}_{DATE_STAMP}.rds")
       smpls_ls.append(s)
 
     sce_str  = ','.join(sce_fs_ls)
@@ -196,14 +196,14 @@ rule get_qc_sample_statistics:
 
 
 # write sce objects paths to a yaml file
-rule make_sce_paths_yaml:
+rule make_tmp_sce_paths_yaml:
    input:
     qc_stats_f  = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv' # so that this runs after get_qc_sample_statistics
    output:
-    sces_yaml_f = qc_dir  + '/sce_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml'
+    sces_yaml_f = temp(qc_dir  + '/sce_tmp_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml')
    run:
     # split paths and sample names
-    fs = [f"{qc_dir}/sce_cells_clean_{s}_{FULL_TAG}_{DATE_STAMP}.rds" for s in SAMPLES]
+    fs = [f"{qc_dir}/sce_cells_tmp_{s}_{FULL_TAG}_{DATE_STAMP}.rds" for s in SAMPLES]
     
     # check that all files exist
     for f in fs:
