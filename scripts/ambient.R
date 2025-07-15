@@ -345,11 +345,12 @@ plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, ben
                  'total_droplets_included', 'expected_cells')
   
   lines_knees = ambient_knees_df %>% as.data.table %>% 
-    .[get(sample_var) %in% s_ord, ..knee_vars] %>%
+    .[ get(sample_var) %in% s_ord, ..knee_vars] %>%
+    setnames( c("inf1", "inf2"), c("shin1", "shin2") ) %>% 
     melt(id.vars = sample_var) %>%
    .[, `:=`(
-      axis = fifelse(variable %in% c('knee1', 'knee2', 'inf1', 'inf2'), 'y', 'x'),
-      type = fifelse(variable %in% c('knee1', 'knee2', 'inf1', 'inf2'),
+      axis = fifelse(variable %in% c('knee1', 'knee2', 'shin1', 'shin2'), 'y', 'x'),
+      type = fifelse(variable %in% c('knee1', 'knee2', 'shin1', 'shin2'),
                      'cellbender intermediate\nparameter', 
                      'cellbender input\nparameter')
     )]
