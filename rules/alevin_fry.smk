@@ -68,11 +68,11 @@ def parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, sample,
   # check for global cellbender params defined in config
   if AMBIENT_METHOD == 'cellbender':
     if FORCE_EXPECTED_CELLS is not None:
-       EXPECTED_CELLS = FORCE_EXPECTED_CELLS
+      EXPECTED_CELLS = FORCE_EXPECTED_CELLS
     if FORCE_TOTAL_DROPLETS_INCLUDED is not None:
-       TOTAL_DROPLETS_INCLUDED = FORCE_TOTAL_DROPLETS_INCLUDED
+      TOTAL_DROPLETS_INCLUDED = FORCE_TOTAL_DROPLETS_INCLUDED
     if FORCE_LOW_COUNT_THRESHOLD is not None:
-       LOW_COUNT_THRESHOLD = FORCE_LOW_COUNT_THRESHOLD
+      LOW_COUNT_THRESHOLD = FORCE_LOW_COUNT_THRESHOLD
 
   # check custom_sample_params_f for sample specific params
   if CUSTOM_SAMPLE_PARAMS_F is not None: 

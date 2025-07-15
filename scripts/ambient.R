@@ -1,6 +1,5 @@
 # QC of cellbender input parameters
 
-
 suppressPackageStartupMessages({
   library('data.table')
   library('magrittr')
@@ -100,7 +99,6 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
   return(NULL)
 }
 
-
 call_cells_and_empties <- function(af_mat, knee_dt, ncores = 4, n_iters = 1000, fdr_thr = 0.001,
   call_method = c('barcodeRanks', 'emptyDrops')){
   
@@ -142,10 +140,7 @@ call_cells_and_empties <- function(af_mat, knee_dt, ncores = 4, n_iters = 1000, 
     )
   
   return(empty_cell_bcs_ls)
-
 }
-
-
 
 # sum spliced, unspliced and ambiguous counts for same gene
 .sum_SUA <- function(sua_mat){
@@ -169,8 +164,6 @@ call_cells_and_empties <- function(af_mat, knee_dt, ncores = 4, n_iters = 1000, 
   return(mats_sum)
 }
 
-
-
 .get_alevin_mx <- function(af_mat_f, sel_s){
   # get this file
   h5_filt   = H5Fopen(af_mat_f, flags = "H5F_ACC_RDONLY" )
@@ -192,7 +185,8 @@ call_cells_and_empties <- function(af_mat, knee_dt, ncores = 4, n_iters = 1000, 
   return(mat)
 }
 
-save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_cells, ambient_method) {
+save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_cells, 
+  ambient_method) {
 
   # read in the yaml file
   amb_yaml = yaml::read_yaml(amb_out_yaml)
@@ -255,9 +249,7 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_ce
   fwrite(qc_dt, out_qc_f)
 
   return(NULL)
-
 }
-
 
 .get_usa_dt <- function(mat, prefix) {
   # get counts
@@ -268,8 +260,6 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_ce
     as.data.table(keep.rownames = "barcode")
   return(usa_dt)
 }
-
-
 
 get_bender_log <- function(f, sample) {
   ll =  read_lines(f, n_max = 25)
@@ -289,7 +279,6 @@ get_bender_log <- function(f, sample) {
 
   return(bender_df)
 }
-
 
 # find slope at first inflection and total droplets included & expected_cells/total ratio
 get_knee_params <- function(ranks_df, sample_var) {
@@ -338,8 +327,8 @@ get_knee_params <- function(ranks_df, sample_var) {
   return(final)
 }
 
-
-plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, bender_priors_df = NULL) {
+plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, 
+  bender_priors_df = NULL) {
   # get sample order
   s_ord = names(knees)
   
@@ -421,16 +410,13 @@ plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, ben
   return(p)
 }
 
-
-
 find_outlier <- function(x) {
   return(x < quantile(x, .25) - 1.5*IQR(x) | x > quantile(x, .75) + 1.5*IQR(x))
 }
 
-
 # boxplots of log ratios of slopes and barcode percents
 # log: get outliers on the log10 scale
-make_amb_params_dotplot <- function(params_qc, sample_var, scales = 'fixed') {
+plot_amb_params_dotplot <- function(params_qc, sample_var, scales = 'fixed') {
   all_scales_opts = c('fixed', 'free')
   scale = match.arg(scales, all_scales_opts)
   
@@ -484,8 +470,6 @@ make_amb_params_dotplot <- function(params_qc, sample_var, scales = 'fixed') {
   return(pl)
 }
 
-
-
 get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'decontx')){
 
   amb = match.arg(amb_method)
@@ -524,10 +508,7 @@ get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'dec
   smpl_qc$sample_id = sel_s
 
   return(smpl_qc)
-  }
-
-
-
+}
 
 get_amb_sample_qc_outliers <- function(qc_df, var1, var2){
   bivar =  qc_df %>% dplyr::select(all_of(c(var1, var2)))
@@ -538,8 +519,6 @@ get_amb_sample_qc_outliers <- function(qc_df, var1, var2){
 
   return(outliers_df)
 }
-
-
 
 make_amb_sample_qc_oulier_plots <- function(qc_df, var1, var2, outliers_df,
   x_title, y_title, y_thr = NULL, x_thr = NULL){
@@ -563,7 +542,42 @@ make_amb_sample_qc_oulier_plots <- function(qc_df, var1, var2, outliers_df,
   }
 
   return(p)
-
 }
 
+plot_qc_metrics_split_by_cells_empties <- function(rna_knee_dfs, 
+  metric = c("umis", "splice_pct"), min_umis = 10) {
+  metric    = match.arg(metric)
 
+  # get cells and empties
+  plot_dt   = rna_knee_dfs %>% lapply(function(tmp_dt) {
+    tmp_dt %>% 
+      # .[ rank <= total_droplets_included ] %>% 
+      .[ total >= min_umis ] %>% 
+      .[, .(sample_id, barcode, rank, umis = log10(total), 
+        splice_pct = qlogis( (spliced + 1) / (spliced + unspliced + 2) ),
+        what = ifelse(rank <= expected_cells, "cell", "empty"))]
+    }) %>% rbindlist
+
+  # plot these
+  if (metric == "umis") {
+    y_brks    = c(1e0, 1e1, 3e1, 1e2, 3e2, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6) %>% log10
+    y_labs    = c("1", "10", "30", "100", "300", "1k", "3k", "10k", "30k", "100k", 
+      "300k", "1M")
+    y_title   = "UMIs"
+  } else if (metric == "splice_pct") {
+    y_brks    = c(0.01, 0.03, 0.1, 0.3, 0.5, 0.7, 0.9, 0.97, 0.99) %>% qlogis
+    y_labs    = c("1%", "3%", "10%", "30%", "50%", "70%", "90%", "97%", "99%")
+    y_title   = "spliced pct."
+  }
+  g = ggplot(plot_dt) + 
+    aes( fill = what, x = sample_id, y = get(metric) ) +
+    geom_violin( colour = NA,
+      kernel = 'rectangular', adjust = 0.1, scale = 'width') +
+    scale_y_continuous( breaks = y_brks, labels = y_labs ) +
+    scale_fill_manual( values = c(cell = "#1965B0", empty = "grey") ) +
+    theme_classic() + 
+    theme( axis.text.x = element_text( angle = -45, hjust = 0, vjust = 0.5 ) ) +
+    labs( y = y_title, fill = "what does\nthe barcode\ncontain?" )
+
+  return(g)
+}
