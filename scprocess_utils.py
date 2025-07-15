@@ -212,9 +212,10 @@ def get_project_parameters(config, scprocess_data_dir):
 
   # from index_parameters.csv get valid values for species
   index_params= pd.read_csv(index_params_f)
-  valid_species = index_params['genome_name'].tolist()
+  valid_species     = index_params['genome_name'].tolist()
+  valid_species_str = ', '.join(valid_species)
 
-  assert SPECIES in valid_species, f"species {SPECIES} not defined"
+  assert SPECIES in valid_species, f"species {SPECIES} not defined. Valid values are {valid_species_str}"
 
   # check whether date is given as datetime object
   if isinstance(DATE_STAMP, datetime.date):
@@ -411,7 +412,7 @@ def get_qc_parameters(config):
   QC_MAX_SPLICE       = 0.75
   QC_MIN_CELLS        = 500
   DBL_MIN_FEATS       = 100
-  EXCLUDE_MITO        = 1
+  EXCLUDE_MITO        = True
 
   # change defaults if specified
   if ('qc' in config) and (config['qc'] is not None):
@@ -767,25 +768,6 @@ def get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR ):
 
   return AMBIENT_GENES_GRP_NAMES, AMBIENT_GENES_GRP_VAR, AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR
 
-# define pseudobulk parameters
-# def get_pb_empties_parameters(config): 
-#   # set some more default values
-#   PB_SUBSETS          = []
-#   PB_DO_ALL           = False
-
-#   # change defaults if specified
-#   if ('pb_empties' in config) and (config['pb_empties'] is not None):
-#     if 'subsets' in config['pb_empties']:
-#       PB_SUBSETS          = config['pb_empties']['subsets']
-
-
-#   # parse out empties and all
-#   if "all" in PB_SUBSETS:
-#     PB_DO_ALL     = True
-#     PB_SUBSETS    = [x for x in PB_SUBSETS if x != "all"]
-
-#   return PB_SUBSETS, PB_DO_ALL
-
 
 def _safe_boolean(val):
   if type(val) is bool:
@@ -823,13 +805,12 @@ def get_resource_parameters(config):
   MB_RUN_ALEVIN_FRY               = 8192
   MB_SAVE_ALEVIN_TO_H5            = 8192
   MB_RUN_AMBIENT                  = 8192
-  MB_GET_BARCODE_QC_METRICS       = 4096
   MB_RUN_SCDBLFINDER              = 4096
   MB_COMBINE_SCDBLFINDER_OUTPUTS  = 8192
   MB_RUN_QC                       = 8192
   MB_RUN_HVGS                     = 8192
-  MB_MAKE_SCE_OBJECT              = 8192
   MB_RUN_INTEGRATION              = 8192
+  MB_MAKE_CLEAN_SCES              = 8192
   MB_RUN_MARKER_GENES             = 8192
   MB_HTML_MARKER_GENES            = 8192
   MB_LBL_LABEL_CELLTYPES          = 8192
@@ -851,8 +832,6 @@ def get_resource_parameters(config):
       MB_SAVE_ALEVIN_TO_H5            = config['resources']['mb_save_alevin_to_h5']
     if 'mb_run_ambient' in config['resources']:
       MB_RUN_AMBIENT               = config['resources']['mb_run_ambient']
-    if 'mb_get_barcode_qc_metrics' in config['resources']:
-      MB_GET_BARCODE_QC_METRICS   = config['resources']['mb_get_barcode_qc_metrics']
     if 'mb_run_scdblfinder' in config['resources']:
       MB_RUN_SCDBLFINDER              = config['resources']['mb_run_scdblfinder']
     if 'mb_combine_scdblfinder_outputs' in config['resources']:
@@ -861,18 +840,16 @@ def get_resource_parameters(config):
       MB_RUN_QC                       = config['resources']['mb_run_qc']
     if 'mb_run_hvgs' in config['resources']:
       MB_RUN_HVGS                     = config['resources']['mb_run_hvgs']
-    if 'mb_make_sce_object' in config['resources']:
-      MB_MAKE_SCE_OBJECT              = config['resources']['mb_make_sce_object']
     if 'mb_run_integration' in config['resources']:
       MB_RUN_INTEGRATION              = config['resources']['mb_run_integration']
+    if 'mb_make_clean_sces' in config['resources']:
+      MB_MAKE_CLEAN_SCES              = config['resources']['mb_make_clean_sces']
     if 'mb_run_marker_genes' in config['resources']:
       MB_RUN_MARKER_GENES             = config['resources']['mb_run_marker_genes']
     if 'mb_html_marker_genes' in config['resources']:
       MB_HTML_MARKER_GENES            = config['resources']['mb_html_marker_genes']
     if 'mb_lbl_label_celltypes' in config['resources']:
       MB_LBL_LABEL_CELLTYPES          = config['resources']['mb_lbl_label_celltypes']
-    if 'mb_lbl_save_subset_sces' in config['resources']:
-      MB_LBL_SAVE_SUBSET_SCES         = config['resources']['mb_lbl_save_subset_sces']
     if 'mb_lbl_render_template_rmd' in config['resources']:
       MB_LBL_RENDER_TEMPLATE_RMD      = config['resources']['mb_lbl_render_template_rmd']
     if 'mb_meta_save_metacells' in config['resources']:
@@ -887,13 +864,12 @@ def get_resource_parameters(config):
       MB_ZOOM_RENDER_TEMPLATE_RMD     = config['resources']['mb_zoom_render_template_rmd']
 
   return RETRIES, MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
-    MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
+    MB_RUN_AMBIENT, \
     MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
     MB_RUN_QC, MB_RUN_HVGS, \
-    MB_MAKE_SCE_OBJECT, \
-    MB_RUN_INTEGRATION, \
+    MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, \
     MB_RUN_MARKER_GENES, MB_HTML_MARKER_GENES, \
-    MB_LBL_LABEL_CELLTYPES, MB_LBL_SAVE_SUBSET_SCES, MB_LBL_RENDER_TEMPLATE_RMD, \
+    MB_LBL_LABEL_CELLTYPES, MB_LBL_RENDER_TEMPLATE_RMD, \
     MB_META_SAVE_METACELLS, \
     MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
     MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD

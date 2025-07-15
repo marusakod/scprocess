@@ -43,51 +43,26 @@ make_rmd_from_temp <- function(temp_f, temp_ls, rmd_f){
   }
 }
 
-get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'integration', 
+get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'integration', 
   'markers', 'cell_labels', 'zoom', 'pb_empties'), ...){
+
   # get arguments
   sel_rule = match.arg(rule)
   add_args = list(...)
   add_args_names = names(add_args)
 
   # check if all extra args for a specific rule are present
-  if(sel_rule == 'ambient'){
-    req_names = c('YOUR_NAME','AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
-                  'DATE_STAMP', 'SAMPLE_STR', 'SAMPLE_VAR', 'AMBIENT_METHOD', 'af_dir')
+  if(sel_rule == 'cellbender'){
+    req_names = c('YOUR_NAME','AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 'stats_f',
+      'CELLBENDER_PROP_MAX_KEPT','DATE_STAMP', 'RUNS_STR', 'af_dir')
+    
     assert_that(all(req_names %in% add_args_names))
-    if(add_args[['AMBIENT_METHOD']] == 'cellbender'){
-      eval_knee = TRUE
-      knee_pl_slope_ord_tit =
-        '## Barcode rank plots (ordered by slope ratio){.tabset}\nPlots are annotated with suggested and used cellbender parameters.'
-      knee_pl_exp_tot_ord_tit =
-        '## Barcode rank plots (ordered by expected/total ratio){.tabset}\nPlots are annotated with suggested and used cellbender parameters.'
-    }else{
-      eval_knee = FALSE
-      knee_pl_slope_ord_tit = ''
-      knee_pl_exp_tot_ord_tit = ''
-    }
-
-    if(add_args[['AMBIENT_METHOD']] == 'none'){
-      eval_smpl_qc = FALSE
-        sample_qc_pl = ''
-    }else{
-      eval_smpl_qc = TRUE
-      sample_qc_pl = '## Sample qc plots'
-    }
-
+    
     params_ls = add_args
-    params_ls = c(
-      params_ls,
-      list(eval_knee                = eval_knee,
-            eval_smpl_qc             = eval_smpl_qc,
-            knee_pl_slope_ord_tit    = knee_pl_slope_ord_tit,
-            knee_pl_exp_tot_ord_tit  = knee_pl_exp_tot_ord_tit,
-            sample_qc_pl             = sample_qc_pl)
-    )
   }else if(sel_rule == 'af'){
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
-                  'DATE_STAMP', 'RUNS_STR','AMBIENT_METHOD',
-                  'SAMPLE_VAR', 'af_dir', 'af_rna_dir')
+      'DATE_STAMP', 'RUNS_STR','AMBIENT_METHOD','SAMPLE_VAR',
+      'af_dir', 'af_rna_dir')
 
     assert_that(all(req_names %in% add_args_names))
 
@@ -95,8 +70,8 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'integrat
 
   }else if(sel_rule == 'multiplexing'){
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
-                  'DATE_STAMP', 'RUNS_STR','AMBIENT_METHOD','METADATA_F',
-                  'SAMPLE_VAR', 'af_dir', 'demux_dir')
+      'DATE_STAMP', 'RUNS_STR','AMBIENT_METHOD','METADATA_F',
+      'SAMPLE_VAR', 'af_dir', 'demux_dir')
 
     assert_that(all(req_names %in% add_args_names))
 
@@ -104,12 +79,10 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'integrat
 
   }else if(sel_rule == 'qc'){
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
-                  'DATE_STAMP', 'threads', 'meta_f',
-                  'qc_dt_f', 'AMBIENT_METHOD', 'QC_HARD_MIN_COUNTS',
-                  'QC_HARD_MIN_FEATS', 'QC_HARD_MAX_MITO',
-                  'QC_MIN_COUNTS', 'QC_MIN_FEATS',
-                  'QC_MIN_MITO', 'QC_MAX_MITO', 'QC_MIN_SPLICE',
-                  'QC_MAX_SPLICE', 'QC_MIN_CELLS')
+      'DATE_STAMP', 'threads', 'meta_f', 'qc_dt_f',
+      'QC_HARD_MIN_COUNTS', 'QC_HARD_MIN_FEATS', 'QC_HARD_MAX_MITO',
+      'QC_MIN_COUNTS', 'QC_MIN_FEATS', 'QC_MIN_MITO', 'QC_MAX_MITO',
+      'QC_MIN_SPLICE', 'QC_MAX_SPLICE', 'QC_MIN_CELLS')
 
     assert_that(all(req_names %in% add_args_names))
 
@@ -117,8 +90,8 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'integrat
 
   }else if(sel_rule == 'integration'){
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
-                  'DATE_STAMP', 'threads', 'qc_dt_f', 'integration_f', 
-                  'INT_RES_LS', 'INT_DBL_CL_PROP')
+      'DATE_STAMP', 'threads', 'qc_dt_f', 'integration_f', 
+      'INT_RES_LS', 'INT_DBL_CL_PROP')
 
     assert_that(all(req_names %in% add_args_names))
 
@@ -126,11 +99,10 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'integrat
 
   }else if(sel_rule == 'markers'){
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
-      'DATE_STAMP', 'threads', 'meta_f',
-      'meta_vars_ls', # this has to be first joined in the 'params' bit of the rule
+      'DATE_STAMP', 'threads', 'meta_f','meta_vars_ls',
       'gtf_dt_f', 'integration_f', 'pb_f', 'mkrs_f', 'hvgs_f', 'fgsea_go_bp_f',
-      'fgsea_go_cc_f', 'fgsea_go_mf_f',
-      'fgsea_paths_f', 'fgsea_hlmk_f','MKR_SEL_RES', 'CUSTOM_MKR_NAMES', 'CUSTOM_MKR_PATHS',
+      'fgsea_go_cc_f', 'fgsea_go_mf_f','fgsea_paths_f', 'fgsea_hlmk_f',
+      'MKR_SEL_RES', 'CUSTOM_MKR_NAMES', 'CUSTOM_MKR_PATHS',
       'MKR_NOT_OK_RE', 'MKR_MIN_CPM_MKR', 'MKR_MIN_CELLS', 'MKR_GSEA_CUT', 'SPECIES')
 
     assert_that(all(req_names %in% add_args_names))
@@ -146,10 +118,11 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'integrat
 
   }else if(sel_rule == 'cell_labels'){
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
-                  'DATE_STAMP', 'threads' ,'guesses_f', 'CUSTOM_LABELS_F', 'MKR_SEL_RES',
-                  'LBL_TISSUE', 'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED',
-                  'LBL_MIN_CL_PROP', 'LBL_MIN_CL_SIZE')
-      assert_that(all(req_names %in% add_args_names))
+      'DATE_STAMP', 'threads' ,'guesses_f', 'CUSTOM_LABELS_F', 'MKR_SEL_RES',
+      'LBL_TISSUE', 'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED',
+      'LBL_MIN_CL_PROP', 'LBL_MIN_CL_SIZE')
+      
+    assert_that(all(req_names %in% add_args_names))
 
     if(add_args[['CUSTOM_LABELS_F']] == ""){
       eval_boost = TRUE
@@ -210,10 +183,10 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'integrat
 
   }else if(sel_rule == 'pb_empties'){
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
-                'DATE_STAMP', 'threads', 'guesses_f', 'empty_csv_f',
-                'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED', 'LBL_MIN_CL_PROP',
-                'LBL_MIN_CL_SIZE', 'LBL_MIN_CL_SIZE')
-
+      'DATE_STAMP', 'threads', 'guesses_f', 'empty_csv_f',
+      'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED', 'LBL_MIN_CL_PROP',
+      'LBL_MIN_CL_SIZE', 'LBL_MIN_CL_SIZE')
+    
     assert_that(all(req_names %in% add_args_names))
     params_ls = add_args[req_names]
   }

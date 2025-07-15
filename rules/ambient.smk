@@ -291,29 +291,29 @@ if AMBIENT_METHOD == 'none':
       """
 
 
-rule get_barcode_qc_metrics:
-  input:
-    af_h5_f     = af_dir  + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
-    amb_yaml_f  = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
-    knee_yaml_f = af_dir  + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml'
-  params:
-    expected_cells = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0]
-  output:
-    bc_qc_f     = amb_dir + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz'
-  threads: 1
-  retries: RETRIES
-  conda:
-    '../envs/rlibs.yml'
-  resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_GET_BARCODE_QC_METRICS
-  shell:
-    """
-    # save barcode stats
-    Rscript -e "source('scripts/ambient.R'); \
-      save_barcode_qc_metrics('{input.af_h5_f}', '{input.amb_yaml_f}', \
-        '{output.bc_qc_f}', {params.expected_cells}, '{AMBIENT_METHOD}')"
-    """
+# rule get_barcode_qc_metrics:
+#   input:
+#     af_h5_f     = af_dir  + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
+#     amb_yaml_f  = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
+#     knee_yaml_f = af_dir  + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml'
+#   params:
+#     expected_cells = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+#         af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0]
+#   output:
+#     bc_qc_f     = amb_dir + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz'
+#   threads: 1
+#   retries: RETRIES
+#   conda:
+#     '../envs/rlibs.yml'
+#   resources:
+#     mem_mb      = lambda wildcards, attempt: attempt * MB_GET_BARCODE_QC_METRICS
+#   shell:
+#     """
+#     # save barcode stats
+#     Rscript -e "source('scripts/ambient.R'); \
+#       save_barcode_qc_metrics('{input.af_h5_f}', '{input.amb_yaml_f}', \
+#         '{output.bc_qc_f}', {params.expected_cells}, '{AMBIENT_METHOD}')"
+#     """
 
 
 rule get_ambient_sample_statistics:

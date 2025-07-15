@@ -280,20 +280,20 @@ rule save_alevin_to_h5:
    '../envs/rlibs.yml'
   shell:
     """
-    Rscript -e "source('scripts/alevin_fry.R'); \
-      save_alevin_h5_ambient_params( \
-        sample        = '{wildcards.run}', \
-        fry_dir       = '{input.fry_dir}', \
-        h5_f          = '{output.h5_f}', \
-        cb_yaml_f     = '{output.amb_yaml_f}', \
-        knee_data_f   = '{output.knee_data_f}', \
-        sample_var    = '{SAMPLE_VAR}', \
-        knee1         = '{params.knee1}', \
-        inf1          = '{params.inf1}', \
-        knee2         = '{params.knee2}', \
-        inf2          = '{params.inf2}', \
-        exp_cells     = '{params.exp_cells}', \
-        total_included= '{params.total_inc}', \
+    Rscript -e "source('scripts/alevin_fry.R');
+      save_alevin_h5_ambient_params(
+        sample        = '{wildcards.run}',
+        fry_dir       = '{input.fry_dir}',
+        h5_f          = '{output.h5_f}',
+        cb_yaml_f     = '{output.amb_yaml_f}',
+        knee_data_f   = '{output.knee_data_f}',
+        sample_var    = '{SAMPLE_VAR}',
+        knee1         = '{params.knee1}',
+        inf1          = '{params.inf1}',
+        knee2         = '{params.knee2}',
+        inf2          = '{params.inf2}',
+        exp_cells     = '{params.exp_cells}',
+        total_included= '{params.total_inc}',
         low_count_thr = '{params.low_count_thr}')"
     """
 
@@ -313,12 +313,12 @@ if DEMUX_TYPE == 'af':
       '../envs/rlibs.yml'
     shell:
       """
-      Rscript -e "source('scripts/alevin_fry.R'); \
+      Rscript -e "source('scripts/alevin_fry.R');
         save_alevin_h5_knee_params_df(
-          sample      = '{wildcards.run}', \
-          fry_dir     = '{input.fry_dir}', \
-          hto_mat     = 1, \
-          sample_var  = '{SAMPLE_VAR}', \
-          h5_f        = '{output.h5_f}', \
+          sample      = '{wildcards.run}', 
+          fry_dir     = '{input.fry_dir}', 
+          hto_mat     = 1, 
+          sample_var  = '{SAMPLE_VAR}',
+          h5_f        = '{output.h5_f}',
           knee_data_f = '{output.knee_data_f}')"
       """

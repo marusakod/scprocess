@@ -123,7 +123,7 @@ def get_one_csr_counts(run, hvg_df, keep_df, qc_sample_df, gene_ids, SAMPLE_VAR,
 def get_csr_counts(hvg_paths_f, qc_f, qc_smpl_stats_f, rowdata_f, SAMPLE_VAR, DEMUX_TYPE, chunk_size=2000, n_cores = 8):
   # load up useful things
   hvg_paths_df  = pd.read_csv(hvg_paths_f)
-  qc_sample_df  = pd.read_csv(qc_smpl_stats_f, sep = '\t')
+  qc_sample_df  = pd.read_csv(qc_smpl_stats_f)
   
   # get QCed cells
   qc_df         = pd.read_csv(qc_f, sep = '\t')
@@ -338,7 +338,7 @@ def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_
   hvg_paths_df = pd.read_csv(hvg_paths_f)
   
   # get list of good samples
-  qc_df = pd.read_csv(qc_smpl_stats_f, sep = '\t')
+  qc_df = pd.read_csv(qc_smpl_stats_f)
   good_samples = qc_df.loc[qc_df['bad_sample'] == False, 'sample_id'].tolist()
 
   # get input files for selectd samples
@@ -364,7 +364,7 @@ def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_
 
 def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, csr_f, rowdata_f, std_var_stats_f):
 
-  qc_df = pd.read_csv(qc_smpl_stats_f, sep = '\t')
+  qc_df = pd.read_csv(qc_smpl_stats_f)
   bad_samples = qc_df.loc[qc_df['bad_sample'] == True, 'sample_id'].tolist()
    
   if sample in bad_samples:
@@ -623,7 +623,7 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, n_hvgs, exclu
 # read top 2000 hvgs from each sample and save file
 def read_top_genes(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
   # get bad samples
-  qc_sample_df  = pd.read_csv(qc_smpl_stats_f, sep = '\t')
+  qc_sample_df  = pd.read_csv(qc_smpl_stats_f)
   bad_samples   = qc_sample_df.loc[ qc_sample_df['bad_sample'] == True, 'sample_id'].tolist()
 
   # get all chunked files
@@ -700,7 +700,7 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
 
   # get samples (or pools) that passed qc
   hvg_paths_df  = pd.read_csv(hvg_paths_f)
-  qc_sample_df  = pd.read_csv(qc_smpl_stats_f, sep = '\t')
+  qc_sample_df  = pd.read_csv(qc_smpl_stats_f)
   good_samples  = qc_sample_df.loc[ qc_sample_df['bad_sample'] == False, "sample_id"].tolist()
   keep_runs     = hvg_paths_df.loc[hvg_paths_df['sample_id'].isin(good_samples), SAMPLE_VAR].unique().tolist()
 

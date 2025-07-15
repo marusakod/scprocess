@@ -85,15 +85,15 @@ Specify either `-k`/`--kneefile` or `-c`/`--configfile`:
 * `-n`/`--dry-run`: This makes {{ software_name }} perform a trial run that doesn't create any new files. This is helpful for (1) checking that the various input files and parameter settings are likely to work, and (2) checking what work will be done by {{ software_name }}.
 * `-E`/`--extraagrs`: `snakemake` is a sophisticated package with many options that can be set by the user. This argument allows users to set additional arguments; see [here](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for `snakemake`'s documentation of command line arguments.
 * `-r`/`--rule`: Specifies which rule {{ software_name }} should run. The options are:
-    + `all`: default; includes all [Standard pipeline steps](introduction.md#standard-pipeline-steps)
-    + `label_celltypes`: cell type annotation using a pre-trained classifier or a custom annotation file. 
-    + `zoom`: reintegration, subclustering and marker gene identification for selected cluster groups.
-    + `pb_empties`: generation of pseubodulk samples from annotated cells and empty droplets.
-    + `simpleaf`: read alignment and quantification using `simpleaf`.
-    + `ambient`: ambient RNA removal.
+    + `all`: default; includes all [Core pipeline steps](introduction.md#core-pipeline-steps)
+    + `alevin_fry`: read alignment and quantification using `simpleaf`.
+    + `cellbender`: ambient RNA removal with cellbender.
+    + `demux`: sample demultiplexing.
     + `qc`: qc filtering.
+    + `hvg`: calculation of highly variable genes.
     + `integration`: integration with `Harmony`.
     + `marker_genes`: marker gene identification.
+    + `label_celltypes`: cell type annotation using a pre-trained classifier or a custom annotation file. 
 
 
 
@@ -164,13 +164,11 @@ This is an example config file for {{ software_name }} with all parameters and t
         mkr_max_zero_p: 0.5                                    
         mkr_gsea_cut: 0.1
       label_celltypes:
-        custom_labels:
         lbl_tissue:      
         lbl_sel_res_cl:  "RNN_snn_res.2"  
         lbl_min_pred:    0.5              
         lbl_min_cl_prop: 0.5             
-        lbl_min_cl_size: 100              
-        sce_subsets:
+        lbl_min_cl_size: 100
       zoom:
         cl_grp1:
           sel_cls:
@@ -189,11 +187,9 @@ This is an example config file for {{ software_name }} with all parameters and t
         mb_run_alevin_fry: 8192               
         mb_save_alevin_to_h5: 8192            
         mb_run_ambient: 32768            
-        mb_get_barcode_qc_metrics: 4096  
         mb_run_hvgs: 8192  
         mb_run_scdblfinder: 4096             
         mb_combine_scdblfinder_outputs: 8192  
-        mb_make_sce_object: 16384             
         mb_run_harmony: 16384                 
         mb_run_marker_genes: 16384            
         mb_html_marker_genes: 8192            
@@ -269,19 +265,11 @@ This is an example config file for {{ software_name }} with all parameters and t
         mkr_max_zero_p: 0.5                                    
         mkr_gsea_cut: 0.1
       label_celltypes:
-        custom_labels:
         lbl_tissue:      "brain_cns"      
         lbl_sel_res_cl:  "RNN_snn_res.2"  
         lbl_min_pred:    0.5              
         lbl_min_cl_prop: 0.5             
         lbl_min_cl_size: 100              
-        sce_subsets:
-          oligos:       ['Oligodendrocyte', 'OPC_COP']
-          microglia:    ['Micro_Mono']
-          astrocytes:   ['Astrocyte', 'Ependymal_ChorPlex']
-          vascular:     ['Vascular_Fibro']
-          T_NK_B_cell:  ['T_NK_B_cell']
-          neurons:      ['Neurons']
       zoom:
         cl_grp1:
           sel_cls: [cl06]  
@@ -300,11 +288,9 @@ This is an example config file for {{ software_name }} with all parameters and t
         mb_run_alevin_fry: 8192               
         mb_save_alevin_to_h5: 8192            
         mb_run_ambient: 32768            
-        mb_get_barcode_qc_metrics: 4096    
         mb_run_hvgs: 8192 
         mb_run_scdblfinder: 4096             
-        mb_combine_scdblfinder_outputs: 8192  
-        mb_make_sce_object: 16384             
+        mb_combine_scdblfinder_outputs: 8192            
         mb_run_harmony: 16384                 
         mb_run_marker_genes: 16384            
         mb_html_marker_genes: 8192            
@@ -424,17 +410,12 @@ sample_3:
 
 ##### label_celltypes
 
-* `custom_labels`: path to CSV file containing cell type annotations, with two columns: `cell_id` and `label`. Entries in the `cell_id` column should be formatted as `sample_id:cell_barcode` and must match `cell_id` values in the `SingleCellExperiment` object (`sce_clean_[full_tag]_[date_stamp].rds`) located in `output/[short_tag]_integration` directory. `NA` values will be assigned to all cells with missing annotations.
-* `lbl_tissue`: target tissue for cell type labeling. Options are `human_cns`, `mouse_cns`, `human_pbmc`, and `mouse_pbmc`.
+* `lbl_tissue`: target tissue for cell type labeling. Options are `human_cns`, `mouse_cns`, `human_pbmc`, and `mouse_pbmc` (Only `human_cns` is available at the moment)
 * `lbl_sel_res_cl`: selected cluster resolution for cell type labeling; higher values are recommended for optimal performance.
 * `lbl_min_pred`: minimum probability threshold for assigning a cell to a cell type.
 * `lbl_min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.
 * `lbl_min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled.
-* `sce_subsets`: specification for saving subsets of cells in separate `SingleCellExperiment` objects. Each subset has to be defined by name, followed by a list of cell types to include. Valid cell type labels match unique values in the `label` column of `custom_labels` file if provided; otherwise, they depend on the value of `lbl_tissue` parameter:
-    + `human_cns`: `OPC_COP`, `Oligodendrocyte`, `Astrocyte`, `Ependymal`, `Choroid_plexus`, `Micro_Mono`, `Vascular_Fibro`, `T_NK_B_cell`, `Neurons`
-    + `mouse_cns`: tbd
-    + `human_pbmc`: tbd
-    + `mouse_pbmc`: tbd
+
 
 ##### zoom
 * `sel_cls`: clusters to include in the analysis.

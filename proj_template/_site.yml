@@ -13,4 +13,3 @@ output:
   rmdformats::downcute:
     highlight: textmate
     code_folding: hide
-
