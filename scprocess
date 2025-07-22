@@ -12,6 +12,7 @@ import pandas as pd
 import re
 import glob
 import subprocess
+import shlex
 
 
 # find fastq files for a sample
@@ -206,10 +207,45 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   # print which files will be processed
   print(f"Processing {len(samples_ls)} samples:")
   print('  ' + ', '.join(samples_ls))
-  print('bash '+ f'{sc_dir}/scprocess.sh'+ ' ' +snakefile+ ' '+ os.path.abspath(configfile) + ' '+ proj_dir+ ' '+ rule+ ' '+ extraargs)
 
-  # start snakemake 
-  subprocess.call(['bash', f'{sc_dir}/scprocess.sh', snakefile, os.path.abspath(configfile), proj_dir, rule, extraargs])
+  # change scprocess directory
+  config_path   = os.path.abspath(configfile)
+  scprocess_dir = os.path.dirname(__file__)
+  os.chdir(scprocess_dir)
+
+  # # start snakemake 
+  # subprocess.call(['bash', f'{sc_dir}/scprocess.sh', 
+  #   snakefile, 
+  #   os.path.abspath(configfile), 
+  #   proj_dir, 
+  #   rule, extraargs])
+
+  # echo snakemake ${SM_ARGS} \
+  #   --snakefile $snakefile \
+  #   --configfile $configfile \
+  #   --rerun-incomplete \
+  #   --use-conda \
+  #   --use-singularity \
+  #   --singularity-args "--cleanenv --nv --bind /tmp,$proj_dir" $rule
+
+  subprocess.run(['echo', 'snakemake', 
+    "--snakefile", snakefile, 
+    "--configfile", config_path,
+    "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", 
+    "--use-conda", 
+    "--use-singularity", "--singularity-args", f"\"--cleanenv --nv --bind /tmp,${proj_dir}\"",
+    *shlex.split(extraargs),
+    rule
+    ])
+  subprocess.run(['snakemake', 
+    "--snakefile", snakefile, 
+    "--configfile", config_path,
+    "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", 
+    "--use-conda", 
+    "--use-singularity", "--singularity-args", f"\"--cleanenv --nv --bind /tmp,${proj_dir}\"",
+    *shlex.split(extraargs),
+    rule
+    ])
 
 
 if __name__ == '__main__':
