@@ -147,66 +147,66 @@ save_subset_sces <- function(sce_f, guesses_f, sel_res_cl, subset_df_f,
     saveRDS(sce_subset, file = sce_ls[[ nn ]])
   }
 }
-
-.get_representative_subset <- function(cl_dt, meta_dt, clust_var = "cluster", 
-  meta_vars = NULL, n_per_type = 100, min_n = 10) {
-  # initialize
-  cl_tmp      = copy(cl_dt) %>%
-    .[, .(sample_id, cell_id, cluster = get(clust_var))]
-  sample_list = NULL
-  cl_sub      = data.table(cell_id = character(0), sample_id = character(0),
-    cluster = character(0))
-
-  # define metadata combinations we want to balance
-  if (is.null(meta_vars)) {
-    meta_track  = meta_dt[, .(sample_id, combn_var = 'dummy')]
-  } else {
-    meta_track  = meta_dt[, c('sample_id', meta_vars), with = FALSE] %>%
-      .[, combn_var := do.call(paste, c(.SD, sep = "_")), 
-        .SDcols = meta_vars, by = meta_vars ]    
-  }
-  props_all  = meta_track[, .N, by = combn_var] %>%
-    .[, p_all := N / sum(N) ]
-
-  # add samples one by one until we have at least that many per conos cluster
-  totals_dt   = cl_tmp[, .N, by = .(sample_id, cluster)] %>%
-    .[ N > min_n ]
-  types_list  = cl_tmp[, .N, .(cluster)] %>% 
-    .[ order(N) ] %>% 
-    use_series('cluster') %>% as.character
-
-  # loop
-  for (this_type in types_list) {
-    n_type    = cl_sub[ cluster == this_type ] %>% nrow
-    n_total   = totals_dt[ cluster == this_type ]$N %>% sum
-    while (n_type < min(n_per_type, n_total)) {
-      # which samples would help?
-      sample_opts = cl_tmp[ cluster == this_type, .N, by = sample_id] %>% 
-        setorder(-N) %>% .[ N > min_n ] %>% use_series("sample_id")
-
-      # pick one which improves metadata representation
-      sel_sample  = .pick_next_sample(meta_track, props_all, sample_list, sample_opts)
-
-      # add to list
-      sample_list = c(sample_list, sel_sample)
-      cl_sub      = rbind(cl_sub, cl_tmp[sample_id == sel_sample])
-      cl_tmp      = cl_tmp[!(sample_id %in% sample_list)]
-
-      # update count
-      n_type      = cl_sub[ cluster == this_type ] %>% nrow
-    }
-  }
-
-  # check worked
-  ns_all      = totals_dt[, .(n_all = sum(.N)), by = cluster]
-  ns_sub      = cl_sub[, .(n_sub = .N), by = cluster]
-  check_dt    = merge(ns_all, ns_sub, by = 'cluster', all = TRUE) %>% 
-    .[, n_per_type  := n_per_type ] %>% 
-    .[, is_ok       := n_sub >= pmin(n_per_type, n_all) ]
-  assert_that( all(check_dt$is_ok) )
-
-  return(cl_sub)
-}
+# 
+# .get_representative_subset <- function(cl_dt, meta_dt, clust_var = "cluster", 
+#   meta_vars = NULL, n_per_type = 100, min_n = 10) {
+#   # initialize
+#   cl_tmp      = copy(cl_dt) %>%
+#     .[, .(sample_id, cell_id, cluster = get(clust_var))]
+#   sample_list = NULL
+#   cl_sub      = data.table(cell_id = character(0), sample_id = character(0),
+#     cluster = character(0))
+# 
+#   # define metadata combinations we want to balance
+#   if (is.null(meta_vars)) {
+#     meta_track  = meta_dt[, .(sample_id, combn_var = 'dummy')]
+#   } else {
+#     meta_track  = meta_dt[, c('sample_id', meta_vars), with = FALSE] %>%
+#       .[, combn_var := do.call(paste, c(.SD, sep = "_")), 
+#         .SDcols = meta_vars, by = meta_vars ]    
+#   }
+#   props_all  = meta_track[, .N, by = combn_var] %>%
+#     .[, p_all := N / sum(N) ]
+# 
+#   # add samples one by one until we have at least that many per conos cluster
+#   totals_dt   = cl_tmp[, .N, by = .(sample_id, cluster)] %>%
+#     .[ N > min_n ]
+#   types_list  = cl_tmp[, .N, .(cluster)] %>% 
+#     .[ order(N) ] %>% 
+#     use_series('cluster') %>% as.character
+# 
+#   # loop
+#   for (this_type in types_list) {
+#     n_type    = cl_sub[ cluster == this_type ] %>% nrow
+#     n_total   = totals_dt[ cluster == this_type ]$N %>% sum
+#     while (n_type < min(n_per_type, n_total)) {
+#       # which samples would help?
+#       sample_opts = cl_tmp[ cluster == this_type, .N, by = sample_id] %>% 
+#         setorder(-N) %>% .[ N > min_n ] %>% use_series("sample_id")
+# 
+#       # pick one which improves metadata representation
+#       sel_sample  = .pick_next_sample(meta_track, props_all, sample_list, sample_opts)
+# 
+#       # add to list
+#       sample_list = c(sample_list, sel_sample)
+#       cl_sub      = rbind(cl_sub, cl_tmp[sample_id == sel_sample])
+#       cl_tmp      = cl_tmp[!(sample_id %in% sample_list)]
+# 
+#       # update count
+#       n_type      = cl_sub[ cluster == this_type ] %>% nrow
+#     }
+#   }
+# 
+#   # check worked
+#   ns_all      = totals_dt[, .(n_all = sum(.N)), by = cluster]
+#   ns_sub      = cl_sub[, .(n_sub = .N), by = cluster]
+#   check_dt    = merge(ns_all, ns_sub, by = 'cluster', all = TRUE) %>% 
+#     .[, n_per_type  := n_per_type ] %>% 
+#     .[, is_ok       := n_sub >= pmin(n_per_type, n_all) ]
+#   assert_that( all(check_dt$is_ok) )
+# 
+#   return(cl_sub)
+# }
 
 .pick_next_sample <- function(meta_track, props_all, sample_list, sample_opts) {
   # to start pick one at random
@@ -235,79 +235,79 @@ save_subset_sces <- function(sce_f, guesses_f, sel_res_cl, subset_df_f,
 
   return(sel_sample)
 }
-
-.get_hvgs_mat <- function(hvgs_xgb_f, sce_f, sel_ids, what = c("pca", "hvgs"), 
-  sel_gs = NULL, n_hvgs = 2000, n_dims = 50, n_cores = 4, overwrite = FALSE) {
-  if (file.exists(hvgs_xgb_f) & overwrite == FALSE) {
-    message('  already done')
-    hvgs_mat    = readRDS(hvgs_xgb_f)
-
-    return(hvgs_mat)
-  }
-  # check inputs
-  what        = match.arg(what)
-
-  message('  subsetting to HVGs')
-  # load sce, restrict to ok cells
-  message('    setting up cluster')
-  plan("multicore", workers = n_cores)
-  options( future.globals.maxSize = 2^35 )
-
-  message('    loading sce')
-  sce_sel     = readRDS(sce_f) %>% .[, sel_ids ]
-
-  # restrict to specified genes
-  if (!is.null(sel_gs)) {
-    ref_gs      = rowData(sce_sel)[[ names(sel_gs) ]]
-    sel_gs_v    = unlist(sel_gs)
-    assert_that( all(sel_gs_v %in% ref_gs) )
-    sel_idx     = ref_gs %in% sel_gs_v
-    sce_sel     = sce_sel[ sel_idx, ]
-  }
-  # get counts
-  counts_mat  = counts(sce_sel)
-  if (!is.null(sel_gs)) {
-    rownames(counts_mat) = ref_gs[ sel_idx ]
-  }  
-
-  # turn into seurat object
-  message('    converting to Seurat object')
-  seu_obj     = Seurat::CreateSeuratObject(
-    counts      = counts_mat,
-    meta.data   = data.frame(colData(sce_sel)),
-    project     = "MS2"
-    )
-  rm(sce_sel); gc()
-  
-  # run Seurat pipeline, plus clustering    
-  message('    finding HVGs')
-  seu_obj     = NormalizeData(seu_obj, verbose = FALSE ) %>% 
-    FindVariableFeatures( nfeatures = n_hvgs, verbose = FALSE )
-  var_feats   = VariableFeatures(seu_obj)
-  seu_obj     = seu_obj %>% 
-    ScaleData( verbose = FALSE ) %>% 
-    RunPCA( features = var_feats, verbose = FALSE, npcs = n_dims ) %>% 
-    identity()
-
-  # switch cluster off
-  plan("sequential")
-
-  if (what == "pca") {
-    # now use these genes for all cells
-    message('    extract PCs, save')
-    save_mat    = Embeddings(seu_obj, reduction = "pca")
-  } else if (what == "hvgs") {
-    # now use these genes for all cells
-    message('    extract HVGs, save')
-    save_mat    = GetAssayData(seu_obj, slot = "data", assay = "RNA") %>% 
-      .[ var_feats, ] %>% t
-  }
-  saveRDS(save_mat, file = hvgs_xgb_f)
-
-  message('  done')
-
-  return(save_mat)
-}
+# 
+# .get_hvgs_mat <- function(hvgs_xgb_f, sce_f, sel_ids, what = c("pca", "hvgs"), 
+#   sel_gs = NULL, n_hvgs = 2000, n_dims = 50, n_cores = 4, overwrite = FALSE) {
+#   if (file.exists(hvgs_xgb_f) & overwrite == FALSE) {
+#     message('  already done')
+#     hvgs_mat    = readRDS(hvgs_xgb_f)
+# 
+#     return(hvgs_mat)
+#   }
+#   # check inputs
+#   what        = match.arg(what)
+# 
+#   message('  subsetting to HVGs')
+#   # load sce, restrict to ok cells
+#   message('    setting up cluster')
+#   plan("multicore", workers = n_cores)
+#   options( future.globals.maxSize = 2^35 )
+# 
+#   message('    loading sce')
+#   sce_sel     = readRDS(sce_f) %>% .[, sel_ids ]
+# 
+#   # restrict to specified genes
+#   if (!is.null(sel_gs)) {
+#     ref_gs      = rowData(sce_sel)[[ names(sel_gs) ]]
+#     sel_gs_v    = unlist(sel_gs)
+#     assert_that( all(sel_gs_v %in% ref_gs) )
+#     sel_idx     = ref_gs %in% sel_gs_v
+#     sce_sel     = sce_sel[ sel_idx, ]
+#   }
+#   # get counts
+#   counts_mat  = counts(sce_sel)
+#   if (!is.null(sel_gs)) {
+#     rownames(counts_mat) = ref_gs[ sel_idx ]
+#   }  
+# 
+#   # turn into seurat object
+#   message('    converting to Seurat object')
+#   seu_obj     = Seurat::CreateSeuratObject(
+#     counts      = counts_mat,
+#     meta.data   = data.frame(colData(sce_sel)),
+#     project     = "MS2"
+#     )
+#   rm(sce_sel); gc()
+#   
+#   # run Seurat pipeline, plus clustering    
+#   message('    finding HVGs')
+#   seu_obj     = NormalizeData(seu_obj, verbose = FALSE ) %>% 
+#     FindVariableFeatures( nfeatures = n_hvgs, verbose = FALSE )
+#   var_feats   = VariableFeatures(seu_obj)
+#   seu_obj     = seu_obj %>% 
+#     ScaleData( verbose = FALSE ) %>% 
+#     RunPCA( features = var_feats, verbose = FALSE, npcs = n_dims ) %>% 
+#     identity()
+# 
+#   # switch cluster off
+#   plan("sequential")
+# 
+#   if (what == "pca") {
+#     # now use these genes for all cells
+#     message('    extract PCs, save')
+#     save_mat    = Embeddings(seu_obj, reduction = "pca")
+#   } else if (what == "hvgs") {
+#     # now use these genes for all cells
+#     message('    extract HVGs, save')
+#     save_mat    = GetAssayData(seu_obj, slot = "data", assay = "RNA") %>% 
+#       .[ var_feats, ] %>% t
+#   }
+#   saveRDS(save_mat, file = hvgs_xgb_f)
+# 
+#   message('  done')
+# 
+#   return(save_mat)
+# }
 
 .calc_logcounts <- function(hvg_mat_f, sces_yaml_f, qc_sample_stats_f, gene_var, hvgs, 
   exclude_mito, n_cores = 4, overwrite = FALSE) {
@@ -396,131 +396,131 @@ save_subset_sces <- function(sce_f, guesses_f, sel_res_cl, subset_df_f,
   return(norm_hvg_mat)
   
 }
+# 
+# .load_train_test_data <- function(clusts_dt, hvgs_mat, min_cells, n_train) {
+#   # check inputs
+#   assert_that( all(clusts_dt$cell_id %in% rownames(hvgs_mat)) )
+#   clusts_na   = hvgs_mat %>% as.data.table( keep.rownames = 'cell_id' ) %>% 
+#     merge(clusts_dt, by = "cell_id", all = TRUE) %>% 
+#     .[, sample_id := NULL ]
+#   
+#   # which clusters are too small to bother with?
+#   ns_dt       = clusts_na[ !is.na(cluster) ] %>% .[, .N, by = cluster]
+#   keep_cl     = ns_dt[ N >= min_cells ]$cluster %>% as.character
+#   
+#   # get train data, balance samples
+#   train_dt    = clusts_na[ cluster %in% keep_cl ] %>% 
+#     .[, .SD[ sample(ceiling(min(.N, n_train) / 2)) ], by = cluster ] %>% 
+#     .[, cluster := cluster %>% fct_drop ]
+#   
+#   # get validation data
+#   valid_dt    = clusts_na[ cluster %in% keep_cl ] %>%   
+#     .[ !(cell_id %in% train_dt$cell_id) ] %>% 
+#     .[, .SD[ sample(ceiling(min(.N, n_train) / 2)) ], by = cluster ] %>% 
+#     .[, cluster := cluster %>% fct_drop ]
+#   valid_rest  = clusts_na[ cluster %in% keep_cl ] %>% 
+#     .[ !(cell_id %in% c(train_dt$cell_id, valid_dt$cell_id)) ] %>% 
+#     .[, cluster := cluster %>% fct_drop ]
+#   
+#   # get test data
+#   test_dt     = clusts_na[ is.na(cluster) ]
+#   
+#   # some checks
+#   assert_that( all( levels(valid_dt$cluster) == levels(train_dt$cluster) ) )
+#   chk_dt_1    = clusts_na[ is.na(cluster) | (cluster %in% keep_cl) ]
+#   chk_dt_2    = rbind(train_dt, valid_dt, valid_rest, test_dt)
+#   assert_that( nrow(chk_dt_1) == nrow(chk_dt_2) )
+#   assert_that( all( sort(chk_dt_1$cell_id) == sort(chk_dt_2$cell_id) ) )
+#   
+#   return(list(
+#     train       = train_dt, 
+#     valid       = valid_dt, 
+#     valid_rest  = valid_rest, 
+#     test        = test_dt
+#   ))
+# }
+# 
+# .run_boost_watchlist <- function(train_dt, valid_dt, n_cores) {
+#   # convert training data to expected format
+#   assert_that( !is.null(train_dt$cluster) )
+#   train_vars  = colnames(train_dt) %>% setdiff(c("cluster", "cell_id"))
+#   assert_that( length(train_vars) > 0 )
+#   train_mat   = train_dt[, c("cell_id", train_vars), with = FALSE] %>% 
+#     as.matrix( rownames = "cell_id" )
+#   train_cl    = train_dt$cluster
+#   train_y     = train_cl %>% as.integer %>% `-`(1)
+#   # weights_v   = 1 / table(train_y) * 1000
+#   # weights_y   = weights_v[ train_y + 1 ]
+#   assert_that(
+#     min(train_y) == 0,
+#     max(train_y) + 1 == length(levels(train_dt$cluster))
+#   )
+# 
+#   # convert validation data to expected format
+#   valid_mat   = valid_dt[, c("cell_id", train_vars), with = FALSE] %>% 
+#     as.matrix( rownames = "cell_id" )
+#   valid_cl    = valid_dt$cluster
+#   valid_y     = valid_cl %>% as.integer %>% `-`(1)
+# 
+#   # blah
+#   dtrain      = xgb.DMatrix( data = train_mat, label = train_y )
+#   dvalid      = xgb.DMatrix( data = valid_mat, label = valid_y )
+#   watchlist   = list( train = dtrain, test = dvalid )
+# 
+#   # run boost
+#   boost_obj   = xgb.train( data = dtrain, watchlist = watchlist, 
+#     objective = "multi:softprob", num_class = max(train_y) + 1,
+#     nrounds = 100, early_stopping_rounds = 5, 
+#     nthread = n_cores, verbose = 2)
+# 
+#   # # run standard boost
+#   # boost_obj   = xgboost(
+#   #   data = train_mat, label = train_y, 
+#   #   weight = weights_y,
+#   #   objective = "multi:softprob", num_class = max(train_y) + 1,
+#   #   nthread = n_cores, nrounds = 10, verbose = 2)
+# 
+#   return(boost_obj)
+# }
 
-.load_train_test_data <- function(clusts_dt, hvgs_mat, min_cells, n_train) {
-  # check inputs
-  assert_that( all(clusts_dt$cell_id %in% rownames(hvgs_mat)) )
-  clusts_na   = hvgs_mat %>% as.data.table( keep.rownames = 'cell_id' ) %>% 
-    merge(clusts_dt, by = "cell_id", all = TRUE) %>% 
-    .[, sample_id := NULL ]
+# .get_pred_valid <- function(boost_obj, valid_dt) {
+#   # get validation data
+#   train_vars  = colnames(valid_dt) %>% setdiff(c("cluster", "cell_id"))
+#   assert_that( length(train_vars) > 0 )
+#   valid_mat   = valid_dt[, c("cell_id", train_vars), with = FALSE] %>% 
+#     as.matrix( rownames = "cell_id" )
+# 
+#   # get probabilities for each predicted cluster
+#   probs_mat   = predict(boost_obj, valid_mat, reshape = TRUE)
+#   assert_that(
+#     length(levels(valid_dt$cluster)) == ncol(probs_mat),
+#     length(rownames(valid_mat)) == nrow(probs_mat)
+#   )
+#   probs_mat   = probs_mat %>% 
+#     set_colnames(levels(valid_dt$cluster)) %>% 
+#     set_rownames(rownames(valid_mat))
+# 
+#   # prediction for each cell
+#   pred_valid  = data.table(
+#     cell_id     = rownames(probs_mat),
+#     cl_true     = valid_dt$cluster,
+#     cl_pred     = colnames(probs_mat)[ apply(probs_mat, 1, which.max) ],
+#     p_pred      = apply(probs_mat, 1, max)
+#     ) %>% cbind(probs_mat)
+# 
+#   return(pred_valid)
+# }
 
-  # which clusters are too small to bother with?
-  ns_dt       = clusts_na[ !is.na(cluster) ] %>% .[, .N, by = cluster]
-  keep_cl     = ns_dt[ N >= min_cells ]$cluster %>% as.character
-
-  # get train data, balance samples
-  train_dt    = clusts_na[ cluster %in% keep_cl ] %>% 
-    .[, .SD[ sample(ceiling(min(.N, n_train) / 2)) ], by = cluster ] %>% 
-    .[, cluster := cluster %>% fct_drop ]
-  
-  # get validation data
-  valid_dt    = clusts_na[ cluster %in% keep_cl ] %>%   
-    .[ !(cell_id %in% train_dt$cell_id) ] %>% 
-    .[, .SD[ sample(ceiling(min(.N, n_train) / 2)) ], by = cluster ] %>% 
-    .[, cluster := cluster %>% fct_drop ]
-  valid_rest  = clusts_na[ cluster %in% keep_cl ] %>% 
-    .[ !(cell_id %in% c(train_dt$cell_id, valid_dt$cell_id)) ] %>% 
-    .[, cluster := cluster %>% fct_drop ]
-
-  # get test data
-  test_dt     = clusts_na[ is.na(cluster) ]
-
-  # some checks
-  assert_that( all( levels(valid_dt$cluster) == levels(train_dt$cluster) ) )
-  chk_dt_1    = clusts_na[ is.na(cluster) | (cluster %in% keep_cl) ]
-  chk_dt_2    = rbind(train_dt, valid_dt, valid_rest, test_dt)
-  assert_that( nrow(chk_dt_1) == nrow(chk_dt_2) )
-  assert_that( all( sort(chk_dt_1$cell_id) == sort(chk_dt_2$cell_id) ) )
-
-  return(list(
-    train       = train_dt, 
-    valid       = valid_dt, 
-    valid_rest  = valid_rest, 
-    test        = test_dt
-  ))
-}
-
-.run_boost_watchlist <- function(train_dt, valid_dt, n_cores) {
-  # convert training data to expected format
-  assert_that( !is.null(train_dt$cluster) )
-  train_vars  = colnames(train_dt) %>% setdiff(c("cluster", "cell_id"))
-  assert_that( length(train_vars) > 0 )
-  train_mat   = train_dt[, c("cell_id", train_vars), with = FALSE] %>% 
-    as.matrix( rownames = "cell_id" )
-  train_cl    = train_dt$cluster
-  train_y     = train_cl %>% as.integer %>% `-`(1)
-  # weights_v   = 1 / table(train_y) * 1000
-  # weights_y   = weights_v[ train_y + 1 ]
-  assert_that(
-    min(train_y) == 0,
-    max(train_y) + 1 == length(levels(train_dt$cluster))
-  )
-
-  # convert validation data to expected format
-  valid_mat   = valid_dt[, c("cell_id", train_vars), with = FALSE] %>% 
-    as.matrix( rownames = "cell_id" )
-  valid_cl    = valid_dt$cluster
-  valid_y     = valid_cl %>% as.integer %>% `-`(1)
-
-  # blah
-  dtrain      = xgb.DMatrix( data = train_mat, label = train_y )
-  dvalid      = xgb.DMatrix( data = valid_mat, label = valid_y )
-  watchlist   = list( train = dtrain, test = dvalid )
-
-  # run boost
-  boost_obj   = xgb.train( data = dtrain, watchlist = watchlist, 
-    objective = "multi:softprob", num_class = max(train_y) + 1,
-    nrounds = 100, early_stopping_rounds = 5, 
-    nthread = n_cores, verbose = 2)
-
-  # # run standard boost
-  # boost_obj   = xgboost(
-  #   data = train_mat, label = train_y, 
-  #   weight = weights_y,
-  #   objective = "multi:softprob", num_class = max(train_y) + 1,
-  #   nthread = n_cores, nrounds = 10, verbose = 2)
-
-  return(boost_obj)
-}
-
-.get_pred_valid <- function(boost_obj, valid_dt) {
-  # get validation data
-  train_vars  = colnames(valid_dt) %>% setdiff(c("cluster", "cell_id"))
-  assert_that( length(train_vars) > 0 )
-  valid_mat   = valid_dt[, c("cell_id", train_vars), with = FALSE] %>% 
-    as.matrix( rownames = "cell_id" )
-
-  # get probabilities for each predicted cluster
-  probs_mat   = predict(boost_obj, valid_mat, reshape = TRUE)
-  assert_that(
-    length(levels(valid_dt$cluster)) == ncol(probs_mat),
-    length(rownames(valid_mat)) == nrow(probs_mat)
-  )
-  probs_mat   = probs_mat %>% 
-    set_colnames(levels(valid_dt$cluster)) %>% 
-    set_rownames(rownames(valid_mat))
-
-  # prediction for each cell
-  pred_valid  = data.table(
-    cell_id     = rownames(probs_mat),
-    cl_true     = valid_dt$cluster,
-    cl_pred     = colnames(probs_mat)[ apply(probs_mat, 1, which.max) ],
-    p_pred      = apply(probs_mat, 1, max)
-    ) %>% cbind(probs_mat)
-
-  return(pred_valid)
-}
-
-.calc_confuse_xgboost_dt <- function(pred_valid) {
-  n_cats    = length(unique(pred_valid$cl_true))
-  confuse_dt  = pred_valid[, .N, by=.(cl_true, cl_pred)] %>%
-    .[, N_true  := sum(N), by = cl_true] %>%
-    .[, prop    := N / N_true ] %>%
-    .[, logit   := qlogis((N+1) / (N_true + n_cats))] %>%
-    .[, H       := -sum(prop*log2(prop)), by = cl_true ]
-
-  return(confuse_dt)
-}
+# .calc_confuse_xgboost_dt <- function(pred_valid) {
+#   n_cats    = length(unique(pred_valid$cl_true))
+#   confuse_dt  = pred_valid[, .N, by=.(cl_true, cl_pred)] %>%
+#     .[, N_true  := sum(N), by = cl_true] %>%
+#     .[, prop    := N / N_true ] %>%
+#     .[, logit   := qlogis((N+1) / (N_true + n_cats))] %>%
+#     .[, H       := -sum(prop*log2(prop)), by = cl_true ]
+# 
+#   return(confuse_dt)
+# }
 
 .predict_on_new_data <- function(xgb_obj, hvg_mat, min_pred) {
   # unpack
@@ -547,67 +547,67 @@ save_subset_sces <- function(sce_f, guesses_f, sel_res_cl, subset_df_f,
   return(preds_dt)
 }
 
-.load_clusters <- function(cls_f) {
-  cls_dt      = cls_f %>% fread(na.strings = "") %>% .[ !is.na(UMAP1) ]
-  cl_cols     = colnames(cls_dt) %>% str_subset("RNA_snn_res")
-  cls_dt      = cls_dt %>% 
-    .[, c("sample_id", "cell_id", "UMAP1", "UMAP2", cl_cols), with = FALSE]
-
-  return(cls_dt)
-}
-
-.apply_labels_by_cluster <- function(int_dt, preds_dt, min_cl_prop, min_cl_size) {
-  # melt clusters
-  non_cl_vars = c("sample_id", "cell_id", "UMAP1", "UMAP2")
-  int_cls    = int_dt %>% 
-    melt.data.table( id = non_cl_vars, var = "res_int", val = "cl_int")
-
-  # exclude tiny clusters
-  int_ns     = int_cls[, .(N_cl = .N), by = .(res_int, cl_int) ]
-  keep_cls    = int_ns[ N_cl >= min_cl_size ]
-  if ( nrow(keep_cls) > 0 ) {
-    message("  excluding some clusters bc they are tiny:")
-    int_ns[ N_cl < min_cl_size ] %>% .[ order(res_int, cl_int) ] %>% print
-    int_cls  = int_cls %>% merge(int_ns, by = c("res_hmny", "cl_hmny")) %>% 
-      .[, N_cl := NULL ]
-  }
-
-  # match these up to predictions, calculate proportions for each cluster
-  match_dt    = preds_dt[, .(cell_id, cl_pred = cl_pred_naive)] %>% 
-    merge(hmny_cls, by = "cell_id") %>% 
-    .[, .N,                 by = .(res_hmny, cl_hmny, cl_pred)] %>% 
-    .[, prop := N / sum(N), by = .(res_hmny, cl_hmny) ] %>% 
-    setorder(res_hmny, cl_hmny, -prop)
-
-  # take top prediction for each cluster
-  match_lu    = match_dt[, .SD[1], by = .(res_hmny, cl_hmny)] %>% 
-    .[ (cl_pred != "unknown") & (prop > min_cl_prop) ]
-
-  # add these results to original cluster labels
-  guesses_dt  = match_lu[, .(res_hmny, cl_hmny, cl_pred, prop_pred = prop)] %>% 
-    merge(hmny_cls, by = c("res_hmny", "cl_hmny"), all.y = TRUE) %>% 
-    merge(preds_dt[, .(cell_id, cl_pred_raw, cl_pred_naive, p_pred)], by = "cell_id") %>%
-    setcolorder( c(non_cl_vars, "cl_pred_raw", "cl_pred_naive", "p_pred") ) %>% 
-    dcast.data.table( sample_id + cell_id + UMAP1 + UMAP2 + 
-      cl_pred_raw + cl_pred_naive + p_pred ~ res_hmny, 
-      value.var = c("cl_hmny", "cl_pred", "prop_pred") )
-
-  # broad_short     = c(`OPCs + COPs`='opc_cop', `Oligodendrocytes`='oligo', 
-  #   `Astrocytes`='astro', `Microglia`='micro', `Excitatory neurons`='excit',
-  #   `Inhibitory neurons`='inhib', `Endo + Peri`='endo_peri', `T cells`='t_cells', 
-  #   `B cells`='b_cells', unknown = "?")
-  # guesses_dt[, .(
-  #     cl_hmny   = cl_hmny_RNA_snn_res.2, 
-  #     pred_cl   = broad_short[ cl_pred_RNA_snn_res.2 ] %>% factor(levels = broad_short), 
-  #     pred_raw  = broad_short[ cl_pred_raw ] %>% factor(levels = broad_short) %>% fct_drop
-  #   ) ] %>% 
-  #   .[, .N, by = .(cl_hmny, pred_cl, pred_raw)] %>%
-  #   .[ !(pred_raw %in% c("t_cells", "b_cells")) ] %>% 
-  #   dcast.data.table( cl_hmny + pred_cl ~ pred_raw, fill = 0 ) %>% 
-  #   .[ order(-`?`) ]
-
-  return(guesses_dt)
-}
+# .load_clusters <- function(cls_f) {
+#   cls_dt      = cls_f %>% fread(na.strings = "") %>% .[ !is.na(UMAP1) ]
+#   cl_cols     = colnames(cls_dt) %>% str_subset("RNA_snn_res")
+#   cls_dt      = cls_dt %>% 
+#     .[, c("sample_id", "cell_id", "UMAP1", "UMAP2", cl_cols), with = FALSE]
+# 
+#   return(cls_dt)
+# }
+# 
+# .apply_labels_by_cluster <- function(int_dt, preds_dt, min_cl_prop, min_cl_size) {
+#   # melt clusters
+#   non_cl_vars = c("sample_id", "cell_id", "UMAP1", "UMAP2")
+#   int_cls    = int_dt %>% 
+#     melt.data.table( id = non_cl_vars, var = "res_int", val = "cl_int")
+# 
+#   # exclude tiny clusters
+#   int_ns     = int_cls[, .(N_cl = .N), by = .(res_int, cl_int) ]
+#   keep_cls    = int_ns[ N_cl >= min_cl_size ]
+#   if ( nrow(keep_cls) > 0 ) {
+#     message("  excluding some clusters bc they are tiny:")
+#     int_ns[ N_cl < min_cl_size ] %>% .[ order(res_int, cl_int) ] %>% print
+#     int_cls  = int_cls %>% merge(int_ns, by = c("res_hmny", "cl_hmny")) %>% 
+#       .[, N_cl := NULL ]
+#   }
+# 
+#   # match these up to predictions, calculate proportions for each cluster
+#   match_dt    = preds_dt[, .(cell_id, cl_pred = cl_pred_naive)] %>% 
+#     merge(hmny_cls, by = "cell_id") %>% 
+#     .[, .N,                 by = .(res_hmny, cl_hmny, cl_pred)] %>% 
+#     .[, prop := N / sum(N), by = .(res_hmny, cl_hmny) ] %>% 
+#     setorder(res_hmny, cl_hmny, -prop)
+# 
+#   # take top prediction for each cluster
+#   match_lu    = match_dt[, .SD[1], by = .(res_hmny, cl_hmny)] %>% 
+#     .[ (cl_pred != "unknown") & (prop > min_cl_prop) ]
+# 
+#   # add these results to original cluster labels
+#   guesses_dt  = match_lu[, .(res_hmny, cl_hmny, cl_pred, prop_pred = prop)] %>% 
+#     merge(hmny_cls, by = c("res_hmny", "cl_hmny"), all.y = TRUE) %>% 
+#     merge(preds_dt[, .(cell_id, cl_pred_raw, cl_pred_naive, p_pred)], by = "cell_id") %>%
+#     setcolorder( c(non_cl_vars, "cl_pred_raw", "cl_pred_naive", "p_pred") ) %>% 
+#     dcast.data.table( sample_id + cell_id + UMAP1 + UMAP2 + 
+#       cl_pred_raw + cl_pred_naive + p_pred ~ res_hmny, 
+#       value.var = c("cl_hmny", "cl_pred", "prop_pred") )
+# 
+#   # broad_short     = c(`OPCs + COPs`='opc_cop', `Oligodendrocytes`='oligo', 
+#   #   `Astrocytes`='astro', `Microglia`='micro', `Excitatory neurons`='excit',
+#   #   `Inhibitory neurons`='inhib', `Endo + Peri`='endo_peri', `T cells`='t_cells', 
+#   #   `B cells`='b_cells', unknown = "?")
+#   # guesses_dt[, .(
+#   #     cl_hmny   = cl_hmny_RNA_snn_res.2, 
+#   #     pred_cl   = broad_short[ cl_pred_RNA_snn_res.2 ] %>% factor(levels = broad_short), 
+#   #     pred_raw  = broad_short[ cl_pred_raw ] %>% factor(levels = broad_short) %>% fct_drop
+#   #   ) ] %>% 
+#   #   .[, .N, by = .(cl_hmny, pred_cl, pred_raw)] %>%
+#   #   .[ !(pred_raw %in% c("t_cells", "b_cells")) ] %>% 
+#   #   dcast.data.table( cl_hmny + pred_cl ~ pred_raw, fill = 0 ) %>% 
+#   #   .[ order(-`?`) ]
+# 
+#   return(guesses_dt)
+# }
 
 # code for Rmd
 get_guesses_melt <- function(guesses_dt, res_ls, cl_lvls, min_cl_size) {
