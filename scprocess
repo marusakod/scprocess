@@ -231,10 +231,10 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   scsetup_csv = os.path.join(scprocess_data_dir,'index_parameters.csv')
 
   assert all([os.path.isdir(d) for d in scsetup_fulL_dirs]), \
-   f"Some directories in {scprocess_data_dir} are missing; consider (re)running scsetup"
+   f"Some directories in {scprocess_data_dir} are missing; consider (re)running setup"
   
   assert os.path.isfile(scsetup_csv), \
-   f"{scsetup_csv} is missing; consider (re)running scsetup"
+   f"{scsetup_csv} is missing; consider (re)running setup"
   
   # check if cluster profile is defined
   setup_configfile = os.path.join(scprocess_data_dir, 'scprocess_setup.yaml')
@@ -451,13 +451,13 @@ if __name__ == '__main__':
   )
   subparsers  = parser.add_subparsers(dest='subcommand', help="scprocess subcommands:", required=True)
 
-  # subparser for the 'scsetup' subcommand
-  setup_prsr  = subparsers.add_parser('scsetup', help="do setup for scprocess")
+  # subparser for the 'setup' subcommand
+  setup_prsr  = subparsers.add_parser('setup', help="do setup for scprocess")
 
-  # add arguments for scsetup
+  # add arguments for setup
   setup_prsr.add_argument("-n", "--dry-run", action="store_true", 
     help = '''
-      "Dry run" execution, i.e. snakemake will print out what it would do for the scsetup step, but not actually do it.
+      "Dry run" execution, i.e. snakemake will print out what it would do for the setup step, but not actually do it.
       ''')
   setup_prsr.add_argument("-E", "--extraargs", action="store", nargs=1, type=str,
     help = '''
@@ -518,7 +518,7 @@ if __name__ == '__main__':
   args      = parser.parse_args()
   
   # create new project folder
-  if args.subcommand == "scsetup":
+  if args.subcommand == "setup":
     # select snakefile corresponding to workflow
     snakefile = os.path.join(sc_dir, "rules/setup_rules.smk")
 
