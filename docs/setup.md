@@ -5,13 +5,9 @@
 
 ### Hardware
 
-{{ software_name }} runs on Linux systems that meet these minimum requirements:
- 
-* Operating system: Linux
-* [processor? List all processors that we tested on? The only problematic part is probably alevin]
-* [RAM? depends on how big the dataset is]
-* [CPU?]
-* [GPU with CUDA support (only required if you select CellBender as ambient method)]
+{{ software_name }} is intended for Linux-based high-performance computing clusters (HPCs). It will also run on workstations (i.e. powerful local machines).
+
+If you want to use `cellbender` for ambient RNA correction, then you will need to have access to GPUs with CUDA support on your cluster. If you don't have access but still want to do ambient RNA correction, you can use `decontx`.
 
 ### Software
 
@@ -20,20 +16,6 @@
 {{ software_name }} requires `snakemake` and `conda`. See the [snakemake manual](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html) and the [conda user guide](https://docs.anaconda.com/miniconda/) for help with the installation.
 
 ## Installation
-
-### General installation instructions
-
-1. Clone the github repository:
-
-    ```
-    git clone https://github.com/marusakod/scprocess_test.git
-    ```
-
-2.  Add {{ software_name }} to your path. Open your `.bashrc` file and add the following line:
-
-    ```bash
-    export PATH=/PATH/TO/YOUR/FOLDER/scprocess:${PATH}
-    ```
 
 
 ### Roche sHPC installation
@@ -62,24 +44,37 @@
     #   mem_mb: 4096
     # set-resources:
     #   run_harmony:
-    #     qos: 1d
-    #     runtime: 12h
-    #   run_ambient:
-    #     slurm_extra: "'-p batch_gpu --gpus=1'"
+    #     qos: '1d'
+    #     runtime: 720
     #   run_cellbender:
-    #     slurm_extra: "'-p batch_gpu --gpus=1'"
+    #     slurm_partition: "batch_gpu"
+    #     slurm_extra: "'--gpus=1'"
+    #     qos: '1d'
+    #     runtime: 720
     ```
 
-2. Add some things to your `~/.bashrc` (this code adds some extra lines to the end of your `.bashrc` file. Feel free to put them somewhere more tidy!):
+2.  Set up a conda environment that you will use for running {{software_name}}. In the {{software_name}} folder, there is a folder called _envs_, and within that you can choose between envs for `slurm`, `lsf`, and `local`.
 
     ```bash
-    # add scprocess to path
-    echo "export PATH=~/packages/scprocess:${PATH}" >> ~/.bashrc
+    ml Miniforge3
+    conda env create -n scprocess -f envs/scprocess_slurm.yml
+    # alternatives:
+    # conda env create -n scprocess -f envs/scprocess_lsf.yml
+    # conda env create -n scprocess -f envs/scprocess_local.yml
+    ```
 
-    # add some sHPC-specific things
-    echo "alias scprocess='export ROCS_ARCH=sandybridge; source /apps/rocs/init.sh; ml snakemake-slurm/0.15.0-foss-2020a-Python-3.11.3-snakemake-8.30.0; scprocess'" >> ~/.bashrc
-    echo "alias scsetup='export ROCS_ARCH=sandybridge; source /apps/rocs/init.sh; ml snakemake-slurm/0.15.0-foss-2020a-Python-3.11.3-snakemake-8.30.0; scsetup'" >> ~/.bashrc
+    Check that this worked:
 
+    ```bash
+    # reload the .bashrc file
+    conda activate scprocess
+    ```
+
+
+3.  Add {{ software_name }} to your path. Open your `.bashrc` file and add the following line:
+
+    ```bash
+    export PATH=/PATH/TO/YOUR/FOLDER/scprocess:${PATH}
     ```
 
     Check that this worked:
@@ -88,18 +83,67 @@
     # reload the .bashrc file
     source ~/.bashrc
 
-    # check that scprocess works
+    # check that scprocess and scsetup work
     scprocess -h
+    scsetup -h
     ```
+
+
+### General installation instructions
+
+1. Clone the github repository:
+
+    ```
+    git clone https://github.com/marusakod/scprocess_test.git
+    ```
+
+2.  Set up a conda environment that you will use for running {{software_name}}. In the {{software_name}} folder, there is a folder called _envs_, and within that you can choose between envs for `slurm`, `lsf`, and `local`.
+
+    ```bash
+    conda env create -n scprocess -f envs/scprocess_slurm.yml
+    # alternatives:
+    # conda env create -n scprocess -f envs/scprocess_lsf.yml
+    # conda env create -n scprocess -f envs/scprocess_local.yml
+    ```
+
+    Check that this worked:
+
+    ```bash
+    # reload the .bashrc file
+    conda activate scprocess
+    ```
+
+3.  Add {{ software_name }} to your path. Open your `.bashrc` file and add the following line:
+
+    ```bash
+    export PATH=/PATH/TO/YOUR/FOLDER/scprocess:${PATH}
+    ```
+
+    Check that this worked:
+
+    ```bash
+    # reload the .bashrc file
+    source ~/.bashrc
+
+    # check that scprocess and scsetup work
+    scprocess -h
+    scsetup -h
+    ```
+
 
 ## {{ software_name }} data directory setup
 
-1. Create a directory that will store all necessary data for running {{ software_name }}
+1. Create a directory that will store all necessary data for running {{ software_name }}:
+
+    ```bash
+    mkdir /path/to/scdata
+    ```
+
 
 2. Add the following line to your `.bashrc` file:
 
     ```bash
-    export SCPROCESS_DATA_DIR=/path/to/scprocess_data_directory
+    export SCPROCESS_DATA_DIR=/path/to/scdata
     ```
 
 3. Create a configuration file _scprocess_setup.yaml_ in the `$SCPROCESS_DATA_DIR` directory you just created, with the contents as follows:
@@ -143,11 +187,14 @@
 
 ## Cluster setup
 
-{{ software_name }} is intended to be used with a cluster with a job scheduler such as `Slurm` or `LSF` (although it will still work without a job scheduler). To set up a job scheduler in `snakemake`, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{ software_name }} comes with two predefined configuration profiles stored in the _profiles_ directory: _profiles/slurm_default_ and _profiles/lsf_default_ for `Slurm` and `LSF` respectively. 
+??? warning classes
+    On the Roche sHPC, you should use the profile _slurm_shpc_.
+
+{{ software_name }} is intended to be used with a cluster with a job scheduler such as `slurm` or `LSF` (although it will still work without a job scheduler). To set up a job scheduler in `snakemake`, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{ software_name }} comes with two predefined configuration profiles stored in the _profiles_ directory: _profiles/slurm_default_ and _profiles/lsf_default_ for `slurm` and `LSF` respectively. 
 
 To use {{ software_name }} with a job scheduler, you need to add a line to your  _scprocess_setup.yaml_ file:
 
-=== Slurm
+=== slurm
 ```yaml
 profile: slurm_default
 ```

@@ -11,8 +11,8 @@ default-resources:
   mem_mb: 4096
 set-resources:
   run_harmony:
-    slurm_extra: "'--qos=1d'"
-    runtime: 12h
+    qos: '1d'
+    runtime: 720
   run_cellbender:
     slurm_partition: "batch_gpu"
     slurm_extra: "'--gpus=1'"
