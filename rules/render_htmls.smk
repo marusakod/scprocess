@@ -29,6 +29,7 @@
 rule copy_r_code:
   output: 
     r_utils_f   = f"{code_dir}/utils.R",
+    r_map_f     = f"{code_dir}/mapping.R", 
     r_amb_f     = f"{code_dir}/ambient.R", 
     r_demux_f   = f"{code_dir}/multiplexing.R",
     r_qc_f      = f"{code_dir}/qc.R", 
@@ -39,6 +40,7 @@ rule copy_r_code:
     echo "copying relevant R files over"
     
     cp scripts/utils.R {output.r_utils_f}
+    cp scripts/mapping.R {output.r_map_f}
     cp scripts/ambient.R {output.r_amb_f}
     cp scripts/multiplexing.R {output.r_demux_f}
     cp scripts/SampleQC.R {output.r_qc_f}
