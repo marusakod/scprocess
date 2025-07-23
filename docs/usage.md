@@ -62,7 +62,7 @@ If you want to run a dry run you can add a `-n` or `--dry-run` flag to this comm
 scprocess /path/to/config.yaml -E " --max-threads 8 "
 ```
 
-By default {{ software_name }} will run rule `all` which includes all [core steps](introduction.md#rule-all-steps). The [optional steps](introduction.md#optional-steps) (rules `label_celltypes`, `zoom`, `pb_empties`) can run only after  rule `all` is completed and have to be specifically requested. Additionally, you can run individual rules that generate HTML outputs (`simpleaf`, `ambient`, `qc`, `integration`, `marker_genes`). This is useful if you want to inspect the html outputs first and then continue with the analysis. To run each rule separately you have to specify the rule using the `-r` or `--rule` flag e.g.
+By default {{ software_name }} will run rule `all` which includes all [core steps](introduction.md#rule-all-steps). The [optional steps](introduction.md#optional-steps) (rules `label_celltypes`, `zoom`, `pb_empties`) can run only after  rule `all` is completed and have to be specifically requested. Additionally, you can run individual rules that generate HTML outputs (`mapping`, `ambient`, `qc`, `integration`, `marker_genes`). This is useful if you want to inspect the html outputs first and then continue with the analysis. To run each rule separately you have to specify the rule using the `-r` or `--rule` flag e.g.
 
 ```
 scprocess /path/to/config.yaml -r label_and_subset
@@ -111,7 +111,7 @@ Both algorithms for ambient RNA decontamination available in {{ software_name }}
 
 {{ software_name }} identifies the cell-containing and empty droplet populations by detecting key transition points on the barcode-rank curve — namely, the inflection and knee points. These points allow {{ software_name }} to infer the optimal parameters for both `decontx` and `cellbender`. Additionally, {{ software_name }} uses these estimates in the optional `pb_empties` rule to identify genes enriched in empty droplets.
 
-We recommend verifying the accuracy of these parameters by inspecting knee plots after running `simpleaf`. The two main parameters inferred by {{ software_name }} based on transition points in the barcode-rank curve are `expected_cells` and the `empty_plateau_middle` (which corresponds to the `--total-droplets-included` parameter in `cellbender`). The `empty_plateau_middle` should extend a few thousand barcodes into the second plateau.
+We recommend verifying the accuracy of these parameters by inspecting knee plots after running `mapping`. The two main parameters inferred by {{ software_name }} based on transition points in the barcode-rank curve are `expected_cells` and the `empty_plateau_middle` (which corresponds to the `--total-droplets-included` parameter in `cellbender`). The `empty_plateau_middle` should extend a few thousand barcodes into the second plateau.
 
 ![all_knee_examples](assets/images/all_knee_examples.png)
 

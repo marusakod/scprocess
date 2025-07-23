@@ -53,7 +53,7 @@ RETRIES, MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
 # specify locations
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
 code_dir      = f"{PROJ_DIR}/code"
-af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_alevin_fry"
+af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
 af_rna_dir    = 'rna/' if DEMUX_TYPE == 'af' else ''
 amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
 demux_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
@@ -98,8 +98,9 @@ runs = POOL_IDS if DEMUX_TYPE != "none" else SAMPLES
 RUNS_STR = ','.join(runs)
 
 # scripts
-r_scrips = [
+r_scripts = [
   code_dir  + '/utils.R',
+  code_dir  + '/mapping.R',
   code_dir  + '/ambient.R',
   code_dir  + '/qc.R', 
   code_dir  + '/integration.R', 
@@ -157,7 +158,7 @@ rule all:
     hto_af_outs, 
     expand(
       [
-      # alevin_fry
+      # mapping
       af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/',
       af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
       af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/alevin/quants_mat_cols.txt',
@@ -202,23 +203,23 @@ rule all:
     # fgsea outputs
     fgsea_outs, 
     # code
-    r_scrips, 
+    r_scripts, 
     # markdowns
-    rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
+    rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
     bender_rmd_f, 
     rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
     rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
     rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.Rmd', 
     hto_rmd_f, 
     # reports
-    docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html', 
+    docs_dir  + '/' + SHORT_TAG + '_mapping.html', 
     bender_html_f, 
     docs_dir  + '/' + SHORT_TAG + '_qc.html',
     docs_dir  + '/' + SHORT_TAG + '_integration.html',
     docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.html',
     hto_html_f 
 
-rule alevin_fry:
+rule mapping:
   input:
     hto_index_outs, 
     hto_af_outs,
@@ -233,9 +234,9 @@ rule alevin_fry:
       af_dir    + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml',
       ],
      run = runs), 
-     r_scrips, 
-     rmd_dir   + '/' + SHORT_TAG + '_alevin_fry.Rmd',
-     docs_dir  + '/' + SHORT_TAG + '_alevin_fry.html'
+     r_scripts, 
+     rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
+     docs_dir  + '/' + SHORT_TAG + '_mapping.html'
 
 rule demux:
   input: 
@@ -366,7 +367,7 @@ rule label_celltypes:
       
 
 # define rules that are needed
-include: "alevin_fry.smk"
+include: "mapping.smk"
 include: "ambient.smk"
 include: "make_hto_sce.smk"
 include: "doublet_id.smk"
