@@ -133,7 +133,7 @@ if AMBIENT_METHOD == 'cellbender':
     retries: RETRIES
     resources:
       mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
-    singularity:
+    container:
       CELLBENDER_IMAGE
     shell:
       """

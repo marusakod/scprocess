@@ -228,21 +228,21 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   #   --use-singularity \
   #   --singularity-args "--cleanenv --nv --bind /tmp,$proj_dir" $rule
 
-  subprocess.run(['echo', 'snakemake', 
+  subprocess.run(["echo", "snakemake", 
     "--snakefile", snakefile, 
     "--configfile", config_path,
     "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", 
-    "--use-conda", 
-    "--use-singularity", "--singularity-args", f"\"--cleanenv --nv --bind /tmp,${proj_dir}\"",
+    "--software-deployment-method", "conda",
+    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{proj_dir}",
     *shlex.split(extraargs),
     rule
     ])
-  subprocess.run(['snakemake', 
+  subprocess.run(["snakemake", 
     "--snakefile", snakefile, 
     "--configfile", config_path,
     "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", 
-    "--use-conda", 
-    "--use-singularity", "--singularity-args", f"\"--cleanenv --nv --bind /tmp,${proj_dir}\"",
+    "--software-deployment-method", "conda",
+    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{proj_dir}",
     *shlex.split(extraargs),
     rule
     ])
