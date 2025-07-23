@@ -520,7 +520,7 @@ if __name__ == '__main__':
   # create new project folder
   if args.subcommand == "setup":
     # select snakefile corresponding to workflow
-    snakefile = os.path.join(sc_dir, "rules/setup_rules.smk")
+    snakefile = os.path.join(sc_dir, "rules/setup.smk")
 
     # sort out extra arguments
     extraargs = ' '
@@ -540,7 +540,7 @@ if __name__ == '__main__':
   # run scprocess
   elif args.subcommand == "run":
     # select snakefile corresponding to workflow
-    snakefile = os.path.join(sc_dir, "rules.smk")
+    snakefile = os.path.join(sc_dir, "rules/scprocess.smk")
       
     # set default rule to all
     if args.rule == "":

@@ -1,12 +1,15 @@
 # load modules
-import yaml
-import pandas as pd
 import os
+import sys
 import re
-import warnings
 import glob
+import pandas as pd
+import warnings
+import yaml
 from snakemake.utils import validate, min_version
 
+# import utils
+sys.path.append('scripts')
 from scprocess_utils import *
 
 SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
@@ -363,17 +366,17 @@ rule label_celltypes:
       
 
 # define rules that are needed
-include: "rules/alevin_fry.smk"
-include: "rules/ambient.smk"
-include: "rules/make_hto_sce.smk"
-include: "rules/doublet_id.smk"
-include: "rules/qc.smk"
-include: "rules/pb_empties.smk"
-include: "rules/hvgs.smk"
-include: "rules/integration.smk"
-include: "rules/marker_genes.smk"
-include: "rules/render_htmls.smk"
-include: "rules/label_and_subset.smk"
-#include: "rules/zoom.smk"
-#include: "rules/metacells.smk"
+include: "alevin_fry.smk"
+include: "ambient.smk"
+include: "make_hto_sce.smk"
+include: "doublet_id.smk"
+include: "qc.smk"
+include: "pb_empties.smk"
+include: "hvgs.smk"
+include: "integration.smk"
+include: "marker_genes.smk"
+include: "render_htmls.smk"
+include: "label_and_subset.smk"
+#include: "zoom.smk"
+#include: "metacells.smk"
 
