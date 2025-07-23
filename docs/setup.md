@@ -36,7 +36,7 @@
     ```
 
 
-### Roche shpc installation
+### Roche sHPC installation
 
 1. Clone the Roche GitLab repository:
 
@@ -44,25 +44,30 @@
     cd ~/packages/ # or wherever you keep your packages
     git clone https://code.roche.com/macnairw/scprocess
     ```
-    Switch to `main-shpc` branch:
-    
-    ```bash
-    git checkout main-shpc
-    ```
 
-    You should be able to see a `lsf.yaml` file in the top level of the {{ software_name }} directory:
+    You should be able to see a `slurm_shpc` folder in the `profiles` folder in the top level of the {{ software_name }} directory:
 
     ```bash
-    cat lsf.yaml
-    # app_profile:
-    #     - none
-    # __default__:
-    #   - '-q short'
-    # run_cellbender:
-    #   - "-q long"
-    #   - "-gpu 'num=1:j_exclusive=yes'"
-    # run_harmony:
-    #   - "-q long"
+    cat profiles/slurm_shpc/config.yaml
+    # # General configurations
+    # executor: slurm
+    # latency-wait: 10
+    # show-failed-logs: True
+    # keep-going: True
+    # scheduler: greedy
+    # printshellcmds: True
+    # jobs: 20
+    # default-resources:
+    #   runtime: 3h
+    #   mem_mb: 4096
+    # set-resources:
+    #   run_harmony:
+    #     qos: 1d
+    #     runtime: 12h
+    #   run_ambient:
+    #     slurm_extra: "'-p batch_gpu --gpus=1'"
+    #   run_cellbender:
+    #     slurm_extra: "'-p batch_gpu --gpus=1'"
     ```
 
 2. Add some things to your `~/.bashrc` (this code adds some extra lines to the end of your `.bashrc` file. Feel free to put them somewhere more tidy!):
@@ -72,8 +77,8 @@
     echo "export PATH=~/packages/scprocess:${PATH}" >> ~/.bashrc
 
     # add some sHPC-specific things
-    echo "alias scprocess='export ROCS_ARCH=sandybridge; source /apps/rocs/init.sh; ml snakemake-lsf/1.0.7-foss-2020a-Python-3.11.3-snakemake-8.23.0; scprocess'" >> ~/.bashrc
-    echo "alias scsetup='export ROCS_ARCH=sandybridge; source /apps/rocs/init.sh; ml snakemake-lsf/1.0.7-foss-2020a-Python-3.11.3-snakemake-8.23.0; scsetup'" >> ~/.bashrc
+    echo "alias scprocess='export ROCS_ARCH=sandybridge; source /apps/rocs/init.sh; ml snakemake-slurm/0.15.0-foss-2020a-Python-3.11.3-snakemake-8.30.0; scprocess'" >> ~/.bashrc
+    echo "alias scsetup='export ROCS_ARCH=sandybridge; source /apps/rocs/init.sh; ml snakemake-slurm/0.15.0-foss-2020a-Python-3.11.3-snakemake-8.30.0; scsetup'" >> ~/.bashrc
 
     ```
 
@@ -97,7 +102,7 @@
     export SCPROCESS_DATA_DIR=/path/to/scprocess_data_directory
     ```
 
-3. Create a configuration file `scprocess_setup.yaml` in the `$SCPROCESS_DATA_DIR` directory you just created, with the contents as follows:
+3. Create a configuration file _scprocess_setup.yaml_ in the `$SCPROCESS_DATA_DIR` directory you just created, with the contents as follows:
 
     ```yaml
     genome:
@@ -106,10 +111,10 @@
       - name: mouse_2024 
     ```
 
-    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) genomes from 10x Genomics. For more information on how to structure the `scprocess_setup.yaml` see the [`Reference`](reference.md#scsetup) section.
+    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) genomes from 10x Genomics. For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](reference.md#scsetup) section.
 
     ??? tip "Save some space by removing the reference genome used for the tutorial"
-        [Quick start tutorial](tutorial.md) section demonstrates how to run {{ software_name }} on an example human dataset. In order for users to be able to follow the tutorial `scsetup` will automatically download the `human_2024` reference genome and build an alevin index with [decoys](reference.md#scsetup) even if `human_2024` is not listed in the `scprocess_setup.yaml` file. If you would like to remove this reference genome (after running the tutorial) use:
+        [Quick start tutorial](tutorial.md) section demonstrates how to run {{ software_name }} on an example human dataset. In order for users to be able to follow the tutorial `scsetup` will automatically download the `human_2024` reference genome and build an alevin index with [decoys](reference.md#scsetup) even if `human_2024` is not listed in the _scprocess_setup.yaml_ file. If you would like to remove this reference genome (after running the tutorial) use:
     
         ```bash
         rm -rf $SCPROCESS_DATA_DIR/reference_genomes/human_2024
@@ -123,14 +128,38 @@
 
 4. Finish setting up scprocess data directory with:
 
-    ```bash
-    scsetup
-    ```
-    If you like, you can do a "dry run" first to see what will happen:
+    We find it good practice to first do a "dry run" to check what will happen:
     ```bash
     scsetup -n
     # or
     # scsetup --dry-run
     ```
 
+    If that looks ok, then run it for real:
+    ```bash
+    scsetup
+    ```
 
+
+## Cluster setup
+
+{{ software_name }} is intended to be used with a cluster with a job scheduler such as `Slurm` or `LSF` (although it will still work without a job scheduler). To set up a job scheduler in `snakemake`, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{ software_name }} comes with two predefined configuration profiles stored in the _profiles_ directory: _profiles/slurm_default_ and _profiles/lsf_default_ for `Slurm` and `LSF` respectively. 
+
+To use {{ software_name }} with a job scheduler, you need to add a line to your  _scprocess_setup.yaml_ file:
+
+=== Slurm
+```yaml
+profile: slurm_default
+```
+=== LSF
+```yaml
+profile: lsf_default
+```
+
+If you want to make a profile that is specific to your own cluster, we recommend that you make a copy one of the default profile folders, e.g. to _profiles/slurm_my_cluster_, then edit the corresponding _config.yaml_ file. Once you are happy with it, edit the _scprocess_setup.yaml_ file to point to this profile like before, e.g. 
+
+```yaml
+profile: slurm_my_cluster
+```
+
+`scsetup` and {{ software_name }} will then run in cluster mode with the specifications in this profile.
