@@ -20,7 +20,7 @@
 #       'SHORT_TAG':        SHORT_TAG
 #       }
 #     # make and render Rmd file
-#     template_f  = 'templates/marker_genes.Rmd.template'
+#     template_f  = 'resources/rmd_templates/marker_genes.Rmd.template'
 #     print('rendering template')
 #     render_html(PROJ_DIR, template_f, sub_dict, output.rmd_f)
 
@@ -64,7 +64,7 @@ rule render_html_alevin_fry:
     echo "copying relevant R files over"
     
     # make and render Rmd file
-    template_f=$(realpath templates/alevin_fry.Rmd.template)
+    template_f=$(realpath resources/rmd_templates/alevin_fry.Rmd.template)
     rule="af"
 
     # rendering html
@@ -106,7 +106,7 @@ if DEMUX_TYPE == 'af':
       echo "copying relevant R files over"
     
       # make and render Rmd file
-      template_f=$(realpath templates/multiplexing.Rmd.template)
+      template_f=$(realpath resources/rmd_templates/multiplexing.Rmd.template)
       rule="multiplexing"
 
       # rendering html
@@ -147,7 +147,7 @@ if AMBIENT_METHOD == "cellbender":
       '../envs/rlibs.yaml'
     shell:
       """
-          template_f=$(realpath templates/cellbender.Rmd.template)
+          template_f=$(realpath resources/rmd_templates/cellbender.Rmd.template)
           rule="cellbender"
         
           Rscript --vanilla -e "source('scripts/render_reports.R'); \
@@ -185,7 +185,7 @@ rule render_html_qc:
     """
   
     #define rule and template
-    template_f=$(realpath templates/SampleQC.Rmd.template)
+    template_f=$(realpath resources/rmd_templates/SampleQC.Rmd.template)
     rule="qc"
 
     # rendering html
@@ -235,7 +235,7 @@ rule render_html_integration:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
   shell:
     """
-    template_f=$(realpath templates/integration.Rmd.template)
+    template_f=$(realpath resources/rmd_templates/integration.Rmd.template)
     rule="integration"
     
     Rscript --vanilla -e "source('scripts/render_reports.R'); \
@@ -287,7 +287,7 @@ rule render_html_marker_genes:
     mem_mb = lambda wildcards, attempt: attempt * MB_HTML_MARKER_GENES
   shell:
     """
-    template_f=$(realpath templates/marker_genes.Rmd.template)
+    template_f=$(realpath resources/rmd_templates/marker_genes.Rmd.template)
     rule="markers"
 
     Rscript --vanilla -e "source('scripts/render_reports.R'); \
@@ -341,7 +341,7 @@ rule render_html_label_celltypes:
     echo "copying relevant R files over"
     cp scripts/label_celltypes.R {output.r_lbl_f}
 
-    template_f=$(realpath templates/label_celltypes.Rmd.template)
+    template_f=$(realpath resources/rmd_templates/label_celltypes.Rmd.template)
     rule="cell_labels"
 
     Rscript --vanilla -e "source('scripts/render_reports.R'); \
@@ -398,7 +398,7 @@ rule render_html_label_celltypes:
 #   shell:
 #     """
 
-#     template_f=$(realpath templates/zoom.Rmd.template)
+#     template_f=$(realpath resources/rmd_templates/zoom.Rmd.template)
 #     rule="zoom"
 
 #     Rscript --vanilla -e "source('scripts/render_reports.R'); \
@@ -464,7 +464,7 @@ rule render_html_label_celltypes:
 #     echo "copying relevant R files over"
 #     cp scripts/pseudobulk_and_empties.R {output.r_pb_f}
 
-#     template_f=$(realpath templates/empties.Rmd.template)
+#     template_f=$(realpath resources/rmd_templates/empties.Rmd.template)
 #     rule="pb_empties"
 
     
