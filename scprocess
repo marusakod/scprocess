@@ -15,6 +15,159 @@ import subprocess
 import shlex
 
 
+def run_scsetup(sc_dir, snakefile, extraargs):
+  print('doing some checks on inputs')
+ 
+  # get scprocess_data_dir; should be defined in .bashrc
+  scprocess_data_dir = os.getenv('SCPROCESS_DATA_DIR')
+
+  if scprocess_data_dir:
+    print(f'SCPROCESS_DATA_DIR is set to: {scprocess_data_dir}')
+  else:
+    raise ValueError('SCPROCESS_DATA_DIR is not defined in .bashrc')
+  
+  # check that scprocess_data_dir is a directory
+  assert os.path.isdir(scprocess_data_dir), \
+   "SCPROCESS_DATA_DIR is not a directory"
+  
+  # check that config file exists
+  configfile = os.path.join(scprocess_data_dir, 'scprocess_setup.yaml')
+  assert os.path.exists(configfile), \
+    f"Config file {configfile} does not exist"
+  
+  with open(configfile, "r") as stream:
+    config      = yaml.safe_load(stream)
+  
+  # check if cluster profile is defined
+  if ('profile' in config) and config['profile'] is not None:
+    profile = config['profile']
+    
+    # check if profile exists
+    profile_dir = os.path.join(sc_dir, 'profiles', profile)
+    profile_f   = os.path.join(profile_dir, 'config.yaml')
+
+    assert os.path.isfile(profile_f), \
+      f"cluster configuration file {profile_f} does not exist"
+    
+    # add snakemake flag
+    extraargs = extraargs + ' --workflow-profile ' + profile_dir
+    
+  # change scprocess directory
+  scprocess_dir  = os.path.dirname(__file__)
+  os.chdir(scprocess_dir)
+
+  # change scprocess directory
+  print("starting scprocess setup")
+  subprocess.run(['echo', 'snakemake', 
+    "--snakefile", snakefile, 
+    "--configfile", os.path.abspath(configfile),
+    "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", "--use-conda", 
+    *shlex.split(extraargs)])
+  subprocess.run(['snakemake', 
+    "--snakefile", snakefile, 
+    "--configfile", os.path.abspath(configfile),
+    "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", "--use-conda", 
+    *shlex.split(extraargs)])
+
+
+# create new project folder
+def new_proj(sc_dir, name, where, create_subdirs, create_config):
+  # define template path
+  src_dir   = os.path.join(sc_dir, "resources", "newproj_files")
+  proj_dir  = os.path.join(where, name)
+  
+  # check if where is a valid path
+  if not os.path.exists(where):
+    raise ValueError(f"Error: The specified directory '{where}' does not exist.")
+  if not os.path.isdir(where):
+    raise ValueError(f"Error: '{where}' is not a directory.")
+
+  # check if project already exists
+  if os.path.exists(proj_dir):
+    raise ValueError("project already exists")
+
+  # create project directory
+  os.mkdir(proj_dir)
+  os.chdir(proj_dir)
+
+  # create required directories
+  dir_ls = ['.log', 'data', 'code', 'analysis', 'output', 'public']
+  for d in dir_ls:
+    os.mkdir(d)
+
+  # create additional subdirectories if requested
+  if create_subdirs:
+    os.mkdir(os.path.join(proj_dir, 'data', 'fastqs'))
+    os.mkdir(os.path.join(proj_dir, 'data', 'metadata'))
+  
+  # define required files and locations
+  f_ls = ['_workflowr.yml', '.gitignore', '.gitattributes',
+      '_site.yml', 'custom.css', 'about.Rmd', 'index.Rmd', 'license.Rmd', '.nojekyll']
+  loc_ls = ['.', '.', '.', 'analysis', 'analysis', 'analysis', 'analysis', 'analysis', 'public']
+  assert len(f_ls) == len(loc_ls)
+
+  # copy template files
+  for f, l in zip(f_ls, loc_ls):
+    subprocess.call(['cp', os.path.join(src_dir, f), os.path.join(proj_dir, l, f)])
+
+  # Modify _site.yml
+  site_f = os.path.join(proj_dir, 'analysis', '_site.yml')
+  with open(site_f, 'r') as file:
+    site_yml_txt = file.read()
+  site_yml_txt = site_yml_txt.replace("proj_template", name)
+  with open(site_f, 'w') as file:
+    file.write(site_yml_txt)
+
+  # copy project file
+  proj_ext = '.Rproj'
+  subprocess.call(['cp', os.path.join(src_dir, "proj_template" + proj_ext), os.path.join(proj_dir, name + proj_ext)])
+           
+  # create .Rprofile file
+  rprofile_txt = """## This makes sure that R loads the workflowr package
+  ## automatically, every time the project is loaded
+  if (requireNamespace("workflowr", quietly = TRUE)) {
+    message("Loading .Rprofile for the current workflowr project")
+    library("workflowr")
+  } else {
+    message("workflowr package not installed, please run install.packages(\'workflowr\') to use the workflowr functions")
+  }
+  """
+  rprofile_f = os.path.join(proj_dir, '.Rprofile')
+  with open(rprofile_f, "w") as file:
+    file.write(rprofile_txt)
+
+  # create config file if requested
+  if create_config:
+    # import something we need
+    from datetime import date
+
+    # set up files etc
+    config_f    = os.path.join(proj_dir, f"config-{name}.yaml")
+    today       = date.today()
+    date_stamp  = today.strftime('%Y-%m-%d')
+    fastq_dir   = 'data/fastqs' if create_subdirs else ''
+    meta_dir    = 'data/metadata' if create_subdirs else ''
+    
+    config_txt  = f"""
+proj_dir: {proj_dir}
+fastq_dir: {fastq_dir}
+full_tag: {name}
+short_tag: 
+your_name: 
+affiliation: 
+sample_metadata: {meta_dir}/
+species: 
+date_stamp: "{date_stamp}"
+alevin:
+ chemistry: 
+""".strip()
+    
+    with open(config_f, "w") as file:
+      file.write(config_txt)
+
+  return
+
+
 # find fastq files for a sample
 def find_fastq_files(fastqs_dir, sample, read):
   # get all files
@@ -248,51 +401,193 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
     ])
 
 
+def plot_interactive_knee(knee_f, sample):
+  print('importing modules for plotting knees')
+  import gzip
+  import plotly.express as px
+  from plotly.offline import plot
+
+  assert os.path.isfile(knee_f), \
+    f"knee file for {sample} doesn't exist. To generate the file run rule 'alevin_fry'"
+
+  # read knee file
+  with gzip.open(knee_f, 'rt') as file:
+    knee_df = pd.read_csv(file, delimiter=',')
+
+  # make plot
+  fig = px.scatter(
+    knee_df,
+    x='rank',
+    y='total',
+    title=f"sample_id: {sample}",
+    log_x=True, 
+    log_y=True, 
+    labels={'rank': 'barcode rank', 'total': 'library size'}
+  )
+  fig.update_traces(marker=dict(color='black', size=5))
+
+  # update the layout to set background colors
+  fig.update_layout(
+    plot_bgcolor  = 'white', 
+    paper_bgcolor = 'white',
+    xaxis     = dict( gridcolor = '#e5e7e9', zerolinecolor = '#e5e7e9' ),
+    yaxis     = dict( gridcolor = '#e5e7e9', zerolinecolor = '#e5e7e9' ),
+    autosize  = False,
+    width     = 1200,
+    height    = 700
+  )
+
+  # save plot as html file
+  knee_dir  = os.path.dirname(knee_f)
+  plot_f    = os.path.join(knee_dir, f"scprocess_knee_plot_{sample}.html")
+  fig.write_html(plot_f)
+  # plot(fig, auto_open=True)
+
+
 if __name__ == '__main__':
+  # define arguments
+  parser      = argparse.ArgumentParser(
+    description = 'snakemake workflows for processing single cell RNAseq data.'
+  )
+  subparsers  = parser.add_subparsers(dest='subcommand', help="scprocess subcommands:", required=True)
+
+  # subparser for the 'scsetup' subcommand
+  setup_prsr  = subparsers.add_parser('scsetup', help="do setup for scprocess")
+
+  # add arguments for scsetup
+  setup_prsr.add_argument("-n", "--dry-run", action="store_true", 
+    help = '''
+      "Dry run" execution, i.e. snakemake will print out what it would do for the scsetup step, but not actually do it.
+      ''')
+  setup_prsr.add_argument("-E", "--extraargs", action="store", nargs=1, type=str,
+    help = '''
+      Extra snakamake arguments. Must be provided within quotes and use an equals sign.
+      For example, to have a dryrun: -E="-n"
+      ''')
+
+  # subparser for the 'plotknee' subcommand
+  newprj_prsr = subparsers.add_parser('newproj', help="create new project folder with structure that scprocess expects")
+
+  # add arguments for new project
+  newprj_prsr.add_argument('name', type=str, help="Name of the project")
+  newprj_prsr.add_argument('-w', '--where', type=str, default=os.getcwd(), help="Where to create the project (default: current directory)")
+  newprj_prsr.add_argument('-s', '--sub', action='store_true', help="Create data/fastqs and data/metadata subdirectories")
+  newprj_prsr.add_argument('-c', '--config', action='store_true', help="Create a blank config.yml file with required scprocess parameters")
+
+  # subparser for the 'run' subcommand
+  run_prsr    = subparsers.add_parser('run', help="run scprocess")
+
+  # add arguments for scprocess
+  run_prsr.add_argument("configfile", type = str, 
+    help = "Required. YAML file specifying what you want to run, and any non-default parameters")
+  run_prsr.add_argument("-r", "--rule", type = str, default = "all",
+    choices = [
+        "all", "alevin_fry", "ambient", "demux", "qc", "hvg", "integration", "marker_genes"
+        ],
+    help = '''
+      Leave empty to run the whole workflow, or alternatively select the rule you want to run.
+      ''')
+  run_prsr.add_argument("-n", "--dry-run", action="store_true", 
+    help = '''
+      "Dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.
+      ''')
+  run_prsr.add_argument("-E", "--extraargs", type = str, 
+    help = '''
+      Extra snakamake arguments. Must be provided within quotes. For example, to reduce outputs from snakemake: -E "--quiet"
+      ''')
+  run_prsr.add_argument("--unlock", action="store_true", 
+    help = '''
+      When an scprocess run is stopped before it is finished, the snakemake directory
+      may be locked. If you get an error message saying that it is locked, use this
+      option to unlock it, then run scprocess as normal.
+      ''')
+
+  # subparser for the 'plotknee' subcommand
+  knee_parser = subparsers.add_parser('plotknee', help="save interactive knee plot for a specified sample, to help specify custom parameters")
+
+  # define arguments
+  knee_parser.add_argument("sample", type = str, help = 'Sample to be plotted.')
+  knee_parser.add_argument("-c", "--configfile", type = str, nargs = '?', default = None,
+    help = "Path to configuration file used for running scprocess. ")
+  knee_parser.add_argument("-k", "--kneefile", type = str, default = None,
+    help = "Path to knee file")
   # define scprocess directory
   sc_dir    = os.path.dirname(os.path.realpath(__file__))
 
-  # define arguments
-  parser    = argparse.ArgumentParser(description = 'snakemake workflows for processing single cell RNAseq data.')
-  parser.add_argument("configfile", type = str, 
-    help = "Required. YAML file specifying what you want to run, and any non-default parameters")
-  parser.add_argument("-r", "--rule", type = str, default = "all",
-    choices = [
-        "all", "alevin_fry", "cellbender", "demux", "qc", 
-        "hvg", "integration", "marker_genes", "label_celltypes"
-        ],
-    help = '''
-       Leave empty to run the whole workflow, in alternative select the rule you want to run.
-       ''')
-  parser.add_argument("-n", "--dry-run", action="store_true", 
-    help = '''
-       "dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.
-       ''')
-  parser.add_argument("-E", "--extraargs", type = str, 
-    help = '''
-       extra snakamake arguments. Must be provided within quotes and begin with a whitespace.
-       For example, to have a dryrun: -E " -n"
-       ''')
-       
-  # get arguments
+  # Parse the arguments
   args      = parser.parse_args()
+  
+  # create new project folder
+  if args.subcommand == "scsetup":
+    # select snakefile corresponding to workflow
+    snakefile = os.path.join(sc_dir, "rules/setup_rules.smk")
 
-  # select snakefile corresponding to workflow
-  snakefile = os.path.join(sc_dir, "rules.smk")
+    # sort out extra arguments
+    extraargs = ' '
+    if args.extraargs:
+      extraargs = extraargs + args.extraargs[0]
+    if args.dry_run:
+      extraargs = extraargs + " -np"
     
-  # set default rule to all
-  if args.rule == "":
-    rule    = "all"
+    # call bsub thing
+    run_scsetup(sc_dir, snakefile, extraargs)
+
+  elif args.subcommand == "newproj":
+    # make new project directory
+    where_abs = os.path.abspath(args.where)
+    new_proj(sc_dir, args.name, where_abs, args.sub, args.config)
+
+  # run scprocess
+  elif args.subcommand == "run":
+    # select snakefile corresponding to workflow
+    snakefile = os.path.join(sc_dir, "rules.smk")
+      
+    # set default rule to all
+    if args.rule == "":
+      rule    = "all"
+    else:
+      rule = args.rule  
+    
+    # sort out extra arguments
+    extraargs = ' '
+    if args.unlock:
+      extraargs = " --unlock"
+    else:
+      if args.extraargs:
+        extraargs = extraargs + args.extraargs
+      if args.dry_run:
+        extraargs = extraargs + " -np"
+    
+    # print(sc_dir, args.configfile, snakefile, rule)   
+    # call bsub thing
+    run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs)
+
+  # plot knee for selected sample
+  elif args.subcommand == 'plotknee':
+    # process plotknee commands
+    if args.kneefile:
+      knee_f = args.kneefile
+    else:
+      assert args.configfile, "To use plotknee, either --configfile (-c) or --kneefile (-k) must be provided"
+      
+      # open config file and get project directory
+      with open(args.configfile) as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+      
+      # get required variables
+      proj_dir    = config['proj_dir']
+      short_tag   = config['short_tag']
+      date_stamp  = config['date_stamp']
+
+      # use them to define a knee file to use
+      knee_dir    = f"{proj_dir}/output/{short_tag}_alevin_fry/af_{args.sample}"
+      knee_f      = f"{knee_dir}/knee_plot_data_{args.sample}_{date_stamp}.txt.gz"
+
+    # call function
+    plot_interactive_knee(knee_f, args.sample)
+
   else:
-    rule = args.rule  
-  
-  extraargs = ''
-  if args.extraargs:
-    extraargs = args.extraargs
-  if args.dry_run:
-    extraargs = extraargs + " -np"
-  
-  # print(sc_dir, args.configfile, snakefile, rule)   
-  # call bsub thing
-  run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs)
+    # if no arguments are provided at all, print the help message
+    parser.print_help()
+
 
