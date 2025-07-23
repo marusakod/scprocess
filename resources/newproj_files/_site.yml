@@ -1,7 +1,7 @@
 name: "proj_template"
 output_dir: ../public
 navbar:
-  title: "test_workflowr"
+  title: "proj_template"
   left:
   - text: Home
     href: index.html
