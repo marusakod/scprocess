@@ -57,10 +57,10 @@ If you want to use `cellbender` for ambient RNA correction, then you will need t
 
     ```bash
     ml Miniforge3
-    conda env create -n scprocess -f envs/scprocess_slurm.yml
+    conda env create -n scprocess -f envs/scprocess_slurm.yaml
     # alternatives:
-    # conda env create -n scprocess -f envs/scprocess_lsf.yml
-    # conda env create -n scprocess -f envs/scprocess_local.yml
+    # conda env create -n scprocess -f envs/scprocess_lsf.yaml
+    # conda env create -n scprocess -f envs/scprocess_local.yaml
     ```
 
     Check that this worked:
@@ -100,10 +100,10 @@ If you want to use `cellbender` for ambient RNA correction, then you will need t
 2.  Set up a conda environment that you will use for running {{software_name}}. In the {{software_name}} folder, there is a folder called _envs_, and within that you can choose between envs for `slurm`, `lsf`, and `local`.
 
     ```bash
-    conda env create -n scprocess -f envs/scprocess_slurm.yml
+    conda env create -n scprocess -f envs/scprocess_slurm.yaml
     # alternatives:
-    # conda env create -n scprocess -f envs/scprocess_lsf.yml
-    # conda env create -n scprocess -f envs/scprocess_local.yml
+    # conda env create -n scprocess -f envs/scprocess_lsf.yaml
+    # conda env create -n scprocess -f envs/scprocess_local.yaml
     ```
 
     Check that this worked:
@@ -187,7 +187,7 @@ If you want to use `cellbender` for ambient RNA correction, then you will need t
 
 ## Cluster setup
 
-??? warning classes
+!!! warning "Roche sHPC only"
     On the Roche sHPC, you should use the profile _slurm_shpc_.
 
 {{ software_name }} is intended to be used with a cluster with a job scheduler such as `slurm` or `LSF` (although it will still work without a job scheduler). To set up a job scheduler in `snakemake`, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{ software_name }} comes with two predefined configuration profiles stored in the _profiles_ directory: _profiles/slurm_default_ and _profiles/lsf_default_ for `slurm` and `LSF` respectively. 

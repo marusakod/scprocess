@@ -116,7 +116,7 @@ rule download_scprocess_files:
     xgb_csv_f        = SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/allowed_cls_Siletti_Macnair_2024-03-11.csv',
     xgb_rds_f        = SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/xgboost_obj_hvgs_Siletti_Macnair_2024-03-11.rds'
   conda:
-    '../envs/py_env.yml'
+    '../envs/py_env.yaml'
   threads: 1
   shell:
     """
@@ -139,7 +139,7 @@ rule set_up_one_af_index:
     has_decoys  = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ]['has_decoys'],
     has_rrna    = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ]['has_rrna']
   conda:
-    '../envs/alevin_fry.yml'
+    '../envs/alevin_fry.yaml'
   resources:
     mem_mb = 8192
   threads: 8
@@ -157,7 +157,7 @@ rule save_index_parameters_csv:
   output:
     csv     = SCPROCESS_DATA_DIR + '/index_parameters.csv'
   conda:
-    '../envs/py_env.yml'
+    '../envs/py_env.yaml'
   resources:
     mem_mb = 512
   threads: 1

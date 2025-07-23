@@ -58,7 +58,7 @@ rule render_html_alevin_fry:
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
   conda:
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   shell:
     """
     echo "copying relevant R files over"
@@ -100,7 +100,7 @@ if DEMUX_TYPE == 'af':
     resources:
       mem_mb      =  lambda wildcards, attempt: attempt * 4096
     conda:
-      '../envs/rlibs.yml'
+      '../envs/rlibs.yaml'
     shell:
       """
       echo "copying relevant R files over"
@@ -144,7 +144,7 @@ if AMBIENT_METHOD == "cellbender":
     resources:
       mem_mb      =  lambda wildcards, attempt: attempt * 4096
     conda:
-      '../envs/rlibs.yml'
+      '../envs/rlibs.yaml'
     shell:
       """
           template_f=$(realpath templates/cellbender.Rmd.template)
@@ -178,7 +178,7 @@ rule render_html_qc:
   threads: 1
   retries: RETRIES 
   conda:
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
   shell:
@@ -230,7 +230,7 @@ rule render_html_integration:
   threads: 1
   retries: RETRIES 
   conda:
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
   shell:
@@ -282,7 +282,7 @@ rule render_html_marker_genes:
             f"fgsea_hlmk_f  = '{input.get('fgsea_hlmk_f', '')}',"
         ]
     ).strip()
-  conda: '../envs/rlibs.yml'
+  conda: '../envs/rlibs.yaml'
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_HTML_MARKER_GENES
   shell:
@@ -334,7 +334,7 @@ rule render_html_label_celltypes:
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
   conda: 
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   shell:
     """
     # copy R code over
@@ -392,7 +392,7 @@ rule render_html_label_celltypes:
 #   threads: 1
 #   retries: RETRIES 
 #   conda: 
-#     '../envs/rlibs.yml'
+#     '../envs/rlibs.yaml'
 #   resources:
 #     mem_mb =  lambda wildcards, attempt: attempt * 8192
 #   shell:
@@ -457,7 +457,7 @@ rule render_html_label_celltypes:
 #   resources:
 #     mem_mb      = lambda wildcards, attempt: attempt * 4096
 #   conda: 
-#     '../envs/rlibs.yml'
+#     '../envs/rlibs.yaml'
 #   shell:
 #     """
 #     # copy R code over

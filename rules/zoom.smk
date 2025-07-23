@@ -27,7 +27,7 @@ rule zoom_one_zoom:
   threads: 4
   retries: RETRIES
   conda:
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_ZOOM_RUN_ZOOM
   shell:

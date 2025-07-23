@@ -35,7 +35,7 @@ rule make_pb_empty:
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
   conda: 
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   shell:
     """
     Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
@@ -63,7 +63,7 @@ rule make_pb_all:
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
   conda: 
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   shell:
     """
     Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
@@ -87,7 +87,7 @@ rule calculate_ambient_genes:
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
   conda: 
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   shell:
     """
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \

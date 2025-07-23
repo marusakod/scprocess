@@ -208,7 +208,7 @@ if AMBIENT_METHOD == 'decontx':
     resources:
       mem_mb    = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
     conda: 
-      '../envs/rlibs.yml'
+      '../envs/rlibs.yaml'
     shell:
       """
       # create main ambient directory
@@ -256,7 +256,7 @@ if AMBIENT_METHOD == 'none':
     threads: 4
     retries: RETRIES
     conda:
-      '../envs/rlibs.yml'
+      '../envs/rlibs.yaml'
     resources:
       mem_mb    = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
     shell:
@@ -304,7 +304,7 @@ if AMBIENT_METHOD == 'none':
 #   threads: 1
 #   retries: RETRIES
 #   conda:
-#     '../envs/rlibs.yml'
+#     '../envs/rlibs.yaml'
 #   resources:
 #     mem_mb      = lambda wildcards, attempt: attempt * MB_GET_BARCODE_QC_METRICS
 #   shell:

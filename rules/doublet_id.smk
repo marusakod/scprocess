@@ -14,7 +14,7 @@ localrules: make_dbl_files_df
 #  resources:
 #    mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_SCDBLFINDER
 #  conda: 
-#   '../envs/rlibs.yml'
+#   '../envs/rlibs.yaml'
 #  shell:
 #   """
 #    # run scDblFinder
@@ -62,7 +62,7 @@ rule combine_scDblFinder_outputs:
   resources:
     mem_mb    = lambda wildcards, attempt: attempt * MB_COMBINE_SCDBLFINDER_OUTPUTS
   conda: 
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   shell:
     """
     # combine scDblFinder outputs

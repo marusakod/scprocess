@@ -88,7 +88,7 @@ rule run_qc:
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
   conda:
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   shell:
     """
     Rscript -e "source('scripts/SampleQC.R'); source('scripts/ambient.R'); \

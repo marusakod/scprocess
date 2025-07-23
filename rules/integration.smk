@@ -13,7 +13,7 @@ rule run_integration:
   resources:
     mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_INTEGRATION
   conda: 
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   shell:
     """
     # run harmony
@@ -50,7 +50,7 @@ rule make_clean_sces:
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_MAKE_CLEAN_SCES
   conda:
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   shell:
     """
 

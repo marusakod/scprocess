@@ -22,7 +22,7 @@ rule meta_save_metacells:
   threads: 4
   retries: RETRIES
   conda:
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_META_SAVE_METACELLS
   shell:

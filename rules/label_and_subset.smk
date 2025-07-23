@@ -20,7 +20,7 @@ rule lbl_label_celltypes:
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_LBL_LABEL_CELLTYPES
   conda: 
-    '../envs/rlibs.yml'
+    '../envs/rlibs.yaml'
   shell:
     """
     # save sce object
@@ -70,7 +70,7 @@ rule lbl_label_celltypes:
 #         params:
 #             sub_names = ' '.join([*LBL_SCE_SUBSETS])
 #         conda:
-#             '../envs/rlibs.yml'
+#             '../envs/rlibs.yaml'
 #         resources:
 #             mem_mb = lambda wildcards, attempt: attempt * MB_LBL_SAVE_SUBSET_SCES
 #         shell:

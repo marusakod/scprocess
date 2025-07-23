@@ -122,7 +122,7 @@ if DEMUX_TYPE == "af":
       t2g_f       = af_dir + '/t2g_hto.tsv',
       idx_log_f   = af_dir + '/hto_index/ref_indexing.log'
     conda:
-      '../envs/alevin_fry.yml'
+      '../envs/alevin_fry.yaml'
     shell:
       """
       cd {af_dir}
@@ -165,7 +165,7 @@ rule run_alevin_fry:
     cols_f      = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_cols.txt',
     rows_f      = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_rows.txt'
   conda:
-    '../envs/alevin_fry.yml'
+    '../envs/alevin_fry.yaml'
   shell:
     """
     # Process input strings
@@ -219,7 +219,7 @@ if DEMUX_TYPE == "af":
       cols_f      = af_dir + '/af_{run}/hto/af_quant/alevin/quants_mat_cols.txt',
       rows_f      = af_dir + '/af_{run}/hto/af_quant/alevin/quants_mat_rows.txt'
     conda:
-      '../envs/alevin_fry.yml'
+      '../envs/alevin_fry.yaml'
     shell:
       """
       # Process input strings
@@ -277,7 +277,7 @@ rule save_alevin_to_h5:
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_SAVE_ALEVIN_TO_H5
   conda: 
-   '../envs/rlibs.yml'
+   '../envs/rlibs.yaml'
   shell:
     """
     Rscript -e "source('scripts/alevin_fry.R');
@@ -310,7 +310,7 @@ if DEMUX_TYPE == 'af':
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_SAVE_ALEVIN_TO_H5
     conda: 
-      '../envs/rlibs.yml'
+      '../envs/rlibs.yaml'
     shell:
       """
       Rscript -e "source('scripts/alevin_fry.R');

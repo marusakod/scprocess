@@ -33,7 +33,7 @@ rule run_marker_genes:
   retries: RETRIES
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_MARKER_GENES
-  conda: '../envs/rlibs.yml'
+  conda: '../envs/rlibs.yaml'
   shell:
     """
     Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); calculate_marker_genes(

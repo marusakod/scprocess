@@ -36,7 +36,7 @@ Using the command `tree .`, you can inspect the structure of the `test_project` 
 │   ├── index.Rmd
 │   └── license.Rmd
 ├── code
-├── config_test_project.yml
+├── config-test_project.yaml
 ├── data
 │   ├── fastqs
 │   └── metadata

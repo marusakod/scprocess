@@ -79,7 +79,7 @@ rule make_tmp_csr_matrix:
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
   conda:
-    '../envs/hvgs.yml'
+    '../envs/hvgs.yaml'
   shell:
     """
     python3 scripts/hvgs.py get_csr_counts \
@@ -109,7 +109,7 @@ if HVG_METHOD == 'sample':
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
     conda:
-      '../envs/hvgs.yml'
+      '../envs/hvgs.yaml'
     shell:
       """
       python3 scripts/hvgs.py calculate_std_var_stats_for_sample \
@@ -149,7 +149,7 @@ else:
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
     conda:
-      '../envs/hvgs.yml'
+      '../envs/hvgs.yaml'
     shell:
       """
       python3 scripts/hvgs.py calculate_mean_var_for_chunk \
@@ -188,7 +188,7 @@ else:
     threads: 1
     retries: RETRIES
     conda:
-      '../envs/hvgs.yml'
+      '../envs/hvgs.yaml'
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
     shell:
@@ -212,7 +212,7 @@ else:
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
     conda:
-      '../envs/hvgs.yml'
+      '../envs/hvgs.yaml'
     shell:
       """
       python3 scripts/hvgs.py calculate_std_var_stats_for_chunk \
@@ -256,7 +256,7 @@ rule get_highly_variable_genes:
   resources:
      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
   conda:
-    '../envs/hvgs.yml'
+    '../envs/hvgs.yaml'
   shell:
      """
      NOAMBIENT_FLAG=""
@@ -287,7 +287,7 @@ rule create_hvg_matrix:
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
   conda:
-    '../envs/hvgs.yml'
+    '../envs/hvgs.yaml'
   shell:
     """
     python3 scripts/hvgs.py read_top_genes \
@@ -312,7 +312,7 @@ rule create_doublets_hvg_matrix:
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
     conda: 
-      '../envs/hvgs.yml'
+      '../envs/hvgs.yaml'
     shell: 
       """
       python3 scripts/hvgs.py create_doublets_matrix \

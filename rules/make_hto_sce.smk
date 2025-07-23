@@ -16,7 +16,7 @@ if DEMUX_TYPE == 'af':
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_MAKE_SCE_OBJECT
     conda:
-     '../envs/rlibs.yml'
+     '../envs/rlibs.yaml'
     shell: 
      """
        # save hto sce with demultiplexing info
