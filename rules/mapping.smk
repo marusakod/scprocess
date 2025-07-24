@@ -146,7 +146,7 @@ if DEMUX_TYPE == "af":
       """
 
 
-rule run_alevin_fry:
+rule run_mapping:
   input:
     R1_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.run, "R1"),
     R2_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.run, "R2")
@@ -200,7 +200,7 @@ rule run_alevin_fry:
 
 
 if DEMUX_TYPE == "af":
-  rule run_alevin_fry_hto:
+  rule run_mapping_hto:
     input:
       hto_R1_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.run, "R1"), 
       hto_R2_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.run, "R2"),
@@ -280,7 +280,7 @@ rule save_alevin_to_h5:
    '../envs/rlibs.yaml'
   shell:
     """
-    Rscript -e "source('scripts/alevin_fry.R');
+    Rscript -e "source('scripts/mapping.R');
       save_alevin_h5_ambient_params(
         sample        = '{wildcards.run}',
         fry_dir       = '{input.fry_dir}',
@@ -313,7 +313,7 @@ if DEMUX_TYPE == 'af':
       '../envs/rlibs.yaml'
     shell:
       """
-      Rscript -e "source('scripts/alevin_fry.R');
+      Rscript -e "source('scripts/mapping.R');
         save_alevin_h5_knee_params_df(
           sample      = '{wildcards.run}', 
           fry_dir     = '{input.fry_dir}', 
