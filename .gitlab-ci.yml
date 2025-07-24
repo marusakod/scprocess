@@ -1,7 +1,7 @@
 image: python:3.8-buster
 
 before_script:
-  - pip install -r mkdocs_reqs.txt
+  - pip install -r resources/mkdocs/mkdocs_reqs.txt
 
 stages:
   - deploy
@@ -9,7 +9,7 @@ stages:
 pages:
   stage: deploy
   script:
-    - mkdocs build --strict --verbose
+    - mkdocs build --config-file resources/mkdocs/mkdocs.yml --strict --verbose
   artifacts:
     paths:
     - public
