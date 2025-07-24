@@ -35,8 +35,7 @@ rule copy_r_code:
     r_qc_f      = f"{code_dir}/qc.R", 
     r_int_f     = f"{code_dir}/integration.R",
     r_mkr_f     = f"{code_dir}/marker_genes.R"
-  shell:
-    """
+  shell:"""
     echo "copying relevant R files over"
     
     cp scripts/utils.R {output.r_utils_f}
@@ -61,8 +60,7 @@ rule render_html_mapping:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
   conda:
     '../envs/rlibs.yaml'
-  shell:
-    """
+  shell: """
     echo "copying relevant R files over"
     
     # make and render Rmd file
@@ -103,8 +101,7 @@ if DEMUX_TYPE == 'af':
       mem_mb      =  lambda wildcards, attempt: attempt * 4096
     conda:
       '../envs/rlibs.yaml'
-    shell:
-      """
+    shell: """
       echo "copying relevant R files over"
     
       # make and render Rmd file
@@ -147,8 +144,7 @@ if AMBIENT_METHOD == "cellbender":
       mem_mb      =  lambda wildcards, attempt: attempt * 4096
     conda:
       '../envs/rlibs.yaml'
-    shell:
-      """
+    shell: """
           template_f=$(realpath resources/rmd_templates/cellbender.Rmd.template)
           rule="cellbender"
         
@@ -183,8 +179,7 @@ rule render_html_qc:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
-  shell:
-    """
+  shell: """
   
     #define rule and template
     template_f=$(realpath resources/rmd_templates/SampleQC.Rmd.template)
@@ -214,10 +209,8 @@ rule render_html_qc:
     QC_MAX_MITO = {QC_MAX_MITO}, \
     QC_MIN_SPLICE = {QC_MIN_SPLICE}, \
     QC_MAX_SPLICE = {QC_MAX_SPLICE}, \
-    QC_MIN_CELLS = {QC_MIN_CELLS})"
-    
+    QC_MIN_CELLS = {QC_MIN_CELLS})"    
     """
-
 
 
 rule render_html_integration:
@@ -235,8 +228,7 @@ rule render_html_integration:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
-  shell:
-    """
+  shell: """
     template_f=$(realpath resources/rmd_templates/integration.Rmd.template)
     rule="integration"
     
@@ -287,8 +279,7 @@ rule render_html_marker_genes:
   conda: '../envs/rlibs.yaml'
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_HTML_MARKER_GENES
-  shell:
-    """
+  shell: """
     template_f=$(realpath resources/rmd_templates/marker_genes.Rmd.template)
     rule="markers"
 
@@ -337,8 +328,7 @@ rule render_html_label_celltypes:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
   conda: 
     '../envs/rlibs.yaml'
-  shell:
-    """
+  shell: """
     # copy R code over
     echo "copying relevant R files over"
     cp scripts/label_celltypes.R {output.r_lbl_f}
