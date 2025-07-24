@@ -10,7 +10,7 @@ hide:
 
 ---
 
-* For a brief survey of the package and its current capabilities, you can read the [Introduction](introduction.md).
+* For a brief survey of the package and its capabilities, you can read the [Introduction](introduction.md).
 
 * For help with installation read the [Getting started](setup.md) section. 
 
@@ -20,5 +20,4 @@ hide:
 
 * For details on input arguments see the [Reference](reference.md) section.
 
-* For troubleshooting see the [Troubleshooting](troubleshooting.md) section. 
-
+* If you get stuck, see the [Troubleshooting](troubleshooting.md) section. 

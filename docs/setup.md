@@ -7,7 +7,9 @@
 
 {{ software_name }} is intended for Linux-based high-performance computing clusters (HPCs). It will also run on workstations (i.e. powerful local machines).
 
-If you want to use `cellbender` for ambient RNA correction, then you will need to have access to GPUs with CUDA support on your cluster. If you don't have access but still want to do ambient RNA correction, you can use `decontx`.
+!!! Warning "GPU access is necessary for `cellbender`"
+
+    If you want to use `cellbender` for ambient RNA correction, then you will need to have access to GPUs with CUDA support on your cluster. If you don't have access but still want to do ambient RNA correction, you can use `decontx`.
 
 ### Software
 
