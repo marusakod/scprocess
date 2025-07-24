@@ -11,8 +11,6 @@ output:
     code_folding: hide
     toc_depth: 3
     css: custom.css
-params:
-    is_xgboost: ${eval_boost} 
 ---
 
 
@@ -24,9 +22,6 @@ fig.path = "figure/${SHORT_TAG}_label_celltypes.Rmd/"
 
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 
-# establish conditions
-eval_boost = params$is_xgboost
-eval_cust = !params$is_xgboost
 ```
 
 
@@ -40,13 +35,14 @@ setDTthreads(n_cores)
 
 
 ```{r setup_input, include = FALSE}
-# define files for xgboost
-guesses_f   = "${guesses_f}"
 
-# which harmony clusters?
-xgb_f        = "${LBL_XGB_F}"
+# input_files
+guesses_f   = "${guesses_f}"
+xgb_f       = "${LBL_XGB_F}"
+labels_f    = "${LBL_XGB_CLS_F}"
+
+# params
 sel_res_cl   = "${LBL_SEL_RES_CL}"
-sel_mkrs_res = "${MKR_SEL_RES}"
 min_pred     = ${LBL_MIN_PRED}
 min_cl_prop  = ${LBL_MIN_CL_PROP}
 min_cl_size  = ${LBL_MIN_CL_SIZE}
@@ -58,9 +54,8 @@ min_cl_size  = ${LBL_MIN_CL_SIZE}
 # get predictions
 guesses_dt    = guesses_f %>% fread( na.strings = "" )
 
-if(eval_boost){
 # get celltype labels
-cl_lvls       = xgb_f %>% readRDS %>% .$cl_lvls
+cl_lvls       = fread(labels_f) %>% .[, cluster]
 
 # get resolutions used
 res_ls        = names(guesses_dt) %>% 
@@ -70,61 +65,45 @@ res_ls        = sel_res_cl %>% c(setdiff(res_ls, sel_res_cl))
 
 # format nicely
 guesses_melt  = get_guesses_melt(guesses_dt, res_ls, cl_lvls, min_cl_size)
-}
 
 ```
 
 
-${main_lbl_txt} 
+Annotation of cell types was performed using an XGBoost classifier trained on annotated data from the ${train_data_str}
 
-## ${hmap_title}
+## Integration clusters vs XGBoost-predicted cell types{.tabset}
 
-${hmap_txt}
+Heatmap with xgboost annotations vs integration clusters
 
-```{r plot_cls_vs_boost_pred, fig.height = 5, fig.width = 13, results = 'asis', eval = eval_boost, include = eval_boost}
+```{r plot_cls_vs_boost_pred, fig.height = 5, fig.width = 13, results = 'asis'}
 # plot
 for (sel_res in res_ls) {
   # make confusion matrix
   guesses_sel = guesses_melt[ res == sel_res, .(cell_id, prediction = cl_pred_raw)]
-  hmny_sel    = guesses_melt[ res == sel_res, .(cell_id, cl_hmny = cl_hmny %>% factor)]
-  confuse_dt  = calc_confuse_dt(guesses_sel, hmny_sel, "prediction", "cl_hmny")
+  int_sel    = guesses_melt[ res == sel_res, .(cell_id, cl_int = cl_int %>% factor)]
+  confuse_dt  = calc_confuse_dt(guesses_sel, int_sel, "prediction", "cl_int")
 
   # plot heatmap
   cat('### res = ', sel_res, '\n', sep = '')
-  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", "cl_hmny", 
+  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", "cl_int", 
     plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
   cat('\n\n')
 }
 ```
 
 
-```{r plot_cls_vs_cust_anno, fig.height = 5, fig.width = 13, eval = eval_cust, include = eval_cust}
-  # make confusion matrix
+## XGBoost-predicted cell types over UMAP{.tabset}
 
-  guesses_sel = guesses_dt[, .(cell_id, prediction = label %>% factor)]
-  hmny_sel    = guesses_dt[, .(cell_id, cl_hmny = cl_hmny %>% factor)]
-  confuse_dt  = calc_confuse_dt(guesses_sel, hmny_sel, "prediction", "cl_hmny")
+For each cluster the most frequent prediction labels are shown.
 
-  # plot heatmap
-  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", "cl_hmny", 
-    plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
-
-```
-
-
-
-## ${umap_title}
-
-${umap_txt}
-
-```{r plot_umap_xgboost_pred, fig.height = 5, fig.width = 12, results = 'asis', eval = eval_boost, include=eval_boost}
+```{r plot_umap_xgboost_pred, fig.height = 5, fig.width = 12, results = 'asis'}
 # plot
 for (sel_res in res_ls) {
   # make confusion matrix
   guesses_sel = guesses_melt[ res == sel_res ]
   umap_sel    = guesses_sel[, .(cell_id, UMAP1, UMAP2)]
   g_cl        = plot_umap_cluster(umap_sel, 
-    guesses_sel[, .(cell_id, cluster = cl_hmny)], "harmony\ncluster")
+    guesses_sel[, .(cell_id, cluster = cl_int)], "harmony\ncluster")
   g_pred      = plot_umap_cluster(umap_sel, 
     guesses_sel[, .(cell_id, cluster = cl_pred)], "prediction")
   g = g_cl + g_pred
@@ -140,20 +119,5 @@ for (sel_res in res_ls) {
   print(g)
   cat('\n\n')
 }
-```
-
-
-```{r plot_custom_anno_umap, fig.height = 5, fig.width = 12, eval = eval_cust, include = eval_cust}
-# plot
-  umap_sel    = guesses_dt[, .(cell_id, UMAP1, UMAP2)]
-  g_cl        = plot_umap_cluster(umap_sel, 
-    guesses_dt[, .(cell_id, cluster = cl_hmny)], "harmony\ncluster")
-  g_pred      = plot_umap_cluster(umap_sel, 
-    guesses_dt[, .(cell_id, cluster = label)], "prediction")
-  g = g_cl + g_pred
-
-  # plot umap
-  print(g)
- 
 ```
 

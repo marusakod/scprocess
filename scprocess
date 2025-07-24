@@ -482,7 +482,7 @@ if __name__ == '__main__':
     help = "Required. YAML file specifying what you want to run, and any non-default parameters")
   run_prsr.add_argument("-r", "--rule", type = str, default = "all",
     choices = [
-        "all", "mapping", "ambient", "demux", "qc", "hvg", "integration", "marker_genes"
+        "all", "mapping", "ambient", "demux", "qc", "hvg", "integration", "marker_genes", "label_celltypes"
         ],
     help = '''
       Leave empty to run the whole workflow, or alternatively select the rule you want to run.
