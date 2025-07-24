@@ -1,9 +1,0 @@
-app_profile:
-    - none
-__default__:
-  - '-q short'
-run_cellbender:
-  - "-q long"
-  - "-gpu 'num=1:j_exclusive=yes'"
-run_harmony:
-  - "-q long"
