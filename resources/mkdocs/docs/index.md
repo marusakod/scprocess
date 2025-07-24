@@ -4,9 +4,9 @@ hide:
   - toc
 ---
 
-# Welcome to {{ software_name }} documentation <img src="assets/images/scprocess_logo.png" alt="image title" align="right" width="360" height="180">
+# Welcome to {{sc}} documentation <img src="assets/images/scprocess_logo.png" alt="image title" align="right" width="360" height="180">
 
-{{ software_name }} is a snakemake pipeline for high throughput processing of single cell and single nuclei RNA sequencing data. 
+{{sc}} is a snakemake pipeline for high throughput processing of single cell and single nuclei RNA sequencing data. 
 
 ---
 
@@ -14,7 +14,7 @@ hide:
 
 * For help with installation read the [Getting started](setup.md) section. 
 
-* For an explanation of how to use {{ software_name }}, along with example code, how to choose parameter settings, tips and best practices, read the [Usage](usage.md) section.
+* For an explanation of how to use {{sc}}, along with example code, how to choose parameter settings, tips and best practices, read the [Usage](usage.md) section.
 
 * For a step-by-step tutorial on small example datasets, see the [Tutorials](tutorial.md) section.
 

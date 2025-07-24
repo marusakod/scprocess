@@ -153,7 +153,7 @@ rule run_mapping:
   threads: 8
   retries: RETRIES
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_ALEVIN_FRY
+    mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_MAPPING
   params:
     af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
     exp_ori       = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[1],
@@ -208,7 +208,7 @@ if DEMUX_TYPE == "af":
     threads: 8
     retries: RETRIES
     resources:
-      mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_ALEVIN_FRY
+      mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_MAPPING
     params:
       af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
       whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[2]

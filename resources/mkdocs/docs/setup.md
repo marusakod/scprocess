@@ -5,20 +5,21 @@
 
 ### Hardware
 
-{{ software_name }} is intended for Linux-based high-performance computing clusters (HPCs). It will also run on workstations (i.e. powerful local machines).
+{{sc}} is intended for Linux-based high-performance computing clusters (HPCs). It will also run on workstations (i.e. powerful local machines).
 
 !!! Warning "GPU access is necessary for `cellbender`"
 
     If you want to use `cellbender` for ambient RNA correction, then you will need to have access to GPUs with CUDA support on your cluster. If you don't have access but still want to do ambient RNA correction, you can use `decontx`.
 
+
 ### Software
 
 !!! Warning "Ignore this if on Roche shpc"
 
-{{ software_name }} requires `snakemake` and `conda`. See the [snakemake manual](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html) and the [conda user guide](https://docs.anaconda.com/miniconda/) for help with the installation.
+{{sc}} requires `snakemake` and `conda`. See the [snakemake manual](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html) and the [conda user guide](https://docs.anaconda.com/miniconda/) for help with the installation.
+
 
 ## Installation
-
 
 ### Roche sHPC installation
 
@@ -29,9 +30,13 @@
     git clone https://code.roche.com/macnairw/scprocess
     ```
 
-    You should be able to see a `slurm_shpc` folder in the `profiles` folder in the top level of the {{ software_name }} directory:
+    You should be able to see a `slurm_shpc` folder in the `profiles` folder in the top level of the {{sc}} directory:
 
     ```bash
+    # change into scprocess directory
+    cd scprocess
+
+    # check contents of slurm config file
     cat profiles/slurm_shpc/config.yaml
     # # General configurations
     # executor: slurm
@@ -68,12 +73,12 @@
     Check that this worked:
 
     ```bash
-    # reload the .bashrc file
+    # activate environment
     conda activate scprocess
     ```
 
 
-3.  Add {{ software_name }} to your path. Open your `.bashrc` file and add the following line:
+3.  Add {{sc}} to your path. Open your `~/.bashrc` file and add the following line:
 
     ```bash
     export PATH=/PATH/TO/YOUR/FOLDER/scprocess:${PATH}
@@ -95,7 +100,7 @@
 
 1. Clone the github repository:
 
-    ```
+    ```bash
     git clone https://github.com/marusakod/scprocess_test.git
     ```
 
@@ -111,11 +116,11 @@
     Check that this worked:
 
     ```bash
-    # reload the .bashrc file
+    # activate environment
     conda activate scprocess
     ```
 
-3.  Add {{ software_name }} to your path. Open your `.bashrc` file and add the following line:
+3.  Add {{sc}} to your path. Open your `~/.bashrc` file and add the following line:
 
     ```bash
     export PATH=/PATH/TO/YOUR/FOLDER/scprocess:${PATH}
@@ -129,13 +134,46 @@
 
     # check that scprocess and scsetup work
     scprocess -h
-    scsetup -h
+    scprocess setup -h
     ```
 
 
-## {{ software_name }} data directory setup
+## Cluster setup
 
-1. Create a directory that will store all necessary data for running {{ software_name }}:
+!!! warning "Roche sHPC only"
+    On the Roche sHPC, you should use the profile _slurm_shpc_.
+
+{{sc}} is intended to be used with a cluster with a job scheduler such as `slurm` or `LSF` (although it will still work without a job scheduler). To set up a job scheduler in `snakemake`, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{sc}} comes with two predefined configuration profiles stored in the _profiles_ directory: _profiles/slurm_default_ and _profiles/lsf_default_ for `slurm` and `LSF` respectively. 
+
+To use {{sc}} with a job scheduler, you need to add a line to your  _scprocess_setup.yaml_ file:
+
+=== "slurm"
+    ```yaml
+    profile: slurm_default
+    ```
+=== "LSF"
+    ```yaml
+    profile: lsf_default
+    ```
+
+If you want to make a profile that is specific to your own cluster, we recommend that you make a copy one of the default profile folders, e.g. to _profiles/slurm_my_cluster_, then edit the corresponding _config.yaml_ file. Once you are happy with it, edit the _scprocess_setup.yaml_ file to point to this profile like before, e.g. 
+
+```yaml
+profile: slurm_my_cluster
+```
+
+{{scsetup}} and {{scrun}} will then run in cluster mode with the specifications in this profile.
+
+
+## Running {{sc}} locally
+
+To run {{sc}} locally, e.g. on a workstation, you don't need to make any changes to your _scprocess_setup.yaml_ file.
+
+
+
+## {{sc}} data directory setup
+
+1. Create a directory that will store all necessary data for running {{sc}}:
 
     ```bash
     mkdir /path/to/scdata
@@ -160,7 +198,7 @@
     This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) genomes from 10x Genomics. For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](reference.md#scsetup) section.
 
     ??? tip "Save some space by removing the reference genome used for the tutorial"
-        [Quick start tutorial](tutorial.md) section demonstrates how to run {{ software_name }} on an example human dataset. In order for users to be able to follow the tutorial `scsetup` will automatically download the `human_2024` reference genome and build an alevin index with [decoys](reference.md#scsetup) even if `human_2024` is not listed in the _scprocess_setup.yaml_ file. If you would like to remove this reference genome (after running the tutorial) use:
+        [Quick start tutorial](tutorial.md) section demonstrates how to run {{sc}} on an example human dataset. In order for users to be able to follow the tutorial `scsetup` will automatically download the `human_2024` reference genome and build an alevin index with [decoys](reference.md#scsetup) even if `human_2024` is not listed in the _scprocess_setup.yaml_ file. If you would like to remove this reference genome (after running the tutorial) use:
     
         ```bash
         rm -rf $SCPROCESS_DATA_DIR/reference_genomes/human_2024
@@ -172,8 +210,7 @@
         ```
     
 
-4. Finish setting up scprocess data directory with:
-
+4. Now we finish setting up the data that {{sc}} needs by running {{scsetup}}.  
     We find it good practice to first do a "dry run" to check what will happen:
     ```bash
     scprocess setup -n
@@ -185,30 +222,3 @@
     ```bash
     scprocess setup 
     ```
-
-
-## Cluster setup
-
-!!! warning "Roche sHPC only"
-    On the Roche sHPC, you should use the profile _slurm_shpc_.
-
-{{ software_name }} is intended to be used with a cluster with a job scheduler such as `slurm` or `LSF` (although it will still work without a job scheduler). To set up a job scheduler in `snakemake`, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{ software_name }} comes with two predefined configuration profiles stored in the _profiles_ directory: _profiles/slurm_default_ and _profiles/lsf_default_ for `slurm` and `LSF` respectively. 
-
-To use {{ software_name }} with a job scheduler, you need to add a line to your  _scprocess_setup.yaml_ file:
-
-=== slurm
-```yaml
-profile: slurm_default
-```
-=== LSF
-```yaml
-profile: lsf_default
-```
-
-If you want to make a profile that is specific to your own cluster, we recommend that you make a copy one of the default profile folders, e.g. to _profiles/slurm_my_cluster_, then edit the corresponding _config.yaml_ file. Once you are happy with it, edit the _scprocess_setup.yaml_ file to point to this profile like before, e.g. 
-
-```yaml
-profile: slurm_my_cluster
-```
-
-`scprocess setup` and `scprocess run` will then run in cluster mode with the specifications in this profile.
