@@ -802,7 +802,7 @@ def get_zoom_parameters(config, MITO_STR, scprocess_data_dir):
 def get_resource_parameters(config):
   # set default values
   RETRIES                         = 0
-  MB_RUN_ALEVIN_FRY               = 8192
+  MB_RUN_MAPPING               = 8192
   MB_SAVE_ALEVIN_TO_H5            = 8192
   MB_RUN_AMBIENT                  = 8192
   MB_RUN_SCDBLFINDER              = 4096
@@ -826,8 +826,8 @@ def get_resource_parameters(config):
   if ('resources' in config) and (config['resources'] is not None):
     if 'retries' in config['resources']:
       RETRIES                         = config['resources']['retries']
-    if 'mb_run_alevin_fry' in config['resources']:
-      MB_RUN_ALEVIN_FRY               = config['resources']['mb_run_alevin_fry']
+    if 'mb_run_mapping' in config['resources']:
+      MB_RUN_MAPPING                  = config['resources']['mb_run_mapping']
     if 'mb_save_alevin_to_h5' in config['resources']:
       MB_SAVE_ALEVIN_TO_H5            = config['resources']['mb_save_alevin_to_h5']
     if 'mb_run_ambient' in config['resources']:
@@ -863,7 +863,7 @@ def get_resource_parameters(config):
     if 'mb_zoom_render_template_rmd' in config['resources']:
       MB_ZOOM_RENDER_TEMPLATE_RMD     = config['resources']['mb_zoom_render_template_rmd']
 
-  return RETRIES, MB_RUN_ALEVIN_FRY, MB_SAVE_ALEVIN_TO_H5, \
+  return RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
     MB_RUN_AMBIENT, \
     MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
     MB_RUN_QC, MB_RUN_HVGS, \
