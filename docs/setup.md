@@ -85,7 +85,7 @@ If you want to use `cellbender` for ambient RNA correction, then you will need t
 
     # check that scprocess and scsetup work
     scprocess -h
-    scsetup -h
+    scprocess setup -h
     ```
 
 
@@ -174,14 +174,14 @@ If you want to use `cellbender` for ambient RNA correction, then you will need t
 
     We find it good practice to first do a "dry run" to check what will happen:
     ```bash
-    scsetup -n
+    scprocess setup -n
     # or
     # scsetup --dry-run
     ```
 
     If that looks ok, then run it for real:
     ```bash
-    scsetup
+    scprocess setup 
     ```
 
 
@@ -209,4 +209,4 @@ If you want to make a profile that is specific to your own cluster, we recommend
 profile: slurm_my_cluster
 ```
 
-`scsetup` and {{ software_name }} will then run in cluster mode with the specifications in this profile.
+`scprocess setup` and `scprocess run` will then run in cluster mode with the specifications in this profile.
