@@ -44,7 +44,7 @@ RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
   MB_RUN_QC, MB_RUN_HVGS, \
   MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, \
   MB_RUN_MARKER_GENES, MB_HTML_MARKER_GENES, \
-  MB_LBL_LABEL_CELLTYPES, MB_LBL_RENDER_TEMPLATE_RMD, \
+  MB_LABEL_CELLTYPES, MB_LBL_RENDER_TEMPLATE_RMD, \
   MB_META_SAVE_METACELLS, \
   MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
   MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD = \
@@ -377,7 +377,7 @@ include: "hvgs.smk"
 include: "integration.smk"
 include: "marker_genes.smk"
 include: "render_htmls.smk"
-include: "label_and_subset.smk"
+include: "label_celltypes.smk"
 #include: "zoom.smk"
 #include: "metacells.smk"
 

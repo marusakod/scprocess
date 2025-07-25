@@ -118,52 +118,24 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'integ
 
   }else if(sel_rule == 'cell_labels'){
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
-      'DATE_STAMP', 'threads' ,'guesses_f', 'CUSTOM_LABELS_F', 'MKR_SEL_RES',
-      'LBL_TISSUE', 'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED',
+      'DATE_STAMP', 'threads' ,'guesses_f',
+      'LBL_TISSUE', 'LBL_XGB_F', 'LBL_XGB_CLS_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED',
       'LBL_MIN_CL_PROP', 'LBL_MIN_CL_SIZE')
       
-    assert_that(all(req_names %in% add_args_names))
+     assert_that(all(req_names %in% add_args_names))
 
-    if(add_args[['CUSTOM_LABELS_F']] == ""){
-      eval_boost = TRUE
       if(add_args[["LBL_TISSUE"]] == 'human_cns'){
         train_data_str = "whole brain human single nuclei atlas (Siletti et al. 2023)"
       }else if(add_args[["LBL_TISSUE"]] == 'mouse_cns'){
-        train_data_str = "whole brain mouse singlce nuclei atlas (Langlieb et al. 2023)"
+        train_data_str = "whole brain mouse single nuclei atlas (Langlieb et al. 2023)"
       }else if(add_args[["LBL_TISSUE"]] == 'human pbmc'){
         train_data_str = "insert name of study here"
       }else{
         train_data_str = "insert name of study here"
       }
 
-      main_lbl_txt = paste0("Annotation of cell types was performed using",
-        " an XGBoost classifier trained on annotated data from the ", train_data_str)
-      hmap_title = "`harmony`clusters vs `XGBoost`-predicted cell types{.tabset}"
-      hmap_txt = "heatmap with xgboost annotations vs harmony clusters"
-      umap_title = "XGBoost`-predicted cell types over UMAP{.tabset}"
-      umap_txt = paste0("For each cluster the most frequent prediction labels are shown")
-
-    }else{
-      eval_boost = FALSE
-      main_lbl_txt = paste0("Annotation of cell types is based on a user defined table")
-      hmap_title = "`harmony` clusters vs user defined cell type annotations"
-      hmap_txt = "harmony clusters vs user defined cell type annotations"
-      umap_title = "user defined cell types over UMAP"
-      umap_txt = paste0("User defined annotations are displayed ",
-                        "over a UMAP, together with clusters at resolution ",
-                        add_args[["MKR_SEL_RES"]])
-    }
-
       params_ls = add_args
-      params_ls = c(
-      params_ls,
-      list(eval_boost   = eval_boost,
-            main_lbl_txt = main_lbl_txt,
-            hmap_title   = hmap_title,
-            hmap_txt     = hmap_txt,
-            umap_title   = umap_title,
-            umap_txt     = umap_txt)
-    )
+      params_ls = c(params_ls, train_data_str = train_data_str)
 
   }else if(sel_rule == 'zoom'){
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 'DATE_STAMP', 

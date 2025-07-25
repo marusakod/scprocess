@@ -708,8 +708,8 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
       assert os.path.isdir(xgb_dir)
     
       if LBL_TISSUE == 'human_cns':    
-        LBL_XGB_F       = os.path.join(xgb_dir, "Siletti_Macnair-2024-03-11/xgboost_obj_hvgs_Siletti_Macnair_2024-03-11.rds")
-        LBL_XGB_CLS_F   = os.path.join(xgb_dir, "Siletti_Macnair-2024-03-11/allowed_cls_Siletti_Macnair_2024-03-11.csv")
+        LBL_XGB_F       = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds")
+        LBL_XGB_CLS_F   = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv")
       else: 
         raise ValueError(f"{LBL_TISSUE} classifier is unfortunatelly not available yet")
 
@@ -848,8 +848,8 @@ def get_resource_parameters(config):
       MB_RUN_MARKER_GENES             = config['resources']['mb_run_marker_genes']
     if 'mb_html_marker_genes' in config['resources']:
       MB_HTML_MARKER_GENES            = config['resources']['mb_html_marker_genes']
-    if 'mb_lbl_label_celltypes' in config['resources']:
-      MB_LBL_LABEL_CELLTYPES          = config['resources']['mb_lbl_label_celltypes']
+    if 'mb_label_celltypes' in config['resources']:
+      MB_LABEL_CELLTYPES          = config['resources']['mb_label_celltypes']
     if 'mb_lbl_render_template_rmd' in config['resources']:
       MB_LBL_RENDER_TEMPLATE_RMD      = config['resources']['mb_lbl_render_template_rmd']
     if 'mb_meta_save_metacells' in config['resources']:

@@ -7,9 +7,9 @@ import glob
 from snakemake.utils import validate, min_version
 
 # do labelling
-rule lbl_label_celltypes:
+rule get_xgboost_labels:
   input:
-    sces_yaml_f        = qc_dir  + '/sce_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml',
+    sces_yaml_f        = int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml',
     integration_f      = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     qc_sample_stats_f  = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output:
@@ -18,7 +18,7 @@ rule lbl_label_celltypes:
   threads: 4
   retries: RETRIES 
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_LBL_LABEL_CELLTYPES
+    mem_mb      = lambda wildcards, attempt: attempt * MB_LABEL_CELLTYPES
   conda: 
     '../envs/rlibs.yaml'
   shell:
@@ -27,12 +27,12 @@ rule lbl_label_celltypes:
     Rscript -e "source('scripts/label_celltypes.R'); source('scripts/integration.R'); \
     label_celltypes_with_xgboost(
       xgb_f              = '{LBL_XGB_F}', 
+      allow_f            = '{LBL_XGB_CLS_F}', 
       sces_yaml_f        = '{input.sces_yaml_f}',
       integration_f      = '{input.integration_f}',
       qc_sample_stats_f  = '{input.qc_sample_stats_f}', 
       hvg_mat_f          = '{output.hvg_mat_f}',
       guesses_f          = '{output.guesses_f}',
-      custom_labels_f    = '{CUSTOM_LABELS_F}',
       exclude_mito       = '{EXCLUDE_MITO}', 
       sel_res            = {MKR_SEL_RES}, 
       gene_var           = '{LBL_GENE_VAR}',

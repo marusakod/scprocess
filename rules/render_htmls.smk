@@ -70,19 +70,19 @@ rule render_html_mapping:
     # rendering html
     Rscript --vanilla -e "source('scripts/render_reports.R'); \
         render_reports(
-        rule_name      = '$rule', \
-        proj_dir       = '{PROJ_DIR}', \
-        temp_f         =  '$template_f', \
-        rmd_f          = '{output.rmd_f}', \
-        YOUR_NAME      = '{YOUR_NAME}', \
-        AFFILIATION    = '{AFFILIATION}', \
-        SHORT_TAG      = '{SHORT_TAG}', \
-        DATE_STAMP     = '{DATE_STAMP}', \
-        RUNS_STR       = '{RUNS_STR}', \
-        PROJ_DIR       = '{PROJ_DIR}', \
-        AMBIENT_METHOD = '{AMBIENT_METHOD}', \
-        SAMPLE_VAR     = '{SAMPLE_VAR}', \
-        af_dir         = '{af_dir}', \
+        rule_name      = '$rule', 
+        proj_dir       = '{PROJ_DIR}', 
+        temp_f         =  '$template_f', 
+        rmd_f          = '{output.rmd_f}', 
+        YOUR_NAME      = '{YOUR_NAME}', 
+        AFFILIATION    = '{AFFILIATION}', 
+        SHORT_TAG      = '{SHORT_TAG}', 
+        DATE_STAMP     = '{DATE_STAMP}', 
+        RUNS_STR       = '{RUNS_STR}', 
+        PROJ_DIR       = '{PROJ_DIR}', 
+        AMBIENT_METHOD = '{AMBIENT_METHOD}', 
+        SAMPLE_VAR     = '{SAMPLE_VAR}', 
+        af_dir         = '{af_dir}', 
         af_rna_dir     = '{af_rna_dir}')"
 
     """
@@ -111,20 +111,20 @@ if DEMUX_TYPE == 'af':
       # rendering html
       Rscript --vanilla -e "source('scripts/render_reports.R'); \
           render_reports(
-          rule_name      = '$rule', \
-          proj_dir       = '{PROJ_DIR}', \
-          temp_f         =  '$template_f', \
-          rmd_f          = '{output.rmd_f}', \
-          YOUR_NAME      = '{YOUR_NAME}', \
-          AFFILIATION    = '{AFFILIATION}', \
-          PROJ_DIR       = '{PROJ_DIR}', \
-          SHORT_TAG      = '{SHORT_TAG}', \
-          DATE_STAMP     = '{DATE_STAMP}', \
-          RUNS_STR       = '{RUNS_STR}', \
-          METADATA_F     = '{METADATA_F}', \
-          AMBIENT_METHOD = '{AMBIENT_METHOD}', \
-          SAMPLE_VAR     = '{SAMPLE_VAR}', \
-          af_dir         = '{af_dir}', \
+          rule_name      = '$rule', 
+          proj_dir       = '{PROJ_DIR}', 
+          temp_f         =  '$template_f', 
+          rmd_f          = '{output.rmd_f}', 
+          YOUR_NAME      = '{YOUR_NAME}', 
+          AFFILIATION    = '{AFFILIATION}', 
+          PROJ_DIR       = '{PROJ_DIR}', 
+          SHORT_TAG      = '{SHORT_TAG}', 
+          DATE_STAMP     = '{DATE_STAMP}', 
+          RUNS_STR       = '{RUNS_STR}', 
+          METADATA_F     = '{METADATA_F}', 
+          AMBIENT_METHOD = '{AMBIENT_METHOD}', 
+          SAMPLE_VAR     = '{SAMPLE_VAR}', 
+          af_dir         = '{af_dir}', 
           demux_dir      = '{demux_dir}')"
 
       """
@@ -188,27 +188,27 @@ rule render_html_qc:
     # rendering html
     Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
-    rule_name = '$rule', \
-    proj_dir = '{PROJ_DIR}', \
-    temp_f =  '$template_f', \
-    rmd_f = '{output.rmd_f}', \
-    YOUR_NAME = '{YOUR_NAME}', \
-    AFFILIATION = '{AFFILIATION}', \
-    PROJ_DIR    = '{PROJ_DIR}', \
-    SHORT_TAG = '{SHORT_TAG}', \
-    DATE_STAMP = '{DATE_STAMP}', \
-    threads = {threads}, \
-    meta_f = '{METADATA_F}', \
-    qc_dt_f = '{input.qc_dt_f}', \
-    QC_HARD_MIN_COUNTS = {QC_HARD_MIN_COUNTS}, \
-    QC_HARD_MIN_FEATS = {QC_HARD_MIN_FEATS}, \
-    QC_HARD_MAX_MITO = {QC_HARD_MAX_MITO}, \
-    QC_MIN_COUNTS = {QC_MIN_COUNTS}, \
-    QC_MIN_FEATS = {QC_MIN_FEATS}, \
-    QC_MIN_MITO = {QC_MIN_MITO}, \
-    QC_MAX_MITO = {QC_MAX_MITO}, \
-    QC_MIN_SPLICE = {QC_MIN_SPLICE}, \
-    QC_MAX_SPLICE = {QC_MAX_SPLICE}, \
+    rule_name = '$rule', 
+    proj_dir = '{PROJ_DIR}', 
+    temp_f =  '$template_f', 
+    rmd_f = '{output.rmd_f}', 
+    YOUR_NAME = '{YOUR_NAME}', 
+    AFFILIATION = '{AFFILIATION}', 
+    PROJ_DIR    = '{PROJ_DIR}', 
+    SHORT_TAG = '{SHORT_TAG}', 
+    DATE_STAMP = '{DATE_STAMP}', 
+    threads = {threads}, 
+    meta_f = '{METADATA_F}', 
+    qc_dt_f = '{input.qc_dt_f}', 
+    QC_HARD_MIN_COUNTS = {QC_HARD_MIN_COUNTS}, 
+    QC_HARD_MIN_FEATS = {QC_HARD_MIN_FEATS}, 
+    QC_HARD_MAX_MITO = {QC_HARD_MAX_MITO}, 
+    QC_MIN_COUNTS = {QC_MIN_COUNTS}, 
+    QC_MIN_FEATS = {QC_MIN_FEATS}, 
+    QC_MIN_MITO = {QC_MIN_MITO}, 
+    QC_MAX_MITO = {QC_MAX_MITO}, 
+    QC_MIN_SPLICE = {QC_MIN_SPLICE}, 
+    QC_MAX_SPLICE = {QC_MAX_SPLICE}, 
     QC_MIN_CELLS = {QC_MIN_CELLS})"    
     """
 
@@ -234,19 +234,19 @@ rule render_html_integration:
     
     Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
-    rule_name     = '$rule', \
-    proj_dir      = '{PROJ_DIR}', \
-    temp_f        =  '$template_f', \
-    rmd_f         = '{output.rmd_f}', \
-    YOUR_NAME     = '{YOUR_NAME}', \
-    AFFILIATION   = '{AFFILIATION}', \
-    SHORT_TAG     = '{SHORT_TAG}', \
-    PROJ_DIR      = '{PROJ_DIR}', \
-    DATE_STAMP    = '{DATE_STAMP}', \
-    threads       = {threads}, \
-    qc_dt_f       = '{input.qc_dt_f}', \
-    integration_f = '{input.integration_f}', \
-    INT_RES_LS    = '{params.int_res_ls}', \
+    rule_name     = '$rule', 
+    proj_dir      = '{PROJ_DIR}', 
+    temp_f        =  '$template_f', 
+    rmd_f         = '{output.rmd_f}', 
+    YOUR_NAME     = '{YOUR_NAME}', 
+    AFFILIATION   = '{AFFILIATION}', 
+    SHORT_TAG     = '{SHORT_TAG}', 
+    PROJ_DIR      = '{PROJ_DIR}',
+    DATE_STAMP    = '{DATE_STAMP}', 
+    threads       = {threads}, 
+    qc_dt_f       = '{input.qc_dt_f}', 
+    integration_f = '{input.integration_f}', 
+    INT_RES_LS    = '{params.int_res_ls}', 
     INT_DBL_CL_PROP = {INT_DBL_CL_PROP})"
     """
 
@@ -338,24 +338,23 @@ rule render_html_label_celltypes:
 
     Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
-    rule_name       = '$rule', \
-    proj_dir        = '{PROJ_DIR}', \
-    temp_f          =  '$template_f', \
-    rmd_f           = '{output.rmd_f}', \
-    YOUR_NAME       = '{YOUR_NAME}', \
-    AFFILIATION     = '{AFFILIATION}', \
-    SHORT_TAG       = '{SHORT_TAG}', \
-    PROJ_DIR        = '{PROJ_DIR}', \
-    DATE_STAMP      = '{DATE_STAMP}', \
-    threads         = {threads}, \
-    guesses_f       = '{input.guesses_f}', \
-    LBL_XGB_F       = '{LBL_XGB_F}', \
-    CUSTOM_LABELS_F = '{CUSTOM_LABELS_F}', \
-    MKR_SEL_RES     = '{MKR_SEL_RES}', \
-    LBL_TISSUE      = '{LBL_TISSUE}', \
-    LBL_SEL_RES_CL  = '{LBL_SEL_RES_CL}', \
-    LBL_MIN_PRED    = {LBL_MIN_PRED}, \
-    LBL_MIN_CL_PROP = {LBL_MIN_CL_PROP}, \
+    rule_name       = '$rule', 
+    proj_dir        = '{PROJ_DIR}', 
+    temp_f          =  '$template_f', 
+    rmd_f           = '{output.rmd_f}', 
+    YOUR_NAME       = '{YOUR_NAME}', 
+    AFFILIATION     = '{AFFILIATION}', 
+    SHORT_TAG       = '{SHORT_TAG}', 
+    PROJ_DIR        = '{PROJ_DIR}', 
+    DATE_STAMP      = '{DATE_STAMP}',
+    threads         = {threads}, 
+    guesses_f       = '{input.guesses_f}', 
+    LBL_XGB_F       = '{LBL_XGB_F}', 
+    LBL_XGB_CLS_F   = '{LBL_XGB_CLS_F}', 
+    LBL_TISSUE      = '{LBL_TISSUE}', 
+    LBL_SEL_RES_CL  = '{LBL_SEL_RES_CL}', 
+    LBL_MIN_PRED    = {LBL_MIN_PRED}, 
+    LBL_MIN_CL_PROP = {LBL_MIN_CL_PROP}, 
     LBL_MIN_CL_SIZE = {LBL_MIN_CL_SIZE})"
     """
 
