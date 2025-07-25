@@ -714,8 +714,10 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
         raise ValueError(f"{LBL_TISSUE} classifier is unfortunatelly not available yet")
 
       # check these are ok
-      assert os.path.isfile(LBL_XGB_F)
-      assert os.path.isfile(LBL_XGB_CLS_F)
+      assert os.path.isfile(LBL_XGB_F), \
+        f"file {LBL_XGB_F} doesn't exist; consider (re)runnning scprocess setup"
+      assert os.path.isfile(LBL_XGB_CLS_F), \
+        f"file {LBL_XGB_CLS_F} doesn't exist; consider (re)runnning scprocess setup"
       
     else:
       # check custom labels file
