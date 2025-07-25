@@ -653,7 +653,6 @@ def get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
 # define marker_genes parameters
 def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR): 
   # set some more default values
-  CUSTOM_LABELS_F = ""
   LBL_XGB_F       = None
   LBL_XGB_CLS_F   = None
   LBL_TISSUE      = ""
@@ -662,14 +661,14 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
   LBL_MIN_PRED    = 0.8
   LBL_MIN_CL_PROP = 0.5
   LBL_MIN_CL_SIZE = 100
-  LBL_SCE_SUBSETS = None
 
   # change defaults if specified
   if ('label_celltypes' in config) and (config['label_celltypes'] is not None):
-    if 'custom_labels' in config['label_celltypes']:
-      CUSTOM_LABELS_F = config['label_celltypes']['custom_labels']
-    if 'lbl_tissue' in config['label_celltypes']:
-      LBL_TISSUE      = config['label_celltypes']['lbl_tissue']
+
+    assert 'lbl_tissue' in config['label_celltypes'], \
+      "lbl_tissue parameter missing in config file"
+    LBL_TISSUE      = config['label_celltypes']['lbl_tissue']
+    
     if 'lbl_sel_res_cl' in config['label_celltypes']:
       LBL_SEL_RES_CL  = config['label_celltypes']['lbl_sel_res_cl']
     if 'lbl_min_pred' in config['label_celltypes']:
@@ -678,59 +677,30 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
       LBL_MIN_CL_PROP = config['label_celltypes']['lbl_min_cl_prop']
     if 'lbl_min_cl_size' in config['label_celltypes']:
       LBL_MIN_CL_SIZE = config['label_celltypes']['lbl_min_cl_size']
-    if 'sce_subsets' in config['label_celltypes']:
-      # get sce subset definitions
-      LBL_SCE_SUBSETS = config['label_celltypes']['sce_subsets']
-      assert len(LBL_SCE_SUBSETS) == len(set(LBL_SCE_SUBSETS)), "sce_subsets contains duplicate entries"
 
-    # pick either a classifier or provide a file with custom labels
-    assert any(lbl != "" for lbl in [CUSTOM_LABELS_F, LBL_TISSUE]), \
-     "'custom_labels' or 'lbl_tissue' parameter have to be defined in the config file"
-    
-    # if both are specified, use only custom label
-    if all(lbl != "" for lbl in [CUSTOM_LABELS_F, LBL_TISSUE]):
-      print("both 'custom_labels' and 'lbl_tissue' parameters are defined; 'custom_labels' will be used")
-      labels = 'custom'
-    elif CUSTOM_LABELS_F != "":
-      labels = 'custom'
-    else:
-      labels = 'xgboost'
-
-    
-    if labels == 'xgboost':
-      # check that classifier name is valid
-      valid_boosts = ['human_cns', 'mouse_cns']
-      assert LBL_TISSUE in valid_boosts, \
-        f"value {LBL_TISSUE} for 'lbl_tissue' parameter is not valid"
+    # check that classifier name is valid
+    valid_boosts = ['human_cns', 'mouse_cns']
+    assert LBL_TISSUE in valid_boosts, \
+      f"value {LBL_TISSUE} for 'lbl_tissue' parameter is not valid"
  
-      # pick labeller
-      xgb_dir  = os.path.join(SCPROCESS_DATA_DIR, 'xgboost')
-      assert os.path.isdir(xgb_dir)
+    # pick labeller
+    xgb_dir  = os.path.join(SCPROCESS_DATA_DIR, 'xgboost')
+    assert os.path.isdir(xgb_dir)
     
-      if LBL_TISSUE == 'human_cns':    
-        LBL_XGB_F       = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds")
-        LBL_XGB_CLS_F   = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv")
-      else: 
-        raise ValueError(f"{LBL_TISSUE} classifier is unfortunatelly not available yet")
+    if LBL_TISSUE == 'human_cns':    
+      LBL_XGB_F       = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds")
+      LBL_XGB_CLS_F   = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv")
+    else: 
+      raise ValueError(f"{LBL_TISSUE} classifier is unfortunatelly not available yet")
 
-      # check these are ok
-      assert os.path.isfile(LBL_XGB_F), \
-        f"file {LBL_XGB_F} doesn't exist; consider (re)runnning scprocess setup"
-      assert os.path.isfile(LBL_XGB_CLS_F), \
-        f"file {LBL_XGB_CLS_F} doesn't exist; consider (re)runnning scprocess setup"
-      
-    else:
-      # check custom labels file
-      assert os.path.isfile(CUSTOM_LABELS_F), \
-       f"{CUSTOM_LABELS_F} file doesn't exist"
-      
-      custom_labels = pd.read_csv(CUSTOM_LABELS_F)
-      cols = custom_labels.columns
-      valid_cols = ['cell_id', 'label']
-      assert all(c in valid_cols for c in cols), \
-        f"Column names in {CUSTOM_LABELS_F} are incorrect."
+    # check these are ok
+    assert os.path.isfile(LBL_XGB_F), \
+      f"file {LBL_XGB_F} doesn't exist; consider (re)runnning scprocess setup"
+    assert os.path.isfile(LBL_XGB_CLS_F), \
+      f"file {LBL_XGB_CLS_F} doesn't exist; consider (re)runnning scprocess setup"
  
-  return LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_SCE_SUBSETS, LBL_TISSUE, CUSTOM_LABELS_F
+  return LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE
+
 
 
 # define metacells parameters
