@@ -15,5 +15,5 @@ pages:
     paths:
     - resources/mkdocs/public
   rules:
-  - if: $CI_COMMIT_BRANCH == 'dev-hto'
+  - if: $CI_COMMIT_BRANCH == 'main'
 
