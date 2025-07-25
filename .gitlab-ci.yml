@@ -9,7 +9,8 @@ stages:
 pages:
   stage: deploy
   script:
-    - mkdocs build --config-file resources/mkdocs/mkdocs.yml --strict --verbose --site-dir public
+    - mkdocs build --config-file resources/mkdocs/mkdocs.yml --strict --verbose
+    - mv resources/mkdocs/public public
   artifacts:
     paths:
     - resources/mkdocs/public
