@@ -42,8 +42,8 @@ localrules: save_index_parameters_csv
 rule all:
   input:
     # rule download scprocess repo data
-    SCPROCESS_DATA_DIR + '/marker_genes/canonical_brain_celltype_markers_human_2023-10-17.txt',
-    SCPROCESS_DATA_DIR + '/marker_genes/canonical_brain_celltype_markers_mouse_2023-10-17.txt',
+    SCPROCESS_DATA_DIR + '/marker_genes/human_brain.csv',
+    SCPROCESS_DATA_DIR + '/marker_genes/mouse_brain.csv',
     SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3LT.txt',
     SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3v2_5v1_5v2.txt',
     SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3v3.txt',
@@ -71,8 +71,8 @@ rule all:
     SCPROCESS_DATA_DIR + '/gmt_pathways/m5.go.cc.v2023.1.Mm.symbols.gmt',
     SCPROCESS_DATA_DIR + '/gmt_pathways/m5.go.mf.v2023.1.Mm.symbols.gmt',
     SCPROCESS_DATA_DIR + '/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt',
-    SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/allowed_cls_Siletti_Macnair_2024-03-11.csv',
-    SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/xgboost_obj_hvgs_Siletti_Macnair_2024-03-11.rds',
+    SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv',
+    SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds',
     # rule download_or_build_af_indices
     # expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/index/{file}', genome=GENOMES, file=AF_INDEX_FS)
     expand([ SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/' + f'{file}' for file in AF_INDEX_FS], genome=GENOMES),
@@ -84,8 +84,8 @@ rule all:
 # rule for getting scprocess data from github repo (maybe not a good idea to have all files as outputs)
 rule download_scprocess_files:
   output:
-    brain_mkrs_hsa   = SCPROCESS_DATA_DIR + '/marker_genes/canonical_brain_celltype_markers_human_2023-10-17.txt',
-    brain_mkrs_mmu   = SCPROCESS_DATA_DIR + '/marker_genes/canonical_brain_celltype_markers_mouse_2023-10-17.txt',
+    brain_mkrs_hsa   = SCPROCESS_DATA_DIR + '/marker_genes/human_brain.csv',
+    brain_mkrs_mmu   = SCPROCESS_DATA_DIR + '/marker_genes/mouse_brain.csv',
     wl_3lt           = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3LT.txt',
     wl_3v2_5v1_5v2   = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3v2_5v1_5v2.txt',
     wl_3v3           = SCPROCESS_DATA_DIR + '/cellranger_ref/cellranger_barcode_whitelist_3v3.txt',
@@ -113,8 +113,8 @@ rule download_scprocess_files:
     gmt_f_18         = SCPROCESS_DATA_DIR + '/gmt_pathways/m5.go.cc.v2023.1.Mm.symbols.gmt',
     gmt_f_19         = SCPROCESS_DATA_DIR + '/gmt_pathways/m5.go.mf.v2023.1.Mm.symbols.gmt',
     gmt_f_20         = SCPROCESS_DATA_DIR + '/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt',
-    xgb_csv_f        = SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/allowed_cls_Siletti_Macnair_2024-03-11.csv',
-    xgb_rds_f        = SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2024-03-11/xgboost_obj_hvgs_Siletti_Macnair_2024-03-11.rds'
+    xgb_csv_f        = SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv',
+    xgb_rds_f        = SCPROCESS_DATA_DIR + '/xgboost/Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds'
   conda:
     '../envs/py_env.yaml'
   threads: 1
