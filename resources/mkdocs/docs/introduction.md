@@ -83,7 +83,7 @@
 
 [^4]: Lun ATL, Riesenfeld S, Andrews T, Dao TP, Gomes T, participants in the 1st Human Cell Atlas Jamboree, et al. _EmptyDrops: distinguishing cells from empty droplets in droplet-based single-cell RNA sequencing data_. Genome Biol. 2019;20:63. [Link to paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1662-y). [Link to package](https://bioconductor.org/packages/release/bioc/html/DropletUtils.html).
 
-[^5]: Germain P-L, Lun A, Macnair W, Robinson MD. _Doublet identification in single-cell sequencing data using `scDblFinder`._ F1000Res. 2021;10:979. [Link to paper]((https://f1000research.com/articles/10-979/v2)). [Link to package](https://bioconductor.org/packages/release/bioc/html/scDblFinder.html).
+[^5]: Germain P-L, Lun A, Macnair W, Robinson MD. _Doublet identification in single-cell sequencing data using scDblFinder._ F1000Res. 2021;10:979. [Link to paper](https://f1000research.com/articles/10-979/v2). [Link to package](https://bioconductor.org/packages/release/bioc/html/scDblFinder.html).
 
 [^6]: Montserrat-Ayuso T, Esteve-Codina A. _High content of nuclei-free low-quality cells in reference single-cell atlases: a call for more stringent quality control using nuclear fraction_. BMC Genomics. 2024;25:1124. [Link to paper](https://bmcgenomics.biomedcentral.com/articles/10.1186/s12864-024-11015-5).
 
@@ -93,4 +93,4 @@
 
 [^9]: Robinson MD, McCarthy DJ, Smyth GK. _edgeR: a Bioconductor package for differential expression analysis of digital gene expression data_. Bioinformatics. 2010;26:139–40. [Link to paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC2796818/). [Link to package](https://bioconductor.org/packages/release/bioc/html/edgeR.html).
 
-[^10] Stoeckius M, Zheng S, Houck-Loomis B, Hao S, Yeung BZ, Mauck WM 3rd, et al. _Cell Hashing with barcoded antibodies enables multiplexing and doublet detection for single cell genomics_. Genome Biol. 2018;19:224. [Link to paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-018-1603-1). [Link to package]().
+[^10]: Stoeckius M, Zheng S, Houck-Loomis B, Hao S, Yeung BZ, Mauck WM 3rd, et al. _Cell Hashing with barcoded antibodies enables multiplexing and doublet detection for single cell genomics_. Genome Biol. 2018;19:224. [Link to paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-018-1603-1). [Link to package]().

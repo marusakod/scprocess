@@ -6,7 +6,7 @@ Assuming the required hardware is available, all software is installed and you h
 
 1. [Prepare project directory](usage.md#1-prepare-project-directory)
 2. [Prepare input files](usage.md#2-prepare-input-files)
-3. [Prepare configuration file (config.yaml)](usage.md#3-prepare-configuration-file-configyaml)
+3. [Prepare configuration file (config.yaml)](usage.md#3-prepare-configuration-file)
 4. [Run the analysis](usage.md#4-run-the-analysis)
 
 !!! warning "{{sc}} expects multiple samples"
@@ -63,7 +63,7 @@ If you want to run a dry run you can add a `-n` or `--dry-run` flag to this comm
 scprocess run /path/to/config-my_project.yaml -E " --max-threads 8 "
 ```
 
-By default {{scrun}} will run rule `all` which includes all [core steps](introduction.md#rule-all-steps). The [optional steps](introduction.md#optional-steps) (rule `label_celltypes`) can run only after  rule `all` is completed and have to be specifically requested.
+By default {{scrun}} will run rule `all` which includes all [core steps](introduction.md#core-pipeline-steps). The [optional steps](introduction.md#optional-steps) (rule `label_celltypes`) can run only after  rule `all` is completed and have to be specifically requested.
 
 Additionally, you can run individual rules that generate HTML outputs (`mapping`, `ambient`, `qc`, `integration`, `marker_genes`). This is useful if you want to inspect the html outputs for the intermediate steps first and then continue with the analysis. To run each rule separately you have to specify the rule using the `-r` or `--rule` flag e.g.
 
@@ -127,7 +127,7 @@ To identify problematic samples, {{sc}} computes two diagnostic ratios:
 * `expected_cells`/`empty_plateau_middle` ratio: this helps assess whether the estimated number of cells is reasonable compared to the `empty_plateau_middle`. In example B this ratio would be increased [but so would be the slope ratio so maybe not the best example]
 * `slope_ratio`: This is the ratio of the slope of the barcode-rank curve in the empty droplet region compared to the slope at the first inflection point. Samples with a high slope ratio, as seen in example C, are likely problematic because the empty droplet plateau is not clearly distinguishable. In such cases, ambient RNA contamination algorithms like `decontx` and `cellbender` may struggle to accurately estimate background noise, and we recommend considering removing these samples from further analysis.
 
-If {{sc}} fails to estimate the knee plot parameters but the barcode-rank curve appears normal, we suggest manually adjusting the `knee1`, `knee2`, `shin1`, and `shin2` parameters in the `custom_sample_params` file. A convenient way to fine-tune these parameters is by using the [`plotknee`](reference.md#plotknee) function in {{sc}}. This allows for easy visualization and adjustment of knee points.
+If {{sc}} fails to estimate the knee plot parameters but the barcode-rank curve appears normal, we suggest manually adjusting the `knee1`, `knee2`, `shin1`, and `shin2` parameters in the `custom_sample_params` file. A convenient way to fine-tune these parameters is by using the [`plotknee`](reference.md#scprocess-plotknee) function in {{sc}}. This allows for easy visualization and adjustment of knee points.
     
 
 ### Setting QC parameters
