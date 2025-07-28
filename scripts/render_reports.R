@@ -43,7 +43,7 @@ make_rmd_from_temp <- function(temp_f, temp_ls, rmd_f){
   }
 }
 
-get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'integration', 
+get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg', 'integration', 
   'markers', 'cell_labels', 'zoom', 'pb_empties'), ...){
 
   # get arguments
@@ -84,6 +84,14 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'integ
       'QC_MIN_COUNTS', 'QC_MIN_FEATS', 'QC_MIN_MITO', 'QC_MAX_MITO',
       'QC_MIN_SPLICE', 'QC_MAX_SPLICE', 'QC_MIN_CELLS')
 
+    assert_that(all(req_names %in% add_args_names))
+
+    params_ls = add_args
+
+  }else if(sel_rule == 'hvg'){
+    req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
+      'DATE_STAMP', 'threads', 'hvgs_f', 'empty_gs_f', 'pb_empty_f')
+    
     assert_that(all(req_names %in% add_args_names))
 
     params_ls = add_args

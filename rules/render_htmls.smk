@@ -33,6 +33,7 @@ rule copy_r_code:
     r_amb_f     = f"{code_dir}/ambient.R", 
     r_demux_f   = f"{code_dir}/multiplexing.R",
     r_qc_f      = f"{code_dir}/qc.R", 
+    r_hvgs_f    = f"{code_dir}/hvgs.R", 
     r_int_f     = f"{code_dir}/integration.R",
     r_mkr_f     = f"{code_dir}/marker_genes.R"
   shell:"""
@@ -43,6 +44,7 @@ rule copy_r_code:
     cp scripts/ambient.R {output.r_amb_f}
     cp scripts/multiplexing.R {output.r_demux_f}
     cp scripts/SampleQC.R {output.r_qc_f}
+    cp scripts/hvgs.R {output.r_qc_f}
     cp scripts/integration.R {output.r_int_f}
     cp scripts/marker_genes.R {output.r_mkr_f}
     """ 
@@ -213,6 +215,46 @@ rule render_html_qc:
     """
 
 
+rule render_html_hvgs:
+  input:
+    hvgs_f      = hvg_dir   + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    empty_gs_f  = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz', 
+    pb_empty_f  = pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+  output:
+    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_hvgs.Rmd",
+    html_f      = f"{docs_dir}/{SHORT_TAG}_hvgs.html"
+  threads: 1
+  retries: RETRIES 
+  conda:
+    '../envs/rlibs.yaml'
+  resources:
+    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+  shell: """
+  
+    #define rule and template
+    template_f=$(realpath resources/rmd_templates/hvgs.Rmd.template)
+    rule="hvg"
+
+    # rendering html
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
+    render_reports(
+    rule_name   = '$rule', 
+    proj_dir    = '{PROJ_DIR}', 
+    temp_f      =  '$template_f', 
+    rmd_f       = '{output.rmd_f}', 
+    YOUR_NAME   = '{YOUR_NAME}', 
+    AFFILIATION = '{AFFILIATION}', 
+    PROJ_DIR    = '{PROJ_DIR}', 
+    SHORT_TAG   = '{SHORT_TAG}', 
+    DATE_STAMP  = '{DATE_STAMP}', 
+    threads     = {threads}, 
+    hvgs_f      = '{input.hvgs_f}',
+    empty_gs_f  = '{input.empty_gs_f}',
+    pb_empty_f  = '{input.pb_empty_f}'
+    )"    
+    """
+
+
 rule render_html_integration:
   input:
     qc_dt_f         = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
@@ -312,6 +354,7 @@ rule render_html_marker_genes:
       MKR_GSEA_CUT = {MKR_GSEA_CUT},
       SPECIES = '{SPECIES}')"
     """
+
 
 # render_html_label_celltypes
 rule render_html_label_celltypes:

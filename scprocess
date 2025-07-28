@@ -61,7 +61,7 @@ def run_scsetup(sc_dir, snakefile, extraargs):
   subprocess.run(['echo', 'snakemake', 
     "--snakefile", snakefile, 
     "--configfile", os.path.abspath(configfile),
-    "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", "--use-conda", 
+    "--rerun-triggers", "{mtime,params}", "--rerun-incomplete", "--verbose", "--use-conda", 
     *shlex.split(extraargs)])
   subprocess.run(['snakemake', 
     "--snakefile", snakefile, 

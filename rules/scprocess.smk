@@ -150,6 +150,10 @@ bender_html_f = (docs_dir + '/' + SHORT_TAG + '_cellbender.html') if AMBIENT_MET
 
 # one rule to rule them all
 rule all:
+  params:
+    hvg_method = HVG_METHOD,
+    n_hvgs = N_HVGS,
+    exclude_ambient_genes = EXCLUDE_AMBIENT_GENES
   input:
     # hto outputs
     hto_index_outs, 
@@ -207,6 +211,7 @@ rule all:
     rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
     bender_rmd_f, 
     rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
+    rmd_dir   + '/' + SHORT_TAG + '_hvgs.Rmd',
     rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
     rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.Rmd', 
     hto_rmd_f, 
@@ -214,6 +219,7 @@ rule all:
     docs_dir  + '/' + SHORT_TAG + '_mapping.html', 
     bender_html_f, 
     docs_dir  + '/' + SHORT_TAG + '_qc.html',
+    docs_dir  + '/' + SHORT_TAG + '_hvgs.html',
     docs_dir  + '/' + SHORT_TAG + '_integration.html',
     docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.html',
     hto_html_f 
@@ -269,12 +275,18 @@ rule qc:
 
 
 rule hvg:
+  params:
+    hvg_method = HVG_METHOD,
+    n_hvgs = N_HVGS,
+    exclude_ambient_genes = EXCLUDE_AMBIENT_GENES
   input:
     hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-    hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
+    hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
+    rmd_dir   + '/' + SHORT_TAG + '_hvgs.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_hvgs.html'
 
 
 rule integration:

@@ -468,15 +468,15 @@ def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
 
   if ('hvg' in config) and (config['hvg'] is not None):
 
-    if 'n_hvgs' in config['hvg']:
-      N_HVGS          = config['hvg']['n_hvgs']
+    if 'hvg_n_hvgs' in config['hvg']:
+      N_HVGS          = config['hvg']['hvg_n_hvgs']
     
     if 'exclude_ambient_genes' in config['hvg']:
-      EXCLUDE_AMBIENT_GENES = config['hvg']['exclude_ambient_genes']
+      EXCLUDE_AMBIENT_GENES = config['hvg']['hvg_exclude_ambient_genes']
       EXCLUDE_AMBIENT_GENES = _safe_boolean(EXCLUDE_AMBIENT_GENES)
       
-    if 'method' in config['hvg']:
-      HVG_METHOD      = config['hvg']['method']
+    if 'hvg_method' in config['hvg']:
+      HVG_METHOD      = config['hvg']['hvg_method']
       # check if valid
       valid_methods = ['sample', 'all', 'groups']
       assert HVG_METHOD in valid_methods, \
@@ -487,9 +487,9 @@ def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
       
       # if method is groups check that group variable is specified
       if HVG_METHOD == 'groups':
-        assert ('metadata_split_var' in config['hvg']) and (config['hvg']['metadata_split_var'] is not None), \
-          "The 'metadata_split_var' parameter must be defined when the hvg method is 'groups'."
-        HVG_SPLIT_VAR = config['hvg']['metadata_split_var']
+        assert ('hvg_metadata_split_var' in config['hvg']) and (config['hvg']['hvg_metadata_split_var'] is not None), \
+          "The 'hvg_metadata_split_var' parameter must be defined when the hvg method is 'groups'."
+        HVG_SPLIT_VAR = config['hvg']['hvg_metadata_split_var']
 
         # check that value of metadata_split_var matches a column in sample metadata
         meta = pd.read_csv(METADATA_F)

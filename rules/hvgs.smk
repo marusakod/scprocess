@@ -118,7 +118,6 @@ if HVG_METHOD == 'sample':
         {input.clean_h5_f} \
         {input.rowdata_f} \
         {output.std_var_stats_f}
-
       """
 
   rule merge_sample_std_var_stats:
@@ -253,6 +252,10 @@ rule get_highly_variable_genes:
     hvg_f = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 1
   retries: RETRIES
+  params:
+    hvg_method = HVG_METHOD,
+    n_hvgs = N_HVGS,
+    exclude_ambient_genes = EXCLUDE_AMBIENT_GENES
   resources:
      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
   conda:
@@ -260,7 +263,7 @@ rule get_highly_variable_genes:
   shell:
      """
      NOAMBIENT_FLAG=""
-     if [ "{EXCLUDE_AMBIENT_GENES}" = "True" ]; then
+     if [ "{params.exclude_ambient_genes}" = "True" ]; then
        NOAMBIENT_FLAG="--noambient"
      fi
 
@@ -268,8 +271,8 @@ rule get_highly_variable_genes:
       {input.std_var_stats_f} \
       {output.hvg_f} \
       {input.empty_gs_fs} \
-      {HVG_METHOD} \
-      {N_HVGS} \
+      {params.hvg_method} \
+      {params.n_hvgs} \
       $NOAMBIENT_FLAG
      """
 
@@ -298,6 +301,7 @@ rule create_hvg_matrix:
       {SAMPLE_VAR}
 
     """
+
 
 rule create_doublets_hvg_matrix:
     input: 

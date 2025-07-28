@@ -6,6 +6,7 @@ dependencies:
   - h5py
   - numpy
   - pandas
+  - polars
   - scanpy
   - scipy
   - pyyaml

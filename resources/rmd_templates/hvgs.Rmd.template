@@ -1,0 +1,89 @@
+---
+title: "Diagnostic plots of HVG selection"
+author:
+- name: ${YOUR_NAME}
+  affiliation: 
+  - ${AFFILIATION}
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  rmdformats::downcute:
+    highlight: textmate
+    code_folding: hide
+    toc_depth: 3
+    css: custom.css
+---
+
+```{r setup_knitr, include=FALSE}
+library('BiocStyle')
+knitr::opts_chunk$set(
+  autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
+  fig.path = "figure/${SHORT_TAG}_hvgs.Rmd/"
+)
+knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
+# workflowr::wflow_build(files='analysis/${SHORT_TAG}_hvgs.Rmd', view=F, verbose=T, delete_cache=F)
+```
+
+```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
+source('code/utils.R')
+source('code/hvgs.R')
+n_cores     = ${threads}
+setDTthreads(n_cores)
+```
+
+```{r setup_input, include = FALSE}
+# input_files
+hvgs_f      = "${hvgs_f}"
+empty_gs_f  = "${empty_gs_f}"
+pb_empty_f  = "${pb_empty_f}"
+```
+
+```{r load_hvg_data, include = FALSE}
+hvgs_dt     = fread(hvgs_f)
+edger_dt    = fread(empty_gs_f)
+pb          = readRDS(pb_empty_f)
+```
+
+```{r calc_empty_hvgs, include = FALSE}
+vst_obj     = calc_vst_obj(pb, edger_dt)
+```
+
+## Are highly variable genes "dirty"?
+
+```{r plot_std_var_vs_empty_log2fc, fig.height = 6, fig.width = 8}
+print(plot_hvg_stats_vs_empty_log2fc(hvgs_dt, edger_dt))
+```
+
+## Which genes are "dirty"?{.tabset}
+
+```{r plot_dirty_gene_calculations, fig.height = 6, fig.width = 6, results = 'asis'}
+cat("### all genes\n")
+  print(plot_dirty_gene_calculations(edger_dt))
+cat("\n\n")
+cat("### genes with >= 10 CPM expression in empties\n")
+  print(plot_dirty_gene_calculations(edger_dt, min_cpm_empty = 10))
+cat("\n\n")
+cat("### genes with >= 50 CPM expression in empties\n")
+  print(plot_dirty_gene_calculations(edger_dt, min_cpm_empty = 50))
+cat("\n\n")
+```
+
+## Which genes are variable across the empty profiles?{.tabset}
+
+```{r plot_empty_profiles, fig.height = 8, fig.width = 6, results = 'asis', cache = FALSE}
+cat("### HVGs in empties\n")
+  suppressMessages(draw(plot_heatmap_of_empty_profiles(vst_obj, top_var = "var", 
+    n_top = 40), heatmap_legend_side = "right", merge_legend = TRUE ))
+cat("\n\n")
+cat("### Highest expression in empties\n")
+  suppressMessages(draw(plot_heatmap_of_empty_profiles(vst_obj, top_var = "mean", 
+    n_top = 40), heatmap_legend_side = "right", merge_legend = TRUE ))
+cat("\n\n")
+cat("### Highest log2fc in empties\n")
+  suppressMessages(draw(plot_heatmap_of_empty_profiles(vst_obj, top_var = "log2fc.empty", 
+    n_top = 40), heatmap_legend_side = "right", merge_legend = TRUE ))
+cat("\n\n")
+cat("### Smallest p-value in empties\n")
+  suppressMessages(draw(plot_heatmap_of_empty_profiles(vst_obj, top_var = "pval.empty", 
+    n_top = 40), heatmap_legend_side = "right", merge_legend = TRUE ))
+cat("\n\n")
+```

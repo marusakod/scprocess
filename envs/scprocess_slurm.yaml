@@ -5,6 +5,7 @@ channels:
 dependencies:
   - _libgcc_mutex=0.1
   - _openmp_mutex=4.5
+  - _python_abi3_support=1.0
   - amply=0.1.6
   - annotated-types=0.7.0
   - appdirs=1.4.4
@@ -35,6 +36,7 @@ dependencies:
   - configargparse=1.7.1
   - connection_pool=0.0.3
   - cpp-expected=1.1.0
+  - cpython=3.12.11
   - distro=1.9.0
   - docutils=0.21.2
   - dpath=2.2.0
@@ -116,6 +118,8 @@ dependencies:
   - plotly=6.2.0
   - plotly_express=0.4.1
   - pluggy=1.6.0
+  - polars=1.31.0
+  - polars-default=1.31.0
   - psutil=7.0.0
   - pulp=2.8.0
   - pybind11-abi=4
@@ -130,6 +134,7 @@ dependencies:
   - python=3.12.11
   - python-dateutil=2.9.0.post0
   - python-fastjsonschema=2.21.1
+  - python-gil=3.12.11
   - python-tzdata=2025.2
   - python_abi=3.12
   - pytz=2025.2
@@ -187,3 +192,4 @@ dependencies:
   - yte=1.8.1
   - zstandard=0.23.0
   - zstd=1.5.7
+prefix: /home/macnairw/scratch/conda/envs/scprocess
