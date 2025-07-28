@@ -2,24 +2,22 @@
 
 ## Basic usage
 
-Assuming the required hardware is available, all software is installed and you have successfully completed the [setup of scprocess data directory](setup.md#scprocess-data-directory-setup) directory, you can run {{sc}} on your dataset by following the steps outlined below:
+Assuming the required hardware is available, all software is installed and you have successfully completed the [setup of scprocess data directory](setup.md#scprocess-data-directory-setup), you can run {{sc}} on your dataset by following the steps outlined below:
 
 1. [Prepare project directory](usage.md#1-prepare-project-directory)
 2. [Prepare input files](usage.md#2-prepare-input-files)
-3. [Prepare configuration file (config.yaml)](usage.md#3-prepare-configuration-file-configyaml)
+3. [Prepare configuration file (config.yaml)](usage.md#3-prepare-configuration-file)
 4. [Run the analysis](usage.md#4-run-the-analysis)
 
+!!! warning "{{sc}} expects multiple samples"
 
 ### 1. Prepare project directory
 
 {{sc}} relies on the [`workflowr`](https://workflowr.github.io/workflowr/) project directory template. You can create a new `workflowr` project using {{scnew}}, as follows:
 
 ```bash
-# recommended: create a new project in the current directory, with directories for fastq and metadata files, and a default config file
+# create a new project in the current directory, with directories for fastq and metadata files, and a default config file
 scprocess newproj my_project -c -s
-
-# if you're feeling chatty, this gives exactly the same result:
-# scprocess newproj my_project --config --sub
 ```
 
 ### 2. Prepare input files
@@ -54,32 +52,23 @@ alevin:
 
 ### 4. Run the analysis
 
-The way we typically run {{sc}} is to first do a "dry run", which prints out a list of the tasks that {{sc}} will do, without actually doing them:
+To run {{sc}} do:
 
-```bash
-scprocess run /path/to/config-my_project.yaml -n
-# or equivalently:
-# scprocess run /path/to/config-my_project.yaml --dry-run
-```
-
-Assuming that looks fine, you can then run it:
 ```bash
 scprocess run /path/to/config-my_project.yaml
 ```
-
-In case you need to use other [snakemake options](https://snakemake.readthedocs.io/en/stable/executing/cli.html) that are not included in {{scrun}} by default, you can use the `-E` or `--extraargs` flag. The argument of `-E` has to be between quotes. For example, if you would like to set a global maximum for the number of threads available to any rule you can use: 
+If you want to run a dry run you can add a `-n` or `--dry-run` flag to this command. In case you need to use other [snakemake options](https://snakemake.readthedocs.io/en/stable/executing/cli.html) that are not included in {{scrun}} by default, you can use the `-E` or `--extraargs` flag. For example, if you would like to set a global maximum for the number of threads available to any rule you can use: 
 
 ```bash
 scprocess run /path/to/config-my_project.yaml -E " --max-threads 8 "
 ```
 
-By default {{scrun}} will run rule `all` which includes all [core steps](introduction.md#rule-all-steps). The [optional steps](introduction.md#optional-steps) (rules `label_celltypes`, `zoom`, `pb_empties`) can run only after  rule `all` is completed and have to be specifically requested.
+By default {{scrun}} will run rule `all` which includes all [core steps](introduction.md#core-pipeline-steps). The [optional steps](introduction.md#optional-steps) (rule `label_celltypes`) can run only after  rule `all` is completed and have to be specifically requested.
 
 Additionally, you can run individual rules that generate HTML outputs (`mapping`, `ambient`, `qc`, `integration`, `marker_genes`). This is useful if you want to inspect the html outputs for the intermediate steps first and then continue with the analysis. To run each rule separately you have to specify the rule using the `-r` or `--rule` flag e.g.
 
 ```bash
 scprocess run /path/to/config.yaml -r qc
-# or: scprocess run /path/to/config.yaml --rule qc
 ```
 
 ## Analysis of multiplexed samples
@@ -123,7 +112,7 @@ By default {{sc}} will use `decontx` for ambient RNA removal, which doesn't requ
 ![empties_cells](assets/images/knee_plot_with_cells_and_empties.png)
 Both algorithms for ambient RNA decontamination available in {{sc}} estimate background noise from empty droplets. Therefore, correctly identifying the subset of barcodes corresponding to empty droplets is critical. In the barcode-rank "knee plot", where barcodes are ranked in descending order based on their library size, two distinct plateaus are typically observed: the first plateau represents droplets containing cells with high RNA content, while the second corresponds to empty droplets containing ambient RNA.
 
-{{sc}} identifies the cell-containing and empty droplet populations by detecting key transition points on the barcode-rank curve — namely, the inflection and knee points. These points allow {{sc}} to infer the optimal parameters for both `decontx` and `cellbender`. Additionally, {{sc}} uses these estimates in the optional `pb_empties` rule to identify genes enriched in empty droplets.
+{{sc}} identifies the cell-containing and empty droplet populations by detecting key transition points on the barcode-rank curve — namely, the inflection and knee points. These points allow {{sc}} to infer the optimal parameters for both `decontx` and `cellbender`. Additionally, {{sc}} uses these estimates to identify genes enriched in empty droplets.
 
 We recommend verifying the accuracy of these parameters by inspecting knee plots after running `mapping`. The two main parameters inferred by {{sc}} based on transition points in the barcode-rank curve are `expected_cells` and the `empty_plateau_middle` (which corresponds to the `--total-droplets-included` parameter in `cellbender`). The `empty_plateau_middle` should extend a few thousand barcodes into the second plateau.
 
@@ -135,10 +124,10 @@ We recommend verifying the accuracy of these parameters by inspecting knee plots
 
 To identify problematic samples, {{sc}} computes two diagnostic ratios:
 
-* `expected_cells`/`empty_plateau_middle` ratio: this helps assess whether the estimated number of cells is reasonable compared to the empty_plateau_middle. In example B this ratio would be increased [but so would be the slope ratio so maybe not the best example]
-* `slope_ratio`: This is the ratio of the slope of the barcode-rank curve in the empty droplet region compared to the slope at the first inflection point. Samples with a high slope ratio, as seen in example C,' are likely problematic because the empty droplet plateau is not clearly distinguishable. In such cases, ambient RNA contamination algorithms like `decontx` and `cellbender` may struggle to accurately estimate background noise, and we recommend considering removing these samples from further analysis.
+* `expected_cells`/`empty_plateau_middle` ratio: this helps assess whether the estimated number of cells is reasonable compared to the `empty_plateau_middle`. In example B this ratio would be increased [but so would be the slope ratio so maybe not the best example]
+* `slope_ratio`: This is the ratio of the slope of the barcode-rank curve in the empty droplet region compared to the slope at the first inflection point. Samples with a high slope ratio, as seen in example C, are likely problematic because the empty droplet plateau is not clearly distinguishable. In such cases, ambient RNA contamination algorithms like `decontx` and `cellbender` may struggle to accurately estimate background noise, and we recommend considering removing these samples from further analysis.
 
-If {{sc}} fails to estimate the knee plot parameters but the barcode-rank curve appears normal, we suggest manually adjusting the `knee1`, `knee2`, `shin1`, and `shin2` parameters in the `custom_sample_params` file. A convenient way to fine-tune these parameters is by using the [`plotKnee`](reference.md#plotknee) function in {{sc}}. This allows for easy visualization and adjustment of knee points.
+If {{sc}} fails to estimate the knee plot parameters but the barcode-rank curve appears normal, we suggest manually adjusting the `knee1`, `knee2`, `shin1`, and `shin2` parameters in the `custom_sample_params` file. A convenient way to fine-tune these parameters is by using the [`plotknee`](reference.md#scprocess-plotknee) function in {{sc}}. This allows for easy visualization and adjustment of knee points.
     
 
 ### Setting QC parameters
