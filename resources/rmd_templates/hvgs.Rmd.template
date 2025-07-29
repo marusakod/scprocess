@@ -47,43 +47,77 @@ pb          = readRDS(pb_empty_f)
 vst_obj     = calc_vst_obj(pb, edger_dt)
 ```
 
-## Are highly variable genes "dirty"?
+## Overview
+
+The choice of highly variable genes is critical to the integration and resulting 
+clusters in a single cell experiment. In our experience, contamination by ambient 
+RNA is often an important confounding factor, and `scprocess` includes several steps
+that seek to minimise its effect. 
+
+The plots in this markdown are intended to give an overview of possible contamination,
+which can make users aware of potential contamination to watch out for in clusters.
+
+## Are highly variable genes "ambient"?
+
+This plot is used to show to what extent the genes that would be identified by the 
+"standard" `Seurat`-style HVG procedure could be driven by ambient RNA. The x-axis 
+is the `log2fc` output from the ambient gene estimation step in `scprocess` (see
+docs for more details). The y-axis is the `Seurat`-style trend-normalised variance. Points are 
+genes, annotated by whether they are in the top HVGs, combined with whether
+the `scprocess` ambient gene procedure calls them as ambient.
 
 ```{r plot_std_var_vs_empty_log2fc, fig.height = 6, fig.width = 8}
 print(plot_hvg_stats_vs_empty_log2fc(hvgs_dt, edger_dt))
 ```
 
-## Which genes are "dirty"?{.tabset}
+## Which genes are "ambient"?{.tabset}
 
-```{r plot_dirty_gene_calculations, fig.height = 6, fig.width = 6, results = 'asis'}
-cat("### all genes\n")
-  print(plot_dirty_gene_calculations(edger_dt))
-cat("\n\n")
-cat("### genes with >= 10 CPM expression in empties\n")
-  print(plot_dirty_gene_calculations(edger_dt, min_cpm_empty = 10))
-cat("\n\n")
-cat("### genes with >= 50 CPM expression in empties\n")
-  print(plot_dirty_gene_calculations(edger_dt, min_cpm_empty = 50))
-cat("\n\n")
+This plot shows the results of the `scprocess` ambient gene procedure. The y-axis 
+is the `-log10` nominal p-value, with a dotted line to show the cutoff at which 
+the adjusted p-value is sufficiently small. There are several plots, each filtering 
+to have different minimum levels of expression in the ambient profiles.
+
+```{r plot_ambient_gene_calculations, fig.height = 6, fig.width = 6, results = 'asis'}
+cpm_ls  = c(0, 10, 50, 100)
+for (min_cpm in cpm_ls) {
+  if (min_cpm == 0) {
+    cat("### all genes\n")
+  } else {
+    cat(sprintf("### >= %d CPM expression in ambient\n", min_cpm))
+  }
+  print(plot_ambient_gene_calculations(edger_dt, min_cpm_empty = min_cpm))
+  cat("\n\n")
+}
 ```
 
-## Which genes are variable across the empty profiles?{.tabset}
+## Which genes are variable across the ambient profiles?{.tabset}
 
-```{r plot_empty_profiles, fig.height = 8, fig.width = 6, results = 'asis', cache = FALSE}
-cat("### HVGs in empties\n")
-  suppressMessages(draw(plot_heatmap_of_empty_profiles(vst_obj, top_var = "var", 
+We often find it useful to look into how ambient genes vary across the different 
+samples. This can indicate when some samples may need to be treated differently 
+(e.g. if disease and healthy samples consistently have different ambient profiles).
+
+These heatmaps show how the pseudobulk expression of various genes vary across the
+ambient profiles from each sample in the dataset. The genes are chosen as the top 40 
+with:
+
+- highest variance across ambient profiles;
+- highest mean expression across ambient 
+profiles;
+- highest `log2fc` in ambient vs cells in `scprocess`'s ambient gene procedure; 
+and
+- smallest p-value in ambient vs cells in `scprocess`'s ambient gene procedure.
+
+```{r plot_ambient_profiles, fig.height = 8, fig.width = 6, results = 'asis'}
+title_ls = c(
+  "var"           = "HVGs",
+  "mean"          = "Highest expression",
+  "log2fc.empty"  = "Highest log2fc",
+  "pval.empty"    = "Smallest p-value"
+)
+for (top_var in names(title_ls)) {
+  cat(sprintf("### %s in ambient\n", title_ls[top_var]))
+  suppressMessages(draw(plot_heatmap_of_ambient_profiles(vst_obj, top_var = top_var, 
     n_top = 40), heatmap_legend_side = "right", merge_legend = TRUE ))
-cat("\n\n")
-cat("### Highest expression in empties\n")
-  suppressMessages(draw(plot_heatmap_of_empty_profiles(vst_obj, top_var = "mean", 
-    n_top = 40), heatmap_legend_side = "right", merge_legend = TRUE ))
-cat("\n\n")
-cat("### Highest log2fc in empties\n")
-  suppressMessages(draw(plot_heatmap_of_empty_profiles(vst_obj, top_var = "log2fc.empty", 
-    n_top = 40), heatmap_legend_side = "right", merge_legend = TRUE ))
-cat("\n\n")
-cat("### Smallest p-value in empties\n")
-  suppressMessages(draw(plot_heatmap_of_empty_profiles(vst_obj, top_var = "pval.empty", 
-    n_top = 40), heatmap_legend_side = "right", merge_legend = TRUE ))
-cat("\n\n")
+  cat("\n\n")
+}
 ```

@@ -38,9 +38,9 @@ plot_hvg_stats_vs_empty_log2fc <- function(hvgs_dt, edger_dt, n_top = 10) {
   )
   status_labs = c(
     hvg_clean = "highly variable, \"clean\"",
-    hvg_dirty = "highly variable, \"dirty\"",
+    hvg_dirty = "highly variable, \"ambient\"",
     not_clean = "not variable, \"clean\"",
-    not_dirty = "not variable, \"dirty\""
+    not_dirty = "not variable, \"ambient\""
   )
   plot_dt   = merge(hvgs_dt, edger_dt, by = "gene_id") %>% 
     # .[, is_dirty  := (FDR < 0.01) & (logFC > 0) ] %>% 
@@ -59,23 +59,26 @@ plot_hvg_stats_vs_empty_log2fc <- function(hvgs_dt, edger_dt, n_top = 10) {
     aes( x = log2fc, y = mean_var, colour = status ) +
     geom_hline( yintercept = 0, linewidth = 0.1, colour = 'grey20', alpha = 0.5 ) +
     geom_vline( xintercept = 0, linewidth = 0.1, colour = 'grey20', alpha = 0.5 ) +
-    geom_point( size = 0.2, alpha = 0.5 ) +
-    geom_label_repel( data = labels_dt, aes( label = symbol ), size = 3, max.overlaps = Inf ) +
+    geom_point( size = 0.2, alpha = 0.5, show.legend = TRUE ) +
+    geom_label_repel( data = labels_dt, aes( label = symbol ), 
+      size = 3, max.overlaps = Inf, show.legend = FALSE ) +
     scale_x_continuous( breaks = pretty_breaks() ) +
     scale_y_continuous( breaks = pretty_breaks() ) +
     scale_colour_manual( values = col_vals, breaks = names(status_labs), labels = status_labs, 
-      guide = guide_legend(override.aes = list(alpha = 1, size = 2)) ) +
-    theme_classic() +
+      drop = FALSE, guide = guide_legend(override.aes = list(alpha = 1, size = 2)) ) +
+    theme_classic( base_size = 14 ) +
+    theme( plot.caption = element_text(vjust = -0.5) ) +
     labs(
       x       = "log2fc of \"empty\" drops vs all cells",
       y       = "mean standardized var. across samples",
       colour  = "HVG classification\nof gene",
+      caption = sprintf("Labelled genes are top %d most variable.", n_top)
     )
 
   return(g)
 }
 
-plot_dirty_gene_calculations <- function(edger_dt, max_padj = 0.01, n_top = 10, 
+plot_ambient_gene_calculations <- function(edger_dt, max_padj = 0.01, n_top = 10, 
   min_cpm_empty = 0) {
   # what is pval for max_padj?
   pval_1      = edger_dt[ FDR <= max_padj ] %>% .$PValue %>% max
@@ -103,17 +106,19 @@ plot_dirty_gene_calculations <- function(edger_dt, max_padj = 0.01, n_top = 10,
     geom_label_repel( data = labels_dt, aes( label = symbol ), size = 3, max.overlaps = Inf ) +
     scale_x_continuous( breaks = pretty_breaks() ) +
     scale_y_continuous( breaks = pretty_breaks() ) +
-    theme_classic() +
+    theme_classic( base_size = 14 ) +
+    theme( plot.caption = element_text(vjust = -0.5) ) +
     labs(
       x       = "log2fc of \"empty\" drops vs all cells",
       y       = "-log10( nominal p-value of \"empty\" drops vs all cells )",
-      caption = sprintf("Dotted horizontal line shows cutoff for adjusted p-value < %.1e.", max_padj)
+      caption = sprintf("Dotted horizontal line shows cutoff for adjusted p-value < %.1e.", 
+        max_padj)
     )
 
   return(g)
 }
 
-plot_heatmap_of_empty_profiles <- function(vst_mat, top_var = c("var", "mean", 
+plot_heatmap_of_ambient_profiles <- function(vst_mat, top_var = c("var", "mean", 
   "log2fc.empty", "pval.empty"), n_top = 30) {
   top_var     = match.arg(top_var)
 
