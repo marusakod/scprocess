@@ -150,10 +150,6 @@ bender_html_f = (docs_dir + '/' + SHORT_TAG + '_cellbender.html') if AMBIENT_MET
 
 # one rule to rule them all
 rule all:
-  params:
-    hvg_method = HVG_METHOD,
-    n_hvgs = N_HVGS,
-    exclude_ambient_genes = EXCLUDE_AMBIENT_GENES
   input:
     # hto outputs
     hto_index_outs, 
@@ -257,6 +253,21 @@ rule cellbender:
     bender_html_f
 
 rule qc:
+  params:
+    mito_str        = AF_MITO_STR,
+    exclude_mito    = EXCLUDE_MITO,
+    hard_min_counts = QC_HARD_MIN_COUNTS,
+    hard_min_feats  = QC_HARD_MIN_FEATS,
+    hard_max_mito   = QC_HARD_MAX_MITO,
+    min_counts      = QC_MIN_COUNTS,
+    min_feats       = QC_MIN_FEATS,
+    min_mito        = QC_MIN_MITO,
+    max_mito        = QC_MAX_MITO,
+    min_splice      = QC_MIN_SPLICE,
+    max_splice      = QC_MAX_SPLICE,
+    sample_var      = SAMPLE_VAR,
+    demux_type      = DEMUX_TYPE,
+    dbl_min_feats   = DBL_MIN_FEATS
   input:     
     expand(
       [

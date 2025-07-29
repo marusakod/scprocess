@@ -59,6 +59,7 @@ dependencies:
 - r-strex
 - r-stringr
 - r-testit
+- r-upsetr
 - r-tidyverse
 - r-uwot
 - r-viridis

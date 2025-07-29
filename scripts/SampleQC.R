@@ -23,33 +23,27 @@ suppressPackageStartupMessages({
   library('ggplot.multistats')
   library('viridis')
   library('patchwork')
+  library('UpSetR')
 })
 
 # define some breaks
-log_brks    = c(1e1, 2e1, 5e1, 1e2, 2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4) %>%
+n_brks      = c(1e1, 2e1, 5e1, 1e2, 2e2, 5e2, 
+  1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5) %>% log10
+n_labs      = c("10", "20", "50", "100", "200", "500",
+  "1k", "2k", "5k", "10k", "20k", "50k", "100k")
+log_brks    = c(1e1, 3e1, 1e2, 3e2, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5) %>%
   log10
-log_labs    = c("10", "20", "50", "100", "200", "500",
-  "1k", "2k", "5k", "10k", "20k", "50k")
-logit_brks  = c(1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 0.10, 0.30,
-  0.50, 0.70, 0.90, 0.97, 0.99, 0.999) %>% qlogis
-logit_labs  = c("0.01%", "0.03%", "0.1%", "0.3%", "1%", "3%", "10%", "30%",
-  "50%", "70%", "90%", "97%", "99%", "99.9%")
-splice_brks = c(1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 0.10, 0.50,
-  0.90, 0.97, 0.99, 0.999) %>% qlogis
-splice_labs = c("0.01%", "0.03%", "0.1%", "0.3%", "1%", "3%", "10%", "50%",
-  "90%", "97%", "99%", "99.9%")
-prob_brks   = c(0.5, 0.9, 0.99, 0.999, 0.9999, 0.99999, 0.999999) %>% qlogis
-prob_labs   = c("50%", "90%", "99%", "99.9%", "99.99%", "99.999%", "99.9999%")
-
-
+log_labs    = c("10", "30", "100", "300", "1k", "3k", "10k", "30k", "100k", "300k")
+mito_brks   = c(1e-4, 1e-3, 1e-2, 0.10, 0.50, 0.90, 0.99, 0.999) %>% qlogis
+mito_labs   = c("0.01%", "0.1%", "1%", "10%", "50%", "90%", "99%", "99.9%")
+splice_brks = c(1e-4, 1e-3, 1e-2, 0.10, 0.50, 0.90, 0.99, 0.999) %>% qlogis
+splice_labs = c("0.01%", "0.1%", "1%", "10%", "50%", "90%", "99%", "99.9%")
 
 main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf_dt_f,
   ambient_method, sce_fs_str, all_samples_str, rowdata_f, dbl_f, dimred_f, qc_f, 
   coldata_f, mito_str, exclude_mito, hard_min_counts, hard_min_feats, hard_max_mito,
   min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, 
   sample_var = 'sample_id', demux_type = "none", dbl_min_feats = 100, dbl_min_cells = 100){
-
-  exclude_mito = as.logical(exclude_mito)
 
   # split output files and check if ok
   all_samples = str_split(all_samples_str, pattern = ',') %>% unlist()
@@ -155,7 +149,6 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
     return(NULL)
 }
 
-
 .add_dbl_info <- function(sce, dbl_dt, sample_var, demux_type = "none"){
   coldata_in    = colData(sce) %>% as.data.frame %>% as.data.table
   missing_cells = setdiff(coldata_in$cell_id, dbl_dt$cell_id)
@@ -195,7 +188,6 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   return(sce)
 }
 
-
 .add_metadata <- function(sce, meta_f) {
   # get all metadata
   metadata_all  = fread(meta_f)
@@ -216,7 +208,6 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 
   return(sce)
 }
-
 
 .add_demux_metadata <- function(sce, meta_f, demux_f, demux_type){
 
@@ -289,11 +280,7 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   assert_that( !is.null(colnames(sce)) )
 
   return(sce)
-
 }
-
-
-
 
 .get_sce <- function(mat_f, sel_s, mito_str, exclude_mito, gene_annots, sample_var) {
   # read matrix
@@ -372,7 +359,7 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   sce_tmp$total_rrna    = rrna_sum
   sce_tmp$total_mt_rrna = mt_rrna_sum
   
-  if(exclude_mito == TRUE){
+  if(exclude_mito == 1){
     # remove mitochondrial genes
     sce_tmp = sce_tmp[!mt_gs, ]
   }
@@ -386,7 +373,6 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 
   return(sce_tmp)
 }
-
 
 .get_gene_annots <- function(gtf_dt_f) {
 
@@ -424,7 +410,6 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 
   return(sce_out)
 }
-
 
 run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_method, dbl_f, dimred_f, min_feats = 100, min_cells = 100){
  
@@ -488,7 +473,6 @@ run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_m
   return(dbl_dt)
 }
 
-
 .calc_one_dimred <- function(sce, sel_sample) {
   # run PCA on this sce
   sce       = sce %>% logNormCounts %>% runPCA
@@ -502,10 +486,6 @@ run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_m
   
   return(dimred_dt)
 }
-
-
-
-
 
 filter_qc <- function(sce, qc_f, coldata_f, hard_min_counts, hard_min_feats, hard_max_mito,
                       min_counts, min_feats, min_mito, max_mito, 
@@ -560,9 +540,6 @@ filter_qc <- function(sce, qc_f, coldata_f, hard_min_counts, hard_min_feats, har
   return(sce_filt)
 }
 
-
-
-
 plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds_dt) {
   # melt, add names
   qc_melt   = copy(qc_input) %>%
@@ -576,62 +553,63 @@ plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds
     .[, qc_full   := fct_reorder(qc_full, as.integer(qc_var)) ]
 
   # calculate medians etc
-    qc_meds = qc_melt %>%
-  .[, .(
-    log10_N = log10(.N),
-    q50 = median(qc_val, na.rm = TRUE),
-    q10 = quantile(qc_val, 0.1, na.rm = TRUE),
-    q90 = quantile(qc_val, 0.9, na.rm = TRUE),
-    q025 = quantile(qc_val, 0.025, na.rm = TRUE),
-    q975 = quantile(qc_val, 0.975, na.rm = TRUE)
-  ),
-  by = c('sample_id', 'qc_var', 'qc_full')]
+  qc_meds = qc_melt %>%
+    .[, .(
+      log10_N = log10(.N),
+      q50 = median(qc_val, na.rm = TRUE),
+      q10 = quantile(qc_val, 0.1, na.rm = TRUE),
+      q90 = quantile(qc_val, 0.9, na.rm = TRUE),
+      q025 = quantile(qc_val, 0.025, na.rm = TRUE),
+      q975 = quantile(qc_val, 0.975, na.rm = TRUE)
+      ), by = c('sample_id', 'qc_var', 'qc_full') ]
 
   # bar width
   bar_w     = 0.4
-  n_dt      = qc_meds[, .(sample_id, `no. cells` = log10_N) ] %>% unique %>%
+  n_dt      = qc_meds[, .(sample_id, `no. of cells` = log10_N) ] %>% unique %>%
     melt.data.table( id = "sample_id", var = "var", val = "value")
 
   # put in nice order
   n_dt      = n_dt %>%
     .[, sample_id := factor(sample_id, levels = rev(s_lvls)) ]
+  n_lims    = c( min(n_dt$value) + log10(0.5), max(n_dt$value) + log10(2) )
   qc_melt   = qc_melt %>%
     .[, sample_id := factor(sample_id, levels = rev(s_lvls)) ]
   qc_meds   = qc_meds %>%
     .[, sample_id := factor(sample_id, levels = rev(s_lvls)) ]
 
-  # make plot
+  # make plot of n_cells by sample
   g_n = ggplot( n_dt ) +
     geom_point( aes( y = value, x = as.integer(sample_id) ),
       size = 4, shape = 21, fill = 'grey60') +
     scale_x_continuous( breaks = seq.int(length(s_lvls)), labels = levels(n_dt$sample_id) ) +
     facet_grid( . ~ var, scales = 'free', space = 'free_y' ) +
-    scale_y_continuous(breaks = log_brks, labels = log_labs) +
-    expand_limits( y = log10(c(1e3, 1e4)) ) +
+    scale_y_continuous(breaks = n_brks, labels = n_labs) +
+    expand_limits( y = n_lims ) +
     coord_flip( xlim = c(0.5, length(s_lvls) + 0.5), expand = FALSE ) +
     theme_classic() +
     theme(
       axis.text.x       = element_text( angle = 90, hjust = 1, vjust = 0.5 ),
       strip.text.y      = element_blank()
       ) +
-    labs( x = NULL, y = 'sample' )
+    labs( y = NULL, x = 'sample_id' )
 
+  # make plots of qc metrics by sample
   g_violin = ggplot() +
     geom_violin( data = qc_melt[ !is.na(qc_val) ],
       aes( x = sample_id, y = qc_val ), colour = NA, fill = 'grey60',
-      kernel = 'rectangular', adjust = 0.1, scale = 'width') +
+      kernel = 'rectangular', adjust = 0.1, scale = 'width', width = 0.8) +
     geom_hline( data = hlines_dt, aes( yintercept = cut_point ),
       colour = 'black', linetype = 'dashed', size = 0.5, alpha = 0.5 ) +
     facet_grid( . ~ qc_full, scales = 'free', space = 'free_y' ) +
     scale_x_discrete( breaks = levels(qc_meds$sample_id), drop = FALSE ) +
     facetted_pos_scales(
       y = list(
-        qc_full == "library size"     ~
+        qc_full == "no. of UMIs"     ~
           scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_full == "no. of features"  ~
+        qc_full == "no. of genes"  ~
           scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_full == "mito pct."         ~
-          scale_y_continuous(breaks = logit_brks, labels = logit_labs),
+        qc_full == "mito. pct."         ~
+          scale_y_continuous(breaks = mito_brks, labels = mito_labs),
         qc_full == "spliced pct."      ~
           scale_y_continuous(breaks = splice_brks, labels = splice_labs)
         )
@@ -676,23 +654,23 @@ plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt) {
     .[ as.integer(qc_var.x) > as.integer(qc_var.y) ]
 
   scales_x_ls = list(
-        qc_full.x == "library size"    ~
+        qc_full.x == "no. of UMIs"    ~
           scale_x_continuous(breaks = log_brks, labels = log_labs),
-        qc_full.x == "no. of features" ~
+        qc_full.x == "no. of genes" ~
           scale_x_continuous(breaks = log_brks, labels = log_labs),
-        qc_full.x == "mito pct."        ~
-          scale_x_continuous(breaks = logit_brks, labels = logit_labs),
+        qc_full.x == "mito. pct."        ~
+          scale_x_continuous(breaks = mito_brks, labels = mito_labs),
         qc_full.x == "spliced pct."     ~
           scale_x_continuous(breaks = splice_brks, labels = splice_labs)
   )
 
   scales_y_ls = list(
-        qc_full.y == "library size"    ~
+        qc_full.y == "no. of UMIs"    ~
           scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_full.y == "no. of features" ~
+        qc_full.y == "no. of genes" ~
           scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_full.y == "mito pct."        ~
-          scale_y_continuous(breaks = logit_brks, labels = logit_labs),
+        qc_full.y == "mito. pct."        ~
+          scale_y_continuous(breaks = mito_brks, labels = mito_labs),
         qc_full.y == "spliced pct."     ~
           scale_y_continuous(breaks = splice_brks, labels = splice_labs)
   )
@@ -719,7 +697,7 @@ plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt) {
       panel.grid        = element_blank(),
       strip.background  = element_rect( fill = 'white')
       ) +
-    labs( x = NULL, y = NULL, size = 'no. cells\nin sample' )
+    labs( x = NULL, y = NULL, size = 'no. of cells\nin sample' )
 
   return(g)
 }
@@ -818,22 +796,22 @@ plot_qc_metric_scatter <- function(dt, qc_names, qc_lu, thrshlds_dt) {
     ) +
     facetted_pos_scales(
       x = list(
-        qc_x == "library size"    ~
+        qc_x == "no. of UMIs"    ~
           scale_x_continuous(breaks = log_brks, labels = log_labs),
-        qc_x == "no. of features" ~
+        qc_x == "no. of genes" ~
           scale_x_continuous(breaks = log_brks, labels = log_labs),
-        qc_x == "mito pct."        ~
-          scale_x_continuous(breaks = logit_brks, labels = logit_labs),
+        qc_x == "mito. pct."        ~
+          scale_x_continuous(breaks = mito_brks, labels = mito_labs),
         qc_x == "spliced pct."     ~
           scale_x_continuous(breaks = splice_brks, labels = splice_labs)
         ),
       y = list(
-        qc_y == "library size"    ~
+        qc_y == "no. of UMIs"    ~
           scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_y == "no. of features" ~
+        qc_y == "no. of genes" ~
           scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_y == "mito pct."        ~
-          scale_y_continuous(breaks = logit_brks, labels = logit_labs),
+        qc_y == "mito. pct."        ~
+          scale_y_continuous(breaks = mito_brks, labels = mito_labs),
         qc_y == "spliced pct."     ~
           scale_y_continuous(breaks = splice_brks, labels = splice_labs)
         )
@@ -841,7 +819,7 @@ plot_qc_metric_scatter <- function(dt, qc_names, qc_lu, thrshlds_dt) {
     labs(
       x     = 'QC metric 1',
       y     = 'QC metric 2',
-      fill  = 'no. cells',
+      fill  = 'no. of cells',
       title   = sel_s
       )
 
@@ -926,8 +904,6 @@ plot_totals_split_by_meta <- function(pre_dt, post_dt, meta_dt) {
   return(g)
 }
 
-
-
 plot_qc_summary_heatmap <- function(qc_stats, meta_input) {
   # make matrix of z-scores
   stats_tmp = copy(qc_stats) %>%
@@ -1005,10 +981,10 @@ plot_qc_summary_heatmap <- function(qc_stats, meta_input) {
 
   # do column titles
   var_lookup  = c(
-    log10_N       = "no. cells",
-    log_counts    = "library size",
+    log10_N       = "no. of cells",
+    log_counts    = "no. of UMIs",
     log_feats     = "no. features",
-    logit_mito    = "mito pct.",
+    logit_mito    = "mito. pct.",
     logit_splice  = "pct. spliced"
   )
 
@@ -1030,15 +1006,15 @@ plot_qc_summary_heatmap <- function(qc_stats, meta_input) {
 
 calc_qc_summary <- function(qc_dt, kept_dt) {
   qc_summary  = merge(
-    qc_dt[, .(n_pre_QC = .N), by = .(sample_id)],
-    kept_dt[, .(n_post_QC = .N), by = .(sample_id)],
-    by = 'sample_id', all = TRUE) %>%
+      qc_dt[, .(n_pre_QC = .N), by = .(sample_id)],
+      kept_dt[, .(n_post_QC = .N), by = .(sample_id)],
+      by = 'sample_id', all = TRUE) %>%
     .[ is.na(n_post_QC), n_post_QC := 0 ] %>%
-    .[, n_excluded    := n_pre_QC - n_post_QC ] %>%
-    .[, pct_excluded := round(100*(1 - n_post_QC / n_pre_QC), 1) ] %>%
+    .[, n_excluded      := n_pre_QC - n_post_QC ] %>%
+    .[, pct_excluded    := round(100*(1 - n_post_QC / n_pre_QC), 1) ] %>%
+    .[, sample_excluded := n_post_QC == 0 ] %>% 
     .[ order(-pct_excluded, -n_post_QC) ]
 }
-
 
 
 
@@ -1309,7 +1285,7 @@ list_known_metrics <- function() {
     cut(10^log_N, breaks = N_cuts, labels = N_labs),
     levels = N_labs), by = 'sample_id']
 
-  # add annotations relating to library sizes
+  # add annotations relating to no. of UMIss
   if ('log_counts' %in% names(qc_dt) ) {
     # add median log counts per sample
     qc_dt[, med_counts  := median(log_counts), by='sample_id']
@@ -1416,5 +1392,49 @@ list_known_metrics <- function() {
   }
 }
 
+plot_upset_of_exclusions <- function(qc_tmp, qc_names, qc_lu, thrshlds_ls) {
+  # make list for upsets
+  qc_tmp    = qc_tmp[ keep_hard == TRUE ]
+  tmp_ls    = lapply(names(thrshlds_ls), function(nn) {
+    thrsh_spec  = thrshlds_ls[[nn]]
+    if (nn %in% c("log_counts", "log_feats")) {
+      exc_cells   = list(low_umis = qc_tmp[ get(nn) < thrsh_spec ]$cell_id)
+    } else if (nn == "logit_mito") {
+      exc_cells   = list(
+        low_mito   = qc_tmp[ get(nn) < thrsh_spec[1] ]$cell_id,
+        high_mito  = qc_tmp[ get(nn) > thrsh_spec[2] ]$cell_id
+      )
+    } else if (nn == "logit_spliced") {
+      exc_cells   = list(
+        low_spliced  = qc_tmp[ get(nn) < thrsh_spec[1] ]$cell_id,
+        high_spliced = qc_tmp[ get(nn) > thrsh_spec[2] ]$cell_id
+      )
+    }
 
-#
+    # remove anything that is blank
+    n_cells   = sapply(exc_cells, length)
+    exc_cells = exc_cells[ n_cells > 0 ]
+
+    return(exc_cells)
+    }) %>% do.call(c, .)
+
+  # turn into full list
+  upset_ls  = tmp_ls %>% c( list(passed_qc = qc_tmp[ keep == TRUE ]$cell_id) )
+  upset_dt  = names(upset_ls) %>% lapply(function(nn) 
+      data.table(set = nn, cell_id = upset_ls[[nn]])) %>% rbindlist %>% 
+    dcast( cell_id ~ set, fun.aggregate = length)
+
+  # make ratios nice
+  n_cols    = ncol(upset_dt)
+  mat_prop  = 0.4
+
+  # do nicer colours for up / down
+  row_ord   = upset_dt[, -c('cell_id')] %>% as.matrix %>% colSums %>%
+    sort(decreasing = TRUE) %>% names
+  row_cols  = rep("#FB8072", length(row_ord)) %>% setNames(row_ord)
+  row_cols[ "passed_qc" ] = "#7BAFDE"
+
+  # plot upset
+  return(upset(upset_dt, sets = colnames(upset_dt)[-1], order.by = 'freq',
+     mb.ratio = c(1 - mat_prop, mat_prop), sets.bar.color = row_cols))
+}
