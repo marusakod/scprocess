@@ -1538,14 +1538,22 @@ plot_metadata_over_umap <- function(meta_dt, harmony_dt, meta_var) {
   return(g)
 }
 
-plot_clusters_annotated_by_densities = function(hmny_dt, v) {
+plot_clusters_annotated_by_densities = function(hmny_dt, v, plot_ratio = sqrt(2)) {
+  # check input
   assert_that( v %in% names(hmny_dt) )
+
+  # define rows and cols
+  n_vals    = unique(hmny_dt[[v]]) %>% length
+  n_rows    = sqrt(n_vals / plot_ratio) %>% floor
+  n_cols    = ceiling(n_vals / n_rows)
+
+  # do plot
   g = ggplot(hmny_dt) +
     aes( x = UMAP1, y = UMAP2 ) +
-    geom_bin2d( bins = 50, aes(fill = after_stat( density ) %>% multiply_by(100) %>% 
-      pmin(1) %>% pmax(0.01)) ) +
+    geom_bin2d( bins = 50, 
+      aes(fill = after_stat( density ) %>% multiply_by(100) %>% pmin(1) %>% pmax(0.01)) ) +
     scale_fill_distiller( palette = "RdBu", trans = "log10", limits = c(0.01, 1) ) +
-    facet_wrap( sprintf("~ %s", v) ) +
+    facet_wrap( sprintf("~ %s", v), nrow = n_rows, ncol = n_cols ) +
     theme_classic() +
     theme( axis.text = element_blank(), panel.grid = element_blank(), aspect.ratio = 1 ) +
     labs( fill = "pct. of\nsample" )

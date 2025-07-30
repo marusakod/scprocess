@@ -238,19 +238,19 @@ rule render_html_hvgs:
     # rendering html
     Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
-    rule_name   = '$rule', 
-    proj_dir    = '{PROJ_DIR}', 
-    temp_f      =  '$template_f', 
-    rmd_f       = '{output.rmd_f}', 
-    YOUR_NAME   = '{YOUR_NAME}', 
-    AFFILIATION = '{AFFILIATION}', 
-    PROJ_DIR    = '{PROJ_DIR}', 
-    SHORT_TAG   = '{SHORT_TAG}', 
-    DATE_STAMP  = '{DATE_STAMP}', 
-    threads     = {threads}, 
-    hvgs_f      = '{input.hvgs_f}',
-    empty_gs_f  = '{input.empty_gs_f}',
-    pb_empty_f  = '{input.pb_empty_f}'
+      rule_name   = '$rule', 
+      proj_dir    = '{PROJ_DIR}', 
+      temp_f      =  '$template_f', 
+      rmd_f       = '{output.rmd_f}', 
+      YOUR_NAME   = '{YOUR_NAME}', 
+      AFFILIATION = '{AFFILIATION}', 
+      PROJ_DIR    = '{PROJ_DIR}', 
+      SHORT_TAG   = '{SHORT_TAG}', 
+      DATE_STAMP  = '{DATE_STAMP}', 
+      threads     = {threads}, 
+      hvgs_f      = '{input.hvgs_f}',
+      empty_gs_f  = '{input.empty_gs_f}',
+      pb_empty_f  = '{input.pb_empty_f}'
     )"    
     """
 
