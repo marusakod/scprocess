@@ -44,6 +44,8 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   coldata_f, mito_str, exclude_mito, hard_min_counts, hard_min_feats, hard_max_mito,
   min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, 
   sample_var = 'sample_id', demux_type = "none", dbl_min_feats = 100, dbl_min_cells = 100){
+  # check inputs
+  exclude_mito  = as.logical(exclude_mito)
 
   # split output files and check if ok
   all_samples = str_split(all_samples_str, pattern = ',') %>% unlist()
@@ -359,8 +361,8 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   sce_tmp$total_rrna    = rrna_sum
   sce_tmp$total_mt_rrna = mt_rrna_sum
   
-  if(exclude_mito == 1){
-    # remove mitochondrial genes
+  # remove mitochondrial genes
+  if(exclude_mito == TRUE) {
     sce_tmp = sce_tmp[!mt_gs, ]
   }
   
