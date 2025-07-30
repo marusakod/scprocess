@@ -23,12 +23,12 @@ If you plan to use `cellbender` for ambient RNA correction, you will also need A
 1. Clone the repository:
 
     ```bash
-     git clone https://github.com/marusakod/scprocess.git
+     git clone git@github.com:marusakod/scprocess.git
     ```
     !!! warning "Roche sHPC Users: Use the internal Roche repository instead"
 
         ```bash
-        git clone https://code.roche.com/macnairw/scprocess
+        git clone git@ssh.code.roche.com:macnairw/scprocess.git
         ```
 
 2.  Create a Conda environment:
