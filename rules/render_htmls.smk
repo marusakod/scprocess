@@ -301,6 +301,7 @@ rule render_html_marker_genes:
     mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
     integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     hvgs_f        = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    ambient_f     = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
     **get_conditional_outputs(SPECIES)
   output:
     rmd_f  = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{MKR_SEL_RES}.Rmd',
@@ -346,6 +347,7 @@ rule render_html_marker_genes:
       CUSTOM_MKR_NAMES = '{CUSTOM_MKR_NAMES}',
       CUSTOM_MKR_PATHS = '{CUSTOM_MKR_PATHS}',
       hvgs_f = '{input.hvgs_f}',
+      ambient_f = '{input.ambient_f}',
       {params.fgsea_args}
       MKR_SEL_RES = {MKR_SEL_RES},
       MKR_NOT_OK_RE = '{MKR_NOT_OK_RE}',
