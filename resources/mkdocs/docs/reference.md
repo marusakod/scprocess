@@ -374,6 +374,11 @@ sample_3:
 * `dbl_min_feats`: number of features required for each barcode to be included in `scDblFinder` calculations.
 * `exclude_mito`: boolean; whether to exclude mitochondrial genes or not
 
+##### pb_empties
+
+* `ambient_genes_logfc_thr`: logfc treshold for filtering edgeR results, default: 0
+* `ambient_genes_fdr_thr`: fdr threshold for filtering edgeR results, default: 0.01
+
 ##### hvg
 
 * `hvg_method`: options: 

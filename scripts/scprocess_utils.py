@@ -10,48 +10,168 @@ import datetime
 import subprocess
 
 
-def __get_cl_ls(config, scprocess_data_dir):
-  # get parameters
-  PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, _, _, _, _, _, _, DATE_STAMP, _, _ = \
-    get_project_parameters(config, scprocess_data_dir)
-  MKR_SEL_RES, _, _, _, _, _, _, _, _, _ = \
-    get_marker_genes_parameters(config, None, scprocess_data_dir)
+def _get_cl_ls(PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, MKR_SEL_RES):
   # specify harmony outputs
   int_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
-  hmny_f      = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+  int_f       = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
 
   # get list of clusters
-  hmny_dt     = pd.read_csv(hmny_f)
+  int_dt      = pd.read_csv(int_f)
   cl_col      = f"RNA_snn_res.{MKR_SEL_RES}"
-  cl_ls       = list(hmny_dt[cl_col].unique())
+  cl_ls       = list(int_dt[cl_col].unique())
   cl_ls       = [cl for cl in cl_ls if str(cl) != "nan"]
   cl_ls       = sorted(cl_ls)
 
-  return(cl_ls)
+  return int_f, cl_ls
 
 
-def __get_one_zoom_parameters(config, zoom_name, cl_ls):
-  # unpack
-  this_zoom   = config['zoom'][ zoom_name ]
+def _get_one_zoom_parameters(zoom_yaml_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F, FULL_MKR_SEL_RES,
+                              PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR):
 
-  # check parameters
-  p_names     = this_zoom.keys()
-  req_names   = [ "sel_cls", "n_hvgs", "n_dims", "zoom_res", "min_n_sample", "min_n_cl", "n_train" ]
-  missing_ns  = [ p_name for p_name in req_names if p_name not in p_names ]
-  assert len(missing_ns) == 0, f"the following parameters are missing from zoom {zoom_name}:\n{'_'.join(missing_ns)}"
+    # set defaults
+    LABELS           = ""
+    LABELS_F         = ""
+    LABELS_SOURCE    = ""
+    CLUSTER_RES      = None
+    CUSTOM_LABELS_F  = ""
+    MIN_N_SAMPLE     = 10
+    MAKE_SUBSET_SCES = True
 
-  # check one by one
-  assert set( this_zoom[ "sel_cls" ] ).issubset( cl_ls )
-  assert this_zoom[ "zoom_res" ] > 0
-  assert isinstance(this_zoom[ "n_hvgs" ], int)
-  assert isinstance(this_zoom[ "n_dims" ], int)
-  assert isinstance(this_zoom[ "min_n_cl" ], int)
-  assert isinstance(this_zoom[ "n_train" ], int)
+    # unpack
+    with open(zoom_yaml_f, "r") as stream:
+        this_zoom = yaml.safe_load(stream)
 
-  # add name to dictionary
-  this_zoom[ 'zoom_name' ] = zoom_name
+    # check required params
+    for key in ['labels', 'labels_source']:
+        assert key in this_zoom and this_zoom[key] is not None, \
+            f"{key} parameter missing from file {zoom_yaml_f}"
 
-  return this_zoom
+    LABELS = this_zoom['labels']
+    LABELS_SOURCE = this_zoom['labels_source']
+
+    valid_sources = ['xgboost', 'clusters', 'custom']
+    assert LABELS_SOURCE in valid_sources, \
+        f'labels_source must be one of {valid_sources}'
+
+    if LABELS_SOURCE == 'custom':
+        assert 'custom_labels_f' in this_zoom and this_zoom['custom_labels_f'] is not None, \
+            f"custom_labels_f parameter missing from file {zoom_yaml_f}"
+        CUSTOM_LABELS_F = this_zoom['custom_labels_f']
+        # check that exists
+        if not os.path.isabs(CUSTOM_LABELS_F):
+            CUSTOM_LABELS_F = os.path.join(PROJ_DIR, CUSTOM_LABELS_F)
+        assert os.path.isfile(CUSTOM_LABELS_F), \
+            f"file {CUSTOM_LABELS_F} doesn't exist"
+        # check that columns are ok
+        custom_lbls_dt = pd.read_csv(CUSTOM_LABELS_F)
+        for col in ['sample_id', 'cell_id', 'label']:
+            assert col in custom_lbls_dt.columns, \
+                f"column {col} not present in {CUSTOM_LABELS_F}"
+            
+        # check there are no commas in labels
+        assert all(["," not in lbl for lbl in set(custom_lbls_dt['label'])]), \
+          f"Some labels in {CUSTOM_LABELS_F} contain commas which is not allowed"
+      
+
+        LABELS_F   = CUSTOM_LABELS_F
+        LABELS_VAR = 'label'
+
+    if LABELS_SOURCE == 'xgboost':
+        assert LBL_TISSUE != "", \
+            "lbl_tissue parameter is not defined"
+        # check that labels are ok
+        xgb_allow_lbls = pd.read_csv(LBL_XGB_CLS_F)['cluster'].tolist()
+        for lbl in LABELS:
+            assert lbl in xgb_allow_lbls, \
+                f"{lbl} is not a valid label name for the {LBL_TISSUE} classifier"
+        
+        lbl_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
+        LABELS_F    = lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+        assert os.path.exists(LABELS_F), \
+          f"{LABELS_F} doesn't exist; consider (re)running rule label_celltypes"
+        LABELS_VAR = "cl_pred_RNA_snn_res.2" # users should be able to specify this in the config
+
+    if LABELS_SOURCE == 'clusters':
+        assert 'cluster_res' in this_zoom and this_zoom['cluster_res'] is not None, \
+            f"cluster_res parameter missing from file {zoom_yaml_f}"
+        CLUSTER_RES = this_zoom['cluster_res']
+
+        # get list of all clusters to check if cluster names are valid
+        LABELS_F, cl_ls = _get_cl_ls(PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, FULL_MKR_SEL_RES)
+        assert set(LABELS).issubset(cl_ls)
+        LABELS_VAR = f"RNA_snn_res.{FULL_MKR_SEL_RES}"
+
+    # check optional parameters
+    if 'min_n_sample' in this_zoom:
+        MIN_N_SAMPLE = this_zoom['min_n_sample']
+    if 'make_subset_sces' in this_zoom:
+        MAKE_SUBSET_SCES = this_zoom['make_subset_sces']
+        MAKE_SUBSET_SCES = int(_safe_boolean(MAKE_SUBSET_SCES))
+
+    # hvg params
+    HVG_PARAMS = get_hvg_parameters(this_zoom, METADATA_F, AF_GTF_DT_F)
+    HVG_KEYS = ["HVG_METHOD", "HVG_SPLIT_VAR", "HVG_CHUNK_SIZE", "HVG_NUM_CHUNKS", "HVG_GROUP_NAMES", "HVG_CHUNK_NAMES", "N_HVGS", "EXCLUDE_AMBIENT_GENES"]
+    HVG_DICT = dict(zip(HVG_KEYS, HVG_PARAMS))
+
+    # pb_empties params
+    PB_EMPTIES_PARAMS = get_pb_empties_parameters(this_zoom) 
+    PB_EMPTIES_KEYS = ["AMBIENT_GENES_LOGFC_THR", "AMBIENT_GENES_FDR_THR"]
+    PB_EMPTIES_DICT = dict(zip(PB_EMPTIES_KEYS, PB_EMPTIES_PARAMS))
+
+    # integration params
+    INT_PARAMS = get_integration_parameters(this_zoom)
+    INT_KEYS = ["INT_CL_METHOD", "INT_REDUCTION", "INT_N_DIMS", "INT_THETA", "INT_RES_LS"]
+    INT_DICT = dict(zip(INT_KEYS, INT_PARAMS[:5]))  # Ignore unused values in return
+
+    # marker gene params
+    MKR_PARAMS = get_marker_genes_parameters(this_zoom, PROJ_DIR, SCPROCESS_DATA_DIR)
+    MKR_KEYS = ["MKR_SEL_RES", "MKR_GSEA_DIR", "MKR_MIN_CL_SIZE", "MKR_MIN_CELLS", "MKR_NOT_OK_RE", "MKR_MIN_CPM_MKR", "MKR_MIN_CPM_GO", 
+                "MKR_MAX_ZERO_P", "MKR_GSEA_CUT", "CUSTOM_MKR_NAMES", "CUSTOM_MKR_PATHS"]
+    MKR_DICT = dict(zip(MKR_KEYS, MKR_PARAMS))
+
+    # combine all parameters into a single dictionary
+    params = {
+        "LABELS": LABELS,
+        "LABELS_F": LABELS_F, 
+        "LABELS_VAR": LABELS_VAR, 
+        "LABELS_SOURCE": LABELS_SOURCE,
+        "CLUSTER_RES": CLUSTER_RES,
+        "CUSTOM_LABELS_F": CUSTOM_LABELS_F,
+        "MIN_N_SAMPLE": MIN_N_SAMPLE,
+        "MAKE_SUBSET_SCES": MAKE_SUBSET_SCES,
+        **HVG_DICT,
+        **PB_EMPTIES_DICT, 
+        **INT_DICT,
+        **MKR_DICT
+    }
+
+    return params
+
+
+# find fastq files for a sample
+def find_fastq_files(fastqs_dir, sample, read):
+  # get all files
+  all_fs    = glob.glob(f"{fastqs_dir}/*{sample}*")
+
+  # get all reads
+  re_R1     = re.compile('.*_R1.*\\.fastq(\\.gz)?$')
+  R1_fs     = [ f for f in all_fs if re_R1.match(f) ]
+  R1_fs     = sorted(R1_fs)
+  re_R2     = re.compile('.*_R2.*\\.fastq(\\.gz)?$')
+  R2_fs     = [ f for f in all_fs if re_R2.match(f) ]
+  R2_fs     = sorted(R2_fs)
+
+  # check they match
+  R1_chk    = [ re.sub("_R1", "", f) for f in R1_fs ]
+  R2_chk    = [ re.sub("_R2", "", f) for f in R2_fs ]
+  assert R1_chk == R2_chk, "R1 and R2 fastq files do not match for " + sample
+
+  if read == "R1":
+    sel_fs = R1_fs
+  elif read == "R2":
+    sel_fs = R2_fs
+
+  return sel_fs
 
 
 # find fastq files for a sample
@@ -521,7 +641,7 @@ def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
 
 
 # define integration parameters
-def get_integration_parameters(config, mito_str): 
+def get_integration_parameters(config): 
   # set some more default values
   INT_CL_METHOD   = 'louvain'
   INT_REDUCTION   = 'harmony'
@@ -719,15 +839,8 @@ def get_metacells_parameters(config):
   return META_SUBSETS, META_MAX_CELLS
 
 
-def get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR ):
-  # get groups for calculating ambient genes
-  if HVG_METHOD == 'group':
-    AMBIENT_GENES_GRP_NAMES = GROUP_NAMES
-    AMBIENT_GENES_GRP_VAR   = HVG_GROUP_VAR
-  else:
-    AMBIENT_GENES_GRP_NAMES = ['all_samples']
-    AMBIENT_GENES_GRP_VAR   = ""
-
+def get_pb_empties_parameters(config):
+  
   # get parameters for filtering edger results
   AMBIENT_GENES_LOGFC_THR = 0
   AMBIENT_GENES_FDR_THR   = 0.01
@@ -738,7 +851,7 @@ def get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR ):
     if 'ambient_genes_fdr_thr'   in config['pb_empties']:
       AMBIENT_GENES_FDR_THR   = config['pb_empties']['ambient_genes_fdr_thr']
 
-  return AMBIENT_GENES_GRP_NAMES, AMBIENT_GENES_GRP_VAR, AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR
+  return AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR
 
 
 def _safe_boolean(val):
@@ -755,26 +868,39 @@ def _safe_boolean(val):
 
 
 # define marker_genes parameters
-def get_zoom_parameters(config, MITO_STR, scprocess_data_dir): 
+def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F, FULL_MKR_SEL_RES,
+                        PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR): 
+  
   if ('zoom' not in config) or (config['zoom'] is None):
-    ZOOM_NAMES    = []
-    ZOOM_SPEC_LS  = []
+    ZOOM_NAMES       = []
+    ZOOM_PARAMS_DICT = []
   else:
-    cl_ls         = __get_cl_ls(config, scprocess_data_dir)
     ZOOM_NAMES    = list(config['zoom'].keys())
-    ZOOM_SPEC_LS  = dict(zip(
+    assert len(ZOOM_NAMES) == len(set(ZOOM_NAMES)), \
+     "all subset labels for zoom must be unique"
+    
+    ZOOM_YAMLS    = list(config['zoom'].values())
+    for zoom_f in ZOOM_YAMLS:
+      if not os.path.isabs(zoom_f):
+        zoom_f = os.path.join(PROJ_DIR, zoom_f)
+      assert os.path.isfile(zoom_f), \
+        f"file {zoom_f} doesn't exist"
+    
+    ZOOM_PARAMS_DICT = dict(zip(
       ZOOM_NAMES,
-      [ __get_one_zoom_parameters(config, zoom_name, cl_ls) for zoom_name in config['zoom'] ]
+      [ _get_one_zoom_parameters(zoom_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F, FULL_MKR_SEL_RES,
+        PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR
+      ) for zoom_f in ZOOM_YAMLS ]
       ))
 
-  return ZOOM_NAMES, ZOOM_SPEC_LS
+  return ZOOM_NAMES, ZOOM_PARAMS_DICT
 
   
 # get rule resource parameters
 def get_resource_parameters(config):
   # set default values
   RETRIES                         = 0
-  MB_RUN_MAPPING               = 8192
+  MB_RUN_MAPPING                  = 8192
   MB_SAVE_ALEVIN_TO_H5            = 8192
   MB_RUN_AMBIENT                  = 8192
   MB_RUN_SCDBLFINDER              = 4096

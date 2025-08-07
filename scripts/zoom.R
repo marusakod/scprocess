@@ -1,8 +1,83 @@
-# csf08_zoom.R
 
 suppressPackageStartupMessages({
-  library("xgboost")
+  library("data.table")
+  library("magrittr")
+  library("assertthat")
+  library("SingleCellExperiment")
+  library("stringr")
 })
+
+
+sce_f = '/pstore/data/brain-sc-analysis/studies/bryois_test_subset/output/bryois_integration/sce_cells_clean_AD006_bryois_test_subset_2025-07-24.rds'
+sce = readRDS(sce_f)
+
+make_subset_sces <- function(sel_s, clean_sce_f, integration_f, zoom_stats_f, sces_yaml_f, subset_f, subset_col, subset_str){
+  
+  # get all good samples
+  zoom_stats_dt = fread(zoom_stats_f)
+  keep_samples  = zoom_stats_dt[bad_sample == FALSE, sample_id]
+  
+  # get list of input files
+  all_sce_paths = yaml::read_yaml(sces_yaml_f) %>% unlist()
+  
+  if(!sel_s %in% keep_samples){
+    # write empty file if sample was excluded
+    message('Sample ', sel_s, ' was excluded. Creating empty sce file')
+    file.create(clean_sce_f)
+  }else{
+    message('Creating sce file for sample ', sel_s)
+    # get input sce file
+    in_sce_f = all_sce_paths[[sel_s]]
+    assert_that(file.exists(in_sce_f))
+    in_sce   = readRDS(in_sce_f)
+    
+    # get cell ids to extract
+    subset_vals = str_split(subset_str, pattern = ',') %>% unlist
+    subset_dt   = fread(subset_f)
+    assert_that(subset_col %in% colnames(subset_dt))
+    assert_that(all(c("cell_id", "sample_id") %in% colnames(subset_dt)))
+    
+    subset_dt = subset_dt %>%
+      .[sample_id == sel_s] %>%
+      .[get(subset_col) %in% subset_vals]
+    
+    sce_zoom = sce[, subset_dt$cell_id]
+    
+    # remove umap and clustering cols from before and add new ones
+    rm_cols = c('UMAP1', 'UMAP2', str_subset(names(colData(sce_zoom)), "RNA_snn_res"))
+    new_coldata = colData(sce_zoom) %>% as.data.table %>%
+      .[ , (rm_cols) := NULL]
+    
+    colData(sce_zoom) = DataFrame(as.data.frame(new_coldata))
+    
+    # add integration results
+    int_dt    = fread(integration_f) 
+    smpl_int  = int_dt %>% .[sample_id == sel_s]
+    zoom_sce  = zoom_sce[, smpl_int$cell_id]
+    
+    assert_that(identical(colnames(zoom_sce), smpl_int$cell_id))
+    # get useful integration variables
+    int_vs   = c('UMAP1', 'UMAP2', str_subset(names(smpl_int), "RNA_snn_res"))
+  
+    # add these to sce object
+    for (v in int_vs) {
+      if (str_detect(v, "RNA_snn_res")) {
+        colData(zoom_sce)[[ v ]] = smpl_int[[ v ]] %>% factor
+      } else {
+        colData(zoom_sce)[[ v ]] = smpl_int[[ v ]]
+      }
+    }
+    
+    saveRDS(zoom_sce, clean_sce_f, compress = FALSE)
+  }
+  
+  # remove qc sce file
+  message('Removing temporary sce file for sample ', sel_s)
+  file.remove(all_sce_paths[[sel_s]])
+  
+  message('done!')
+}
+
 
 zoom_integrate_within_group <- function(full_tag, date_stamp, zoom_dir, 
   hmny_f, sce_all_f, dbl_f, species, gtf_dt_f, 

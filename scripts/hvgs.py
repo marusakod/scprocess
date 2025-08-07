@@ -39,13 +39,13 @@ def sum_SUA(sua_mat, row_names):
   return mats_sum, uniq_genes
 
 
-def get_one_csr_counts(run, hvg_df, keep_df, qc_sample_df, gene_ids, SAMPLE_VAR, DEMUX_TYPE, chunk_size):
+def get_one_csr_counts(run, hvg_df, keep_df, smpl_stats_df, gene_ids, SAMPLE_VAR, DEMUX_TYPE, chunk_size):
   # get input (ambient) file and output files
   filt_counts_f = hvg_df.loc[hvg_df[SAMPLE_VAR] == run, "amb_filt_f"].values[0]
   out_fs        = hvg_df.loc[hvg_df[SAMPLE_VAR] == run, "chunked_f"].tolist()
 
   # get bad samples
-  bad_samples   = qc_sample_df.loc[ qc_sample_df['bad_sample'] == True, 'sample_id'].tolist()
+  bad_samples   = smpl_stats_df.loc[ smpl_stats_df['bad_sample'] == True, 'sample_id'].tolist()
 
   # get cell ids for each sample
   if DEMUX_TYPE != "none":
@@ -93,7 +93,7 @@ def get_one_csr_counts(run, hvg_df, keep_df, qc_sample_df, gene_ids, SAMPLE_VAR,
     csc, uniq_features = sum_SUA(sua_csc_qc, features)
     
     # get indices of genes to keep
-    gene_ids    = np.array(gene_ids)
+    gene_ids      = np.array(gene_ids)
     gs_keep_idx   = np.where(np.isin(uniq_features, gene_ids))[0]
     uniq_features = uniq_features[gs_keep_idx]
     assert len(uniq_features) != 0, "No features selected"
@@ -120,14 +120,14 @@ def get_one_csr_counts(run, hvg_df, keep_df, qc_sample_df, gene_ids, SAMPLE_VAR,
     print(f"CSR matrix for {s} successfully saved to {out_f}.")
 
 
-def get_csr_counts(hvg_paths_f, qc_f, qc_smpl_stats_f, rowdata_f, SAMPLE_VAR, DEMUX_TYPE, chunk_size=2000, n_cores = 8):
+def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals,  smpl_stats_f, rowdata_f, SAMPLE_VAR, DEMUX_TYPE, chunk_size=2000, n_cores = 8):
   # load up useful things
   hvg_paths_df  = pd.read_csv(hvg_paths_f)
-  qc_sample_df  = pd.read_csv(qc_smpl_stats_f)
+  smpl_stats_df = pd.read_csv(smpl_stats_f)
   
   # get QCed cells
-  qc_df         = pd.read_csv(qc_f, sep = '\t')
-  keep_df       = qc_df[qc_df["keep"] == True]
+  filt_df       = pd.read_csv(cell_filter_f, sep = '\t')
+  keep_df       = filt_df[filt_df[keep_var].isin(keep_vals)]
 
   # get gene details
   rows_df       = pd.read_csv(rowdata_f, sep = '\t')
@@ -140,7 +140,7 @@ def get_csr_counts(hvg_paths_f, qc_f, qc_smpl_stats_f, rowdata_f, SAMPLE_VAR, DE
   with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
     # i think a parallel job for each sample?
     futures = [executor.submit(get_one_csr_counts, run, hvg_paths_df, keep_df, 
-      qc_sample_df, keep_ids, SAMPLE_VAR, DEMUX_TYPE, chunk_size) for run in runs]
+      smpl_stats_df, keep_ids, SAMPLE_VAR, DEMUX_TYPE, chunk_size) for run in runs]
 
     # some more parallel stuff i guess
     for future in concurrent.futures.as_completed(futures):

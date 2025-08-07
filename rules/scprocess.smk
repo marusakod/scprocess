@@ -30,12 +30,15 @@ QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_F
 HVG_METHOD, HVG_GROUP_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES = \
   get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F)
 INT_CL_METHOD, INT_REDUCTION, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS = \
-  get_integration_parameters(config, AF_MITO_STR)
+  get_integration_parameters(config)
 MKR_SEL_RES, MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS = \
   get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
 LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE = \
   get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
-AMBIENT_GENES_GRP_NAMES, AMBIENT_GENES_GRP_VAR, AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR)
+ZOOM_NAMES, ZOOM_PARAMS_DICT = \
+  get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F, MKR_SEL_RES, PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR)
+AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = \
+  get_pb_empties_parameters(config)
 RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
   MB_RUN_AMBIENT, \
   MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
@@ -64,11 +67,11 @@ lbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
 meta_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_metacells"
 pb_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_pseudobulk"
 empty_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_empties"
-zoom_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_zoom"
 rmd_dir       = f"{PROJ_DIR}/analysis"
 docs_dir      = f"{PROJ_DIR}/public"
+zoom_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_zoom"
 
-
+# make zoom output directories
 # make nice zoom variables
 # zoom_df       = pd.DataFrame({ \
 #  'zoom_name': ZOOM_NAMES, \
@@ -153,7 +156,8 @@ rule all:
   params:
     hvg_method = HVG_METHOD,
     n_hvgs = N_HVGS,
-    exclude_ambient_genes = EXCLUDE_AMBIENT_GENES
+    exclude_ambient_genes = EXCLUDE_AMBIENT_GENES,
+    hvg_dir = hvg_dir
   input:
     # hto outputs
     hto_index_outs, 
@@ -223,6 +227,38 @@ rule all:
     docs_dir  + '/' + SHORT_TAG + '_integration.html',
     docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.html',
     hto_html_f 
+
+
+# get all zoom names for which subset sces should be created
+ZOOM_NAMES_SUBSET = [zoom_name for zoom_name in ZOOM_NAMES if ZOOM_PARAMS_DICT[zoom_name]["MAKE_SUBSET_SCES"]]
+
+zoom_sce_outs = (
+    expand(
+        '%s/{zoom_name}/sce_objects/sce_cells_clean_{sample}_{zoom_name}_%s_%s.rds' % \
+        (zoom_dir, FULL_TAG, DATE_STAMP),
+        zoom_name=ZOOM_NAMES_SUBSET,
+        sample=SAMPLES
+    )
+    if len(ZOOM_NAMES_SUBSET) != 0 else []
+)
+
+rule zoom:
+   params: 
+     hvg_dir=expand(zoom_dir + '/{zoom_name}', zoom_name=ZOOM_NAMES)
+   input:
+     # zoom sample qc
+     expand('%s/{zoom_name}/zoom_sample_statistics_%s_%s.csv' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES),
+     # zoom pseudobulks and empties
+     expand('%s/{zoom_name}/pb_{zoom_name}_%s_%s.rds' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES),
+     expand('%s/{zoom_name}/edger_empty_genes_%s_%s.txt.gz' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES), 
+     # zoom hvgs
+     expand('%s/{zoom_name}/hvg_paths_%s_%s.csv' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES)
+     # zoom sce subsets
+     
 
 rule mapping:
   input:
@@ -316,14 +352,7 @@ rule label_celltypes:
     docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
 
 
-
-# rule zoom:
-#   input:
-#     # zoom_imputed_dt
-#     expand('%s/{zoom_name}/zoom_imputed_dt_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
-#            (zoom_dir, FULL_TAG, DATE_STAMP), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-#     # zoom_sce_clean
+            
 #     expand('%s/{zoom_name}/zoom_sce_clean_%s_{zoom_name}_{zoom_res}_%s.rds' % \
 #            (zoom_dir, FULL_TAG, DATE_STAMP), \
 #            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
@@ -379,11 +408,10 @@ include: "make_hto_sce.smk"
 include: "doublet_id.smk"
 include: "qc.smk"
 include: "pb_empties.smk"
-include: "hvgs.smk"
+#include: "hvgs.smk"
 include: "integration.smk"
 include: "marker_genes.smk"
 include: "render_htmls.smk"
 include: "label_celltypes.smk"
-#include: "zoom.smk"
-#include: "metacells.smk"
-
+include: "zoom.smk"
+include: "zoom_hvgs.smk"

@@ -36,7 +36,17 @@ suppressPackageStartupMessages({
 })
 
 
-make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset_var = NULL, n_cores = 8) {
+
+  sce_fs_yaml = '/pmount/projects/site/pred/brain-sc-analysis/studies/bryois_test_subset/output/bryois_integration/sce_clean_paths_bryois_test_subset_2025-07-24.yaml'
+  qc_stats_f  = '/pmount/projects/site/pred/brain-sc-analysis/studies/bryois_test_subset/output/bryois_zoom/microglia/zoom_sample_statistics_bryois_test_subset_2025-07-24.csv'
+  subset_f    = '/pmount/projects/site/pred/brain-sc-analysis/studies/bryois_test_subset/output/bryois_label_celltypes/cell_annotations_bryois_test_subset_2025-07-24.txt.gz'
+  subset_col  = 'cl_pred_RNA_snn_res.2'
+  subset_str  = 'Astrocyte'
+  pb_f        = '/pmount/projects/site/pred/brain-sc-analysis/studies/bryois_test_subset/output/bryois_zoom/microglia/pb_microglia_bryois_test_subset_2025-07-24.rds'
+  n_cores     = 4
+  
+
+make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset_col = NULL, subset_str = NULL, n_cores = 8) {
   # get files
   sce_fs_ls = yaml::read_yaml(sce_fs_yaml) %>% unlist()
   
@@ -50,9 +60,10 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
   bpparam       = MulticoreParam(workers = n_cores, tasks = length(sce_fs_ls))
   on.exit(bpstop(bpparam))
   
-  cell_pbs     = bpmapply( sample_id = names(sce_fs_ls), sce_f = unname(sce_fs_ls),
-                            FUN = .get_one_cells_pb, SIMPLIFY = FALSE, BPPARAM = bpparam, 
-                            MoreArgs = list(subset_f = subset_f, subset_var = subset_var))
+  cell_pbs     = bpmapply( sel_s = names(sce_fs_ls), sce_f = unname(sce_fs_ls),
+    FUN = .get_one_cells_pb, SIMPLIFY = FALSE, BPPARAM = bpparam, 
+    MoreArgs = list(subset_f = subset_f, subset_col = subset_col, subset_str = subset_str)
+    )
   
   # merge sce objects
   pb_sce = Reduce(function(x, y) {cbind(x, y)}, cell_pbs)
@@ -75,45 +86,37 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
 
 
 
-.get_one_cells_pb <- function(sample_id, sce_f, subset_f = NULL, subset_var = NULL, 
+.get_one_cells_pb <- function(sel_s, sce_f, subset_f = NULL, subset_col = NULL, subset_str = NULL, 
                               agg_fn = c("sum", "prop.detected")){
   agg_fn      = match.arg(agg_fn)
   
-  message('    loading sce object for sample ', sample_id)
+  message('    loading sce object for sample ', sel_s)
   sce         = readRDS(sce_f)
   
-  if(!is.null(subset_var)){
-    if(!is.null(subset_f)){
-      subset_dt = fread(subset_f)
-      assert_that(subset_var %in% colnames(subset_dt))
-      assert_that(all(c("cell_id", "sample_id") %in% colnames(subset_dt)))
-      
-      # keep just cells from sample
-      subset_dt = subset_dt[sample_id == sample_id, ] %>%
-        setkey('cell_id')
-    
-      # check that cells match
-      assert_that(setequal(subset_dt$cell_id, colnames(sce)))
-      
-      subset_dt = subset_dt[colnames(sce)]
-      
-      # add subset_var to sce
-      sce$subset = subset_dt[[ subset_var ]]
-    }else{
-      assert_that(subset_var %in% names(colData(sce)))
-      sce$subset = sce[[ subset_var ]]
-    }
-    
-    message('   run aggregateData')
-    pb_mat = .aggregateData_datatable(sce, by_vars = c("subset", "sample_id"), fun = agg_fn)
-    
-  }else{
-    
-  pb_mat = .aggregateData_datatable(sce, by_vars = c("sample_id"), fun = agg_fn)
-  }
+  if(!is.null(subset_f)){
   
+    message('    subsetting sce object')
+    # unpack 
+    subset_vals = str_split(subset_str, pattern = ',') %>% unlist
+    subset_dt = fread(subset_f)
+    assert_that(subset_col %in% colnames(subset_dt))
+    assert_that(all(c("cell_id", "sample_id") %in% colnames(subset_dt)))
+      
+    # keep just cells in sel_s with selected labels
+    subset_dt = subset_dt %>%
+    .[sample_id == sel_s] %>%
+    .[get(subset_col) %in% subset_vals]
+    
+    # subset sce object
+    sce = sce[, subset_dt$cell_id]
+  
+  }
+   
+  message('   running aggregateData')
+  pb_mat = .aggregateData_datatable(sce, by_vars = c("sample_id"), fun = agg_fn)
   pb = SingleCellExperiment( pb_mat, rowData = rowData(sce) )
   
+ return(pb)
 }
 
 
