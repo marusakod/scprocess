@@ -161,6 +161,7 @@ rule run_mapping:
   output:
     fry_dir     = directory(af_dir + '/af_{run}/' +  af_rna_dir + 'af_quant/'),
     rad_f       = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_map/map.rad'),
+    collated_rad_f  = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_quant/map.collated.rad'), 
     mtx_f       = af_dir + '/af_{run}/'  + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
     cols_f      = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_cols.txt',
     rows_f      = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_rows.txt'

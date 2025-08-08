@@ -341,7 +341,7 @@ def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_
   qc_df = pd.read_csv(qc_smpl_stats_f)
   good_samples = qc_df.loc[qc_df['bad_sample'] == False, 'sample_id'].tolist()
 
-  # get input files for selectd samples
+  # get input files for selected samples
   if hvg_method == 'all':
     files = hvg_paths_df.loc[hvg_paths_df['sample_id'].isin(good_samples), 'chunked_f'].tolist()
   else:
