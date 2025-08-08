@@ -126,7 +126,10 @@ def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals,  smpl_stats_
   smpl_stats_df = pd.read_csv(smpl_stats_f)
   
   # get QCed cells
-  filt_df       = pd.read_csv(cell_filter_f, sep = '\t')
+  filt_df       = pd.read_csv(cell_filter_f)
+  filt_df[keep_var] = filt_df[keep_var].astype(str)
+
+  keep_vals     = keep_vals.split(',')
   keep_df       = filt_df[filt_df[keep_var].isin(keep_vals)]
 
   # get gene details
@@ -768,8 +771,10 @@ if __name__ == "__main__":
   # parser for get_csr_counts
   parser_makeCSR = subparsers.add_parser('get_csr_counts')
   parser_makeCSR.add_argument("hvg_paths_f", type=str)
-  parser_makeCSR.add_argument("qc_f", type=str)
-  parser_makeCSR.add_argument("qc_smpl_stats_f", type=str)
+  parser_makeCSR.add_argument("cell_filter_f", type=str)
+  parser_makeCSR.add_argument("keep_var", type=str)
+  parser_makeCSR.add_argument("keep_vals", type=str)
+  parser_makeCSR.add_argument("smpl_stats_f", type=str)
   parser_makeCSR.add_argument("rowdata_f", type=str)
   parser_makeCSR.add_argument("sample_var", type=str)
   parser_makeCSR.add_argument("demux_type", type=str)
@@ -852,8 +857,9 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   if args.function_name == 'get_csr_counts':
-    get_csr_counts(
-      args.hvg_paths_f, args.qc_f, args.qc_smpl_stats_f, args.rowdata_f,
+    get_csr_counts( 
+      args.hvg_paths_f, args.cell_filter_f, args.keep_var,
+      args.keep_vals, args.smpl_stats_f, args.rowdata_f,
       args.sample_var, args.demux_type, args.size, args.ncores
     )
   elif args.function_name == 'calculate_mean_var_for_chunk':

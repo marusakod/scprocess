@@ -156,8 +156,7 @@ rule all:
   params:
     hvg_method = HVG_METHOD,
     n_hvgs = N_HVGS,
-    exclude_ambient_genes = EXCLUDE_AMBIENT_GENES,
-    hvg_dir = hvg_dir
+    exclude_ambient_genes = EXCLUDE_AMBIENT_GENES
   input:
     # hto outputs
     hto_index_outs, 
@@ -243,8 +242,6 @@ zoom_sce_outs = (
 )
 
 rule zoom:
-   params: 
-     hvg_dir=expand(zoom_dir + '/{zoom_name}', zoom_name=ZOOM_NAMES)
    input:
      # zoom sample qc
      expand('%s/{zoom_name}/zoom_sample_statistics_%s_%s.csv' % \
@@ -256,10 +253,10 @@ rule zoom:
             (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES), 
      # zoom hvgs
      expand('%s/{zoom_name}/hvg_paths_%s_%s.csv' % \
-            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES)
-     # zoom sce subsets
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
+     expand('%s/{zoom_name}/chunked_counts_{sample}_%s_%s.h5' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES, sample = SAMPLES)
      
-
 rule mapping:
   input:
     hto_index_outs, 
@@ -408,10 +405,9 @@ include: "make_hto_sce.smk"
 include: "doublet_id.smk"
 include: "qc.smk"
 include: "pb_empties.smk"
-#include: "hvgs.smk"
+include: "hvgs.smk"
 include: "integration.smk"
 include: "marker_genes.smk"
 include: "render_htmls.smk"
 include: "label_celltypes.smk"
 include: "zoom.smk"
-include: "zoom_hvgs.smk"
