@@ -8,8 +8,80 @@ suppressPackageStartupMessages({
 })
 
 
-sce_f = '/pstore/data/brain-sc-analysis/studies/bryois_test_subset/output/bryois_integration/sce_cells_clean_AD006_bryois_test_subset_2025-07-24.rds'
-sce = readRDS(sce_f)
+run_zoom_integration <- function(hvg_mat_f, coldata_f, smpl_stats_f, demux_type, exclude_mito,
+   reduction, n_dims, cl_method, theta, res_ls_concat, integration_f, batch_var, n_cores = 4) {
+  
+  exclude_mito = as.logical(exclude_mito)
+  
+  # unpack inputs
+  res_ls      = res_ls_concat %>% str_split(" ") %>% unlist %>% as.numeric
+  
+  # change clustering method to integer
+  if(cl_method == 'louvain'){
+    cl_method = 1
+  } else if (cl_method == 'leiden') { 
+    cl_method = 4
+    stop("sorry leiden doesn't work yet :(")
+  }else{
+    message('Using louvain clustering as default')
+    cl_method = 1
+  }
+  
+  message('running integration')
+  
+  message('  setting up cluster')
+  plan("multicore", workers = n_cores)
+  options( future.globals.maxSize = 2^35 )
+  
+  message('  loading relevant cell ids')
+  smpl_stats_dt = fread(smpl_stats_f)
+  assert_that("sample_id" %in% colnames(smpl_stats_dt))
+  ok_samples  = smpl_stats_dt[ bad_sample == FALSE ]$sample_id
+  
+  all_coldata = fread(coldata_f) %>%
+    setkey(cell_id)
+  assert_that("sample_id" %in% colnames(all_coldata))
+
+  message('  loading hvg matrix')
+  hvg_mat     = .get_alevin_mx(hvg_mat_f, sel_s = '')
+  
+  # subset coldata
+  assert_that( all(colnames(hvg_mat) %in% all_coldata$cell_id) )
+  subset_coldata = all_coldata[colnames(hvg_mat), ]
+  
+  message('  normalizing hvg matrix')
+  hvg_mat_norm =  normalize_hvg_mat(
+    hvg_mat, subset_coldata, exclude_mito, scale_f = 10000
+  )
+  
+  # turn into seurat object
+  message('  prepping Seurat object')
+  suppressWarnings({
+    meta = data.frame(subset_coldata)
+    rownames(meta) = meta$cell_id
+    seu     = Seurat::CreateSeuratObject(
+      counts      = hvg_mat,
+      meta.data   = meta,
+      project     = "dummy"
+    )
+    # add normalized counts 
+    seu[['RNA']]$data = hvg_mat_norm
+  })
+  
+  
+  # run harmony
+  int_dt = .run_one_integration(
+    seu, batch_var, cl_method, n_dims, 
+    theta = theta, res_ls, reduction)        
+  
+  # save outputs
+  fwrite(int_dt, file = integration_f)
+  
+  message('done!')
+}
+
+
+
 
 make_subset_sces <- function(sel_s, clean_sce_f, integration_f, zoom_stats_f, sces_yaml_f, subset_f, subset_col, subset_str){
   

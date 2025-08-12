@@ -42,6 +42,36 @@ def extract_zoom_sample_statistics(qc_stats_f, LABELS_F, LABELS_VAR, LABELS, MIN
 
 
 
+def get_mean_var_input(zoom_name):
+    group_names = ZOOM_PARAMS_DICT[zoom_name]['HVG_GROUP_NAMES']
+    num_chunks = ZOOM_PARAMS_DICT[zoom_name]['HVG_NUM_CHUNKS']
+
+    return [
+        zoom_dir + f'/{zoom_name}/tmp_mean_var_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+        for group in group_names
+        for chunk in range(num_chunks)
+    ]
+
+
+def get_tmp_std_var_stats_input(zoom_name):
+    hvg_method = ZOOM_PARAMS_DICT[zoom_name]['HVG_METHOD']
+
+    if hvg_method == "sample":
+        return [
+            zoom_dir + f'/{zoom_name}/tmp_std_var_stats_{sample}_sample_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+            for sample in SAMPLES
+        ]
+    else:
+        group_names = ZOOM_PARAMS_DICT[zoom_name]['HVG_GROUP_NAMES']
+        num_chunks = ZOOM_PARAMS_DICT[zoom_name]['HVG_NUM_CHUNKS']
+
+        return [
+            zoom_dir + f'/{zoom_name}/tmp_std_var_stats_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+            for group in group_names
+            for chunk in range(num_chunks)
+        ]
+
+
 rule get_zoom_sample_statistics:
   input:
     qc_stats_f      = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
@@ -137,7 +167,7 @@ rule zoom_make_tmp_csr_matrix:
     smpl_stats_f       = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     rowdata_f          = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
-    clean_h5_f  = zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
+    clean_h5_f  = temp(zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5')
   params: 
     zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS_F'],
     zoom_lbls_var   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS_VAR'],
@@ -165,238 +195,248 @@ rule zoom_make_tmp_csr_matrix:
     """
 
 
+rule zoom_get_stats_for_std_variance_for_sample:
+    input: 
+        clean_h5_f      = zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
+        smpl_stats_f    = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+        rowdata_f       = qc_dir   + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    output:
+        std_var_stats_f = temp(zoom_dir + '/{zoom_name}' + '/tmp_std_var_stats_{sample}_sample_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+    threads: 1
+    retries: RETRIES
+    resources:
+        mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    conda:
+        '../envs/hvgs.yaml'
+    shell:
+        """
+        python3 scripts/hvgs.py calculate_std_var_stats_for_sample \
+          {wildcards.sample} \
+          {input.smpl_stats_f} \
+          {input.clean_h5_f} \
+          {input.rowdata_f} \
+          {output.std_var_stats_f}
+        """
 
-# if ZOOM_PARAMS_DICT[wildcards.zoom_name]["HVG_METHOD"] == "sample": 
-#   localrules: zoom_merge_sample_std_var_stats
-#   # calculate stats for each sample separatelly  
-#   rule zoom_get_stats_for_std_variance_for_sample:
-#     input: 
-#       clean_h5_f      = zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-#       smpl_stats_f    = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-#       rowdata_f       = qc_dir   + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-#     output:
-#       std_var_stats_f = zoom_dir + '/{zoom_name}' + '/tmp_std_var_stats_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-#     threads: 1
-#     retries: RETRIES
-#     resources:
-#       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-#     conda:
-#       '../envs/hvgs.yaml'
-#     shell:
-#       """
-#       python3 scripts/hvgs.py calculate_std_var_stats_for_sample \
-#         {wildcards.sample} \
-#         {input.smpl_stats_f} \
-#         {input.clean_h5_f} \
-#         {input.rowdata_f} \
-#         {output.std_var_stats_f}
-#       """
+rule zoom_get_mean_var_for_group:
+    input:
+        clean_h5_f= expand(
+            zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
+            zoom_name = ZOOM_NAMES, sample=SAMPLES
+        ),
+        hvg_paths_f     = zoom_dir + '/{zoom_name}' + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+        rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+        smpl_stats_f    = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    output: 
+        mean_var_f      = temp(zoom_dir + '/{zoom_name}' + '/tmp_mean_var_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+    params:
+        zoom_hvg_method = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_METHOD'], 
+        zoom_hvg_chunk_size = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_CHUNK_SIZE'], 
+        zoom_group_var = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_SPLIT_VAR']
+    threads: 8
+    resources:
+        mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    conda:
+        '../envs/hvgs.yaml'
+    shell:
+        """
+        python3 scripts/hvgs.py calculate_mean_var_for_chunk \
+          {input.hvg_paths_f} \
+          {input.rowdata_f} \
+          {METADATA_F} \
+          {input.smpl_stats_f} \
+          {output.mean_var_f} \
+          {wildcards.chunk} \
+          {params.zoom_hvg_method} \
+          {params.zoom_hvg_chunk_size} \
+          --group {wildcards.group} \
+          --groupvar {params.zoom_group_var} \
+          --ncores {threads} 
+        """
 
-#   rule zoom_merge_sample_std_var_stats:
-#     input:                 
-#       std_var_stats_f = expand(zoom_dir + '/{zoom_name}' + '/tmp_std_var_stats_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', sample = SAMPLES)
-#     output:
-#       std_var_stats_merged_f = zoom_dir + '/{zoom_name}' + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-#     threads: 1
-#     retries: RETRIES
-#     resources:
-#       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-#     run:
-#       merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
+rule zoom_merge_group_mean_var:
+    input:                 
+        mean_var_f= lambda wildcards: get_mean_var_input(wildcards.zoom_name)
+    output:
+        mean_var_merged_f = temp(zoom_dir + '/{zoom_name}'  + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+    threads: 1
+    retries: RETRIES
+    resources:
+        mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    run:
+        merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
 
+rule zoom_get_estimated_variances:
+    input:
+        mean_var_merged_f  = zoom_dir + '/{zoom_name}' + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    output:
+        estim_vars_f       = temp(zoom_dir + '/{zoom_name}' + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+    params: 
+        zoom_hvg_method = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_METHOD']
+    threads: 1
+    retries: RETRIES
+    conda:
+        '../envs/hvgs.yaml'
+    resources:
+        mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    shell:
+        """
+        python3 scripts/hvgs.py calculate_estimated_vars \
+          {output.estim_vars_f} \
+          {params.zoom_hvg_method} \
+          {input.mean_var_merged_f}
+        """
 
-# else:
-#   localrules: merge_group_mean_var, merge_group_std_var_stats
+rule zoom_get_stats_for_std_variance_for_group:
+    input: 
+        clean_h5_f= expand(
+            zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
+            zoom_name = ZOOM_NAMES, sample=SAMPLES
+        ),
+        estim_vars_f    = zoom_dir + '/{zoom_name}'  + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+        hvg_paths_f     = zoom_dir + '/{zoom_name}'  + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+        rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+        smpl_stats_f    = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    output:
+        std_var_stats_f = temp(zoom_dir + '/{zoom_name}' + '/tmp_std_var_stats_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+    params:
+        zoom_hvg_method = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_METHOD'], 
+        zoom_hvg_chunk_size = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_CHUNK_SIZE'], 
+        zoom_hvg_group_var = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_SPLIT_VAR']
+    threads: 8
+    resources:
+        mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    conda:
+        '../envs/hvgs.yaml'
+    shell:
+        """
+        python3 scripts/hvgs.py calculate_std_var_stats_for_chunk \
+          {input.hvg_paths_f} \
+          {input.rowdata_f} \
+          {METADATA_F} \
+          {input.smpl_stats_f} \
+          {output.std_var_stats_f} \
+          {input.estim_vars_f} \
+          {wildcards.chunk} \
+          {params.zoom_hvg_method} \
+          --size {params.zoom_hvg_chunk_size} \
+          --group {wildcards.group} \
+          --groupvar {params.zoom_hvg_group_var} \
+          --ncores {threads} 
+        """
 
-#   rule get_mean_var_for_group:
-#     input:
-#       clean_h5_f      = expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES),
-#       hvg_paths_f     = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-#       rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-#       qc_smpl_stats_f = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
-#     output: 
-#       mean_var_f      = temp(hvg_dir + '/tmp_mean_var_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
-#     threads: 8
-#     resources:
-#       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-#     conda:
-#       '../envs/hvgs.yaml'
-#     shell:
-#       """
-#       python3 scripts/hvgs.py calculate_mean_var_for_chunk \
-#         {input.hvg_paths_f} \
-#         {input.rowdata_f} \
-#         {METADATA_F} \
-#         {input.qc_smpl_stats_f} \
-#         {output.mean_var_f} \
-#         {wildcards.chunk} \
-#         {HVG_METHOD} \
-#         {HVG_CHUNK_SIZE} \
-#         --group {wildcards.group} \
-#         --groupvar {HVG_GROUP_VAR} \
-#         --ncores {threads} 
-    
-#       """
-#   rule merge_group_mean_var:
-#     input:                 
-#       mean_var_f  = expand(hvg_dir + '/tmp_mean_var_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-#       group=GROUP_NAMES, chunk=range(NUM_CHUNKS))
-#     output:
-#       mean_var_merged_f = temp(hvg_dir + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
-#     threads: 1
-#     retries: RETRIES
-#     resources:
-#       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-#     run:
-#       merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
+rule zoom_merge_stats_for_std_variance:
+    input:
+        tmp_std_var_stats_fs=lambda wildcards: get_tmp_std_var_stats_input(wildcards.zoom_name)
+    output:
+        std_var_stats_merged_f= zoom_dir + '/{zoom_name}/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    threads: 1
+    resources:
+        mem_mb=lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    run:
+        merge_tmp_files(input.tmp_std_var_stats_fs, output.std_var_stats_merged_f)
 
+        
 
-#   rule get_estimated_variances:
-#     input:
-#       mean_var_merged_f  = hvg_dir + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-#     output:
-#       estim_vars_f       = temp(hvg_dir + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
-#     threads: 1
-#     retries: RETRIES
-#     conda:
-#       '../envs/hvgs.yaml'
-#     resources:
-#       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-#     shell:
-#       """
-#       python3 scripts/hvgs.py calculate_estimated_vars \
-#         {output.estim_vars_f} \
-#         {HVG_METHOD} \
-#         {input.mean_var_merged_f}
-#       """
+rule zoom_get_highly_variable_genes:
+  input:
+    std_var_stats_f = zoom_dir + '/{zoom_name}/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    empty_gs_fs     = zoom_dir + '/{zoom_name}/edger_empty_genes_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz' 
+  output:
+    hvg_f =  zoom_dir + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+  threads: 1
+  retries: RETRIES
+  params:
+    zoom_hvg_method = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_METHOD'],
+    zoom_n_hvgs     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['N_HVGS'],
+    zoom_exclude_ambient_genes = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['EXCLUDE_AMBIENT_GENES']
+  resources:
+     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  conda:
+    '../envs/hvgs.yaml'
+  shell:
+     """
+     NOAMBIENT_FLAG=""
+     if [ "{params.zoom_exclude_ambient_genes}" = "True" ]; then
+       NOAMBIENT_FLAG="--noambient"
+     fi
 
-#   rule get_stats_for_std_variance_for_group:
-#     input: 
-#       clean_h5_fs     = expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES),
-#       estim_vars_f    = hvg_dir + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-#       hvg_paths_f     = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-#       rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-#       qc_smpl_stats_f = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
-#     output:
-#       std_var_stats_f = temp(hvg_dir + '/tmp_std_var_stats_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
-#     threads: 8
-#     resources:
-#       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-#     conda:
-#       '../envs/hvgs.yaml'
-#     shell:
-#       """
-#       python3 scripts/hvgs.py calculate_std_var_stats_for_chunk \
-#         {input.hvg_paths_f} \
-#         {input.rowdata_f} \
-#         {METADATA_F} \
-#         {input.qc_smpl_stats_f} \
-#         {output.std_var_stats_f} \
-#         {input.estim_vars_f} \
-#         {wildcards.chunk} \
-#         {HVG_METHOD} \
-#         --size {HVG_CHUNK_SIZE} \
-#         --group {wildcards.group} \
-#         --groupvar {HVG_GROUP_VAR} \
-#         --ncores {threads} \
-    
-#       """
-
-#   rule merge_group_std_var_stats:
-#     input:                 
-#       std_var_stats_f = expand(hvg_dir + '/tmp_std_var_stats_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-#       group=GROUP_NAMES, chunk=range(NUM_CHUNKS)),
-#     output:
-#       std_var_stats_merged_f = temp(hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
-#     threads: 1
-#     retries: RETRIES
-#     resources:
-#       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-#     run:
-#       merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
-
-
-# rule get_highly_variable_genes:
-#   input:
-#     std_var_stats_f = hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-#     empty_gs_fs     = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz' 
-#   output:
-#     hvg_f = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-#   threads: 1
-#   retries: RETRIES
-#   params:
-#     hvg_method = HVG_METHOD,
-#     n_hvgs = N_HVGS,
-#     exclude_ambient_genes = EXCLUDE_AMBIENT_GENES
-#   resources:
-#      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-#   conda:
-#     '../envs/hvgs.yaml'
-#   shell:
-#      """
-#      NOAMBIENT_FLAG=""
-#      if [ "{params.exclude_ambient_genes}" = "True" ]; then
-#        NOAMBIENT_FLAG="--noambient"
-#      fi
-
-#      python3 scripts/hvgs.py calculate_hvgs \
-#       {input.std_var_stats_f} \
-#       {output.hvg_f} \
-#       {input.empty_gs_fs} \
-#       {params.hvg_method} \
-#       {params.n_hvgs} \
-#       $NOAMBIENT_FLAG
-#      """
+     python3 scripts/hvgs.py calculate_hvgs \
+      {input.std_var_stats_f} \
+      {output.hvg_f} \
+      {input.empty_gs_fs} \
+      {params.zoom_hvg_method} \
+      {params.zoom_n_hvgs} \
+      $NOAMBIENT_FLAG
+     """
 
 
-# rule create_hvg_matrix:
-#   input: 
-#     clean_h5_f      = expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES),
-#     qc_smpl_stats_f = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-#     hvg_paths_f     = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-#     hvg_f           = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-#   output:
-#     hvg_mat_f       = hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
-#   threads: 1
-#   retries: RETRIES
-#   resources:
-#     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-#   conda:
-#     '../envs/hvgs.yaml'
-#   shell:
-#     """
-#     python3 scripts/hvgs.py read_top_genes \
-#       {input.qc_smpl_stats_f} \
-#       {input.hvg_paths_f} \
-#       {input.hvg_f} \
-#       {output.hvg_mat_f} \
-#       {SAMPLE_VAR}
+rule zoom_create_hvg_matrix:
+  input: 
+    clean_h5_f   = expand(
+            zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
+            zoom_name = ZOOM_NAMES, sample=SAMPLES
+    ),
+    smpl_stats_f = zoom_dir  + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    hvg_paths_f  = zoom_dir  + '/{zoom_name}/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    hvg_f        = zoom_dir  + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+  output:
+    hvg_mat_f    = zoom_dir  + '/{zoom_name}/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
+  threads: 1
+  retries: RETRIES
+  resources:
+    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  conda:
+    '../envs/hvgs.yaml'
+  shell:
+    """
+    python3 scripts/hvgs.py read_top_genes \
+      {input.smpl_stats_f} \
+      {input.hvg_paths_f} \
+      {input.hvg_f} \
+      {output.hvg_mat_f} \
+      {SAMPLE_VAR}
 
-#     """
+    """
+
+rule zoom_run_integration:
+  input:
+    hvg_mat_f     = zoom_dir + '/{zoom_name}/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
+    smpl_stats_f  = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    coldata_f     = qc_dir   + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+  output:
+    integration_f = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+  params:
+    zoom_int_reduction = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['INT_REDUCTION'],
+    zoom_int_n_dims    = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['INT_N_DIMS'],
+    zoom_int_cl_method = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['INT_CL_METHOD'], 
+    zoom_int_theta     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['INT_THETA'],
+    zoom_int_res_ls    = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['INT_RES_LS']
+  threads: 8
+  retries: RETRIES 
+  resources:
+    mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_INTEGRATION
+  conda: 
+    '../envs/rlibs.yaml'
+  shell:
+    """
+    # run harmony
+    Rscript -e "source('scripts/integration.R'); source('scripts/ambient.R'); source('scripts/zoom.R')
+      run_zoom_integration( 
+        hvg_mat_f        = '{input.hvg_mat_f}', 
+        smpl_stats_f     = '{input.smpl_stats_f}', 
+        coldata_f        = '{input.coldata_f}', 
+        demux_type       = '{DEMUX_TYPE}', 
+        exclude_mito     = '{EXCLUDE_MITO}', 
+        reduction        = '{params.zoom_int_reduction}',
+        n_dims           = {params.zoom_int_n_dims}, 
+        cl_method        = '{params.zoom_int_cl_method}', 
+        theta            = {params.zoom_int_theta}, 
+        res_ls_concat    = '{params.zoom_int_res_ls}', 
+        integration_f    = '{output.integration_f}', 
+        batch_var        = '{BATCH_VAR}', 
+        n_cores          = {threads})"
+    """
 
 
-# rule create_doublets_hvg_matrix:
-#     input: 
-#       hvg_paths_f        = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-#       hvg_f              = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-#       qc_f               = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-#       qc_sample_stats_f  = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
-#     output: 
-#       dbl_hvg_mat_f      = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
-#     threads: 1
-#     retries: RETRIES
-#     resources:
-#       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
-#     conda: 
-#       '../envs/hvgs.yaml'
-#     shell: 
-#       """
-#       python3 scripts/hvgs.py create_doublets_matrix \
-#       {input.hvg_paths_f} \
-#       {input.hvg_f} \
-#       {input.qc_f} \
-#       {input.qc_sample_stats_f} \
-#       {output.dbl_hvg_mat_f} \
-#       {SAMPLE_VAR}
 
-#       """

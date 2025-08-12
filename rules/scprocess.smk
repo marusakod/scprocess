@@ -253,10 +253,20 @@ rule zoom:
             (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES), 
      # zoom hvgs
      expand('%s/{zoom_name}/hvg_paths_%s_%s.csv' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES),  
+     expand('%s/{zoom_name}/standardized_variance_stats_%s_%s.txt.gz' % \
             (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
-     expand('%s/{zoom_name}/chunked_counts_{sample}_%s_%s.h5' % \
-            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES, sample = SAMPLES)
+     expand('%s/{zoom_name}/hvg_dt_%s_%s.txt.gz' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
+     expand('%s/{zoom_name}/top_hvgs_counts_%s_%s.h5' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
+     # zoom integration
+     expand('%s/{zoom_name}/integrated_dt_%s_%s.txt.gz' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES)
      
+     
+
+
 rule mapping:
   input:
     hto_index_outs, 
