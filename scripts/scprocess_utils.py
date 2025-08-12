@@ -919,6 +919,7 @@ def get_resource_parameters(config):
   MB_PB_CALC_EMPTY_GENES          = 8192
   MB_ZOOM_RUN_ZOOM                = 8192
   MB_ZOOM_RENDER_TEMPLATE_RMD     = 4096
+  MB_MAKE_SUBSET_SCES             = 8192
 
   # change defaults if specified
   if ('resources' in config) and (config['resources'] is not None):
@@ -960,6 +961,8 @@ def get_resource_parameters(config):
       MB_ZOOM_RUN_ZOOM                = config['resources']['mb_zoom_run_zoom']
     if 'mb_zoom_render_template_rmd' in config['resources']:
       MB_ZOOM_RENDER_TEMPLATE_RMD     = config['resources']['mb_zoom_render_template_rmd']
+    if 'mb_make_subset_sces'         in config['resources']:
+      MB_MAKE_SUBSET_SCES             = config['resources']['mb_make_subset_sces']
 
   return RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
     MB_RUN_AMBIENT, \
@@ -970,5 +973,5 @@ def get_resource_parameters(config):
     MB_LBL_LABEL_CELLTYPES, MB_LBL_RENDER_TEMPLATE_RMD, \
     MB_META_SAVE_METACELLS, \
     MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
-    MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD
+    MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD, MB_MAKE_SUBSET_SCES
 

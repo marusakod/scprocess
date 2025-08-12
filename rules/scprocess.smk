@@ -48,7 +48,7 @@ RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
   MB_LABEL_CELLTYPES, MB_LBL_RENDER_TEMPLATE_RMD, \
   MB_META_SAVE_METACELLS, \
   MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
-  MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD = \
+  MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD, MB_MAKE_SUBSET_SCES = \
   get_resource_parameters(config)
 
 # specify locations
@@ -233,7 +233,7 @@ ZOOM_NAMES_SUBSET = [zoom_name for zoom_name in ZOOM_NAMES if ZOOM_PARAMS_DICT[z
 
 zoom_sce_outs = (
     expand(
-        '%s/{zoom_name}/sce_objects/sce_cells_clean_{sample}_{zoom_name}_%s_%s.rds' % \
+        '%s/{zoom_name}/sce_objects/sce_cells_clean_{sample}_%s_%s.rds' % \
         (zoom_dir, FULL_TAG, DATE_STAMP),
         zoom_name=ZOOM_NAMES_SUBSET,
         sample=SAMPLES
@@ -262,7 +262,9 @@ rule zoom:
             (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
      # zoom integration
      expand('%s/{zoom_name}/integrated_dt_%s_%s.txt.gz' % \
-            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES)
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES),
+     # zoom sce subsets (optional)
+     zoom_sce_outs
      
      
 

@@ -421,7 +421,7 @@ rule zoom_run_integration:
   shell:
     """
     # run harmony
-    Rscript -e "source('scripts/integration.R'); source('scripts/ambient.R'); source('scripts/zoom.R')
+    Rscript -e "source('scripts/integration.R'); source('scripts/ambient.R'); source('scripts/zoom.R'); 
       run_zoom_integration( 
         hvg_mat_f        = '{input.hvg_mat_f}', 
         smpl_stats_f     = '{input.smpl_stats_f}', 
@@ -439,4 +439,34 @@ rule zoom_run_integration:
     """
 
 
+rule zoom_make_subset_sces:
+  input:
+    integration_f = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    smpl_stats_f  = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    sces_yaml_f   = int_dir + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml'
+  output:
+    clean_sce_f = zoom_dir + '/{zoom_name}/sce_objects/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+  params:
+    zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS_F'],
+    zoom_lbls_var   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS_VAR'],
+    zoom_lbls       = lambda wildcards: ','.join(ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS'])
+  threads: 1
+  retries: RETRIES
+  resources:
+    mem_mb   = lambda wildcards, attempt: attempt * MB_MAKE_SUBSET_SCES
+  conda: 
+    '../envs/rlibs.yaml'
+  shell:
+    """
+    Rscript -e "source('scripts/zoom.R');
+     make_subset_sces(
+     sel_s          = '{wildcards.sample}',
+     clean_sce_f    = '{output.clean_sce_f}',
+     integration_f  = '{input.integration_f}',
+     smpl_stats_f   = '{input.smpl_stats_f}',
+     sces_yaml_f    = '{input.sces_yaml_f}',
+     subset_f       = '{params.zoom_lbls_f}',
+     subset_col     = '{params.zoom_lbls_var}',
+     subset_str     = '{params.zoom_lbls}')"
+    """
 

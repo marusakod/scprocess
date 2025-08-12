@@ -7,7 +7,6 @@ suppressPackageStartupMessages({
   library("stringr")
 })
 
-
 run_zoom_integration <- function(hvg_mat_f, coldata_f, smpl_stats_f, demux_type, exclude_mito,
    reduction, n_dims, cl_method, theta, res_ls_concat, integration_f, batch_var, n_cores = 4) {
   
@@ -83,10 +82,11 @@ run_zoom_integration <- function(hvg_mat_f, coldata_f, smpl_stats_f, demux_type,
 
 
 
-make_subset_sces <- function(sel_s, clean_sce_f, integration_f, zoom_stats_f, sces_yaml_f, subset_f, subset_col, subset_str){
-  
+make_subset_sces <- function(sel_s, clean_sce_f, integration_f, smpl_stats_f,
+  sces_yaml_f, subset_f, subset_col, subset_str){
+
   # get all good samples
-  zoom_stats_dt = fread(zoom_stats_f)
+  zoom_stats_dt = fread(smpl_stats_f)
   keep_samples  = zoom_stats_dt[bad_sample == FALSE, sample_id]
   
   # get list of input files
@@ -111,41 +111,46 @@ make_subset_sces <- function(sel_s, clean_sce_f, integration_f, zoom_stats_f, sc
     
     subset_dt = subset_dt %>%
       .[sample_id == sel_s] %>%
-      .[get(subset_col) %in% subset_vals]
+      .[get(subset_col) %in% subset_vals] %>%
+      .[, c('sample_id', 'cell_id', subset_col), with = FALSE]
     
-    sce_zoom = sce[, subset_dt$cell_id]
+    assert_that(all(subset_dt$cell_id %in% colnames(in_sce)))
+
+    sce_zoom = in_sce[, subset_dt$cell_id]
     
+    # get integration results
+    int_dt    = fread(integration_f) 
+    smpl_int  = int_dt %>% .[sample_id == sel_s]
+  
     # remove umap and clustering cols from before and add new ones
     rm_cols = c('UMAP1', 'UMAP2', str_subset(names(colData(sce_zoom)), "RNA_snn_res"))
     new_coldata = colData(sce_zoom) %>% as.data.table %>%
-      .[ , (rm_cols) := NULL]
+      .[ , (rm_cols) := NULL] %>%
+    # add label
+      merge(subset_dt, by = c('cell_id', 'sample_id')) %>%
+      setnames(new = 'label', old = subset_col) %>%
+      setkey(cell_id)
     
+    sce_zoom = sce_zoom[, smpl_int$cell_id]
+    new_coldata = new_coldata[smpl_int$cell_id, ]
+
     colData(sce_zoom) = DataFrame(as.data.frame(new_coldata))
     
-    # add integration results
-    int_dt    = fread(integration_f) 
-    smpl_int  = int_dt %>% .[sample_id == sel_s]
-    zoom_sce  = zoom_sce[, smpl_int$cell_id]
     
-    assert_that(identical(colnames(zoom_sce), smpl_int$cell_id))
     # get useful integration variables
     int_vs   = c('UMAP1', 'UMAP2', str_subset(names(smpl_int), "RNA_snn_res"))
   
     # add these to sce object
     for (v in int_vs) {
       if (str_detect(v, "RNA_snn_res")) {
-        colData(zoom_sce)[[ v ]] = smpl_int[[ v ]] %>% factor
+        colData(sce_zoom)[[ v ]] = smpl_int[[ v ]] %>% factor
       } else {
-        colData(zoom_sce)[[ v ]] = smpl_int[[ v ]]
+        colData(sce_zoom)[[ v ]] = smpl_int[[ v ]]
       }
     }
     
-    saveRDS(zoom_sce, clean_sce_f, compress = FALSE)
+    saveRDS(sce_zoom, clean_sce_f, compress = FALSE)
   }
-  
-  # remove qc sce file
-  message('Removing temporary sce file for sample ', sel_s)
-  file.remove(all_sce_paths[[sel_s]])
   
   message('done!')
 }
