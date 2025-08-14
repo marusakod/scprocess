@@ -170,7 +170,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
      keep_cls = keep_cls, agg_fn = agg_fn)
   }else{
     pb_ls       = bplapply(samples, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
-    sce_paths = sce_paths, int_dt = int_dt, cl_var = cl_var,
+    sce_paths = sce_paths, cl_var = cl_var,
     keep_cls = keep_cls, agg_fn = agg_fn)
   }
   
@@ -230,23 +230,28 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
 
 
 .make_one_zoom_pseudobulk <- function(sel_s, sce_paths, int_dt, cl_var, keep_cls, agg_fn) {
-  
+
   message(sel_s)
   sce_f     = sce_paths[[sel_s]]
   tmp_sce   = readRDS(sce_f)
+  smpl_int_dt = copy(int_dt) %>%
+    .[sample_id == sel_s]
   
   # remove umap and clustering cols from before and add new ones
   rm_cols = c('UMAP1', 'UMAP2', str_subset(names(colData(tmp_sce)), "RNA_snn_res"))
   new_coldata = colData(tmp_sce) %>% as.data.table %>%
-    .[ , (rm_cols) := NULL]
+    .[ , (rm_cols) := NULL] %>%
+    as.data.frame() %>%
+    set_rownames(.$cell_id)
   
-  colData(tmp_sce) = DataFrame(as.data.frame(new_coldata))
+  colData(tmp_sce) = DataFrame(new_coldata)
   
+  assert_that(all(smpl_int_dt$cell_id %in% colnames(tmp_sce)))
   # reorder cells in sce
-  tmp_sce = tmp_sce[, int_dt$cell_id]
+  tmp_sce = tmp_sce[, smpl_int_dt$cell_id]
   
   # add clusters to sce
-  colData(tmp_sce)[["cluster"]] = int_dt[[cl_var]] 
+  colData(tmp_sce)[["cluster"]] = smpl_int_dt[[cl_var]] 
   
   pb  = aggregateData_datatable(tmp_sce, by_vars = c("cluster", "sample_id"), 
                                 fun = agg_fn, all_cls = keep_cls)
