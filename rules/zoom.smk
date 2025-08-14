@@ -72,6 +72,20 @@ def get_tmp_std_var_stats_input(zoom_name):
         ]
 
 
+def get_zoom_conditional_outputs(species):
+  if species in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']:
+    return {
+      'fgsea_go_bp_f': zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_go_bp_' + DATE_STAMP + '.txt.gz', 
+      'fgsea_go_cc_f': zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_go_cc_' + DATE_STAMP + '.txt.gz',
+      'fgsea_go_mf_f': zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_go_mf_' + DATE_STAMP + '.txt.gz',
+      'fgsea_paths_f': zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_paths_' + DATE_STAMP + '.txt.gz',
+      'fgsea_hlmk_f':  zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_hlmk_' + DATE_STAMP + '.txt.gz'
+    }
+  else:
+    return {}
+
+
+
 rule get_zoom_sample_statistics:
   input:
     qc_stats_f      = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
@@ -436,6 +450,59 @@ rule zoom_run_integration:
         integration_f    = '{output.integration_f}', 
         batch_var        = '{BATCH_VAR}', 
         n_cores          = {threads})"
+    """
+
+rule zoom_run_marker_genes:
+  input:
+    sces_yaml_f    = int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml',
+    integration_f  = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+  output:
+    pb_f      = zoom_dir + '/{zoom_name}/pb_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.rds',
+    mkrs_f    = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
+    pb_hvgs_f = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz', 
+    **get_zoom_conditional_outputs(SPECIES)
+  params: 
+    fgsea_args = lambda wildcards, output: ", ".join([
+        f"fgsea_go_bp_f = '{output.get('fgsea_go_bp_f', '')}'",
+        f"fgsea_go_cc_f = '{output.get('fgsea_go_cc_f', '')}'",
+        f"fgsea_go_mf_f = '{output.get('fgsea_go_mf_f', '')}'",
+        f"fgsea_paths_f = '{output.get('fgsea_paths_f', '')}'",
+        f"fgsea_hlmk_f = '{output.get('fgsea_hlmk_f', '')}',"
+    ]), 
+    zoom_mkr_sel_res     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_SEL_RES'],
+    zoom_mkr_min_cl_size = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MIN_CL_SIZE'], 
+    zoom_mkr_min_cells   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MIN_CELLS'], 
+    zoom_mkr_not_ok_re   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_NOT_OK_RE'],
+    zoom_mkr_min_cpm_go  = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MIN_CPM_GO'],
+    zoom_mkr_max_zero_p  = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MAX_ZERO_P'], 
+    zoom_mkr_gsea_cut    = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_GSEA_CUT']
+  threads: 8
+  retries: RETRIES
+  resources:
+    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_MARKER_GENES
+  conda:
+    '../envs/rlibs.yaml'
+  shell:
+    """
+    Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); calculate_marker_genes(
+      integration_f = '{input.integration_f}', 
+      sces_yaml_f   = '{input.sces_yaml_f}',
+      pb_f          = '{output.pb_f}',
+      mkrs_f        = '{output.mkrs_f}',
+      pb_hvgs_f     = '{output.pb_hvgs_f}',
+      {params.fgsea_args}
+      species       = '{SPECIES}',
+      gtf_dt_f      = '{AF_GTF_DT_F}',
+      gsea_dir      = '{MKR_GSEA_DIR}',
+      sel_res       = '{params.zoom_mkr_sel_res}',
+      min_cl_size   = {params.zoom_mkr_min_cl_size},
+      min_cells     = {params.zoom_mkr_min_cells},
+      not_ok_re     = '{params.zoom_mkr_not_ok_re}',
+      min_cpm_go    = {params.zoom_mkr_min_cpm_go},
+      max_zero_p    = {params.zoom_mkr_max_zero_p},
+      gsea_cut      = {params.zoom_mkr_gsea_cut},
+      zoom          = 'True', 
+      n_cores       = {threads})"
     """
 
 

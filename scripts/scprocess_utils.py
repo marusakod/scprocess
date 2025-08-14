@@ -121,8 +121,8 @@ def _get_one_zoom_parameters(zoom_yaml_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F,
     # integration params
     INT_PARAMS = get_integration_parameters(this_zoom)
     INT_KEYS = ["INT_CL_METHOD", "INT_REDUCTION", "INT_N_DIMS", "INT_THETA", "INT_RES_LS"]
-    INT_DICT = dict(zip(INT_KEYS, INT_PARAMS[:5]))  # Ignore unused values in return
-
+    INT_DICT = dict(zip(INT_KEYS, INT_PARAMS[:5]))   
+    
     # marker gene params
     MKR_PARAMS = get_marker_genes_parameters(this_zoom, PROJ_DIR, SCPROCESS_DATA_DIR)
     MKR_KEYS = ["MKR_SEL_RES", "MKR_GSEA_DIR", "MKR_MIN_CL_SIZE", "MKR_MIN_CELLS", "MKR_NOT_OK_RE", "MKR_MIN_CPM_MKR", "MKR_MIN_CPM_GO", 
@@ -646,10 +646,10 @@ def get_integration_parameters(config):
   INT_CL_METHOD   = 'louvain'
   INT_REDUCTION   = 'harmony'
   INT_N_DIMS      = 50
-  INT_DBL_RES     = 4
-  INT_DBL_CL_PROP = 0.5
   INT_THETA       = 0.1
   INT_RES_LS      = [0.1, 0.2, 0.5, 1, 2]
+  INT_DBL_RES     = 4
+  INT_DBL_CL_PROP = 0.5
 
   # change defaults if specified
   if ('integration' in config) and (config['integration'] is not None):
@@ -674,7 +674,7 @@ def get_integration_parameters(config):
     if 'int_res_ls' in config['integration']:
       INT_RES_LS      = config['integration']['int_res_ls']
 
-  return INT_CL_METHOD, INT_REDUCTION, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS
+  return INT_CL_METHOD, INT_REDUCTION, INT_N_DIMS, INT_THETA, INT_RES_LS, INT_DBL_RES, INT_DBL_CL_PROP
 
 
 def get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
