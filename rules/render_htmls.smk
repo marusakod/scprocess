@@ -28,14 +28,14 @@
 # copy R scripts to code directory (not for rules that only run if specifically called)rule copy_r_code:
 rule copy_r_code:
   output: 
-    r_utils_f   = f"{code_dir}/utils.R",
-    r_map_f     = f"{code_dir}/mapping.R", 
-    r_amb_f     = f"{code_dir}/ambient.R", 
-    r_demux_f   = f"{code_dir}/multiplexing.R",
-    r_qc_f      = f"{code_dir}/qc.R", 
-    r_hvgs_f    = f"{code_dir}/hvgs.R", 
-    r_int_f     = f"{code_dir}/integration.R",
-    r_mkr_f     = f"{code_dir}/marker_genes.R"
+    r_utils_f   = code_dir + '/utils.R',
+    r_map_f     = code_dir + '/mapping.R', 
+    r_amb_f     = code_dir + '/ambient.R', 
+    r_demux_f   = code_dir + '/multiplexing.R',
+    r_qc_f      = code_dir + '/qc.R', 
+    r_hvgs_f    = code_dir + '/hvgs.R', 
+    r_int_f     = code_dir + '/integration.R',
+    r_mkr_f     = code_dir + '/marker_genes.R'
   shell:"""
     echo "copying relevant R files over"
     
@@ -52,7 +52,9 @@ rule copy_r_code:
 
 rule render_html_mapping:
   input:
-    expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs)
+    r_utils_f = code_dir + '/utils.R', 
+    r_amb_f   = code_dir + '/ambient.R',
+    knee_fs   = expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs)
   output:
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_mapping.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_mapping.html"
@@ -92,8 +94,11 @@ rule render_html_mapping:
 if DEMUX_TYPE == 'af':
   rule render_html_multiplexing:
     input:
-      expand(af_dir + '/af_{run}/hto/' + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs), 
-      sce_hto_fs = expand(demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', run = runs)
+      r_utils_f = code_dir + '/utils.R', 
+      r_amb_f   = code_dir + '/ambient.R',
+      r_demux_f = code_dir + '/multiplexing.R', 
+      hto_knee_fs = expand(af_dir + '/af_{run}/hto/' + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs), 
+      sce_hto_fs  = expand(demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', run = runs)
     output:
       rmd_f       = f"{rmd_dir}/{SHORT_TAG}_demultiplexing.Rmd",
       html_f      = f"{docs_dir}/{SHORT_TAG}_demultiplexing.html"
@@ -135,7 +140,9 @@ if DEMUX_TYPE == 'af':
 if AMBIENT_METHOD == "cellbender": 
   rule render_html_cellbender: # some outputs are the same as outputs in render_html_mapping
     input:
-      expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs), 
+      r_utils_f = code_dir + '/utils.R', 
+      r_amb_f   = code_dir + '/ambient.R',
+      knee_fs   = expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs), 
       ambient_smpl_stats_f = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
     output:
       rmd_f       = f"{rmd_dir}/{SHORT_TAG}_cellbender.Rmd",
@@ -171,7 +178,9 @@ if AMBIENT_METHOD == "cellbender":
 
 rule render_html_qc:
   input:
-    qc_dt_f     = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    r_utils_f = code_dir + '/utils.R',
+    r_qc_f    = code_dir + '/qc.R', 
+    qc_dt_f   = qc_dir   + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_qc.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_qc.html"
@@ -217,6 +226,8 @@ rule render_html_qc:
 
 rule render_html_hvgs:
   input:
+    r_utils_f = code_dir + '/utils.R',
+    r_hvgs_f  = code_dir + '/hvgs.R', 
     hvgs_f      = hvg_dir   + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     empty_gs_f  = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz', 
     pb_empty_f  = pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
@@ -257,6 +268,9 @@ rule render_html_hvgs:
 
 rule render_html_integration:
   input:
+    r_utils_f = code_dir + '/utils.R', 
+    r_amb_f   = code_dir + '/ambient.R', 
+    r_int_f   = code_dir + '/integration.R', 
     qc_dt_f         = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     integration_f   = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
@@ -296,7 +310,9 @@ rule render_html_integration:
 # render_marker_genes
 rule render_html_marker_genes:
   input:
-    r_int_f       = f'{code_dir}/integration.R',
+    r_utils_f = code_dir + '/utils.R', 
+    r_mkr_f   = code_dir + '/marker_genes.R', 
+    r_int_f   = code_dir + '/integration.R',
     pb_f          = mkr_dir + '/pb_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.rds',
     mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
     integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
@@ -359,7 +375,9 @@ rule render_html_marker_genes:
 # render_html_label_celltypes
 rule render_html_label_celltypes:
   input:
-    r_mkr_f     = f'{code_dir}/marker_genes.R',
+    r_utils_f  =  code_dir + '/utils.R', 
+    r_int_f     = code_dir + '/integration.R',
+    r_mkr_f     = code_dir + '/marker_genes.R',
     guesses_f   = f'{lbl_dir}/cell_annotations_{FULL_TAG}_{DATE_STAMP}.txt.gz'
   output:
     r_lbl_f     = f'{code_dir}/label_celltypes.R',
