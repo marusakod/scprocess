@@ -2,9 +2,9 @@
 import pandas as pd
 import gzip
 import os
+import numpy as np
 
 localrules: merge_qc
-
 
 def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, SAMPLE_VAR, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS):
     # load the merged qc file
@@ -41,8 +41,19 @@ def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, SAMPLE_V
         else:
             bad_bender_samples = bad_bender
 
-        # add bad_bender column to sample_df
-        sample_df['bad_bender'] = sample_df['sample_id'].isin(bad_bender_samples)
+        sample_df['bad_bender'] = False
+        if len(bad_bender_samples) != 0: 
+           # add bad_bender column to sample_df
+          bad_bender_df = pd.DataFrame({
+            'sample_id': bad_bender_samples, 
+            'n_cells': np.nan, 
+            'bad_qc': False, 
+            'bad_bender': True
+          })
+
+          sample_df = pd.concat([sample_df, bad_bender_df], ignore_index=True)
+
+        assert all([s in sample_df['sample_id'].tolist() for s in SAMPLES])
         # label as bad if bad_bender or bad_qc
         sample_df['bad_sample'] = sample_df['bad_bender'] | sample_df['bad_qc']
     else:
