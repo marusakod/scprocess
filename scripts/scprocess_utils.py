@@ -774,25 +774,19 @@ def get_zoom_parameters(config, MITO_STR, scprocess_data_dir):
 def get_resource_parameters(config):
   # set default values
   RETRIES                         = 0
-  MB_RUN_MAPPING               = 8192
+  MB_RUN_MAPPING                  = 8192
   MB_SAVE_ALEVIN_TO_H5            = 8192
   MB_RUN_AMBIENT                  = 8192
-  MB_RUN_SCDBLFINDER              = 4096
-  MB_COMBINE_SCDBLFINDER_OUTPUTS  = 8192
   MB_RUN_QC                       = 8192
   MB_RUN_HVGS                     = 8192
   MB_RUN_INTEGRATION              = 8192
   MB_MAKE_CLEAN_SCES              = 8192
   MB_RUN_MARKER_GENES             = 8192
-  MB_HTML_MARKER_GENES            = 8192
-  MB_LBL_LABEL_CELLTYPES          = 8192
-  MB_LBL_SAVE_SUBSET_SCES         = 8192
-  MB_LBL_RENDER_TEMPLATE_RMD      = 4096
-  MB_META_SAVE_METACELLS          = 8192
+  MB_RENDER_HTMLS                 = 8192
+  MB_LABEL_CELLTYPES              = 8192
   MB_PB_MAKE_PBS                  = 8192
   MB_PB_CALC_EMPTY_GENES          = 8192
-  MB_ZOOM_RUN_ZOOM                = 8192
-  MB_ZOOM_RENDER_TEMPLATE_RMD     = 4096
+
 
   # change defaults if specified
   if ('resources' in config) and (config['resources'] is not None):
@@ -804,10 +798,6 @@ def get_resource_parameters(config):
       MB_SAVE_ALEVIN_TO_H5            = config['resources']['mb_save_alevin_to_h5']
     if 'mb_run_ambient' in config['resources']:
       MB_RUN_AMBIENT               = config['resources']['mb_run_ambient']
-    if 'mb_run_scdblfinder' in config['resources']:
-      MB_RUN_SCDBLFINDER              = config['resources']['mb_run_scdblfinder']
-    if 'mb_combine_scdblfinder_outputs' in config['resources']:
-      MB_COMBINE_SCDBLFINDER_OUTPUTS  = config['resources']['mb_combine_scdblfinder_outputs']
     if 'mb_run_qc' in config['resources']:
       MB_RUN_QC                       = config['resources']['mb_run_qc']
     if 'mb_run_hvgs' in config['resources']:
@@ -818,31 +808,21 @@ def get_resource_parameters(config):
       MB_MAKE_CLEAN_SCES              = config['resources']['mb_make_clean_sces']
     if 'mb_run_marker_genes' in config['resources']:
       MB_RUN_MARKER_GENES             = config['resources']['mb_run_marker_genes']
-    if 'mb_html_marker_genes' in config['resources']:
-      MB_HTML_MARKER_GENES            = config['resources']['mb_html_marker_genes']
+    if 'mb_render_htmls'     in config['resources']:
+      MB_RENDER_HTMLS                = config['resources']['mb_render_htmls']
     if 'mb_label_celltypes' in config['resources']:
       MB_LABEL_CELLTYPES          = config['resources']['mb_label_celltypes']
-    if 'mb_lbl_render_template_rmd' in config['resources']:
-      MB_LBL_RENDER_TEMPLATE_RMD      = config['resources']['mb_lbl_render_template_rmd']
-    if 'mb_meta_save_metacells' in config['resources']:
-      MB_META_SAVE_METACELLS          = config['resources']['mb_meta_save_metacells']
     if 'mb_pb_make_pbs' in config['resources']:
       MB_PB_MAKE_PBS                  = config['resources']['mb_pb_make_pbs']
     if 'mb_pb_calc_empty_genes' in config['resources']:
       MB_PB_CALC_EMPTY_GENES          = config['resources']['mb_pb_calc_empty_genes']
-    if 'mb_zoom_run_zoom' in config['resources']:
-      MB_ZOOM_RUN_ZOOM                = config['resources']['mb_zoom_run_zoom']
-    if 'mb_zoom_render_template_rmd' in config['resources']:
-      MB_ZOOM_RENDER_TEMPLATE_RMD     = config['resources']['mb_zoom_render_template_rmd']
+
 
   return RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
     MB_RUN_AMBIENT, \
-    MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
     MB_RUN_QC, MB_RUN_HVGS, \
     MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, \
-    MB_RUN_MARKER_GENES, MB_HTML_MARKER_GENES, \
-    MB_LBL_LABEL_CELLTYPES, MB_LBL_RENDER_TEMPLATE_RMD, \
-    MB_META_SAVE_METACELLS, \
-    MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
-    MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD
+    MB_RUN_MARKER_GENES, MB_RENDER_HTMLS, \
+    MB_LABEL_CELLTYPES, \
+    MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES
 

@@ -59,7 +59,7 @@ rule render_html_mapping:
   threads: 1
   retries: RETRIES
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   conda:
     '../envs/rlibs.yaml'
   shell: """
@@ -100,7 +100,7 @@ if DEMUX_TYPE == 'af':
     threads: 1
     retries: RETRIES
     resources:
-      mem_mb      =  lambda wildcards, attempt: attempt * 4096
+      mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
     conda:
       '../envs/rlibs.yaml'
     shell: """
@@ -143,7 +143,7 @@ if AMBIENT_METHOD == "cellbender":
     threads: 1
     retries: RETRIES 
     resources:
-      mem_mb      =  lambda wildcards, attempt: attempt * 4096
+      mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
     conda:
       '../envs/rlibs.yaml'
     shell: """
@@ -180,7 +180,7 @@ rule render_html_qc:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   shell: """
   
     #define rule and template
@@ -228,7 +228,7 @@ rule render_html_hvgs:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   shell: """
   
     #define rule and template
@@ -269,7 +269,7 @@ rule render_html_integration:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   shell: """
     template_f=$(realpath resources/rmd_templates/integration.Rmd.template)
     rule="integration"
@@ -320,7 +320,7 @@ rule render_html_marker_genes:
     ).strip()
   conda: '../envs/rlibs.yaml'
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_HTML_MARKER_GENES
+    mem_mb = lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   shell: """
     template_f=$(realpath resources/rmd_templates/marker_genes.Rmd.template)
     rule="markers"
@@ -368,7 +368,7 @@ rule render_html_label_celltypes:
   threads: 1
   retries: RETRIES
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   conda: 
     '../envs/rlibs.yaml'
   shell: """
@@ -472,55 +472,3 @@ rule render_html_label_celltypes:
 #     SPECIES = '{SPECIES}')"
 
 #     """
-
-
-# # render_html_empties
-# rule render_html_empties:
-#   input:
-#     r_int_f     = f'{code_dir}/{SHORT_TAG}06_integration.R',
-#     guesses_f   = lbl_dir + '/xgboost_guesses_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-#     empty_csv_f = f'{lbl_dir}/empties_{FULL_TAG}_{DATE_STAMP}.csv',
-#     empty_gs_ls = expand( [lbl_dir + '/empty_genes' + '/empty_genes_' + FULL_TAG + '_{subset}_' + DATE_STAMP + '.txt.gz'], \
-#     subset = None if LBL_SCE_SUBSETS is None else [*LBL_SCE_SUBSETS] )
-#   output:
-#     r_pb_f      = f'{code_dir}/pseudobulk_and_empties.R',
-#     rmd_f       = f'{rmd_dir}/{SHORT_TAG}_empties.Rmd',
-#     html_f      = f'{docs_dir}/{SHORT_TAG}_empties.html'
-#   threads: 1
-#   retries: RETRIES 
-#   resources:
-#     mem_mb      = lambda wildcards, attempt: attempt * 4096
-#   conda: 
-#     '../envs/rlibs.yaml'
-#   shell:
-#     """
-#     # copy R code over
-#     echo "copying relevant R files over"
-#     cp scripts/pseudobulk_and_empties.R {output.r_pb_f}
-
-#     template_f=$(realpath resources/rmd_templates/empties.Rmd.template)
-#     rule="pb_empties"
-
-    
-#     Rscript --vanilla -e "source('scripts/render_reports.R'); \
-#     render_reports(
-#     rule_name = '$rule', \
-#     proj_dir = '{PROJ_DIR}', \
-#     temp_f =  '$template_f', \
-#     rmd_f = '{output.rmd_f}', \
-#     YOUR_NAME = '{YOUR_NAME}', \
-#     PROJ_DIR = '{PROJ_DIR}', \
-#     AFFILIATION = '{AFFILIATION}', \
-#     SHORT_TAG = '{SHORT_TAG}', \
-#     DATE_STAMP = '{DATE_STAMP}', \
-#     threads = {threads}, \
-#     guesses_f = '{input.guesses_f}', \
-#     empty_csv_f = '{input.empty_csv_f}', \
-#     LBL_XGB_F = '{LBL_XGB_F}', \
-#     LBL_SEL_RES_CL = {LBL_SEL_RES_CL}, \
-#     LBL_MIN_PRED = {LBL_MIN_PRED}, \
-#     LBL_MIN_CL_PROP = {LBL_MIN_CL_PROP}, \
-#     LBL_MIN_CL_SIZE = {LBL_MIN_CL_SIZE})"
-     
-#     """
-

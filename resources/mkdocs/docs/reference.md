@@ -422,12 +422,12 @@ sample_3:
 * `mb_run_mapping`: maximum memory required (in MB) for running `simpleaf`. Value applies to the entire job, not per thread.
 * `mb_save_alevin_to_h5`:  maximum memory required (in MB) to save `simpleaf` output to H5 format. Value applies to the entire job, not per thread.
 * `mb_run_ambient`: maximum memory required (in MB) to run the ambient RNA removal step. Value applies to the entire job, not per thread.
-* `mb_get_barcode_qc_metrics`: maximum memory required (in MB) to obtain quality control metrics related to ambient RNA removal. Value applies to the entire job, not per thread.
-* `mb_run_scdblfinder`: maximum memory required (in MB) to run `scDblFinder` for doublet detection. Value applies to the entire job, not per thread.
-* `mb_combine_scdblfinder_outputs`: maximum memory required (in MB) to combine `scDblFinder` outputs across samples. Value applies to the entire job, not per thread.
-* `mb_make_sce_object`: maximum memory required (in MB) to create a `SingleCellExperiment` object. Value applies to the entire job, not per thread.
-* `mb_run_harmony`: maximum memory required (in MB) to run `Harmony` integration for batch correction. Value applies to the entire job, not per thread.
+* `mb_run_qc`: maximum memory required (in MB) to run the qc step. Value applies to the entire job, not per thread.
+* `mb_run_hvgs`: maximum memory required (in MB) to run the hvg detection step. Value applies to the entire job, not per thread.
+* `mb_make_clean_sces`: maximum memory required (in MB) to create a `SingleCellExperiment` object. Value applies to the entire job, not per thread.
+* `mb_run_integration`: maximum memory required (in MB) to run integration. Value applies to the entire job, not per thread.
 * `mb_run_marker_genes`: maximum memory required (in MB) for marker gene identification. Value applies to the entire job, not per thread.
-* `mb_lbl_label_celltypes`: maximum memory required (in MB) to label cell types. Value applies to the entire job, not per thread.
-* `mb_lbl_save_subset_sces`: maximum memory required (in MB) to save `SingleCellExperiment` objects with cell subsets. Value applies to the entire job, not per thread.
-* `mb_lbl_render_template_rmd`: maximum memory required (in MB) to render HTML document from markdown template. Value applies to the entire job, not per thread.
+* `mb_label_celltypes`: maximum memory required (in MB) to label cell types. Value applies to the entire job, not per thread.
+* `mb_pb_make_pbs`: maximum memory required (in MB) to generate pseudobulk counts. Value applies to the entire job, not per thread.
+* `mb_pb_calc_empty_genes`: maximum memory required (in MB) to calculate ambient gene statistics. Value applies to the entire job, not per thread.
+* `mb_render_htmls`: maximum memory required (in MB) to render html reports. Value applies to the entire job, not per thread.
