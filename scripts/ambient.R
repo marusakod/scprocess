@@ -281,7 +281,8 @@ get_bender_log <- function(f, sample) {
 }
 
 # find slope at first inflection and total droplets included & expected_cells/total ratio
-get_knee_params <- function(ranks_df, sample_var) {
+get_knee_params <- function(knee_f, sample_var) {
+  ranks_df  = fread(knee_f)
   total_thr = unique(ranks_df$total_droplets_included) %>% log10()
   
   inf1 = unique(ranks_df$inf1)
@@ -290,50 +291,52 @@ get_knee_params <- function(ranks_df, sample_var) {
   infl1_idx = which.min( abs(ranks_df$total - inf1) )[1]
   
   # get x coordinate of inf1
-  inf_1_x = ranks_df[ infl1_idx, "rank" ] %>%
+  inf_1_x = ranks_df[ infl1_idx, rank ] %>%
     log10()
   
   # fit curve to all points
   ranks_df = ranks_df %>% 
-    filter(total > 5) %>%
-    mutate(
+    .[total > 5] %>%
+    .[, `:=`(
       ranks_log = log10(rank),
       total_log = log10(total)
-      ) %>%
+    )
+    ] %>%
     unique
   
   fit = smooth.spline(x = ranks_df$ranks_log, y = ranks_df$total_log)
   fitted.vals = 10^fitted(fit)
   
   # get value of the first derivative at total included and inflection1
-  d1 = predict(fit, deriv=1)
-  d1_inf = d1$y[ which.min(abs(d1$x - inf_1_x))[1] ]
+  d1       = predict(fit, deriv=1)
+  d1_inf   = d1$y[ which.min(abs(d1$x - inf_1_x))[1] ]
   d1_total = d1$y[ which.min(abs(d1$x - total_thr))[1] ]
   
   keep_cols = c(sample_var, 'knee1', 'inf1', 'knee2', 'inf2', 'total_droplets_included', 'expected_cells')
   
   final = ranks_df %>%
-    select(all_of(keep_cols)) %>%
+    .[, ..keep_cols] %>%
     unique() %>%
-    mutate(
+    .[, `:=`(
       slope_inf1 = d1_inf,
       slope_total_included = d1_total
-    ) %>% 
-    mutate(
+    )]%>% 
+    .[, `:=`(
       slope_ratio = abs(slope_total_included) / abs(slope_inf1),
       expected_total_ratio = expected_cells / total_droplets_included
-    )
+    )]
   
   return(final)
 }
 
-plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, bender_priors_df = NULL) {
-  # get sample order
-  s_ord = names(knees)
+
+plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, bender_priors_df = NULL) {
   
+  s_ord = names(knee_fs)
   # add knee and inflection to params
   knee_data = lapply(s_ord, function(s) {
-    x = knees[[ s ]] %>% as.data.table
+    knee_f = knee_fs[[s]]
+    x = fread(knee_f) %>% as.data.table
     x %>%
       .[, .(n_bc = .N), by = .(lib_size = total)] %>%
       .[order(-lib_size)] %>%
@@ -342,13 +345,13 @@ plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, ben
   }) %>% rbindlist()
   
   knee_vars = c(sample_var, 'knee1', 'inf1', 'knee2', 'inf2',
-                 'total_droplets_included', 'expected_cells')
+                'total_droplets_included', 'expected_cells')
   
   lines_knees = ambient_knees_df %>% as.data.table %>% 
     .[ get(sample_var) %in% s_ord, ..knee_vars] %>%
     setnames( c("inf1", "inf2"), c("shin1", "shin2") ) %>% 
     melt(id.vars = sample_var) %>%
-   .[, `:=`(
+    .[, `:=`(
       axis = fifelse(variable %in% c('knee1', 'knee2', 'shin1', 'shin2'), 'y', 'x'),
       type = fifelse(variable %in% c('knee1', 'knee2', 'shin1', 'shin2'),
                      'cellbender intermediate\nparameter', 
@@ -365,7 +368,7 @@ plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, ben
       .[, `:=`(
         axis = 'y',
         type = 'cellbender prior\nparameter'
-        )]
+      )]
   }
   
   lines = list(lines_knees, lines_priors) %>% rbindlist()
@@ -409,6 +412,8 @@ plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, ben
   
   return(p)
 }
+
+
 
 find_outlier <- function(x) {
   return(x < quantile(x, .25) - 1.5*IQR(x) | x > quantile(x, .75) + 1.5*IQR(x))
@@ -544,15 +549,14 @@ make_amb_sample_qc_oulier_plots <- function(qc_df, var1, var2, outliers_df,
   return(p)
 }
 
-plot_qc_metrics_split_by_cells_empties <- function(rna_knee_dfs, 
+plot_qc_metrics_split_by_cells_empties <- function(knee_fs, 
   metric = c("umis", "splice_pct"), min_umis = 10) {
   metric    = match.arg(metric)
 
   # get cells and empties
-  plot_dt   = rna_knee_dfs %>% lapply(function(tmp_dt) {
-    tmp_dt %>% 
-      # .[ rank <= total_droplets_included ] %>% 
-      .[ total >= min_umis ] %>% 
+  plot_dt   = knee_fs %>% lapply(function(f) {
+    tmp_dt = fread(f) %>% 
+      .[rank <= expected_cells | in_empty_plateau == TRUE ] %>% 
       .[, .(sample_id, barcode, rank, umis = log10(total), 
         splice_pct = qlogis( (spliced + 1) / (spliced + unspliced + 2) ),
         what = ifelse(rank <= expected_cells, "cell", "empty"))]

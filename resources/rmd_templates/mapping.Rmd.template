@@ -52,12 +52,8 @@ assert_that( length(rna_knee_fs) > 0 )
 assert_that( all(file.exists(rna_knee_fs)) )
 ```
 
-```{r load_rna_knee_dfs, include = FALSE}
-rna_knee_dfs = lapply(rna_knee_fs, FUN = fread)
-```
-
 ```{r get_rna_knee_params, include = FALSE}
-rna_knee_params_df = rna_knee_dfs %>% 
+rna_knee_params_df = rna_knee_fs %>% 
   lapply(FUN = get_knee_params, sample_var = sample_var) %>% 
   rbindlist()
 ```
@@ -120,9 +116,9 @@ for (i in 1:length(slope_ratio_split_l) ) {
   # get knee dfs for all selected samples
   samples = slope_ratio_split_l[[i]]
   name    = sprintf('sample chunk #%d', i)
-  knees   = rna_knee_dfs[samples]
+  knee_fs = rna_knee_fs[samples]
   cat('#### ', name, '\n')
-  suppressWarnings(print(plot_barcode_ranks_w_params(knees, rna_knee_params_df, 
+  suppressWarnings(print(plot_barcode_ranks_w_params(knee_fs, rna_knee_params_df, 
     sample_var = sample_var, bender_priors_df = NULL)))
   cat('\n\n')
 }
@@ -139,9 +135,9 @@ for (i in 1:length(exp_tot_ratio_split_l) ) {
   # get knee dfs for all selected samples
   samples = exp_tot_ratio_split_l[[i]]
   name    = sprintf('sample chunk #%d', i)
-  knees   = rna_knee_dfs[samples]
+  knee_fs = rna_knee_fs[samples]
   cat('#### ', name, '\n')
-  suppressWarnings(print(plot_barcode_ranks_w_params(knees, rna_knee_params_df, 
+  suppressWarnings(print(plot_barcode_ranks_w_params(knee_fs, rna_knee_params_df, 
     sample_var = sample_var, bender_priors_df = NULL)))
   cat('\n\n')
 }
@@ -155,7 +151,7 @@ The knee plots above help us estimate which barcodes are likely to be cells, and
 metric_names = c(umis = "umis", splice_pct = "spliced pct.")
 for (metric in c("umis", "splice_pct")) {
   cat("### ", metric_names[ metric ], "\n")
-  print(plot_qc_metrics_split_by_cells_empties(rna_knee_dfs, metric = metric))
+  print(plot_qc_metrics_split_by_cells_empties(rna_knee_fs, metric = metric))
   cat("\n\n")
 }
 ```
