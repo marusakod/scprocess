@@ -781,7 +781,7 @@ def get_resource_parameters(config):
   MB_RUN_HVGS                     = 8192
   MB_RUN_INTEGRATION              = 8192
   MB_MAKE_CLEAN_SCES              = 8192
-  MB_RUN_MARKER_GENES             = 8192
+  MB_RUN_MARKER_GENES             = 16384
   MB_RENDER_HTMLS                 = 8192
   MB_LABEL_CELLTYPES              = 8192
   MB_PB_MAKE_PBS                  = 8192
