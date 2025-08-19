@@ -425,6 +425,7 @@ sample_3:
 * `mb_run_qc`: maximum memory required (in MB) to run the qc step. Value applies to the entire job, not per thread.
 * `mb_run_hvgs`: maximum memory required (in MB) to run the hvg detection step. Value applies to the entire job, not per thread.
 * `mb_make_clean_sces`: maximum memory required (in MB) to create a `SingleCellExperiment` object. Value applies to the entire job, not per thread.
+* `mb_make_hto_sce_objects`: maximum memory required (in MB) to create a `SingleCellExperiment` object with HTO counts. Value applies to the entire job, not per thread.
 * `mb_run_integration`: maximum memory required (in MB) to run integration. Value applies to the entire job, not per thread.
 * `mb_run_marker_genes`: maximum memory required (in MB) for marker gene identification. Value applies to the entire job, not per thread.
 * `mb_label_celltypes`: maximum memory required (in MB) to label cell types. Value applies to the entire job, not per thread.
