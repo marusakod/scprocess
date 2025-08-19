@@ -786,6 +786,7 @@ def get_resource_parameters(config):
   MB_LABEL_CELLTYPES              = 8192
   MB_PB_MAKE_PBS                  = 8192
   MB_PB_CALC_EMPTY_GENES          = 8192
+  MB_MAKE_HTO_SCE_OBJECTS         = 8192
 
 
   # change defaults if specified
@@ -816,7 +817,8 @@ def get_resource_parameters(config):
       MB_PB_MAKE_PBS                  = config['resources']['mb_pb_make_pbs']
     if 'mb_pb_calc_empty_genes' in config['resources']:
       MB_PB_CALC_EMPTY_GENES          = config['resources']['mb_pb_calc_empty_genes']
-
+    if 'mb_make_hto_sce_objects' in config['resources']:
+      MB_MAKE_HTO_SCE_OBJECTS         = config['resources']['mb_make_hto_sce_objects']
 
   return RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
     MB_RUN_AMBIENT, \
@@ -824,5 +826,5 @@ def get_resource_parameters(config):
     MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, \
     MB_RUN_MARKER_GENES, MB_RENDER_HTMLS, \
     MB_LABEL_CELLTYPES, \
-    MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES
+    MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, MB_MAKE_HTO_SCE_OBJECTS
 
