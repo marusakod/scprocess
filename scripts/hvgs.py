@@ -16,6 +16,7 @@ import numba
 import warnings
 
 
+
 def sum_SUA(sua_mat, row_names):
   # define some objects
   row_names = row_names.astype(str)
@@ -126,7 +127,11 @@ def get_csr_counts(hvg_paths_f, qc_f, qc_smpl_stats_f, rowdata_f, SAMPLE_VAR, DE
   qc_sample_df  = pd.read_csv(qc_smpl_stats_f)
   
   # get QCed cells
-  qc_df         = pd.read_csv(qc_f, sep = '\t')
+  if DEMUX_TYPE == 'none':
+   qc_df         = pd.read_csv(qc_f, sep = '\t', dtype={'sample_id': str})
+  else:
+   qc_df         = pd.read_csv(qc_f, sep = '\t', dtype={'sample_id': str, 'pool_id': str})
+
   keep_df       = qc_df[qc_df["keep"] == True]
 
   # get gene details
@@ -588,10 +593,11 @@ def _process_multiple_groups(stats_df, group_var, empty_gs, n_hvgs,  exclude_amb
 
 # main function to calculate highly variable genes
 def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, n_hvgs, exclude_ambient=True):
-   
-  stats_df  = pd.read_csv(std_var_stats_f, sep='\t')
+  
   group_var = 'sample_id' if hvg_method == 'sample' else 'group'
-
+  #stats_df  = pd.read_csv(std_var_stats_f, sep='\t')
+  stats_df  = pd.read_csv(std_var_stats_f, sep='\t', dtype={group_var: str})
+  
   # get empty genes
   empty_dt = pd.read_csv(empty_gs_f, sep=',', compression='gzip')
   empty_gs = empty_dt.loc[empty_dt['is_ambient'], 'gene_id'].tolist()
@@ -635,7 +641,7 @@ def read_top_genes(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
   hvg_df        = pd.read_csv(hvg_f, sep='\t')
   hvg_ids       = hvg_df.loc[hvg_df['highly_variable'] == True, 'gene_id'].tolist()
 
-  # extract ensembl ids (maybe keep ensembl is in the df earlier)
+  # extract ensembl ids 
   hvg_ensembl   = []
   for gene in hvg_ids:
     parts = gene.rsplit('_', 1)
@@ -676,13 +682,17 @@ def read_top_genes(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
     f.create_dataset('matrix/barcodes', data=np.array(all_barcodes, dtype='S'))
 
 
-def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, SAMPLE_VAR):
+def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, SAMPLE_VAR, DEMUX_TYPE):
   # get all hvgs
   hvg_df  = pd.read_csv(hvg_f, sep='\t')
   hvg_ids = hvg_df.loc[hvg_df['highly_variable'] == True, 'gene_id'].tolist()
   
   # get qc file with all cells
-  qc_df   = pd.read_csv(qc_f, sep = '\t')
+  # get QCed cells
+  if DEMUX_TYPE == 'none':
+   qc_df         = pd.read_csv(qc_f, sep = '\t', dtype={'sample_id': str})
+  else:
+   qc_df         = pd.read_csv(qc_f, sep = '\t', dtype={'sample_id': str, 'pool_id': str})
 
   # subset to doublets
   dbl_df  = qc_df[qc_df["dbl_class"] == "doublet"]
@@ -848,7 +858,8 @@ if __name__ == "__main__":
   parser_getDoublets.add_argument("qc_smpl_stats_f", type=str)
   parser_getDoublets.add_argument("out_h5_f", type=str)
   parser_getDoublets.add_argument("sample_var", type=str)
-
+  parser_getDoublets.add_argument("demux_type", type=str)
+ 
   args = parser.parse_args()
 
   if args.function_name == 'get_csr_counts':
@@ -888,7 +899,7 @@ if __name__ == "__main__":
   elif args.function_name == 'create_doublets_matrix': 
     create_doublets_matrix(
       args.hvg_paths_f, args.hvg_f, args.qc_f, args.qc_smpl_stats_f, 
-      args.out_h5_f, args.sample_var
+      args.out_h5_f, args.sample_var, args.demux_type
     )
   else:
     parser.print_help()
