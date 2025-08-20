@@ -69,10 +69,6 @@ assert_that( length(hto_sce_fs) > 0)
 
 ```
 
-```{r load_hto_knee_dfs, include = FALSE}
-hto_knee_dfs = lapply(hto_knee_fs, FUN = fread)
-```
-
 ```{r load_hto_sce, include = FALSE}
 hto_sce_ls = lapply(hto_sce_fs, FUN = readRDS)
 ```
@@ -82,7 +78,7 @@ proj_meta = fread(proj_meta_f)
 ```
 
 ```{r get_hto_knee_params, include = FALSE}
-hto_knee_params_df = lapply(hto_knee_dfs, FUN = get_knee_params, sample_var = sample_var) %>% rbindlist()
+hto_knee_params_df = lapply(hto_knee_fs, FUN = get_knee_params, sample_var = sample_var) %>% rbindlist()
 ```
 
 ```{r get_hto_dt, include = FALSE}
@@ -150,11 +146,11 @@ Samples are ordered from highest to lowest based on the slope ratio.
 ```{r hto_knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
 for (i in 1:length(slope_ratio_split_l) ) {
   # get knee dfs for all selected samples
-  samples = slope_ratio_split_l[[i]]
-  name = sprintf('sample chunk #%d', i)
-  knees = hto_knee_dfs[samples]
+  samples  = slope_ratio_split_l[[i]]
+  name     = sprintf('sample chunk #%d', i)
+  knee_fs  = hto_knee_fs[samples]
   cat('#### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knees, hto_knee_params_df, sample_var = sample_var, bender_priors_df = NULL))
+  print(plot_barcode_ranks_w_params(knee_fs, hto_knee_params_df, sample_var = sample_var, bender_priors_df = NULL))
   cat('\n\n')
 }
 ```
@@ -168,11 +164,11 @@ To evaluate this, samples are ordered by the ratio of `expected_cells` to `empty
 ```{r hto_knee_plots_exp_tot_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
 for (i in 1:length(exp_tot_ratio_split_l)) {
   # get knee dfs for all selected samples
-  samples = exp_tot_ratio_split_l[[i]]
-  name = sprintf('sample chunk #%d', i)
-  knees = hto_knee_dfs[samples]
+  samples  = exp_tot_ratio_split_l[[i]]
+  name     = sprintf('sample chunk #%d', i)
+  knee_fs  = hto_knee_fs[samples]
   cat('#### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knees, hto_knee_params_df, sample_var = sample_var, bender_priors_df = NULL))
+  print(plot_barcode_ranks_w_params(knee_fs, hto_knee_params_df, sample_var = sample_var, bender_priors_df = NULL))
   cat('\n\n')
 }
 ```
@@ -183,7 +179,7 @@ Both the slope ratio and the expected cells/total droplets ratio are displayed i
 Outliers are labeled with their corresponding `sample_id` values.
 
 ```{r hto_params_qc_dot}
-print(make_amb_params_dotplot(hto_knee_params_df, sample_var = sample_var, scales = 'free'))
+print(plot_amb_params_dotplot(hto_knee_params_df, sample_var = sample_var, scales = 'free'))
 ```
 
 ## Table with global demultiplexing results

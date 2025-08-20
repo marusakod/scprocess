@@ -151,7 +151,7 @@ The knee plots above help us estimate which barcodes are likely to be cells, and
 metric_names = c(umis = "umis", splice_pct = "spliced pct.")
 for (metric in c("umis", "splice_pct")) {
   cat("### ", metric_names[ metric ], "\n")
-  print(plot_qc_metrics_split_by_cells_empties(rna_knee_fs, metric = metric))
+  print(plot_qc_metrics_split_by_cells_empties(rna_knee_fs, metric = metric, sample_var = sample_var))
   cat("\n\n")
 }
 ```

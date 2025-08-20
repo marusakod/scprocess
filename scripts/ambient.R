@@ -261,20 +261,20 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_ce
   return(usa_dt)
 }
 
-get_bender_log <- function(f, sample) {
+get_bender_log <- function(f, sample, sample_var) {
   ll =  read_lines(f, n_max = 25)
   .get_match <- function(ll, pat) {
     ll %>% str_subset(pat) %>% str_match(pat) %>% .[, 3] %>% as.integer()
   }
   bender_dt = data.table(
-    sample_id                   = sample,
     cb_prior_cells              = .get_match(ll, '(Prior on counts for cells is )([0-9]+)'),
     cb_prior_empty              = .get_match(ll, '(Prior on counts [infor]{2,3} empty droplets is )([0-9]+)'),
     excluding_bc_w_counts_below = .get_match(ll, '(Excluding barcodes with counts below )([0-9]+)'),
     used_probable_cell_barcodes = .get_match(ll, '(Using )([0-9]+)( probable cell barcodes)'),
     used_additional_barcodes    = .get_match(ll, '(plus an additional )([0-9]+)( barcodes)'),
     used_empty_droplets         = .get_match(ll, '(and )([0-9]+)( empty droplets)')
-  )
+  ) %>%
+    .[, (sample_var) := sample]
   assert_that( nrow(bender_dt) == 1 )
 
   return(bender_dt)
@@ -549,7 +549,7 @@ make_amb_sample_qc_oulier_plots <- function(qc_df, var1, var2, outliers_df,
   return(p)
 }
 
-plot_qc_metrics_split_by_cells_empties <- function(knee_fs, 
+plot_qc_metrics_split_by_cells_empties <- function(knee_fs, sample_var, 
   metric = c("umis", "splice_pct"), min_umis = 10) {
   metric    = match.arg(metric)
 
@@ -557,9 +557,12 @@ plot_qc_metrics_split_by_cells_empties <- function(knee_fs,
   plot_dt   = knee_fs %>% lapply(function(f) {
     tmp_dt = fread(f) %>% 
       .[rank <= expected_cells | in_empty_plateau == TRUE ] %>% 
-      .[, .(sample_id, barcode, rank, umis = log10(total), 
-        splice_pct = qlogis( (spliced + 1) / (spliced + unspliced + 2) ),
-        what = ifelse(rank <= expected_cells, "cell", "empty"))]
+      .[, `:=`(
+        umis       = log10(total), 
+        splice_pct = qlogis((spliced + 1) / (spliced + unspliced + 2)), 
+        what       = fifelse(rank <= expected_cells, "cell", "empty")
+      )] %>%
+      .[, c(sample_var, 'barcode', 'rank', 'umis', 'splice_pct', 'what'), with = FALSE]
     }) %>% rbindlist
 
   # plot these
@@ -574,7 +577,7 @@ plot_qc_metrics_split_by_cells_empties <- function(knee_fs,
     y_title   = "spliced pct."
   }
   g = ggplot(plot_dt) + 
-    aes( fill = what, x = sample_id, y = get(metric) ) +
+    aes( fill = what, x = get(sample_var), y = get(metric) ) +
     geom_violin( colour = NA,
       kernel = 'rectangular', adjust = 0.1, scale = 'width') +
     scale_y_continuous( breaks = y_brks, labels = y_labs ) +

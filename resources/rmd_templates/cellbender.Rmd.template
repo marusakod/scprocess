@@ -66,6 +66,7 @@ smpl_qc_dt = fread(smpl_qc_f)
     function(s) sprintf("%s/ambient_%s/bender_%s_${DATE_STAMP}.log", amb_dir, s, s))
   assert_that( all(file.exists(bender_log_fs)) )
   bender_priors_df = mapply(f = bender_log_fs, sample = s_lvls, FUN = get_bender_log,
+    MoreArgs =list(sample_var = sample_var), 
     SIMPLIFY = FALSE) %>% rbindlist
 ```
 
