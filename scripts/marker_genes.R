@@ -320,6 +320,44 @@ aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
   return(pb)
 }
 
+
+make_logcpms_all_rmd <- function(pb, lib_size_method = c("edger", "raw", "pearson",
+                                                     "vst", "rlog"), exc_regex = NULL, min_cells = 10, n_cores = 4) {  
+  # check inputs
+  lib_size_method   = match.arg(lib_size_method)
+  
+  # set up cluster
+  cl_ls       = assayNames(pb)
+ 
+  # exclude genes if requested
+  if (!is.null(exc_regex)) {
+    exc_idx     = rownames(pb) %>% str_detect(exc_regex)
+    exc_gs_str  = rowData(pb)$symbol[ exc_idx ] %>% paste0(collapse = " ")
+    sprintf("    excluding %d genes: %s", sum(exc_idx), exc_gs_str) %>% message
+    pb          = pb[ !exc_idx, ]
+  }
+  
+  # calculate logcpms
+  logcpms_all = lapply(cl_ls, function(sel_cl) {
+    message(sel_cl, appendLF = FALSE)
+    # message(sel_cl)
+    tmp_dt    = .get_logcpm_dt_one_cl(pb, cl = sel_cl,
+                                      min_cells = min_cells, lib_size_method = lib_size_method)
+    if (!is.null(tmp_dt))
+      tmp_dt   = tmp_dt[, cluster := sel_cl ]
+    return(tmp_dt)
+  }) %>% rbindlist
+  
+  # add # cells
+  ncells_dt   = muscat:::.n_cells(pb) %>%
+    as.data.table %>% set_colnames(c("cluster", "sample_id", "n_cells"))
+  logcpms_all = merge( logcpms_all, ncells_dt, by = c("cluster", "sample_id") )
+  
+  return(logcpms_all)
+}
+
+
+
 make_logcpms_all <- function(pb, lib_size_method = c("edger", "raw", "pearson",
   "vst", "rlog"), exc_regex = NULL, min_cells = 10, n_cores = 4) {  
   # check inputs
