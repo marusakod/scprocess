@@ -154,6 +154,8 @@ rule run_mapping:
   retries: RETRIES
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_MAPPING
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_mapping/run_mapping_{run}_' + DATE_STAMP + '.benchmark.txt'
   params:
     af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
     exp_ori       = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[1],
@@ -210,6 +212,8 @@ if DEMUX_TYPE == "af":
     retries: RETRIES
     resources:
       mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_MAPPING
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_mapping/run_mapping_hto_{run}_' + DATE_STAMP + '.benchmark.txt'
     params:
       af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
       whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[2]
@@ -258,6 +262,8 @@ rule save_alevin_to_h5:
     h5_f        = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
     amb_yaml_f  = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml',
     knee_data_f = af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_mapping/save_alevin_to_h5_{run}_' + DATE_STAMP + '.benchmark.txt'
   params:
     knee1         = lambda wildcards: parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, wildcards.run, 
       FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD)[0],
@@ -310,6 +316,8 @@ if DEMUX_TYPE == 'af':
     retries: RETRIES
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_SAVE_ALEVIN_TO_H5
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_mapping/save_alevin_hto_to_h5_{run}_' + DATE_STAMP + '.benchmark.txt'
     conda: 
       '../envs/rlibs.yaml'
     shell:

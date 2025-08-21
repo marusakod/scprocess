@@ -6,7 +6,8 @@ import pandas as pd
 
 localrules: get_ambient_sample_statistics
 
-def parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, sample, amb_yaml_f, CELLBENDER_LEARNING_RATE):
+def parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, sample, amb_yaml_f,
+  CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE, CELLBENDER_VERSION ):
   # get cellbender parameters from yaml file
   with open(amb_yaml_f) as f:
     amb_params = yaml.load(f, Loader=yaml.FullLoader)
@@ -20,6 +21,7 @@ def parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, sample, amb_yam
   KNEE_2 = amb_params['knee_2']
   INFLECTION_2 = amb_params['inflection_2']
   LEARNING_RATE = CELLBENDER_LEARNING_RATE
+  POSTERIOR_BATCH_SIZE = CELLBENDER_POSTERIOR_BATCH_SIZE 
 
   # check if cellbender specific parameters are defined for individual samples 
   if AMBIENT_METHOD == 'cellbender':
@@ -34,8 +36,12 @@ def parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, sample, amb_yam
         if 'cellbender' in custom_smpl_params[sample] and (custom_smpl_params[sample]['cellbender'] is not None):
           if 'learning_rate' in custom_smpl_params[sample]['cellbender']: 
             LEARNING_RATE = custom_smpl_params[sample]['cellbender']['learning_rate']
+          if 'posterior_batch_size' in custom_smpl_params[sample]['cellbender']:
+            POSTERIOR_BATCH_SIZE = custom_smpl_params[sample]['cellbender']['posterior_batch_size']
+            if CELLBENDER_VERSION != 'v0.3.2':
+              warnings.warn(f"'posterior_batch_size' is only supported in CellBender v0.3.2. Ignoring for CellBender v{CELLBENDER_VERSION}.")
 
-  return EXPECTED_CELLS, TOTAL_DROPLETS_INCLUDED, LOW_COUNT_THRESHOLD, LEARNING_RATE, \
+  return EXPECTED_CELLS, TOTAL_DROPLETS_INCLUDED, LOW_COUNT_THRESHOLD, LEARNING_RATE, POSTERIOR_BATCH_SIZE, \
     KNEE_1, INFLECTION_1, KNEE_2, INFLECTION_2
 
 
@@ -112,6 +118,7 @@ def extract_ambient_sample_statistics(AMBIENT_METHOD, SAMPLE_VAR, samples_ls, me
   return sample_df
 
 
+
 if AMBIENT_METHOD == 'cellbender':
   rule run_cellbender:
     input:
@@ -119,13 +126,15 @@ if AMBIENT_METHOD == 'cellbender':
       amb_yaml_f = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml'
     params:
       expected_cells          = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[0],
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE, CELLBENDER_VERSION)[0],
       total_droplets_included = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[1],
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE, CELLBENDER_VERSION)[1],
       low_count_threshold     = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[2],
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE, CELLBENDER_VERSION)[2],
       learning_rate           = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
-        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE)[3]
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE, CELLBENDER_VERSION)[3], 
+      posterior_batch_size    = lambda wildcards: parse_ambient_params(AMBIENT_METHOD, CUSTOM_SAMPLE_PARAMS_F, wildcards.run,
+        af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml', CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE, CELLBENDER_VERSION)[4]
     output:
         ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
         tmp_f            = temp(amb_dir + '/ambient_{run}/ckpt.tar.gz')
@@ -133,6 +142,8 @@ if AMBIENT_METHOD == 'cellbender':
     retries: RETRIES
     resources:
       mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_ambient/run_cellbender_{run}_' + DATE_STAMP + '.benchmark.txt'
     container:
       CELLBENDER_IMAGE
     shell:
@@ -142,7 +153,8 @@ if AMBIENT_METHOD == 'cellbender':
       TOTAL_DROPLETS_INCLUDED={params.total_droplets_included}
       LOW_COUNT_THRESHOLD={params.low_count_threshold}
       LEARNING_RATE={params.learning_rate}
-
+      POSTERIOR_BATCH_SIZE={params.posterior_batch_size}
+      
       # create main ambient directory
       mkdir -p {amb_dir}
 
@@ -157,18 +169,25 @@ if AMBIENT_METHOD == 'cellbender':
       bcs_f="{amb_dir}/ambient_{wildcards.run}/bender_{wildcards.run}_{DATE_STAMP}_cell_barcodes.csv"
       tmp_f="{output.tmp_f}"
 
+      # get --posterior-batch-size flag
+      POSTERIOR_BATCH_SIZE_FLAG=""
+      if [ "{CELLBENDER_VERSION}" == "v0.3.2" ]; then
+        POSTERIOR_BATCH_SIZE_FLAG="--posterior-batch-size $POSTERIOR_BATCH_SIZE"
+      fi
+
       
       if [ $EXPECTED_CELLS -eq 0 ]; then
         echo "running cellbender without expected_cells"
         # run cellbender
         cellbender remove-background \
           --input {input.h5_f} \
-          --output $cb_full_f \
+          --output $raw_counts_f \
           --total-droplets-included $TOTAL_DROPLETS_INCLUDED \
           --low-count-threshold $LOW_COUNT_THRESHOLD \
           --learning-rate $LEARNING_RATE \
           --checkpoint-mins 30.0 \
-          --cuda
+          --cuda \
+          $POSTERIOR_BATCH_SIZE_FLAG
       else
         echo "running cellbender with expected_cells"
         # run cellbender
@@ -180,7 +199,8 @@ if AMBIENT_METHOD == 'cellbender':
           --low-count-threshold $LOW_COUNT_THRESHOLD \
           --learning-rate $LEARNING_RATE \
           --checkpoint-mins 30.0 \
-          --cuda
+          --cuda \
+          $POSTERIOR_BATCH_SIZE_FLAG
       fi
 
       # Create the output yaml file
@@ -207,6 +227,8 @@ if AMBIENT_METHOD == 'decontx':
     retries: RETRIES
     resources:
       mem_mb    = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_ambient/run_decontx_{run}_' + DATE_STAMP + '.benchmark.txt'
     conda: 
       '../envs/rlibs.yaml'
     shell:
@@ -259,6 +281,8 @@ if AMBIENT_METHOD == 'none':
       '../envs/rlibs.yaml'
     resources:
       mem_mb    = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_ambient/run_cell_calling_{run}_' + DATE_STAMP + '.benchmark.txt'
     shell:
       """
       # create main ambient directory

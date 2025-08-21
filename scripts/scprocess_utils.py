@@ -357,14 +357,15 @@ def get_alevin_parameters(config, scprocess_data_dir, SPECIES):
 # ambient
 def get_ambient_parameters(config):
   # set default values
-  AMBIENT_METHOD                = 'decontx'
-  CELLBENDER_VERSION            = 'v0.3.0'
-  CELLBENDER_PROP_MAX_KEPT      = 0.9
-  FORCE_EXPECTED_CELLS          = None
-  FORCE_TOTAL_DROPLETS_INCLUDED = None
-  FORCE_LOW_COUNT_THRESHOLD     = None
-  CELLBENDER_LEARNING_RATE      = 1e-4
-  CELL_CALLS_METHOD             = 'barcodeRanks'
+  AMBIENT_METHOD                  = 'decontx'
+  CELLBENDER_VERSION              = 'v0.3.0'
+  CELLBENDER_PROP_MAX_KEPT        = 0.9
+  FORCE_EXPECTED_CELLS            = None
+  FORCE_TOTAL_DROPLETS_INCLUDED   = None
+  FORCE_LOW_COUNT_THRESHOLD       = None
+  CELLBENDER_LEARNING_RATE        = 1e-4
+  CELLBENDER_POSTERIOR_BATCH_SIZE = 128 # parameter only available in v0.3.2. Smaller values for lower GPU memory
+  CELL_CALLS_METHOD               = 'barcodeRanks'
 
   # change defaults if specified
   if ('ambient' in config) and (config['ambient'] is not None):
@@ -384,9 +385,15 @@ def get_ambient_parameters(config):
       FORCE_LOW_COUNT_THRESHOLD     = config['ambient']['cb_force_low_count_threshold']
     if 'cb_force_learning_rate' in config['ambient']:
       CELLBENDER_LEARNING_RATE      = config['ambient']['cb_force_learning_rate']
+    if 'cb_posterior_batch_size' in config['ambient']:
+      CELLBENDER_POSTERIOR_BATCH_SIZE =config['ambient']['cb_posterior_batch_size']
+      if CELLBENDER_VERSION != 'v0.3.2':
+        warnings.warn(f"'cb_posterior_batch_size' is only supported in CellBender v0.3.2. Ignoring for CellBender v{CELLBENDER_VERSION}.")
 
   # get cellbender image (maybe skip this if cellbender is not selected?)
-  if CELLBENDER_VERSION == 'v0.3.0':
+  if CELLBENDER_VERSION   == 'v0.3.2':
+    CELLBENDER_IMAGE              = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.3.2'
+  elif CELLBENDER_VERSION   == 'v0.3.0':
     CELLBENDER_IMAGE              = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.3.0'
   elif CELLBENDER_VERSION == 'v0.2.0':
     CELLBENDER_IMAGE              = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.2.0'
@@ -395,8 +402,8 @@ def get_ambient_parameters(config):
 
   # some checks on custom parameters for cellbender
       
-  return CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
-    FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE
+  return CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
+    FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE 
 
 
 def get_qc_parameters(config):

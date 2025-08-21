@@ -1,6 +1,6 @@
 # rules to render html files
 
-# localrules: render_html_index
+localrules: copy_r_code
 
 # # render_html_index --> render from index.Rmd file that is created when workflow R project is started ?
 # rule render_html_index:
@@ -62,6 +62,8 @@ rule render_html_mapping:
   retries: RETRIES
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_mapping_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
   shell: """
@@ -106,6 +108,8 @@ if DEMUX_TYPE == 'af':
     retries: RETRIES
     resources:
       mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_multiplexing_' + DATE_STAMP + '.benchmark.txt'
     conda:
       '../envs/rlibs.yaml'
     shell: """
@@ -151,6 +155,8 @@ if AMBIENT_METHOD == "cellbender":
     retries: RETRIES 
     resources:
       mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_cellbender_' + DATE_STAMP + '.benchmark.txt'
     conda:
       '../envs/rlibs.yaml'
     shell: """
@@ -190,6 +196,8 @@ rule render_html_qc:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_qc_' + DATE_STAMP + '.benchmark.txt'
   shell: """
   
     #define rule and template
@@ -240,6 +248,8 @@ rule render_html_hvgs:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_hvgs_' + DATE_STAMP + '.benchmark.txt'
   shell: """
   
     #define rule and template
@@ -284,6 +294,8 @@ rule render_html_integration:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_integration_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     template_f=$(realpath resources/rmd_templates/integration.Rmd.template)
     rule="integration"
@@ -337,6 +349,8 @@ rule render_html_marker_genes:
   conda: '../envs/rlibs.yaml'
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_marker_genes_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     template_f=$(realpath resources/rmd_templates/marker_genes.Rmd.template)
     rule="markers"
@@ -387,6 +401,8 @@ rule render_html_label_celltypes:
   retries: RETRIES
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_label_celltypes_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell: """

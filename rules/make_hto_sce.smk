@@ -15,6 +15,8 @@ if DEMUX_TYPE == 'af':
     retries: RETRIES
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_MAKE_HTO_SCE_OBJECTS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_make_hto_sce/make_hto_sce_objects_{run}_' + DATE_STAMP + '.benchmark.txt'
     conda:
      '../envs/rlibs.yaml'
     shell: 

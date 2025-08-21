@@ -19,6 +19,8 @@ rule get_xgboost_labels:
   retries: RETRIES 
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_LABEL_CELLTYPES
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/get_xgboost_labels_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell:

@@ -4,8 +4,6 @@ import gzip
 import os
 import numpy as np
 
-localrules: merge_qc
-
 def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, SAMPLE_VAR, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS):
     # load the merged qc file
     qc_dt = pd.read_csv(qc_merged_f, sep = '\t', compression='gzip')
@@ -98,6 +96,8 @@ rule run_qc:
   retries: RETRIES
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_qc/run_qc_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
   shell:
@@ -144,6 +144,8 @@ rule merge_qc:
     coldata_merged_f = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 4
   retries: RETRIES
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_qc/merge_qc_' + DATE_STAMP + '.benchmark.txt'
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
   run:
@@ -176,6 +178,8 @@ rule merge_rowdata:
   retries: RETRIES
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_mapping/merge_rowdata_' + DATE_STAMP + '.benchmark.txt'
   run:
     # read all nonempty rowdata files 
     rd_df_ls = [
@@ -201,6 +205,12 @@ rule get_qc_sample_statistics:
     qc_merged_f     = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz' 
   output:
     qc_stats_f      = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+  threads: 1
+  retries: RETRIES
+  resources:
+    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_mapping/get_qc_sample_statistics_' + DATE_STAMP + '.benchmark.txt'
   run:
     sample_stats_df = extract_qc_sample_statistics(input.ambient_stats_f, input.qc_merged_f, SAMPLES, SAMPLE_VAR, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS)
     sample_stats_df.to_csv(output.qc_stats_f, index = False)
@@ -212,6 +222,12 @@ rule make_tmp_sce_paths_yaml:
     qc_stats_f  = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv' # so that this runs after get_qc_sample_statistics
    output:
     sces_yaml_f = temp(qc_dir  + '/sce_tmp_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml')
+   threads: 1
+   retries: RETRIES
+   resources:
+    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
+   benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_mapping/make_tmp_sce_paths_yaml_' + DATE_STAMP + '.benchmark.txt'
    run:
     # split paths and sample names
     fs = [f"{qc_dir}/sce_cells_tmp_{s}_{FULL_TAG}_{DATE_STAMP}.rds" for s in SAMPLES]

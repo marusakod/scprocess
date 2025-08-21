@@ -34,6 +34,8 @@ rule make_pb_empty:
   retries: RETRIES 
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_pb_empties/make_pb_empty_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell:
@@ -62,6 +64,8 @@ rule make_pb_all:
   retries: RETRIES 
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_pb_empties/make_pb_all_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell:
@@ -86,6 +90,8 @@ rule calculate_ambient_genes:
   retries: RETRIES 
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_pb_empties/calculate_ambient_genes_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell:
