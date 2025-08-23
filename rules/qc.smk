@@ -179,7 +179,7 @@ rule merge_rowdata:
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_mapping/merge_rowdata_' + DATE_STAMP + '.benchmark.txt'
+    benchmark_dir + '/' + SHORT_TAG + '_qc/merge_rowdata_' + DATE_STAMP + '.benchmark.txt'
   run:
     # read all nonempty rowdata files 
     rd_df_ls = [
@@ -210,7 +210,7 @@ rule get_qc_sample_statistics:
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_mapping/get_qc_sample_statistics_' + DATE_STAMP + '.benchmark.txt'
+    benchmark_dir + '/' + SHORT_TAG + '_qc/get_qc_sample_statistics_' + DATE_STAMP + '.benchmark.txt'
   run:
     sample_stats_df = extract_qc_sample_statistics(input.ambient_stats_f, input.qc_merged_f, SAMPLES, SAMPLE_VAR, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS)
     sample_stats_df.to_csv(output.qc_stats_f, index = False)
@@ -227,7 +227,7 @@ rule make_tmp_sce_paths_yaml:
    resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
    benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_mapping/make_tmp_sce_paths_yaml_' + DATE_STAMP + '.benchmark.txt'
+    benchmark_dir + '/' + SHORT_TAG + '_qc/make_tmp_sce_paths_yaml_' + DATE_STAMP + '.benchmark.txt'
    run:
     # split paths and sample names
     fs = [f"{qc_dir}/sce_cells_tmp_{s}_{FULL_TAG}_{DATE_STAMP}.rds" for s in SAMPLES]
