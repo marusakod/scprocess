@@ -136,8 +136,6 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg',
         train_data_str = "whole brain human single nuclei atlas (Siletti et al. 2023)"
       }else if(add_args[["LBL_TISSUE"]] == 'mouse_cns'){
         train_data_str = "whole brain mouse single nuclei atlas (Langlieb et al. 2023)"
-      }else if(add_args[["LBL_TISSUE"]] == 'human pbmc'){
-        train_data_str = "insert name of study here"
       }else{
         train_data_str = "insert name of study here"
       }
@@ -147,11 +145,12 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg',
 
   }else if(sel_rule == 'zoom'){
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 'DATE_STAMP', 
-      'threads', 'zoom_name', 'zoom_res', 'meta_f', 'meta_vars_ls', # meta_vars_ls should be made one string
-      'gtf_dt_f', 'sce_sub_f', 'hmny_f', 'pb_f', 'mkrs_f', 'hvgs_f', 'canon_f', 
+      'threads', 'zoom_dir', 'zoom_name', 'meta_f', 'meta_vars_ls',
+      'gtf_dt_f', 'int_f', 'pb_f', 'mkrs_f', 'hvgs_f',
       'fgsea_go_bp_f','fgsea_go_cc_f', 'fgsea_go_mf_f', 'fgsea_paths_f', 'fgsea_hlmk_f',
-      'INT_DBL_CL_PROP', 'INT_EXC_REGEX', 'MKR_NOT_OK_RE', 'MKR_MIN_CPM_MKR', 
+      'CUSTOM_MKR_NAMES', 'CUSTOM_MKR_PATHS', 'MKR_NOT_OK_RE', 'MKR_MIN_CPM_MKR', 'MKR_SEL_RES',
       'MKR_MIN_CELLS', 'MKR_GSEA_CUT', 'SPECIES')
+    
     assert_that(all(req_names %in% add_args_names))
 
     if(add_args[['SPECIES']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){

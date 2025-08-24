@@ -537,3 +537,77 @@ rule zoom_make_subset_sces:
      subset_str     = '{params.zoom_lbls}')"
     """
 
+
+
+# # render_html_zoom
+rule render_html_zoom:
+  input:
+    zoom_int_f          = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    zoom_pb_f           = zoom_dir + '/{zoom_name}/pb_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.rds',
+    zoom_mkrs_f         = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
+    zoom_hvgs_f         = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
+    **get_zoom_conditional_outputs(SPECIES)
+  output:
+    rmd_f       = rmd_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{mkr_sel_res}.Rmd',
+    html_f      = docs_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{mkr_sel_res}.html'
+  params:
+    meta_vars   = ','.join(METADATA_VARS), 
+    fgsea_args  = lambda wildcards, input: ", ".join([
+        f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}'",
+        f"fgsea_go_cc_f = '{input.get('fgsea_go_cc_f', '')}'",
+        f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}'",
+        f"fgsea_paths_f = '{input.get('fgsea_paths_f', '')}'",
+        f"fgsea_hlmk_f = '{input.get('fgsea_hlmk_f', '')}',"
+    ]), 
+    zoom_mkr_sel_res     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_SEL_RES'],
+    zoom_mkr_min_cpm_mkr = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MIN_CPM_MKR'], 
+    zoom_mkr_min_cells   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MIN_CELLS'],  
+    zoom_mkr_not_ok_re   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_NOT_OK_RE'], 
+    zoom_mkr_gsea_cut    = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_GSEA_CUT'], 
+    zoom_custom_mkr_names= lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['CUSTOM_MKR_NAMES'], 
+    zoom_custom_mkr_paths= lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['CUSTOM_MKR_PATHS']
+  threads: 1
+  retries: RETRIES 
+  conda: 
+    '../envs/rlibs.yaml'
+  resources:
+    mem_mb =  lambda wildcards, attempt: attempt * 8192
+  shell:
+    """
+
+    template_f=$(realpath resources/rmd_templates/zoom.Rmd.template)
+    rule="zoom"
+
+    Rscript --vanilla -e "source('scripts/render_reports.R'); \
+    render_reports(
+    rule_name         = '$rule', 
+    proj_dir          = '{PROJ_DIR}', 
+    temp_f            =  '$template_f', 
+    rmd_f             = '{output.rmd_f}', 
+    YOUR_NAME         = '{YOUR_NAME}', 
+    AFFILIATION       = '{AFFILIATION}', 
+    PROJ_DIR          = '{PROJ_DIR}', 
+    SHORT_TAG         = '{SHORT_TAG}', 
+    DATE_STAMP        = '{DATE_STAMP}', 
+    threads           = {threads},
+    zoom_dir          = '{zoom_dir}', 
+    zoom_name         = '{wildcards.zoom_name}', 
+    meta_f            = '{METADATA_F}', 
+    meta_vars_ls      = '{params.meta_vars}', 
+    gtf_dt_f          = '{AF_GTF_DT_F}', 
+    int_f             = '{input.zoom_int_f}', 
+    pb_f              = '{input.zoom_pb_f}', 
+    mkrs_f            = '{input.zoom_mkrs_f}', 
+    hvgs_f            = '{input.zoom_hvgs_f}', 
+    {params.fgsea_args}
+    CUSTOM_MKR_NAMES  = '{params.zoom_custom_mkr_names}',
+    CUSTOM_MKR_PATHS  = '{params.zoom_custom_mkr_paths}',
+    MKR_SEL_RES       = '{params.zoom_mkr_sel_res}', 
+    MKR_NOT_OK_RE     = '{params.zoom_mkr_not_ok_re}', 
+    MKR_MIN_CPM_MKR   = {params.zoom_mkr_min_cpm_mkr}, 
+    MKR_MIN_CELLS     = {params.zoom_mkr_min_cells}, 
+    MKR_GSEA_CUT      = {params.zoom_mkr_gsea_cut}, 
+    SPECIES           = '{SPECIES}')"
+
+    """
+

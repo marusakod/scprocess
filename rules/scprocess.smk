@@ -224,11 +224,13 @@ rule all:
 
 
 # get zoom marker outputs
-zoom_mkr_outs = expand(
+zoom_mkr_report_outs = expand(
   [
   '%s/{zoom_name}/pb_%s_{mkr_sel_res}_%s.rds' % (zoom_dir, FULL_TAG, DATE_STAMP), 
   '%s/{zoom_name}/pb_marker_genes_%s_{mkr_sel_res}_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
-  '%s/{zoom_name}/pb_hvgs_%s_{mkr_sel_res}_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP)
+  '%s/{zoom_name}/pb_hvgs_%s_{mkr_sel_res}_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
+  '%s/%s_zoom_{zoom_name}_{mkr_sel_res}.Rmd' % (rmd_dir, SHORT_TAG), 
+  '%s/%s_zoom_{zoom_name}_{mkr_sel_res}.html' % (docs_dir, SHORT_TAG)
   ] + (
     [
     '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_go_bp_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
@@ -280,8 +282,8 @@ rule zoom:
      # zoom integration
      expand('%s/{zoom_name}/integrated_dt_%s_%s.txt.gz' % \
             (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES),
-     # zoom marker genes
-     zoom_mkr_outs,
+     # zoom marker genes and html report
+     zoom_mkr_report_outs, 
      # zoom sce subsets (optional)
      zoom_sce_outs
      
