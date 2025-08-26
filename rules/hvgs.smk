@@ -53,16 +53,16 @@ def merge_tmp_files(in_files, out_file):
 
 
 rule make_hvg_df:
-    input:
-        ambient_yaml_out=expand([amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'], run=runs)
-    output:
-        hvg_paths_f= hvg_dir + '/hvg_paths_' + FULL_TAG + DATE_STAMP + '.csv' 
-    run:
-        hvg_df = make_hvgs_input_df(
-            DEMUX_TYPE, SAMPLE_VAR, runs, input.ambient_yaml_out,
-            SAMPLE_MAPPING, FULL_TAG, DATE_STAMP, hvg_dir
-        )
-        hvg_df.to_csv(output.hvg_paths_f, index=False)
+  input:
+    ambient_yaml_out=expand([amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'], run=runs)
+  output:
+    hvg_paths_f= hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv' 
+  run:
+    hvg_df = make_hvgs_input_df(
+      DEMUX_TYPE, SAMPLE_VAR, runs, input.ambient_yaml_out,
+      SAMPLE_MAPPING, FULL_TAG, DATE_STAMP, hvg_dir
+    )
+    hvg_df.to_csv(output.hvg_paths_f, index=False)
 
 
 
@@ -71,7 +71,7 @@ rule make_tmp_csr_matrix:
   input:
     hvg_paths_f        = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     qc_f               = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    qc_sample_stats_f  = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    qc_sample_stats_f  = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     rowdata_f          = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
     clean_h5_f  = temp(expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES))
