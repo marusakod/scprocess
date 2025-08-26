@@ -146,7 +146,7 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg',
   }else if(sel_rule == 'zoom'){
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 'DATE_STAMP', 
       'threads', 'zoom_dir', 'zoom_name', 'meta_f', 'meta_vars_ls',
-      'gtf_dt_f', 'int_f', 'pb_f', 'mkrs_f', 'hvgs_f',
+      'gtf_dt_f', 'int_f', 'pb_f', 'mkrs_f', 'mkrs_hvgs_f', 'hvgs_f', 'empty_gs_f', 'pb_empty_f', 
       'fgsea_go_bp_f','fgsea_go_cc_f', 'fgsea_go_mf_f', 'fgsea_paths_f', 'fgsea_hlmk_f',
       'CUSTOM_MKR_NAMES', 'CUSTOM_MKR_PATHS', 'MKR_NOT_OK_RE', 'MKR_MIN_CPM_MKR', 'MKR_SEL_RES',
       'MKR_MIN_CELLS', 'MKR_GSEA_CUT', 'SPECIES')

@@ -545,7 +545,10 @@ rule render_html_zoom:
     zoom_int_f          = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     zoom_pb_f           = zoom_dir + '/{zoom_name}/pb_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.rds',
     zoom_mkrs_f         = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
-    zoom_hvgs_f         = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
+    zoom_mkrs_hvgs_f    = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
+    zoom_hvgs_f         = zoom_dir + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    zoom_empty_gs_f     = zoom_dir + '/{zoom_name}/edger_empty_genes_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    pb_empty_f          = pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
     **get_zoom_conditional_outputs(SPECIES)
   output:
     rmd_f       = rmd_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{mkr_sel_res}.Rmd',
@@ -598,7 +601,10 @@ rule render_html_zoom:
     int_f             = '{input.zoom_int_f}', 
     pb_f              = '{input.zoom_pb_f}', 
     mkrs_f            = '{input.zoom_mkrs_f}', 
-    hvgs_f            = '{input.zoom_hvgs_f}', 
+    mkrs_hvgs_f       = '{input.zoom_mkrs_hvgs_f}',
+    hvgs_f            = '{input.zoom_hvgs_f}',
+    empty_gs_f        = '{input.zoom_empty_gs_f}', 
+    pb_empty_f        = '{input.pb_empty_f}', 
     {params.fgsea_args}
     CUSTOM_MKR_NAMES  = '{params.zoom_custom_mkr_names}',
     CUSTOM_MKR_PATHS  = '{params.zoom_custom_mkr_paths}',

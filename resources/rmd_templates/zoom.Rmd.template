@@ -27,8 +27,9 @@ knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 source('code/utils.R')
 source('code/integration.R')
 source('code/marker_genes.R')
+source('code/hvgs.R')
 library(stringi)
-n_cores     = 4
+n_cores = ${threads}
 setDTthreads(n_cores)
 ```
 
@@ -45,7 +46,10 @@ gtf_dt_f      = "${gtf_dt_f}"
 int_f         = "${int_f}"
 pb_f          = "${pb_f}"
 mkrs_f        = "${mkrs_f}"
+mkrs_hvgs_f   = "${mkrs_hvgs_f}"
 hvgs_f        = "${hvgs_f}"
+empty_gs_f    = "${empty_gs_f}"
+pb_empty_f    = "${pb_empty_f}"
 
 
 # fgsea files --> these will only be present if species is human or mouse
@@ -95,6 +99,12 @@ assert_that( all(metadata_vars %in% names(meta_dt)) )
 }
 ```
 
+```{r load_hvg_data, include = FALSE}
+hvgs_dt     = fread(hvgs_f)
+edger_dt    = fread(empty_gs_f)
+pb          = readRDS(pb_empty_f)
+```
+
 ```{r extract_integration_res, include = FALSE}
 int_dt    = fread(int_f)  %>% 
   .[, c("sample_id", "cell_id", "reduction", "UMAP1", "UMAP2", 
@@ -116,11 +126,11 @@ cpms_dt     = readRDS(pb_f) %>%
 ```
 
 
-```{r load_hvgs, include = FALSE}
-hvgs_dt     = fread(hvgs_f) %>% 
+```{r load_mkr_hvgs, include = FALSE}
+mkrs_hvgs_dt     = fread(mkrs_hvgs_f) %>% 
   .[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
   .[ order(-vst_var) ]
-top_hvgs =  hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs" ]
+top_hvgs =  mkrs_hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs" ]
 ```
 
 
@@ -134,7 +144,7 @@ if (is.null(cl_ord))
 ```{r load_heatmap_markers, include = FALSE}
 if (custom_mkr_names_str != "") {
   custom_mkrs_dt_ls = lapply(custom_mkr_paths, FUN = process_custom_markers, 
-    biotypes_dt = biotypes_dt, hvgs_dt = hvgs_dt, marker_calcs_dt = mkrs_dt)
+    biotypes_dt = biotypes_dt, hvgs_dt = mkrs_hvgs_dt, marker_calcs_dt = mkrs_dt)
   
   custom_mkrs_dt_ls = Filter(Negate(is.null), custom_mkrs_dt_ls)
   
@@ -145,6 +155,10 @@ if (custom_mkr_names_str != "") {
 
 ```
 
+
+```{r calc_empty_hvgs, include = FALSE}
+vst_obj     = calc_vst_obj(pb, edger_dt)
+```
 ```{r get_top_markers, include = FALSE}
 # select top markers
 top_dt      = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
@@ -161,6 +175,71 @@ fgsea_fs      = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fg
 
 # load fgsea results
 gsea_ls       = lapply(fgsea_fs, function(f) if(file.exists(f)) {fread(f)} else {return(NULL)}) %>% setNames(names(fgsea_fs))
+```
+
+## Are highly variable genes "ambient" ?
+
+This plot is used to show to what extent the genes that would be identified by the 
+"standard" `Seurat`-style HVG procedure could be driven by ambient RNA. The x-axis 
+is the `log2fc` output from the ambient gene estimation step in `scprocess` (see
+docs for more details). The y-axis is the `Seurat`-style trend-normalised variance. Points are 
+genes, annotated by whether they are in the top HVGs, combined with whether
+the `scprocess` ambient gene procedure calls them as ambient.
+
+```{r plot_std_var_vs_empty_log2fc, fig.height = 6, fig.width = 8}
+print(plot_hvg_stats_vs_empty_log2fc(hvgs_dt, edger_dt))
+```
+
+## Which genes are "ambient"?{.tabset}
+
+This plot shows the results of the `scprocess` ambient gene procedure. The y-axis 
+is the `-log10` nominal p-value, with a dotted line to show the cutoff at which 
+the adjusted p-value is sufficiently small. There are several plots, each filtering 
+to have different minimum levels of expression in the ambient profiles.
+
+```{r plot_ambient_gene_calculations, fig.height = 6, fig.width = 6, results = 'asis'}
+cpm_ls  = c(0, 10, 50, 100)
+for (min_cpm in cpm_ls) {
+  if (min_cpm == 0) {
+    cat("### all genes\n")
+  } else {
+    cat(sprintf("### >= %d CPM expression in ambient\n", min_cpm))
+  }
+  print(plot_ambient_gene_calculations(edger_dt, min_cpm_empty = min_cpm))
+  cat("\n\n")
+}
+```
+
+## Which genes are variable across the ambient profiles?{.tabset}
+
+We often find it useful to look into how ambient genes vary across the different 
+samples. This can indicate when some samples may need to be treated differently 
+(e.g. if disease and healthy samples consistently have different ambient profiles).
+
+These heatmaps show how the pseudobulk expression of various genes vary across the
+ambient profiles from each sample in the dataset. The genes are chosen as the top 40 
+with:
+
+- highest variance across ambient profiles;
+- highest mean expression across ambient 
+profiles;
+- highest `log2fc` in ambient vs cells in `scprocess`'s ambient gene procedure; 
+and
+- smallest p-value in ambient vs cells in `scprocess`'s ambient gene procedure.
+
+```{r plot_ambient_profiles, fig.height = 8, fig.width = 6, results = 'asis'}
+title_ls = c(
+  "var"           = "HVGs",
+  "mean"          = "Highest expression",
+  "log2fc.empty"  = "Highest log2fc",
+  "pval.empty"    = "Smallest p-value"
+)
+for (top_var in names(title_ls)) {
+  cat(sprintf("### %s in ambient\n", title_ls[top_var]))
+  suppressMessages(draw(plot_heatmap_of_ambient_profiles(vst_obj, top_var = top_var, 
+    n_top = 40), heatmap_legend_side = "right", merge_legend = TRUE ))
+  cat("\n\n")
+}
 ```
 
 
@@ -197,7 +276,7 @@ for (nn in names(mkrs_ls)) {
 }
 ```
 
-## Highly variable genes{.tabset}
+## Highly variable genes - this title has to be changed {.tabset} 
 
 ```{r plot_hvgs_pb_hmny, fig.height = 8, fig.width = 8, results = "asis"}
 n_pages = 10
@@ -205,7 +284,7 @@ per_p   = 10
 p       = 1
 for (i in seq(1, n_pages * per_p, by = per_p)) {
   cat('### page', p, '\n'); p = p + 1
-  sel_hvgs  = hvgs_dt[ i:(i + 9) ]
+  sel_hvgs  = mkrs_hvgs_dt[ i:(i + 9) ]
   print(plot_selected_genes(sel_hvgs, cpms_dt, cl_order = cl_ord))
   cat('\n\n')
 }
