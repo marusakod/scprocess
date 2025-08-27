@@ -14,6 +14,7 @@ import csv
 from skmisc.loess import loess
 import numba
 import warnings
+import datatable as dt
 
 
 def sum_SUA(sua_mat, row_names):
@@ -122,18 +123,18 @@ def get_one_csr_counts(run, hvg_df, keep_df, smpl_stats_df, gene_ids, SAMPLE_VAR
 
 def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals,  smpl_stats_f, rowdata_f, SAMPLE_VAR, DEMUX_TYPE, chunk_size=2000, n_cores = 8):
   # load up useful things
-  hvg_paths_df  = pd.read_csv(hvg_paths_f)
-  smpl_stats_df = pd.read_csv(smpl_stats_f)
+  hvg_paths_df  = dt.fread(hvg_paths_f)
+  smpl_stats_df = dt.fread(smpl_stats_f)
   
   # get QCed cells
-  filt_df       = pd.read_csv(cell_filter_f)
+  filt_df       = dt.fread(cell_filter_f)
   filt_df[keep_var] = filt_df[keep_var].astype(str)
 
   keep_vals     = keep_vals.split(',')
   keep_df       = filt_df[filt_df[keep_var].isin(keep_vals)]
 
   # get gene details
-  rows_df       = pd.read_csv(rowdata_f, sep = '\t')
+  rows_df       = dt.fread(rowdata_f)
   keep_ids      = rows_df['ensembl_id'].tolist()
 
   # define list of samples
@@ -202,7 +203,7 @@ def _calculate_feature_stats(sparse_csr, features, rowdata_f):
   })
 
   # merge with nice labels for genes
-  rows_df       = pd.read_csv(rowdata_f, sep = '\t')
+  rows_df       = dt.fread(rowdata_f)
   feat_stats_df = pd.merge(feat_stats_df, rows_df, on = 'ensembl_id')
   
   return feat_stats_df
@@ -243,7 +244,7 @@ def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None,
   # read mean var df if not specified
   if mean_var_df is None:
     assert mean_var_merged_f is not None, 'input file path or dataframe missing'
-    stats_df  = pd.read_csv(mean_var_merged_f, sep = '\t')
+    stats_df  = dt.fread(mean_var_merged_f)
   else:
     stats_df = mean_var_df
 
@@ -334,14 +335,14 @@ def safe_loess(x, y, span, initial_amount=1e-16, max_attempts=5, seed=1234):
 def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_num, 
   hvg_method, chunk_size=2000, group_var=None, group=None):
   
-  rows_df = pd.read_csv(rowdata_f, sep='\t')
+  rows_df = dt.fread(rowdata_f)
   total   = rows_df.shape[0]
 
   # get input paths df
-  hvg_paths_df = pd.read_csv(hvg_paths_f)
+  hvg_paths_df = dt.fread(hvg_paths_f)
   
   # get list of good samples
-  qc_df = pd.read_csv(qc_smpl_stats_f)
+  qc_df = dt.fread(qc_smpl_stats_f)
   good_samples = qc_df.loc[qc_df['bad_sample'] == False, 'sample_id'].tolist()
 
   # get input files for selectd samples
@@ -352,7 +353,7 @@ def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_
     assert group is not None, "group must be defined."
     
     # select samples based on group
-    meta = pd.read_csv(metadata_f)
+    meta = dt.fread(metadata_f)
     grp_samples = meta.loc[meta[group_var] == group, 'sample_id'].tolist()
     
     sel_samples = list(set(grp_samples) & set(good_samples))
@@ -367,7 +368,7 @@ def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_
 
 def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, csr_f, rowdata_f, std_var_stats_f):
 
-  qc_df = pd.read_csv(qc_smpl_stats_f)
+  qc_df = dt.fread(qc_smpl_stats_f)
   bad_samples = qc_df.loc[qc_df['bad_sample'] == True, 'sample_id'].tolist()
    
   if sample in bad_samples:
@@ -488,7 +489,7 @@ def calculate_std_var_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smp
     return
   
   # get estimated variances
-  estim_vars_df = pd.read_csv(estim_vars_f, sep = '\t')
+  estim_vars_df = dt.fread(estim_vars_f)
   
   # read chunks for multiple samples in parallel
   merged_chunk = None
@@ -592,11 +593,11 @@ def _process_multiple_groups(stats_df, group_var, empty_gs, n_hvgs,  exclude_amb
 # main function to calculate highly variable genes
 def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, n_hvgs, exclude_ambient=True):
    
-  stats_df  = pd.read_csv(std_var_stats_f, sep='\t')
+  stats_df  = dt.fread(std_var_stats_f)
   group_var = 'sample_id' if hvg_method == 'sample' else 'group'
 
   # get empty genes
-  empty_dt = pd.read_csv(empty_gs_f, sep=',', compression='gzip')
+  empty_dt = dt.fread(empty_gs_f)
   empty_gs = empty_dt.loc[empty_dt['is_ambient'], 'gene_id'].tolist()
   
   stats_df  = _calculate_standardized_variance(stats_df)
@@ -626,16 +627,16 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, n_hvgs, exclu
 # read top 2000 hvgs from each sample and save file
 def read_top_genes(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
   # get bad samples
-  qc_sample_df  = pd.read_csv(qc_smpl_stats_f)
+  qc_sample_df  = dt.fread(qc_smpl_stats_f)
   bad_samples   = qc_sample_df.loc[ qc_sample_df['bad_sample'] == True, 'sample_id'].tolist()
 
   # get all chunked files
-  hvg_paths_df  = pd.read_csv(hvg_paths_f)
+  hvg_paths_df  = dt.fread(hvg_paths_f)
   chunked_fs    = hvg_paths_df['chunked_f'].tolist()
   runs          = hvg_paths_df[SAMPLE_VAR].tolist()
 
   # get all hvgs
-  hvg_df        = pd.read_csv(hvg_f, sep='\t')
+  hvg_df        = dt.fread(hvg_f)
   hvg_ids       = hvg_df.loc[hvg_df['highly_variable'] == True, 'gene_id'].tolist()
 
   # extract ensembl ids (maybe keep ensembl is in the df earlier)
@@ -681,11 +682,11 @@ def read_top_genes(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
 
 def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, SAMPLE_VAR):
   # get all hvgs
-  hvg_df  = pd.read_csv(hvg_f, sep='\t')
+  hvg_df  = dt.fread(hvg_f)
   hvg_ids = hvg_df.loc[hvg_df['highly_variable'] == True, 'gene_id'].tolist()
   
   # get qc file with all cells
-  qc_df   = pd.read_csv(qc_f, sep = '\t')
+  qc_df   = dt.fread(qc_f)
 
   # subset to doublets
   dbl_df  = qc_df[qc_df["dbl_class"] == "doublet"]
@@ -702,8 +703,8 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
   all_barcodes  = []
 
   # get samples (or pools) that passed qc
-  hvg_paths_df  = pd.read_csv(hvg_paths_f)
-  qc_sample_df  = pd.read_csv(qc_smpl_stats_f)
+  hvg_paths_df  = dt.fread(hvg_paths_f)
+  qc_sample_df  = dt.fread(qc_smpl_stats_f)
   good_samples  = qc_sample_df.loc[ qc_sample_df['bad_sample'] == False, "sample_id"].tolist()
   keep_runs     = hvg_paths_df.loc[hvg_paths_df['sample_id'].isin(good_samples), SAMPLE_VAR].unique().tolist()
 
