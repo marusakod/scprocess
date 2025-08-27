@@ -31,9 +31,11 @@ suppressPackageStartupMessages({
   library('rhdf5')
   library('Matrix')
   # library('Matrix.utils')
+  library('parallel')
   library('edgeR')
   library('yaml')
 })
+
 
 
 make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset_var = NULL, n_cores = 8) {
@@ -47,12 +49,13 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
   sce_fs_ls = sce_fs_ls[keep_samples]
   
   # set up parallelization
-  bpparam       = MulticoreParam(workers = n_cores, tasks = length(sce_fs_ls))
-  on.exit(bpstop(bpparam))
+  # bpparam       = MulticoreParam(workers = n_cores, tasks = length(sce_fs_ls))
+  # on.exit(bpstop(bpparam))
   
-  cell_pbs     = bpmapply( sample_id = names(sce_fs_ls), sce_f = unname(sce_fs_ls),
-                            FUN = .get_one_cells_pb, SIMPLIFY = FALSE, BPPARAM = bpparam, 
-                            MoreArgs = list(subset_f = subset_f, subset_var = subset_var))
+  cell_pbs     = mcmapply( sample_id = names(sce_fs_ls), sce_f = unname(sce_fs_ls),
+                            FUN = .get_one_cells_pb, SIMPLIFY = FALSE,
+                            MoreArgs = list(subset_f = subset_f, subset_var = subset_var), 
+                           mc.cores = n_cores)
   
   # merge sce objects
   pb_sce = Reduce(function(x, y) {cbind(x, y)}, cell_pbs)
@@ -154,13 +157,20 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
   )
   
   # set up parallelization
-  bpparam       = MulticoreParam(workers = n_cores, tasks = length(sample_ls))
-  on.exit(bpstop(bpparam))
-  
+  # bpparam       = MulticoreParam(
+  #   workers = n_cores,
+  #   tasks = length(sample_ls), 
+  #   exportglobals = TRUE,
+  #   exportvariables= TRUE
+  #   )
+  # # 
+  # register(bpparam)
+  # on.exit(bpstop(bpparam))
+  # 
   # get empty pseudobulks
-  empty_pbs     = bpmapply( sample_id = sample_ls, af_mat_f = af_mat_ls,
+  empty_pbs     = mcmapply( sample_id = sample_ls, af_mat_f = af_mat_ls,
                             af_knee_f = af_knee_ls,
-                            FUN = .get_one_empty_pb, SIMPLIFY = FALSE, BPPARAM = bpparam)
+                            FUN = .get_one_empty_pb, SIMPLIFY = FALSE, mc.cores = n_cores)
   pb_empty      = do.call('cbind', empty_pbs)
   
   # get nice rows
