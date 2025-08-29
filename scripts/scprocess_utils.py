@@ -773,7 +773,7 @@ def get_zoom_parameters(config, MITO_STR, scprocess_data_dir):
 # get rule resource parameters
 def get_resource_parameters(config):
   # set default values
-  RETRIES                         = 0
+  RETRIES                         = 3
   MB_RUN_MAPPING                  = 8192
   MB_SAVE_ALEVIN_TO_H5            = 8192
   MB_RUN_AMBIENT                  = 8192
