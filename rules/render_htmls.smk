@@ -44,7 +44,7 @@ rule copy_r_code:
     cp scripts/ambient.R {output.r_amb_f}
     cp scripts/multiplexing.R {output.r_demux_f}
     cp scripts/SampleQC.R {output.r_qc_f}
-    cp scripts/hvgs.R {output.r_qc_f}
+    cp scripts/hvgs.R {output.r_hvgs_f}
     cp scripts/integration.R {output.r_int_f}
     cp scripts/marker_genes.R {output.r_mkr_f}
     """ 
