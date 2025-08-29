@@ -178,7 +178,9 @@ fgsea_fs      = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fg
 gsea_ls       = lapply(fgsea_fs, function(f) if(file.exists(f)) {fread(f)} else {return(NULL)}) %>% setNames(names(fgsea_fs))
 ```
 
-## Are highly variable genes "ambient" ?
+
+## Highly variable genes
+### Are highly variable genes "ambient" ?
 
 This plot is used to show to what extent the genes that would be identified by the 
 "standard" `Seurat`-style HVG procedure could be driven by ambient RNA. The x-axis 
@@ -191,7 +193,7 @@ the `scprocess` ambient gene procedure calls them as ambient.
 print(plot_hvg_stats_vs_empty_log2fc(hvgs_dt, edger_dt))
 ```
 
-## Which genes are "ambient"?{.tabset}
+### Which genes are "ambient"?{.tabset}
 
 This plot shows the results of the `scprocess` ambient gene procedure. The y-axis 
 is the `-log10` nominal p-value, with a dotted line to show the cutoff at which 
@@ -202,16 +204,16 @@ to have different minimum levels of expression in the ambient profiles.
 cpm_ls  = c(0, 10, 50, 100)
 for (min_cpm in cpm_ls) {
   if (min_cpm == 0) {
-    cat("### all genes\n")
+    cat("#### all genes\n")
   } else {
-    cat(sprintf("### >= %d CPM expression in ambient\n", min_cpm))
+    cat(sprintf("#### >= %d CPM expression in ambient\n", min_cpm))
   }
   print(plot_ambient_gene_calculations(edger_dt, min_cpm_empty = min_cpm))
   cat("\n\n")
 }
 ```
 
-## Which genes are variable across the ambient profiles?{.tabset}
+### Which genes are variable across the ambient profiles?{.tabset}
 
 We often find it useful to look into how ambient genes vary across the different 
 samples. This can indicate when some samples may need to be treated differently 
@@ -236,15 +238,17 @@ title_ls = c(
   "pval.empty"    = "Smallest p-value"
 )
 for (top_var in names(title_ls)) {
-  cat(sprintf("### %s in ambient\n", title_ls[top_var]))
+  cat(sprintf("#### %s in ambient\n", title_ls[top_var]))
   suppressMessages(draw(plot_heatmap_of_ambient_profiles(vst_obj, top_var = top_var, 
     n_top = 40), heatmap_legend_side = "right", merge_legend = TRUE ))
   cat("\n\n")
 }
 ```
 
+## Clustering
+### Clusters over UMAP{.tabset}
 
-## Clusters over UMAP{.tabset}
+Clustering of data is performed at resolution `r sel_res`. Cluster membership of cells is displayed on a UMAP.
 
 ```{r plot_clusters_zoom_res, fig.height = 5, fig.width = 11}
 g_cl    = plot_umap_cluster(
@@ -256,7 +260,9 @@ g       = g_cl + g_dens
 print(g)
 ```
 
-## Cluster splits by metadata variables
+### Cluster splits by metadata variables
+
+For each cluster the proportion of cells coming from samples associated with specific values of `r metadata_txt` are shown. 
 
 ```{r plot_clusters_by_metadata, fig.height = 8, fig.width = 7, results = 'asis'}
 if (!is.null(metadata_vars))
@@ -264,60 +270,78 @@ if (!is.null(metadata_vars))
     meta_vars = metadata_vars, cl_order = cl_ord))
 ```
 
-## Heatmaps of marker and variable genes{.tabset}
+### Metadata variables over UMAP{.tabset}
 
+The plot shows a binned UMAP with facets corresponding to specific values of `r if (length(metadata_vars) == 1) print(metadata_vars) else print("different metadata variables")` which allows the evaluation of whether cells sharing certain annotations are particularly abundant in some clusters/parts of the UMAP space or evenly distributed. 
+
+```{r plot_metadata_over_UMAP, fig.height = 3, fig.width = 8, results = 'asis'}
+for (meta_var in metadata_vars) {
+  cat('####', meta_var, '\n')
+  print(plot_clusters_annotated_by_densities(int_dt, meta_var))
+  cat('\n\n')
+}
+```
+
+
+## Marker genes
+### Heatmaps of marker and variable genes{.tabset}
 The resulting log 2 fold change values (calculated using edgeR) per cluster are shown for X highly variable genes and selected canonical marker genes.
 
 ```{r plot_marker_heatmaps, fig.height = 9, fig.width = 10, results = 'asis'}
 for (nn in names(mkrs_ls)) {
-  cat("### ", nn, "\n")
+  cat("#### ", nn, "\n")
   draw( plot_heatmap_of_selected_genes(mkrs_dt, mkrs_ls[[nn]]),
     heatmap_legend_side = "bottom", annotation_legend_side = "bottom", merge_legend = TRUE )
   cat("\n\n")
 }
 ```
 
-## Highly variable genes - this title has to be changed {.tabset} 
+### Highly variable genes{.tabset}
+Normalized pseudobulk expression values for top 100? highly variable genes are shown for each cluster
 
 ```{r plot_hvgs_pb_hmny, fig.height = 8, fig.width = 8, results = "asis"}
 n_pages = 10
 per_p   = 10
 p       = 1
 for (i in seq(1, n_pages * per_p, by = per_p)) {
-  cat('### page', p, '\n'); p = p + 1
+  cat('#### page', p, '\n'); p = p + 1
   sel_hvgs  = mkrs_hvgs_dt[ i:(i + 9) ]
   print(plot_selected_genes(sel_hvgs, cpms_dt, cl_order = cl_ord))
   cat('\n\n')
 }
 ```
 
-## Top marker genes (min expression){.tabset}
+### Top marker genes (min expression){.tabset}
+Normalized pseudobulk expression values of top 100? marker genes with a minimum expression of `r min_cpm_mkr` CPM and FDR < 0.05 are shown for each cluster. 
 
 ```{r plot_top_markers_pb_min, fig.height = 8, fig.width = 8, results = "asis"}
 for (sel_cl in cl_ord) {
-  cat('###', sel_cl, '\n')
+  cat('####', sel_cl, '\n')
   print(plot_top_marker_genes(sel_cl, top_min_dt, cpms_dt, cl_order = cl_ord))
   cat('\n\n')
 }
 ```
 
-## Top marker genes{.tabset}
+### Top marker genes{.tabset}
+Normalized pseudobulk expression values of top 100? marker genes with FDR < 0.05 are shown for each cluster. 
 
 ```{r plot_top_markers_pb, fig.height = 8, fig.width = 8, results = "asis"}
 for (sel_cl in cl_ord) {
-  cat('###', sel_cl, '\n')
+  cat('####', sel_cl, '\n')
   print(plot_top_marker_genes(sel_cl, top_dt, cpms_dt, cl_order = cl_ord))
   cat('\n\n')
 }
 ```
 
-## GSEA characterisation of clusters{.tabset}
+### GSEA characterisation of clusters{.tabset}
+
+GSEA was performed on marker genes for each cluster, using logFC as the ranking variable. Top x pathways grouped into 5 categories with (some threshold) are shown for each cluster.
 
 ```{r plot_gsea_results_pb, fig.height = 12, fig.width = 8, results = "asis"}
 for (p in names(gsea_ls)) {
   if (is.null(gsea_ls[[p]]))
     next
-  cat('### ', p, '\n')
+  cat('#### ', p, '\n')
   dt    = gsea_ls[[p]] %>% .[ gsea_var == "z_score" ]
   plot_gsea_dotplot(dt, gsea_cut = gsea_cut, n_top_paths = 5, max_nes = 2,
     size_range = c(10, 200), what = "pos_only", cl_order = cl_ord) %>% print
