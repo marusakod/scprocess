@@ -52,7 +52,7 @@ empty_gs_f    = "${empty_gs_f}"
 pb_empty_f    = "${pb_empty_f}"
 
 
-# fgsea files --> these will only be present if species is human or mouse
+# fgsea files
 fgsea_go_bp_f = "${fgsea_go_bp_f}"
 fgsea_go_cc_f = "${fgsea_go_cc_f}"
 fgsea_go_mf_f = "${fgsea_go_mf_f}"
@@ -65,17 +65,18 @@ custom_mkr_names_str = "${CUSTOM_MKR_NAMES}"
 custom_mkr_paths_str = "${CUSTOM_MKR_PATHS}"
 
 if(custom_mkr_names_str != ""){
-  # make list
   custom_mkr_names = str_split(custom_mkr_names_str, pattern = ',') %>% unlist()
   custom_mkr_paths = str_split(custom_mkr_paths_str, pattern = ',') %>% unlist() %>%
     setNames(custom_mkr_names)
 }
 
-# parameters for here
+# marker parameters
 not_ok_re     = "${MKR_NOT_OK_RE}"
 sel_res       = "${MKR_SEL_RES}"
 min_cpm_mkr   = ${MKR_MIN_CPM_MKR}
 min_cells     = ${MKR_MIN_CELLS}
+
+# parameters for gsea
 gsea_cut      = ${MKR_GSEA_CUT}
 
 # define nice order for plotting
@@ -314,6 +315,8 @@ for (sel_cl in cl_ord) {
 
 ```{r plot_gsea_results_pb, fig.height = 12, fig.width = 8, results = "asis"}
 for (p in names(gsea_ls)) {
+  if (is.null(gsea_ls[[p]]))
+    next
   cat('### ', p, '\n')
   dt    = gsea_ls[[p]] %>% .[ gsea_var == "z_score" ]
   plot_gsea_dotplot(dt, gsea_cut = gsea_cut, n_top_paths = 5, max_nes = 2,
