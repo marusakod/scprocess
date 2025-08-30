@@ -104,199 +104,177 @@ This is an example config file for {{sc}} with all parameters and their default 
 === "default values"
 
     ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11"
-      proj_dir: 
-      fastq_dir:  
-      full_tag: 
-      short_tag:
-      your_name:
-      affiliation:
-      sample_metadata:
-      species:
-      date_stamp:
-      alevin:
-        chemistry:
-      custom_sample_params:
-      exclude:
-        sample_id:
-        pooll_id:
-      metadata_vars:
-      multiplexing:
-      ambient:
-        ambient_method: decontx
-        cellbender_version: 'v0.3.0'
-        cell_calling: barcodeRanks
-        cb_max_prop_kept: 0.9 
-        cb_force_expected_cells:
-        cb_force_total_droplets_included:
-        cb_force_low_count_threshold:
-        cb_force_learning_rate:
-      qc:
-        qc_min_counts: 300   
-        qc_min_feats: 300        
-        qc_min_mito: 0             
-        qc_max_mito: 0.1         
-        qc_min_splice: 0          
-        qc_max_splice: 1          
-        qc_min_cells: 500 
-        dbl_min_feats: 100
-      hvg:
-        hvg_method: sample
-        n_hvgs: 2000
-        exclude_empties: True
-      integration:  
-        cl_method: louvain
-        reduction: harmony
-        int_n_dims:       50                 
-        int_dbl_res:      4                   
-        int_dbl_cl_prop:  0.5                 
-        int_theta:        0.1                 
-        int_res_ls:       [0.1, 0.2, 0.5, 1]  
-        int_sel_res:      0.2
-      marker_genes:
-        custom_sets:
-          - name: 
-            file: 
-        mkr_min_cl_size: 100                                  
-        mkr_min_cells: 10                                      
-        mkr_not_ok_re: "(lincRNA|lncRNA|pseudogene|antisense)"  
-        mkr_min_cpm_mkr: 50                                     
-        mkr_min_cpm_go: 1                                      
-        mkr_max_zero_p: 0.5                                    
-        mkr_gsea_cut: 0.1
-      label_celltypes:
-        lbl_tissue:      
-        lbl_sel_res_cl:  "RNN_snn_res.2"  
-        lbl_min_pred:    0.5              
-        lbl_min_cl_prop: 0.5             
-        lbl_min_cl_size: 100
-      zoom:
-        cl_grp1:
-          sel_cls:
-          zoom_res: 0.2               
-          n_hvgs: 1000                
-          n_dims: 20                 
-          min_n_sample: 10            
-          min_n_cl: 100               
-          n_train: 1000
-      metacells: 
-        celltypes:  
-        max_cells: 
-      pseudobulk:
-        celltypes:
-      resources:
-        mb_run_mapping: 8192               
-        mb_save_alevin_to_h5: 8192            
-        mb_run_ambient: 32768            
-        mb_run_hvgs: 8192  
-        mb_run_scdblfinder: 4096             
-        mb_combine_scdblfinder_outputs: 8192  
-        mb_run_harmony: 16384                 
-        mb_run_marker_genes: 16384            
-        mb_html_marker_genes: 8192            
-        mb_lbl_label_celltypes: 16384         
-        mb_lbl_save_subset_sces: 16384        
-        mb_lbl_render_template_rmd: 4096
+    proj_dir: 
+    fastq_dir:  
+    full_tag: 
+    short_tag:
+    your_name:
+    affiliation:
+    sample_metadata:
+    species:
+    date_stamp:
+    alevin:
+      chemistry:
+    custom_sample_params:
+    exclude:
+      sample_id:
+      pooll_id:
+    metadata_vars:
+    multiplexing:
+    ambient:
+      ambient_method: decontx
+      cellbender_version: 'v0.3.0'
+      cell_calling: barcodeRanks
+      cb_max_prop_kept: 0.9 
+      cb_force_expected_cells:
+      cb_force_total_droplets_included:
+      cb_force_low_count_threshold:
+      cb_force_learning_rate:
+    qc:
+      qc_min_counts: 300   
+      qc_min_feats: 300        
+      qc_min_mito: 0             
+      qc_max_mito: 0.1         
+      qc_min_splice: 0          
+      qc_max_splice: 1          
+      qc_min_cells: 500 
+      dbl_min_feats: 100
+    hvg:
+      hvg_method: sample
+      n_hvgs: 2000
+      exclude_empties: True
+    integration:  
+      cl_method: louvain
+      reduction: harmony
+      int_n_dims:       50                 
+      int_dbl_res:      4                   
+      int_dbl_cl_prop:  0.5                 
+      int_theta:        0.1                 
+      int_res_ls:       [0.1, 0.2, 0.5, 1]  
+      int_sel_res:      0.2
+    marker_genes:
+      custom_sets:
+        - name: 
+          file: 
+      mkr_min_cl_size: 100                                  
+      mkr_min_cells: 10                                      
+      mkr_not_ok_re: "(lincRNA|lncRNA|pseudogene|antisense)"  
+      mkr_min_cpm_mkr: 50                                     
+      mkr_min_cpm_go: 1                                      
+      mkr_max_zero_p: 0.5                                    
+      mkr_gsea_cut: 0.1
+    label_celltypes:
+      lbl_tissue:      
+      lbl_sel_res_cl:  "RNN_snn_res.2"  
+      lbl_min_pred:    0.5              
+      lbl_min_cl_prop: 0.5             
+      lbl_min_cl_size: 100
+    resources:
+      retries: 3 
+      mb_run_mapping: 8192
+      mb_save_alevin_to_h5: 8192
+      mb_run_ambient: 8192
+      mb_run_qc: 8192
+      mb_run_hvgs: 8192
+      mb_make_clean_sces: 8192
+      mb_make_hto_sce_objects: 8192 
+      mb_run_integration: 8192
+      mb_run_marker_genes: 16384
+      mb_label_celltypes: 8192
+      mb_pb_make_pbs: 8192
+      mb_pb_calc_empty_genes: 8192
+      mb_render_htmls: 8192
     ```
 
 === "placeholders"
 
     ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11"
-      proj_dir: /path/to/proj/directory #
-      fastq_dir: /path/to/directory/with/fastq/files 
-      full_tag: test_project 
-      short_tag: test 
-      your_name: John Doe 
-      affiliation: where you work 
-      sample_metadata: /path/to/metadata.csv
-      species: human_2024
-      date_stamp: "2050-01-01" 
-      alevin:
-        chemistry: 3v3
-      custom_sample_params: /path/to/file/with/custom_parameters.yaml # modify
-      exclude:
-        sample_id: [sample1, sample2]
-        pool_id: [pool1, pool2]
-      metadata_vars: [test1, test2]
-      ambient:
-        ambient_method: decontx
-        cellbender_version: 'v0.3.0'
-        cell_calling: barcodeRanks
-        cb_max_prop_kept: 0.9 
-        cb_force_expected_cells: 10000
-        cb_force_total_droplets_included: 20000
-        cb_force_low_count_threshold: 5
-        cb_force_learning_rate: 0.001
-      multiplexing:
-        demux_type: af
-        fastq_dir: /path/to/directory/with/hto_fastq/files 
-        feature_ref: /path/to/feature_ref.csv
-        batch_var: sample_id
-      qc:
-        qc_min_counts: 300   
-        qc_min_feats: 300        
-        qc_min_mito: 0             
-        qc_max_mito: 0.1         
-        qc_min_splice: 0          
-        qc_max_splice: 1          
-        qc_min_cells: 500  
-        dbl_min_feats: 100
-      hvg:
-        hvg_method: sample
-        n_hvgs: 2000
-        exclude_empties: True
-      integration:
-        cl_method: louvain
-        reduction: harmony    
-        int_n_dims:       50                 
-        int_dbl_res:      4                   
-        int_dbl_cl_prop:  0.5                 
-        int_theta:        0.1                 
-        int_res_ls:       [0.1, 0.2, 0.5, 1]  
-        int_sel_res:      0.2
-      marker_genes:
-        custom_sets:
-          - name: mouse_brain
-            file: /path/to/file/with/marker/genes
-        mkr_min_cl_size: 100                                  
-        mkr_min_cells: 10                                      
-        mkr_not_ok_re: "(lincRNA|lncRNA|pseudogene|antisense)"  
-        mkr_min_cpm_mkr: 50                                     
-        mkr_min_cpm_go: 1                                      
-        mkr_max_zero_p: 0.5                                    
-        mkr_gsea_cut: 0.1
-      label_celltypes:
-        lbl_tissue:      "brain_cns"      
-        lbl_sel_res_cl:  "RNN_snn_res.2"  
-        lbl_min_pred:    0.5              
-        lbl_min_cl_prop: 0.5             
-        lbl_min_cl_size: 100              
-      zoom:
-        cl_grp1:
-          sel_cls: [cl06]  
-          zoom_res: 0.2               
-          n_hvgs: 1000                
-          n_dims: 20                 
-          min_n_sample: 10            
-          min_n_cl: 100               
-          n_train: 1000
-      metacells: 
-        celltypes:  ["oligos"]
-        max_cells:  [100, 400]
-      pseudobulk:
-        celltypes:  ["all", "oligos", "microglia"]
-      resources:
-        mb_run_mapping: 8192               
-        mb_save_alevin_to_h5: 8192            
-        mb_run_ambient: 32768            
-        mb_run_hvgs: 8192 
-        mb_run_scdblfinder: 4096             
-        mb_combine_scdblfinder_outputs: 8192            
-        mb_run_harmony: 16384                 
-        mb_run_marker_genes: 16384            
-        mb_html_marker_genes: 8192            
-        mb_lbl_label_celltypes: 16384         
-        mb_lbl_save_subset_sces: 16384        
-        mb_lbl_render_template_rmd: 4096
+    proj_dir: /path/to/proj/directory #
+    fastq_dir: /path/to/directory/with/fastq/files 
+    full_tag: test_project 
+    short_tag: test 
+    your_name: Test McUser
+    affiliation: where you work 
+    sample_metadata: /path/to/metadata.csv
+    species: human_2024
+    date_stamp: "2050-01-01" 
+    alevin:
+      chemistry: 3v3
+    custom_sample_params: /path/to/file/with/custom_parameters.yaml # modify
+    exclude:
+      sample_id: [sample1, sample2]
+      pool_id: [pool1, pool2]
+    metadata_vars: [test1, test2]
+    ambient:
+      ambient_method: decontx
+      cellbender_version: 'v0.3.0'
+      cell_calling: barcodeRanks
+      cb_max_prop_kept: 0.9 
+      cb_force_expected_cells: 10000
+      cb_force_total_droplets_included: 20000
+      cb_force_low_count_threshold: 5
+      cb_force_learning_rate: 0.001
+      cb_posterior_batch_size: 128
+    multiplexing:
+      demux_type: af
+      fastq_dir: /path/to/directory/with/hto_fastq/files 
+      feature_ref: /path/to/feature_ref.csv
+      batch_var: sample_id
+    qc:
+      qc_min_counts: 300   
+      qc_min_feats: 300        
+      qc_min_mito: 0             
+      qc_max_mito: 0.1         
+      qc_min_splice: 0          
+      qc_max_splice: 1          
+      qc_min_cells: 500  
+      dbl_min_feats: 100
+    hvg:
+      hvg_method: sample
+      n_hvgs: 2000
+      exclude_empties: True
+    integration:
+      cl_method: louvain
+      reduction: harmony    
+      int_n_dims:       50                 
+      int_dbl_res:      4                   
+      int_dbl_cl_prop:  0.5                 
+      int_theta:        0.1                 
+      int_res_ls:       [0.1, 0.2, 0.5, 1]  
+      int_sel_res:      0.2
+    marker_genes:
+      custom_sets:
+        - name: mouse_brain
+          file: /path/to/file/with/marker/genes
+      mkr_min_cl_size: 100                                  
+      mkr_min_cells: 10                                      
+      mkr_not_ok_re: "(lincRNA|lncRNA|pseudogene|antisense)"  
+      mkr_min_cpm_mkr: 50                                     
+      mkr_min_cpm_go: 1                                      
+      mkr_max_zero_p: 0.5                                    
+      mkr_gsea_cut: 0.1
+    label_celltypes:
+      lbl_tissue:      "brain_cns"      
+      lbl_sel_res_cl:  "RNN_snn_res.2"  
+      lbl_min_pred:    0.5              
+      lbl_min_cl_prop: 0.5             
+      lbl_min_cl_size: 100              
+    resources:
+      retries: 3 
+      mb_run_mapping: 8192
+      mb_save_alevin_to_h5: 8192
+      mb_run_ambient: 8192
+      mb_run_qc: 8192
+      mb_run_hvgs: 8192
+      mb_make_clean_sces: 8192
+      mb_make_hto_sce_objects: 8192 
+      mb_run_integration: 8192
+      mb_run_marker_genes: 16384
+      mb_label_celltypes: 8192
+      mb_pb_make_pbs: 8192
+      mb_pb_calc_empty_genes: 8192
+      mb_render_htmls: 8192
+        
     ```
 
 
