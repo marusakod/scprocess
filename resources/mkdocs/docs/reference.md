@@ -141,6 +141,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       dbl_min_feats: 100
     hvg:
       hvg_method: sample
+      hvg_metadata_split_var: 
       n_hvgs: 2000
       exclude_empties: True
     integration:  
@@ -151,7 +152,6 @@ This is an example config file for {{sc}} with all parameters and their default 
       int_dbl_cl_prop:  0.5                 
       int_theta:        0.1                 
       int_res_ls:       [0.1, 0.2, 0.5, 1]  
-      int_sel_res:      0.2
     marker_genes:
       custom_sets:
         - name: 
@@ -163,6 +163,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       mkr_min_cpm_go: 1                                      
       mkr_max_zero_p: 0.5                                    
       mkr_gsea_cut: 0.1
+      mkr_sel_res: 0.2
     label_celltypes:
       lbl_tissue:      
       lbl_sel_res_cl:  "RNN_snn_res.2"  
@@ -239,11 +240,10 @@ This is an example config file for {{sc}} with all parameters and their default 
       int_dbl_cl_prop:  0.5                 
       int_theta:        0.1                 
       int_res_ls:       [0.1, 0.2, 0.5, 1]  
-      int_sel_res:      0.2
     marker_genes:
       custom_sets:
         - name: mouse_brain
-          file: /path/to/file/with/marker/genes
+          file: /path/to/file/with/marker/genes.csv
       mkr_min_cl_size: 100                                  
       mkr_min_cells: 10                                      
       mkr_not_ok_re: "(lincRNA|lncRNA|pseudogene|antisense)"  
@@ -251,6 +251,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       mkr_min_cpm_go: 1                                      
       mkr_max_zero_p: 0.5                                    
       mkr_gsea_cut: 0.1
+      mkr_sel_res: 0.2
     label_celltypes:
       lbl_tissue:      "brain_cns"      
       lbl_sel_res_cl:  "RNN_snn_res.2"  
@@ -258,6 +259,9 @@ This is an example config file for {{sc}} with all parameters and their default 
       lbl_min_cl_prop: 0.5             
       lbl_min_cl_size: 100              
     zoom:
+      cell_subset_1: /path/to/cell_subset_1_zoom_params.yaml
+      cell_subset_2: /path/to/cell_subset_2_zoom_params.yaml
+      cell_subset_3: /path/to/cell_subset_3_zoom_params.yaml
     resources:
       mb_run_mapping: 8192               
       mb_save_alevin_to_h5: 8192            
@@ -359,9 +363,9 @@ sample_3:
     + `sample` - calculate highly variable genes per sample, then calculate combined ranking across samples; 
     + `all` - calculate highly variable genes across all cells in the dataset; and
     + `group` - calculate highly variable genes for each sample group then calculate combined ranking across groups.
-* `hvg_group_var`: if `hvg_method` is `group`, which variable in `sample_metadata` should be used to define sample groups.
+* `hvg_metadata_split_var`: if `hvg_method` is `group`, which variable in `sample_metadata` should be used to define sample groups.
 * `n_hvgs`: number of HVGs to use for PCA
-* `exclude_ambient_genes`: if `True`, genes enriched in "empty" droplets relative to cells will be excluded from highly variable genes selection. 
+* `hvg_exclude_ambient_genes`: if `True`, genes enriched in "empty" droplets relative to cells will be excluded from highly variable genes selection. 
 
 ##### integration
 
@@ -372,7 +376,6 @@ sample_3:
 * `int_dbl_cl_prop`: proportion threshold of doublets in a cluster; clusters exceeding this proportion are excluded.
 * `int_theta`: theta parameter for `Harmony` integration, controlling batch variable mixing. `0` means no extra mixing of batch variable; Default in {{sc}} is `0.1`, otherwise `2`. 
 * `int_res_ls`: list of cluster resolutions for `Harmony`-based clustering.
-* `int_sel_res`: selected cluster resolution used for identifying marker genes.
 
 ##### marker_genes
 
@@ -386,6 +389,7 @@ sample_3:
 * `mkr_min_cpm_go`: minimum counts per million (CPM) in a cell type required for a gene to be used in Gene Ontology (GO) analysis.
 * `mkr_max_zero_p`: maximum proportion of pseudobulk samples for a cell type that can have zero counts for a gene to be used in GO analysis.
 * `mkr_gsea_cut`: False discovery rate (FDR) cutoff for Gene Set Enrichment Analysis (GSEA).
+* `mkr_sel_res`: selected cluster resolution used for identifying marker genes.
 
 ##### label_celltypes
 
@@ -395,8 +399,25 @@ sample_3:
 * `lbl_min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.
 * `lbl_min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled.
 
+##### zoom
+
+Name of each cell subset should be specified, followed by the path to a corresponding YAML file containing the parameters for that subset. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `hvg_method`, `hvg_metadata_split_var`, `n_hvgs`, `hvg_exclude_ambient_genes`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `cl_method`, `reduction`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_sel_res`, `custom_sets`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_gsea_cut`, and `mkr_sel_res`
+
+Additional parameters include:
+
+* `labels`: a list of all labels that define cell types/clusters to be included in subclustering (required).
+* `labels_source`: specifies how a cell subset is defined (required). Options include:
+    - `xgboost`: labels assigned by the XGBoost classifier (using rule `label_celltypes`)
+    - `clusters`: labels based on clustering results obtained with {{sc}}
+    - `custom`: user-defined cell type annotations
+* `min_n_sample`: the minimum number of cells that a sample must have, after subsetting, to remain in the analysis.
+* `make_subset_sces`: whether to create SingleCellExperiment objects containing cells that have been assigned one of the values in `labels`.
+* `cluster_res`: required if `labels_source` is set to `clusters`; selected clustering resolution values matching one of the values in `int_sel_res`.
+* `custom_labels_f`: required if `labels_source` is set to custom; path to CSV file with columns `sample_id`, `cell_id` and `label`.
+
  
 ##### resources
+
 * `retries`: number of times to retry running a specific rule in {{sc}} if it fails. For each attempt, the memory requirement for the rule increases by multiplying the base memory by the attempt number. Useful for when {{sc}} is used on a [cluster](setup.md#cluster-setup).
 * `mb_run_mapping`: maximum memory required (in MB) for running `simpleaf`. Value applies to the entire job, not per thread.
 * `mb_save_alevin_to_h5`:  maximum memory required (in MB) to save `simpleaf` output to H5 format. Value applies to the entire job, not per thread.

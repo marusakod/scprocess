@@ -68,9 +68,9 @@
 
     - Mouse Brain Classifier: [The molecular cytoarchitecture of the adult mouse brain](https://www.nature.com/articles/s41586-023-06818-7) and [A high-resolution transcriptomic and spatial atlas of cell types in the whole mouse brain](https://www.nature.com/articles/s41586-023-06812-z) [work in progress]
 
-* #### Subclustering - not available at the moment
+* #### Subclustering
 
-    {{sc}} provides a subclustering feature that allows users to delve deeper into selected clusters. This approach is particularly useful when a primary cluster encompasses diverse cell states, developmental stages, or activation states that warrant closer examination. By selecting one or multiple clusters of interest, users can initiate a secondary round of integration and clustering within those specific groups.
+    {{sc}} offers a subclustering feature that enables users to perform a second round of analysis on a specific subset of cells and includes the following steps: generating pseudobulks from selected cells and detecting ambient genes, indentifying higly variable genes, data integration and marker gene identification. Cell subsets can be defined based on user-provided cell type labels, clusters identified during the primary round of {{sc}}, or cell type labels assigned by the XGBoost classifier. This functionality is particularly valuable when a primary cluster or cell type contains diverse cell states, developmental stages, or activation states that warrant more detailed exploration.
 
 <!-- citations -->
 <!-- [Link to paper](). [Link to package](). -->

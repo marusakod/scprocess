@@ -36,16 +36,6 @@ suppressPackageStartupMessages({
 })
 
 
-
-  sce_fs_yaml = '/pmount/projects/site/pred/brain-sc-analysis/studies/bryois_test_subset/output/bryois_integration/sce_clean_paths_bryois_test_subset_2025-07-24.yaml'
-  qc_stats_f  = '/pmount/projects/site/pred/brain-sc-analysis/studies/bryois_test_subset/output/bryois_zoom/microglia/zoom_sample_statistics_bryois_test_subset_2025-07-24.csv'
-  subset_f    = '/pmount/projects/site/pred/brain-sc-analysis/studies/bryois_test_subset/output/bryois_label_celltypes/cell_annotations_bryois_test_subset_2025-07-24.txt.gz'
-  subset_col  = 'cl_pred_RNA_snn_res.2'
-  subset_str  = 'Astrocyte'
-  pb_f        = '/pmount/projects/site/pred/brain-sc-analysis/studies/bryois_test_subset/output/bryois_zoom/microglia/pb_microglia_bryois_test_subset_2025-07-24.rds'
-  n_cores     = 4
-  
-
 make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset_col = NULL, subset_str = NULL, n_cores = 8) {
   # get files
   sce_fs_ls = yaml::read_yaml(sce_fs_yaml) %>% unlist()
