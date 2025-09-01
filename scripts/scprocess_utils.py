@@ -883,12 +883,14 @@ def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT
     assert len(ZOOM_NAMES) == len(set(ZOOM_NAMES)), \
      "all subset labels for zoom must be unique"
     
-    ZOOM_YAMLS    = list(config['zoom'].values())
-    for zoom_f in ZOOM_YAMLS:
+    ZOOM_YAMLS = list(config['zoom'].values())
+    for i, zoom_f in enumerate(ZOOM_YAMLS):
       if not os.path.isabs(zoom_f):
-        zoom_f = os.path.join(PROJ_DIR, zoom_f)
-      assert os.path.isfile(zoom_f), \
-        f"file {zoom_f} doesn't exist"
+        ZOOM_YAMLS[i] = os.path.join(PROJ_DIR, zoom_f)
+      else:
+        ZOOM_YAMLS[i] = zoom_f
+      assert os.path.isfile(ZOOM_YAMLS[i]), \
+        f"file {ZOOM_YAMLS[i]} doesn't exist"
     
     ZOOM_PARAMS_DICT = dict(zip(
       ZOOM_NAMES,
@@ -903,7 +905,7 @@ def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT
 # get rule resource parameters
 def get_resource_parameters(config):
   # set default values
-  RETRIES                         = 0
+  RETRIES                         = 3
   MB_RUN_MAPPING                  = 8192
   MB_SAVE_ALEVIN_TO_H5            = 8192
   MB_RUN_AMBIENT                  = 8192
@@ -913,7 +915,7 @@ def get_resource_parameters(config):
   MB_RUN_HVGS                     = 8192
   MB_RUN_INTEGRATION              = 8192
   MB_MAKE_CLEAN_SCES              = 8192
-  MB_RUN_MARKER_GENES             = 8192
+  MB_RUN_MARKER_GENES             = 16384
   MB_HTML_MARKER_GENES            = 8192
   MB_LBL_LABEL_CELLTYPES          = 8192
   MB_LBL_SAVE_SUBSET_SCES         = 8192
