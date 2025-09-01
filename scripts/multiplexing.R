@@ -20,64 +20,6 @@ suppressPackageStartupMessages({
   library("scuttle")
 })
 
-save_hto_sce <- function(sce_df_f, sce_hto_f, n_cores){
-  # unpack some inputs
-  samples_dt  = fread(sce_df_f)
-  samples     = samples_dt$pool_id
-  bcs_ls      = samples_dt$bcs_csv
-  hto_mats_ls = samples_dt$hto_f
-  trans_ls    = samples_dt$wl_trans_f
-
-  # demultiplex each pool and get sce hto objects
-  bpparam     = MulticoreParam(workers = n_cores, tasks = length(samples))
-  on.exit(bpstop(bpparam))
-
-  message("  demultiplexing with hto counts")
-  sce_ls      = bplapply(seq_along(samples), function(i) {
-    # get sample and file
-    sel_s       = samples[[ i ]]
-    message(sel_s)
-
-    bcs_f     = bcs_ls[[ i ]]
-    hto_mat_f = hto_mats_ls[[ i ]]
-    trans_f   = trans_ls[[ i ]]
-
-    hto_sce = .get_one_hto_sce(sel_s, bcs_f, hto_mat_f, trans_f)
-    return(hto_sce)
-  }, BPPARAM = bpparam)
-
-  # check no surprises
-  assert_that( length(unique(sapply(sce_ls, nrow))) == 1 )
-
-  # concatenate counts matrices
-  message('  joining many hto matrices (takes a while)')
-  counts_mat  = lapply(sce_ls, counts) %>% .join_spmats
-
-  # get annotations for cells
-  message('  joining colData info')
-  cells_dt    = sce_ls %>%
-    lapply(function(s) colData(s) %>% as.data.frame %>% as.data.table) %>%
-    rbindlist
-  assert_that( all.equal(colnames(counts_mat), cells_dt$cell_id) )
-
-  rm(sce_ls); gc()
-
-  # put into one big file
-  message('  making sce object')
-  sce = SingleCellExperiment(
-    list(counts = counts_mat),
-    colData = cells_dt
-    )
-
-  message(' saving hto sce object')
-  saveRDS(sce, file = sce_hto_f, compress = FALSE)
-  message('done!')
-
-}
-
-
-
-
 get_one_hto_sce <- function(sel_sample, sample_stats_f, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, ambient_method){
   
   # if ambient method is cellbender exclude bad samples
@@ -154,57 +96,6 @@ get_one_hto_sce <- function(sel_sample, sample_stats_f, amb_yaml_f, hto_mat_f, t
   return(NULL)
   
 }
-
-
-# 
-# .get_one_hto_sce <- function(sel_s, bcs_f, hto_mat_f, trans_f){
-#   # get file for barcode translation
-#   bc_dict = trans_f %>% fread(header = FALSE) %>%
-#     set_colnames(c("bc_rna", "bc_hto"))
-# 
-#   # get all barcodes called as cells
-#   cell_bcs = fread(bcs_f, header = FALSE) %>%
-#     set_colnames("cell_bc")
-# 
-#   # get hto counts
-#   hto_counts = .get_alevin_mx(hto_mat_f, sel_s = '')
-# 
-#   # translate hto bcs to match rna barcodes
-#   hto_true_bcs = bc_dict[bc_hto %chin% colnames(hto_counts)] %>%
-#     .[order(match(bc_hto, colnames(hto_counts))), bc_rna]
-# 
-#   colnames(hto_counts) = hto_true_bcs
-# 
-#   # keep only cell barcodes
-#   keep_bcs = cell_bcs %>%
-#   .[cell_bc %chin% colnames(hto_counts), cell_bc]
-# 
-#   hto_counts = hto_counts[, keep_bcs]
-#   colnames(hto_counts) = paste(sel_s, colnames(hto_counts), sep = ':')
-# 
-#   # create a seurat object
-#   hto_seu = CreateSeuratObject(counts = hto_counts, assay = 'HTO')
-#   hto_seu = NormalizeData(hto_seu, assay = "HTO", normalization.method = "CLR")
-# 
-#   message("  demultiplexing sample ", sel_s)
-#   hto_seu = HTODemux(hto_seu, assay = "HTO", positive.quantile = 0.99)
-# 
-#   # get demultiplexing metadata
-#   demux_dt  = hto_seu[[]] %>% as.data.table(keep.rownames = "cell_id") %>%
-#     .[, .(cell_id, HTO_classification, HTO_classification.global, hash.ID)] %>%
-#     .[, guess := hash.ID %>% str_replace_all("-", "_") ] %>%
-#     .[, hash.ID := NULL] %>%
-#     .[, pool_id := sel_s] %>%
-#     .[, HTO_classification.global := tolower(HTO_classification.global)]
-# 
-#   # get sce object
-#   hto_sce = SingleCellExperiment(list(counts = hto_counts),
-#                        colData = demux_dt)
-# 
-#   return(hto_sce)
-# 
-# }
-
 
 
 # functions for multiplexing QC

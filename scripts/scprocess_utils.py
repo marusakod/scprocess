@@ -711,23 +711,6 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
   return LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE
 
 
-
-# define metacells parameters
-def get_metacells_parameters(config): 
-  # set some more default values
-  META_SUBSETS    = []
-  META_MAX_CELLS  = [100]
-
-  # change defaults if specified
-  if ('metacells' in config) and (config['metacells'] is not None):
-    if 'celltypes' in config['metacells']:
-      META_SUBSETS  = config['metacells']['celltypes']
-    if 'max_cells' in config['metacells']:
-      META_MAX_CELLS  = config['metacells']['max_cells']
- 
-  return META_SUBSETS, META_MAX_CELLS
-
-
 def get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR ):
   # get groups for calculating ambient genes
   if HVG_METHOD == 'group':

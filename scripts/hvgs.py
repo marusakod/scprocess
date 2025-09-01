@@ -16,7 +16,6 @@ import numba
 import warnings
 
 
-
 def sum_SUA(sua_mat, row_names):
   # define some objects
   row_names = row_names.astype(str)
@@ -77,9 +76,9 @@ def get_one_csr_counts(run, hvg_df, keep_df, qc_sample_df, gene_ids, SAMPLE_VAR,
 
   for s, out_f in zip(samples, out_fs):
     if s in bad_samples:
-      # return an empty file
+      print(f"Sample {s} is bad. Writing an empty file: {out_f}")
       open(out_f, "w").close()
-      return
+      continue
     
     cell_ids = cell_ids_dict[s]
   
@@ -141,9 +140,8 @@ def get_csr_counts(hvg_paths_f, qc_f, qc_smpl_stats_f, rowdata_f, SAMPLE_VAR, DE
   # define list of samples
   runs          = hvg_paths_df[SAMPLE_VAR].unique()
 
-  # do some parallel calculations!
+  # do some parallel calculations
   with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
-    # i think a parallel job for each sample?
     futures = [executor.submit(get_one_csr_counts, run, hvg_paths_df, keep_df, 
       qc_sample_df, keep_ids, SAMPLE_VAR, DEMUX_TYPE, chunk_size) for run in runs]
 
@@ -627,7 +625,7 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, n_hvgs, exclu
 
 
 # read top 2000 hvgs from each sample and save file
-def read_top_genes(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
+def read_top_genes(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, DEMUX_TYPE):
   # get bad samples
   qc_sample_df  = pd.read_csv(qc_smpl_stats_f)
   bad_samples   = qc_sample_df.loc[ qc_sample_df['bad_sample'] == True, 'sample_id'].tolist()
@@ -635,7 +633,11 @@ def read_top_genes(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
   # get all chunked files
   hvg_paths_df  = pd.read_csv(hvg_paths_f)
   chunked_fs    = hvg_paths_df['chunked_f'].tolist()
-  runs          = hvg_paths_df[SAMPLE_VAR].tolist()
+  samples       = hvg_paths_df['sample_id'].tolist()
+  if DEMUX_TYPE != 'none': 
+   pools        = hvg_paths_df['pool_id'].tolist()
+  else:
+   pools = samples
 
   # get all hvgs
   hvg_df        = pd.read_csv(hvg_f, sep='\t')
@@ -652,8 +654,8 @@ def read_top_genes(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
   all_barcodes  = []
 
   # open each file separately and extract highly variable genes
-  for f, run in zip(chunked_fs, runs):
-    if run in bad_samples:
+  for f, s, p in zip(chunked_fs, samples, pools):
+    if s in bad_samples:
       continue
     sample_csr, features, barcodes = read_full_csr(f)
 
@@ -663,7 +665,7 @@ def read_top_genes(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, SAMPLE_VAR):
     csr_chunk = sample_csr[hvg_indices, :]
 
     barcodes = barcodes.astype('<U21')
-    barcodes = [f"{run}:{bc}" for bc in barcodes]  
+    barcodes = [f"{p}:{bc}" for bc in barcodes]  
     barcodes = np.array(barcodes)
 
     # merge to other chunks column-wise
@@ -688,7 +690,6 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
   hvg_ids = hvg_df.loc[hvg_df['highly_variable'] == True, 'gene_id'].tolist()
   
   # get qc file with all cells
-  # get QCed cells
   if DEMUX_TYPE == 'none':
    qc_df         = pd.read_csv(qc_f, sep = '\t', dtype={'sample_id': str})
   else:
@@ -848,7 +849,7 @@ if __name__ == "__main__":
   parser_readHvgs.add_argument("hvg_paths_f", type=str)
   parser_readHvgs.add_argument("hvg_f", type=str)
   parser_readHvgs.add_argument("out_h5_f", type=str)
-  parser_readHvgs.add_argument("sample_var", type=str)
+  parser_readHvgs.add_argument("demux_type", type=str)
 
   # parser for create_doublets_matrix()
   parser_getDoublets = subparsers.add_parser('create_doublets_matrix')
@@ -894,7 +895,7 @@ if __name__ == "__main__":
     )
   elif args.function_name == 'read_top_genes':
     read_top_genes(
-      args.qc_smpl_stats_f, args.hvg_paths_f, args.hvg_f, args.out_h5_f, args.sample_var
+      args.qc_smpl_stats_f, args.hvg_paths_f, args.hvg_f, args.out_h5_f, args.demux_type
     )
   elif args.function_name == 'create_doublets_matrix': 
     create_doublets_matrix(

@@ -299,7 +299,7 @@ rule create_hvg_matrix:
       {input.hvg_paths_f} \
       {input.hvg_f} \
       {output.hvg_mat_f} \
-      {SAMPLE_VAR}
+      {DEMUX_TYPE}
 
     """
 
