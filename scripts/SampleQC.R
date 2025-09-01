@@ -1006,16 +1006,62 @@ plot_qc_summary_heatmap <- function(qc_stats, meta_input) {
   return(hm_obj)
 }
 
-calc_qc_summary <- function(qc_dt, kept_dt) {
-  qc_summary  = merge(
+calc_qc_summary <- function(qc_dt, kept_dt, thrshlds_ls, qc_lu) {
+  # get totals by sample
+  tbl_tmp     = merge(
       qc_dt[, .(n_pre_QC = .N), by = .(sample_id)],
       kept_dt[, .(n_post_QC = .N), by = .(sample_id)],
       by = 'sample_id', all = TRUE) %>%
     .[ is.na(n_post_QC), n_post_QC := 0 ] %>%
     .[, n_excluded      := n_pre_QC - n_post_QC ] %>%
     .[, pct_excluded    := round(100*(1 - n_post_QC / n_pre_QC), 1) ] %>%
-    .[, sample_excluded := n_post_QC == 0 ] %>% 
-    .[ order(-pct_excluded, -n_post_QC) ]
+    .[, sample_excluded := n_post_QC == 0 ]
+
+  # get exclusions split by qc_var
+  exclude_dt  = .calc_exclusions_by_qc_var(qc_dt, thrshlds_ls, qc_lu)
+
+  # join together and make pretty
+  tbl_pretty  = tbl_tmp %>% 
+    .[, .(sample_id, `sample excluded` = sample_excluded, 
+      `N pre-QC` = n_pre_QC, `N post-QC` = n_post_QC, 
+      `N excluded` = n_excluded, `pct. excluded` = pct_excluded
+    )] %>% 
+    merge(exclude_dt, by = "sample_id") %>% 
+    .[ order(-`pct. excluded`, -`N post-QC`) ]
+
+  return(tbl_pretty)
+}
+
+# calc proportions excluded for each threshold
+.calc_exclusions_by_qc_var <- function(qc_dt, thrshlds_ls, qc_lu) {
+  # get relevant vars
+  qc_tmp      = qc_dt %>% 
+    .[, c("sample_id", "cell_id", names(thrshlds_ls)), with = FALSE]
+
+  # calc exclusion for each
+  exclude_tmp = lapply(names(thrshlds_ls), function(nn) {
+    # get spec
+    spec  = thrshlds_ls[[nn]]
+    if (length(spec) == 1)
+      spec  = c(spec, Inf)
+
+    # find how many meet this
+    tmp_dt  = qc_tmp %>% 
+      .[, .(.N, N_keep = sum(get(nn) %between% spec)), by = .(sample_id) ] %>% 
+      .[, qc_var := nn ] %>% 
+      .[, col_title := sprintf("pct. excluded by %s", qc_lu[[ nn ]]) ]
+
+    return(tmp_dt)
+    }) %>% rbindlist %>% 
+    .[, pct_exc   := round((N - N_keep) / N * 100, 1) ] %>% 
+    .[, qc_var    := factor(qc_var, levels = names(qc_lu)) ] %>% 
+    .[, col_title := fct_reorder(col_title, as.integer(qc_var)) ]
+
+  # make nice
+  exclude_dt  = exclude_tmp %>% 
+    dcast( sample_id ~ col_title, value.var = "pct_exc" )
+
+  return(exclude_dt)
 }
 
 
