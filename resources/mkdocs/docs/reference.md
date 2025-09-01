@@ -151,7 +151,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       int_dbl_res:      4                   
       int_dbl_cl_prop:  0.5                 
       int_theta:        0.1                 
-      int_res_ls:       [0.1, 0.2, 0.5, 1]  
+      int_res_ls:       [0.1, 0.2, 0.5, 1, 2]  
     marker_genes:
       custom_sets:
         - name: 
@@ -239,7 +239,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       int_dbl_res:      4                   
       int_dbl_cl_prop:  0.5                 
       int_theta:        0.1                 
-      int_res_ls:       [0.1, 0.2, 0.5, 1]  
+      int_res_ls:       [0.1, 0.2, 0.5, 1, 2]
     marker_genes:
       custom_sets:
         - name: mouse_brain
@@ -394,7 +394,7 @@ sample_3:
 ##### label_celltypes
 
 * `lbl_tissue`: target tissue for cell type labeling. Options are `human_cns`, `mouse_cns`, `human_pbmc`, and `mouse_pbmc` (Only `human_cns` is available at the moment)
-* `lbl_sel_res_cl`: selected cluster resolution for cell type labeling; higher values are recommended for optimal performance.
+* `lbl_sel_res_cl`: selected cluster resolution for cell type labeling (must match one of the values in `int_res_ls`); higher values are recommended for optimal performance.
 * `lbl_min_pred`: minimum probability threshold for assigning a cell to a cell type.
 * `lbl_min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.
 * `lbl_min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled.
@@ -414,6 +414,7 @@ Additional parameters include:
 * `make_subset_sces`: whether to create SingleCellExperiment objects containing cells that have been assigned one of the values in `labels`.
 * `cluster_res`: required if `labels_source` is set to `clusters`; selected clustering resolution values matching one of the values in `int_sel_res`.
 * `custom_labels_f`: required if `labels_source` is set to custom; path to CSV file with columns `sample_id`, `cell_id` and `label`.
+* `lbl_sel_res_cl`: equivalent of `lbl_sel_res_cl` parameter used for rule `label_celltypes`. Applicable only if `labels_source` is set to `xgboost`.
 
  
 ##### resources

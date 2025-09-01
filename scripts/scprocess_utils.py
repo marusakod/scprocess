@@ -10,14 +10,14 @@ import datetime
 import subprocess
 
 
-def _get_cl_ls(PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, MKR_SEL_RES):
+def _get_cl_ls(PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SEL_RES):
   # specify harmony outputs
   int_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
   int_f       = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
 
   # get list of clusters
   int_dt      = pd.read_csv(int_f)
-  cl_col      = f"RNA_snn_res.{MKR_SEL_RES}"
+  cl_col      = f"RNA_snn_res.{SEL_RES}"
   cl_ls       = list(int_dt[cl_col].unique())
   cl_ls       = [cl for cl in cl_ls if str(cl) != "nan"]
   cl_ls       = sorted(cl_ls)
@@ -25,13 +25,14 @@ def _get_cl_ls(PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, MKR_SEL_RES):
   return int_f, cl_ls
 
 
-def _get_one_zoom_parameters(zoom_yaml_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F, FULL_MKR_SEL_RES,
+def _get_one_zoom_parameters(zoom_yaml_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F,
                               PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR):
 
     # set defaults
     LABELS           = ""
     LABELS_F         = ""
     LABELS_SOURCE    = ""
+    LBL_SEL_RES_CL   = "RNA_snn_res.2"
     CLUSTER_RES      = None
     CUSTOM_LABELS_F  = ""
     MIN_N_SAMPLE     = 10
@@ -59,37 +60,39 @@ def _get_one_zoom_parameters(zoom_yaml_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F,
         CUSTOM_LABELS_F = this_zoom['custom_labels_f']
         # check that exists
         if not os.path.isabs(CUSTOM_LABELS_F):
-            CUSTOM_LABELS_F = os.path.join(PROJ_DIR, CUSTOM_LABELS_F)
+          CUSTOM_LABELS_F = os.path.join(PROJ_DIR, CUSTOM_LABELS_F)
         assert os.path.isfile(CUSTOM_LABELS_F), \
-            f"file {CUSTOM_LABELS_F} doesn't exist"
+          f"file {CUSTOM_LABELS_F} doesn't exist"
         # check that columns are ok
         custom_lbls_dt = pd.read_csv(CUSTOM_LABELS_F)
         for col in ['sample_id', 'cell_id', 'label']:
-            assert col in custom_lbls_dt.columns, \
-                f"column {col} not present in {CUSTOM_LABELS_F}"
+          assert col in custom_lbls_dt.columns, \
+            f"column {col} not present in {CUSTOM_LABELS_F}"
             
-        # check there are no commas in labels
-        assert all(["," not in lbl for lbl in set(custom_lbls_dt['label'])]), \
-          f"Some labels in {CUSTOM_LABELS_F} contain commas which is not allowed"
+        # check that all labels are in the labels column of the custom file
+        assert all([lbl in set(custom_lbls_dt['label'].tolist()) for lbl in LABELS])
       
-
         LABELS_F   = CUSTOM_LABELS_F
         LABELS_VAR = 'label'
 
     if LABELS_SOURCE == 'xgboost':
         assert LBL_TISSUE != "", \
-            "lbl_tissue parameter is not defined"
+          "lbl_tissue parameter is not defined"
         # check that labels are ok
         xgb_allow_lbls = pd.read_csv(LBL_XGB_CLS_F)['cluster'].tolist()
         for lbl in LABELS:
-            assert lbl in xgb_allow_lbls, \
-                f"{lbl} is not a valid label name for the {LBL_TISSUE} classifier"
+          assert lbl in xgb_allow_lbls, \
+            f"{lbl} is not a valid label name for the {LBL_TISSUE} classifier"
         
         lbl_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
         LABELS_F    = lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
         assert os.path.exists(LABELS_F), \
           f"{LABELS_F} doesn't exist; consider (re)running rule label_celltypes"
-        LABELS_VAR = "cl_pred_RNA_snn_res.2" # users should be able to specify this in the config
+        
+        if 'lbl_sel_res_cl' in this_zoom:
+          LBL_SEL_RES_CL  = this_zoom['lbl_sel_res_cl']
+        
+        LABELS_VAR = "cl_pred_" + LBL_SEL_RES_CL
 
     if LABELS_SOURCE == 'clusters':
         assert 'cluster_res' in this_zoom and this_zoom['cluster_res'] is not None, \
@@ -97,9 +100,9 @@ def _get_one_zoom_parameters(zoom_yaml_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F,
         CLUSTER_RES = this_zoom['cluster_res']
 
         # get list of all clusters to check if cluster names are valid
-        LABELS_F, cl_ls = _get_cl_ls(PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, FULL_MKR_SEL_RES)
+        LABELS_F, cl_ls = _get_cl_ls(PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, CLUSTER_RES)
         assert set(LABELS).issubset(cl_ls)
-        LABELS_VAR = f"RNA_snn_res.{FULL_MKR_SEL_RES}"
+        LABELS_VAR = f"RNA_snn_res.{CLUSTER_RES}"
 
     # check optional parameters
     if 'min_n_sample' in this_zoom:
@@ -137,6 +140,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F,
         "LABELS_SOURCE": LABELS_SOURCE,
         "CLUSTER_RES": CLUSTER_RES,
         "CUSTOM_LABELS_F": CUSTOM_LABELS_F,
+        "LBL_SEL_RES_CL": LBL_SEL_RES_CL, 
         "MIN_N_SAMPLE": MIN_N_SAMPLE,
         "MAKE_SUBSET_SCES": MAKE_SUBSET_SCES,
         **HVG_DICT,
@@ -868,7 +872,7 @@ def _safe_boolean(val):
 
 
 # define marker_genes parameters
-def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F, FULL_MKR_SEL_RES,
+def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F,
                         PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR): 
   
   if ('zoom' not in config) or (config['zoom'] is None):
@@ -888,7 +892,7 @@ def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT
     
     ZOOM_PARAMS_DICT = dict(zip(
       ZOOM_NAMES,
-      [ _get_one_zoom_parameters(zoom_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F, FULL_MKR_SEL_RES,
+      [ _get_one_zoom_parameters(zoom_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F,
         PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR
       ) for zoom_f in ZOOM_YAMLS ]
       ))
