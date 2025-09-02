@@ -155,7 +155,7 @@ hto_ridges <- function(sel_sample, proj_meta, hto_dt_ls){
     theme_minimal() +
     labs(
       title = paste(sel_sample, hto_id_smpl, sep = ', '),
-      x = "hto_counts",
+      x = "Normalized HTO counts",
       y = NULL
     ) +
     theme(legend.position = "none") +
@@ -185,6 +185,14 @@ hto_pairwise <- function(pool_dt, var = c("prop", "norm_count")){
   x_var = paste0(p_var, '.x')
   y_var = paste0(p_var, '.y')
 
+  if(var == 'prop'){
+    x_title = 'HTO proportion 1'
+    y_title = 'HTO_proportion 2'
+  }else{
+    x_title = 'Normalized HTO counts 1'
+    y_title = 'Normalized HTO counts 2'
+  }
+
   g = ggplot(plot_dt) +
     aes( x = get(x_var), y = get(y_var), colour = guess ) +
     geom_point( size = 0.2 ) +
@@ -194,7 +202,7 @@ hto_pairwise <- function(pool_dt, var = c("prop", "norm_count")){
     guides( colour = guide_legend(override.aes = list(size = 3) ) ) +
     facet_grid( hto_id.y ~ hto_id.x ) +
     theme_classic() +
-    labs(color = 'HTO guess')
+    labs(color = 'HTO guess', x = x_title, y = y_title)
 
   return(g)
 }

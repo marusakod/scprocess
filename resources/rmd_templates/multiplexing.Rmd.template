@@ -74,7 +74,9 @@ hto_sce_ls = lapply(hto_sce_fs, FUN = readRDS)
 ```
 
 ```{r load_meta, include=FALSE}
-proj_meta = fread(proj_meta_f)
+proj_meta = fread(proj_meta_f) %>%
+ # replace all underscores with dashes
+ .[, hto_id := gsub('_', '-', hto_id)]
 ```
 
 ```{r get_hto_knee_params, include = FALSE}
@@ -131,7 +133,7 @@ if(sample_n <= 4){
 ## Barcode rank plots
 
 For each sample, barcodes are ranked in descending order based on their library size (number of unique molecular identifiers).
-Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high RNA content, while the second represents empty droplets containing ambient RNA.
+Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high HTO content, while the second represents empty droplets containing ambient HTOs.
 Key transition points on the curve (inflection and knee points), are annotated with horizontal lines.
 Two main parameters infered by `scprocess` based on transition points are `expected_cells` and `empty_plateau_middle`.
 `empty_plateau_middle‘ should extend a few thousand barcodes into the second plateau.
@@ -139,7 +141,7 @@ The absence of a clear empty plateau indicates poor sample quality due to ambien
 
 ### Barcode rank plots ordered by slope ratio{.tabset}
 
-The slope ratio helps identify low-quality samples with high ambient RNA contamination.
+The slope ratio helps identify low-quality samples with high ambient HTO contamination.
 This ratio is calculated by dividing the slope of the barcode-rank curve in the empty droplet plateau by the slope at the first inflection point.
 Samples are ordered from highest to lowest based on the slope ratio.
 
@@ -155,7 +157,7 @@ for (i in 1:length(slope_ratio_split_l) ) {
 }
 ```
 
-### Barcode rank plots ordered by `expected_cells`/`empty_plateau_middle` ratio{.tabset}
+### Barcode rank plots ordered by expected_cells/empty_plateau_middle ratio{.tabset}
 
 Inaccurate detection of the transition points (knee and inflection points) in the barcode-rank curve can lead to incorrect estimates of barcodes corresponding to cells or empty droplets.
 To evaluate this, samples are ordered by the ratio of `expected_cells` to `empty_plateau_middle`.
@@ -173,7 +175,7 @@ for (i in 1:length(exp_tot_ratio_split_l)) {
 }
 ```
 
-## Dotplot with slope ratio and `expected_cells`/`empty_plateau_middle`
+## Dotplot with slope ratio and expected_cells/empty_plateau_middle
 
 Both the slope ratio and the expected cells/total droplets ratio are displayed in a dot plot, where each dot represents a sample.
 Outliers are labeled with their corresponding `sample_id` values.
@@ -182,7 +184,10 @@ Outliers are labeled with their corresponding `sample_id` values.
 print(plot_amb_params_dotplot(hto_knee_params_df, sample_var = sample_var, scales = 'free'))
 ```
 
-## Table with global demultiplexing results
+## Global demultiplexing results
+
+Summary of droplet classification results for each multiplexed sample in the dataset.
+For each sample, the table lists the number of doublets, singlets and negative (ambiguous) droplets.
 ```{r demux_out_tbl}
 rbindlist(hto_dt_ls) %>%
   .[, .(pool_id, class = HTO_classification.global)] %>%
@@ -192,7 +197,10 @@ rbindlist(hto_dt_ls) %>%
   knitr::kable()
 ```
 
-## Distribution of HTOs within a pool per sample{.tabset}
+## Distribution of HTO expression{.tabset}
+
+For each sample, the plot displays the normalized expression levels of all hashtag oligos (HTOs) used to label samples within the same pool.
+Each ridge on the plot corresponds to a single HTO, showing how its expression is distributed across the cells in that sample. 
 
 ```{r hto_ridges_plot, results ='asis'}
 for (i in sample_ids){
@@ -203,9 +211,11 @@ for (i in sample_ids){
 
 ```
 
-## Pairs of HTO signals to confirm mutual exclusivity{.tabset}
+## Pairs of HTO signals{.tabset}
 
-```{r hto_pairwise plot, results = 'asis'}
+For each pool, pairwise HTO expression levels are shown.
+
+```{r hto_pairwise plot, results = 'asis', fig.height = 7, fig.width = 9}
 for (i in pool_ids){
   pool_dt_tmp = hto_dt_ls[[i]]
   cat('### ', i, '\n')
