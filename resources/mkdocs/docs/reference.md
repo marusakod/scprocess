@@ -326,7 +326,7 @@ sample_3:
 * `demux_type`: `af` if demultiplexing of samples should be performed with {{sc}} or `custom` if demultiplexing results will be used as input to {{sc}}
 * `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. Required if `demux_type` is `af`. 
 * `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `af`.
-* `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `ambiguous`. Required if `demux_type` is `af`. 
+* `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `negative`. Required if `demux_type` is `custom`. 
 * `batch_var`: variable to use for integration with `harmony`. Options are `pool_id` or `sample_id`. 
 
 ##### ambient
