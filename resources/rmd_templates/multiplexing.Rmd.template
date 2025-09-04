@@ -100,11 +100,6 @@ slope_ratio_ordered_samples = hto_knee_params_df %>%
   .[order(-slope_ratio)] %>%
   .[, get(sample_var)]
 
-# arrange samples into groups of 12 according to their expected cells vs total included ratio
-exp_tot_ratio_orderd_samples = hto_knee_params_df %>%
-  .[order(-expected_total_ratio)] %>%
-  .[, get(sample_var)]
-
 # split long vector into subsets
 n_per_plot  = 12
 num_subsets = ceiling(sample_n/n_per_plot)
@@ -112,38 +107,26 @@ index_vec_for_split = rep(1:num_subsets, each = n_per_plot, length.out = sample_
 
 # split sample_id vec into a list of subvectors
 slope_ratio_split_l = split(slope_ratio_ordered_samples, index_vec_for_split)
-exp_tot_ratio_split_l = split(exp_tot_ratio_orderd_samples, index_vec_for_split)
 ```
 
 ```{r get_knee_plot_dims, include = FALSE}
-
 # set defaults
-knee_width = 12
-knee_height = 8
+knee_width = 9
+knee_height = 6
 
-if(sample_n <= 4){
-  knee_height = ceiling(8 * 1/3)
-  knee_width = ceiling(12 * sample_n/4)
-}else if(sample_n > 4 & sample_n <= 8){
-  knee_height = ceiling(8* 2/3)
+if (sample_n <= 4) {
+  knee_height = ceiling(6 * 1/3)
+  knee_width = ceiling(9 * sample_n/4)
+} else if (sample_n > 4 & sample_n <= 8) {
+  knee_height = ceiling(6 * 2/3)
 }
-
 ```
 
-## Barcode rank plots
+## Barcode rank plots{.tabset}
 
 For each sample, barcodes are ranked in descending order based on their library size (number of unique molecular identifiers).
 Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high HTO content, while the second represents empty droplets containing ambient HTOs.
-Key transition points on the curve (inflection and knee points), are annotated with horizontal lines.
-Two main parameters infered by `scprocess` based on transition points are `expected_cells` and `empty_plateau_middle`.
-`empty_plateau_middle‘ should extend a few thousand barcodes into the second plateau.
 The absence of a clear empty plateau indicates poor sample quality due to ambient RNA contamination.
-
-### Barcode rank plots ordered by slope ratio{.tabset}
-
-The slope ratio helps identify low-quality samples with high ambient HTO contamination.
-This ratio is calculated by dividing the slope of the barcode-rank curve in the empty droplet plateau by the slope at the first inflection point.
-Samples are ordered from highest to lowest based on the slope ratio.
 
 ```{r hto_knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
 for (i in 1:length(slope_ratio_split_l) ) {
@@ -151,37 +134,12 @@ for (i in 1:length(slope_ratio_split_l) ) {
   samples  = slope_ratio_split_l[[i]]
   name     = sprintf('sample chunk #%d', i)
   knee_fs  = hto_knee_fs[samples]
-  cat('#### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knee_fs, hto_knee_params_df, sample_var = sample_var, bender_priors_df = NULL))
+  cat('### ', name, '\n')
+  print(plot_barcode_ranks_w_params(
+    knee_fs, hto_knee_params_df, sample_var = sample_var,
+    bender_priors_df = NULL,  show_lines = FALSE))
   cat('\n\n')
 }
-```
-
-### Barcode rank plots ordered by expected_cells/empty_plateau_middle ratio{.tabset}
-
-Inaccurate detection of the transition points (knee and inflection points) in the barcode-rank curve can lead to incorrect estimates of barcodes corresponding to cells or empty droplets.
-To evaluate this, samples are ordered by the ratio of `expected_cells` to `empty_plateau_middle`.
-
-
-```{r hto_knee_plots_exp_tot_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
-for (i in 1:length(exp_tot_ratio_split_l)) {
-  # get knee dfs for all selected samples
-  samples  = exp_tot_ratio_split_l[[i]]
-  name     = sprintf('sample chunk #%d', i)
-  knee_fs  = hto_knee_fs[samples]
-  cat('#### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knee_fs, hto_knee_params_df, sample_var = sample_var, bender_priors_df = NULL))
-  cat('\n\n')
-}
-```
-
-## Dotplot with slope ratio and expected_cells/empty_plateau_middle
-
-Both the slope ratio and the expected cells/total droplets ratio are displayed in a dot plot, where each dot represents a sample.
-Outliers are labeled with their corresponding `sample_id` values.
-
-```{r hto_params_qc_dot}
-print(plot_amb_params_dotplot(hto_knee_params_df, sample_var = sample_var, scales = 'free'))
 ```
 
 ## Global demultiplexing results

@@ -330,10 +330,11 @@ get_knee_params <- function(knee_f, sample_var) {
 }
 
 
-plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, bender_priors_df = NULL) {
+plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, bender_priors_df = NULL, show_lines = TRUE) {
   
   s_ord = names(knee_fs)
-  # add knee and inflection to params
+  
+  # Add knee and inflection to params
   knee_data = lapply(s_ord, function(s) {
     knee_f = knee_fs[[s]]
     x = fread(knee_f) %>% as.data.table
@@ -382,33 +383,37 @@ plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, b
   
   # set factor levels for sample_var so the samples will appear in the right order in the plot
   knee_data[[sample_var]] = factor(knee_data[[sample_var]], levels = s_ord)
-  hlines[[sample_var]] = factor(hlines[[sample_var]], levels = s_ord)
-  vlines[[sample_var]] = factor(vlines[[sample_var]], levels = s_ord)
+  if (show_lines) {
+    hlines[[sample_var]] = factor(hlines[[sample_var]], levels = s_ord)
+    vlines[[sample_var]] = factor(vlines[[sample_var]], levels = s_ord)
+  }
   
-  p <- ggplot(knee_data) +
-    aes( x = bc_rank, y = lib_size ) +
+  p = ggplot(knee_data) +
+    aes(x = bc_rank, y = lib_size) +
     geom_line(linewidth = 0.3, color = '#283747') +
-    geom_hline(data = hlines,
-               mapping = aes(yintercept = value, color = type)) +
-    geom_vline(data = vlines,
-               mapping = aes(xintercept = value, color = type)) +
-    geom_text_repel(data = hlines, mapping = aes(y = value, x = 10,  label = variable),
-                    size = 2.5) +
-    geom_text_repel(data = vlines, mapping = aes(x = value, y = 100, label = variable),
-                    size = 2.5, angle = 90) +
     facet_wrap( ~ get(sample_var), ncol = 4 ) +
-    scale_x_log10(labels = p_labels,
-                  breaks = p_breaks) +
-    scale_y_log10(labels = p_labels,
-                  breaks = p_breaks) +
+    scale_x_log10(labels = p_labels, breaks = p_breaks) +
+    scale_y_log10(labels = p_labels, breaks = p_breaks) +
     scale_color_manual(
-      # values = c("#FAD510", "#CB2314", "#273046"),
       values = c("#7c4b73", "#88a0dc", "#ab3329"),
       breaks = c('cellbender input\nparameter', 'cellbender intermediate\nparameter',
                  'cellbender prior\nparameter')) +
     theme_classic(base_size = 9) +
-    theme( legend.position = 'none' ) +
+    theme(legend.position = 'none') +
     labs(x = 'barcode rank', y = 'library size', color = NULL)
+  
+  # add lines only if show_lines is TRUE
+  if (show_lines) {
+    p = p +
+      geom_hline(data = hlines,
+                 mapping = aes(yintercept = value, color = type)) +
+      geom_vline(data = vlines,
+                 mapping = aes(xintercept = value, color = type)) +
+      geom_text_repel(data = hlines, mapping = aes(y = value, x = 10, label = variable),
+                      size = 2.5) +
+      geom_text_repel(data = vlines, mapping = aes(x = value, y = 100, label = variable),
+                      size = 2.5, angle = 90)
+  }
   
   return(p)
 }
