@@ -148,7 +148,8 @@ hto_ridges <- function(sel_sample, proj_meta, hto_dt_ls){
   pool_dt = hto_dt_ls[[pool]] %>%
     .[guess == hto_id_smpl] 
 
-    cols = met.brewer(name="Manet", n= length(pool_htos), type="discrete")
+  cols        = MetBrewer::met.brewer( name = 'Johnson', n = length(pool_htos),
+    type = 'discrete' ) %>% setNames(sort(pool_htos))
 
   p = ggplot(pool_dt, aes(x = norm_count, y = hto_id, fill = hto_id)) +
     geom_density_ridges(scale = 1, alpha = 0.8) +
