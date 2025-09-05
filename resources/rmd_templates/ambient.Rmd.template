@@ -1,0 +1,113 @@
+---
+title: "Ambient RNA removal diagnostics"
+author:
+- name: ${YOUR_NAME}
+  affiliation:
+  - ${AFFILIATION}
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  rmdformats::downcute:
+    highlight: textmate
+    code_folding: hide
+    toc_depth: 3
+    css: custom.css
+---
+
+```{r setup_knitr, include=FALSE}
+library('BiocStyle')
+knitr::opts_chunk$set(
+  autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
+  fig.path = "figure/${SHORT_TAG}_ambient.Rmd/"
+  )
+knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
+# workflowr::wflow_build(files='analysis/${SHORT_TAG}_ambient.Rmd', view=F, verbose=T, delete_cache=F)
+```
+
+```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
+source('code/utils.R')
+source('code/ambient.R')
+n_cores     = ${threads}
+setDTthreads(n_cores)
+```
+
+```{r setup_input, include = FALSE}
+sample_var  = "${SAMPLE_VAR}"
+amb_method  = "${AMBIENT_METHOD}"
+
+# files with barcode ranks and knee parameters
+map_dir     = 'output/${SHORT_TAG}_mapping'
+amb_dir     = 'output/${SHORT_TAG}_ambient'
+stats_f     = "${smpl_stats_f}"
+
+# get files with USA counts pre and post ambient removal
+map_yamls   = map_dir %>%
+  list.files(pattern = '^ambient_params_.+_${DATE_STAMP}.yaml', recursive = TRUE, full.names = TRUE)
+names(map_yamls) = gsub('.*\\/ambient_params_(.+)_${DATE_STAMP}.yaml', '\\1', map_yamls)
+amb_yamls   = amb_dir %>%
+  list.files(pattern = '^ambient_.+_${DATE_STAMP}_output_paths.yaml', recursive = TRUE, full.names = TRUE)
+names(amb_yamls) = gsub('.*\\/ambient_(.+)_${DATE_STAMP}.yaml', '\\1', amb_yamls)
+usa_fs      = amb_dir %>%
+  list.files(pattern = '^barcodes_qc_metrics_.*_${DATE_STAMP}.txt.gz', recursive = TRUE, full.names = TRUE)
+names(usa_fs) = gsub('.*\\/barcodes_qc_metrics_(.+)_${DATE_STAMP}.txt.gz.*', '\\1', usa_fs)
+ok_bcs_fs   = amb_yamls %>% sapply(function(f) read_yaml(f)$bcs_f )
+names(ok_bcs_fs) = gsub('.*\\/(bender|decontx|uncorrected)_(.+)_${DATE_STAMP}_cell_barcodes.csv', '\\2', ok_bcs_fs)
+
+# check that these are ok
+assert_that(
+  all(file.exists(map_yamls)), all(file.exists(amb_yamls)), 
+  all(file.exists(usa_fs)), all(file.exists(ok_bcs_fs))
+  )
+assert_that( length(usa_fs) > 0 )
+assert_that( all(names(usa_fs) == names(ok_bcs_fs)) )
+```
+
+```{r load_metadata, include = FALSE}
+# get sample ids
+s_lvls      = "${RUNS_STR}" %>% 
+  str_split(pattern = ',') %>% unlist()
+stats_dt    = stats_f %>% fread
+```
+
+```{r load_usa_fs, include = FALSE}
+usa_dt_ls   = usa_fs %>% lapply(get_usa_dt)
+ok_bcs_ls   = ok_bcs_fs %>% lapply(function(f) fread(f, header = FALSE)$V1 )
+tot_inc_ls  = map_yamls %>% lapply(function(f) read_yaml(f)$total_droplets_included )
+```
+
+```{r define_plot_dims, include = FALSE}
+n_samples   = length(ok_bcs_ls)
+w_per_s     = 0.8
+dims_ls     = list(
+  reads_removed = list(h = 4, w = 1 + w_per_s * pmax(n_samples, 4)),
+  splice_vs_umi = list(h = 6, w = 5 + (amb_method != "none")*4)
+)
+plot_removed  = amb_method != "none"
+print_tbl     = amb_method == "cellbender"
+```
+
+## Distributions of spliced pct. in empty and cell barcodes{.tabset}
+
+Plots show number of UMIs against spliced percentages split by sample, showing both before and after ambient RNA removal. Ambient RNA typically has a high proportion of spliced reads, so looking at the effect of an ambient RNA removal method on spliced percentage can help assess whether or not it did a good job.
+
+```{r plot_spliced_vs_umis, fig.height = dims_ls$splice_vs_umi$h, fig.width = dims_ls$splice_vs_umi$w, results = "asis"}
+for (ss in s_lvls) {
+  cat("### ", ss, "\n")
+  print( plot_spliced_vs_umis(ss, usa_dt_ls[[ss]], ok_bcs_ls[[ss]], tot_inc_ls[[ss]]) )
+  cat("\n\n")
+}
+```
+
+```{r plot_reads_removed_as_ambient, eval = plot_removed, fig.height = dims_ls$reads_removed$h, fig.width = dims_ls$reads_removed$w, results = "asis"}
+cat("## How many reads were removed as ambient?")
+cat("\n")
+cat("Plots show what proportion of reads were removed from all barcodes called as cells.")
+
+print(plot_reads_removed_as_ambient(usa_dt_ls, ok_bcs_ls))
+```
+
+```{r tbl_ambient_exclusions, results = "asis", eval = print_tbl}
+cat("## Samples excluded by ambient removal step")
+
+calc_ambient_exclusions(stats_dt) %>% knitr::kable()
+```
+

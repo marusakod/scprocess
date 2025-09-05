@@ -7,7 +7,7 @@ suppressPackageStartupMessages({
 })
 
 # function that replaces placeholder strings in template Rmds and renders html reports
-render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
+render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...) {
   setwd(proj_dir)
 
   # get list with all values that need to be replaced in the template
@@ -27,8 +27,8 @@ render_reports <- function(rule_name, proj_dir, temp_f, rmd_f, ...){
     )
 }
 
-make_rmd_from_temp <- function(temp_f, temp_ls, rmd_f){
-  if(!file.exists(rmd_f)){
+make_rmd_from_temp <- function(temp_f, temp_ls, rmd_f) {
+  if (!file.exists(rmd_f)) {
     # read remplate file
     temp_str = readLines(temp_f, warn = FALSE)
 
@@ -43,8 +43,8 @@ make_rmd_from_temp <- function(temp_f, temp_ls, rmd_f){
   }
 }
 
-get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg', 'integration', 
-  'markers', 'cell_labels', 'zoom', 'pb_empties'), ...){
+get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'integration', 
+  'markers', 'cell_labels', 'zoom', 'pb_empties'), ...) {
 
   # get arguments
   sel_rule = match.arg(rule)
@@ -52,14 +52,15 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg',
   add_args_names = names(add_args)
 
   # check if all extra args for a specific rule are present
-  if(sel_rule == 'cellbender'){
-    req_names = c('YOUR_NAME','AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 'stats_f',
-      'CELLBENDER_PROP_MAX_KEPT','DATE_STAMP', 'RUNS_STR', 'af_dir')
-    
+  if (sel_rule == 'ambient') {
+    req_names = c('YOUR_NAME','AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 'smpl_stats_f',
+      'SAMPLE_VAR', 'AMBIENT_METHOD', 'DATE_STAMP', 'RUNS_STR')
+
     assert_that(all(req_names %in% add_args_names))
     
     params_ls = add_args
-  }else if(sel_rule == 'af'){
+
+  } else if (sel_rule == 'af') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
       'DATE_STAMP', 'RUNS_STR','AMBIENT_METHOD','SAMPLE_VAR',
       'af_dir', 'af_rna_dir')
@@ -68,7 +69,7 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg',
 
     params_ls = add_args
 
-  }else if(sel_rule == 'multiplexing'){
+  } else if (sel_rule == 'multiplexing') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
       'DATE_STAMP', 'RUNS_STR','AMBIENT_METHOD','METADATA_F',
       'SAMPLE_VAR', 'af_dir', 'demux_dir')
@@ -77,7 +78,7 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg',
 
     params_ls = add_args
 
-  }else if(sel_rule == 'qc'){
+  } else if (sel_rule == 'qc') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
       'DATE_STAMP', 'threads', 'meta_f', 'qc_dt_f',
       'QC_HARD_MIN_COUNTS', 'QC_HARD_MIN_FEATS', 'QC_HARD_MAX_MITO',
@@ -88,7 +89,7 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg',
 
     params_ls = add_args
 
-  }else if(sel_rule == 'hvg'){
+  } else if (sel_rule == 'hvg') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
       'DATE_STAMP', 'threads', 'hvgs_f', 'empty_gs_f', 'pb_empty_f')
     
@@ -96,7 +97,7 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg',
 
     params_ls = add_args
 
-  }else if(sel_rule == 'integration'){
+  } else if (sel_rule == 'integration') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
       'DATE_STAMP', 'threads', 'qc_dt_f', 'integration_f', 
       'INT_RES_LS', 'INT_DBL_CL_PROP')
@@ -105,7 +106,7 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg',
 
     params_ls = add_args[req_names]
 
-  }else if(sel_rule == 'markers'){
+  } else if (sel_rule == 'markers') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
       'DATE_STAMP', 'threads', 'meta_f','meta_vars_ls',
       'gtf_dt_f', 'integration_f', 'pb_f', 'mkrs_f', 'hvgs_f', 'ambient_f',
@@ -116,15 +117,15 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg',
     assert_that(all(req_names %in% add_args_names))
 
     # based on species determine whether code chunks with gsea results shoudl be eval or not
-    if(add_args[['SPECIES']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){
+    if (add_args[['SPECIES']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) {
       eval_fgsea = TRUE
-    }else{
+    } else{
       eval_fgsea = FALSE
     }
 
     params_ls = c(add_args[setdiff(req_names, 'SPECIES')], list(eval_fgsea = eval_fgsea))
 
-  }else if(sel_rule == 'cell_labels'){
+  } else if (sel_rule == 'cell_labels') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
       'DATE_STAMP', 'threads' ,'guesses_f',
       'LBL_TISSUE', 'LBL_XGB_F', 'LBL_XGB_CLS_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED',
@@ -132,20 +133,20 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg',
       
      assert_that(all(req_names %in% add_args_names))
 
-      if(add_args[["LBL_TISSUE"]] == 'human_cns'){
+      if (add_args[["LBL_TISSUE"]] == 'human_cns') {
         train_data_str = "whole brain human single nuclei atlas (Siletti et al. 2023)"
-      }else if(add_args[["LBL_TISSUE"]] == 'mouse_cns'){
+      } else if (add_args[["LBL_TISSUE"]] == 'mouse_cns') {
         train_data_str = "whole brain mouse single nuclei atlas (Langlieb et al. 2023)"
-      }else if(add_args[["LBL_TISSUE"]] == 'human pbmc'){
+      } else if (add_args[["LBL_TISSUE"]] == 'human pbmc') {
         train_data_str = "insert name of study here"
-      }else{
+      } else{
         train_data_str = "insert name of study here"
       }
 
       params_ls = add_args
       params_ls = c(params_ls, train_data_str = train_data_str)
 
-  }else if(sel_rule == 'zoom'){
+  } else if (sel_rule == 'zoom') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 'DATE_STAMP', 
       'threads', 'zoom_name', 'zoom_res', 'meta_f', 'meta_vars_ls', # meta_vars_ls should be made one string
       'gtf_dt_f', 'sce_sub_f', 'hmny_f', 'pb_f', 'mkrs_f', 'hvgs_f', 'canon_f', 
@@ -154,14 +155,14 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'cellbender', 'qc', 'hvg',
       'MKR_MIN_CELLS', 'MKR_GSEA_CUT', 'SPECIES')
     assert_that(all(req_names %in% add_args_names))
 
-    if(add_args[['SPECIES']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){
+    if (add_args[['SPECIES']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) {
       eval_fgsea = TRUE
-    }else{
+    } else{
       eval_fgsea = FALSE
     }
     params_ls = c(add_args[setdiff(req_names, 'SPECIES')], list(eval_fgsea = eval_fgsea))
 
-  }else if(sel_rule == 'pb_empties'){
+  } else if (sel_rule == 'pb_empties') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
       'DATE_STAMP', 'threads', 'guesses_f', 'empty_csv_f',
       'LBL_XGB_F', 'LBL_SEL_RES_CL', 'LBL_MIN_PRED', 'LBL_MIN_CL_PROP',

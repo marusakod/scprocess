@@ -777,6 +777,7 @@ def get_resource_parameters(config):
   MB_RUN_MAPPING               = 8192
   MB_SAVE_ALEVIN_TO_H5            = 8192
   MB_RUN_AMBIENT                  = 8192
+  MB_GET_BARCODE_QC_METRICS       = 8192
   MB_RUN_SCDBLFINDER              = 4096
   MB_COMBINE_SCDBLFINDER_OUTPUTS  = 8192
   MB_RUN_QC                       = 8192
@@ -804,6 +805,8 @@ def get_resource_parameters(config):
       MB_SAVE_ALEVIN_TO_H5            = config['resources']['mb_save_alevin_to_h5']
     if 'mb_run_ambient' in config['resources']:
       MB_RUN_AMBIENT               = config['resources']['mb_run_ambient']
+    if 'mb_get_barcode_qc_metrics' in config['resources']:
+      MB_GET_BARCODE_QC_METRICS       = config['resources']['mb_get_barcode_qc_metrics']
     if 'mb_run_scdblfinder' in config['resources']:
       MB_RUN_SCDBLFINDER              = config['resources']['mb_run_scdblfinder']
     if 'mb_combine_scdblfinder_outputs' in config['resources']:
@@ -836,7 +839,7 @@ def get_resource_parameters(config):
       MB_ZOOM_RENDER_TEMPLATE_RMD     = config['resources']['mb_zoom_render_template_rmd']
 
   return RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
-    MB_RUN_AMBIENT, \
+    MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
     MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
     MB_RUN_QC, MB_RUN_HVGS, \
     MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, \

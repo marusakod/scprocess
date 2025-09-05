@@ -37,7 +37,7 @@ LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL
   get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
 AMBIENT_GENES_GRP_NAMES, AMBIENT_GENES_GRP_VAR, AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR)
 RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
-  MB_RUN_AMBIENT, \
+  MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
   MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
   MB_RUN_QC, MB_RUN_HVGS, \
   MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, \
@@ -145,8 +145,8 @@ fgsea_outs = [
 ] if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'] else []
 
 # cellbender report (optional)
-bender_rmd_f  = (rmd_dir  + '/' + SHORT_TAG + '_cellbender.Rmd') if AMBIENT_METHOD == 'cellbender' else []
-bender_html_f = (docs_dir + '/' + SHORT_TAG + '_cellbender.html') if AMBIENT_METHOD == 'cellbender' else []
+ambient_rmd_f  = (rmd_dir  + '/' + SHORT_TAG + '_ambient.Rmd')
+ambient_html_f = (docs_dir + '/' + SHORT_TAG + '_ambient.html')
 
 # one rule to rule them all
 rule all:
@@ -166,9 +166,10 @@ rule all:
       af_dir    + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml',
       # ambient (cellbender, decontx or nothing)
       amb_dir   + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
+      amb_dir   + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz',
       # doublet id
-      dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-      dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      dbl_dir   + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+      dbl_dir   + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       ], run =  runs), 
     # ambient sample statistics
     amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',  
@@ -205,7 +206,7 @@ rule all:
     r_scripts, 
     # markdowns
     rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
-    bender_rmd_f, 
+    rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
     rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
     rmd_dir   + '/' + SHORT_TAG + '_hvgs.Rmd',
     rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
@@ -213,7 +214,7 @@ rule all:
     hto_rmd_f, 
     # reports
     docs_dir  + '/' + SHORT_TAG + '_mapping.html', 
-    bender_html_f, 
+    docs_dir  + '/' + SHORT_TAG + '_ambient.html', 
     docs_dir  + '/' + SHORT_TAG + '_qc.html',
     docs_dir  + '/' + SHORT_TAG + '_hvgs.html',
     docs_dir  + '/' + SHORT_TAG + '_integration.html',
@@ -245,12 +246,13 @@ rule demux:
     hto_rmd_f, 
     hto_html_f
 
-rule cellbender:
+rule ambient:
   input: 
     expand(amb_dir   + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml', run = runs), 
+    expand(amb_dir + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz', run = runs),
     amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    bender_rmd_f, 
-    bender_html_f
+    ambient_rmd_f, 
+    ambient_html_f
 
 rule qc:
   params:
