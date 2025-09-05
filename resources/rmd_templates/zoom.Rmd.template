@@ -225,7 +225,7 @@ for (sel_cl in cl_ord) {
 }
 ```
 
-## GSEA characterisation of `harmony` clusters{.tabset}
+## GSEA characterisation of clusters{.tabset}
 
 ```{r plot_gsea_results_pb, fig.height = 12, fig.width = 8, results = "asis"}
 for (p in names(gsea_ls)) {

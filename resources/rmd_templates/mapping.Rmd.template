@@ -128,7 +128,7 @@ for (i in 1:length(slope_ratio_split_l) ) {
 }
 ```
 
-### Ordered by `expected_cells`/`empty_plateau_middle` ratio{.tabset}
+### Ordered by ratio of expected cells to empty droplets{.tabset}
 
 Inaccurate detection of the transition points (knee and inflection points) in the barcode-rank curve can lead to incorrect estimates of barcodes corresponding to cells or empty droplets.
 To evaluate this, samples are ordered by the ratio of `expected_cells` to `empty_plateau_middle`.
