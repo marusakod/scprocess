@@ -807,4 +807,3 @@ make_subset_sces <- function(sel_s, clean_sce_f, integration_f, smpl_stats_f,
 #       strip.background = element_rect( fill = "white" ) ) +
 #     labs( colour = "log expression\n(max val. = 1)" )
 # }
->>>>>>> dev
