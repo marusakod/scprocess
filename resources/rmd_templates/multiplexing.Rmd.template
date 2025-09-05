@@ -122,11 +122,18 @@ if (sample_n <= 4) {
 }
 ```
 
+```{r get_barplot_dims, include=FALSE}
+w_per_s      = 1.5
+bplot_height = 4
+bplot_width  = w_per_s * pmax(sample_n, 4)
+```
+
 ## Barcode rank plots{.tabset}
 
-For each sample, barcodes are ranked in descending order based on their library size (number of unique molecular identifiers).
-Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high HTO content, while the second represents empty droplets containing ambient HTOs.
-The absence of a clear empty plateau indicates poor sample quality due to ambient RNA contamination.
+For each multiplexed sample/pool, barcodes are ranked in descending order based on their library size (number of unique molecular identifiers).
+Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high HTO content,
+while the second represents empty droplets containing ambient HTOs.
+The absence of a clear empty plateau indicates poor sample quality due to ambient HTO contamination.
 
 ```{r hto_knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
 for (i in 1:length(slope_ratio_split_l) ) {
@@ -146,6 +153,7 @@ for (i in 1:length(slope_ratio_split_l) ) {
 
 Summary of droplet classification results for each multiplexed sample in the dataset.
 For each sample, the table lists the number of doublets, singlets and negative (ambiguous) droplets.
+
 ```{r demux_out_tbl}
 rbindlist(hto_dt_ls) %>%
   .[, .(pool_id, class = HTO_classification.global)] %>%
@@ -153,6 +161,15 @@ rbindlist(hto_dt_ls) %>%
   unique() %>%
   dcast(pool_id ~ class) %>%
   knitr::kable()
+```
+
+
+## HTO demultiplexing summary
+
+For each multiplexed sample/pool the proportion of barcodes assigned to different HTO labels is shown.
+
+```{r hto_barplot, fig.width= bplot_width, fig.height= bplot_height}
+print(hto_barplot(hto_dt_ls))
 ```
 
 ## Distribution of HTO expression{.tabset}

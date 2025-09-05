@@ -137,19 +137,18 @@ hto_ridges <- function(sel_sample, proj_meta, hto_dt_ls){
   # get the right pool dt
   smpl_meta = proj_meta %>%
     .[sample_id == sel_sample]
-
   pool = smpl_meta$pool_id %>% unique()
   hto_id_smpl = smpl_meta$hto_id %>% unique()
 
   # get all htos in pool
   pool_htos = proj_meta %>%
     .[pool_id == pool, hto_id]
-
   pool_dt = hto_dt_ls[[pool]] %>%
     .[guess == hto_id_smpl] 
 
-  cols        = MetBrewer::met.brewer( name = 'Johnson', n = length(pool_htos),
+  cols  = MetBrewer::met.brewer( name = 'Johnson', n = length(pool_htos),
     type = 'discrete' ) %>% setNames(sort(pool_htos))
+  pool_dt$hto_id = factor(pool_dt$hto_id, levels = names(cols))
 
   p = ggplot(pool_dt, aes(x = norm_count, y = hto_id, fill = hto_id)) +
     geom_density_ridges(scale = 1, alpha = 0.8) +
@@ -205,6 +204,31 @@ hto_pairwise <- function(pool_dt, var = c("prop", "norm_count")){
     theme_classic() +
     labs(color = 'HTO guess', x = x_title, y = y_title)
 
+  return(g)
+}
+
+
+hto_barplot <- function(hto_dt_ls){
+  
+  plot_dt = rbindlist(hto_dt_ls) %>%
+    .[, .(pool_id, guess)] %>%
+    .[, count := .N, by = .(pool_id, guess) ] %>%
+     unique()
+  
+  hto_vals    = plot_dt$guess %>% unique() %>% setdiff(c('Doublet', 'Negative')) %>% sort
+  cols_tmp    = MetBrewer::met.brewer( name = 'Johnson', n = length(hto_vals),
+                                       type = 'discrete' ) %>% setNames(hto_vals)
+  
+  hto_cols    = c(cols_tmp, Negative = "grey20", Doublet = "grey80")
+  plot_dt$guess = factor(plot_dt$guess, levels = names(hto_cols) )
+  
+  g = ggplot(plot_dt) +
+    aes( x = pool_id, y = count, fill = guess ) +
+    geom_bar( position="fill", stat="identity" ) +
+    scale_fill_manual( values = hto_cols, breaks = names(hto_cols) ) +
+    theme_classic() +
+    labs(fill = 'HTO guess', y = 'pct. of barcodes', x = '')
+  
   return(g)
 }
 
