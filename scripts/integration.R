@@ -490,7 +490,8 @@ plot_cluster_qc_distns <- function(qc_melt, clust_dt, name, min_cl_size = 1e2) {
 
   # plot
   g = ggplot(plot_dt) + aes( x = cluster, y = qc_val, fill = cluster ) +
-    geom_violin() +
+    geom_violin(fill = 'grey60',
+      kernel = 'rectangular', adjust = 0.1, scale = 'width', width = 0.8) +
     scale_fill_manual( values = cl_cols, guide = "none" ) +
     facet_grid( qc_full ~ ., scales = 'free_y' ) +
     facetted_pos_scales(
