@@ -1532,7 +1532,7 @@ plot_metadata_over_umap <- function(meta_dt, harmony_dt, meta_var) {
     scale_fill_distiller( palette = "RdBu", trans = "log10", limits = c(0.0001, 0.01) ) +
     facet_wrap( ~ meta_var ) +
     theme_classic() +
-    theme( aspect.ratio = 1, axis.text = element_blank() ) +
+    theme( aspect.ratio = 1, axis.text = element_blank(), axis.ticks = element_blank() ) +
     labs( fill = sprintf("%s\ndensity", meta_var) )
 
   return(g)
@@ -1555,7 +1555,8 @@ plot_clusters_annotated_by_densities = function(hmny_dt, v, plot_ratio = sqrt(2)
     scale_fill_distiller( palette = "RdBu", trans = "log10", limits = c(0.01, 1) ) +
     facet_wrap( sprintf("~ %s", v), nrow = n_rows, ncol = n_cols ) +
     theme_classic() +
-    theme( axis.text = element_blank(), panel.grid = element_blank(), aspect.ratio = 1 ) +
+    theme( axis.text = element_blank(), axis.ticks = element_blank(), 
+      panel.grid = element_blank(), aspect.ratio = 1 ) +
     labs( fill = "pct. of\nsample" )
 
   return(g)
@@ -1595,8 +1596,9 @@ plot_selected_genes_umap <- function(sel_dt, cols_to_rows = 1.25) {
       guide = guide_legend( override.aes = list(size = 3) )) +
     facet_wrap( ~ symbol, ncol = n_col, nrow = n_row ) +
     theme_bw() +
-    theme( axis.text = element_blank(), panel.grid = element_blank(),
-      strip.background = element_rect( fill = "white" ), aspect.ratio = 1 ) +
+    theme( axis.text = element_blank(), axis.ticks = element_blank(), 
+      panel.grid = element_blank(), strip.background = element_rect( fill = "white" ), 
+      aspect.ratio = 1 ) +
     labs( colour = "scaled log\nexpression\n(max val. = 1)" )
 }
 

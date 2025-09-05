@@ -655,7 +655,7 @@ plot_selected_genes_umap <- function(sel_dt) {
       guide = guide_legend( override.aes = list(size = 3) )) +
     facet_wrap( ~ symbol ) +
     theme_bw() +
-    theme( axis.text = element_blank(), panel.grid = element_blank(),
-      strip.background = element_rect( fill = "white" ) ) +
+    theme( axis.text = element_blank(), axis.ticks = element_blank(), 
+      panel.grid = element_blank(), strip.background = element_rect( fill = "white" ) ) +
     labs( colour = "log expression\n(max val. = 1)" )
 }

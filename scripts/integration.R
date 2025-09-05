@@ -299,7 +299,7 @@ plot_umap_density <- function(input_dt) {
     scale_x_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     scale_y_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     theme_bw() +
-    theme( panel.grid = element_blank(), axis.text = element_blank(), aspect.ratio = 1 )
+    theme( panel.grid = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), aspect.ratio = 1 )
 
   return(g)
 }
@@ -321,7 +321,7 @@ plot_umap_doublets <- function(input_dt) {
     scale_x_continuous( breaks = pretty_breaks() ) +
     scale_y_continuous( breaks = pretty_breaks() ) +
     theme_bw() +
-    theme( panel.grid = element_blank(), axis.text = element_blank(), aspect.ratio = 1 )
+    theme( panel.grid = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), aspect.ratio = 1 )
 
   return(g)
 }
@@ -389,7 +389,7 @@ plot_umap_cluster <- function(umap_dt, clust_dt, name) {
     scale_x_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     scale_y_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     theme_bw() +
-    theme( panel.grid = element_blank(), axis.text = element_blank(), aspect.ratio = 1 ) +
+    theme( panel.grid = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), aspect.ratio = 1 ) +
     labs( colour = name )
 
   return(g)
