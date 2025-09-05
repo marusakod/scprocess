@@ -137,10 +137,7 @@ Table summarizing the number of cells before and after qc filtering. Some sample
 may have been excluded from further analysis due to insufficient number of cells.
 
 ```{r print_totals_excluded}
-calc_qc_summary(qc_dt, kept_dt, thrshlds_ls, qc_lu) %>% knitr::kable() %>% 
-  kable_minimal(html_font = "'Segoe UI', sans-serif") %>% 
-  kable_styling( bootstrap_options = c("hover", "striped"), font_size = 11, fixed_thead = TRUE, full_width = FALSE ) %>% 
-  row_spec(0, bold = TRUE, font_size = 11)
+calc_qc_summary(qc_dt, kept_dt, thrshlds_ls, qc_lu) %>% knitr::kable()
 ```
 
 ## What were the reasons for excluding barcodes?{.tabset}
@@ -151,7 +148,7 @@ for (s in s_lvls) {
   if (nrow(qc_tmp) == 1)
     next
   cat('### ', s, '\n')
-  print(plot_upset_of_exclusions(qc_tmp, qc_names, qc_lu, thrshlds_ls))
+  suppressMessages( print(plot_upset_of_exclusions(qc_tmp, qc_names, qc_lu, thrshlds_ls)) )
   cat('\n\n')
 }
 ```

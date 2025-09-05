@@ -123,7 +123,7 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
       eval_fgsea = FALSE
     }
 
-    params_ls = c(add_args[setdiff(req_names, 'SPECIES')], list(eval_fgsea = eval_fgsea))
+    params_ls = c(add_args[req_names], list(eval_fgsea = eval_fgsea))
 
   } else if (sel_rule == 'cell_labels') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 

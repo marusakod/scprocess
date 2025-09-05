@@ -477,10 +477,10 @@ plot_cluster_qc_distns <- function(qc_melt, clust_dt, name, min_cl_size = 1e2) {
   }
 
   # define breaks
-  log_brks    = c(1e1, 2e1, 5e1, 1e2, 2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4) %>%
+  log_brks    = c(1e1, 2e1, 5e1, 1e2, 2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5, 2e5, 5e5) %>%
     log10
   log_labs    = c("10", "20", "50", "100", "200", "500",
-    "1k", "2k", "5k", "10k", "20k", "50k")
+    "1k", "2k", "5k", "10k", "20k", "50k", "100k", "200k", "500k")
   logit_brks  = c(1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 0.10, 0.30,
     0.50, 0.70, 0.90, 0.97, 0.99) %>% qlogis
   logit_labs  = c("0.01%", "0.03%", "0.1%", "0.3%", "1%", "3%", "10%", "30%",
@@ -490,8 +490,7 @@ plot_cluster_qc_distns <- function(qc_melt, clust_dt, name, min_cl_size = 1e2) {
 
   # plot
   g = ggplot(plot_dt) + aes( x = cluster, y = qc_val, fill = cluster ) +
-    geom_violin(fill = 'grey60',
-      kernel = 'rectangular', adjust = 0.1, scale = 'width', width = 0.8) +
+    geom_violin(kernel = 'rectangular', adjust = 0.5, scale = 'width', width = 0.8, colour = NA) +
     scale_fill_manual( values = cl_cols, guide = "none" ) +
     facet_grid( qc_full ~ ., scales = 'free_y' ) +
     facetted_pos_scales(
@@ -503,7 +502,7 @@ plot_cluster_qc_distns <- function(qc_melt, clust_dt, name, min_cl_size = 1e2) {
         qc_full == "mito pct."        ~
           scale_y_continuous(breaks = logit_brks, labels = logit_labs),
         qc_full == "spliced pct."     ~
-          scale_y_continuous(breaks = splice_brks, labels = splice_labs)
+          scale_y_continuous(breaks = logit_brks, labels = logit_labs)
         )
       ) +
     theme_bw() +
