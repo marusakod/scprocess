@@ -25,36 +25,13 @@
 #     render_html(PROJ_DIR, template_f, sub_dict, output.rmd_f)
 
 
-# copy R scripts to code directory (not for rules that only run if specifically called)rule copy_r_code:
-rule copy_r_code:
-  output: 
-    r_utils_f   = f"{code_dir}/utils.R",
-    r_map_f     = f"{code_dir}/mapping.R", 
-    r_amb_f     = f"{code_dir}/ambient.R", 
-    r_demux_f   = f"{code_dir}/multiplexing.R",
-    r_qc_f      = f"{code_dir}/qc.R", 
-    r_hvgs_f    = f"{code_dir}/hvgs.R", 
-    r_int_f     = f"{code_dir}/integration.R",
-    r_mkr_f     = f"{code_dir}/marker_genes.R"
-  shell:"""
-    echo "copying relevant R files over"
-    
-    cp scripts/utils.R {output.r_utils_f}
-    cp scripts/mapping.R {output.r_map_f}
-    cp scripts/ambient.R {output.r_amb_f}
-    cp scripts/multiplexing.R {output.r_demux_f}
-    cp scripts/SampleQC.R {output.r_qc_f}
-    cp scripts/hvgs.R {output.r_qc_f}
-    cp scripts/integration.R {output.r_int_f}
-    cp scripts/marker_genes.R {output.r_mkr_f}
-    """ 
-
-
 # rule render_html_mapping
 rule render_html_mapping:
   input:
     expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs)
   output:
+    r_utils_f   = f"{code_dir}/utils.R",
+    r_map_f     = f"{code_dir}/mapping.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_mapping.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_mapping.html"
   threads: 1
@@ -64,6 +41,11 @@ rule render_html_mapping:
   conda:
     '../envs/rlibs.yaml'
   shell: """
+    # copy R code over
+    echo "copying relevant R files over"
+    cp scripts/utils.R {output.r_utils_f}
+    cp scripts/mapping.R {output.r_map_f}
+
     # define rule and template
     template_f=$(realpath resources/rmd_templates/mapping.Rmd.template)
     rule="af"
@@ -95,6 +77,8 @@ if DEMUX_TYPE == 'af':
       expand(af_dir + '/af_{run}/hto/' + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs), 
       sce_hto_fs = expand(demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', run = runs)
     output:
+      r_utils_f   = f"{code_dir}/utils.R",
+      r_demux_f   = f"{code_dir}/multiplexing.R",
       rmd_f       = f"{rmd_dir}/{SHORT_TAG}_demultiplexing.Rmd",
       html_f      = f"{docs_dir}/{SHORT_TAG}_demultiplexing.html"
     threads: 1
@@ -104,7 +88,10 @@ if DEMUX_TYPE == 'af':
     conda:
       '../envs/rlibs.yaml'
     shell: """
+      # copy R code over
       echo "copying relevant R files over"
+      cp scripts/utils.R {output.r_utils_f}
+      cp scripts/multiplexing.R {output.r_demux_f}
     
       # make and render Rmd file
       template_f=$(realpath resources/rmd_templates/multiplexing.Rmd.template)
@@ -136,6 +123,8 @@ rule render_html_ambient:
   input:
     smpl_stats_f  = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output:
+    r_utils_f     = f"{code_dir}/utils.R",
+    r_amb_f       = f"{code_dir}/ambient.R",
     rmd_f         = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd",
     html_f        = f"{docs_dir}/{SHORT_TAG}_ambient.html"
   threads: 4
@@ -145,6 +134,11 @@ rule render_html_ambient:
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
   shell: """  
+    # copy R code over
+    echo "copying relevant R files over"
+    cp scripts/utils.R {output.r_utils_f}
+    cp scripts/ambient.R {output.r_amb_f}
+
     # define rule and template
     template_f=$(realpath resources/rmd_templates/ambient.Rmd.template)
     rule="ambient"
@@ -174,6 +168,8 @@ rule render_html_qc:
   input:
     qc_dt_f     = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
+    r_utils_f   = f"{code_dir}/utils.R",
+    r_qc_f      = f"{code_dir}/qc.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_qc.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_qc.html"
   threads: 1
@@ -183,6 +179,11 @@ rule render_html_qc:
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
   shell: """
+    # copy R code over
+    echo "copying relevant R files over"
+    cp scripts/utils.R {output.r_utils_f}
+    cp scripts/SampleQC.R {output.r_qc_f}
+
     # define rule and template
     template_f=$(realpath resources/rmd_templates/SampleQC.Rmd.template)
     rule="qc"
@@ -222,6 +223,8 @@ rule render_html_hvgs:
     empty_gs_f  = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz', 
     pb_empty_f  = pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   output:
+    r_utils_f   = f"{code_dir}/utils.R",
+    r_hvgs_f    = f"{code_dir}/hvgs.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_hvgs.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_hvgs.html"
   threads: 1
@@ -231,6 +234,11 @@ rule render_html_hvgs:
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
   shell: """
+    # copy R code over
+    echo "copying relevant R files over"
+    cp scripts/utils.R {output.r_utils_f}
+    cp scripts/hvgs.R {output.r_hvgs_f}
+
     # define rule and template
     template_f=$(realpath resources/rmd_templates/hvgs.Rmd.template)
     rule="hvg"
@@ -260,6 +268,8 @@ rule render_html_integration:
     qc_dt_f         = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     integration_f   = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
+    r_utils_f   = f"{code_dir}/utils.R",
+    r_int_f     = f"{code_dir}/integration.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_integration.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_integration.html"
   params: 
@@ -271,6 +281,11 @@ rule render_html_integration:
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
   shell: """
+    # copy R code over
+    echo "copying relevant R files over"
+    cp scripts/utils.R {output.r_utils_f}
+    cp scripts/integration.R {output.r_int_f}
+
     # define rule and template
     template_f=$(realpath resources/rmd_templates/integration.Rmd.template)
     rule="integration"
@@ -306,25 +321,32 @@ rule render_html_marker_genes:
     ambient_f     = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
     **get_conditional_outputs(SPECIES)
   output:
-    rmd_f  = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{MKR_SEL_RES}.Rmd',
-    html_f = f'{docs_dir}/{SHORT_TAG}_marker_genes_{MKR_SEL_RES}.html'
+    r_utils_f     = f"{code_dir}/utils.R",
+    r_mkr_f       = f"{code_dir}/marker_genes.R",
+    rmd_f         = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{MKR_SEL_RES}.Rmd',
+    html_f        = f'{docs_dir}/{SHORT_TAG}_marker_genes_{MKR_SEL_RES}.html'
   threads: 8
   retries: RETRIES
   params:
     meta_vars  = ','.join(METADATA_VARS),
     fgsea_args = lambda wildcards, input: " ".join(
-        [
-            f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}',",
-            f"fgsea_go_cc_f = '{input.get('fgsea_go_cc_f', '')}',",
-            f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}',",
-            f"fgsea_paths_f = '{input.get('fgsea_paths_f', '')}',",
-            f"fgsea_hlmk_f  = '{input.get('fgsea_hlmk_f', '')}',"
-        ]
+      [
+        f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}',",
+        f"fgsea_go_cc_f = '{input.get('fgsea_go_cc_f', '')}',",
+        f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}',",
+        f"fgsea_paths_f = '{input.get('fgsea_paths_f', '')}',",
+        f"fgsea_hlmk_f  = '{input.get('fgsea_hlmk_f', '')}',"
+      ]
     ).strip()
   conda: '../envs/rlibs.yaml'
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_HTML_MARKER_GENES
   shell: """
+    # copy R code over
+    echo "copying relevant R files over"
+    cp scripts/utils.R {output.r_utils_f}
+    cp scripts/marker_genes.R {output.r_mkr_f}
+
     # define rule and template
     template_f=$(realpath resources/rmd_templates/marker_genes.Rmd.template)
     rule="markers"
@@ -380,6 +402,7 @@ rule render_html_label_celltypes:
   shell: """
     # copy R code over
     echo "copying relevant R files over"
+    cp scripts/utils.R {output.r_utils_f}
     cp scripts/label_celltypes.R {output.r_lbl_f}
 
     template_f=$(realpath resources/rmd_templates/label_celltypes.Rmd.template)
