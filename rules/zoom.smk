@@ -41,7 +41,6 @@ def extract_zoom_sample_statistics(qc_stats_f, LABELS_F, LABELS_VAR, LABELS, MIN
     return sample_df
 
 
-
 def get_mean_var_input(zoom_name):
     group_names = ZOOM_PARAMS_DICT[zoom_name]['HVG_GROUP_NAMES']
     num_chunks = ZOOM_PARAMS_DICT[zoom_name]['HVG_NUM_CHUNKS']
@@ -85,7 +84,6 @@ def get_zoom_conditional_outputs(species):
     return {}
 
 
-
 rule get_zoom_sample_statistics:
   input:
     qc_stats_f      = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
@@ -99,7 +97,6 @@ rule get_zoom_sample_statistics:
   run:
     zoom_stats_df = extract_zoom_sample_statistics(input.qc_stats_f, params.zoom_lbls_f, params.zoom_lbls_var, params.zoom_lbls, params.zoom_min_n_smpl, AMBIENT_METHOD)
     zoom_stats_df.to_csv(output.zoom_stats_f, index = False)
-
 
 
 # pseudobulks and empties
@@ -160,7 +157,6 @@ rule zoom_calculate_ambient_genes:
     """
 
 # highly variable genes
-
 rule zoom_make_hvg_df:
     input:
         ambient_yaml_out=expand([amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'], run=runs)
@@ -172,7 +168,6 @@ rule zoom_make_hvg_df:
             SAMPLE_MAPPING, FULL_TAG, DATE_STAMP, f"{zoom_dir}/{wildcards.zoom_name}"
             )
         hvg_df.to_csv(output.hvg_paths_f, index=False)
-
 
 
 rule zoom_make_tmp_csr_matrix:
@@ -232,6 +227,7 @@ rule zoom_get_stats_for_std_variance_for_sample:
           {output.std_var_stats_f}
         """
 
+
 rule zoom_get_mean_var_for_group:
     input:
         clean_h5_f= expand(
@@ -268,6 +264,7 @@ rule zoom_get_mean_var_for_group:
           --ncores {threads} 
         """
 
+
 rule zoom_merge_group_mean_var:
     input:                 
         mean_var_f= lambda wildcards: get_mean_var_input(wildcards.zoom_name)
@@ -279,6 +276,7 @@ rule zoom_merge_group_mean_var:
         mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
     run:
         merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
+
 
 rule zoom_get_estimated_variances:
     input:
@@ -300,6 +298,7 @@ rule zoom_get_estimated_variances:
           {params.zoom_hvg_method} \
           {input.mean_var_merged_f}
         """
+
 
 rule zoom_get_stats_for_std_variance_for_group:
     input: 
@@ -339,6 +338,7 @@ rule zoom_get_stats_for_std_variance_for_group:
           --ncores {threads} 
         """
 
+
 rule zoom_merge_stats_for_std_variance:
     input:
         tmp_std_var_stats_fs=lambda wildcards: get_tmp_std_var_stats_input(wildcards.zoom_name)
@@ -351,7 +351,6 @@ rule zoom_merge_stats_for_std_variance:
         merge_tmp_files(input.tmp_std_var_stats_fs, output.std_var_stats_merged_f)
 
         
-
 rule zoom_get_highly_variable_genes:
   input:
     std_var_stats_f = zoom_dir + '/{zoom_name}/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
@@ -385,6 +384,7 @@ rule zoom_get_highly_variable_genes:
      """
 
 
+
 rule zoom_create_hvg_matrix:
   input: 
     clean_h5_f   = expand(
@@ -412,6 +412,7 @@ rule zoom_create_hvg_matrix:
       {SAMPLE_VAR}
 
     """
+
 
 rule zoom_run_integration:
   input:
@@ -451,6 +452,7 @@ rule zoom_run_integration:
         batch_var        = '{BATCH_VAR}', 
         n_cores          = {threads})"
     """
+
 
 rule zoom_run_marker_genes:
   input:
@@ -538,8 +540,7 @@ rule zoom_make_subset_sces:
     """
 
 
-
-# # render_html_zoom
+# render_html_zoom
 rule render_html_zoom:
   input:
     r_utils_f           = code_dir + '/utils.R',
