@@ -211,7 +211,7 @@ def get_project_parameters(config, scprocess_data_dir):
   index_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
 
   # from index_parameters.csv get valid values for species
-  index_params= pd.read_csv(index_params_f)
+  index_params      = pd.read_csv(index_params_f)
   valid_species     = index_params['genome_name'].tolist()
   valid_species_str = ', '.join(valid_species)
 
