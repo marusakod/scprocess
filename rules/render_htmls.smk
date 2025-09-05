@@ -51,8 +51,8 @@ rule render_html_mapping:
     rule="af"
 
     # rendering html
-    Rscript --vanilla -e "source('scripts/render_reports.R'); \
-      render_reports(
+    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+      render_html(
         rule_name      = '$rule', 
         proj_dir       = '{PROJ_DIR}', 
         temp_f         =  '$template_f', 
@@ -98,8 +98,8 @@ if DEMUX_TYPE == 'af':
       rule="multiplexing"
 
       # rendering html
-      Rscript --vanilla -e "source('scripts/render_reports.R'); \
-          render_reports(
+      Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+          render_html(
           rule_name      = '$rule', 
           proj_dir       = '{PROJ_DIR}', 
           temp_f         =  '$template_f', 
@@ -144,8 +144,8 @@ rule render_html_ambient:
     rule="ambient"
 
     # rendering html
-    Rscript --vanilla -e "source('scripts/render_reports.R'); \
-    render_reports(
+    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    render_html(
       rule_name     = '$rule', 
       proj_dir      = '{PROJ_DIR}', 
       temp_f        = '$template_f', 
@@ -189,8 +189,8 @@ rule render_html_qc:
     rule="qc"
 
     # rendering html
-    Rscript --vanilla -e "source('scripts/render_reports.R'); \
-    render_reports(
+    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    render_html(
       rule_name          = '$rule', 
       proj_dir           = '{PROJ_DIR}', 
       temp_f             =  '$template_f', 
@@ -244,8 +244,8 @@ rule render_html_hvgs:
     rule="hvg"
 
     # rendering html
-    Rscript --vanilla -e "source('scripts/render_reports.R'); \
-    render_reports(
+    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    render_html(
       rule_name   = '$rule', 
       proj_dir    = '{PROJ_DIR}', 
       temp_f      =  '$template_f', 
@@ -291,8 +291,8 @@ rule render_html_integration:
     rule="integration"
     
     # rendering html
-    Rscript --vanilla -e "source('scripts/render_reports.R'); \
-    render_reports(
+    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    render_html(
       rule_name     = '$rule', 
       proj_dir      = '{PROJ_DIR}', 
       temp_f        =  '$template_f', 
@@ -352,8 +352,8 @@ rule render_html_marker_genes:
     rule="markers"
 
     # rendering html
-    Rscript --vanilla -e "source('scripts/render_reports.R'); \
-    render_reports(
+    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    render_html(
 
       rule_name        = '$rule',
       proj_dir         = '{PROJ_DIR}',
@@ -408,8 +408,8 @@ rule render_html_label_celltypes:
     template_f=$(realpath resources/rmd_templates/label_celltypes.Rmd.template)
     rule="cell_labels"
 
-    Rscript --vanilla -e "source('scripts/render_reports.R'); \
-    render_reports(
+    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    render_html(
       rule_name       = '$rule', 
       proj_dir        = '{PROJ_DIR}', 
       temp_f          =  '$template_f', 
