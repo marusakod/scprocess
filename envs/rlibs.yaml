@@ -35,6 +35,7 @@ dependencies:
 - r-circlize
 - r-corpcor
 - r-data.table
+- r-devtools
 - r-forcats
 - r-future
 - r-ggbeeswarm

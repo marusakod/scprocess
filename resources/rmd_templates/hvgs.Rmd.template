@@ -121,3 +121,7 @@ for (top_var in names(title_ls)) {
   cat("\n\n")
 }
 ```
+
+```{r session_info, include=TRUE, echo=TRUE, results="markup"}
+devtools::session_info()
+```

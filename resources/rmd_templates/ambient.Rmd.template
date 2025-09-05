@@ -111,3 +111,9 @@ cat("## Samples excluded by ambient removal step")
 calc_ambient_exclusions(stats_dt) %>% knitr::kable()
 ```
 
+
+
+```{r session_info, include=TRUE, echo=TRUE, results="markup"}
+devtools::session_info()
+```
+

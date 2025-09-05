@@ -217,3 +217,9 @@ for (i in pool_ids){
   cat('\n\n')
 }
 ```
+
+
+```{r session_info, include=TRUE, echo=TRUE, results="markup"}
+devtools::session_info()
+```
+

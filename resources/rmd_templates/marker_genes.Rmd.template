@@ -272,3 +272,9 @@ for (p in names(gsea_ls)) {
   cat('\n\n')
 }
 ```
+
+
+```{r session_info, include=TRUE, echo=TRUE, results="markup"}
+devtools::session_info()
+```
+

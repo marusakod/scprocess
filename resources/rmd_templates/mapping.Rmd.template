@@ -168,3 +168,9 @@ Outliers are labeled with their corresponding `sample_id` values.
 ```{r ambient_params_qc_dot, fig.height = 4, fig.width = 8}
 print(plot_amb_params_dotplot(rna_knee_params_df, sample_var = sample_var, scales = 'free'))
 ```
+
+
+```{r session_info, include=TRUE, echo=TRUE, results="markup"}
+devtools::session_info()
+```
+

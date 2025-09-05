@@ -121,3 +121,9 @@ for (sel_res in res_ls) {
 }
 ```
 
+
+
+```{r session_info, include=TRUE, echo=TRUE, results="markup"}
+devtools::session_info()
+```
+
