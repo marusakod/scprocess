@@ -443,6 +443,9 @@ def plot_interactive_knee(knee_f, sample):
   fig.write_html(plot_f)
   # plot(fig, auto_open=True)
 
+  # tell user where knee plot was saved
+  print(f"interactive knee plot saved here:\n  {plot_f}")
+
 
 if __name__ == '__main__':
   # define arguments
