@@ -29,13 +29,16 @@ QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_F
   get_qc_parameters(config)
 HVG_METHOD, HVG_GROUP_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES = \
   get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F)
-INT_CL_METHOD, INT_REDUCTION, INT_N_DIMS, INT_DBL_RES, INT_DBL_CL_PROP, INT_THETA, INT_RES_LS = \
-  get_integration_parameters(config, AF_MITO_STR)
+INT_CL_METHOD, INT_REDUCTION, INT_N_DIMS, INT_THETA, INT_RES_LS, INT_DBL_RES, INT_DBL_CL_PROP = \
+  get_integration_parameters(config)
 MKR_SEL_RES, MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS = \
   get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
 LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE = \
   get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
-AMBIENT_GENES_GRP_NAMES, AMBIENT_GENES_GRP_VAR, AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = get_pb_empties_parameters(config, HVG_METHOD, GROUP_NAMES, HVG_GROUP_VAR)
+ZOOM_NAMES, ZOOM_PARAMS_DICT = \
+  get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F, PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR)
+AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = \
+  get_pb_empties_parameters(config)
 RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
   MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
   MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
@@ -45,7 +48,7 @@ RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
   MB_LABEL_CELLTYPES, MB_LBL_RENDER_TEMPLATE_RMD, \
   MB_META_SAVE_METACELLS, \
   MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
-  MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD = \
+  MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD, MB_MAKE_SUBSET_SCES = \
   get_resource_parameters(config)
 
 # specify locations
@@ -64,16 +67,10 @@ lbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
 meta_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_metacells"
 pb_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_pseudobulk"
 empty_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_empties"
-zoom_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_zoom"
 rmd_dir       = f"{PROJ_DIR}/analysis"
 docs_dir      = f"{PROJ_DIR}/public"
+zoom_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_zoom"
 
-
-# make nice zoom variables
-# zoom_df       = pd.DataFrame({ \
-#  'zoom_name': ZOOM_NAMES, \
-#  'zoom_res': [ ZOOM_SPEC_LS[ zn ][ 'zoom_res' ] for zn in ZOOM_NAMES] \
-#  })
 
 # exclude all samples without fastq files
 if DEMUX_TYPE != "none":
@@ -101,6 +98,7 @@ r_scripts = [
   code_dir  + '/mapping.R',
   code_dir  + '/ambient.R',
   code_dir  + '/qc.R', 
+  code_dir  + '/hvgs.R', 
   code_dir  + '/integration.R', 
   code_dir  + '/marker_genes.R',
   code_dir  + '/multiplexing.R',
@@ -221,6 +219,75 @@ rule all:
     docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.html',
     hto_html_f 
 
+
+
+# get zoom marker outputs
+zoom_mkr_report_outs = expand(
+  [
+  '%s/{zoom_name}/pb_%s_{mkr_sel_res}_%s.rds' % (zoom_dir, FULL_TAG, DATE_STAMP), 
+  '%s/{zoom_name}/pb_marker_genes_%s_{mkr_sel_res}_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
+  '%s/{zoom_name}/pb_hvgs_%s_{mkr_sel_res}_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
+  '%s/%s_zoom_{zoom_name}_{mkr_sel_res}.Rmd' % (rmd_dir, SHORT_TAG), 
+  '%s/%s_zoom_{zoom_name}_{mkr_sel_res}.html' % (docs_dir, SHORT_TAG)
+  ] + (
+    [
+    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_go_bp_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
+    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_go_cc_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
+    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_go_mf_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
+    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_paths_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP),  
+    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_hlmk_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP)
+    ]
+    if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']
+    else []
+   ),
+  zip,
+  zoom_name=ZOOM_NAMES,
+  mkr_sel_res=[ZOOM_PARAMS_DICT[zoom_name]["MKR_SEL_RES"] for zoom_name in ZOOM_NAMES]
+)
+
+# get all zoom names for which subset sces should be created
+ZOOM_NAMES_SUBSET = [zoom_name for zoom_name in ZOOM_NAMES if ZOOM_PARAMS_DICT[zoom_name]["MAKE_SUBSET_SCES"]]
+
+zoom_sce_outs = (
+    expand(
+        '%s/{zoom_name}/sce_objects/sce_cells_clean_{sample}_%s_%s.rds' % \
+        (zoom_dir, FULL_TAG, DATE_STAMP),
+        zoom_name=ZOOM_NAMES_SUBSET,
+        sample=SAMPLES
+    )
+    if len(ZOOM_NAMES_SUBSET) != 0 else []
+)
+
+rule zoom:
+   input:
+     # zoom sample qc
+     expand('%s/{zoom_name}/zoom_sample_statistics_%s_%s.csv' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES),
+     # zoom pseudobulks and empties
+     expand('%s/{zoom_name}/pb_{zoom_name}_%s_%s.rds' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES),
+     expand('%s/{zoom_name}/edger_empty_genes_%s_%s.txt.gz' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES), 
+     # zoom hvgs
+     expand('%s/{zoom_name}/hvg_paths_%s_%s.csv' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES),  
+     expand('%s/{zoom_name}/standardized_variance_stats_%s_%s.txt.gz' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
+     expand('%s/{zoom_name}/hvg_dt_%s_%s.txt.gz' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
+     expand('%s/{zoom_name}/top_hvgs_counts_%s_%s.h5' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
+     # zoom integration
+     expand('%s/{zoom_name}/integrated_dt_%s_%s.txt.gz' % \
+            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES),
+     # zoom marker genes and html report
+     zoom_mkr_report_outs, 
+     # zoom sce subsets (optional)
+     zoom_sce_outs
+     
+     
+
+
 rule mapping:
   input:
     hto_index_outs, 
@@ -329,60 +396,7 @@ rule label_celltypes:
     docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
 
 
-
-# rule zoom:
-#   input:
-#     # zoom_imputed_dt
-#     expand('%s/{zoom_name}/zoom_imputed_dt_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
-#            (zoom_dir, FULL_TAG, DATE_STAMP), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-#     # zoom_sce_clean
-#     expand('%s/{zoom_name}/zoom_sce_clean_%s_{zoom_name}_{zoom_res}_%s.rds' % \
-#            (zoom_dir, FULL_TAG, DATE_STAMP), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-#     # zoom_integrated_dt
-#     expand('%s/{zoom_name}/zoom_integrated_dt_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
-#            (zoom_dir, FULL_TAG, DATE_STAMP), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-#     # zoom_pb
-#     expand('%s/{zoom_name}/zoom_pb_%s_{zoom_name}_{zoom_res}_%s.rds' % \
-#            (zoom_dir, FULL_TAG, DATE_STAMP), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-#     # zoom_pb_marker_genes
-#     expand('%s/{zoom_name}/zoom_pb_marker_genes_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
-#            (zoom_dir, FULL_TAG, DATE_STAMP), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-#     # zoom_pb_hvgs
-#     expand('%s/{zoom_name}/zoom_pb_hvgs_%s_{zoom_name}_{zoom_res}_%s.txt.gz' % \
-#            (zoom_dir, FULL_TAG, DATE_STAMP), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-#     # zoom_fgsea_go_bp
-#     expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_go_bp_%s.txt.gz' % \
-#            (zoom_dir, FULL_TAG, DATE_STAMP), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-#     # zoom_fgsea_go_cc
-#     expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_go_cc_%s.txt.gz' % \
-#            (zoom_dir, FULL_TAG, DATE_STAMP), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-#     # zoom_fgsea_go_mf
-#     expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_go_mf_%s.txt.gz' % \
-#            (zoom_dir, FULL_TAG, DATE_STAMP), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-#     # zoom_fgsea_paths
-#     expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_paths_%s.txt.gz' % \
-#            (zoom_dir, FULL_TAG, DATE_STAMP), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-#     # zoom_fgsea_hlmk
-#     expand('%s/{zoom_name}/zoom_fgsea_%s_{zoom_name}_{zoom_res}_hlmk_%s.txt.gz' % \
-#            (zoom_dir, FULL_TAG, DATE_STAMP), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']), 
-#     # Rmd and html files
-#     expand('%s/%s_zoom_{zoom_name}_{zoom_res}.Rmd' % (rmd_dir, SHORT_TAG), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res']),
-#     expand('%s/%s_zoom_{zoom_name}_{zoom_res}.html' % (docs_dir, SHORT_TAG), \
-#            zip, zoom_name=zoom_df['zoom_name'], zoom_res=zoom_df['zoom_res'])
-
-
+        
       
 
 # define rules that are needed
@@ -397,6 +411,4 @@ include: "integration.smk"
 include: "marker_genes.smk"
 include: "render_htmls.smk"
 include: "label_celltypes.smk"
-#include: "zoom.smk"
-#include: "metacells.smk"
-
+include: "zoom.smk"

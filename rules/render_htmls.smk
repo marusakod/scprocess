@@ -191,29 +191,29 @@ rule render_html_qc:
     # rendering html
     Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
-      rule_name   = '$rule', 
-      proj_dir    = '{PROJ_DIR}', 
-      temp_f      =  '$template_f', 
-      rmd_f       = '{output.rmd_f}', 
-      YOUR_NAME   = '{YOUR_NAME}', 
-      AFFILIATION = '{AFFILIATION}', 
-      PROJ_DIR    = '{PROJ_DIR}', 
-      SHORT_TAG   = '{SHORT_TAG}', 
-      DATE_STAMP  = '{DATE_STAMP}', 
-      threads     = {threads}, 
-      meta_f      = '{METADATA_F}', 
-      qc_dt_f     = '{input.qc_dt_f}', 
-      QC_HARD_MIN_COUNTS  = {QC_HARD_MIN_COUNTS}, 
-      QC_HARD_MIN_FEATS   = {QC_HARD_MIN_FEATS}, 
-      QC_HARD_MAX_MITO    = {QC_HARD_MAX_MITO}, 
-      QC_MIN_COUNTS       = {QC_MIN_COUNTS}, 
-      QC_MIN_FEATS        = {QC_MIN_FEATS}, 
-      QC_MIN_MITO         = {QC_MIN_MITO}, 
-      QC_MAX_MITO         = {QC_MAX_MITO}, 
-      QC_MIN_SPLICE       = {QC_MIN_SPLICE}, 
-      QC_MAX_SPLICE       = {QC_MAX_SPLICE}, 
-      QC_MIN_CELLS        = {QC_MIN_CELLS}
-      )"    
+      rule_name          = '$rule', 
+      proj_dir           = '{PROJ_DIR}', 
+      temp_f             =  '$template_f', 
+      rmd_f              = '{output.rmd_f}', 
+      YOUR_NAME          = '{YOUR_NAME}', 
+      AFFILIATION        = '{AFFILIATION}', 
+      PROJ_DIR           = '{PROJ_DIR}', 
+      SHORT_TAG          = '{SHORT_TAG}', 
+      DATE_STAMP         = '{DATE_STAMP}', 
+      threads            = {threads}, 
+      meta_f             = '{METADATA_F}', 
+      qc_dt_f            = '{input.qc_dt_f}', 
+      QC_HARD_MIN_COUNTS = {QC_HARD_MIN_COUNTS}, 
+      QC_HARD_MIN_FEATS  = {QC_HARD_MIN_FEATS}, 
+      QC_HARD_MAX_MITO   = {QC_HARD_MAX_MITO}, 
+      QC_MIN_COUNTS      = {QC_MIN_COUNTS}, 
+      QC_MIN_FEATS       = {QC_MIN_FEATS}, 
+      QC_MIN_MITO        = {QC_MIN_MITO}, 
+      QC_MAX_MITO        = {QC_MAX_MITO}, 
+      QC_MIN_SPLICE      = {QC_MIN_SPLICE}, 
+      QC_MAX_SPLICE      = {QC_MAX_SPLICE}, 
+      QC_MIN_CELLS       = {QC_MIN_CELLS}
+      )"
     """
 
 # render_html_hvgs
@@ -354,33 +354,33 @@ rule render_html_marker_genes:
     # rendering html
     Rscript --vanilla -e "source('scripts/render_reports.R'); \
     render_reports(
-      rule_name   = '$rule',
-      proj_dir    = '{PROJ_DIR}',
-      temp_f      =  '$template_f',
-      rmd_f       = '{output.rmd_f}',
-      YOUR_NAME   = '{YOUR_NAME}',
-      AFFILIATION = '{AFFILIATION}',
-      PROJ_DIR    = '{PROJ_DIR}',
-      SHORT_TAG   = '{SHORT_TAG}',
-      DATE_STAMP  = '{DATE_STAMP}',
-      threads     = {threads},
-      meta_f      = '{METADATA_F}',
-      meta_vars_ls  = '{params.meta_vars}',
-      gtf_dt_f      = '{AF_GTF_DT_F}',
-      integration_f = '{input.integration_f}',
-      pb_f          = '{input.pb_f}',
-      mkrs_f        = '{input.mkrs_f}',
-      CUSTOM_MKR_NAMES  = '{CUSTOM_MKR_NAMES}',
-      CUSTOM_MKR_PATHS  = '{CUSTOM_MKR_PATHS}',
-      hvgs_f            = '{input.hvgs_f}',
-      ambient_f         = '{input.ambient_f}',
+
+      rule_name        = '$rule',
+      proj_dir         = '{PROJ_DIR}',
+      temp_f           =  '$template_f',
+      rmd_f            = '{output.rmd_f}',
+      YOUR_NAME        = '{YOUR_NAME}',
+      AFFILIATION      = '{AFFILIATION}',
+      PROJ_DIR         = '{PROJ_DIR}',
+      SHORT_TAG        = '{SHORT_TAG}',
+      DATE_STAMP       = '{DATE_STAMP}',
+      threads          = {threads},
+      meta_f           = '{METADATA_F}',
+      meta_vars_ls     = '{params.meta_vars}',
+      gtf_dt_f         = '{AF_GTF_DT_F}',
+      integration_f    = '{input.integration_f}',
+      pb_f             = '{input.pb_f}',
+      mkrs_f           = '{input.mkrs_f}',
+      CUSTOM_MKR_NAMES = '{CUSTOM_MKR_NAMES}',
+      CUSTOM_MKR_PATHS = '{CUSTOM_MKR_PATHS}',
+      hvgs_f           = '{input.hvgs_f}',
       {params.fgsea_args}
-      MKR_SEL_RES     = {MKR_SEL_RES},
-      MKR_NOT_OK_RE   = '{MKR_NOT_OK_RE}',
-      MKR_MIN_CPM_MKR = {MKR_MIN_CPM_MKR},
-      MKR_MIN_CELLS   = {MKR_MIN_CELLS},
-      MKR_GSEA_CUT    = {MKR_GSEA_CUT},
-      SPECIES         = '{SPECIES}'
+      MKR_SEL_RES      = {MKR_SEL_RES},
+      MKR_NOT_OK_RE    = '{MKR_NOT_OK_RE}',
+      MKR_MIN_CPM_MKR  = {MKR_MIN_CPM_MKR},
+      MKR_MIN_CELLS    = {MKR_MIN_CELLS},
+      MKR_GSEA_CUT     = {MKR_GSEA_CUT},
+      SPECIES          = '{SPECIES}'
     )"
     """
 
@@ -430,3 +430,4 @@ rule render_html_label_celltypes:
       LBL_MIN_CL_SIZE = {LBL_MIN_CL_SIZE}
     )"
     """
+

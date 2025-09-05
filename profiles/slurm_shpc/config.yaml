@@ -2,6 +2,7 @@
 executor: slurm
 latency-wait: 10
 show-failed-logs: True
+slurm-keep-successful-logs: True
 keep-going: True
 scheduler: greedy   
 printshellcmds: True

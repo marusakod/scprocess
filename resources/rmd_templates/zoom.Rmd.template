@@ -17,8 +17,9 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', warnings = FALSE, 
-  fig.path = "figure/${SHORT_TAG}_zoom_${zoom_name}_${zoom_res}.Rmd/")
+  fig.path = "figure/${SHORT_TAG}_zoom_${zoom_name}.Rmd/")
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
+
 ```
 
 
@@ -26,28 +27,30 @@ knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 source('code/utils.R')
 source('code/integration.R')
 source('code/marker_genes.R')
-source('code/zoom.R')
-n_cores     = 4
+source('code/hvgs.R')
+library(stringi)
+n_cores = ${threads}
 setDTthreads(n_cores)
 ```
 
 
 ```{r setup_input, include = FALSE}
 # define selected group
+zoom_dir      = "${zoom_dir}"
 zoom_name     = "${zoom_name}"
-zoom_res      = ${zoom_res}
-sub_dir       = "output/${SHORT_TAG}_zoom/${zoom_name}"
-dbl_cl_prop   = ${INT_DBL_CL_PROP}
+sub_dir       = file.path(zoom_dir, zoom_name)
 
 # define files for calculating pseudobulk marker genes
 meta_f        = "${meta_f}"
 gtf_dt_f      = "${gtf_dt_f}"
-sce_sub_f     = "${sce_sub_f}"
-hmny_f        = "${hmny_f}"
+int_f         = "${int_f}"
 pb_f          = "${pb_f}"
 mkrs_f        = "${mkrs_f}"
+mkrs_hvgs_f   = "${mkrs_hvgs_f}"
 hvgs_f        = "${hvgs_f}"
-canon_f       = "${canon_f}"
+empty_gs_f    = "${empty_gs_f}"
+pb_empty_f    = "${pb_empty_f}"
+
 
 # fgsea files
 fgsea_go_bp_f = "${fgsea_go_bp_f}"
@@ -56,11 +59,24 @@ fgsea_go_mf_f = "${fgsea_go_mf_f}"
 fgsea_paths_f = "${fgsea_paths_f}"
 fgsea_hlmk_f  = "${fgsea_hlmk_f}"
 
-# parameters for here
+
+# custom markers for heatmap
+custom_mkr_names_str = "${CUSTOM_MKR_NAMES}"
+custom_mkr_paths_str = "${CUSTOM_MKR_PATHS}"
+
+if(custom_mkr_names_str != ""){
+  custom_mkr_names = str_split(custom_mkr_names_str, pattern = ',') %>% unlist()
+  custom_mkr_paths = str_split(custom_mkr_paths_str, pattern = ',') %>% unlist() %>%
+    setNames(custom_mkr_names)
+}
+
+# marker parameters
 not_ok_re     = "${MKR_NOT_OK_RE}"
-exc_regex     = "${INT_EXC_REGEX}"
+sel_res       = "${MKR_SEL_RES}"
 min_cpm_mkr   = ${MKR_MIN_CPM_MKR}
 min_cells     = ${MKR_MIN_CELLS}
+
+# parameters for gsea
 gsea_cut      = ${MKR_GSEA_CUT}
 
 # define nice order for plotting
@@ -71,26 +87,32 @@ metadata_vars = "${meta_vars_ls}" %>%
   str_split(pattern = ",") %>% unlist()
 if (all(metadata_vars == ""))
   metadata_vars = NULL
+
+# combine metadata variables for plot description
+metadata_txt = paste(metadata_vars, collapse = ', ') %>%
+stri_replace_last_fixed(",", " and")
 ```
 
 ```{r load_metadata, include = FALSE}
 meta_dt       = meta_f %>% fread
+if(!is.null(metadata_vars)){
 assert_that( all(metadata_vars %in% names(meta_dt)) )
+}
 ```
 
-```{r load_harmony_results, include = FALSE}
-hmny_all    = fread(hmny_f)
+```{r load_hvg_data, include = FALSE}
+hvgs_dt     = fread(hvgs_f)
+edger_dt    = fread(empty_gs_f)
+pb          = readRDS(pb_empty_f)
 ```
 
-```{r extract_dbl_checks, include = FALSE}
-hmny_dbl    = hmny_all %>% 
-  .[, .(sample_id, cell_id, UMAP1 = dbl_UMAP1, UMAP2 = dbl_UMAP2, is_dbl, dbl_cluster)]
-```
-
-```{r extract_normal_harmony, include = FALSE}
-hmny_dt    = hmny_all[ !is.na(UMAP1) ] %>% 
-  .[, cluster := get(paste0("RNA_snn_res.", zoom_res))] %>% 
-  .[, .(sample_id, cell_id, integration, UMAP1, UMAP2, cluster)]
+```{r extract_integration_res, include = FALSE}
+int_dt    = fread(int_f)  %>% 
+  .[, c("sample_id", "cell_id", "reduction", "UMAP1", "UMAP2", 
+    str_subset(names(.), "RNA_snn_res")), with = FALSE] %>% 
+  .[, cluster := get(paste0("RNA_snn_res.", sel_res))]
+int_dt       = int_dt[, .(sample_id, cell_id, UMAP1, UMAP2, cluster)] %>% 
+  merge(meta_dt, by = "sample_id")
 ```
 
 ```{r load_gene_biotypes, include = FALSE}
@@ -100,23 +122,18 @@ biotypes_dt   = load_gene_biotypes(gtf_dt_f)
 ```{r load_cpms, include = FALSE}
 cpms_dt     = readRDS(pb_f) %>% 
   make_logcpms_all(lib_size_method = "edger", 
-    exc_regex = exc_regex, min_cells = min_cells, n_cores = n_cores) %>% 
+    min_cells = min_cells, n_cores = n_cores) %>% 
   merge(biotypes_dt[, .(gene_id, gene_type)], by = "gene_id")
 ```
 
-```{r load_hvgs, include = FALSE}
-hvgs_dt     = fread(hvgs_f) %>% 
+
+```{r load_mkr_hvgs, include = FALSE}
+mkrs_hvgs_dt     = fread(mkrs_hvgs_f) %>% 
   .[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
   .[ order(-vst_var) ]
+top_hvgs =  mkrs_hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs" ]
 ```
 
-```{r load_heatmap_markers, include = FALSE}
-canon_dt    = fread(canon_f) %>% 
-  .[, gene_id   := sprintf("%s_%s", symbol, ensembl_id) ]
-assert_that( all( canon_dt$gene_id %in% unique(cpms_dt$gene_id) ) )
-top_hvgs    = hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs" ]
-mkrs_ls     = list( brain = canon_dt, HVGs = top_hvgs )
-```
 
 ```{r load_pb_markers, include = FALSE}
 # calculate markers
@@ -125,6 +142,24 @@ if (is.null(cl_ord))
   cl_ord      = sort(unique(mkrs_dt$cluster))
 ```
 
+```{r load_heatmap_markers, include = FALSE}
+if (custom_mkr_names_str != "") {
+  custom_mkrs_dt_ls = lapply(custom_mkr_paths, FUN = process_custom_markers, 
+    biotypes_dt = biotypes_dt, hvgs_dt = mkrs_hvgs_dt, marker_calcs_dt = mkrs_dt)
+  
+  custom_mkrs_dt_ls = Filter(Negate(is.null), custom_mkrs_dt_ls)
+  
+  mkrs_ls = c(custom_mkrs_dt_ls, list(HVGs = top_hvgs))
+} else {
+  mkrs_ls = list(HVGs = top_hvgs)
+}
+
+```
+
+
+```{r calc_empty_hvgs, include = FALSE}
+vst_obj     = calc_vst_obj(pb, edger_dt)
+```
 ```{r get_top_markers, include = FALSE}
 # select top markers
 top_dt      = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
@@ -136,100 +171,177 @@ top_min_dt  = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>%
 
 ```{r calc_gsea_pb, include = FALSE}
 # do GSEA
-fgsea_fs        = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f)
-names(fgsea_fs) = str_extract(fgsea_fs, "(go_bp|go_cc|go_mf|paths|hlmk)")
+fgsea_fs      = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f) %>% 
+  setNames(c("go_bp", "go_cc", "go_mf", "paths", "hlmk"))
 
 # load fgsea results
-gsea_ls         = lapply(fgsea_fs, fread) %>% setNames(names(fgsea_fs))
+gsea_ls       = lapply(fgsea_fs, function(f) if(file.exists(f)) {fread(f)} else {return(NULL)}) %>% setNames(names(fgsea_fs))
 ```
 
-## Check doublets over UMAP
 
-```{r plot_doublet_harmony, fig.height = 5, fig.width = 11}
-g_dbl   = plot_umap_doublets(hmny_dbl)
-g_dens  = plot_umap_density(hmny_dbl[, .(cell_id, UMAP1, UMAP2) ])
-g       = g_dbl + g_dens
-print(g)
+## Highly variable genes
+### Are highly variable genes "ambient" ?
+
+This plot is used to show to what extent the genes that would be identified by the 
+"standard" `Seurat`-style HVG procedure could be driven by ambient RNA. The x-axis 
+is the `log2fc` output from the ambient gene estimation step in `scprocess` (see
+docs for more details). The y-axis is the `Seurat`-style trend-normalised variance. Points are 
+genes, annotated by whether they are in the top HVGs, combined with whether
+the `scprocess` ambient gene procedure calls them as ambient.
+
+```{r plot_std_var_vs_empty_log2fc, fig.height = 6, fig.width = 8}
+print(plot_hvg_stats_vs_empty_log2fc(hvgs_dt, edger_dt))
 ```
 
-## Check doublet clusters
+### Which genes are "ambient"?{.tabset}
 
-```{r plot_doublet_clusters, fig.height = 4, fig.width = 6}
-( plot_doublet_clusters(hmny_dbl, dbl_cl_prop) )
+This plot shows the results of the `scprocess` ambient gene procedure. The y-axis 
+is the `-log10` nominal p-value, with a dotted line to show the cutoff at which 
+the adjusted p-value is sufficiently small. There are several plots, each filtering 
+to have different minimum levels of expression in the ambient profiles.
+
+```{r plot_ambient_gene_calculations, fig.height = 6, fig.width = 6, results = 'asis'}
+cpm_ls  = c(0, 10, 50, 100)
+for (min_cpm in cpm_ls) {
+  if (min_cpm == 0) {
+    cat("#### all genes\n")
+  } else {
+    cat(sprintf("#### >= %d CPM expression in ambient\n", min_cpm))
+  }
+  print(plot_ambient_gene_calculations(edger_dt, min_cpm_empty = min_cpm))
+  cat("\n\n")
+}
 ```
 
-## Clusters over UMAP{.tabset}
+### Which genes are variable across the ambient profiles?{.tabset}
 
-```{r plot_harmony_clusters_zoom_res, fig.height = 5, fig.width = 11}
+We often find it useful to look into how ambient genes vary across the different 
+samples. This can indicate when some samples may need to be treated differently 
+(e.g. if disease and healthy samples consistently have different ambient profiles).
+
+These heatmaps show how the pseudobulk expression of various genes vary across the
+ambient profiles from each sample in the dataset. The genes are chosen as the top 40 
+with:
+
+- highest variance across ambient profiles;
+- highest mean expression across ambient 
+profiles;
+- highest `log2fc` in ambient vs cells in `scprocess`'s ambient gene procedure; 
+and
+- smallest p-value in ambient vs cells in `scprocess`'s ambient gene procedure.
+
+```{r plot_ambient_profiles, fig.height = 8, fig.width = 6, results = 'asis'}
+title_ls = c(
+  "var"           = "HVGs",
+  "mean"          = "Highest expression",
+  "log2fc.empty"  = "Highest log2fc",
+  "pval.empty"    = "Smallest p-value"
+)
+for (top_var in names(title_ls)) {
+  cat(sprintf("#### %s in ambient\n", title_ls[top_var]))
+  suppressMessages(draw(plot_heatmap_of_ambient_profiles(vst_obj, top_var = top_var, 
+    n_top = 40), heatmap_legend_side = "right", merge_legend = TRUE ))
+  cat("\n\n")
+}
+```
+
+## Clustering
+### Clusters over UMAP{.tabset}
+
+Clustering of data is performed at resolution `r sel_res`. Cluster membership of cells is displayed on a UMAP.
+
+```{r plot_clusters_zoom_res, fig.height = 5, fig.width = 11}
 g_cl    = plot_umap_cluster(
-  umap_dt   = hmny_dt[, .(cell_id, UMAP1, UMAP2) ], 
-  clust_dt  = hmny_dt[, .(cell_id, cluster) ],
-  name      = sprintf('res = %s', zoom_res))
-g_dens  = plot_umap_density(hmny_dt[, .(cell_id, UMAP1, UMAP2) ])
+  umap_dt   = int_dt[, .(cell_id, UMAP1, UMAP2) ], 
+  clust_dt  = int_dt[, .(cell_id, cluster) ],
+  name      = sprintf('res = %s', sel_res))
+g_dens  = plot_umap_density(int_dt[, .(cell_id, UMAP1, UMAP2) ])
 g       = g_cl + g_dens
 print(g)
 ```
 
-## Cluster splits by metadata variables
+### Cluster splits by metadata variables
+
+For each cluster the proportion of cells coming from samples associated with specific values of `r metadata_txt` are shown. 
 
 ```{r plot_clusters_by_metadata, fig.height = 8, fig.width = 7, results = 'asis'}
 if (!is.null(metadata_vars))
-  (plot_clusters_by_metadata(meta_dt, hmny_dt, 
+  (plot_clusters_by_metadata(meta_dt, int_dt, 
     meta_vars = metadata_vars, cl_order = cl_ord))
 ```
 
-## Heatmaps of marker and variable genes{.tabset}
+### Metadata variables over UMAP{.tabset}
 
+The plot shows a binned UMAP with facets corresponding to specific values of `r if (length(metadata_vars) == 1) print(metadata_vars) else print("different metadata variables")` which allows the evaluation of whether cells sharing certain annotations are particularly abundant in some clusters/parts of the UMAP space or evenly distributed. 
+
+```{r plot_metadata_over_UMAP, fig.height = 3, fig.width = 8, results = 'asis'}
+for (meta_var in metadata_vars) {
+  cat('####', meta_var, '\n')
+  print(plot_clusters_annotated_by_densities(int_dt, meta_var))
+  cat('\n\n')
+}
+```
+
+## Marker genes
+
+### Heatmaps of marker and variable genes{.tabset}
 The resulting log 2 fold change values (calculated using edgeR) per cluster are shown for X highly variable genes and selected canonical marker genes.
 
 ```{r plot_marker_heatmaps, fig.height = 9, fig.width = 10, results = 'asis'}
 for (nn in names(mkrs_ls)) {
-  cat("### ", nn, "\n")
+  cat("#### ", nn, "\n")
   draw( plot_heatmap_of_selected_genes(mkrs_dt, mkrs_ls[[nn]]),
     heatmap_legend_side = "bottom", annotation_legend_side = "bottom", merge_legend = TRUE )
   cat("\n\n")
 }
 ```
 
-## Highly variable genes{.tabset}
+### Highly variable genes{.tabset}
+Normalized pseudobulk expression values for top 100? highly variable genes are shown for each cluster
 
 ```{r plot_hvgs_pb_hmny, fig.height = 8, fig.width = 8, results = "asis"}
 n_pages = 10
 per_p   = 10
 p       = 1
 for (i in seq(1, n_pages * per_p, by = per_p)) {
-  cat('### page', p, '\n'); p = p + 1
-  sel_hvgs  = hvgs_dt[ i:(i + 9) ]
+  cat('#### page', p, '\n'); p = p + 1
+  sel_hvgs  = mkrs_hvgs_dt[ i:(i + 9) ]
   print(plot_selected_genes(sel_hvgs, cpms_dt, cl_order = cl_ord))
   cat('\n\n')
 }
 ```
 
-## Top marker genes (min expression){.tabset}
+### Top marker genes (min expression){.tabset}
+Normalized pseudobulk expression values of top 100? marker genes with a minimum expression of `r min_cpm_mkr` CPM and FDR < 0.05 are shown for each cluster. 
 
 ```{r plot_top_markers_pb_min, fig.height = 8, fig.width = 8, results = "asis"}
 for (sel_cl in cl_ord) {
-  cat('###', sel_cl, '\n')
+  cat('####', sel_cl, '\n')
   print(plot_top_marker_genes(sel_cl, top_min_dt, cpms_dt, cl_order = cl_ord))
   cat('\n\n')
 }
 ```
 
-## Top marker genes{.tabset}
+### Top marker genes{.tabset}
+Normalized pseudobulk expression values of top 100? marker genes with FDR < 0.05 are shown for each cluster. 
 
 ```{r plot_top_markers_pb, fig.height = 8, fig.width = 8, results = "asis"}
 for (sel_cl in cl_ord) {
-  cat('###', sel_cl, '\n')
+  cat('####', sel_cl, '\n')
   print(plot_top_marker_genes(sel_cl, top_dt, cpms_dt, cl_order = cl_ord))
   cat('\n\n')
 }
 ```
 
-## GSEA characterisation of clusters{.tabset}
+### GSEA characterisation of clusters{.tabset}
+
+GSEA was performed on marker genes for each cluster, using logFC as the ranking variable. Top x pathways grouped into 5 categories with (some threshold) are shown for each cluster.
 
 ```{r plot_gsea_results_pb, fig.height = 12, fig.width = 8, results = "asis"}
 for (p in names(gsea_ls)) {
-  cat('### ', p, '\n')
+  if (is.null(gsea_ls[[p]]))
+    next
+  cat('#### ', p, '\n')
   dt    = gsea_ls[[p]] %>% .[ gsea_var == "z_score" ]
   plot_gsea_dotplot(dt, gsea_cut = gsea_cut, n_top_paths = 5, max_nes = 2,
     size_range = c(10, 200), what = "pos_only", cl_order = cl_ord) %>% print
@@ -237,9 +349,6 @@ for (p in names(gsea_ls)) {
 }
 ```
 
-
-
 ```{r session_info, include=TRUE, echo=TRUE, results="markup"}
 devtools::session_info()
 ```
-

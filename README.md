@@ -1,14 +1,14 @@
 To view the `scprocess` documentation locally, follow these steps:
 1. Clone the repository
 ```
-git clone https://github.com/marusakod/scprocess_test.git
+git clone https://github.com/marusakod/scprocess.git
 ```
 2. Install MkDocs and MkDocs Macros plugin
 ```
 pip install mkdocs-material
 pip install mkdocs-macros-plugin
 ```
-3. From `scprocess_test` main directory run:
+3. Go to the `scprocess` directory, then navigate to the `resources/mkdocs` subdirectory, and run::
 ```
 mkdocs serve
 ```
