@@ -101,8 +101,9 @@ r_scripts = [
   code_dir  + '/hvgs.R', 
   code_dir  + '/integration.R', 
   code_dir  + '/marker_genes.R',
-  code_dir  + '/multiplexing.R',
   ]
+if DEMUX_TYPE == 'af':
+  r_scripts = r_scripts.append(code_dir + '/multiplexing.R')
 
 # alevin hto index outputs (optional)
 hto_index_outs = [
