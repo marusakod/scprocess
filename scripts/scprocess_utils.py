@@ -25,9 +25,8 @@ def _get_cl_ls(PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SEL_RES):
   return int_f, cl_ls
 
 
-def _get_one_zoom_parameters(zoom_yaml_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F,
-                              PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR):
-
+def _get_one_zoom_parameters(zoom_yaml_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, 
+  AF_GTF_DT_F, PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR):
     # set defaults
     LABELS           = ""
     LABELS_F         = ""
@@ -873,7 +872,7 @@ def _safe_boolean(val):
 
 # define marker_genes parameters
 def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F,
-                        PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR): 
+   PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR): 
   
   if ('zoom' not in config) or (config['zoom'] is None):
     ZOOM_NAMES       = []

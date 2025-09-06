@@ -43,6 +43,7 @@ sub_dir       = file.path(zoom_dir, zoom_name)
 # define files for calculating pseudobulk marker genes
 meta_f        = "${meta_f}"
 gtf_dt_f      = "${gtf_dt_f}"
+qc_f          = "${qc_f}"
 int_f         = "${int_f}"
 pb_f          = "${pb_f}"
 mkrs_f        = "${mkrs_f}"
@@ -51,14 +52,12 @@ hvgs_f        = "${hvgs_f}"
 empty_gs_f    = "${empty_gs_f}"
 pb_empty_f    = "${pb_empty_f}"
 
-
 # fgsea files
 fgsea_go_bp_f = "${fgsea_go_bp_f}"
 fgsea_go_cc_f = "${fgsea_go_cc_f}"
 fgsea_go_mf_f = "${fgsea_go_mf_f}"
 fgsea_paths_f = "${fgsea_paths_f}"
 fgsea_hlmk_f  = "${fgsea_hlmk_f}"
-
 
 # custom markers for heatmap
 custom_mkr_names_str = "${CUSTOM_MKR_NAMES}"
@@ -69,6 +68,11 @@ if(custom_mkr_names_str != ""){
   custom_mkr_paths = str_split(custom_mkr_paths_str, pattern = ',') %>% unlist() %>%
     setNames(custom_mkr_names)
 }
+
+# define QC lookups
+qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
+qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') %>% 
+  setNames(qc_names)
 
 # marker parameters
 not_ok_re     = "${MKR_NOT_OK_RE}"
@@ -96,7 +100,7 @@ stri_replace_last_fixed(",", " and")
 ```{r load_metadata, include = FALSE}
 meta_dt       = meta_f %>% fread
 if(!is.null(metadata_vars)){
-assert_that( all(metadata_vars %in% names(meta_dt)) )
+  assert_that( all(metadata_vars %in% names(meta_dt)) )
 }
 ```
 
@@ -115,6 +119,16 @@ int_dt       = int_dt[, .(sample_id, cell_id, UMAP1, UMAP2, cluster)] %>%
   merge(meta_dt, by = "sample_id")
 ```
 
+```{r load_qc_results, include = FALSE}
+qc_melt     = fread(qc_f) %>% 
+  .[ cell_id %in% int_dt$cell_id ] %>% 
+  melt(id = 'cell_id', measure = qc_names, val = 'qc_val', var = 'qc_var') %>%
+  .[, qc_full := qc_lu[ qc_var ] ] %>%
+  .[, qc_var  := factor(qc_var, levels = qc_names) ] %>%
+  .[, qc_full := fct_reorder(qc_full, as.integer(qc_var)) ] %>% 
+  .[ !is.na(qc_val) ]
+```
+
 ```{r load_gene_biotypes, include = FALSE}
 biotypes_dt   = load_gene_biotypes(gtf_dt_f)
 ```
@@ -126,14 +140,12 @@ cpms_dt     = readRDS(pb_f) %>%
   merge(biotypes_dt[, .(gene_id, gene_type)], by = "gene_id")
 ```
 
-
 ```{r load_mkr_hvgs, include = FALSE}
 mkrs_hvgs_dt     = fread(mkrs_hvgs_f) %>% 
   .[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
   .[ order(-vst_var) ]
 top_hvgs =  mkrs_hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs" ]
 ```
-
 
 ```{r load_pb_markers, include = FALSE}
 # calculate markers
@@ -153,13 +165,12 @@ if (custom_mkr_names_str != "") {
 } else {
   mkrs_ls = list(HVGs = top_hvgs)
 }
-
 ```
-
 
 ```{r calc_empty_hvgs, include = FALSE}
 vst_obj     = calc_vst_obj(pb, edger_dt)
 ```
+
 ```{r get_top_markers, include = FALSE}
 # select top markers
 top_dt      = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
@@ -180,6 +191,7 @@ gsea_ls       = lapply(fgsea_fs, function(f) if(file.exists(f)) {fread(f)} else 
 
 
 ## Highly variable genes
+
 ### Are highly variable genes "ambient" ?
 
 This plot is used to show to what extent the genes that would be identified by the 
@@ -246,6 +258,7 @@ for (top_var in names(title_ls)) {
 ```
 
 ## Clustering
+
 ### Clusters over UMAP{.tabset}
 
 Clustering of data is performed at resolution `r sel_res`. Cluster membership of cells is displayed on a UMAP.
@@ -280,6 +293,16 @@ for (meta_var in metadata_vars) {
   print(plot_clusters_annotated_by_densities(int_dt, meta_var))
   cat('\n\n')
 }
+```
+
+### QC metrics of clusters
+
+Distributions of QC metrics (library size, number of features, mitochondrial proportion, and spliced proportion) are shown for each cluster across different resolution values.
+
+```{r plot_qc_distns, fig.height = 8, fig.width = 10}
+suppressWarnings(print(
+  plot_cluster_qc_distns(qc_melt, clust_dt  = int_dt[, .(cell_id, cluster)], name = sel_res)
+))
 ```
 
 ## Marker genes
