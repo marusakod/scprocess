@@ -384,7 +384,6 @@ rule zoom_get_highly_variable_genes:
      """
 
 
-
 rule zoom_create_hvg_matrix:
   input: 
     clean_h5_f   = expand(
@@ -547,6 +546,7 @@ rule render_html_zoom:
     r_hvgs_f            = code_dir + '/hvgs.R', 
     r_int_f             = code_dir + '/integration.R',
     r_mkr_f             = code_dir + '/marker_genes.R',
+    qc_f                = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     zoom_int_f          = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     zoom_pb_f           = zoom_dir + '/{zoom_name}/pb_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.rds',
     zoom_mkrs_f         = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
@@ -601,6 +601,7 @@ rule render_html_zoom:
       meta_f            = '{METADATA_F}', 
       meta_vars_ls      = '{params.meta_vars}', 
       gtf_dt_f          = '{AF_GTF_DT_F}', 
+      qc_f              = '{input.qc_f}', 
       int_f             = '{input.zoom_int_f}', 
       pb_f              = '{input.zoom_pb_f}', 
       mkrs_f            = '{input.zoom_mkrs_f}', 

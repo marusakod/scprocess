@@ -114,7 +114,7 @@ pb          = readRDS(pb_empty_f)
 int_dt    = fread(int_f)  %>% 
   .[, c("sample_id", "cell_id", "reduction", "UMAP1", "UMAP2", 
     str_subset(names(.), "RNA_snn_res")), with = FALSE] %>% 
-  .[, cluster := get(paste0("RNA_snn_res.", sel_res))]
+  .[, cluster := get(paste0("RNA_snn_res.", sel_res)) %>% fct_infreq ]
 int_dt       = int_dt[, .(sample_id, cell_id, UMAP1, UMAP2, cluster)] %>% 
   merge(meta_dt, by = "sample_id")
 ```
@@ -313,8 +313,8 @@ The resulting log 2 fold change values (calculated using edgeR) per cluster are 
 ```{r plot_marker_heatmaps, fig.height = 9, fig.width = 10, results = 'asis'}
 for (nn in names(mkrs_ls)) {
   cat("#### ", nn, "\n")
-  draw( plot_heatmap_of_selected_genes(mkrs_dt, mkrs_ls[[nn]]),
-    heatmap_legend_side = "bottom", annotation_legend_side = "bottom", merge_legend = TRUE )
+  suppressMessages(draw( plot_heatmap_of_selected_genes(mkrs_dt, mkrs_ls[[nn]]),
+    heatmap_legend_side = "bottom", annotation_legend_side = "bottom", merge_legend = TRUE ))
   cat("\n\n")
 }
 ```
