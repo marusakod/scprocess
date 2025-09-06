@@ -95,7 +95,6 @@ RUNS_STR = ','.join(runs)
 # scripts
 r_scripts = [
   code_dir  + '/utils.R',
-  code_dir  + '/mapping.R',
   code_dir  + '/ambient.R',
   code_dir  + '/qc.R', 
   code_dir  + '/hvgs.R', 
