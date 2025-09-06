@@ -31,6 +31,7 @@ rule render_html_mapping:
     expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs)
   output:
     r_utils_f   = f"{code_dir}/utils.R",
+    r_map_f     = f"{code_dir}/mapping.R",
     r_amb_f     = f"{code_dir}/ambient.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_mapping.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_mapping.html"
@@ -44,6 +45,7 @@ rule render_html_mapping:
     # copy R code over
     echo "copying relevant R files over"
     cp scripts/utils.R {output.r_utils_f}
+    cp scripts/mapping.R {output.r_map_f}
     cp scripts/ambient.R {output.r_amb_f}
 
     # define rule and template
@@ -132,8 +134,7 @@ rule render_html_ambient:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * 4096
-  shell: """  
-   
+  shell: """
     # define rule and template
     template_f=$(realpath resources/rmd_templates/ambient.Rmd.template)
     rule="ambient"
