@@ -1,10 +1,58 @@
-name: py_libs
+name: py_libs 
 channels:
-  - conda-forge
   - bioconda
+  - conda-forge
 dependencies:
+  - _libgcc_mutex=0.1
+  - _openmp_mutex=4.5
+  - bzip2=1.0.8
+  - ca-certificates=2025.7.14
+  - icu=75.1
+  - importlib-metadata=8.7.0
+  - ld_impl_linux-64=2.44
+  - libblas=3.9.0
+  - libcblas=3.9.0
+  - libffi=3.4.6
+  - libgcc=15.1.0
+  - libgcc-ng=15.1.0
+  - libgfortran=15.1.0
+  - libgfortran5=15.1.0
+  - libgomp=15.1.0
+  - liblapack=3.9.0
+  - liblzma=5.8.1
+  - liblzma-devel=5.8.1
+  - libnsl=2.0.1
+  - libopenblas=0.3.30
+  - libsqlite=3.50.3
+  - libstdcxx=15.1.0
+  - libstdcxx-ng=15.1.0
+  - libuuid=2.38.1
+  - libzlib=1.3.1
+  - natsort=8.4.0
+  - ncls=0.0.70
+  - ncurses=6.5
+  - numpy=2.2.6
+  - openssl=3.5.1
+  - pandas=2.3.1
+  - pip=25.1.1
+  - pyranges=0.1.4
   - python=3.10.0
-  - pandas 
-  - polars
-  - pyyaml
-  - pyranges
+  - python-dateutil=2.9.0.post0
+  - python-tzdata=2025.2
+  - python_abi=3.10
+  - pytz=2025.2
+  - pyyaml=6.0.2
+  - readline=8.2
+  - setuptools=80.9.0
+  - six=1.17.0
+  - sorted_nearest=0.0.39
+  - sqlite=3.50.3
+  - tabulate=0.9.0
+  - tk=8.6.13
+  - tzdata=2025b
+  - wheel=0.45.1
+  - xz=5.8.1
+  - xz-gpl-tools=5.8.1
+  - xz-tools=5.8.1
+  - yaml=0.2.5
+  - zipp=3.23.0
