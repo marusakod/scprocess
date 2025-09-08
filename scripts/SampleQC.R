@@ -1443,21 +1443,25 @@ list_known_metrics <- function() {
 plot_upset_of_exclusions <- function(qc_tmp, qc_names, qc_lu, thrshlds_ls) {
   # make list for upsets
   qc_tmp    = qc_tmp[ keep_hard == TRUE ]
+  var_lu    = c(
+    log_counts    = "umis", 
+    log_feats     = "genes", 
+    logit_mito    = "mito", 
+    logit_spliced = "spliced"
+  )
   tmp_ls    = lapply(names(thrshlds_ls), function(nn) {
+    # sort out thresholds
     thrsh_spec  = thrshlds_ls[[nn]]
-    if (nn %in% c("log_counts", "log_feats")) {
-      exc_cells   = list(low_umis = qc_tmp[ get(nn) < thrsh_spec ]$cell_id)
-    } else if (nn == "logit_mito") {
-      exc_cells   = list(
-        low_mito   = qc_tmp[ get(nn) < thrsh_spec[1] ]$cell_id,
-        high_mito  = qc_tmp[ get(nn) > thrsh_spec[2] ]$cell_id
-      )
-    } else if (nn == "logit_spliced") {
-      exc_cells   = list(
-        low_spliced  = qc_tmp[ get(nn) < thrsh_spec[1] ]$cell_id,
-        high_spliced = qc_tmp[ get(nn) > thrsh_spec[2] ]$cell_id
-      )
-    }
+    if (length(thrsh_spec) == 1)
+      thrsh_spec  = c(thrsh_spec, Inf)
+
+    # find excluded cells
+    exc_cells   = list(
+      low   = qc_tmp[ get(nn) < thrsh_spec[1] ]$cell_id,
+      high  = qc_tmp[ get(nn) > thrsh_spec[2] ]$cell_id
+    )
+    # make names nice
+    names(exc_cells)  = names(exc_cells) %>% paste(var_lu[[ nn ]], sep = "_")
 
     # remove anything that is blank
     n_cells   = sapply(exc_cells, length)
@@ -1466,11 +1470,16 @@ plot_upset_of_exclusions <- function(qc_tmp, qc_names, qc_lu, thrshlds_ls) {
     return(exc_cells)
     }) %>% do.call(c, .)
 
+  # check no overlaps with good cells
+  ok_cells  = qc_tmp[ keep == TRUE ]$cell_id
+  assert_that( all(sapply(tmp_ls, function(l) length(intersect(l, ok_cells))) == 0) )
+
   # turn into full list
-  upset_ls  = tmp_ls %>% c( list(passed_qc = qc_tmp[ keep == TRUE ]$cell_id) )
+  upset_ls  = tmp_ls %>% c( list(passed_qc = ok_cells) )
   upset_dt  = names(upset_ls) %>% lapply(function(nn) 
-      data.table(set = nn, cell_id = upset_ls[[nn]])) %>% rbindlist %>% 
-    dcast( cell_id ~ set, fun.aggregate = length)
+      data.table(set = nn, cell_id = upset_ls[[nn]])) %>% 
+    rbindlist %>% .[, dummy := 1 ] %>% 
+    dcast( cell_id ~ set, value.var = "dummy", fill = 0 )
 
   # make ratios nice
   n_cols    = ncol(upset_dt)
