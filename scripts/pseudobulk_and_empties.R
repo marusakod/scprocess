@@ -130,7 +130,7 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
     if(length(bad_samples) != 0){
       # don't include bad samples into empty pseudobulk matrix
       keep_idx   = which(!sample_ls %in% bad_samples)
-      samples_ls = samples_ls[keep_idx]
+      sample_ls  = sample_ls[keep_idx]
       af_mat_ls  = af_mat_ls[keep_idx]
       af_knee_ls = af_knee_ls[keep_idx]
     }

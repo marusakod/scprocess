@@ -137,14 +137,13 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
   min_cl_size = 1e2, agg_fn = c("sum", "prop.detected"), zoom = FALSE, n_cores = 8) {
   
   agg_fn      = match.arg(agg_fn)
-  
+
   message('    loading integration output')
   int_dt     = fread(integration_f)
-  
-  if(zoom == FALSE){
+    if (zoom == FALSE) {
     #exclude doublets
     int_dt = int_dt %>%
-    .[is_dbl == FALSE & in_dbl_cl == FALSE]
+      .[ (is_dbl == FALSE) & (in_dbl_cl == FALSE) ]
   }
 
   message('    excluding tiny clusters')
@@ -163,15 +162,12 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
   
   # set up cluster
   bpparam     = MulticoreParam(workers = n_cores, tasks = length(samples))  
-  
-  if(zoom){
+  if (zoom) {
     pb_ls       = bplapply(samples, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam, 
-     sce_paths = sce_paths, int_dt = int_dt, cl_var = cl_var,
-     keep_cls = keep_cls, agg_fn = agg_fn)
-  }else{
+     sce_paths = sce_paths, int_dt = int_dt, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
+  } else {
     pb_ls       = bplapply(samples, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
-    sce_paths = sce_paths, cl_var = cl_var,
-    keep_cls = keep_cls, agg_fn = agg_fn)
+      sce_paths = sce_paths, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
   }
   
   message('    merging pseudobulk counts')
@@ -209,7 +205,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
   # filter sce
   tmp_sce = tmp_sce[, colData(tmp_sce)$cluster %in% keep_cls]
   pb        = aggregateData_datatable(tmp_sce, by_vars = c("cluster", "sample_id"), 
-    fun = agg_fn, all_cls = keep_cls)
+                                      fun = agg_fn, all_cls = keep_cls)
   
   # make sure all assays are in the object, if not, add columns with zeros
   missing_assays = setdiff(keep_cls, assayNames(pb))  
@@ -217,7 +213,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
     message('  adding assays with zero counts')
     for(assay in missing_assays){
       missing_counts  = Matrix(0, nrow = nrow(pb), ncol = 1, 
-         sparse = FALSE, dimnames = list(rownames(pb), sel_s))
+                               sparse = FALSE, dimnames = list(rownames(pb), sel_s))
       assay(pb, assay) = missing_counts
     }
   }
@@ -226,16 +222,11 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
   return(pb)
 }
 
-
-
-
 .make_one_zoom_pseudobulk <- function(sel_s, sce_paths, int_dt, cl_var, keep_cls, agg_fn) {
-
   message(sel_s)
-  sce_f     = sce_paths[[sel_s]]
-  tmp_sce   = readRDS(sce_f)
-  smpl_int_dt = copy(int_dt) %>%
-    .[sample_id == sel_s]
+  sce_f       = sce_paths[[sel_s]]
+  tmp_sce     = readRDS(sce_f)
+  smpl_int_dt = copy(int_dt) %>% .[ sample_id == sel_s ]
   
   # remove umap and clustering cols from before and add new ones
   rm_cols = c('UMAP1', 'UMAP2', str_subset(names(colData(tmp_sce)), "RNA_snn_res"))
@@ -270,7 +261,6 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
   message('done!')
   return(pb)
 }
-
 
 aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
   fun = c("sum", "mean", "median", "prop.detected", "num.detected"), all_cls) {
@@ -375,6 +365,41 @@ aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
   # add helpful row data
   assert_that( all(rownames(pb) == rownames(sce)) )
   return(pb)
+}
+
+make_logcpms_all_rmd <- function(pb, lib_size_method = c("edger", "raw", "pearson",
+                                                     "vst", "rlog"), exc_regex = NULL, min_cells = 10, n_cores = 4) {  
+  # check inputs
+  lib_size_method   = match.arg(lib_size_method)
+  
+  # set up cluster
+  cl_ls       = assayNames(pb)
+ 
+  # exclude genes if requested
+  if (!is.null(exc_regex)) {
+    exc_idx     = rownames(pb) %>% str_detect(exc_regex)
+    exc_gs_str  = rowData(pb)$symbol[ exc_idx ] %>% paste0(collapse = " ")
+    sprintf("    excluding %d genes: %s", sum(exc_idx), exc_gs_str) %>% message
+    pb          = pb[ !exc_idx, ]
+  }
+  
+  # calculate logcpms
+  logcpms_all = lapply(cl_ls, function(sel_cl) {
+    message(sel_cl, appendLF = FALSE)
+    # message(sel_cl)
+    tmp_dt    = .get_logcpm_dt_one_cl(pb, cl = sel_cl,
+                                      min_cells = min_cells, lib_size_method = lib_size_method)
+    if (!is.null(tmp_dt))
+      tmp_dt   = tmp_dt[, cluster := sel_cl ]
+    return(tmp_dt)
+  }) %>% rbindlist
+  
+  # add # cells
+  ncells_dt   = muscat:::.n_cells(pb) %>%
+    as.data.table %>% set_colnames(c("cluster", "sample_id", "n_cells"))
+  logcpms_all = merge( logcpms_all, ncells_dt, by = c("cluster", "sample_id") )
+  
+  return(logcpms_all)
 }
 
 make_logcpms_all <- function(pb, lib_size_method = c("edger", "raw", "pearson",
@@ -815,7 +840,8 @@ calc_fgsea_dt <- function(gsets_list, fgsea_fs, markers_dt, gsea_cut,
     pathways  = gmtPathways(paths_f)
 
     # set up parallel
-    fgsea_dt  = bplapply(seq_along(dt_list), function(i) {
+    fgsea_dt  = lapply(seq_along(dt_list), function(i) {
+     
       # get labels
       dt      = dt_list[[i]]
       spec_dt = dt[1][, .(cluster, gsea_var)]
@@ -825,7 +851,7 @@ calc_fgsea_dt <- function(gsets_list, fgsea_fs, markers_dt, gsea_cut,
         .[ !is.null(leadingEdge) ]
 
       return(tmp_dt)
-      }, BPPARAM = bpparam) %>% rbindlist
+      }) %>% rbindlist
 
     # save results
     fwrite(fgsea_dt, file = fgsea_f)
@@ -1717,7 +1743,7 @@ plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cp
   pseudocount = 10, annotate_genes = TRUE, cluster_rows = TRUE) {
   # unpack
   sel_gs      = panel_dt$gene_id
-
+  
   # get marker values
   missing_gs  = setdiff( sel_gs, unique(mkrs_dt$gene_id))
   if ( length(missing_gs) > 0 )
@@ -1762,8 +1788,7 @@ plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cp
     col_lvls    = panel_dt[ symbol %in% keep_gs ]$label %>% fct_inorder %>% levels
     cols_dt     = panel_dt[, .(symbol,  label = label %>% factor(levels = col_lvls))] %>%
       setkey('symbol') %>% .[ rownames(log2fc_mat) ]
-    col_cols    = MetBrewer::met.brewer( name = 'Signac', n = length(col_lvls), 
-        type = 'discrete' ) %>% setNames(col_lvls)
+    col_cols    = MetBrewer::met.brewer( name = 'Signac', n = length(col_lvls)) %>% setNames(col_lvls)
     col_annots  = HeatmapAnnotation(
       label    = cols_dt$label,
       col      = list(label = col_cols),

@@ -73,7 +73,13 @@ Annotation of cell types was performed using an XGBoost classifier trained on an
 
 ## Integration clusters vs XGBoost-predicted cell types{.tabset}
 
-Heatmap with xgboost annotations vs integration clusters
+Prediction of cell type labels is a two-step process: The XGBoost classifier first assigns a predicted cell type to each individual cell.
+These cell-level predictions are then aggregated at the cluster level (a majority-voting approach is used, where the final, assigned label for a
+cluster is the most common predicted label among all the cells within it).
+
+The heatmap helps to asses whether cell-level predictions are consistent with clustering results at different resolutions.
+Each cell on the heatmap shows the proportion of cells within a cluster (on the x-axis) that are assigned a specific predicted cell type (on the y-axis).
+By examining these results, clustering resolution that provides the most reliable labels for the final, cluster-level prediction step can be selected.
 
 ```{r plot_cls_vs_boost_pred, fig.height = 5, fig.width = 13, results = 'asis'}
 # plot
@@ -94,7 +100,7 @@ for (sel_res in res_ls) {
 
 ## XGBoost-predicted cell types over UMAP{.tabset}
 
-For each cluster the most frequent prediction labels are shown.
+Clustering of data is performed at different resolution values. For each value the clusters are displayed over a UMAP together with a plot showing predicted cell type labels.
 
 ```{r plot_umap_xgboost_pred, fig.height = 5, fig.width = 12, results = 'asis'}
 # plot
@@ -121,9 +127,12 @@ for (sel_res in res_ls) {
 }
 ```
 
+## R session info
 
+Details of the R package versions used are given below.
 
+<details>
 ```{r session_info, include=TRUE, echo=TRUE, results="markup"}
 devtools::session_info()
 ```
-
+</details>

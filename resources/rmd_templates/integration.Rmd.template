@@ -152,7 +152,12 @@ for (res in res_ls) {
 }
 ```
 
+## R session info
 
+Details of the R package versions used are given below.
+
+<details>
 ```{r session_info, include=TRUE, echo=TRUE, results="markup"}
 devtools::session_info()
 ```
+</details>

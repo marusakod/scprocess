@@ -69,20 +69,18 @@ assert_that( length(hto_sce_fs) > 0)
 
 ```
 
-```{r load_hto_knee_dfs, include = FALSE}
-hto_knee_dfs = lapply(hto_knee_fs, FUN = fread)
-```
-
 ```{r load_hto_sce, include = FALSE}
 hto_sce_ls = lapply(hto_sce_fs, FUN = readRDS)
 ```
 
 ```{r load_meta, include=FALSE}
-proj_meta = fread(proj_meta_f)
+proj_meta = fread(proj_meta_f) %>%
+ # replace all underscores with dashes
+ .[, hto_id := gsub('_', '-', hto_id)]
 ```
 
 ```{r get_hto_knee_params, include = FALSE}
-hto_knee_params_df = lapply(hto_knee_dfs, FUN = get_knee_params, sample_var = sample_var) %>% rbindlist()
+hto_knee_params_df = lapply(hto_knee_fs, FUN = get_knee_params, sample_var = sample_var) %>% rbindlist()
 ```
 
 ```{r get_hto_dt, include = FALSE}
@@ -102,11 +100,6 @@ slope_ratio_ordered_samples = hto_knee_params_df %>%
   .[order(-slope_ratio)] %>%
   .[, get(sample_var)]
 
-# arrange samples into groups of 12 according to their expected cells vs total included ratio
-exp_tot_ratio_orderd_samples = hto_knee_params_df %>%
-  .[order(-expected_total_ratio)] %>%
-  .[, get(sample_var)]
-
 # split long vector into subsets
 n_per_plot  = 12
 num_subsets = ceiling(sample_n/n_per_plot)
@@ -114,79 +107,53 @@ index_vec_for_split = rep(1:num_subsets, each = n_per_plot, length.out = sample_
 
 # split sample_id vec into a list of subvectors
 slope_ratio_split_l = split(slope_ratio_ordered_samples, index_vec_for_split)
-exp_tot_ratio_split_l = split(exp_tot_ratio_orderd_samples, index_vec_for_split)
 ```
 
 ```{r get_knee_plot_dims, include = FALSE}
-
 # set defaults
-knee_width = 12
-knee_height = 8
+knee_width = 9
+knee_height = 6
 
-if(sample_n <= 4){
-  knee_height = ceiling(8 * 1/3)
-  knee_width = ceiling(12 * sample_n/4)
-}else if(sample_n > 4 & sample_n <= 8){
-  knee_height = ceiling(8* 2/3)
+if (sample_n <= 4) {
+  knee_height = ceiling(6 * 1/3)
+  knee_width = ceiling(9 * sample_n/4)
+} else if (sample_n > 4 & sample_n <= 8) {
+  knee_height = ceiling(6 * 2/3)
 }
-
 ```
 
-## Barcode rank plots
+```{r get_barplot_dims, include=FALSE}
+w_per_s      = 1.5
+bplot_height = 4
+bplot_width  = w_per_s * pmax(sample_n, 4)
+```
 
-For each sample, barcodes are ranked in descending order based on their library size (number of unique molecular identifiers).
-Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high RNA content, while the second represents empty droplets containing ambient RNA.
-Key transition points on the curve (inflection and knee points), are annotated with horizontal lines.
-Two main parameters infered by `scprocess` based on transition points are `expected_cells` and `empty_plateau_middle`.
-`empty_plateau_middle‘ should extend a few thousand barcodes into the second plateau.
-The absence of a clear empty plateau indicates poor sample quality due to ambient RNA contamination.
+## Barcode rank plots{.tabset}
 
-### Barcode rank plots ordered by slope ratio{.tabset}
-
-The slope ratio helps identify low-quality samples with high ambient RNA contamination.
-This ratio is calculated by dividing the slope of the barcode-rank curve in the empty droplet plateau by the slope at the first inflection point.
-Samples are ordered from highest to lowest based on the slope ratio.
+For each multiplexed sample/pool, barcodes are ranked in descending order based on their library size (number of unique molecular identifiers).
+Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high HTO content,
+while the second represents empty droplets containing ambient HTOs.
+The absence of a clear empty plateau indicates poor sample quality due to ambient HTO contamination.
 
 ```{r hto_knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
 for (i in 1:length(slope_ratio_split_l) ) {
   # get knee dfs for all selected samples
-  samples = slope_ratio_split_l[[i]]
-  name = sprintf('sample chunk #%d', i)
-  knees = hto_knee_dfs[samples]
-  cat('#### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knees, hto_knee_params_df, sample_var = sample_var, bender_priors_df = NULL))
+  samples  = slope_ratio_split_l[[i]]
+  name     = sprintf('sample chunk #%d', i)
+  knee_fs  = hto_knee_fs[samples]
+  cat('### ', name, '\n')
+  print(plot_barcode_ranks_w_params(
+    knee_fs, hto_knee_params_df, sample_var = sample_var,
+    bender_priors_df = NULL,  show_lines = FALSE))
   cat('\n\n')
 }
 ```
 
-### Barcode rank plots ordered by ratio of expected cells to empty droplets{.tabset}
+## Global demultiplexing results
 
-Inaccurate detection of the transition points (knee and inflection points) in the barcode-rank curve can lead to incorrect estimates of barcodes corresponding to cells or empty droplets.
-To evaluate this, samples are ordered by the ratio of `expected_cells` to `empty_plateau_middle`.
+Summary of droplet classification results for each multiplexed sample in the dataset.
+For each sample, the table lists the number of doublets, singlets and negative (ambiguous) droplets.
 
-
-```{r hto_knee_plots_exp_tot_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
-for (i in 1:length(exp_tot_ratio_split_l)) {
-  # get knee dfs for all selected samples
-  samples = exp_tot_ratio_split_l[[i]]
-  name = sprintf('sample chunk #%d', i)
-  knees = hto_knee_dfs[samples]
-  cat('#### ', name, '\n')
-  print(plot_barcode_ranks_w_params(knees, hto_knee_params_df, sample_var = sample_var, bender_priors_df = NULL))
-  cat('\n\n')
-}
-```
-
-## Dotplot with slope ratio and ratio of expected cells to empty droplets
-
-Both the slope ratio and the expected cells/total droplets ratio are displayed in a dot plot, where each dot represents a sample.
-Outliers are labeled with their corresponding `sample_id` values.
-
-```{r hto_params_qc_dot}
-print(make_amb_params_dotplot(hto_knee_params_df, sample_var = sample_var, scales = 'free'))
-```
-
-## Table with global demultiplexing results
 ```{r demux_out_tbl}
 rbindlist(hto_dt_ls) %>%
   .[, .(pool_id, class = HTO_classification.global)] %>%
@@ -196,7 +163,19 @@ rbindlist(hto_dt_ls) %>%
   knitr::kable()
 ```
 
-## Distribution of HTOs within a pool per sample{.tabset}
+
+## HTO demultiplexing summary
+
+For each multiplexed sample/pool the proportion of barcodes assigned to different HTO labels is shown.
+
+```{r hto_barplot, fig.width= bplot_width, fig.height= bplot_height}
+print(hto_barplot(hto_dt_ls))
+```
+
+## Distribution of HTO expression{.tabset}
+
+For each sample, the plot displays the normalized expression levels of all hashtag oligos (HTOs) used to label samples within the same pool.
+Each ridge on the plot corresponds to a single HTO, showing how its expression is distributed across the cells in that sample. 
 
 ```{r hto_ridges_plot, results ='asis'}
 for (i in sample_ids){
@@ -207,9 +186,11 @@ for (i in sample_ids){
 
 ```
 
-## Pairs of HTO signals to confirm mutual exclusivity{.tabset}
+## Pairs of HTO signals{.tabset}
 
-```{r hto_pairwise plot, results = 'asis'}
+For each pool, pairwise HTO expression levels are shown.
+
+```{r hto_pairwise plot, results = 'asis', fig.height = 7, fig.width = 9}
 for (i in pool_ids){
   pool_dt_tmp = hto_dt_ls[[i]]
   cat('### ', i, '\n')
@@ -218,8 +199,12 @@ for (i in pool_ids){
 }
 ```
 
+## R session info
 
+Details of the R package versions used are given below.
+
+<details>
 ```{r session_info, include=TRUE, echo=TRUE, results="markup"}
 devtools::session_info()
 ```
-
+</details>

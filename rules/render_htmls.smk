@@ -28,17 +28,17 @@
 # rule render_html_mapping
 rule render_html_mapping:
   input:
-    expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs)
+    knee_fs   = expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs)
   output:
-    r_utils_f   = f"{code_dir}/utils.R",
-    r_map_f     = f"{code_dir}/mapping.R",
-    r_amb_f     = f"{code_dir}/ambient.R",
-    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_mapping.Rmd",
-    html_f      = f"{docs_dir}/{SHORT_TAG}_mapping.html"
+    r_utils_f = f"{code_dir}/utils.R",
+    r_map_f   = f"{code_dir}/mapping.R",
+    r_amb_f   = f"{code_dir}/ambient.R",
+    rmd_f     = f"{rmd_dir}/{SHORT_TAG}_mapping.Rmd",
+    html_f    = f"{docs_dir}/{SHORT_TAG}_mapping.html"
   threads: 1
   retries: RETRIES
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    mem_mb    =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   conda:
     '../envs/rlibs.yaml'
   shell: """
@@ -76,8 +76,10 @@ if DEMUX_TYPE == 'af':
   # rule render_html_multiplexing
   rule render_html_multiplexing:
     input:
-      expand(af_dir + '/af_{run}/hto/' + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs), 
-      r_utils_f   = f"{code_dir}/utils.R",
+      r_utils_f = code_dir + '/utils.R', 
+      r_amb_f   = code_dir + '/ambient.R',
+      r_demux_f = code_dir + '/multiplexing.R', 
+      hto_knee_fs = expand(af_dir + '/af_{run}/hto/' + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs), 
       sce_hto_fs  = expand(demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', run = runs)
     output:
       r_demux_f   = f"{code_dir}/multiplexing.R",
@@ -86,7 +88,7 @@ if DEMUX_TYPE == 'af':
     threads: 1
     retries: RETRIES
     resources:
-      mem_mb      =  lambda wildcards, attempt: attempt * 4096
+      mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
     conda:
       '../envs/rlibs.yaml'
     shell: """
@@ -173,7 +175,7 @@ rule render_html_qc:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -227,7 +229,7 @@ rule render_html_hvgs:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -259,9 +261,10 @@ rule render_html_hvgs:
 # render_html_integration
 rule render_html_integration:
   input:
-    r_utils_f   = f"{code_dir}/utils.R",
-    qc_dt_f         = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    integration_f   = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    r_utils_f     = f"{code_dir}/utils.R",
+    r_amb_f       = f"{code_dir}/ambient.R",
+    qc_dt_f       = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
     r_int_f     = f"{code_dir}/integration.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_integration.Rmd",
@@ -273,7 +276,7 @@ rule render_html_integration:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -333,7 +336,7 @@ rule render_html_marker_genes:
     ).strip()
   conda: '../envs/rlibs.yaml'
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_HTML_MARKER_GENES
+    mem_mb = lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -379,7 +382,7 @@ rule render_html_marker_genes:
 # render_html_label_celltypes
 rule render_html_label_celltypes:
   input:
-    r_utils_f     = f"{code_dir}/utils.R",
+    r_utils_f   = f"{code_dir}/utils.R",
     r_mkr_f     = f'{code_dir}/marker_genes.R',
     guesses_f   = f'{lbl_dir}/cell_annotations_{FULL_TAG}_{DATE_STAMP}.txt.gz'
   output:
@@ -389,7 +392,7 @@ rule render_html_label_celltypes:
   threads: 1
   retries: RETRIES
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   conda: 
     '../envs/rlibs.yaml'
   shell: """
@@ -422,4 +425,3 @@ rule render_html_label_celltypes:
       LBL_MIN_CL_SIZE = {LBL_MIN_CL_SIZE}
     )"
     """
-

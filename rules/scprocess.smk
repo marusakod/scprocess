@@ -21,8 +21,8 @@ DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS,
   get_project_parameters(config, SCPROCESS_DATA_DIR)
 AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY = \
   get_alevin_parameters(config, SCPROCESS_DATA_DIR, SPECIES)
-CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
-FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE = \
+CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
+FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE = \
   get_ambient_parameters(config)
 QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_FEATS, \
   QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS, EXCLUDE_MITO = \
@@ -35,8 +35,6 @@ MKR_SEL_RES, MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MI
   get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
 LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE = \
   get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
-ZOOM_NAMES, ZOOM_PARAMS_DICT = \
-  get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F, PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR)
 AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = \
   get_pb_empties_parameters(config)
 RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
@@ -44,10 +42,9 @@ RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
   MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
   MB_RUN_QC, MB_RUN_HVGS, \
   MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, \
-  MB_RUN_MARKER_GENES, MB_HTML_MARKER_GENES, \
-  MB_LABEL_CELLTYPES, MB_LBL_RENDER_TEMPLATE_RMD, \
-  MB_META_SAVE_METACELLS, \
-  MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
+  MB_RUN_MARKER_GENES, MB_RENDER_HTMLS, \
+  MB_LABEL_CELLTYPES, \
+  MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, MB_MAKE_HTO_SCE_OBJECTS, \
   MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD, MB_MAKE_SUBSET_SCES = \
   get_resource_parameters(config)
 
@@ -221,74 +218,6 @@ rule all:
     hto_html_f 
 
 
-
-# get zoom marker outputs
-zoom_mkr_report_outs = expand(
-  [
-  '%s/{zoom_name}/pb_%s_{mkr_sel_res}_%s.rds' % (zoom_dir, FULL_TAG, DATE_STAMP), 
-  '%s/{zoom_name}/pb_marker_genes_%s_{mkr_sel_res}_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
-  '%s/{zoom_name}/pb_hvgs_%s_{mkr_sel_res}_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
-  '%s/%s_zoom_{zoom_name}_{mkr_sel_res}.Rmd' % (rmd_dir, SHORT_TAG), 
-  '%s/%s_zoom_{zoom_name}_{mkr_sel_res}.html' % (docs_dir, SHORT_TAG)
-  ] + (
-    [
-    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_go_bp_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
-    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_go_cc_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
-    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_go_mf_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
-    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_paths_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP),  
-    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_hlmk_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP)
-    ]
-    if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']
-    else []
-   ),
-  zip,
-  zoom_name=ZOOM_NAMES,
-  mkr_sel_res=[ZOOM_PARAMS_DICT[zoom_name]["MKR_SEL_RES"] for zoom_name in ZOOM_NAMES]
-)
-
-# get all zoom names for which subset sces should be created
-ZOOM_NAMES_SUBSET = [zoom_name for zoom_name in ZOOM_NAMES if ZOOM_PARAMS_DICT[zoom_name]["MAKE_SUBSET_SCES"]]
-
-zoom_sce_outs = (
-    expand(
-        '%s/{zoom_name}/sce_objects/sce_cells_clean_{sample}_%s_%s.rds' % \
-        (zoom_dir, FULL_TAG, DATE_STAMP),
-        zoom_name=ZOOM_NAMES_SUBSET,
-        sample=SAMPLES
-    )
-    if len(ZOOM_NAMES_SUBSET) != 0 else []
-)
-
-rule zoom:
-   input:
-     # zoom sample qc
-     expand('%s/{zoom_name}/zoom_sample_statistics_%s_%s.csv' % \
-            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES),
-     # zoom pseudobulks and empties
-     expand('%s/{zoom_name}/pb_{zoom_name}_%s_%s.rds' % \
-            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES),
-     expand('%s/{zoom_name}/edger_empty_genes_%s_%s.txt.gz' % \
-            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES), 
-     # zoom hvgs
-     expand('%s/{zoom_name}/hvg_paths_%s_%s.csv' % \
-            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES),  
-     expand('%s/{zoom_name}/standardized_variance_stats_%s_%s.txt.gz' % \
-            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
-     expand('%s/{zoom_name}/hvg_dt_%s_%s.txt.gz' % \
-            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
-     expand('%s/{zoom_name}/top_hvgs_counts_%s_%s.h5' % \
-            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
-     # zoom integration
-     expand('%s/{zoom_name}/integrated_dt_%s_%s.txt.gz' % \
-            (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES),
-     # zoom marker genes and html report
-     zoom_mkr_report_outs, 
-     # zoom sce subsets (optional)
-     zoom_sce_outs
-     
-     
-
-
 rule mapping:
   input:
     hto_index_outs, 
@@ -308,11 +237,13 @@ rule mapping:
      rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
      docs_dir  + '/' + SHORT_TAG + '_mapping.html'
 
+
 rule demux:
   input: 
     hto_sce_fs,
     hto_rmd_f, 
     hto_html_f
+
 
 rule ambient:
   input: 
@@ -321,6 +252,7 @@ rule ambient:
     amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     ambient_rmd_f, 
     ambient_html_f
+
 
 rule qc:
   params:
@@ -397,9 +329,6 @@ rule label_celltypes:
     docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
 
 
-        
-      
-
 # define rules that are needed
 include: "mapping.smk"
 include: "ambient.smk"
@@ -412,4 +341,77 @@ include: "integration.smk"
 include: "marker_genes.smk"
 include: "render_htmls.smk"
 include: "label_celltypes.smk"
-include: "zoom.smk"
+
+# if zoom rule do zoom stuff
+rule_name   = sys.argv[ len(sys.argv) - 1 ]
+if rule_name == "zoom":
+  # get zoom parameters
+  ZOOM_NAMES, ZOOM_PARAMS_DICT = \
+    get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F, PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR)
+
+  # get zoom marker outputs
+  zoom_mkr_report_outs = expand(
+    [
+    '%s/{zoom_name}/pb_%s_{mkr_sel_res}_%s.rds' % (zoom_dir, FULL_TAG, DATE_STAMP), 
+    '%s/{zoom_name}/pb_marker_genes_%s_{mkr_sel_res}_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
+    '%s/{zoom_name}/pb_hvgs_%s_{mkr_sel_res}_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
+    '%s/%s_zoom_{zoom_name}_{mkr_sel_res}.Rmd' % (rmd_dir, SHORT_TAG), 
+    '%s/%s_zoom_{zoom_name}_{mkr_sel_res}.html' % (docs_dir, SHORT_TAG)
+    ] + (
+      [
+      '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_go_bp_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
+      '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_go_cc_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
+      '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_go_mf_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
+      '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_paths_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP),  
+      '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_hlmk_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP)
+      ]
+      if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']
+      else []
+     ),
+    zip,
+    zoom_name=ZOOM_NAMES,
+    mkr_sel_res=[ZOOM_PARAMS_DICT[zoom_name]["MKR_SEL_RES"] for zoom_name in ZOOM_NAMES]
+  )
+
+  # get all zoom names for which subset sces should be created
+  ZOOM_NAMES_SUBSET = [zoom_name for zoom_name in ZOOM_NAMES if ZOOM_PARAMS_DICT[zoom_name]["MAKE_SUBSET_SCES"]]
+
+  zoom_sce_outs = (
+      expand(
+          '%s/{zoom_name}/sce_objects/sce_cells_clean_{sample}_%s_%s.rds' % \
+          (zoom_dir, FULL_TAG, DATE_STAMP),
+          zoom_name=ZOOM_NAMES_SUBSET,
+          sample=SAMPLES
+      )
+      if len(ZOOM_NAMES_SUBSET) != 0 else []
+  )
+
+  rule zoom:
+     input:
+       # zoom sample qc
+       expand('%s/{zoom_name}/zoom_sample_statistics_%s_%s.csv' % \
+              (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES),
+       # zoom pseudobulks and empties
+       expand('%s/{zoom_name}/pb_{zoom_name}_%s_%s.rds' % \
+              (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES),
+       expand('%s/{zoom_name}/edger_empty_genes_%s_%s.txt.gz' % \
+              (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name=ZOOM_NAMES), 
+       # zoom hvgs
+       expand('%s/{zoom_name}/hvg_paths_%s_%s.csv' % \
+              (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES),  
+       expand('%s/{zoom_name}/standardized_variance_stats_%s_%s.txt.gz' % \
+              (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
+       expand('%s/{zoom_name}/hvg_dt_%s_%s.txt.gz' % \
+              (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
+       expand('%s/{zoom_name}/top_hvgs_counts_%s_%s.h5' % \
+              (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
+       # zoom integration
+       expand('%s/{zoom_name}/integrated_dt_%s_%s.txt.gz' % \
+              (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES),
+       # zoom marker genes and html report
+       zoom_mkr_report_outs, 
+       # zoom sce subsets (optional)
+       zoom_sce_outs
+
+  # load up zoom rule
+  include: "zoom.smk"

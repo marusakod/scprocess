@@ -4,7 +4,7 @@ if DEMUX_TYPE == 'af':
 # save sce object with hto counts and demultiplex
   rule make_hto_sce_objects: 
     input: 
-      smpl_stats_f = amb_dir + '/ambient_sample_statistics_' + DATE_STAMP + '.txt',
+      smpl_stats_f = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       amb_yaml_f   = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
       hto_h5_f     = af_dir + '/af_{run}/hto/af_hto_counts_mat.h5'
     params:
@@ -14,7 +14,7 @@ if DEMUX_TYPE == 'af':
     threads: 1
     retries: RETRIES
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * MB_MAKE_SCE_OBJECT
+      mem_mb = lambda wildcards, attempt: attempt * MB_MAKE_HTO_SCE_OBJECTS
     conda:
      '../envs/rlibs.yaml'
     shell: 

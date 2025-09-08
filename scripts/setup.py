@@ -96,9 +96,9 @@ def get_af_index_parameters(config):
     "Duplicated genome names are not allowed!"
 
   # check if reference for tutorial needs to be added
-  if 'human_2024' not in setup_names:
-    spec_tmp    = {'name': "human_2024"}
-    setup_names = [ setup_names, 'human_2024' ]
+  if 'mouse_2024' not in setup_names:
+    spec_tmp    = {'name': "mouse_2024"}
+    setup_names = [ setup_names, 'mouse_2024' ]
     SETUP_LS.append( _get_index_parameters_tenx(spec_tmp, TENX_NAMES) )
 
   # make dictionary instead

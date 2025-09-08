@@ -168,6 +168,27 @@ alevin:
   return
 
 
+
+def check_sample_ids(sample_ids):
+  smpl_overlaps = []
+
+  # compare every sample id to every other sample id
+  for i, sample in enumerate(sample_ids):
+    for j, other_sample in enumerate(sample_ids):
+      if i != j and sample in other_sample:
+        smpl_overlaps.append((sample, other_sample))
+
+  # if samples overlap print error
+  if smpl_overlaps:
+    msg = "The following sample_id values are problematic (one is a subset of the other):\n"
+    for sample, other_sample in smpl_overlaps:
+      msg += f"  - '{sample}' is a subset of '{other_sample}'\n"
+    raise ValueError(msg)
+
+  return
+
+
+
 # find fastq files for a sample
 def find_fastq_files(fastqs_dir, sample, read):
   # get all files
@@ -347,8 +368,9 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   assert all('_R1' not in s and '_R2' not in s for s in samples_ls), \
     f"One or more {sample_var} values contain '_R1' or '_R2'. Please ensure all elements exclude these substrings"
   
-  # check that some fastq files exist
+  # check that sample_id values are ok and some fastq files exist
   samples_ls  = list(dict.fromkeys(samples_ls))
+  check_sample_ids(samples_ls)
   samples_ls  = exclude_samples_without_fastq_files(fastq_dir, samples_ls, HTO=False)
 
   if demux_type == 'af':

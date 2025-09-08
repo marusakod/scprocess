@@ -266,24 +266,7 @@ normalize_hvg_mat = function(hvg_mat, coldata, exclude_mito, scale_f = 10000) {
   return(dbl_data)
 }
 
-# .annotate_sce_w_harmony <- function(sce_dbl, hmny_ok) {
-#   # restrict to just ok cells
-#   sce       = sce_dbl[ , hmny_ok$cell_id ]
-# 
-#   # get useful harmony variables
-#   hmny_vs   = c('UMAP1', 'UMAP2', str_subset(names(hmny_ok), "RNA_snn_res"))
-# 
-#   # add these to sce object
-#   for (v in hmny_vs) {
-#     if (str_detect(v, "RNA_snn_res")) {
-#       colData(sce)[[ v ]] = hmny_ok[[ v ]] %>% factor
-#     } else {
-#       colData(sce)[[ v ]] = hmny_ok[[ v ]]
-#     }
-#   }
-# 
-#   return(sce)
-# }
+
 
 plot_umap_density <- function(input_dt) {
   # eps         = 0.001
@@ -389,7 +372,8 @@ plot_umap_cluster <- function(umap_dt, clust_dt, name) {
     scale_x_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     scale_y_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     theme_bw() +
-    theme( panel.grid = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), aspect.ratio = 1 ) +
+    theme( panel.grid = element_blank(), aspect.ratio = 1, 
+      axis.ticks = element_blank(), axis.text = element_blank() ) +
     labs( colour = name )
 
   return(g)

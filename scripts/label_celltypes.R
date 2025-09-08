@@ -69,58 +69,6 @@ label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integratio
 }
 
 
-# this should be moved to zoom
-# save_subset_sces <- function(sce_f, guesses_f, sel_res_cl, subset_df_f, 
-#   sce_ls_concat, subset_names_concat, allowed_cls_f, custom_labels_f, n_cores = 4) {
-#   message('saving sce subsets')
-#   # unpack inputs
-#   sce_ls        = sce_ls_concat %>% str_split(" ") %>% unlist
-#   subset_names  = subset_names_concat %>% str_split(" ") %>% unlist
-#   assert_that( length(sce_ls) == length(subset_names) )
-#   assert_that( all( str_detect(sce_ls, subset_names) ) )
-#   names(sce_ls) = subset_names
-# 
-#   # get specifications
-#   subsets_dt  = fread(subset_df_f)
-#   message('  subset specifications:')
-#   print(subsets_dt)
-#   assert_that( length(setdiff(subset_names, subsets_dt$subset_name)) == 0 )
-# 
-#   if(custom_labels_f != ""){
-#     custom_labels = fread(custom_labels_f)
-#     allowed_cls = custom_labels$label %>% unique
-#     guess_col_name = 'label'
-#   }else{
-#     allowed_cls = allowed_cls_f %>% fread(sep = ",") %>% .$cluster
-#     guess_col_name = paste0("cl_pred_", sel_res_cl)
-#   }
-#   
-#   assert_that( length(setdiff(subsets_dt$guess, allowed_cls)) == 0 )
-# 
-#   
-#   # load guesses
-#   guesses_all = fread(guesses_f)
-#   assert_that( guess_col_name %in% names(guesses_all) )
-#   guesses_dt  = guesses_all[, .(cell_id, guess = get(guess_col_name)) ]
-# 
-#   # load sce
-#   sce         = readRDS(sce_f)
-#   assert_that( all(guesses_dt$cell_id == colnames(sce)) )
-# 
-#   # get subsets
-#   for (nn in subset_names) {
-#     message('  getting subset for ', nn)
-#     # where are they?
-#     sel_types   = subsets_dt[ subset_name == nn ]$guess
-#     sel_ids     = guesses_dt[ guess %in% sel_types ]$cell_id
-# 
-#     # take subset, save
-#     message('    saving')
-#     sce_subset  = sce[, sel_ids]
-#     saveRDS(sce_subset, file = sce_ls[[ nn ]])
-#   }
-# }
-
 .calc_logcounts <- function(hvg_mat_f, sces_yaml_f, qc_sample_stats_f, gene_var, hvgs, 
   exclude_mito, n_cores = 4, overwrite = FALSE) {
   if (file.exists(hvg_mat_f) & overwrite == FALSE) {
@@ -504,7 +452,7 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
       as.matrix(rownames = "cl1")
     .lbl_fn <- function(j, i, x, y, width, height, fill)
       grid.text(sprintf("%s", signif(txt_mat[i, j], 2)), 
-        x, y, gp = gpar(fontsize = 8))
+        x, y, gp = gpar(fontsize = 10))
   }
   
   # turn into matrix
@@ -535,7 +483,7 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
     row_annots  = rowAnnotation(
       `cl1 total`  = rows_dt$log_total_cl1,
       col = list(`cl1 total` = log_cols),
-      annotation_name_side = "top",
+      annotation_name_side = "bottom",
       annotation_legend_param = list(
         `cl1 total` = list(at = log_brks, labels = log_labs)
         )
@@ -543,7 +491,7 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
     col_annots  = HeatmapAnnotation(
       `cl2 total`  = cols_dt$log_total_cl2,
       col = list(`cl2 total` = log_cols),
-      annotation_name_side = "right",
+      annotation_name_side = "left",
       annotation_legend_param = list(
         `cl2 total` = list(at = log_brks, labels = log_labs)
         )

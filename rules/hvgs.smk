@@ -2,6 +2,7 @@
 import yaml  
 import csv
 
+
 localrules: make_hvg_df
 
 def make_hvgs_input_df(DEMUX_TYPE, SAMPLE_VAR, runs, ambient_outs_yamls, SAMPLE_MAPPING, FULL_TAG, DATE_STAMP, hvg_dir):
@@ -301,7 +302,7 @@ rule create_hvg_matrix:
       {input.hvg_paths_f} \
       {input.hvg_f} \
       {output.hvg_mat_f} \
-      {SAMPLE_VAR}
+      {DEMUX_TYPE}
 
     """
 
@@ -328,6 +329,7 @@ rule create_doublets_hvg_matrix:
       {input.qc_f} \
       {input.qc_sample_stats_f} \
       {output.dbl_hvg_mat_f} \
-      {SAMPLE_VAR}
+      {SAMPLE_VAR} \
+      {DEMUX_TYPE}
 
       """

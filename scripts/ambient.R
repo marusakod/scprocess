@@ -247,27 +247,28 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, ambient_met
   return(usa_dt)
 }
 
-get_bender_log <- function(f, sample) {
+get_bender_log <- function(f, sample, sample_var) {
   ll =  read_lines(f, n_max = 25)
   .get_match <- function(ll, pat) {
     ll %>% str_subset(pat) %>% str_match(pat) %>% .[, 3] %>% as.integer()
   }
   bender_dt = data.table(
-    sample_id                   = sample,
     cb_prior_cells              = .get_match(ll, '(Prior on counts for cells is )([0-9]+)'),
     cb_prior_empty              = .get_match(ll, '(Prior on counts [infor]{2,3} empty droplets is )([0-9]+)'),
     excluding_bc_w_counts_below = .get_match(ll, '(Excluding barcodes with counts below )([0-9]+)'),
     used_probable_cell_barcodes = .get_match(ll, '(Using )([0-9]+)( probable cell barcodes)'),
     used_additional_barcodes    = .get_match(ll, '(plus an additional )([0-9]+)( barcodes)'),
     used_empty_droplets         = .get_match(ll, '(and )([0-9]+)( empty droplets)')
-  )
+  ) %>%
+    .[, (sample_var) := sample]
   assert_that( nrow(bender_dt) == 1 )
 
   return(bender_dt)
 }
 
 # find slope at first inflection and total droplets included & expected_cells/total ratio
-get_knee_params <- function(ranks_df, sample_var) {
+get_knee_params <- function(knee_f, sample_var) {
+  ranks_df  = fread(knee_f)
   total_thr = unique(ranks_df$total_droplets_included) %>% log10()
   
   inf1 = unique(ranks_df$inf1)
@@ -276,50 +277,53 @@ get_knee_params <- function(ranks_df, sample_var) {
   infl1_idx = which.min( abs(ranks_df$total - inf1) )[1]
   
   # get x coordinate of inf1
-  inf_1_x = ranks_df[ infl1_idx, "rank" ] %>%
+  inf_1_x = ranks_df[ infl1_idx, rank ] %>%
     log10()
   
   # fit curve to all points
   ranks_df = ranks_df %>% 
-    filter(total > 5) %>%
-    mutate(
+    .[total > 5] %>%
+    .[, `:=`(
       ranks_log = log10(rank),
       total_log = log10(total)
-      ) %>%
+    )
+    ] %>%
     unique
   
   fit = smooth.spline(x = ranks_df$ranks_log, y = ranks_df$total_log)
   fitted.vals = 10^fitted(fit)
   
   # get value of the first derivative at total included and inflection1
-  d1 = predict(fit, deriv=1)
-  d1_inf = d1$y[ which.min(abs(d1$x - inf_1_x))[1] ]
+  d1       = predict(fit, deriv=1)
+  d1_inf   = d1$y[ which.min(abs(d1$x - inf_1_x))[1] ]
   d1_total = d1$y[ which.min(abs(d1$x - total_thr))[1] ]
   
   keep_cols = c(sample_var, 'knee1', 'inf1', 'knee2', 'inf2', 'total_droplets_included', 'expected_cells')
   
   final = ranks_df %>%
-    select(all_of(keep_cols)) %>%
+    .[, ..keep_cols] %>%
     unique() %>%
-    mutate(
+    .[, `:=`(
       slope_inf1 = d1_inf,
       slope_total_included = d1_total
-    ) %>% 
-    mutate(
+    )]%>% 
+    .[, `:=`(
       slope_ratio = abs(slope_total_included) / abs(slope_inf1),
       expected_total_ratio = expected_cells / total_droplets_included
-    )
+    )]
   
   return(final)
 }
 
-plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, bender_priors_df = NULL) {
-  # get sample order
-  s_ord = names(knees)
+
+plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, bender_priors_df = NULL, show_lines = TRUE) {
   
-  # add knee and inflection to params
+  s_ord = names(knee_fs)
+  
+  # Add knee and inflection to params
   knee_data = lapply(s_ord, function(s) {
-    x = knees[[ s ]] %>% as.data.table
+    knee_f = knee_fs[[s]]
+    x = fread(knee_f) %>% as.data.table
     x %>%
       .[, .(n_bc = .N), by = .(lib_size = total)] %>%
       .[order(-lib_size)] %>%
@@ -328,13 +332,13 @@ plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, ben
   }) %>% rbindlist()
   
   knee_vars = c(sample_var, 'knee1', 'inf1', 'knee2', 'inf2',
-                 'total_droplets_included', 'expected_cells')
+                'total_droplets_included', 'expected_cells')
   
   lines_knees = ambient_knees_df %>% as.data.table %>% 
     .[ get(sample_var) %in% s_ord, ..knee_vars] %>%
     setnames( c("inf1", "inf2"), c("shin1", "shin2") ) %>% 
     melt(id.vars = sample_var) %>%
-   .[, `:=`(
+    .[, `:=`(
       axis = fifelse(variable %in% c('knee1', 'knee2', 'shin1', 'shin2'), 'y', 'x'),
       type = fifelse(variable %in% c('knee1', 'knee2', 'shin1', 'shin2'),
                      'cellbender intermediate\nparameter', 
@@ -351,7 +355,7 @@ plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, ben
       .[, `:=`(
         axis = 'y',
         type = 'cellbender prior\nparameter'
-        )]
+      )]
   }
   
   lines = list(lines_knees, lines_priors) %>% rbindlist()
@@ -365,36 +369,42 @@ plot_barcode_ranks_w_params <- function(knees, ambient_knees_df, sample_var, ben
   
   # set factor levels for sample_var so the samples will appear in the right order in the plot
   knee_data[[sample_var]] = factor(knee_data[[sample_var]], levels = s_ord)
-  hlines[[sample_var]] = factor(hlines[[sample_var]], levels = s_ord)
-  vlines[[sample_var]] = factor(vlines[[sample_var]], levels = s_ord)
+  if (show_lines) {
+    hlines[[sample_var]] = factor(hlines[[sample_var]], levels = s_ord)
+    vlines[[sample_var]] = factor(vlines[[sample_var]], levels = s_ord)
+  }
   
-  p <- ggplot(knee_data) +
-    aes( x = bc_rank, y = lib_size ) +
+  p = ggplot(knee_data) +
+    aes(x = bc_rank, y = lib_size) +
     geom_line(linewidth = 0.3, color = '#283747') +
-    geom_hline(data = hlines,
-               mapping = aes(yintercept = value, color = type)) +
-    geom_vline(data = vlines,
-               mapping = aes(xintercept = value, color = type)) +
-    geom_text_repel(data = hlines, mapping = aes(y = value, x = 10,  label = variable),
-                    size = 2.5) +
-    geom_text_repel(data = vlines, mapping = aes(x = value, y = 100, label = variable),
-                    size = 2.5, angle = 90) +
     facet_wrap( ~ get(sample_var), ncol = 4 ) +
-    scale_x_log10(labels = p_labels,
-                  breaks = p_breaks) +
-    scale_y_log10(labels = p_labels,
-                  breaks = p_breaks) +
+    scale_x_log10(labels = p_labels, breaks = p_breaks) +
+    scale_y_log10(labels = p_labels, breaks = p_breaks) +
     scale_color_manual(
-      # values = c("#FAD510", "#CB2314", "#273046"),
       values = c("#7c4b73", "#88a0dc", "#ab3329"),
       breaks = c('cellbender input\nparameter', 'cellbender intermediate\nparameter',
                  'cellbender prior\nparameter')) +
     theme_classic(base_size = 9) +
-    theme( legend.position = 'none' ) +
+    theme(legend.position = 'none') +
     labs(x = 'barcode rank', y = 'library size', color = NULL)
+  
+  # add lines only if show_lines is TRUE
+  if (show_lines) {
+    p = p +
+      geom_hline(data = hlines,
+                 mapping = aes(yintercept = value, color = type)) +
+      geom_vline(data = vlines,
+                 mapping = aes(xintercept = value, color = type)) +
+      geom_text_repel(data = hlines, mapping = aes(y = value, x = 10, label = variable),
+                      size = 2.5) +
+      geom_text_repel(data = vlines, mapping = aes(x = value, y = 100, label = variable),
+                      size = 2.5, angle = 90)
+  }
   
   return(p)
 }
+
+
 
 find_outlier <- function(x) {
   return(x < quantile(x, .25) - 1.5*IQR(x) | x > quantile(x, .75) + 1.5*IQR(x))
@@ -538,17 +548,19 @@ get_usa_dt <- function(usa_f, min_umi = 10) {
 }
 
 plot_qc_metrics_split_by_cells_empties <- function(rna_knee_dfs, 
-  metric = c("umis", "splice_pct"), min_umis = 10) {
+  metric = c("umis", "splice_pct"), sample_var = "sample_id", min_umis = 10) {
   metric    = match.arg(metric)
 
   # get cells and empties
-  plot_dt   = rna_knee_dfs %>% lapply(function(tmp_dt) {
-    tmp_dt %>% 
-      # .[ rank <= total_droplets_included ] %>% 
-      .[ total >= min_umis ] %>% 
-      .[, .(sample_id, barcode, rank, umis = log10(total), 
-        splice_pct = qlogis( (spliced + 1) / (spliced + unspliced + 2) ),
-        what = ifelse(rank <= expected_cells, "cell", "empty"))]
+  plot_dt   = knee_fs %>% lapply(function(f) {
+    tmp_dt = fread(f) %>% 
+      .[rank <= expected_cells | in_empty_plateau == TRUE ] %>% 
+      .[, `:=`(
+        umis       = log10(total), 
+        splice_pct = qlogis((spliced + 1) / (spliced + unspliced + 2)), 
+        what       = fifelse(rank <= expected_cells, "cell", "empty")
+      )] %>%
+      .[, c(sample_var, 'barcode', 'rank', 'umis', 'splice_pct', 'what'), with = FALSE]
     }) %>% rbindlist
 
   # plot these
@@ -563,7 +575,7 @@ plot_qc_metrics_split_by_cells_empties <- function(rna_knee_dfs,
     y_title   = "spliced pct."
   }
   g = ggplot(plot_dt) + 
-    aes( fill = what, x = sample_id, y = get(metric) ) +
+    aes( fill = what, x = get(sample_var), y = get(metric) ) +
     geom_violin( colour = NA,
       kernel = 'rectangular', adjust = 0.1, scale = 'width') +
     scale_y_continuous( breaks = y_brks, labels = y_labs ) +

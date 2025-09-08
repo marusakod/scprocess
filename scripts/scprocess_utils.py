@@ -480,14 +480,15 @@ def get_alevin_parameters(config, scprocess_data_dir, SPECIES):
 # ambient
 def get_ambient_parameters(config):
   # set default values
-  AMBIENT_METHOD                = 'decontx'
-  CELLBENDER_VERSION            = 'v0.3.0'
-  CELLBENDER_PROP_MAX_KEPT      = 0.9
-  FORCE_EXPECTED_CELLS          = None
-  FORCE_TOTAL_DROPLETS_INCLUDED = None
-  FORCE_LOW_COUNT_THRESHOLD     = None
-  CELLBENDER_LEARNING_RATE      = 1e-4
-  CELL_CALLS_METHOD             = 'barcodeRanks'
+  AMBIENT_METHOD                  = 'decontx'
+  CELLBENDER_VERSION              = 'v0.3.0'
+  CELLBENDER_PROP_MAX_KEPT        = 0.9
+  FORCE_EXPECTED_CELLS            = None
+  FORCE_TOTAL_DROPLETS_INCLUDED   = None
+  FORCE_LOW_COUNT_THRESHOLD       = None
+  CELLBENDER_LEARNING_RATE        = 1e-4
+  CELLBENDER_POSTERIOR_BATCH_SIZE = 128 # parameter only available in v0.3.2. Smaller values for lower GPU memory
+  CELL_CALLS_METHOD               = 'barcodeRanks'
 
   # change defaults if specified
   if ('ambient' in config) and (config['ambient'] is not None):
@@ -507,9 +508,15 @@ def get_ambient_parameters(config):
       FORCE_LOW_COUNT_THRESHOLD     = config['ambient']['cb_force_low_count_threshold']
     if 'cb_force_learning_rate' in config['ambient']:
       CELLBENDER_LEARNING_RATE      = config['ambient']['cb_force_learning_rate']
+    if 'cb_posterior_batch_size' in config['ambient']:
+      CELLBENDER_POSTERIOR_BATCH_SIZE =config['ambient']['cb_posterior_batch_size']
+      if CELLBENDER_VERSION != 'v0.3.2':
+        warnings.warn(f"'cb_posterior_batch_size' is only supported in CellBender v0.3.2. Ignoring for CellBender {CELLBENDER_VERSION}.")
 
   # get cellbender image (maybe skip this if cellbender is not selected?)
-  if CELLBENDER_VERSION == 'v0.3.0':
+  if CELLBENDER_VERSION   == 'v0.3.2':
+    CELLBENDER_IMAGE              = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.3.2'
+  elif CELLBENDER_VERSION   == 'v0.3.0':
     CELLBENDER_IMAGE              = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.3.0'
   elif CELLBENDER_VERSION == 'v0.2.0':
     CELLBENDER_IMAGE              = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.2.0'
@@ -518,8 +525,10 @@ def get_ambient_parameters(config):
 
   # some checks on custom parameters for cellbender
       
-  return CELLBENDER_IMAGE, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
-    FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE
+  return CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
+    FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE 
+
+
 
 
 def get_qc_parameters(config):
@@ -825,25 +834,7 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
   return LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE
 
 
-
-# define metacells parameters
-def get_metacells_parameters(config): 
-  # set some more default values
-  META_SUBSETS    = []
-  META_MAX_CELLS  = [100]
-
-  # change defaults if specified
-  if ('metacells' in config) and (config['metacells'] is not None):
-    if 'celltypes' in config['metacells']:
-      META_SUBSETS  = config['metacells']['celltypes']
-    if 'max_cells' in config['metacells']:
-      META_MAX_CELLS  = config['metacells']['max_cells']
- 
-  return META_SUBSETS, META_MAX_CELLS
-
-
 def get_pb_empties_parameters(config):
-  
   # get parameters for filtering edger results
   AMBIENT_GENES_LOGFC_THR = 0
   AMBIENT_GENES_FDR_THR   = 0.01
@@ -872,8 +863,7 @@ def _safe_boolean(val):
 
 # define marker_genes parameters
 def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F,
-   PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR): 
-  
+   PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR):   
   if ('zoom' not in config) or (config['zoom'] is None):
     ZOOM_NAMES       = []
     ZOOM_PARAMS_DICT = []
@@ -909,23 +899,21 @@ def get_resource_parameters(config):
   MB_SAVE_ALEVIN_TO_H5            = 8192
   MB_RUN_AMBIENT                  = 8192
   MB_GET_BARCODE_QC_METRICS       = 8192
+  MB_MAKE_HTO_SCE_OBJECTS         = 8192
   MB_RUN_SCDBLFINDER              = 4096
   MB_COMBINE_SCDBLFINDER_OUTPUTS  = 8192
   MB_RUN_QC                       = 8192
   MB_RUN_HVGS                     = 8192
+  MB_PB_MAKE_PBS                  = 8192
+  MB_PB_CALC_EMPTY_GENES          = 8192
   MB_RUN_INTEGRATION              = 8192
   MB_MAKE_CLEAN_SCES              = 8192
   MB_RUN_MARKER_GENES             = 16384
-  MB_HTML_MARKER_GENES            = 8192
-  MB_LBL_LABEL_CELLTYPES          = 8192
-  MB_LBL_SAVE_SUBSET_SCES         = 8192
-  MB_LBL_RENDER_TEMPLATE_RMD      = 4096
-  MB_META_SAVE_METACELLS          = 8192
-  MB_PB_MAKE_PBS                  = 8192
-  MB_PB_CALC_EMPTY_GENES          = 8192
+  MB_RENDER_HTMLS                 = 8192
+  MB_LABEL_CELLTYPES              = 8192
   MB_ZOOM_RUN_ZOOM                = 8192
-  MB_ZOOM_RENDER_TEMPLATE_RMD     = 4096
   MB_MAKE_SUBSET_SCES             = 8192
+  MB_ZOOM_RENDER_TEMPLATE_RMD     = 4096
 
   # change defaults if specified
   if ('resources' in config) and (config['resources'] is not None):
@@ -953,14 +941,10 @@ def get_resource_parameters(config):
       MB_MAKE_CLEAN_SCES              = config['resources']['mb_make_clean_sces']
     if 'mb_run_marker_genes' in config['resources']:
       MB_RUN_MARKER_GENES             = config['resources']['mb_run_marker_genes']
-    if 'mb_html_marker_genes' in config['resources']:
-      MB_HTML_MARKER_GENES            = config['resources']['mb_html_marker_genes']
+    if 'mb_render_htmls'     in config['resources']:
+      MB_RENDER_HTMLS                = config['resources']['mb_render_htmls']
     if 'mb_label_celltypes' in config['resources']:
       MB_LABEL_CELLTYPES          = config['resources']['mb_label_celltypes']
-    if 'mb_lbl_render_template_rmd' in config['resources']:
-      MB_LBL_RENDER_TEMPLATE_RMD      = config['resources']['mb_lbl_render_template_rmd']
-    if 'mb_meta_save_metacells' in config['resources']:
-      MB_META_SAVE_METACELLS          = config['resources']['mb_meta_save_metacells']
     if 'mb_pb_make_pbs' in config['resources']:
       MB_PB_MAKE_PBS                  = config['resources']['mb_pb_make_pbs']
     if 'mb_pb_calc_empty_genes' in config['resources']:
@@ -971,15 +955,16 @@ def get_resource_parameters(config):
       MB_ZOOM_RENDER_TEMPLATE_RMD     = config['resources']['mb_zoom_render_template_rmd']
     if 'mb_make_subset_sces'         in config['resources']:
       MB_MAKE_SUBSET_SCES             = config['resources']['mb_make_subset_sces']
+    if 'mb_make_hto_sce_objects' in config['resources']:
+      MB_MAKE_HTO_SCE_OBJECTS         = config['resources']['mb_make_hto_sce_objects']
 
   return RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
     MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
     MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
     MB_RUN_QC, MB_RUN_HVGS, \
     MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, \
-    MB_RUN_MARKER_GENES, MB_HTML_MARKER_GENES, \
-    MB_LBL_LABEL_CELLTYPES, MB_LBL_RENDER_TEMPLATE_RMD, \
-    MB_META_SAVE_METACELLS, \
-    MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
+    MB_RUN_MARKER_GENES, MB_RENDER_HTMLS, \
+    MB_LABEL_CELLTYPES, \
+    MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, MB_MAKE_HTO_SCE_OBJECTS, \
     MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD, MB_MAKE_SUBSET_SCES
 

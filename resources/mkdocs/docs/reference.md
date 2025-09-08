@@ -10,7 +10,7 @@ The command requires a configuration file named `scprocess_setup.yaml` located i
 ```yaml
 genome:
   tenx:
-    - name: human_2024 
+    - name: human_2024
       decoys: True
       rrnas: True
   custom:
@@ -25,7 +25,7 @@ genome:
       mito_str: "^MT-"
 ```
 
-Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with {{scsetup}} by adding `tenx` to the `scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.  
+Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with {{scsetup}} by adding `tenx` to the `scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.
 
 Names and specifications for custom references should be listed in the `custom` section of the `scprocess_setup.yaml` file. For each `custom` genome users have to provide the following parameters:
 
@@ -56,7 +56,7 @@ Optional paramater for `tenx` references is:
 
 **Description**: Create a new `workflowr` project directory for {{sc}} outputs.
 
-**Parameters**: 
+**Parameters**:
 
 * `name` (positional): name of the new `workflowr` project directory
 * `-w`/`--where` (optional): path to the directory where the new project will be created; defaults to the current working directory
@@ -81,7 +81,7 @@ Optional paramater for `tenx` references is:
     + `hvg`: calculation of highly variable genes.
     + `integration`: dimentionality reduction with PCA and optional batch correction with `Harmony`.
     + `marker_genes`: marker gene identification.
-    + `label_celltypes`: cell type annotation using a pre-trained classifier or a custom annotation file. 
+    + `label_celltypes`: cell type annotation using a pre-trained classifier or a custom annotation file.
 
 
 ## {{scknee}} { #scprocess-plotknee }
@@ -153,6 +153,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       int_theta:        0.1
       int_res_ls:       [0.1, 0.2, 0.5, 1, 2]
     marker_genes:
+      mkr_sel_res: 0.2
       custom_sets:
         - name:
           file:
@@ -163,7 +164,6 @@ This is an example config file for {{sc}} with all parameters and their default 
       mkr_min_cpm_go: 1
       mkr_max_zero_p: 0.5
       mkr_gsea_cut: 0.1
-      mkr_sel_res: 0.2
     label_celltypes:
       lbl_tissue:
       lbl_sel_res_cl:  "RNN_snn_res.2"
@@ -172,18 +172,26 @@ This is an example config file for {{sc}} with all parameters and their default 
       lbl_min_cl_size: 100
     zoom:
     resources:
+      retries: 3
       mb_run_mapping: 8192
       mb_save_alevin_to_h5: 8192
-      mb_run_ambient: 32768
-      mb_run_hvgs: 8192
+      mb_run_ambient: 8192
+      mb_run_qc: 8192
       mb_run_scdblfinder: 4096
       mb_combine_scdblfinder_outputs: 8192
-      mb_run_harmony: 16384
+      mb_run_hvgs: 8192
+      mb_make_clean_sces: 8192
+      mb_make_hto_sce_objects: 8192
+      mb_pb_calc_empty_genes: 8192
+      mb_pb_make_pbs: 8192
+      mb_run_integration: 8192
       mb_run_marker_genes: 16384
+      mb_render_htmls: 8192
       mb_html_marker_genes: 8192
+      mb_label_celltypes: 8192
       mb_lbl_label_celltypes: 16384
-      mb_lbl_save_subset_sces: 16384
       mb_lbl_render_template_rmd: 4096
+      mb_lbl_save_subset_sces: 16384
     ```
 
 === "placeholders"
@@ -193,7 +201,7 @@ This is an example config file for {{sc}} with all parameters and their default 
     fastq_dir: /path/to/directory/with/fastq/files
     full_tag: test_project
     short_tag: test
-    your_name: John Doe
+    your_name: Test McUser
     affiliation: where you work
     sample_metadata: /path/to/metadata.csv
     species: human_2024
@@ -214,6 +222,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       cb_force_total_droplets_included: 20000
       cb_force_low_count_threshold: 5
       cb_force_learning_rate: 0.001
+      cb_posterior_batch_size: 128
     multiplexing:
       demux_type: af
       fastq_dir: /path/to/directory/with/hto_fastq/files
@@ -233,14 +242,15 @@ This is an example config file for {{sc}} with all parameters and their default 
       n_hvgs: 2000
       exclude_empties: True
     integration:
-      cl_method: louvain
-      reduction: harmony
+      cl_method:        louvain
+      reduction:        harmony
       int_n_dims:       50
       int_dbl_res:      4
       int_dbl_cl_prop:  0.5
       int_theta:        0.1
       int_res_ls:       [0.1, 0.2, 0.5, 1, 2]
     marker_genes:
+      mkr_sel_res: 0.2
       custom_sets:
         - name: mouse_brain
           file: /path/to/file/with/marker/genes.csv
@@ -251,7 +261,6 @@ This is an example config file for {{sc}} with all parameters and their default 
       mkr_min_cpm_go: 1
       mkr_max_zero_p: 0.5
       mkr_gsea_cut: 0.1
-      mkr_sel_res: 0.2
     label_celltypes:
       lbl_tissue:      "brain_cns"
       lbl_sel_res_cl:  "RNN_snn_res.2"
@@ -275,6 +284,21 @@ This is an example config file for {{sc}} with all parameters and their default 
       mb_lbl_label_celltypes: 16384
       mb_lbl_save_subset_sces: 16384
       mb_lbl_render_template_rmd: 4096
+    resources:
+      retries: 3
+      mb_run_mapping: 8192
+      mb_save_alevin_to_h5: 8192
+      mb_run_ambient: 8192
+      mb_run_qc: 8192
+      mb_run_hvgs: 8192
+      mb_make_clean_sces: 8192
+      mb_make_hto_sce_objects: 8192
+      mb_run_integration: 8192
+      mb_run_marker_genes: 16384
+      mb_label_celltypes: 8192
+      mb_pb_make_pbs: 8192
+      mb_pb_calc_empty_genes: 8192
+      mb_render_htmls: 8192
     ```
 
 
@@ -294,7 +318,7 @@ This is an example config file for {{sc}} with all parameters and their default 
 #### Optional parameters
 
 ##### general
- 
+
 * `custom_sample_params`: YAML file with optional custom parameters for each sample (custom chemistry, custom ambient and custom cellbender parameters can be specified for each sample). Example:
 
 ```yaml
@@ -305,14 +329,14 @@ sample_1:
     shin1: 400
     knee2: 30
     shin2: 5
-sample_2: 
+sample_2:
   chemistry: 5v2
   ambient:
     knee1: 3000
     shin1: 400
     knee2: 30
     shin2: 5
-sample_3: 
+sample_3:
   cellbender:
     total_droplets_included: 20000
 ```
@@ -324,10 +348,10 @@ sample_3:
 ##### multiplexing
 
 * `demux_type`: `af` if demultiplexing of samples should be performed with {{sc}} or `custom` if demultiplexing results will be used as input to {{sc}}
-* `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. Required if `demux_type` is `af`. 
+* `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. Required if `demux_type` is `af`.
 * `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `af`.
-* `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `ambiguous`. Required if `demux_type` is `af`. 
-* `batch_var`: variable to use for integration with `harmony`. Options are `pool_id` or `sample_id`. 
+* `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `negative`. Required if `demux_type` is `custom`.
+* `batch_var`: variable to use for integration with `harmony`. Options are `pool_id` or `sample_id`.
 
 ##### ambient
 
@@ -359,13 +383,13 @@ sample_3:
 
 ##### hvg
 
-* `hvg_method`: options: 
-    + `sample` - calculate highly variable genes per sample, then calculate combined ranking across samples; 
+* `hvg_method`: options:
+    + `sample` - calculate highly variable genes per sample, then calculate combined ranking across samples;
     + `all` - calculate highly variable genes across all cells in the dataset; and
     + `group` - calculate highly variable genes for each sample group then calculate combined ranking across groups.
 * `hvg_metadata_split_var`: if `hvg_method` is `group`, which variable in `sample_metadata` should be used to define sample groups.
 * `n_hvgs`: number of HVGs to use for PCA
-* `hvg_exclude_ambient_genes`: if `True`, genes enriched in "empty" droplets relative to cells will be excluded from highly variable genes selection. 
+* `hvg_exclude_ambient_genes`: if `True`, genes enriched in "empty" droplets relative to cells will be excluded from highly variable genes selection.
 
 ##### integration
 
@@ -374,7 +398,7 @@ sample_3:
 * `int_n_dims`: number of principal components to use for data integration.
 * `int_dbl_res`: clustering resolution for identification of additional doublets.
 * `int_dbl_cl_prop`: proportion threshold of doublets in a cluster; clusters exceeding this proportion are excluded.
-* `int_theta`: theta parameter for `Harmony` integration, controlling batch variable mixing. `0` means no extra mixing of batch variable; Default in {{sc}} is `0.1`, otherwise `2`. 
+* `int_theta`: theta parameter for `Harmony` integration, controlling batch variable mixing. `0` means no extra mixing of batch variable; Default in {{sc}} is `0.1`, otherwise `2`.
 * `int_res_ls`: list of cluster resolutions for `Harmony`-based clustering.
 
 ##### marker_genes
@@ -384,7 +408,7 @@ sample_3:
     + `file`: path to CSV file containing a list of genes in the marker gene set. Must contain column `label` (marker gene category), and `symbol` and/or `ensembl_id`. If not speficied `scprocess` will look for file `$SCPROCESS_DATA_DIR/marker_genes/{name}.csv`
 * `mkr_min_cl_size`: minimum number of cells required in a cluster to calculate marker genes for that cluster.
 * `mkr_min_cells`: minimum number of cells required in a pseudobulk sample to include it in marker gene calculations.
-* `mkr_not_ok_re`: regular expression pattern to exclude specific gene types from plots showing marker gene expression. 
+* `mkr_not_ok_re`: regular expression pattern to exclude specific gene types from plots showing marker gene expression.
 * `mkr_min_cpm_mkr`: minimum counts per million (CPM) in a cell type required for a gene to be considered a marker gene.
 * `mkr_min_cpm_go`: minimum counts per million (CPM) in a cell type required for a gene to be used in Gene Ontology (GO) analysis.
 * `mkr_max_zero_p`: maximum proportion of pseudobulk samples for a cell type that can have zero counts for a gene to be used in GO analysis.
@@ -416,19 +440,20 @@ Additional parameters include:
 * `custom_labels_f`: required if `labels_source` is set to custom; path to CSV file with columns `sample_id`, `cell_id` and `label`.
 * `lbl_sel_res_cl`: equivalent of `lbl_sel_res_cl` parameter used for rule `label_celltypes`. Applicable only if `labels_source` is set to `xgboost`.
 
- 
+
 ##### resources
 
 * `retries`: number of times to retry running a specific rule in {{sc}} if it fails. For each attempt, the memory requirement for the rule increases by multiplying the base memory by the attempt number. Useful for when {{sc}} is used on a [cluster](setup.md#cluster-setup).
 * `mb_run_mapping`: maximum memory required (in MB) for running `simpleaf`. Value applies to the entire job, not per thread.
 * `mb_save_alevin_to_h5`:  maximum memory required (in MB) to save `simpleaf` output to H5 format. Value applies to the entire job, not per thread.
 * `mb_run_ambient`: maximum memory required (in MB) to run the ambient RNA removal step. Value applies to the entire job, not per thread.
-* `mb_get_barcode_qc_metrics`: maximum memory required (in MB) to obtain quality control metrics related to ambient RNA removal. Value applies to the entire job, not per thread.
-* `mb_run_scdblfinder`: maximum memory required (in MB) to run `scDblFinder` for doublet detection. Value applies to the entire job, not per thread.
-* `mb_combine_scdblfinder_outputs`: maximum memory required (in MB) to combine `scDblFinder` outputs across samples. Value applies to the entire job, not per thread.
-* `mb_make_sce_object`: maximum memory required (in MB) to create a `SingleCellExperiment` object. Value applies to the entire job, not per thread.
-* `mb_run_harmony`: maximum memory required (in MB) to run `Harmony` integration for batch correction. Value applies to the entire job, not per thread.
+* `mb_run_qc`: maximum memory required (in MB) to run the qc step. Value applies to the entire job, not per thread.
+* `mb_run_hvgs`: maximum memory required (in MB) to run the hvg detection step. Value applies to the entire job, not per thread.
+* `mb_make_clean_sces`: maximum memory required (in MB) to create a `SingleCellExperiment` object. Value applies to the entire job, not per thread.
+* `mb_make_hto_sce_objects`: maximum memory required (in MB) to create a `SingleCellExperiment` object with HTO counts. Value applies to the entire job, not per thread.
+* `mb_run_integration`: maximum memory required (in MB) to run integration. Value applies to the entire job, not per thread.
 * `mb_run_marker_genes`: maximum memory required (in MB) for marker gene identification. Value applies to the entire job, not per thread.
-* `mb_lbl_label_celltypes`: maximum memory required (in MB) to label cell types. Value applies to the entire job, not per thread.
-* `mb_lbl_save_subset_sces`: maximum memory required (in MB) to save `SingleCellExperiment` objects with cell subsets. Value applies to the entire job, not per thread.
-* `mb_lbl_render_template_rmd`: maximum memory required (in MB) to render HTML document from markdown template. Value applies to the entire job, not per thread.
+* `mb_label_celltypes`: maximum memory required (in MB) to label cell types. Value applies to the entire job, not per thread.
+* `mb_pb_make_pbs`: maximum memory required (in MB) to generate pseudobulk counts. Value applies to the entire job, not per thread.
+* `mb_pb_calc_empty_genes`: maximum memory required (in MB) to calculate ambient gene statistics. Value applies to the entire job, not per thread.
+* `mb_render_htmls`: maximum memory required (in MB) to render html reports. Value applies to the entire job, not per thread.
