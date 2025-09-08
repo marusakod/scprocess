@@ -900,7 +900,6 @@ def get_resource_parameters(config):
   MB_RUN_AMBIENT                  = 8192
   MB_GET_BARCODE_QC_METRICS       = 8192
   MB_MAKE_HTO_SCE_OBJECTS         = 8192
-  MB_RUN_SCDBLFINDER              = 4096
   MB_COMBINE_SCDBLFINDER_OUTPUTS  = 8192
   MB_RUN_QC                       = 8192
   MB_RUN_HVGS                     = 8192
@@ -927,10 +926,6 @@ def get_resource_parameters(config):
       MB_RUN_AMBIENT               = config['resources']['mb_run_ambient']
     if 'mb_get_barcode_qc_metrics' in config['resources']:
       MB_GET_BARCODE_QC_METRICS       = config['resources']['mb_get_barcode_qc_metrics']
-    if 'mb_run_scdblfinder' in config['resources']:
-      MB_RUN_SCDBLFINDER              = config['resources']['mb_run_scdblfinder']
-    if 'mb_combine_scdblfinder_outputs' in config['resources']:
-      MB_COMBINE_SCDBLFINDER_OUTPUTS  = config['resources']['mb_combine_scdblfinder_outputs']
     if 'mb_run_qc' in config['resources']:
       MB_RUN_QC                       = config['resources']['mb_run_qc']
     if 'mb_run_hvgs' in config['resources']:
@@ -960,7 +955,6 @@ def get_resource_parameters(config):
 
   return RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
     MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
-    MB_RUN_SCDBLFINDER, MB_COMBINE_SCDBLFINDER_OUTPUTS, \
     MB_RUN_QC, MB_RUN_HVGS, \
     MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, \
     MB_RUN_MARKER_GENES, MB_RENDER_HTMLS, \
