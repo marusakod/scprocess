@@ -145,7 +145,7 @@ calc_qc_summary(qc_dt, kept_dt, thrshlds_ls, qc_lu) %>% knitr::kable()
 ```{r plot_upsets_of_exclusions, fig.height = 5, fig.width = 7, results = 'asis'}
 for (s in s_lvls) {
   qc_tmp      = qc_dt[ sample_id == s ]
-  if (nrow(qc_tmp) == 1)
+  if (nrow(qc_tmp) == 1 | sum(qc_tmp$keep) == nrow(qc_tmp))
     next
   cat('### ', s, '\n')
   suppressMessages( print(plot_upset_of_exclusions(qc_tmp, qc_names, qc_lu, thrshlds_ls)) )

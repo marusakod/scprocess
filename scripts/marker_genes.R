@@ -840,7 +840,7 @@ calc_fgsea_dt <- function(gsets_list, fgsea_fs, markers_dt, gsea_cut,
     pathways  = gmtPathways(paths_f)
 
     # set up parallel
-    fgsea_dt  = lapply(seq_along(dt_list), function(i) {
+    fgsea_dt  = bplapply(seq_along(dt_list), function(i) {
      
       # get labels
       dt      = dt_list[[i]]
@@ -851,7 +851,7 @@ calc_fgsea_dt <- function(gsets_list, fgsea_fs, markers_dt, gsea_cut,
         .[ !is.null(leadingEdge) ]
 
       return(tmp_dt)
-      }) %>% rbindlist
+      }, BPPARAM = bpparam) %>% rbindlist
 
     # save results
     fwrite(fgsea_dt, file = fgsea_f)
