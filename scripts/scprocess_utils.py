@@ -487,7 +487,7 @@ def get_alevin_parameters(config, scprocess_data_dir, SPECIES):
 def get_ambient_parameters(config):
   # set default values
   AMBIENT_METHOD                  = 'decontx'
-  CELLBENDER_VERSION              = 'v0.3.0'
+  CELLBENDER_VERSION              = 'v0.3.2'
   CELLBENDER_PROP_MAX_KEPT        = 0.9
   FORCE_EXPECTED_CELLS            = None
   FORCE_TOTAL_DROPLETS_INCLUDED   = None
@@ -521,11 +521,11 @@ def get_ambient_parameters(config):
 
   # get cellbender image (maybe skip this if cellbender is not selected?)
   if CELLBENDER_VERSION   == 'v0.3.2':
-    CELLBENDER_IMAGE              = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.3.2'
-  elif CELLBENDER_VERSION   == 'v0.3.0':
-    CELLBENDER_IMAGE              = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.3.0'
+    CELLBENDER_IMAGE  = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.3.2'
+  elif CELLBENDER_VERSION == 'v0.3.0':
+    CELLBENDER_IMAGE  = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.3.0'
   elif CELLBENDER_VERSION == 'v0.2.0':
-    CELLBENDER_IMAGE              = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.2.0'
+    CELLBENDER_IMAGE  = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.2.0'
   else:
     raise ValueError(f"selected cellbender version {CELLBENDER_VERSION} not supported")
 
