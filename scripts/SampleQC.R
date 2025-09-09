@@ -1449,6 +1449,7 @@ plot_upset_of_exclusions <- function(qc_tmp, qc_names, qc_lu, thrshlds_ls) {
     logit_mito    = "mito", 
     logit_spliced = "spliced"
   )
+  eps       = 1e-10
   tmp_ls    = lapply(names(thrshlds_ls), function(nn) {
     # sort out thresholds
     thrsh_spec  = thrshlds_ls[[nn]]
@@ -1457,8 +1458,8 @@ plot_upset_of_exclusions <- function(qc_tmp, qc_names, qc_lu, thrshlds_ls) {
 
     # find excluded cells
     exc_cells   = list(
-      low   = qc_tmp[ get(nn) < thrsh_spec[1] ]$cell_id,
-      high  = qc_tmp[ get(nn) > thrsh_spec[2] ]$cell_id
+      low   = qc_tmp[ get(nn) + eps < thrsh_spec[1]  ]$cell_id,
+      high  = qc_tmp[ get(nn) - eps > thrsh_spec[2] ]$cell_id
     )
     # make names nice
     names(exc_cells)  = names(exc_cells) %>% paste(var_lu[[ nn ]], sep = "_")
@@ -1472,7 +1473,8 @@ plot_upset_of_exclusions <- function(qc_tmp, qc_names, qc_lu, thrshlds_ls) {
 
   # check no overlaps with good cells
   ok_cells  = qc_tmp[ keep == TRUE ]$cell_id
-  assert_that( all(sapply(tmp_ls, function(l) length(intersect(l, ok_cells))) == 0) )
+  assert_that( all(sapply(tmp_ls, function(l) length(intersect(l, ok_cells))) == 0),
+    msg = "some overlap between passed and excluded barcodes" )
 
   # turn into full list
   upset_ls  = tmp_ls %>% c( list(passed_qc = ok_cells) )
