@@ -679,7 +679,10 @@ plot_spliced_vs_umis <- function(ss, usa_dt, ok_bcs, total_inc) {
   return(g)
 }
 
-calc_ambient_exclusions <- function(stats_dt) {
-  stats_dt[, .(sample_id, total_droplets, kept_droplets, 
-    pct_kept = round(prop_kept_by_cb * 100, 1), bad_sample)]
+calc_ambient_exclusions <- function(stats_dt, sample_var) {
+  exc_dt  = stats_dt[, .(get(sample_var), total_droplets, kept_droplets, 
+    pct_kept = round(prop_kept_by_cb * 100, 1), bad_sample)] %>% 
+    setnames("V1", sample_var)
+
+  return(exc_dt)
 }

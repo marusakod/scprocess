@@ -17,16 +17,17 @@ if DEMUX_TYPE == 'af':
       mem_mb = lambda wildcards, attempt: attempt * MB_MAKE_HTO_SCE_OBJECTS
     conda:
      '../envs/rlibs.yaml'
-    shell: 
-     """
-       # save hto sce with demultiplexing info
-        Rscript -e "source('scripts/multiplexing.R'); source('scripts/ambient.R'); 
-          get_one_hto_sce( 
-            sel_sample  = '{wildcards.run}', 
-	          sample_stats_f    = '{input.smpl_stats_f}', 
-            amb_yaml_f  = '{input.amb_yaml_f}', 
-            hto_mat_f   = '{input.hto_h5_f}', 
-            trans_f     = '{params.translation_f}', 
-            hto_sce_f   = '{output.sce_hto_f}', 
-            ambient_method = '{AMBIENT_METHOD}')"
-     """
+    shell: """
+    # save hto sce with demultiplexing info
+    Rscript -e "source('scripts/multiplexing.R'); source('scripts/ambient.R'); 
+      get_one_hto_sce( 
+        sel_sample      = '{wildcards.run}', 
+        sample_var      = '{SAMPLE_VAR}', 
+        sample_stats_f  = '{input.smpl_stats_f}', 
+        amb_yaml_f      = '{input.amb_yaml_f}', 
+        hto_mat_f       = '{input.hto_h5_f}', 
+        trans_f         = '{params.translation_f}', 
+        hto_sce_f       = '{output.sce_hto_f}', 
+        ambient_method  = '{AMBIENT_METHOD}'
+      )"
+    """

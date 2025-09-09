@@ -296,14 +296,17 @@ sample_metadata: data/metadata/multiplexed_test_project_metadata.csv
 species: mouse_2024
 date_stamp: "2025-01-01"
 alevin:
- chemistry: 3v3
+  chemistry: 3v3
 multiplexing:
- demux_type: af
- fastq_dir: data/fastqs/hto
- feature_ref: data/metadata/multiplexed_test_project_feature_ref.csv
+  demux_type: af
+  fastq_dir: data/fastqs/hto
+  feature_ref: data/metadata/multiplexed_test_project_feature_ref.csv
 qc:
- qc_min_cells: 100
+  qc_min_cells: 100
+  qc_min_splice: 0.5
+  qc_max_splice: 0.9
 ```
+
 Setting `demux_type` to `af` instructs {{sc}} to use HTO-based demultiplexing for this dataset. By specifying `fastq_dir` and `feature_ref`, we provide {{sc}} with the paths to the HTO FASTQ files and the feature reference file, respectively. 
 
 Note that this is a downsampled dataset with a limited number of cells; therefore, we set the `qc_min_cells` parameter to 100 to ensure that all samples with at least 100 cells remaining after QC filtering are retained.

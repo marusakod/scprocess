@@ -20,7 +20,7 @@ suppressPackageStartupMessages({
   library("scuttle")
 })
 
-get_one_hto_sce <- function(sel_sample, sample_stats_f, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, ambient_method){
+get_one_hto_sce <- function(sel_sample, sample_var, sample_stats_f, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, ambient_method){
   
   # if ambient method is cellbender exclude bad samples
   smpl_status = FALSE
