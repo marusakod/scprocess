@@ -671,16 +671,8 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt,
   # run DE
   if (method == "edger") {
     # calculate dispersion
-    if (length(cl_ls) > 10) {
-      message("  estimating dispersion without design matrix (bc super slow when many clusters)")
-      dge       = estimateDisp(dge)
-    } else if (length(unique(des_all$sample_id)) == 1) {
-      message("  estimating dispersion without design matrix, because only one sample")
-      dge       = estimateDisp(dge)
-    } else {
-      message("  estimating dispersion with design matrix")
-      dge       = estimateDisp(dge, design = mm_all)
-    }
+    message("  estimating dispersion without design matrix")
+    dge       = estimateDisp(dge)
 
     # fit model to each cluster
     message('  run edgeR on each cluster')
