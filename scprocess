@@ -564,15 +564,18 @@ if __name__ == '__main__':
 
   # run scprocess
   elif args.subcommand == "run":
-    # select snakefile corresponding to workflow
-    snakefile = os.path.join(sc_dir, "rules/scprocess.smk")
-      
     # set default rule to all
     if args.rule == "":
       rule    = "all"
     else:
       rule = args.rule  
     
+    # select snakefile corresponding to workflow
+    if rule == "zoom":
+      snakefile = os.path.join(sc_dir, "rules/zoom.smk")
+    else:
+      snakefile = os.path.join(sc_dir, "rules/scprocess.smk")
+
     # sort out extra arguments
     extraargs = ' '
     if args.unlock:

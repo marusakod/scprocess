@@ -631,9 +631,9 @@ def read_top_genes(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, DEMUX_TYPE):
   chunked_fs    = hvg_paths_df['chunked_f'].tolist()
   samples       = hvg_paths_df['sample_id'].tolist()
   if DEMUX_TYPE != 'none': 
-   pools        = hvg_paths_df['pool_id'].tolist()
+    pools         = hvg_paths_df['pool_id'].tolist()
   else:
-   pools = samples
+    pools         = samples
 
   # get all hvgs
   hvg_df        = dt.fread(hvg_f).to_pandas()

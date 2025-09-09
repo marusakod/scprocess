@@ -2,10 +2,12 @@
 import warnings
 import yaml
 import pandas as pd
+import csv
 import math
 import os
 import re
 import glob
+import gzip
 import datetime
 import subprocess
 
@@ -27,128 +29,132 @@ def _get_cl_ls(PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SEL_RES):
 
 def _get_one_zoom_parameters(zoom_yaml_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, 
   AF_GTF_DT_F, PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR):
-    # set defaults
-    LABELS           = ""
-    LABELS_F         = ""
-    LABELS_SOURCE    = ""
-    LBL_SEL_RES_CL   = "RNA_snn_res.2"
-    CLUSTER_RES      = None
-    CUSTOM_LABELS_F  = ""
-    MIN_N_SAMPLE     = 10
-    MAKE_SUBSET_SCES = True
+  # set defaults
+  LABELS           = ""
+  LABELS_F         = ""
+  LABELS_SOURCE    = ""
+  LBL_SEL_RES_CL   = "RNA_snn_res.2"
+  CLUSTER_RES      = None
+  CUSTOM_LABELS_F  = ""
+  MIN_N_SAMPLE     = 10
+  MAKE_SUBSET_SCES = True
 
-    # unpack
-    with open(zoom_yaml_f, "r") as stream:
-        this_zoom = yaml.safe_load(stream)
+  # unpack
+  with open(zoom_yaml_f, "r") as stream:
+    this_zoom = yaml.safe_load(stream)
 
-    # check required params
-    for key in ['labels', 'labels_source']:
-        assert key in this_zoom and this_zoom[key] is not None, \
-            f"{key} parameter missing from file {zoom_yaml_f}"
+  # check required params
+  for key in ['labels', 'labels_source']:
+    assert key in this_zoom and this_zoom[key] is not None, \
+      f"{key} parameter missing from file {zoom_yaml_f}"
 
-    LABELS = this_zoom['labels']
-    LABELS_SOURCE = this_zoom['labels_source']
+  LABELS        = this_zoom['labels']
+  LABELS_SOURCE = this_zoom['labels_source']
 
-    valid_sources = ['xgboost', 'clusters', 'custom']
-    assert LABELS_SOURCE in valid_sources, \
-        f'labels_source must be one of {valid_sources}'
+  valid_sources = ['xgboost', 'clusters', 'custom']
+  assert LABELS_SOURCE in valid_sources, \
+    f'labels_source must be one of {valid_sources}'
 
-    if LABELS_SOURCE == 'custom':
-        assert 'custom_labels_f' in this_zoom and this_zoom['custom_labels_f'] is not None, \
-            f"custom_labels_f parameter missing from file {zoom_yaml_f}"
-        CUSTOM_LABELS_F = this_zoom['custom_labels_f']
-        # check that exists
-        if not os.path.isabs(CUSTOM_LABELS_F):
-          CUSTOM_LABELS_F = os.path.join(PROJ_DIR, CUSTOM_LABELS_F)
-        assert os.path.isfile(CUSTOM_LABELS_F), \
-          f"file {CUSTOM_LABELS_F} doesn't exist"
-        # check that columns are ok
-        custom_lbls_dt = pd.read_csv(CUSTOM_LABELS_F)
-        for col in ['sample_id', 'cell_id', 'label']:
-          assert col in custom_lbls_dt.columns, \
-            f"column {col} not present in {CUSTOM_LABELS_F}"
-            
-        # check that all labels are in the labels column of the custom file
-        assert all([lbl in set(custom_lbls_dt['label'].tolist()) for lbl in LABELS])
-      
-        LABELS_F   = CUSTOM_LABELS_F
-        LABELS_VAR = 'label'
+  if LABELS_SOURCE == 'custom':
+    assert 'custom_labels_f' in this_zoom and this_zoom['custom_labels_f'] is not None, \
+      f"custom_labels_f parameter missing from file {zoom_yaml_f}"
+    CUSTOM_LABELS_F = this_zoom['custom_labels_f']
 
-    if LABELS_SOURCE == 'xgboost':
-        assert LBL_TISSUE != "", \
-          "lbl_tissue parameter is not defined"
-        # check that labels are ok
-        xgb_allow_lbls = pd.read_csv(LBL_XGB_CLS_F)['cluster'].tolist()
-        for lbl in LABELS:
-          assert lbl in xgb_allow_lbls, \
-            f"{lbl} is not a valid label name for the {LBL_TISSUE} classifier"
+    # check that exists
+    if not os.path.isabs(CUSTOM_LABELS_F):
+      CUSTOM_LABELS_F = os.path.join(PROJ_DIR, CUSTOM_LABELS_F)
+    assert os.path.isfile(CUSTOM_LABELS_F), \
+      f"file {CUSTOM_LABELS_F} doesn't exist"
+
+    # check that columns are ok
+    custom_lbls_dt = pd.read_csv(CUSTOM_LABELS_F)
+    for col in ['sample_id', 'cell_id', 'label']:
+      assert col in custom_lbls_dt.columns, \
+        f"column {col} not present in {CUSTOM_LABELS_F}"
         
-        lbl_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
-        LABELS_F    = lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-        assert os.path.exists(LABELS_F), \
-          f"{LABELS_F} doesn't exist; consider (re)running rule label_celltypes"
-        
-        if 'lbl_sel_res_cl' in this_zoom:
-          LBL_SEL_RES_CL  = this_zoom['lbl_sel_res_cl']
-        
-        LABELS_VAR = "cl_pred_" + LBL_SEL_RES_CL
+    # check that all labels are in the labels column of the custom file
+    assert all([lbl in set(custom_lbls_dt['label'].tolist()) for lbl in LABELS])
+  
+    LABELS_F   = CUSTOM_LABELS_F
+    LABELS_VAR = 'label'
 
-    if LABELS_SOURCE == 'clusters':
-        assert 'cluster_res' in this_zoom and this_zoom['cluster_res'] is not None, \
-            f"cluster_res parameter missing from file {zoom_yaml_f}"
-        CLUSTER_RES = this_zoom['cluster_res']
-
-        # get list of all clusters to check if cluster names are valid
-        LABELS_F, cl_ls = _get_cl_ls(PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, CLUSTER_RES)
-        assert set(LABELS).issubset(cl_ls)
-        LABELS_VAR = f"RNA_snn_res.{CLUSTER_RES}"
-
-    # check optional parameters
-    if 'min_n_sample' in this_zoom:
-        MIN_N_SAMPLE = this_zoom['min_n_sample']
-    if 'make_subset_sces' in this_zoom:
-        MAKE_SUBSET_SCES = this_zoom['make_subset_sces']
-        MAKE_SUBSET_SCES = int(_safe_boolean(MAKE_SUBSET_SCES))
-
-    # hvg params
-    HVG_PARAMS = get_hvg_parameters(this_zoom, METADATA_F, AF_GTF_DT_F)
-    HVG_KEYS = ["HVG_METHOD", "HVG_SPLIT_VAR", "HVG_CHUNK_SIZE", "HVG_NUM_CHUNKS", "HVG_GROUP_NAMES", "HVG_CHUNK_NAMES", "N_HVGS", "EXCLUDE_AMBIENT_GENES"]
-    HVG_DICT = dict(zip(HVG_KEYS, HVG_PARAMS))
-
-    # pb_empties params
-    PB_EMPTIES_PARAMS = get_pb_empties_parameters(this_zoom) 
-    PB_EMPTIES_KEYS = ["AMBIENT_GENES_LOGFC_THR", "AMBIENT_GENES_FDR_THR"]
-    PB_EMPTIES_DICT = dict(zip(PB_EMPTIES_KEYS, PB_EMPTIES_PARAMS))
-
-    # integration params
-    INT_PARAMS = get_integration_parameters(this_zoom)
-    INT_KEYS = ["INT_CL_METHOD", "INT_REDUCTION", "INT_N_DIMS", "INT_THETA", "INT_RES_LS"]
-    INT_DICT = dict(zip(INT_KEYS, INT_PARAMS[:5]))   
+  if LABELS_SOURCE == 'xgboost':
+    assert LBL_TISSUE != "", \
+      "lbl_tissue parameter is not defined"
+    # check that labels are ok
+    xgb_allow_lbls = pd.read_csv(LBL_XGB_CLS_F)['cluster'].tolist()
+    for lbl in LABELS:
+      assert lbl in xgb_allow_lbls, \
+        f"{lbl} is not a valid label name for the {LBL_TISSUE} classifier"
     
-    # marker gene params
-    MKR_PARAMS = get_marker_genes_parameters(this_zoom, PROJ_DIR, SCPROCESS_DATA_DIR)
-    MKR_KEYS = ["MKR_SEL_RES", "MKR_GSEA_DIR", "MKR_MIN_CL_SIZE", "MKR_MIN_CELLS", "MKR_NOT_OK_RE", "MKR_MIN_CPM_MKR", "MKR_MIN_CPM_GO", 
-                "MKR_MAX_ZERO_P", "MKR_GSEA_CUT", "CUSTOM_MKR_NAMES", "CUSTOM_MKR_PATHS"]
-    MKR_DICT = dict(zip(MKR_KEYS, MKR_PARAMS))
+    lbl_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
+    LABELS_F    = lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    assert os.path.exists(LABELS_F), \
+      f"{LABELS_F} doesn't exist; consider (re)running rule label_celltypes"
+    
+    if 'lbl_sel_res_cl' in this_zoom:
+      LBL_SEL_RES_CL  = this_zoom['lbl_sel_res_cl']
+    
+    LABELS_VAR = "cl_pred_" + LBL_SEL_RES_CL
 
-    # combine all parameters into a single dictionary
-    params = {
-        "LABELS": LABELS,
-        "LABELS_F": LABELS_F, 
-        "LABELS_VAR": LABELS_VAR, 
-        "LABELS_SOURCE": LABELS_SOURCE,
-        "CLUSTER_RES": CLUSTER_RES,
-        "CUSTOM_LABELS_F": CUSTOM_LABELS_F,
-        "LBL_SEL_RES_CL": LBL_SEL_RES_CL, 
-        "MIN_N_SAMPLE": MIN_N_SAMPLE,
-        "MAKE_SUBSET_SCES": MAKE_SUBSET_SCES,
-        **HVG_DICT,
-        **PB_EMPTIES_DICT, 
-        **INT_DICT,
-        **MKR_DICT
-    }
+  if LABELS_SOURCE == 'clusters':
+    assert 'cluster_res' in this_zoom and this_zoom['cluster_res'] is not None, \
+      f"cluster_res parameter missing from file {zoom_yaml_f}"
+    CLUSTER_RES = this_zoom['cluster_res']
 
-    return params
+    # get list of all clusters to check if cluster names are valid
+    LABELS_F, cl_ls = _get_cl_ls(PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, CLUSTER_RES)
+    assert set(LABELS).issubset(cl_ls)
+    LABELS_VAR = f"RNA_snn_res.{CLUSTER_RES}"
+
+  # check optional parameters
+  if 'min_n_sample' in this_zoom:
+    MIN_N_SAMPLE = this_zoom['min_n_sample']
+  if 'make_subset_sces' in this_zoom:
+    MAKE_SUBSET_SCES = this_zoom['make_subset_sces']
+    MAKE_SUBSET_SCES = int(_safe_boolean(MAKE_SUBSET_SCES))
+
+  # hvg params
+  HVG_PARAMS  = get_hvg_parameters(this_zoom, METADATA_F, AF_GTF_DT_F)
+  HVG_KEYS    = ["HVG_METHOD", "HVG_SPLIT_VAR", "HVG_CHUNK_SIZE", "HVG_NUM_CHUNKS", 
+    "HVG_GROUP_NAMES", "HVG_CHUNK_NAMES", "N_HVGS", "EXCLUDE_AMBIENT_GENES"]
+  HVG_DICT    = dict(zip(HVG_KEYS, HVG_PARAMS))
+
+  # pb_empties params
+  PB_EMPTIES_PARAMS = get_pb_empties_parameters(this_zoom) 
+  PB_EMPTIES_KEYS   = ["AMBIENT_GENES_LOGFC_THR", "AMBIENT_GENES_FDR_THR"]
+  PB_EMPTIES_DICT   = dict(zip(PB_EMPTIES_KEYS, PB_EMPTIES_PARAMS))
+
+  # integration params
+  INT_PARAMS  = get_integration_parameters(this_zoom)
+  INT_KEYS    = ["INT_CL_METHOD", "INT_REDUCTION", "INT_N_DIMS", "INT_THETA", "INT_RES_LS"]
+  INT_DICT    = dict(zip(INT_KEYS, INT_PARAMS[:5]))   
+  
+  # marker gene params
+  MKR_PARAMS  = get_marker_genes_parameters(this_zoom, PROJ_DIR, SCPROCESS_DATA_DIR)
+  MKR_KEYS    = ["MKR_SEL_RES", "MKR_GSEA_DIR", "MKR_MIN_CL_SIZE", "MKR_MIN_CELLS", 
+    "MKR_NOT_OK_RE", "MKR_MIN_CPM_MKR", "MKR_MIN_CPM_GO", "MKR_MAX_ZERO_P", "MKR_GSEA_CUT", 
+    "CUSTOM_MKR_NAMES", "CUSTOM_MKR_PATHS"]
+  MKR_DICT    = dict(zip(MKR_KEYS, MKR_PARAMS))
+
+  # combine all parameters into a single dictionary
+  params = {
+    "LABELS": LABELS,
+    "LABELS_F": LABELS_F, 
+    "LABELS_VAR": LABELS_VAR, 
+    "LABELS_SOURCE": LABELS_SOURCE,
+    "CLUSTER_RES": CLUSTER_RES,
+    "CUSTOM_LABELS_F": CUSTOM_LABELS_F,
+    "LBL_SEL_RES_CL": LBL_SEL_RES_CL, 
+    "MIN_N_SAMPLE": MIN_N_SAMPLE,
+    "MAKE_SUBSET_SCES": MAKE_SUBSET_SCES,
+    **HVG_DICT,
+    **PB_EMPTIES_DICT, 
+    **INT_DICT,
+    **MKR_DICT
+  }
+
+  return params
 
 
 # find fastq files for a sample
@@ -529,8 +535,6 @@ def get_ambient_parameters(config):
     FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE 
 
 
-
-
 def get_qc_parameters(config):
   # set default values
   QC_HARD_MIN_COUNTS  = 200
@@ -862,11 +866,13 @@ def _safe_boolean(val):
 
 
 # define marker_genes parameters
-def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F,
-   PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR):   
+def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, 
+  AF_GTF_DT_F, PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR):
+  # if (rule_name != 'zoom') or ('zoom' not in config) or (config['zoom'] is None):
   if ('zoom' not in config) or (config['zoom'] is None):
-    ZOOM_NAMES       = []
-    ZOOM_PARAMS_DICT = []
+    ZOOM_NAMES        = []
+    ZOOM_PARAMS_DICT  = []
+    ZOOM_NAMES_SUBSET = []
   else:
     ZOOM_NAMES    = list(config['zoom'].keys())
     assert len(ZOOM_NAMES) == len(set(ZOOM_NAMES)), \
@@ -881,6 +887,7 @@ def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT
       assert os.path.isfile(ZOOM_YAMLS[i]), \
         f"file {ZOOM_YAMLS[i]} doesn't exist"
     
+    # make dictionary of zoom params
     ZOOM_PARAMS_DICT = dict(zip(
       ZOOM_NAMES,
       [ _get_one_zoom_parameters(zoom_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT_F,
@@ -888,7 +895,10 @@ def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, AF_GTF_DT
       ) for zoom_f in ZOOM_YAMLS ]
       ))
 
-  return ZOOM_NAMES, ZOOM_PARAMS_DICT
+    # get all zoom names for which subset sces should be created
+    ZOOM_NAMES_SUBSET = [zoom_name for zoom_name in ZOOM_NAMES if ZOOM_PARAMS_DICT[zoom_name]["MAKE_SUBSET_SCES"]]
+
+  return ZOOM_NAMES, ZOOM_PARAMS_DICT, ZOOM_NAMES_SUBSET
 
   
 # get rule resource parameters
@@ -961,4 +971,132 @@ def get_resource_parameters(config):
     MB_LABEL_CELLTYPES, \
     MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, MB_MAKE_HTO_SCE_OBJECTS, \
     MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD, MB_MAKE_SUBSET_SCES
+
+
+def make_hvgs_input_df(DEMUX_TYPE, SAMPLE_VAR, runs, ambient_outs_yamls, SAMPLE_MAPPING, FULL_TAG, DATE_STAMP, hvg_dir):
+
+  df_list = []
+
+  for r, yaml_file in zip(runs, ambient_outs_yamls):
+    # get filtered ambient outputs
+    with open(yaml_file) as f:
+      amb_outs = yaml.load(f, Loader=yaml.FullLoader)
+
+    amb_filt_f = amb_outs['filt_counts_f']
+
+    if DEMUX_TYPE != "none":
+      # get sample ids for pool
+      sample_ids = SAMPLE_MAPPING.get(r, [])
+
+      for sample_id in sample_ids:
+        hvg_df = pd.DataFrame({
+          SAMPLE_VAR: [r],
+          'amb_filt_f': [amb_filt_f],
+          'sample_id': [sample_id]
+        })
+
+        df_list.append(hvg_df)
+    else:
+      hvg_df = pd.DataFrame({
+        SAMPLE_VAR: [r],
+        'amb_filt_f': [amb_filt_f]
+      })
+      df_list.append(hvg_df)
+
+  # merge dfs for all runs
+  hvg_df_full = pd.concat(df_list, ignore_index=True)
+
+  # add path to chunked file
+  hvg_df_full['chunked_f'] = hvg_df_full['sample_id'].apply(lambda s: f"{hvg_dir}/chunked_counts_{s}_{FULL_TAG}_{DATE_STAMP}.h5")
+
+  return hvg_df_full
+
+
+def merge_tmp_files(in_files, out_file):
+  df_ls     = [pd.read_csv(f, compression='gzip', sep='\t') for f in in_files if gzip.open(f, 'rb').read(1)]
+  df_merged = pd.concat(df_ls, ignore_index=True)
+  df_merged.to_csv(out_file, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
+
+
+def extract_zoom_sample_statistics(qc_stats_f, LABELS_F, LABELS_VAR, LABELS, MIN_N_SAMPLE, AMBIENT_METHOD):
+  # load inputs
+  qc_df     = pd.read_csv(qc_stats_f)
+  qc_df     = qc_df.drop('n_cells', axis=1)
+  lbls_dt   = pd.read_csv(LABELS_F, compression='gzip')
+
+  # keep selected labels
+  lbls_dt   = lbls_dt[lbls_dt[LABELS_VAR].isin(LABELS)]
+  
+  # count the number of cells per sample
+  zoom_sample_stats = (
+    lbls_dt.groupby('sample_id')
+    .size()
+    .reset_index(name='n_cells')
+  )
+  
+  # identify samples that do not meet the minimum cell threshold
+  zoom_sample_stats['bad_zoom_qc'] = zoom_sample_stats['n_cells'] < MIN_N_SAMPLE
+  
+  # merge new and existing sample stats
+  sample_df = qc_df.merge(zoom_sample_stats, on='sample_id',how='left')
+  
+  # update 'bad_sample' column
+  if AMBIENT_METHOD == 'cellbender':
+    sample_df['bad_sample'] = (
+      sample_df['bad_bender'] | sample_df['bad_qc'] | sample_df['bad_zoom_qc']
+    )
+  else:
+    sample_df['bad_sample'] = (
+      sample_df['bad_qc'] | sample_df['bad_zoom_qc']
+    )
+
+  # check that at least 2 good samples remain
+  good_smpls_count = (sample_df['bad_sample'] == False).sum()
+  assert good_smpls_count >= 2, \
+    "Fewer than 2 samples available for this zoom."
+  
+  return sample_df
+
+
+def get_mean_var_input(zoom_name, ZOOM_PARAMS_DICT, FULL_TAG, DATE_STAMP):
+  group_names = ZOOM_PARAMS_DICT[zoom_name]['HVG_GROUP_NAMES']
+  num_chunks = ZOOM_PARAMS_DICT[zoom_name]['HVG_NUM_CHUNKS']
+
+  return [
+    zoom_dir + f'/{zoom_name}/tmp_mean_var_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    for group in group_names
+    for chunk in range(num_chunks)
+  ]
+
+
+def get_tmp_std_var_stats_input(zoom_name, zoom_dir, ZOOM_PARAMS_DICT, FULL_TAG, DATE_STAMP, SAMPLES):
+  hvg_method = ZOOM_PARAMS_DICT[zoom_name]['HVG_METHOD']
+
+  if hvg_method == "sample":
+    return [
+      zoom_dir + f'/{zoom_name}/tmp_std_var_stats_{sample}_sample_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      for sample in SAMPLES
+    ]
+  else:
+    group_names = ZOOM_PARAMS_DICT[zoom_name]['HVG_GROUP_NAMES']
+    num_chunks = ZOOM_PARAMS_DICT[zoom_name]['HVG_NUM_CHUNKS']
+
+    return [
+      zoom_dir + f'/{zoom_name}/tmp_std_var_stats_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      for group in group_names
+      for chunk in range(num_chunks)
+    ]
+
+
+def get_zoom_conditional_outputs(species, zoom_dir, FULL_TAG, DATE_STAMP):
+  if species in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']:
+    return {
+      'fgsea_go_bp_f': zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_go_bp_' + DATE_STAMP + '.txt.gz', 
+      'fgsea_go_cc_f': zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_go_cc_' + DATE_STAMP + '.txt.gz',
+      'fgsea_go_mf_f': zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_go_mf_' + DATE_STAMP + '.txt.gz',
+      'fgsea_paths_f': zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_paths_' + DATE_STAMP + '.txt.gz',
+      'fgsea_hlmk_f':  zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_hlmk_' + DATE_STAMP + '.txt.gz'
+    }
+  else:
+    return {}
 

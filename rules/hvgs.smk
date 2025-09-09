@@ -1,56 +1,8 @@
 
 import yaml  
-import csv
 
 
 localrules: make_hvg_df
-
-def make_hvgs_input_df(DEMUX_TYPE, SAMPLE_VAR, runs, ambient_outs_yamls, SAMPLE_MAPPING, FULL_TAG, DATE_STAMP, hvg_dir):
-
-    df_list = []
-
-    for r, yaml_file in zip(runs, ambient_outs_yamls):
-        # get filtered ambient outputs
-        with open(yaml_file) as f:
-            amb_outs = yaml.load(f, Loader=yaml.FullLoader)
-
-        amb_filt_f = amb_outs['filt_counts_f']
-
-        if DEMUX_TYPE != "none":
-            # get sample ids for pool
-            sample_ids = SAMPLE_MAPPING.get(r, [])
-
-            for sample_id in sample_ids:
-                hvg_df = pd.DataFrame({
-                    SAMPLE_VAR: [r],
-                    'amb_filt_f': [amb_filt_f],
-                    'sample_id': [sample_id]
-                })
-
-                df_list.append(hvg_df)
-        else:
-            hvg_df = pd.DataFrame({
-                SAMPLE_VAR: [r],
-                'amb_filt_f': [amb_filt_f]
-            })
-            df_list.append(hvg_df)
-
-    # merge dfs for all runs
-    hvg_df_full = pd.concat(df_list, ignore_index=True)
-
-    # add path to chunked file
-    hvg_df_full['chunked_f'] = hvg_df_full['sample_id'].apply(lambda s: f"{hvg_dir}/chunked_counts_{s}_{FULL_TAG}_{DATE_STAMP}.h5")
-
-    return hvg_df_full
-
-
-
-def merge_tmp_files(in_files, out_file):
-
-    df_ls     = [pd.read_csv(f, compression='gzip', sep='\t') for f in in_files if gzip.open(f, 'rb').read(1)]
-    df_merged = pd.concat(df_ls, ignore_index=True)
-    df_merged.to_csv(out_file, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
-
 
 
 rule make_hvg_df:
