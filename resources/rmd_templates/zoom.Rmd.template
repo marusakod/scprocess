@@ -213,7 +213,7 @@ the adjusted p-value is sufficiently small. There are several plots, each filter
 to have different minimum levels of expression in the ambient profiles.
 
 ```{r plot_ambient_gene_calculations, fig.height = 6, fig.width = 6, results = 'asis'}
-cpm_ls  = c(0, 10, 50, 100)
+cpm_ls  = c(100, 50, 10, 0)
 for (min_cpm in cpm_ls) {
   if (min_cpm == 0) {
     cat("#### all genes\n")
