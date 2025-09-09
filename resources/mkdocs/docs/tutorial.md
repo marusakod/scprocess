@@ -254,7 +254,7 @@ The `hto_id` column must correspond to a column in the feature reference file, w
 To see the contents of the feature reference file use 
 
 ```bash
-cat data/metadata/multiplexed_test_project_feature_ref.csv | column -s, -t`
+cat data/metadata/multiplexed_test_project_feature_ref.csv | column -s, -t
 ```
 
 ```bash
