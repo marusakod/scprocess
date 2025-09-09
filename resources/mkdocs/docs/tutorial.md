@@ -303,6 +303,7 @@ multiplexing:
   feature_ref: data/metadata/multiplexed_test_project_feature_ref.csv
 qc:
   qc_min_cells: 100
+  qc_max_mito: 0.05
   qc_min_splice: 0.5
   qc_max_splice: 0.9
 ```
