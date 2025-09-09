@@ -108,7 +108,7 @@ print(plot_reads_removed_as_ambient(usa_dt_ls, ok_bcs_ls))
 ```{r tbl_ambient_exclusions, results = "asis", eval = print_tbl}
 cat("## Samples excluded by ambient removal step")
 
-calc_ambient_exclusions(stats_dt) %>% knitr::kable()
+calc_ambient_exclusions(stats_dt, sample_var) %>% knitr::kable()
 ```
 
 ## R session info
