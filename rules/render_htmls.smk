@@ -76,9 +76,8 @@ if DEMUX_TYPE == 'af':
   # rule render_html_multiplexing
   rule render_html_multiplexing:
     input:
-      r_utils_f = code_dir + '/utils.R', 
-      r_amb_f   = code_dir + '/ambient.R',
-      r_demux_f = code_dir + '/multiplexing.R', 
+      r_utils_f   = code_dir + '/utils.R', 
+      r_amb_f     = code_dir + '/ambient.R',
       hto_knee_fs = expand(af_dir + '/af_{run}/hto/' + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs), 
       sce_hto_fs  = expand(demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', run = runs)
     output:
