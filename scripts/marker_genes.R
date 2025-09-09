@@ -79,31 +79,27 @@ calculate_marker_genes <- function(integration_f, sces_yaml_f, pb_f, mkrs_f, pb_
     n_cores = n_cores)
 
   # do GSEA only if species is human or mouse
-  if(species %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){
-  message("  running FGSEA")
-  fgsea_fs        = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f)
-  names(fgsea_fs) = str_extract(fgsea_fs, "(go_bp|go_cc|go_mf|paths|hlmk)")
+  if (species %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) {
+    message("  running FGSEA")
+    fgsea_fs    = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f)
+    names(fgsea_fs) = str_extract(fgsea_fs, "(go_bp|go_cc|go_mf|paths|hlmk)")
 
+    # get genesets, check they match expected files
+    gsets_list  = get_fgsea_genesets(gsea_dir, species)
+    assert_that( all(names(fgsea_fs) == names(gsets_list)) )
 
-  # get genesets, check they match expected files
-  gsets_list      = get_fgsea_genesets(gsea_dir, species)
-  assert_that( all(names(fgsea_fs) == names(gsets_list)) )
-
-  # restrict slightly
-  mkrs_tmp  = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>%
-    .[ logcpm.sel > log(min_cpm_go + 1) ] %>%
-    .[ (n_zero/n_cl < max_zero_p) | (logFC < 0) ]
-
-
-  calc_fgsea_dt(gsets_list, fgsea_fs, mkrs_tmp, gsea_cut, gsea_var = "z_score",
-    n_cores = n_cores)
+    # restrict slightly
+    mkrs_tmp    = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>%
+      .[ logcpm.sel > log(min_cpm_go + 1) ] %>%
+      .[ (n_zero/n_cl < max_zero_p) | (logFC < 0) ]
+    calc_fgsea_dt(gsets_list, fgsea_fs, mkrs_tmp, gsea_cut, gsea_var = "z_score",
+      n_cores = n_cores)
   }
   
   message("done!")
 }
 
 get_fgsea_genesets <- function(gsea_dir, species) {
-
   if (species %in% c("human_2024","human_2020")) {
     gsets_list  = list(
       go_bp   = "c5.go.bp.v2023.1.Hs.symbols.gmt",
@@ -135,25 +131,26 @@ get_fgsea_genesets <- function(gsea_dir, species) {
 
 make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, 
   min_cl_size = 1e2, agg_fn = c("sum", "prop.detected"), zoom = FALSE, n_cores = 8) {
-  
+  # check inputs
   agg_fn      = match.arg(agg_fn)
 
+  # load up clusters
   message('    loading integration output')
   int_dt     = fread(integration_f)
-    if (zoom == FALSE) {
+  if (zoom == FALSE) {
     #exclude doublets
     int_dt = int_dt %>%
       .[ (is_dbl == FALSE) & (in_dbl_cl == FALSE) ]
   }
 
-  message('    excluding tiny clusters')
-  
+  # exclude tiny clusters
+  message('    excluding tiny clusters')  
   cl_var      = paste0("RNA_snn_res.", sel_res)
   assert_that( cl_var %in% names(int_dt))
   cl_ns       = int_dt[[ cl_var ]] %>% table
   keep_cls    = names(cl_ns)[ cl_ns >= min_cl_size ]
   int_dt     = int_dt %>%
-    .[get(cl_var) %in% keep_cls]
+    .[ get(cl_var) %in% keep_cls ]
   
   # make pseudobulks for selected clusters for each sample
   message('    making pseudobulk counts for individual samples')
@@ -164,7 +161,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
   bpparam     = MulticoreParam(workers = n_cores, tasks = length(samples))  
   if (zoom) {
     pb_ls       = bplapply(samples, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam, 
-     sce_paths = sce_paths, int_dt = int_dt, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
+      sce_paths = sce_paths, int_dt = int_dt, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
   } else {
     pb_ls       = bplapply(samples, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
       sce_paths = sce_paths, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
@@ -172,14 +169,14 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
   
   message('    merging pseudobulk counts')
   assay_ls    = lapply(keep_cls, function(cl){
-    assays    = lapply(pb_ls, function(pb) assay(pb, cl))
-    assay_mat = Reduce(cbind, assays)  
+    assays      = lapply(pb_ls, function(pb) assay(pb, cl))
+    assay_mat   = Reduce(cbind, assays)  
     return(assay_mat)
     }) %>% setNames(keep_cls)
   
   n_cells_ls = sapply(pb_ls, function(pb) int_colData(pb)$n_cells)
   
-  pb = SingleCellExperiment(assays = assay_ls)
+  pb          = SingleCellExperiment(assays = assay_ls)
   pb@metadata$agg_pars = list(
     assay = "counts", 
     by    = c("cluster", "sample_id"),
