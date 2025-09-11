@@ -217,10 +217,9 @@ rule mapping:
       af_dir    + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz',
       af_dir    + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml'
       ],
-     run = runs), 
-     r_scripts, 
-     rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
-     docs_dir  + '/' + SHORT_TAG + '_mapping.html'
+      run = runs), 
+    rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_mapping.html'
 
 
 rule demux:

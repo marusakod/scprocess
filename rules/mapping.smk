@@ -154,18 +154,18 @@ rule run_mapping:
   threads: 8
   retries: RETRIES
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_MAPPING
+    mem_mb        = lambda wildcards, attempt: attempt * MB_RUN_MAPPING
   params:
     af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
     exp_ori       = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[1],
     whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[2]
   output:
-    fry_dir     = directory(af_dir + '/af_{run}/' +  af_rna_dir + 'af_quant/'),
-    rad_f       = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_map/map.rad'),
+    fry_dir       = directory(af_dir + '/af_{run}/' +  af_rna_dir + 'af_quant/'),
+    rad_f         = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_map/map.rad'),
     collated_rad_f  = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_quant/map.collated.rad'), 
-    mtx_f       = af_dir + '/af_{run}/'  + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
-    cols_f      = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_cols.txt',
-    rows_f      = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_rows.txt'
+    mtx_f         = af_dir + '/af_{run}/'  + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
+    cols_f        = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_cols.txt',
+    rows_f        = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_rows.txt'
   conda:
     '../envs/alevin_fry.yaml'
   shell:
@@ -174,7 +174,6 @@ rule run_mapping:
     R1_fs=$(echo {input.R1_fs} | sed "s/ /,/g")
     R2_fs=$(echo {input.R2_fs} | sed "s/ /,/g")
     
-
     # make output directory
     out_dir="{af_dir}/af_{wildcards.run}"
     mkdir -p $out_dir
