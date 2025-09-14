@@ -425,7 +425,7 @@ sample_3:
 
 ##### zoom
 
-Name of each cell subset should be specified, followed by the path to a corresponding YAML file containing the parameters for that subset. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `hvg_method`, `hvg_metadata_split_var`, `n_hvgs`, `hvg_exclude_ambient_genes`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `cl_method`, `reduction`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_sel_res`, `custom_sets`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_gsea_cut`, and `mkr_sel_res`
+Name of each cell subset should be specified, followed by the path to a corresponding YAML file containing the parameters for that subset. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `hvg_method`, `hvg_metadata_split_var`, `n_hvgs`, `hvg_exclude_ambient_genes`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `cl_method`, `reduction`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_sel_res`, `custom_sets`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_gsea_cut`, and `mkr_sel_res`.
 
 Additional parameters include:
 

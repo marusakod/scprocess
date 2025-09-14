@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 import pandas as pd
+import polars as pl
 import argparse
 import os
 import scanpy as sc
@@ -48,43 +49,45 @@ def get_one_csr_counts(run, hvg_df, keep_df, smpl_stats_df, gene_ids, SAMPLE_VAR
   # get bad samples
   bad_samples   = smpl_stats_df.loc[ smpl_stats_df['bad_sample'] == True, 'sample_id'].tolist()
 
-  # get cell ids for each sample
+  # get which samples we want
   if DEMUX_TYPE != "none":
     samples = hvg_df.loc[hvg_df[SAMPLE_VAR] == run, "sample_id"].tolist()
   else:
     samples = [run]
 
-  cell_ids_dict = {}
+  # get valid barcodes
+  bcs_dict = {}
   for s in samples:
-    keep_cells = keep_df.loc[keep_df['sample_id'] == s, "cell_id"].tolist()
-    cell_ids   = [bc.replace(run + ":", "", 1) for bc in keep_cells]
-    cell_ids   = np.array(cell_ids)
-    cell_ids_dict[s]  = cell_ids
+    keep_cells  = keep_df.loc[ keep_df['sample_id'] == s, "cell_id" ].tolist()
+    bcs         = [cell_id.replace(run + ":", "", 1) for cell_id in keep_cells]
+    bcs         = np.array(bcs)
+    bcs_dict[s] = bcs
 
   # open input file
   with h5py.File(filt_counts_f, 'r') as f:
-    indptr    = f['matrix/indptr'][:]
-    indices   = f['matrix/indices'][:]
-    data      = f['matrix/data'][:]
-    features  = f['matrix/features/name'][:]
-    barcodes  = f['matrix/barcodes'][:]
-    num_rows  = f['matrix/shape'][0]
-    num_cols  = f['matrix/shape'][1]
+    indptr      = f['matrix/indptr'][:]
+    indices     = f['matrix/indices'][:]
+    data        = f['matrix/data'][:]
+    features    = f['matrix/features/name'][:]
+    barcodes    = f['matrix/barcodes'][:].astype('U16')
+    num_rows    = f['matrix/shape'][0]
+    num_cols    = f['matrix/shape'][1]
 
   # make a csc sparse matrix
   sua_csc = csc_matrix((data, indices, indptr), shape=(num_rows, num_cols))
 
   for s, out_f in zip(samples, out_fs):
     if s in bad_samples:
-      print(f"Sample {s} is bad. Writing an empty file: {out_f}")
+      print(f"Sample {s}: No cells after QC; writing an empty file: {out_f}.")
       open(out_f, "w").close()
       continue
     
-    cell_ids = cell_ids_dict[s]
-  
     # get indices of barcodes to keep
-    keep_idx = np.where(np.isin(barcodes, cell_ids))[0]
-    filt_bcs = barcodes[keep_idx]
+    bcs       = bcs_dict[s]
+    keep_idx  = np.where(np.isin(barcodes, bcs))[0]
+    if sum(keep_idx) == 0:
+      ValueError("none of the selected barcodes found in h5 file :/")
+    filt_bcs  = barcodes[keep_idx]
     
     # subset matrix
     sua_csc_qc = sua_csc[:, keep_idx]
@@ -96,7 +99,8 @@ def get_one_csr_counts(run, hvg_df, keep_df, smpl_stats_df, gene_ids, SAMPLE_VAR
     gene_ids      = np.array(gene_ids)
     gs_keep_idx   = np.where(np.isin(uniq_features, gene_ids))[0]
     uniq_features = uniq_features[gs_keep_idx]
-    assert len(uniq_features) != 0, "No features selected"
+    if len(uniq_features) == 0:
+      raise ValueError(f"no features selected for sample {s}")
     csc       = csc[gs_keep_idx, :]
 
     # convert to csr
@@ -117,7 +121,7 @@ def get_one_csr_counts(run, hvg_df, keep_df, smpl_stats_df, gene_ids, SAMPLE_VAR
       f.create_dataset('matrix/features/name', data=np.array(uniq_features, dtype='S'), compression='gzip')
       f.create_dataset('matrix/barcodes', data=np.array(filt_bcs, dtype='S'), compression='gzip')
       
-    print(f"CSR matrix for {s} successfully saved to {out_f}.")
+    print(f"Sample {s}: CSR matrix successfully saved to {out_f}.")
 
 
 def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals,  smpl_stats_f, rowdata_f, SAMPLE_VAR, DEMUX_TYPE, chunk_size=2000, n_cores = 8):
@@ -237,7 +241,7 @@ def calculate_sum_and_sum_squares_cilipped(sparse_csr, estim_vars_df):
 
 
 def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None, 
-  mean_var_df = None, span: float = 0.3 ):
+  mean_var_df = None, min_mean = 0.01, span: float = 0.3 ):
   # read mean var df if not specified
   if mean_var_df is None:
     assert mean_var_merged_f is not None, 'input file path or dataframe missing'
@@ -263,11 +267,12 @@ def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None,
     not_const   = np.array(var) > 0
     y           = np.log10(var[not_const]) 
     x           = np.log10(mean[not_const])
-    model       = safe_loess(x, y, span = span)
+    data_df     = pl.DataFrame({ "x": x, "y": y }).unique()
+    model       = safe_loess(data_df.get_column("x").to_numpy(), data_df.get_column("y").to_numpy(), span = span)
 
     # store trended variance values, also get std deviation
     est_var     = np.zeros(num_rows, dtype=np.float64)
-    est_var[not_const] = model.outputs.fitted_values
+    est_var[not_const] = model.predict(x).values
     reg_std     = np.sqrt(10**est_var)
 
     # clip large values as in Seurat
@@ -364,7 +369,7 @@ def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_
 
 
 def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, csr_f, rowdata_f, std_var_stats_f):
-
+  # get data
   qc_df = dt.fread(qc_smpl_stats_f).to_pandas()
   bad_samples = qc_df.loc[qc_df['bad_sample'] == True, 'sample_id'].tolist()
    
@@ -376,12 +381,11 @@ def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, csr_f, rowdata_f
   # read sparse matrix
   sparse_csr, features, _ = read_full_csr(csr_f)
   
-
   # calculate mean and variance
   stats_df = _calculate_feature_stats(sparse_csr, features, rowdata_f)
   stats_df['sample_id'] = sample
-  # count cells
 
+  # count cells
   n_cells = sparse_csr.shape[1]
   stats_df['n_cells'] = n_cells
 

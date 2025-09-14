@@ -1018,14 +1018,14 @@ def merge_tmp_files(in_files, out_file):
   df_merged.to_csv(out_file, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
 
 
-def extract_zoom_sample_statistics(qc_stats_f, LABELS_F, LABELS_VAR, LABELS, MIN_N_SAMPLE, AMBIENT_METHOD):
+def extract_zoom_sample_statistics(qc_stats_f, SAMPLES, LABELS_F, LABELS_VAR, LABELS, MIN_N_SAMPLE, AMBIENT_METHOD):
   # load inputs
   qc_df     = pd.read_csv(qc_stats_f)
   qc_df     = qc_df.drop('n_cells', axis=1)
   lbls_dt   = pd.read_csv(LABELS_F, compression='gzip')
 
   # keep selected labels
-  lbls_dt   = lbls_dt[lbls_dt[LABELS_VAR].isin(LABELS)]
+  lbls_dt   = lbls_dt[ lbls_dt[LABELS_VAR].isin(LABELS) ]
   
   # count the number of cells per sample
   zoom_sample_stats = (
@@ -1034,6 +1034,11 @@ def extract_zoom_sample_statistics(qc_stats_f, LABELS_F, LABELS_VAR, LABELS, MIN
     .reset_index(name='n_cells')
   )
   
+  # add empty samples
+  empty_ss  = list(set(SAMPLES) - set(zoom_sample_stats["sample_id"].tolist()))
+  empty_df  = pd.DataFrame({ "sample_id": empty_ss, "n_cells": 0 })
+  zoom_sample_stats = pd.concat([zoom_sample_stats, empty_df])
+
   # identify samples that do not meet the minimum cell threshold
   zoom_sample_stats['bad_zoom_qc'] = zoom_sample_stats['n_cells'] < MIN_N_SAMPLE
   
