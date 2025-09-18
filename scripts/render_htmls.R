@@ -4,6 +4,7 @@ suppressPackageStartupMessages({
     library('assertthat')
     library('workflowr')
     library('glue')
+    library('stringi')
 })
 
 # function that replaces placeholder strings in template Rmds and renders html reports
@@ -54,11 +55,36 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
   # check if all extra args for a specific rule are present
   if (sel_rule == 'ambient') {
     req_names = c('YOUR_NAME','AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 'smpl_stats_f',
-      'SAMPLE_VAR', 'AMBIENT_METHOD', 'DATE_STAMP', 'RUNS_STR')
+      'threads','SAMPLE_VAR', 'AMBIENT_METHOD', 'DATE_STAMP', 'RUNS_STR', 'CELLBENDER_PROP_MAX_KEPT')
 
     assert_that(all(req_names %in% add_args_names))
     
-    params_ls = add_args
+    if (add_args[['AMBIENT_METHOD']] != "none") {
+      plot_removed_title = "## How many reads were removed as ambient?"
+      plot_removed_txt = "Plots show what proportion of reads were removed from all barcodes called as cells."
+    } else{
+      plot_removed_title = ""
+      plot_removed_txt = ""
+    }
+
+    if (add_args[['AMBIENT_METHOD']] == "cellbender") {
+      tbl_removed_title = "## Samples excluded by ambient removal step"
+      tbl_removed_txt = paste0("CellBender includes all barcodes in the analysis up to the `total_droplets` threshold", 
+        " covering both cell-containing droplets and empty droplets.", " If CellBender calls the majority of these included droplets as cells,", 
+        " it may indicate an underlying issue. This typically occurs in low-quality samples where cell-containing barcodes and empty droplets cannot", 
+        " be clearly distinguished in the barcode rank plot. The table below shows the proportion of included droplets that were classified as cells by CellBender.",
+        " Samples where this proportion exceeded ", add_args[['CELLBENDER_PROP_MAX_KEPT']]*100,  "% were excluded from further analysis.")
+    } else{
+      tbl_removed_title = ""
+      tbl_removed_txt = ""
+    }
+
+    params_ls = c(
+      add_args[setdiff(req_names, 'CELLBENDER_PROP_MAX_KEPT')],
+      list(plot_removed_title = plot_removed_title, 
+           plot_removed_txt   = plot_removed_txt, 
+           tbl_removed_title  = tbl_removed_title, 
+           tbl_removed_txt    = tbl_removed_txt))
 
   } else if (sel_rule == 'af') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
@@ -99,7 +125,7 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
 
   } else if (sel_rule == 'integration') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
-      'DATE_STAMP', 'threads', 'qc_dt_f', 'integration_f', 
+      'DATE_STAMP', 'threads', 'qc_dt_f', 'integration_f', 'INT_REDUCTION', 'DEMUX_TYPE', 
       'INT_RES_LS', 'INT_DBL_CL_PROP')
 
     assert_that(all(req_names %in% add_args_names))
@@ -116,14 +142,40 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
 
     assert_that(all(req_names %in% add_args_names))
 
-    # based on species determine whether code chunks with gsea results shoudl be eval or not
-    if (add_args[['SPECIES']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) {
-      eval_fgsea = TRUE
-    } else{
-      eval_fgsea = FALSE
+    metadata_vars = add_args[['meta_vars_ls']] %>% 
+    str_split(pattern = ",") %>% unlist()
+    if (length(metadata_vars) > 0){
+      meta_bars_title = "## Cluster splits by metadata variables"
+      meta_bars_txt   = paste0("For each cluster the proportion of cells coming from samples associated with", 
+       " specific values of ", paste(metadata_vars, collapse = ', ') %>% stri_replace_last_fixed(",", " and"), '.')
+      meta_umap_title = "## Metadata variables over UMAP{.tabset}"
+      meta_umap_txt   = paste0("The plot shows a binned UMAP with facets corresponding to specific values of ", 
+       (if (length(metadata_vars) == 1) print(metadata_vars) else print("different metadata variables")),
+       " which allows the evaluation of whether cells sharing certain annotations are particularly abundant in some clusters.")
+   }else{
+      meta_bars_title = ""
+      meta_bars_txt   = ""
+      meta_umap_title = ""
+      meta_umap_txt   = ""
+   }
+  
+    if(add_args[['SPECIES']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){
+      fgsea_title = "## GSEA characterisation of clusters{.tabset}"
+      fgsea_txt   = paste0("GSEA was performed on marker genes for each cluster, using log fold change as the ranking variable", 
+       " Top x pathways grouped into 5 categories with some threshold are shown for each cluster.")
+    }else{
+      fgsea_title = ""
+      fgsea_txt   = ""
     }
-
-    params_ls = c(add_args[req_names], list(eval_fgsea = eval_fgsea))
+  
+    params_ls = c(
+      add_args[req_names],
+      list(meta_bars_title = meta_bars_title, 
+           meta_bars_txt   = meta_bars_txt, 
+           meta_umap_title = meta_umap_title, 
+           meta_umap_txt   = meta_umap_txt, 
+           fgsea_title     = fgsea_title,
+           fgsea_txt       = fgsea_txt))
 
   } else if (sel_rule == 'cell_labels') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 

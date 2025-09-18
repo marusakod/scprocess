@@ -336,7 +336,7 @@ plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, b
   
   lines_knees = ambient_knees_df %>% as.data.table %>% 
     .[ get(sample_var) %in% s_ord, ..knee_vars] %>%
-    setnames( c("inf1", "inf2"), c("shin1", "shin2") ) %>% 
+    setnames( c("inf1", "inf2", "total_droplets_included"), c("shin1", "shin2", "empty_plateau_middle") ) %>% 
     melt(id.vars = sample_var) %>%
     .[, `:=`(
       axis = fifelse(variable %in% c('knee1', 'knee2', 'shin1', 'shin2'), 'y', 'x'),
@@ -568,7 +568,7 @@ plot_qc_metrics_split_by_cells_empties <- function(rna_knee_dfs,
     y_brks    = c(1e0, 1e1, 3e1, 1e2, 3e2, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6) %>% log10
     y_labs    = c("1", "10", "30", "100", "300", "1k", "3k", "10k", "30k", "100k", 
       "300k", "1M")
-    y_title   = "UMIs"
+    y_title   = "library size"
   } else if (metric == "splice_pct") {
     y_brks    = c(0.01, 0.03, 0.1, 0.3, 0.5, 0.7, 0.9, 0.97, 0.99) %>% qlogis
     y_labs    = c("1%", "3%", "10%", "30%", "50%", "70%", "90%", "97%", "99%")
@@ -582,7 +582,7 @@ plot_qc_metrics_split_by_cells_empties <- function(rna_knee_dfs,
     scale_fill_manual( values = c(cell = "#1965B0", empty = "grey") ) +
     theme_classic() + 
     theme( axis.text.x = element_text( angle = -45, hjust = 0, vjust = 0.5 ) ) +
-    labs( y = y_title, fill = "what does\nthe barcode\ncontain?" )
+    labs( y = y_title, x = NULL, fill = "what does\nthe barcode\nrepresent?" )
 
   return(g)
 }
@@ -612,8 +612,10 @@ plot_reads_removed_as_ambient <- function(usa_dt_ls, ok_bcs_ls) {
       kernel = 'rectangular', adjust = 0.1, scale = 'width', width = 0.8) +
     scale_y_continuous( breaks = logit_brks, labels = logit_labs ) +
     theme_classic() +
-    theme( axis.text.x = element_text( angle = -45, hjust = 0, vjust = 0.5) ) +
-    labs( y = "pct. reads removed as ambient")
+    theme(
+     axis.text.x = element_text( angle = -45, hjust = 0, vjust = 0.5), 
+     plot.margin = unit(c(1, 4, 1, 1), "lines")) +
+    labs( y = "pct. reads removed as ambient",x = NULL)
 
   return(g)
 }

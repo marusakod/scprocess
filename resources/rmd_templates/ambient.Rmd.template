@@ -4,7 +4,7 @@ author:
 - name: ${YOUR_NAME}
   affiliation:
   - ${AFFILIATION}
-date: '`r format(Sys.Date(), "%B %d, %Y")`'
+date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -87,7 +87,7 @@ print_tbl     = amb_method == "cellbender"
 
 ## Distributions of spliced pct. in empty and cell barcodes{.tabset}
 
-Plots show number of UMIs against spliced percentages split by sample, showing both before and after ambient RNA removal. Ambient RNA typically has a high proportion of spliced reads, so looking at the effect of an ambient RNA removal method on spliced percentage can help assess whether or not it did a good job.
+The plots show the relationship between the number of UMIs and the percentage of spliced reads, separated by sample, both before and after ambient RNA removal. Ambient RNA is typically characterized by a high proportion of spliced reads, making the spliced percentage a useful metric for evaluating the effectiveness of an ambient RNA removal method. By examining changes in spliced percentages, we can assess how well the method performed in reducing ambient RNA contamination.
 
 ```{r plot_spliced_vs_umis, fig.height = dims_ls$splice_vs_umi$h, fig.width = dims_ls$splice_vs_umi$w, results = "asis"}
 for (ss in s_lvls) {
@@ -97,17 +97,17 @@ for (ss in s_lvls) {
 }
 ```
 
-```{r plot_reads_removed_as_ambient, eval = plot_removed, fig.height = dims_ls$reads_removed$h, fig.width = dims_ls$reads_removed$w, results = "asis"}
-cat("## How many reads were removed as ambient?")
-cat("\n")
-cat("Plots show what proportion of reads were removed from all barcodes called as cells.")
+${plot_removed_title}
+${plot_removed_txt}
 
+```{r plot_reads_removed_as_ambient, eval = plot_removed, fig.height = dims_ls$reads_removed$h, fig.width = dims_ls$reads_removed$w, results = "asis"}
 print(plot_reads_removed_as_ambient(usa_dt_ls, ok_bcs_ls))
 ```
 
-```{r tbl_ambient_exclusions, results = "asis", eval = print_tbl}
-cat("## Samples excluded by ambient removal step")
+${tbl_removed_title}
+${tbl_removed_txt}
 
+```{r tbl_ambient_exclusions, results = "asis", eval = print_tbl}
 calc_ambient_exclusions(stats_dt, sample_var) %>% knitr::kable()
 ```
 

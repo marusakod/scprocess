@@ -423,8 +423,8 @@ plot_cluster_entropies <- function(input_dt, what = c("norm", "raw")) {
     theme_bw() +
     theme( panel.grid = element_blank() ) +
     labs(
-      x     = 'entropy (high when clusters even across samples)',
-      y     = 'max. pct. of one sample (high when concentrated in few samples)',
+      x     = 'entropy',
+      y     = 'max. pct. of one sample',
       size  = 'total # cells'
     )
 
@@ -479,9 +479,9 @@ plot_cluster_qc_distns <- function(qc_melt, clust_dt, name, min_cl_size = 1e2) {
     facet_grid( qc_full ~ ., scales = 'free_y' ) +
     facetted_pos_scales(
       y = list(
-        qc_full == "library size"    ~
+        qc_full == "no. of UMIs"    ~
           scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_full == "no. of features" ~
+        qc_full == "no. of genes" ~
           scale_y_continuous(breaks = log_brks, labels = log_labs),
         qc_full == "mito pct."        ~
           scale_y_continuous(breaks = logit_brks, labels = logit_labs),

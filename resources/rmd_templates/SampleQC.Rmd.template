@@ -4,7 +4,7 @@ author:
 - name: ${YOUR_NAME}
   affiliation: 
   - ${AFFILIATION}
-date: '`r format(Sys.Date(), "%B %d, %Y")`'
+date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -87,7 +87,7 @@ max_marg_h  = 12
 marg_h      = min((n_samples + 1) * violin_h, max_marg_h)
 ```
 
-## Sample QC metric ranges, marginals{.tabset}
+## Sample QC metrics{.tabset}
 
 An overview of quality control (QC) metrics for all samples, both before and after filtering. The QC metrics include:
 
@@ -97,12 +97,12 @@ An overview of quality control (QC) metrics for all samples, both before and aft
 
 * `no. of genes` : Number of unique features with non-zero counts for each cell with log-transformed values displayed. Barcodes with fewer than `r min_feats` unique genes are excluded from further analysis.
 
-* `mito. pct.` : The proportion of reads that mapped to genes in the mitochondrial genome. High proportions are indicative of poor-quality cells (compromised membranes allow individual RNA molecules to escape while retaining mitochondria,
-leading to an increased relative abundance of mitochondrial transcript) or nuclei (incomplete removal of cytoplasm). Logit-transformed values are displayed as applying the logit (inverse logistic) transformation to mitochondrial proportions yields approximately Gaussian distributions. Barcodes with mitochondrial proportions exceeding `r max_mito` are excluded from further analysis. 
+* `mito pct.` : The proportion of reads that mapped to genes in the mitochondrial genome. High proportions are indicative of poor-quality cells (compromised membranes allow individual RNA molecules to escape while retaining mitochondria,
+leading to an increased relative abundance of mitochondrial transcript) or nuclei (incomplete removal of cytoplasm). Logit-transformed values are displayed as applying the logit (inverse logistic) transformation to mitochondrial proportions yields approximately Gaussian distributions. Barcodes with mitochondrial proportions exceeding `r max_mito*100`% are excluded from further analysis. 
 
 * `spliced pct.` : The proportion of spliced reads. In single-nuclei RNA sequencing, high spliced proportions may indicate inadequate removal of cytoplasmic material from the nuclei.
 Logit-transformed values are displayed as applying the logit  (inverse logistic) transformation to spliced proportions results in approximately Gaussian distributions.
-Barcodes with spliced proportions greater than `r max_splice` are excluded from further analysis. 
+Barcodes with spliced proportions greater than `r max_splice*100`% are excluded from further analysis. 
 
 
 ```{r plot_qc_ranges_marginals, fig.height = marg_h, fig.width = 8, results = 'asis'}
@@ -118,7 +118,7 @@ suppressWarnings({
 
 ## QC metrics scatterplots{.tabset}
 
-Pairwise relationships of (QC) metrics at individual cell level, rather than aggregating data across samples. 
+Pairwise relationships of QC metrics at individual cell level.
 
 ```{r plot_qc_metric_scatters, fig.height = 6, fig.width = 8, results = 'asis'}
 for (s in s_lvls) {
@@ -141,6 +141,8 @@ calc_qc_summary(qc_dt, kept_dt, thrshlds_ls, qc_lu) %>% knitr::kable()
 ```
 
 ## What were the reasons for excluding barcodes?{.tabset}
+
+An upset plot is generated for each sample to visualize the reasons for barcode exclusion in a single-cell experiment. The plot shows the overlap between different exclusion criteria, with vertical bars representing the size of each intersection. Plots are omitted for samples where no barcodes were excluded.
 
 ```{r plot_upsets_of_exclusions, fig.height = 5, fig.width = 7, results = 'asis'}
 for (s in s_lvls) {

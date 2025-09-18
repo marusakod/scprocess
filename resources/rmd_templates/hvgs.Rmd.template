@@ -1,10 +1,10 @@
 ---
-title: "Diagnostic plots of HVG selection"
+title: "HVG selection diagnostics"
 author:
 - name: ${YOUR_NAME}
   affiliation: 
   - ${AFFILIATION}
-date: '`r format(Sys.Date(), "%B %d, %Y")`'
+date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -47,24 +47,19 @@ pb          = readRDS(pb_empty_f)
 vst_obj     = calc_vst_obj(pb, edger_dt)
 ```
 
-## Overview
-
-The choice of highly variable genes is critical to the integration and resulting 
-clusters in a single cell experiment. In our experience, contamination by ambient 
-RNA is often an important confounding factor, and `scprocess` includes several steps
-that seek to minimise its effect. 
-
-The plots in this markdown are intended to give an overview of possible contamination,
-which can make users aware of potential contamination to watch out for in clusters.
+The selection of highly variable genes is a crucial step in the integration process and in
+identifying clusters in single-cell experiments. However, contamination from ambient RNA can act as a
+significant confounding factor. This report evaluates the influence of ambient RNA on the selection
+of highly variable genes and its potential impact on downstream analyses.
 
 ## Are highly variable genes "ambient"?
 
-This plot is used to show to what extent the genes that would be identified by the 
-"standard" `Seurat`-style HVG procedure could be driven by ambient RNA. The x-axis 
-is the `log2fc` output from the ambient gene estimation step in `scprocess` (see
-docs for more details). The y-axis is the `Seurat`-style trend-normalised variance. Points are 
-genes, annotated by whether they are in the top HVGs, combined with whether
-the `scprocess` ambient gene procedure calls them as ambient.
+The plot shows the extent to which highly variable genes identified using the `Seurat` VST method may
+be influenced by ambient RNA. The x-axis represents the `log2fc` values derived from the ambient gene estimation
+step in `scprocess` (see `scprocess` documentation for more details), while the y-axis shows the
+trend-normalized variance calculated using the `Seurat` VST method. Each point represents a gene,
+annotated based on whether it is among the top HVGs and whether it is identified as ambient by the
+ambient gene detection step. Labelled genes are top 10 most variable.
 
 ```{r plot_std_var_vs_empty_log2fc, fig.height = 6, fig.width = 8}
 print(plot_hvg_stats_vs_empty_log2fc(hvgs_dt, edger_dt))
@@ -72,10 +67,10 @@ print(plot_hvg_stats_vs_empty_log2fc(hvgs_dt, edger_dt))
 
 ## Which genes are "ambient"?{.tabset}
 
-This plot shows the results of the `scprocess` ambient gene procedure. The y-axis 
-is the `-log10` nominal p-value, with a dotted line to show the cutoff at which 
-the adjusted p-value is sufficiently small. There are several plots, each filtering 
-to have different minimum levels of expression in the ambient profiles.
+The plot shows the results of the `scprocess` ambient gene detection procedure. The y-axis
+is the `-log10` nominal p-value, with a dotted line indicating the threshold where the adjusted p-value
+is sufficiently small (< 0.01). Multiple plots are shown, each corresponding to a different
+minimum expression level filter applied to the ambient profiles.
 
 ```{r plot_ambient_gene_calculations, fig.height = 6, fig.width = 6, results = 'asis'}
 cpm_ls  = c(100, 50, 10, 0)
@@ -92,20 +87,18 @@ for (min_cpm in cpm_ls) {
 
 ## Which genes are variable across the ambient profiles?{.tabset}
 
-We often find it useful to look into how ambient genes vary across the different 
-samples. This can indicate when some samples may need to be treated differently 
-(e.g. if disease and healthy samples consistently have different ambient profiles).
+Examining how ambient genes vary across different samples can provide valuable insights.
+Such variation may highlight cases where certain samples require distinct treatment, for example,
+if case and control samples consistently exhibit different ambient profiles.
 
-These heatmaps show how the pseudobulk expression of various genes vary across the
-ambient profiles from each sample in the dataset. The genes are chosen as the top 40 
-with:
+The heatmaps display the pseudobulk expression of various genes across the ambient profiles of each sample in the dataset.
+The genes shown are the top 40 selected based on the following criteria:
 
 - highest variance across ambient profiles;
-- highest mean expression across ambient 
-profiles;
-- highest `log2fc` in ambient vs cells in `scprocess`'s ambient gene procedure; 
+- highest mean expression across ambient profiles;
+- highest `log2fc` in empty droplets vs cells in `scprocess`'s ambient gene detection procedure; 
 and
-- smallest p-value in ambient vs cells in `scprocess`'s ambient gene procedure.
+- smallest p-value in empty droplets vs cells in `scprocess`'s ambient gene detection procedure.
 
 ```{r plot_ambient_profiles, fig.height = 8, fig.width = 6, results = 'asis'}
 title_ls = c(

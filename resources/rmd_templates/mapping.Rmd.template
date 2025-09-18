@@ -4,7 +4,7 @@ author:
 - name: ${YOUR_NAME}
   affiliation:
   - ${AFFILIATION}
-date: '`r format(Sys.Date(), "%B %d, %Y")`'
+date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -97,9 +97,9 @@ if (sample_n <= 4) {
 
 ## Barcode rank plots
 
-For each sample, barcodes are ranked in descending order based on their library size (number of unique molecular identifiers).
+For each sample, barcodes are ranked in descending order based on their library size (number of unique molecular identifiers (UMIs)).
 Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high RNA content, while the second represents empty droplets containing ambient RNA. 
-Key transition points on the curve (inflection and knee points), are annotated with horizontal lines.
+Key transition points on the curve (shin and knee points), are annotated with horizontal lines.
 Two main parameters infered by `scprocess` based on transition points are `expected_cells` and `empty_plateau_middle`.
 `empty_plateau_middle` should extend a few thousand barcodes into the second plateau. 
 The absence of a clear empty plateau indicates poor sample quality due to ambient RNA contamination.
@@ -126,10 +126,9 @@ for (i in 1:length(slope_ratio_split_l) ) {
 
 ### Ordered by ratio of expected cells to empty droplets{.tabset}
 
-Inaccurate detection of the transition points (knee and inflection points) in the barcode-rank curve can lead to incorrect estimates of barcodes corresponding to cells or empty droplets.
+Inaccurate detection of the transition points (knee and shin points) in the barcode-rank curve can lead to incorrect estimates of barcodes corresponding to cells or empty droplets.
 To evaluate this, samples are ordered by the ratio of `expected_cells` to `empty_plateau_middle`.
 
-Plots are annotated with suggested ambient parameters.
 ```{r knee_plots_exp_tot_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
 for (i in 1:length(exp_tot_ratio_split_l) ) {
   # get knee dfs for all selected samples
@@ -143,9 +142,20 @@ for (i in 1:length(exp_tot_ratio_split_l) ) {
 }
 ```
 
-## Plots of UMIs and spliced pcts split by cells / empties{.tabset}
 
-The knee plots above help us estimate which barcodes are likely to be cells, and which not. This plot shows the distribution of UMIs for both groups, split by sample. The number of UMIs in the "empties" is an indication of the extent of contamination in a dataset; 100 UMIs is typical of a reasonably clean dataset.
+### Dotplot with diagnotic ratios
+
+Both the slope ratio and the expected cells to empty droplets ratio are displayed in a dot plot, where each dot represents a sample.
+Outliers are labeled with their corresponding `r sample_var` values.
+
+```{r ambient_params_qc_dot, fig.height = 4, fig.width = 8}
+print(plot_amb_params_dotplot(rna_knee_params_df, sample_var = sample_var, scales = 'free'))
+```
+
+
+## Library sizes and splice read proportions: comparison between cells and empty droplets across samples{.tabset}
+
+This plot shows the distribution of UMIs and spliced read proportions for both empty droplets and expected cells, split by sample. The UMI counts in empty droplets serve as an indicator of ambient RNA contamination in the dataset.
 
 ```{r plot_qc_metrics_cells_empties, fig.height = 3, fig.width = 8, results = "asis"}
 metric_names = c(umis = "umis", splice_pct = "spliced pct.")
@@ -154,15 +164,6 @@ for (metric in c("umis", "splice_pct")) {
   print(plot_qc_metrics_split_by_cells_empties(rna_knee_fs, metric = metric, sample_var = sample_var))
   cat("\n\n")
 }
-```
-
-## Dotplot with slope ratio and `expected_cells`/`empty_plateau_middle`
-
-Both the slope ratio and the expected cells/total droplets ratio are displayed in a dot plot, where each dot represents a sample.
-Outliers are labeled with their corresponding `sample_id` values.
-
-```{r ambient_params_qc_dot, fig.height = 4, fig.width = 8}
-print(plot_amb_params_dotplot(rna_knee_params_df, sample_var = sample_var, scales = 'free'))
 ```
 
 ## R session info

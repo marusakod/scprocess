@@ -71,8 +71,7 @@ plot_hvg_stats_vs_empty_log2fc <- function(hvgs_dt, edger_dt, n_top = 10) {
     labs(
       x       = "log2fc of \"empty\" drops vs all cells",
       y       = "mean standardized var. across samples",
-      colour  = "HVG classification\nof gene",
-      caption = sprintf("Labelled genes are top %d most variable.", n_top)
+      colour  = "HVG classification\nof gene"
     )
 
   return(g)
@@ -110,9 +109,7 @@ plot_ambient_gene_calculations <- function(edger_dt, max_padj = 0.01, n_top = 10
     theme( plot.caption = element_text(vjust = -0.5) ) +
     labs(
       x       = "log2fc of \"empty\" drops vs all cells",
-      y       = "-log10( nominal p-value of \"empty\" drops vs all cells )",
-      caption = sprintf("Dotted horizontal line shows cutoff for adjusted p-value < %.1e.", 
-        max_padj)
+      y       = "-log10( nominal p-value of \"empty\" drops vs all cells )"
     )
 
   return(g)

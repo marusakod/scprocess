@@ -4,7 +4,7 @@ author:
 - name: ${YOUR_NAME}
   affiliation:
   - ${AFFILIATION}
-date: '`r format(Sys.Date(), "%B %d, %Y")`'
+date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate

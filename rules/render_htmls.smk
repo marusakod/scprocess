@@ -156,7 +156,8 @@ rule render_html_ambient:
       smpl_stats_f  = '{input.smpl_stats_f}', 
       SAMPLE_VAR    = '{SAMPLE_VAR}',
       RUNS_STR        = '{RUNS_STR}',
-      AMBIENT_METHOD  = '{AMBIENT_METHOD}'
+      AMBIENT_METHOD  = '{AMBIENT_METHOD}', 
+      CELLBENDER_PROP_MAX_KEPT = {CELLBENDER_PROP_MAX_KEPT}
       )"    
     """
 
@@ -301,7 +302,9 @@ rule render_html_integration:
       qc_dt_f       = '{input.qc_dt_f}', 
       integration_f = '{input.integration_f}', 
       INT_RES_LS      = '{params.int_res_ls}', 
-      INT_DBL_CL_PROP = {INT_DBL_CL_PROP}
+      INT_DBL_CL_PROP = {INT_DBL_CL_PROP}, 
+      INT_REDUCTION   = '{INT_REDUCTION}', 
+      DEMUX_TYPE      = '{DEMUX_TYPE}'
     )"
     """
 
