@@ -244,7 +244,7 @@ for (i in seq(1, n_pages * per_p, by = per_p)) {
 }
 ```
 
-### Top marker genes (min expression){.tabset}
+### Top marker genes{.tabset}
 
 Normalized pseudobulk expression values of top 10 marker genes with FDR < 0.05 
 and a minimum expression of `r min_cpm_mkr` CPM are shown for each cluster.
