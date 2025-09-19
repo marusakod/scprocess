@@ -74,6 +74,10 @@ qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
 qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') %>% 
   setNames(qc_names)
 
+# integration/clustering parameters
+res_ls  = "${INT_RES_LS}" %>%
+ str_split(pattern = ' ') %>% unlist() %>% as.numeric()  
+
 # marker parameters
 not_ok_re     = "${MKR_NOT_OK_RE}"
 sel_res       = "${MKR_SEL_RES}"
@@ -112,12 +116,17 @@ pb          = readRDS(pb_empty_f)
 ```
 
 ```{r extract_integration_res, include = FALSE}
-int_dt    = fread(int_f)  %>% 
+integration_all = fread(int_f)
+int_dt    = integration_all[ !is.na(UMAP1) ] %>% 
   .[, c("sample_id", "cell_id", "reduction", "UMAP1", "UMAP2", 
-    str_subset(names(.), "RNA_snn_res")), with = FALSE] %>% 
-  .[, cluster := get(paste0("RNA_snn_res.", sel_res)) %>% fct_infreq ]
-int_dt       = int_dt[, .(sample_id, cell_id, UMAP1, UMAP2, cluster)] %>% 
-  merge(meta_dt, by = "sample_id")
+    str_subset(names(integration_all), "RNA_snn_res")), with = FALSE]
+```
+
+```{r extract_sel_cls, include = FALSE}
+sel_cl_int_dt = copy(int_dt) %>%
+.[, cluster := get(paste0("RNA_snn_res.", sel_res))] %>%
+.[, .(sample_id, cell_id, UMAP1, UMAP2, cluster)] %>% 
+merge(meta_dt, by = "sample_id")
 ```
 
 ```{r load_qc_results, include = FALSE}
@@ -211,7 +220,7 @@ do_gsea       = species %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_
 
 The selection of highly variable genes is a crucial step in the integration process and in
 identifying clusters in single-cell experiments. However, contamination from ambient RNA can act as a
-significant confounding factor. This report evaluates the influence of ambient RNA on the selection
+significant confounding factor. This section of the report provides plots to evaluate the influence of ambient RNA on the selection
 of highly variable genes and its potential impact on downstream analyses.
 
 ### Are highly variable genes "ambient" ?
@@ -277,55 +286,82 @@ for (top_var in names(title_ls)) {
 }
 ```
 
+
 ## Clustering diagnostics
 
 ### Clusters over UMAP{.tabset}
 
-Clustering of data is performed at resolution `r sel_res`. Cluster membership of cells is displayed on a UMAP.
+Clustering of data is performed at different resolution values. For each value the clusters are displayed over a UMAP together with a plot showing the density of cells. 
 
-```{r plot_clusters_zoom_res, fig.height = 5, fig.width = 11}
-g_cl    = plot_umap_cluster(
-  umap_dt   = int_dt[, .(cell_id, UMAP1, UMAP2) ], 
-  clust_dt  = int_dt[, .(cell_id, cluster) ],
-  name      = sprintf('res = %s', sel_res))
-g_dens  = plot_umap_density(int_dt[, .(cell_id, UMAP1, UMAP2) ])
-g       = g_cl + g_dens
-print(g)
+```{r plot_clusters_integration, fig.height = 5, fig.width = 11, results = "asis"}
+for (res in res_ls) {
+  cat('#### ', res, '\n')
+  g_cl    = plot_umap_cluster(
+    umap_dt   = int_dt[, .(cell_id, UMAP1, UMAP2) ], 
+    clust_dt  = int_dt[, .(cell_id, cluster = get(paste0('RNA_snn_res.', res))) ],
+    name      = sprintf('res = %s', res))
+  g_dens  = plot_umap_density(int_dt[, .(cell_id, UMAP1, UMAP2) ])
+  g       = g_cl + g_dens
+  print(g)
+  cat('\n\n')
+}
+```
+
+### Evaluating cluster distribution across samples{.tabset}
+
+This plot visualizes the relationship between the entropy of clusters and the maximum proportion of cells from a single sample within each cluster (higher values suggest that a cluster predominantly contains cells from a single sample).
+Entropy measures how evenly distributed cells are across samples within each cluster—higher entropy indicates that cells from different samples are more evenly distributed, while lower entropy suggests that a cluster is dominated by cells from a small number of samples.
+
+```{r plot_entropy_selected_clusters, fig.height = 5, fig.width = 7, results = "asis"}
+for (res in res_ls) {
+  cat('#### ', res, '\n')
+  input_dt  = int_dt[, .(sample_id, cell_id, cluster = get(paste0('RNA_snn_res.', res)))]
+  suppressWarnings(print(plot_cluster_entropies(input_dt, what = "norm")))
+  cat('\n\n')
+}
+```
+
+
+### QC metrics of clusters{.tabset}
+
+Distributions of QC metrics (library size, number of features, mitochondrial proportion, and spliced proportion) are shown for each cluster across different resolution values.
+
+```{r plot_qc_distns, fig.height = 8, fig.width = 10, results = 'asis'}
+for (res in res_ls) {
+  cat('#### ', res, '\n')
+  suppressWarnings(print(plot_cluster_qc_distns(
+    qc_melt, 
+    clust_dt  = int_dt[, .(cell_id, cluster = get(paste0('RNA_snn_res.', res)))], 
+    name      = res)))
+  cat('\n\n')
+}
 ```
 
 ${meta_bars_title}
 ${meta_bars_txt}
 
-```{r plot_clusters_by_metadata, eval = do_metadata, fig.height = 8, fig.width = 7, results = 'asis'}
+```{r plot_clusters_by_metadata, eval = do_metadata, fig.height = (2*length(metadata_vars)) + 1, fig.width = 8, results = 'asis'}
+
 if (!is.null(metadata_vars))
-  (plot_clusters_by_metadata(meta_dt, int_dt, 
+  (plot_clusters_by_metadata(meta_dt, sel_cl_int_dt, 
     meta_vars = metadata_vars, cl_order = cl_ord))
 ```
 
 ${meta_umap_title}
 ${meta_umap_txt}
 
-```{r plot_metadata_over_UMAP, eval = do_metadata, fig.height = 3, fig.width = 8, results = 'asis'}
+```{r plot_metadata_over_UMAP, eval = do_metadata, fig.height = 5, fig.width = 8, results = 'asis'}
 for (meta_var in metadata_vars) {
   cat('####', meta_var, '\n')
-  print(plot_clusters_annotated_by_densities(int_dt, meta_var))
+  print(plot_clusters_annotated_by_densities(sel_cl_int_dt, meta_var))
   cat('\n\n')
 }
 ```
 
-### QC metrics of clusters
-
-Distributions of QC metrics (library size, number of features, mitochondrial proportion, and spliced proportion) are shown for each cluster across different resolution values.
-
-```{r plot_qc_distns, fig.height = 8, fig.width = 10}
-suppressWarnings(print(
-  plot_cluster_qc_distns(qc_melt, clust_dt  = int_dt[, .(cell_id, cluster)], name = sel_res)
-))
-```
 
 ## Marker genes
 
-To identify marker genes for each cluster, pseudobulk counts are generated by aggregating the expression values of cells
+To identify marker genes for each cluster (resolution: `r sel_res`), pseudobulk counts are generated by aggregating the expression values of cells
 within a specific cluster for each sample. Similarly, pseudobulk counts are generated for the remaining clusters
 by aggregating expression values separately for each sample. The resulting pseudobulk values for the target cluster
 are then compared to those of the remaining clusters using edgeR.

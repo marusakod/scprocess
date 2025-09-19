@@ -42,7 +42,7 @@ qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
 qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') %>% 
   setNames(qc_names)
 
-# define harmony inputs
+# define integration inputs
 integration_f      = "${integration_f}"
 int_reduction      = "${INT_REDUCTION}"
 demux_type         = "${DEMUX_TYPE}"

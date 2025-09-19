@@ -147,7 +147,7 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
     if (length(metadata_vars) > 0){
       meta_bars_title = "## Cluster splits by metadata variables"
       meta_bars_txt   = paste0("For each cluster the proportion of cells coming from samples associated with", 
-       " specific values of ", paste(metadata_vars, collapse = ', ') %>% stri_replace_last_fixed(",", " and"), '.')
+       " specific values of ", paste(metadata_vars, collapse = ', ') %>% stri_replace_last_fixed(",", " and"), ' is shown.')
       meta_umap_title = "## Metadata variables over UMAP{.tabset}"
       meta_umap_txt   = paste0("The plot shows a binned UMAP with facets corresponding to specific values of ", 
        (if (length(metadata_vars) == 1) print(metadata_vars) else print("different metadata variables")),
@@ -200,7 +200,7 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 'DATE_STAMP', 
       'threads', 'zoom_dir', 'zoom_name', 'meta_f', 'meta_vars_ls',
       'gtf_dt_f', 'qc_f', 'int_f', 'pb_f', 'mkrs_f', 'mkrs_hvgs_f', 'hvgs_f', 'empty_gs_f', 'pb_empty_f', 
-      'fgsea_go_bp_f','fgsea_go_cc_f', 'fgsea_go_mf_f', 'fgsea_paths_f', 'fgsea_hlmk_f',
+      'fgsea_go_bp_f','fgsea_go_cc_f', 'fgsea_go_mf_f', 'fgsea_paths_f', 'fgsea_hlmk_f', 'INT_RES_LS',
       'CUSTOM_MKR_NAMES', 'CUSTOM_MKR_PATHS', 'MKR_NOT_OK_RE', 'MKR_MIN_CPM_MKR', 'MKR_SEL_RES',
       'MKR_MIN_CELLS', 'MKR_GSEA_CUT', 'SPECIES')
     
@@ -210,8 +210,8 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
     str_split(pattern = ",") %>% unlist()
     if (length(metadata_vars) > 0){
       meta_bars_title = "### Cluster splits by metadata variables"
-      meta_bars_txt   = paste0("For each cluster the proportion of cells coming from samples associated with", 
-       " specific values of ", paste(metadata_vars, collapse = ', ') %>% stri_replace_last_fixed(",", " and"), '.')
+      meta_bars_txt   = paste0("For each cluster (resolution: ", add_args[['MKR_SEL_RES']], ")", " the proportion of cells coming from samples associated with", 
+       " specific values of ", paste(metadata_vars, collapse = ', ') %>% stri_replace_last_fixed(",", " and"), ' is shown.')
       meta_umap_title = "### Metadata variables over UMAP{.tabset}"
       meta_umap_txt   = paste0("The plot shows a binned UMAP with facets corresponding to specific values of ", 
        (if (length(metadata_vars) == 1) print(metadata_vars) else print("different metadata variables")),

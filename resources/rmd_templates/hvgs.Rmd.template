@@ -49,7 +49,7 @@ vst_obj     = calc_vst_obj(pb, edger_dt)
 
 The selection of highly variable genes is a crucial step in the integration process and in
 identifying clusters in single-cell experiments. However, contamination from ambient RNA can act as a
-significant confounding factor. This report evaluates the influence of ambient RNA on the selection
+significant confounding factor. This report provides plots to evaluate the influence of ambient RNA on the selection
 of highly variable genes and its potential impact on downstream analyses.
 
 ## Are highly variable genes "ambient"?

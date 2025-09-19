@@ -611,6 +611,7 @@ rule render_html_zoom:
         f"fgsea_paths_f = '{input.get('fgsea_paths_f', '')}'",
         f"fgsea_hlmk_f = '{input.get('fgsea_hlmk_f', '')}',"
     ]), 
+    zoom_int_res_ls      = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['INT_RES_LS'], 
     zoom_mkr_sel_res     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_SEL_RES'],
     zoom_mkr_min_cpm_mkr = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MIN_CPM_MKR'], 
     zoom_mkr_min_cells   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MIN_CELLS'],  
@@ -654,6 +655,7 @@ rule render_html_zoom:
       empty_gs_f        = '{input.zoom_empty_gs_f}', 
       pb_empty_f        = '{input.pb_empty_f}', 
       {params.fgsea_args}
+      INT_RES_LS        = '{params.zoom_int_res_ls}', 
       CUSTOM_MKR_NAMES  = '{params.zoom_custom_mkr_names}',
       CUSTOM_MKR_PATHS  = '{params.zoom_custom_mkr_paths}',
       MKR_SEL_RES       = '{params.zoom_mkr_sel_res}', 
