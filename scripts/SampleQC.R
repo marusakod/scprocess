@@ -1496,4 +1496,5 @@ plot_upset_of_exclusions <- function(qc_tmp, qc_names, qc_lu, thrshlds_ls) {
   # plot upset
   return(upset(upset_dt, sets = colnames(upset_dt)[-1], order.by = 'freq',
      mb.ratio = c(1 - mat_prop, mat_prop), sets.bar.color = row_cols))
+    
 }

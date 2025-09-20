@@ -87,7 +87,7 @@ print_tbl     = amb_method == "cellbender"
 
 ## Distributions of spliced pct. in empty and cell barcodes{.tabset}
 
-The plots show the relationship between the number of UMIs and the percentage of spliced reads, separated by sample, both before and after ambient RNA removal. Ambient RNA is typically characterized by a high proportion of spliced reads, making the spliced percentage a useful metric for evaluating the effectiveness of an ambient RNA removal method. By examining changes in spliced percentages, we can assess how well the method performed in reducing ambient RNA contamination.
+${spl_umis_pl_txt}
 
 ```{r plot_spliced_vs_umis, fig.height = dims_ls$splice_vs_umi$h, fig.width = dims_ls$splice_vs_umi$w, results = "asis"}
 for (ss in s_lvls) {

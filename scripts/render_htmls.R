@@ -62,7 +62,13 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
     if (add_args[['AMBIENT_METHOD']] != "none") {
       plot_removed_title = "## How many reads were removed as ambient?"
       plot_removed_txt = "Plots show what proportion of reads were removed from all barcodes called as cells."
+      spl_umis_pl_txt = paste0("The plots show the relationship between the number of UMIs and the percentage of spliced reads, ", 
+        "separated by sample, both before and after ambient RNA removal. Ambient RNA is typically characterized by a high proportion of spliced reads, ", 
+        "making the spliced percentage a useful metric for evaluating the effectiveness of an ambient RNA removal method. ", 
+        "By examining changes in spliced percentages, we can assess how well the method performed in reducing ambient RNA contamination.")
     } else{
+      spl_umis_pl_txt = paste0("The plot shows the relationship between the number of UMIs and the percentage of spliced reads, separated by sample. ", 
+        "It can help diagnose potential ambient RNA contamination, as ambient RNA is typically characterized by a high proportion of spliced reads.")
       plot_removed_title = ""
       plot_removed_txt = ""
     }
@@ -81,7 +87,8 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
 
     params_ls = c(
       add_args[setdiff(req_names, 'CELLBENDER_PROP_MAX_KEPT')],
-      list(plot_removed_title = plot_removed_title, 
+      list(spl_umis_pl_txt    = spl_umis_pl_txt, 
+           plot_removed_title = plot_removed_title, 
            plot_removed_txt   = plot_removed_txt, 
            tbl_removed_title  = tbl_removed_title, 
            tbl_removed_txt    = tbl_removed_txt))
@@ -161,8 +168,8 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
   
     if(add_args[['SPECIES']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){
       fgsea_title = "## GSEA characterisation of clusters{.tabset}"
-      fgsea_txt   = paste0("GSEA was performed on marker genes for each cluster, using log fold change as the ranking variable.", 
-       " Top x pathways grouped into 5 categories with some threshold are shown for each cluster.")
+      fgsea_txt   = paste0("Gene Set Enrichment Analysis (GSEA) was performed on marker genes for each cluster, using log fold change as the ranking variable.", 
+      " The top 10 pathways, grouped into five categories and selected based on a significance threshold of 0.05, are displayed for each cluster.")
     }else{
       fgsea_title = ""
       fgsea_txt   = ""
@@ -225,8 +232,8 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
 
     if(add_args[['SPECIES']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){
       fgsea_title = "### GSEA characterisation of clusters{.tabset}"
-      fgsea_txt   = paste0("GSEA was performed on marker genes for each cluster, using log fold change as the ranking variable.", 
-       " Top x pathways grouped into 5 categories with some threshold are shown for each cluster.")
+      fgsea_txt   = paste0("Gene Set Enrichment Analysis (GSEA) was performed on marker genes for each cluster, using log fold change as the ranking variable.", 
+      " The top 10 pathways, grouped into five categories and selected based on a significance threshold of 0.05, are displayed for each cluster.")
     }else{
       fgsea_title = ""
       fgsea_txt   = ""
