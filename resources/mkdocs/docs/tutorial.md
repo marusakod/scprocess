@@ -149,8 +149,55 @@ scprocess run config-test_project.yaml
     
     If you modify the default settings for the `mouse_2024` genome in `.scprocess_setup.yaml`, the results you obtain from running {{sc}} on the tutorial dataset may differ slightly from those shown in this guide.
 
+{{sc}} produces detailed reports with diagnostic plots for each step of the analysis, allowing for thorough evaluation and interpretation of the results. These reports include comprehensive descriptions of all plots, making them a valuable resource for downstream analyses. To demonstrate how these reports can be utilized for additional analysis using {{sc}}, we will examine some of the plots from the marker genes report. This report, named `test_marker_genes_0.2.html`, should be located in the `public` directory.
 
+One of the plots included in the report is a heatmap that displays the expression of canonical marker genes for the mouse brain:
 
+![markers_heatmap](assets/images/tutorial1_heatmap_markers.png)
+
+From this heatmap, we can hypothesize that clusters cl02 and cl03 correspond to oligodendrocytes, as they exhibit high expression of *Plp1* a gene responsible for myelin formation and a well-established marker for mature oligodendrocytes. In contrast, cluster cl07 likely corresponds to oligodendrocyte precursor cells (OPCs), as it shows high expression of *Cspg4* (also known as *NG2*) and *Pdgfra*, both of which are characteristic markers of OPCs[^1] .
+
+In the following section, we will leverage this information to perform subclustering on the identified populations.
+
+### Zooming in 
+
+To perform subclustering analysis, we first need to create a configuration file each cell population we want to subcluster. In this example, we will create a single file for OPCs and oligodendrocytes, named `config-zoom-oligos_opcs.yaml`, with the following parameters: 
+
+```yaml
+labels: [cl02, cl03, cl07]
+labels_source: clusters
+cluster_res: 0.2
+```
+
+The `labels` parameter specifies the clusters to include in the subclustering analysis. The value of the `labels_source` parameter is set to `cluster` to indicate that the labels correspond to names of clusters identified by {{sc}}. `cluster_res` denotes the resolution value (0.2) used to define the listed clusters during the clustering step.
+
+Next, we need to link this new configuration file to the main project configuration file i.e. `config-test_project.yaml`. To do this, we will add the path to the subclustering configuration file under the `zoom` section, along with the name of the cell population (e.g., `oligos_opcs`), as shown below:
+
+```yaml hl_lines="16 17"
+proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
+fastq_dir: data/fastqs
+full_tag: test_project
+short_tag: test
+your_name: Test McUser
+affiliation: Unemployed
+sample_metadata: data/metadata/test_project_metadata.csv
+species: mouse_2024
+date_stamp: "2025-01-01"
+metadata_vars: [group]
+alevin:
+  chemistry: 3v3
+marker_genes:
+  custom_sets:
+    - name: mouse_brain
+zoom:
+  oligos_opcs: config-zoom-oligos_opcs.yaml
+```
+
+Finally, we can run the subclustering analysis using the following command:
+
+```bash
+scprocess run config-test_project.yaml -r zoom
+```
 
 
 ## Tutorial 2: Analysis of multiplexed single cell data
@@ -310,7 +357,7 @@ qc:
 
 Setting `demux_type` to `af` instructs {{sc}} to use HTO-based demultiplexing for this dataset. By specifying `fastq_dir` and `feature_ref`, we provide {{sc}} with the paths to the HTO FASTQ files and the feature reference file, respectively. 
 
-Note that this is a downsampled dataset with a limited number of cells; therefore, we set the `qc_min_cells` parameter to 100 to ensure that all samples with at least 100 cells remaining after QC filtering are retained.
+Note that this is a downsampled dataset with a limited number of cells. To ensure that all samples with at least 100 cells remaining after QC filtering are retained, we set the `qc_min_cells` parameter to 100. Since this is a single-cell dataset, we also adjust the spliced proportion thresholds to refine cell selection. Specifically, we set `qc_min_splice` to 0.5 to exclude cells with less than 50% spliced reads, as these are likely nuclei, and `qc_max_splice` to 0.9 to exclude cells with more than 90% spliced reads, which likely indicates substantial cytoplasmic contamination.
 
 ### Running {{sc}}
 
@@ -320,12 +367,11 @@ We are now ready to run {{scrun}} using:
 scprocess run config-test_multiplexed_project.yaml
 ```
 
-### Inspecting outputs
 
-??? warning "Tutorial results may vary from your {{sc}} outputs"
-    
-    If you modify the default settings for the `mouse_2024` genome in `.scprocess_setup.yaml`, the results you obtain from running {{sc}} on the tutorial dataset may differ slightly from those shown in this guide.
+<!-- citations -->
+<!-- [Link to paper]() -->
 
+[^1]: Marques, S., et al. Oligodendrocyte heterogeneity in the mouse juvenile and adult central nervous system. Science. 2016;352(6291):1326-1329. [Link to paper](https://www.science.org/doi/10.1126/science.aaf6463).
 
 
 
