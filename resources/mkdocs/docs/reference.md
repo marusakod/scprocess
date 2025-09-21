@@ -117,7 +117,7 @@ This is an example config file for {{sc}} with all parameters and their default 
     custom_sample_params:
     exclude:
       sample_id:
-      pooll_id:
+      pool_id:
     metadata_vars:
     multiplexing:
       demux_type: "none"
