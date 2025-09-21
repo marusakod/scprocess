@@ -51,7 +51,7 @@
 
 * #### Marker gene identification
     
-    Assigning meaningful labels to clusters in single-cell data is essential for interpretation of single cell data. This is commonly achieved by examining marker genes for each cluster, identified by comparing the expression profile of each cluster against all others. In {{sc}}, transcript counts are aggregated per cluster within each sample to generate "pseudobulk" values, which are then compared using `edgeR`[^9]. This approach avoids the assumption that individual cells from the same sample are independent, thereby enhancing the statistical reliability of the results. {{sc}} also performs gene set enrichment analysis on all marker genes and includes visualizations of user-defined gene sets in the HTML report.
+    Assigning meaningful labels to clusters in single-cell data is essential for interpretation of single cell data. This is commonly achieved by examining marker genes for each cluster, identified by comparing the expression profile of each cluster against all others. In {{sc}}, transcript counts are aggregated per cluster within each sample to generate "pseudobulk" values, which are then compared using `edgeR`[^9]. This approach avoids the assumption that individual cells from the same sample are independent, thereby enhancing the statistical reliability of the results. For human and mouse datasets {{sc}} also performs gene set enrichment analysis on all marker genes and includes visualizations of user-defined gene sets in the HTML report.
 
 
 ### Optional steps

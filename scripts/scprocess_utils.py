@@ -909,20 +909,18 @@ def get_resource_parameters(config):
   MB_SAVE_ALEVIN_TO_H5            = 8192
   MB_RUN_AMBIENT                  = 8192
   MB_GET_BARCODE_QC_METRICS       = 8192
-  MB_MAKE_HTO_SCE_OBJECTS         = 8192
-  MB_COMBINE_SCDBLFINDER_OUTPUTS  = 8192
   MB_RUN_QC                       = 8192
   MB_RUN_HVGS                     = 8192
-  MB_PB_MAKE_PBS                  = 8192
-  MB_PB_CALC_EMPTY_GENES          = 8192
   MB_RUN_INTEGRATION              = 8192
   MB_MAKE_CLEAN_SCES              = 8192
   MB_RUN_MARKER_GENES             = 16384
   MB_RENDER_HTMLS                 = 8192
   MB_LABEL_CELLTYPES              = 8192
-  MB_ZOOM_RUN_ZOOM                = 8192
+  MB_PB_MAKE_PBS                  = 8192
+  MB_PB_CALC_EMPTY_GENES          = 8192
+  MB_MAKE_HTO_SCE_OBJECTS         = 8192
   MB_MAKE_SUBSET_SCES             = 8192
-  MB_ZOOM_RENDER_TEMPLATE_RMD     = 4096
+  
 
   # change defaults if specified
   if ('resources' in config) and (config['resources'] is not None):
@@ -954,14 +952,10 @@ def get_resource_parameters(config):
       MB_PB_MAKE_PBS                  = config['resources']['mb_pb_make_pbs']
     if 'mb_pb_calc_empty_genes' in config['resources']:
       MB_PB_CALC_EMPTY_GENES          = config['resources']['mb_pb_calc_empty_genes']
-    if 'mb_zoom_run_zoom' in config['resources']:
-      MB_ZOOM_RUN_ZOOM                = config['resources']['mb_zoom_run_zoom']
-    if 'mb_zoom_render_template_rmd' in config['resources']:
-      MB_ZOOM_RENDER_TEMPLATE_RMD     = config['resources']['mb_zoom_render_template_rmd']
-    if 'mb_make_subset_sces'         in config['resources']:
-      MB_MAKE_SUBSET_SCES             = config['resources']['mb_make_subset_sces']
     if 'mb_make_hto_sce_objects' in config['resources']:
       MB_MAKE_HTO_SCE_OBJECTS         = config['resources']['mb_make_hto_sce_objects']
+    if 'mb_make_subset_sces' in config['resources']:
+      MB_MAKE_SUBSET_SCES             = config['resources']['mb_make_subset_sces']
 
   return RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
     MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
@@ -969,8 +963,7 @@ def get_resource_parameters(config):
     MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, \
     MB_RUN_MARKER_GENES, MB_RENDER_HTMLS, \
     MB_LABEL_CELLTYPES, \
-    MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, MB_MAKE_HTO_SCE_OBJECTS, \
-    MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD, MB_MAKE_SUBSET_SCES
+    MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, MB_MAKE_HTO_SCE_OBJECTS, MB_MAKE_SUBSET_SCES
 
 
 def make_hvgs_input_df(DEMUX_TYPE, SAMPLE_VAR, runs, ambient_outs_yamls, SAMPLE_MAPPING, FULL_TAG, DATE_STAMP, hvg_dir):

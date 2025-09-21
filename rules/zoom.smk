@@ -40,8 +40,7 @@ RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
   MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, \
   MB_RUN_MARKER_GENES, MB_RENDER_HTMLS, \
   MB_LABEL_CELLTYPES, \
-  MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, MB_MAKE_HTO_SCE_OBJECTS, \
-  MB_ZOOM_RUN_ZOOM, MB_ZOOM_RENDER_TEMPLATE_RMD, MB_MAKE_SUBSET_SCES = \
+  MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, MB_MAKE_HTO_SCE_OBJECTS, MB_MAKE_SUBSET_SCES = \
   get_resource_parameters(config)
 ZOOM_NAMES, ZOOM_PARAMS_DICT, ZOOM_NAMES_SUBSET = \
   get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, 
@@ -624,7 +623,7 @@ rule render_html_zoom:
   conda: 
     '../envs/rlibs.yaml'
   resources:
-    mem_mb =  lambda wildcards, attempt: attempt * 8192
+    mem_mb =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   shell: """
     template_f=$(realpath resources/rmd_templates/zoom.Rmd.template)
     rule="zoom"
