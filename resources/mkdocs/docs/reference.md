@@ -281,19 +281,6 @@ This is an example config file for {{sc}} with all parameters and their default 
       cell_subset_2: /path/to/cell_subset_2_zoom_params.yaml
       cell_subset_3: /path/to/cell_subset_3_zoom_params.yaml
     resources:
-      mb_run_mapping: 8192
-      mb_save_alevin_to_h5: 8192
-      mb_run_ambient: 32768
-      mb_run_hvgs: 8192
-      mb_run_scdblfinder: 4096
-      mb_combine_scdblfinder_outputs: 8192
-      mb_run_harmony: 16384
-      mb_run_marker_genes: 16384
-      mb_html_marker_genes: 8192
-      mb_lbl_label_celltypes: 16384
-      mb_lbl_save_subset_sces: 16384
-      mb_lbl_render_template_rmd: 4096
-    resources:
       retries: 3
       mb_run_mapping: 8192
       mb_save_alevin_to_h5: 8192
@@ -378,7 +365,6 @@ sample_3:
 * `cb_force_low_count_threshold`: forces the `--low-count-threshold` `CellBender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
 * `cb_force_learning_rate`: Forces the `--learning-rate` `CellBender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
 * `cb_posterior_batch_size`: Value of the `--posterior-batch-size` parameter; applicable only if `ambient_method` is `cellbender` and `cellbender_version` is `v0.3.2`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
-
 
 
 ##### qc
