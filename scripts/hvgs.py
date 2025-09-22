@@ -211,7 +211,7 @@ def _calculate_feature_stats(sparse_csr, features, rowdata_f):
 
 
 # minor modifiction of scanpy _sum_and_sum_squares_clipped
-def calculate_sum_and_sum_squares_cilipped(sparse_csr, estim_vars_df):
+def calculate_sum_and_sum_squares_clipped(sparse_csr, estim_vars_df):
   # convert to column format, get values we need
   csc       = sparse_csr.tocsc()
   indices   = csc.indices
@@ -407,7 +407,10 @@ def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, csr_f, rowdata_f
   sparse_csr, features, _ = read_full_csr(csr_f)
 
   # calculate stats
-  stats_df = calculate_sum_and_sum_squares_cilipped(sparse_csr, estim_vars_df)
+  stats_df  = calculate_sum_and_sum_squares_clipped(sparse_csr, estim_vars_df)
+
+  # add normalised variance
+  stats_df  = _calculate_standardized_variance(stats_df)
 
   # save
   stats_df.to_csv(std_var_stats_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
@@ -468,8 +471,9 @@ def calculate_mean_var_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_sta
   return
 
 
-def calculate_std_var_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, std_var_stats_f, estim_vars_f, chunk_num, hvg_method,
-              chunk_size=2000, group_var=None, group=None, n_cores = 8):
+def calculate_std_var_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, 
+  std_var_stats_f, estim_vars_f, chunk_num, hvg_method, chunk_size = 2000, group_var = None, 
+  group = None, n_cores = 8):
   
   files, total, start_row, end_row = get_chunk_params(
     hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f,
@@ -509,11 +513,14 @@ def calculate_std_var_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smp
 
   # calculate stats 
   chunk_estim_vars = estim_vars_df[
-  (estim_vars_df['group'] == group) & 
-  (estim_vars_df['ensembl_id'].isin(features))
+    (estim_vars_df['group'] == group) & 
+    (estim_vars_df['ensembl_id'].isin(features))
   ]
 
-  merged_chunk_stats = calculate_sum_and_sum_squares_cilipped(merged_chunk, chunk_estim_vars)
+  merged_chunk_stats  = calculate_sum_and_sum_squares_clipped(merged_chunk, chunk_estim_vars)
+
+  # add normalised variance
+  merged_chunk_stats  = _calculate_standardized_variance(merged_chunk_stats)
 
   # save
   merged_chunk_stats.to_csv(std_var_stats_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
@@ -534,14 +541,16 @@ def _calculate_standardized_variance(df):
 
 
 def _rank_genes(ranking_df, n_hvgs):
-  # sort and rank genes
-  norm_gene_vars = ranking_df['variances_norm'].to_numpy()
-  
-  ranked_norm_gene_vars = np.argsort(np.argsort(-norm_gene_vars)).astype(float)
-  ranked_norm_gene_vars[ranked_norm_gene_vars >= n_hvgs] = np.nan
-  ma_ranked = np.ma.masked_invalid(ranked_norm_gene_vars)
+  # get variance values
+  norm_gene_vars  = ranking_df['variances_norm'].to_numpy()
 
-  return ranked_norm_gene_vars, norm_gene_vars, ma_ranked
+  # give these rank orders
+  gene_ranks      = np.argsort(np.argsort(-norm_gene_vars)).astype(float)
+  # ranked_norm_gene_vars[ranked_norm_gene_vars >= n_hvgs] = np.nan
+  # ma_ranked = np.ma.masked_invalid(ranked_norm_gene_vars)
+
+  # return ranked_norm_gene_vars, norm_gene_vars, ma_ranked
+  return gene_ranks
 
 
 def _process_single_group(stats_df, empty_gs, n_hvgs, exclude_ambient):
@@ -549,40 +558,46 @@ def _process_single_group(stats_df, empty_gs, n_hvgs, exclude_ambient):
   exclude_gs = []
   if exclude_ambient:
     exclude_gs = empty_gs
+  else:
+    exclude_gs = []
+  empty_idx   = stats_df['gene_id'].isin(exclude_gs)
 
-  ranks_df   = stats_df[~stats_df['gene_id'].isin(exclude_gs)]  
   # rank genes
-  ranked_norm_gene_vars, _, _ = _rank_genes(ranks_df, n_hvgs)
+  ranks_df    = stats_df[ ~empty_idx ]
+  gene_ranks  = _rank_genes(ranks_df, n_hvgs)
 
   # create output dataframe
-  out_df = stats_df[['gene_id', 'variances_norm']].copy()
-  out_df['highly_variable_nbatches'] = 1  
-  out_df['highly_variable_rank']   = np.nan
-
-  # assign rankings to nonexcluded genes
-  out_df.loc[~out_df['gene_id'].isin(exclude_gs), 'highly_variable_rank'] = ranked_norm_gene_vars
+  out_df      = stats_df[['gene_id', 'variances_norm']].copy()
+  out_df.loc[ empty_idx, 'highly_variable_nbatches'] = 1
+  out_df.loc[ ~empty_idx, 'highly_variable_rank'] = gene_ranks
+  out_df.loc[ empty_idx, 'highly_variable_nbatches'] = 0
 
   return out_df
 
 
 def _process_multiple_groups(stats_df, group_var, empty_gs, n_hvgs,  exclude_ambient):
-  
-  all_ranked_norm_gene_vars = []
+  # make variables for storing
+  all_gene_ranks = []
   norm_gene_vars_list = []
 
+  # loop through groups
   for group_name, group_df in stats_df.groupby(group_var):
-    ranks_df = _process_single_group(group_df, empty_gs, n_hvgs, exclude_ambient)
-    ranked_norm_gene_vars = ranks_df['highly_variable_rank'].to_numpy()
-    variances       = ranks_df['variances_norm'].to_numpy()
-    all_ranked_norm_gene_vars.append(ranked_norm_gene_vars)
+    # for this group, get ranked genes and variances
+    ranks_df    = _process_single_group(group_df, empty_gs, n_hvgs, exclude_ambient)
+    gene_ranks  = ranks_df['highly_variable_rank'].to_numpy()
+    variances   = ranks_df['variances_norm'].to_numpy()
+
+    # store values
+    all_gene_ranks.append(gene_ranks)
     norm_gene_vars_list.append(variances)
     
   # merge metrics across multiple groups
-  all_ranked_norm_gene_vars = np.array(all_ranked_norm_gene_vars)
-  num_batches_high_var = np.sum((all_ranked_norm_gene_vars < n_hvgs).astype(int), axis=0)
-  median_ranked = np.ma.median(np.ma.masked_invalid(all_ranked_norm_gene_vars), axis=0).filled(np.nan)
-  variances_norm = np.mean(norm_gene_vars_list, axis=0)
+  all_gene_ranks        = np.array(all_gene_ranks)
+  num_batches_high_var  = np.sum((all_gene_ranks < n_hvgs).astype(int), axis=0)
+  median_ranked         = np.median(all_gene_ranks, axis=0)
+  variances_norm        = np.mean(norm_gene_vars_list, axis=0)
 
+  # put into dataframe object
   out_df = stats_df[['gene_id']].drop_duplicates().copy()
   out_df['highly_variable_nbatches'] = num_batches_high_var
   out_df['highly_variable_rank'] = median_ranked
@@ -600,25 +615,24 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, n_hvgs, exclu
   # get stats
   group_var = 'sample_id' if hvg_method == 'sample' else 'group'
   stats_df  = dt.fread(std_var_stats_f).to_pandas()
-  stats_df  = _calculate_standardized_variance(stats_df)
 
+  # find HVGs for each
   if stats_df[group_var].nunique() == 1:
     hvg_df = _process_single_group(stats_df, empty_gs, n_hvgs, exclude_ambient)
   else:
     hvg_df = _process_multiple_groups(stats_df, group_var, empty_gs, n_hvgs, exclude_ambient)
 
-  sort_cols = ["highly_variable_rank", "highly_variable_nbatches"]
-  sort_ascending = [True, False]
 
-  #  label highly variable genes
-  sorted_index = (
-    hvg_df[sort_cols]
-    .sort_values(sort_cols, ascending=sort_ascending, na_position="last")
-    .index
-  )
+  # sort hvg_df nicely
+  sort_cols = ["highly_variable_nbatches", "highly_variable_rank"]
+  sort_ascending = [False, True]
+  hvg_df    = hvg_df.sort_values(sort_cols, ascending = sort_ascending, na_position = "last")
 
+  # finally add label if in top n_hvgs
   hvg_df["highly_variable"] = False
-  hvg_df.loc[sorted_index[: int(n_hvgs)], "highly_variable"] = True
+  hvg_df.iloc[:int(n_hvgs), hvg_df.columns.get_loc("highly_variable")] = True
+  if np.sum(hvg_df["highly_variable"]) != n_hvgs:
+    raise ValueError(f"somehow more than %d HVGs selected")
 
   hvg_df.to_csv(hvg_f, sep='\t', index=False)
   return hvg_df
