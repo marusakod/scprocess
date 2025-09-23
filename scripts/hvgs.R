@@ -54,7 +54,7 @@ plot_hvg_stats_vs_empty_log2fc <- function(hvgs_dt, edger_dt, n_top = 20) {
         ifelse(is_ambient, "hvg_dirty", "hvg_clean"),
         ifelse(is_ambient, "not_dirty", "not_clean") ) %>% factor(levels = names(status_labs)
       )]
-  labels_dt = plot_dt[ order(-hv_n, -mean_var) ] %>% head(n_top) %>% 
+  labels_dt = plot_dt[ order(-mean_var) ] %>% head(n_top) %>% 
     .[, symbol := gene_id %>% str_extract(".+(?=_ENS)") ]
 
   g = ggplot(plot_dt[ order(-status) ]) + 

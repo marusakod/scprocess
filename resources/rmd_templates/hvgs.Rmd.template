@@ -59,7 +59,8 @@ be influenced by ambient RNA. The x-axis represents the `log2fc` values derived 
 step in `scprocess` (see `scprocess` documentation for more details), while the y-axis shows the
 trend-normalized variance calculated using the `Seurat` VST method. Each point represents a gene,
 annotated based on whether it is among the top HVGs and whether it is identified as ambient by the
-ambient gene detection step. Labelled genes are top 20 most variable.
+ambient gene detection step. Labelled genes are top 20 with highest mean variance, 
+including genes that were not included as HVGs because of high expression in empty droplets.
 
 ```{r plot_std_var_vs_empty_log2fc, fig.height = 6, fig.width = 8}
 print(plot_hvg_stats_vs_empty_log2fc(hvgs_dt, edger_dt))
