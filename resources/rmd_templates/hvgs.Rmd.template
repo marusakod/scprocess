@@ -58,7 +58,7 @@ The plot shows the extent to which highly variable genes identified using the `S
 be influenced by ambient RNA. The x-axis represents the `log2fc` values derived from the ambient gene estimation
 step in `scprocess` (see `scprocess` documentation for more details), while the y-axis shows the
 trend-normalized variance calculated using the `Seurat` VST method. Each point represents a gene,
-annotated based on whether it is among the top HVGs and whether it is identified as ambient by the
+annotated based on whether it is among the top HVGs and whether it is identified as "ambient" by the
 ambient gene detection step. Labelled genes are top 20 with highest mean variance, 
 including genes that were not included as HVGs because of high expression in empty droplets.
 
