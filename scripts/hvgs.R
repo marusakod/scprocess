@@ -29,7 +29,7 @@ calc_vst_obj <- function(pb, edger_dt) {
   return(vst_obj)
 }
 
-plot_hvg_stats_vs_empty_log2fc <- function(hvgs_dt, edger_dt, n_top = 10) {
+plot_hvg_stats_vs_empty_log2fc <- function(hvgs_dt, edger_dt, n_top = 20) {
   col_vals  = c(
     hvg_clean = "#1965B0",
     hvg_dirty = "#DC050C",
@@ -42,17 +42,19 @@ plot_hvg_stats_vs_empty_log2fc <- function(hvgs_dt, edger_dt, n_top = 10) {
     not_clean = "not variable, \"clean\"",
     not_dirty = "not variable, \"ambient\""
   )
-  plot_dt   = merge(hvgs_dt, edger_dt, by = "gene_id") %>% 
-    # .[, is_dirty  := (FDR < 0.01) & (logFC > 0) ] %>% 
-    # .[ is.na(FDR), is_dirty := FALSE ] %>% 
+  min_hvg_var = hvgs_dt[ highly_variable == TRUE ]$variances_norm %>% min
+  plot_dt   = merge(hvgs_dt, edger_dt, by = "gene_id", all.x = TRUE) %>% 
+    .[ is.na(FDR), is_ambient := FALSE ] %>% 
+    .[ is.na(FDR), logFC := 0 ] %>% 
     .[, .(gene_id, log2fc = logFC, padj = FDR, 
       hv_n = highly_variable_nbatches, mean_var = variances_norm,
-      is_hvg = highly_variable, is_ambient, 
-      status = ifelse(highly_variable, 
+      is_hvg = highly_variable, is_ambient)] %>% 
+    .[ is_ambient == TRUE, is_hvg := ifelse( mean_var > min_hvg_var, TRUE, FALSE) ] %>% 
+    .[, status := ifelse(is_hvg,
         ifelse(is_ambient, "hvg_dirty", "hvg_clean"),
-        ifelse(is_ambient, "not_dirty", "not_clean") ) %>% factor(levels = names(status_labs))
+        ifelse(is_ambient, "not_dirty", "not_clean") ) %>% factor(levels = names(status_labs)
       )]
-  labels_dt = plot_dt[ order(-hv_n, -mean_var) ] %>% head(n_top) %>% 
+  labels_dt = plot_dt[ order(-mean_var) ] %>% head(n_top) %>% 
     .[, symbol := gene_id %>% str_extract(".+(?=_ENS)") ]
 
   g = ggplot(plot_dt[ order(-status) ]) + 
@@ -61,7 +63,7 @@ plot_hvg_stats_vs_empty_log2fc <- function(hvgs_dt, edger_dt, n_top = 10) {
     geom_vline( xintercept = 0, linewidth = 0.1, colour = 'grey20', alpha = 0.5 ) +
     geom_point( size = 0.2, alpha = 0.5, show.legend = TRUE ) +
     geom_label_repel( data = labels_dt, aes( label = symbol ), 
-      size = 3, max.overlaps = Inf, show.legend = FALSE ) +
+      size = 2, max.overlaps = Inf, show.legend = FALSE, label.padding = 0.1 ) +
     scale_x_continuous( breaks = pretty_breaks() ) +
     scale_y_continuous( breaks = pretty_breaks() ) +
     scale_colour_manual( values = col_vals, breaks = names(status_labs), labels = status_labs, 

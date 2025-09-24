@@ -155,7 +155,7 @@ One of the plots included in the report is a heatmap that displays the expressio
 
 ![markers_heatmap](assets/images/tutorial1_heatmap_markers.png)
 
-From this heatmap, we can hypothesize that clusters cl02 and cl03 correspond to oligodendrocytes, as they exhibit high expression of *Plp1* a gene responsible for myelin formation and a well-established marker for mature oligodendrocytes. In contrast, cluster cl07 likely corresponds to oligodendrocyte precursor cells (OPCs), as it shows high expression of *Cspg4* (also known as *NG2*) and *Pdgfra*, both of which are characteristic markers of OPCs[^1] .
+From this heatmap, we can hypothesize that clusters cl01 and cl04 correspond to oligodendrocytes, as they exhibit high expression of *Plp1* a gene responsible for myelin formation and a well-established marker for mature oligodendrocytes. In contrast, cluster cl06 likely corresponds to oligodendrocyte precursor cells (OPCs), as it shows high expression of *Cspg4* (also known as *NG2*) and *Pdgfra*, both of which are characteristic markers of OPCs[^1] .
 
 In the following section, we will leverage this information to perform subclustering on the identified populations.
 
@@ -164,7 +164,7 @@ In the following section, we will leverage this information to perform subcluste
 To perform subclustering analysis, we first need to create a configuration file each cell population we want to subcluster. In this example, we will create a single file for OPCs and oligodendrocytes, named `config-zoom-oligos_opcs.yaml`, with the following parameters: 
 
 ```yaml
-labels: [cl02, cl03, cl07]
+labels: [cl01, cl04, cl06]
 labels_source: clusters
 cluster_res: 0.2
 ```

@@ -82,7 +82,7 @@ thrshlds_dt = thrshlds_dt[ !is.infinite(cut_point) ]
 ```
 
 ```{r setup_plot_sizes, include = FALSE}
-violin_h    = 0.5
+violin_h    = 0.4
 max_marg_h  = 12
 marg_h      = min((n_samples + 1) * violin_h, max_marg_h)
 ```
