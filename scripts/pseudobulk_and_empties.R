@@ -178,20 +178,18 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
 
 
 .get_one_empty_pb <- function(sample_id, af_mat_f, af_knee_f) {
-  # get full alevin matrix
-  af_mat_SUA  = .get_h5(af_mat_f)
-  af_mat      = .sum_SUA(af_mat_SUA)
   
   # get empty barcodes
   knee_df     = fread(af_knee_f)
   empty_bcs   = knee_df %>%
     .[in_empty_plateau == TRUE, barcode]
   
-  # get empty matrix
-  message('sample ', sample_id, ': extracting empty counts from alevin matrix')
-  assert_that( all(empty_bcs %in% colnames(af_mat)) )
-  empty_mat   = af_mat[, empty_bcs]
-  
+  rm(knee_df)
+
+  # get full alevin matrix
+  empty_mat      = .get_h5(af_mat_f, empty_bcs)
+  empty_mat      = .sum_SUA(af_mat)
+
   # sum over all empties per samples
   empty_pb    = Matrix::rowSums(empty_mat) %>%
     setNames(rownames(empty_mat)) %>%
