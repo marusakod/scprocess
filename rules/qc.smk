@@ -90,8 +90,22 @@ rule run_qc:
     dimred_f     = dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     dbl_f        = dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'    
   params:
-    all_smpls_str = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[0],
-    sce_fs_str    = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[1]
+    all_smpls_str   = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[0],
+    sce_fs_str      = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[1],
+    mito_str        = AF_MITO_STR,
+    exclude_mito    = EXCLUDE_MITO,
+    hard_min_counts = QC_HARD_MIN_COUNTS,
+    hard_min_feats  = QC_HARD_MIN_FEATS,
+    hard_max_mito   = QC_HARD_MAX_MITO,
+    min_counts      = QC_MIN_COUNTS,
+    min_feats       = QC_MIN_FEATS,
+    min_mito        = QC_MIN_MITO,
+    max_mito        = QC_MAX_MITO,
+    min_splice      = QC_MIN_SPLICE,
+    max_splice      = QC_MAX_SPLICE,
+    sample_var      = SAMPLE_VAR,
+    demux_type      = DEMUX_TYPE,
+    dbl_min_feats   = DBL_MIN_FEATS
   threads: 4
   retries: RETRIES
   resources:
@@ -118,20 +132,22 @@ rule run_qc:
           coldata_f      = '{output.coldata_f}', \
           dimred_f       = '{output.dimred_f}', \
           dbl_f		       = '{output.dbl_f}', \
-          mito_str       = '{AF_MITO_STR}', \
-          exclude_mito   = '{EXCLUDE_MITO}', \
-          hard_min_counts= {QC_HARD_MIN_COUNTS}, \
-          hard_min_feats = {QC_HARD_MIN_FEATS}, \
-          hard_max_mito  = {QC_HARD_MAX_MITO}, \
-          min_counts     = {QC_MIN_COUNTS}, \
-          min_feats      = {QC_MIN_FEATS}, \
-          min_mito       = {QC_MIN_MITO}, \
-          max_mito       = {QC_MAX_MITO}, \
-          min_splice     = {QC_MIN_SPLICE}, \
-          max_splice     = {QC_MAX_SPLICE}, \
-          sample_var     = '{SAMPLE_VAR}', \
-          demux_type     = '{DEMUX_TYPE}', \
-          dbl_min_feats  = {DBL_MIN_FEATS})"
+          mito_str       = '{params.mito_str}', \
+          exclude_mito   = '{params.exclude_mito}', \
+          hard_min_counts= {params.hard_min_counts}, \
+          hard_min_feats = {params.hard_min_feats}, \
+          hard_max_mito  = {params.hard_max_mito}, \
+          min_counts     = {params.min_counts}, \
+          min_feats      = {params.min_feats}, \
+          min_mito       = {params.min_mito}, \
+          max_mito       = {params.max_mito}, \
+          min_splice     = {params.min_splice}, \
+          max_splice     = {params.max_splice}, \
+          sample_var     = '{params.sample_var}', \
+          demux_type     = '{params.demux_type}', \
+          dbl_min_feats  = {params.dbl_min_feats} \
+        )"
+
     """
 
 

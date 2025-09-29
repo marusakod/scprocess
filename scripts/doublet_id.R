@@ -204,7 +204,7 @@ scdblfinder_diagnostic_plot <- function(s, sc_dbl_dt, dimred_dt) {
     theme_bw() +
     theme(
       panel.grid = element_blank(),
-      axis.text = element_blank(),
+      axis.text = element_blank(), axis.ticks = element_blank(),
       aspect.ratio = 1,
       legend.position = 'right'
       ) +
@@ -227,7 +227,7 @@ scdblfinder_diagnostic_plot <- function(s, sc_dbl_dt, dimred_dt) {
     theme(
       panel.grid = element_blank(),
       title = element_text(''),
-      axis.text = element_blank(),
+      axis.text = element_blank(), axis.ticks = element_blank(),
       aspect.ratio = 1,
       legend.position = 'right'
       )
@@ -244,7 +244,7 @@ scdblfinder_diagnostic_plot <- function(s, sc_dbl_dt, dimred_dt) {
     theme(
       panel.grid = element_blank(),
       title = element_text(''),
-      axis.text = element_blank(),
+      axis.text = element_blank(), axis.ticks = element_blank(),
       aspect.ratio = 1,
       legend.position = 'right'
       )
@@ -261,7 +261,7 @@ scdblfinder_diagnostic_plot <- function(s, sc_dbl_dt, dimred_dt) {
     theme_bw() +
     theme(
       panel.grid = element_blank(),
-      axis.text = element_blank(),
+      axis.text = element_blank(), axis.ticks = element_blank(),
       aspect.ratio = 1,
       legend.position = 'right')
 
@@ -277,7 +277,7 @@ scdblfinder_diagnostic_plot <- function(s, sc_dbl_dt, dimred_dt) {
     theme_bw() +
     theme(
       panel.grid = element_blank(),
-      axis.text = element_blank(),
+      axis.text = element_blank(), axis.ticks = element_blank(),
       aspect.ratio = 1,
       legend.position = 'right'
       )
@@ -293,7 +293,7 @@ scdblfinder_diagnostic_plot <- function(s, sc_dbl_dt, dimred_dt) {
     theme_bw() +
     theme(
       panel.grid = element_blank(),
-      axis.text = element_blank(),
+      axis.text = element_blank(), axis.ticks = element_blank(),
       aspect.ratio = 1,
       legend.position = 'right'
       )

@@ -192,4 +192,3 @@ dependencies:
   - yte=1.8.1
   - zstandard=0.23.0
   - zstd=1.5.7
-prefix: /home/macnairw/scratch/conda/envs/scprocess

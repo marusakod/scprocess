@@ -20,7 +20,10 @@ gsea_regex  = "^(HALLMARK_|GOBP_|GOCC_|GOMF_|BIOCARTA_|REACTOME_|KEGG_)(.+)"
 calculate_marker_genes <- function(integration_f, sces_yaml_f, pb_f, mkrs_f, pb_hvgs_f,
   fgsea_go_bp_f = "", fgsea_go_cc_f = "", fgsea_go_mf_f = "", fgsea_paths_f = "", fgsea_hlmk_f = "",
   species, gtf_dt_f, gsea_dir, sel_res, min_cl_size, min_cells,
-  not_ok_re, min_cpm_go, max_zero_p, gsea_cut, n_cores = 4) {
+  not_ok_re, min_cpm_go, max_zero_p,  gsea_cut, zoom = FALSE, n_cores = 4) {
+  
+  zoom = as.logical(zoom)
+  
   # check some inputs
   assert_that(
     is.character(sces_yaml_f),
@@ -56,7 +59,7 @@ calculate_marker_genes <- function(integration_f, sces_yaml_f, pb_f, mkrs_f, pb_
   # make_pb_object
   message("  making pseudobulk object")
   pb   = make_pseudobulk_object(pb_f, integration_f, sces_yaml_f, sel_res,
-    min_cl_size = min_cl_size, agg_fn = "sum", n_cores = n_cores)
+    min_cl_size = min_cl_size, agg_fn = "sum", zoom = zoom, n_cores = n_cores)
 
   # calc cpms
   message("  calculating logCPMs")
@@ -76,31 +79,27 @@ calculate_marker_genes <- function(integration_f, sces_yaml_f, pb_f, mkrs_f, pb_
     n_cores = n_cores)
 
   # do GSEA only if species is human or mouse
-  if(species %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){
-  message("  running FGSEA")
-  fgsea_fs        = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f)
-  names(fgsea_fs) = str_extract(fgsea_fs, "(go_bp|go_cc|go_mf|paths|hlmk)")
+  if (species %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) {
+    message("  running FGSEA")
+    fgsea_fs    = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f)
+    names(fgsea_fs) = str_extract(fgsea_fs, "(go_bp|go_cc|go_mf|paths|hlmk)")
 
+    # get genesets, check they match expected files
+    gsets_list  = get_fgsea_genesets(gsea_dir, species)
+    assert_that( all(names(fgsea_fs) == names(gsets_list)) )
 
-  # get genesets, check they match expected files
-  gsets_list      = get_fgsea_genesets(gsea_dir, species)
-  assert_that( all(names(fgsea_fs) == names(gsets_list)) )
-
-  # restrict slightly
-  mkrs_tmp  = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>%
-    .[ logcpm.sel > log(min_cpm_go + 1) ] %>%
-    .[ (n_zero/n_cl < max_zero_p) | (logFC < 0) ]
-
-
-  calc_fgsea_dt(gsets_list, fgsea_fs, mkrs_tmp, gsea_cut, gsea_var = "z_score",
-    n_cores = n_cores)
+    # restrict slightly
+    mkrs_tmp    = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>%
+      .[ logcpm.sel > log(min_cpm_go + 1) ] %>%
+      .[ (n_zero/n_cl < max_zero_p) | (logFC < 0) ]
+    calc_fgsea_dt(gsets_list, fgsea_fs, mkrs_tmp, gsea_cut, gsea_var = "z_score",
+      n_cores = n_cores)
   }
   
   message("done!")
 }
 
 get_fgsea_genesets <- function(gsea_dir, species) {
-
   if (species %in% c("human_2024","human_2020")) {
     gsets_list  = list(
       go_bp   = "c5.go.bp.v2023.1.Hs.symbols.gmt",
@@ -131,23 +130,27 @@ get_fgsea_genesets <- function(gsea_dir, species) {
 }
 
 make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, 
-  min_cl_size = 1e2, agg_fn = c("sum", "prop.detected"), n_cores = 8) {
-  
+  min_cl_size = 1e2, agg_fn = c("sum", "prop.detected"), zoom = FALSE, n_cores = 8) {
+  # check inputs
   agg_fn      = match.arg(agg_fn)
 
+  # load up clusters
   message('    loading integration output')
-  int_dt     = fread(integration_f) %>%
+  int_dt     = fread(integration_f)
+  if (zoom == FALSE) {
     #exclude doublets
-    .[is_dbl == FALSE & in_dbl_cl == FALSE]
+    int_dt = int_dt %>%
+      .[ (is_dbl == FALSE) & (in_dbl_cl == FALSE) ]
+  }
 
-  message('    excluding tiny clusters')
-  
+  # exclude tiny clusters
+  message('    excluding tiny clusters')  
   cl_var      = paste0("RNA_snn_res.", sel_res)
   assert_that( cl_var %in% names(int_dt))
   cl_ns       = int_dt[[ cl_var ]] %>% table
   keep_cls    = names(cl_ns)[ cl_ns >= min_cl_size ]
   int_dt     = int_dt %>%
-    .[get(cl_var) %in% keep_cls]
+    .[ get(cl_var) %in% keep_cls ]
   
   # make pseudobulks for selected clusters for each sample
   message('    making pseudobulk counts for individual samples')
@@ -156,20 +159,24 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
   
   # set up cluster
   bpparam     = MulticoreParam(workers = n_cores, tasks = length(samples))  
-  pb_ls       = bplapply(samples, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
-    sce_paths = sce_paths, cl_var = cl_var, 
-    keep_cls = keep_cls, agg_fn = agg_fn)
+  if (zoom) {
+    pb_ls       = bplapply(samples, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam, 
+      sce_paths = sce_paths, int_dt = int_dt, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
+  } else {
+    pb_ls       = bplapply(samples, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
+      sce_paths = sce_paths, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
+  }
   
   message('    merging pseudobulk counts')
   assay_ls    = lapply(keep_cls, function(cl){
-    assays    = lapply(pb_ls, function(pb) assay(pb, cl))
-    assay_mat = Reduce(cbind, assays)  
+    assays      = lapply(pb_ls, function(pb) assay(pb, cl))
+    assay_mat   = Reduce(cbind, assays)  
     return(assay_mat)
     }) %>% setNames(keep_cls)
   
   n_cells_ls = sapply(pb_ls, function(pb) int_colData(pb)$n_cells)
   
-  pb = SingleCellExperiment(assays = assay_ls)
+  pb          = SingleCellExperiment(assays = assay_ls)
   pb@metadata$agg_pars = list(
     assay = "counts", 
     by    = c("cluster", "sample_id"),
@@ -184,7 +191,6 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
 
   return(pb)
 }
-
 
 .make_one_pseudobulk <- function(sel_s, sce_paths, cl_var, keep_cls, agg_fn) {
   message(sel_s)
@@ -213,7 +219,45 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res,
   return(pb)
 }
 
-
+.make_one_zoom_pseudobulk <- function(sel_s, sce_paths, int_dt, cl_var, keep_cls, agg_fn) {
+  message(sel_s)
+  sce_f       = sce_paths[[sel_s]]
+  tmp_sce     = readRDS(sce_f)
+  smpl_int_dt = copy(int_dt) %>% .[ sample_id == sel_s ]
+  
+  # remove umap and clustering cols from before and add new ones
+  rm_cols = c('UMAP1', 'UMAP2', str_subset(names(colData(tmp_sce)), "RNA_snn_res"))
+  new_coldata = colData(tmp_sce) %>% as.data.table %>%
+    .[ , (rm_cols) := NULL] %>%
+    as.data.frame() %>%
+    set_rownames(.$cell_id)
+  
+  colData(tmp_sce) = DataFrame(new_coldata)
+  
+  assert_that(all(smpl_int_dt$cell_id %in% colnames(tmp_sce)))
+  # reorder cells in sce
+  tmp_sce = tmp_sce[, smpl_int_dt$cell_id]
+  
+  # add clusters to sce
+  colData(tmp_sce)[["cluster"]] = smpl_int_dt[[cl_var]] 
+  
+  pb  = aggregateData_datatable(tmp_sce, by_vars = c("cluster", "sample_id"), 
+                                fun = agg_fn, all_cls = keep_cls)
+  
+  # make sure all assays are in the object, if not, add columns with zeros
+  missing_assays = setdiff(keep_cls, assayNames(pb))  
+  if ( length(missing_assays) > 0 ) {
+    message('  adding assays with zero counts')
+    for(assay in missing_assays){
+      missing_counts  = Matrix(0, nrow = nrow(pb), ncol = 1, 
+                               sparse = FALSE, dimnames = list(rownames(pb), sel_s))
+      assay(pb, assay) = missing_counts
+    }
+  }
+  
+  message('done!')
+  return(pb)
+}
 
 aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
   fun = c("sum", "mean", "median", "prop.detected", "num.detected"), all_cls) {
@@ -320,7 +364,6 @@ aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
   return(pb)
 }
 
-
 make_logcpms_all_rmd <- function(pb, lib_size_method = c("edger", "raw", "pearson",
                                                      "vst", "rlog"), exc_regex = NULL, min_cells = 10, n_cores = 4) {  
   # check inputs
@@ -355,8 +398,6 @@ make_logcpms_all_rmd <- function(pb, lib_size_method = c("edger", "raw", "pearso
   
   return(logcpms_all)
 }
-
-
 
 make_logcpms_all <- function(pb, lib_size_method = c("edger", "raw", "pearson",
   "vst", "rlog"), exc_regex = NULL, min_cells = 10, n_cores = 4) {  
@@ -627,16 +668,8 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt,
   # run DE
   if (method == "edger") {
     # calculate dispersion
-    if (length(cl_ls) > 10) {
-      message("  estimating dispersion without design matrix (bc super slow when many clusters)")
-      dge       = estimateDisp(dge)
-    } else if (length(unique(des_all$sample_id)) == 1) {
-      message("  estimating dispersion without design matrix, because only one sample")
-      dge       = estimateDisp(dge)
-    } else {
-      message("  estimating dispersion with design matrix")
-      dge       = estimateDisp(dge, design = mm_all)
-    }
+    message("  estimating dispersion without design matrix")
+    dge       = estimateDisp(dge)
 
     # fit model to each cluster
     message('  run edgeR on each cluster')
@@ -796,7 +829,7 @@ calc_fgsea_dt <- function(gsets_list, fgsea_fs, markers_dt, gsea_cut,
     pathways  = gmtPathways(paths_f)
 
     # set up parallel
-    fgsea_dt  = lapply(seq_along(dt_list), function(i) {
+    fgsea_dt  = bplapply(seq_along(dt_list), function(i) {
      
       # get labels
       dt      = dt_list[[i]]
@@ -807,7 +840,7 @@ calc_fgsea_dt <- function(gsets_list, fgsea_fs, markers_dt, gsea_cut,
         .[ !is.null(leadingEdge) ]
 
       return(tmp_dt)
-      }) %>% rbindlist
+      }, BPPARAM = bpparam) %>% rbindlist
 
     # save results
     fwrite(fgsea_dt, file = fgsea_f)
@@ -1576,22 +1609,31 @@ plot_metadata_over_umap <- function(meta_dt, int_dt, meta_var) {
     scale_fill_distiller( palette = "RdBu", trans = "log10", limits = c(0.0001, 0.01) ) +
     facet_wrap( ~ meta_var ) +
     theme_classic() +
-    theme( aspect.ratio = 1, axis.text = element_blank() ) +
+    theme( aspect.ratio = 1, axis.text = element_blank(), axis.ticks = element_blank() ) +
     labs( fill = sprintf("%s\ndensity", meta_var) )
 
   return(g)
 }
 
-plot_clusters_annotated_by_densities = function(int_dt, v) {
+plot_clusters_annotated_by_densities = function(int_dt, v, plot_ratio = sqrt(2)) {
+  # check input
   assert_that( v %in% names(int_dt) )
+
+  # define rows and cols
+  n_vals    = unique(int_dt[[v]]) %>% length
+  n_rows    = sqrt(n_vals / plot_ratio) %>% floor
+  n_cols    = ceiling(n_vals / n_rows)
+
+  # do plot
   g = ggplot(int_dt) +
     aes( x = UMAP1, y = UMAP2 ) +
-    geom_bin2d( bins = 50, aes(fill = after_stat( density ) %>% multiply_by(100) %>% 
-      pmin(1) %>% pmax(0.01)) ) +
+    geom_bin2d( bins = 50, 
+      aes(fill = after_stat( density ) %>% multiply_by(100) %>% pmin(1) %>% pmax(0.01)) ) +
     scale_fill_distiller( palette = "RdBu", trans = "log10", limits = c(0.01, 1) ) +
-    facet_wrap( sprintf("~ %s", v) ) +
+    facet_wrap( sprintf("~ %s", v), nrow = n_rows, ncol = n_cols ) +
     theme_classic() +
-    theme( axis.text = element_blank(), panel.grid = element_blank(), aspect.ratio = 1 ) +
+    theme( axis.text = element_blank(), axis.ticks = element_blank(), 
+      panel.grid = element_blank(), aspect.ratio = 1 ) +
     labs( fill = "pct. of\nsample" )
 
   return(g)
@@ -1631,8 +1673,9 @@ plot_selected_genes_umap <- function(sel_dt, cols_to_rows = 1.25) {
       guide = guide_legend( override.aes = list(size = 3) )) +
     facet_wrap( ~ symbol, ncol = n_col, nrow = n_row ) +
     theme_bw() +
-    theme( axis.text = element_blank(), panel.grid = element_blank(),
-      strip.background = element_rect( fill = "white" ), aspect.ratio = 1 ) +
+    theme( axis.text = element_blank(), axis.ticks = element_blank(), 
+      panel.grid = element_blank(), strip.background = element_rect( fill = "white" ), 
+      aspect.ratio = 1 ) +
     labs( colour = "scaled log\nexpression\n(max val. = 1)" )
 }
 

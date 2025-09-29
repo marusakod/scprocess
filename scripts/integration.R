@@ -266,24 +266,7 @@ normalize_hvg_mat = function(hvg_mat, coldata, exclude_mito, scale_f = 10000) {
   return(dbl_data)
 }
 
-# .annotate_sce_w_harmony <- function(sce_dbl, hmny_ok) {
-#   # restrict to just ok cells
-#   sce       = sce_dbl[ , hmny_ok$cell_id ]
-# 
-#   # get useful harmony variables
-#   hmny_vs   = c('UMAP1', 'UMAP2', str_subset(names(hmny_ok), "RNA_snn_res"))
-# 
-#   # add these to sce object
-#   for (v in hmny_vs) {
-#     if (str_detect(v, "RNA_snn_res")) {
-#       colData(sce)[[ v ]] = hmny_ok[[ v ]] %>% factor
-#     } else {
-#       colData(sce)[[ v ]] = hmny_ok[[ v ]]
-#     }
-#   }
-# 
-#   return(sce)
-# }
+
 
 plot_umap_density <- function(input_dt) {
   # eps         = 0.001
@@ -299,7 +282,7 @@ plot_umap_density <- function(input_dt) {
     scale_x_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     scale_y_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     theme_bw() +
-    theme( panel.grid = element_blank(), axis.text = element_blank(), aspect.ratio = 1 )
+    theme( panel.grid = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), aspect.ratio = 1 )
 
   return(g)
 }
@@ -321,7 +304,7 @@ plot_umap_doublets <- function(input_dt) {
     scale_x_continuous( breaks = pretty_breaks() ) +
     scale_y_continuous( breaks = pretty_breaks() ) +
     theme_bw() +
-    theme( panel.grid = element_blank(), axis.text = element_blank(), aspect.ratio = 1 )
+    theme( panel.grid = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), aspect.ratio = 1 )
 
   return(g)
 }
@@ -389,7 +372,8 @@ plot_umap_cluster <- function(umap_dt, clust_dt, name) {
     scale_x_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     scale_y_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     theme_bw() +
-    theme( panel.grid = element_blank(), axis.text = element_blank(), aspect.ratio = 1 ) +
+    theme( panel.grid = element_blank(), aspect.ratio = 1, 
+      axis.ticks = element_blank(), axis.text = element_blank() ) +
     labs( colour = name )
 
   return(g)
@@ -439,8 +423,8 @@ plot_cluster_entropies <- function(input_dt, what = c("norm", "raw")) {
     theme_bw() +
     theme( panel.grid = element_blank() ) +
     labs(
-      x     = 'entropy (high when clusters even across samples)',
-      y     = 'max. pct. of one sample (high when concentrated in few samples)',
+      x     = 'entropy',
+      y     = 'max. pct. of one sample',
       size  = 'total # cells'
     )
 
@@ -477,10 +461,10 @@ plot_cluster_qc_distns <- function(qc_melt, clust_dt, name, min_cl_size = 1e2) {
   }
 
   # define breaks
-  log_brks    = c(1e1, 2e1, 5e1, 1e2, 2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4) %>%
+  log_brks    = c(1e1, 2e1, 5e1, 1e2, 2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5, 2e5, 5e5) %>%
     log10
   log_labs    = c("10", "20", "50", "100", "200", "500",
-    "1k", "2k", "5k", "10k", "20k", "50k")
+    "1k", "2k", "5k", "10k", "20k", "50k", "100k", "200k", "500k")
   logit_brks  = c(1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 0.10, 0.30,
     0.50, 0.70, 0.90, 0.97, 0.99) %>% qlogis
   logit_labs  = c("0.01%", "0.03%", "0.1%", "0.3%", "1%", "3%", "10%", "30%",
@@ -490,19 +474,19 @@ plot_cluster_qc_distns <- function(qc_melt, clust_dt, name, min_cl_size = 1e2) {
 
   # plot
   g = ggplot(plot_dt) + aes( x = cluster, y = qc_val, fill = cluster ) +
-    geom_violin() +
+    geom_violin(kernel = 'rectangular', adjust = 0.5, scale = 'width', width = 0.8, colour = NA) +
     scale_fill_manual( values = cl_cols, guide = "none" ) +
     facet_grid( qc_full ~ ., scales = 'free_y' ) +
     facetted_pos_scales(
       y = list(
-        qc_full == "library size"    ~
+        qc_full == "no. of UMIs"    ~
           scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_full == "no. of features" ~
+        qc_full == "no. of genes" ~
           scale_y_continuous(breaks = log_brks, labels = log_labs),
         qc_full == "mito pct."        ~
           scale_y_continuous(breaks = logit_brks, labels = logit_labs),
         qc_full == "spliced pct."     ~
-          scale_y_continuous(breaks = splice_brks, labels = splice_labs)
+          scale_y_continuous(breaks = logit_brks, labels = logit_labs)
         )
       ) +
     theme_bw() +

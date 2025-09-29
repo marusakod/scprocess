@@ -122,10 +122,19 @@ load_gene_biotypes <- function(gtf_dt_f) {
   return(biotypes_dt)
 }
 
-print_top_markers <- function(mkrs_dt, min_cpm = 50, top_n = 10, max_fdr = 0.05) {
-  mkrs_dt[ !str_detect(gene_type, "(lincRNA|lncRNA|pseudogene)") ] %>%
-    .[ (FDR < max_fdr) & (logFC > 0) & (logcpm.sel > log(min_cpm + 1)) ] %>% 
-    .[ order(cluster, PValue, -logFC) ] %>% 
+print_top_markers <- function(mkrs_dt, min_cpm = 50, top_n = 10, max_fdr = 0.05, 
+  order_by    = c("pval", "lfc")) {
+  order_by    = match.arg(order_by)
+  show_dt     = mkrs_dt[ !str_detect(gene_type, "(lincRNA|lncRNA|pseudogene)") ] %>%
+    .[ (FDR < max_fdr) & (logFC > 0) & (logcpm.sel > log(min_cpm + 1)) ]
+  if (order_by == "pval") {
+    show_dt     = show_dt %>% 
+      .[ order(cluster, PValue, -logFC) ]
+  } else if (order_by == 'lfc') {
+    show_dt     = show_dt %>% 
+      .[ order(cluster, -logFC) ]    
+  }
+  show_dt %>% 
     .[, .SD[ 1:min(top_n, .N) ], by = cluster ] %>% 
     .[, .(cluster, symbol, 
       CPM = logcpm.sel %>% exp %>% `-`(1) %>% signif(2) %>% round,

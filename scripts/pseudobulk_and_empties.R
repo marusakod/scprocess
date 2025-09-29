@@ -37,8 +37,7 @@ suppressPackageStartupMessages({
 })
 
 
-
-make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset_var = NULL, n_cores = 8) {
+make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset_col = NULL, subset_str = NULL, n_cores = 8) {
   # get files
   sce_fs_ls = yaml::read_yaml(sce_fs_yaml) %>% unlist()
   
@@ -52,10 +51,10 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
   # bpparam       = MulticoreParam(workers = n_cores, tasks = length(sce_fs_ls))
   # on.exit(bpstop(bpparam))
   
-  cell_pbs     = mcmapply( sample_id = names(sce_fs_ls), sce_f = unname(sce_fs_ls),
-                            FUN = .get_one_cells_pb, SIMPLIFY = FALSE,
-                            MoreArgs = list(subset_f = subset_f, subset_var = subset_var), 
-                           mc.cores = n_cores)
+  cell_pbs     = bpmapply( sel_s = names(sce_fs_ls), sce_f = unname(sce_fs_ls),
+    FUN = .get_one_cells_pb, SIMPLIFY = FALSE, BPPARAM = bpparam, 
+    MoreArgs = list(subset_f = subset_f, subset_col = subset_col, subset_str = subset_str)
+    )
   
   # merge sce objects
   pb_sce = Reduce(function(x, y) {cbind(x, y)}, cell_pbs)
@@ -78,45 +77,37 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
 
 
 
-.get_one_cells_pb <- function(sample_id, sce_f, subset_f = NULL, subset_var = NULL, 
+.get_one_cells_pb <- function(sel_s, sce_f, subset_f = NULL, subset_col = NULL, subset_str = NULL, 
                               agg_fn = c("sum", "prop.detected")){
   agg_fn      = match.arg(agg_fn)
   
-  message('    loading sce object for sample ', sample_id)
+  message('    loading sce object for sample ', sel_s)
   sce         = readRDS(sce_f)
   
-  if(!is.null(subset_var)){
-    if(!is.null(subset_f)){
-      subset_dt = fread(subset_f)
-      assert_that(subset_var %in% colnames(subset_dt))
-      assert_that(all(c("cell_id", "sample_id") %in% colnames(subset_dt)))
-      
-      # keep just cells from sample
-      subset_dt = subset_dt[sample_id == sample_id, ] %>%
-        setkey('cell_id')
-    
-      # check that cells match
-      assert_that(setequal(subset_dt$cell_id, colnames(sce)))
-      
-      subset_dt = subset_dt[colnames(sce)]
-      
-      # add subset_var to sce
-      sce$subset = subset_dt[[ subset_var ]]
-    }else{
-      assert_that(subset_var %in% names(colData(sce)))
-      sce$subset = sce[[ subset_var ]]
-    }
-    
-    message('   run aggregateData')
-    pb_mat = .aggregateData_datatable(sce, by_vars = c("subset", "sample_id"), fun = agg_fn)
-    
-  }else{
-    
-  pb_mat = .aggregateData_datatable(sce, by_vars = c("sample_id"), fun = agg_fn)
-  }
+  if(!is.null(subset_f)){
   
+    message('    subsetting sce object')
+    # unpack 
+    subset_vals = str_split(subset_str, pattern = ',') %>% unlist
+    subset_dt = fread(subset_f)
+    assert_that(subset_col %in% colnames(subset_dt))
+    assert_that(all(c("cell_id", "sample_id") %in% colnames(subset_dt)))
+      
+    # keep just cells in sel_s with selected labels
+    subset_dt = subset_dt %>%
+    .[sample_id == sel_s] %>%
+    .[get(subset_col) %in% subset_vals]
+    
+    # subset sce object
+    sce = sce[, subset_dt$cell_id]
+  
+  }
+   
+  message('   running aggregateData')
+  pb_mat = .aggregateData_datatable(sce, by_vars = c("sample_id"), fun = agg_fn)
   pb = SingleCellExperiment( pb_mat, rowData = rowData(sce) )
   
+ return(pb)
 }
 
 
@@ -195,20 +186,18 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
 
 
 .get_one_empty_pb <- function(sample_id, af_mat_f, af_knee_f) {
-  # get full alevin matrix
-  af_mat_SUA  = .get_h5(af_mat_f)
-  af_mat      = .sum_SUA(af_mat_SUA)
   
   # get empty barcodes
   knee_df     = fread(af_knee_f)
   empty_bcs   = knee_df %>%
     .[in_empty_plateau == TRUE, barcode]
   
-  # get empty matrix
-  message('sample ', sample_id, ': extracting empty counts from alevin matrix')
-  assert_that( all(empty_bcs %in% colnames(af_mat)) )
-  empty_mat   = af_mat[, empty_bcs]
-  
+  rm(knee_df)
+
+  # get full alevin matrix
+  empty_mat      = .get_h5(af_mat_f, empty_bcs)
+  empty_mat      = .sum_SUA(af_mat)
+
   # sum over all empties per samples
   empty_pb    = Matrix::rowSums(empty_mat) %>%
     setNames(rownames(empty_mat)) %>%

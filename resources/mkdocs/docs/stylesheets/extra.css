@@ -44,3 +44,9 @@ img[alt="multiplexing"] {
   color: #666;
   margin-top: -10px;
 }
+img[alt="markers_heatmap"] {
+  display: block;
+  margin: 0 auto;
+  width: 850px;
+  height: 700px;
+}

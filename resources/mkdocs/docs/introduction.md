@@ -51,7 +51,7 @@
 
 * #### Marker gene identification
     
-    Assigning meaningful labels to clusters in single-cell data is essential for interpretation of single cell data. This is commonly achieved by examining marker genes for each cluster, identified by comparing the expression profile of each cluster against all others. In {{sc}}, transcript counts are aggregated per cluster within each sample to generate "pseudobulk" values, which are then compared using `edgeR`[^9]. This approach avoids the assumption that individual cells from the same sample are independent, thereby enhancing the statistical reliability of the results. {{sc}} also performs gene set enrichment analysis on all marker genes and includes visualizations of user-defined gene sets in the HTML report.
+    Assigning meaningful labels to clusters in single-cell data is essential for interpretation of single cell data. This is commonly achieved by examining marker genes for each cluster, identified by comparing the expression profile of each cluster against all others. In {{sc}}, transcript counts are aggregated per cluster within each sample to generate "pseudobulk" values, which are then compared using `edgeR`[^9]. This approach avoids the assumption that individual cells from the same sample are independent, thereby enhancing the statistical reliability of the results. For human and mouse datasets {{sc}} also performs gene set enrichment analysis on all marker genes and includes visualizations of user-defined gene sets in the HTML report.
 
 
 ### Optional steps
@@ -68,9 +68,9 @@
 
     - Mouse Brain Classifier: [The molecular cytoarchitecture of the adult mouse brain](https://www.nature.com/articles/s41586-023-06818-7) and [A high-resolution transcriptomic and spatial atlas of cell types in the whole mouse brain](https://www.nature.com/articles/s41586-023-06812-z) [work in progress]
 
-* #### Subclustering - not available at the moment
+* #### Subclustering
 
-    {{sc}} provides a subclustering feature that allows users to delve deeper into selected clusters. This approach is particularly useful when a primary cluster encompasses diverse cell states, developmental stages, or activation states that warrant closer examination. By selecting one or multiple clusters of interest, users can initiate a secondary round of integration and clustering within those specific groups.
+    {{sc}} offers a subclustering feature that enables users to perform a second round of analysis on a specific subset of cells and includes the following steps: generating pseudobulks from selected cells and detecting ambient genes, indentifying higly variable genes, data integration and marker gene identification. Cell subsets can be defined based on user-provided cell type labels, clusters identified during the primary round of {{sc}}, or cell type labels assigned by the XGBoost classifier. This functionality is particularly valuable when a primary cluster or cell type contains diverse cell states, developmental stages, or activation states that warrant more detailed exploration.
 
 <!-- citations -->
 <!-- [Link to paper](). [Link to package](). -->

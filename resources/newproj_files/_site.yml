@@ -2,13 +2,6 @@ name: "proj_template"
 output_dir: ../public
 navbar:
   title: "proj_template"
-  left:
-  - text: Home
-    href: index.html
-  - text: About
-    href: about.html
-  - text: License
-    href: license.html
 output:
   rmdformats::downcute:
     highlight: textmate

@@ -20,13 +20,12 @@ suppressPackageStartupMessages({
   library("strex")
   library("testit")
   library('yaml')
-
 })
 
 # get matrix with (decontx cleaned) cells and a list of barcodes called as cells
 get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, sel_s, af_mat_f, knee_f, 
   cell_calls_method = c('barcodeRanks', 'emptyDrops'), ncores = 4, niters = 1000, hvg_n = 2000,
-  ambient_method = c('none', 'decontx')){
+  ambient_method = c('none', 'decontx')) {
   
   # check inputs
   call_m  = match.arg(cell_calls_method)
@@ -52,7 +51,7 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
   cell_mat = af_mat[, cell_empty_bcs[["cells"]]]
 
   # do ambient correction
-  if(ambient_method == 'none'){
+  if (ambient_method == 'none') {
 
     message("Ambient RNA removal method is 'none'. Saving uncorrected count matrix for ", sel_s )
     # save list of retained barcodes
@@ -61,7 +60,7 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
     # save matrix
     write10xCounts(out_mat_f, cell_mat, version = "3", overwrite = TRUE)
 
-  }else{
+  } else {
     message("Running 'decontx' for ", sel_s)
     # get empty matrix
     empty_mat = af_mat[, cell_empty_bcs[["empty"]]]
@@ -100,17 +99,17 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
 }
 
 call_cells_and_empties <- function(af_mat, knee_dt, ncores = 4, n_iters = 1000, fdr_thr = 0.001,
-  call_method = c('barcodeRanks', 'emptyDrops')){
+  call_method = c('barcodeRanks', 'emptyDrops')) {
   
   # get empty droplets and their indices
   empty_bcs   = knee_dt %>%
     .[in_empty_plateau == TRUE, barcode]  
   empty_idx = which(colnames(af_mat) %in% empty_bcs)
 
-  if(call_method == 'barcodeRanks'){
+  if (call_method == 'barcodeRanks') {
     exp_cells = knee_dt$expected_cells %>% unique
     cell_bcs =  knee_dt$barcode[1: exp_cells]
-  }else{
+  } else {
     # get retain (threshold for the total umi count above which all barcodes are assumed to contain cells)
     knee_1 = knee_dt$knee1 %>% unique
     # get sum of s+u+a counts (instead of this maybe try removing genes with v low expression)
@@ -143,7 +142,7 @@ call_cells_and_empties <- function(af_mat, knee_dt, ncores = 4, n_iters = 1000, 
 }
 
 # sum spliced, unspliced and ambiguous counts for same gene
-.sum_SUA <- function(sua_mat){
+.sum_SUA <- function(sua_mat) {
   types = c('_S$', '_U$', '_A')
   
   mats  = lapply(types, function(t) sua_mat[grepl(t, rownames(sua_mat)), ])
@@ -156,7 +155,7 @@ call_cells_and_empties <- function(af_mat, knee_dt, ncores = 4, n_iters = 1000, 
   )
 
   # remove suffixes from rownames
-  mats = lapply(mats, function(m){
+  mats = lapply(mats, function(m) {
     rownames(m) = str_before_first(rownames(m), pattern = '_')
     m
   })
@@ -164,7 +163,7 @@ call_cells_and_empties <- function(af_mat, knee_dt, ncores = 4, n_iters = 1000, 
   return(mats_sum)
 }
 
-.get_alevin_mx <- function(af_mat_f, sel_s){
+.get_alevin_mx <- function(af_mat_f, sel_s) {
   # get this file
   h5_filt   = H5Fopen(af_mat_f, flags = "H5F_ACC_RDONLY" )
 
@@ -185,64 +184,51 @@ call_cells_and_empties <- function(af_mat, knee_dt, ncores = 4, n_iters = 1000, 
   return(mat)
 }
 
-save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, expected_cells, 
-  ambient_method) {
-
+save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, ambient_method) {
   # read in the yaml file
   amb_yaml = yaml::read_yaml(amb_out_yaml)
 
   # get counts matrix
-  if(ambient_method == 'cellbender'){
-  amb_mat_f = amb_yaml$raw_counts_f
-  }else{
-  amb_mat_f = amb_yaml$filt_counts_f
+  if (ambient_method == 'cellbender') {
+    amb_mat_f   = amb_yaml$raw_counts_f
+  } else {
+    amb_mat_f   = amb_yaml$filt_counts_f
   }
 
   # get alevin counts
-  af_mat = .get_alevin_mx(af_h5_f, '')
+  af_mat      = .get_alevin_mx(af_h5_f, '')
+  af_dt       = .get_usa_dt(af_mat, prefix = 'pre')
 
-  if(ambient_method == 'cellbender'){
+  # get pre and post ambient removal stats
+  if (ambient_method == 'cellbender') {
     # get ranks
-    ranks = barcodeRanks(af_mat) %>% as.data.frame() %>%
-      rownames_to_column('barcode') %>%
-      arrange(rank)
-
-    # get expected barcodes
-    exp_cells = ranks$barcode[1:expected_cells]
+    ranks       = barcodeRanks(af_mat) %>% as.data.frame %>%  
+      as.data.table( keep.rownames = "barcode") %>% .[ order(rank) ]
 
     # get cellbender matrix
-    cb_mat = .get_alevin_mx(amb_mat_f, '')
-
-    # restrict to barcodes that we care about
-    af_filt_mat = af_mat[, exp_cells]
-    cb_filt_mat = cb_mat[, exp_cells]
+    cb_mat      = .get_alevin_mx(amb_mat_f, '')
 
     # sum s/u/a counts for each barcode
-    af_dt = .get_usa_dt(af_filt_mat, prefix = 'af')
-    cb_dt = .get_usa_dt(cb_filt_mat, prefix = 'cb')
+    cb_dt       = .get_usa_dt(cb_mat, prefix = 'post')
 
     # merge together
-    qc_dt = merge(af_dt, cb_dt, by = 'barcode') %>%
-      setkey("barcode") %>% .[ exp_cells ]
+    qc_dt       = merge(af_dt, cb_dt, by = 'barcode')
 
-  }else if(ambient_method == 'decontx'){
+  } else if (ambient_method == 'decontx') {
 
     # get decontx matrix
-    dcx_mat = .get_alevin_mx(amb_mat_f, '')
-    # get same barcodes from raw alevin mat
-    af_filt_mat = af_mat[, colnames(dcx_mat)]
+    dcx_mat     = .get_alevin_mx(amb_mat_f, '')
 
     # sum s/u/a counts for each barcode
-    af_dt = .get_usa_dt(af_filt_mat, prefix = 'af')
-    dcx_dt = .get_usa_dt(dcx_mat, prefix = 'dcx')
+    dcx_dt      = .get_usa_dt(dcx_mat, prefix = 'post')
 
     # merge together
-    qc_dt = merge(af_dt, dcx_dt, by = 'barcode')
+    qc_dt       = merge(af_dt, dcx_dt, by = 'barcode', all.x = TRUE)
 
-  }else{
+  } else if (ambient_method == "none") {
 
-    cell_mat = .get_alevin_mx(amb_mat_f, '')
-    qc_dt = .get_usa_dt(cell_mat, prefix = 'af')
+    # just use full matrix
+    qc_dt       = af_dt
 
   }
 
@@ -330,10 +316,11 @@ get_knee_params <- function(knee_f, sample_var) {
 }
 
 
-plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, bender_priors_df = NULL) {
+plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, bender_priors_df = NULL, show_lines = TRUE) {
   
   s_ord = names(knee_fs)
-  # add knee and inflection to params
+  
+  # Add knee and inflection to params
   knee_data = lapply(s_ord, function(s) {
     knee_f = knee_fs[[s]]
     x = fread(knee_f) %>% as.data.table
@@ -349,7 +336,7 @@ plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, b
   
   lines_knees = ambient_knees_df %>% as.data.table %>% 
     .[ get(sample_var) %in% s_ord, ..knee_vars] %>%
-    setnames( c("inf1", "inf2"), c("shin1", "shin2") ) %>% 
+    setnames( c("inf1", "inf2", "total_droplets_included"), c("shin1", "shin2", "empty_plateau_middle") ) %>% 
     melt(id.vars = sample_var) %>%
     .[, `:=`(
       axis = fifelse(variable %in% c('knee1', 'knee2', 'shin1', 'shin2'), 'y', 'x'),
@@ -382,33 +369,37 @@ plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, b
   
   # set factor levels for sample_var so the samples will appear in the right order in the plot
   knee_data[[sample_var]] = factor(knee_data[[sample_var]], levels = s_ord)
-  hlines[[sample_var]] = factor(hlines[[sample_var]], levels = s_ord)
-  vlines[[sample_var]] = factor(vlines[[sample_var]], levels = s_ord)
+  if (show_lines) {
+    hlines[[sample_var]] = factor(hlines[[sample_var]], levels = s_ord)
+    vlines[[sample_var]] = factor(vlines[[sample_var]], levels = s_ord)
+  }
   
-  p <- ggplot(knee_data) +
-    aes( x = bc_rank, y = lib_size ) +
+  p = ggplot(knee_data) +
+    aes(x = bc_rank, y = lib_size) +
     geom_line(linewidth = 0.3, color = '#283747') +
-    geom_hline(data = hlines,
-               mapping = aes(yintercept = value, color = type)) +
-    geom_vline(data = vlines,
-               mapping = aes(xintercept = value, color = type)) +
-    geom_text_repel(data = hlines, mapping = aes(y = value, x = 10,  label = variable),
-                    size = 2.5) +
-    geom_text_repel(data = vlines, mapping = aes(x = value, y = 100, label = variable),
-                    size = 2.5, angle = 90) +
     facet_wrap( ~ get(sample_var), ncol = 4 ) +
-    scale_x_log10(labels = p_labels,
-                  breaks = p_breaks) +
-    scale_y_log10(labels = p_labels,
-                  breaks = p_breaks) +
+    scale_x_log10(labels = p_labels, breaks = p_breaks) +
+    scale_y_log10(labels = p_labels, breaks = p_breaks) +
     scale_color_manual(
-      # values = c("#FAD510", "#CB2314", "#273046"),
       values = c("#7c4b73", "#88a0dc", "#ab3329"),
       breaks = c('cellbender input\nparameter', 'cellbender intermediate\nparameter',
                  'cellbender prior\nparameter')) +
     theme_classic(base_size = 9) +
-    theme( legend.position = 'none' ) +
+    theme(legend.position = 'none') +
     labs(x = 'barcode rank', y = 'library size', color = NULL)
+  
+  # add lines only if show_lines is TRUE
+  if (show_lines) {
+    p = p +
+      geom_hline(data = hlines,
+                 mapping = aes(yintercept = value, color = type)) +
+      geom_vline(data = vlines,
+                 mapping = aes(xintercept = value, color = type)) +
+      geom_text_repel(data = hlines, mapping = aes(y = value, x = 10, label = variable),
+                      size = 2.5) +
+      geom_text_repel(data = vlines, mapping = aes(x = value, y = 100, label = variable),
+                      size = 2.5, angle = 90)
+  }
   
   return(p)
 }
@@ -475,7 +466,7 @@ plot_amb_params_dotplot <- function(params_qc, sample_var, scales = 'fixed') {
   return(pl)
 }
 
-get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'decontx')){
+get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'decontx')) {
 
   amb = match.arg(amb_method)
 
@@ -484,7 +475,7 @@ get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'dec
     dplyr::select(-barcode) %>%
     rowwise()
 
-  if(amb == 'cellbender'){
+  if (amb == 'cellbender') {
   sum_qc = sum_qc %>%
     mutate(af_all = sum(af_S, af_U, af_A),
            cb_all = sum(cb_S, cb_U, cb_A)) %>%
@@ -495,7 +486,7 @@ get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'dec
                  sum_qc['af_all'],
                  sum_qc['af_all'] - sum_qc['cb_all'])
 
-  }else{
+  } else {
     sum_qc = sum_qc %>%
       mutate(af_all = sum(af_S, af_U, af_A),
              dcx_all = sum(dcx_S, dcx_U, dcx_A)) %>%
@@ -515,7 +506,7 @@ get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'dec
   return(smpl_qc)
 }
 
-get_amb_sample_qc_outliers <- function(qc_df, var1, var2){
+get_amb_sample_qc_outliers <- function(qc_df, var1, var2) {
   bivar =  qc_df %>% dplyr::select(all_of(c(var1, var2)))
 
   mcd = robustbase::covMcd(bivar)
@@ -526,7 +517,7 @@ get_amb_sample_qc_outliers <- function(qc_df, var1, var2){
 }
 
 make_amb_sample_qc_oulier_plots <- function(qc_df, var1, var2, outliers_df,
-  x_title, y_title, y_thr = NULL, x_thr = NULL){
+  x_title, y_title, y_thr = NULL, x_thr = NULL) {
 
   p = ggplot(qc_df, aes(x = get(var1), y = get(var2))) +
     geom_point(shape = 21, fill = 'grey', color = 'black') +
@@ -534,27 +525,34 @@ make_amb_sample_qc_oulier_plots <- function(qc_df, var1, var2, outliers_df,
          y = y_title) +
     theme_classic()
 
-  if(nrow(outliers_df) != 0){
+  if (nrow(outliers_df) != 0) {
     p = p + geom_text_repel(data = outliers_df, mapping = aes(label = sample_id), size = 3)
   }
 
-  if(!is.null(y_thr)){
+  if (!is.null(y_thr)) {
     p = p + geom_hline(yintercept = y_thr, linewidth = 0.2, linetype = 'dashed')
   }
 
-  if(!is.null(x_thr)){
+  if (!is.null(x_thr)) {
     p = p + geom_vline(xintercept = x_thr, linewidth = 0.2, linetype = 'dashed')
   }
 
   return(p)
 }
 
-plot_qc_metrics_split_by_cells_empties <- function(knee_fs, sample_var, 
-  metric = c("umis", "splice_pct"), min_umis = 10) {
+get_usa_dt <- function(usa_f, min_umi = 10) {
+  usa_dt      = usa_f %>% fread
+  row_sums    = usa_dt %>% .[, 2:4, with = FALSE ] %>% as.matrix %>% rowSums
+  keep_rows   = row_sums >= min_umi
+  return(usa_dt[ keep_rows ])
+}
+
+plot_qc_metrics_split_by_cells_empties <- function(rna_knee_fs, 
+  metric = c("umis", "splice_pct"), sample_var = "sample_id", min_umis = 10) {
   metric    = match.arg(metric)
 
   # get cells and empties
-  plot_dt   = knee_fs %>% lapply(function(f) {
+  plot_dt   = rna_knee_fs %>% lapply(function(f) {
     tmp_dt = fread(f) %>% 
       .[rank <= expected_cells | in_empty_plateau == TRUE ] %>% 
       .[, `:=`(
@@ -570,7 +568,7 @@ plot_qc_metrics_split_by_cells_empties <- function(knee_fs, sample_var,
     y_brks    = c(1e0, 1e1, 3e1, 1e2, 3e2, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6) %>% log10
     y_labs    = c("1", "10", "30", "100", "300", "1k", "3k", "10k", "30k", "100k", 
       "300k", "1M")
-    y_title   = "UMIs"
+    y_title   = "library size"
   } else if (metric == "splice_pct") {
     y_brks    = c(0.01, 0.03, 0.1, 0.3, 0.5, 0.7, 0.9, 0.97, 0.99) %>% qlogis
     y_labs    = c("1%", "3%", "10%", "30%", "50%", "70%", "90%", "97%", "99%")
@@ -584,7 +582,118 @@ plot_qc_metrics_split_by_cells_empties <- function(knee_fs, sample_var,
     scale_fill_manual( values = c(cell = "#1965B0", empty = "grey") ) +
     theme_classic() + 
     theme( axis.text.x = element_text( angle = -45, hjust = 0, vjust = 0.5 ) ) +
-    labs( y = y_title, fill = "what does\nthe barcode\ncontain?" )
+    labs( y = y_title, x = NULL, fill = "what does\nthe barcode\nrepresent?" )
 
   return(g)
+}
+
+
+plot_reads_removed_as_ambient <- function(usa_fs, ok_bcs_ls, n_cores = 8) {
+  logit_brks  = c(1e-4, 1e-3, 1e-2, 0.10, 0.50, 0.90, 0.99, 0.999) %>% qlogis
+  logit_labs  = c("0.01%", "0.1%", "1%", "10%", "50%", "90%", "99%", "99.9%")
+  
+  # setup cluster
+  bpparam = MulticoreParam(workers = n_cores, progressbar = TRUE)
+
+  # prepare results
+  plot_dt   = bplapply(names(usa_fs), function(nn) {
+    usa_tmp   = .get_usa_dt(usa_fs[[ nn ]])
+    bcs_tmp   = ok_bcs_ls[[ nn ]]
+    plot_tmp  = usa_tmp[ barcode %in% bcs_tmp ] %>% 
+      melt( id = "barcode", measure.vars = measure(value.name, transcript, sep = "_") ) %>% 
+      .[, .(total_pre = sum(pre), total_post = sum(post)), by = barcode ] %>% 
+      .[, logit_removed := qlogis(1 - total_post / total_pre) ] %>% 
+      .[, sample_id := nn ]
+
+    return( plot_tmp )
+  }, BPPARAM = bpparam) %>% rbindlist
+
+  # do plot
+  g = ggplot(plot_dt) +
+    aes( x = sample_id, 
+      y = logit_removed %>% pmin(tail(logit_brks, 1)) %>% pmax(head(logit_brks, 1)) ) +
+    geom_violin(colour = NA, fill = 'grey60',
+      kernel = 'rectangular', adjust = 0.1, scale = 'width', width = 0.8) +
+    scale_y_continuous( breaks = logit_brks, labels = logit_labs ) +
+    theme_classic() +
+    theme(
+     axis.text.x = element_text( angle = -45, hjust = 0, vjust = 0.5), 
+     plot.margin = unit(c(1, 4, 1, 1), "lines")) +
+    labs( y = "pct. reads removed as ambient",x = NULL)
+
+  return(g)
+}
+
+
+
+plot_spliced_vs_umis <- function(ss, usa_f, ok_bcs, total_inc) {
+  
+  usa_dt      = get_usa_dt(usa_f)
+  pscount     = 10
+  PCT_BRKS    = c(0.001, 0.003, 0.01, 0.03, 0.1, 0.5, 0.9, 0.97, 0.99, 0.997, 0.999) %>% qlogis
+  PCT_LABS    = c('0.1%', '0.3%', '1%', '3%', '10%', '50%', '90%', '97%', '99%',
+    '99.7%', '99.9%')
+  LOG_BRKS    = c(pscount + c(0, 10, 30, 100, 300, 1000, 3000, 1e4, 3e4, 1e5, 3e5)) %>% log10
+  LOG_LABS    = c('0', '10', '30', '100', '300', '1k', '3k', '10k', '30k', '100k', '300k')
+  COL_VALS    = c(
+    cell                        = 'grey80', 
+    "no, used for\nambient"     = "#FB8072", 
+    "no, excluded\ncompletely"  = "grey30")
+
+  # arrange data
+  plot_dt     = usa_dt[, .(
+    barcode,
+    pre_total     = pre_S + pre_U + pre_A,
+    post_total    = post_S + post_U + post_A,
+    pre_logit_S   = qlogis((pre_S + 1)/(pre_S + pre_U + 2)),
+    post_logit_S  = qlogis((post_S + 1)/(post_S + post_U + 2))
+    )] %>% 
+    melt( measure.vars = measure(stage, value.name, pattern = "(pre|post)_(.+)")) %>% 
+    .[, stage := factor(stage, levels = c("pre", "post")) ] %>% 
+    .[ total > 0 ] %>% 
+    .[ order(total) ]
+
+  # to keep
+  inc_dt      = plot_dt[ stage == "pre" ] %>% .[ order(-total) ] %>% .[ 1:total_inc ]
+  plot_dt     = plot_dt %>% 
+    .[, status   := ifelse( barcode %in% ok_bcs, names(COL_VALS)[[1]], 
+      ifelse(barcode %in% inc_dt$barcode, names(COL_VALS)[[2]], names(COL_VALS)[[3]])) %>% 
+      factor( levels = names(COL_VALS) ) ]
+
+  # make plot
+  g_dens  = ggplot(plot_dt) +
+    aes( y = logit_S, x = log10(total + pscount) ) +
+    geom_bin2d( bins = c(80, 50) ) +
+    scale_x_continuous( breaks = LOG_BRKS, labels = LOG_LABS ) + expand_limits( x = log10(pscount) ) +
+    scale_y_continuous( breaks = PCT_BRKS, labels = PCT_LABS ) +
+    scale_fill_distiller( palette = "RdBu", trans = "log10" ) +
+    facet_grid( . ~ stage ) +
+    theme_classic() + 
+    labs( y = "spliced pct.", x = 'total UMIs', colour = "called as cell?", title = ss )
+
+  # make plot
+  g_dots  = ggplot(plot_dt) +
+    aes( y = logit_S, x = log10(total + pscount), colour = status ) +
+    geom_point( size = 0.1 ) +
+    scale_x_continuous( breaks = LOG_BRKS, labels = LOG_LABS ) + expand_limits( x = log10(pscount) ) +
+    scale_y_continuous( breaks = PCT_BRKS, labels = PCT_LABS ) +
+    scale_color_manual( values = COL_VALS,
+      guide = guide_legend(override.aes = list(size = 3, alpha = 1)) ) +
+    facet_grid( . ~ stage ) +
+    theme_classic() + 
+    labs( y = "spliced pct.", x = 'total UMIs', colour = "called as cell?" )
+
+  # join together
+  g = g_dens / g_dots + plot_layout( axes = "collect" )
+
+  return(g)
+}
+
+
+calc_ambient_exclusions <- function(stats_dt, sample_var) {
+  exc_dt  = stats_dt[, .(get(sample_var), total_droplets, kept_droplets, 
+    pct_kept = round(prop_kept_by_cb * 100, 1), bad_sample)] %>% 
+    setnames("V1", sample_var)
+
+  return(exc_dt)
 }

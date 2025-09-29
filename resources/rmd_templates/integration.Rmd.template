@@ -1,10 +1,10 @@
 ---
-title: "Integration with Harmony"
+title: "Integration diagnostics"
 author:
 - name: ${YOUR_NAME}
   affiliation: 
   - ${AFFILIATION}
-date: '`r format(Sys.Date(), "%B %d, %Y")`'
+date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -42,8 +42,22 @@ qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
 qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') %>% 
   setNames(qc_names)
 
-# define harmony inputs
+# define integration inputs
 integration_f      = "${integration_f}"
+int_reduction      = "${INT_REDUCTION}"
+demux_type         = "${DEMUX_TYPE}"
+if(int_reduction == 'harmony'){
+  int_txt = "with `Harmony` "
+}else {
+  int_txt = ''
+}
+
+if(demux_type == 'af'){
+  dbl_txt = " and `HTODemux`(`Seurat`)"
+}else{
+  dbl_txt = ""
+}
+
 res_ls             = "${INT_RES_LS}" %>%
  str_split(pattern = ',') %>% unlist() %>% as.numeric()
 dbl_cl_prop = ${INT_DBL_CL_PROP}
@@ -59,7 +73,7 @@ qc_melt     = fread(qc_f) %>%
   .[ !is.na(qc_val) ]
 ```
 
-```{r load_harmony_results, include = FALSE}
+```{r load_integration_results, include = FALSE}
 integration_all    = fread(integration_f)
 ```
 
@@ -68,7 +82,7 @@ int_dbl    = integration_all %>%
   .[, .(sample_id, cell_id, UMAP1 = dbl_UMAP1, UMAP2 = dbl_UMAP2, is_dbl, dbl_cluster)]
 ```
 
-```{r extract_normal_harmony, include = FALSE}
+```{r extract_normal_integration, include = FALSE}
 int_dt    = integration_all[ !is.na(UMAP1) ] %>% 
   .[, c("sample_id", "cell_id", "reduction", "UMAP1", "UMAP2", 
     str_subset(names(integration_all), "RNA_snn_res")), with = FALSE]
@@ -82,15 +96,14 @@ clusts_dt   = int_dt %>%
     resolution = str_extract(resolution, "(?<=res\\.)(.+)"), cluster)]
 ```
 
-Cells that passed quality control filtering were integrated with `Harmony` together with doublets identified using scDblfinder. Clustering of cells at a high resolution is then performed. Cells that appear in clusters which are enriched in doublets are excluded from further analysis.
+Cells that passed quality control filtering were integrated `r int_txt`together with doublets identified using `scDblfinder``r dbl_txt`. Clustering of cells at a high resolution is then performed. Cells that appear in clusters which are enriched in doublets are excluded from further analysis.
 Integration of cells and clustering is repeated after removing doublet enriched clusters.
 
-
-## Check doublets over UMAP
+## Doublets over UMAP
 
 The plot displays a binned UMAP with the proportion of doublets as well as the number of doublets in each bin. 
 
-```{r plot_doublet_harmony, fig.height = 5, fig.width = 11}
+```{r plot_doublet_integration, fig.height = 5, fig.width = 11}
 g_dbl   = plot_umap_doublets(int_dbl)
 g_dens  = plot_umap_density(int_dbl[, .(cell_id, UMAP1, UMAP2) ])
 g       = g_dbl + g_dens
@@ -99,7 +112,7 @@ print(g)
 
 ## Doublet proportions in clusters
 
-The plot shows the proportion of doublets for each cluster in relation to the total number of cells in that cluster. Clusters with a doublet proportion exceeding `r dbl_cl_prop` are excluded from further analysis.
+The plot shows the proportion of doublets for each cluster in relation to the total number of cells in that cluster. Clusters with a doublet proportion exceeding `r dbl_cl_prop*100`% are excluded from further analysis.
 
 ```{r plot_doublet_clusters, fig.height = 4, fig.width = 6}
 ( plot_doublet_clusters(int_dbl, dbl_cl_prop) )
@@ -109,7 +122,7 @@ The plot shows the proportion of doublets for each cluster in relation to the to
 
 Clustering of data is performed at different resolution values. For each value the clusters are displayed over a UMAP together with a plot showing the density of cells. 
 
-```{r plot_clusters_harmony, fig.height = 5, fig.width = 11, results = "asis"}
+```{r plot_clusters_integration, fig.height = 5, fig.width = 11, results = "asis"}
 for (res in res_ls) {
   cat('### ', res, '\n')
   g_cl    = plot_umap_cluster(
@@ -125,7 +138,7 @@ for (res in res_ls) {
 
 ## Evaluating cluster distribution across samples{.tabset}
 
-This plot visualizes the relationship between the entropy of clusters and the maximum percentage of cells from a single sample within each cluster (higher values suggest that a cluster predominantly contains cells from a single sample).
+This plot visualizes the relationship between the entropy of clusters and the maximum proportion of cells from a single sample within each cluster (higher values suggest that a cluster predominantly contains cells from a single sample).
 Entropy measures how evenly distributed cells are across samples within each cluster—higher entropy indicates that cells from different samples are more evenly distributed, while lower entropy suggests that a cluster is dominated by cells from a small number of samples.
 
 ```{r plot_entropy_selected_clusters, fig.height = 5, fig.width = 7, results = "asis"}
@@ -152,3 +165,12 @@ for (res in res_ls) {
 }
 ```
 
+## R session info
+
+Details of the R package versions used are given below.
+
+<details>
+```{r session_info, include=TRUE, echo=TRUE, results="markup"}
+devtools::session_info()
+```
+</details>

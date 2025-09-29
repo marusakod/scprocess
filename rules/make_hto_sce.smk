@@ -19,16 +19,17 @@ if DEMUX_TYPE == 'af':
       benchmark_dir + '/' + SHORT_TAG + '_make_hto_sce/make_hto_sce_objects_{run}_' + DATE_STAMP + '.benchmark.txt'
     conda:
      '../envs/rlibs.yaml'
-    shell: 
-     """
-       # save hto sce with demultiplexing info
-        Rscript -e "source('scripts/multiplexing.R'); source('scripts/ambient.R'); 
-          get_one_hto_sce( 
-            sel_sample  = '{wildcards.run}', 
-	          sample_stats_f    = '{input.smpl_stats_f}', 
-            amb_yaml_f  = '{input.amb_yaml_f}', 
-            hto_mat_f   = '{input.hto_h5_f}', 
-            trans_f     = '{params.translation_f}', 
-            hto_sce_f   = '{output.sce_hto_f}', 
-            ambient_method = '{AMBIENT_METHOD}')"
-     """
+    shell: """
+    # save hto sce with demultiplexing info
+    Rscript -e "source('scripts/multiplexing.R'); source('scripts/ambient.R'); 
+      get_one_hto_sce( 
+        sel_sample      = '{wildcards.run}', 
+        sample_var      = '{SAMPLE_VAR}', 
+        sample_stats_f  = '{input.smpl_stats_f}', 
+        amb_yaml_f      = '{input.amb_yaml_f}', 
+        hto_mat_f       = '{input.hto_h5_f}', 
+        trans_f         = '{params.translation_f}', 
+        hto_sce_f       = '{output.sce_hto_f}', 
+        ambient_method  = '{AMBIENT_METHOD}'
+      )"
+    """

@@ -132,9 +132,8 @@ If {{sc}} fails to estimate the knee plot parameters but the barcode-rank curve 
 
 ### Setting QC parameters
 
-Depending on whether you are using {{sc}} on single cell or single nuclei data you may want to consider adjusting the default threshold for maximum allowed spliced proportion (the `qc_max_splice` parameter) in the configuration file. [Anything else?]
+Depending on whether you are using {{sc}} on single cell or single nuclei data you may want to consider adjusting the default threshold for minimum and maximum allowed spliced proportion (`qc_min_splice` and `qc_max_splice` parameters) in the configuration file. [Anything else?]
     
-### Managing resources
 
 
 
