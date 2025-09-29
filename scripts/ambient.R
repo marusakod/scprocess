@@ -547,12 +547,12 @@ get_usa_dt <- function(usa_f, min_umi = 10) {
   return(usa_dt[ keep_rows ])
 }
 
-plot_qc_metrics_split_by_cells_empties <- function(rna_knee_dfs, 
+plot_qc_metrics_split_by_cells_empties <- function(rna_knee_fs, 
   metric = c("umis", "splice_pct"), sample_var = "sample_id", min_umis = 10) {
   metric    = match.arg(metric)
 
   # get cells and empties
-  plot_dt   = knee_fs %>% lapply(function(f) {
+  plot_dt   = rna_knee_fs %>% lapply(function(f) {
     tmp_dt = fread(f) %>% 
       .[rank <= expected_cells | in_empty_plateau == TRUE ] %>% 
       .[, `:=`(
