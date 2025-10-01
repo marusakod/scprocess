@@ -143,8 +143,7 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
   
   # get empty pseudobulks
   empty_pbs     = bpmapply( sample_id = sample_ls, af_mat_f = af_mat_ls, af_knee_f = af_knee_ls,
-    FUN = .get_one_empty_pb, SIMPLIFY = FALSE, BPPARAM = bpparam
-    )
+    FUN = .get_one_empty_pb, SIMPLIFY = FALSE, BPPARAM = bpparam)
   
   pb_empty      = do.call('cbind', empty_pbs)
   
@@ -180,8 +179,8 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
 
   # get full alevin matrix
   empty_mat      = .get_h5(af_mat_f, empty_bcs)
-  empty_mat      = .sum_SUA(empty_mat)
-  
+  empty_mat      = .sum_SUA(empty_mat))
+
   # sum over all empties per samples
   empty_pb    = Matrix::rowSums(empty_mat) %>%
     setNames(rownames(empty_mat)) %>%

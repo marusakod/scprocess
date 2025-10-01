@@ -61,7 +61,7 @@ rule render_html_mapping:
         proj_dir       = '{PROJ_DIR}', 
         temp_f         =  '$template_f', 
         rmd_f          = '{output.rmd_f}', 
-        threads        =  {threads}, 
+        threads        = {threads}, 
         YOUR_NAME      = '{YOUR_NAME}', 
         AFFILIATION    = '{AFFILIATION}', 
         SHORT_TAG      = '{SHORT_TAG}', 
@@ -140,8 +140,11 @@ rule render_html_ambient:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+<<<<<<< HEAD
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_ambient_' + DATE_STAMP + '.benchmark.txt'
+=======
+>>>>>>> dev-fix-mem
   shell: """
     # define rule and template
     template_f=$(realpath resources/rmd_templates/ambient.Rmd.template)
