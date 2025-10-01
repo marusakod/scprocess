@@ -35,7 +35,7 @@ rule render_html_mapping:
     r_amb_f   = f"{code_dir}/ambient.R",
     rmd_f     = f"{rmd_dir}/{SHORT_TAG}_mapping.Rmd",
     html_f    = f"{docs_dir}/{SHORT_TAG}_mapping.html"
-  threads: 1
+  threads: 4
   retries: RETRIES
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
@@ -61,6 +61,7 @@ rule render_html_mapping:
         proj_dir       = '{PROJ_DIR}', 
         temp_f         =  '$template_f', 
         rmd_f          = '{output.rmd_f}', 
+        threads        =  {threads}, 
         YOUR_NAME      = '{YOUR_NAME}', 
         AFFILIATION    = '{AFFILIATION}', 
         SHORT_TAG      = '{SHORT_TAG}', 

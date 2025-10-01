@@ -96,7 +96,7 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
   } else if (sel_rule == 'af') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
       'DATE_STAMP', 'RUNS_STR','AMBIENT_METHOD','SAMPLE_VAR',
-      'af_dir', 'af_rna_dir')
+      'af_dir', 'af_rna_dir', 'threads')
 
     assert_that(all(req_names %in% add_args_names))
 

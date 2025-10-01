@@ -36,7 +36,6 @@ suppressPackageStartupMessages({
   library('yaml')
 })
 
-
 make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset_col = NULL, subset_str = NULL, n_cores = 8) {
   # get files
   sce_fs_ls = yaml::read_yaml(sce_fs_yaml) %>% unlist()
@@ -48,8 +47,8 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
   sce_fs_ls = sce_fs_ls[keep_samples]
   
   # set up parallelization
-  # bpparam       = MulticoreParam(workers = n_cores, tasks = length(sce_fs_ls))
-  # on.exit(bpstop(bpparam))
+  bpparam       = MulticoreParam(workers = n_cores, tasks = length(sce_fs_ls))
+  on.exit(bpstop(bpparam))
   
   cell_pbs     = bpmapply( sel_s = names(sce_fs_ls), sce_f = unname(sce_fs_ls),
     FUN = .get_one_cells_pb, SIMPLIFY = FALSE, BPPARAM = bpparam, 
@@ -58,15 +57,6 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
   
   # merge sce objects
   pb_sce = Reduce(function(x, y) {cbind(x, y)}, cell_pbs)
-
-  # make sure all samples are in the matrix, if not, add columns with 0
-  # missing_samps = setdiff(sample_ls, colnames(pb_mat))
-  # if ( length(missing_samps) > 0 ) {
-  #   missing_cols  = Matrix(0, nrow = nrow(pb_mat), ncol = length(missing_samps), 
-  #     sparse = TRUE, dimnames = list(rownames(pb_mat), missing_samps))
-  #   pb_mat        = cbind(pb_mat, missing_cols)
-  #   pb_mat        = pb_mat[, sample_ls ]    
-  # }
 
   # store
   message('  save')
@@ -148,20 +138,14 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
   )
   
   # set up parallelization
-  # bpparam       = MulticoreParam(
-  #   workers = n_cores,
-  #   tasks = length(sample_ls), 
-  #   exportglobals = TRUE,
-  #   exportvariables= TRUE
-  #   )
-  # # 
-  # register(bpparam)
-  # on.exit(bpstop(bpparam))
-  # 
+  bpparam       = MulticoreParam(workers = n_cores, tasks = length(sample_ls))
+  on.exit(bpstop(bpparam))
+  
   # get empty pseudobulks
-  empty_pbs     = mcmapply( sample_id = sample_ls, af_mat_f = af_mat_ls,
-                            af_knee_f = af_knee_ls,
-                            FUN = .get_one_empty_pb, SIMPLIFY = FALSE, mc.cores = n_cores)
+  empty_pbs     = bpmapply( sample_id = sample_ls, af_mat_f = af_mat_ls, af_knee_f = af_knee_ls,
+    FUN = .get_one_empty_pb, SIMPLIFY = FALSE, BPPARAM = bpparam
+    )
+  
   pb_empty      = do.call('cbind', empty_pbs)
   
   # get nice rows
@@ -196,8 +180,8 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
 
   # get full alevin matrix
   empty_mat      = .get_h5(af_mat_f, empty_bcs)
-  empty_mat      = .sum_SUA(af_mat)
-
+  empty_mat      = .sum_SUA(empty_mat)
+  
   # sum over all empties per samples
   empty_pb    = Matrix::rowSums(empty_mat) %>%
     setNames(rownames(empty_mat)) %>%
@@ -209,8 +193,6 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
   
   return(empty_pb)
 }
-
-
 
 .aggregateData_datatable <- function(sce, by_vars = c('sample_id'),
   fun = c("sum", "mean", "median", "prop.detected", "num.detected")) {
@@ -277,7 +259,7 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
 
 
 
-.get_h5 <- function(h5_f, barcodes = NULL) {
+.get_h5 <- function(h5_f = h5_f, barcodes = empty_bcs) {
   
   h5_full = H5Fopen(h5_f, flags = "H5F_ACC_RDONLY" )
   
