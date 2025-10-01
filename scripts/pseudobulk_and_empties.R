@@ -58,15 +58,6 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
   # merge sce objects
   pb_sce = Reduce(function(x, y) {cbind(x, y)}, cell_pbs)
 
-  # make sure all samples are in the matrix, if not, add columns with 0
-  # missing_samps = setdiff(sample_ls, colnames(pb_mat))
-  # if ( length(missing_samps) > 0 ) {
-  #   missing_cols  = Matrix(0, nrow = nrow(pb_mat), ncol = length(missing_samps), 
-  #     sparse = TRUE, dimnames = list(rownames(pb_mat), missing_samps))
-  #   pb_mat        = cbind(pb_mat, missing_cols)
-  #   pb_mat        = pb_mat[, sample_ls ]    
-  # }
-
   # store
   message('  save')
   saveRDS(pb_sce, pb_f)
@@ -151,9 +142,9 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
   on.exit(bpstop(bpparam))
   
   # get empty pseudobulks
-  empty_pbs     = bpmapply( sample_id = sample_ls, af_mat_f = af_mat_ls,
-                            af_knee_f = af_knee_ls,
-                            FUN = .get_one_empty_pb, SIMPLIFY = FALSE, BPPARAM = bpparam)
+  empty_pbs     = bpmapply( sample_id = sample_ls, af_mat_f = af_mat_ls, af_knee_f = af_knee_ls,
+    FUN = .get_one_empty_pb, SIMPLIFY = FALSE, BPPARAM = bpparam)
+  
   pb_empty      = do.call('cbind', empty_pbs)
   
   # get nice rows
@@ -188,7 +179,7 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
 
   # get full alevin matrix
   empty_mat      = .get_h5(af_mat_f, empty_bcs)
-  empty_mat      = .sum_SUA(af_mat)
+  empty_mat      = .sum_SUA(empty_mat))
 
   # sum over all empties per samples
   empty_pb    = Matrix::rowSums(empty_mat) %>%
