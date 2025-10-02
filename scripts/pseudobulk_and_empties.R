@@ -103,48 +103,45 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
 
 
 
-make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
-                          ambient_method, sample_var = 'sample_id', n_cores = 8) {
+make_pb_empty <- function(sel_s, af_paths_f, amb_stats_f, pb_empty_f,
+                          ambient_method, sample_var = 'sample_id') {
   
   message('create pseudobulk matrix for empty droplets')
   
   # get files
   af_paths_df   = fread(af_paths_f)
   sample_ls     = af_paths_df[[sample_var]] %>% unique()
-  af_mat_ls     = af_paths_df$af_mat_f %>% unique()
-  af_knee_ls    = af_paths_df$af_knee_f %>% unique()
   
   # get bad cellbender samples
   if(ambient_method == 'cellbender'){
     amb_stats_dt = fread(amb_stats_f) 
     bad_samples  = amb_stats_dt[bad_sample == TRUE, get(sample_var)]
-    if(length(bad_samples) != 0){
-      # don't include bad samples into empty pseudobulk matrix
-      keep_idx   = which(!sample_ls %in% bad_samples)
-      sample_ls  = sample_ls[keep_idx]
-      af_mat_ls  = af_mat_ls[keep_idx]
-      af_knee_ls = af_knee_ls[keep_idx]
+    if(sel_s %in% bad_samples){
+      # write an empty file
+      file.create(pb_empty_f)
+      return(NULL)
     }
   }
   
+  af_mat_f     = af_paths_df %>% .[get(sample_var) == sel_s, af_mat_f] %>% unique()
+  af_knee_f    = af_paths_df %>% .[get(sample_var) == sel_s, af_knee_f] %>% unique()
+  
   # do some checks
-  assert_that( all(
-    str_extract(af_mat_ls, '\\/af_.*\\/') == str_extract(af_knee_ls, '\\/af_.*\\/')
-  ))
+  assert_that(str_extract(af_mat_f, '\\/af_.*\\/') == str_extract(af_knee_f, '\\/af_.*\\/'))
   
-  assert_that(
-    all( str_detect(af_mat_ls, sample_ls) ),
-    all( str_detect(af_knee_ls, sample_ls) )
-  )
+  # get empty pseudobulk
+  empty_pb     = .get_one_empty_pb( sample_id = sel_s, af_mat_f = af_mat_f, af_knee_f = af_knee_f)
   
-  # set up parallelization
-  bpparam       = MulticoreParam(workers = n_cores, tasks = length(sample_ls))
-  on.exit(bpstop(bpparam))
+  # save empty pseudobulk for one sample
+  message(' saving empty pseudobulk for run ', sel_s)
+  saveRDS(empty_pb, file = pb_empty_f)
   
-  # get empty pseudobulks
-  empty_pbs     = bpmapply( sample_id = sample_ls, af_mat_f = af_mat_ls, af_knee_f = af_knee_ls,
-    FUN = .get_one_empty_pb, SIMPLIFY = FALSE, BPPARAM = bpparam)
+  message(' done!')
+}
+
+merge_empty_pbs <- function(empty_pb_fs, rowdata_f, empty_pbs_f){
   
+  empy_pbs      = empty_pb_fs %>% lapply(FUN = readRDS)
   pb_empty      = do.call('cbind', empty_pbs)
   
   # get nice rows
@@ -156,13 +153,12 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
   assert_that( all(rownames(pb_empty) == rows_dt$ensembl_id) )
   rownames(pb_empty) = rows_dt$gene_id
   
-  
   # make one object with pb_mats as assays
   pb_empty      = SingleCellExperiment( pb_empty, rowData = rows_dt )
   
   # store
   message(' save')
-  saveRDS(pb_empty, pb_empty_f)
+  saveRDS(pb_empty, empty_pbs_f)
   
   message(' done!')
 }
@@ -179,7 +175,7 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
 
   # get full alevin matrix
   empty_mat      = .get_h5(af_mat_f, empty_bcs)
-  empty_mat      = .sum_SUA(empty_mat))
+  empty_mat      = .sum_SUA(empty_mat)
 
   # sum over all empties per samples
   empty_pb    = Matrix::rowSums(empty_mat) %>%

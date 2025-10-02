@@ -166,8 +166,8 @@ print(plot_amb_params_dotplot(rna_knee_params_df, sample_var = sample_var, scale
 
 This plot shows the distribution of UMIs and spliced read proportions for both empty droplets and expected cells, split by sample. The UMI counts in empty droplets serve as an indicator of ambient RNA contamination in the dataset.
 
-```{r plot_qc_metrics_cells_empties, fig.height = marg_g, fig.width = 8}
-print(plot_qc_metrics_split_by_cells_empties(rna_knee_fs, sample_var = sample_var, n_cores = n_cores)
+```{r plot_qc_metrics_cells_empties, fig.height = marg_h, fig.width = 8}
+print(plot_qc_metrics_split_by_cells_empties(rna_knee_fs, sample_var = sample_var, n_cores = n_cores))
 ```
 
 ## R session info
