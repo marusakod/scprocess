@@ -148,9 +148,6 @@ if DEMUX_TYPE == "af":
 
 
 rule run_mapping:
-  input:
-    R1_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.run, "R1"),
-    R2_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.run, "R2")
   threads: 8
   retries: RETRIES
   resources:
@@ -158,11 +155,13 @@ rule run_mapping:
   params:
     af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
     exp_ori       = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[1],
-    whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[2]
+    whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[2],
+    R1_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.run, "R1"),
+    R2_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.run, "R2")
   output:
     fry_dir       = directory(af_dir + '/af_{run}/' +  af_rna_dir + 'af_quant/'),
     rad_f         = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_map/map.rad'),
-    collated_rad_f  = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_quant/map.collated.rad'), 
+    collate_rad_f = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_quant/map.collated.rad'), 
     mtx_f         = af_dir + '/af_{run}/'  + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
     cols_f        = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_cols.txt',
     rows_f        = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_rows.txt'
@@ -171,8 +170,8 @@ rule run_mapping:
   shell:
     """
     # Process input strings
-    R1_fs=$(echo {input.R1_fs} | sed "s/ /,/g")
-    R2_fs=$(echo {input.R2_fs} | sed "s/ /,/g")
+    R1_fs=$(echo {params.R1_fs} | sed "s/ /,/g")
+    R2_fs=$(echo {params.R2_fs} | sed "s/ /,/g")
     
     # make output directory
     out_dir="{af_dir}/af_{wildcards.run}"
