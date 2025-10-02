@@ -84,7 +84,8 @@ rule run_qc:
   input:
     ambient_stats_f = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     amb_yaml_f   = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
-    demux_f      = (demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if DEMUX_TYPE == 'af' else ([DEMUX_F] if DEMUX_TYPE == 'custom' else [])
+    demux_f      = (demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds') \
+      if DEMUX_TYPE == 'hto' else ([DEMUX_F] if DEMUX_TYPE == 'custom' else [])
   output:
     qc_f         = temp(qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'), 
     coldata_f    = temp(qc_dir + '/coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'),

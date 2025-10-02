@@ -1,6 +1,6 @@
 # snakemake rule for making sce objects with hto information (for multiplexed samples)
 
-if DEMUX_TYPE == 'af':
+if DEMUX_TYPE == "hto":
 # save sce object with hto counts and demultiplex
   rule make_hto_sce_objects: 
     input: 

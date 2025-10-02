@@ -110,7 +110,7 @@ def parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, sample,
 
 
 # build hto index if at least one multiplexed sample with htos
-if DEMUX_TYPE == "af":
+if DEMUX_TYPE == "hto":
   rule build_hto_index:
     input:
       feature_ref_f = FEATURE_REF
@@ -159,16 +159,44 @@ rule run_mapping:
     R1_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.run, "R1"),
     R2_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.run, "R2")
   output:
-    fry_dir       = directory(af_dir + '/af_{run}/' +  af_rna_dir + 'af_quant/'),
     rad_f         = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_map/map.rad'),
     collate_rad_f = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_quant/map.collated.rad'), 
+    fry_dir       = directory(af_dir + '/af_{run}/' +  af_rna_dir + 'af_quant/'),
     mtx_f         = af_dir + '/af_{run}/'  + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
     cols_f        = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_cols.txt',
     rows_f        = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_rows.txt'
   conda:
     '../envs/alevin_fry.yaml'
-  shell:
+  shell:"""
+    # Process input strings
+    R1_fs=$(echo {params.R1_fs} | sed "s/ /,/g")
+    R2_fs=$(echo {params.R2_fs} | sed "s/ /,/g")
+    
+    # make output directory
+    out_dir="{af_dir}/af_{wildcards.run}"
+    mkdir -p $out_dir
+
+    # add subdirectory if multiplexed samples
+    if [ "{DEMUX_TYPE}" == "af" ]; then
+        out_dir="$out_dir/rna"
+    fi
+
+    export ALEVIN_FRY_HOME="{AF_HOME_DIR}"
+    simpleaf set-paths
+
+    # RNA quantification
+    simpleaf quant \
+      --reads1 $R1_fs  \
+      --reads2 $R2_fs  \
+      --threads {threads} \
+      --index {AF_INDEX_DIR}/index \
+      --chemistry {params.af_chemistry} --resolution cr-like \
+      --expected-ori {params.exp_ori} \
+      --t2g-map {AF_INDEX_DIR}/index/t2g_3col.tsv \
+      --unfiltered-pl {params.whitelist_f} --min-reads 1 \
+      --output $out_dir
     """
+  run:
     # Process input strings
     R1_fs=$(echo {params.R1_fs} | sed "s/ /,/g")
     R2_fs=$(echo {params.R2_fs} | sed "s/ /,/g")
@@ -199,7 +227,7 @@ rule run_mapping:
     """
 
 
-if DEMUX_TYPE == "af":
+if DEMUX_TYPE == "hto":
   rule run_mapping_hto:
     input:
       hto_R1_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.run, "R1"), 
@@ -298,7 +326,7 @@ rule save_alevin_to_h5:
     """
 
 
-if DEMUX_TYPE == 'af':
+if DEMUX_TYPE == "hto":
   rule save_alevin_hto_to_h5:
     input: 
       fry_dir     = af_dir + '/af_{run}/hto/af_quant/'

@@ -345,7 +345,7 @@ date_stamp: "2025-01-01"
 alevin:
   chemistry: 3v3
 multiplexing:
-  demux_type: af
+  demux_type: hto
   fastq_dir: data/fastqs/hto
   feature_ref: data/metadata/multiplexed_test_project_feature_ref.csv
 qc:
@@ -355,7 +355,7 @@ qc:
   qc_max_splice: 0.9
 ```
 
-Setting `demux_type` to `af` instructs {{sc}} to use HTO-based demultiplexing for this dataset. By specifying `fastq_dir` and `feature_ref`, we provide {{sc}} with the paths to the HTO FASTQ files and the feature reference file, respectively. 
+Setting `demux_type` to `hto` instructs {{sc}} to use HTO-based demultiplexing for this dataset. By specifying `fastq_dir` and `feature_ref`, we provide {{sc}} with the paths to the HTO FASTQ files and the feature reference file, respectively. 
 
 Note that this is a downsampled dataset with a limited number of cells. To ensure that all samples with at least 100 cells remaining after QC filtering are retained, we set the `qc_min_cells` parameter to 100. Since this is a single-cell dataset, we also adjust the spliced proportion thresholds to refine cell selection. Specifically, we set `qc_min_splice` to 0.5 to exclude cells with less than 50% spliced reads, as these are likely nuclei, and `qc_max_splice` to 0.9 to exclude cells with more than 90% spliced reads, which likely indicates substantial cytoplasmic contamination.
 

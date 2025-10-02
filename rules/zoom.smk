@@ -384,7 +384,7 @@ rule zoom_get_stats_for_std_variance_for_group:
 
 rule zoom_merge_stats_for_std_variance:
   input:
-    tmp_std_var_stats_fs = lambda wildcards: get_zoom_tmp_std_var_stats_files(wildcards.zoom_name, \
+    tmp_std_var_stats_fs = lambda wildcards: get_zoom_std_var_stats_files(wildcards.zoom_name, \
       zoom_dir, ZOOM_PARAMS_DICT, FULL_TAG, DATE_STAMP, SAMPLES)
   output:
     std_var_stats_merged_f= zoom_dir + '/{zoom_name}/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'

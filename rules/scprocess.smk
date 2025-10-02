@@ -15,7 +15,7 @@ from scprocess_utils import *
 SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 
 # get parameters
-PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, \
+PROJ_DIR, FASTQ_DIR, ARV_UUID, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, \
   EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES, DEMUX_TYPE, \
   HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_VAR, \
   SAMPLE_MAPPING = \
@@ -51,10 +51,9 @@ RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, MB_RUN_AMBIENT, MB_GET_BARCODE_QC
   get_resource_parameters(config)
 
 # specify locations
-fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
 code_dir      = f"{PROJ_DIR}/code"
 af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
-af_rna_dir    = 'rna/' if DEMUX_TYPE == 'af' else ''
+af_rna_dir    = 'rna/' if DEMUX_TYPE == "hto" else ''
 amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
 demux_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
 dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
@@ -77,11 +76,11 @@ else:
   SAMPLES  = exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES, HTO=False)
 
 # exclude all samples without hto fastq files
-if DEMUX_TYPE == "af":
+if DEMUX_TYPE == "hto":
   POOL_IDS = exclude_samples_without_fastq_files(HTO_FASTQ_DIR, POOL_IDS, HTO=True)
 
 # exclude pools and samples from sample mapping dictionary
-SAMPLE_MAPPING = filter_sample_mapping(SAMPLE_MAPPING, POOL_IDS, SAMPLES)
+SAMPLE_MAPPING = update_sample_mapping_after_exclusions(SAMPLE_MAPPING, POOL_IDS, SAMPLES)
 
 # join all samples into a single string
 POOL_STR   = ','.join(POOL_IDS)
@@ -100,7 +99,7 @@ r_scripts = [
   code_dir  + '/integration.R', 
   code_dir  + '/marker_genes.R'
   ]
-if DEMUX_TYPE == 'af':
+if DEMUX_TYPE == "hto":
   r_scripts.append(code_dir + '/multiplexing.R')
 
 # alevin hto index outputs (optional)
@@ -108,7 +107,7 @@ hto_index_outs = [
     af_dir + '/hto.tsv',
     af_dir + '/t2g_hto.tsv',
     af_dir + '/hto_index/ref_indexing.log'
-  ] if DEMUX_TYPE == "af" else []
+  ] if DEMUX_TYPE == "hto" else []
 
 # alevin hto quantification outputs (optional)
 hto_af_outs = expand(
@@ -120,17 +119,17 @@ hto_af_outs = expand(
   af_dir    + '/af_{run}/hto/af_hto_counts_mat.h5',
   af_dir    + '/af_{run}/hto/knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
   ], run = runs
-) if DEMUX_TYPE == 'af' else []
+) if DEMUX_TYPE == "hto" else []
 
 # seurat demultiplexing outputs (optional)
 hto_sce_fs = expand(
   demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
   run = runs
-  ) if DEMUX_TYPE == "af" else []
+  ) if DEMUX_TYPE == "hto" else []
 
 # multiplexing report (optional)
-hto_rmd_f  = (rmd_dir   + '/' + SHORT_TAG + '_demultiplexing.Rmd') if DEMUX_TYPE == 'af' else []
-hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_demultiplexing.html') if DEMUX_TYPE == 'af' else []
+hto_rmd_f  = (rmd_dir   + '/' + SHORT_TAG + '_demultiplexing.Rmd') if DEMUX_TYPE == "hto" else []
+hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_demultiplexing.html') if DEMUX_TYPE == "hto" else []
 
 # fgsea outputs (optional)
 fgsea_outs = [

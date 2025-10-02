@@ -32,7 +32,7 @@ def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
     DEMUX_TYPE = config['multiplexing']['demux_type']
     SAMPLE_MAPPING = sample_metadata.groupby("pool_id")["sample_id"].apply(list).to_dict()
 
-    if DEMUX_TYPE == 'af':
+    if DEMUX_TYPE == 'hto':
       # check feature ref specified and valid
       assert 'feature_ref' in config['multiplexing'], \
        "feature_ref not specified in the config file"
@@ -109,18 +109,34 @@ def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
 # get list of samples
 def get_project_parameters(config, scprocess_data_dir):
   # check expected variables are in the config file
-  for v in ["proj_dir", "fastq_dir", "short_tag", "full_tag", "date_stamp", "your_name", "affiliation", "sample_metadata", "species"]:
-    assert v in config, f"{v} needs to be an entry at the top level of the config file"
+  for v in ["proj_dir", "short_tag", "full_tag", "date_stamp", "your_name", "affiliation", 
+    "sample_metadata", "species"]:
+    if v not in config:
+      KeyError(f"{v} is a required entry in the config file")
+
 
   ## what is specified in config directory?
   PROJ_DIR      = config["proj_dir"]
-  FASTQ_DIR     = config["fastq_dir"]
   SHORT_TAG     = config["short_tag"]
   FULL_TAG      = config["full_tag"]
   YOUR_NAME     = config["your_name"]
   AFFILIATION   = config["affiliation"]
   DATE_STAMP    = config["date_stamp"]
   SPECIES       = config["species"]
+
+  # check fastq vs arvados
+  has_fastq     = "fastq_dir" in config
+  has_arv_uuid  = "arv_uuid" in config
+  if has_fastq + has_arv_uuid != 1:
+    KeyError('config file must contain exactly one of "fastq_dir" and "arv_uuid"')
+
+  # define these
+  if has_fastq and not has_arv_uuid:
+    FASTQ_DIR     = config["fastq_dir"]
+    ARV_UUID      = None
+  if not has_fastq and has_arv_uuid:
+    FASTQ_DIR     = None
+    ARV_UUID      = config["arv_uuid"]
 
   # check if selected species is valid
   index_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
@@ -141,8 +157,9 @@ def get_project_parameters(config, scprocess_data_dir):
   assert date_regex.match(DATE_STAMP), f"{DATE_STAMP} does not match date format YYYY-MM-DD"
 
   # get fastqs
-  if not os.path.isabs(FASTQ_DIR):
-    FASTQ_DIR = os.path.join(PROJ_DIR, FASTQ_DIR)
+  if FASTQ_DIR is not None:
+    if not os.path.isabs(FASTQ_DIR):
+      FASTQ_DIR = os.path.join(PROJ_DIR, FASTQ_DIR)
   
   # get samples
   METADATA_F    = config["sample_metadata"]
@@ -868,7 +885,7 @@ def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES, HTO = False):
 
 
 # remove samples and pools from sample mapping
-def filter_sample_mapping(SAMPLE_MAPPING, POOL_IDS, SAMPLES):
+def update_sample_mapping_after_exclusions(SAMPLE_MAPPING, POOL_IDS, SAMPLES):
 
   if SAMPLE_MAPPING is None:
     return None

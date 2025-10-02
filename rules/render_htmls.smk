@@ -72,7 +72,7 @@ rule render_html_mapping:
       )"
     """
 
-if DEMUX_TYPE == 'af':
+if DEMUX_TYPE == "hto":
   # rule render_html_multiplexing
   rule render_html_multiplexing:
     input:

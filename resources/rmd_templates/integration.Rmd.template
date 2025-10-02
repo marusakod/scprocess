@@ -46,15 +46,15 @@ qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') 
 integration_f      = "${integration_f}"
 int_reduction      = "${INT_REDUCTION}"
 demux_type         = "${DEMUX_TYPE}"
-if(int_reduction == 'harmony'){
+if (int_reduction == 'harmony') {
   int_txt = "with `Harmony` "
-}else {
+} else {
   int_txt = ''
 }
 
-if(demux_type == 'af'){
+if (demux_type == 'hto') {
   dbl_txt = " and `HTODemux`(`Seurat`)"
-}else{
+} else{
   dbl_txt = ""
 }
 

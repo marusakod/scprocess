@@ -120,7 +120,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       pool_id:
     metadata_vars:
     multiplexing:
-      demux_type: "none"
+      demux_type: none
       fastq_dir: 
       feature_ref: 
       batch_var: sample_id 
@@ -218,7 +218,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       pool_id: [pool1, pool2]
     metadata_vars: [var1, var2]
     multiplexing:
-      demux_type: af
+      demux_type: hto
       fastq_dir: /path/to/directory/with/hto_fastq/files
       feature_ref: /path/to/feature_ref.csv
       batch_var: sample_id
@@ -348,9 +348,9 @@ sample_3:
 
 ##### multiplexing
 
-* `demux_type`: `af` if demultiplexing of samples should be performed with {{sc}} or `custom` if demultiplexing results will be used as input to {{sc}}.
-* `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. Required if `demux_type` is `af`.
-* `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `af`.
+* `demux_type`: `hto` if demultiplexing of samples should be performed with {{sc}} or `custom` if demultiplexing results will be used as input to {{sc}}.
+* `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. Required if `demux_type` is `hto`.
+* `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `hto`.
 * `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `negative`. Required if `demux_type` is `custom`.
 * `batch_var`: variable to use for integration with `Harmony`. Options are `pool_id` or `sample_id`.
 
