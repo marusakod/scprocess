@@ -38,9 +38,7 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, de
 
   message('running integration')
  
-  message('  setting up cluster')
-  plan("multicore", workers = n_cores)
-  options( future.globals.maxSize = 2^35 )
+  options(future.globals.maxSize = 5000 * 1024^3)
 
   message('  loading relevant cell ids')
   sample_qc   = fread(sample_qc_f)
@@ -202,9 +200,6 @@ make_clean_sces <- function(sel_s, integration_f, sces_yaml_f, clean_sce_f){
     FindNeighbors( reduction = this_reduction, dims = 1:n_dims, verbose = FALSE  ) %>%
     FindClusters(  resolution = res_ls, algorithm = cl_method, verbose = FALSE ) %>%
     identity()
-
-  # switch cluster off
-  plan("sequential")
 
   message('    recording clusters')
   clusts_dt   = seu_obj[[]] %>% as.data.table %>% .[, reduction := this_reduction ]

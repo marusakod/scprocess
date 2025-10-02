@@ -134,7 +134,7 @@ rule render_html_ambient:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   shell: """
     # define rule and template
     template_f=$(realpath resources/rmd_templates/ambient.Rmd.template)

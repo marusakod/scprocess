@@ -8,7 +8,7 @@ rule run_integration:
     coldata_f     = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
     integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-  threads: 8
+  threads: 1
   retries: RETRIES 
   resources:
     mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_INTEGRATION
