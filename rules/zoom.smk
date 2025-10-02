@@ -310,7 +310,7 @@ rule zoom_get_mean_var_for_group:
 
 rule zoom_merge_group_mean_var:
   input:         
-    mean_var_f    = lambda wildcards: get_mean_var_input(wildcards.zoom_name, ZOOM_PARAMS_DICT, FULL_TAG, DATE_STAMP)
+    mean_var_f    = lambda wildcards: get_zoom_raw_mean_var_files(wildcards.zoom_name, ZOOM_PARAMS_DICT, FULL_TAG, DATE_STAMP)
   output:
     mean_var_merged_f = temp(zoom_dir + '/{zoom_name}'  + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
   threads: 1
@@ -384,7 +384,7 @@ rule zoom_get_stats_for_std_variance_for_group:
 
 rule zoom_merge_stats_for_std_variance:
   input:
-    tmp_std_var_stats_fs = lambda wildcards: get_tmp_std_var_stats_input(wildcards.zoom_name, \
+    tmp_std_var_stats_fs = lambda wildcards: get_zoom_tmp_std_var_stats_files(wildcards.zoom_name, \
       zoom_dir, ZOOM_PARAMS_DICT, FULL_TAG, DATE_STAMP, SAMPLES)
   output:
     std_var_stats_merged_f= zoom_dir + '/{zoom_name}/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
