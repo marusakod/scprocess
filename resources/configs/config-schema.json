@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project"],
+  "properties": {
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proj_dir", "full_tag", "short_tag", "your_name", "affiliation", 
+        "date_stamp", "sample_metadata", "species", "10x_chemistry"],
+      "properties": {
+        "proj_dir":             { "type": "string" },
+        "fastq_dir":            { "type": "string" },
+        "arv_uuid":             { "type": "string" },
+        "full_tag":             { "type": "string" },
+        "short_tag":            { "type": "string" },
+        "your_name":            { "type": "string" },
+        "affiliation":          { "type": "string" },
+        "date_stamp":           { "type": "string", "format": "date" },
+        "sample_metadata":      { "type": "string" },
+        "species":              { "type": "string" },
+        "10x_chemistry":        { "type": "string", "enum": ["3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"] },
+        "metadata_vars":        { "type": "array", "items": { "type": "string" } },
+        "custom_sample_params": { "type": "string" },
+        "exclude": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sample_id":  { "type": "array", "items": { "type": "string" } },
+            "pool_id":    { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "oneOf": [
+        { "required": ["fastq_dir"],  "not": {"required": ["arv_uuid"]} },
+        { "required": ["arv_uuid"],   "not": {"required": ["fastq_dir"]} }
+      ]
+    },
+    "multiplexing": {
+      "title": "Multiplexing Configuration",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "demux_type", "batch_var" ],
+      "properties": {
+        "demux_type":   { "type": "string", "enum": ["hto", "custom"] },
+        "batch_var":    { "type": "string", "enum": ["pool_id", "sample_id"] },
+        "fastq_dir":    { "type": "string" },
+        "arv_uuid":     { "type": "string" },
+        "feature_ref":  { "type": "string" },
+        "demux_output": { "type": "string" }
+      },
+      "oneOf": [
+        { "required": ["fastq_dir"],  "not": {"required": ["arv_uuid"]} },
+        { "required": ["arv_uuid"],   "not": {"required": ["fastq_dir"]} }
+      ],
+      "allOf": [
+        {
+          "if": {"properties": {"demux_type": {"const": "hto" } } }, 
+          "then": {"required": ["fastq_dir", "feature_ref" ] }
+        },
+        {
+          "if": {"properties": {"demux_type": {"const": "custom" } } }, 
+          "then": {"required": ["demux_output" ] }
+        } 
+      ]
+    },
+    "ambient": {
+      "type": "object",
+      "required": ["ambient_method"],
+      "additionalProperties": false,
+      "properties": {
+        "ambient_method":                   { "type": "string", "enum": ["decontx", "cellbender", "none"], "default": "decontx" },
+        "cell_calling":                     { "type": "string", "enum": ["barcodeRanks", "emptyDrops"], "default": "barcodeRanks" },
+        "cb_version":                       { "type": "string", "enum": ["v0.3.2", "v0.3.0'", "v0.2.0'"], "default": "v0.3.2" },
+        "cb_max_prop_kept":                 { "type": "number", "default": 0.9 },
+        "cb_force_expected_cells":          { "type": "number" },
+        "cb_force_total_droplets_included": { "type": "number" },
+        "cb_force_low_count_threshold":     { "type": "number" },
+        "cb_force_learning_rate":           { "type": "number" },
+        "cb_posterior_batch_size":          { "type": "number" }
+      }
+    },
+    "qc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "qc_min_counts":  { "type": "integer", "exclusiveMinimum": 0, "default": 500 },
+        "qc_min_feats":   { "type": "integer", "exclusiveMinimum": 0, "default": 300 },
+        "qc_min_mito":    { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
+        "qc_max_mito":    { "type": "number", "minimum": 0, "maximum": 1, "default": 0.1 },
+        "qc_min_splice":  { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
+        "qc_max_splice":  { "type": "number", "minimum": 0, "maximum": 1, "default": 0.75 },
+        "qc_min_cells":   { "type": "integer", "exclusiveMinimum": 0, "default": 500 },
+        "dbl_min_feats":  { "type": "integer", "exclusiveMinimum": 0, "default": 100 },
+        "exclude_mito":   { "type": "boolean", "default": true }
+      }
+    },
+    "pb_empties": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ambient_genes_logfc_thr":  { "type": "number", "default": 0 },
+        "ambient_genes_fdr_thr":    { "type": "number", "default": 0.01 }
+      }
+    },
+    "hvg": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hvg_method":                 { "type": "string", "default": "sample" },
+        "hvg_metadata_split_var":     { "type": ["string", "null"], "default": null },
+        "hvg_n_hvgs":                 { "type": "integer", "default": 2000 },
+        "hvg_exclude_ambient_genes":  { "type": "boolean", "default": true }
+      }
+    },
+    "integration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "int_cl_method":    { "type": "string", "enum": ["louvain", "leiden"], "default": "louvain"},
+        "int_embedding":    { "type": "string", "enum": ["harmony", "pca"], "default": "harmony" },
+        "int_n_dims":       { "type": "integer", "default": 50 },
+        "int_dbl_res":      { "type": "number", "default": 4 },
+        "int_dbl_cl_prop":  { "type": "number", "default": 0.5 },
+        "int_theta":        { "type": "number", "default": 0.1 },
+        "int_res_ls": {
+          "type":     "array",
+          "items":    { "type": "number" },
+          "default":  [0.1, 0.2, 0.5, 1, 2]
+        }
+      }
+    },
+    "marker_genes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mkr_sel_res":      { "type": "number",   "default": 0.2 },
+        "mkr_min_cl_size":  { "type": "integer",  "default": 100 },
+        "mkr_min_cells":    { "type": "integer",  "default": 10 },
+        "mkr_not_ok_re":    { "type": "string",   "default": "(lincRNA|lncRNA|pseudogene|antisense)" },
+        "mkr_min_cpm_mkr":  { "type": "integer",  "default": 50 },
+        "mkr_min_cpm_go":   { "type": "integer",  "default": 1 },
+        "mkr_max_zero_p":   { "type": "number",   "default": 0.5 },
+        "mkr_gsea_cut":     { "type": "number",   "default": 0.1 },
+        "mkr_custom_genesets": { "type": "array", "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": ["string", "null"], "default": null },
+              "file": { "type": ["string", "null"], "default": null }
+            }
+          }
+        }
+      }
+    },
+    "label_celltypes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lbl_tissue"],
+      "properties": {
+        "lbl_tissue":       { "type": "string" },
+        "lbl_sel_res_cl":   { "type": "string", "default": "RNA_snn_res.2" },
+        "lbl_min_pred":     { "type": "number", "default": 0.8 },
+        "lbl_min_cl_prop":  { "type": "number", "default": 0.5 },
+        "lbl_min_cl_size":  { "type": "integer", "default": 100 }
+      }
+    },
+    "zoom": {
+      "type": "object",
+      "default": {}
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "retries":                    { "type": "integer", "default": 3 },
+        "mb_run_mapping":             { "type": "integer", "default": 8192 },
+        "mb_save_alevin_to_h5":       { "type": "integer", "default": 8192 },
+        "mb_run_ambient":             { "type": "integer", "default": 8192 },
+        "mb_get_barcode_qc_metrics":  { "type": "integer", "default": 8192 },
+        "mb_run_qc":                  { "type": "integer", "default": 8192 },
+        "mb_run_hvgs":                { "type": "integer", "default": 8192 },
+        "mb_run_integration":         { "type": "integer", "default": 8192 },
+        "mb_make_clean_sces":         { "type": "integer", "default": 8192 },
+        "mb_run_marker_genes":        { "type": "integer", "default": 16384 },
+        "mb_render_htmls":            { "type": "integer", "default": 8192 },
+        "mb_label_celltypes":         { "type": "integer", "default": 8192 },
+        "mb_pb_make_pbs":             { "type": "integer", "default": 8192 },
+        "mb_pb_calc_empty_genes":     { "type": "integer", "default": 8192 },
+        "mb_make_hto_sce_objects":    { "type": "integer", "default": 8192 },
+        "mb_make_subset_sces":        { "type": "integer", "default": 8192 }
+      }
+    }
+  }
+}

@@ -196,35 +196,6 @@ rule run_mapping:
       --unfiltered-pl {params.whitelist_f} --min-reads 1 \
       --output $out_dir
     """
-  run:
-    # Process input strings
-    R1_fs=$(echo {params.R1_fs} | sed "s/ /,/g")
-    R2_fs=$(echo {params.R2_fs} | sed "s/ /,/g")
-    
-    # make output directory
-    out_dir="{af_dir}/af_{wildcards.run}"
-    mkdir -p $out_dir
-
-    # add subdirectory if multiplexed samples
-    if [ "{DEMUX_TYPE}" == "af" ]; then
-        out_dir="$out_dir/rna"
-    fi
-
-    export ALEVIN_FRY_HOME="{AF_HOME_DIR}"
-    simpleaf set-paths
-
-    # RNA quantification
-    simpleaf quant \
-      --reads1 $R1_fs  \
-      --reads2 $R2_fs  \
-      --threads {threads} \
-      --index {AF_INDEX_DIR}/index \
-      --chemistry {params.af_chemistry} --resolution cr-like \
-      --expected-ori {params.exp_ori} \
-      --t2g-map {AF_INDEX_DIR}/index/t2g_3col.tsv \
-      --unfiltered-pl {params.whitelist_f} --min-reads 1 \
-      --output $out_dir
-    """
 
 
 if DEMUX_TYPE == "hto":

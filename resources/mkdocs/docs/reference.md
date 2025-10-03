@@ -103,22 +103,22 @@ This is an example config file for {{sc}} with all parameters and their default 
 === "default values"
 
     ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11"
-    proj_dir:
-    fastq_dir:
-    full_tag:
-    short_tag:
-    your_name:
-    affiliation:
-    sample_metadata:
-    species:
-    date_stamp:
-    alevin:
-      chemistry:
-    custom_sample_params:
-    exclude:
-      sample_id:
-      pool_id:
-    metadata_vars:
+    project:
+      proj_dir:
+      fastq_dir:
+      full_tag:
+      short_tag:
+      your_name:
+      affiliation:
+      date_stamp:
+      sample_metadata:
+      species:
+      10x_chemistry:
+      metadata_vars:
+      custom_sample_params:
+      exclude:
+        sample_id:
+        pool_id:
     multiplexing:
       demux_type: none
       fastq_dir: 
@@ -201,22 +201,22 @@ This is an example config file for {{sc}} with all parameters and their default 
 === "placeholders"
 
     ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11"
-    proj_dir: /path/to/proj/directory 
-    fastq_dir: /path/to/directory/with/fastq/files
-    full_tag: test_project
-    short_tag: test
-    your_name: Test McUser
-    affiliation: where you work
-    sample_metadata: /path/to/metadata.csv
-    species: human_2024
-    date_stamp: "2050-01-01"
-    alevin:
-      chemistry: 3v3
-    custom_sample_params: /path/to/file/with/custom_parameters.yaml 
-    exclude:
-      sample_id: [sample1, sample2]
-      pool_id: [pool1, pool2]
-    metadata_vars: [var1, var2]
+    project:
+      proj_dir: /path/to/proj/directory 
+      fastq_dir: /path/to/directory/with/fastq/files
+      full_tag: test_project
+      short_tag: test
+      your_name: Test McUser
+      affiliation: where you work
+      date_stamp: "2050-01-01"
+      sample_metadata: /path/to/metadata.csv
+      species: human_2024
+      10x_chemistry: 3v3
+      metadata_vars: [var1, var2]
+      custom_sample_params: /path/to/file/with/custom_parameters.yaml 
+      exclude:
+        sample_id: [sample1, sample2]
+        pool_id: [pool1, pool2]
     multiplexing:
       demux_type: hto
       fastq_dir: /path/to/directory/with/hto_fastq/files
@@ -302,33 +302,36 @@ This is an example config file for {{sc}} with all parameters and their default 
 
 #### Required parameters
 
+##### project
+
 * `proj_dir`: absolute path to `workflowr` project directory created with the `newproj` function.
 * `fastq_dir`: path to directory containing FASTQ files. Should be absolute or relative to `proj_dir`.
 * `full_tag`: full project label, used in output file names.
 * `short_tag`: abbreviated project label, used in output directory names.
 * `your_name`: author’s name, displayed in HTML outputs.
 * `affiliation`: author’s affiliation, displayed in HTML outputs.
-* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R_`and `_R2_`strings.
-* `species`: must match one of the values in the `genome_name` column of `index_parameters.csv` (created by `scsetup`).
 * `date_stamp`: start date of the analysis, formatted as `"YYYY-MM-DD"`.
-* `chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).
+* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1` and `_R2`strings.
+* `species`: must match one of the values in the `genome_name` column of `index_parameters.csv` (created by `scsetup`).
+* `10x_chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).
 
 #### Optional parameters
 
-##### general
+##### project
 
-* `custom_sample_params`: YAML file with optional custom parameters for each sample (custom chemistry, custom ambient and custom cellbender parameters can be specified for each sample). Example:
+* `metadata_vars`: A list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
+* `custom_sample_params`: YAML file with optional custom parameters for each sample (custom 10x_chemistry, custom ambient and custom cellbender parameters can be specified for each sample). Example:
 
 ```yaml
 sample_1:
-  chemistry: 5v2
+  10x_chemistry: 5v2
   ambient:
     knee1: 4000
     shin1: 400
     knee2: 30
     shin2: 5
 sample_2:
-  chemistry: 5v2
+  10x_chemistry: 5v2
   ambient:
     knee1: 3000
     shin1: 400
@@ -342,23 +345,21 @@ sample_3:
 
 ```
 
-* `exclude`: list of all samples that should be excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
-* `metadata_vars`: A list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
-
+* `exclude`: List of all samples that should be "manually" excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
 
 ##### multiplexing
 
 * `demux_type`: `hto` if demultiplexing of samples should be performed with {{sc}} or `custom` if demultiplexing results will be used as input to {{sc}}.
+* `batch_var`: variable to use for integration with `Harmony`. Options are `pool_id` or `sample_id`; default is `sample_id`.
 * `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. Required if `demux_type` is `hto`.
 * `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `hto`.
 * `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `negative`. Required if `demux_type` is `custom`.
-* `batch_var`: variable to use for integration with `Harmony`. Options are `pool_id` or `sample_id`.
 
 ##### ambient
 
 * `ambient_method`: method for ambient RNA removal; options are `decontx` (default), `cellbender` or `none`.
-* `cellbender_version`: version of `cellbender` to use if `ambient_method` is set to `cellbender`. Options are `v0.3.2` (default), `v0.3.0'` and `v0.2.0'`.
 * `cell_calling`: method for cell calling when `ambient_method` is `none` or `decontx`. Options are `barcodeRanks` and `emptyDrops`.
+* `cb_version`: version of `cellbender` to use if `ambient_method` is set to `cellbender`. Options are `v0.3.2` (default), `v0.3.0'` and `v0.2.0'`.
 * `cb_max_prop_kept`: maximum proportion of droplets, relative to `--total-droplets-included`, that `cellbender` can call as cells. Default is `0.9`, meaning samples are excluded if `cellbender` calls more than 90% of `--total-droplets-included` droplets as cells. Applicable only if `ambient_method` is `cellbender`. For more information about the `--total-droplets-included` parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
 * `cb_force_expected_cells`: forces the `--expected-cells` `Cellbender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
 * `cb_force_total_droplets_included`: forces the `--total-droplets-included` `Cellbender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
@@ -396,8 +397,8 @@ sample_3:
 
 ##### integration
 
-* `cl_method`: algorithm used for clustering, options: `leiden`, `louvain`.
-* `reduction`: which dimensionality reduction method to use for clustering and UMAP, options: `pca` (no batch correction), `harmony` (batch correction). 
+* `int_cl_method`: algorithm used for clustering, options: `leiden`, `louvain`.
+* `int_embedding`: which dimensionality reduction method to use for clustering and UMAP, options: `pca` (no batch correction), `harmony` (batch correction). 
 * `int_n_dims`: number of principal components to use for data integration.
 * `int_dbl_res`: clustering resolution for identification of additional doublets.
 * `int_dbl_cl_prop`: threshold for the proportion of doublets within a cluster. Clusters where the proportion of doublets exceeds this value will be excluded.
