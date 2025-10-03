@@ -103,19 +103,17 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
 
 
 
-make_pb_empty <- function(sel_s, af_paths_f, amb_stats_f, pb_empty_f,
+make_pb_empty <- function(sel_s, af_paths_f, pb_empty_f,
                           ambient_method, sample_var = 'sample_id') {
   
   message('create pseudobulk matrix for empty droplets')
   
   # get files
   af_paths_df   = fread(af_paths_f)
-  sample_ls     = af_paths_df[[sample_var]] %>% unique()
   
   # get bad cellbender samples
   if(ambient_method == 'cellbender'){
-    amb_stats_dt = fread(amb_stats_f) 
-    bad_samples  = amb_stats_dt[bad_sample == TRUE, get(sample_var)]
+    bad_samples  = af_paths_df[bad_sample == TRUE, get(sample_var)]
     if(sel_s %in% bad_samples){
       # write an empty file
       file.create(pb_empty_f)
@@ -139,9 +137,18 @@ make_pb_empty <- function(sel_s, af_paths_f, amb_stats_f, pb_empty_f,
   message(' done!')
 }
 
-merge_empty_pbs <- function(empty_pb_fs, rowdata_f, empty_pbs_f){
+merge_empty_pbs <- function(af_paths_f, rowdata_f, empty_pbs_f, ambient_method){
   
-  empy_pbs      = empty_pb_fs %>% lapply(FUN = readRDS)
+  # get paths to empty pb files for for runs that weren't excluded
+  af_paths_df = fread(af_paths_f)
+  
+  if(ambient_method == 'cellbender'){
+    af_paths_df = af_paths_df %>%
+      .[bad_sample == FALSE]
+  }
+  
+  empty_pb_fs   = af_paths_df$pb_tmp_f %>% unique()
+  empty_pbs      = empty_pb_fs %>% lapply(FUN = readRDS)
   pb_empty      = do.call('cbind', empty_pbs)
   
   # get nice rows

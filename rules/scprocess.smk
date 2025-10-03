@@ -42,6 +42,7 @@ RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
   get_resource_parameters(config)
 
 # specify locations
+benchmark_dir = f"{PROJ_DIR}/resources"
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
 code_dir      = f"{PROJ_DIR}/code"
 af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
