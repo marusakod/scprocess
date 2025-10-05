@@ -10,6 +10,7 @@ default-resources:
   runtime: 3h
   mem_mb: 4096
 set-resources:
-  run_harmony:
+  run_integration:
     runtime: 12h
-
+  run_cellbender:
+    slurm_extra: "'--gpus=1'"
