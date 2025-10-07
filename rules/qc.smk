@@ -158,7 +158,7 @@ rule merge_qc:
   output:
     qc_merged_f      = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     coldata_merged_f = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-  threads: 4
+  threads: 1
   retries: RETRIES
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/merge_qc_' + DATE_STAMP + '.benchmark.txt'
@@ -240,10 +240,6 @@ rule make_tmp_sce_paths_yaml:
     sces_yaml_f = temp(qc_dir  + '/sce_tmp_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml')
    threads: 1
    retries: RETRIES
-   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
-   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_qc/make_tmp_sce_paths_yaml_' + DATE_STAMP + '.benchmark.txt'
    run:
     # split paths and sample names
     fs = [f"{qc_dir}/sce_cells_tmp_{s}_{FULL_TAG}_{DATE_STAMP}.rds" for s in SAMPLES]

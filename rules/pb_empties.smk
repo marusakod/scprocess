@@ -43,7 +43,7 @@ rule make_one_pb_empty:
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_pb_empties/make_pb_empty_' + DATE_STAMP + '.benchmark.txt'
+    benchmark_dir + '/' + SHORT_TAG + '_pb_empties/make_one_pb_empty_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell:
@@ -68,6 +68,8 @@ rule merge_pb_empty:
   retries: RETRIES 
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_pb_empties/merge_pb_empty_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell:

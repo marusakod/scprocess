@@ -603,16 +603,13 @@ plot_qc_metrics_split_by_cells_empties <- function(rna_knee_fs,
 }
 
 
-plot_reads_removed_as_ambient <- function(usa_fs, ok_bcs_ls, n_cores = 8) {
+plot_reads_removed_as_ambient <- function(usa_dt_ls, ok_bcs_ls) {
   logit_brks  = c(1e-4, 1e-3, 1e-2, 0.10, 0.50, 0.90, 0.99, 0.999) %>% qlogis
   logit_labs  = c("0.01%", "0.1%", "1%", "10%", "50%", "90%", "99%", "99.9%")
-  
-  # setup cluster
-  bpparam = MulticoreParam(workers = n_cores, progressbar = TRUE)
 
   # prepare results
-  plot_dt   = bplapply(names(usa_fs), function(nn) {
-    usa_tmp   = .get_usa_dt(usa_fs[[ nn ]])
+  plot_dt   = lapply(names(usa_dt_ls), function(nn) {
+    usa_tmp   = usa_dt_ls[[ nn ]]
     bcs_tmp   = ok_bcs_ls[[ nn ]]
     plot_tmp  = usa_tmp[ barcode %in% bcs_tmp ] %>% 
       melt( id = "barcode", measure.vars = measure(value.name, transcript, sep = "_") ) %>% 
@@ -621,7 +618,7 @@ plot_reads_removed_as_ambient <- function(usa_fs, ok_bcs_ls, n_cores = 8) {
       .[, sample_id := nn ]
 
     return( plot_tmp )
-  }, BPPARAM = bpparam) %>% rbindlist
+  }) %>% rbindlist
 
   # do plot
   g = ggplot(plot_dt) +
@@ -641,9 +638,8 @@ plot_reads_removed_as_ambient <- function(usa_fs, ok_bcs_ls, n_cores = 8) {
 
 
 
-plot_spliced_vs_umis <- function(ss, usa_f, ok_bcs, total_inc) {
-  
-  usa_dt      = get_usa_dt(usa_f)
+
+plot_spliced_vs_umis <- function(ss, usa_dt, ok_bcs, total_inc) {
   pscount     = 10
   PCT_BRKS    = c(0.001, 0.003, 0.01, 0.03, 0.1, 0.5, 0.9, 0.97, 0.99, 0.997, 0.999) %>% qlogis
   PCT_LABS    = c('0.1%', '0.3%', '1%', '3%', '10%', '50%', '90%', '97%', '99%',
@@ -703,6 +699,7 @@ plot_spliced_vs_umis <- function(ss, usa_f, ok_bcs, total_inc) {
 
   return(g)
 }
+
 
 
 calc_ambient_exclusions <- function(stats_dt, sample_var) {

@@ -89,6 +89,8 @@ if HVG_METHOD == 'sample':
     retries: RETRIES
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_hvgs/merge_sample_std_var_stats_' + DATE_STAMP + '.benchmark.txt'
     run:
       merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
 
@@ -137,6 +139,8 @@ else:
     retries: RETRIES
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_hvgs/merge_group_mean_var_' + DATE_STAMP + '.benchmark.txt'
     run:
       merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
 
@@ -206,6 +210,8 @@ else:
     retries: RETRIES
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_hvgs/merge_group_std_var_stats_' + DATE_STAMP + '.benchmark.txt'
     run:
       merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
 

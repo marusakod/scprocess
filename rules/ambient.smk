@@ -336,6 +336,8 @@ rule get_barcode_qc_metrics:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_GET_BARCODE_QC_METRICS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_ambient/get_barcode_qc_metrics_{run}_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     # save barcode stats
     Rscript -e "source('scripts/ambient.R'); \

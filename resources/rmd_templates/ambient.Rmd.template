@@ -69,6 +69,7 @@ stats_dt    = stats_f %>% fread
 ```
 
 ```{r load_usa_fs, include = FALSE}
+usa_dt_ls   = usa_fs %>% lapply(get_usa_dt)
 ok_bcs_ls   = ok_bcs_fs %>% lapply(function(f) fread(f, header = FALSE)$V1 )
 tot_inc_ls  = map_yamls %>% lapply(function(f) read_yaml(f)$total_droplets_included )
 ```
@@ -91,7 +92,7 @@ ${spl_umis_pl_txt}
 ```{r plot_spliced_vs_umis, fig.height = dims_ls$splice_vs_umi$h, fig.width = dims_ls$splice_vs_umi$w, results = "asis"}
 for (ss in s_lvls) {
   cat("### ", ss, "\n")
-  print( plot_spliced_vs_umis(ss, usa_fs[[ss]], ok_bcs_ls[[ss]], tot_inc_ls[[ss]]) )
+  print( plot_spliced_vs_umis(ss, usa_dt_ls[[ss]], ok_bcs_ls[[ss]], tot_inc_ls[[ss]]) )
   cat("\n\n")
 }
 ```
@@ -100,7 +101,7 @@ ${plot_removed_title}
 ${plot_removed_txt}
 
 ```{r plot_reads_removed_as_ambient, eval = plot_removed, fig.height = dims_ls$reads_removed$h, fig.width = dims_ls$reads_removed$w, results = "asis"}
-print(plot_reads_removed_as_ambient(usa_fs, ok_bcs_ls, n_cores))
+print(plot_reads_removed_as_ambient(usa_dt_ls, ok_bcs_ls))
 ```
 
 ${tbl_removed_title}

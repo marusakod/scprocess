@@ -125,7 +125,7 @@ if DEMUX_TYPE == "af":
     conda:
       '../envs/alevin_fry.yaml'
     benchmark:
-      benchmark_dir + '/' + SHORT_TAG + '_mapping/build_hto_index_{run}_' + DATE_STAMP + '.benchmark.txt'
+      benchmark_dir + '/' + SHORT_TAG + '_mapping/build_hto_index_' + DATE_STAMP + '.benchmark.txt'
     shell:
       """
       cd {af_dir}

@@ -73,8 +73,6 @@ rule make_clean_sce_paths_yaml:
     clean_sce_f = expand(int_dir + '/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample = SAMPLES) # not used
    output:
     sces_yaml_f = int_dir + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml'
-   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_integration/make_clean_sce_paths_yaml_' + DATE_STAMP + '.benchmark.txt'
    run:
     # split paths and sample names
     fs = [f"{int_dir}/sce_cells_clean_{s}_{FULL_TAG}_{DATE_STAMP}.rds" for s in SAMPLES]
