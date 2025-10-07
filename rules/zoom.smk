@@ -47,6 +47,7 @@ ZOOM_NAMES, ZOOM_PARAMS_DICT, ZOOM_NAMES_SUBSET = \
     AF_GTF_DT_F, PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR)
 
 # specify locations
+benchmark_dir = f"{PROJ_DIR}/.resources"
 code_dir      = f"{PROJ_DIR}/code"
 amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
 qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
@@ -234,7 +235,7 @@ rule zoom_make_tmp_csr_matrix:
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_make_tmp_csr_matrix_{zoom_name}_{sample}_' + DATE_STAMP + '.benchmark.txt'
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_make_tmp_csr_matrix_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -545,7 +546,7 @@ rule zoom_run_marker_genes:
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_MARKER_GENES
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_run_marker_genes_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_run_marker_genes_{zoom_name}_{mkr_sel_res}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
   shell:
@@ -649,7 +650,7 @@ rule render_html_zoom:
   resources:
     mem_mb =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_zoom/render_html_zoom_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/render_html_zoom_{zoom_name}_{mkr_sel_res}_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     template_f=$(realpath resources/rmd_templates/zoom.Rmd.template)
     rule="zoom"
