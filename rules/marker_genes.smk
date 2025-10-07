@@ -33,6 +33,8 @@ rule run_marker_genes:
   retries: RETRIES
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_MARKER_GENES
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_marker_genes/run_marker_genes_' + DATE_STAMP + '.benchmark.txt'
   conda: '../envs/rlibs.yaml'
   shell:
     """

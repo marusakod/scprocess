@@ -32,6 +32,8 @@ rule make_tmp_csr_matrix:
   retries: RETRIES
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_hvgs/make_tmp_csr_matrix_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -64,6 +66,8 @@ if HVG_METHOD == 'sample':
     retries: RETRIES
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_hvgs/get_stats_for_std_variance_for_sample_{sample}_' + DATE_STAMP + '.benchmark.txt'
     conda:
       '../envs/hvgs.yaml'
     shell:
@@ -85,6 +89,8 @@ if HVG_METHOD == 'sample':
     retries: RETRIES
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_hvgs/merge_sample_std_var_stats_' + DATE_STAMP + '.benchmark.txt'
     run:
       merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
 
@@ -103,6 +109,8 @@ else:
     threads: 8
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_hvgs/get_mean_var_for_group_{group}_chunk_{chunk}_' + DATE_STAMP + '.benchmark.txt'
     conda:
       '../envs/hvgs.yaml'
     shell:
@@ -131,6 +139,8 @@ else:
     retries: RETRIES
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_hvgs/merge_group_mean_var_' + DATE_STAMP + '.benchmark.txt'
     run:
       merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
 
@@ -146,6 +156,8 @@ else:
       '../envs/hvgs.yaml'
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_hvgs/get_estimated_variances_' + DATE_STAMP + '.benchmark.txt'
     shell:
       """
       python3 scripts/hvgs.py calculate_estimated_vars \
@@ -166,6 +178,8 @@ else:
     threads: 8
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_hvgs/get_stats_for_std_variance_for_group_{group}_chunk_{chunk}_' + DATE_STAMP + '.benchmark.txt'
     conda:
       '../envs/hvgs.yaml'
     shell:
@@ -196,6 +210,8 @@ else:
     retries: RETRIES
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_hvgs/merge_group_std_var_stats_' + DATE_STAMP + '.benchmark.txt'
     run:
       merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
 
@@ -214,6 +230,8 @@ rule get_highly_variable_genes:
     exclude_ambient_genes = EXCLUDE_AMBIENT_GENES
   resources:
      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  benchmark:
+     benchmark_dir + '/' + SHORT_TAG + '_hvgs/get_highly_variable_genes_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -245,6 +263,8 @@ rule create_hvg_matrix:
   retries: RETRIES
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_hvgs/create_hvg_matrix_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -271,6 +291,8 @@ rule create_doublets_hvg_matrix:
     retries: RETRIES
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_hvgs/create_doublets_hvg_matrix_' + DATE_STAMP + '.benchmark.txt'
     conda: 
       '../envs/hvgs.yaml'
     shell: 

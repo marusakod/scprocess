@@ -423,12 +423,11 @@ def get_project_parameters(config, scprocess_data_dir):
       uniq_vals = len(set(var_vals))
       assert uniq_vals <= 10, \
         f"{var} variable has more than 10 unique values"
-  
+
 
   return PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, \
     METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES, \
     DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_VAR, SAMPLE_MAPPING
-
 
 # remove samples and pools from sample mapping
 def filter_sample_mapping(SAMPLE_MAPPING, POOL_IDS, SAMPLES):
