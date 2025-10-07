@@ -582,7 +582,7 @@ plot_qc_metrics_split_by_cells_empties <- function(rna_knee_fs,
     
   g_violin = ggplot() +
     geom_violin( data = plot_dt[ !is.na(qc_val) ],
-                 aes( x = sample_id, y = qc_val, fill = what), colour = NA, 
+                 aes( x = get(sample_var), y = qc_val, fill = what), colour = NA, 
                  kernel = 'rectangular', adjust = 0.1, scale = 'width', width = 0.8) +
     facet_grid( . ~ qc_metric, scales = 'free', space = 'free_y' ) +
     facetted_pos_scales(
