@@ -37,7 +37,9 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, de
   }
 
   message('running integration')
- 
+  
+  message('  setting up cluster')
+  plan("multicore", workers = n_cores)
   options(future.globals.maxSize = 5000 * 1024^3)
 
   message('  loading relevant cell ids')
@@ -115,6 +117,9 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, de
   # run harmony
   int_ok      = .run_one_integration(seu_ok, batch_var, cl_method, n_dims, 
     theta = theta, res_ls, reduction)        
+  
+  # switch cluster off
+  plan("sequential")
 
   # join these together
   int_dt      = merge(int_ok, dbl_data, by = c("sample_id", "cell_id"), all = TRUE)
