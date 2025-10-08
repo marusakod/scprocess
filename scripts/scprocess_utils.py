@@ -183,32 +183,6 @@ def find_fastq_files(fastqs_dir, sample, read):
   return sel_fs
 
 
-# find fastq files for a sample
-def find_fastq_files(fastqs_dir, sample, read):
-  # get all files
-  all_fs    = glob.glob(f"{fastqs_dir}/*{sample}*")
-
-  # get all reads
-  re_R1     = re.compile('.*_R1.*\\.fastq(\\.gz)?$')
-  R1_fs     = [ f for f in all_fs if re_R1.match(f) ]
-  R1_fs     = sorted(R1_fs)
-  re_R2     = re.compile('.*_R2.*\\.fastq(\\.gz)?$')
-  R2_fs     = [ f for f in all_fs if re_R2.match(f) ]
-  R2_fs     = sorted(R2_fs)
-
-  # check they match
-  R1_chk    = [ re.sub("_R1", "", f) for f in R1_fs ]
-  R2_chk    = [ re.sub("_R2", "", f) for f in R2_fs ]
-  assert R1_chk == R2_chk, "R1 and R2 fastq files do not match for " + sample
-
-  if read == "R1":
-    sel_fs = R1_fs
-  elif read == "R2":
-    sel_fs = R2_fs
-
-  return sel_fs
-
-
 # function to exclude samples without valid fastq files
 def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES, HTO = False):
   # get parameters
