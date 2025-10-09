@@ -24,9 +24,9 @@ scprocess newproj my_project -c -s
 
 {{sc}} requires 2 types of input files:
 
-* **FASTQ files** generated using 10x Genomics technology: names of FASTQ files have to contain a `[SAMPLE_ID]` in the name as well as `_R1_` an `_R2_` labels for read one (forward read) and read two (reverse read) respectively. For example:
+* **FASTQ files** generated using 10x Genomics technology: names of FASTQ files have to contain a `[SAMPLE_ID]` in the name as well as `_R1` an `_R2` labels for read one (forward read) and read two (reverse read) respectively. For example:
 
-    `[SAMPLE_ID]*_R1_*.fastq.gz` and `[SAMPLE_ID]*_R2_*.fastq.gz`, where `*` can be replaced with any character.
+    `[SAMPLE_ID]*_R1*.fastq.gz` and `[SAMPLE_ID]*_R2*.fastq.gz`, where `*` can be replaced with any character.
 
 * **metadata**: a CSV file with sample information. The only required column in the metadata file is `sample_id`, where the values should match the `[SAMPLE_ID]` labels included in FASTQ file names.
 
