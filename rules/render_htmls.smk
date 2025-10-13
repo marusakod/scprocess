@@ -280,8 +280,11 @@ rule render_html_integration:
     r_int_f     = f"{code_dir}/integration.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_integration.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_integration.html"
-  params: 
-    int_res_ls = ','.join(map(str, INT_RES_LS))
+  params:
+    int_res_ls_str  = ','.join(map(str, config['integration']['int_res_ls'])),
+    int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
+    int_reduction   = config['integration']['int_reduction'],
+    demux_type      = config['multiplexing']['demux_type']
   threads: 1
   retries: config['resources']['retries'] 
   conda:
@@ -300,22 +303,22 @@ rule render_html_integration:
     # rendering html
     Rscript --vanilla -e "source('scripts/render_htmls.R'); \
     render_html(
-      rule_name     = '$rule', 
-      proj_dir      = '{PROJ_DIR}', 
-      temp_f        = '$template_f', 
-      rmd_f         = '{output.rmd_f}', 
-      YOUR_NAME     = '{YOUR_NAME}', 
-      AFFILIATION   = '{AFFILIATION}', 
-      SHORT_TAG     = '{SHORT_TAG}', 
-      PROJ_DIR      = '{PROJ_DIR}',
-      DATE_STAMP    = '{DATE_STAMP}', 
-      threads       = {threads}, 
-      qc_dt_f       = '{input.qc_dt_f}', 
-      integration_f = '{input.integration_f}', 
-      INT_RES_LS      = '{params.int_res_ls}', 
-      INT_DBL_CL_PROP = {INT_DBL_CL_PROP}, 
-      INT_REDUCTION   = '{INT_REDUCTION}', 
-      DEMUX_TYPE      = '{DEMUX_TYPE}'
+      rule_name       = '$rule',
+      proj_dir        = '{PROJ_DIR}',
+      temp_f          = '$template_f',
+      rmd_f           = '{output.rmd_f}',
+      YOUR_NAME       = '{YOUR_NAME}',
+      AFFILIATION     = '{AFFILIATION}',
+      SHORT_TAG       = '{SHORT_TAG}',
+      PROJ_DIR        = '{PROJ_DIR}',
+      DATE_STAMP      = '{DATE_STAMP}',
+      threads         =  {threads},
+      qc_dt_f         = '{input.qc_dt_f}',
+      integration_f   = '{input.integration_f}',
+      int_res_ls_str  = '{params.int_res_ls_str}',
+      int_dbl_cl_prop =  {params.int_dbl_cl_prop},
+      int_reduction   = '{params.int_reduction}',
+      demux_type      = '{params.demux_type}'
     )"
     """
 

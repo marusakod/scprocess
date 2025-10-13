@@ -132,8 +132,8 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
 
   } else if (sel_rule == 'integration') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
-      'DATE_STAMP', 'threads', 'qc_dt_f', 'integration_f', 'INT_REDUCTION', 'DEMUX_TYPE', 
-      'INT_RES_LS', 'INT_DBL_CL_PROP')
+      'DATE_STAMP', 'threads', 'qc_dt_f', 'integration_f', 'int_reduction', 'demux_type', 
+      'int_res_ls_str', 'int_dbl_cl_prop')
 
     assert_that(all(req_names %in% add_args_names))
 

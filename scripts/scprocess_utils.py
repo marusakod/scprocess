@@ -490,6 +490,31 @@ def _check_project_parameters(config):
     SAMPLE_VAR, SAMPLE_MAPPING
 
 
+# check parameters for qc
+def check_qc_parameters(config):
+  # define some hard values; maybe move these to schema?
+  QC_HARD_MIN_COUNTS  = 200
+  QC_HARD_MIN_FEATS   = 100
+  QC_HARD_MAX_MITO    = 0.5
+
+  # some checks
+  config['qc']['exclude_mito']        = _safe_boolean(config['qc']['exclude_mito'])
+
+  # make sure they're consistent
+  config['qc']['qc_hard_min_counts']  = min(QC_HARD_MIN_COUNTS, config['qc']['qc_min_counts'])
+  config['qc']['qc_hard_min_feats']   = min(QC_HARD_MIN_FEATS, config['qc']['qc_min_feats'])
+  config['qc']['qc_hard_max_mito']    = max(QC_HARD_MAX_MITO, config['qc']['qc_max_mito'])
+
+  return config
+
+
+# check parameters for integration
+def check_integration_parameters(config):
+  # nothing to do here at the moment; leaving in case it's useful later
+
+  return config
+
+
 # get parameters for multiplexing
 def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
   #set defaults
@@ -778,78 +803,6 @@ def get_ambient_parameters(config):
     FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE 
 
 
-# get parameters for qc
-def get_qc_parameters(config):
-  # set default values
-  QC_HARD_MIN_COUNTS  = 200
-  QC_HARD_MIN_FEATS   = 100
-  QC_HARD_MAX_MITO    = 0.5
-  QC_MIN_COUNTS       = 500
-  QC_MIN_FEATS        = 300
-  QC_MIN_MITO         = 0
-  QC_MAX_MITO         = 0.1
-  QC_MIN_SPLICE       = 0
-  QC_MAX_SPLICE       = 0.75
-  QC_MIN_CELLS        = 500
-  DBL_MIN_FEATS       = 100
-  EXCLUDE_MITO        = True
-
-  # change defaults if specified
-  if ('qc' in config) and (config['qc'] is not None):
-    if 'qc_hard_min_counts' in config['qc']:
-      QC_HARD_MIN_COUNTS  = config['qc']['qc_hard_min_counts']
-    if 'qc_hard_min_feats'  in config['qc']:
-      QC_HARD_MIN_FEATS   = config['qc']['qc_hard_min_feats']
-    if 'qc_hard_max_mito'   in config['qc']:
-      QC_HARD_MAX_MITO    = config['qc']['qc_hard_max_mito']
-    if 'qc_min_counts'      in config['qc']:
-      QC_MIN_COUNTS       = config['qc']['qc_min_counts']
-    if 'qc_min_feats'       in config['qc']:
-      QC_MIN_FEATS        = config['qc']['qc_min_feats']
-    if 'qc_min_mito'        in config['qc']:
-      QC_MIN_MITO         = config['qc']['qc_min_mito']
-    if 'qc_max_mito'        in config['qc']:
-      QC_MAX_MITO         = config['qc']['qc_max_mito']
-    if 'qc_min_splice'      in config['qc']:
-      QC_MIN_SPLICE       = config['qc']['qc_min_splice']
-    if 'qc_max_splice'      in config['qc']:
-      QC_MAX_SPLICE       = config['qc']['qc_max_splice']
-    if 'qc_min_cells'       in config['qc']:
-      QC_MIN_CELLS        = config['qc']['qc_min_cells']
-    if 'dbl_min_feats'      in config['qc']:
-      DBL_MIN_FEATS       = config['qc']['dbl_min_feats']
-    if 'exclude_mito'       in config['qc']:
-      EXCLUDE_MITO        = config['qc']['exclude_mito']
-      EXCLUDE_MITO        = _safe_boolean(EXCLUDE_MITO)
-
-
-  # make sure they're consistent
-  QC_HARD_MIN_COUNTS  = min(QC_HARD_MIN_COUNTS, QC_MIN_COUNTS)
-  QC_HARD_MIN_FEATS   = min(QC_HARD_MIN_FEATS, QC_MIN_FEATS)
-  QC_HARD_MAX_MITO    = max(QC_HARD_MAX_MITO, QC_MAX_MITO)
-
-  return QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_FEATS, \
-    QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS, EXCLUDE_MITO
-
-
-# get parameters for qc
-def check_qc_parameters(config):
-  # define some hard values; maybe move these to schema?
-  QC_HARD_MIN_COUNTS  = 200
-  QC_HARD_MIN_FEATS   = 100
-  QC_HARD_MAX_MITO    = 0.5
-
-  # some checks
-  config['qc']['exclude_mito']        = _safe_boolean(config['qc']['exclude_mito'])
-
-  # make sure they're consistent
-  config['qc']['qc_hard_min_counts']  = min(QC_HARD_MIN_COUNTS, config['qc']['qc_min_counts'])
-  config['qc']['qc_hard_min_feats']   = min(QC_HARD_MIN_FEATS, config['qc']['qc_min_feats'])
-  config['qc']['qc_hard_max_mito']    = max(QC_HARD_MAX_MITO, config['qc']['qc_max_mito'])
-
-  return config
-
-
 # get parameters for hvgs
 def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F): 
 
@@ -916,44 +869,6 @@ def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
         CHUNK_NAMES = [f"chunk_{i+1}" for i in range(NUM_CHUNKS)]
 
   return HVG_METHOD, HVG_SPLIT_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES
-
-
-# get parameters for integration
-def get_integration_parameters(config): 
-  # set some more default values
-  INT_CL_METHOD   = 'louvain'
-  INT_REDUCTION   = 'harmony'
-  INT_N_DIMS      = 50
-  INT_THETA       = 0.1
-  INT_RES_LS      = [0.1, 0.2, 0.5, 1, 2]
-  INT_DBL_RES     = 4
-  INT_DBL_CL_PROP = 0.5
-
-  # change defaults if specified
-  if ('integration' in config) and (config['integration'] is not None):
-    if 'cl_method' in config['integration']:
-      INT_CL_METHOD    = config['integration']['cl_method']
-      valid_methods = ['leiden', 'louvain']
-      assert INT_CL_METHOD in valid_methods, \
-        f"Invalid clustering algorithm '{INT_CL_METHOD}'. Must be one of {valid_methods}."
-    if 'reduction' in config['integration']:
-      INT_REDUCTION    = config['integration']['reduction']
-      valid_reductions = ['pca', 'harmony']
-      assert INT_REDUCTION in valid_reductions, \
-        f"Invalid reduction option '{INT_REDUCTION}'. Must be one of {valid_reductions}."
-    if 'int_n_dims' in config['integration']:
-      INT_N_DIMS      = config['integration']['int_n_dims']
-    if 'int_dbl_res' in config['integration']:
-      INT_DBL_RES     = config['integration']['int_dbl_res']
-    if 'int_dbl_cl_prop' in config['integration']:
-      INT_DBL_CL_PROP = config['integration']['int_dbl_cl_prop']
-    if 'int_theta' in config['integration']:
-      INT_THETA       = config['integration']['int_theta']
-    if 'int_res_ls' in config['integration']:
-      INT_RES_LS      = config['integration']['int_res_ls']
-
-  return INT_CL_METHOD, INT_REDUCTION, INT_N_DIMS, INT_THETA, INT_RES_LS, INT_DBL_RES, INT_DBL_CL_PROP
-
 
 # get parameters for marker genes
 def get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR): 

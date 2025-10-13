@@ -44,8 +44,8 @@ qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') 
 
 # define integration inputs
 integration_f      = "${integration_f}"
-int_reduction      = "${INT_REDUCTION}"
-demux_type         = "${DEMUX_TYPE}"
+int_reduction      = "${int_reduction}"
+demux_type         = "${demux_type}"
 if (int_reduction == 'harmony') {
   int_txt = "with `Harmony` "
 } else {
@@ -58,7 +58,7 @@ if (demux_type == 'hto') {
   dbl_txt = ""
 }
 
-res_ls             = "${INT_RES_LS}" %>%
+res_ls             = "${int_res_ls_str}" %>%
  str_split(pattern = ',') %>% unlist() %>% as.numeric()
 dbl_cl_prop = ${INT_DBL_CL_PROP}
 ```

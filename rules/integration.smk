@@ -8,33 +8,42 @@ rule run_integration:
     coldata_f     = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
     integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+  params:
+    demux_type      = config['multiplexing']['demux_type'],
+    exclude_mito    = config['qc']['exclude_mito'],
+    int_reduction   = config['integration']['int_reduction'],
+    int_n_dims      = config['integration']['int_n_dims'],
+    int_cl_method   = config['integration']['int_cl_method'],
+    int_dbl_res     = config['integration']['int_dbl_res'],
+    int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
+    int_theta       = config['integration']['int_theta'],
+    int_res_ls      = config['integration']['int_res_ls']
   threads: 8
-  retries: RETRIES 
+  retries: config['resources']['retries']
   resources:
     mem_mb   = lambda wildcards, attempt: attempt * config['resources']['mb_run_integration'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
-  shell:
-    """
+  shell:"""
     # run harmony
     Rscript -e "source('scripts/integration.R'); source('scripts/ambient.R');
       run_integration( 
-        hvg_mat_f        = '{input.hvg_mat_f}', 
-        dbl_hvg_mat_f    = '{input.dbl_hvg_mat_f}', 
-        sample_qc_f      = '{input.sample_qc_f}', 
-        coldata_f        = '{input.coldata_f}', 
-        demux_type       = '{DEMUX_TYPE}', 
-        exclude_mito     = '{EXCLUDE_MITO}', 
-        reduction        = '{INT_REDUCTION}',
-        n_dims           = {INT_N_DIMS}, 
-        cl_method        = '{INT_CL_METHOD}', 
-        dbl_res          = {INT_DBL_RES}, 
-        dbl_cl_prop      = {INT_DBL_CL_PROP}, 
-        theta            = {INT_THETA}, 
-        res_ls_concat    = '{INT_RES_LS}', 
-        integration_f    = '{output.integration_f}', 
-        batch_var        = '{BATCH_VAR}', 
-        n_cores          = {threads})"
+        hvg_mat_f        = '{input.hvg_mat_f}',
+        dbl_hvg_mat_f    = '{input.dbl_hvg_mat_f}',
+        sample_qc_f      = '{input.sample_qc_f}',
+        coldata_f        = '{input.coldata_f}',
+        demux_type       = '{params.demux_type}',
+        exclude_mito     = '{params.exclude_mito}',
+        reduction        = '{params.int_reduction}',
+        n_dims           =  {params.int_n_dims},
+        cl_method        = '{params.int_cl_method}',
+        dbl_res          =  {params.int_dbl_res},
+        dbl_cl_prop      =  {params.int_dbl_cl_prop},
+        theta            =  {params.int_theta},
+        res_ls_concat    = '{params.int_res_ls}',
+        integration_f    = '{output.integration_f}',
+        batch_var        = '{BATCH_VAR}',
+        n_cores          =  {threads})"
     """
 
 
@@ -46,21 +55,18 @@ rule make_clean_sces:
   output:
     clean_sce_f   = int_dir + '/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_make_clean_sces'] * MB_PER_GB
   conda:
     '../envs/rlibs.yaml'
-  shell:
-    """
-
+  shell: """
     Rscript -e "source('scripts/integration.R');
       make_clean_sces(
         sel_s         = '{wildcards.sample}', 
         integration_f = '{input.integration_f}', 
         sces_yaml_f   = '{input.sces_yaml_f}', 
         clean_sce_f   = '{output.clean_sce_f}')"
-    
     """
 
 # make a yaml with all clean sce file paths
