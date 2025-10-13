@@ -832,6 +832,24 @@ def get_qc_parameters(config):
     QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS, EXCLUDE_MITO
 
 
+# get parameters for qc
+def check_qc_parameters(config):
+  # define some hard values; maybe move these to schema?
+  QC_HARD_MIN_COUNTS  = 200
+  QC_HARD_MIN_FEATS   = 100
+  QC_HARD_MAX_MITO    = 0.5
+
+  # some checks
+  config['qc']['exclude_mito']        = _safe_boolean(config['qc']['exclude_mito'])
+
+  # make sure they're consistent
+  config['qc']['qc_hard_min_counts']  = min(QC_HARD_MIN_COUNTS, config['qc']['qc_min_counts'])
+  config['qc']['qc_hard_min_feats']   = min(QC_HARD_MIN_FEATS, config['qc']['qc_min_feats'])
+  config['qc']['qc_hard_max_mito']    = max(QC_HARD_MAX_MITO, config['qc']['qc_max_mito'])
+
+  return config
+
+
 # get parameters for hvgs
 def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F): 
 
@@ -1089,11 +1107,8 @@ def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F,
 def get_resource_parameters(config):
   # set default values
   RETRIES                         = 3
-  MB_RUN_MAPPING                  = 8192
-  MB_SAVE_ALEVIN_TO_H5            = 8192
   MB_RUN_AMBIENT                  = 8192
   MB_GET_BARCODE_QC_METRICS       = 8192
-  MB_RUN_QC                       = 8192
   MB_RUN_HVGS                     = 8192
   MB_RUN_INTEGRATION              = 8192
   MB_MAKE_CLEAN_SCES              = 8192
@@ -1110,16 +1125,10 @@ def get_resource_parameters(config):
   if ('resources' in config) and (config['resources'] is not None):
     if 'retries' in config['resources']:
       RETRIES                         = config['resources']['retries']
-    if 'mb_run_mapping' in config['resources']:
-      MB_RUN_MAPPING                  = config['resources']['mb_run_mapping']
-    if 'mb_save_alevin_to_h5' in config['resources']:
-      MB_SAVE_ALEVIN_TO_H5            = config['resources']['mb_save_alevin_to_h5']
     if 'mb_run_ambient' in config['resources']:
       MB_RUN_AMBIENT               = config['resources']['mb_run_ambient']
     if 'mb_get_barcode_qc_metrics' in config['resources']:
       MB_GET_BARCODE_QC_METRICS       = config['resources']['mb_get_barcode_qc_metrics']
-    if 'mb_run_qc' in config['resources']:
-      MB_RUN_QC                       = config['resources']['mb_run_qc']
     if 'mb_run_hvgs' in config['resources']:
       MB_RUN_HVGS                     = config['resources']['mb_run_hvgs']
     if 'mb_run_integration' in config['resources']:
@@ -1141,8 +1150,8 @@ def get_resource_parameters(config):
     if 'mb_make_subset_sces' in config['resources']:
       MB_MAKE_SUBSET_SCES             = config['resources']['mb_make_subset_sces']
 
-  return RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
-    MB_RUN_QC, MB_RUN_HVGS, MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, MB_RUN_MARKER_GENES, \
+  return RETRIES, MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
+    MB_RUN_HVGS, MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, MB_RUN_MARKER_GENES, \
     MB_RENDER_HTMLS, MB_LABEL_CELLTYPES, MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
     MB_MAKE_HTO_SCE_OBJECTS, MB_MAKE_SUBSET_SCES
 

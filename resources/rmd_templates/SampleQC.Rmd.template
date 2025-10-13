@@ -36,16 +36,16 @@ meta_f      = "${meta_f}"
 qc_f        = "${qc_dt_f}"
 
 # set default values
-hard_min_counts = ${QC_HARD_MIN_COUNTS}
-hard_min_feats  = ${QC_HARD_MIN_FEATS}
-hard_max_mito   = ${QC_HARD_MAX_MITO}
-min_counts      = ${QC_MIN_COUNTS}
-min_feats       = ${QC_MIN_FEATS}
-min_mito        = ${QC_MIN_MITO}
-max_mito        = ${QC_MAX_MITO}
-min_splice      = ${QC_MIN_SPLICE}
-max_splice      = ${QC_MAX_SPLICE}
-min_cells       = ${QC_MIN_CELLS}
+hard_min_counts = ${qc_hard_min_counts}
+hard_min_feats  = ${qc_hard_min_feats}
+hard_max_mito   = ${qc_hard_max_mito}
+min_counts      = ${qc_min_counts}
+min_feats       = ${qc_min_feats}
+min_mito        = ${qc_min_mito}
+max_mito        = ${qc_max_mito}
+min_splice      = ${qc_min_splice}
+max_splice      = ${qc_max_splice}
+min_cells       = ${qc_min_cells}
 
 # specifications for SampleQC
 qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')

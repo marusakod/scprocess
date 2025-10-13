@@ -114,9 +114,9 @@ get_sub_ls <- function(rule = c('af', 'multiplexing', 'ambient', 'qc', 'hvg', 'i
   } else if (sel_rule == 'qc') {
     req_names = c('YOUR_NAME', 'AFFILIATION', 'SHORT_TAG', 'PROJ_DIR', 
       'DATE_STAMP', 'threads', 'meta_f', 'qc_dt_f',
-      'QC_HARD_MIN_COUNTS', 'QC_HARD_MIN_FEATS', 'QC_HARD_MAX_MITO',
-      'QC_MIN_COUNTS', 'QC_MIN_FEATS', 'QC_MIN_MITO', 'QC_MAX_MITO',
-      'QC_MIN_SPLICE', 'QC_MAX_SPLICE', 'QC_MIN_CELLS')
+      'qc_hard_min_counts', 'qc_hard_min_feats', 'qc_hard_max_mito',
+      'qc_min_counts', 'qc_min_feats', 'qc_min_mito', 'qc_max_mito',
+      'qc_min_splice', 'qc_max_splice', 'qc_min_cells')
 
     assert_that(all(req_names %in% add_args_names))
 

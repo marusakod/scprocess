@@ -6,7 +6,7 @@ import numpy as np
 
 localrules: merge_qc
 
-def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, SAMPLE_VAR, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS):
+def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, config, SAMPLES, SAMPLE_VAR, SAMPLE_MAPPING):
     # load the merged qc file
     qc_dt = pd.read_csv(qc_merged_f, sep = '\t', compression='gzip')
 
@@ -21,16 +21,16 @@ def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, SAMPLE_V
     )
 
     # identify samples that do not meet the minimum cell threshold
-    sample_df['bad_qc'] = sample_df['n_cells'] < QC_MIN_CELLS
+    sample_df['bad_qc'] = sample_df['n_cells'] < config['qc']['qc_min_cells']
 
     # handle samples excluded after cellbender
-    if AMBIENT_METHOD == 'cellbender':
+    if config['ambient']['ambient_method'] == 'cellbender':
         # load ambient sample stats
         amb_stats = pd.read_csv(ambient_stats_f)
         # get bad pools or samples
         bad_bender = amb_stats.loc[amb_stats['bad_sample'], SAMPLE_VAR].tolist()
 
-        if DEMUX_TYPE != "none":
+        if config['multiplexing']['demux_type'] != "none":
             bad_bender_samples = []
             for p in bad_bender:
                 if p in SAMPLE_MAPPING:
@@ -85,7 +85,7 @@ rule run_qc:
     ambient_stats_f = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     amb_yaml_f   = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
     demux_f      = (demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds') \
-      if DEMUX_TYPE == 'hto' else ([DEMUX_F] if DEMUX_TYPE == 'custom' else [])
+      if config['multiplexing']['demux_type'] == 'hto' else [DEMUX_F] if config['multiplexing']['demux_type'] == 'custom' else []
   output:
     qc_f         = temp(qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'), 
     coldata_f    = temp(qc_dir + '/coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'),
@@ -96,59 +96,58 @@ rule run_qc:
     all_smpls_str   = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[0],
     sce_fs_str      = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[1],
     mito_str        = AF_MITO_STR,
-    exclude_mito    = EXCLUDE_MITO,
-    hard_min_counts = QC_HARD_MIN_COUNTS,
-    hard_min_feats  = QC_HARD_MIN_FEATS,
-    hard_max_mito   = QC_HARD_MAX_MITO,
-    min_counts      = QC_MIN_COUNTS,
-    min_feats       = QC_MIN_FEATS,
-    min_mito        = QC_MIN_MITO,
-    max_mito        = QC_MAX_MITO,
-    min_splice      = QC_MIN_SPLICE,
-    max_splice      = QC_MAX_SPLICE,
+    ambient_method  = config['ambient']['ambient_method'],
+    exclude_mito    = config['qc']['exclude_mito'],
+    hard_min_counts = config['qc']['qc_hard_min_counts'],
+    hard_min_feats  = config['qc']['qc_hard_min_feats'],
+    hard_max_mito   = config['qc']['qc_hard_max_mito'],
+    min_counts      = config['qc']['qc_min_counts'],
+    min_feats       = config['qc']['qc_min_feats'],
+    min_mito        = config['qc']['qc_min_mito'],
+    max_mito        = config['qc']['qc_max_mito'],
+    min_splice      = config['qc']['qc_min_splice'],
+    max_splice      = config['qc']['qc_max_splice'],
     sample_var      = SAMPLE_VAR,
-    demux_type      = DEMUX_TYPE,
-    dbl_min_feats   = DBL_MIN_FEATS
+    demux_type      = config['multiplexing']['demux_type'],
+    dbl_min_feats   = config['qc']['dbl_min_feats']
   threads: 4
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
   conda:
     '../envs/rlibs.yaml'
-  shell:
-    """
+  shell: """
     Rscript -e "source('scripts/SampleQC.R'); source('scripts/ambient.R'); \
         main_qc( \
-          sel_sample     = '{wildcards.run}', \
-          meta_f         = '{METADATA_F}', \
-          amb_yaml_f     = '{input.amb_yaml_f}', \
-          sample_stats_f = '{input.ambient_stats_f}', \
-          demux_f        = '{input.demux_f}', \
-          gtf_dt_f       = '{AF_GTF_DT_F}', \
-          ambient_method = '{AMBIENT_METHOD}', \
-          sce_fs_str     = '{params.sce_fs_str}', \
+          sel_sample      = '{wildcards.run}', \
+          meta_f          = '{METADATA_F}', \
+          amb_yaml_f      = '{input.amb_yaml_f}', \
+          sample_stats_f  = '{input.ambient_stats_f}', \
+          demux_f         = '{input.demux_f}', \
+          gtf_dt_f        = '{AF_GTF_DT_F}', \
+          ambient_method  = '{params.ambient_method}', \
+          sce_fs_str      = '{params.sce_fs_str}', \
           all_samples_str = '{params.all_smpls_str}', \
           rowdata_f       = '{output.rowdata_f}', \
-          qc_f           = '{output.qc_f}', \
-          coldata_f      = '{output.coldata_f}', \
-          dimred_f       = '{output.dimred_f}', \
-          dbl_f		       = '{output.dbl_f}', \
-          mito_str       = '{params.mito_str}', \
-          exclude_mito   = '{params.exclude_mito}', \
-          hard_min_counts= {params.hard_min_counts}, \
-          hard_min_feats = {params.hard_min_feats}, \
-          hard_max_mito  = {params.hard_max_mito}, \
-          min_counts     = {params.min_counts}, \
-          min_feats      = {params.min_feats}, \
-          min_mito       = {params.min_mito}, \
-          max_mito       = {params.max_mito}, \
-          min_splice     = {params.min_splice}, \
-          max_splice     = {params.max_splice}, \
-          sample_var     = '{params.sample_var}', \
-          demux_type     = '{params.demux_type}', \
-          dbl_min_feats  = {params.dbl_min_feats} \
+          qc_f            = '{output.qc_f}', \
+          coldata_f       = '{output.coldata_f}', \
+          dimred_f        = '{output.dimred_f}', \
+          dbl_f		        = '{output.dbl_f}', \
+          mito_str        = '{params.mito_str}', \
+          exclude_mito    = '{params.exclude_mito}', \
+          hard_min_counts =  {params.hard_min_counts}, \
+          hard_min_feats  =  {params.hard_min_feats}, \
+          hard_max_mito   =  {params.hard_max_mito}, \
+          min_counts      =  {params.min_counts}, \
+          min_feats       =  {params.min_feats}, \
+          min_mito        =  {params.min_mito}, \
+          max_mito        =  {params.max_mito}, \
+          min_splice      =  {params.min_splice}, \
+          max_splice      =  {params.max_splice}, \
+          sample_var      = '{params.sample_var}', \
+          demux_type      = '{params.demux_type}', \
+          dbl_min_feats   =  {params.dbl_min_feats} \
         )"
-
     """
 
 
@@ -160,9 +159,9 @@ rule merge_qc:
     qc_merged_f      = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     coldata_merged_f = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 4
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
   run:
     # read all nonempty input files and concatenate them
     qc_df_ls = [
@@ -190,9 +189,9 @@ rule merge_rowdata:
   output:
     rowdata_merged_f = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
   run:
     # read all nonempty rowdata files 
     rd_df_ls = [
@@ -219,7 +218,7 @@ rule get_qc_sample_statistics:
   output:
     qc_stats_f      = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   run:
-    sample_stats_df = extract_qc_sample_statistics(input.ambient_stats_f, input.qc_merged_f, SAMPLES, SAMPLE_VAR, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS)
+    sample_stats_df = extract_qc_sample_statistics(input.ambient_stats_f, input.qc_merged_f, config, SAMPLES, SAMPLE_VAR, SAMPLE_MAPPING)
     sample_stats_df.to_csv(output.qc_stats_f, index = False)
 
 

@@ -166,6 +166,17 @@ rule render_html_qc:
   input:
     r_utils_f   = f"{code_dir}/utils.R",
     qc_dt_f     = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+  params:
+    qc_hard_min_counts = config['qc']['qc_hard_min_counts'],
+    qc_hard_min_feats  = config['qc']['qc_hard_min_feats'],
+    qc_hard_max_mito   = config['qc']['qc_hard_max_mito'],
+    qc_min_counts      = config['qc']['qc_min_counts'],
+    qc_min_feats       = config['qc']['qc_min_feats'],
+    qc_min_mito        = config['qc']['qc_min_mito'],
+    qc_max_mito        = config['qc']['qc_max_mito'],
+    qc_min_splice      = config['qc']['qc_min_splice'],
+    qc_max_splice      = config['qc']['qc_max_splice'],
+    qc_min_cells       = config['qc']['qc_min_cells']
   output:
     r_qc_f      = f"{code_dir}/qc.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_qc.Rmd",
@@ -190,26 +201,26 @@ rule render_html_qc:
     render_html(
       rule_name          = '$rule', 
       proj_dir           = '{PROJ_DIR}', 
-      temp_f             =  '$template_f', 
+      temp_f             = '$template_f', 
       rmd_f              = '{output.rmd_f}', 
       YOUR_NAME          = '{YOUR_NAME}', 
       AFFILIATION        = '{AFFILIATION}', 
       PROJ_DIR           = '{PROJ_DIR}', 
       SHORT_TAG          = '{SHORT_TAG}', 
       DATE_STAMP         = '{DATE_STAMP}', 
-      threads            = {threads}, 
+      threads            =  {threads}, 
       meta_f             = '{METADATA_F}', 
       qc_dt_f            = '{input.qc_dt_f}', 
-      QC_HARD_MIN_COUNTS = {QC_HARD_MIN_COUNTS}, 
-      QC_HARD_MIN_FEATS  = {QC_HARD_MIN_FEATS}, 
-      QC_HARD_MAX_MITO   = {QC_HARD_MAX_MITO}, 
-      QC_MIN_COUNTS      = {QC_MIN_COUNTS}, 
-      QC_MIN_FEATS       = {QC_MIN_FEATS}, 
-      QC_MIN_MITO        = {QC_MIN_MITO}, 
-      QC_MAX_MITO        = {QC_MAX_MITO}, 
-      QC_MIN_SPLICE      = {QC_MIN_SPLICE}, 
-      QC_MAX_SPLICE      = {QC_MAX_SPLICE}, 
-      QC_MIN_CELLS       = {QC_MIN_CELLS}
+      qc_hard_min_counts =  {params.qc_hard_min_counts},
+      qc_hard_min_feats  =  {params.qc_hard_min_feats},
+      qc_hard_max_mito   =  {params.qc_hard_max_mito},
+      qc_min_counts      =  {params.qc_min_counts},
+      qc_min_feats       =  {params.qc_min_feats},
+      qc_min_mito        =  {params.qc_min_mito},
+      qc_max_mito        =  {params.qc_max_mito},
+      qc_min_splice      =  {params.qc_min_splice},
+      qc_max_splice      =  {params.qc_max_splice},
+      qc_min_cells       =  {params.qc_min_cells}
       )"
     """
 
