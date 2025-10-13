@@ -288,7 +288,7 @@ if DEMUX_TYPE == "hto":
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * MB_SAVE_ALEVIN_TO_H5
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_save_alevin_to_h5'] * MB_PER_GB
     conda: 
       '../envs/rlibs.yaml'
     shell:

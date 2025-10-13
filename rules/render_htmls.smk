@@ -8,9 +8,9 @@
 #     rmd_f       = f'{rmd_dir}/index.Rmd',
 #     html_f      = f'{docs_dir}/index.html'
 #   threads: 1
-#   retries: RETRIES 
+#   retries: config['resources']['retries'] 
 #   resources:
-#     mem_mb      =  lambda wildcards, attempt: attempt * 4096
+#     mem_mb      =  lambda wildcards, attempt: attempt * 4 * MB_PER_GB
 #   run:
 #     # define what we will substitute in
 #     print('setting up template')
@@ -36,9 +36,9 @@ rule render_html_mapping:
     rmd_f     = f"{rmd_dir}/{SHORT_TAG}_mapping.Rmd",
     html_f    = f"{docs_dir}/{SHORT_TAG}_mapping.html"
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb    =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+    mem_mb    =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
   conda:
     '../envs/rlibs.yaml'
   shell: """
@@ -85,9 +85,9 @@ if DEMUX_TYPE == "hto":
       rmd_f       = f"{rmd_dir}/{SHORT_TAG}_demultiplexing.Rmd",
       html_f      = f"{docs_dir}/{SHORT_TAG}_demultiplexing.html"
     threads: 1
-    retries: RETRIES
+    retries: config['resources']['retries']
     resources:
-      mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+      mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
     conda:
       '../envs/rlibs.yaml'
     shell: """
@@ -130,11 +130,11 @@ rule render_html_ambient:
     rmd_f         = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd",
     html_f        = f"{docs_dir}/{SHORT_TAG}_ambient.html"
   threads: 4
-  retries: RETRIES 
+  retries: config['resources']['retries'] 
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
+    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
   shell: """
     # define rule and template
     template_f=$(realpath resources/rmd_templates/ambient.Rmd.template)
@@ -182,11 +182,11 @@ rule render_html_qc:
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_qc.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_qc.html"
   threads: 1
-  retries: RETRIES 
+  retries: config['resources']['retries'] 
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -236,11 +236,11 @@ rule render_html_hvgs:
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_hvgs.Rmd",
     html_f      = f"{docs_dir}/{SHORT_TAG}_hvgs.html"
   threads: 1
-  retries: RETRIES 
+  retries: config['resources']['retries'] 
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -283,11 +283,11 @@ rule render_html_integration:
   params: 
     int_res_ls = ','.join(map(str, INT_RES_LS))
   threads: 1
-  retries: RETRIES 
+  retries: config['resources']['retries'] 
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -335,7 +335,7 @@ rule render_html_marker_genes:
     rmd_f         = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{MKR_SEL_RES}.Rmd',
     html_f        = f'{docs_dir}/{SHORT_TAG}_marker_genes_{MKR_SEL_RES}.html'
   threads: 8
-  retries: RETRIES
+  retries: config['resources']['retries']
   params:
     meta_vars  = ','.join(METADATA_VARS),
     fgsea_args = lambda wildcards, input: " ".join(
@@ -349,7 +349,7 @@ rule render_html_marker_genes:
     ).strip()
   conda: '../envs/rlibs.yaml'
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -403,9 +403,9 @@ rule render_html_label_celltypes:
     rmd_f       = f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd',
     html_f      = f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
   shell: """

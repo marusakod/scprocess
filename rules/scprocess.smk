@@ -45,8 +45,6 @@ LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL
 
 AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = get_pb_empties_parameters(config)
 
-RETRIES, MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, MB_RUN_HVGS, MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, MB_RUN_MARKER_GENES, MB_RENDER_HTMLS, MB_LABEL_CELLTYPES, MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, MB_MAKE_HTO_SCE_OBJECTS, MB_MAKE_SUBSET_SCES = get_resource_parameters(config)
-
 # specify locations
 code_dir    = f"{PROJ_DIR}/code"
 af_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
@@ -333,7 +331,6 @@ rule label_celltypes:
 include: "mapping.smk"
 include: "ambient.smk"
 include: "make_hto_sce.smk"
-include: "doublet_id.smk"
 include: "qc.smk"
 include: "pb_empties.smk"
 include: "hvgs.smk"

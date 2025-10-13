@@ -30,9 +30,9 @@ rule run_marker_genes:
         f"fgsea_hlmk_f = '{output.get('fgsea_hlmk_f', '')}',"
     ])
   threads: 8
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_MARKER_GENES
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_marker_genes'] * MB_PER_GB
   conda: '../envs/rlibs.yaml'
   shell:
     """

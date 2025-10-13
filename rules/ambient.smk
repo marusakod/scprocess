@@ -141,9 +141,9 @@ if AMBIENT_METHOD == 'cellbender':
         ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
         tmp_f            = temp(amb_dir + '/ambient_{run}/ckpt.tar.gz')
     threads: 1
-    retries: RETRIES
+    retries: config['resources']['retries']
     resources:
-      mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
+      mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB
     container:
       CELLBENDER_IMAGE
     shell:
@@ -225,9 +225,9 @@ if AMBIENT_METHOD == 'decontx':
     output:
       ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'
     threads: 4
-    retries: RETRIES
+    retries: config['resources']['retries']
     resources:
-      mem_mb    = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
+      mem_mb    = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB
     conda: 
       '../envs/rlibs.yaml'
     shell:
@@ -275,11 +275,11 @@ if AMBIENT_METHOD == 'none':
     output:
       ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'
     threads: 4
-    retries: RETRIES
+    retries: config['resources']['retries']
     conda:
       '../envs/rlibs.yaml'
     resources:
-      mem_mb    = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
+      mem_mb    = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB
     shell:
       """
       # create main ambient directory
@@ -324,11 +324,11 @@ rule get_barcode_qc_metrics:
   output:
     bc_qc_f     = amb_dir + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz'
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_GET_BARCODE_QC_METRICS
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_get_barcode_qc_metrics'] * MB_PER_GB
   shell: """
     # save barcode stats
     Rscript -e "source('scripts/ambient.R'); \

@@ -1102,59 +1102,6 @@ def get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F,
 
   return ZOOM_NAMES, ZOOM_PARAMS_DICT, ZOOM_NAMES_SUBSET
 
-  
-# get parameters for resources
-def get_resource_parameters(config):
-  # set default values
-  RETRIES                         = 3
-  MB_RUN_AMBIENT                  = 8192
-  MB_GET_BARCODE_QC_METRICS       = 8192
-  MB_RUN_HVGS                     = 8192
-  MB_RUN_INTEGRATION              = 8192
-  MB_MAKE_CLEAN_SCES              = 8192
-  MB_RUN_MARKER_GENES             = 16384
-  MB_RENDER_HTMLS                 = 8192
-  MB_LABEL_CELLTYPES              = 8192
-  MB_PB_MAKE_PBS                  = 8192
-  MB_PB_CALC_EMPTY_GENES          = 8192
-  MB_MAKE_HTO_SCE_OBJECTS         = 8192
-  MB_MAKE_SUBSET_SCES             = 8192
-  
-
-  # change defaults if specified
-  if ('resources' in config) and (config['resources'] is not None):
-    if 'retries' in config['resources']:
-      RETRIES                         = config['resources']['retries']
-    if 'mb_run_ambient' in config['resources']:
-      MB_RUN_AMBIENT               = config['resources']['mb_run_ambient']
-    if 'mb_get_barcode_qc_metrics' in config['resources']:
-      MB_GET_BARCODE_QC_METRICS       = config['resources']['mb_get_barcode_qc_metrics']
-    if 'mb_run_hvgs' in config['resources']:
-      MB_RUN_HVGS                     = config['resources']['mb_run_hvgs']
-    if 'mb_run_integration' in config['resources']:
-      MB_RUN_INTEGRATION              = config['resources']['mb_run_integration']
-    if 'mb_make_clean_sces' in config['resources']:
-      MB_MAKE_CLEAN_SCES              = config['resources']['mb_make_clean_sces']
-    if 'mb_run_marker_genes' in config['resources']:
-      MB_RUN_MARKER_GENES             = config['resources']['mb_run_marker_genes']
-    if 'mb_render_htmls'     in config['resources']:
-      MB_RENDER_HTMLS                = config['resources']['mb_render_htmls']
-    if 'mb_label_celltypes' in config['resources']:
-      MB_LABEL_CELLTYPES          = config['resources']['mb_label_celltypes']
-    if 'mb_pb_make_pbs' in config['resources']:
-      MB_PB_MAKE_PBS                  = config['resources']['mb_pb_make_pbs']
-    if 'mb_pb_calc_empty_genes' in config['resources']:
-      MB_PB_CALC_EMPTY_GENES          = config['resources']['mb_pb_calc_empty_genes']
-    if 'mb_make_hto_sce_objects' in config['resources']:
-      MB_MAKE_HTO_SCE_OBJECTS         = config['resources']['mb_make_hto_sce_objects']
-    if 'mb_make_subset_sces' in config['resources']:
-      MB_MAKE_SUBSET_SCES             = config['resources']['mb_make_subset_sces']
-
-  return RETRIES, MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
-    MB_RUN_HVGS, MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, MB_RUN_MARKER_GENES, \
-    MB_RENDER_HTMLS, MB_LABEL_CELLTYPES, MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, \
-    MB_MAKE_HTO_SCE_OBJECTS, MB_MAKE_SUBSET_SCES
-
 
 ### other functions
 

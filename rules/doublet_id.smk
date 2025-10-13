@@ -60,7 +60,7 @@ rule combine_scDblFinder_outputs:
   threads: 8
   retries: RETRIES 
   resources:
-    mem_mb    = lambda wildcards, attempt: attempt * MB_COMBINE_SCDBLFINDER_OUTPUTS
+    mem_mb    = lambda wildcards, attempt: attempt * config['resources']['mb_save_alevin_to_h5'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
   shell:

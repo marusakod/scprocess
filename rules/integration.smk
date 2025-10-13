@@ -11,7 +11,7 @@ rule run_integration:
   threads: 8
   retries: RETRIES 
   resources:
-    mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_INTEGRATION
+    mem_mb   = lambda wildcards, attempt: attempt * config['resources']['mb_run_integration'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
   shell:
@@ -48,7 +48,7 @@ rule make_clean_sces:
   threads: 1
   retries: RETRIES
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_MAKE_CLEAN_SCES
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_make_clean_sces'] * MB_PER_GB
   conda:
     '../envs/rlibs.yaml'
   shell:

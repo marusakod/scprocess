@@ -12,9 +12,9 @@ if DEMUX_TYPE == "hto":
     output:
       sce_hto_f   = demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
     threads: 1
-    retries: RETRIES
+    retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * MB_MAKE_HTO_SCE_OBJECTS
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_make_hto_sce_objects'] * MB_PER_GB
     conda:
      '../envs/rlibs.yaml'
     shell: """

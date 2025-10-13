@@ -31,9 +31,9 @@ rule make_pb_empty:
   output:
     pb_empty_f    = pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   threads: 8
-  retries: RETRIES 
+  retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['mb_pb_make_pbs'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
   shell:
@@ -59,9 +59,9 @@ rule make_pb_all:
   output:
     pb_all_f    = pb_dir  + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   threads: 4
-  retries: RETRIES 
+  retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['mb_pb_make_pbs'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
   shell:
@@ -83,9 +83,9 @@ rule calculate_ambient_genes:
   output:
     empty_gs_f  = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz' # one file per group
   threads: 4
-  retries: RETRIES 
+  retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['mb_pb_make_pbs'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
   shell:

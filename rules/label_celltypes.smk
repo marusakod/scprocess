@@ -16,9 +16,9 @@ rule get_xgboost_labels:
     hvg_mat_f   = lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
     guesses_f   = lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 4
-  retries: RETRIES 
+  retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_LABEL_CELLTYPES
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['mb_label_celltypes'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
   shell:

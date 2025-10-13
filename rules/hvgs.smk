@@ -29,9 +29,9 @@ rule make_tmp_csr_matrix:
   output:
     clean_h5_f        = temp(expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES))
   threads: 8
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -61,9 +61,9 @@ if HVG_METHOD == 'sample':
     output:
       std_var_stats_f = temp(hvg_dir + '/tmp_std_var_stats_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 1
-    retries: RETRIES
+    retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
     conda:
       '../envs/hvgs.yaml'
     shell:
@@ -82,9 +82,9 @@ if HVG_METHOD == 'sample':
     output:
       std_var_stats_merged_f = hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
     threads: 1
-    retries: RETRIES
+    retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
     run:
       merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
 
@@ -102,7 +102,7 @@ else:
       mean_var_f      = temp(hvg_dir + '/tmp_mean_var_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 8
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
     conda:
       '../envs/hvgs.yaml'
     shell:
@@ -128,9 +128,9 @@ else:
     output:
       mean_var_merged_f = temp(hvg_dir + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 1
-    retries: RETRIES
+    retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
     run:
       merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
 
@@ -141,11 +141,11 @@ else:
     output:
       estim_vars_f       = temp(hvg_dir + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 1
-    retries: RETRIES
+    retries: config['resources']['retries']
     conda:
       '../envs/hvgs.yaml'
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
     shell:
       """
       python3 scripts/hvgs.py calculate_estimated_vars \
@@ -165,7 +165,7 @@ else:
       std_var_stats_f = temp(hvg_dir + '/tmp_std_var_stats_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 8
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
     conda:
       '../envs/hvgs.yaml'
     shell:
@@ -193,9 +193,9 @@ else:
     output:
       std_var_stats_merged_f = temp(hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 1
-    retries: RETRIES
+    retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
     run:
       merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
 
@@ -207,13 +207,13 @@ rule get_highly_variable_genes:
   output:
     hvg_f = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   params:
     hvg_method = HVG_METHOD,
     n_hvgs = N_HVGS,
     exclude_ambient_genes = EXCLUDE_AMBIENT_GENES
   resources:
-     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+     mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -242,9 +242,9 @@ rule create_hvg_matrix:
   output:
     hvg_mat_f       = hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -268,9 +268,9 @@ rule create_doublets_hvg_matrix:
     output: 
       dbl_hvg_mat_f      = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
     threads: 1
-    retries: RETRIES
+    retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
     conda: 
       '../envs/hvgs.yaml'
     shell: 
