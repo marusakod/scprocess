@@ -79,11 +79,10 @@ if config['multiplexing']['demux_type'] == "hto":
 SAMPLE_MAPPING = update_sample_mapping_after_exclusions(SAMPLE_MAPPING, POOL_IDS, SAMPLES)
 
 # join all samples into a single string
-POOL_STR   = ','.join(POOL_IDS)
-SAMPLE_STR = ','.join(SAMPLES)
-
-runs = POOL_IDS if config['multiplexing']['demux_type'] != "none" else SAMPLES
-RUNS_STR = ','.join(runs)
+POOL_STR    = ','.join(POOL_IDS)
+SAMPLE_STR  = ','.join(SAMPLES)
+runs        = POOL_IDS if config['multiplexing']['demux_type'] != "none" else SAMPLES
+RUNS_STR    = ','.join(runs)
 
 # scripts
 r_scripts = [

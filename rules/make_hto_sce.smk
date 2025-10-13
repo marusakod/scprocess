@@ -1,6 +1,6 @@
 # snakemake rule for making sce objects with hto information (for multiplexed samples)
 
-if DEMUX_TYPE == "hto":
+if config['multiplexing']['demux_type'] == "hto":
 # save sce object with hto counts and demultiplex
   rule make_hto_sce_objects: 
     input: 
@@ -8,7 +8,8 @@ if DEMUX_TYPE == "hto":
       amb_yaml_f   = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
       hto_h5_f     = af_dir + '/af_{run}/hto/af_hto_counts_mat.h5'
     params:
-      translation_f = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[3]
+      translation_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[3],
+      ambient_method  = config['ambient']['ambient_method']
     output:
       sce_hto_f   = demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
     threads: 1
@@ -28,6 +29,6 @@ if DEMUX_TYPE == "hto":
         hto_mat_f       = '{input.hto_h5_f}', 
         trans_f         = '{params.translation_f}', 
         hto_sce_f       = '{output.sce_hto_f}', 
-        ambient_method  = '{AMBIENT_METHOD}'
+        ambient_method  = '{params.ambient_method}'
       )"
     """
