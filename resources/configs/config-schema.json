@@ -33,8 +33,8 @@
         }
       },
       "oneOf": [
-        { "required": ["fastq_dir"],  "not": {"required": ["arv_uuid"]} },
-        { "required": ["arv_uuid"],   "not": {"required": ["fastq_dir"]} }
+        { "required": ["fastq_dir"] },
+        { "required": ["arv_uuid"] }
       ]
     },
     "ambient": {
@@ -131,11 +131,11 @@
       "additionalProperties": false,
       "properties": {
         "retries":                    { "type": "integer", "default": 3 },
-        "mb_run_mapping":             { "type": "integer", "default": 8192 },
-        "mb_save_alevin_to_h5":       { "type": "integer", "default": 8192 },
+        "gb_run_mapping":             { "type": "integer", "default": 8 },
+        "gb_save_alevin_to_h5":       { "type": "integer", "default": 8 },
         "mb_run_ambient":             { "type": "integer", "default": 8192 },
         "mb_get_barcode_qc_metrics":  { "type": "integer", "default": 8192 },
-        "mb_run_qc":                  { "type": "integer", "default": 8192 },
+        "gb_run_qc":                  { "type": "integer", "default": 8 },
         "mb_run_hvgs":                { "type": "integer", "default": 8192 },
         "mb_run_integration":         { "type": "integer", "default": 8192 },
         "mb_make_clean_sces":         { "type": "integer", "default": 8192 },
@@ -154,26 +154,44 @@
       "additionalProperties": false,
       "required": [ "demux_type", "batch_var" ],
       "properties": {
-        "demux_type":   { "type": "string", "enum": ["hto", "custom"] },
-        "batch_var":    { "type": "string", "enum": ["pool_id", "sample_id"] },
+        "demux_type":   { "type": "string", "enum": ["none", "hto", "custom"], "default": "none" },
+        "batch_var":    { "type": "string", "enum": ["pool_id", "sample_id"], "default": "sample_id" },
         "fastq_dir":    { "type": "string" },
         "arv_uuid":     { "type": "string" },
         "feature_ref":  { "type": "string" },
         "demux_output": { "type": "string" }
       },
-      "oneOf": [
-        { "required": ["fastq_dir"],  "not": {"required": ["arv_uuid"]} },
-        { "required": ["arv_uuid"],   "not": {"required": ["fastq_dir"]} }
-      ],
       "allOf": [
         {
           "if": {"properties": {"demux_type": {"const": "hto" } } }, 
-          "then": {"required": ["fastq_dir", "feature_ref" ] }
+          "then": {
+            "allOf": [
+              { "required": ["feature_ref" ] },
+              {
+                "oneOf": [
+                  { "required": ["fastq_dir"] },
+                  { "required": ["arv_uuid"] }
+                ]
+              }
+            ]
+          },
+         "else": {
+            "not": { "required": ["feature_ref"] }
+          }
         },
         {
           "if": {"properties": {"demux_type": {"const": "custom" } } }, 
-          "then": {"required": ["demux_output" ] }
-        } 
+          "then": {"required": ["demux_output" ] },
+          "else": {
+            "not": { "required": ["demux_output"] }
+          }
+        },
+        {
+          "if": {"properties": {"demux_type": {"const": "none" } } },
+          "then": {
+            "not": { "required": ["fastq_dir", "arv_uuid", "demux_output", "feature_ref"] }
+          }
+        }
       ]
     },
     "label_celltypes": {
