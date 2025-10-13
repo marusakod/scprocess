@@ -7,7 +7,7 @@
     "project": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["proj_dir", "full_tag", "short_tag", "your_name", "affiliation", 
+      "required": ["proj_dir", "full_tag", "short_tag", "your_name", "affiliation",
         "date_stamp", "sample_metadata", "species", "tenx_chemistry"],
       "properties": {
         "proj_dir":             { "type": "string" },
@@ -80,11 +80,21 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "hvg_method":                 { "type": "string", "default": "sample" },
-        "hvg_metadata_split_var":     { "type": ["string", "null"], "default": null },
+        "hvg_method":                 { "type": "string", "enum": ["sample", "all", "groups"], "default": "sample" },
         "hvg_n_hvgs":                 { "type": "integer", "default": 2000 },
-        "hvg_exclude_ambient_genes":  { "type": "boolean", "default": true }
-      }
+        "hvg_chunk_size":             { "type": "integer", "default": 2000 },
+        "hvg_exclude_ambient_genes":  { "type": "boolean", "default": true },
+        "hvg_metadata_split_var":     { "type": ["string", "null"] }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"hvg_method": {"const": "groups" } } },
+          "then": { "required": ["hvg_metadata_split_var" ] },
+          "else": {
+            "not": { "required": ["hvg_metadata_split_var"] }
+          }
+        }
+      ]
     },
     "integration": {
       "type": "object",
@@ -115,7 +125,9 @@
         "mkr_min_cpm_go":   { "type": "integer",  "default": 1 },
         "mkr_max_zero_p":   { "type": "number",   "default": 0.5 },
         "mkr_gsea_cut":     { "type": "number",   "default": 0.1 },
-        "mkr_custom_genesets": { "type": "array", "items": {
+        "mkr_custom_genesets": {
+          "type": "array",
+          "items": {
             "type": "object",
             "required": ["name"],
             "properties": {
@@ -163,7 +175,7 @@
       },
       "allOf": [
         {
-          "if": {"properties": {"demux_type": {"const": "hto" } } }, 
+          "if": {"properties": {"demux_type": {"const": "hto" } } },
           "then": {
             "allOf": [
               { "required": ["feature_ref" ] },
@@ -180,7 +192,7 @@
           }
         },
         {
-          "if": {"properties": {"demux_type": {"const": "custom" } } }, 
+          "if": {"properties": {"demux_type": {"const": "custom" } } },
           "then": {"required": ["demux_output" ] },
           "else": {
             "not": { "required": ["demux_output"] }

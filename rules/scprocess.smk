@@ -23,19 +23,18 @@ except Exception as e:
 
 # additional checks
 SCPROCESS_DATA_DIR  = os.getenv('SCPROCESS_DATA_DIR')
-PROJ_DIR            = config['project']['proj_dir']
-config    = check_qc_parameters(config)
-config    = check_integration_parameters(config)
-config    = check_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
 
 # get parameters
 PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES, DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_VAR, SAMPLE_MAPPING = get_project_parameters(config, SCPROCESS_DATA_DIR)
 
 AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY = get_mapping_parameters(config, SCPROCESS_DATA_DIR, SPECIES)
 
-CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE =  get_ambient_parameters(config)
+config    = check_qc_parameters(config)
+config    = check_hvg_parameters(config, METADATA_F, AF_GTF_DT_F)
+config    = check_integration_parameters(config)
+config    = check_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
 
-HVG_METHOD, HVG_GROUP_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES = get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F)
+CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE =  get_ambient_parameters(config)
 
 LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE = get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
 
@@ -283,9 +282,9 @@ rule qc:
 
 rule hvg:
   params:
-    hvg_method = HVG_METHOD,
-    n_hvgs = N_HVGS,
-    exclude_ambient_genes = EXCLUDE_AMBIENT_GENES
+    hvg_method  = config['hvg']['hvg_method'],
+    n_hvgs      = config['hvg']['hvg_n_hvgs'],
+    exclude_ambient_genes = config['hvg']['hvg_exclude_ambient_genes']
   input:
     hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',

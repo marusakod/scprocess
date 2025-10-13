@@ -419,7 +419,7 @@ def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, csr_f, rowdata_f
 
 
 def calculate_mean_var_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, mean_var_f, chunk_num, hvg_method,
-                chunk_size=2000, group_var=None, group=None, n_cores = 8):
+  chunk_size=2000, group_var=None, group=None, n_cores = 8):
   
   files, total, start_row, end_row = get_chunk_params(
     hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, 
@@ -810,7 +810,7 @@ if __name__ == "__main__":
   parser_chunkCalcs.add_argument("mean_var_f", type=str)
   parser_chunkCalcs.add_argument("chunk", type=int)
   parser_chunkCalcs.add_argument("method", type=str)
-  parser_chunkCalcs.add_argument("chunk_size", type=int)
+  parser_chunkCalcs.add_argument("-s", "--chunksize", type=int, required=False, default=2000)
   parser_chunkCalcs.add_argument("-v", "--groupvar", type=str, required=False, default=None)
   parser_chunkCalcs.add_argument("-g", "--group", type=str, required=False, default= None)
   parser_chunkCalcs.add_argument("-n", "--ncores", type=int, required=False, default = 8)
@@ -840,7 +840,7 @@ if __name__ == "__main__":
   parser_chunkSssc.add_argument("estim_vars_f", type=str)
   parser_chunkSssc.add_argument("chunk_num", type=int)
   parser_chunkSssc.add_argument("hvg_method", type=str)
-  parser_chunkSssc.add_argument("-s", "--size", type=int, required=False, default=2000)
+  parser_chunkSssc.add_argument("-s", "--chunksize", type=int, required=False, default=2000)
   parser_chunkSssc.add_argument("-v", "--groupvar", type=str, required=False, default=None)
   parser_chunkSssc.add_argument("-g", "--group", type=str, required=False, default= None)
   parser_chunkSssc.add_argument("-n", "--ncores", type=int, required=False, default = 8)
@@ -900,7 +900,7 @@ if __name__ == "__main__":
     calculate_std_var_stats_for_chunk(
       args.hvg_paths_f, args.rowdata_f, args.metadata_f, args.qc_smpl_stats_f,
       args.std_var_stats_f, args.estim_vars_f, args.chunk_num,
-      args.hvg_method, args.size, args.groupvar, args.group, args.ncores
+      args.hvg_method, args.chunk_size, args.groupvar, args.group, args.ncores
     )
   elif args.function_name == 'calculate_hvgs':
     calculate_hvgs(
