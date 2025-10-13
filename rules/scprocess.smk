@@ -33,12 +33,12 @@ config    = check_qc_parameters(config)
 config    = check_hvg_parameters(config, METADATA_F, AF_GTF_DT_F)
 config    = check_integration_parameters(config)
 config    = check_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
+config    = check_pb_empties_parameters(config)
+
 
 CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE =  get_ambient_parameters(config)
 
 LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE = get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
-
-AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = get_pb_empties_parameters(config)
 
 # specify locations
 code_dir    = f"{PROJ_DIR}/code"

@@ -508,6 +508,13 @@ def check_qc_parameters(config):
   return config
 
 
+# get parameters for pb and empties
+def check_pb_empties_parameters(config):
+  # nothing to do here at the moment; leaving in case it's useful later
+
+  return config
+
+
 # get parameters for hvgs
 def check_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
   # define dummy group names for all
@@ -607,6 +614,10 @@ def _get_custom_marker_genes_specs(config, PROJ_DIR, SCPROCESS_DATA_DIR):
     custom_mkr_paths = ",".join(mkr_paths)
   
   return custom_mkr_names, custom_mkr_paths
+
+
+
+
 
 
 # get parameters for multiplexing
@@ -951,21 +962,6 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
         f"file {LBL_XGB_CLS_F} doesn't exist; consider (re)runnning scprocess setup"
  
   return LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE
-
-
-# get parameters for pb and empties
-def get_pb_empties_parameters(config):
-  # get parameters for filtering edger results
-  AMBIENT_GENES_LOGFC_THR = 0
-  AMBIENT_GENES_FDR_THR   = 0.01
-  
-  if ('pb_empties' in config) and (config['pb_empties'] is not None):
-    if 'ambient_genes_logfc_thr' in config['pb_empties']:
-      AMBIENT_GENES_LOGFC_THR = config['pb_empties']['ambient_genes_logfc_thr']
-    if 'ambient_genes_fdr_thr'   in config['pb_empties']:
-      AMBIENT_GENES_FDR_THR   = config['pb_empties']['ambient_genes_fdr_thr']
-
-  return AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR
 
 
 # get parameters for zoom
