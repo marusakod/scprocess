@@ -273,8 +273,7 @@ rule qc:
     qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    qc_dir  + '/sce_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
+    qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',  
     rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd',
     docs_dir  + '/' + SHORT_TAG + '_qc.html'
 
@@ -296,6 +295,8 @@ rule hvg:
 
 rule integration:
   input:
+    expand(int_dir + '/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample = SAMPLES),
+    int_dir   + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
     int_dir   + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
     docs_dir  + '/' + SHORT_TAG + '_integration.html'
