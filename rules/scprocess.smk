@@ -6,14 +6,21 @@ import glob
 import pandas as pd
 import warnings
 import yaml
-
-# check file is ok
-schema_f  = "../resources/configs/config-schema.json"
-snakemake.utils.validate(config, schema_f)
-
-# import utils
+import json
 sys.path.append('scripts')
 from scprocess_utils import *
+
+schema_f  = "../resources/configs/config-schema.json"
+conf_tmp  = get_default_config_from_schema(schema_f)
+import pdb; pdb.set_trace()
+snakemake.utils.update_config(conf_tmp, config)
+config    = conf_tmp
+
+# check file is ok
+try:
+  snakemake.utils.validate(config, schema_f)
+except Exception as e:
+  raise e
 
 SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 

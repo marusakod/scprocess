@@ -37,34 +37,6 @@
         { "required": ["arv_uuid"],   "not": {"required": ["fastq_dir"]} }
       ]
     },
-    "multiplexing": {
-      "title": "Multiplexing Configuration",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [ "demux_type", "batch_var" ],
-      "properties": {
-        "demux_type":   { "type": "string", "enum": ["hto", "custom"] },
-        "batch_var":    { "type": "string", "enum": ["pool_id", "sample_id"] },
-        "fastq_dir":    { "type": "string" },
-        "arv_uuid":     { "type": "string" },
-        "feature_ref":  { "type": "string" },
-        "demux_output": { "type": "string" }
-      },
-      "oneOf": [
-        { "required": ["fastq_dir"],  "not": {"required": ["arv_uuid"]} },
-        { "required": ["arv_uuid"],   "not": {"required": ["fastq_dir"]} }
-      ],
-      "allOf": [
-        {
-          "if": {"properties": {"demux_type": {"const": "hto" } } }, 
-          "then": {"required": ["fastq_dir", "feature_ref" ] }
-        },
-        {
-          "if": {"properties": {"demux_type": {"const": "custom" } } }, 
-          "then": {"required": ["demux_output" ] }
-        } 
-      ]
-    },
     "ambient": {
       "type": "object",
       "required": ["ambient_method"],
@@ -154,22 +126,6 @@
         }
       }
     },
-    "label_celltypes": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["lbl_tissue"],
-      "properties": {
-        "lbl_tissue":       { "type": "string" },
-        "lbl_sel_res_cl":   { "type": "string", "default": "RNA_snn_res.2" },
-        "lbl_min_pred":     { "type": "number", "default": 0.8 },
-        "lbl_min_cl_prop":  { "type": "number", "default": 0.5 },
-        "lbl_min_cl_size":  { "type": "integer", "default": 100 }
-      }
-    },
-    "zoom": {
-      "type": "object",
-      "default": {}
-    },
     "resources": {
       "type": "object",
       "additionalProperties": false,
@@ -191,6 +147,50 @@
         "mb_make_hto_sce_objects":    { "type": "integer", "default": 8192 },
         "mb_make_subset_sces":        { "type": "integer", "default": 8192 }
       }
+    },
+    "multiplexing": {
+      "title": "Multiplexing Configuration",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "demux_type", "batch_var" ],
+      "properties": {
+        "demux_type":   { "type": "string", "enum": ["hto", "custom"] },
+        "batch_var":    { "type": "string", "enum": ["pool_id", "sample_id"] },
+        "fastq_dir":    { "type": "string" },
+        "arv_uuid":     { "type": "string" },
+        "feature_ref":  { "type": "string" },
+        "demux_output": { "type": "string" }
+      },
+      "oneOf": [
+        { "required": ["fastq_dir"],  "not": {"required": ["arv_uuid"]} },
+        { "required": ["arv_uuid"],   "not": {"required": ["fastq_dir"]} }
+      ],
+      "allOf": [
+        {
+          "if": {"properties": {"demux_type": {"const": "hto" } } }, 
+          "then": {"required": ["fastq_dir", "feature_ref" ] }
+        },
+        {
+          "if": {"properties": {"demux_type": {"const": "custom" } } }, 
+          "then": {"required": ["demux_output" ] }
+        } 
+      ]
+    },
+    "label_celltypes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lbl_tissue"],
+      "properties": {
+        "lbl_tissue":       { "type": "string", "default": "" },
+        "lbl_sel_res_cl":   { "type": "string", "default": "RNA_snn_res.2" },
+        "lbl_min_pred":     { "type": "number", "default": 0.8 },
+        "lbl_min_cl_prop":  { "type": "number", "default": 0.5 },
+        "lbl_min_cl_size":  { "type": "integer", "default": 100 }
+      }
+    },
+    "zoom": {
+      "type": "object",
+      "default": {}
     }
   }
 }

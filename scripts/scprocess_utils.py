@@ -2,6 +2,7 @@
 import os
 import sys
 import re
+import pathlib
 import warnings
 import yaml
 import pandas as pd
@@ -15,6 +16,8 @@ import json
 import jsonschema
 
 ### much setup
+
+MB_PER_GB   = 1024
 
 # do some checks of setup before running scprocess
 def check_setup_before_running_scprocess(scprocess_dir, extraargs):
@@ -95,6 +98,36 @@ def get_config_validated_against_schema(config_path, schema_f):
   return CONFIG
 
 
+def get_default_config_from_schema(schema_f):
+  # mess about w schema path
+  schema_p  = pathlib.Path(schema_f)
+  path_bits = list(schema_p.parts)
+  if path_bits[0] == '..':
+    path_bits = path_bits[1:]
+  schema_p  = str(pathlib.Path(*path_bits))
+  with open(schema_p, 'r') as f:
+    schema = json.load(f)
+
+  # extract defaults from the schema
+  default_config = {}
+  for key, props in schema.get('properties', {}).items():
+    # if the key has a top-level default (uncommon for object types)
+    if 'default' in props:
+      default_config[key] = props['default']
+    # if the key is an object, recursively extract its property defaults
+    elif props.get('type') == 'object' and 'properties' in props:
+      # create a nested dictionary of defaults for this section
+      section_defaults = {}
+      for sub_key, sub_props in props['properties'].items():
+        if 'default' in sub_props:
+          section_defaults[sub_key] = sub_props['default']
+      
+      if section_defaults:
+        default_config[key] = section_defaults
+
+  return default_config
+
+
 # check proj dir is wflowr
 def check_proj_dir_is_wflowr(proj_dir):
   # check that proj_dir is a workflowr directory 
@@ -162,6 +195,7 @@ def load_and_check_sample_metadata(CONFIG):
       if var not in sample_df.columns:
         raise KeyError(f"metadata_var '{var}' not present in sample metadata")
 
+  Warning("add check for 'exclude' here")
   return sample_df, sample_var
 
 
