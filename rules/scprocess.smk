@@ -12,7 +12,6 @@ from scprocess_utils import *
 
 schema_f  = "../resources/configs/config-schema.json"
 conf_tmp  = get_default_config_from_schema(schema_f)
-import pdb; pdb.set_trace()
 snakemake.utils.update_config(conf_tmp, config)
 config    = conf_tmp
 

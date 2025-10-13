@@ -1006,7 +1006,7 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
       LBL_MIN_CL_SIZE = config['label_celltypes']['lbl_min_cl_size']
 
     # check that classifier name is valid
-    valid_boosts = ['human_cns', 'mouse_cns']
+    valid_boosts = ['', 'human_cns', 'mouse_cns']
     assert LBL_TISSUE in valid_boosts, \
       f"value {LBL_TISSUE} for 'lbl_tissue' parameter is not valid"
  
@@ -1014,17 +1014,21 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
     xgb_dir  = os.path.join(SCPROCESS_DATA_DIR, 'xgboost')
     assert os.path.isdir(xgb_dir)
     
-    if LBL_TISSUE == 'human_cns':    
+    if LBL_TISSUE == '':
+      LBL_XGB_F       = ""
+      LBL_XGB_CLS_F   = ""
+    elif LBL_TISSUE == 'human_cns':
       LBL_XGB_F       = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds")
       LBL_XGB_CLS_F   = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv")
     else: 
-      raise ValueError(f"{LBL_TISSUE} classifier is unfortunatelly not available yet")
+      raise ValueError(f"{LBL_TISSUE} classifier is unfortunately not available yet")
 
-    # check these are ok
-    assert os.path.isfile(LBL_XGB_F), \
-      f"file {LBL_XGB_F} doesn't exist; consider (re)runnning scprocess setup"
-    assert os.path.isfile(LBL_XGB_CLS_F), \
-      f"file {LBL_XGB_CLS_F} doesn't exist; consider (re)runnning scprocess setup"
+    if LBL_TISSUE != '':
+      # check these are ok
+      assert os.path.isfile(LBL_XGB_F), \
+        f"file {LBL_XGB_F} doesn't exist; consider (re)runnning scprocess setup"
+      assert os.path.isfile(LBL_XGB_CLS_F), \
+        f"file {LBL_XGB_CLS_F} doesn't exist; consider (re)runnning scprocess setup"
  
   return LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE
 
