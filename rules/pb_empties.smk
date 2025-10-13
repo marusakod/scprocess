@@ -33,7 +33,7 @@ rule make_pb_empty:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['mb_pb_make_pbs'] * MB_PER_GB
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_pb_make_pbs'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
   shell:
@@ -61,7 +61,7 @@ rule make_pb_all:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['mb_pb_make_pbs'] * MB_PER_GB
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_pb_make_pbs'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
   shell:
@@ -85,7 +85,7 @@ rule calculate_ambient_genes:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['mb_pb_make_pbs'] * MB_PER_GB
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_pb_make_pbs'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
   shell:

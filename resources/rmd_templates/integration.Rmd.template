@@ -44,9 +44,9 @@ qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') 
 
 # define integration inputs
 integration_f      = "${integration_f}"
-int_reduction      = "${int_reduction}"
+int_embedding      = "${int_embedding}"
 demux_type         = "${demux_type}"
-if (int_reduction == 'harmony') {
+if (int_embedding == 'harmony') {
   int_txt = "with `Harmony` "
 } else {
   int_txt = ''

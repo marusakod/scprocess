@@ -38,7 +38,7 @@ rule render_html_mapping:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb    =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
+    mem_mb    =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
   conda:
     '../envs/rlibs.yaml'
   shell: """
@@ -87,7 +87,7 @@ if DEMUX_TYPE == "hto":
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
+      mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
     conda:
       '../envs/rlibs.yaml'
     shell: """
@@ -134,7 +134,7 @@ rule render_html_ambient:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
+    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
   shell: """
     # define rule and template
     template_f=$(realpath resources/rmd_templates/ambient.Rmd.template)
@@ -186,7 +186,7 @@ rule render_html_qc:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
+    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -240,7 +240,7 @@ rule render_html_hvgs:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
+    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -283,14 +283,14 @@ rule render_html_integration:
   params:
     int_res_ls_str  = ','.join(map(str, config['integration']['int_res_ls'])),
     int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
-    int_reduction   = config['integration']['int_reduction'],
+    int_embedding   = config['integration']['int_embedding'],
     demux_type      = config['multiplexing']['demux_type']
   threads: 1
   retries: config['resources']['retries'] 
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
+    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -317,7 +317,7 @@ rule render_html_integration:
       integration_f   = '{input.integration_f}',
       int_res_ls_str  = '{params.int_res_ls_str}',
       int_dbl_cl_prop =  {params.int_dbl_cl_prop},
-      int_reduction   = '{params.int_reduction}',
+      int_embedding   = '{params.int_embedding}',
       demux_type      = '{params.demux_type}'
     )"
     """
@@ -352,7 +352,7 @@ rule render_html_marker_genes:
     ).strip()
   conda: '../envs/rlibs.yaml'
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -408,7 +408,7 @@ rule render_html_label_celltypes:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['mb_render_htmls'] * MB_PER_GB
+    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
   shell: """

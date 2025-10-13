@@ -32,7 +32,7 @@ rule run_marker_genes:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_marker_genes'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_marker_genes'] * MB_PER_GB
   conda: '../envs/rlibs.yaml'
   shell:
     """

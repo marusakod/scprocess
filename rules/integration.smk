@@ -11,7 +11,7 @@ rule run_integration:
   params:
     demux_type      = config['multiplexing']['demux_type'],
     exclude_mito    = config['qc']['exclude_mito'],
-    int_reduction   = config['integration']['int_reduction'],
+    int_embedding   = config['integration']['int_embedding'],
     int_n_dims      = config['integration']['int_n_dims'],
     int_cl_method   = config['integration']['int_cl_method'],
     int_dbl_res     = config['integration']['int_dbl_res'],
@@ -21,7 +21,7 @@ rule run_integration:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb   = lambda wildcards, attempt: attempt * config['resources']['mb_run_integration'] * MB_PER_GB
+    mem_mb   = lambda wildcards, attempt: attempt * config['resources']['gb_run_integration'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
   shell:"""
@@ -34,7 +34,7 @@ rule run_integration:
         coldata_f        = '{input.coldata_f}',
         demux_type       = '{params.demux_type}',
         exclude_mito     = '{params.exclude_mito}',
-        reduction        = '{params.int_reduction}',
+        reduction        = '{params.int_embedding}',
         n_dims           =  {params.int_n_dims},
         cl_method        = '{params.int_cl_method}',
         dbl_res          =  {params.int_dbl_res},
@@ -57,7 +57,7 @@ rule make_clean_sces:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_make_clean_sces'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_make_clean_sces'] * MB_PER_GB
   conda:
     '../envs/rlibs.yaml'
   shell: """

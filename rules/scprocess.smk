@@ -23,7 +23,7 @@ except Exception as e:
 
 # additional checks
 config    = check_qc_parameters(config)
-config    = check_integration_parameters(config):
+config    = check_integration_parameters(config)
 
 SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 

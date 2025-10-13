@@ -31,7 +31,7 @@ rule make_tmp_csr_matrix:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -63,7 +63,7 @@ if HVG_METHOD == 'sample':
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
     conda:
       '../envs/hvgs.yaml'
     shell:
@@ -84,7 +84,7 @@ if HVG_METHOD == 'sample':
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
     run:
       merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
 
@@ -102,7 +102,7 @@ else:
       mean_var_f      = temp(hvg_dir + '/tmp_mean_var_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 8
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
     conda:
       '../envs/hvgs.yaml'
     shell:
@@ -130,7 +130,7 @@ else:
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
     run:
       merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
 
@@ -145,7 +145,7 @@ else:
     conda:
       '../envs/hvgs.yaml'
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
     shell:
       """
       python3 scripts/hvgs.py calculate_estimated_vars \
@@ -165,7 +165,7 @@ else:
       std_var_stats_f = temp(hvg_dir + '/tmp_std_var_stats_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 8
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
     conda:
       '../envs/hvgs.yaml'
     shell:
@@ -195,7 +195,7 @@ else:
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
     run:
       merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
 
@@ -213,7 +213,7 @@ rule get_highly_variable_genes:
     n_hvgs = N_HVGS,
     exclude_ambient_genes = EXCLUDE_AMBIENT_GENES
   resources:
-     mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
+     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -244,7 +244,7 @@ rule create_hvg_matrix:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -270,7 +270,7 @@ rule create_doublets_hvg_matrix:
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['mb_run_hvgs'] * MB_PER_GB
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
     conda: 
       '../envs/hvgs.yaml'
     shell: 
