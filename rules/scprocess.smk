@@ -21,6 +21,9 @@ try:
 except Exception as e:
   raise e
 
+# additional checks
+config    = check_qc_parameters(config)
+
 SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 
 # get parameters
@@ -30,7 +33,7 @@ AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY = get_mapping_par
 
 CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE =  get_ambient_parameters(config)
 
-QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_FEATS, QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS, EXCLUDE_MITO = get_qc_parameters(config)
+# QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_FEATS, QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS, EXCLUDE_MITO = get_qc_parameters(config)
 
 HVG_METHOD, HVG_GROUP_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES = get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F)
 
@@ -42,12 +45,12 @@ LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL
 
 AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = get_pb_empties_parameters(config)
 
-RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, MB_RUN_QC, MB_RUN_HVGS, MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, MB_RUN_MARKER_GENES, MB_RENDER_HTMLS, MB_LABEL_CELLTYPES, MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, MB_MAKE_HTO_SCE_OBJECTS, MB_MAKE_SUBSET_SCES = get_resource_parameters(config)
+RETRIES, MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, MB_RUN_HVGS, MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, MB_RUN_MARKER_GENES, MB_RENDER_HTMLS, MB_LABEL_CELLTYPES, MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, MB_MAKE_HTO_SCE_OBJECTS, MB_MAKE_SUBSET_SCES = get_resource_parameters(config)
 
 # specify locations
 code_dir    = f"{PROJ_DIR}/code"
 af_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
-af_rna_dir  = 'rna/' if DEMUX_TYPE == "hto" else ''
+af_rna_dir  = 'rna/' if config['multiplexing']['demux_type'] == "hto" else ''
 amb_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
 demux_dir   = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
 dbl_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
@@ -64,7 +67,7 @@ docs_dir    = f"{PROJ_DIR}/public"
 
 
 # exclude all samples without fastq files
-if DEMUX_TYPE != "none":
+if config['multiplexing']['demux_type'] != "none":
   # POOL_IDS = exclude_samples_without_fastq_files(FASTQ_DIR, POOL_IDS, HTO=False)
   POOL_FQS    = get_sample_fastqs(config, POOL_IDS, is_hto = False)
   POOL_IDS    = list(POOL_FQS.keys())
@@ -74,7 +77,7 @@ else:
   # SAMPLES  = exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES, HTO=False)
 
 # exclude all samples without hto fastq files
-if DEMUX_TYPE == "hto":
+if config['multiplexing']['demux_type'] == "hto":
   POOL_FQS    = get_sample_fastqs(config, POOL_IDS, is_hto = True)
   POOL_IDS    = list(POOL_FQS.keys())
   # POOL_IDS = exclude_samples_without_fastq_files(HTO_FASTQ_DIR, POOL_IDS, HTO=True)
@@ -86,7 +89,7 @@ SAMPLE_MAPPING = update_sample_mapping_after_exclusions(SAMPLE_MAPPING, POOL_IDS
 POOL_STR   = ','.join(POOL_IDS)
 SAMPLE_STR = ','.join(SAMPLES)
 
-runs = POOL_IDS if DEMUX_TYPE != "none" else SAMPLES
+runs = POOL_IDS if config['multiplexing']['demux_type'] != "none" else SAMPLES
 RUNS_STR = ','.join(runs)
 
 # scripts
@@ -99,7 +102,7 @@ r_scripts = [
   code_dir  + '/integration.R', 
   code_dir  + '/marker_genes.R'
   ]
-if DEMUX_TYPE == "hto":
+if config['multiplexing']['demux_type'] == "hto":
   r_scripts.append(code_dir + '/multiplexing.R')
 
 # alevin hto index outputs (optional)
@@ -107,7 +110,7 @@ hto_index_outs = [
     af_dir + '/hto.tsv',
     af_dir + '/t2g_hto.tsv',
     af_dir + '/hto_index/ref_indexing.log'
-  ] if DEMUX_TYPE == "hto" else []
+  ] if config['multiplexing']['demux_type'] == "hto" else []
 
 # alevin hto quantification outputs (optional)
 hto_af_outs = expand(
@@ -119,17 +122,17 @@ hto_af_outs = expand(
   af_dir    + '/af_{run}/hto/af_hto_counts_mat.h5',
   af_dir    + '/af_{run}/hto/knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
   ], run = runs
-) if DEMUX_TYPE == "hto" else []
+) if config['multiplexing']['demux_type'] == "hto" else []
 
 # seurat demultiplexing outputs (optional)
 hto_sce_fs = expand(
   demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
   run = runs
-  ) if DEMUX_TYPE == "hto" else []
+  ) if config['multiplexing']['demux_type'] == "hto" else []
 
 # multiplexing report (optional)
-hto_rmd_f  = (rmd_dir   + '/' + SHORT_TAG + '_demultiplexing.Rmd') if DEMUX_TYPE == "hto" else []
-hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_demultiplexing.html') if DEMUX_TYPE == "hto" else []
+hto_rmd_f  = (rmd_dir   + '/' + SHORT_TAG + '_demultiplexing.Rmd') if config['multiplexing']['demux_type'] == "hto" else []
+hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_demultiplexing.html') if config['multiplexing']['demux_type'] == "hto" else []
 
 # fgsea outputs (optional)
 fgsea_outs = [
@@ -255,19 +258,19 @@ rule ambient:
 rule qc:
   params:
     mito_str        = AF_MITO_STR,
-    exclude_mito    = EXCLUDE_MITO,
-    hard_min_counts = QC_HARD_MIN_COUNTS,
-    hard_min_feats  = QC_HARD_MIN_FEATS,
-    hard_max_mito   = QC_HARD_MAX_MITO,
-    min_counts      = QC_MIN_COUNTS,
-    min_feats       = QC_MIN_FEATS,
-    min_mito        = QC_MIN_MITO,
-    max_mito        = QC_MAX_MITO,
-    min_splice      = QC_MIN_SPLICE,
-    max_splice      = QC_MAX_SPLICE,
+    exclude_mito    = config['qc']['exclude_mito'],
+    hard_min_counts = config['qc']['qc_hard_min_counts'],
+    hard_min_feats  = config['qc']['qc_hard_min_feats'],
+    hard_max_mito   = config['qc']['qc_hard_max_mito'],
+    min_counts      = config['qc']['qc_min_counts'],
+    min_feats       = config['qc']['qc_min_feats'],
+    min_mito        = config['qc']['qc_min_mito'],
+    max_mito        = config['qc']['qc_max_mito'],
+    min_splice      = config['qc']['qc_min_splice'],
+    max_splice      = config['qc']['qc_max_splice'],
     sample_var      = SAMPLE_VAR,
-    demux_type      = DEMUX_TYPE,
-    dbl_min_feats   = DBL_MIN_FEATS
+    demux_type      = config['multiplexing']['demux_type'],
+    dbl_min_feats   = config['qc']['dbl_min_feats']
   input:     
     expand(
       [
