@@ -280,7 +280,6 @@ rule qc:
     qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    qc_dir  + '/sce_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
     rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd',
     docs_dir  + '/' + SHORT_TAG + '_qc.html'
 

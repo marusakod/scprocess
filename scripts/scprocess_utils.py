@@ -275,6 +275,7 @@ def get_sample_fastqs(CONFIG, SAMPLES, is_hto = False):
     check_R1      = [re.sub(r'(?<=(_|\.))R1', 'R0', f) for f in R1_fs]
     check_R2      = [re.sub(r'(?<=(_|\.))R2', 'R0', f) for f in R2_fs]
     if len(R1_fs) == 0:
+      import pdb; pdb.set_trace()
       print(f"  WARNING: no {[ "hto " if is_hto else ""]}fastq files found for sample {sample}; excluded.")
     elif set(check_R1) != set(check_R2):
       print(f"  WARNING: {[ "hto " if is_hto else ""]}fastq files found for sample {sample} but R1 and R2 don't match; excluded.")
@@ -819,7 +820,7 @@ def get_qc_parameters(config):
       DBL_MIN_FEATS       = config['qc']['dbl_min_feats']
     if 'exclude_mito'       in config['qc']:
       EXCLUDE_MITO        = config['qc']['exclude_mito']
-      EXCLUDE_MITO        = int(_safe_boolean(EXCLUDE_MITO))
+      EXCLUDE_MITO        = _safe_boolean(EXCLUDE_MITO)
 
 
   # make sure they're consistent

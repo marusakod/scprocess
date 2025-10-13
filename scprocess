@@ -178,7 +178,6 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
 # scprocess run
 def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   print('doing some checks on inputs')
-
   # change scprocess directory
   config_path   = os.path.abspath(configfile)
   scprocess_dir = os.path.dirname(__file__)
