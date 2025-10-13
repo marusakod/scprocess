@@ -3,11 +3,11 @@
 def get_conditional_outputs(species):
   if species in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']:
     return {
-      'fgsea_go_bp_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{MKR_SEL_RES}_go_bp_' + DATE_STAMP + '.txt.gz',
-      'fgsea_go_cc_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{MKR_SEL_RES}_go_cc_' + DATE_STAMP + '.txt.gz',
-      'fgsea_go_mf_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{MKR_SEL_RES}_go_mf_' + DATE_STAMP + '.txt.gz',
-      'fgsea_paths_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{MKR_SEL_RES}_paths_' + DATE_STAMP + '.txt.gz',
-      'fgsea_hlmk_f':  mkr_dir + '/fgsea_' + FULL_TAG + f'_{MKR_SEL_RES}_hlmk_' + DATE_STAMP + '.txt.gz'
+      'fgsea_go_bp_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_bp_' + DATE_STAMP + '.txt.gz',
+      'fgsea_go_cc_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_cc_' + DATE_STAMP + '.txt.gz',
+      'fgsea_go_mf_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_mf_' + DATE_STAMP + '.txt.gz',
+      'fgsea_paths_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_paths_' + DATE_STAMP + '.txt.gz',
+      'fgsea_hlmk_f':  mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_hlmk_' + DATE_STAMP + '.txt.gz'
     }
   else:
     return {}
@@ -17,11 +17,19 @@ rule run_marker_genes:
     sces_yaml_f    = int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml',
     integration_f  = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
-    pb_f      = mkr_dir + '/pb_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.rds',
-    mkrs_f    = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
-    pb_hvgs_f = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    pb_f      = mkr_dir + '/pb_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.rds',
+    mkrs_f    = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
+    pb_hvgs_f = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
     **get_conditional_outputs(SPECIES)
   params:
+    mkr_gsea_dir    = config['marker_genes']['mkr_gsea_dir'],
+    mkr_sel_res     = config['marker_genes']['mkr_sel_res'],
+    mkr_min_cl_size = config['marker_genes']['mkr_min_cl_size'],
+    mkr_min_cells   = config['marker_genes']['mkr_min_cells'],
+    mkr_not_ok_re   = config['marker_genes']['mkr_not_ok_re'],
+    mkr_min_cpm_go  = config['marker_genes']['mkr_min_cpm_go'],
+    mkr_max_zero_p  = config['marker_genes']['mkr_max_zero_p'],
+    mkr_gsea_cut    = config['marker_genes']['mkr_gsea_cut'],
     fgsea_args = lambda wildcards, output: ", ".join([
         f"fgsea_go_bp_f = '{output.get('fgsea_go_bp_f', '')}'",
         f"fgsea_go_cc_f = '{output.get('fgsea_go_cc_f', '')}'",
@@ -34,8 +42,7 @@ rule run_marker_genes:
   resources:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_marker_genes'] * MB_PER_GB
   conda: '../envs/rlibs.yaml'
-  shell:
-    """
+  shell:"""
     Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); calculate_marker_genes(
       integration_f = '{input.integration_f}', 
       sces_yaml_f   = '{input.sces_yaml_f}',
@@ -45,13 +52,13 @@ rule run_marker_genes:
       {params.fgsea_args}
       species       = '{SPECIES}',
       gtf_dt_f      = '{AF_GTF_DT_F}',
-      gsea_dir      = '{MKR_GSEA_DIR}',
-      sel_res       = '{MKR_SEL_RES}',
-      min_cl_size   = {MKR_MIN_CL_SIZE},
-      min_cells     = {MKR_MIN_CELLS},
-      not_ok_re     = '{MKR_NOT_OK_RE}',
-      min_cpm_go    = {MKR_MIN_CPM_GO},
-      max_zero_p    = {MKR_MAX_ZERO_P},
-      gsea_cut      = {MKR_GSEA_CUT},
-      n_cores       = {threads})"
+      gsea_dir      = '{params.mkr_gsea_dir}',
+      sel_res       = '{params.mkr_sel_res}',
+      min_cl_size   =  {params.mkr_min_cl_size},
+      min_cells     =  {params.mkr_min_cells},
+      not_ok_re     = '{params.mkr_not_ok_re}',
+      min_cpm_go    =  {params.mkr_min_cpm_go},
+      max_zero_p    =  {params.mkr_max_zero_p},
+      gsea_cut      =  {params.mkr_gsea_cut},
+      n_cores       =  {threads})"
     """

@@ -17,9 +17,9 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-  fig.path = "figure/${SHORT_TAG}_marker_genes_${MKR_SEL_RES}.Rmd/")
+  fig.path = "figure/${SHORT_TAG}_marker_genes_${mkr_sel_res}.Rmd/")
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
-# workflowr::wflow_build(files='analysis/${SHORT_TAG}_marker_genes_${MKR_SEL_RES}.Rmd', view=F, verbose=T, delete_cache=F)
+# workflowr::wflow_build(files='analysis/${SHORT_TAG}_marker_genes_${mkr_sel_res}.Rmd', view=F, verbose=T, delete_cache=F)
 ```
 
 ```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
@@ -50,8 +50,8 @@ fgsea_paths_f = "${fgsea_paths_f}"
 fgsea_hlmk_f  = "${fgsea_hlmk_f}"
 
 # custom markers for heatmap
-custom_mkr_names_str = "${CUSTOM_MKR_NAMES}"
-custom_mkr_paths_str = "${CUSTOM_MKR_PATHS}"
+custom_mkr_names_str = "${custom_mkr_names}"
+custom_mkr_paths_str = "${custom_mkr_paths}"
 
 if(custom_mkr_names_str != ""){
   # make list
@@ -61,13 +61,13 @@ if(custom_mkr_names_str != ""){
 }
 
 # parameters for here
-not_ok_re     = "${MKR_NOT_OK_RE}"
-sel_res       = '${MKR_SEL_RES}'
-min_cpm_mkr   = ${MKR_MIN_CPM_MKR}
-min_cells     = ${MKR_MIN_CELLS}
+not_ok_re     = "${mkr_not_ok_re}"
+sel_res       = '${mkr_sel_res}'
+min_cpm_mkr   = ${mkr_min_cpm_mkr}
+min_cells     = ${mkr_min_cells}
 
 # parameters for FGSEA
-gsea_cut      = ${MKR_GSEA_CUT}
+gsea_cut      = ${mkr_gsea_cut}
 
 # define nice order for plotting
 cl_ord        = NULL

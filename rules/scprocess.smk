@@ -22,10 +22,11 @@ except Exception as e:
   raise e
 
 # additional checks
+SCPROCESS_DATA_DIR  = os.getenv('SCPROCESS_DATA_DIR')
+PROJ_DIR            = config['project']['proj_dir']
 config    = check_qc_parameters(config)
 config    = check_integration_parameters(config)
-
-SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
+config    = check_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
 
 # get parameters
 PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES, DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_VAR, SAMPLE_MAPPING = get_project_parameters(config, SCPROCESS_DATA_DIR)
@@ -35,8 +36,6 @@ AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY = get_mapping_par
 CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE =  get_ambient_parameters(config)
 
 HVG_METHOD, HVG_GROUP_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES = get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F)
-
-MKR_SEL_RES, MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS = get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
 
 LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE = get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
 
@@ -131,11 +130,11 @@ hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_demultiplexing.html') if config['m
 
 # fgsea outputs (optional)
 fgsea_outs = [
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'paths_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{MKR_SEL_RES}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'paths_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
 ] if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'] else []
 
 # cellbender report (optional)
@@ -190,9 +189,9 @@ rule all:
     expand(int_dir + '/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample = SAMPLES),
     int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
     # marker genes
-    mkr_dir + '/pb_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.rds',
-    mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
-    mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    mkr_dir + '/pb_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.rds',
+    mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
+    mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
     # fgsea outputs
     fgsea_outs, 
     # code
@@ -203,7 +202,7 @@ rule all:
     rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
     rmd_dir   + '/' + SHORT_TAG + '_hvgs.Rmd',
     rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
-    rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.Rmd', 
+    rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd', 
     hto_rmd_f,
     # reports
     docs_dir  + '/' + SHORT_TAG + '_mapping.html', 
@@ -211,7 +210,7 @@ rule all:
     docs_dir  + '/' + SHORT_TAG + '_qc.html',
     docs_dir  + '/' + SHORT_TAG + '_hvgs.html',
     docs_dir  + '/' + SHORT_TAG + '_integration.html',
-    docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.html',
+    docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{config['marker_genes']['mkr_sel_res']}.html',
     hto_html_f 
 
 
@@ -306,13 +305,13 @@ rule integration:
 
 rule marker_genes:
   input:     
-    mkr_dir + '/pb_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.rds',
-    mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
-    mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    mkr_dir + '/pb_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.rds',
+    mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
+    mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
     # fgsea outputs
     fgsea_outs, 
-    rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.Rmd',
-    docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{MKR_SEL_RES}.html'
+    rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd',
+    docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{config['marker_genes']['mkr_sel_res']}.html'
 
 
 rule label_celltypes:

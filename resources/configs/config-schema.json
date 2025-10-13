@@ -119,8 +119,8 @@
             "type": "object",
             "required": ["name"],
             "properties": {
-              "name": { "type": ["string", "null"], "default": null },
-              "file": { "type": ["string", "null"], "default": null }
+              "name": { "type": "string", "pattern": "^[^,]*$" },
+              "file": { "type": "string" }
             }
           }
         }

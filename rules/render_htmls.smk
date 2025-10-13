@@ -327,20 +327,27 @@ rule render_html_marker_genes:
   input:
     r_utils_f     = f"{code_dir}/utils.R",
     r_int_f       = f'{code_dir}/integration.R',
-    pb_f          = mkr_dir + '/pb_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.rds',
-    mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    pb_f          = mkr_dir + '/pb_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.rds',
+    mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
     integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    hvgs_f        = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{MKR_SEL_RES}_' + DATE_STAMP + '.txt.gz',
+    hvgs_f        = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
     ambient_f     = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
     **get_conditional_outputs(SPECIES)
   output:
     r_mkr_f       = f"{code_dir}/marker_genes.R",
-    rmd_f         = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{MKR_SEL_RES}.Rmd',
-    html_f        = f'{docs_dir}/{SHORT_TAG}_marker_genes_{MKR_SEL_RES}.html'
+    rmd_f         = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd',
+    html_f        = f'{docs_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.html'
   threads: 8
   retries: config['resources']['retries']
   params:
     meta_vars  = ','.join(METADATA_VARS),
+    custom_mkr_names  = config['marker_genes']['custom_mkr_names'],
+    custom_mkr_paths  = config['marker_genes']['custom_mkr_paths'],
+    mkr_sel_res       = config['marker_genes']['mkr_sel_res'],
+    mkr_not_ok_re     = config['marker_genes']['mkr_not_ok_re'],
+    mkr_min_cpm_mkr   = config['marker_genes']['mkr_min_cpm_mkr'],
+    mkr_min_cells     = config['marker_genes']['mkr_min_cells'],
+    mkr_gsea_cut      = config['marker_genes']['mkr_gsea_cut'],
     fgsea_args = lambda wildcards, input: " ".join(
       [
         f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}',",
@@ -374,23 +381,23 @@ rule render_html_marker_genes:
       PROJ_DIR          = '{PROJ_DIR}',
       SHORT_TAG         = '{SHORT_TAG}',
       DATE_STAMP        = '{DATE_STAMP}',
-      threads           = {threads},
+      threads           =  {threads},
       meta_f            = '{METADATA_F}',
       meta_vars_ls      = '{params.meta_vars}',
       gtf_dt_f          = '{AF_GTF_DT_F}',
       ambient_f         = '{input.ambient_f}',
       integration_f     = '{input.integration_f}',
       pb_f              = '{input.pb_f}',
-      mkrs_f            = '{input.mkrs_f}',
-      CUSTOM_MKR_NAMES  = '{CUSTOM_MKR_NAMES}',
-      CUSTOM_MKR_PATHS  = '{CUSTOM_MKR_PATHS}',
       hvgs_f            = '{input.hvgs_f}',
+      mkrs_f            = '{input.mkrs_f}',
+      custom_mkr_names  = '{params.custom_mkr_names}',
+      custom_mkr_paths  = '{params.custom_mkr_paths}',
+      mkr_sel_res       =  {params.mkr_sel_res},
+      mkr_not_ok_re     = '{params.mkr_not_ok_re}',
+      mkr_min_cpm_mkr   =  {params.mkr_min_cpm_mkr},
+      mkr_min_cells     =  {params.mkr_min_cells},
+      mkr_gsea_cut      =  {params.mkr_gsea_cut},
       {params.fgsea_args}
-      MKR_SEL_RES       = {MKR_SEL_RES},
-      MKR_NOT_OK_RE     = '{MKR_NOT_OK_RE}',
-      MKR_MIN_CPM_MKR   = {MKR_MIN_CPM_MKR},
-      MKR_MIN_CELLS     = {MKR_MIN_CELLS},
-      MKR_GSEA_CUT      = {MKR_GSEA_CUT},
       SPECIES           = '{SPECIES}'
     )"
     """

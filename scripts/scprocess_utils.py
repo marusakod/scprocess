@@ -515,6 +515,62 @@ def check_integration_parameters(config):
   return config
 
 
+# get parameters for marker genes
+def check_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
+  # set some more default values
+  config['marker_genes']['mkr_gsea_dir'] = os.path.join(SCPROCESS_DATA_DIR, 'gmt_pathways')
+
+  # get custom marker files
+  custom_mkr_names, custom_mkr_paths = _get_custom_marker_genes_specs(config, PROJ_DIR, SCPROCESS_DATA_DIR)
+  config['marker_genes']['custom_mkr_names'] = custom_mkr_names
+  config['marker_genes']['custom_mkr_paths'] = custom_mkr_paths
+
+  return config
+
+
+# get specified custom marker genes
+def _get_custom_marker_genes_specs(config, PROJ_DIR, SCPROCESS_DATA_DIR):
+  # set defaults
+  custom_mkr_names = ""
+  custom_mkr_paths = ""
+
+  # populate with custom sets
+  if 'custom_sets' in config["marker_genes"]:
+    custom_sets = config["marker_genes"]["custom_sets"]
+    mkr_names = []
+    mkr_paths = []
+    for i, gene_set in enumerate(custom_sets):
+      # get name and file
+      name      = gene_set["name"]
+      file_path = gene_set.get("file", os.path.join(SCPROCESS_DATA_DIR, 'marker_genes', f"{name}.csv"))
+
+      # check whether it exists
+      if not os.path.isabs(file_path):
+        file_path = os.path.join(PROJ_DIR, file_path)
+      if not os.path.isfile(file_path):
+        raise FileNotFoundError(f"File not found for marker set '{name}'")
+      if not file_path.endswith(".csv"):
+        raise ValueError(f"File for custom marker set '{name}' is not a csv file")
+
+      # check csv file contents
+      mkrs_df   = pd.read_csv(file_path)
+      req_col   = "label"
+      opt_cols  = ["symbol", "ensembl_id"]
+      if not req_col in mkrs_df.columns:
+        raise KeyError(f"File '{file_path}' is missing the mandatory column 'label'.")
+      if not any(col in mkrs_df.columns for col in opt_cols):
+        raise KeyError(f"File '{file_path}' must contain at least one of 'symbol' or 'ensembl_id' column.")
+
+      # Store validated values
+      mkr_names.append(name)
+      mkr_paths.append(file_path)
+
+    custom_mkr_names = ",".join(mkr_names)
+    custom_mkr_paths = ",".join(mkr_paths)
+  
+  return custom_mkr_names, custom_mkr_paths
+
+
 # get parameters for multiplexing
 def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
   #set defaults
@@ -870,46 +926,6 @@ def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
 
   return HVG_METHOD, HVG_SPLIT_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES
 
-# get parameters for marker genes
-def get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR): 
-  # set some more default values
-  MKR_SEL_RES     = 0.2
-  MKR_GSEA_DIR    = os.path.join(SCPROCESS_DATA_DIR, 'gmt_pathways')
-  MKR_MIN_CL_SIZE = 1e2
-  MKR_MIN_CELLS   = 10
-  MKR_NOT_OK_RE   = "(lincRNA|lncRNA|pseudogene|antisense)"
-  MKR_MIN_CPM_MKR = 50
-  MKR_MIN_CPM_GO  = 1
-  MKR_MAX_ZERO_P  = 0.5
-  MKR_GSEA_CUT    = 0.1
-
-
-  # change defaults if specified
-  if ('marker_genes' in config) and (config['marker_genes'] is not None):
-    if 'mkr_sel_res' in config['marker_genes']:
-      MKR_SEL_RES     = config['marker_genes']['mkr_sel_res']
-    if 'mkr_min_cl_size' in config['marker_genes']:
-      MKR_MIN_CL_SIZE = config['marker_genes']['mkr_min_cl_size']
-    if 'mkr_min_cells' in config['marker_genes']:
-      MKR_MIN_CELLS   = config['marker_genes']['mkr_min_cells']
-    if 'mkr_not_ok_re' in config['marker_genes']:
-      MKR_NOT_OK_RE   = config['marker_genes']['mkr_not_ok_re']
-    if 'mkr_min_cpm_mkr' in config['marker_genes']:
-      MKR_MIN_CPM_MKR = config['marker_genes']['mkr_min_cpm_mkr']
-    if 'mkr_min_cpm_go' in config['marker_genes']:
-      MKR_MIN_CPM_GO  = config['marker_genes']['mkr_min_cpm_go']
-    if 'mkr_max_zero_p' in config['marker_genes']:
-      MKR_MAX_ZERO_P  = config['marker_genes']['mkr_max_zero_p']
-    if 'mkr_gsea_cut' in config['marker_genes']:
-      MKR_GSEA_CUT    = config['marker_genes']['mkr_gsea_cut']
-
-  # get custom marker files
-  CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS = _get_custom_marker_genes_specs(config, PROJ_DIR, SCPROCESS_DATA_DIR)
-
-  return MKR_SEL_RES, MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, \
-    MKR_MIN_CPM_MKR, MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, \
-    CUSTOM_MKR_PATHS
-
 
 # get parameters for labelling celltypes
 def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR): 
@@ -1224,61 +1240,6 @@ def update_sample_mapping_after_exclusions(SAMPLE_MAPPING, POOL_IDS, SAMPLES):
     SAMPLE_MAPPING[pool_id] = [sample_id for sample_id in SAMPLE_MAPPING[pool_id] if sample_id in SAMPLES]
 
   return SAMPLE_MAPPING
-
-
-# get specified custom marker genes
-def _get_custom_marker_genes_specs(config, PROJ_DIR, SCPROCESS_DATA_DIR):
-  # set defaults
-  CUSTOM_MKR_NAMES = ""
-  CUSTOM_MKR_PATHS = ""
-  
-  if ('marker_genes' in config) and (config['marker_genes'] is not None):
-    if 'custom_sets' in config["marker_genes"]:
-      custom_sets = config["marker_genes"]["custom_sets"]
-      mkr_names = []
-      mkr_paths = []
-      for i, gene_set in enumerate(custom_sets):
-        assert "name" in gene_set, \
-          f"Entry {i+1} in 'custom_sets' is missing a 'name' field."
-
-        name = gene_set["name"]
-
-        # check for commas in names
-        assert "," not in name, \
-          f"Custom marker set name '{name}' contains a comma, which is not allowed."
-
-        file_path = gene_set.get("file", os.path.join(SCPROCESS_DATA_DIR, 'marker_genes', f"{name}.csv"))
-
-        if not os.path.isabs(file_path):
-          file_path = os.path.join(PROJ_DIR, file_path)
-
-        assert os.path.isfile(file_path), \
-          f"File not found for marker set '{name}'"
-
-        assert file_path.endswith(".csv"), \
-          f"File for custom marker set '{name}' is not a CSV file"
-
-        # check csv file contents
-        mkrs_df = pd.read_csv(file_path)
-
-        req_col = "label"
-        opt_cols = ["symbol", "ensembl_id"]
-      
-        assert req_col in mkrs_df.columns, \
-          f"File '{file_path}' is missing the mandatory column 'label'."
-      
-        assert any(col in mkrs_df.columns for col in opt_cols), \
-          f"File '{file_path}' must contain either 'symbol' or 'ensembl_id' column."
-          
-
-        # Store validated values
-        mkr_names.append(name)
-        mkr_paths.append(file_path)
-
-      CUSTOM_MKR_NAMES = ",".join(mkr_names)
-      CUSTOM_MKR_PATHS = ",".join(mkr_paths)
-  
-  return CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS
 
 
 # nice boolean values from yaml inputs
