@@ -115,9 +115,9 @@ if DEMUX_TYPE == "hto":
     input:
       feature_ref_f = FEATURE_REF
     threads: 8
-    retries: RETRIES
+    retries: config['resources']['retries']
     resources:
-      mem_mb = 4096
+      mem_mb = 4 * MB_PER_GB
     output: 
       hto_f       = af_dir + '/hto.tsv',
       t2g_f       = af_dir + '/t2g_hto.tsv',
@@ -149,9 +149,9 @@ if DEMUX_TYPE == "hto":
 
 rule run_mapping:
   threads: 8
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb        = lambda wildcards, attempt: attempt * MB_RUN_MAPPING
+    mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_run_mapping'] * MB_PER_GB
   params:
     af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
     exp_ori       = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[1],
@@ -199,9 +199,9 @@ if DEMUX_TYPE == "hto":
       hto_R2_fs     = lambda wildcards: find_fastq_files(HTO_FASTQ_DIR, wildcards.run, "R2"),
       t2g_f         = af_dir + '/t2g_hto.tsv'
     threads: 8
-    retries: RETRIES
+    retries: config['resources']['retries']
     resources:
-      mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_MAPPING
+      mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_run_mapping'] * MB_PER_GB
     params:
       af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
       whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[2]
@@ -253,9 +253,9 @@ rule save_alevin_to_h5:
     low_count_thr = lambda wildcards: parse_knee_finder_params(CUSTOM_SAMPLE_PARAMS_F, AMBIENT_METHOD, wildcards.run, 
       FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_EXPECTED_CELLS, FORCE_LOW_COUNT_THRESHOLD)[6]
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_SAVE_ALEVIN_TO_H5
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_save_alevin_to_h5'] * MB_PER_GB
   conda: 
    '../envs/rlibs.yaml'
   shell:
@@ -286,7 +286,7 @@ if DEMUX_TYPE == "hto":
       h5_f        = af_dir + '/af_{run}/hto/af_hto_counts_mat.h5',
       knee_data_f = af_dir + '/af_{run}/hto/knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
     threads: 1
-    retries: RETRIES
+    retries: config['resources']['retries']
     resources:
       mem_mb = lambda wildcards, attempt: attempt * MB_SAVE_ALEVIN_TO_H5
     conda: 
