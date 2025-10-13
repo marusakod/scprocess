@@ -1,11 +1,12 @@
 # load modules
+import os
+import sys
+import re
 import warnings
 import yaml
 import pandas as pd
 import csv
 import math
-import os
-import re
 import glob
 import gzip
 import datetime
@@ -188,16 +189,15 @@ def get_and_check_samples(sample_df, sample_var, CONFIG):
     raise ValueError(msg)
 
   # check that fastq files exist for samples
-  sample_fastqs = _get_sample_fastqs(CONFIG, SAMPLES, is_hto = False)
+  sample_fastqs = get_sample_fastqs(CONFIG, SAMPLES, is_hto = False)
   SAMPLES       = [ s for s in SAMPLES if s in sample_fastqs ]
 
   # check that hto fastq files exist for samples
-  if 'multiplexing' in CONFIG:
+  demux_type    = "none"
+  if ('multiplexing' in CONFIG) and CONFIG['multiplexing'] is not None:
     demux_type      = CONFIG['multiplexing']['demux_type']
-  else:
-    demux_type      = None
   if demux_type == "hto":
-    sample_htos   = _get_sample_fastqs(CONFIG, is_hto = True )
+    sample_htos   = get_sample_fastqs(CONFIG, is_hto = True )
     SAMPLES       = [ s for s in SAMPLES if s in sample_htos ]
 
   # check that there's still something left
@@ -208,7 +208,7 @@ def get_and_check_samples(sample_df, sample_var, CONFIG):
 
 
 # get all fastq files
-def _get_sample_fastqs(CONFIG, SAMPLES, is_hto = False):
+def get_sample_fastqs(CONFIG, SAMPLES, is_hto = False):
   # get place to look for fastq files
   if is_hto:
     tmp_ls      = CONFIG['multiplexing']
@@ -232,14 +232,14 @@ def _get_sample_fastqs(CONFIG, SAMPLES, is_hto = False):
   sample_fastqs = {}
   for sample in SAMPLES:
     # get R1 and R2 files matching each sample
-    R1_regex    = rf".*{sample}.*_R1.*\.fastq\.gz"
-    R1_fs       = [f for f in fastq_fs if re.match(R1_regex, f) ]
-    R2_regex    = rf".*{sample}.*_R2.*\.fastq\.gz"
-    R2_fs       = [f for f in fastq_fs if re.match(R2_regex, f) ]
+    R1_regex      = rf".*{sample}.*(_|\.)R1.*\.fastq\.gz"
+    R1_fs         = [f for f in fastq_fs if re.match(R1_regex, f) ]
+    R2_regex      = rf".*{sample}.*(_|\.)R2.*\.fastq\.gz"
+    R2_fs         = [f for f in fastq_fs if re.match(R2_regex, f) ]
 
     # check have full set of files
-    check_R1    = [f.replace('_R1', '_R0') for f in R1_fs]
-    check_R2    = [f.replace('_R2', '_R0') for f in R2_fs]
+    check_R1      = [re.sub(r'(?<=(_|\.))R1', 'R0', f) for f in R1_fs]
+    check_R2      = [re.sub(r'(?<=(_|\.))R2', 'R0', f) for f in R2_fs]
     if len(R1_fs) == 0:
       print(f"  WARNING: no {[ "hto " if is_hto else ""]}fastq files found for sample {sample}; excluded.")
     elif set(check_R1) != set(check_R2):
@@ -365,8 +365,8 @@ def _check_project_parameters(config):
   index_params      = pd.read_csv(index_params_f)
   valid_species     = index_params['genome_name'].tolist()
   valid_species_str = ', '.join(valid_species)
-
-  assert SPECIES in valid_species, f"species {SPECIES} not defined. Valid values are {valid_species_str}"
+  if not SPECIES in valid_species:
+    raise ValueError(f"species {SPECIES} not defined. Valid values are {valid_species_str}")
 
   # check whether date is given as datetime object
   if isinstance(DATE_STAMP, datetime.date):
@@ -374,7 +374,8 @@ def _check_project_parameters(config):
     DATE_STAMP  = DATE_STAMP.strftime("%Y-%m-%d")
 
   date_regex    = re.compile("^20[0-9]{2}-[0-9]{2}-[0-9]{2}$")
-  assert date_regex.match(DATE_STAMP), f"{DATE_STAMP} does not match date format YYYY-MM-DD"
+  if not date_regex.match(DATE_STAMP):
+    raise ValueError(f"{DATE_STAMP} does not match date format YYYY-MM-DD")
 
   # get fastqs
   if FASTQ_DIR is not None:
@@ -550,28 +551,28 @@ def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
 # get list of samples
 def get_project_parameters(config, scprocess_data_dir):
   ## what is specified in config directory?
-  project_dc    = config['project']
-  PROJ_DIR      = project_dc["proj_dir"]
-  SHORT_TAG     = project_dc["short_tag"]
-  FULL_TAG      = project_dc["full_tag"]
-  YOUR_NAME     = project_dc["your_name"]
-  AFFILIATION   = project_dc["affiliation"]
-  DATE_STAMP    = project_dc["date_stamp"]
-  SPECIES       = project_dc["species"]
+  proj_dict     = config['project']
+  PROJ_DIR      = proj_dict["proj_dir"]
+  SHORT_TAG     = proj_dict["short_tag"]
+  FULL_TAG      = proj_dict["full_tag"]
+  YOUR_NAME     = proj_dict["your_name"]
+  AFFILIATION   = proj_dict["affiliation"]
+  DATE_STAMP    = proj_dict["date_stamp"]
+  SPECIES       = proj_dict["species"]
 
   # check fastq vs arvados
-  has_fastq     = "fastq_dir" in project_dc
-  has_arv_uuid  = "arv_uuid" in project_dc
+  has_fastq     = "fastq_dir" in proj_dict
+  has_arv_uuid  = "arv_uuid" in proj_dict
   if has_fastq + has_arv_uuid != 1:
     KeyError('config file must contain exactly one of "fastq_dir" and "arv_uuid"')
 
   # define these
   if has_fastq and not has_arv_uuid:
-    FASTQ_DIR     = project_dc["fastq_dir"]
+    FASTQ_DIR     = proj_dict["fastq_dir"]
     ARV_UUID      = None
   if not has_fastq and has_arv_uuid:
     FASTQ_DIR     = None
-    ARV_UUID      = project_dc["arv_uuid"]
+    ARV_UUID      = proj_dict["arv_uuid"]
 
   # check if selected species is valid
   index_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
@@ -597,7 +598,7 @@ def get_project_parameters(config, scprocess_data_dir):
       FASTQ_DIR = os.path.join(PROJ_DIR, FASTQ_DIR)
   
   # get samples
-  METADATA_F    = project_dc["sample_metadata"]
+  METADATA_F    = proj_dict["sample_metadata"]
   if not os.path.isabs(METADATA_F):
     METADATA_F = os.path.join(PROJ_DIR, METADATA_F)
 
@@ -606,32 +607,31 @@ def get_project_parameters(config, scprocess_data_dir):
 
   # get multiplexing params
   DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, \
-    POOL_SAMPLES, SAMPLE_MAPPING = get_multiplexing_parameters(project_dc, PROJ_DIR, samples_df)
+    POOL_SAMPLES, SAMPLE_MAPPING = get_multiplexing_parameters(proj_dict, PROJ_DIR, samples_df)
 
   # define sample variable for alevin, ambient, doublets and sample mapping dictionary
   if DEMUX_TYPE != "none":
-    SAMPLE_VAR = "pool_id"
+    SAMPLE_VAR  = "pool_id"
     # exclude samples in excluded pools
-    SAMPLES = POOL_SAMPLES
+    SAMPLES     = POOL_SAMPLES
   else:
-    SAMPLE_VAR = "sample_id"
+    SAMPLE_VAR  = "sample_id"
   
   # remove some samples
   EXC_SAMPLES   = None
-  if ('exclude' in project_dc) and (project_dc['exclude'] is not None):
-    if ('sample_id' in project_dc['exclude']) and (project_dc['exclude']['sample_id'] is not None):
-      EXC_SAMPLES = project_dc['exclude']["sample_id"]
+  if ('exclude' in proj_dict) and (proj_dict['exclude'] is not None):
+    if ('sample_id' in proj_dict['exclude']) and (proj_dict['exclude']['sample_id'] is not None):
+      EXC_SAMPLES = proj_dict['exclude']["sample_id"]
       for s in EXC_SAMPLES:
         if s not in samples_df["sample_id"].dropna().tolist():
           warnings.warn(f"sample {s} specified in exclude_samples but not in metadata file", UserWarning)
       to_keep       = set(SAMPLES) - set(EXC_SAMPLES)
       SAMPLES       = [s for s in SAMPLES if s in to_keep]
 
-
-  # check custom sample project_dc file if exists
+  # check custom sample proj_dict file if exists
   CUSTOM_SAMPLE_PARAMS_F = None
-  if ('custom_sample_params' in project_dc) and (project_dc['custom_sample_params'] is not None):
-    CUSTOM_SAMPLE_PARAMS_F = project_dc["custom_sample_params"]
+  if ('custom_sample_params' in proj_dict) and (proj_dict['custom_sample_params'] is not None):
+    CUSTOM_SAMPLE_PARAMS_F = proj_dict["custom_sample_params"]
     # check if exists
     if not os.path.isabs(CUSTOM_SAMPLE_PARAMS_F):
       CUSTOM_SAMPLE_PARAMS_F = os.path.join(PROJ_DIR, CUSTOM_SAMPLE_PARAMS_F)
@@ -647,11 +647,10 @@ def get_project_parameters(config, scprocess_data_dir):
         for s in custom_smpls:
           assert s in SAMPLES, f"{s} in custom_sample_params file doesn't match any sample_id values in sample_metadata"
 
-
   # sort out metadata variables
   METADATA_VARS = []
-  if ('metadata_vars' in project_dc) and (project_dc['metadata_vars'] is not None):
-    METADATA_VARS  = project_dc["metadata_vars"]
+  if ('metadata_vars' in proj_dict) and (proj_dict['metadata_vars'] is not None):
+    METADATA_VARS  = proj_dict["metadata_vars"]
     for var in METADATA_VARS:
       assert var in samples_df.columns, f"{var} not in sample metadata"
       # check that there are less than 10 unique values (otherwise probably not a categorical variable)
@@ -661,7 +660,6 @@ def get_project_parameters(config, scprocess_data_dir):
       uniq_vals = len(set(var_vals))
       assert uniq_vals <= 10, \
         f"{var} variable has more than 10 unique values"
-  
 
   return PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, \
     METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES, \
@@ -672,7 +670,7 @@ def get_project_parameters(config, scprocess_data_dir):
 # get parameters for mapping
 def get_mapping_parameters(config, scprocess_data_dir, SPECIES):
   # get chemisty
-  CHEMISTRY     = config['project']['10x_chemistry']
+  CHEMISTRY     = config['project']['tenx_chemistry']
   
   # from index_parameters.csv get valid values for species
   idx_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')

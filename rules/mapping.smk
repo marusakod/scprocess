@@ -156,8 +156,9 @@ rule run_mapping:
     af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
     exp_ori       = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[1],
     whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[2],
-    R1_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.run, "R1"),
-    R2_fs         = lambda wildcards: find_fastq_files(FASTQ_DIR, wildcards.run, "R2")
+    where         = lambda wildcards: SAMPLE_FQS[wildcards.run]["where"],
+    R1_fs         = lambda wildcards: SAMPLE_FQS[wildcards.run]["R1_fs"],
+    R2_fs         = lambda wildcards: SAMPLE_FQS[wildcards.run]["R2_fs"]
   output:
     rad_f         = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_map/map.rad'),
     collate_rad_f = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_quant/map.collated.rad'), 
@@ -168,33 +169,19 @@ rule run_mapping:
   conda:
     '../envs/alevin_fry.yaml'
   shell:"""
-    # Process input strings
-    R1_fs=$(echo {params.R1_fs} | sed "s/ /,/g")
-    R2_fs=$(echo {params.R2_fs} | sed "s/ /,/g")
-    
-    # make output directory
-    out_dir="{af_dir}/af_{wildcards.run}"
-    mkdir -p $out_dir
-
-    # add subdirectory if multiplexed samples
-    if [ "{DEMUX_TYPE}" == "af" ]; then
-        out_dir="$out_dir/rna"
-    fi
-
-    export ALEVIN_FRY_HOME="{AF_HOME_DIR}"
-    simpleaf set-paths
-
-    # RNA quantification
-    simpleaf quant \
-      --reads1 $R1_fs  \
-      --reads2 $R2_fs  \
+    python3 scripts/mapping.py {wildcards.run} \
+      --af_dir {af_dir} \
+      --demux_type {DEMUX_TYPE} \
+      --what rna \
+      --af_home_dir {AF_HOME_DIR} \
+      --where {params.where} \
+      --R1_fs {params.R1_fs} \
+      --R2_fs {params.R2_fs} \
       --threads {threads} \
-      --index {AF_INDEX_DIR}/index \
-      --chemistry {params.af_chemistry} --resolution cr-like \
-      --expected-ori {params.exp_ori} \
-      --t2g-map {AF_INDEX_DIR}/index/t2g_3col.tsv \
-      --unfiltered-pl {params.whitelist_f} --min-reads 1 \
-      --output $out_dir
+      --af_index_dir {AF_INDEX_DIR} \
+      --tenx_chemistry {params.af_chemistry} \
+      --exp_ori {params.exp_ori} \
+      --whitelist_f {params.whitelist_f}
     """
 
 
@@ -219,33 +206,20 @@ if DEMUX_TYPE == "hto":
       rows_f      = af_dir + '/af_{run}/hto/af_quant/alevin/quants_mat_rows.txt'
     conda:
       '../envs/alevin_fry.yaml'
-    shell:
-      """
-      # Process input strings
-    
-      HTO_R1_fs=$(echo {input.hto_R1_fs} | sed "s/ /,/g")
-      HTO_R2_fs=$(echo {input.hto_R2_fs} | sed "s/ /,/g")
-    
-      export ALEVIN_FRY_HOME="{AF_HOME_DIR}"
-      simpleaf set-paths
-
-      out_dir="{af_dir}/af_{wildcards.run}"
-      mkdir -p $out_dir
-
-      # HTO quantification
-      simpleaf quant \
-        --reads1 $HTO_R1_fs \
-        --reads2 $HTO_R2_fs \
-        --no-piscem \
+    shell:"""
+      python3 scripts/mapping.py {wildcards.run} \
+        --af_dir {af_dir}\
+        --demux_type {DEMUX_TYPE} \
+        --what hto \
+        --af_home_dir {AF_HOME_DIR} \
+        --where {params.fastqs["where"]} \
+        --R1_fs {params.fastqs["R1_fs"]} \
+        --R2_fs {params.fastqs["R2_fs"]} \
         --threads {threads} \
-        --index {af_dir}/hto_index \
-        --chemistry {params.af_chemistry} --resolution cr-like \
-        --expected-ori fw \
-        --unfiltered-pl {params.whitelist_f} \
-        --min-reads 1 \
-        --t2g-map {input.t2g_f} \
-        --output $out_dir/hto
-    
+        --af_index_dir {AF_INDEX_DIR} \
+        --tenx_chemistry {params.af_chemistry} \
+        --exp_ori fw \
+        --whitelist_f {params.whitelist_f}
       """
 
 

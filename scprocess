@@ -164,10 +164,9 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
         sample_metadata: {meta_dir}/
         species: 
         date_stamp: "{date_stamp}"
-      mapping:
-        chemistry: 
-      """.strip()
-    config_txt  = textwrap.dedent(config_txt)
+        tenx_chemistry: 
+      """
+    config_txt  = textwrap.dedent(config_txt).strip()
     
     # write to file
     with open(config_f, "w") as file:

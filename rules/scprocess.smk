@@ -39,33 +39,39 @@ AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR = get_pb_empties_parameters(confi
 RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, MB_RUN_QC, MB_RUN_HVGS, MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, MB_RUN_MARKER_GENES, MB_RENDER_HTMLS, MB_LABEL_CELLTYPES, MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, MB_MAKE_HTO_SCE_OBJECTS, MB_MAKE_SUBSET_SCES = get_resource_parameters(config)
 
 # specify locations
-code_dir      = f"{PROJ_DIR}/code"
-af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
-af_rna_dir    = 'rna/' if DEMUX_TYPE == "hto" else ''
-amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
-demux_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
-dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
-qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
-hvg_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_hvg"
-int_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
-mkr_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_marker_genes"
-lbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
-meta_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_metacells"
-pb_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_pseudobulk"
-empty_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_empties"
-rmd_dir       = f"{PROJ_DIR}/analysis"
-docs_dir      = f"{PROJ_DIR}/public"
+code_dir    = f"{PROJ_DIR}/code"
+af_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
+af_rna_dir  = 'rna/' if DEMUX_TYPE == "hto" else ''
+amb_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
+demux_dir   = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
+dbl_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
+qc_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
+hvg_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_hvg"
+int_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
+mkr_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_marker_genes"
+lbl_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
+meta_dir    = f"{PROJ_DIR}/output/{SHORT_TAG}_metacells"
+pb_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_pseudobulk"
+empty_dir   = f"{PROJ_DIR}/output/{SHORT_TAG}_empties"
+rmd_dir     = f"{PROJ_DIR}/analysis"
+docs_dir    = f"{PROJ_DIR}/public"
 
 
 # exclude all samples without fastq files
 if DEMUX_TYPE != "none":
-  POOL_IDS = exclude_samples_without_fastq_files(FASTQ_DIR, POOL_IDS, HTO=False)
+  # POOL_IDS = exclude_samples_without_fastq_files(FASTQ_DIR, POOL_IDS, HTO=False)
+  POOL_FQS    = get_sample_fastqs(config, POOL_IDS, is_hto = False)
+  POOL_IDS    = list(POOL_FQS.keys())
 else:
-  SAMPLES  = exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES, HTO=False)
+  SAMPLE_FQS  = get_sample_fastqs(config, SAMPLES, is_hto = False)
+  SAMPLES     = list(SAMPLE_FQS.keys())
+  # SAMPLES  = exclude_samples_without_fastq_files(FASTQ_DIR, SAMPLES, HTO=False)
 
 # exclude all samples without hto fastq files
 if DEMUX_TYPE == "hto":
-  POOL_IDS = exclude_samples_without_fastq_files(HTO_FASTQ_DIR, POOL_IDS, HTO=True)
+  POOL_FQS    = get_sample_fastqs(config, POOL_IDS, is_hto = True)
+  POOL_IDS    = list(POOL_FQS.keys())
+  # POOL_IDS = exclude_samples_without_fastq_files(HTO_FASTQ_DIR, POOL_IDS, HTO=True)
 
 # exclude pools and samples from sample mapping dictionary
 SAMPLE_MAPPING = update_sample_mapping_after_exclusions(SAMPLE_MAPPING, POOL_IDS, SAMPLES)
