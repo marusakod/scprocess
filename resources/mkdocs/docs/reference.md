@@ -113,7 +113,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       date_stamp:
       sample_metadata:
       species:
-      10x_chemistry:
+      tenx_chemistry:
       metadata_vars:
       custom_sample_params:
       exclude:
@@ -211,7 +211,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       date_stamp: "2050-01-01"
       sample_metadata: /path/to/metadata.csv
       species: human_2024
-      10x_chemistry: 3v3
+      tenx_chemistry: 3v3
       metadata_vars: [var1, var2]
       custom_sample_params: /path/to/file/with/custom_parameters.yaml 
       exclude:
@@ -313,25 +313,25 @@ This is an example config file for {{sc}} with all parameters and their default 
 * `date_stamp`: start date of the analysis, formatted as `"YYYY-MM-DD"`.
 * `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1` and `_R2`strings.
 * `species`: must match one of the values in the `genome_name` column of `index_parameters.csv` (created by `scsetup`).
-* `10x_chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).
+* `tenx_chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).
 
 #### Optional parameters
 
 ##### project
 
 * `metadata_vars`: A list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
-* `custom_sample_params`: YAML file with optional custom parameters for each sample (custom 10x_chemistry, custom ambient and custom cellbender parameters can be specified for each sample). Example:
+* `custom_sample_params`: YAML file with optional custom parameters for each sample (custom tenx_chemistry, custom ambient and custom cellbender parameters can be specified for each sample). Example:
 
 ```yaml
 sample_1:
-  10x_chemistry: 5v2
+  tenx_chemistry: 5v2
   ambient:
     knee1: 4000
     shin1: 400
     knee2: 30
     shin2: 5
 sample_2:
-  10x_chemistry: 5v2
+  tenx_chemistry: 5v2
   ambient:
     knee1: 3000
     shin1: 400

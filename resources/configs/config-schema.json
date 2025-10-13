@@ -8,7 +8,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["proj_dir", "full_tag", "short_tag", "your_name", "affiliation", 
-        "date_stamp", "sample_metadata", "species", "10x_chemistry"],
+        "date_stamp", "sample_metadata", "species", "tenx_chemistry"],
       "properties": {
         "proj_dir":             { "type": "string" },
         "fastq_dir":            { "type": "string" },
@@ -20,7 +20,7 @@
         "date_stamp":           { "type": "string", "format": "date" },
         "sample_metadata":      { "type": "string" },
         "species":              { "type": "string" },
-        "10x_chemistry":        { "type": "string", "enum": ["3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"] },
+        "tenx_chemistry":       { "type": "string", "enum": ["3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"] },
         "metadata_vars":        { "type": "array", "items": { "type": "string" } },
         "custom_sample_params": { "type": "string" },
         "exclude": {
@@ -90,7 +90,7 @@
         "qc_min_mito":    { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
         "qc_max_mito":    { "type": "number", "minimum": 0, "maximum": 1, "default": 0.1 },
         "qc_min_splice":  { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
-        "qc_max_splice":  { "type": "number", "minimum": 0, "maximum": 1, "default": 0.75 },
+        "qc_max_splice":  { "type": "number", "minimum": 0, "maximum": 1, "default": 1 },
         "qc_min_cells":   { "type": "integer", "exclusiveMinimum": 0, "default": 500 },
         "dbl_min_feats":  { "type": "integer", "exclusiveMinimum": 0, "default": 100 },
         "exclude_mito":   { "type": "boolean", "default": true }
