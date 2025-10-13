@@ -169,6 +169,13 @@ rule run_mapping:
   conda:
     '../envs/alevin_fry.yaml'
   shell:"""
+    # check whether doing arvados
+    ARV_REGEX="^arkau-[0-9a-z]{5}-[0-9a-z]{15}$"
+    if [[ "{params.where}" =~ $ARV_REGEX ]]; then
+      ml arvados
+      arv-env arkau
+    fi
+    # run mapping
     python3 scripts/mapping.py {wildcards.run} \
       --af_dir {af_dir} \
       --demux_type {DEMUX_TYPE} \

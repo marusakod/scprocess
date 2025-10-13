@@ -2,6 +2,12 @@ import os
 import argparse
 import subprocess
 
+# set up
+import arvados
+import collections
+import tempfile
+import gc
+
 def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, 
     where, R1_fs, R2_fs, threads, af_index_dir, tenx_chemistry, 
     exp_ori, whitelist_f, t2g_f, index_dir):
@@ -21,20 +27,20 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
   # if arvados, download to temp files
   on_arvados  = not os.path.exists(where)
   if on_arvados:
+    print('setting up link to arvados')
     # set up
-    import arvados
-    import tempfile
-
-    # set up
-    arv_uuid    = fastqs["where"]
+    arv_uuid    = where
     arv_token   = os.environ["ARVADOS_API_TOKEN"]
+    print('  connecting to arvados server')
     arv_client  = arvados.api('v1', host = 'api.arkau.roche.com',
       token = arv_token, insecure = True, num_retries = 2 )
+    print('  finding arvados collection')
     arv_colln   = arvados.collection.Collection(arv_uuid, arv_client)
 
     # download files from Arvados
-    R1_fs       = [_download_arvados_file_as_tempfile(f, arv_colln, ".R1.fastq.gz") for f in R1_fs]
-    R2_fs       = [_download_arvados_file_as_tempfile(f, arv_colln, ".R2.fastq.gz") for f in R2_fs]
+    print('downloading files from arvados')
+    R1_fs       = [ _download_arvados_file_as_tempfile(f, arv_colln, f".{i}.R1.fastq.gz") for i, f in enumerate(R1_fs) ]
+    R2_fs       = [ _download_arvados_file_as_tempfile(f, arv_colln, f".{i}.R2.fastq.gz") for i, f in enumerate(R2_fs) ]
   else:
     R1_fs       = [ os.path.join(where, f) for f in R1_fs]
     R2_fs       = [ os.path.join(where, f) for f in R2_fs]
@@ -68,17 +74,19 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
 
 def _download_arvados_file_as_tempfile(f, arv_colln, suffix):
   # connect to file
-  with collection.open(f, mode='rb') as arv_f:
+  with arv_colln.open(f, mode='rb') as arv_f:
     # create a temporary file to store the data
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False, deleteOnClose=False) as temp_file:
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp_file:
       # write the contents of the arvados file-like object to the temporary file
+      print(f"  downloading {f} from arvados as tmp file {temp_file.name}")
       temp_file.write(arv_f.read())
       # ensure all data is written to disk
       temp_file.flush()
     # close the arvados file-like object
     arv_f.close()
+  gc.collect()
 
-  return temp_file
+  return temp_file.name
 
 
 if __name__ == "__main__":
