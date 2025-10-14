@@ -549,7 +549,7 @@ def get_qc_parameters(config):
       DBL_MIN_FEATS       = config['qc']['dbl_min_feats']
     if 'exclude_mito'       in config['qc']:
       EXCLUDE_MITO        = config['qc']['exclude_mito']
-      EXCLUDE_MITO        = int(_safe_boolean(EXCLUDE_MITO))
+      EXCLUDE_MITO        = _safe_boolean(EXCLUDE_MITO)
 
 
   # make sure they're consistent
