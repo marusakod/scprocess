@@ -8,7 +8,7 @@ if config['multiplexing']['demux_type'] == "hto":
       amb_yaml_f   = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
       hto_h5_f     = af_dir + '/af_{run}/hto/af_hto_counts_mat.h5'
     params:
-      translation_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[3],
+      translation_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, TENX_CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[3],
       ambient_method  = config['ambient']['ambient_method']
     output:
       sce_hto_f   = demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'

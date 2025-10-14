@@ -208,6 +208,10 @@ def get_and_check_samples(sample_df, sample_var, CONFIG):
   if any('_R1' in s or '_R2' in s for s in SAMPLES):
     raise ValueError(f"One or more {sample_var} values contain '_R1' or '_R2'. Please ensure all values exclude these substrings.")
 
+  # check that samples aren't pure integers
+  if any(re.match("^[0-9].*$", s) for s in SAMPLES):
+    raise ValueError(f"One or more {sample_var} values either starts with an integer or is entirely integers. Please change the sample names to start with letters.")
+
   # compare every sample id to every other sample id
   smpl_overlaps = []
   for i, sample in enumerate(SAMPLES):
@@ -616,10 +620,6 @@ def _get_custom_marker_genes_specs(config, PROJ_DIR, SCPROCESS_DATA_DIR):
   return custom_mkr_names, custom_mkr_paths
 
 
-
-
-
-
 # get parameters for multiplexing
 def get_multiplexing_parameters(config, PROJ_DIR, sample_metadata):
   #set defaults
@@ -835,7 +835,7 @@ def get_project_parameters(config, scprocess_data_dir):
 # get parameters for mapping
 def get_mapping_parameters(config, scprocess_data_dir, SPECIES):
   # get chemisty
-  CHEMISTRY     = config['project']['tenx_chemistry']
+  TENX_CHEMISTRY     = config['project']['tenx_chemistry']
   
   # from index_parameters.csv get valid values for species
   idx_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
@@ -853,7 +853,7 @@ def get_mapping_parameters(config, scprocess_data_dir, SPECIES):
   # get gtf txt file, check that exists
   AF_GTF_DT_F = index_params.loc[index_params['genome_name'] == SPECIES, 'gtf_txt_f'].values[0]
 
-  return AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY
+  return AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, TENX_CHEMISTRY
 
 
 # get parameters for ambient
