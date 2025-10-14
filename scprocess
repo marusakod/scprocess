@@ -234,8 +234,8 @@ def plot_interactive_knee(knee_f, sample):
   import plotly.express as px
   from plotly.offline import plot
 
-  assert os.path.isfile(knee_f), \
-    f"knee file for {sample} doesn't exist. To generate the file run rule 'mapping'"
+  if not os.path.isfile(knee_f):
+    raise FileNotFoundError(f"knee file for {sample} doesn't exist. To generate the file run rule 'mapping'")
 
   # read knee file
   with gzip.open(knee_f, 'rt') as file:
@@ -337,10 +337,12 @@ if __name__ == '__main__':
 
   # define arguments
   knee_parser.add_argument("sample", type = str, help = 'Sample to be plotted.')
-  knee_parser.add_argument("-c", "--configfile", type = str, nargs = '?', default = None,
+  group       = knee_parser.add_mutually_exclusive_group()
+  group.add_argument("-c", "--configfile", type = str, nargs = '?', default = None,
     help = "Path to configuration file used for running scprocess. ")
-  knee_parser.add_argument("-k", "--kneefile", type = str, default = None,
+  group.add_argument("-k", "--kneefile", type = str, default = None,
     help = "Path to knee file")
+
   # define scprocess directory
   sc_dir    = os.path.dirname(os.path.realpath(__file__))
 
@@ -401,16 +403,14 @@ if __name__ == '__main__':
     if args.kneefile:
       knee_f = args.kneefile
     else:
-      assert args.configfile, "To use plotknee, either --configfile (-c) or --kneefile (-k) must be provided"
-      
       # open config file and get project directory
       with open(args.configfile) as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
       
       # get required variables
-      proj_dir    = config['proj_dir']
-      short_tag   = config['short_tag']
-      date_stamp  = config['date_stamp']
+      proj_dir    = config['project']['proj_dir']
+      short_tag   = config['project']['short_tag']
+      date_stamp  = config['project']['date_stamp']
 
       # use them to define a knee file to use
       knee_dir    = f"{proj_dir}/output/{short_tag}_mapping/af_{args.sample}"
