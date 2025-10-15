@@ -60,7 +60,7 @@ if (demux_type == 'hto') {
 
 res_ls             = "${int_res_ls_str}" %>%
  str_split(pattern = ',') %>% unlist() %>% as.numeric()
-dbl_cl_prop = ${INT_DBL_CL_PROP}
+dbl_cl_prop = ${int_dbl_cl_prop}
 ```
 
 
