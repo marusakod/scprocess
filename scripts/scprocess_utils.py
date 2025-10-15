@@ -267,7 +267,7 @@ def get_sample_fastqs(CONFIG, SAMPLES, is_hto = False):
 
   # get fastq files for each sample
   fastq_fs      = fastq_dict["fastqs"]
-  fastq_sizes_mb = fastq_dict["fastq_sizes"] if "fastq_sizes" in fastq_dict else None
+  fq_sizes_gb   = fastq_dict["fastq_sizes"]
   sample_fastqs = {}
   for sample in SAMPLES:
     # get R1 and R2 files matching each sample
@@ -275,8 +275,9 @@ def get_sample_fastqs(CONFIG, SAMPLES, is_hto = False):
     R1_fs         = [f for f in fastq_fs if re.match(R1_regex, f) ]
     R2_regex      = rf".*{sample}.*(_|\.)R2.*\.fastq\.gz"
     R2_fs         = [f for f in fastq_fs if re.match(R2_regex, f) ]
-    # Get R1 filesize
-    R1_fs_size_mb = [fastq_sizes_mb[f] for f in fastq_sizes_mb if re.match(R1_regex, f) ][0] if fastq_sizes_mb is not None else None
+
+    # get R1 filesize
+    R1_fs_size_gb = [ fq_sizes_gb[i] for i,f in enumerate(fastq_fs) if re.match(R1_regex, f) ]
 
     # check have full set of files
     check_R1      = [re.sub(r'(?<=(_|\.))R1', 'R0', f) for f in R1_fs]
@@ -287,7 +288,7 @@ def get_sample_fastqs(CONFIG, SAMPLES, is_hto = False):
     elif set(check_R1) != set(check_R2):
       print(f"  WARNING: {[ "hto " if is_hto else ""]}fastq files found for sample {sample} but R1 and R2 don't match; excluded.")
     else:
-      sample_fastqs[sample] = {"where": fastq_dict["where"], "R1_fs": R1_fs, "R2_fs": R2_fs, "R1_fs_size_mb": R1_fs_size_mb}
+      sample_fastqs[sample] = {"where": fastq_dict["where"], "R1_fs": R1_fs, "R2_fs": R2_fs, "R1_fs_size_gb": sum(R1_fs_size_gb)}
 
   return sample_fastqs
 
@@ -301,9 +302,11 @@ def _list_fastq_files(fastq_dir, CONFIG):
   all_fs      = os.listdir(fastq_dir)
 
   # filter to just fastqs
-  fastq_fs    = [ f for f in all_fs if re.match(r".+\.fastq\.gz", f) ]
+  fastq_fs        = [ f for f in all_fs if re.match(r".+\.fastq\.gz", f) ]
+  BYTES_PER_GB    = 1024**3
+  fastq_sizes_gb  = [ os.path.getsize(f) / BYTES_PER_GB for f in fastq_fs ]
 
-  return { "where": fastq_dir, "fastqs": fastq_fs }
+  return { "where": fastq_dir, "fastqs": fastq_fs, "fastq_sizes": fastq_sizes_gb }
 
 
 # helper function to check for existence of directory
@@ -339,7 +342,7 @@ def _list_fastq_files_arvados(arv_uuid):
   # get all files within this uuid
   stream_q    = collections.deque([pathlib.PurePosixPath('.')])
   arv_files   = []
-  file_sizes = {}         # map: path -> size in bytes
+  file_sizes  = {}         # map: path -> size in gb
   while stream_q:
     stream_path = stream_q.popleft()
     tmp_colln   = arv_colln.find(str(stream_path))
@@ -354,10 +357,11 @@ def _list_fastq_files_arvados(arv_uuid):
         continue
 
   # filter to just fastqs
-  fastq_fs    = [ f for f in arv_files if re.match(r".+\.fastq\.gz", f) ]
-  fastq_sizes_mb = { f: math.ceil(file_sizes[os.path.basename(f)] / 1e6) for f in fastq_fs }
+  fastq_fs        = [ f for f in arv_files if re.match(r".+\.fastq\.gz", f) ]
+  BYTES_PER_GB    = 1024**3
+  fastq_sizes_gb  = [ file_sizes[os.path.basename(f)] / BYTES_PER_GB for f in fastq_fs ]
 
-  return { "where": arv_uuid, "fastqs": fastq_fs , "fastq_sizes": fastq_sizes_mb }
+  return { "where": arv_uuid, "fastqs": fastq_fs, "fastq_sizes": fastq_sizes_gb }
 
 
 ### parameter definitions
