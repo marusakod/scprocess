@@ -208,6 +208,10 @@ def get_and_check_samples(sample_df, sample_var, CONFIG):
   if any('_R1' in s or '_R2' in s for s in SAMPLES):
     raise ValueError(f"One or more {sample_var} values contain '_R1' or '_R2'. Please ensure all values exclude these substrings.")
 
+  # check that samples aren't pure integers
+  if any(re.match("^[0-9].*$", s) for s in SAMPLES):
+    raise ValueError(f"One or more {sample_var} values either starts with an integer or is entirely integers. Please change the sample names to start with letters.")
+
   # compare every sample id to every other sample id
   smpl_overlaps = []
   for i, sample in enumerate(SAMPLES):
@@ -514,6 +518,51 @@ def check_qc_parameters(config):
   return config
 
 
+# get parameters for pb and empties
+def check_pb_empties_parameters(config):
+  # nothing to do here at the moment; leaving in case it's useful later
+
+  return config
+
+
+# get parameters for hvgs
+def check_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
+  # define dummy group names for all
+  if config['hvg']['hvg_method'] == 'all':
+    config['hvg']['hvg_group_names'] = ['all_samples']
+  # if groups, check that the values are ok
+  elif config['hvg']['hvg_method'] == 'groups':
+    # check that value of metadata_split_var matches a column in sample metadata
+    hvg_split_var = config['hvg']['hvg_metadata_split_var']
+    meta          = pd.read_csv(METADATA_F)
+    if not hvg_split_var in meta.columns():
+      raise KeyError(f"{hvg_split_var} is not a column in the sample metadata file.")
+    
+    # check number of unique group values
+    uniq_groups = meta[ hvg_split_var ].unique().tolist()
+    if len(uniq_groups) == meta.shape[0]:
+      raise ValueError(f"Number of unique values in '{hvg_split_var}' is the same as the number of samples.")
+
+    # store nice names
+    config['hvg']['hvg_group_names'] = [n.replace(" ", "_") for n in uniq_groups]
+
+  # get number of gene chunks if method is 'groups' or 'all'
+  if config['hvg']['hvg_method'] in ['groups', 'all']:
+    # get total number of genes
+    gtf_df      = pd.read_csv(AF_GTF_DT_F,  sep = '\t')
+    num_genes   = gtf_df.shape[0]
+
+    # chunk them up and name them
+    num_chunks  = (num_genes + config['hvg']['hvg_chunk_size'] - 1) // config['hvg']['hvg_chunk_size']
+    chunk_names = [f"chunk_{i+1}" for i in range(num_chunks)]
+    
+    # add to config
+    config['hvg']['hvg_num_chunks'] = num_chunks
+    config['hvg']['hvg_chunk_names'] = chunk_names
+
+  return config
+
+
 # check parameters for integration
 def check_integration_parameters(config):
   # nothing to do here at the moment; leaving in case it's useful later
@@ -792,7 +841,7 @@ def get_project_parameters(config, scprocess_data_dir):
 # get parameters for mapping
 def get_mapping_parameters(config, scprocess_data_dir, SPECIES):
   # get chemisty
-  CHEMISTRY     = config['project']['tenx_chemistry']
+  TENX_CHEMISTRY     = config['project']['tenx_chemistry']
   
   # from index_parameters.csv get valid values for species
   idx_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
@@ -810,7 +859,7 @@ def get_mapping_parameters(config, scprocess_data_dir, SPECIES):
   # get gtf txt file, check that exists
   AF_GTF_DT_F = index_params.loc[index_params['genome_name'] == SPECIES, 'gtf_txt_f'].values[0]
 
-  return AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY
+  return AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, TENX_CHEMISTRY
 
 
 # get parameters for ambient
@@ -863,74 +912,6 @@ def get_ambient_parameters(config):
       
   return CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
     FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE 
-
-
-# get parameters for hvgs
-def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F): 
-
-  # set defaults
-  HVG_METHOD     = 'sample'
-  HVG_SPLIT_VAR  = None
-  HVG_CHUNK_SIZE = 2000
-  N_HVGS         = 2000
-  NUM_CHUNKS     = None
-  EXCLUDE_AMBIENT_GENES = True
-  GROUP_NAMES    = []
-  CHUNK_NAMES    = []
-
-
-  if ('hvg' in config) and (config['hvg'] is not None):
-
-    if 'hvg_n_hvgs' in config['hvg']:
-      N_HVGS          = config['hvg']['hvg_n_hvgs']
-    
-    if 'exclude_ambient_genes' in config['hvg']:
-      EXCLUDE_AMBIENT_GENES = config['hvg']['hvg_exclude_ambient_genes']
-      EXCLUDE_AMBIENT_GENES = _safe_boolean(EXCLUDE_AMBIENT_GENES)
-      
-    if 'hvg_method' in config['hvg']:
-      HVG_METHOD      = config['hvg']['hvg_method']
-      # check if valid
-      valid_methods = ['sample', 'all', 'groups']
-      assert HVG_METHOD in valid_methods, \
-        f"Invalid hvg method '{HVG_METHOD}'. Must be one of {valid_methods}."
-      
-      if HVG_METHOD == 'all':
-        GROUP_NAMES = ['all_samples']
-      
-      # if method is groups check that group variable is specified
-      if HVG_METHOD == 'groups':
-        assert ('hvg_metadata_split_var' in config['hvg']) and (config['hvg']['hvg_metadata_split_var'] is not None), \
-          "The 'hvg_metadata_split_var' parameter must be defined when the hvg method is 'groups'."
-        HVG_SPLIT_VAR = config['hvg']['hvg_metadata_split_var']
-
-        # check that value of metadata_split_var matches a column in sample metadata
-        meta = pd.read_csv(METADATA_F)
-        assert HVG_SPLIT_VAR in meta.columns(), \
-          f"{HVG_SPLIT_VAR} is not a column in the sample metadata file."
-        
-        # check number of unique group values
-        uniq_groups = meta[HVG_SPLIT_VAR].unique().tolist()
-        if len(uniq_groups) == meta.shape[0]:
-          print(f"Number of unique values in '{HVG_SPLIT_VAR}' is the same as the number of samples; switching to 'sample' method for calculating hvgs.")
-          HVG_METHOD = 'sample'
-          HVG_SPLIT_VAR = None
-
-        GROUP_NAMES = uniq_groups
-        # replace spaces with underscores
-        GROUP_NAMES = [n.replace(" ", "_") for n in GROUP_NAMES]
-
-    # get number of gene chunks if method is 'groups' or 'all'
-      if HVG_METHOD in ['groups', 'all']:
-        gtf_df = pd.read_csv(AF_GTF_DT_F,  sep = '\t')
-        num_genes = gtf_df.shape[0]
-
-        NUM_CHUNKS  = (num_genes + HVG_CHUNK_SIZE - 1) // HVG_CHUNK_SIZE
-        
-        # make a list of chunk names
-        CHUNK_NAMES = [f"chunk_{i+1}" for i in range(NUM_CHUNKS)]
-
-  return HVG_METHOD, HVG_SPLIT_VAR, HVG_CHUNK_SIZE, NUM_CHUNKS, GROUP_NAMES, CHUNK_NAMES, N_HVGS, EXCLUDE_AMBIENT_GENES
 
 
 # get parameters for labelling celltypes
@@ -987,21 +968,6 @@ def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR):
         f"file {LBL_XGB_CLS_F} doesn't exist; consider (re)runnning scprocess setup"
  
   return LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE
-
-
-# get parameters for pb and empties
-def get_pb_empties_parameters(config):
-  # get parameters for filtering edger results
-  AMBIENT_GENES_LOGFC_THR = 0
-  AMBIENT_GENES_FDR_THR   = 0.01
-  
-  if ('pb_empties' in config) and (config['pb_empties'] is not None):
-    if 'ambient_genes_logfc_thr' in config['pb_empties']:
-      AMBIENT_GENES_LOGFC_THR = config['pb_empties']['ambient_genes_logfc_thr']
-    if 'ambient_genes_fdr_thr'   in config['pb_empties']:
-      AMBIENT_GENES_FDR_THR   = config['pb_empties']['ambient_genes_fdr_thr']
-
-  return AMBIENT_GENES_LOGFC_THR, AMBIENT_GENES_FDR_THR
 
 
 # get parameters for zoom

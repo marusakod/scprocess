@@ -10,9 +10,9 @@ from math import ceil
 # get alevin params
 
 # check if custom chemistry and knees are defined for a sample
-def parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, sample):
+def parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, TENX_CHEMISTRY, SCPROCESS_DATA_DIR, sample):
   # set defaults
-  SAMPLE_CHEMISTRY = CHEMISTRY
+  SAMPLE_CHEMISTRY = TENX_CHEMISTRY
 
   # sort out custom sample parameters
   if CUSTOM_SAMPLE_PARAMS_F is not None: 
@@ -25,11 +25,11 @@ def parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, s
       valid_chems = ['3LT', '3v2', '3v3', '3v4', '5v1', '5v2', '5v3', 'multiome']
       if sample in custom_smpls:
         # check if chemistry is defined
-        if 'chemistry' in custom_smpl_params[sample] and (custom_smpl_params[sample]['chemistry'] is not None):
-          SAMPLE_CHEMISTRY = custom_smpl_params[sample]['chemistry']
+        if 'tenx_chemistry' in custom_smpl_params[sample] and (custom_smpl_params[sample]['tenx_chemistry'] is not None):
+          SAMPLE_CHEMISTRY = custom_smpl_params[sample]['tenx_chemistry']
           # check if valid
-          assert SAMPLE_CHEMISTRY in valid_chems, \
-            f"chemistry not valid for sample {sample}"
+          if not SAMPLE_CHEMISTRY in valid_chems:
+            raise ValueError(f"tenx_chemistry not valid for sample {sample}")
 
   # get af chemistry and expected orientation
   if SAMPLE_CHEMISTRY in ['3v2', '5v1', '5v2']:
@@ -42,10 +42,10 @@ def parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, s
     EXPECTED_ORI = 'fw'
 
   # sort out whitelist file
-  wl_df_f = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref/cellranger_whitelists.csv')
-  wl_df = pd.read_csv(wl_df_f)
-  wl_f = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'barcodes_f'].values[0]
-  wl_trans_f = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'translation_f'].values[0]
+  wl_df_f     = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref/cellranger_whitelists.csv')
+  wl_df       = pd.read_csv(wl_df_f)
+  wl_f        = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'barcodes_f'].values[0]
+  wl_trans_f  = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'translation_f'].values[0]
   if type(wl_trans_f) == str:
     WHITELIST_TRANS_F = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref', wl_trans_f)
   else:
@@ -153,9 +153,9 @@ rule run_mapping:
   resources:
     mem_mb        = lambda wildcards: max(ceil(4 * SAMPLE_FQS[wildcards.run]["R1_fs_size_mb"]), 32000)
   params:
-    af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
-    exp_ori       = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[1],
-    whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[2],
+    af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, TENX_CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
+    exp_ori       = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, TENX_CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[1],
+    whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, TENX_CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[2],
     where         = lambda wildcards: SAMPLE_FQS[wildcards.run]["where"],
     R1_fs         = lambda wildcards: SAMPLE_FQS[wildcards.run]["R1_fs"],
     R2_fs         = lambda wildcards: SAMPLE_FQS[wildcards.run]["R2_fs"]
@@ -204,8 +204,8 @@ if DEMUX_TYPE == "hto":
     resources:
       mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_run_mapping'] * MB_PER_GB
     params:
-      af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
-      whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[2]
+      af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, TENX_CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
+      whitelist_f   = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, TENX_CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[2]
     output:
       fry_dir     = directory(af_dir + '/af_{run}/hto/af_quant/'),
       rad_f       = temp(af_dir + '/af_{run}/hto/af_map/map.rad'),

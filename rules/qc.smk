@@ -7,59 +7,59 @@ import numpy as np
 localrules: merge_qc
 
 def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, config, SAMPLES, SAMPLE_VAR, SAMPLE_MAPPING):
-    # load the merged qc file
-    qc_dt = pd.read_csv(qc_merged_f, sep = '\t', compression='gzip')
+  # load the merged qc file
+  qc_dt = pd.read_csv(qc_merged_f, sep = '\t', compression='gzip')
 
-    # filter for cells that passed qc
-    qc_dt = qc_dt[qc_dt["keep"] == True]
+  # filter for cells that passed qc
+  qc_dt = qc_dt[qc_dt["keep"] == True]
 
-    # count the number of cells per sample
-    sample_df = (
-        qc_dt.groupby('sample_id')
-        .size()
-        .reset_index(name='n_cells')
-    )
+  # count the number of cells per sample
+  sample_df = (
+    qc_dt.groupby('sample_id')
+    .size()
+    .reset_index(name='n_cells')
+  )
 
-    # identify samples that do not meet the minimum cell threshold
-    sample_df['bad_qc'] = sample_df['n_cells'] < config['qc']['qc_min_cells']
+  # identify samples that do not meet the minimum cell threshold
+  sample_df['bad_qc'] = sample_df['n_cells'] < config['qc']['qc_min_cells']
 
-    # handle samples excluded after cellbender
-    if config['ambient']['ambient_method'] == 'cellbender':
-        # load ambient sample stats
-        amb_stats = pd.read_csv(ambient_stats_f)
-        # get bad pools or samples
-        bad_bender = amb_stats.loc[amb_stats['bad_sample'], SAMPLE_VAR].tolist()
+  # handle samples excluded after cellbender
+  if config['ambient']['ambient_method'] == 'cellbender':
+    # load ambient sample stats
+    amb_stats = pd.read_csv(ambient_stats_f)
+    # get bad pools or samples
+    bad_bender = amb_stats.loc[amb_stats['bad_sample'], SAMPLE_VAR].tolist()
 
-        if config['multiplexing']['demux_type'] != "none":
-            bad_bender_samples = []
-            for p in bad_bender:
-                if p in SAMPLE_MAPPING:
-                    bad_bender_samples.extend(SAMPLE_MAPPING[p])
-          
-            assert all(s in SAMPLES for s in bad_bender_samples), \
-                "Some bad bender samples are not in the SAMPLES list."
-        else:
-            bad_bender_samples = bad_bender
-
-        sample_df['bad_bender'] = False
-        if len(bad_bender_samples) != 0: 
-           # add bad_bender column to sample_df
-          bad_bender_df = pd.DataFrame({
-            'sample_id': bad_bender_samples, 
-            'n_cells': np.nan, 
-            'bad_qc': False, 
-            'bad_bender': True
-          })
-
-          sample_df = pd.concat([sample_df, bad_bender_df], ignore_index=True)
-
-        assert all([s in sample_df['sample_id'].tolist() for s in SAMPLES])
-        # label as bad if bad_bender or bad_qc
-        sample_df['bad_sample'] = sample_df['bad_bender'] | sample_df['bad_qc']
+    if config['multiplexing']['demux_type'] != "none":
+      bad_bender_samples = []
+      for p in bad_bender:
+        if p in SAMPLE_MAPPING:
+          bad_bender_samples.extend(SAMPLE_MAPPING[p])
+      
+      assert all(s in SAMPLES for s in bad_bender_samples), \
+        "Some bad bender samples are not in the SAMPLES list."
     else:
-        sample_df['bad_sample'] = sample_df['bad_qc']
+      bad_bender_samples = bad_bender
 
-    return sample_df
+    sample_df['bad_bender'] = False
+    if len(bad_bender_samples) != 0: 
+       # add bad_bender column to sample_df
+      bad_bender_df = pd.DataFrame({
+      'sample_id': bad_bender_samples, 
+      'n_cells': np.nan, 
+      'bad_qc': False, 
+      'bad_bender': True
+      })
+
+      sample_df = pd.concat([sample_df, bad_bender_df], ignore_index=True)
+
+    assert all([s in sample_df['sample_id'].tolist() for s in SAMPLES])
+    # label as bad if bad_bender or bad_qc
+    sample_df['bad_sample'] = sample_df['bad_bender'] | sample_df['bad_qc']
+  else:
+    sample_df['bad_sample'] = sample_df['bad_qc']
+
+  return sample_df
 
 
 # get output file paths as string

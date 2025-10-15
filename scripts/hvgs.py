@@ -124,7 +124,8 @@ def get_one_csr_counts(run, hvg_df, keep_df, smpl_stats_df, gene_ids, SAMPLE_VAR
     print(f"Sample {s}: CSR matrix successfully saved to {out_f}.")
 
 
-def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals,  smpl_stats_f, rowdata_f, SAMPLE_VAR, DEMUX_TYPE, chunk_size=2000, n_cores = 8):
+def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals,  smpl_stats_f, 
+  rowdata_f, SAMPLE_VAR, DEMUX_TYPE, chunk_size=2000, n_cores = 8):
   # load up useful things
   hvg_paths_df  = dt.fread(hvg_paths_f).to_pandas()
   smpl_stats_df = dt.fread(smpl_stats_f).to_pandas()
@@ -139,13 +140,11 @@ def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals,  smpl_stats_
   rows_df       = dt.fread(rowdata_f).to_pandas()
   keep_ids      = rows_df['ensembl_id'].tolist()
 
-  # define list of samples
+  # define list of samples, run on them in parallel
   runs          = hvg_paths_df[SAMPLE_VAR].unique()
-
-  # do some parallel calculations
   with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
-    futures = [executor.submit(get_one_csr_counts, run, hvg_paths_df, keep_df, 
-      smpl_stats_df, keep_ids, SAMPLE_VAR, DEMUX_TYPE, chunk_size) for run in runs]
+    futures = [executor.submit(get_one_csr_counts, this_run, hvg_paths_df, keep_df, 
+      smpl_stats_df, keep_ids, SAMPLE_VAR, DEMUX_TYPE, chunk_size) for this_run in runs]
 
     # some more parallel stuff i guess
     for future in concurrent.futures.as_completed(futures):
@@ -419,7 +418,7 @@ def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, csr_f, rowdata_f
 
 
 def calculate_mean_var_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, mean_var_f, chunk_num, hvg_method,
-                chunk_size=2000, group_var=None, group=None, n_cores = 8):
+  chunk_size=2000, group_var=None, group=None, n_cores = 8):
   
   files, total, start_row, end_row = get_chunk_params(
     hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, 
@@ -797,7 +796,7 @@ if __name__ == "__main__":
   parser_makeCSR.add_argument("rowdata_f", type=str)
   parser_makeCSR.add_argument("sample_var", type=str)
   parser_makeCSR.add_argument("demux_type", type=str)
-  parser_makeCSR.add_argument("-s", "--size", required=False, default= 2000, type = int)
+  parser_makeCSR.add_argument("-s", "--chunksize", required=False, default= 2000, type = int)
   parser_makeCSR.add_argument("-n", "--ncores", required=False, default= 8, type = int)
   
 
@@ -810,7 +809,7 @@ if __name__ == "__main__":
   parser_chunkCalcs.add_argument("mean_var_f", type=str)
   parser_chunkCalcs.add_argument("chunk", type=int)
   parser_chunkCalcs.add_argument("method", type=str)
-  parser_chunkCalcs.add_argument("chunk_size", type=int)
+  parser_chunkCalcs.add_argument("-s", "--chunksize", type=int, required=False, default=2000)
   parser_chunkCalcs.add_argument("-v", "--groupvar", type=str, required=False, default=None)
   parser_chunkCalcs.add_argument("-g", "--group", type=str, required=False, default= None)
   parser_chunkCalcs.add_argument("-n", "--ncores", type=int, required=False, default = 8)
@@ -840,7 +839,7 @@ if __name__ == "__main__":
   parser_chunkSssc.add_argument("estim_vars_f", type=str)
   parser_chunkSssc.add_argument("chunk_num", type=int)
   parser_chunkSssc.add_argument("hvg_method", type=str)
-  parser_chunkSssc.add_argument("-s", "--size", type=int, required=False, default=2000)
+  parser_chunkSssc.add_argument("-s", "--chunksize", type=int, required=False, default=2000)
   parser_chunkSssc.add_argument("-v", "--groupvar", type=str, required=False, default=None)
   parser_chunkSssc.add_argument("-g", "--group", type=str, required=False, default= None)
   parser_chunkSssc.add_argument("-n", "--ncores", type=int, required=False, default = 8)
@@ -880,7 +879,7 @@ if __name__ == "__main__":
     get_csr_counts( 
       args.hvg_paths_f, args.cell_filter_f, args.keep_var,
       args.keep_vals, args.smpl_stats_f, args.rowdata_f,
-      args.sample_var, args.demux_type, args.size, args.ncores
+      args.sample_var, args.demux_type, args.chunksize, args.ncores
     )
   elif args.function_name == 'calculate_mean_var_for_chunk':
     calculate_mean_var_for_chunk(
@@ -900,7 +899,7 @@ if __name__ == "__main__":
     calculate_std_var_stats_for_chunk(
       args.hvg_paths_f, args.rowdata_f, args.metadata_f, args.qc_smpl_stats_f,
       args.std_var_stats_f, args.estim_vars_f, args.chunk_num,
-      args.hvg_method, args.size, args.groupvar, args.group, args.ncores
+      args.hvg_method, args.chunk_size, args.groupvar, args.group, args.ncores
     )
   elif args.function_name == 'calculate_hvgs':
     calculate_hvgs(

@@ -262,7 +262,7 @@ rule render_html_hvgs:
       PROJ_DIR    = '{PROJ_DIR}', 
       SHORT_TAG   = '{SHORT_TAG}', 
       DATE_STAMP  = '{DATE_STAMP}', 
-      threads     = {threads}, 
+      threads     =  {threads}, 
       hvgs_f      = '{input.hvgs_f}',
       empty_gs_f  = '{input.empty_gs_f}',
       pb_empty_f  = '{input.pb_empty_f}'
