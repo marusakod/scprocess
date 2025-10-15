@@ -5,7 +5,7 @@ import re
 import yaml
 import pandas as pd
 import os
-
+from math import ceil
 
 # get alevin params
 
@@ -151,7 +151,7 @@ rule run_mapping:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_run_mapping'] * MB_PER_GB
+    mem_mb        = lambda wildcards: max(ceil(4 * SAMPLE_FQS[wildcards.run]["R1_fs_size_mb"]), 32000)
   params:
     af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
     exp_ori       = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[1],
@@ -190,7 +190,8 @@ rule run_mapping:
       --exp_ori {params.exp_ori} \
       --whitelist_f {params.whitelist_f}
     """
-
+# mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_run_mapping'] * MB_PER_GB
+# Attempt dynamic memory based on size of R1 fastq file, but at least 32GB. Currently set to 4x size of R1 file, usually in the range of 10-15 GB.
 
 if DEMUX_TYPE == "hto":
   rule run_mapping_hto:
