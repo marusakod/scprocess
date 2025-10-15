@@ -170,7 +170,7 @@ rule run_mapping:
     '../envs/alevin_fry.yaml'
   shell:"""
     # check whether doing arvados
-    ARV_REGEX="^arkau-[0-9a-z]{5}-[0-9a-z]{15}$"
+    ARV_REGEX="^arkau-[0-9a-z]{{5}}-[0-9a-z]{{15}}$"
     if [[ "{params.where}" =~ $ARV_REGEX ]]; then
       ml arvados
       arv-env arkau
