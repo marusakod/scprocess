@@ -63,7 +63,7 @@
         "qc_max_mito":    { "type": "number", "minimum": 0, "maximum": 1, "default": 0.1 },
         "qc_min_splice":  { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
         "qc_max_splice":  { "type": "number", "minimum": 0, "maximum": 1, "default": 1 },
-        "qc_min_cells":   { "type": "integer", "exclusiveMinimum": 0, "default": 500 },
+        "qc_min_cells":   { "type": "integer", "exclusiveMinimum": 0, "default": 100 },
         "dbl_min_feats":  { "type": "integer", "exclusiveMinimum": 0, "default": 100 },
         "exclude_mito":   { "type": "boolean", "default": true }
       }
