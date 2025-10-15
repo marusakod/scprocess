@@ -44,8 +44,8 @@ def parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, TENX_CHEMISTRY, SCPROCESS_DATA_D
   # sort out whitelist file
   wl_df_f     = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref/cellranger_whitelists.csv')
   wl_df       = pd.read_csv(wl_df_f)
-  wl_f        = wl_df.loc[wl_df['tenx_chemistry'] == SAMPLE_CHEMISTRY, 'barcodes_f'].values[0]
-  wl_trans_f  = wl_df.loc[wl_df['tenx_chemistry'] == SAMPLE_CHEMISTRY, 'translation_f'].values[0]
+  wl_f        = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'barcodes_f'].values[0]
+  wl_trans_f  = wl_df.loc[wl_df['chemistry'] == SAMPLE_CHEMISTRY, 'translation_f'].values[0]
   if type(wl_trans_f) == str:
     WHITELIST_TRANS_F = os.path.join(SCPROCESS_DATA_DIR, 'cellranger_ref', wl_trans_f)
   else:
