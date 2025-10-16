@@ -31,16 +31,14 @@ calc_vst_obj <- function(pb, edger_dt) {
 
 plot_hvg_stats_vs_empty_log2fc <- function(hvgs_dt, edger_dt, n_top = 20) {
   col_vals  = c(
-    hvg_clean = "#1965B0",
-    hvg_dirty = "#DC050C",
-    not_clean = "grey",
-    not_dirty = "#FB8072"
+    hvg       = "#1965B0",
+    dirty     = "#DC050C",
+    boring    = "grey"
   )
   status_labs = c(
-    hvg_clean = "highly variable, \"clean\"",
-    hvg_dirty = "highly variable, \"ambient\"",
-    not_clean = "not variable, \"clean\"",
-    not_dirty = "not variable, \"ambient\""
+    hvg     = "highly variable gene",
+    dirty   = "\"ambient\" gene",
+    boring  = "other"
   )
   min_hvg_var = hvgs_dt[ highly_variable == TRUE ]$variances_norm %>% min
   plot_dt   = merge(hvgs_dt, edger_dt, by = "gene_id", all.x = TRUE) %>% 
@@ -49,12 +47,11 @@ plot_hvg_stats_vs_empty_log2fc <- function(hvgs_dt, edger_dt, n_top = 20) {
     .[, .(gene_id, log2fc = logFC, padj = FDR, 
       hv_n = highly_variable_nbatches, mean_var = variances_norm,
       is_hvg = highly_variable, is_ambient)] %>% 
-    .[ is_ambient == TRUE, is_hvg := ifelse( mean_var > min_hvg_var, TRUE, FALSE) ] %>% 
-    .[, status := ifelse(is_hvg,
-        ifelse(is_ambient, "hvg_dirty", "hvg_clean"),
-        ifelse(is_ambient, "not_dirty", "not_clean") ) %>% factor(levels = names(status_labs)
-      )]
-  labels_dt = plot_dt[ order(-mean_var) ] %>% head(n_top) %>% 
+    .[, status := ifelse(is_hvg, "hvg", ifelse(is_ambient, "dirty", "boring")) %>% 
+      factor(levels = names(status_labs) )]
+  assert_that( nrow(plot_dt[ is_ambient & is_hvg]) == 0 )
+  labels_dt = plot_dt[ status != "boring" ] %>% 
+    .[ order(status, -mean_var) ] %>% .[, .SD[1:min(.N, n_top)], by = status ] %>%
     .[, symbol := gene_id %>% str_extract(".+(?=_ENS)") ]
 
   g = ggplot(plot_dt[ order(-status) ]) + 

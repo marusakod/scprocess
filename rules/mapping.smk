@@ -151,7 +151,7 @@ rule run_mapping:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb        = lambda wildcards: max(ceil(4 * SAMPLE_FQS[wildcards.run]["R1_fs_size_mb"]), 32000)
+    mem_mb        = lambda wildcards: max(ceil(config['resources']['gb_run_mapping_per_gb_fq'] * SAMPLE_FQS[wildcards.run]["R1_fs_size_gb"] * MB_PER_GB), 32 * MB_PER_GB)
   params:
     af_chemistry  = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, TENX_CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[0],
     exp_ori       = lambda wildcards: parse_alevin_params(CUSTOM_SAMPLE_PARAMS_F, TENX_CHEMISTRY, SCPROCESS_DATA_DIR, wildcards.run)[1],

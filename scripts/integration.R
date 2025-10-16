@@ -37,7 +37,6 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, de
   }
 
   message('running integration')
- 
   message('  setting up cluster')
   plan("multicore", workers = n_cores)
   options( future.globals.maxSize = 2^35 )
@@ -414,7 +413,7 @@ plot_cluster_entropies <- function(input_dt, what = c("norm", "raw")) {
     scale_x_continuous(breaks = pretty_breaks(n = 3)) +
     scale_y_continuous(breaks = pretty_breaks(n = 3)) +
     scale_fill_manual( values = cl_cols, guide = "none" ) +
-    expand_limits( y = 0 ) +
+    expand_limits( x = 0, y = 0 ) +
     scale_size(
       range   = c(1, 8),
       breaks  = c(2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4) %>% sqrt,

@@ -254,20 +254,23 @@ def get_sample_fastqs(CONFIG, SAMPLES, is_hto = False):
     tmp_ls      = CONFIG['project']
   if "fastq_dir" in tmp_ls:
     fastq_dir   = tmp_ls['fastq_dir']
-    arv_uuid    = None
+    arv_uuids   = None
   else:
     fastq_dir   = None
-    arv_uuid    = tmp_ls['arv_uuid']
+    arv_uuids   = tmp_ls['arv_uuids']
 
   # get 
   if fastq_dir is not None:
-    fastq_dict  = _list_fastq_files(fastq_dir, CONFIG)
-  elif arv_uuid is not None:
-    fastq_dict  = _list_fastq_files_arvados(arv_uuid)
+    fastq_dict    = _list_fastq_files(fastq_dir, CONFIG)
+  elif arv_uuids is not None:
+    fastq_dict    = _list_fastq_files_arvados(arv_uuids)
 
   # get fastq files for each sample
+  wheres        = fastq_dict["wheres"]
   fastq_fs      = fastq_dict["fastqs"]
-  fastq_sizes_mb = fastq_dict["fastq_sizes"] if "fastq_sizes" in fastq_dict else None
+  fq_sizes_gb   = fastq_dict["fastq_sizes"]
+
+  # loop through samples
   sample_fastqs = {}
   for sample in SAMPLES:
     # get R1 and R2 files matching each sample
@@ -275,8 +278,16 @@ def get_sample_fastqs(CONFIG, SAMPLES, is_hto = False):
     R1_fs         = [f for f in fastq_fs if re.match(R1_regex, f) ]
     R2_regex      = rf".*{sample}.*(_|\.)R2.*\.fastq\.gz"
     R2_fs         = [f for f in fastq_fs if re.match(R2_regex, f) ]
-    # Get R1 filesize
-    R1_fs_size_mb = [fastq_sizes_mb[f] for f in fastq_sizes_mb if re.match(R1_regex, f) ][0] if fastq_sizes_mb is not None else None
+
+    # find where
+    wheres_R1     = [ wheres[i] for i,f in enumerate(fastq_fs) if re.match(R1_regex, f) ]
+    wheres_R2     = [ wheres[i] for i,f in enumerate(fastq_fs) if re.match(R2_regex, f) ]
+    this_where    = list(set(wheres_R1 + wheres_R2))
+    if len(this_where) > 1:
+      raise ValueError(f"FASTQ files for sample {sample} seem to be found in more than location")
+
+    # get R1 filesize
+    R1_fs_size_gb = [ fq_sizes_gb[i] for i,f in enumerate(fastq_fs) if re.match(R1_regex, f) ]
 
     # check have full set of files
     check_R1      = [re.sub(r'(?<=(_|\.))R1', 'R0', f) for f in R1_fs]
@@ -287,7 +298,12 @@ def get_sample_fastqs(CONFIG, SAMPLES, is_hto = False):
     elif set(check_R1) != set(check_R2):
       print(f"  WARNING: {[ "hto " if is_hto else ""]}fastq files found for sample {sample} but R1 and R2 don't match; excluded.")
     else:
-      sample_fastqs[sample] = {"where": fastq_dict["where"], "R1_fs": R1_fs, "R2_fs": R2_fs, "R1_fs_size_mb": R1_fs_size_mb}
+      sample_fastqs[sample] = {
+        "where":          this_where[0], 
+        "R1_fs":          R1_fs, 
+        "R2_fs":          R2_fs, 
+        "R1_fs_size_gb":  round(sum(R1_fs_size_gb), 1)
+      }
 
   return sample_fastqs
 
@@ -301,9 +317,12 @@ def _list_fastq_files(fastq_dir, CONFIG):
   all_fs      = os.listdir(fastq_dir)
 
   # filter to just fastqs
-  fastq_fs    = [ f for f in all_fs if re.match(r".+\.fastq\.gz", f) ]
+  fastq_fs        = [ f for f in all_fs if re.match(r".+\.fastq\.gz", f) ]
+  wheres          = [ fastq_dir for f in all_fs]
+  BYTES_PER_GB    = 1024**3
+  fastq_sizes_gb  = [ os.path.getsize(f) / BYTES_PER_GB for f in fastq_fs ]
 
-  return { "where": fastq_dir, "fastqs": fastq_fs }
+  return { "wheres": wheres, "fastqs": fastq_fs, "fastq_sizes": fastq_sizes_gb }
 
 
 # helper function to check for existence of directory
@@ -322,42 +341,77 @@ def _check_directory_within_project(input_dir, proj_dir):
 
 
 # get all fastq files in arvados uuid
-def _list_fastq_files_arvados(arv_uuid):
+def _list_fastq_files_arvados(arv_uuids):
+  # get for each UUID
+  wheres      = []
+  fastqs      = []
+  fastq_sizes = []
+
+  # Iterate through each UUID in the list
+  for arv_uuid in arv_uuids:
+    # Get the dictionary result for one UUID
+    result = _list_fastq_files_arvados_one_uuid(arv_uuid)
+
+    # Extend the combined lists with the data from the current result
+    # Note: We use .extend() for efficient list concatenation
+    wheres.extend(result["wheres"])
+    fastqs.extend(result["fastqs"])
+    fastq_sizes.extend(result["fastq_sizes"])
+
+  return {"wheres": wheres, "fastqs": fastqs, "fastq_sizes": fastq_sizes }
+
+
+def _list_fastq_files_arvados_one_uuid(arv_uuid):
   # import relevant packages
   import arvados
   import collections
   import pathlib
 
-  # set up
-  arv_token   = os.environ["ARVADOS_API_TOKEN"]
+  # define variables
+  arv_files   = []
+  wheres      = {}
+  file_sizes  = {}
 
-  # set arvados API info
+  # set up arvados access
+  arv_token   = os.environ["ARVADOS_API_TOKEN"]
   arv_client  = arvados.api('v1', host = 'api.arkau.roche.com',
     token = arv_token, insecure = True, num_retries = 2 )
+
+  # access this collection
   arv_colln   = arvados.collection.Collection(arv_uuid, arv_client)
 
   # get all files within this uuid
   stream_q    = collections.deque([pathlib.PurePosixPath('.')])
-  arv_files   = []
-  file_sizes = {}         # map: path -> size in bytes
   while stream_q:
     stream_path = stream_q.popleft()
     tmp_colln   = arv_colln.find(str(stream_path))
     for item_name in tmp_colln:
       try:
-        my_file = tmp_colln.open(item_name)
-        arv_files.append( os.path.join(str(stream_path), item_name) )
-        file_sizes[item_name] = tmp_colln[item_name].size()
+        # open file
+        my_file     = tmp_colln.open(item_name)
+
+        # store results
+        f             = os.path.join(str(stream_path), item_name)
+        arv_files.append( f )
+        if f in wheres:
+          import pdb; pdb.set_trace()
+          raise ValueError(f"file {item_name}")
+        wheres[f]     = arv_uuid
+        file_sizes[f] = tmp_colln[item_name].size()
+
       except IsADirectoryError:
         # item_name refers to a stream. Queue it to walk later.
         stream_q.append(stream_path / item_name)
         continue
 
   # filter to just fastqs
-  fastq_fs    = [ f for f in arv_files if re.match(r".+\.fastq\.gz", f) ]
-  fastq_sizes_mb = { f: math.ceil(file_sizes[os.path.basename(f)] / 1e6) for f in fastq_fs }
+  fastq_re        = r".+\.fastq\.gz"
+  fastq_fs        = [ f for f in arv_files if re.match(fastq_re, f) ]
+  BYTES_PER_GB    = 1024**3
+  fastq_sizes_gb  = [ round(file_sizes[f] / BYTES_PER_GB, 1) for f in fastq_fs ]
+  wheres          = [ wheres[f] for f in fastq_fs ]
 
-  return { "where": arv_uuid, "fastqs": fastq_fs , "fastq_sizes": fastq_sizes_mb }
+  return { "wheres": wheres, "fastqs": fastq_fs, "fastq_sizes": fastq_sizes_gb }
 
 
 ### parameter definitions
@@ -733,7 +787,7 @@ def get_project_parameters(config, scprocess_data_dir):
 
   # check fastq vs arvados
   has_fastq     = "fastq_dir" in proj_dict
-  has_arv_uuid  = "arv_uuid" in proj_dict
+  has_arv_uuid  = "arv_uuids" in proj_dict
   if has_fastq + has_arv_uuid != 1:
     KeyError('config file must contain exactly one of "fastq_dir" and "arv_uuid"')
 
@@ -743,7 +797,7 @@ def get_project_parameters(config, scprocess_data_dir):
     ARV_UUID      = None
   if not has_fastq and has_arv_uuid:
     FASTQ_DIR     = None
-    ARV_UUID      = proj_dict["arv_uuid"]
+    ARV_UUID      = proj_dict["arv_uuids"]
 
   # check if selected species is valid
   index_params_f  = os.path.join(scprocess_data_dir, 'index_parameters.csv')
