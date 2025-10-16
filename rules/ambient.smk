@@ -143,7 +143,11 @@ if AMBIENT_METHOD == 'cellbender':
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB
+      # mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB
+      mem_mb       = lambda wildcards, input: max(ceil(180 * os.path.getsize(input.h5_f) / 1e6),10000),
+      slurm_partition='batch_gpu',
+      qos='1d',
+      slurm_extra = "'--gpus=1'"
     container:
       CELLBENDER_IMAGE
     shell:
