@@ -46,12 +46,16 @@
         "cell_calling":                     { "type": "string", "enum": ["barcodeRanks", "emptyDrops"], "default": "barcodeRanks" },
         "cb_version":                       { "type": "string", "enum": ["v0.3.2", "v0.3.0'", "v0.2.0'"], "default": "v0.3.2" },
         "cb_max_prop_kept":                 { "type": "number", "default": 0.9 },
+        "cb_learning_rate":                 { "type": "number", "default": 1e-4 },
         "cb_force_expected_cells":          { "type": "number" },
         "cb_force_total_droplets_included": { "type": "number" },
         "cb_force_low_count_threshold":     { "type": "number" },
-        "cb_force_learning_rate":           { "type": "number" },
         "cb_posterior_batch_size":          { "type": "number" }
-      }
+      },
+      "if": {
+        "properties": {"cb_version": { "const": "v0.3.2" } }, "required": ["cb_version"] },
+      "then": { "properties": { "cb_posterior_batch_size": { "type": "integer", "exclusiveMinimum": 0, "default": 128 } } },
+      "else": { "not": {"required": ["cb_posterior_batch_size"] } }
     },
     "qc": {
       "type": "object",
@@ -211,7 +215,7 @@
       "additionalProperties": false,
       "required": ["lbl_tissue"],
       "properties": {
-        "lbl_tissue":       { "type": "string", "default": "" },
+        "lbl_tissue":       { "type": "string" },
         "lbl_sel_res_cl":   { "type": "string", "default": "RNA_snn_res.2" },
         "lbl_min_pred":     { "type": "number", "default": 0.8 },
         "lbl_min_cl_prop":  { "type": "number", "default": 0.5 },

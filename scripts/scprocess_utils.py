@@ -554,6 +554,22 @@ def _check_project_parameters(config):
     SAMPLE_VAR, SAMPLE_MAPPING
 
 
+# get parameters for ambient
+def check_ambient_parameters(config):
+  # get cellbender image (maybe skip this if cellbender is not selected?)
+  if config['ambient']['cb_version']   == 'v0.3.2':
+    cellbender_image  = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.3.2'
+  elif config['ambient']['cb_version'] == 'v0.3.0':
+    cellbender_image  = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.3.0'
+  elif config['ambient']['cb_version'] == 'v0.2.0':
+    cellbender_image  = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.2.0'
+  else:
+    raise ValueError(f"selected cellbender version {config['ambient']['cb_version']} not supported")
+  config['ambient']['cellbender_image'] = cellbender_image
+
+  return config
+
+
 # check parameters for qc
 def check_qc_parameters(config):
   # define some hard values; maybe move these to schema?
@@ -678,6 +694,35 @@ def _get_custom_marker_genes_specs(config, PROJ_DIR, SCPROCESS_DATA_DIR):
     custom_mkr_paths = ",".join(mkr_paths)
   
   return custom_mkr_names, custom_mkr_paths
+
+
+# get parameters for labelling celltypes
+def check_label_celltypes_parameters(config, SCPROCESS_DATA_DIR): 
+  # change defaults if specified
+  if 'label_celltypes' in config:    
+    # check that classifier name is valid
+    valid_refs      = ['human_cns']
+    if not config['label_celltypes']['lbl_tissue'] in valid_refs:
+      raise KeyError(f"value {config['label_celltypes']['lbl_tissue']} for 'lbl_tissue' parameter is not valid")
+ 
+    # pick labeller
+    xgb_dir  = os.path.join(SCPROCESS_DATA_DIR, 'xgboost')
+    if not pathlib.Path(xgb_dir).is_dir():
+     raise FileNotFoundError(f"xgboost directory '{xgb_dir}' not found")
+    
+    if config['label_celltypes']['lbl_tissue'] == 'human_cns':
+      config['label_celltypes']['lbl_xgb_f']      = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds")
+      config['label_celltypes']['lbl_xgb_cls_f']  = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv")
+    else: 
+      raise ValueError(f"{config['label_celltypes']['lbl_tissue']} classifier is unfortunately not available yet")
+
+    # check these are ok
+    if not pathlib.Path(config['label_celltypes']['lbl_xgb_f']).is_file():
+      raise FileNotFoundError(f"file {config['label_celltypes']['lbl_xgb_f']} doesn't exist; consider (re)runnning scprocess setup")
+    if not pathlib.Path(config['label_celltypes']['lbl_xgb_cls_f']).is_file():
+      raise FileNotFoundError(f"file {config['label_celltypes']['lbl_xgb_cls_f']} doesn't exist; consider (re)runnning scprocess setup")
+ 
+  return config
 
 
 # get parameters for multiplexing
@@ -914,114 +959,6 @@ def get_mapping_parameters(config, scprocess_data_dir, SPECIES):
   AF_GTF_DT_F = index_params.loc[index_params['genome_name'] == SPECIES, 'gtf_txt_f'].values[0]
 
   return AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, TENX_CHEMISTRY
-
-
-# get parameters for ambient
-def get_ambient_parameters(config):
-  # set default values
-  AMBIENT_METHOD                  = 'decontx'
-  CELLBENDER_VERSION              = 'v0.3.2'
-  CELLBENDER_PROP_MAX_KEPT        = 0.9
-  FORCE_EXPECTED_CELLS            = None
-  FORCE_TOTAL_DROPLETS_INCLUDED   = None
-  FORCE_LOW_COUNT_THRESHOLD       = None
-  CELLBENDER_LEARNING_RATE        = 1e-4
-  CELLBENDER_POSTERIOR_BATCH_SIZE = 128 # parameter only available in v0.3.2. Smaller values for lower GPU memory
-  CELL_CALLS_METHOD               = 'barcodeRanks'
-
-  # change defaults if specified
-  if ('ambient' in config) and (config['ambient'] is not None):
-    if 'ambient_method' in config['ambient']:
-      AMBIENT_METHOD                 = config['ambient']['ambient_method']
-    if 'cell_calling' in config['ambient']:
-      CELL_CALLS_METHOD             = config['ambient']['cell_calling']
-    if 'cellbender_version' in config['ambient']:
-      CELLBENDER_VERSION            = config['ambient']['cellbender_version']
-    if 'cb_max_prop_kept' in config['ambient']:
-      CELLBENDER_PROP_MAX_KEPT      = config['ambient']['cb_max_prop_kept']
-    if 'cb_force_expected_cells' in config['ambient']:
-      FORCE_EXPECTED_CELLS          = config['ambient']['cb_force_expected_cells']
-    if 'cb_force_total_droplets_included' in config['ambient']:
-      FORCE_TOTAL_DROPLETS_INCLUDED = config['ambient']['cb_force_total_droplets_included']
-    if 'cb_force_low_count_threshold' in config['ambient']:
-      FORCE_LOW_COUNT_THRESHOLD     = config['ambient']['cb_force_low_count_threshold']
-    if 'cb_force_learning_rate' in config['ambient']:
-      CELLBENDER_LEARNING_RATE      = config['ambient']['cb_force_learning_rate']
-    if 'cb_posterior_batch_size' in config['ambient']:
-      CELLBENDER_POSTERIOR_BATCH_SIZE =config['ambient']['cb_posterior_batch_size']
-      if CELLBENDER_VERSION != 'v0.3.2':
-        warnings.warn(f"'cb_posterior_batch_size' is only supported in CellBender v0.3.2. Ignoring for CellBender {CELLBENDER_VERSION}.")
-
-  # get cellbender image (maybe skip this if cellbender is not selected?)
-  if CELLBENDER_VERSION   == 'v0.3.2':
-    CELLBENDER_IMAGE  = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.3.2'
-  elif CELLBENDER_VERSION == 'v0.3.0':
-    CELLBENDER_IMAGE  = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.3.0'
-  elif CELLBENDER_VERSION == 'v0.2.0':
-    CELLBENDER_IMAGE  = 'docker://us.gcr.io/broad-dsde-methods/cellbender:0.2.0'
-  else:
-    raise ValueError(f"selected cellbender version {CELLBENDER_VERSION} not supported")
-
-  # some checks on custom parameters for cellbender
-      
-  return CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
-    FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE 
-
-
-# get parameters for labelling celltypes
-def get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR): 
-  # set some more default values
-  LBL_XGB_F       = None
-  LBL_XGB_CLS_F   = None
-  LBL_TISSUE      = ""
-  LBL_GENE_VAR    = "gene_id"
-  LBL_SEL_RES_CL  = "RNA_snn_res.2"
-  LBL_MIN_PRED    = 0.8
-  LBL_MIN_CL_PROP = 0.5
-  LBL_MIN_CL_SIZE = 100
-
-  # change defaults if specified
-  if ('label_celltypes' in config) and (config['label_celltypes'] is not None):
-
-    assert 'lbl_tissue' in config['label_celltypes'], \
-      "lbl_tissue parameter missing in config file"
-    LBL_TISSUE      = config['label_celltypes']['lbl_tissue']
-    
-    if 'lbl_sel_res_cl' in config['label_celltypes']:
-      LBL_SEL_RES_CL  = config['label_celltypes']['lbl_sel_res_cl']
-    if 'lbl_min_pred' in config['label_celltypes']:
-      LBL_MIN_PRED    = config['label_celltypes']['lbl_min_pred']
-    if 'lbl_min_cl_prop' in config['label_celltypes']:
-      LBL_MIN_CL_PROP = config['label_celltypes']['lbl_min_cl_prop']
-    if 'lbl_min_cl_size' in config['label_celltypes']:
-      LBL_MIN_CL_SIZE = config['label_celltypes']['lbl_min_cl_size']
-
-    # check that classifier name is valid
-    valid_boosts = ['', 'human_cns', 'mouse_cns']
-    assert LBL_TISSUE in valid_boosts, \
-      f"value {LBL_TISSUE} for 'lbl_tissue' parameter is not valid"
- 
-    # pick labeller
-    xgb_dir  = os.path.join(SCPROCESS_DATA_DIR, 'xgboost')
-    assert os.path.isdir(xgb_dir)
-    
-    if LBL_TISSUE == '':
-      LBL_XGB_F       = ""
-      LBL_XGB_CLS_F   = ""
-    elif LBL_TISSUE == 'human_cns':
-      LBL_XGB_F       = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds")
-      LBL_XGB_CLS_F   = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv")
-    else: 
-      raise ValueError(f"{LBL_TISSUE} classifier is unfortunately not available yet")
-
-    if LBL_TISSUE != '':
-      # check these are ok
-      assert os.path.isfile(LBL_XGB_F), \
-        f"file {LBL_XGB_F} doesn't exist; consider (re)runnning scprocess setup"
-      assert os.path.isfile(LBL_XGB_CLS_F), \
-        f"file {LBL_XGB_CLS_F} doesn't exist; consider (re)runnning scprocess setup"
- 
-  return LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE
 
 
 # get parameters for zoom

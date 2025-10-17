@@ -29,15 +29,14 @@ PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, ME
 
 AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, TENX_CHEMISTRY = get_mapping_parameters(config, SCPROCESS_DATA_DIR, SPECIES)
 
-config    = check_qc_parameters(config)
-config    = check_hvg_parameters(config, METADATA_F, AF_GTF_DT_F)
-config    = check_integration_parameters(config)
-config    = check_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
-config    = check_pb_empties_parameters(config)
+config      = check_qc_parameters(config)
+config      = check_hvg_parameters(config, METADATA_F, AF_GTF_DT_F)
+config      = check_integration_parameters(config)
+config      = check_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
+config      = check_pb_empties_parameters(config)
+config      = check_ambient_parameters(config)
+config      = check_label_celltypes_parameters(config, SCPROCESS_DATA_DIR)
 
-CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE =  get_ambient_parameters(config)
-
-LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE = get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
 
 # specify locations
 code_dir    = f"{PROJ_DIR}/code"
@@ -127,11 +126,11 @@ hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_demultiplexing.html') if config['m
 
 # fgsea outputs (optional)
 fgsea_outs = [
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'paths_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_'           + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
+    mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'paths_' + DATE_STAMP + '.txt.gz',
+    mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
 ] if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'] else []
 
 # cellbender report (optional)

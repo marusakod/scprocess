@@ -15,84 +15,37 @@ rule get_xgboost_labels:
   output:
     hvg_mat_f   = lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
     guesses_f   = lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+  params:
+    lbl_xgb_f       = config['label_celltypes']['lbl_xgb_f'],
+    lbl_xgb_cls_f   = config['label_celltypes']['lbl_xgb_cls_f'],
+    exclude_mito    = config['qc']['exclude_mito'],
+    mkr_sel_res     = config['marker_genes']['mkr_sel_res'],
+    lbl_gene_var    = config['label_celltypes']['lbl_gene_var'],
+    lbl_min_pred    = config['label_celltypes']['lbl_min_pred'],
+    lbl_min_cl_prop = config['label_celltypes']['lbl_min_cl_prop'],
+    lbl_min_cl_size = config['label_celltypes']['lbl_min_cl_size']
   threads: 4
   retries: config['resources']['retries']
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * config['resources']['mb_label_celltypes'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
-  shell:
-    """
+  shell: """
     # save sce object
     Rscript -e "source('scripts/label_celltypes.R'); source('scripts/integration.R'); \
     label_celltypes_with_xgboost(
-      xgb_f              = '{LBL_XGB_F}', 
-      allow_f            = '{LBL_XGB_CLS_F}', 
+      xgb_f              = '{params.lbl_xgb_f}', 
+      allow_f            = '{params.lbl_xgb_cls_f}', 
       sces_yaml_f        = '{input.sces_yaml_f}',
       integration_f      = '{input.integration_f}',
       qc_sample_stats_f  = '{input.qc_sample_stats_f}', 
       hvg_mat_f          = '{output.hvg_mat_f}',
       guesses_f          = '{output.guesses_f}',
-      exclude_mito       = '{EXCLUDE_MITO}', 
-      sel_res            = {MKR_SEL_RES}, 
-      gene_var           = '{LBL_GENE_VAR}',
-      min_pred           = {LBL_MIN_PRED},
-      min_cl_prop        = {LBL_MIN_CL_PROP},
-      min_cl_size        = {LBL_MIN_CL_SIZE},
-      n_cores            = {threads})"
-    """
-
-# if not LBL_SCE_SUBSETS:
-#     localrules: lbl_save_subset_sces  
-#     rule lbl_save_subset_sces:
-#         message:
-#             "No subsets specified. Skipping subset generation."
-#         output:
-#             subsets_df = f'{lbl_dir}/sce_subset_specifications_{FULL_TAG}_{DATE_STAMP}.csv',
-#             sce_ls = []
-#         shell:
-#           """
-#           touch {output.subsets_df}
-#           """
-# else:
-#     rule lbl_save_subset_sces:
-#         input:
-#             sce_clean_f = f'{int_dir}/sce_clean_{FULL_TAG}_{DATE_STAMP}.rds',
-#             guesses_f   = f'{lbl_dir}/cell_annotations_{FULL_TAG}_{DATE_STAMP}.txt.gz'
-#         output:
-#             subsets_df  = f'{lbl_dir}/sce_subset_specifications_{FULL_TAG}_{DATE_STAMP}.csv',
-#             sce_ls      = expand(
-#                 f"{lbl_dir}/sce_subset_{FULL_TAG}_{{s}}_{DATE_STAMP}.rds",
-#                 s=[*LBL_SCE_SUBSETS]
-#             )
-#         threads: 4
-#         retries: RETRIES
-#         params:
-#             sub_names = ' '.join([*LBL_SCE_SUBSETS])
-#         conda:
-#             '../envs/rlibs.yaml'
-#         resources:
-#             mem_mb = lambda wildcards, attempt: attempt * MB_LBL_SAVE_SUBSET_SCES
-#         shell:
-#             """
-#             # Make dataframe with subset specifications
-#             python3 -c "
-# import pandas as pd
-# LBL_SCE_SUBSETS = {LBL_SCE_SUBSETS}
-# df = pd.concat([pd.DataFrame({{'subset_name': k, 'guess': v}}) for k, v in LBL_SCE_SUBSETS.items()])
-# df.to_csv('{output.subsets_df}', index=False)
-# "
-
-#             # Save SCE objects
-#             Rscript -e "source('scripts/label_celltypes.R'); \
-#                 save_subset_sces(sce_f = '{input.sce_clean_f}', \
-#                                  guesses_f = '{input.guesses_f}', \
-#                                  sel_res_cl = '{LBL_SEL_RES_CL}', \
-#                                  subset_df_f = '{output.subsets_df}', \
-#                                  subset_names_concat = '{params.sub_names}', \
-# 				 custom_labels_f = '{CUSTOM_LABELS_F}', \
-#                                  sce_ls_concat = '{output.sce_ls}', \
-#                                  allowed_cls_f = '{LBL_XGB_CLS_F}', \
-#                                  n_cores = {threads})"
-#             """
-
+      exclude_mito       = '{params.exclude_mito}', 
+      sel_res            =  {params.mkr_sel_res}, 
+      gene_var           = 'gene_id',
+      min_pred           =  {params.lbl_min_pred},
+      min_cl_prop        =  {params.lbl_min_cl_prop},
+      min_cl_size        =  {params.lbl_min_cl_size},
+      n_cores            =  {threads}
+    )"
