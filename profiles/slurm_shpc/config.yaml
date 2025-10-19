@@ -14,6 +14,9 @@ set-resources:
   run_integration:
     qos: '1d'
     runtime: 1440
+  run_gpu_integration:
+    slurm_partition: "batch_gpu"
+    slurm_extra: "'--gpus=1'"
   run_cellbender:
     slurm_partition: "batch_gpu"
     slurm_extra: "'--gpus=1'"

@@ -127,7 +127,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F,
 
   # integration params
   INT_PARAMS  = get_integration_parameters(this_zoom)
-  INT_KEYS    = ["INT_CL_METHOD", "INT_REDUCTION", "INT_N_DIMS", "INT_THETA", "INT_RES_LS"]
+  INT_KEYS    = ["INT_CL_METHOD", "INT_REDUCTION", "INT_N_DIMS", "INT_THETA", "INT_RES_LS", "INT_USE_GPU"]
   INT_DICT    = dict(zip(INT_KEYS, INT_PARAMS[:5]))   
   
   # marker gene params
@@ -639,6 +639,7 @@ def get_integration_parameters(config):
   INT_RES_LS      = [0.1, 0.2, 0.5, 1, 2]
   INT_DBL_RES     = 4
   INT_DBL_CL_PROP = 0.5
+  INT_USE_GPU     = False
 
   # change defaults if specified
   if ('integration' in config) and (config['integration'] is not None):
@@ -662,8 +663,11 @@ def get_integration_parameters(config):
       INT_THETA       = config['integration']['int_theta']
     if 'int_res_ls' in config['integration']:
       INT_RES_LS      = config['integration']['int_res_ls']
+    if 'int_use_gpu' in config['integration']:
+      INT_USE_GPU     = config['integration']['int_use_gpu']
+      INT_USE_GPU     = _safe_boolean(INT_USE_GPU)
 
-  return INT_CL_METHOD, INT_REDUCTION, INT_N_DIMS, INT_THETA, INT_RES_LS, INT_DBL_RES, INT_DBL_CL_PROP
+  return INT_CL_METHOD, INT_REDUCTION, INT_N_DIMS, INT_THETA, INT_RES_LS, INT_DBL_RES, INT_DBL_CL_PROP, INT_USE_GPU
 
 
 def get_custom_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR):
