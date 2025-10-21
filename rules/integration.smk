@@ -1,41 +1,5 @@
 # snakemake rule for integrating samples with harmony
 
-if not INT_USE_GPU: 
-  rule run_integration:
-    input:
-      hvg_mat_f     = hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-      dbl_hvg_mat_f = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-      sample_qc_f   = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-      coldata_f     = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-    output:
-      integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-    threads: 8
-    retries: RETRIES 
-    resources:
-      mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_INTEGRATION
-    conda: 
-      '../envs/integration.yaml'
-    benchmark:
-      benchmark_dir + '/' + SHORT_TAG + '_integration/run_integration_' + DATE_STAMP + '.benchmark.txt'
-    shell:
-      """
-      python3 scripts/integration.py \
-        {input.hvg_mat_f} \
-        {input.dbl_hvg_mat_f} \
-        {input.sample_qc_f} \
-        {input.coldata_f} \
-        {DEMUX_TYPE} \
-        {EXCLUDE_MITO} \
-        {INT_REDUCTION} \
-        {INT_N_DIMS} \
-        {INT_CL_METHOD} \
-        {INT_DBL_RES} \
-        {INT_DBL_CL_PROP} \
-        {INT_THETA} \ 
-        {INT_RES_LS} \
-        {output.integration_f} \
-        {BATCH_VAR} 
-      """
 
 if INT_USE_GPU:
   rule run_gpu_integration:
@@ -46,7 +10,7 @@ if INT_USE_GPU:
       coldata_f     = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
     output:
       integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-    threads: 8
+    threads: 1
     retries: RETRIES 
     resources:
       mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_INTEGRATION
@@ -56,25 +20,32 @@ if INT_USE_GPU:
       benchmark_dir + '/' + SHORT_TAG + '_integration/run_gpu_integration_' + DATE_STAMP + '.benchmark.txt'
     shell:
       """
-      python3 scripts/integration.py \
-        {input.hvg_mat_f} \
-        {input.dbl_hvg_mat_f} \
-        {input.sample_qc_f} \
-        {input.coldata_f} \
-        {DEMUX_TYPE} \
-        {EXCLUDE_MITO} \
-        {INT_REDUCTION} \
-        {INT_N_DIMS} \
-        {INT_CL_METHOD} \
-        {INT_DBL_RES} \
-        {INT_DBL_CL_PROP} \
-        {INT_THETA} \ 
-        {INT_RES_LS} \
-        {output.integration_f} \
-        {BATCH_VAR} 
-        --gpu
+      python3 scripts/integration.py {input.hvg_mat_f} {input.dbl_hvg_mat_f} {input.sample_qc_f} {input.coldata_f} {DEMUX_TYPE} "{EXCLUDE_MITO}" {INT_REDUCTION} {INT_N_DIMS} {INT_CL_METHOD} {INT_DBL_RES} {INT_DBL_CL_PROP} {INT_THETA} "{INT_RES_LS}" {output.integration_f} {BATCH_VAR} --gpu
 
       """
+else:
+  rule run_integration:
+    input:
+      hvg_mat_f     = hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
+      dbl_hvg_mat_f = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
+      sample_qc_f   = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+      coldata_f     = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    output:
+      integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    threads: 1
+    retries: RETRIES 
+    resources:
+      mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_INTEGRATION
+    conda: 
+      '../envs/integration.yaml'
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_integration/run_integration_' + DATE_STAMP + '.benchmark.txt'
+    shell:
+      """
+      python3 scripts/integration.py {input.hvg_mat_f} {input.dbl_hvg_mat_f} {input.sample_qc_f} {input.coldata_f} {DEMUX_TYPE} "{EXCLUDE_MITO}" {INT_REDUCTION} {INT_N_DIMS} {INT_CL_METHOD} {INT_DBL_RES} {INT_DBL_CL_PROP} {INT_THETA} "{INT_RES_LS}" {output.integration_f} {BATCH_VAR} 
+
+      """
+
 
 # rule to create sce objects without any doublets (and delete temporary sce objects in the qc directory)
 rule make_clean_sces: 

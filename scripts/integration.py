@@ -1,5 +1,3 @@
-# need pyarrow in conda env to convert pandas to polars
-
 import h5py
 import numpy as np
 import argparse
@@ -28,9 +26,7 @@ import polars as pl
 # n_cores          = 8
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--gpu', action='store_true', 
-  help='Use GPU-accelerated libraries if available.'
-)
+
 parser.add_argument('hvg_mat_f',     type = str)
 parser.add_argument('dbl_hvg_mat_f', type = str)
 parser.add_argument('sample_qc_f',   type = str)
@@ -43,9 +39,13 @@ parser.add_argument('cl_method',     type = str)
 parser.add_argument('dbl_res',       type = float)
 parser.add_argument('dbl_cl_prop',   type = float)
 parser.add_argument('theta',         type = float)
-parser.add_argument('res_ls_concar', type = str)
+parser.add_argument('res_ls_concat', type = str)
 parser.add_argument('integration_f', type = str)
-parser.add_argument('batch_var',     type = str)
+parser.add_argument('batch_var',     type = str) 
+
+parser.add_argument('--gpu', action='store_true', 
+  help='Use GPU-accelerated libraries if available.'
+)
 
 args = parser.parse_args()
 
@@ -215,8 +215,8 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, reduction, 
     sel_embed = 'X_pca_harmony'
   
   print(' running UMAP')
-  sc.pp.neighbors(adata, n_pcs= n_dims,use_rep=sel_embed )
-  sc.tl.umap(adata) # need to tell umap to use harmony
+  sc.pp.neighbors(adata, n_pcs= n_dims,use_rep=sel_embed, neighbors_key=this_reduction)
+  sc.tl.umap(adata, neighbors_key=this_reduction) # need to tell umap to use harmony
 
   print(' finding clusters')
 
@@ -226,11 +226,11 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, reduction, 
   for res in res_ls:
     if cl_method == 'leiden':
      sc.tl.leiden(
-        adata, key_added=f"RNA_snn_res.{res}", resolution=float(res)
+        adata, key_added=f"RNA_snn_res.{res}", resolution=float(res), neighbors_key=this_reduction
      )
     elif cl_method == 'louvain': # louvain not working in non-gpu mode
       sc.tl.louvain(
-        adata, key_added=f"RNA_snn_res.{res}", resolution=float(res)
+        adata, key_added=f"RNA_snn_res.{res}", resolution=float(res), neighbors_key=this_reduction
       ) 
   
   print(' recording clusters')
@@ -338,3 +338,4 @@ if __name__ == "__main__":
     args.exclude_mito, args.reduction, args.n_dims, args.cl_method, args.dbl_res, args.dbl_cl_prop, args.theta, args.res_ls_concat,
     args.integration_f, args.batch_var, use_gpu
   )
+
