@@ -157,12 +157,12 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   ok_ids_filt = adata.obs['cell_id'].isin(ok_ids)
   adata = adata[ok_ids_filt, :]
   
-  int_ok   = _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, reduction, theta)
+  int_ok   = _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, reduction, use_gpu, theta)
 
   # join integration results
   int_dt   = int_ok.join(dbl_data, on=["sample_id", "cell_id"],  how="full")
   
-  int_dt.write_csv(file = integration_f, separator = "\t", compression = "gzip")
+  int_dt.write_csv(file = integration_f, separator = "\t")
   print('done!')
 
   return 
@@ -215,8 +215,8 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, reduction, 
     sel_embed = 'X_pca_harmony'
   
   print(' running UMAP')
-  sc.pp.neighbors(adata, n_pcs= n_dims,use_rep=sel_embed, neighbors_key=this_reduction)
-  sc.tl.umap(adata, neighbors_key=this_reduction) # need to tell umap to use harmony
+  sc.pp.neighbors(adata, n_pcs= n_dims,use_rep=sel_embed)
+  sc.tl.umap(adata) # need to tell umap to use harmony
 
   print(' finding clusters')
 
@@ -226,11 +226,11 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, reduction, 
   for res in res_ls:
     if cl_method == 'leiden':
      sc.tl.leiden(
-        adata, key_added=f"RNA_snn_res.{res}", resolution=float(res), neighbors_key=this_reduction
+        adata, key_added=f"RNA_snn_res.{res}", resolution=float(res)
      )
     elif cl_method == 'louvain': # louvain not working in non-gpu mode
       sc.tl.louvain(
-        adata, key_added=f"RNA_snn_res.{res}", resolution=float(res), neighbors_key=this_reduction
+        adata, key_added=f"RNA_snn_res.{res}", resolution=float(res)
       ) 
   
   print(' recording clusters')

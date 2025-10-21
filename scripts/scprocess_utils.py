@@ -632,7 +632,7 @@ def get_hvg_parameters(config, METADATA_F, AF_GTF_DT_F):
 # define integration parameters
 def get_integration_parameters(config): 
   # set some more default values
-  INT_CL_METHOD   = 'louvain'
+  INT_CL_METHOD   = 'leiden'
   INT_REDUCTION   = 'harmony'
   INT_N_DIMS      = 50
   INT_THETA       = 0.1
