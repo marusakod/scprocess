@@ -8,66 +8,22 @@ import anndata as ad
 import pandas as pd
 import polars as pl
 
-# hvg_mat_f        = '/pmount/projects/site/pred/mus-brain-analysis/studies/Langlieb_2023_striatum_nuclei/output/Langlieb_st_hvg/top_hvgs_counts_Langlieb_2023_striatum_nuclei_2025-10-08.h5'
-# dbl_hvg_mat_f    = '/pmount/projects/site/pred/mus-brain-analysis/studies/Langlieb_2023_striatum_nuclei/output/Langlieb_st_hvg/top_hvgs_doublet_counts_Langlieb_2023_striatum_nuclei_2025-10-08.h5'
-# sample_qc_f      = '/pmount/projects/site/pred/mus-brain-analysis/studies/Langlieb_2023_striatum_nuclei/output/Langlieb_st_qc/qc_sample_statistics_Langlieb_2023_striatum_nuclei_2025-10-08.csv'
-# coldata_f        = '/pmount/projects/site/pred/mus-brain-analysis/studies/Langlieb_2023_striatum_nuclei/output/Langlieb_st_qc/coldata_dt_all_samples_Langlieb_2023_striatum_nuclei_2025-10-08.txt.gz'
-# demux_type       = 'none' 
+# hvg_mat_f        = '/pstore/data/mus-brain-analysis/studies/test_project/output/test_hvg/top_hvgs_counts_test_project_2025-01-01.h5'
+# dbl_hvg_mat_f    = '/pstore/data/mus-brain-analysis/studies/test_project/output/test_hvg/top_hvgs_doublet_counts_test_project_2025-01-01.h5'
+# sample_qc_f      = '/pstore/data/mus-brain-analysis/studies/test_project/output/test_qc/qc_sample_statistics_test_project_2025-01-01.csv'
+# coldata_f        = '/pstore/data/mus-brain-analysis/studies/test_project/output/test_qc/coldata_dt_all_samples_test_project_2025-01-01.txt.gz'
+# demux_type       = 'none'
 # exclude_mito     = 'True'
 # reduction        = 'harmony'
 # n_dims           = 50
-# cl_method        = 'leiden' 
+# cl_method        = 'leiden'
 # dbl_res          = 4
-# dbl_cl_prop      = 0.5 
+# dbl_cl_prop      = 0.5
 # theta            = 0.1
 # res_ls_concat    = '0.1 0.2 0.5 1 2'
-# integration_f    = '/pmount/projects/site/pred/mus-brain-analysis/studies/Langlieb_2023_striatum_nuclei/output/Langlieb_st_integration/integrated_dt_Langlieb_2023_striatum_nuclei_2025-10-08.txt.gz'
-# batch_var        = 'sample_id'
+# integration_f    = '/pstore/data/mus-brain-analysis/studies/test_project/output/test_integration/python_integrated_dt_test_project_2025-01-01.txt.gz'
+# batch_var        = 'sample_id' 
 # n_cores          = 8
-
-parser = argparse.ArgumentParser()
-
-parser.add_argument('hvg_mat_f',     type = str)
-parser.add_argument('dbl_hvg_mat_f', type = str)
-parser.add_argument('sample_qc_f',   type = str)
-parser.add_argument('coldata_f',     type = str)
-parser.add_argument('demux_type',    type = str)
-parser.add_argument('exclude_mito',  type = str)
-parser.add_argument('reduction',     type = str)
-parser.add_argument('n_dims',        type = int)
-parser.add_argument('cl_method',     type = str)
-parser.add_argument('dbl_res',       type = float)
-parser.add_argument('dbl_cl_prop',   type = float)
-parser.add_argument('theta',         type = float)
-parser.add_argument('res_ls_concat', type = str)
-parser.add_argument('integration_f', type = str)
-parser.add_argument('batch_var',     type = str) 
-
-parser.add_argument('--gpu', action='store_true', 
-  help='Use GPU-accelerated libraries if available.'
-)
-
-args = parser.parse_args()
-
-if args.gpu:
-  import rapids_singlecell as sc
-  import cupy as cp
-
-  import rmm
-  from rmm.allocators.cupy import rmm_cupy_allocator
-
-  rmm.reinitialize(
-    managed_memory=False,  # Allows oversubscription (what is this?)
-    pool_allocator=False,  # default is False; they in the vignette (https://rapids-singlecell.readthedocs.io/en/latest/notebooks/01_demo_gpu.html), they set this to True for harmony 
-    devices=0,  # GPU device IDs to register. By default registers only GPU 0. (???)
-  )
-  cp.cuda.set_allocator(rmm_cupy_allocator)
-  use_gpu = True
-else:
-  import scanpy as sc
-  import scanpy.external as sce # for harmony
-  use_gpu = False
-
 
 def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, reduction, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
@@ -76,7 +32,6 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   # unpack inputs
   exclude_mito = bool(exclude_mito) 
   res_ls       = res_ls_concat.split()
-  # res_ls       = list(map(float, res_ls))
 
   # get cell ids
   print('loading relevant cell ids')
@@ -155,12 +110,13 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
     (pl.col("is_dbl") == False) & (pl.col("in_dbl_cl") == False)
     )["cell_id"].to_list()
   ok_ids_filt = adata.obs['cell_id'].isin(ok_ids)
+  # replace cell metadata with original cell metadata
   adata = adata[ok_ids_filt, :]
   
   int_ok   = _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, reduction, use_gpu, theta)
 
   # join integration results
-  int_dt   = int_ok.join(dbl_data, on=["sample_id", "cell_id"],  how="full")
+  int_dt   = int_ok.join(dbl_data, on=["sample_id", "cell_id"], coalesce=True, how = 'full')
   
   int_dt.write_csv(file = integration_f, separator = "\t")
   print('done!')
@@ -226,7 +182,7 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, reduction, 
   for res in res_ls:
     if cl_method == 'leiden':
      sc.tl.leiden(
-        adata, key_added=f"RNA_snn_res.{res}", resolution=float(res)
+        adata, key_added=f"RNA_snn_res.{res}", resolution=float(res), flavor="igraph", n_iterations=2
      )
     elif cl_method == 'louvain': # louvain not working in non-gpu mode
       sc.tl.louvain(
@@ -332,10 +288,53 @@ def calc_dbl_data(int_dbl, dbl_ids, dbl_res, dbl_cl_prop):
 
 
 if __name__ == "__main__":
-   
-  run_integration(
-    args.hvg_mat_f, args.dbl_hvg_mat_f, args.sample_qc_f, args.coldata_f, args.demux_type, 
-    args.exclude_mito, args.reduction, args.n_dims, args.cl_method, args.dbl_res, args.dbl_cl_prop, args.theta, args.res_ls_concat,
-    args.integration_f, args.batch_var, use_gpu
+
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument('hvg_mat_f',     type = str)
+  parser.add_argument('dbl_hvg_mat_f', type = str)
+  parser.add_argument('sample_qc_f',   type = str)
+  parser.add_argument('coldata_f',     type = str)
+  parser.add_argument('demux_type',    type = str)
+  parser.add_argument('exclude_mito',  type = str)
+  parser.add_argument('reduction',     type = str)
+  parser.add_argument('n_dims',        type = int)
+  parser.add_argument('cl_method',     type = str)
+  parser.add_argument('dbl_res',       type = float)
+  parser.add_argument('dbl_cl_prop',   type = float)
+  parser.add_argument('theta',         type = float)
+  parser.add_argument('res_ls_concat', type = str)
+  parser.add_argument('integration_f', type = str)
+  parser.add_argument('batch_var',     type = str) 
+
+  parser.add_argument('--gpu', action='store_true', 
+    help='Use GPU-accelerated libraries if available.'  
   )
+
+  args = parser.parse_args()
+
+  if args.gpu:
+    import rapids_singlecell as sc
+    import cupy as cp
+
+    import rmm
+    from rmm.allocators.cupy import rmm_cupy_allocator
+
+    rmm.reinitialize(
+      managed_memory=False,  # Allows oversubscription (what is this?)
+      pool_allocator=False,  # default is False; they in the vignette (https://rapids-singlecell.readthedocs.io/en/latest/notebooks/01_demo_gpu.html), they set this to True for harmony 
+      devices=0,  # GPU device IDs to register. By default registers only GPU 0. (???)
+    )
+    cp.cuda.set_allocator(rmm_cupy_allocator)
+    use_gpu = True
+  else:
+    import scanpy as sc
+    import scanpy.external as sce # for harmony
+    use_gpu = False
+
+    run_integration(
+      args.hvg_mat_f, args.dbl_hvg_mat_f, args.sample_qc_f, args.coldata_f, args.demux_type, 
+      args.exclude_mito, args.reduction, args.n_dims, args.cl_method, args.dbl_res, args.dbl_cl_prop, args.theta, args.res_ls_concat,
+      args.integration_f, args.batch_var, use_gpu
+    )
 
