@@ -182,7 +182,7 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, reduction, 
   for res in res_ls:
     if cl_method == 'leiden':
      sc.tl.leiden(
-        adata, key_added=f"RNA_snn_res.{res}", resolution=float(res), flavor="igraph", n_iterations=2
+        adata, key_added=f"RNA_snn_res.{res}", resolution=float(res)
      )
     elif cl_method == 'louvain': # louvain not working in non-gpu mode
       sc.tl.louvain(
