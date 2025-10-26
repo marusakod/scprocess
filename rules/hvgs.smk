@@ -7,32 +7,31 @@ localrules: make_hvg_df
 
 rule make_hvg_df:
   input:
-    ambient_yaml_out=expand([amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'], run=runs)
+    ambient_yaml_out=expand([amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'], run=RUNS)
   output:
     hvg_paths_f     = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv' 
   params:
+    run_var         = RUN_VAR,
     demux_type      = config['multiplexing']['demux_type']
   run:
-    hvg_df = make_hvgs_input_df(
-      params.demux_type, SAMPLE_VAR, runs, input.ambient_yaml_out,
-      SAMPLE_MAPPING, FULL_TAG, DATE_STAMP, hvg_dir
-    )
+    hvg_df = make_hvgs_input_df(params.demux_type, params.run_var, RUNS, input.ambient_yaml_out,
+      SAMPLES_TO_RUNS, FULL_TAG, DATE_STAMP, hvg_dir)
     hvg_df.to_csv(output.hvg_paths_f, index=False)
-
 
 
 # create temporary csr h5 files
 rule make_tmp_csr_matrix:
   input:
     hvg_paths_f       = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    qc_f              = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    cell_filter_f     = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     qc_sample_stats_f = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    rowdata_f         = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    rowdata_f         = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
     clean_h5_f        = temp(expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES))
   params:
-    demux_type      = config['multiplexing']['demux_type'],
-    hvg_chunk_size  = config['hvg']['hvg_chunk_size']
+    run_var           = RUN_VAR,
+    demux_type        = config['multiplexing']['demux_type'],
+    hvg_chunk_size    = config['hvg']['hvg_chunk_size']
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -42,12 +41,12 @@ rule make_tmp_csr_matrix:
   shell: """
     python3 scripts/hvgs.py get_csr_counts \
       {input.hvg_paths_f} \
-      {input.qc_f} \
+      {input.cell_filter_f} \
       "keep" \
       "True" \
       {input.qc_sample_stats_f} \
       {input.rowdata_f} \
-      {SAMPLE_VAR} \
+      {params.run_var} \
       {params.demux_type} \
       --chunksize {params.hvg_chunk_size} \
       --ncores {threads}
@@ -61,7 +60,7 @@ if config['hvg']['hvg_method'] == 'sample':
     input:
       clean_h5_f      = hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
       qc_smpl_stats_f = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-      rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
     output:
       std_var_stats_f = temp(hvg_dir + '/tmp_std_var_stats_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 1
@@ -93,6 +92,7 @@ if config['hvg']['hvg_method'] == 'sample':
 
 
 else:
+  # define some rules that don't need the cluster
   localrules: merge_group_mean_var, merge_group_std_var_stats
 
 
@@ -100,7 +100,7 @@ else:
     input:
       clean_h5_f      = expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES),
       hvg_paths_f     = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-      rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+      rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
       qc_smpl_stats_f = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
     output: 
       mean_var_f      = temp(hvg_dir + '/tmp_mean_var_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
@@ -173,7 +173,7 @@ else:
       clean_h5_fs     = expand(hvg_dir + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', sample = SAMPLES),
       estim_vars_f    = hvg_dir + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
       hvg_paths_f     = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-      rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+      rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
       qc_smpl_stats_f = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
     output:
       std_var_stats_f = temp(hvg_dir + '/tmp_std_var_stats_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
@@ -282,11 +282,12 @@ rule create_doublets_hvg_matrix:
   input: 
     hvg_paths_f       = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     hvg_f             = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    qc_f              = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    qc_f              = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     qc_sample_stats_f = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output: 
     dbl_hvg_mat_f     = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
   params:
+    run_var           = RUN_VAR,
     demux_type        = config['multiplexing']['demux_type']
   threads: 1
   retries: config['resources']['retries']
@@ -301,7 +302,7 @@ rule create_doublets_hvg_matrix:
     {input.qc_f} \
     {input.qc_sample_stats_f} \
     {output.dbl_hvg_mat_f} \
-    {SAMPLE_VAR} \
+    {params.run_var} \
     {params.demux_type}
     """
 

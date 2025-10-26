@@ -38,23 +38,21 @@ suppressPackageStartupMessages({
 
 make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset_col = NULL, subset_str = NULL, n_cores = 8) {
   # get files
-  sce_fs_ls = yaml::read_yaml(sce_fs_yaml) %>% unlist()
+  sce_fs_ls     = yaml::read_yaml(sce_fs_yaml) %>% unlist()
   
   # remove all samples excluded after qc
-  qc_stats_dt = fread(qc_stats_f)
-  keep_samples = qc_stats_dt[bad_sample == FALSE, sample_id]
-  
-  sce_fs_ls = sce_fs_ls[keep_samples]
+  qc_stats_dt   = fread(qc_stats_f)
+  keep_samples  = qc_stats_dt[ bad_sample == FALSE ] %>% .$sample_id
+  sce_fs_ls     = sce_fs_ls[keep_samples]
   
   # set up parallelization
   bpparam       = MulticoreParam(workers = n_cores, tasks = length(sce_fs_ls))
-  on.exit(bpstop(bpparam))
-  
-  cell_pbs     = bpmapply( sel_s = names(sce_fs_ls), sce_f = unname(sce_fs_ls),
+  on.exit(bpstop(bpparam))  
+  cell_pbs      = bpmapply( sel_s = names(sce_fs_ls), sce_f = unname(sce_fs_ls),
     FUN = .get_one_cells_pb, SIMPLIFY = FALSE, BPPARAM = bpparam, 
     MoreArgs = list(subset_f = subset_f, subset_col = subset_col, subset_str = subset_str)
     )
-  
+
   # merge sce objects
   pb_sce = Reduce(function(x, y) {cbind(x, y)}, cell_pbs)
 
@@ -75,61 +73,54 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
 }
 
 
-
-.get_one_cells_pb <- function(sel_s, sce_f, subset_f = NULL, subset_col = NULL, subset_str = NULL, 
-                              agg_fn = c("sum", "prop.detected")){
+.get_one_cells_pb <- function(sel_s, sce_f, subset_f = NULL, subset_col = NULL, 
+  subset_str = NULL, agg_fn = c("sum", "prop.detected")){
   agg_fn      = match.arg(agg_fn)
   
   message('    loading sce object for sample ', sel_s)
   sce         = readRDS(sce_f)
-  
-  if(!is.null(subset_f)){
-  
+  if (!is.null(subset_f)) {
     message('    subsetting sce object')
     # unpack 
     subset_vals = str_split(subset_str, pattern = ',') %>% unlist
-    subset_dt = fread(subset_f)
+    subset_dt   = fread(subset_f)
     assert_that(subset_col %in% colnames(subset_dt))
     assert_that(all(c("cell_id", "sample_id") %in% colnames(subset_dt)))
       
     # keep just cells in sel_s with selected labels
-    subset_dt = subset_dt %>%
-    .[sample_id == sel_s] %>%
-    .[get(subset_col) %in% subset_vals]
+    subset_dt   = subset_dt %>%
+      .[ sample_id == sel_s ] %>%
+      .[ get(subset_col) %in% subset_vals ]
     
     # subset sce object
     sce = sce[, subset_dt$cell_id]
-  
   }
    
   message('   running aggregateData')
-  pb_mat = .aggregateData_datatable(sce, by_vars = c("sample_id"), fun = agg_fn)
-  pb = SingleCellExperiment( pb_mat, rowData = rowData(sce) )
+  pb_mat    = .aggregateData_datatable(sce, by_vars = c("sample_id"), fun = agg_fn)
+  pb        = SingleCellExperiment( pb_mat, rowData = rowData(sce) )
   
  return(pb)
 }
 
 
-
-
-make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
-                          ambient_method, sample_var = 'sample_id', n_cores = 8) {
-  
+make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f, ambient_method, 
+  run_var = 'sample_id', n_cores = 8) {
   message('create pseudobulk matrix for empty droplets')
   
   # get files
   af_paths_df   = fread(af_paths_f)
-  sample_ls     = af_paths_df[[sample_var]] %>% unique()
+  sample_ls     = af_paths_df[[run_var]] %>% unique()
   af_mat_ls     = af_paths_df$af_mat_f %>% unique()
   af_knee_ls    = af_paths_df$af_knee_f %>% unique()
   
   # get bad cellbender samples
   if(ambient_method == 'cellbender'){
-    amb_stats_dt = fread(amb_stats_f) 
-    bad_samples  = amb_stats_dt[bad_sample == TRUE, get(sample_var)]
-    if(length(bad_samples) != 0){
+    amb_stats_dt  = fread(amb_stats_f) 
+    bad_runs      = amb_stats_dt[ bad_run == TRUE, get(run_var) ]
+    if(length(bad_runs) != 0){
       # don't include bad samples into empty pseudobulk matrix
-      keep_idx   = which(!sample_ls %in% bad_samples)
+      keep_idx   = which(!sample_ls %in% bad_runs)
       sample_ls  = sample_ls[keep_idx]
       af_mat_ls  = af_mat_ls[keep_idx]
       af_knee_ls = af_knee_ls[keep_idx]
@@ -140,7 +131,6 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
   assert_that( all(
     str_extract(af_mat_ls, '\\/af_.*\\/') == str_extract(af_knee_ls, '\\/af_.*\\/')
   ))
-  
   assert_that(
     all( str_detect(af_mat_ls, sample_ls) ),
     all( str_detect(af_knee_ls, sample_ls) )
@@ -164,7 +154,6 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
   rows_dt  = rows_dt[ rownames(pb_empty) ]
   assert_that( all(rownames(pb_empty) == rows_dt$ensembl_id) )
   rownames(pb_empty) = rows_dt$gene_id
-  
   
   # make one object with pb_mats as assays
   pb_empty      = SingleCellExperiment( pb_empty, rowData = rows_dt )
@@ -203,7 +192,6 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
   
   return(empty_pb)
 }
-
 
 
 .aggregateData_datatable <- function(sce, by_vars = c('sample_id'),
@@ -270,7 +258,6 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
 }
 
 
-
 .get_h5 <- function(h5_f, barcodes = NULL) {
   
   h5_full = H5Fopen(h5_f, flags = "H5F_ACC_RDONLY" )
@@ -297,7 +284,6 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f,
   
   return(mat)
 }
-
 
 
 plot_empty_plateau <- function(knees, empty_plat_df) {
@@ -340,6 +326,7 @@ plot_empty_plateau <- function(knees, empty_plat_df) {
     
   return(p)
 }
+
 
 calc_empty_genes <- function(pb_cells_f, pb_empty_f, fdr_thr, logfc_thr, empty_gs_f) {
   message('calculate empty genes')
@@ -463,6 +450,7 @@ calc_empty_genes <- function(pb_cells_f, pb_empty_f, fdr_thr, logfc_thr, empty_g
   
   return(exclude_dt)
 }
+
 
 .ignore_this <- function() {
   min_cpm = 100

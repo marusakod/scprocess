@@ -12,6 +12,7 @@ def get_conditional_outputs(species):
   else:
     return {}
 
+
 rule run_marker_genes:
   input:
     sces_yaml_f    = int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml',
@@ -20,8 +21,10 @@ rule run_marker_genes:
     pb_f      = mkr_dir + '/pb_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.rds',
     mkrs_f    = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
     pb_hvgs_f = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
-    **get_conditional_outputs(SPECIES)
+    **get_conditional_outputs(config['project']['species'])
   params:
+    species         = config['project']['species'],
+    af_gtf_dt_f     = config['mapping']['af_gtf_dt_f'],
     mkr_gsea_dir    = config['marker_genes']['mkr_gsea_dir'],
     mkr_sel_res     = config['marker_genes']['mkr_sel_res'],
     mkr_min_cl_size = config['marker_genes']['mkr_min_cl_size'],
@@ -50,8 +53,8 @@ rule run_marker_genes:
       mkrs_f        = '{output.mkrs_f}',
       pb_hvgs_f     = '{output.pb_hvgs_f}',
       {params.fgsea_args}
-      species       = '{SPECIES}',
-      gtf_dt_f      = '{AF_GTF_DT_F}',
+      species       = '{params.species}',
+      gtf_dt_f      = '{params.af_gtf_dt_f}',
       gsea_dir      = '{params.mkr_gsea_dir}',
       sel_res       = '{params.mkr_sel_res}',
       min_cl_size   =  {params.mkr_min_cl_size},

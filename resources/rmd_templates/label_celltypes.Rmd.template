@@ -1,10 +1,10 @@
 ---
 title: "Cell type labelling with XGBoost"
 author:
-- name: ${YOUR_NAME}
+- name: ${your_name}
   affiliation: 
-  - ${AFFILIATION}
-date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
+  - ${affiliation}
+date: '`r format(as.Date("${date_stamp}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -17,7 +17,7 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-fig.path = "figure/${SHORT_TAG}_label_celltypes.Rmd/"
+fig.path = "figure/${short_tag}_label_celltypes.Rmd/"
 )
 
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
@@ -38,14 +38,14 @@ setDTthreads(n_cores)
 
 # input_files
 guesses_f   = "${guesses_f}"
-xgb_f       = "${LBL_XGB_F}"
-labels_f    = "${LBL_XGB_CLS_F}"
+xgb_f       = "${lbl_xgb_f}"
+labels_f    = "${lbl_xgb_cls_f}"
 
 # params
-sel_res_cl   = "${LBL_SEL_RES_CL}"
-min_pred     = ${LBL_MIN_PRED}
-min_cl_prop  = ${LBL_MIN_CL_PROP}
-min_cl_size  = ${LBL_MIN_CL_SIZE}
+sel_res_cl   = "${lbl_sel_res_cl}"
+min_pred     = ${lbl_min_pred}
+min_cl_prop  = ${lbl_min_cl_prop}
+min_cl_size  = ${lbl_min_cl_size}
 ```
 
 

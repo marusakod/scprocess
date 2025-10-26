@@ -8,7 +8,9 @@ import os
 import sys
 import textwrap
 import yaml
+import pathlib
 import pandas as pd
+import polars as pl
 import glob
 import subprocess
 import shlex
@@ -178,25 +180,29 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
 # scprocess run
 def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   print('doing some checks on inputs')
-  # change scprocess directory
-  config_path   = os.path.abspath(configfile)
-  scprocess_dir = os.path.dirname(__file__)
+
+  # housekeeping
+  config_path     = pathlib.Path(configfile).resolve()
+  scprocess_dir   = pathlib.Path(__file__).parent
   os.chdir(scprocess_dir)
 
   # do some checks
-  extraargs   = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
+  scprocess_data_dir, extraargs = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
 
-  # get checked config file
-  schema_f    = os.path.join(scprocess_dir, "resources/configs/config-schema.json")
-  CONFIG      = scprocess_utils.get_config_validated_against_schema(config_path, schema_f)
+  # get validated config
+  with open(config_path, "r") as f:
+    config          = yaml.safe_load(f)
+  schema_f        = scprocess_dir / "resources/schemas/config.schema.json"
+  if not schema_f.is_file():
+    raise FileNotFoundError("schema file not found")
+  config          = scprocess_utils.check_config(config, schema_f, scprocess_data_dir, scprocess_dir)
 
-  # check project directory is ok
-  proj_dir    = CONFIG["project"]["proj_dir"]
-  scprocess_utils.check_proj_dir_is_wflowr(proj_dir)
-  
-  # load up sample metadata
-  sample_df, sample_var = scprocess_utils.load_and_check_sample_metadata(CONFIG)
-  SAMPLES     = scprocess_utils.get_and_check_samples(sample_df, sample_var, CONFIG)
+  # get lists of parameters
+  RUN_PARAMS, RUN_VAR   = scprocess_utils.get_run_parameters(config, scprocess_data_dir)
+  RUNS                  = list(RUN_PARAMS.keys())
+  SAMPLE_PARAMS         = scprocess_utils.get_sample_parameters(config, RUNS, scprocess_data_dir)
+  SAMPLES               = list(SAMPLE_PARAMS.keys())
+  SAMPLES_TO_RUNS       = scprocess_utils.get_samples_to_runs(config, RUNS, SAMPLES)
 
   # print which files will be processed
   print(f"\nprocessing {len(SAMPLES)} samples:")
@@ -207,9 +213,10 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   subprocess.run(["echo", "snakemake", 
     "--snakefile", snakefile, 
     "--configfile", config_path,
+    "--config", f"scprocess_dir={str(scprocess_dir)}",
     "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", 
     "--software-deployment-method", "conda",
-    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{proj_dir}",
+    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{config['project']['proj_dir']}",
     *shlex.split(extraargs),
     rule
     ])
@@ -217,9 +224,10 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   subprocess.run(["snakemake", 
     "--snakefile", snakefile, 
     "--configfile", config_path,
+    "--config", f"scprocess_dir={str(scprocess_dir)}",
     "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", 
     "--software-deployment-method", "conda",
-    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{proj_dir}",
+    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{config['project']['proj_dir']}",
     *shlex.split(extraargs),
     rule
     ])

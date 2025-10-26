@@ -1634,7 +1634,7 @@ plot_clusters_annotated_by_densities = function(int_dt, v, plot_ratio = sqrt(2))
     theme_classic() +
     theme( axis.text = element_blank(), axis.ticks = element_blank(), 
       panel.grid = element_blank(), aspect.ratio = 1 ) +
-    labs( fill = "pct. of\nsample" )
+    labs( fill = "pct. of\nbin in UMAP" )
 
   return(g)
 }

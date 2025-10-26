@@ -18,7 +18,7 @@
         "your_name":            { "type": "string" },
         "affiliation":          { "type": "string" },
         "date_stamp":           { "type": "string", "format": "date" },
-        "sample_metadata":      { "type": "string" },
+        "sample_metadata":      { "type": "string", "items": {"type": "string", "pattern": "^.+\\.csv$"} },
         "species":              { "type": "string" },
         "tenx_chemistry":       { "type": "string", "enum": ["3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"] },
         "metadata_vars":        { "type": "array", "items": { "type": "string" } },
@@ -37,25 +37,67 @@
         { "required": ["arv_uuids"] }
       ]
     },
+    "multiplexing": {
+      "title": "Multiplexing Configuration",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "demux_type" ],
+      "properties": {
+        "demux_type":   { "type": "string", "enum": ["none", "hto", "custom"], "default": "none" },
+        "fastq_dir":    { "type": "string" },
+        "arv_uuids":    { "type": "array", "items": {"type": "string", "pattern": "^arkau-[0-9a-z]{5}-[0-9a-z]{15}$"} },
+        "feature_ref":  { "type": "string" },
+        "demux_output": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"demux_type": {"const": "hto" } } },
+          "then": {
+            "allOf": [
+              { "required": ["feature_ref" ] },
+              {
+                "oneOf": [
+                  { "required": ["fastq_dir"] },
+                  { "required": ["arv_uuids"] }
+                ]
+              }
+            ]
+          },
+         "else": {
+            "not": { "required": ["feature_ref"] }
+          }
+        },
+        {
+          "if": {"properties": {"demux_type": {"const": "custom" } } },
+          "then": {"required": ["demux_output" ] },
+          "else": {
+            "not": { "required": ["demux_output"] }
+          }
+        },
+        {
+          "if": {"properties": {"demux_type": {"const": "none" } } },
+          "then": {
+            "not": { "required": ["fastq_dir", "arv_uuids", "demux_output", "feature_ref"] }
+          }
+        }
+      ]
+    },
     "ambient": {
       "type": "object",
       "required": ["ambient_method"],
       "additionalProperties": false,
       "properties": {
-        "ambient_method":                   { "type": "string", "enum": ["decontx", "cellbender", "none"], "default": "decontx" },
-        "cell_calling":                     { "type": "string", "enum": ["barcodeRanks", "emptyDrops"], "default": "barcodeRanks" },
-        "cb_version":                       { "type": "string", "enum": ["v0.3.2", "v0.3.0'", "v0.2.0'"], "default": "v0.3.2" },
-        "cb_max_prop_kept":                 { "type": "number", "default": 0.9 },
-        "cb_learning_rate":                 { "type": "number", "default": 1e-4 },
-        "cb_force_expected_cells":          { "type": "number" },
-        "cb_force_total_droplets_included": { "type": "number" },
-        "cb_force_low_count_threshold":     { "type": "number" },
-        "cb_posterior_batch_size":          { "type": "number" }
-      },
-      "if": {
-        "properties": {"cb_version": { "const": "v0.3.2" } }, "required": ["cb_version"] },
-      "then": { "properties": { "cb_posterior_batch_size": { "type": "integer", "exclusiveMinimum": 0, "default": 128 } } },
-      "else": { "not": {"required": ["cb_posterior_batch_size"] } }
+        "ambient_method":               { "type": "string", "enum": ["decontx", "cellbender", "none"], "default": "decontx" },
+        "cell_calling":                 { "type": "string", "enum": ["barcodeRanks", "emptyDrops"], "default": "barcodeRanks" },
+        "cb_version":                   { "type": "string", "enum": ["v0.3.2", "v0.3.0'", "v0.2.0'"], "default": "v0.3.2" },
+        "cb_max_prop_kept":             { "type": "number", "default": 0.9 },
+        "cb_learning_rate":             { "type": "number", "default": 1e-4 },
+        "cb_posterior_batch_size":      { "type": "integer", "exclusiveMinimum": 0, "default": 128 },
+        "cb_empty_training_fraction":   { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1, "default": 0.2 },
+        "cb_expected_cells":            { "type": "number" },
+        "cb_total_droplets_included":   { "type": "number" },
+        "cb_low_count_threshold":       { "type": "number" }
+      }
     },
     "qc": {
       "type": "object",
@@ -104,12 +146,13 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "int_cl_method":    { "type": "string", "enum": ["louvain", "leiden"], "default": "louvain"},
         "int_embedding":    { "type": "string", "enum": ["harmony", "pca"], "default": "harmony" },
+        "int_theta":        { "type": "number", "default": 0.1 },
+        "int_batch_var":    { "type": "string", "enum": ["pool_id", "sample_id"], "default": "sample_id" },
         "int_n_dims":       { "type": "integer", "default": 50 },
         "int_dbl_res":      { "type": "number", "default": 4 },
         "int_dbl_cl_prop":  { "type": "number", "default": 0.5 },
-        "int_theta":        { "type": "number", "default": 0.1 },
+        "int_cl_method":    { "type": "string", "enum": ["louvain", "leiden"], "default": "louvain"},
         "int_res_ls": {
           "type":     "array",
           "items":    { "type": "number" },
@@ -142,80 +185,12 @@
         }
       }
     },
-    "resources": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "retries":                    { "type": "integer", "default": 3 },
-        "gb_run_mapping_per_gb_fq":   { "type": "integer", "default": 4 },
-        "gb_save_alevin_to_h5":       { "type": "integer", "default": 8 },
-        "gb_run_ambient":             { "type": "integer", "default": 8 },
-        "gb_get_barcode_qc_metrics":  { "type": "integer", "default": 8 },
-        "gb_run_qc":                  { "type": "integer", "default": 8 },
-        "gb_run_hvgs":                { "type": "integer", "default": 8 },
-        "gb_run_integration":         { "type": "integer", "default": 8 },
-        "gb_make_clean_sces":         { "type": "integer", "default": 8 },
-        "gb_run_marker_genes":        { "type": "integer", "default": 16 },
-        "gb_render_htmls":            { "type": "integer", "default": 8 },
-        "gb_label_celltypes":         { "type": "integer", "default": 8 },
-        "gb_pb_make_pbs":             { "type": "integer", "default": 8 },
-        "gb_pb_calc_empty_genes":     { "type": "integer", "default": 8 },
-        "gb_make_hto_sce_objects":    { "type": "integer", "default": 8 },
-        "gb_make_subset_sces":        { "type": "integer", "default": 8 }
-      }
-    },
-    "multiplexing": {
-      "title": "Multiplexing Configuration",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [ "demux_type", "batch_var" ],
-      "properties": {
-        "demux_type":   { "type": "string", "enum": ["none", "hto", "custom"], "default": "none" },
-        "batch_var":    { "type": "string", "enum": ["pool_id", "sample_id"], "default": "sample_id" },
-        "fastq_dir":    { "type": "string" },
-        "arv_uuids":    { "type": "array", "items": {"type": "string", "pattern": "^arkau-[0-9a-z]{5}-[0-9a-z]{15}$"} },
-        "feature_ref":  { "type": "string" },
-        "demux_output": { "type": "string" }
-      },
-      "allOf": [
-        {
-          "if": {"properties": {"demux_type": {"const": "hto" } } },
-          "then": {
-            "allOf": [
-              { "required": ["feature_ref" ] },
-              {
-                "oneOf": [
-                  { "required": ["fastq_dir"] },
-                  { "required": ["arv_uuids"] }
-                ]
-              }
-            ]
-          },
-         "else": {
-            "not": { "required": ["feature_ref"] }
-          }
-        },
-        {
-          "if": {"properties": {"demux_type": {"const": "custom" } } },
-          "then": {"required": ["demux_output" ] },
-          "else": {
-            "not": { "required": ["demux_output"] }
-          }
-        },
-        {
-          "if": {"properties": {"demux_type": {"const": "none" } } },
-          "then": {
-            "not": { "required": ["fastq_dir", "arv_uuid", "demux_output", "feature_ref"] }
-          }
-        }
-      ]
-    },
     "label_celltypes": {
       "type": "object",
       "additionalProperties": false,
       "required": ["lbl_tissue"],
       "properties": {
-        "lbl_tissue":       { "type": "string" },
+        "lbl_tissue":       { "type": "string", "default": "" },
         "lbl_sel_res_cl":   { "type": "string", "default": "RNA_snn_res.2" },
         "lbl_min_pred":     { "type": "number", "default": 0.8 },
         "lbl_min_cl_prop":  { "type": "number", "default": 0.5 },
@@ -223,8 +198,57 @@
       }
     },
     "zoom": {
+      "description": "Contains mappings of logical names to YAML file paths.",
       "type": "object",
-      "default": {}
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "patternProperties": {
+        "^(?!\\d)[^\\s]*$": {
+          "description": "The property value must be exactly one string (the file path).",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "uniqueItems": true
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "retries":                    { "type": "integer", "default": 3 },
+        "gb_run_mapping_per_gb_fq":   { "type": "integer", "default": 4 },
+        "gb_save_alevin_to_h5":       { "type": "integer", "default": 8 },
+        "gb_make_hto_sce_objects":    { "type": "integer", "default": 8 },
+        "gb_run_ambient":             { "type": "integer", "default": 8 },
+        "gb_get_barcode_qc_metrics":  { "type": "integer", "default": 8 },
+        "gb_run_qc":                  { "type": "integer", "default": 8 },
+        "gb_pb_make_pbs":             { "type": "integer", "default": 8 },
+        "gb_pb_calc_empty_genes":     { "type": "integer", "default": 8 },
+        "gb_run_hvgs":                { "type": "integer", "default": 8 },
+        "gb_run_integration":         { "type": "integer", "default": 8 },
+        "gb_make_clean_sces":         { "type": "integer", "default": 8 },
+        "gb_run_marker_genes":        { "type": "integer", "default": 16 },
+        "gb_label_celltypes":         { "type": "integer", "default": 8 },
+        "gb_render_htmls":            { "type": "integer", "default": 8 },
+        "gb_make_subset_sces":        { "type": "integer", "default": 8 }
+      }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"integration": {
+          "properties": {"int_batch_var": {"const": "pool_id" } }, "required": ["int_batch_var"] 
+        } }, "required": ["integration"]
+      },
+      "then": {
+        "properties": {"multiplexing": {
+            "properties": {"demux_type": {"not": {"const": "none" } } }, "required": ["demux_type"]
+          }
+        }, "required": ["multiplexing"]
+      }
+    }
+  ]
 }

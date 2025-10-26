@@ -1,10 +1,10 @@
 ---
 title: "HVG selection diagnostics"
 author:
-- name: ${YOUR_NAME}
+- name: ${your_name}
   affiliation: 
-  - ${AFFILIATION}
-date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
+  - ${affiliation}
+date: '`r format(as.Date("${date_stamp}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -17,10 +17,10 @@ output:
 library('BiocStyle')
 knitr::opts_chunk$set(
   autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-  fig.path = "figure/${SHORT_TAG}_hvgs.Rmd/"
+  fig.path = "figure/${short_tag}_hvgs.Rmd/"
 )
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
-# workflowr::wflow_build(files='analysis/${SHORT_TAG}_hvgs.Rmd', view=F, verbose=T, delete_cache=F)
+# workflowr::wflow_build(files='analysis/${short_tag}_hvgs.Rmd', view=F, verbose=T, delete_cache=F)
 ```
 
 ```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}

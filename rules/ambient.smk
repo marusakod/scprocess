@@ -4,80 +4,69 @@ import os
 import numpy as np
 import yaml
 import pandas as pd
+import polars as pl
 
 
-def parse_ambient_params(amb_yaml_f, sample, config, CUSTOM_SAMPLE_PARAMS_F):
+def parse_ambient_params(run, config, RUN_PARAMS, af_dir, af_rna_dir):
   # get cellbender parameters from yaml file
+  amb_yaml_f  = f'{af_dir}/af_{run}/{af_rna_dir}ambient_params_{run}_{config['project']['date_stamp']}.yaml'
   with open(amb_yaml_f) as f:
-    amb_params = yaml.load(f, Loader=yaml.FullLoader)
-      
-  # get parameters for cellbender
-  expected_cells          = amb_params['expected_cells']
-  total_droplets_included = amb_params['total_droplets_included']
-  low_count_threshold     = amb_params['low_count_threshold']
-  knee_1                  = amb_params['knee_1']
-  inflection_1            = amb_params['inflection_1']
-  knee_2                  = amb_params['knee_2']
-  inflection_2            = amb_params['inflection_2']
-  learning_rate           = config['ambient']['cb_learning_rate']
-  posterior_batch_size    = config['ambient']['cb_posterior_batch_size']
-
-  # check if cellbender specific parameters are defined for individual samples 
-  if config['ambient']['ambient_method'] == 'cellbender':
-    if CUSTOM_SAMPLE_PARAMS_F is not None:
-      # get all samples with custom params
-      with open(CUSTOM_SAMPLE_PARAMS_F) as f:
-        custom_smpl_params = yaml.load(f, Loader=yaml.FullLoader)
-      custom_smpls = list(custom_smpl_params.keys())
-
-      # loop through samples
-      if sample in custom_smpls:
-        # check if cellbender is defined
-        if 'cellbender' in custom_smpl_params[sample] and (custom_smpl_params[sample]['cellbender'] is not None):
-          if 'learning_rate' in custom_smpl_params[sample]['cellbender']: 
-            learning_rate = custom_smpl_params[sample]['cellbender']['learning_rate']
-          if 'posterior_batch_size' in custom_smpl_params[sample]['cellbender']:
-            posterior_batch_size = custom_smpl_params[sample]['cellbender']['posterior_batch_size']
-            if config['ambient']['cb_version'] != 'v0.3.2':
-              warnings.warn(f"'posterior_batch_size' is only supported in CellBender v0.3.2. Ignoring for CellBender v{config['ambient']['cb_version']}.")
+    amb_params  = yaml.load(f, Loader=yaml.FullLoader)
 
   # make dictionary for output
   params_dc = {
-    "expected_cells":           expected_cells, 
-    "total_droplets_included":  total_droplets_included, 
-    "low_count_threshold":      low_count_threshold, 
-    "learning_rate":            learning_rate, 
-    "posterior_batch_size":     posterior_batch_size, 
-    "knee_1":                   knee_1, 
-    "inflection_1":             inflection_1, 
-    "knee_2":                   knee_2, 
-    "inflection_2":             inflection_2
+    "knee1":                      amb_params['knee1'], 
+    "shin1":                      amb_params['shin1'], 
+    "knee2":                      amb_params['knee2'], 
+    "shin2":                      amb_params['shin2'], 
+    "cb_expected_cells":          amb_params['cb_expected_cells'], 
+    "cb_total_droplets_included": amb_params['cb_total_droplets_included'], 
+    "cb_low_count_threshold":     amb_params['cb_low_count_threshold'], 
+    "cb_learning_rate":           config['ambient']['cb_learning_rate'], 
+    "cb_empty_training_fraction": config['ambient']['cb_empty_training_fraction'], 
+    "cb_posterior_batch_size":    config['ambient']['cb_posterior_batch_size']
   }
+
+  # check if cellbender specific parameters are defined for individual samples 
+  if run in RUN_PARAMS:
+    run_dc    = RUN_PARAMS[run]
+    if "mapping" in run_dc:
+      for v in ["knee1", "shin1", "knee2", "shin2"]:
+        if v in run_dc["mapping"]:
+          params_dc[v] = run_dc["mapping"][v]
+    if "ambient" in run_dc:
+      for v in ['cb_expected_cells', 'cb_total_droplets_included', 'cb_low_count_threshold', 
+        'cb_learning_rate', 'cb_empty_training_fraction', 'cb_posterior_batch_size']:
+        if v in run_dc["ambient"]:
+          val = run_dc["ambient"][v]
+          if val != "":
+            params_dc[v] = val
+
   return params_dc
 
 
 # metrics_fs_ls is the list of knee files (this should exist for all ambient methods)
 # this function should run in the last rule
-def extract_ambient_sample_statistics(config, samples_ls, metrics_fs_ls, ambient_outs_yamls, SAMPLE_VAR, custom_f):
+def extract_ambient_run_statistics(config, RUNS, RUN_PARAMS, metrics_fs_ls, ambient_outs_yamls, RUN_VAR):
   # unpack
   do_cellbender = config['ambient']['ambient_method'] == "cellbender"
 
   # loop through samples
   kept_arr    = []
   totals_arr  = []
-  for sample, metrics_f, ambient_outs_yaml in zip(samples_ls, metrics_fs_ls, ambient_outs_yamls):
+  for sample, metrics_f, ambient_outs_yaml in zip(RUNS, metrics_fs_ls, ambient_outs_yamls):
     # get barcodes file from ambient outs yaml file
     with open(ambient_outs_yaml) as f:
       amb_outs = yaml.load(f, Loader=yaml.FullLoader)
-    bc_f = amb_outs['bcs_f']
    
     # count the number of barcodes
-    barcode_count = pd.read_csv(bc_f, header=None).shape[0]
+    bc_f          = amb_outs['bcs_f']
+    barcode_count = pl.read_csv(bc_f, has_header = False).shape[0]
     kept_arr.append(barcode_count)
 
     # if cellbender, get the number of total droplets included
     if do_cellbender:
-      total_droplets = pd.read_csv(metrics_f)['total_droplets_included'][0]
+      total_droplets = pl.read_csv(metrics_f, schema_overrides={"rank": pl.Float32})['total_droplets_included'][0]
       totals_arr.append(total_droplets)
 
   # tidy up into array
@@ -85,94 +74,90 @@ def extract_ambient_sample_statistics(config, samples_ls, metrics_fs_ls, ambient
 
   # if no cellbender it's easy
   if not do_cellbender:
-    sample_df = pd.DataFrame({
-      SAMPLE_VAR : samples_ls,
-      'kept_droplets': kept_arr
+    amb_stats_df = pl.DataFrame({
+      RUN_VAR:          RUNS,
+      'kept_droplets':  kept_arr
     })
   # otherwise add details of what cellbender used
   else:
     # convert to array
-    totals_arr = np.array(totals_arr)
+    totals_arr  = np.array(totals_arr)
 
-    # replace dodgy totals values with custom if need be
-    if custom_f is not None and os.path.isfile(custom_f):
-      # open custom yaml file 
-      with open(custom_f) as f:
-        all_params  = yaml.load(f, Loader=yaml.FullLoader)
+    # get all samples with custom params
+    custom_ls   = [ run_name for run_name in RUN_PARAMS if 'ambient' in RUN_PARAMS[run_name] ]
+    amb_params  = [ RUN_PARAMS[run_name]['ambient'] for run_name in custom_ls ]
 
-      # get all samples with custom params
-      custom_ls   = [ s for s in all_params.keys() if 'ambient' in all_params[s] ]
-      amb_params  = [ all_params[s]['ambient'] for s in custom_ls ]
-      custom_df   = pd.DataFrame(columns = [SAMPLE_VAR, 'total_droplets_included'])
-      for i, s in enumerate(custom_ls):
-        this_params = amb_params[ i ]
-        if 'total_droplets_included' in this_params:
-          tmp_df      = pd.DataFrame({
-            SAMPLE_VAR: s, 
-            'total_droplets_included': this_params['total_droplets_included']
-          })
-          custom_df   = custom_df.append( tmp_df )
-      
-      # use these to edit totals_arr
-      samples_arr = np.array(samples_ls)
-      for idx, row in custom_df.iterrows():
-        match_idx = np.where(samples_arr == row[SAMPLE_VAR])
-        totals_arr[match_idx] = row['total_droplets_included']
+    # check whether to add total_droplet_included
+    custom_df   = pl.DataFrame( schema = {RUN_VAR: pl.String, 'cb_total_droplets_included': pl.Int32} )
+    for i, run_name in enumerate(custom_ls):
+      # get this set of parameters
+      this_params = amb_params[ i ]
+
+      # if total droplets specified, use this instead
+      if not this_params['cb_total_droplets_included'] == '':
+        tmp_df      = pl.DataFrame({
+          RUN_VAR: run_name, 
+          'cb_total_droplets_included': this_params['cb_total_droplets_included']
+        }).with_columns(
+          # Cast the column 'cb_total_droplets_included' to Int32
+          pl.col('cb_total_droplets_included').cast(pl.Int32)
+        )
+        custom_df   = custom_df.vstack( tmp_df )
+    
+    # use these to edit totals_arr
+    samples_arr = np.array(RUNS)
+    for idx, row in custom_df.iter_rows():
+      match_idx = np.where(samples_arr == row[RUN_VAR])
+      totals_arr[match_idx] = row['cb_total_droplets_included']
 
     # do some calculations
     prop_kept = kept_arr / totals_arr
     bad_idx   = prop_kept > config['ambient']['cb_max_prop_kept']
 
     # assemble into dataframe
-    sample_df = pd.DataFrame({
-      SAMPLE_VAR : samples_ls,
-      'total_droplets': totals_arr,
-      'kept_droplets': kept_arr,
-      'prop_kept_by_cb': prop_kept,
-      'bad_sample': bad_idx
+    amb_stats_df = pl.DataFrame({
+      RUN_VAR:            RUNS,
+      'total_droplets':   totals_arr,
+      'kept_droplets':    kept_arr,
+      'prop_kept_by_cb':  prop_kept,
+      'bad_run':       bad_idx
     })
 
-  return sample_df
+  return amb_stats_df
 
 
 if config['ambient']['ambient_method'] == 'cellbender':
   rule run_cellbender:
     input:
-      h5_f        = af_dir + '/af_{run}/' + af_rna_dir  + 'af_counts_mat.h5',
+      h5_f        = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
       amb_yaml_f  = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml'
     params:
-      cb_version      = config['ambient']['cb_version'],
-      expected_cells          = parse_ambient_params(af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml',
-        sample, config, CUSTOM_SAMPLE_PARAMS_F)['expected_cells'],
-      total_droplets_included = parse_ambient_params(af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml',
-        sample, config, CUSTOM_SAMPLE_PARAMS_F)['total_droplets_included'],
-      low_count_threshold     = parse_ambient_params(af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml',
-        sample, config, CUSTOM_SAMPLE_PARAMS_F)['low_count_threshold'],
-      learning_rate           = parse_ambient_params(af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml',
-        sample, config, CUSTOM_SAMPLE_PARAMS_F)['learning_rate'],
-      posterior_batch_size    = parse_ambient_params(af_dir + f'/af_{wildcards.run}/' + af_rna_dir + f'ambient_params_{wildcards.run}_{DATE_STAMP}.yaml',
-        sample, config, CUSTOM_SAMPLE_PARAMS_F)['posterior_batch_size']
+      cb_version                  = config['ambient']['cb_version'],
+      cb_expected_cells           = lambda wildcards: parse_ambient_params(wildcards.run, config, RUN_PARAMS, af_dir, af_rna_dir)['cb_expected_cells'],
+      cb_total_droplets_included  = lambda wildcards: parse_ambient_params(wildcards.run, config, RUN_PARAMS, af_dir, af_rna_dir)['cb_total_droplets_included'],
+      cb_low_count_threshold      = lambda wildcards: parse_ambient_params(wildcards.run, config, RUN_PARAMS, af_dir, af_rna_dir)['cb_low_count_threshold'],
+      cb_learning_rate            = lambda wildcards: parse_ambient_params(wildcards.run, config, RUN_PARAMS, af_dir, af_rna_dir)['cb_learning_rate'],
+      cb_empty_training_fraction  = lambda wildcards: parse_ambient_params(wildcards.run, config, RUN_PARAMS, af_dir, af_rna_dir)['cb_empty_training_fraction'],
+      cb_posterior_batch_size     = lambda wildcards: parse_ambient_params(wildcards.run, config, RUN_PARAMS, af_dir, af_rna_dir)['cb_posterior_batch_size']
     output:
-        ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
-        tmp_f            = temp(amb_dir + '/ambient_{run}/ckpt.tar.gz')
+      ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
+      tmp_f            = temp(amb_dir + '/ambient_{run}/ckpt.tar.gz')
     threads: 1
     retries: config['resources']['retries']
     resources:
-      # mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB
-      mem_mb       = lambda wildcards, input: max(ceil(180 * os.path.getsize(input.h5_f) / 1e6),10000),
-      slurm_partition='batch_gpu',
-      qos='1d',
-      slurm_extra = "'--gpus=1'"
+      mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB,
+      slurm_partition = 'batch_gpu', qos = '1d', slurm_extra = "'--gpus=1'"
     container:
-      CELLBENDER_IMAGE
+      config['ambient']['cellbender_image']
     shell: """
       # get parameters for cellbender
       CB_VERSION={params.cb_version}
-      EXPECTED_CELLS={params.expected_cells}
-      TOTAL_DROPLETS_INCLUDED={params.total_droplets_included}
-      LOW_COUNT_THRESHOLD={params.low_count_threshold}
-      LEARNING_RATE={params.learning_rate}
-      POSTERIOR_BATCH_SIZE={params.posterior_batch_size}
+      EXPECTED_CELLS={params.cb_expected_cells}
+      TOTAL_DROPLETS_INCLUDED={params.cb_total_droplets_included}
+      LOW_COUNT_THRESHOLD={params.cb_low_count_threshold}
+      LEARNING_RATE={params.cb_learning_rate}
+      EMPTY_TRAINING_FRACTION={params.cb_empty_training_fraction}
+      POSTERIOR_BATCH_SIZE={params.cb_posterior_batch_size}
       
       # create main ambient directory
       mkdir -p {amb_dir}
@@ -194,7 +179,7 @@ if config['ambient']['ambient_method'] == 'cellbender':
         POSTERIOR_BATCH_SIZE_FLAG="--posterior-batch-size $POSTERIOR_BATCH_SIZE"
       fi
 
-      
+      # switch between cellbender running options
       if [ $EXPECTED_CELLS -eq 0 ]; then
         echo "running cellbender without expected_cells"
         # run cellbender
@@ -203,6 +188,7 @@ if config['ambient']['ambient_method'] == 'cellbender':
           --output $raw_counts_f \
           --total-droplets-included $TOTAL_DROPLETS_INCLUDED \
           --low-count-threshold $LOW_COUNT_THRESHOLD \
+          --empty-drop-training-fraction $EMPTY_TRAINING_FRACTION \
           --learning-rate $LEARNING_RATE \
           --checkpoint-mins 30.0 \
           --cuda \
@@ -216,6 +202,7 @@ if config['ambient']['ambient_method'] == 'cellbender':
           --expected-cells $EXPECTED_CELLS \
           --total-droplets-included $TOTAL_DROPLETS_INCLUDED \
           --low-count-threshold $LOW_COUNT_THRESHOLD \
+          --empty-drop-training-fraction $EMPTY_TRAINING_FRACTION \
           --learning-rate $LEARNING_RATE \
           --checkpoint-mins 30.0 \
           --cuda \
@@ -238,11 +225,11 @@ if config['ambient']['ambient_method'] == 'cellbender':
 if config['ambient']['ambient_method'] == 'decontx':
   rule run_decontx:
     input:
-      h5_f        = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
-      amb_yaml_f  = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml', 
-      knee_data_f = af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
+      h5_f            = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
+      amb_yaml_f      = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml', 
+      knee_data_f     = af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
     output:
-      ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'
+      amb_yaml_out    = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'
     params:
       ambient_method  = config['ambient']['ambient_method'],
       cell_calling    = config['ambient']['cell_calling']
@@ -257,7 +244,7 @@ if config['ambient']['ambient_method'] == 'decontx':
       mkdir -p {amb_dir}
 
       # change to sample ambient directory
-      amb_dir=$(dirname {output.ambient_yaml_out})
+      amb_dir=$(dirname {output.amb_yaml_out})
       mkdir -p $amb_dir
   
       # define output file names
@@ -266,7 +253,6 @@ if config['ambient']['ambient_method'] == 'decontx':
       dcx_params_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_params.txt.gz"
 
       # run cell calling and decontamination
-   
       Rscript -e "source('scripts/ambient.R'); get_cell_mat_and_barcodes(
         out_mat_f         = '$filt_counts_f',
         out_bcs_f         = '$bcs_f',
@@ -280,9 +266,9 @@ if config['ambient']['ambient_method'] == 'decontx':
       )"
 
       # Create the output yaml file
-      echo "filt_counts_f: $filt_counts_f" >> {output.ambient_yaml_out}
-      echo "bcs_f: $bcs_f" >> {output.ambient_yaml_out}
-      echo "dcx_params_f: $dcx_params_f" >> {output.ambient_yaml_out}
+      echo "filt_counts_f: $filt_counts_f" >> {output.amb_yaml_out}
+      echo "bcs_f: $bcs_f" >> {output.amb_yaml_out}
+      echo "dcx_params_f: $dcx_params_f" >> {output.amb_yaml_out}
 
       """
 
@@ -331,7 +317,6 @@ if config['ambient']['ambient_method'] == 'none':
       # Create the output yaml file
       echo "filt_counts_f: $filt_counts_f" >> {output.ambient_yaml_out}
       echo "bcs_f: $bcs_f" >> {output.ambient_yaml_out}
-
       """
 
 
@@ -358,14 +343,14 @@ rule get_barcode_qc_metrics:
     """
 
 
-rule get_ambient_sample_statistics:
+rule get_ambient_run_statistics:
   input:
-    metrics_fs  = expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=runs),
-    bc_qc_fs    = expand(amb_dir + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz', run=runs),
-    amb_yaml_fs = expand(amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml', run=runs)
+    metrics_fs  = expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=RUNS),
+    bc_qc_fs    = expand(amb_dir + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz', run=RUNS),
+    amb_yaml_fs = expand(amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml', run=RUNS)
   output:
-    smpl_stats_f  = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    amb_stats_f = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   run:
-    sample_stats_df   = extract_ambient_sample_statistics(config, runs, input.metrics_fs, input.amb_yaml_fs, 
-      SAMPLE_VAR, CUSTOM_SAMPLE_PARAMS_F)
-    sample_stats_df.to_csv(output.smpl_stats_f, index = False)
+    amb_stats_df = extract_ambient_run_statistics(config, RUNS, 
+      RUN_PARAMS, input.metrics_fs, input.amb_yaml_fs, RUN_VAR)
+    amb_stats_df.write_csv(output.amb_stats_f)

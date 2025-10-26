@@ -3,7 +3,6 @@ import argparse
 import subprocess
 
 # set up
-import arvados
 import collections
 import tempfile
 import gc
@@ -15,9 +14,9 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
   out_dir   = f"{af_dir}/af_{run}"
   if demux_type == "hto":
     if what == "rna":
-      out_dir = f"${out_dir}/rna"
+      out_dir = f"{out_dir}/rna"
     elif what == "hto":
-      out_dir = f"${out_dir}/hto"
+      out_dir = f"{out_dir}/hto"
   os.makedirs(out_dir, exist_ok = True)
 
   # set up simpleaf
@@ -28,6 +27,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
   on_arvados  = not os.path.exists(where)
   if on_arvados:
     print('setting up link to arvados')
+    import arvados
     # set up
     arv_uuid    = where
     arv_token   = os.environ["ARVADOS_API_TOKEN"]
@@ -108,7 +108,7 @@ if __name__ == "__main__":
 
   # set up some locations
   args    = parser.parse_args()
-  if args.demux_type == 'hto':
+  if args.what == 'hto':
     t2g_f     = f"{args.af_dir}/t2g_hto.tsv"
     index_dir = f"{args.af_dir}/hto_index"
   else:

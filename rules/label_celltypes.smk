@@ -9,21 +9,21 @@ from snakemake.utils import validate, min_version
 # do labelling
 rule get_xgboost_labels:
   input:
-    sces_yaml_f        = int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml',
-    integration_f      = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    qc_sample_stats_f  = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    sces_yaml_f       = int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml',
+    integration_f     = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    qc_sample_stats_f = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output:
-    hvg_mat_f   = lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-    guesses_f   = lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    hvg_mat_f         = lbl_dir + '/hvg_mat_for_labelling_' + 'gene_id' + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+    guesses_f         = lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   params:
-    lbl_xgb_f       = config['label_celltypes']['lbl_xgb_f'],
-    lbl_xgb_cls_f   = config['label_celltypes']['lbl_xgb_cls_f'],
-    exclude_mito    = config['qc']['exclude_mito'],
-    mkr_sel_res     = config['marker_genes']['mkr_sel_res'],
-    lbl_gene_var    = config['label_celltypes']['lbl_gene_var'],
-    lbl_min_pred    = config['label_celltypes']['lbl_min_pred'],
-    lbl_min_cl_prop = config['label_celltypes']['lbl_min_cl_prop'],
-    lbl_min_cl_size = config['label_celltypes']['lbl_min_cl_size']
+    lbl_xgb_f         = [ config['label_celltypes']['lbl_xgb_f'] if 'label_celltypes' in config else [] ],
+    lbl_xgb_cls_f     = [ config['label_celltypes']['lbl_xgb_cls_f'] if 'label_celltypes' in config else [] ],
+    exclude_mito      = [ config['qc']['exclude_mito'] if 'label_celltypes' in config else [] ],
+    mkr_sel_res       = [ config['marker_genes']['mkr_sel_res'] if 'label_celltypes' in config else [] ],
+    lbl_gene_var      = [ config['label_celltypes']['lbl_gene_var'] if 'label_celltypes' in config else [] ],
+    lbl_min_pred      = [ config['label_celltypes']['lbl_min_pred'] if 'label_celltypes' in config else [] ],
+    lbl_min_cl_prop   = [ config['label_celltypes']['lbl_min_cl_prop'] if 'label_celltypes' in config else [] ],
+    lbl_min_cl_size   = [ config['label_celltypes']['lbl_min_cl_size'] if 'label_celltypes' in config else [] ]
   threads: 4
   retries: config['resources']['retries']
   resources:

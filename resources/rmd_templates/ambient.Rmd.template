@@ -1,10 +1,10 @@
 ---
 title: "Ambient RNA removal diagnostics"
 author:
-- name: ${YOUR_NAME}
+- name: ${your_name}
   affiliation:
-  - ${AFFILIATION}
-date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
+  - ${affiliation}
+date: '`r format(as.Date("${date_stamp}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -17,10 +17,10 @@ output:
 library('BiocStyle')
 knitr::opts_chunk$set(
   autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-  fig.path = "figure/${SHORT_TAG}_ambient.Rmd/"
+  fig.path = "figure/${short_tag}_ambient.Rmd/"
   )
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
-# workflowr::wflow_build(files='analysis/${SHORT_TAG}_ambient.Rmd', view=F, verbose=T, delete_cache=F)
+# workflowr::wflow_build(files='analysis/${short_tag}_ambient.Rmd', view=F, verbose=T, delete_cache=F)
 ```
 
 ```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
@@ -31,26 +31,26 @@ setDTthreads(n_cores)
 ```
 
 ```{r setup_input, include = FALSE}
-sample_var  = "${SAMPLE_VAR}"
-amb_method  = "${AMBIENT_METHOD}"
+run_var     = "${run_var}"
+amb_method  = "${ambient_method}"
 
 # files with barcode ranks and knee parameters
-map_dir     = 'output/${SHORT_TAG}_mapping'
-amb_dir     = 'output/${SHORT_TAG}_ambient'
-stats_f     = "${smpl_stats_f}"
+map_dir     = 'output/${short_tag}_mapping'
+amb_dir     = 'output/${short_tag}_ambient'
+stats_f     = "${run_stats_f}"
 
 # get files with USA counts pre and post ambient removal
 map_yamls   = map_dir %>%
-  list.files(pattern = '^ambient_params_.+_${DATE_STAMP}.yaml', recursive = TRUE, full.names = TRUE)
-names(map_yamls) = gsub('.*\\/ambient_params_(.+)_${DATE_STAMP}.yaml', '\\1', map_yamls)
+  list.files(pattern = '^ambient_params_.+_${date_stamp}.yaml', recursive = TRUE, full.names = TRUE)
+names(map_yamls) = gsub('.*\\/ambient_params_(.+)_${date_stamp}.yaml', '\\1', map_yamls)
 amb_yamls   = amb_dir %>%
-  list.files(pattern = '^ambient_.+_${DATE_STAMP}_output_paths.yaml', recursive = TRUE, full.names = TRUE)
-names(amb_yamls) = gsub('.*\\/ambient_(.+)_${DATE_STAMP}.yaml', '\\1', amb_yamls)
+  list.files(pattern = '^ambient_.+_${date_stamp}_output_paths.yaml', recursive = TRUE, full.names = TRUE)
+names(amb_yamls) = gsub('.*\\/ambient_(.+)_${date_stamp}.yaml', '\\1', amb_yamls)
 usa_fs      = amb_dir %>%
-  list.files(pattern = '^barcodes_qc_metrics_.*_${DATE_STAMP}.txt.gz', recursive = TRUE, full.names = TRUE)
-names(usa_fs) = gsub('.*\\/barcodes_qc_metrics_(.+)_${DATE_STAMP}.txt.gz.*', '\\1', usa_fs)
+  list.files(pattern = '^barcodes_qc_metrics_.*_${date_stamp}.txt.gz', recursive = TRUE, full.names = TRUE)
+names(usa_fs) = gsub('.*\\/barcodes_qc_metrics_(.+)_${date_stamp}.txt.gz.*', '\\1', usa_fs)
 ok_bcs_fs   = amb_yamls %>% sapply(function(f) read_yaml(f)$bcs_f )
-names(ok_bcs_fs) = gsub('.*\\/(bender|decontx|uncorrected)_(.+)_${DATE_STAMP}_cell_barcodes.csv', '\\2', ok_bcs_fs)
+names(ok_bcs_fs) = gsub('.*\\/(bender|decontx|uncorrected)_(.+)_${date_stamp}_cell_barcodes.csv', '\\2', ok_bcs_fs)
 
 # check that these are ok
 assert_that(
@@ -63,7 +63,7 @@ assert_that( all(names(usa_fs) == names(ok_bcs_fs)) )
 
 ```{r load_metadata, include = FALSE}
 # get sample ids
-s_lvls      = "${RUNS_STR}" %>% 
+s_lvls      = "${runs_str}" %>% 
   str_split(pattern = ',') %>% unlist()
 stats_dt    = stats_f %>% fread
 ```
@@ -71,7 +71,8 @@ stats_dt    = stats_f %>% fread
 ```{r load_usa_fs, include = FALSE}
 usa_dt_ls   = usa_fs %>% lapply(get_usa_dt)
 ok_bcs_ls   = ok_bcs_fs %>% lapply(function(f) fread(f, header = FALSE)$V1 )
-tot_inc_ls  = map_yamls %>% lapply(function(f) read_yaml(f)$total_droplets_included )
+tot_inc_ls  = map_yamls %>% lapply(function(f) read_yaml(f)$cb_total_droplets_included )
+assert_that(!any(sapply(tot_inc_ls, is.null)))
 ```
 
 ```{r define_plot_dims, include = FALSE}
@@ -108,7 +109,7 @@ ${tbl_removed_title}
 ${tbl_removed_txt}
 
 ```{r tbl_ambient_exclusions, results = "asis", eval = print_tbl}
-calc_ambient_exclusions(stats_dt, sample_var) %>% knitr::kable()
+calc_ambient_exclusions(stats_dt, run_var) %>% knitr::kable()
 ```
 
 ## R session info

@@ -92,13 +92,13 @@ plot_ambient_gene_calculations <- function(edger_dt, max_padj = 0.01, n_top = 10
   
   # choose what to label
   labels_dt   = rbind(
-    tmp_dt %>% .[ order(-abs(logFC)) ] %>% .[ 1:n_top ],
-    tmp_dt %>% .[ order(PValue) ] %>% .[ 1:n_top ]
+    tmp_dt[ logFC > 0 ] %>% .[ order(-logFC) ] %>% .[ 1:n_top ],
+    tmp_dt[ logFC > 0 ] %>% .[ order(PValue) ] %>% .[ 1:n_top ]
     ) %>% unique %>% 
     .[, symbol := gene_id %>% str_extract(".+(?=_ENS)") ]
 
   g = ggplot(tmp_dt) +
-    aes( x = logFC, y = -log10(PValue) ) +
+    aes( x = logFC, y = -log10(FDR) ) +
     geom_hline( yintercept = -log10(max_pval), colour = 'grey', linetype = "dashed" ) +
     geom_point( size = 0.1 ) +
     geom_label_repel( data = labels_dt, aes( label = symbol ), size = 3, max.overlaps = Inf ) +
@@ -108,7 +108,7 @@ plot_ambient_gene_calculations <- function(edger_dt, max_padj = 0.01, n_top = 10
     theme( plot.caption = element_text(vjust = -0.5) ) +
     labs(
       x       = "log2fc of \"empty\" drops vs all cells",
-      y       = "-log10( nominal p-value of \"empty\" drops vs all cells )"
+      y       = "-log10( BH-adjusted p-value of \"empty\" drops vs all cells )"
     )
 
   return(g)

@@ -1,32 +1,34 @@
 # rule to aggregate single cell data into pseudobulk matrices
 
+import polars as pl
 
 localrules: make_pb_input_df
 
 
-rule make_pb_input_df: # for empty pseudobulks
+# for empty pseudobulks
+rule make_pb_input_df:
   input:
-    af_mat_ls   = expand( [af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5'], run = runs), 
-    af_knee_ls  = expand( [af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'], run = runs) 
+    af_mat_ls   = expand( [af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5'], run = RUNS), 
+    af_knee_ls  = expand( [af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'], run = RUNS) 
   output:
     af_paths_f  = pb_dir + '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   run:
     # make pandas dataframe of cellbender outputs
-    df          = pd.DataFrame({
-      SAMPLE_VAR:   runs,
+    df          = pl.DataFrame({
+      RUN_VAR:      RUNS,
       'af_mat_f':   input.af_mat_ls,
       'af_knee_f':  input.af_knee_ls
     })
     
     # save dataframe
-    df.to_csv(output.af_paths_f, index = False)
+    df.write_csv(output.af_paths_f)
 
 
 rule make_pb_empty:
   input:
-    amb_stats_f     = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    amb_stats_f     = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     af_paths_f      = pb_dir +  '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
     pb_empty_f      = pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   params:
@@ -45,7 +47,7 @@ rule make_pb_empty:
       amb_stats_f     = '{input.amb_stats_f}',
       pb_empty_f      = '{output.pb_empty_f}', 
       ambient_method  = '{params.ambient_method}',
-      sample_var      = '{SAMPLE_VAR}',
+      run_var         = '{RUN_VAR}',
       n_cores         =  {threads})"
     """
 

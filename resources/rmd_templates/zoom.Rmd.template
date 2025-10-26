@@ -1,10 +1,10 @@
 ---
 title: "Zoom in and recluster: ${zoom_name}"
 author:
-- name: ${YOUR_NAME}
+- name: ${your_name}
   affiliation:
-  - ${AFFILIATION}
-date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
+  - ${affiliation}
+date: '`r format(as.Date("${date_stamp}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -17,7 +17,7 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', warnings = FALSE, 
-  fig.path = "figure/${SHORT_TAG}_zoom_${zoom_name}.Rmd/")
+  fig.path = "figure/${short_tag}_zoom_${zoom_name}.Rmd/")
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 
 ```
@@ -41,14 +41,14 @@ zoom_name     = "${zoom_name}"
 sub_dir       = file.path(zoom_dir, zoom_name)
 
 # define files for calculating pseudobulk marker genes
-meta_f        = "${meta_f}"
+metadata_f    = "${metadata_f}"
 gtf_dt_f      = "${gtf_dt_f}"
 qc_f          = "${qc_f}"
+cell_hvgs_f   = "${cell_hvgs_f}"
 int_f         = "${int_f}"
 pb_f          = "${pb_f}"
+pb_hvgs_f     = "${pb_hvgs_f}"
 mkrs_f        = "${mkrs_f}"
-mkrs_hvgs_f   = "${mkrs_hvgs_f}"
-hvgs_f        = "${hvgs_f}"
 empty_gs_f    = "${empty_gs_f}"
 pb_empty_f    = "${pb_empty_f}"
 
@@ -60,8 +60,8 @@ fgsea_paths_f = "${fgsea_paths_f}"
 fgsea_hlmk_f  = "${fgsea_hlmk_f}"
 
 # custom markers for heatmap
-custom_mkr_names_str = "${CUSTOM_MKR_NAMES}"
-custom_mkr_paths_str = "${CUSTOM_MKR_PATHS}"
+custom_mkr_names_str = "${custom_mkr_names}"
+custom_mkr_paths_str = "${custom_mkr_paths}"
 
 if(custom_mkr_names_str != ""){
   custom_mkr_names = str_split(custom_mkr_names_str, pattern = ',') %>% unlist()
@@ -71,22 +71,22 @@ if(custom_mkr_names_str != ""){
 
 # define QC lookups
 qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
-qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') %>% 
+qc_lu       = c('no. of UMIs', 'no. of genes', 'mito pct.', 'spliced pct.') %>% 
   setNames(qc_names)
 
 # integration/clustering parameters
-res_ls  = "${INT_RES_LS}" %>%
+res_ls  = "${int_res_ls}" %>%
  str_split(pattern = ' ') %>% unlist() %>% as.numeric()  
 
 # marker parameters
-not_ok_re     = "${MKR_NOT_OK_RE}"
-sel_res       = "${MKR_SEL_RES}"
-min_cpm_mkr   = ${MKR_MIN_CPM_MKR}
-min_cells     = ${MKR_MIN_CELLS}
+not_ok_re     = "${mkr_not_ok_re}"
+sel_res       = "${mkr_sel_res}"
+min_cpm_mkr   = ${mkr_min_cpm_mkr}
+min_cells     = ${mkr_min_cells}
 
 # parameters for gsea
-gsea_cut      = ${MKR_GSEA_CUT}
-species       = "${SPECIES}"
+gsea_cut      = ${mkr_gsea_cut}
+species       = "${species}"
 
 # define nice order for plotting
 cl_ord        = NULL
@@ -99,18 +99,18 @@ if (all(metadata_vars == ""))
 
 # combine metadata variables for plot description
 metadata_txt = paste(metadata_vars, collapse = ', ') %>%
-stri_replace_last_fixed(",", " and")
+  stri_replace_last_fixed(",", " and")
 ```
 
 ```{r load_metadata, include = FALSE}
-meta_dt       = meta_f %>% fread
+meta_dt       = metadata_f %>% fread
 if(!is.null(metadata_vars)){
   assert_that( all(metadata_vars %in% names(meta_dt)) )
 }
 ```
 
 ```{r load_hvg_data, include = FALSE}
-hvgs_dt     = fread(hvgs_f)
+cell_hvgs   = fread(cell_hvgs_f)
 edger_dt    = fread(empty_gs_f)
 pb          = readRDS(pb_empty_f)
 ```
@@ -151,10 +151,10 @@ cpms_dt     = readRDS(pb_f) %>%
 ```
 
 ```{r load_mkr_hvgs, include = FALSE}
-mkrs_hvgs_dt     = fread(mkrs_hvgs_f) %>% 
+pb_hvgs_dt  = fread(pb_hvgs_f) %>% 
   .[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
   .[ order(-vst_var) ]
-top_hvgs =  mkrs_hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs" ]
+top_hvgs    =  pb_hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs" ]
 ```
 
 ```{r load_mkr_ambient_genes, include = FALSE}
@@ -178,14 +178,16 @@ if (is.null(cl_ord))
 ```{r load_heatmap_markers, include = FALSE}
 mkrs_ls   = list(HVGs = top_hvgs, ambient = ambient_gs)
 if (custom_mkr_names_str != "") {
+  # get some custom markers
   custom_mkrs_dt_ls = lapply(custom_mkr_paths, FUN = process_custom_markers, 
-    biotypes_dt = biotypes_dt, hvgs_dt = mkrs_hvgs_dt, marker_calcs_dt = mkrs_dt)
+    biotypes_dt = biotypes_dt, hvgs_dt = pb_hvgs_dt, marker_calcs_dt = mkrs_dt)
   
   # remove NULL elements from list
   custom_mkrs_dt_ls = Filter(Negate(is.null), custom_mkrs_dt_ls)
   
-  mkrs_ls = c(custom_mkrs_dt_ls, mkrs_list)
-} 
+  # add to list
+  mkrs_ls = c(custom_mkrs_dt_ls, mkrs_ls)
+}
 ```
 
 ```{r calc_empty_hvgs, include = FALSE}
@@ -233,7 +235,7 @@ annotated based on whether it is among the top HVGs and whether it is identified
 ambient gene detection step. Labelled genes are top 10 most variable.
 
 ```{r plot_std_var_vs_empty_log2fc, fig.height = 6, fig.width = 8}
-print(plot_hvg_stats_vs_empty_log2fc(hvgs_dt, edger_dt))
+print(plot_hvg_stats_vs_empty_log2fc(cell_hvgs, edger_dt))
 ```
 
 ### Which genes are "ambient"?{.tabset}
@@ -394,7 +396,7 @@ per_p   = 10
 p       = 1
 for (i in seq(1, n_pages * per_p, by = per_p)) {
   cat('#### page', p, '\n'); p = p + 1
-  sel_hvgs  = mkrs_hvgs_dt[ i:(i + 9) ]
+  sel_hvgs  = pb_hvgs_dt[ i:(i + 9) ]
   print(plot_selected_genes(sel_hvgs, cpms_dt, cl_order = cl_ord))
   cat('\n\n')
 }

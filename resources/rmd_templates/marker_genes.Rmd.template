@@ -1,10 +1,10 @@
 ---
 title: "Marker genes"
 author:
-- name: ${YOUR_NAME}
+- name: ${your_name}
   affiliation: 
-  - ${AFFILIATION}
-date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
+  - ${affiliation}
+date: '`r format(as.Date("${date_stamp}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -17,9 +17,9 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-  fig.path = "figure/${SHORT_TAG}_marker_genes_${mkr_sel_res}.Rmd/")
+  fig.path = "figure/${short_tag}_marker_genes_${mkr_sel_res}.Rmd/")
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
-# workflowr::wflow_build(files='analysis/${SHORT_TAG}_marker_genes_${mkr_sel_res}.Rmd', view=F, verbose=T, delete_cache=F)
+# workflowr::wflow_build(files='analysis/${short_tag}_marker_genes_${mkr_sel_res}.Rmd', view=F, verbose=T, delete_cache=F)
 ```
 
 ```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
@@ -33,8 +33,8 @@ setDTthreads(n_cores)
 
 ```{r setup_input, include = FALSE}
 # define files for calculating pseudobulk marker genes
-species       = "${SPECIES}"
-meta_f        = "${meta_f}"
+species       = "${species}"
+metadata_f    = "${metadata_f}"
 gtf_dt_f      = "${gtf_dt_f}"
 pb_f          = "${pb_f}"
 integration_f = "${integration_f}"
@@ -80,7 +80,7 @@ if (all(metadata_vars == ""))
 ```
 
 ```{r load_metadata, include = FALSE}
-meta_dt       = meta_f %>% fread
+meta_dt       = metadata_f %>% fread
 if(!is.null(metadata_vars)){
   assert_that( all(metadata_vars %in% names(meta_dt)) )
 }

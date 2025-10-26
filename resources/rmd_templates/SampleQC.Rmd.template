@@ -1,10 +1,10 @@
 ---
 title: "Cell-level QC"
 author:
-- name: ${YOUR_NAME}
+- name: ${your_name}
   affiliation: 
-  - ${AFFILIATION}
-date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
+  - ${affiliation}
+date: '`r format(as.Date("${date_stamp}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -17,10 +17,10 @@ output:
 library('BiocStyle')
 knitr::opts_chunk$set(
   autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-  fig.path = "figure/${SHORT_TAG}_qc.Rmd/"
+  fig.path = "figure/${short_tag}_qc.Rmd/"
 )
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
-# workflowr::wflow_build(files='analysis/${SHORT_TAG}_qc.Rmd', view=F, verbose=T, delete_cache=F)
+# workflowr::wflow_build(files='analysis/${short_tag}_qc.Rmd', view=F, verbose=T, delete_cache=F)
 ```
 
 ```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
@@ -32,24 +32,18 @@ setDTthreads(n_cores)
 
 ```{r setup_input, include = FALSE}
 # define qc metric files
-meta_f      = "${meta_f}"
+meta_f      = "${metadata_f}"
 qc_f        = "${qc_dt_f}"
+cuts_f      = "${cuts_f}"
 
 # set default values
 hard_min_counts = ${qc_hard_min_counts}
 hard_min_feats  = ${qc_hard_min_feats}
 hard_max_mito   = ${qc_hard_max_mito}
-min_counts      = ${qc_min_counts}
-min_feats       = ${qc_min_feats}
-min_mito        = ${qc_min_mito}
-max_mito        = ${qc_max_mito}
-min_splice      = ${qc_min_splice}
-max_splice      = ${qc_max_splice}
-min_cells       = ${qc_min_cells}
 
 # specifications for SampleQC
-qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
-qc_lu       = c('no. of UMIs', 'no. of genes', 'mito. pct.', 'spliced pct.') %>% 
+qc_names    = c('n_cells', 'log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
+qc_lu       = c('no. of cells', 'no. of UMIs', 'no. of genes', 'mito. pct.', 'spliced pct.') %>% 
   setNames(qc_names)
 ```
 
@@ -68,17 +62,8 @@ s_lvls      = meta_dt$sample_id %>% intersect(unique(qc_dt$sample_id))
 n_samples   = length(s_lvls)
 ```
 
-```{r make_threshold_dt, include = FALSE}
-thrshlds_ls = list(
-  log_counts    = log10(min_counts),
-  log_feats     = log10(min_feats),
-  logit_mito    = c(qlogis(min_mito), qlogis(max_mito)),
-  logit_spliced = c(qlogis(min_splice), qlogis(max_splice))
-)
-thrshlds_dt = lapply(names(thrshlds_ls), function(nn) {
-  data.table( qc_var = nn, cut_point = thrshlds_ls[[ nn ]] )
-  }) %>% rbindlist
-thrshlds_dt = thrshlds_dt[ !is.infinite(cut_point) ]
+```{r make_cuts_dt, include = FALSE}
+cuts_dt     = make_cuts_dt(cuts_f)
 ```
 
 ```{r setup_plot_sizes, include = FALSE}
@@ -91,27 +76,25 @@ marg_h      = min((n_samples + 1) * violin_h, max_marg_h)
 
 An overview of quality control (QC) metrics for all samples, both before and after filtering. The QC metrics include:
 
-* `no. of cells` : Total number of barcodes called as cells for each sample. Samples with less than `r min_cells` cells are excluded from further analysis.
+* `no. of cells` : Total number of barcodes called as cells for each sample.
 
-* `no. of UMIs` : Sum of counts across all features for each cell with log-transformed values displayed. Barcodes with fewer than `r min_counts` UMIs are excluded from further analysis.
+* `no. of UMIs` : Sum of counts across all features for each cell with log-transformed values displayed. 
 
-* `no. of genes` : Number of unique features with non-zero counts for each cell with log-transformed values displayed. Barcodes with fewer than `r min_feats` unique genes are excluded from further analysis.
+* `no. of genes` : Number of unique features with non-zero counts for each cell with log-transformed values displayed.
 
-* `mito pct.` : The proportion of reads that mapped to genes in the mitochondrial genome. High proportions are indicative of poor-quality cells (compromised membranes allow individual RNA molecules to escape while retaining mitochondria,
-leading to an increased relative abundance of mitochondrial transcript) or nuclei (incomplete removal of cytoplasm). Logit-transformed values are displayed as applying the logit (inverse logistic) transformation to mitochondrial proportions yields approximately Gaussian distributions. Barcodes with mitochondrial proportions exceeding `r max_mito*100`% are excluded from further analysis. 
+* `mito pct.` : The proportion of reads that mapped to genes in the mitochondrial genome. High proportions are indicative of poor-quality cells (compromised membranes allow individual RNA molecules to escape while retaining mitochondria, leading to an increased relative abundance of mitochondrial transcript) or nuclei (incomplete removal of cytoplasm). Logit-transformed values are displayed as applying the logit (inverse logistic) transformation to mitochondrial proportions yields approximately Gaussian distributions. 
 
 * `spliced pct.` : The proportion of spliced reads. In single-nuclei RNA sequencing, high spliced proportions may indicate inadequate removal of cytoplasmic material from the nuclei.
 Logit-transformed values are displayed as applying the logit  (inverse logistic) transformation to spliced proportions results in approximately Gaussian distributions.
-Barcodes with spliced proportions greater than `r max_splice*100`% are excluded from further analysis. 
 
 
 ```{r plot_qc_ranges_marginals, fig.height = marg_h, fig.width = 8, results = 'asis'}
 suppressWarnings({
   cat("### Pre-QC\n")
-  print(plot_qc_ranges_marginals(qc_dt, s_lvls, qc_names, qc_lu, thrshlds_dt))
+  print(plot_qc_ranges_marginals(qc_dt, s_lvls, qc_names, qc_lu, cuts_dt))
   cat("\n\n")
   cat("### After light QC\n")
-  print(plot_qc_ranges_marginals(kept_dt, s_lvls, qc_names, qc_lu, thrshlds_dt))
+  print(plot_qc_ranges_marginals(kept_dt, s_lvls, qc_names, qc_lu, cuts_dt))
   cat("\n\n")
 })
 ```
@@ -126,7 +109,7 @@ for (s in s_lvls) {
   if (nrow(qc_tmp) == 1)
     next
   cat('### ', s, '\n')
-  print(plot_qc_metric_scatter(qc_tmp, qc_names, qc_lu, thrshlds_dt))
+  print(plot_qc_metric_scatter(qc_tmp, qc_names, qc_lu, cuts_dt[ sample_id == s ]))
   cat('\n\n')
 }
 ```
@@ -137,7 +120,7 @@ Table summarizing the number of cells before and after qc filtering. Some sample
 may have been excluded from further analysis due to insufficient number of cells.
 
 ```{r print_totals_excluded}
-calc_qc_summary(qc_dt, kept_dt, thrshlds_ls, qc_lu) %>% knitr::kable()
+calc_qc_summary(qc_dt, kept_dt, cuts_dt, qc_lu) %>% knitr::kable()
 ```
 
 ## What were the reasons for excluding barcodes?{.tabset}
@@ -150,7 +133,7 @@ for (s in s_lvls) {
   if (nrow(qc_tmp) == 1 | sum(qc_tmp$keep) == nrow(qc_tmp))
     next
   cat('### ', s, '\n')
-  suppressMessages( print(plot_upset_of_exclusions(qc_tmp, qc_names, qc_lu, thrshlds_ls)) )
+  suppressMessages( print(plot_upset_of_exclusions(qc_tmp, qc_names, qc_lu, cuts_dt)) )
   cat('\n\n')
 }
 ```

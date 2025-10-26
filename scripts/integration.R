@@ -170,8 +170,6 @@ make_clean_sces <- function(sel_s, integration_f, sces_yaml_f, clean_sce_f){
   message('done!')
 }
 
-
-
 .run_one_integration <- function(seu_obj, batch_var, cl_method, n_dims, theta = 0, res_ls, reduction) {
   message('    scaling')
   seu_obj   = seu_obj %>%
@@ -231,7 +229,6 @@ make_clean_sces <- function(sel_s, integration_f, sces_yaml_f, clean_sce_f){
   return(integration_dt)
 }
 
-
 normalize_hvg_mat = function(hvg_mat, coldata, exclude_mito, scale_f = 10000) {
   
   if(exclude_mito){
@@ -249,7 +246,6 @@ normalize_hvg_mat = function(hvg_mat, coldata, exclude_mito, scale_f = 10000) {
   return(log_norm_mat)
 }
 
-
 .calc_dbl_data <- function(hmny_dbl, dbl_ids, dbl_res, dbl_cl_prop) {
   # assemble useful doublet data
   dbl_data = hmny_dbl %>%
@@ -264,8 +260,6 @@ normalize_hvg_mat = function(hvg_mat, coldata, exclude_mito, scale_f = 10000) {
 
   return(dbl_data)
 }
-
-
 
 plot_umap_density <- function(input_dt) {
   # eps         = 0.001

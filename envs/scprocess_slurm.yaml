@@ -118,7 +118,7 @@ dependencies:
   - plotly=6.2.0
   - plotly_express=0.4.1
   - pluggy=1.6.0
-  - polars=1.31.0
+  - polars=1.34.0
   - polars-default=1.31.0
   - psutil=7.0.0
   - pulp=2.8.0

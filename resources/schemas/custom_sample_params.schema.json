@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Custom Sample Parameters Configuration (Map Format)",
+  "description": "Schema for a configuration file defining parameters where keys are sample names and values are parameter objects.",
+  "type": "object",
+  "additionalProperties": false,
+  "minProperties": 1,
+  "properties": {
+    "pool_id": {
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Custom parameters for a single pool.",
+        "properties": {
+          "project": {
+            "type": "object",
+            "description": "Overall parameters.",
+            "additionalProperties": false,
+            "properties": {
+              "tenx_chemistry": {
+                "description": "The 10x Genomics chemistry version used.",
+                "type": "string",
+                "enum": ["3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"]
+              }
+            }
+          },
+          "mapping": {
+            "type": "object",
+            "description": "Parameters specific to pool mapping.",
+            "additionalProperties": false,
+            "properties": {
+              "knee1": { "type": "integer", "exclusiveMinimum": 0, "description": "Knee point 1 for cell calling." },
+              "shin1": { "type": "integer", "exclusiveMinimum": 0, "description": "Shin point 1 for cell calling." },
+              "knee2": { "type": "integer", "exclusiveMinimum": 0, "description": "Knee point 2 for cell calling." },
+              "shin2": { "type": "integer", "exclusiveMinimum": 0, "description": "Shin point 2 for cell calling." }
+            }
+          },
+          "ambient": {
+            "type": "object",
+            "description": "Parameters specific to ambient RNA removal.",
+            "additionalProperties": false,
+            "properties": {
+              "cb_expected_cells": { 
+                "type": "integer", 
+                "exclusiveMinimum": 0, 
+                "description": "Expected number of cells." 
+              },
+              "cb_total_droplets_included": { 
+                "type": "integer", 
+                "exclusiveMinimum": 0, 
+                "description": "Total droplets included for background estimation." 
+              },
+              "cb_low_count_threshold": { 
+                "type": "integer", 
+                "exclusiveMinimum": 0, 
+                "description": "Minimum UMI count threshold." 
+              },
+              "cb_learning_rate": { 
+                "type": "number", 
+                "description": "Learning rate for the model." 
+              },
+              "cb_posterior_batch_size": { 
+                "type": "integer", 
+                "exclusiveMinimum": 0, 
+                "description": "Batch size for posterior estimation." 
+              },
+              "cb_empty_training_fraction": { 
+                "type": "number", 
+                "exclusiveMinimum": 0, "exclusiveMaximum": 1,
+                "description": "Batch size for posterior estimation."
+              }
+            }
+          }
+        }
+      }
+    },
+    "sample_id": {
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Custom parameters for a single sample.",
+        "properties": {
+          "project": {
+            "type": "object",
+            "description": "Overall parameters.",
+            "additionalProperties": false,
+            "properties": {
+              "tenx_chemistry": {
+                "description": "The 10x Genomics chemistry version used.",
+                "type": "string",
+                "enum": ["3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"]
+              }
+            }
+          },
+          "mapping": {
+            "type": "object",
+            "description": "Parameters specific to sample mapping.",
+            "additionalProperties": false,
+            "properties": {
+              "knee1": { "type": "integer", "exclusiveMinimum": 0, "description": "Knee point 1 for cell calling." },
+              "shin1": { "type": "integer", "exclusiveMinimum": 0, "description": "Shin point 1 for cell calling." },
+              "knee2": { "type": "integer", "exclusiveMinimum": 0, "description": "Knee point 2 for cell calling." },
+              "shin2": { "type": "integer", "exclusiveMinimum": 0, "description": "Shin point 2 for cell calling." }
+            }
+          },
+          "ambient": {
+            "type": "object",
+            "description": "Parameters specific to ambient RNA removal.",
+            "additionalProperties": false,
+            "properties": {
+              "cb_expected_cells": { 
+                "type": "integer", 
+                "exclusiveMinimum": 0, 
+                "description": "Expected number of cells." 
+              },
+              "cb_total_droplets_included": { 
+                "type": "integer", 
+                "exclusiveMinimum": 0, 
+                "description": "Total droplets included for background estimation." 
+              },
+              "cb_low_count_threshold": { 
+                "type": "integer", 
+                "exclusiveMinimum": 0, 
+                "description": "Minimum UMI count threshold." 
+              },
+              "cb_learning_rate": { 
+                "type": "number", 
+                "description": "Learning rate for the model." 
+              },
+              "cb_posterior_batch_size": { 
+                "type": "integer", 
+                "exclusiveMinimum": 0, 
+                "description": "Batch size for posterior estimation." 
+              },
+              "cb_empty_training_fraction": { 
+                "type": "number", 
+                "exclusiveMinimum": 0, "exclusiveMaximum": 1,
+                "description": "Batch size for posterior estimation."
+              }
+            }
+          },
+          "qc": {
+            "type": "object",
+            "description": "Parameters specific to QC.",
+            "additionalProperties": false,
+            "properties": {
+              "qc_min_counts":  { "type": "integer", "exclusiveMinimum": 0, "default": 500 },
+              "qc_min_feats":   { "type": "integer", "exclusiveMinimum": 0, "default": 300 },
+              "qc_min_mito":    { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
+              "qc_max_mito":    { "type": "number", "minimum": 0, "maximum": 1, "default": 0.1 },
+              "qc_min_splice":  { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
+              "qc_max_splice":  { "type": "number", "minimum": 0, "maximum": 1, "default": 1 },
+              "qc_min_cells":   { "type": "integer", "exclusiveMinimum": 0, "default": 100 },
+              "dbl_min_feats":  { "type": "integer", "exclusiveMinimum": 0, "default": 100 },
+              "exclude_mito":   { "type": "boolean", "default": true }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -100,17 +100,17 @@ Note that the first column of the sample metadata file (`sample_id`) contains va
 The configuration file template `config-test_project.yaml` was created in the `test_project` root directory with the `newproj` function. In this file, all [required parameters](reference.md#required-parameters) for {{sc}} are listed, with some default values already set:
 
 ```yaml
-proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
-fastq_dir: data/fastqs
-full_tag: test_project
-short_tag: 
-your_name: 
-affiliation:
-sample_metadata: data/metadata/
-species:
-date_stamp: "2025-01-01"
-alevin:
-  chemistry:
+project:
+  proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
+  fastq_dir: data/fastqs
+  full_tag: test_project
+  short_tag: 
+  your_name: 
+  affiliation:
+  sample_metadata: data/metadata/
+  species:
+  date_stamp: "2025-01-01"
+  tenx_chemistry:
 ```
 
 In addition to setting values for the required parameters, we will include the optional `metadata_vars` and `custom_sets` parameters. The `metadata_vars` parameter allows us to specify additional metadata variables for visualization, while the `custom_sets` parameter enables us to provide a file containing a list of marker genes associated with different cell types expected in our dataset. In this case, we only need to specify the name of the marker gene file, as the corresponding file `mouse_brain.csv` already exists in the `$SCPROCESS_DATA_DIR/marker_genes` directory.
@@ -118,20 +118,20 @@ In addition to setting values for the required parameters, we will include the o
 Note that `proj_dir` requires an absolute path, whereas `fastq_dir` and `sample_metadata` can use relative paths, since the raw data and sample metadata are stored within the project directory:
 
 ```yaml
-proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
-fastq_dir: data/fastqs
-full_tag: test_project
-short_tag: test
-your_name: Test McUser
-affiliation: Unemployed
-sample_metadata: data/metadata/test_project_metadata.csv
-species: mouse_2024
-date_stamp: "2025-01-01"
-metadata_vars: [group]
-alevin:
-  chemistry: 3v3
+project:
+  proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
+  fastq_dir: data/fastqs
+  full_tag: test_project
+  short_tag: test
+  your_name: Test McUser
+  affiliation: Unemployed
+  sample_metadata: data/metadata/test_project_metadata.csv
+  species: mouse_2024
+  date_stamp: "2025-01-01"
+  metadata_vars: [group]
+  tenx_chemistry: 3v3
 marker_genes:
-  custom_sets:
+  mkr_custom_genesets:
     - name: mouse_brain
 ```
 
@@ -161,36 +161,37 @@ In the following section, we will leverage this information to perform subcluste
 
 ### Zooming in 
 
-To perform subclustering analysis, we first need to create a configuration file each cell population we want to subcluster. In this example, we will create a single file for OPCs and oligodendrocytes, named `config-zoom-oligos_opcs.yaml`, with the following parameters: 
+To perform subclustering analysis, we first need to create a configuration file each cell population we want to subcluster. In this example, we will create a single file for OPCs and oligodendrocytes, named `zoom_params_test_project-oligos_opcs.yaml`, with the following parameters: 
 
 ```yaml
-labels: [cl01, cl04, cl06]
-labels_source: clusters
-cluster_res: 0.2
+zoom:
+  labels_source: clusters
+  sel_labels: [cl01, cl04, cl06]
+  labels_col: RNA_snn_res.0.2
 ```
 
-The `labels` parameter specifies the clusters to include in the subclustering analysis. The value of the `labels_source` parameter is set to `cluster` to indicate that the labels correspond to names of clusters identified by {{sc}}. `cluster_res` denotes the resolution value (0.2) used to define the listed clusters during the clustering step.
+The value of the `labels_source` parameter is set to `clusters` to indicate that the labels correspond to names of clusters identified by {{sc}}. The `sel_labels` parameter specifies the clusters to include in the subclustering analysis. `labels_col` denotes the name of the column in the clustering file that is used to define the listed clusters during the clustering step.
 
 Next, we need to link this new configuration file to the main project configuration file i.e. `config-test_project.yaml`. To do this, we will add the path to the subclustering configuration file under the `zoom` section, along with the name of the cell population (e.g., `oligos_opcs`), as shown below:
 
 ```yaml hl_lines="16 17"
-proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
-fastq_dir: data/fastqs
-full_tag: test_project
-short_tag: test
-your_name: Test McUser
-affiliation: Unemployed
-sample_metadata: data/metadata/test_project_metadata.csv
-species: mouse_2024
-date_stamp: "2025-01-01"
-metadata_vars: [group]
-alevin:
-  chemistry: 3v3
+project:
+  proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
+  fastq_dir: data/fastqs
+  full_tag: test_project
+  short_tag: test
+  your_name: Test McUser
+  affiliation: Unemployed
+  sample_metadata: data/metadata/test_project_metadata.csv
+  species: mouse_2024
+  date_stamp: "2025-01-01"
+  metadata_vars: [group]
+  tenx_chemistry: 3v3
 marker_genes:
   custom_sets:
     - name: mouse_brain
 zoom:
-  oligos_opcs: config-zoom-oligos_opcs.yaml
+  oligos_opcs: zoom_params_test_project-oligos_opcs.yaml
 ```
 
 Finally, we can run the subclustering analysis using the following command:
@@ -317,33 +318,33 @@ totalseq_B0304_hashtag4  AAAGCATTCTTCACG
 The configuration file template `config-test_multiplexed_project.yaml` was created in the `test_multiplexed_project` root directory with the `newproj` function. In this file, all [required parameters](reference.md#required-parameters) for {{sc}} are listed, with some default values already set:
 
 ```yaml
-proj_dir: /absolute/path/to/test_multiplexed_project
-fastq_dir: data/fastqs
-full_tag: test_multiplexed_project
-short_tag:
-your_name:
-affiliation:
-sample_metadata: data/metadata/
-species:
-date_stamp: "2025-08-19"
-alevin:
- chemistry:
+project:
+  proj_dir: /absolute/path/to/test_multiplexed_project
+  fastq_dir: data/fastqs
+  full_tag: test_multiplexed_project
+  short_tag:
+  your_name:
+  affiliation:
+  sample_metadata: data/metadata/
+  species:
+  date_stamp: "2025-08-19"
+  tenx_chemistry:
 ```
 
 In addition to setting the parameters already present in the template configuration file, we must also define additional parameters specific to the multiplexed nature of the dataset. These key parameters are highlighted below:
 
 ```yaml hl_lines="12 13 14 15"
-proj_dir: /absolute/path/to/test_multiplexed_project
-fastq_dir: data/fastqs/rna
-full_tag: test_multiplexed_project
-short_tag: test
-your_name: Test McUser
-affiliation: Unemployed
-sample_metadata: data/metadata/multiplexed_test_project_metadata.csv
-species: mouse_2024
-date_stamp: "2025-01-01"
-alevin:
-  chemistry: 3v3
+project:
+  proj_dir: /absolute/path/to/test_multiplexed_project
+  fastq_dir: data/fastqs/rna
+  full_tag: test_multiplexed_project
+  short_tag: test
+  your_name: Test McUser
+  affiliation: Unemployed
+  sample_metadata: data/metadata/multiplexed_test_project_metadata.csv
+  species: mouse_2024
+  date_stamp: "2025-01-01"
+  tenx_chemistry: 3v3
 multiplexing:
   demux_type: hto
   fastq_dir: data/fastqs/hto
