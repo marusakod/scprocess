@@ -31,10 +31,10 @@ suppressPackageStartupMessages({
   library('rhdf5')
   library('Matrix')
   # library('Matrix.utils')
+  library('parallel')
   library('edgeR')
   library('yaml')
 })
-
 
 make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset_col = NULL, subset_str = NULL, n_cores = 8) {
   # get files
@@ -55,15 +55,6 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
 
   # merge sce objects
   pb_sce = Reduce(function(x, y) {cbind(x, y)}, cell_pbs)
-
-  # make sure all samples are in the matrix, if not, add columns with 0
-  # missing_samps = setdiff(sample_ls, colnames(pb_mat))
-  # if ( length(missing_samps) > 0 ) {
-  #   missing_cols  = Matrix(0, nrow = nrow(pb_mat), ncol = length(missing_samps), 
-  #     sparse = TRUE, dimnames = list(rownames(pb_mat), missing_samps))
-  #   pb_mat        = cbind(pb_mat, missing_cols)
-  #   pb_mat        = pb_mat[, sample_ls ]    
-  # }
 
   # store
   message('  save')
@@ -104,46 +95,49 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
 }
 
 
-make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f, ambient_method, 
-  run_var = 'sample_id', n_cores = 8) {
+make_pb_empty <- function(sel_run, af_paths_f, pb_empty_f, ambient_method, run_var = 'sample_id') {
   message('create pseudobulk matrix for empty droplets')
-  
   # get files
   af_paths_df   = fread(af_paths_f)
-  sample_ls     = af_paths_df[[run_var]] %>% unique()
-  af_mat_ls     = af_paths_df$af_mat_f %>% unique()
-  af_knee_ls    = af_paths_df$af_knee_f %>% unique()
   
   # get bad cellbender samples
-  if(ambient_method == 'cellbender'){
-    amb_stats_dt  = fread(amb_stats_f) 
-    bad_runs      = amb_stats_dt[ bad_run == TRUE, get(run_var) ]
-    if(length(bad_runs) != 0){
-      # don't include bad samples into empty pseudobulk matrix
-      keep_idx   = which(!sample_ls %in% bad_runs)
-      sample_ls  = sample_ls[keep_idx]
-      af_mat_ls  = af_mat_ls[keep_idx]
-      af_knee_ls = af_knee_ls[keep_idx]
+  if (ambient_method == 'cellbender') {
+    bad_runs      = af_paths_df[ bad_run == TRUE, get(run_var) ]
+    if (sel_run %in% bad_runs) {
+      # write an empty file
+      file.create(pb_empty_f)
+      return(NULL)
     }
   }
   
+  af_mat_f     = af_paths_df %>% .[get(run_var) == sel_run, af_mat_f] %>% unique()
+  af_knee_f    = af_paths_df %>% .[get(run_var) == sel_run, af_knee_f] %>% unique()
+  
   # do some checks
-  assert_that( all(
-    str_extract(af_mat_ls, '\\/af_.*\\/') == str_extract(af_knee_ls, '\\/af_.*\\/')
-  ))
-  assert_that(
-    all( str_detect(af_mat_ls, sample_ls) ),
-    all( str_detect(af_knee_ls, sample_ls) )
-  )
+  assert_that(str_extract(af_mat_f, '\\/af_.*\\/') == str_extract(af_knee_f, '\\/af_.*\\/'))
   
-  # set up parallelization
-  bpparam       = MulticoreParam(workers = n_cores, tasks = length(sample_ls))
-  on.exit(bpstop(bpparam))
+  # get empty pseudobulk
+  empty_pb     = .get_one_empty_pb( sample_id = sel_run, af_mat_f = af_mat_f, af_knee_f = af_knee_f)
   
-  # get empty pseudobulks
-  empty_pbs     = bpmapply( sample_id = sample_ls, af_mat_f = af_mat_ls,
-                            af_knee_f = af_knee_ls,
-                            FUN = .get_one_empty_pb, SIMPLIFY = FALSE, BPPARAM = bpparam)
+  # save empty pseudobulk for one sample
+  message(' saving empty pseudobulk for run ', sel_run)
+  saveRDS(empty_pb, file = pb_empty_f)
+  
+  message(' done!')
+}
+
+
+merge_empty_pbs <- function(af_paths_f, rowdata_f, empty_pbs_f, ambient_method){
+  
+  # get paths to empty pb files for for runs that weren't excluded
+  af_paths_df = fread(af_paths_f)  
+  if (ambient_method == 'cellbender') {
+    af_paths_df = af_paths_df %>%
+      .[ bad_run == FALSE ]
+  }
+  
+  empty_pb_fs   = af_paths_df$pb_tmp_f %>% unique()
+  empty_pbs      = empty_pb_fs %>% lapply(FUN = readRDS)
   pb_empty      = do.call('cbind', empty_pbs)
   
   # get nice rows
@@ -160,27 +154,25 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f, ambien
   
   # store
   message(' save')
-  saveRDS(pb_empty, pb_empty_f)
+  saveRDS(pb_empty, empty_pbs_f)
   
   message(' done!')
 }
 
 
 .get_one_empty_pb <- function(sample_id, af_mat_f, af_knee_f) {
-  # get full alevin matrix
-  af_mat_SUA  = .get_h5(af_mat_f)
-  af_mat      = .sum_SUA(af_mat_SUA)
   
   # get empty barcodes
   knee_df     = fread(af_knee_f)
   empty_bcs   = knee_df %>%
     .[in_empty_plateau == TRUE, barcode]
   
-  # get empty matrix
-  message('sample ', sample_id, ': extracting empty counts from alevin matrix')
-  assert_that( all(empty_bcs %in% colnames(af_mat)) )
-  empty_mat   = af_mat[, empty_bcs]
-  
+  rm(knee_df)
+
+  # get full alevin matrix
+  empty_mat      = .get_h5(af_mat_f, empty_bcs)
+  empty_mat      = .sum_SUA(empty_mat)
+
   # sum over all empties per samples
   empty_pb    = Matrix::rowSums(empty_mat) %>%
     setNames(rownames(empty_mat)) %>%
@@ -258,7 +250,7 @@ make_pb_empty <- function(af_paths_f, rowdata_f, amb_stats_f, pb_empty_f, ambien
 }
 
 
-.get_h5 <- function(h5_f, barcodes = NULL) {
+.get_h5 <- function(h5_f = h5_f, barcodes = empty_bcs) {
   
   h5_full = H5Fopen(h5_f, flags = "H5F_ACC_RDONLY" )
   

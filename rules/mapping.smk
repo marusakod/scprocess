@@ -27,6 +27,8 @@ rule run_mapping:
     mtx_f         = af_dir + '/af_{run}/'  + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
     cols_f        = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_cols.txt',
     rows_f        = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_rows.txt'
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_mapping/run_mapping_{run}_' + DATE_STAMP + '.benchmark.txt'
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -76,6 +78,8 @@ rule save_alevin_to_h5:
   retries: config['resources']['retries']
   resources:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_save_alevin_to_h5'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_mapping/save_alevin_to_h5_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
    '../envs/rlibs.yaml'
   shell: """
@@ -96,3 +100,4 @@ rule save_alevin_to_h5:
         low_count_thr = '{params.low_count_thr}'
       )"
     """
+

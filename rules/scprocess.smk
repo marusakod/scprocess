@@ -12,12 +12,12 @@ sys.path.append('scripts')
 from scprocess_utils import *
 
 # define some things
-scprocess_dir   = pathlib.Path(config.pop('scprocess_dir'))
-schema_f        = scprocess_dir / "resources/schemas/config.schema.json"
-scdata_dir      = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
+scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
+schema_f      = scprocess_dir / "resources/schemas/config.schema.json"
+scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 
 # check config
-config          = check_config(config, schema_f, scdata_dir, scprocess_dir)
+config        = check_config(config, schema_f, scdata_dir, scprocess_dir)
 
 # get lists of parameters
 RUN_PARAMS, RUN_VAR = get_run_parameters(config, scdata_dir)
@@ -33,22 +33,23 @@ SHORT_TAG       = config['project']['short_tag']
 DATE_STAMP      = config['project']['date_stamp']
 
 # specify locations
-code_dir        = f"{PROJ_DIR}/code"
-af_dir          = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
-af_rna_dir      = 'rna/' if config['multiplexing']['demux_type'] == "hto" else ''
-amb_dir         = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
-demux_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
-dbl_dir         = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
-qc_dir          = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
-hvg_dir         = f"{PROJ_DIR}/output/{SHORT_TAG}_hvg"
-int_dir         = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
-mkr_dir         = f"{PROJ_DIR}/output/{SHORT_TAG}_marker_genes"
-lbl_dir         = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
-meta_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_metacells"
-pb_dir          = f"{PROJ_DIR}/output/{SHORT_TAG}_pseudobulk"
-empty_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_empties"
-rmd_dir         = f"{PROJ_DIR}/analysis"
-docs_dir        = f"{PROJ_DIR}/public"
+benchmark_dir = f"{PROJ_DIR}/.resources"
+code_dir      = f"{PROJ_DIR}/code"
+af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
+af_rna_dir    = 'rna/' if config['multiplexing']['demux_type'] == "hto" else ''
+amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
+demux_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
+dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
+qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
+hvg_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_hvg"
+int_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
+mkr_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_marker_genes"
+lbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
+meta_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_metacells"
+pb_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_pseudobulk"
+empty_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_empties"
+rmd_dir       = f"{PROJ_DIR}/analysis"
+docs_dir      = f"{PROJ_DIR}/public"
 
 # scripts
 r_scripts = [

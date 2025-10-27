@@ -6,49 +6,87 @@ localrules: make_pb_input_df
 
 
 # for empty pseudobulks
-rule make_pb_input_df:
+rule make_empty_pb_input_df:
   input:
     af_mat_ls   = expand( [af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5'], run = RUNS), 
-    af_knee_ls  = expand( [af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'], run = RUNS) 
+    af_knee_ls  = expand( [af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'], run = RUNS),
+    run_stats_f = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output:
     af_paths_f  = pb_dir + '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   run:
-    # make pandas dataframe of cellbender outputs
+    # make dataframe with alevin outputs
     df          = pl.DataFrame({
       RUN_VAR:      RUNS,
       'af_mat_f':   input.af_mat_ls,
       'af_knee_f':  input.af_knee_ls
     })
     
+    # add bad sample labels if cellbender
+    if config['ambient']['ambient_method'] == 'cellbender':
+      run_stats_df  = pl.read_csv(input.run_stats_f).select([RUN_VAR, 'bad_run'])
+      df            = df.join(run_stats_df, on = RUN_VAR)
+
+    # add output file paths
+    pb_tmp_pat  = f"{pb_dir}/tmp_pb_empties_{"{}"}_{FULL_TAG}_{DATE_STAMP}.rds"
+    df          = df.with_columns(
+      pl.format(pb_tmp_pat, pl.col(RUN_VAR)).alias('pb_tmp_f')
+    )
+
     # save dataframe
     df.write_csv(output.af_paths_f)
 
 
-rule make_pb_empty:
+# make empties per sample then combine
+rule make_one_pb_empty:
   input:
-    amb_stats_f     = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    af_paths_f      = pb_dir +  '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+    af_paths_f    = pb_dir +  '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output:
-    pb_empty_f      = pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+    pb_empty_f    = temp(pb_dir + '/tmp_pb_empties_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds')
   params:
     ambient_method  = config['ambient']['ambient_method']
-  threads: 8
+  threads: 1
   retries: config['resources']['retries']
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_pb_make_pbs'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_pb_empties/make_one_pb_empty_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
     Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
-    make_pb_empty( \
+    make_pb_empty(
+      sel_run         = '{wildcards.run}', 
       af_paths_f      = '{input.af_paths_f}', 
-      rowdata_f       = '{input.rowdata_f}',
-      amb_stats_f     = '{input.amb_stats_f}',
       pb_empty_f      = '{output.pb_empty_f}', 
       ambient_method  = '{params.ambient_method}',
-      run_var         = '{RUN_VAR}',
-      n_cores         =  {threads})"
+      run_var         = '{RUN_VAR}')"
+    """
+
+rule merge_pb_empty:
+  input:
+    pb_empty_fs   = expand(pb_dir + '/tmp_pb_empties_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', run = RUNS), 
+    rowdata_f     = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
+    af_paths_f    = pb_dir +  '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+  output:
+    pb_empty_f    = pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+  params:
+    ambient_method  = config['ambient']['ambient_method']
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_pb_make_pbs'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_pb_empties/merge_pb_empty_' + DATE_STAMP + '.benchmark.txt'
+  conda: 
+    '../envs/rlibs.yaml'
+  shell: """
+    Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
+    merge_empty_pbs( \
+      af_paths_f      = '{input.af_paths_f}', 
+      rowdata_f       = '{input.rowdata_f}',
+      empty_pbs_f     = '{output.pb_empty_f}', 
+      ambient_method  = '{params.ambient_method}'
+    )"
     """
 
 
@@ -64,6 +102,8 @@ rule make_pb_all:
   retries: config['resources']['retries']
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_pb_make_pbs'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_pb_empties/make_pb_all_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
@@ -90,6 +130,8 @@ rule calculate_ambient_genes:
   retries: config['resources']['retries']
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_pb_make_pbs'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_pb_empties/calculate_ambient_genes_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell: """

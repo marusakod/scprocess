@@ -25,6 +25,8 @@ rule run_integration:
     mem_mb   = lambda wildcards, attempt: attempt * config['resources']['gb_run_integration'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_integration/run_integration_' + DATE_STAMP + '.benchmark.txt'
   shell:"""
     # run harmony
     Rscript -e "source('scripts/integration.R'); source('scripts/ambient.R');
@@ -59,6 +61,8 @@ rule make_clean_sces:
   retries: config['resources']['retries']
   resources:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_make_clean_sces'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_integration/make_clean_sces_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
   shell: """

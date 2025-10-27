@@ -146,7 +146,8 @@ if config['ambient']['ambient_method'] == 'cellbender':
     retries: config['resources']['retries']
     resources:
       mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB,
-      slurm_partition = 'batch_gpu', qos = '1d', slurm_extra = "'--gpus=1'"
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_ambient/run_cellbender_{run}_' + DATE_STAMP + '.benchmark.txt'
     container:
       config['ambient']['cellbender_image']
     shell: """
@@ -237,6 +238,8 @@ if config['ambient']['ambient_method'] == 'decontx':
     retries: config['resources']['retries']
     resources:
       mem_mb    = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_ambient/run_decontx_{run}_' + DATE_STAMP + '.benchmark.txt'
     conda: 
       '../envs/rlibs.yaml'
     shell:"""
@@ -290,7 +293,10 @@ if config['ambient']['ambient_method'] == 'none':
       '../envs/rlibs.yaml'
     resources:
       mem_mb    = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB
-    shell:"""
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_ambient/run_cell_calling_{run}_' + DATE_STAMP + '.benchmark.txt'
+    shell:
+      """
       # create main ambient directory
       mkdir -p {amb_dir}
 
@@ -335,6 +341,8 @@ rule get_barcode_qc_metrics:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_get_barcode_qc_metrics'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_ambient/get_barcode_qc_metrics_{run}_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     # save barcode stats
     Rscript -e "source('scripts/ambient.R'); \

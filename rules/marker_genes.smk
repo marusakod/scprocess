@@ -44,6 +44,8 @@ rule run_marker_genes:
   retries: config['resources']['retries']
   resources:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_marker_genes'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_marker_genes/run_marker_genes_' + DATE_STAMP + '.benchmark.txt'
   conda: '../envs/rlibs.yaml'
   shell:"""
     Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); calculate_marker_genes(

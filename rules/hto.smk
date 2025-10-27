@@ -42,7 +42,7 @@ rule run_mapping_hto:
   resources:
     mem_mb        = lambda wildcards, attempt: attempt * 4 * MB_PER_GB
   input: 
-    hto_idx_dir   = directory(af_dir + '/hto_index')
+    hto_idx_dir   = af_dir + '/hto_index'
   output:
     fry_dir       = directory(af_dir + '/af_{run}/hto/af_quant/'),
     rad_f         = temp(af_dir + '/af_{run}/hto/af_map/map.rad'),
@@ -117,6 +117,8 @@ rule make_hto_sce_objects:
   retries: config['resources']['retries']
   resources:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_make_hto_sce_objects'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_make_hto_sce/make_hto_sce_objects_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda:
    '../envs/rlibs.yaml'
   shell: """

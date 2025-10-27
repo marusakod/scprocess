@@ -36,7 +36,7 @@ def get_sce_fs_str(wildcards):
   return get_qc_files_str(wildcards.run, SAMPLES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP)['sce_str']
 
 
-def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, cuts_f, config, SAMPLES, RUN_VAR, SAMPLES_TO_RUNS):
+def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, SAMPLES, RUN_VAR, SAMPLES_TO_RUNS):
   # load the merged qc file, also thresholds
   qc_df     = pl.read_csv(qc_merged_f)
   cuts_df   = pl.read_csv(cuts_f)
@@ -56,7 +56,7 @@ def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, cuts_f, config, S
   # handle samples excluded after cellbender
   if config['ambient']['ambient_method'] == 'cellbender':
     # load ambient sample stats
-    amb_stats   = pl.read_csv(ambient_stats_f)
+    amb_stats   = pl.read_csv(run_stats_f)
 
     # get bad pools or samples
     bad_bender  = amb_stats.filter( pl.col('bad_run') )[ RUN_VAR ].to_list()
@@ -69,7 +69,6 @@ def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, cuts_f, config, S
           bad_bender_samples.extend(SAMPLES_TO_RUNS[bad_run])
       if not all(s in SAMPLES for s in bad_bender_samples):
         raise ValueError("Some bad bender samples are not in the SAMPLES list.")
-
     else:
       bad_bender_samples = bad_bender
 
@@ -155,6 +154,8 @@ rule run_qc:
   retries: config['resources']['retries']
   resources:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_qc/run_qc_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
   shell: """
@@ -194,13 +195,15 @@ rule merge_qc:
   output:
     qc_merged_f      = qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     coldata_merged_f = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
-  threads: 4
+  threads: 1
   retries: config['resources']['retries']
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_qc/merge_qc_' + DATE_STAMP + '.benchmark.txt'
   resources:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
   run:
     # read all nonempty input files and concatenate them
-    qc_df_ls    = [ pl.read_csv(f) for f in input.qc_fs ]
+    qc_df_ls    = [ pl.read_csv(f, schema_overrides = {"log_N": pl.Float64}) for f in input.qc_fs ]
     qc_df_all   = pl.concat(qc_df_ls)
 
     cols_df_ls  = [ pl.read_csv(f) for f in input.coldata_fs ]
@@ -222,6 +225,8 @@ rule merge_rowdata:
   retries: config['resources']['retries']
   resources:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_qc/merge_rowdata_' + DATE_STAMP + '.benchmark.txt'
   run:
     # read all nonempty rowdata files 
     rows_df_ls  = [pl.read_csv(f) for f in input.rowdata_fs ]
@@ -245,6 +250,12 @@ rule get_qc_sample_statistics:
     cuts_f        = qc_dir  + '/qc_thresholds_by_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output:
     qc_stats_f    = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_qc/get_qc_sample_statistics_' + DATE_STAMP + '.benchmark.txt'
   run:
     sample_stats_df = extract_qc_sample_statistics(input.run_stats_f, input.qc_merged_f, input.cuts_f,
       config, SAMPLES, RUN_VAR, SAMPLES_TO_RUNS)
@@ -253,11 +264,13 @@ rule get_qc_sample_statistics:
 
 # write sce objects paths to a yaml file
 rule make_tmp_sce_paths_yaml:
-   input:
+  input:
     qc_stats_f  = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv' # so that this runs after get_qc_sample_statistics
-   output:
+  output:
     sces_yaml_f = temp(qc_dir  + '/sce_tmp_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml')
-   run:
+  threads: 1
+  retries: config['resources']['retries']
+  run:
     # split paths and sample names
     fs = [f"{qc_dir}/sce_cells_tmp_{s}_{FULL_TAG}_{DATE_STAMP}.rds" for s in SAMPLES]
     

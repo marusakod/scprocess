@@ -1,5 +1,28 @@
 # rules to render html files
 
+# # render_html_index --> render from index.Rmd file that is created when workflow R project is started ?
+# rule render_html_index:
+#   output:
+#     rmd_f       = f'{rmd_dir}/index.Rmd',
+#     html_f      = f'{docs_dir}/index.html'
+#   threads: 1
+#   retries: RETRIES 
+#   resources:
+#     mem_mb      =  lambda wildcards, attempt: attempt * 4096
+#   run:
+#     # define what we will substitute in
+#     print('setting up template')
+#     sub_dict    = {
+#       'YOUR_NAME':        YOUR_NAME,
+#       'AFFILIATION':      AFFILIATION,
+#       'SHORT_TAG':        SHORT_TAG
+#       }
+#     # make and render Rmd file
+#     template_f  = 'resources/rmd_templates/marker_genes.Rmd.template'
+#     print('rendering template')
+#     render_html(PROJ_DIR, template_f, sub_dict, output.rmd_f)
+
+
 # rule render_html_mapping
 rule render_html_mapping:
   input:
@@ -23,6 +46,8 @@ rule render_html_mapping:
   retries: config['resources']['retries']
   resources:
     mem_mb    =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_mapping_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
   shell: """
@@ -47,6 +72,7 @@ rule render_html_mapping:
         affiliation     = '{params.affiliation}', 
         short_tag       = '{params.short_tag}', 
         date_stamp      = '{params.date_stamp}', 
+        threads         =  {threads},
         runs_str        = '{params.runs_str}', 
         ambient_method  = '{params.ambient_method}', 
         run_var         = '{params.run_var}', 
@@ -81,6 +107,8 @@ if config['multiplexing']['demux_type'] == "hto":
     retries: config['resources']['retries']
     resources:
       mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_multiplexing_' + DATE_STAMP + '.benchmark.txt'
     conda:
       '../envs/rlibs.yaml'
     shell: """
@@ -103,6 +131,7 @@ if config['multiplexing']['demux_type'] == "hto":
           affiliation     = '{params.affiliation}', 
           short_tag       = '{params.short_tag}', 
           date_stamp      = '{params.date_stamp}', 
+          threads         =  {threads},
           runs_str        = '{params.runs_str}', 
           metadata_f      = '{params.metadata_f}', 
           ambient_method  = '{params.ambient_method}', 
@@ -138,6 +167,8 @@ rule render_html_ambient:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_ambient_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     # define rule and template
     template_f=$(realpath resources/rmd_templates/ambient.Rmd.template)
@@ -190,6 +221,8 @@ rule render_html_qc:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_qc_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -244,6 +277,8 @@ rule render_html_hvgs:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_hvgs_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -298,6 +333,8 @@ rule render_html_integration:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_integration_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -318,8 +355,8 @@ rule render_html_integration:
       proj_dir        = '{params.proj_dir}',
       short_tag       = '{params.short_tag}',
       date_stamp      = '{params.date_stamp}',
-      threads         =  {threads},
       qc_dt_f         = '{input.qc_dt_f}',
+      threads         =  {threads},
       integration_f   = '{input.integration_f}',
       int_res_ls_str  = '{params.int_res_ls_str}',
       int_dbl_cl_prop =  {params.int_dbl_cl_prop},
@@ -374,6 +411,8 @@ rule render_html_marker_genes:
   conda: '../envs/rlibs.yaml'
   resources:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_marker_genes_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -445,6 +484,8 @@ if "label_celltypes" in config:
       mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
     conda:
       '../envs/rlibs.yaml'
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_label_celltypes_' + DATE_STAMP + '.benchmark.txt'
     shell: """
       # copy R code over
       echo "copying relevant R files over"

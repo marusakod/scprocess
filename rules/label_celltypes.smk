@@ -28,6 +28,8 @@ rule get_xgboost_labels:
   retries: config['resources']['retries']
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * config['resources']['mb_label_celltypes'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/get_xgboost_labels_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
@@ -49,3 +51,4 @@ rule get_xgboost_labels:
       min_cl_size        =  {params.lbl_min_cl_size},
       n_cores            =  {threads}
     )"
+    """
