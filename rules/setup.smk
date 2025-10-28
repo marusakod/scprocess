@@ -77,6 +77,7 @@ rule all:
     # expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/index/{file}', genome=GENOMES, file=AF_INDEX_FS)
     expand([ SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/' + f'{file}' for file in AF_INDEX_FS], genome=GENOMES),
     expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/{genome}_index_params.yaml', genome=GENOMES),
+    SCPROCESS_DATA_DIR + '/celltypist',
     # rule get_reference_genome_data 
     SCPROCESS_DATA_DIR + '/index_parameters.csv'
 
@@ -162,3 +163,19 @@ rule save_index_parameters_csv:
   shell: """
     python3 scripts/setup.py save_index_params_csv {output.csv} {input.yamls}
     """
+
+
+# rule for getting scprocess data from github repo (maybe not a good idea to have all files as outputs)
+rule download_celltypist_models:
+  output:
+    directory(SCPROCESS_DATA_DIR + '/celltypist')
+  conda:
+    '../envs/celltypist.yaml'
+  threads: 1
+  run:
+    # download all available models
+    import celltypist
+    celltypist.models.download_models()
+    """
+
+
