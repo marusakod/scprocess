@@ -522,31 +522,40 @@ def _get_custom_marker_genes_specs(config, scdata_dir):
 # check parameters for labelling celltypes
 def _check_label_celltypes_parameters(config, scdata_dir): 
   # if none, done
-  if config['label_celltypes']['lbl_tissue'] == "":
+  if not 'lbl_labeller' in config['label_celltypes'] == "":
     del config['label_celltypes']
     return config
 
-  # check that classifier name is valid
-  valid_refs      = ['human_cns']
-  if not config['label_celltypes']['lbl_tissue'] in valid_refs:
-    raise KeyError(f"value {config['label_celltypes']['lbl_tissue']} for 'lbl_tissue' parameter is not valid")
-  
-  # pick labeller
-  xgb_dir  = os.path.join(scdata_dir, 'xgboost')
-  if not pathlib.Path(xgb_dir).is_dir():
-   raise FileNotFoundError(f"xgboost directory '{xgb_dir}' not found")
-  
-  if config['label_celltypes']['lbl_tissue'] == 'human_cns':
-    config['label_celltypes']['lbl_xgb_f']      = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds")
-    config['label_celltypes']['lbl_xgb_cls_f']  = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv")
-  else: 
-    raise ValueError(f"{config['label_celltypes']['lbl_tissue']} classifier is unfortunately not available yet")
+  # check that parameters for xgboost are ok
+  if config['label_celltypes']['lbl_labeller'] == 'celltypist':
+    # check that selected models are valid
+    model_f       = scdata_dir + '/celltypist/celltypist_models.csv'
+    valid_models  = pl.read_csv(model_f)['model_name'].to_list()
+    if not config['label_celltypes']['lbl_model'] in valid_models:
+      raise KeyError(f"value {config['label_celltypes']['lbl_model']} for 'lbl_model' parameter is not valid.\nThis column 'model_name' in this file contains valid models:\n{str(model_f)}")
 
-  # check these are ok
-  if not pathlib.Path(config['label_celltypes']['lbl_xgb_f']).is_file():
-    raise FileNotFoundError(f"file {config['label_celltypes']['lbl_xgb_f']} doesn't exist; consider (re)runnning scprocess setup")
-  if not pathlib.Path(config['label_celltypes']['lbl_xgb_cls_f']).is_file():
-    raise FileNotFoundError(f"file {config['label_celltypes']['lbl_xgb_cls_f']} doesn't exist; consider (re)runnning scprocess setup")
+  # check that parameters for xgboost are ok
+  elif config['label_celltypes']['lbl_labeller'] == 'xgboost':
+    valid_refs      = ['human_cns']
+    if not config['label_celltypes']['lbl_model'] in valid_refs:
+      raise KeyError(f"value {config['label_celltypes']['lbl_model']} for 'lbl_model' parameter is not valid")
+  
+    # pick labeller
+    xgb_dir  = os.path.join(scdata_dir, 'xgboost')
+    if not pathlib.Path(xgb_dir).is_dir():
+     raise FileNotFoundError(f"xgboost directory '{xgb_dir}' not found")
+  
+    if config['label_celltypes']['lbl_model'] == 'human_cns':
+      config['label_celltypes']['lbl_xgb_f']      = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds")
+      config['label_celltypes']['lbl_xgb_cls_f']  = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv")
+    else: 
+      raise ValueError(f"{config['label_celltypes']['lbl_model']} classifier is unfortunately not available yet")
+
+    # check these are ok
+    if not pathlib.Path(config['label_celltypes']['lbl_xgb_f']).is_file():
+      raise FileNotFoundError(f"file {config['label_celltypes']['lbl_xgb_f']} doesn't exist; consider (re)runnning scprocess setup")
+    if not pathlib.Path(config['label_celltypes']['lbl_xgb_cls_f']).is_file():
+      raise FileNotFoundError(f"file {config['label_celltypes']['lbl_xgb_cls_f']} doesn't exist; consider (re)runnning scprocess setup")
 
   return config
 

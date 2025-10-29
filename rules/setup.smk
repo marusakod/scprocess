@@ -168,14 +168,29 @@ rule save_index_parameters_csv:
 # rule for getting scprocess data from github repo (maybe not a good idea to have all files as outputs)
 rule download_celltypist_models:
   output:
-    directory(SCPROCESS_DATA_DIR + '/celltypist')
+    models_f  = SCPROCESS_DATA_DIR + '/celltypist/celltypist_models.csv'
   conda:
     '../envs/celltypist.yaml'
   threads: 1
   run:
-    # download all available models
+    # set up
+    import os
     import celltypist
+    import polars as pl
+
+    # download all available models
     celltypist.models.download_models()
+    
+    # record their names
+    models_dir  = celltypist.models.models_path
+    models_ls   = [ f.replace(".pkl", "") for f in os.listdir(models_dir) if f.endswith(".pkl") ]
+
+    # make dataframe, save
+    models_df   = pl.DataFrame({ "model": models_ls })
+    models_df   = models_df.with_columns(
+      pl.col("model").str.to_lowercase().alias("model_name")
+    )
+    models_df.write_csv(models_f)
     """
 
 

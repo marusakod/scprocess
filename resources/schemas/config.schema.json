@@ -188,14 +188,37 @@
     "label_celltypes": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["lbl_tissue"],
+      "required": ["lbl_labeller"],
       "properties": {
-        "lbl_tissue":       { "type": "string", "default": "" },
-        "lbl_sel_res_cl":   { "type": "string", "default": "RNA_snn_res.2" },
+        "lbl_labeller":     { "type": "string", "enum": ["", "celltypist", "xgboost", "custom"], "default": "" },
+        "lbl_custom_f":     { "type": "string" },
+        "lbl_model":        { "type": "string" },
+        "lbl_hi_res_cl":    { "type": "string", "default": "RNA_snn_res.2" },
         "lbl_min_pred":     { "type": "number", "default": 0.8 },
         "lbl_min_cl_prop":  { "type": "number", "default": 0.5 },
         "lbl_min_cl_size":  { "type": "integer", "default": 100 }
-      }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"labels_source": { "enum": ["celltypist", "xgboost"] } } },
+          "then": {
+            "allOf": [
+              { "required": ["lbl_model"] },
+              {"not": { "required": ["lbl_custom_f"] }}
+            ]
+          }
+        },
+        {
+          "if": {"properties": {"labels_source": { "const": "custom" } } },
+          "then": {
+            "allOf": [
+              { "required": ["lbl_custom_f"] },
+              {"not": { "required": ["lbl_model"] }}
+            ]
+          }
+        }
+      ]
+    },
     },
     "zoom": {
       "description": "Contains mappings of logical names to YAML file paths.",
