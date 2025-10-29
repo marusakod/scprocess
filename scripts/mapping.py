@@ -1,5 +1,6 @@
 import os
 import argparse
+import pathlib
 import subprocess
 
 # set up
@@ -18,6 +19,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
     elif what == "hto":
       out_dir = f"{out_dir}/hto"
   os.makedirs(out_dir, exist_ok = True)
+  print('made out_dir')
 
   # set up simpleaf
   os.environ["ALEVIN_FRY_HOME"] = af_home_dir
@@ -26,21 +28,16 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
   # if arvados, download to temp files
   on_arvados  = not os.path.exists(where)
   if on_arvados:
-    print('setting up link to arvados')
-    import arvados
-    # set up
-    arv_uuid    = where
-    arv_token   = os.environ["ARVADOS_API_TOKEN"]
-    print('  connecting to arvados server')
-    arv_client  = arvados.api('v1', host = 'api.arkau.roche.com',
-      token = arv_token, insecure = True, num_retries = 2 )
-    print('  finding arvados collection')
-    arv_colln   = arvados.collection.Collection(arv_uuid, arv_client)
+    # set up tmp directory
+    tmp_dir     = f"{af_dir}/.fastq_tmp/{run}"
+    prefix      = f"tmp_file_{run}_{what}"
+    os.makedirs(tmp_dir, exist_ok = True)
 
     # download files from Arvados
     print('downloading files from arvados')
-    R1_fs       = [ _download_arvados_file_as_tempfile(f, arv_colln, f".{i}.R1.fastq.gz") for i, f in enumerate(R1_fs) ]
-    R2_fs       = [ _download_arvados_file_as_tempfile(f, arv_colln, f".{i}.R2.fastq.gz") for i, f in enumerate(R2_fs) ]
+    arv_uuid    = where
+    R1_fs       = [ _download_arvados_file_as_tempfile(arv_uuid, f, tmp_dir, prefix, i, "R1", threads) for i, f in enumerate(R1_fs) ]
+    R2_fs       = [ _download_arvados_file_as_tempfile(arv_uuid, f, tmp_dir, prefix, i, "R2", threads) for i, f in enumerate(R2_fs) ]
   else:
     R1_fs       = [ os.path.join(where, f) for f in R1_fs]
     R2_fs       = [ os.path.join(where, f) for f in R2_fs]
@@ -72,21 +69,15 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
       os.unlink(f)
 
 
-def _download_arvados_file_as_tempfile(f, arv_colln, suffix):
-  # connect to file
-  with arv_colln.open(f, mode='rb') as arv_f:
-    # create a temporary file to store the data
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp_file:
-      # write the contents of the arvados file-like object to the temporary file
-      print(f"  downloading {f} from arvados as tmp file {temp_file.name}")
-      temp_file.write(arv_f.read())
-      # ensure all data is written to disk
-      temp_file.flush()
-    # close the arvados file-like object
-    arv_f.close()
-  gc.collect()
+def _download_arvados_file_as_tempfile(arv_uuid, f, tmp_dir, prefix, i, read, threads):
+  # create a temporary file to store the data
+  temp_file   = pathlib.Path(tmp_dir) / f"{prefix}.{i}.{read}.fastq.gz"
 
-  return temp_file.name
+  # write the contents of the arvados file-like object to the temporary file
+  print(f"  downloading {f} from arvados as tmp file {temp_file.name}")
+  subprocess.run(["arv-get", f"{arv_uuid}/{f}", str(temp_file), "--threads", str(threads)])
+
+  return str(temp_file)
 
 
 if __name__ == "__main__":

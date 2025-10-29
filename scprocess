@@ -143,7 +143,7 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
     file.write(rprofile_txt)
 
   # create config file if requested
-  if create_config:
+  if create_config is not None:
     # import something we need
     from datetime import date
 
@@ -155,7 +155,9 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
     meta_dir    = 'data/metadata' if create_subdirs else ''
     
     # define config text
-    config_txt  = f"""
+    proj_txt    = f"""
+      # for details on how to fill out the config file, please see the following link:
+      # https://macnairw.pages.roche.com/scprocess/reference
       project:
         proj_dir: {proj_dir}
         fastq_dir: {fastq_dir}
@@ -168,6 +170,26 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
         date_stamp: "{date_stamp}"
         tenx_chemistry: 
       """
+    if "sc" in create_config:
+      qc_txt = """qc:
+        qc_max_mito: 0.1
+        qc_min_splice: 0.10
+        qc_max_splice: 0.99
+      """
+    if "sn" in create_config:
+      qc_txt = """qc:
+        qc_max_mito: 0.1
+        qc_max_splice: 0.75
+      """
+    if "multiplex" in create_config:
+      multi_txt = """multiplexing:
+        demux_type:
+      """
+    else:
+      multi_txt = ""
+
+    # join together
+    config_txt  = proj_txt + multi_txt + qc_txt
     config_txt  = textwrap.dedent(config_txt).strip()
     
     # write to file
@@ -310,7 +332,8 @@ if __name__ == '__main__':
   newprj_prsr.add_argument('name', type=str, help="Name of the project")
   newprj_prsr.add_argument('-w', '--where', type=str, default=os.getcwd(), help="Where to create the project (default: current directory)")
   newprj_prsr.add_argument('-s', '--sub', action='store_true', help="Create data/fastqs and data/metadata subdirectories")
-  newprj_prsr.add_argument('-c', '--config', action='store_true', help="Create a blank config.yml file with required scprocess parameters")
+  newprj_prsr.add_argument('-c', '--config', type=str, choices = ["sc", "sn", "multiplex"], nargs="+",
+    help="Create a blank config.yml file with required scprocess parameters. Users must specify at least one option from: sc (single cell); sn (single nuclei); multiplex.")
 
   # subparser for the 'run' subcommand
   run_prsr    = subparsers.add_parser('run', help="run scprocess")
@@ -374,6 +397,8 @@ if __name__ == '__main__':
 
   elif args.subcommand == "newproj":
     # make new project directory
+    if ('sc' in args.config) and ('sn' in args.config):
+      raise ValueError("When specifying --config / -c, only one of sc and sn can be specified at a time.")
     where_abs = os.path.abspath(args.where)
     new_proj(sc_dir, args.name, where_abs, args.sub, args.config)
 
