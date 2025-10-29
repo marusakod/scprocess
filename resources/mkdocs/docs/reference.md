@@ -186,7 +186,8 @@ This is an example config file for {{sc}} with all parameters and their default 
     zoom:
     resources:
       retries: 3
-      gb_run_mapping_per_gb_fq: 4
+      n_run_mapping: 8
+      gb_run_mapping: 4
       gb_save_alevin_to_h5: 8
       gb_run_ambient: 8
       gb_get_barcode_qc_metrics: 8
@@ -286,7 +287,8 @@ This is an example config file for {{sc}} with all parameters and their default 
       cell_subset_3: /path/to/cell_subset_3_zoom_params.yaml
     resources:
       retries: 3
-      gb_run_mapping_per_gb_fq: 4
+      n_run_mapping: 8
+      gb_run_mapping: 4
       gb_save_alevin_to_h5: 8
       gb_run_ambient: 8
       gb_get_barcode_qc_metrics: 8
@@ -462,7 +464,8 @@ Additional parameters include:
 ##### resources
 
 * `retries`: number of times to retry running a specific rule in {{sc}} if it fails. For each attempt, the memory requirement for the rule increases by multiplying the base memory by the attempt number. Useful for when {{sc}} is used on a [cluster](setup.md#cluster-setup).
-* `gb_run_mapping_per_gb_fq`: maximum memory requested (in GB) per GB of FASTQ files for running `simpleaf`. Default is 4; so if the R1 FASTQ files total to 2GB, then the job would request 8GB (= 2GB * 4). Value applies to the entire job, not per thread.
+* `n_run_mapping`: number of threads requested for running `simpleaf`. Default is 8.
+* `gb_run_mapping`: maximum memory requested (in GB) for running `simpleaf`. Default is 4. Value applies to the entire job, not per thread.
 * `gb_save_alevin_to_h5`:  maximum memory required (in GB) to save `simpleaf` output to H5 format. Default is 8GB. Value applies to the entire job, not per thread.
 * `gb_run_ambient`: maximum memory required (in GB) to run the ambient RNA removal step. Default is 8GB. Value applies to the entire job, not per thread.
 * `gb_get_barcode_qc_metrics`: maximum memory required (in GB) to run the step in which qc metrics of all barcodes are collected. Default is 8GB. Value applies to the entire job, not per thread.

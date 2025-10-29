@@ -56,10 +56,10 @@ rule run_mapping_hto:
     whitelist_f   = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["whitelist_f"]
   conda:
     '../envs/alevin_fry.yaml'
-  threads: 8
+  threads: config['resources']['n_run_mapping']
   retries: config['resources']['retries']
   resources:
-    mem_mb        = lambda wildcards: min(ceil(config['resources']['gb_run_mapping_per_gb_fq'] * RUN_PARAMS[wildcards.run]["multiplexing"]["R1_fs_size_gb"] * MB_PER_GB), 32 * MB_PER_GB)
+    mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_run_mapping'] * MB_PER_GB
   shell:"""
     # check whether doing arvados
     ARV_REGEX="^arkau-[0-9a-z]{{5}}-[0-9a-z]{{15}}$"

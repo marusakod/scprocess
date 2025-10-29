@@ -218,7 +218,8 @@
       "additionalProperties": false,
       "properties": {
         "retries":                    { "type": "integer", "default": 3 },
-        "gb_run_mapping_per_gb_fq":   { "type": "integer", "default": 4 },
+        "n_run_mapping":              { "type": "integer", "default": 8 },
+        "gb_run_mapping":             { "type": "integer", "default": 8 },
         "gb_save_alevin_to_h5":       { "type": "integer", "default": 8 },
         "gb_make_hto_sce_objects":    { "type": "integer", "default": 8 },
         "gb_run_ambient":             { "type": "integer", "default": 8 },
