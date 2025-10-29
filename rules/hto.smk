@@ -37,10 +37,6 @@ rule build_hto_index:
 
 # run mapping for HTO files
 rule run_mapping_hto:
-  threads: 8
-  retries: config['resources']['retries']
-  resources:
-    mem_mb        = lambda wildcards, attempt: attempt * 4 * MB_PER_GB
   input: 
     hto_idx_dir   = af_dir + '/hto_index'
   output:
@@ -60,7 +56,18 @@ rule run_mapping_hto:
     whitelist_f   = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["whitelist_f"]
   conda:
     '../envs/alevin_fry.yaml'
+  threads: 8
+  retries: config['resources']['retries']
+  resources:
+    mem_mb        = lambda wildcards: min(ceil(config['resources']['gb_run_mapping_per_gb_fq'] * RUN_PARAMS[wildcards.run]["multiplexing"]["R1_fs_size_gb"] * MB_PER_GB), 32 * MB_PER_GB)
   shell:"""
+    # check whether doing arvados
+    ARV_REGEX="^arkau-[0-9a-z]{{5}}-[0-9a-z]{{15}}$"
+    if [[ "{params.where}" =~ $ARV_REGEX ]]; then
+      ml arvados
+      arv-env arkau
+    fi
+    # run mapping
     python3 scripts/mapping.py {wildcards.run} \
       --af_dir          {af_dir}\
       --demux_type      {params.demux_type} \

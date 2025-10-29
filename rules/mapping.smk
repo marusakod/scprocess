@@ -32,13 +32,13 @@ rule run_mapping:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb        = lambda wildcards: max(ceil(config['resources']['gb_run_mapping_per_gb_fq'] * RUN_PARAMS[wildcards.run]["mapping"]["R1_fs_size_gb"] * MB_PER_GB), 32 * MB_PER_GB)
+    mem_mb        = lambda wildcards: min(ceil(config['resources']['gb_run_mapping_per_gb_fq'] * RUN_PARAMS[wildcards.run]["mapping"]["R1_fs_size_gb"] * MB_PER_GB), 32 * MB_PER_GB)
   conda:
     '../envs/alevin_fry.yaml'
   shell:"""
     # check whether doing arvados
     ARV_REGEX="^arkau-[0-9a-z]{{5}}-[0-9a-z]{{15}}$"
-    if [[ "{params.where}" =~ $ARV_REGEX ]]; then
+    if [[ {params.where} =~ $ARV_REGEX ]]; then
       ml arvados
       arv-env arkau
     fi

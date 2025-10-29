@@ -2,8 +2,8 @@
 
 import polars as pl
 
-localrules: make_pb_input_df
 
+localrules: make_empty_pb_input_df
 
 # for empty pseudobulks
 rule make_empty_pb_input_df:

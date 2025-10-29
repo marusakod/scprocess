@@ -328,9 +328,6 @@ def _check_multiplexing_parameters(config):
     if not all(hto in hto_ids for hto in list(set(samples_df["hto_id"]))):
       raise ValueError("One or more hto_id values in sample_metadata don't match hto_id values in the feature reference file")
 
-    # get fastqs
-    config['multiplexing']['fastq_dir'] = _check_path_exists_in_project(config['multiplexing']['fastq_dir'], config, what = "dir")
-      
   elif config['multiplexing']['demux_type'] == 'custom':
     # check specified file is ok
     config['multiplexing']['demux_output'] = _check_path_exists_in_project(config['multiplexing']['demux_output'], config, what = "file")
@@ -924,6 +921,7 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
       "where":              HTO_FQS[run_name]["where"],
       "R1_fs":              HTO_FQS[run_name]["R1_fs"],
       "R2_fs":              HTO_FQS[run_name]["R2_fs"],
+      "R1_fs_size_gb":      HTO_FQS[run_name]["R1_fs_size_gb"],
       "af_chemistry":       af_chemistry, 
       "whitelist_f":        whitelist_f,
       "whitelist_trans_f":  whitelist_trans_f
