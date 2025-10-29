@@ -25,8 +25,25 @@ suppressPackageStartupMessages({
   library('purrr')
   library('xgboost')
   library('ggrepel')
+
+  library('Matrix')
+  library('yaml')
 })
 
+save_sce_to_mtx <- function(sces_yaml_f, sel_sample, mtx_f, cells_f, genes_f) {
+  # load sce
+  sce_f     = yaml::read_yaml(sces_yaml_f)[[ sel_sample ]]
+  if (!file.exists(sce_f))
+    stop("sce for sample ", sel_sample, " does not exist")
+  sce       = readRDS(sce_f)
+
+  # save to matrix
+  writeMM( t(counts(sce)), file = mtx_f)
+  colData(sce) %>% as.data.frame %>% as.data.table %>% fwrite(file = cells_f)
+  rowData(sce) %>% as.data.frame %>% as.data.table %>% fwrite(file = genes_f)
+
+  return(NULL)
+}
 
 label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integration_f, qc_sample_stats_f, 
   hvg_mat_f, guesses_f, exclude_mito, sel_res,  gene_var = c("gene_id", "ensembl_id"), 
@@ -65,9 +82,7 @@ label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integratio
   message('  saving results')
   fwrite(guesses_dt, file = guesses_f)
   message('done.')
-
 }
-
 
 .calc_logcounts <- function(hvg_mat_f, sces_yaml_f, qc_sample_stats_f, gene_var, hvgs, 
   exclude_mito, n_cores = 4, overwrite = FALSE) {
@@ -109,7 +124,6 @@ label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integratio
 
   return(hvg_mat)
 }
-
 
 .get_one_hvg_mat <- function(sel_s, sce_fs, hvgs, gene_var, exclude_mito){
   
@@ -153,10 +167,8 @@ label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integratio
     hvg_mat, coldata, exclude_mito
   )
   
-  return(norm_hvg_mat)
-  
+  return(norm_hvg_mat) 
 }
-
 
 .predict_on_new_data <- function(xgb_obj, allow_dt, hvg_mat, min_pred, chunk_size = 10000) {
 
@@ -195,7 +207,6 @@ label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integratio
   return(preds_dt)
 }
 
-
 .load_clusters <- function(cls_f) {
   cls_dt      = cls_f %>% fread(na.strings = "") %>% .[ !is.na(UMAP1) ]
   cl_cols     = colnames(cls_dt) %>% str_subset("RNA_snn_res")
@@ -204,7 +215,6 @@ label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integratio
 
   return(cls_dt)
 }
-
 
 .apply_labels_by_cluster <- function(int_dt, preds_dt, min_cl_prop, min_cl_size) {
   # melt clusters
@@ -244,7 +254,6 @@ label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integratio
 
   return(guesses_dt)
 }
-
 
 # code for Rmd
 get_guesses_melt <- function(guesses_dt, res_ls, cl_lvls, min_cl_size) {

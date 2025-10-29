@@ -45,7 +45,7 @@ make_rmd_from_temp <- function(temp_f, temp_ls, rmd_f) {
 }
 
 get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'integration', 
-  'markers', 'cell_labels', 'zoom', 'pb_empties'), proj_dir, ...) {
+  'markers', 'label_celltypes', 'zoom', 'pb_empties'), proj_dir, ...) {
   # get arguments
   sel_rule = match.arg(rule)
   add_args = list(...)
@@ -181,24 +181,22 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
            fgsea_title     = fgsea_title,
            fgsea_txt       = fgsea_txt))
 
-  } else if (sel_rule == 'cell_labels') {
-    req_names = c('your_name', 'affiliation', 'short_tag', 
-      'date_stamp', 'threads' ,'guesses_f',
-      'lbl_tissue', 'lbl_xgb_f', 'lbl_xgb_cls_f', 'lbl_sel_res_cl', 'lbl_min_pred',
-      'lbl_min_cl_prop', 'lbl_min_cl_size')
+  } else if (sel_rule == 'label_celltypes') {
+    req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp', 'threads',
+      'int_f', 'guesses_fs', 'lbl_models', 'lbl_hi_res_cl', 'lbl_min_cl_prop', 'lbl_min_cl_size')
       
      assert_that(all(req_names %in% add_args_names))
 
-      if (add_args[["lbl_tissue"]] == 'human_cns') {
-        train_data_str = "whole brain human single nuclei atlas (siletti et al. 2023)"
-      } else if (add_args[["lbl_tissue"]] == 'mouse_cns') {
-        train_data_str = "whole brain mouse single nuclei atlas (Langlieb et al. 2023)"
-      } else {
-        train_data_str = "insert name of study here"
-      }
+      # if (add_args[["lbl_tissue"]] == 'human_cns') {
+      #   train_data_str = "whole brain human single nuclei atlas (siletti et al. 2023)"
+      # } else if (add_args[["lbl_tissue"]] == 'mouse_cns') {
+      #   train_data_str = "whole brain mouse single nuclei atlas (Langlieb et al. 2023)"
+      # } else {
+      #   train_data_str = "insert name of study here"
+      # }
 
       params_ls = add_args
-      params_ls = c(params_ls, train_data_str = train_data_str)
+      # params_ls = c(params_ls, train_data_str = train_data_str)
 
   } else if (sel_rule == 'zoom') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp', 

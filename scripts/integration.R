@@ -145,7 +145,7 @@ make_clean_sces <- function(sel_s, integration_f, sces_yaml_f, clean_sce_f){
   }else{
     
     message('Creating clean sce file for sample ', sel_s)
-    qc_sce_f = all_sce_paths[[sel_s]]
+    qc_sce_f  = all_sce_paths[[sel_s]]
     assert_that(file.exists(qc_sce_f))
     qc_sce    = readRDS(qc_sce_f)
     smpl_int  = int_dt %>% .[sample_id == sel_s]

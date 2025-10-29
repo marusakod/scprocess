@@ -1,0 +1,175 @@
+import os
+import argparse
+import pathlib
+import polars as pl
+import scanpy as sc
+import celltypist
+import gzip
+
+
+def run_celltypist(sel_sample, model_name, mtx_f, cells_f, genes_f):
+  # get cell and gene info
+  cells_df  = pl.read_csv(cells_f)
+  genes_df  = pl.read_csv(genes_f)
+
+  # make anndata object
+  adata     = sc.read_mtx(mtx_f)
+  if not adata.shape[0] == cells_df.shape[0]:
+    raise ValueError("cells_f does not have the same number of rows as the counts matrix") 
+  if not adata.shape[1] == genes_df.shape[0]:
+    raise ValueError("genes_f does not have the same number of rows as columns in the counts matrix") 
+  adata.obs = cells_df.to_pandas( use_pyarrow_extension_array = False )
+  adata.var = genes_df.to_pandas( use_pyarrow_extension_array = False )
+  adata.obs_names = cells_df['cell_id'].to_list()
+  adata.var_names = genes_df['symbol'].to_list()
+  
+  # normalize
+  sc.pp.normalize_total(adata)
+  sc.pp.log1p(adata)
+
+  # make predictions
+  predictions = celltypist.annotate(adata, model = model_name + ".pkl", majority_voting = False)
+
+  # turn into nice output
+  pred_df     = pl.from_pandas( predictions.predicted_labels.reset_index(names = "cell_id") ).rename({"predicted_labels": "predicted_label"})
+  all_probs   = pl.from_pandas( predictions.probability_matrix.reset_index(names = "cell_id") )
+  probs_df    = all_probs.select([
+    pl.col('cell_id'),
+    pl.max_horizontal(
+        pl.exclude('cell_id')
+    ).alias('probability')
+  ])
+
+  # join together
+  pred_df     = pred_df.join( probs_df, on = "cell_id" )
+  pred_df     = pred_df.with_columns(
+    sample_id   = pl.lit(sel_sample),
+    model       = pl.lit(model_name)
+  )
+
+  return pred_df
+
+
+def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_size, min_cl_prop):
+  # load integration, check cluster column is there
+  int_df      = pl.read_csv(int_f)
+  if not hi_res_cl in int_df:
+    raise KeyError(f"specified high resolution cluster column {hi_res_cl} is not the integration file:\n  {int_f}")
+  
+  # restrict to just cells that are not doublets
+  int_df      = int_df.filter( pl.col(hi_res_cl).is_not_null() )
+  int_df      = int_df.select( pl.col("cell_id"), pl.col(hi_res_cl).alias("hi_res_cl") )
+
+  # remove any tiny clusters
+  cl_counts   = int_df["hi_res_cl"].value_counts()
+  if any( cl_counts["count"] < min_cl_size ):
+    tiny_cls    = cl_counts.filter( pl.col("count") < min_cl_size )["hi_res_cl"].to_list()
+    print(f"  excluding some clusters bc they are tiny: {", ".join(tiny_cls)}")
+    int_df      = int_df.filter( pl.col("hi_res_cl").is_in(tiny_cls).not_() )
+
+  # get all prediction files
+  preds_df    = pl.concat([ pl.read_csv(f) for f in pred_fs ], how = "vertical")
+  data_df     = preds_df.join(int_df, on = "cell_id")
+
+  # join to int_df
+  counts_df   = data_df.group_by("hi_res_cl", "predicted_label").agg(
+    pl.len().alias("N")
+  )
+  counts_df   = counts_df.with_columns(
+    (pl.col("N") / pl.col("N").sum().over("hi_res_cl")).alias("prop")
+  )
+  counts_df   = counts_df.sort("hi_res_cl", "prop", descending = [False, True])
+
+  # take top prediction for each cluster
+  hi_res_lu   = counts_df.group_by("hi_res_cl").first().select(
+    "hi_res_cl",
+    predicted_label_agg = pl.when(pl.col("prop") < min_cl_prop)
+      .then(pl.lit("unknown"))
+      .otherwise(pl.col("predicted_label")),
+    prop_hi_res_cl      = pl.col("prop")
+  )
+
+  # join to 
+  agg_df      = data_df.join(hi_res_lu, on = "hi_res_cl", how = "left").select(
+    'model', 'sample_id', 'cell_id', 'hi_res_cl', 'predicted_label_agg', 
+    'prop_hi_res_cl',
+    predicted_label_naive = pl.col('predicted_label'),
+    probability_naive = pl.col('probability'),
+  )
+
+  return agg_df
+
+
+if __name__ == "__main__":
+  # define arguments
+  parser      = argparse.ArgumentParser()
+
+  # define subparsers
+  subparsers  = parser.add_subparsers(dest='subcommand', required=True)
+  typist_prsr = subparsers.add_parser('celltypist_one_sample')
+  agg_prsr    = subparsers.add_parser('aggregate_predictions')
+
+  # get arguments
+  typist_prsr.add_argument(  "sample",   type=str)
+  typist_prsr.add_argument(  "model",    type=str)
+  typist_prsr.add_argument("--mtx_f",    type=str)
+  typist_prsr.add_argument("--cells_f",  type=str)
+  typist_prsr.add_argument("--genes_f",  type=str)
+  typist_prsr.add_argument("--pred_f",   type=str)
+
+  # get arguments
+  agg_prsr.add_argument(  "pred_fs",      type=str, nargs="+")
+  agg_prsr.add_argument("--int_f",        type=str)
+  agg_prsr.add_argument("--hi_res_cl",    type=str)
+  agg_prsr.add_argument("--min_cl_size",  type=int)
+  agg_prsr.add_argument("--min_cl_prop",  type=float)
+  agg_prsr.add_argument("--agg_f",        type=str)
+
+  # Parse the arguments
+  args      = parser.parse_args()
+
+  # create new project folder
+  if args.subcommand == "celltypist_one_sample":
+    # set up some locations
+    mtx_f     = pathlib.Path(args.mtx_f)
+    cells_f   = pathlib.Path(args.cells_f)
+    genes_f   = pathlib.Path(args.genes_f)
+
+    # check that they exist
+    if not mtx_f.is_file():
+      raise FileNotFoundError(f"mtx_f is not a valid file:\n  {mtx_f}")
+    if not cells_f.is_file():
+      raise FileNotFoundError(f"cells_f is not a valid file:\n  {cells_f}")
+    if not genes_f.is_file():
+      raise FileNotFoundError(f"genes_f is not a valid file:\n  {genes_f}")
+    
+    # run
+    pred_df   = run_celltypist(args.sample, args.model, mtx_f, cells_f, genes_f)
+
+    # save
+    with gzip.open(args.pred_f, 'wb') as f: 
+      pred_df.write_csv(f)
+
+  elif args.subcommand == "aggregate_predictions":
+    # set up some locations
+    pred_fs   = [ pathlib.Path(f) for f in args.pred_fs ]
+    for f in pred_fs:
+      if not f.is_file():
+        raise FileNotFoundError(f"this file does not exist:\n{str(f)}")
+    int_f     = pathlib.Path(args.int_f)
+    if not int_f.is_file():
+      raise FileNotFoundError(f"this file does not exist:\n{str(int_f)}")
+
+    # do some checks
+    if args.min_cl_size < 0:
+      raise ValueError("min_cl_size must be greater than or equal to 0")
+    if (args.min_cl_prop < 0) or (args.min_cl_prop >= 1):
+      raise ValueError("min_cl_prop must be greater than or equal to 0 and strictly less than 1")
+
+    # run
+    agg_df    = aggregate_predictions(pred_fs, int_f, args.hi_res_cl, args.min_cl_size, args.min_cl_prop)
+
+    # save
+    with gzip.open(args.agg_f, 'wb') as f:
+      agg_df.write_csv(f)
+

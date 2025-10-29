@@ -25,6 +25,7 @@ RUNS                = list(RUN_PARAMS.keys())
 SAMPLE_PARAMS       = get_sample_parameters(config, RUNS, scdata_dir)
 SAMPLES             = list(SAMPLE_PARAMS.keys())
 SAMPLES_TO_RUNS     = get_samples_to_runs(config, RUNS, SAMPLES)
+MODELS              = get_models_for_labelling(config)
 
 # unpack some variables that we use a lot
 PROJ_DIR        = config['project']['proj_dir']
@@ -279,13 +280,12 @@ rule marker_genes:
     docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{config['marker_genes']['mkr_sel_res']}.html'
 
 
-# rule label_celltypes:
-#   input:
-#     lbl_dir + '/hvg_mat_for_labelling_' + 'gene_id' + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-#     lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-#     code_dir  + '/label_celltypes.R',
-#     rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
-#     docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
+rule label_celltypes:
+  input:
+    expand(lbl_dir + '/celltypist_{model}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', model=MODELS),
+    code_dir  + '/label_celltypes.R',
+    rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
+    docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
 
 
 # define rules that are needed
@@ -299,4 +299,5 @@ include: "hvgs.smk"
 include: "integration.smk"
 include: "marker_genes.smk"
 include: "render_htmls.smk"
-# include: "label_celltypes.smk"
+include: "label_celltypes.smk"
+

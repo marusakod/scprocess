@@ -192,7 +192,7 @@
       "properties": {
         "lbl_labeller":     { "type": "string", "enum": ["", "celltypist", "xgboost", "custom"], "default": "" },
         "lbl_custom_f":     { "type": "string" },
-        "lbl_model":        { "type": "string" },
+        "lbl_models":       { "type": "array", "items": {"type": "string"}, "minItems": 1 },
         "lbl_hi_res_cl":    { "type": "string", "default": "RNA_snn_res.2" },
         "lbl_min_pred":     { "type": "number", "default": 0.8 },
         "lbl_min_cl_prop":  { "type": "number", "default": 0.5 },
@@ -200,25 +200,24 @@
       },
       "allOf": [
         {
-          "if": {"properties": {"labels_source": { "enum": ["celltypist", "xgboost"] } } },
+          "if": {"properties": {"lbl_labeller": { "enum": ["celltypist", "xgboost"] } } },
           "then": {
             "allOf": [
-              { "required": ["lbl_model"] },
+              { "required": ["lbl_models"] },
               {"not": { "required": ["lbl_custom_f"] }}
             ]
           }
         },
         {
-          "if": {"properties": {"labels_source": { "const": "custom" } } },
+          "if": {"properties": {"lbl_labeller": { "const": "custom" } } },
           "then": {
             "allOf": [
               { "required": ["lbl_custom_f"] },
-              {"not": { "required": ["lbl_model"] }}
+              {"not": { "required": ["lbl_models"] }}
             ]
           }
         }
       ]
-    },
     },
     "zoom": {
       "description": "Contains mappings of logical names to YAML file paths.",
@@ -254,7 +253,7 @@
         "gb_run_integration":         { "type": "integer", "default": 8 },
         "gb_make_clean_sces":         { "type": "integer", "default": 8 },
         "gb_run_marker_genes":        { "type": "integer", "default": 16 },
-        "gb_label_celltypes":         { "type": "integer", "default": 8 },
+        "gb_label_celltypes":         { "type": "integer", "default": 4 },
         "gb_render_htmls":            { "type": "integer", "default": 8 },
         "gb_make_subset_sces":        { "type": "integer", "default": 8 }
       }

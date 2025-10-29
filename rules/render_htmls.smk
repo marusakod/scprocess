@@ -460,7 +460,8 @@ if "label_celltypes" in config:
     input:
       r_utils_f   = f"{code_dir}/utils.R",
       r_mkr_f     = f'{code_dir}/marker_genes.R',
-      guesses_f   = f'{lbl_dir}/cell_annotations_{FULL_TAG}_{DATE_STAMP}.txt.gz'
+      int_f       = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+      guesses_fs  = expand(lbl_dir + '/celltypist_{model}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', model = MODELS)
     output:
       r_lbl_f     = f'{code_dir}/label_celltypes.R',
       rmd_f       = f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd',
@@ -471,11 +472,9 @@ if "label_celltypes" in config:
       short_tag       = config['project']['short_tag'],
       date_stamp      = config['project']['date_stamp'],
       proj_dir        = config['project']['proj_dir'],
-      lbl_xgb_f       = config['label_celltypes']['lbl_xgb_f'], 
-      lbl_xgb_cls_f   = config['label_celltypes']['lbl_xgb_cls_f'], 
-      lbl_tissue      = config['label_celltypes']['lbl_tissue'], 
-      lbl_sel_res_cl  = config['label_celltypes']['lbl_sel_res_cl'], 
-      lbl_min_pred    = config['label_celltypes']['lbl_min_pred'], 
+      # guesses_fs      = ",".join([params.guesses_fs]),
+      lbl_models      = MODELS,
+      lbl_hi_res_cl   = config['label_celltypes']['lbl_hi_res_cl'], 
       lbl_min_cl_prop = config['label_celltypes']['lbl_min_cl_prop'], 
       lbl_min_cl_size = config['label_celltypes']['lbl_min_cl_size']
     threads: 1
@@ -492,7 +491,7 @@ if "label_celltypes" in config:
       cp scripts/label_celltypes.R {output.r_lbl_f}
 
       template_f=$(realpath resources/rmd_templates/label_celltypes.Rmd.template)
-      rule="cell_labels"
+      rule="label_celltypes"
 
       Rscript --vanilla -e "source('scripts/render_htmls.R'); \
       render_html(
@@ -505,12 +504,10 @@ if "label_celltypes" in config:
         short_tag       = '{params.short_tag}',
         date_stamp      = '{params.date_stamp}',
         threads         =  {threads}, 
-        guesses_f       = '{input.guesses_f}', 
-        lbl_xgb_f       = '{params.lbl_xgb_f}', 
-        lbl_xgb_cls_f   = '{params.lbl_xgb_cls_f}', 
-        lbl_tissue      = '{params.lbl_tissue}', 
-        lbl_sel_res_cl  = '{params.lbl_sel_res_cl}', 
-        lbl_min_pred    =  {params.lbl_min_pred}, 
+        int_f           = '{input.int_f}',
+        guesses_fs      = '{input.guesses_fs}', 
+        lbl_models      = '{params.lbl_models}', 
+        lbl_hi_res_cl   = '{params.lbl_hi_res_cl}', 
         lbl_min_cl_prop =  {params.lbl_min_cl_prop}, 
         lbl_min_cl_size =  {params.lbl_min_cl_size}
       )"

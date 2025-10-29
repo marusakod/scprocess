@@ -187,9 +187,6 @@ rule download_celltypist_models:
 
     # make dataframe, save
     models_df   = pl.DataFrame({ "model": models_ls })
-    models_df   = models_df.with_columns(
-      pl.col("model").str.to_lowercase().alias("model_name")
-    )
     models_df.write_csv(models_f)
     """
 

@@ -29,99 +29,75 @@ knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 source('code/utils.R')
 source('code/integration.R')
 source('code/label_celltypes.R')
-n_cores     = ${threads}
+n_cores       = ${threads}
 setDTthreads(n_cores)
 ```
 
 
 ```{r setup_input, include = FALSE}
-
 # input_files
-guesses_f   = "${guesses_f}"
-xgb_f       = "${lbl_xgb_f}"
-labels_f    = "${lbl_xgb_cls_f}"
+int_f         = "${int_f}"
+guesses_fs    = str_split("${guesses_fs}", " ")[[ 1 ]]
+models        = str_split("${lbl_models}", " ")[[ 1 ]]
 
 # params
-sel_res_cl   = "${lbl_sel_res_cl}"
-min_pred     = ${lbl_min_pred}
-min_cl_prop  = ${lbl_min_cl_prop}
-min_cl_size  = ${lbl_min_cl_size}
+hi_res_cl     = "${lbl_hi_res_cl}"
+min_cl_prop   = ${lbl_min_cl_prop}
+min_cl_size   = ${lbl_min_cl_size}
 ```
 
+```{r load_umap, include = FALSE}
+int_dt        = fread(int_f) %>% .[ (is_dbl == FALSE) & (in_dbl_cl == FALSE) ] %>% 
+  .[, .(cell_id, UMAP1, UMAP2, hi_res_cl = get(hi_res_cl) %>% fct_infreq)]
+```
 
 ```{r load_guesses, include = FALSE}
-
 # get predictions
-guesses_dt    = guesses_f %>% fread( na.strings = "" )
-
-# get celltype labels
-cl_lvls       = fread(labels_f) %>% .[, cluster]
-
-# get resolutions used
-res_ls        = names(guesses_dt) %>% 
-  str_extract("RNA_snn_res\\.([0-9]*[.])?[0-9]+") %>% unique %>% sort
-assert_that( sel_res_cl %in% res_ls )
-res_ls        = sel_res_cl %>% c(setdiff(res_ls, sel_res_cl))
-
-# format nicely
-guesses_melt  = get_guesses_melt(guesses_dt, res_ls, cl_lvls, min_cl_size)
-
+guesses_ls    = lapply(guesses_fs, fread) %>% setNames(models)
 ```
 
+## Integration clusters vs predicted cell types{.tabset}
 
-Annotation of cell types was performed using an XGBoost classifier trained on annotated data from the ${train_data_str}
-
-## Integration clusters vs XGBoost-predicted cell types{.tabset}
-
-Prediction of cell type labels is a two-step process: The XGBoost classifier first assigns a predicted cell type to each individual cell.
+<!-- Prediction of cell type labels is a two-step process: The XGBoost classifier first assigns a predicted cell type to each individual cell.
 These cell-level predictions are then aggregated at the cluster level (a majority-voting approach is used, where the final, assigned label for a
 cluster is the most common predicted label among all the cells within it).
 
 The heatmap helps to asses whether cell-level predictions are consistent with clustering results at different resolutions.
 Each cell on the heatmap shows the proportion of cells within a cluster (on the x-axis) that are assigned a specific predicted cell type (on the y-axis).
 By examining these results, clustering resolution that provides the most reliable labels for the final, cluster-level prediction step can be selected.
+ -->
 
-```{r plot_cls_vs_boost_pred, fig.height = 5, fig.width = 13, results = 'asis'}
-# plot
-for (sel_res in res_ls) {
+```{r plot_cls_vs_pred, fig.height = 12, fig.width = 13, results = 'asis'}
+for (model in models) {
   # make confusion matrix
-  guesses_sel = guesses_melt[ res == sel_res, .(cell_id, prediction = cl_pred_raw)]
-  int_sel    = guesses_melt[ res == sel_res, .(cell_id, cl_int = cl_int %>% factor)]
-  confuse_dt  = calc_confuse_dt(guesses_sel, int_sel, "prediction", "cl_int")
+  guesses_sel = guesses_ls[[ model ]] %>% .[, .(cell_id, prediction = predicted_label_naive %>% factor)]
+  confuse_dt  = calc_confuse_dt(guesses_sel, int_dt, "prediction", "hi_res_cl")
 
   # plot heatmap
-  cat('### res = ', sel_res, '\n', sep = '')
-  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", "cl_int", 
+  cat('### ', model, '\n', sep = '')
+  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", hi_res_cl, 
     plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
   cat('\n\n')
 }
 ```
 
-
-## XGBoost-predicted cell types over UMAP{.tabset}
+## Predicted cell types over UMAP{.tabset}
 
 Clustering of data is performed at different resolution values. For each value the clusters are displayed over a UMAP together with a plot showing predicted cell type labels.
 
-```{r plot_umap_xgboost_pred, fig.height = 5, fig.width = 12, results = 'asis'}
+```{r plot_preds_over_umap, fig.height = 5, fig.width = 12, results = 'asis'}
 # plot
-for (sel_res in res_ls) {
+for (model in models) {
   # make confusion matrix
-  guesses_sel = guesses_melt[ res == sel_res ]
-  umap_sel    = guesses_sel[, .(cell_id, UMAP1, UMAP2)]
-  g_cl        = plot_umap_cluster(umap_sel, 
-    guesses_sel[, .(cell_id, cluster = cl_int)], "harmony\ncluster")
-  g_pred      = plot_umap_cluster(umap_sel, 
-    guesses_sel[, .(cell_id, cluster = cl_pred)], "prediction")
+  guesses_sel = guesses_ls[[ model ]] %>% .[, .(cell_id, prediction = predicted_label_agg %>% factor)]
+  g_cl        = plot_umap_cluster(int_dt, 
+    int_dt[, .(cell_id, cluster = hi_res_cl)], "high resolution\nharmony\ncluster")
+  g_pred      = plot_umap_cluster(int_dt, 
+    guesses_sel[, .(cell_id, cluster = prediction)], "prediction\n(aggregated)")
   g = g_cl + g_pred
 
-  if(sel_res == sel_res_cl){
-    tab_name = 'selected resolution'
-  }else{
-    tab_name = sel_res
-  }
-
   # plot umaps
-  cat('### res = ', tab_name, '\n', sep = '')
+  cat('### ', model, '\n', sep = '')
   print(g)
   cat('\n\n')
 }

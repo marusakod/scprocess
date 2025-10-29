@@ -6,12 +6,30 @@ dependencies:
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=2_gnu
   - _python_abi3_support=1.0=hd8ed1ab_2
-  - anndata=0.12.4=pyhd8ed1ab_0
+  - anndata=0.12.0=pyhd8ed1ab_0
   - arpack=3.9.1=nompi_hf03ea27_102
   - array-api-compat=1.12.0=pyhe01879c_0
-  - brotli=1.2.0=h41a2e66_0
-  - brotli-bin=1.2.0=hf2c8021_0
-  - brotli-python=1.2.0=py313h09d1b84_0
+  - aws-c-auth=0.9.1=h48c9088_3
+  - aws-c-cal=0.9.2=he7b75e1_1
+  - aws-c-common=0.12.4=hb03c661_0
+  - aws-c-compression=0.3.1=h92c474e_6
+  - aws-c-event-stream=0.5.6=h82d11aa_3
+  - aws-c-http=0.10.4=h94feff3_3
+  - aws-c-io=0.22.0=h57f3b0d_1
+  - aws-c-mqtt=0.13.3=h2b1cf8c_6
+  - aws-c-s3=0.8.6=h4e5ac4b_5
+  - aws-c-sdkutils=0.2.4=h92c474e_1
+  - aws-checksums=0.2.7=h92c474e_2
+  - aws-crt-cpp=0.34.4=h60c762c_0
+  - aws-sdk-cpp=1.11.606=h32384e2_4
+  - azure-core-cpp=1.16.1=h3a458e0_0
+  - azure-identity-cpp=1.13.2=h3a5f585_1
+  - azure-storage-blobs-cpp=12.15.0=h2a74896_1
+  - azure-storage-common-cpp=12.11.0=h3d7a050_1
+  - azure-storage-files-datalake-cpp=12.13.0=hf38f1be_1
+  - brotli=1.1.0=hb03c661_4
+  - brotli-bin=1.1.0=hb03c661_4
+  - brotli-python=1.1.0=py313h7033f15_4
   - bzip2=1.0.8=hda65f42_8
   - c-ares=1.34.5=hb9d3cd8_0
   - ca-certificates=2025.10.5=hbd8a1cb_0
@@ -32,6 +50,8 @@ dependencies:
   - et_xmlfile=2.0.0=pyhd8ed1ab_1
   - fonttools=4.60.1=py313h3dea7bd_0
   - freetype=2.14.1=ha770c72_0
+  - gflags=2.2.2=h5888daf_1005
+  - glog=0.7.1=hbabe93e_0
   - glpk=5.0=h445213a_0
   - gmp=6.3.0=hac33072_2
   - h2=4.3.0=pyhcf101f3_0
@@ -50,16 +70,24 @@ dependencies:
   - legacy-api-wrap=1.4.1=pyhd8ed1ab_0
   - leidenalg=0.10.2=py313h7033f15_1
   - lerc=4.0.0=h0aef613_1
+  - libabseil=20250512.1=cxx17_hba17884_0
   - libaec=1.1.4=h3f801dc_0
+  - libarrow=22.0.0=hf201b43_0_cpu
+  - libarrow-acero=22.0.0=h635bf11_0_cpu
+  - libarrow-compute=22.0.0=h8c2c5c3_0_cpu
+  - libarrow-dataset=22.0.0=h635bf11_0_cpu
+  - libarrow-substrait=22.0.0=h3f74fd7_0_cpu
   - libblas=3.9.0=37_h4a7cf45_openblas
-  - libbrotlicommon=1.2.0=h09219d5_0
-  - libbrotlidec=1.2.0=hd53d788_0
-  - libbrotlienc=1.2.0=h02bd7ab_0
+  - libbrotlicommon=1.1.0=hb03c661_4
+  - libbrotlidec=1.1.0=hb03c661_4
+  - libbrotlienc=1.1.0=hb03c661_4
   - libcblas=3.9.0=37_h0358290_openblas
+  - libcrc32c=1.1.2=h9c3ff4c_0
   - libcurl=8.16.0=h4e3cde8_0
   - libdeflate=1.24=h86f0d12_0
   - libedit=3.1.20250104=pl5321h7949ede_0
   - libev=4.33=hd590300_2
+  - libevent=2.1.12=hf998b51_1
   - libexpat=2.7.1=hecca717_0
   - libffi=3.5.2=h9ec8514_0
   - libfreetype=2.14.1=ha770c72_0
@@ -69,6 +97,9 @@ dependencies:
   - libgfortran=15.2.0=h69a702a_7
   - libgfortran5=15.2.0=hcd61629_7
   - libgomp=15.2.0=h767d61c_7
+  - libgoogle-cloud=2.39.0=hdb79228_0
+  - libgoogle-cloud-storage=2.39.0=hdbdcf42_0
+  - libgrpc=1.73.1=h3288cfb_1
   - libhwloc=2.12.1=default_h7f8ec31_1002
   - libiconv=1.18=h3b78370_2
   - libjpeg-turbo=3.1.0=hb9d3cd8_0
@@ -78,12 +109,19 @@ dependencies:
   - libmpdec=4.0.0=hb9d3cd8_0
   - libnghttp2=1.67.0=had1ee68_0
   - libopenblas=0.3.30=pthreads_h94d23a6_2
+  - libopentelemetry-cpp=1.21.0=hb9b0907_1
+  - libopentelemetry-cpp-headers=1.21.0=ha770c72_1
+  - libparquet=22.0.0=h7376487_0_cpu
   - libpng=1.6.50=h421ea60_1
+  - libprotobuf=6.31.1=h49aed37_2
+  - libre2-11=2025.08.12=h7b12aa8_1
   - libsqlite=3.50.4=h0c1763c_0
   - libssh2=1.11.1=hcf80075_0
   - libstdcxx=15.2.0=h8f9b012_7
   - libstdcxx-ng=15.2.0=h4852527_7
+  - libthrift=0.22.0=h454ac66_1
   - libtiff=4.7.1=h8261f1e_0
+  - libutf8proc=2.11.0=hb04c3b8_0
   - libuuid=2.41.2=he9a06e4_0
   - libwebp-base=1.6.0=hd42ef1d_0
   - libxcb=1.17.0=h8a09558_0
@@ -92,18 +130,21 @@ dependencies:
   - libxml2-devel=2.15.1=h031cc0b_0
   - libzlib=1.3.1=hb9d3cd8_2
   - llvmlite=0.45.1=py313hdd307be_0
+  - lz4-c=1.10.0=h5888daf_1
   - matplotlib-base=3.10.7=py313h683a580_0
   - msgpack-python=1.1.2=py313h7037e92_0
   - munkres=1.1.4=pyhd8ed1ab_1
   - natsort=8.4.0=pyh29332c3_1
   - ncurses=6.5=h2d0b736_3
   - networkx=3.5=pyhe01879c_0
+  - nlohmann_json=3.12.0=h54a6638_1
   - numba=0.62.1=py313hd8e3f9f_0
   - numcodecs=0.16.1=py313h08cd8bf_2
   - numpy=2.3.4=py313hf6604e3_0
   - openjpeg=2.5.4=h55fea9a_0
   - openpyxl=3.1.5=py313ha4be090_2
   - openssl=3.5.4=h26f9b46_0
+  - orc=2.2.1=hd747db4_0
   - packaging=25.0=pyh29332c3_1
   - pandas=2.3.3=py313h08cd8bf_1
   - patsy=1.0.2=pyhcf101f3_0
@@ -111,7 +152,10 @@ dependencies:
   - pip=25.2=pyh145f28c_0
   - polars=1.35.0=pyh6a1acc5_0
   - polars-runtime-32=1.35.0=py310hffdcd12_0
+  - prometheus-cpp=1.3.0=ha5d0236_0
   - pthread-stubs=0.4=hb9d3cd8_1002
+  - pyarrow=22.0.0=py313h78bf25f_0
+  - pyarrow-core=22.0.0=py313he109ebe_0_cpu
   - pycparser=2.22=pyh29332c3_1
   - pynndescent=0.5.13=pyhd8ed1ab_1
   - pyparsing=3.2.5=pyhcf101f3_0
@@ -126,8 +170,10 @@ dependencies:
   - pytz=2025.2=pyhd8ed1ab_0
   - pyyaml=6.0.3=py313h3dea7bd_0
   - qhull=2020.2=h434a139_5
+  - re2=2025.08.12=h5301d42_1
   - readline=8.2=h8c095d6_2
   - requests=2.32.5=pyhd8ed1ab_0
+  - s2n=1.5.26=h5ac9029_0
   - scanpy=1.11.5=pyhd8ed1ab_0
   - scikit-learn=1.7.2=py313h06d4379_0
   - scipy=1.16.2=py313h11c21cd_0
@@ -136,6 +182,7 @@ dependencies:
   - session-info2=0.2.3=pyhd8ed1ab_0
   - setuptools=80.9.0=pyhff2d567_0
   - six=1.17.0=pyhe01879c_1
+  - snappy=1.2.2=h03e3b7b_0
   - statsmodels=0.14.5=py313h29aa505_1
   - tbb=2022.2.0=hb60516a_1
   - texttable=1.7.0=pyhd8ed1ab_1
@@ -152,6 +199,7 @@ dependencies:
   - xorg-libxdmcp=1.1.5=hb9d3cd8_0
   - yaml=0.2.5=h280c20c_3
   - zarr=3.1.3=pyhcf101f3_0
+  - zlib=1.3.1=hb9d3cd8_2
   - zlib-ng=2.2.5=hde8ca8f_0
   - zstandard=0.25.0=py313h54dd161_0
   - zstd=1.5.7=hb8e6e7a_2
