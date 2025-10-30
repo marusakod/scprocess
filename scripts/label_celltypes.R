@@ -256,33 +256,6 @@ label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integratio
 }
 
 # code for Rmd
-get_guesses_melt <- function(guesses_dt, res_ls, cl_lvls, min_cl_size) {
-  # define some useful variables
-  id_vars       = c("sample_id", "cell_id", "UMAP1", "UMAP2", 
-    "cl_pred_raw", "p_pred", "cl_pred_naive")
-  measure_vars  = c("cl_int", "cl_pred", "prop_pred")
-
-  # split out by resolution
-  guesses_melt  = guesses_dt[, -setdiff(id_vars, "cell_id"), with = FALSE ] %>%
-    melt.data.table( id = "cell_id", 
-      measure = patterns("^cl_int_", "^cl_pred_", "^prop_pred_") ) %>% 
-    set_colnames(c("cell_id", "res_idx", measure_vars)) %>% 
-    .[, res     := sort(res_ls)[ res_idx ] %>% factor(levels = res_ls) ] %>% 
-    .[, cl_pred := cl_pred %>% factor(levels = cl_lvls) ]
-
-  # exclude tiny clusters
-  cl_ns         = guesses_melt[, .(N_cl = .N), by = .(res, cl_int)]
-  keep_cls      = cl_ns[ N_cl >= min_cl_size ]
-  guesses_melt  = guesses_melt %>% merge(keep_cls[, -"N_cl"], by = c("res", "cl_int"))
-
-  # add useful labels back in
-  guesses_melt  = guesses_dt[, id_vars, with = FALSE] %>% 
-    merge(guesses_melt, id = "cell_id") %>% 
-    .[, cl_pred_raw := cl_pred_raw %>% factor(levels = cl_lvls) ]
-
-  return(guesses_melt)
-}
-
 calc_confuse_dt <- function(cl1_dt, cl2_dt, cl1, cl2) {
   assert_that( cl1 %in% names(cl1_dt) )
   assert_that( cl2 %in% names(cl2_dt) )
@@ -549,102 +522,43 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
   return(hm_obj)
 }
 
-plot_qc_by_cluster <- function(clusts_dt, qc_melt, x_lab) {
-  plot_dt     = merge(qc_melt, clusts_dt, by = "cell_id")
+plot_umap_cluster <- function(umap_dt, clust_dt, name) {
+  # join umap and clusters
+  assert_that(
+    all(c('UMAP1', 'UMAP2') %in% names(umap_dt)),
+    'cell_id' %in% names(umap_dt),
+    'cell_id' %in% names(clust_dt),
+    'cluster' %in% names(clust_dt)
+  )
 
-  cl_lvls     = levels(plot_dt$cluster) %>% setdiff("unknown")
-  cl_cols     = seq_along( cl_lvls ) %>% 
-    rep(nice_cols, times = 10)[ . ] %>% 
-    setNames( cl_lvls ) %>% c(unknown = "grey")
+  # define cluster name
+  plot_dt     = merge(umap_dt, clust_dt, by = 'cell_id', all.x = TRUE) %>%
+    .[, .(
+      UMAP1   = rescale(UMAP1, to = c(0.05, 0.95)),
+      UMAP2   = rescale(UMAP2, to = c(0.05, 0.95)),
+      cluster
+      )] %>% .[, cluster := factor(cluster) %>% fct_infreq %>% fct_relevel("unknown", after = Inf) ]
+  # plot_dt     = rbind(plot_dt[ is.na(cluster) ], plot_dt[ !is.na(cluster) ])
+  plot_dt     = plot_dt[ sample(.N, .N) ]
 
-  # define breaks
-  log_brks    = c(1e1, 2e1, 5e1, 1e2, 2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4) %>%
-    log10
-  log_labs    = c("10", "20", "50", "100", "200", "500",
-    "1k", "2k", "5k", "10k", "20k", "50k")
-  logit_brks  = c(1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 0.10, 0.30,
-    0.50, 0.70, 0.90, 0.97, 0.99) %>% qlogis
-  logit_labs  = c("0.01%", "0.03%", "0.1%", "0.3%", "1%", "3%", "10%", "30%",
-    "50%", "70%", "90%", "97%", "99%")
-  splice_brks = seq(0.1, 0.9, 0.1) %>% qlogis
-  splice_labs = (100*seq(0.1, 0.9, 0.1)) %>% as.integer %>% sprintf("%d%%", .)
+  # define colours
+  cl_cols     = seq_along( levels(plot_dt$cluster) ) %>%
+    rep(nice_cols, times = 10)[ . ] %>%
+    setNames( levels(umap_dt$cluster) )
+  if ("unknown" %in% names(cl_cols))
+    cl_cols[ "unknown" ] = "grey"
 
-  # plot
-  g = ggplot(plot_dt) + aes( x = cluster, y = qc_val, fill = cluster ) +
-    geom_violin() +
-    scale_fill_manual( values = cl_cols, guide = "none" ) +
-    facet_grid( qc_full ~ ., scales = 'free_y' ) +
-    facetted_pos_scales(
-      y = list(
-        qc_full == "library size"    ~
-          scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_full == "no. of features" ~
-          scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_full == "mito pct"        ~
-          scale_y_continuous(breaks = logit_brks, labels = logit_labs),
-        qc_full == "spliced pct"     ~
-          scale_y_continuous(breaks = splice_brks, labels = splice_labs)
-        )
-      ) +
+  # make plot
+  g = ggplot(plot_dt) +
+    aes( x = UMAP1, y = UMAP2, colour = cluster ) +
+    geom_point(size = 0.1) +
+    scale_colour_manual( values = cl_cols, guide = guide_legend(override.aes = list(size = 3)) ) +
+    scale_x_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
+    scale_y_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     theme_bw() +
-    theme(
-      axis.text.x       = element_text( angle = 90, hjust = 1, vjust = 0.5 ),
-      panel.grid        = element_blank(),
-      strip.background  = element_rect( fill = 'white')
-      ) +
-    labs( x = x_lab, y = "QC metric" )
-
-  return(g)
-}
-
-plot_cluster_entropies <- function(input_dt, what = c("norm", "raw")) {
-  # check inputs
-  what      = match.arg(what)
-
-  # calculate mixing
-  ns_dt     = input_dt %>% 
-    .[, .N, by = .(sample_id, cluster) ] %>% 
-    .[, p_sample  := N / sum(N), by = sample_id ] %>% 
-    .[, p_cluster := N / sum(N), by = cluster ] %>% 
-    .[, p_cl_norm := p_sample / sum(p_sample), by = cluster ]
-
-  # calculate entropy
-  entropy_dt  = ns_dt[, .(
-      h_cl_raw      = -sum(p_cluster * log2(p_cluster), na.rm = TRUE), 
-      h_cl_norm     = -sum(p_cl_norm * log2(p_cl_norm), na.rm = TRUE), 
-      max_pct_raw   = 100 * max(p_cluster), 
-      max_pct_norm  = 100 * max(p_cl_norm), 
-      N             = sum(N)
-    ), by = cluster ]
-  labels_dt   = entropy_dt[ order(cluster) ]
-
-  # get nice colours
-  cl_ls     = entropy_dt$cluster %>% unique %>% sort
-  cl_cols   = nice_cols[ seq_along(cl_ls) ] %>% setNames(cl_ls)
-
-  # plot
-  g = ggplot(entropy_dt) + 
-    aes_string( x = paste0('h_cl_', what), y = paste0('max_pct_', what) ) +
-    geom_smooth( method = "lm", formula = y ~ x, se = FALSE, colour = "grey" ) +
-    geom_text_repel( data = labels_dt, aes(label = cluster), size = 3, 
-      min.segment.length = 0, max.overlaps = Inf, box.padding = 0.5 ) +
-    geom_point( shape = 21, aes( size = sqrt(N), fill = cluster ) ) +
-    scale_x_continuous(breaks = pretty_breaks(n = 3)) +
-    scale_y_continuous(breaks = pretty_breaks(n = 3)) +
-    scale_fill_manual( values = cl_cols, guide = "none" ) +
-    expand_limits( y = 0 ) +
-    scale_size(
-      range   = c(1, 8),
-      breaks  = c(2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4) %>% sqrt, 
-      labels  = c('200', '500', '1k', '2k', '5k', '10k', '20k', '50k')
-      ) +
-    theme_bw() + 
-    theme( panel.grid = element_blank() ) +
-    labs(
-      x     = 'entropy (high when clusters even across samples)',
-      y     = 'max. pct. of one sample (high when concentrated in few samples)',
-      size  = 'total # cells'
-    )
+    theme( panel.grid = element_blank(), aspect.ratio = 1, 
+      axis.ticks = element_blank(), axis.text = element_blank() ) +
+    labs( colour = name )
 
   return(g)
 }
