@@ -53,6 +53,7 @@ int_dt        = fread(int_f) %>% .[ (is_dbl == FALSE) & (in_dbl_cl == FALSE) ] %
 
 ```{r load_guesses, include = FALSE}
 # get predictions
+assert_that( all(sapply(guesses_fs, file.exists)) )
 guesses_ls    = lapply(guesses_fs, fread) %>% setNames(models)
 ```
 

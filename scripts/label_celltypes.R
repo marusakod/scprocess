@@ -537,18 +537,20 @@ plot_umap_cluster <- function(umap_dt, clust_dt, name) {
       UMAP1   = rescale(UMAP1, to = c(0.05, 0.95)),
       UMAP2   = rescale(UMAP2, to = c(0.05, 0.95)),
       cluster
-      )] %>% .[, cluster := factor(cluster) %>% fct_infreq %>% fct_relevel("unknown", after = Inf) ]
-  # plot_dt     = rbind(plot_dt[ is.na(cluster) ], plot_dt[ !is.na(cluster) ])
-  plot_dt     = plot_dt[ sample(.N, .N) ]
+      )] %>% .[, cluster := factor(cluster) %>% fct_infreq ]
+
+  # tweak if "unknown"
+  if ("unknown" %in% levels(plot_dt$cluster) )
+    plot_dt     = plot_dt[, cluster := cluster %>% fct_relevel("unknown", after = Inf) ]
 
   # define colours
-  cl_cols     = seq_along( levels(plot_dt$cluster) ) %>%
-    rep(nice_cols, times = 10)[ . ] %>%
-    setNames( levels(umap_dt$cluster) )
-  if ("unknown" %in% names(cl_cols))
-    cl_cols[ "unknown" ] = "grey"
+  cl_lvls     = levels(plot_dt$cluster)
+  cl_cols     = seq_along( cl_lvls ) %>% rep(nice_cols, times = 10)[ . ] %>% setNames( cl_lvls )
+  if ("unknown" %in% cl_lvls)
+    cl_cols[[ "unknown" ]] = "grey"
 
   # make plot
+  plot_dt     = plot_dt[ sample(.N, .N) ]
   g = ggplot(plot_dt) +
     aes( x = UMAP1, y = UMAP2, colour = cluster ) +
     geom_point(size = 0.1) +
