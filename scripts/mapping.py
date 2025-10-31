@@ -29,8 +29,8 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
   on_arvados  = not os.path.exists(where)
   if on_arvados:
     # set up tmp directory
-    tmp_dir     = f"{af_dir}/.fastq_tmp/{run}"
-    prefix      = f"tmp_file_{run}_{what}"
+    tmp_dir     = f"{af_dir}/.tmp_fastqs_{run}_{what}"
+    prefix      = f"{run}_{what}"
     os.makedirs(tmp_dir, exist_ok = True)
 
     # download files from Arvados
@@ -67,6 +67,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
       os.unlink(f)
     for f in R2_fs:
       os.unlink(f)
+    os.rmdir(tmp_dir)
 
 
 def _download_arvados_file_as_tempfile(arv_uuid, f, tmp_dir, prefix, i, read, threads):

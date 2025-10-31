@@ -134,7 +134,7 @@ rule run_qc:
     qc_f         = temp(qc_dir + '/tmp_qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'), 
     coldata_f    = temp(qc_dir + '/tmp_coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'),
     rowdata_f    = temp(qc_dir + '/tmp_rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'), 
-    dimred_f     = dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    # dimred_f     = dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     dbl_f        = dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   params:
     metadata_f      = config['project']['sample_metadata'],
@@ -174,7 +174,6 @@ rule run_qc:
         rowdata_f       = '{output.rowdata_f}', \
         qc_f            = '{output.qc_f}', \
         coldata_f       = '{output.coldata_f}', \
-        dimred_f        = '{output.dimred_f}', \
         dbl_f           = '{output.dbl_f}', \
         mito_str        = '{params.mito_str}', \
         exclude_mito    = '{params.exclude_mito}', \

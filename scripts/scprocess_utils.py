@@ -721,9 +721,9 @@ def _get_fastqs(config, RUNS, is_hto = False):
     check_R1      = [re.sub(r'(?<=(_|\.))R1', 'R0', f) for f in R1_fs]
     check_R2      = [re.sub(r'(?<=(_|\.))R2', 'R0', f) for f in R2_fs]
     if len(R1_fs) == 0:
-      print(f"  WARNING: no {[ "hto " if is_hto else ""]}fastq files found for run {run}; excluded.")
+      print(f"  WARNING: no {"hto " if is_hto else ""}fastq files found for run {run}; excluded.")
     elif set(check_R1) != set(check_R2):
-      print(f"  WARNING: {[ "hto " if is_hto else ""]}fastq files found for run {run} but R1 and R2 don't match; excluded.")
+      print(f"  WARNING: {"hto " if is_hto else ""}fastq files found for run {run} but R1 and R2 don't match; excluded.")
     else:
       fastqs[run] = {
         "where":          this_where[0], 

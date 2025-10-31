@@ -40,7 +40,7 @@ splice_brks = c(1e-4, 1e-3, 1e-2, 0.10, 0.50, 0.90, 0.99, 0.999) %>% qlogis
 splice_labs = c("0.01%", "0.1%", "1%", "10%", "50%", "90%", "99%", "99.9%")
 
 main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux_f, gtf_dt_f,
-  ambient_method, sce_fs_str, all_samples_str, rowdata_f, dbl_f, dimred_f, qc_f, 
+  ambient_method, sce_fs_str, all_samples_str, rowdata_f, dbl_f, qc_f, 
   coldata_f, mito_str, exclude_mito, hard_min_counts, hard_min_feats, hard_max_mito,
   run_var = 'sample_id', demux_type = "none", dbl_min_feats = 100, dbl_min_cells = 100){
 
@@ -68,7 +68,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
       if(smpl_status){
         message('  run ', run_name, ' has been excluded. Saving empty results file')
         lapply(sce_fs_ls, file.create)
-        file.create(dimred_f)
+        # file.create(dimred_f)
         file.create(dbl_f)
         file.create(qc_f)
         file.create(rowdata_f)
@@ -103,7 +103,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 
   # do doublet calcs
   message('   starting doublet detection')
-  dbl_dt  = run_scdblfinder(sce, run_name, run_var, ambient_method, dbl_f, dimred_f)
+  dbl_dt  = run_scdblfinder(sce, run_name, run_var, ambient_method, dbl_f)
   
   message('  adding doublet info to column data')
   # add doublet info to coldata
@@ -415,7 +415,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 }
 
 run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_method, 
-  dbl_f, dimred_f, min_feats = 100, min_cells = 100) {
+  dbl_f, min_feats = 100, min_cells = 100) {
  
   sample_idx  = sce[[sample_var]] == sel_sample
   sce         = sce[, sample_idx ]
@@ -461,17 +461,17 @@ run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_m
   setkeyv(dbl_dt, "cell_id")
   dbl_dt      = dbl_dt[ colnames(sce) ]
     
-  message('  running PCA')
-  dimred_dt   = .calc_one_dimred(sce, sel_sample)
+  # message('  running PCA')
+  # dimred_dt   = .calc_one_dimred(sce, sel_sample)
     
   # check they match
   assert_that( all(dbl_dt$cell_id == colnames(sce)) )
-  assert_that( all(dimred_dt$cell_id == dbl_dt$cell_id) )
+  # assert_that( all(dimred_dt$cell_id == dbl_dt$cell_id) )
     
   # save
   message('  saving results')
   fwrite(dbl_dt, file = dbl_f)
-  fwrite(dimred_dt, file = dimred_f)
+  # fwrite(dimred_dt, file = dimred_f)
   message('done!')
     
   return(dbl_dt)

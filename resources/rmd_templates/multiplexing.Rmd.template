@@ -32,11 +32,9 @@ source('code/multiplexing.R')
 # get all sample ids
 s_lvls    =  "${runs_str}" %>%
   str_split(pattern = ',') %>% unlist()
-
 ```
 
 ```{r setup_input, include = FALSE}
-
 # project metadata
 proj_meta_f = "${metadata_f}"
 
@@ -66,7 +64,6 @@ hto_sce_fs = sapply(
 setNames(s_lvls)
 
 assert_that( length(hto_sce_fs) > 0) 
-
 ```
 
 ```{r load_hto_sce, include = FALSE}
@@ -91,7 +88,6 @@ hto_dt_ls  = lapply(hto_sce_ls, FUN = get_hto_dt)
 
 
 ```{r arrange_samples_for_hto_qc_plots, include = FALSE}
-
 # get total sample number
 sample_n = nrow(hto_knee_params_df)
 
@@ -156,10 +152,10 @@ For each sample, the table lists the number of doublets, singlets and negative (
 
 ```{r demux_out_tbl}
 rbindlist(hto_dt_ls) %>%
-  .[, .(pool_id, class = HTO_classification.global)] %>%
-  .[, count := .N, by = .(pool_id, class) ] %>%
-  unique() %>%
-  dcast(pool_id ~ class) %>%
+  .[, .(pool_id, cell_id, class = HTO_classification.global)] %>%
+  unique %>%
+  .[, .(count = .N), by = .(pool_id, class) ] %>%
+  dcast(pool_id ~ class, value.var = "count") %>%
   knitr::kable()
 ```
 
@@ -183,7 +179,6 @@ for (i in sample_ids){
   print(hto_ridges(i, proj_meta = proj_meta, hto_dt_ls = hto_dt_ls))
   cat('\n\n')
 }
-
 ```
 
 ## Pairs of HTO signals{.tabset}

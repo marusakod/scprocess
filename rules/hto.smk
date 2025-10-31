@@ -117,7 +117,8 @@ rule make_hto_sce_objects:
     hto_h5_f     = af_dir + '/af_{run}/hto/af_hto_counts_mat.h5'
   params:
     whitelist_trans_f = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["whitelist_trans_f"],
-    ambient_method    = config['ambient']['ambient_method']
+    ambient_method    = config['ambient']['ambient_method'],
+    seurat_quantile   = config['multiplexing']['seurat_quantile']
   output:
     sce_hto_f   = demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   threads: 1
@@ -138,7 +139,8 @@ rule make_hto_sce_objects:
       hto_mat_f       = '{input.hto_h5_f}', 
       trans_f         = '{params.whitelist_trans_f}', 
       hto_sce_f       = '{output.sce_hto_f}', 
-      ambient_method  = '{params.ambient_method}'
+      ambient_method  = '{params.ambient_method}',
+      seurat_quantile =  {params.seurat_quantile}
     )"
   """
 
