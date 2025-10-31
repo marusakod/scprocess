@@ -43,11 +43,12 @@
       "additionalProperties": false,
       "required": [ "demux_type" ],
       "properties": {
-        "demux_type":   { "type": "string", "enum": ["none", "hto", "custom"], "default": "none" },
-        "fastq_dir":    { "type": "string" },
-        "arv_uuids":    { "type": "array", "items": {"type": "string", "pattern": "^arkau-[0-9a-z]{5}-[0-9a-z]{15}$"} },
-        "feature_ref":  { "type": "string" },
-        "demux_output": { "type": "string" }
+        "demux_type":       { "type": "string", "enum": ["none", "hto", "custom"], "default": "none" },
+        "fastq_dir":        { "type": "string" },
+        "arv_uuids":        { "type": "array", "items": {"type": "string", "pattern": "^arkau-[0-9a-z]{5}-[0-9a-z]{15}$"} },
+        "feature_ref":      { "type": "string" },
+        "seurat_quantile":  { "type": "number", "default": 0.99, "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "demux_output":     { "type": "string" }
       },
       "allOf": [
         {

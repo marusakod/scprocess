@@ -20,7 +20,7 @@ suppressPackageStartupMessages({
   library("scuttle")
 })
 
-get_one_hto_sce <- function(sel_pool, sample_stats_f, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, ambient_method) {
+get_one_hto_sce <- function(sel_pool, sample_stats_f, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, ambient_method, seurat_quantile) {
   # if ambient method is cellbender exclude bad samples
   smpl_status = FALSE
   
@@ -71,7 +71,7 @@ get_one_hto_sce <- function(sel_pool, sample_stats_f, amb_yaml_f, hto_mat_f, tra
   hto_seu   = NormalizeData(hto_seu, assay = "HTO", normalization.method = "CLR")
   
   message("  demultiplexing sample ", sel_pool)
-  hto_seu   = HTODemux(hto_seu, assay = "HTO", positive.quantile = 0.99)
+  hto_seu   = HTODemux(hto_seu, assay = "HTO", positive.quantile = seurat_quantile)
   
   # get demultiplexing metadata
   demux_dt  = hto_seu[[]] %>% as.data.table(keep.rownames = "cell_id") %>%
@@ -118,15 +118,13 @@ get_hto_dt <- function(pool_sce) {
     .[, hto_id      := factor(hto_id)]
 
   return(pool_all)
-
 }
 
 
-hto_ridges <- function(sel_pool, proj_meta, hto_dt_ls) {
-
+hto_ridges <- function(sel_sample, proj_meta, hto_dt_ls) {
   # get the right pool dt
   smpl_meta = proj_meta %>%
-    .[sample_id == sel_pool]
+    .[ sample_id == sel_sample ]
   pool = smpl_meta$pool_id %>% unique()
   hto_id_smpl = smpl_meta$hto_id %>% unique()
 
@@ -136,22 +134,22 @@ hto_ridges <- function(sel_pool, proj_meta, hto_dt_ls) {
   pool_dt = hto_dt_ls[[pool]] %>%
     .[guess == hto_id_smpl] 
 
-  cols  = MetBrewer::met.brewer( name = 'Johnson', n = length(pool_htos),
+  cols  = MetBrewer::met.brewer( name = 'Renoir', n = length(pool_htos),
     type = 'discrete' ) %>% setNames(sort(pool_htos))
   pool_dt$hto_id = factor(pool_dt$hto_id, levels = names(cols))
 
-  p = ggplot(pool_dt, aes(x = norm_count, y = hto_id, fill = hto_id)) +
+  g = ggplot(pool_dt, aes(x = norm_count, y = hto_id %>% fct_rev, fill = hto_id)) +
     geom_density_ridges(scale = 1, alpha = 0.8) +
     theme_minimal() +
     labs(
-      title = paste(sel_pool, hto_id_smpl, sep = ', '),
+      title = paste(sel_sample, hto_id_smpl, sep = ', '),
       x = "Normalized HTO counts",
       y = NULL
     ) +
     theme(legend.position = "none") +
     scale_fill_manual(values = cols)
 
-  return(p)
+  return(g)
 }
 
 
@@ -166,9 +164,9 @@ hto_pairwise <- function(pool_dt, var = c("prop", "norm_count")) {
     by = c("cell_id", "guess"), allow.cartesian = TRUE, suffixes = c(".x", ".y")
   ) %>%
     .[ as.integer(hto_id.x) > as.integer(hto_id.y) ]
-
+  # colour options w 8: "Homer1", "Redon", "Renoir", "Signac"
   hto_vals    = plot_dt$guess %>% unique() %>% setdiff(c('Doublet', 'Negative')) %>% sort
-  cols_tmp    = MetBrewer::met.brewer( name = 'Johnson', n = length(hto_vals),
+  cols_tmp    = MetBrewer::met.brewer( name = 'Renoir', n = length(hto_vals),
                                        type = 'discrete' ) %>% setNames(hto_vals)
   hto_cols    = c(cols_tmp, Negative = "grey20", Doublet = "grey80")
 
@@ -202,24 +200,23 @@ hto_barplot <- function(hto_dt_ls) {
   
   plot_dt = rbindlist(hto_dt_ls) %>%
     .[, .(pool_id, guess)] %>%
-    .[, count := .N, by = .(pool_id, guess) ] %>%
-     unique()
+    .[, .(count = .N), by = .(pool_id, guess) ] %>%
+    .[, pct := count / sum(count) * 100, by = pool_id ]
   
   hto_vals    = plot_dt$guess %>% unique() %>% setdiff(c('Doublet', 'Negative')) %>% sort
-  cols_tmp    = MetBrewer::met.brewer( name = 'Johnson', n = length(hto_vals),
+  cols_tmp    = MetBrewer::met.brewer( name = 'Renoir', n = length(hto_vals),
                                        type = 'discrete' ) %>% setNames(hto_vals)
   
   hto_cols    = c(cols_tmp, Negative = "grey20", Doublet = "grey80")
   plot_dt$guess = factor(plot_dt$guess, levels = names(hto_cols) )
   
   g = ggplot(plot_dt) +
-    aes( x = pool_id, y = count, fill = guess ) +
-    geom_bar( position="fill", stat="identity" ) +
+    aes( x = pool_id, y = pct, fill = guess ) +
+    geom_col( position="fill" ) +
     scale_fill_manual( values = hto_cols, breaks = names(hto_cols) ) +
+    scale_y_continuous( breaks = seq(0, 1, 0.2), labels = seq(0, 100, 20) ) +
     theme_classic() +
     labs(fill = 'HTO guess', y = 'pct. of barcodes', x = '')
   
   return(g)
 }
-
-

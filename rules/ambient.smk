@@ -142,7 +142,7 @@ if config['ambient']['ambient_method'] == 'cellbender':
     output:
       ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
       tmp_f            = temp(amb_dir + '/ambient_{run}/ckpt.tar.gz')
-    threads: 1
+    threads: 4
     retries: config['resources']['retries']
     resources:
       mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB,
