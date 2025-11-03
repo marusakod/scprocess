@@ -48,7 +48,8 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, de
   assert_that("sample_id" %in% colnames(all_coldata))
   ok_samples  = sample_qc[ bad_sample == FALSE ]$sample_id
   all_coldata = all_coldata %>%
-    .[ keep == TRUE | dbl_class == 'doublet' ] %>% 
+    # .[ keep == TRUE | dbl_class == 'doublet' ] %>% 
+    .[ keep == TRUE | scdbl_class == 'doublet' ] %>% 
     .[ sample_id %in% c(ok_samples, "") ]
 
   message('  loading hvg matrix')

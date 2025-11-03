@@ -188,6 +188,4 @@ rule download_celltypist_models:
     # make dataframe, save
     models_df   = pl.DataFrame({ "model": models_ls })
     models_df.write_csv(models_f)
-    """
-
 

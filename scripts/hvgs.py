@@ -706,7 +706,8 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
   qc_df   = dt.fread(qc_f).to_pandas()
 
   # subset to doublets
-  dbl_df  = qc_df[qc_df["dbl_class"] == "doublet"]
+  # dbl_df  = qc_df[qc_df["dbl_class"] == "doublet"]
+  dbl_df  = qc_df[qc_df["scdbl_class"] == "doublet"]
 
   # extract ensembl ids (maybe keep ensembl is in the df earlier)
   hvg_ensembl   = []

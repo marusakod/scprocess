@@ -461,7 +461,11 @@ if "label_celltypes" in config:
       r_utils_f   = f"{code_dir}/utils.R",
       r_mkr_f     = f'{code_dir}/marker_genes.R',
       int_f       = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-      guesses_fs  = expand(lbl_dir + '/celltypist_{model}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', model = MODELS)
+      guess_f_ls  = expand(lbl_dir + '/labels_{labeller}_model_{model}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
+        zip, 
+          labeller  = [ entry['labeller'] for entry in LABELLER_PARAMS],
+          model     = [ entry['model']    for entry in LABELLER_PARAMS]
+        )
     output:
       r_lbl_f     = f'{code_dir}/label_celltypes.R',
       rmd_f       = f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd',
@@ -472,11 +476,11 @@ if "label_celltypes" in config:
       short_tag       = config['project']['short_tag'],
       date_stamp      = config['project']['date_stamp'],
       proj_dir        = config['project']['proj_dir'],
-      # guesses_fs      = ",".join([params.guesses_fs]),
-      lbl_models      = MODELS,
-      lbl_hi_res_cl   = config['label_celltypes']['lbl_hi_res_cl'], 
-      lbl_min_cl_prop = config['label_celltypes']['lbl_min_cl_prop'], 
-      lbl_min_cl_size = config['label_celltypes']['lbl_min_cl_size']
+      labeller_ls     = [ entry['labeller']     for entry in LABELLER_PARAMS],
+      model_ls        = [ entry['model']        for entry in LABELLER_PARAMS],
+      hi_res_cl_ls    = [ entry['hi_res_cl']    for entry in LABELLER_PARAMS], 
+      min_cl_prop_ls  = [ entry['min_cl_prop']  for entry in LABELLER_PARAMS], 
+      min_cl_size_ls  = [ entry['min_cl_size']  for entry in LABELLER_PARAMS]
     threads: 1
     retries: config['resources']['retries']
     resources:
@@ -496,19 +500,20 @@ if "label_celltypes" in config:
       Rscript --vanilla -e "source('scripts/render_htmls.R'); \
       render_html(
         rule_name       = '$rule', 
-        temp_f          =  '$template_f', 
-        rmd_f           = '{output.rmd_f}', 
+        temp_f          = '$template_f', 
+        rmd_f           = '{output.rmd_f}',
         your_name       = '{params.your_name}',
         affiliation     = '{params.affiliation}',
         proj_dir        = '{params.proj_dir}',
         short_tag       = '{params.short_tag}',
         date_stamp      = '{params.date_stamp}',
-        threads         =  {threads}, 
+        threads         =  {threads},
         int_f           = '{input.int_f}',
-        guesses_fs      = '{input.guesses_fs}', 
-        lbl_models      = '{params.lbl_models}', 
-        lbl_hi_res_cl   = '{params.lbl_hi_res_cl}', 
-        lbl_min_cl_prop =  {params.lbl_min_cl_prop}, 
-        lbl_min_cl_size =  {params.lbl_min_cl_size}
+        guess_f_ls      = '{input.guess_f_ls}',
+        labeller_ls     = '{params.labeller_ls}',
+        model_ls        = '{params.model_ls}',
+        hi_res_cl_ls    = '{params.hi_res_cl_ls}',
+        min_cl_prop_ls  = '{params.min_cl_prop_ls}',
+        min_cl_size_ls  = '{params.min_cl_size_ls}'
       )"
       """

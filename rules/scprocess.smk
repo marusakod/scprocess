@@ -25,7 +25,7 @@ RUNS                = list(RUN_PARAMS.keys())
 SAMPLE_PARAMS       = get_sample_parameters(config, RUNS, scdata_dir)
 SAMPLES             = list(SAMPLE_PARAMS.keys())
 SAMPLES_TO_RUNS     = get_samples_to_runs(config, RUNS, SAMPLES)
-MODELS              = get_models_for_labelling(config)
+LABELLER_PARAMS     = get_labeller_parameters(config, schema_f, scdata_dir)
 
 # unpack some variables that we use a lot
 PROJ_DIR        = config['project']['proj_dir']
@@ -282,7 +282,11 @@ rule marker_genes:
 
 rule label_celltypes:
   input:
-    expand(lbl_dir + '/celltypist_{model}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', model=MODELS),
+    expand(lbl_dir + '/labels_{labeller}_model_{model}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
+      zip, 
+        labeller  = [ entry['labeller'] for entry in LABELLER_PARAMS],
+        model     = [ entry['model']    for entry in LABELLER_PARAMS]
+      ),
     code_dir  + '/label_celltypes.R',
     rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
     docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'

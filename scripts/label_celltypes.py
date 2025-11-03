@@ -43,6 +43,7 @@ def run_celltypist(sel_sample, model_name, mtx_f, cells_f, genes_f):
   # join together
   pred_df     = pred_df.join( probs_df, on = "cell_id" )
   pred_df     = pred_df.with_columns(
+    labeller    = pl.lit("celltypist"),
     sample_id   = pl.lit(sel_sample),
     model       = pl.lit(model_name)
   )

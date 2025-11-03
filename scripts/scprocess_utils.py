@@ -69,7 +69,8 @@ def check_setup_before_running_scprocess(scprocess_dir, extraargs):
 # wrapper for checking
 def check_config(config, schema_f, scdata_dir, scprocess_dir):
   # start with defaults, overwrite with config values
-  defaults    = _get_default_config_from_schema(schema_f)
+  schema      = _load_schema_file(schema_f)
+  defaults    = _get_default_config_from_schema(schema)
   snakemake.utils.update_config(defaults, config)
   config      = defaults
 
@@ -86,13 +87,12 @@ def check_config(config, schema_f, scdata_dir, scprocess_dir):
   config      = _check_integration_parameters(config)
   config      = _check_marker_genes_parameters(config, scdata_dir)
   config      = _check_pb_empties_parameters(config)
-  config      = _check_label_celltypes_parameters(config, scdata_dir)
 
   return config
 
 
 # get all default values from scheme file
-def _get_default_config_from_schema(schema_f):
+def _load_schema_file(schema_f):
   # mess about w schema path
   schema_p  = pathlib.Path(schema_f)
   path_bits = list(schema_p.parts)
@@ -102,6 +102,10 @@ def _get_default_config_from_schema(schema_f):
   with open(schema_p, 'r') as f:
     schema = json.load(f)
 
+  return schema
+
+
+def _get_default_config_from_schema(schema):
   # extract defaults from the schema
   default_config = {}
   for key, props in schema.get('properties', {}).items():
@@ -519,47 +523,6 @@ def _get_custom_marker_genes_specs(config, scdata_dir):
   return custom_mkr_names, custom_mkr_paths
 
 
-# check parameters for labelling celltypes
-def _check_label_celltypes_parameters(config, scdata_dir):
-  # if none, done
-  if config['label_celltypes']['lbl_labeller'] == "":
-    del config['label_celltypes']
-    return config
-
-  # check that parameters for xgboost are ok
-  if config['label_celltypes']['lbl_labeller'] == 'celltypist':
-    # check that selected models are valid
-    model_f       = scdata_dir / 'celltypist/celltypist_models.csv'
-    valid_models  = pl.read_csv(model_f)['model'].to_list()
-    missing_mdls  = set(config['label_celltypes']['lbl_models']) - set(valid_models)
-    if len(missing_mdls) > 0:
-      raise KeyError(f"the following values specified in label_celltypes: lbl_models: are not valid:\n  {", ".join(list(missing_mdls))}\nThe column 'model' in this file contains valid models:\n{str(model_f)}")
-
-  # check that parameters for xgboost are ok
-  elif config['label_celltypes']['lbl_labeller'] == 'xgboost':
-    valid_models  = ['human_cns']
-    missing_mdls  = set(config['label_celltypes']['lbl_models']) - set(valid_models)
-    if len(missing_mdls) > 0:
-      raise KeyError(f"the following values specified in label_celltypes: lbl_models: are not valid:\n  {", ".join(list(missing_mdls))}\nThe column 'model' in this file contains valid models:\n{str(model_f)}")
-  
-    # pick labeller
-    xgb_dir  = os.path.join(scdata_dir, 'xgboost')
-    if not pathlib.Path(xgb_dir).is_dir():
-     raise FileNotFoundError(f"xgboost directory '{xgb_dir}' not found")
-  
-    if config['label_celltypes']['lbl_models'] == 'human_cns':
-      config['label_celltypes']['lbl_xgb_f']      = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds")
-      config['label_celltypes']['lbl_xgb_cls_f']  = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv")
-
-    # check these are ok
-    if not pathlib.Path(config['label_celltypes']['lbl_xgb_f']).is_file():
-      raise FileNotFoundError(f"file {config['label_celltypes']['lbl_xgb_f']} doesn't exist; consider (re)runnning scprocess setup")
-    if not pathlib.Path(config['label_celltypes']['lbl_xgb_cls_f']).is_file():
-      raise FileNotFoundError(f"file {config['label_celltypes']['lbl_xgb_cls_f']} doesn't exist; consider (re)runnning scprocess setup")
-
-  return config
-
-
 # get parameters for zoom
 def get_zoom_parameters(config, zoom_schema_f, scdata_dir):
   # if (rule_name != 'zoom') or ('zoom' not in config) or (config['zoom'] is None):
@@ -587,7 +550,8 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config, scdata_dir):
     zoom_config   = yaml.safe_load(stream)
 
   # update with zoom defaults if not specified
-  zoom_defaults = _get_default_config_from_schema(zoom_schema_f)
+  zoom_schema   = _load_schema_file(zoom_schema_f)
+  zoom_defaults = _get_default_config_from_schema(zoom_schema)
   snakemake.utils.update_config(zoom_defaults, zoom_config)
   zoom_config   = zoom_defaults
 
@@ -1049,15 +1013,73 @@ def get_samples_to_runs(config, RUNS, SAMPLES):
   return SAMPLES_TO_RUNS
 
 
-def get_models_for_labelling(config):
-  # maybe return nothing
+# get parameters for labelling celltypes
+def get_labeller_parameters(config, schema_f, scdata_dir):
+  # if none, done
   if not 'label_celltypes' in config:
-    return []
+    return config
 
-  # otherwise get list of models
-  MODELS    = config['label_celltypes']['lbl_models']
+  # get defaults for label parameters
+  schema          = _load_schema_file(schema_f)
+  label_schema    = schema["properties"]["label_celltypes"]["items"]
+  label_defaults  = _get_default_config_from_schema(label_schema)
 
-  return MODELS
+  # get things we need for checks
+  typist_ls_f     = scdata_dir / 'celltypist/celltypist_models.csv'
+  mdls_typist     = pl.read_csv(typist_ls_f)['model'].to_list()
+  mdls_scprocess  = ['human_cns']
+
+  # check that selected models are valid
+  def _check_one_label_celltypes_parameters(entry):
+    # check that parameters for celltypist are ok
+    if entry['labeller'] == 'celltypist':
+      if not entry['model'] in mdls_typist:
+        raise KeyError(
+          f"the value {entry['model']} specified in label_celltypes is not a valid celltypist model"
+          f"The column 'model' in this file contains valid models:\n{str(model_f)}"
+          )
+
+    # check that parameters for scprocess are ok
+    elif entry['labeller'] == 'scprocess':
+      if not entry['model'] in mdls_scprocess:
+        raise KeyError(
+          f"the value {entry['model']} specified in label_celltypes is not a valid scprocess model"
+          f"These models are currently available: {", ".join(models_scprocess)}"
+          )
+    
+      # pick labeller
+      xgb_dir  = os.path.join(scdata_dir, 'xgboost')
+      if not pathlib.Path(xgb_dir).is_dir():
+       raise FileNotFoundError(f"xgboost directory '{xgb_dir}' not found")
+    
+      # get relevant values for labeller
+      if entry['model'] == 'human_cns':
+        entry['xgb_f']      = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds")
+        entry['xgb_cls_f']  = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv")
+
+      # check these are ok
+      if not pathlib.Path(entry['xgb_f']).is_file():
+        raise FileNotFoundError(f"file {entry['xgb_f']} doesn't exist; consider (re)runnning scprocess setup")
+      if not pathlib.Path(entry['xgb_cls_f']).is_file():
+        raise FileNotFoundError(f"file {entry['xgb_cls_f']} doesn't exist; consider (re)runnning scprocess setup")
+
+    # check that parameters for scprocess are ok
+    elif entry['labeller'] == 'custom':
+      entry['custom_f']   = _check_path_exists_in_project(entry['custom_f'], config, what = "file")
+  
+    # add defaults
+    for v in label_defaults:
+      if not v in entry:
+        entry[v] = label_defaults[v]
+
+    return entry
+
+  # apply this to each specified model
+  LABELLER_PARAMS = [ _check_one_label_celltypes_parameters(entry) for entry in config['label_celltypes'] ]
+
+  return LABELLER_PARAMS
+
+
 
 
 ### helpers

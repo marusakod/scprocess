@@ -169,12 +169,12 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   coldata_out = merge(coldata_in, dbl_data, by = by_cols, all.x = TRUE)
   if(length(missing_cells) != 0){
   # set dbl_class to singlet or replace with demux_class if available
-    if("demux_class" %in% colnames(coldata_out)){
-    coldata_out = coldata_out %>%
-      .[is.na(dbl_class), dbl_class := demux_class]
+    if ("demux_class" %in% colnames(coldata_out)) {
+      coldata_out = coldata_out %>%
+        .[is.na(dbl_class), dbl_class := demux_class]
     } else {
-    coldata_out = coldata_out %>%
-      .[is.na(dbl_class), dbl_class := 'singlet']
+      coldata_out = coldata_out %>%
+        .[is.na(dbl_class), dbl_class := 'singlet']
     }
   }
   
@@ -438,10 +438,10 @@ run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_m
     .[ type == 'real' ] # keep just real cells
   
   # check if class is available from demultiplexing
-  if('demux_class' %in% colnames(colData(sce))){
+  if ('demux_class' %in% colnames(colData(sce))) {
     #extract demux_class
     demux_dt = colData(sce) %>% as.data.table(keep.rownames = 'cell_id') %>%
-    .[, c("cell_id", sample_var, "demux_class"), with = FALSE]
+      .[, c("cell_id", sample_var, "demux_class"), with = FALSE]
       
     # define dt to combine scdbl and demux class
     dbl_dict = data.table(
@@ -451,9 +451,9 @@ run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_m
     )
       
     dbl_dt = dbl_dt %>%
-    merge(demux_dt, by = c('cell_id', sample_var), all.x = TRUE, all.y = FALSE) %>%
-    merge(dbl_dict, by = c('class', 'demux_class')) %>%
-    setnames("class", "scdbl_class")
+      merge(demux_dt, by = c('cell_id', sample_var), all.x = TRUE, all.y = FALSE) %>%
+      merge(dbl_dict, by = c('class', 'demux_class')) %>%
+      setnames("class", "scdbl_class")
   } else {
     dbl_dt = dbl_dt %>% setnames("class", "dbl_class")
   }

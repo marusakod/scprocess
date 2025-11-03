@@ -317,12 +317,12 @@ rule create_doublets_hvg_matrix:
     '../envs/hvgs.yaml'
   shell: """
     python3 scripts/hvgs.py create_doublets_matrix \
-    {input.hvg_paths_f} \
-    {input.hvg_f} \
-    {input.qc_f} \
-    {input.qc_sample_stats_f} \
-    {output.dbl_hvg_mat_f} \
-    {params.run_var} \
-    {params.demux_type}
+      {input.hvg_paths_f} \
+      {input.hvg_f} \
+      {input.qc_f} \
+      {input.qc_sample_stats_f} \
+      {output.dbl_hvg_mat_f} \
+      {params.run_var} \
+      {params.demux_type}
     """
 

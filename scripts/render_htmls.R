@@ -183,20 +183,21 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
   } else if (sel_rule == 'label_celltypes') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp', 'threads',
-      'int_f', 'guesses_fs', 'lbl_models', 'lbl_hi_res_cl', 'lbl_min_cl_prop', 'lbl_min_cl_size')
-      
-     assert_that(all(req_names %in% add_args_names))
+      'int_f', 'guess_f_ls', 'labeller_ls', 'model_ls', 'hi_res_cl_ls', 'min_cl_prop_ls', 
+      'min_cl_size_ls')
 
-      # if (add_args[["lbl_tissue"]] == 'human_cns') {
-      #   train_data_str = "whole brain human single nuclei atlas (siletti et al. 2023)"
-      # } else if (add_args[["lbl_tissue"]] == 'mouse_cns') {
-      #   train_data_str = "whole brain mouse single nuclei atlas (Langlieb et al. 2023)"
-      # } else {
-      #   train_data_str = "insert name of study here"
-      # }
+    assert_that(all(req_names %in% add_args_names))
 
-      params_ls = add_args
-      # params_ls = c(params_ls, train_data_str = train_data_str)
+    # if (add_args[["lbl_tissue"]] == 'human_cns') {
+    #   train_data_str = "whole brain human single nuclei atlas (siletti et al. 2023)"
+    # } else if (add_args[["lbl_tissue"]] == 'mouse_cns') {
+    #   train_data_str = "whole brain mouse single nuclei atlas (Langlieb et al. 2023)"
+    # } else {
+    #   train_data_str = "insert name of study here"
+    # }
+
+    params_ls = add_args
+    # params_ls = c(params_ls, train_data_str = train_data_str)
 
   } else if (sel_rule == 'zoom') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp', 

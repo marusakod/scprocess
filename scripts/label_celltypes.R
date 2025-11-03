@@ -45,133 +45,76 @@ save_sce_to_mtx <- function(sces_yaml_f, sel_sample, mtx_f, cells_f, genes_f) {
   return(NULL)
 }
 
-label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integration_f, qc_sample_stats_f, 
-  hvg_mat_f, guesses_f, exclude_mito, sel_res,  gene_var = c("gene_id", "ensembl_id"), 
-  min_pred = 0.5, min_cl_prop = 0.5, min_cl_size = 100, n_cores = 4) {
-  
-  exclude_mito = as.logical(exclude_mito)
-  
+label_with_xgboost_one_sample <- function(sel_sample, model_name, xgb_f, xgb_cls_f, 
+  mtx_f, cells_f, genes_f, pred_f) {
   # check inputs
   assert_that( file.exists(xgb_f) )
-  gene_var    = match.arg(gene_var)
 
   # load XGBoost object
   message('  loading XGBoost classifier')
   xgb_obj     = readRDS(xgb_f)
-  allow_dt    = fread(allow_f)
+  xgb_cls_dt  = fread(xgb_cls_f)
   hvgs        = variable.names(xgb_obj)
 
   # get values for these genes in new datasets
-  message('  getting lognorm counts of HVGs')
-  
-  hvg_mat     = .calc_logcounts(
-    hvg_mat_f, sces_yaml_f, qc_sample_stats_f, gene_var,
-    hvgs, exclude_mito, n_cores = n_cores
-    )
+  message('  getting counts for HVGs')
+  counts_mat  = .get_counts_mat(cells_f, genes_f, mtx_f)
+  hvg_mat     = .normalize_hvg_mat(counts_mat, hvgs)
 
   # predict for new data
   message('  predicting celltypes for all cells')
-  preds_dt    = .predict_on_new_data(xgb_obj, allow_dt, hvg_mat, min_pred)
+  preds_dt    = .predict_on_new_data(xgb_obj, xgb_cls_dt, hvg_mat, min_pred)
 
-  # label harmony clusters
-  message('  predicting majority celltype for each cluster')
-  int_dt      = .load_clusters(integration_f)
-  guesses_dt  = .apply_labels_by_cluster(int_dt, preds_dt, min_cl_prop, min_cl_size)
+  # add labels
+  preds_dt    = preds_dt %>% 
+    .[, sample_id := sel_sample ] %>% 
+    .[, labeller  := "scprocess"] %>% 
+    .[, model     := model_name ]
 
   # save
   message('  saving results')
-  fwrite(guesses_dt, file = guesses_f)
+  fwrite(preds_dt, file = pred_f)
   message('done.')
 }
 
-.calc_logcounts <- function(hvg_mat_f, sces_yaml_f, qc_sample_stats_f, gene_var, hvgs, 
-  exclude_mito, n_cores = 4, overwrite = FALSE) {
-  if (file.exists(hvg_mat_f) & overwrite == FALSE) {
-    message('    already done!')
-    hvg_mat   = readRDS(hvg_mat_f)
+.get_counts_mat <- function(cells_f, genes_f, mtx_f) {
+  cells_dt    = cells_f %>% fread
+  genes_dt    = genes_f %>% fread %>% 
+    .[, gene_id := gene_id %>% str_replace("_ENSG", "-ENSG") ]
 
-    return(hvg_mat)
-  }
-  # load sce, restrict to ok cells
-  message('    setting up cluster')
-  plan("multicore", workers = n_cores)
-  options( future.globals.maxSize = 2^35 )
+  counts_mat  = readMM(mtx_f)
 
-  qc_dt      = fread(qc_sample_stats_f)
-  ok_samples = qc_dt[bad_sample == FALSE, sample_id]
-  
-  sce_fs = yaml::read_yaml(sces_yaml_f)
-  
-  bpparam     = MulticoreParam(workers = n_cores, tasks = length(ok_samples))
-  on.exit(bpstop(bpparam))
-  
-  message('    getting HVG matrix for each sample')
-  hvg_mats = ok_samples %>% bplapply(
-    FUN = .get_one_hvg_mat, BPPARAM = bpparam,
-    sce_fs = sce_fs, hvgs = hvgs,
-    gene_var = gene_var, exclude_mito = exclude_mito
-    )
+  rownames(counts_mat) = cells_dt$cell_id
+  colnames(counts_mat) = genes_dt$gene_id
 
-  message('    making one large HVG matrix')
-  
-  hvg_mat = do.call('cbind', hvg_mats) %>% t()
-  # switch cluster off
-  message('    saving')
-  saveRDS(hvg_mat, file = hvg_mat_f)
-
-  plan("sequential")
-  message('done!')
-
-  return(hvg_mat)
+  return(counts_mat)  
 }
 
-.get_one_hvg_mat <- function(sel_s, sce_fs, hvgs, gene_var, exclude_mito){
-  
-  message('    loading sce for sample ', sel_s)
-  sce_f = sce_fs[[sel_s]]
-  sce   = readRDS(sce_f)
-  
-  # get selected genes
-  ref_gs      = rowData(sce)[[ gene_var ]]
-  if (gene_var == "gene_id")
-    ref_gs = ref_gs %>% str_replace("_ENSG", "-ENSG")
-  
-  # add zero counts matrix for missing hvgs if there are any
-  if(!all(hvgs %in% ref_gs)){
-    missing_hvgs = setdiff(hvgs, ref_gs)
-    n_cols = ncol(sce)
-    missing_mat = matrix(0, length(missing_hvgs), n_cols)
-    rownames(missing_mat) = missing_hvgs
-    colnames(missing_mat) = colnames(sce)
-    # convert to sparse
-    missing_mat = as(missing_mat, 'dgTMatrix')
-    
-    # get counts
-    counts_mat  = counts(sce)
-    rownames(counts_mat) = ref_gs
-    
-    counts_mat = rbind(counts_mat, missing_mat)
-  }else{
-    
-    counts_mat  = counts(sce)
-    rownames(counts_mat) = ref_gs
-    
+.normalize_hvg_mat = function(counts_mat, hvgs, scale_f = 10000) {
+  if (!all(hvgs %in% colnames(counts_mat))) {
+    warning("not all HVGs present")
+    missing_gs  = setdiff(hvgs, colnames(counts_mat))
+    n_rows      = nrow(counts_mat)
+    missing_mat = matrix(0, n_rows, length(missing_gs))
+    colnames(missing_mat) = missing_gs
+    rownames(missing_mat) = rownames(counts_mat)
+
+    # convert to sparse, add to counts
+    missing_mat = as(missing_mat, 'TsparseMatrix')
+    counts_mat  = cbind(counts_mat, missing_mat)
   }
-  # select highly variable genes
-  message('    creating normalized HVG matrix for sample ', sel_s)
-  
-  # normalize
-  coldata      = colData(sce) %>% as.data.table()
-  hvg_mat      = counts_mat[hvgs, ]
-  norm_hvg_mat = normalize_hvg_mat(
-    hvg_mat, coldata, exclude_mito
-  )
-  
-  return(norm_hvg_mat) 
+
+  hvg_mat   = counts_mat[, hvgs]
+  lib_sizes = rowSums(counts_mat)
+
+  norm_mat  = sweep(hvg_mat, 1, lib_sizes, FUN = "/")
+  norm_mat  = norm_mat * scale_f
+  log_mat   = log1p(norm_mat)
+
+  return(log_mat)
 }
 
 .predict_on_new_data <- function(xgb_obj, allow_dt, hvg_mat, min_pred, chunk_size = 10000) {
-
   # predict on chunks of cells for efficiency
   num_chunks = ceiling(nrow(hvg_mat/chunk_size))
   idx_vec = rep(1:num_chunks, each = chunk_size, length.out = nrow(hvg_mat))
@@ -196,15 +139,13 @@ label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integratio
     set_rownames( rownames(hvg_mat) )
 
   # make data.table with predictions
-  preds_dt    = data.table(
-    cell_id     = rownames(probs_mat),
-    cl_pred_raw = colnames(probs_mat)[ apply(probs_mat, 1, which.max) ],
-    p_pred      = apply(probs_mat, 1, max)
-    ) %>% cbind(probs_mat) %>% 
-    .[, cl_pred_naive := (p_pred > min_pred) %>% ifelse(cl_pred_raw, "unknown") %>% 
-      factor(levels = c(allow_dt$cluster, "unknown"))  ]
+  pred_dt     = data.table(
+    cell_id         = rownames(probs_mat),
+    predicted_label = colnames(probs_mat)[ apply(probs_mat, 1, which.max) ],
+    probability     = apply(probs_mat, 1, max)
+  )
 
-  return(preds_dt)
+  return(pred_dt)
 }
 
 .load_clusters <- function(cls_f) {

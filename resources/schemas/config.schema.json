@@ -187,38 +187,41 @@
       }
     },
     "label_celltypes": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["lbl_labeller"],
-      "properties": {
-        "lbl_labeller":     { "type": "string", "enum": ["", "celltypist", "xgboost", "custom"], "default": "" },
-        "lbl_custom_f":     { "type": "string" },
-        "lbl_models":       { "type": "array", "items": {"type": "string"}, "minItems": 1 },
-        "lbl_hi_res_cl":    { "type": "string", "default": "RNA_snn_res.2" },
-        "lbl_min_pred":     { "type": "number", "default": 0.8 },
-        "lbl_min_cl_prop":  { "type": "number", "default": 0.5 },
-        "lbl_min_cl_size":  { "type": "integer", "default": 100 }
-      },
-      "allOf": [
-        {
-          "if": {"properties": {"lbl_labeller": { "enum": ["celltypist", "xgboost"] } } },
-          "then": {
-            "allOf": [
-              { "required": ["lbl_models"] },
-              {"not": { "required": ["lbl_custom_f"] }}
-            ]
-          }
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["labeller"],
+        "properties": {
+          "labeller":     { "type": "string", "enum": ["celltypist", "scprocess", "custom"] },
+          "custom_f":     { "type": "string" },
+          "model":        {"type": "string" },
+          "hi_res_cl":    { "type": "string", "default": "RNA_snn_res.2" },
+          "min_pred":     { "type": "number", "default": 0.8 },
+          "min_cl_prop":  { "type": "number", "default": 0.5 },
+          "min_cl_size":  { "type": "integer", "default": 100 }
         },
-        {
-          "if": {"properties": {"lbl_labeller": { "const": "custom" } } },
-          "then": {
-            "allOf": [
-              { "required": ["lbl_custom_f"] },
-              {"not": { "required": ["lbl_models"] }}
-            ]
+        "allOf": [
+          {
+            "if": {"properties": {"labeller": { "enum": ["celltypist", "scprocess"] } } },
+            "then": {
+              "allOf": [
+                { "required": ["model"] },
+                {"not": { "required": ["custom_f"] }}
+              ]
+            }
+          },
+          {
+            "if": {"properties": {"labeller": { "const": "custom" } } },
+            "then": {
+              "allOf": [
+                { "required": ["custom_f"] },
+                {"not": { "required": ["model"] }}
+              ]
+            }
           }
-        }
-      ]
+        ]
+      }
     },
     "zoom": {
       "description": "Contains mappings of logical names to YAML file paths.",

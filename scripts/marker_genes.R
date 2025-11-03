@@ -624,7 +624,8 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt,
   register(bpparam)
   on.exit(bpstop(bpparam))
   message('  remove outlier samples')
-  x_ls      = cl_ls %>% bplapply(function(cl) {
+  # x_ls      = cl_ls %>% bplapply(function(cl) {
+  x_ls      = cl_ls %>% lapply(function(cl) {
     # make matrix
     this_x    = logcpms_all[ cluster == cl ] %>%
       .[, col_lab := sprintf("%s-%s", cluster, sample_id) ] %>%
@@ -640,8 +641,9 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt,
     this_x    = this_x[, !ol, drop = FALSE]
 
     return(this_x)
-  }, BPPARAM = bpparam) %>% setNames(cl_ls)
-  bpstop(bpparam)
+  }) %>% setNames(cl_ls)
+  # }, BPPARAM = bpparam) %>% setNames(cl_ls)
+  # bpstop(bpparam)
 
   # make big matrix
   message('  make big DGE object')
@@ -673,7 +675,8 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt,
 
     # fit model to each cluster
     message('  run edgeR on each cluster')
-    mkrs_pb_dt  = cl_ls %>% bplapply( function(sel_cl) {
+    # mkrs_pb_dt  = cl_ls %>% bplapply( function(sel_cl) {
+    mkrs_pb_dt  = cl_ls %>% lapply( function(sel_cl) {
       message('    ', sel_cl, appendLF = FALSE)
       # make design matrix for this celltype
       this_d    = copy(des_all) %>% .[, is_cluster := cluster == sel_cl ] %>%
@@ -687,8 +690,9 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt,
         .[, cluster := sel_cl ]
 
       return(tmp_dt)
-    }, BPPARAM = bpparam) %>% rbindlist
-    bpstop(bpparam)
+    }) %>% rbindlist
+    # }, BPPARAM = bpparam) %>% rbindlist
+    # bpstop(bpparam)
   } else if (method == "voom") {
     # estimate replicate correlations
     do_rnd    = FALSE
@@ -1739,7 +1743,6 @@ plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cp
     message('the following genes are not in the marker genes file:\n  ', 
       paste(missing_gs, collapse = ','))
   mkrs_sel    = mkrs_dt[ (gene_id %in% sel_gs) ]
-  min_cpm     = 10
   max_cpms    = mkrs_sel[, .(max_logcpm = max(logcpm.sel)), by = symbol ]
   keep_gs     = max_cpms[ max_logcpm >= log(min_cpm + pseudocount) ]$symbol
   mkrs_sel    = mkrs_sel[ symbol %in% keep_gs ]

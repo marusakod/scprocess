@@ -36,25 +36,25 @@ setDTthreads(n_cores)
 
 ```{r setup_input, include = FALSE}
 # input_files
-int_f         = "${int_f}"
-guesses_fs    = str_split("${guesses_fs}", " ")[[ 1 ]]
-models        = str_split("${lbl_models}", " ")[[ 1 ]]
+int_f           = "${int_f}"
+guess_f_ls      = str_split("${guess_f_ls}", " ")[[ 1 ]]
+labeller_ls     = str_split("${labeller_ls}", " ")[[ 1 ]]
+model_ls        = str_split("${model_ls}", " ")[[ 1 ]]
 
 # params
-hi_res_cl     = "${lbl_hi_res_cl}"
-min_cl_prop   = ${lbl_min_cl_prop}
-min_cl_size   = ${lbl_min_cl_size}
+hi_res_cl_ls    = str_split("${hi_res_cl_ls}", " ")[[ 1 ]]
+min_cl_prop_ls  = str_split("${min_cl_prop_ls}", " ")[[ 1 ]] %>% as.numeric
+min_cl_size_ls  = str_split("${min_cl_size_ls}", " ")[[ 1 ]] %>% as.numeric
 ```
 
 ```{r load_umap, include = FALSE}
-int_dt        = fread(int_f) %>% .[ (is_dbl == FALSE) & (in_dbl_cl == FALSE) ] %>% 
-  .[, .(cell_id, UMAP1, UMAP2, hi_res_cl = get(hi_res_cl) %>% fct_infreq)]
+int_dt        = fread(int_f) %>% .[ (is_dbl == FALSE) & (in_dbl_cl == FALSE) ]
 ```
 
 ```{r load_guesses, include = FALSE}
 # get predictions
-assert_that( all(sapply(guesses_fs, file.exists)) )
-guesses_ls    = lapply(guesses_fs, fread) %>% setNames(models)
+assert_that( all(sapply(guess_f_ls, file.exists)) )
+guesses_ls    = lapply(guess_f_ls, fread) %>% setNames(model_ls)
 ```
 
 ## Integration clusters vs predicted cell types{.tabset}
@@ -69,14 +69,21 @@ By examining these results, clustering resolution that provides the most reliabl
  -->
 
 ```{r plot_cls_vs_pred, fig.height = 12, fig.width = 13, results = 'asis'}
-for (model in models) {
+for (ii in seq_along(guess_f_ls)) {
+  # unpack
+  this_labeller   = labeller_ls[[ ii ]]
+  this_model      = model_ls[[ ii ]]
+  this_hi_res_cl  = hi_res_cl_ls[[ ii ]]
+
   # make confusion matrix
-  guesses_sel = guesses_ls[[ model ]] %>% .[, .(cell_id, prediction = predicted_label_naive %>% factor)]
-  confuse_dt  = calc_confuse_dt(guesses_sel, int_dt, "prediction", "hi_res_cl")
+  guesses_sel = guesses_ls[[ ii ]] %>% 
+    .[, .(cell_id, prediction = predicted_label_naive %>% factor)]
+  int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2, hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
+  confuse_dt  = calc_confuse_dt(guesses_sel, int_tmp, "prediction", "hi_res_cl")
 
   # plot heatmap
-  cat('### ', model, '\n', sep = '')
-  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", hi_res_cl, 
+  cat('### ', this_labeller, ', ', this_model, '\n', sep = '')
+  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", this_hi_res_cl, 
     plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
   cat('\n\n')
 }
@@ -87,18 +94,26 @@ for (model in models) {
 Clustering of data is performed at different resolution values. For each value the clusters are displayed over a UMAP together with a plot showing predicted cell type labels.
 
 ```{r plot_preds_over_umap, fig.height = 5, fig.width = 12, results = 'asis'}
-# plot
-for (model in models) {
-  # make confusion matrix
-  guesses_sel = guesses_ls[[ model ]] %>% .[, .(cell_id, prediction = predicted_label_agg %>% factor)]
+for (ii in seq_along(guess_f_ls)) {
+  # unpack
+  this_labeller   = labeller_ls[[ ii ]]
+  this_model      = model_ls[[ ii ]]
+  this_hi_res_cl  = hi_res_cl_ls[[ ii ]]
+
+  # get data
+  guesses_sel = guesses_ls[[ ii ]] %>% 
+    .[, .(cell_id, prediction = predicted_label_agg %>% factor)]
+  int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2, hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
+
+  # plots
   g_cl        = plot_umap_cluster(int_dt, 
-    int_dt[, .(cell_id, cluster = hi_res_cl)], "high resolution\nharmony\ncluster")
+    int_tmp[, .(cell_id, cluster = hi_res_cl)], "high resolution\nharmony\ncluster")
   g_pred      = plot_umap_cluster(int_dt, 
     guesses_sel[, .(cell_id, cluster = prediction)], "prediction\n(aggregated)")
   g = g_cl + g_pred
 
   # plot umaps
-  cat('### ', model, '\n', sep = '')
+  cat('### ', this_labeller, ', ', this_model, '\n', sep = '')
   print(g)
   cat('\n\n')
 }
