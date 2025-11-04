@@ -45,7 +45,7 @@ save_sce_to_mtx <- function(sces_yaml_f, sel_sample, mtx_f, cells_f, genes_f) {
   return(NULL)
 }
 
-label_with_xgboost_one_sample <- function(sel_sample, model_name, xgb_f, xgb_cls_f, 
+label_with_xgboost_one_sample <- function(sel_sample, model_name, xgb_f, xgb_cls_f,
   mtx_f, cells_f, genes_f, pred_f) {
   # check inputs
   assert_that( file.exists(xgb_f) )
@@ -66,7 +66,7 @@ label_with_xgboost_one_sample <- function(sel_sample, model_name, xgb_f, xgb_cls
   preds_dt    = .predict_on_new_data(xgb_obj, xgb_cls_dt, hvg_mat, min_pred)
 
   # add labels
-  preds_dt    = preds_dt %>% 
+  preds_dt    = preds_dt %>%
     .[, sample_id := sel_sample ] %>% 
     .[, labeller  := "scprocess"] %>% 
     .[, model     := model_name ]
@@ -504,4 +504,20 @@ plot_umap_cluster <- function(umap_dt, clust_dt, name) {
     labs( colour = name )
 
   return(g)
+}
+
+calc_labels_table <- function(guesses_dt) {
+  ns_dt   = guesses_dt %>%
+    .[, .(cell_id, unagg = predicted_label_naive, agg = predicted_label_agg)] %>%
+    melt(id = "cell_id", variable.name = "label_method", value.name = "label") %>%
+    .[, .N, by = .(label_method, label)] %>%
+    dcast( label ~ label_method, value.var = "N", fill = 0) %>%
+    .[ order(-agg, -unagg) ] %>% setcolorder(c("label", "agg", "unagg"))
+  # put in nice order
+  if ("unknown" %in% ns_dt$label)
+    ns_dt     = rbind( ns_dt[ label != "unknown" ], ns_dt[ label == "unknown" ] )
+  # change names
+  ns_dt     = ns_dt %>% set_colnames(c("predicted\nlabel", "no. cells,\naggregated", "no. cells, not\naggregated"))
+
+  return(ns_dt)
 }
