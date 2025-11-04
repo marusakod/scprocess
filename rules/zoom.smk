@@ -234,19 +234,18 @@ rule zoom_make_tmp_csr_matrix:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_make_tmp_csr_matrix_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
->>>>>>> dev
   conda:
     '../envs/hvgs.yaml'
   shell: """
     python3 scripts/hvgs.py get_csr_counts \
-      {input.hvg_paths_f} \
-      {params.zoom_lbls_f} \
-      {params.zoom_lbls_col} \
-      {params.zoom_lbls} \
-      {input.smpl_stats_f} \
-      {input.rowdata_f} \
-      {params.run_var} \
-      {params.demux_type} \
+      "{input.hvg_paths_f}" \
+      "{params.zoom_lbls_f}" \
+      "{params.zoom_lbls_col}" \
+      "{params.zoom_lbls}" \
+      "{input.smpl_stats_f}" \
+      "{input.rowdata_f}" \
+      "{params.run_var}" \
+      "{params.demux_type}" \
       --chunksize {params.zoom_chunk_size} \
       --ncores {threads}
     """
@@ -265,7 +264,6 @@ rule zoom_get_stats_for_std_variance_for_sample:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_stats_for_std_variance_for_sample_{zoom_name}_{sample}_' + DATE_STAMP + '.benchmark.txt'
->>>>>>> dev
   conda:
     '../envs/hvgs.yaml'
   shell: """
@@ -298,7 +296,6 @@ rule zoom_get_mean_var_for_group:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_mean_var_for_group_{zoom_name}_{group}_chunk_{chunk}' + DATE_STAMP + '.benchmark.txt'
->>>>>>> dev
   conda:
     '../envs/hvgs.yaml'
   shell: """
@@ -375,7 +372,6 @@ rule zoom_get_stats_for_std_variance_for_group:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_stats_for_std_variance_for_group_{zoom_name}_{group}_chunk_{chunk}' + DATE_STAMP + '.benchmark.txt'
->>>>>>> dev
   conda:
     '../envs/hvgs.yaml'
   shell: """
@@ -424,7 +420,6 @@ rule zoom_get_highly_variable_genes:
      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_highly_variable_genes_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
->>>>>>> dev
   conda:
     '../envs/hvgs.yaml'
   shell: """
@@ -462,7 +457,6 @@ rule zoom_create_hvg_matrix:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_create_hvg_matrix_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
->>>>>>> dev
   conda:
     '../envs/hvgs.yaml'
   shell: """
@@ -479,7 +473,7 @@ rule zoom_run_integration:
   input:
     hvg_mat_f     = zoom_dir + '/{zoom_name}/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
     smpl_stats_f  = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    coldata_f     = qc_dir   + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    coldata_f     = qc_dir   + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
     integration_f = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   params:

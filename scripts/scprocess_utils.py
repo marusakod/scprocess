@@ -530,12 +530,11 @@ def get_zoom_parameters(config, zoom_schema_f, scdata_dir):
     ZOOM_PARAMS   = {}
   else:
     # get names and files
-    zoom_names    = list(config['zoom'].keys())    
-    zoom_yamls    = [ pathlib.Path(f) for f in config['zoom'].values()]
+    zoom_yamls    = [ pathlib.Path(f) for f in config['zoom']]
 
     # make dictionary of zoom params from yamls
-    ZOOM_PARAMS   = {zoom_names[i]: _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config, scdata_dir)
-      for i, zoom_yaml_f in enumerate(zoom_yamls) }
+    zoom_ls       = [_get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config, scdata_dir) for zoom_yaml_f in zoom_yamls]
+    ZOOM_PARAMS   = {z['zoom']['name']: z for z in zoom_ls}
 
   return ZOOM_PARAMS
 
@@ -563,13 +562,20 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config, scdata_dir):
   snakemake.utils.update_config(defaults, zoom_config)
   zoom_config = defaults
 
+  # get useful things
+  SHORT_TAG   = config['project']['short_tag']
+  FULL_TAG    = config['project']['full_tag']
+  DATE_STAMP  = config['project']['date_stamp']
+
   # find file for each option
   if zoom_config['zoom']['labels_source'] == 'clusters':
-    labels_f    = f"output/{ config['project']['short_tag'] }_integration/integrated_dt_{config['project']['full_tag']}_{config['project']['date_stamp']}.txt.gz"
+    labels_f    = f"output/{SHORT_TAG}_integration/integrated_dt_{FULL_TAG}_{DATE_STAMP}.txt.gz"
 
   # if using xgboost or celltypist, check those things
   elif zoom_config['zoom']['labels_source'] in ['celltypist', 'xgboost']:
-    labels_f    = f"output/{[config['project']['short_tag']]}_label_celltypes/cell_annotations_{FULL_TAG}_{DATE_STAMP}_{zoom_config['zoom']['model']}.txt.gz"
+    labeller    = zoom_config['zoom']['labels_source']
+    model       = zoom_config['zoom']['model']
+    labels_f    = f"output/{SHORT_TAG}_label_celltypes/labels_{labeller}_model_{model}_{FULL_TAG}_{DATE_STAMP}.csv.gz"
 
   # unpack
   elif zoom_config['zoom']['labels_source'] == 'custom':

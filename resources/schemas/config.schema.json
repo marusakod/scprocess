@@ -225,19 +225,7 @@
     },
     "zoom": {
       "description": "Contains mappings of logical names to YAML file paths.",
-      "type": "object",
-      "propertyNames": {
-        "type": "string",
-        "minLength": 1
-      },
-      "patternProperties": {
-        "^(?!\\d)[^\\s]*$": {
-          "description": "The property value must be exactly one string (the file path).",
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "uniqueItems": true
+      "type": "array", "items": { "type": "string" }, "uniqueItems": true
     },
     "resources": {
       "type": "object",

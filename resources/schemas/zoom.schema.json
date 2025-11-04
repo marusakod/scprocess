@@ -7,12 +7,13 @@
     "zoom": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["labels_source", "sel_labels", "labels_col"],
+      "required": ["name", "labels_source", "sel_labels", "labels_col"],
       "properties": {
+        "name":             { "type": "string" },
         "labels_source":    { "type": "string", "enum": ["clusters", "celltypist", "xgboost", "custom"] },
+        "model":            { "type": "string" },
         "sel_labels":       { "type": "array", "items": { "type": "string" } },
         "labels_col":       { "type": "string" },
-        "model":            { "type": "string" },
         "custom_labels_f":  { "type": "string" },
         "save_subset_sces": { "type": "boolean", "default": true }
       },
