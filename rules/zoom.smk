@@ -4,6 +4,7 @@ import sys
 import re
 import glob
 import pandas as pd
+import polars as pl
 import yaml
 import warnings
 from snakemake.utils import validate, min_version
@@ -11,40 +12,34 @@ from snakemake.utils import validate, min_version
 # import utils
 sys.path.append('scripts')
 from scprocess_utils import *
+from zoom import *
 
+
+# define some things
+scprocess_dir   = pathlib.Path(config.pop('scprocess_dir'))
+proj_schema_f   = scprocess_dir / "resources/schemas/config.schema.json"
+zoom_schema_f   = scprocess_dir / "resources/schemas/zoom.schema.json"
+scdata_dir      = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
+
+# check config
+config          = check_config(config, proj_schema_f, scdata_dir, scprocess_dir)
+
+# get lists of parameters
+RUN_PARAMS, RUN_VAR = get_run_parameters(config, scdata_dir)
+RUNS                = list(RUN_PARAMS.keys())
+SAMPLE_PARAMS       = get_sample_parameters(config, RUNS, scdata_dir)
+SAMPLES             = list(SAMPLE_PARAMS.keys())
+SAMPLES_TO_RUNS     = get_samples_to_runs(config, RUNS, SAMPLES)
 
 # get zoom parameters
-SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
-PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, \
-  EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES, \
-  DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_VAR, SAMPLE_MAPPING = \
-  get_project_parameters(config, SCPROCESS_DATA_DIR)
-AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY = \
-  get_alevin_parameters(config, SCPROCESS_DATA_DIR, SPECIES)
-CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, \
-  CELL_CALLS_METHOD, FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, \
-  CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE = \
-  get_ambient_parameters(config)
-QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_FEATS, \
-  QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS, \
-  EXCLUDE_MITO = get_qc_parameters(config)
-MKR_SEL_RES, MKR_GSEA_DIR, MKR_MIN_CL_SIZE, MKR_MIN_CELLS, MKR_NOT_OK_RE, MKR_MIN_CPM_MKR, \
-  MKR_MIN_CPM_GO, MKR_MAX_ZERO_P, MKR_GSEA_CUT, CUSTOM_MKR_NAMES, CUSTOM_MKR_PATHS = \
-  get_marker_genes_parameters(config, PROJ_DIR, SCPROCESS_DATA_DIR)
-LBL_XGB_F, LBL_XGB_CLS_F, LBL_GENE_VAR, LBL_SEL_RES_CL, LBL_MIN_PRED, \
-  LBL_MIN_CL_PROP, LBL_MIN_CL_SIZE, LBL_TISSUE = \
-  get_label_celltypes_parameters(config, SPECIES, SCPROCESS_DATA_DIR)
-RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
-  MB_RUN_AMBIENT, MB_GET_BARCODE_QC_METRICS, \
-  MB_RUN_QC, MB_RUN_HVGS, \
-  MB_RUN_INTEGRATION, MB_MAKE_CLEAN_SCES, \
-  MB_RUN_MARKER_GENES, MB_RENDER_HTMLS, \
-  MB_LABEL_CELLTYPES, \
-  MB_PB_MAKE_PBS, MB_PB_CALC_EMPTY_GENES, MB_MAKE_HTO_SCE_OBJECTS, MB_MAKE_SUBSET_SCES = \
-  get_resource_parameters(config)
-ZOOM_NAMES, ZOOM_PARAMS_DICT, ZOOM_NAMES_SUBSET = \
-  get_zoom_parameters(config, LBL_TISSUE, LBL_XGB_CLS_F, METADATA_F, 
-    AF_GTF_DT_F, PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR)
+ZOOM_PARAMS         = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
+ZOOMS               = list(ZOOM_PARAMS.keys())
+
+# unpack some variables that we use a lot
+PROJ_DIR        = config['project']['proj_dir']
+FULL_TAG        = config['project']['full_tag']
+SHORT_TAG       = config['project']['short_tag']
+DATE_STAMP      = config['project']['date_stamp']
 
 # specify locations
 benchmark_dir = f"{PROJ_DIR}/.resources"
@@ -57,11 +52,7 @@ rmd_dir       = f"{PROJ_DIR}/analysis"
 docs_dir      = f"{PROJ_DIR}/public"
 zoom_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_zoom"
 
-runs = POOL_IDS if DEMUX_TYPE != "none" else SAMPLES
-RUNS_STR = ','.join(runs)
-
-
-# get zoom marker outputs
+# define zoom marker outputs
 zoom_mkr_report_outs = expand(
   [
   '%s/{zoom_name}/pb_%s_{mkr_sel_res}_%s.rds' % (zoom_dir, FULL_TAG, DATE_STAMP), 
@@ -77,23 +68,21 @@ zoom_mkr_report_outs = expand(
     '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_paths_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP),  
     '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_hlmk_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP)
     ]
-    if SPECIES in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']
+    if config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']
     else []
    ),
   zip,
-  zoom_name = ZOOM_NAMES,
-  mkr_sel_res = [ZOOM_PARAMS_DICT[zoom_name]["MKR_SEL_RES"] for zoom_name in ZOOM_NAMES]
+  zoom_name = ZOOMS,
+  mkr_sel_res = [ZOOM_PARAMS[zoom_name]['marker_genes']["mkr_sel_res"] for zoom_name in ZOOMS]
 )
-
-
+zooms_to_save = [ zoom_name for zoom_name in ZOOMS if ZOOM_PARAMS[zoom_name]['zoom']['save_subset_sces'] ]
 zoom_sce_outs = (
-    expand(
-        '%s/{zoom_name}/sce_objects/sce_cells_clean_{sample}_%s_%s.rds' % \
-        (zoom_dir, FULL_TAG, DATE_STAMP),
-        zoom_name = ZOOM_NAMES_SUBSET,
-        sample    = SAMPLES
-    )
-    if len(ZOOM_NAMES_SUBSET) != 0 else []
+  expand(
+    '%s/{zoom_name}/sce_objects/sce_cells_clean_{zoom_name}_{sample}_%s_%s.rds' % \
+    (zoom_dir, FULL_TAG, DATE_STAMP),
+    zoom_name = zooms_to_save,
+    sample    = SAMPLES
+  ) if len(zooms_to_save) > 0 else []
 )
 
 
@@ -101,24 +90,24 @@ rule zoom:
   input:
     # zoom sample qc
     expand('%s/{zoom_name}/zoom_sample_statistics_%s_%s.csv' % \
-      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES),
+      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS),
     # zoom pseudobulks and empties
     expand('%s/{zoom_name}/pb_{zoom_name}_%s_%s.rds' % \
-      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES),
+      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS),
     expand('%s/{zoom_name}/edger_empty_genes_%s_%s.txt.gz' % \
-      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
+      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS), 
     # zoom hvgs
     expand('%s/{zoom_name}/hvg_paths_%s_%s.csv' % \
-      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES),  
+      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS),  
     expand('%s/{zoom_name}/standardized_variance_stats_%s_%s.txt.gz' % \
-      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
+      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS), 
     expand('%s/{zoom_name}/hvg_dt_%s_%s.txt.gz' % \
-      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
+      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS), 
     expand('%s/{zoom_name}/top_hvgs_counts_%s_%s.h5' % \
-      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES), 
+      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS), 
     # zoom integration
-    expand('%s/{zoom_name}/integrated_dt_%s_%s.txt.gz' % \
-      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOM_NAMES),
+    expand('%s/{zoom_name}/integrated_dt_%s_%s.csv.gz' % \
+      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS),
     # zoom marker genes and html report
     zoom_mkr_report_outs, 
     # zoom sce subsets (optional)
@@ -131,88 +120,94 @@ rule get_zoom_sample_statistics:
   output:
     zoom_stats_f    = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   params:
-    zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS_F'],
-    zoom_lbls_var   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS_VAR'], 
-    zoom_lbls       = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS'],
-    zoom_min_n_smpl = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MIN_N_SAMPLE']
+    zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
+    zoom_lbls_col   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'], 
+    zoom_lbls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'],
+    zoom_min_n_smpl = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc']['qc_min_cells'],
+    ambient_method  = config['ambient']['ambient_method']
   run:
     zoom_stats_df   = extract_zoom_sample_statistics(input.qc_stats_f, SAMPLES, 
-      params.zoom_lbls_f, params.zoom_lbls_var, params.zoom_lbls, params.zoom_min_n_smpl, 
-      AMBIENT_METHOD)
+      params.zoom_lbls_f, params.zoom_lbls_col, params.zoom_lbls, params.zoom_min_n_smpl, 
+      params.ambient_method)
     zoom_stats_df.to_csv(output.zoom_stats_f, index = False)
 
 
 # pseudobulks and empties
 rule zoom_make_pb_subset:
   input:
-    sces_yaml_f  = int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
-    zoom_stats_f = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    sces_yaml_f   = int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
+    zoom_stats_f  = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output:
-    zoom_pb_subset_f  = zoom_dir + '/{zoom_name}/pb_{zoom_name}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+    zoom_pb_f     = zoom_dir + '/{zoom_name}/pb_{zoom_name}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   params:
-    zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS_F'],
-    zoom_lbls_var   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS_VAR'],
-    zoom_lbls       = lambda wildcards: ','.join(ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS'])
+    zoom_lbls_f   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
+    zoom_lbls_col = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
+    zoom_lbls     = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'])
   threads: 4
-  retries: RETRIES 
+  retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
+    mem_mb  = lambda wildcards, attempt: attempt * config['resources']['gb_pb_make_pbs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_make_pb_subset_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
-  shell:
-    """
+  shell: """
     Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
     make_pb_cells( \
       sce_fs_yaml = '{input.sces_yaml_f}',
       qc_stats_f  = '{input.zoom_stats_f}',
       subset_f    = '{params.zoom_lbls_f}',
-      subset_col  = '{params.zoom_lbls_var}', 
+      subset_col  = '{params.zoom_lbls_col}', 
       subset_str  = '{params.zoom_lbls}', 
-      pb_f        = '{output.zoom_pb_subset_f}',
-      n_cores     = {threads})"
+      pb_f        = '{output.zoom_pb_f}',
+      n_cores     =  {threads}
+    )"
     """
 
 
 rule zoom_calculate_ambient_genes:
   input:
-    pb_empty_f       = pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
-    zoom_pb_subset_f = zoom_dir + '/{zoom_name}/pb_{zoom_name}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+    pb_empty_f      = pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
+    zoom_pb_f       = zoom_dir + '/{zoom_name}/pb_{zoom_name}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   output:
-    zoom_empty_gs_f  = zoom_dir + '/{zoom_name}/edger_empty_genes_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    zoom_empty_gs_f = zoom_dir + '/{zoom_name}/edger_empty_genes_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   params:
-    zoom_fdr_thr     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['AMBIENT_GENES_FDR_THR'],
-    zoom_logfc_thr   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['AMBIENT_GENES_LOGFC_THR']
+    zoom_fdr_thr    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['pb_empties']['ambient_genes_fdr_thr'],
+    zoom_logfc_thr  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['pb_empties']['ambient_genes_logfc_thr']
   threads: 4
-  retries: RETRIES 
+  retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_pb_make_pbs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_calculate_ambient_genes_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
-  shell:
-    """
+  shell: """
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     calc_empty_genes(
-      pb_cells_f = '{input.zoom_pb_subset_f}',
+      pb_cells_f = '{input.zoom_pb_f}',
       pb_empty_f = '{input.pb_empty_f}',
       fdr_thr    = {params.zoom_fdr_thr}, 
       logfc_thr  = {params.zoom_logfc_thr},
-      empty_gs_f = '{output.zoom_empty_gs_f}')"
+      empty_gs_f = '{output.zoom_empty_gs_f}'
+    )"
     """
 
 # highly variable genes
 rule zoom_make_hvg_df:
   input:
-    ambient_yaml_out=expand([amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'], run=runs)
+    amb_yaml_fs = expand([amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'], run=RUNS)
   output:
-    hvg_paths_f = zoom_dir + '/{zoom_name}/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv' 
+    hvg_paths_f = zoom_dir + '/{zoom_name}/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+  params:
+    demux_type  = config['multiplexing']['demux_type'],
+    run_var     = RUN_VAR,
+    runs        = RUNS,
+    mapping     = SAMPLES_TO_RUNS
   run:
     hvg_df = make_hvgs_input_df(
-      DEMUX_TYPE, SAMPLE_VAR, runs, input.ambient_yaml_out,
-      SAMPLE_MAPPING, FULL_TAG, DATE_STAMP, f"{zoom_dir}/{wildcards.zoom_name}"
+      params.demux_type, params.run_var, params.runs, input.amb_yaml_fs,
+      params.mapping, FULL_TAG, DATE_STAMP, f"{zoom_dir}/{wildcards.zoom_name}"
       )
     hvg_df.to_csv(output.hvg_paths_f, index=False)
 
@@ -221,35 +216,37 @@ rule zoom_make_tmp_csr_matrix:
   input:
     hvg_paths_f     = zoom_dir + '/{zoom_name}/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     smpl_stats_f    = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
-    clean_h5_f      = temp(expand([zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5'], 
-        zoom_name = '{zoom_name}', sample = SAMPLES))
+    clean_h5_f      = temp(expand([
+      zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
+      ], zoom_name = '{zoom_name}', sample = SAMPLES))
   params: 
-    zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS_F'],
-    zoom_lbls_var   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS_VAR'],
-    zoom_lbls       = lambda wildcards: ','.join(ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS']), 
-    zoom_chunk_size = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_CHUNK_SIZE']
+    zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
+    zoom_lbls_col   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
+    zoom_lbls       = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels']), 
+    run_var         = RUN_VAR,
+    demux_type      = config['multiplexing']['demux_type'],
+    zoom_chunk_size = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_chunk_size'],
   threads: 8
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_make_tmp_csr_matrix_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
-  shell:
-    """
+  shell: """
     python3 scripts/hvgs.py get_csr_counts \
-      {input.hvg_paths_f} \
-      {params.zoom_lbls_f} \
-      {params.zoom_lbls_var} \
-      {params.zoom_lbls} \
-      {input.smpl_stats_f} \
-      {input.rowdata_f} \
-      {SAMPLE_VAR} \
-      {DEMUX_TYPE} \
-      --size {params.zoom_chunk_size} \
+      "{input.hvg_paths_f}" \
+      "{params.zoom_lbls_f}" \
+      "{params.zoom_lbls_col}" \
+      "{params.zoom_lbls}" \
+      "{input.smpl_stats_f}" \
+      "{input.rowdata_f}" \
+      "{params.run_var}" \
+      "{params.demux_type}" \
+      --chunksize {params.zoom_chunk_size} \
       --ncores {threads}
     """
 
@@ -258,19 +255,18 @@ rule zoom_get_stats_for_std_variance_for_sample:
   input: 
     clean_h5_f    = zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
     smpl_stats_f  = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    rowdata_f     = qc_dir   + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    rowdata_f     = qc_dir   + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
     std_var_stats_f = temp(zoom_dir + '/{zoom_name}' + '/tmp_std_var_stats_{sample}_sample_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_stats_for_std_variance_for_sample_{zoom_name}_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
-  shell:
-    """
+  shell: """
     python3 scripts/hvgs.py calculate_std_var_stats_for_sample \
       {wildcards.sample} \
       {input.smpl_stats_f} \
@@ -282,28 +278,27 @@ rule zoom_get_stats_for_std_variance_for_sample:
 
 rule zoom_get_mean_var_for_group:
   input:
-    clean_h5_f= expand(
+    clean_h5_f    = expand(
       zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
-      zoom_name = ZOOM_NAMES, sample=SAMPLES
+      zoom_name = ZOOMS, sample = SAMPLES
     ),
     hvg_paths_f   = zoom_dir + '/{zoom_name}' + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    rowdata_f     = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    rowdata_f     = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     smpl_stats_f  = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output: 
     mean_var_f    = temp(zoom_dir + '/{zoom_name}' + '/tmp_mean_var_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
   params:
-    zoom_hvg_method = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_METHOD'], 
-    zoom_hvg_chunk_size = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_CHUNK_SIZE'], 
-    zoom_group_var = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_SPLIT_VAR']
+    zoom_hvg_method     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'], 
+    zoom_hvg_chunk_size = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_chunk_size'], 
+    zoom_group_var      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_split_var']
   threads: 8
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_mean_var_for_group_{zoom_name}_{group}_chunk_{chunk}' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
-  shell:
-    """
+  shell: """
     python3 scripts/hvgs.py calculate_mean_var_for_chunk \
       {input.hvg_paths_f} \
       {input.rowdata_f} \
@@ -321,34 +316,33 @@ rule zoom_get_mean_var_for_group:
 
 rule zoom_merge_group_mean_var:
   input:         
-    mean_var_f    = lambda wildcards: get_mean_var_input(wildcards.zoom_name, ZOOM_PARAMS_DICT, FULL_TAG, DATE_STAMP)
+    mean_var_f    = lambda wildcards: get_zoom_raw_mean_var_files(wildcards.zoom_name, ZOOM_PARAMS, FULL_TAG, DATE_STAMP)
   output:
     mean_var_merged_f = temp(zoom_dir + '/{zoom_name}'  + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   run:
     merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
 
 
 rule zoom_get_estimated_variances:
   input:
-    mean_var_merged_f  = zoom_dir + '/{zoom_name}' + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    mean_var_merged_f = zoom_dir + '/{zoom_name}' + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
-    estim_vars_f     = temp(zoom_dir + '/{zoom_name}' + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+    estim_vars_f      = temp(zoom_dir + '/{zoom_name}' + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
   params: 
-    zoom_hvg_method = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_METHOD']
+    zoom_hvg_method   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method']
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   conda:
     '../envs/hvgs.yaml'
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_estimated_variances_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
-  shell:
-    """
+  shell: """
     python3 scripts/hvgs.py calculate_estimated_vars \
       {output.estim_vars_f} \
       {params.zoom_hvg_method} \
@@ -358,39 +352,39 @@ rule zoom_get_estimated_variances:
 
 rule zoom_get_stats_for_std_variance_for_group:
   input: 
-    clean_h5_f= expand(
+    clean_h5_fs   = expand(
       zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
-      zoom_name = ZOOM_NAMES, sample=SAMPLES
+      zoom_name = ZOOMS, sample = SAMPLES
     ),
     estim_vars_f  = zoom_dir + '/{zoom_name}'  + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     hvg_paths_f   = zoom_dir + '/{zoom_name}'  + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    rowdata_f     = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    rowdata_f     = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     smpl_stats_f  = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output:
     std_var_stats_f = temp(zoom_dir + '/{zoom_name}' + '/tmp_std_var_stats_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
   params:
-    zoom_hvg_method = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_METHOD'], 
-    zoom_hvg_chunk_size = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_CHUNK_SIZE'], 
-    zoom_hvg_group_var = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_SPLIT_VAR']
+    metadata_f          = config['project']['sample_metadata'],
+    zoom_hvg_method     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'], 
+    zoom_hvg_chunk_size = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_chunk_size'], 
+    zoom_hvg_group_var  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_split_var']
   threads: 8
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_stats_for_std_variance_for_group_{zoom_name}_{group}_chunk_{chunk}' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
-  shell:
-    """
+  shell: """
     python3 scripts/hvgs.py calculate_std_var_stats_for_chunk \
       {input.hvg_paths_f} \
       {input.rowdata_f} \
-      {METADATA_F} \
+      {params.metadata_f} \
       {input.smpl_stats_f} \
       {output.std_var_stats_f} \
       {input.estim_vars_f} \
       {wildcards.chunk} \
       {params.zoom_hvg_method} \
-      --size {params.zoom_hvg_chunk_size} \
+      --chunksize {params.zoom_hvg_chunk_size} \
       --group {wildcards.group} \
       --groupvar {params.zoom_hvg_group_var} \
       --ncores {threads} 
@@ -399,13 +393,13 @@ rule zoom_get_stats_for_std_variance_for_group:
 
 rule zoom_merge_stats_for_std_variance:
   input:
-    tmp_std_var_stats_fs = lambda wildcards: get_tmp_std_var_stats_input(wildcards.zoom_name, \
-      zoom_dir, ZOOM_PARAMS_DICT, FULL_TAG, DATE_STAMP, SAMPLES)
+    tmp_std_var_stats_fs = lambda wildcards: get_zoom_std_var_stats_files(wildcards.zoom_name, \
+      zoom_dir, ZOOM_PARAMS, FULL_TAG, DATE_STAMP, SAMPLES)
   output:
     std_var_stats_merged_f= zoom_dir + '/{zoom_name}/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 1
   resources:
-    mem_mb=lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    mem_mb=lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   run:
     merge_tmp_files(input.tmp_std_var_stats_fs, output.std_var_stats_merged_f)
 
@@ -417,19 +411,18 @@ rule zoom_get_highly_variable_genes:
   output:
     hvg_f =  zoom_dir + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   params:
-    zoom_hvg_method = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['HVG_METHOD'],
-    zoom_n_hvgs     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['N_HVGS'],
-    zoom_exclude_ambient_genes = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['EXCLUDE_AMBIENT_GENES']
+    zoom_hvg_method = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'],
+    zoom_n_hvgs     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_n_hvgs'],
+    zoom_exclude_ambient_genes = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_exclude_ambient_genes']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_highly_variable_genes_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
-  shell:
-     """
+  shell: """
      NOAMBIENT_FLAG=""
      if [ "{params.zoom_exclude_ambient_genes}" = "True" ]; then
        NOAMBIENT_FLAG="--noambient"
@@ -447,31 +440,32 @@ rule zoom_get_highly_variable_genes:
 
 rule zoom_create_hvg_matrix:
   input: 
-    clean_h5_f   = expand(
-            zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
-            zoom_name = ZOOM_NAMES, sample=SAMPLES
+    clean_h5_f    = expand(
+      zoom_dir + '/{zoom_name}' + '/chunked_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
+      zoom_name = ZOOMS, sample = SAMPLES
     ),
-    smpl_stats_f = zoom_dir  + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    hvg_paths_f  = zoom_dir  + '/{zoom_name}/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    hvg_f        = zoom_dir  + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    smpl_stats_f  = zoom_dir  + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    hvg_paths_f   = zoom_dir  + '/{zoom_name}/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    hvg_f         = zoom_dir  + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   output:
-    hvg_mat_f    = zoom_dir  + '/{zoom_name}/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
+    hvg_mat_f     = zoom_dir  + '/{zoom_name}/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
+  params:
+    demux_type    = config['multiplexing']['demux_type']
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_create_hvg_matrix_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
-  shell:
-    """
+  shell: """
     python3 scripts/hvgs.py read_top_genes \
       {input.smpl_stats_f} \
       {input.hvg_paths_f} \
       {input.hvg_f} \
       {output.hvg_mat_f} \
-      {DEMUX_TYPE}
+      {params.demux_type}
     """
 
 
@@ -479,54 +473,59 @@ rule zoom_run_integration:
   input:
     hvg_mat_f     = zoom_dir + '/{zoom_name}/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
     smpl_stats_f  = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    coldata_f     = qc_dir   + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    coldata_f     = qc_dir   + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
-    integration_f = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    integration_f = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   params:
-    zoom_int_reduction = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['INT_REDUCTION'],
-    zoom_int_n_dims    = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['INT_N_DIMS'],
-    zoom_int_cl_method = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['INT_CL_METHOD'], 
-    zoom_int_theta     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['INT_THETA'],
-    zoom_int_res_ls    = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['INT_RES_LS']
+    demux_type          = config['multiplexing']['demux_type'],
+    exclude_mito        = config['qc']['exclude_mito'],
+    zoom_int_embedding  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_embedding'],
+    zoom_int_n_dims     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_n_dims'],
+    zoom_int_cl_method  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_cl_method'], 
+    zoom_int_theta      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_theta'],
+    zoom_int_res_ls     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
+    zoom_int_batch_var  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_batch_var']
   threads: 8
-  retries: RETRIES 
+  retries: config['resources']['retries']
   resources:
-    mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_INTEGRATION
+    mem_mb   = lambda wildcards, attempt: attempt * config['resources']['gb_run_integration'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_run_integration_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
-  shell:
-    """
+  shell: """
     # run harmony
     Rscript -e "source('scripts/integration.R'); source('scripts/ambient.R'); source('scripts/zoom.R'); 
       run_zoom_integration( 
         hvg_mat_f        = '{input.hvg_mat_f}', 
         smpl_stats_f     = '{input.smpl_stats_f}', 
         coldata_f        = '{input.coldata_f}', 
-        demux_type       = '{DEMUX_TYPE}', 
-        exclude_mito     = '{EXCLUDE_MITO}', 
-        reduction        = '{params.zoom_int_reduction}',
-        n_dims           = {params.zoom_int_n_dims}, 
+        demux_type       = '{params.demux_type}', 
+        exclude_mito     = '{params.exclude_mito}', 
+        reduction        = '{params.zoom_int_embedding}',
+        n_dims           =  {params.zoom_int_n_dims}, 
         cl_method        = '{params.zoom_int_cl_method}', 
-        theta            = {params.zoom_int_theta}, 
+        theta            =  {params.zoom_int_theta}, 
         res_ls_concat    = '{params.zoom_int_res_ls}', 
         integration_f    = '{output.integration_f}', 
-        batch_var        = '{BATCH_VAR}', 
-        n_cores          = {threads})"
+        batch_var        = '{params.zoom_int_batch_var}', 
+        n_cores          =  {threads})"
     """
 
 
 rule zoom_run_marker_genes:
   input:
     sces_yaml_f    = int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml',
-    integration_f  = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    integration_f  = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
     pb_f      = zoom_dir + '/{zoom_name}/pb_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.rds',
     mkrs_f    = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
     pb_hvgs_f = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz', 
-    **get_zoom_conditional_outputs(SPECIES, zoom_dir, FULL_TAG, DATE_STAMP)
-  params: 
+    **get_zoom_conditional_outputs(config['project']['species'], zoom_dir, FULL_TAG, DATE_STAMP)
+  params:
+    species             = config['project']['species'],
+    af_gtf_dt_f         = config['mapping']['af_gtf_dt_f'],
+    mkr_gsea_dir        = config['marker_genes']['mkr_gsea_dir'],
     fgsea_args = lambda wildcards, output: ", ".join([
         f"fgsea_go_bp_f = '{output.get('fgsea_go_bp_f', '')}'",
         f"fgsea_go_cc_f = '{output.get('fgsea_go_cc_f', '')}'",
@@ -534,23 +533,22 @@ rule zoom_run_marker_genes:
         f"fgsea_paths_f = '{output.get('fgsea_paths_f', '')}'",
         f"fgsea_hlmk_f = '{output.get('fgsea_hlmk_f', '')}',"
     ]), 
-    zoom_mkr_sel_res     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_SEL_RES'],
-    zoom_mkr_min_cl_size = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MIN_CL_SIZE'], 
-    zoom_mkr_min_cells   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MIN_CELLS'], 
-    zoom_mkr_not_ok_re   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_NOT_OK_RE'],
-    zoom_mkr_min_cpm_go  = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MIN_CPM_GO'],
-    zoom_mkr_max_zero_p  = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MAX_ZERO_P'], 
-    zoom_mkr_gsea_cut    = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_GSEA_CUT']
+    zoom_mkr_sel_res     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_sel_res'],
+    zoom_mkr_min_cl_size = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cl_size'], 
+    zoom_mkr_min_cells   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cells'], 
+    zoom_mkr_not_ok_re   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_not_ok_re'],
+    zoom_mkr_min_cpm_go  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cpm_go'],
+    zoom_mkr_max_zero_p  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_max_zero_p'], 
+    zoom_mkr_gsea_cut    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_cut']
   threads: 8
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_MARKER_GENES
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_marker_genes'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_run_marker_genes_{zoom_name}_{mkr_sel_res}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
-  shell:
-    """
+  shell: """
     Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); calculate_marker_genes(
       integration_f = '{input.integration_f}', 
       sces_yaml_f   = '{input.sces_yaml_f}',
@@ -558,42 +556,41 @@ rule zoom_run_marker_genes:
       mkrs_f        = '{output.mkrs_f}',
       pb_hvgs_f     = '{output.pb_hvgs_f}',
       {params.fgsea_args}
-      species       = '{SPECIES}',
-      gtf_dt_f      = '{AF_GTF_DT_F}',
-      gsea_dir      = '{MKR_GSEA_DIR}',
+      species       = '{params.species}',
+      gtf_dt_f      = '{params.af_gtf_dt_f}',
+      gsea_dir      = '{params.mkr_gsea_dir}',
       sel_res       = '{params.zoom_mkr_sel_res}',
-      min_cl_size   = {params.zoom_mkr_min_cl_size},
-      min_cells     = {params.zoom_mkr_min_cells},
+      min_cl_size   =  {params.zoom_mkr_min_cl_size},
+      min_cells     =  {params.zoom_mkr_min_cells},
       not_ok_re     = '{params.zoom_mkr_not_ok_re}',
-      min_cpm_go    = {params.zoom_mkr_min_cpm_go},
-      max_zero_p    = {params.zoom_mkr_max_zero_p},
-      gsea_cut      = {params.zoom_mkr_gsea_cut},
+      min_cpm_go    =  {params.zoom_mkr_min_cpm_go},
+      max_zero_p    =  {params.zoom_mkr_max_zero_p},
+      gsea_cut      =  {params.zoom_mkr_gsea_cut},
       zoom          = 'True', 
-      n_cores       = {threads})"
+      n_cores       =  {threads})"
     """
 
 
 rule zoom_make_subset_sces:
   input:
-    integration_f = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    integration_f = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     smpl_stats_f  = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     sces_yaml_f   = int_dir + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml'
   output:
     clean_sce_f = zoom_dir + '/{zoom_name}/sce_objects/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   params:
-    zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS_F'],
-    zoom_lbls_var   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS_VAR'],
-    zoom_lbls       = lambda wildcards: ','.join(ZOOM_PARAMS_DICT[wildcards.zoom_name]['LABELS'])
+    zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
+    zoom_lbls_col   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
+    zoom_lbls       = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'])
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb   = lambda wildcards, attempt: attempt * MB_MAKE_SUBSET_SCES
+    mem_mb   = lambda wildcards, attempt: attempt * config['resources']['gb_make_subset_sces'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_make_subset_sces_{zoom_name}_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
-  shell:
-    """
+  shell: """
     Rscript -e "source('scripts/zoom.R');
      make_subset_sces(
      sel_s          = '{wildcards.sample}',
@@ -602,7 +599,7 @@ rule zoom_make_subset_sces:
      smpl_stats_f   = '{input.smpl_stats_f}',
      sces_yaml_f    = '{input.sces_yaml_f}',
      subset_f       = '{params.zoom_lbls_f}',
-     subset_col     = '{params.zoom_lbls_var}',
+     subset_col     = '{params.zoom_lbls_col}',
      subset_str     = '{params.zoom_lbls}')"
     """
 
@@ -614,41 +611,50 @@ rule render_html_zoom:
     r_hvgs_f            = code_dir + '/hvgs.R', 
     r_int_f             = code_dir + '/integration.R',
     r_mkr_f             = code_dir + '/marker_genes.R',
-    qc_f                = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    zoom_int_f          = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    qc_f                = qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
+    zoom_cell_hvgs_f    = zoom_dir + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    zoom_int_f          = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     zoom_pb_f           = zoom_dir + '/{zoom_name}/pb_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.rds',
+    zoom_pb_hvgs_f      = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
     zoom_mkrs_f         = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
-    zoom_mkrs_hvgs_f    = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
-    zoom_hvgs_f         = zoom_dir + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     zoom_empty_gs_f     = zoom_dir + '/{zoom_name}/edger_empty_genes_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     pb_empty_f          = pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
-    **get_zoom_conditional_outputs(SPECIES, zoom_dir, FULL_TAG, DATE_STAMP)
+    **get_zoom_conditional_outputs(config['project']['species'], zoom_dir, FULL_TAG, DATE_STAMP)
   output:
     rmd_f       = rmd_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{mkr_sel_res}.Rmd',
     html_f      = docs_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{mkr_sel_res}.html'
   params:
-    meta_vars   = ','.join(METADATA_VARS), 
-    fgsea_args  = lambda wildcards, input: ", ".join([
+    your_name             = config['project']['your_name'],
+    affiliation           = config['project']['affiliation'],
+    short_tag             = config['project']['short_tag'],
+    date_stamp            = config['project']['date_stamp'],
+    proj_dir              = config['project']['proj_dir'],
+    species               = config['project']['species'],
+    metadata_f            = config['project']['sample_metadata'], 
+    zoom_dir              = zoom_dir,
+    meta_vars             = ','.join(config['project']['metadata_vars']), 
+    fgsea_args            = lambda wildcards, input: ", ".join([
         f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}'",
         f"fgsea_go_cc_f = '{input.get('fgsea_go_cc_f', '')}'",
         f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}'",
         f"fgsea_paths_f = '{input.get('fgsea_paths_f', '')}'",
         f"fgsea_hlmk_f = '{input.get('fgsea_hlmk_f', '')}',"
     ]), 
-    zoom_int_res_ls      = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['INT_RES_LS'], 
-    zoom_mkr_sel_res     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_SEL_RES'],
-    zoom_mkr_min_cpm_mkr = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MIN_CPM_MKR'], 
-    zoom_mkr_min_cells   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_MIN_CELLS'],  
-    zoom_mkr_not_ok_re   = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_NOT_OK_RE'], 
-    zoom_mkr_gsea_cut    = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['MKR_GSEA_CUT'], 
-    zoom_custom_mkr_names= lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['CUSTOM_MKR_NAMES'], 
-    zoom_custom_mkr_paths= lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['CUSTOM_MKR_PATHS']
+    af_gtf_dt_f           = config['mapping']['af_gtf_dt_f'],
+    zoom_int_res_ls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'], 
+    zoom_mkr_sel_res      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_sel_res'],
+    zoom_mkr_min_cpm_mkr  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cpm_mkr'], 
+    zoom_mkr_min_cells    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cells'],  
+    zoom_mkr_not_ok_re    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_not_ok_re'], 
+    zoom_mkr_gsea_cut     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_cut'], 
+    zoom_custom_mkr_names = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_names'], 
+    zoom_custom_mkr_paths = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_paths']
   threads: 1
-  retries: RETRIES 
+  retries: config['resources']['retries']
   conda: 
     '../envs/rlibs.yaml'
   resources:
-    mem_mb =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+    mem_mb =  lambda wildcards, attempt: attempt * config['resources']['gb_render_htmls'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/render_html_zoom_{zoom_name}_{mkr_sel_res}_' + DATE_STAMP + '.benchmark.txt'
   shell: """
@@ -661,35 +667,34 @@ rule render_html_zoom:
       proj_dir          = '{PROJ_DIR}', 
       temp_f            =  '$template_f', 
       rmd_f             = '{output.rmd_f}', 
-      YOUR_NAME         = '{YOUR_NAME}', 
-      AFFILIATION       = '{AFFILIATION}', 
-      PROJ_DIR          = '{PROJ_DIR}', 
-      SHORT_TAG         = '{SHORT_TAG}', 
-      DATE_STAMP        = '{DATE_STAMP}', 
-      threads           = {threads},
-      zoom_dir          = '{zoom_dir}', 
+      your_name         = '{params.your_name}', 
+      affiliation       = '{params.affiliation}', 
+      short_tag         = '{params.short_tag}', 
+      date_stamp        = '{params.date_stamp}', 
+      threads           =  {threads},
+      zoom_dir          = '{params.zoom_dir}', 
       zoom_name         = '{wildcards.zoom_name}', 
-      meta_f            = '{METADATA_F}', 
+      metadata_f        = '{params.metadata_f}', 
       meta_vars_ls      = '{params.meta_vars}', 
-      gtf_dt_f          = '{AF_GTF_DT_F}', 
+      gtf_dt_f          = '{params.af_gtf_dt_f}', 
       qc_f              = '{input.qc_f}', 
+      cell_hvgs_f       = '{input.zoom_cell_hvgs_f}',
       int_f             = '{input.zoom_int_f}', 
       pb_f              = '{input.zoom_pb_f}', 
       mkrs_f            = '{input.zoom_mkrs_f}', 
-      mkrs_hvgs_f       = '{input.zoom_mkrs_hvgs_f}',
-      hvgs_f            = '{input.zoom_hvgs_f}',
+      pb_hvgs_f         = '{input.zoom_pb_hvgs_f}',
       empty_gs_f        = '{input.zoom_empty_gs_f}', 
       pb_empty_f        = '{input.pb_empty_f}', 
       {params.fgsea_args}
-      INT_RES_LS        = '{params.zoom_int_res_ls}', 
-      CUSTOM_MKR_NAMES  = '{params.zoom_custom_mkr_names}',
-      CUSTOM_MKR_PATHS  = '{params.zoom_custom_mkr_paths}',
-      MKR_SEL_RES       = '{params.zoom_mkr_sel_res}', 
-      MKR_NOT_OK_RE     = '{params.zoom_mkr_not_ok_re}', 
-      MKR_MIN_CPM_MKR   = {params.zoom_mkr_min_cpm_mkr}, 
-      MKR_MIN_CELLS     = {params.zoom_mkr_min_cells}, 
-      MKR_GSEA_CUT      = {params.zoom_mkr_gsea_cut}, 
-      SPECIES           = '{SPECIES}'
+      int_res_ls        = '{params.zoom_int_res_ls}', 
+      custom_mkr_names  = '{params.zoom_custom_mkr_names}',
+      custom_mkr_paths  = '{params.zoom_custom_mkr_paths}',
+      mkr_sel_res       = '{params.zoom_mkr_sel_res}', 
+      mkr_not_ok_re     = '{params.zoom_mkr_not_ok_re}', 
+      mkr_min_cpm_mkr   =  {params.zoom_mkr_min_cpm_mkr}, 
+      mkr_min_cells     =  {params.zoom_mkr_min_cells}, 
+      mkr_gsea_cut      =  {params.zoom_mkr_gsea_cut}, 
+      species           = '{params.species}'
     )"
     """
 

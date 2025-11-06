@@ -1,258 +1,287 @@
 # snakemake rule for doing QC on sce object
+import polars as pl
 import pandas as pd
 import gzip
 import os
 import numpy as np
 
-def extract_qc_sample_statistics(ambient_stats_f, qc_merged_f, SAMPLES, SAMPLE_VAR, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS):
-    # load the merged qc file
-    qc_dt = pd.read_csv(qc_merged_f, sep = '\t', compression='gzip')
-
-    # filter for cells that passed qc
-    qc_dt = qc_dt[qc_dt["keep"] == True]
-
-    # count the number of cells per sample
-    sample_df = (
-        qc_dt.groupby('sample_id')
-        .size()
-        .reset_index(name='n_cells')
-    )
-
-    # identify samples that do not meet the minimum cell threshold
-    sample_df['bad_qc'] = sample_df['n_cells'] < QC_MIN_CELLS
-
-    # handle samples excluded after cellbender
-    if AMBIENT_METHOD == 'cellbender':
-        # load ambient sample stats
-        amb_stats = pd.read_csv(ambient_stats_f)
-        # get bad pools or samples
-        bad_bender = amb_stats.loc[amb_stats['bad_sample'], SAMPLE_VAR].tolist()
-
-        if DEMUX_TYPE != "none":
-            bad_bender_samples = []
-            for p in bad_bender:
-                if p in SAMPLE_MAPPING:
-                    bad_bender_samples.extend(SAMPLE_MAPPING[p])
-          
-            assert all(s in SAMPLES for s in bad_bender_samples), \
-                "Some bad bender samples are not in the SAMPLES list."
-        else:
-            bad_bender_samples = bad_bender
-
-        sample_df['bad_bender'] = False
-        if len(bad_bender_samples) != 0: 
-           # add bad_bender column to sample_df
-          bad_bender_df = pd.DataFrame({
-            'sample_id': bad_bender_samples, 
-            'n_cells': np.nan, 
-            'bad_qc': False, 
-            'bad_bender': True
-          })
-
-          sample_df = pd.concat([sample_df, bad_bender_df], ignore_index=True)
-
-        assert all([s in sample_df['sample_id'].tolist() for s in SAMPLES])
-        # label as bad if bad_bender or bad_qc
-        sample_df['bad_sample'] = sample_df['bad_bender'] | sample_df['bad_qc']
-    else:
-        sample_df['bad_sample'] = sample_df['bad_qc']
-
-    return sample_df
-
+localrules: merge_qc, make_qc_thresholds_csv
 
 # get output file paths as string
-def get_qc_files_str(run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP):
-  if SAMPLE_MAPPING is None:
-    sce_str = f"{qc_dir}/sce_cells_tmp_{run}_{FULL_TAG}_{DATE_STAMP}.rds"
-    smpl_str= run
-  else:
-    sce_fs_ls = []
-    smpls_ls = []
-    for s in SAMPLE_MAPPING[run]:
-      sce_fs_ls.append(f"{qc_dir}/sce_cells_tmp_{s}_{FULL_TAG}_{DATE_STAMP}.rds")
-      smpls_ls.append(s)
+def get_qc_files_str(run, SAMPLES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP):
+  # make lists
+  sce_fs_ls = []
+  smpls_ls  = []
+  for s in SAMPLES_TO_RUNS[run]:
+    sce_fs_ls.append(f"{qc_dir}/sce_cells_tmp_{s}_{FULL_TAG}_{DATE_STAMP}.rds")
+    smpls_ls.append(s)
 
-    sce_str  = ','.join(sce_fs_ls)
-    smpl_str = ','.join(smpls_ls)
-  
-  return smpl_str, sce_str
+  # concatenate them
+  sce_str   = ','.join(sce_fs_ls)
+  smpl_str  = ','.join(smpls_ls)
+
+  # make out dictionary
+  out_dc = {
+    "smpl_str": smpl_str, 
+    "sce_str":  sce_str
+  }
+  return out_dc
+
+
+# mini wrapper functions
+def get_all_smpls_str(wildcards):
+  return get_qc_files_str(wildcards.run, SAMPLES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP)['smpl_str']
+
+def get_sce_fs_str(wildcards):
+  return get_qc_files_str(wildcards.run, SAMPLES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP)['sce_str']
+
+
+def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, SAMPLES, RUN_VAR, SAMPLES_TO_RUNS):
+  # load the merged qc file, also thresholds
+  qc_df     = pl.read_csv(qc_merged_f)
+  cuts_df   = pl.read_csv(cuts_f)
+
+  # count the number of cells that passed qc per sample
+  qc_df     = qc_df.filter(pl.col("keep") == True)
+  sample_df = qc_df.group_by('sample_id').agg( pl.col("sample_id").count().alias('n_cells') )
+
+  # check all samples present in sample_df
+  if set(sample_df['sample_id'].to_list()) != set(cuts_df['sample_id'].to_list()):
+    raise ValueError("sample_df and cuts_df have different sets of values for 'sample_id'")
+
+  # load cuts, merge and use to identify samples that do not meet the minimum cell threshold
+  sample_df = sample_df.join( cuts_df.select(["sample_id", "min_cells"]), on = "sample_id", how = "left")
+  sample_df = sample_df.with_columns( (pl.col('n_cells') < pl.col('min_cells')).alias('bad_qc') )
+
+  # handle samples excluded after cellbender
+  if config['ambient']['ambient_method'] == 'cellbender':
+    # load ambient sample stats
+    amb_stats   = pl.read_csv(run_stats_f)
+
+    # get bad pools or samples
+    bad_bender  = amb_stats.filter( pl.col('bad_run') )[ RUN_VAR ].to_list()
+
+    # check for these
+    if config['multiplexing']['demux_type'] != "none":
+      bad_bender_samples = []
+      for bad_run in bad_bender:
+        if bad_run in SAMPLES_TO_RUNS:
+          bad_bender_samples.extend(SAMPLES_TO_RUNS[bad_run])
+      if not all(s in SAMPLES for s in bad_bender_samples):
+        raise ValueError("Some bad bender samples are not in the SAMPLES list.")
+    else:
+      bad_bender_samples = bad_bender
+
+    # record samples where cellbender went wrong
+    sample_df = sample_df.with_columns( pl.lit(False).alias('bad_bender'))
+    if len(bad_bender_samples) != 0: 
+       # add bad_bender column to sample_df
+      bad_bender_df = pl.DataFrame({
+        'sample_id':  bad_bender_samples, 
+        'n_cells':    np.nan, 
+        'bad_qc':     False, 
+        'bad_bender': True
+      })
+      sample_df = sample_df.vstack(bad_bender_df)
+
+    # check we didn't miss anything
+    if not all([s in sample_df['sample_id'].to_list() for s in SAMPLES]):
+      raise KeyError("some samples missing from sample_df")
+
+    # label as bad if bad_bender or bad_qc
+    sample_df   = sample_df.with_columns( (pl.col('bad_bender') | pl.col('bad_qc')).alias('bad_sample') )
+
+  else:
+    sample_df   = sample_df.with_columns( pl.col('bad_qc').alias('bad_sample') )
+
+  return sample_df
+
+
+rule make_qc_thresholds_csv:
+  output:
+    cuts_f      = qc_dir  + '/qc_thresholds_by_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+  run:
+    # make polars dataframe from dictionary of parameters
+    rows_data   = []
+    for sample_id, param_ls in SAMPLE_PARAMS.items():
+      qc_params   = param_ls['qc']
+      row_data    = {'sample_id': sample_id}
+      row_data.update(qc_params)
+      rows_data.append(row_data)
+    cuts_df     = pl.DataFrame(rows_data)
     
+    # rename the columns
+    def rename_fn(col):
+      if col.startswith("qc_"):
+        return col.replace("qc_", "")
+      else:
+        return col
+    cuts_df     = cuts_df.rename( lambda col_name: rename_fn(col_name) )
+
+    # save to csv
+    cuts_df.write_csv(output.cuts_f)
+
 
 rule run_qc:
   input:
-    ambient_stats_f = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    amb_yaml_f   = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
-    demux_f      = (demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds') if DEMUX_TYPE == 'af' else ([DEMUX_F] if DEMUX_TYPE == 'custom' else [])
+    cuts_f      = qc_dir  + '/qc_thresholds_by_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    run_stats_f = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    amb_yaml_f  = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
+    demux_f     = (demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds') \
+      if config['multiplexing']['demux_type'] == 'hto' else \
+      config['multiplexing']['demux_output'] if config['multiplexing']['demux_type'] == 'custom' else []
   output:
-    qc_f         = temp(qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'), 
-    coldata_f    = temp(qc_dir + '/coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'),
-    rowdata_f    = temp(qc_dir + '/rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'), 
-    dimred_f     = dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    dbl_f        = dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'    
+    qc_f         = temp(qc_dir + '/tmp_qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'), 
+    coldata_f    = temp(qc_dir + '/tmp_coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'),
+    rowdata_f    = temp(qc_dir + '/tmp_rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'), 
+    # dimred_f     = dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    dbl_f        = dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
   params:
-    all_smpls_str   = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[0],
-    sce_fs_str      = lambda wildcards: get_qc_files_str(wildcards.run, SAMPLE_MAPPING, qc_dir, FULL_TAG, DATE_STAMP)[1],
-    mito_str        = AF_MITO_STR,
-    exclude_mito    = EXCLUDE_MITO,
-    hard_min_counts = QC_HARD_MIN_COUNTS,
-    hard_min_feats  = QC_HARD_MIN_FEATS,
-    hard_max_mito   = QC_HARD_MAX_MITO,
-    min_counts      = QC_MIN_COUNTS,
-    min_feats       = QC_MIN_FEATS,
-    min_mito        = QC_MIN_MITO,
-    max_mito        = QC_MAX_MITO,
-    min_splice      = QC_MIN_SPLICE,
-    max_splice      = QC_MAX_SPLICE,
-    sample_var      = SAMPLE_VAR,
-    demux_type      = DEMUX_TYPE,
-    dbl_min_feats   = DBL_MIN_FEATS
+    metadata_f      = config['project']['sample_metadata'],
+    af_gtf_dt_f     = config['mapping']['af_gtf_dt_f'],
+    all_smpls_str   = get_all_smpls_str,
+    sce_fs_str      = get_sce_fs_str,
+    mito_str        = config['mapping']['af_mito_str'],
+    ambient_method  = config['ambient']['ambient_method'],
+    exclude_mito    = config['qc']['exclude_mito'],
+    hard_min_counts = config['qc']['qc_hard_min_counts'],
+    hard_min_feats  = config['qc']['qc_hard_min_feats'],
+    hard_max_mito   = config['qc']['qc_hard_max_mito'],
+    run_var         = RUN_VAR,
+    demux_type      = config['multiplexing']['demux_type'],
+    dbl_min_feats   = config['qc']['dbl_min_feats']
   threads: 4
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/run_qc_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
-  shell:
-    """
+  shell: """
     Rscript -e "source('scripts/SampleQC.R'); source('scripts/ambient.R'); \
-        main_qc( \
-          sel_sample     = '{wildcards.run}', \
-          meta_f         = '{METADATA_F}', \
-          amb_yaml_f     = '{input.amb_yaml_f}', \
-          sample_stats_f = '{input.ambient_stats_f}', \
-          demux_f        = '{input.demux_f}', \
-          gtf_dt_f       = '{AF_GTF_DT_F}', \
-          ambient_method = '{AMBIENT_METHOD}', \
-          sce_fs_str     = '{params.sce_fs_str}', \
-          all_samples_str = '{params.all_smpls_str}', \
-          rowdata_f       = '{output.rowdata_f}', \
-          qc_f           = '{output.qc_f}', \
-          coldata_f      = '{output.coldata_f}', \
-          dimred_f       = '{output.dimred_f}', \
-          dbl_f		       = '{output.dbl_f}', \
-          mito_str       = '{params.mito_str}', \
-          exclude_mito   = '{params.exclude_mito}', \
-          hard_min_counts= {params.hard_min_counts}, \
-          hard_min_feats = {params.hard_min_feats}, \
-          hard_max_mito  = {params.hard_max_mito}, \
-          min_counts     = {params.min_counts}, \
-          min_feats      = {params.min_feats}, \
-          min_mito       = {params.min_mito}, \
-          max_mito       = {params.max_mito}, \
-          min_splice     = {params.min_splice}, \
-          max_splice     = {params.max_splice}, \
-          sample_var     = '{params.sample_var}', \
-          demux_type     = '{params.demux_type}', \
-          dbl_min_feats  = {params.dbl_min_feats} \
-        )"
-
+      main_qc( \
+        run_name        = '{wildcards.run}', \
+        metadata_f      = '{params.metadata_f}', \
+        cuts_f          = '{input.cuts_f}', \
+        amb_yaml_f      = '{input.amb_yaml_f}', \
+        run_stats_f     = '{input.run_stats_f}', \
+        demux_f         = '{input.demux_f}', \
+        gtf_dt_f        = '{params.af_gtf_dt_f}', \
+        ambient_method  = '{params.ambient_method}', \
+        sce_fs_str      = '{params.sce_fs_str}', \
+        all_samples_str = '{params.all_smpls_str}', \
+        rowdata_f       = '{output.rowdata_f}', \
+        qc_f            = '{output.qc_f}', \
+        coldata_f       = '{output.coldata_f}', \
+        dbl_f           = '{output.dbl_f}', \
+        mito_str        = '{params.mito_str}', \
+        exclude_mito    = '{params.exclude_mito}', \
+        hard_min_counts =  {params.hard_min_counts}, \
+        hard_min_feats  =  {params.hard_min_feats}, \
+        hard_max_mito   =  {params.hard_max_mito}, \
+        run_var         = '{params.run_var}', \
+        demux_type      = '{params.demux_type}', \
+        dbl_min_feats   =  {params.dbl_min_feats} \
+      )"
     """
 
 
 rule merge_qc:
   input:
-    qc_fs      = expand(qc_dir  + '/qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', run = runs),
-    coldata_fs = expand(qc_dir  + '/coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', run = runs)
+    qc_fs      = expand(qc_dir + '/tmp_qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', run = RUNS),
+    coldata_fs = expand(qc_dir + '/tmp_coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', run = RUNS)
   output:
-    qc_merged_f      = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    coldata_merged_f = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    qc_merged_f      = qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
+    coldata_merged_f = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/merge_qc_' + DATE_STAMP + '.benchmark.txt'
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
   run:
     # read all nonempty input files and concatenate them
-    qc_df_ls = [
-      pd.read_csv(f, compression='gzip') 
-      for f in input.qc_fs 
-      if gzip.open(f, 'rb').read(1)  
-    ]
-    qc_df_merged = pd.concat(qc_df_ls, ignore_index=True)
+    qc_df_ls    = [ pl.read_csv(f, schema_overrides = {"log_N": pl.Float64}) for f in input.qc_fs ]
+    qc_df_all   = pl.concat(qc_df_ls)
 
-    coldata_df_ls = [
-      pd.read_csv(f, compression='gzip') 
-      for f in input.coldata_fs 
-      if gzip.open(f, 'rb').read(1)  
-    ]
-    coldata_df_merged = pd.concat(coldata_df_ls, ignore_index=True)
+    cols_df_ls  = [ pl.read_csv(f) for f in input.coldata_fs ]
+    cols_df_all = pl.concat(cols_df_ls)
 
     # save merged dataframes to output files
-    qc_df_merged.to_csv(output.qc_merged_f, sep='\t', index=False, compression='gzip')
-    coldata_df_merged.to_csv(output.coldata_merged_f, sep='\t', index=False, compression='gzip')
+    with gzip.open(output.qc_merged_f, 'wb') as f:
+      qc_df_all.write_csv(f)
+    with gzip.open(output.coldata_merged_f, 'wb') as f:
+      cols_df_all.write_csv(f)
 
 
 rule merge_rowdata:
   input:
-    rowdata_fs = expand(qc_dir  + '/rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', run = runs)
+    rowdata_fs = expand(qc_dir + '/tmp_rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', run = RUNS)
   output:
-    rowdata_merged_f = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    rowdata_merged_f = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/merge_rowdata_' + DATE_STAMP + '.benchmark.txt'
   run:
     # read all nonempty rowdata files 
-    rd_df_ls = [
-      pd.read_csv(f,compression='gzip') 
-      for f in input.rowdata_fs 
-      if gzip.open(f, 'rb').read(1)  # Check if file is not empty 
-    ]
+    rows_df_ls  = [pl.read_csv(f) for f in input.rowdata_fs ]
     
     # check if identical
-    first_rd = rd_df_ls[0]
-    all_ident= all(first_rd.equals(df) for df in rd_df_ls[1:])
+    first_df    = rows_df_ls[0]
+    all_ident   = all(first_df.equals(df) for df in rows_df_ls[1:])
     
     # save only one df
     if all_ident:
-      first_rd.to_csv(output.rowdata_merged_f, sep='\t', index=False, compression='gzip')
+      with gzip.open(output.rowdata_merged_f, 'wb') as f:
+        first_df.write_csv(f)
     else:
-      raise ValueError("Error: rowdata for all sce objects not identical.")
+      raise ValueError("error: rowdata for all sce objects not identical.")
 
 
 rule get_qc_sample_statistics:
   input:
-    ambient_stats_f = amb_dir + '/ambient_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    qc_merged_f     = qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz' 
+    run_stats_f   = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    qc_merged_f   = qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
+    cuts_f        = qc_dir  + '/qc_thresholds_by_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output:
-    qc_stats_f      = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    qc_stats_f    = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   threads: 1
-  retries: RETRIES
+  retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_QC
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/get_qc_sample_statistics_' + DATE_STAMP + '.benchmark.txt'
   run:
-    sample_stats_df = extract_qc_sample_statistics(input.ambient_stats_f, input.qc_merged_f, SAMPLES, SAMPLE_VAR, AMBIENT_METHOD, DEMUX_TYPE, SAMPLE_MAPPING, QC_MIN_CELLS)
-    sample_stats_df.to_csv(output.qc_stats_f, index = False)
+    sample_stats_df = extract_qc_sample_statistics(input.run_stats_f, input.qc_merged_f, input.cuts_f,
+      config, SAMPLES, RUN_VAR, SAMPLES_TO_RUNS)
+    sample_stats_df.write_csv(output.qc_stats_f)
 
 
 # write sce objects paths to a yaml file
 rule make_tmp_sce_paths_yaml:
-   input:
+  input:
     qc_stats_f  = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv' # so that this runs after get_qc_sample_statistics
-   output:
+  output:
     sces_yaml_f = temp(qc_dir  + '/sce_tmp_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml')
-   threads: 1
-   retries: RETRIES
-   run:
+  threads: 1
+  retries: config['resources']['retries']
+  run:
     # split paths and sample names
     fs = [f"{qc_dir}/sce_cells_tmp_{s}_{FULL_TAG}_{DATE_STAMP}.rds" for s in SAMPLES]
     
     # check that all files exist
     for f in fs:
-     assert os.path.isfile(f), \
-      f"File {f} doesn't exist"
+      if not os.path.isfile(f):
+        raise FileNotFoundError(f"file {f} doesn't exist")
 
     # create a dictionary
     fs_dict = dict(zip(SAMPLES, fs))
 
     # write to yaml
     with open(output.sces_yaml_f, 'w') as f:
-     yaml.dump(fs_dict, f, default_flow_style=False)
+      yaml.dump(fs_dict, f, default_flow_style=True)
 

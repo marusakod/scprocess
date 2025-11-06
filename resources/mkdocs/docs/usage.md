@@ -37,17 +37,17 @@ To see examples of input files go to [Quick start tutorial](tutorial.md#creating
 {{sc}} requires a configuration YAML file where you can specify analysis parameters. This is an example of a configuration file with all [required parameters](reference.md#required-parameters).
 
 ```yaml
-proj_dir: /path/to/proj/directory
-fastq_dir: /path/to/directory/with/fastq/files
-full_tag: test_project
-short_tag: test
-your_name: John Doe
-affiliation: where you work
-sample_metadata: /path/to/metadata.csv
-species: human_2024
-date_stamp: "2025-01-01"
-alevin:
- chemistry: 3v3
+project:
+  proj_dir: /path/to/proj/directory
+  fastq_dir: /path/to/directory/with/fastq/files
+  full_tag: test_project
+  short_tag: test
+  your_name: John Doe
+  affiliation: where you work
+  sample_metadata: /path/to/metadata.csv
+  species: human_2024
+  date_stamp: "2025-01-01"
+  tenx_chemistry: 3v3
 ```
 
 ### 4. Run the analysis

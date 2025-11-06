@@ -1,10 +1,10 @@
 ---
 title: "Multiplexing diagnostics"
 author:
-- name: ${YOUR_NAME}
+- name: ${your_name}
   affiliation:
-  - ${AFFILIATION}
-date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
+  - ${affiliation}
+date: '`r format(as.Date("${date_stamp}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -17,7 +17,7 @@ output:
 library('BiocStyle')
 knitr::opts_chunk$set(
   autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', warnings = FALSE, message = FALSE, 
-  fig.path = "figure/${SHORT_TAG}_multiplexing.Rmd/"
+  fig.path = "figure/${short_tag}_multiplexing.Rmd/"
   )
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 ```
@@ -30,21 +30,19 @@ source('code/multiplexing.R')
 
 ```{r get_samples, include = FALSE}
 # get all sample ids
-s_lvls    =  "${RUNS_STR}" %>%
+s_lvls    =  "${runs_str}" %>%
   str_split(pattern = ',') %>% unlist()
-
 ```
 
 ```{r setup_input, include = FALSE}
-
 # project metadata
-proj_meta_f = "${METADATA_F}"
+proj_meta_f = "${metadata_f}"
 
 
 # files with barcode ranks and ambient parameters
 af_dir      = "${af_dir}"
 demux_dir   = "${demux_dir}"
-sample_var  = "${SAMPLE_VAR}"
+sample_var  = "${run_var}"
 
 hto_smpl_dirs = sprintf(paste0(af_dir,'/', 'af_%s', '/hto' ), s_lvls)
 
@@ -66,7 +64,6 @@ hto_sce_fs = sapply(
 setNames(s_lvls)
 
 assert_that( length(hto_sce_fs) > 0) 
-
 ```
 
 ```{r load_hto_sce, include = FALSE}
@@ -91,7 +88,6 @@ hto_dt_ls  = lapply(hto_sce_ls, FUN = get_hto_dt)
 
 
 ```{r arrange_samples_for_hto_qc_plots, include = FALSE}
-
 # get total sample number
 sample_n = nrow(hto_knee_params_df)
 
@@ -156,10 +152,10 @@ For each sample, the table lists the number of doublets, singlets and negative (
 
 ```{r demux_out_tbl}
 rbindlist(hto_dt_ls) %>%
-  .[, .(pool_id, class = HTO_classification.global)] %>%
-  .[, count := .N, by = .(pool_id, class) ] %>%
-  unique() %>%
-  dcast(pool_id ~ class) %>%
+  .[, .(pool_id, cell_id, class = HTO_classification.global)] %>%
+  unique %>%
+  .[, .(count = .N), by = .(pool_id, class) ] %>%
+  dcast(pool_id ~ class, value.var = "count") %>%
   knitr::kable()
 ```
 
@@ -183,7 +179,6 @@ for (i in sample_ids){
   print(hto_ridges(i, proj_meta = proj_meta, hto_dt_ls = hto_dt_ls))
   cat('\n\n')
 }
-
 ```
 
 ## Pairs of HTO signals{.tabset}

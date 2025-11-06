@@ -77,6 +77,7 @@ rule all:
     # expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/index/{file}', genome=GENOMES, file=AF_INDEX_FS)
     expand([ SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/' + f'{file}' for file in AF_INDEX_FS], genome=GENOMES),
     expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/{genome}_index_params.yaml', genome=GENOMES),
+    SCPROCESS_DATA_DIR + '/celltypist',
     # rule get_reference_genome_data 
     SCPROCESS_DATA_DIR + '/index_parameters.csv'
 
@@ -118,8 +119,7 @@ rule download_scprocess_files:
   conda:
     '../envs/py_env.yaml'
   threads: 1
-  shell:
-    """
+  shell: """
     python3 scripts/setup.py get_scprocess_data {SCPROCESS_DATA_DIR}
     """
 
@@ -143,8 +143,7 @@ rule set_up_one_af_index:
   resources:
     mem_mb = 8192
   threads: 8
-  shell:
-    """  
+  shell: """
     python3 scripts/setup.py set_up_af_index {SCPROCESS_DATA_DIR} {wildcards.genome} \
       {params.fasta} {params.gtf} {params.index_dir} {params.mito_str} \
       {params.is_prebuilt} {params.is_tenx} {params.has_decoys} {params.has_rrna} {threads}
@@ -161,7 +160,32 @@ rule save_index_parameters_csv:
   resources:
     mem_mb = 512
   threads: 1
-  shell:
-    """
+  shell: """
     python3 scripts/setup.py save_index_params_csv {output.csv} {input.yamls}
     """
+
+
+# rule for getting scprocess data from github repo (maybe not a good idea to have all files as outputs)
+rule download_celltypist_models:
+  output:
+    models_f  = SCPROCESS_DATA_DIR + '/celltypist/celltypist_models.csv'
+  conda:
+    '../envs/celltypist.yaml'
+  threads: 1
+  run:
+    # set up
+    import os
+    import celltypist
+    import polars as pl
+
+    # download all available models
+    celltypist.models.download_models()
+    
+    # record their names
+    models_dir  = celltypist.models.models_path
+    models_ls   = [ f.replace(".pkl", "") for f in os.listdir(models_dir) if f.endswith(".pkl") ]
+
+    # make dataframe, save
+    models_df   = pl.DataFrame({ "model": models_ls })
+    models_df.write_csv(models_f)
+

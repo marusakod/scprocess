@@ -2,52 +2,57 @@
 
 # PATH="${PATH:+${PATH}:}/home/macnairw/packages/scProcess/scprocess.py"
 
-# example call:
-# scprocess /home/macnairw/packages/scProcess/configs/config-myrf_mice.yaml
-
+# import utils
 import argparse
 import os
+import sys
+import textwrap
 import yaml
+import pathlib
 import pandas as pd
-import re
+import polars as pl
 import glob
 import subprocess
 import shlex
 
+# import scprocess functions
+scprocess_dir  = os.path.dirname(__file__)
+sys.path.append(os.path.join(scprocess_dir, 'scripts'))
+import scprocess_utils
 
-def run_scsetup(sc_dir, snakefile, extraargs):
+
+# scprocess setup
+def run_setup(sc_dir, snakefile, extraargs):
   print('doing some checks on inputs')
  
   # get scprocess_data_dir; should be defined in .bashrc
   scprocess_data_dir = os.getenv('SCPROCESS_DATA_DIR')
-
   if scprocess_data_dir:
     print(f'SCPROCESS_DATA_DIR is set to: {scprocess_data_dir}')
   else:
     raise ValueError('SCPROCESS_DATA_DIR is not defined in .bashrc')
   
   # check that scprocess_data_dir is a directory
-  assert os.path.isdir(scprocess_data_dir), \
-   "SCPROCESS_DATA_DIR is not a directory"
+  if not os.path.isdir(scprocess_data_dir):
+    raise FileNotFoundError("SCPROCESS_DATA_DIR is not a directory")
   
   # check that config file exists
-  configfile = os.path.join(scprocess_data_dir, 'scprocess_setup.yaml')
-  assert os.path.exists(configfile), \
-    f"Config file {configfile} does not exist"
+  setup_config  = os.path.join(scprocess_data_dir, 'scprocess_setup.yaml')
+  if not os.path.exists(setup_config):
+    raise FileNotFoundError(f"Config file {setup_config} does not exist")
   
-  with open(configfile, "r") as stream:
+  # load config file  
+  with open(setup_config, "r") as stream:
     config      = yaml.safe_load(stream)
   
   # check if cluster profile is defined
-  if ('profile' in config) and config['profile'] is not None:
-    profile = config['profile']
-    
+  if ('profile' in config) and config['profile'] is not None:    
     # check if profile exists
+    profile     = config['profile']
     profile_dir = os.path.join(sc_dir, 'profiles', profile)
     profile_f   = os.path.join(profile_dir, 'config.yaml')
-
-    assert os.path.isfile(profile_f), \
-      f"cluster configuration file {profile_f} does not exist"
+    if not os.path.isfile(profile_f):
+      raise FileNotFoundError(f"cluster configuration file {profile_f} does not exist")
     
     # add snakemake flag
     extraargs = extraargs + ' --workflow-profile ' + profile_dir
@@ -60,17 +65,17 @@ def run_scsetup(sc_dir, snakefile, extraargs):
   print("starting scprocess setup")
   subprocess.run(['echo', 'snakemake', 
     "--snakefile", snakefile, 
-    "--configfile", os.path.abspath(configfile),
-    "--rerun-triggers", "{mtime,params}", "--rerun-incomplete", "--verbose", "--use-conda", 
+    "--configfile", os.path.abspath(setup_config),
+    "--rerun-triggers", "mtime", "params", "--rerun-incomplete", "--verbose", "--use-conda", 
     *shlex.split(extraargs)])
   subprocess.run(['snakemake', 
     "--snakefile", snakefile, 
-    "--configfile", os.path.abspath(configfile),
-    "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", "--use-conda", 
+    "--configfile", os.path.abspath(setup_config),
+    "--rerun-triggers", "mtime", "params", "--rerun-incomplete", "--verbose", "--use-conda", 
     *shlex.split(extraargs)])
 
 
-# create new project folder
+# scprocess newproj
 def new_proj(sc_dir, name, where, create_subdirs, create_config):
   # define template path
   src_dir   = os.path.join(sc_dir, "resources", "newproj_files")
@@ -132,12 +137,13 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
     message("workflowr package not installed, please run install.packages(\'workflowr\') to use the workflowr functions")
   }
   """
-  rprofile_f = os.path.join(proj_dir, '.Rprofile')
+  rprofile_txt  = textwrap.dedent(rprofile_txt)
+  rprofile_f    = os.path.join(proj_dir, '.Rprofile')
   with open(rprofile_f, "w") as file:
     file.write(rprofile_txt)
 
   # create config file if requested
-  if create_config:
+  if create_config is not None:
     # import something we need
     from datetime import date
 
@@ -148,289 +154,118 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
     fastq_dir   = 'data/fastqs' if create_subdirs else ''
     meta_dir    = 'data/metadata' if create_subdirs else ''
     
-    config_txt  = f"""
-proj_dir: {proj_dir}
-fastq_dir: {fastq_dir}
-full_tag: {name}
-short_tag: 
-your_name: 
-affiliation: 
-sample_metadata: {meta_dir}/
-species: 
-date_stamp: "{date_stamp}"
-alevin:
- chemistry: 
-""".strip()
+    # define config text
+    proj_txt    = f"""
+      # for details on how to fill out the config file, please see the following link:
+      # https://macnairw.pages.roche.com/scprocess/reference
+      project:
+        proj_dir: {proj_dir}
+        fastq_dir: {fastq_dir}
+        full_tag: {name}
+        short_tag: 
+        your_name: 
+        affiliation: 
+        sample_metadata: {meta_dir}/
+        species: 
+        date_stamp: "{date_stamp}"
+        tenx_chemistry: 
+      """
+    if "sc" in create_config:
+      qc_txt = """qc:
+        qc_max_mito: 0.1
+        qc_min_splice: 0.10
+        qc_max_splice: 0.99
+      """
+    if "sn" in create_config:
+      qc_txt = """qc:
+        qc_max_mito: 0.1
+        qc_max_splice: 0.75
+      """
+    if "multiplex" in create_config:
+      multi_txt = """multiplexing:
+        demux_type:
+      """
+    else:
+      multi_txt = ""
+
+    # join together
+    config_txt  = proj_txt + multi_txt + qc_txt
+    config_txt  = textwrap.dedent(config_txt).strip()
     
+    # write to file
     with open(config_f, "w") as file:
       file.write(config_txt)
 
   return
 
 
+# scprocess run
+def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
+  print('doing some checks on inputs')
 
-def check_sample_ids(sample_ids):
-  smpl_overlaps = []
+  # housekeeping
+  config_path     = pathlib.Path(configfile).resolve()
+  scprocess_dir   = pathlib.Path(__file__).parent
+  os.chdir(scprocess_dir)
 
-  # compare every sample id to every other sample id
-  for i, sample in enumerate(sample_ids):
-    for j, other_sample in enumerate(sample_ids):
-      if i != j and sample in other_sample:
-        smpl_overlaps.append((sample, other_sample))
+  # do some checks
+  scprocess_data_dir, extraargs = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
 
-  # if samples overlap print error
-  if smpl_overlaps:
-    msg = "The following sample_id values are problematic (one is a subset of the other):\n"
-    for sample, other_sample in smpl_overlaps:
-      msg += f"  - '{sample}' is a subset of '{other_sample}'\n"
-    raise ValueError(msg)
+  # get validated config
+  with open(config_path, "r") as f:
+    config          = yaml.safe_load(f)
+  schema_f        = scprocess_dir / "resources/schemas/config.schema.json"
+  if not schema_f.is_file():
+    raise FileNotFoundError("schema file not found")
+  config          = scprocess_utils.check_config(config, schema_f, scprocess_data_dir, scprocess_dir)
+
+  # get lists of parameters
+  RUN_PARAMS, RUN_VAR   = scprocess_utils.get_run_parameters(config, scprocess_data_dir)
+  RUNS                  = list(RUN_PARAMS.keys())
+  SAMPLE_PARAMS         = scprocess_utils.get_sample_parameters(config, RUNS, scprocess_data_dir)
+  SAMPLES               = list(SAMPLE_PARAMS.keys())
+  SAMPLES_TO_RUNS       = scprocess_utils.get_samples_to_runs(config, RUNS, SAMPLES)
+
+  # print which files will be processed
+  print(f"\nprocessing {len(SAMPLES)} samples:")
+  print('  ' + ', '.join(SAMPLES))
+
+  # print out what we will do:
+  print("\nsnakemake command:")
+  subprocess.run(["echo", "snakemake", 
+    "--snakefile", snakefile, 
+    "--configfile", config_path,
+    "--config", f"scprocess_dir={str(scprocess_dir)}",
+    "--rerun-triggers", "mtime", "params", "--rerun-incomplete", "--verbose", 
+    "--software-deployment-method", "conda",
+    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{config['project']['proj_dir']}",
+    *shlex.split(extraargs),
+    rule
+    ])
+  # do it
+  subprocess.run(["snakemake", 
+    "--snakefile", snakefile, 
+    "--configfile", config_path,
+    "--config", f"scprocess_dir={str(scprocess_dir)}",
+    "--rerun-triggers", "mtime", "params", "--rerun-incomplete", "--verbose", 
+    "--software-deployment-method", "conda",
+    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{config['project']['proj_dir']}",
+    *shlex.split(extraargs),
+    rule
+    ])
 
   return
 
 
-
-# find fastq files for a sample
-# def find_fastq_files(fastqs_dir, sample, read):
-#   # get all files
-#   all_fs    = glob.glob(f"{fastqs_dir}/*{sample}*")
-
-#   # get all reads
-#   re_R1     = re.compile('.*_R1.*\\.fastq(\\.gz)?$')
-#   R1_fs     = [ f for f in all_fs if re_R1.match(f) ]
-#   R1_fs     = sorted(R1_fs)
-#   re_R2     = re.compile('.*_R2.*\\.fastq(\\.gz)?$')
-#   R2_fs     = [ f for f in all_fs if re_R2.match(f) ]
-#   R2_fs     = sorted(R2_fs)
-
-#   # check they match
-#   R1_chk    = [ re.sub("_R1", "", f) for f in R1_fs ]
-#   R2_chk    = [ re.sub("_R2", "", f) for f in R2_fs ]
-#   assert R1_chk == R2_chk, "R1 and R2 fastq files do not match for " + sample
-
-#   if read == "R1":
-#     sel_fs = R1_fs
-#   elif read == "R2":
-#     sel_fs = R2_fs
-
-#   return sel_fs
-
-
-# # function to exclude samples without valid fastq files
-# def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES, HTO = False):
-#   # get parameters
-
-#   # get fastq files for each sample
-#   chk_samples   = []
-#   for sample in SAMPLES:
-#     R1_fs = find_fastq_files(FASTQS_DIR, sample, "R1")
-#     if len(R1_fs) > 0:
-#       chk_samples.append(sample)
-#     else:
-#       if HTO:
-#         print(f"WARNING: no hto fastq files found for sample {sample}; excluded")
-#       else:
-#         print(f"WARNING: no fastq files found for sample {sample}; excluded")
-
-#   return chk_samples
-
-
-def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
-  print('doing some checks on inputs')
-  
-  # check that SCPROCESS_DATA_DIR exists
-  scprocess_data_dir = os.getenv('SCPROCESS_DATA_DIR')
-
-  if not scprocess_data_dir:
-    raise ValueError('SCPROCESS_DATA_DIR is not defined in .bashrc')
-  
-  assert os.path.isdir(scprocess_data_dir), \
-   "SCPROCESS_DATA_DIR is not a directory"
-  
-  # check that spcrocess_data_dir has some files
-  scsetup_dirs = ['cellranger_ref', 'gmt_pathways', 'marker_genes', 'xgboost', 'alevin_fry_home']
-  scsetup_fulL_dirs = [os.path.join(scprocess_data_dir, d) for d in scsetup_dirs]
-  scsetup_csv = os.path.join(scprocess_data_dir,'index_parameters.csv')
-
-  assert all([os.path.isdir(d) for d in scsetup_fulL_dirs]), \
-   f"Some directories in {scprocess_data_dir} are missing; consider (re)running setup"
-  
-  assert os.path.isfile(scsetup_csv), \
-   f"{scsetup_csv} is missing; consider (re)running setup"
-  
-  # check if cluster profile is defined
-  setup_configfile = os.path.join(scprocess_data_dir, 'scprocess_setup.yaml')
-  assert os.path.exists(setup_configfile), \
-    f"scprocess_setup.yaml does not exist in {scprocess_data_dir}"
-
-  with open(setup_configfile, "r") as stream:
-    setup_config      = yaml.safe_load(stream)
-
-  if ('profile' in setup_config) and setup_config['profile'] is not None:
-    profile     = setup_config['profile']
-    
-    # check if profile exists
-    profile_dir = os.path.join(sc_dir, 'profiles', profile)
-    profile_f   = os.path.join(profile_dir, 'config.yaml')
-
-    assert os.path.isfile(profile_f), \
-      f"cluster configuration file {profile_f} does not exist"
-    
-    # add snakemake flag
-    extraargs = extraargs + ' --workflow-profile ' + profile_dir
-
-
-  # check configfile exists
-  assert os.path.exists(configfile), \
-    f"Config file {configfile} does not exist"
-  
-  # open configfile
-  with open(configfile, "r") as stream:
-    config      = yaml.safe_load(stream)
-
-  # check that proj_dir exists and is a directory
-  assert "proj_dir" in config, "proj_dir not in config file"
-  assert os.path.isdir(config["proj_dir"]), \
-    f"proj_dir {config['proj_dir']} is not a directory"
-  proj_dir    = config["proj_dir"] 
-  
-  # check that proj_dir is a workflowr directory 
-  wflowr_fs_ls = ['_workflowr.yml', '.gitignore', '.Rprofile', '.gitattributes',
-            'analysis/_site.yml', 'analysis/about.Rmd', 'analysis/index.Rmd', 'analysis/license.Rmd', 'public/.nojekyll']
-  
-  wflowr_fs_full_ls = [os.path.join(proj_dir, f) for f in wflowr_fs_ls]
-  assert all([os.path.isfile(f) for f in wflowr_fs_full_ls]), \
-    f"proj_dir {config['proj_dir']} is not a workflowr project; you can create a workflowr project using newproj"
-  
-  # check if samples are multiplexed using htos
-  sample_var = "sample_id" # id to use for matching with fastq files
-  demux_type = None
-  hto_fastq_dir = None
-
-  if ('multiplexing' in config) and (config['multiplexing'] is not None):
-    assert 'demux_type' in config['multiplexing']
-    demux_type = config['multiplexing']['demux_type']
-    assert demux_type in ["af", "custom"], \
-      "Invalid value of 'demux_type' parameter. Must be either 'af' or 'custom'"
-
-  # check that sample metadata exists, has sample_id present, no spaces in column names 
-  assert "sample_metadata" in config, "sample_metadata not specified in config file"
-  sample_metadata = config['sample_metadata']
-  if not os.path.isabs(sample_metadata):
-    sample_metadata = os.path.join(proj_dir, sample_metadata)
-    
-  assert os.path.isfile(sample_metadata), \
-     f"sample metadata {sample_metadata} is not a valid file"
-  
-  # load up sample metadata
-  sample_df   = pd.read_csv(sample_metadata)
-  assert "sample_id" in sample_df.columns, \
-    "sample_id not present in sample metadata"
-  
-  if demux_type is not None:
-    sample_var = "pool_id"
-    assert "pool_id" in sample_df.columns, \
-     "pool_id not present in sample metadata"
-    if demux_type == 'af':
-     assert "hto_id" in sample_df.columns, \
-      "hto_id not present in sample metadata"
-     # check that hto fastq path is present
-     assert "fastq_dir" in config['multiplexing'], \
-      "fastq_dir missing from 'multiplexing' section in the config file"
-     hto_fastq_dir = config['multiplexing']['fastq_dir'] 
-     if not os.path.isabs(hto_fastq_dir):
-       hto_fastq_dir = os.path.join(proj_dir, hto_fastq_dir)
-     assert os.path.isdir(hto_fastq_dir), \
-       f"{hto_fastq_dir} is not a valid directory"
-
-  assert all(sample_df[ "sample_id" ].value_counts() == 1), \
-    "sample_id values in metadata csv not unique"
-  
-  assert not any(' ' in col for col in sample_df.columns), \
-    "some column names in metadata csv contain spaces."
-
-  # check whether metadata_vars are present in sample metadata
-  if "metadata_vars" in config:
-    assert isinstance(config["metadata_vars"], list), \
-      "metadata_vars must be a list"
-    for var in config["metadata_vars"]:
-      assert var in sample_df.columns, \
-        f"metadata_var {var} not present in sample metadata"
-
-  # check fastq directory exists
-  assert "fastq_dir" in config, "fastq_dir not in config file"
-  fastq_dir = config['fastq_dir']
-  if not os.path.isabs(fastq_dir):
-    fastq_dir = os.path.join(proj_dir, fastq_dir)
-  assert os.path.isdir(fastq_dir), f"{fastq_dir} if not a valid directory"
-  
-  samples_ls = sample_df[sample_var].tolist()
-  # check that samples don't have '_R1' or '_R2' in their names 
-  assert all('_R1' not in s and '_R2' not in s for s in samples_ls), \
-    f"One or more {sample_var} values contain '_R1' or '_R2'. Please ensure all elements exclude these substrings"
-  
-  # check that sample_id values are ok and some fastq files exist
-  samples_ls  = list(dict.fromkeys(samples_ls))
-  check_sample_ids(samples_ls)
-  # samples_ls  = exclude_samples_without_fastq_files(fastq_dir, samples_ls, HTO=False)
-
-  # if demux_type == 'af':
-  #  samples_ls  = exclude_samples_without_fastq_files(hto_fastq_dir, samples_ls , HTO=True)
-
-  # assert len(samples_ls) > 0, \
-  #   "No fastq files found in fastq_dir"
-
-  # print which files will be processed
-  print(f"Processing {len(samples_ls)} samples:")
-  print('  ' + ', '.join(samples_ls))
-
-  # change scprocess directory
-  config_path   = os.path.abspath(configfile)
-  scprocess_dir = os.path.dirname(__file__)
-  os.chdir(scprocess_dir)
-
-  # # start snakemake 
-  # subprocess.call(['bash', f'{sc_dir}/scprocess.sh', 
-  #   snakefile, 
-  #   os.path.abspath(configfile), 
-  #   proj_dir, 
-  #   rule, extraargs])
-
-  # echo snakemake ${SM_ARGS} \
-  #   --snakefile $snakefile \
-  #   --configfile $configfile \
-  #   --rerun-incomplete \
-  #   --use-conda \
-  #   --use-singularity \
-  #   --singularity-args "--cleanenv --nv --bind /tmp,$proj_dir" $rule
-
-  subprocess.run(["echo", "snakemake", 
-    "--snakefile", snakefile, 
-    "--configfile", config_path,
-    "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", 
-    "--software-deployment-method", "conda",
-    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{proj_dir}",
-    *shlex.split(extraargs),
-    rule
-    ])
-  subprocess.run(["snakemake", 
-    "--snakefile", snakefile, 
-    "--configfile", config_path,
-    "--rerun-triggers", "mtime", "--rerun-incomplete", "--verbose", 
-    "--software-deployment-method", "conda",
-    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{proj_dir}",
-    *shlex.split(extraargs),
-    rule
-    ])
-
-
+# scprocess plotknee
 def plot_interactive_knee(knee_f, sample):
   print('importing modules for plotting knees')
   import gzip
   import plotly.express as px
   from plotly.offline import plot
 
-  assert os.path.isfile(knee_f), \
-    f"knee file for {sample} doesn't exist. To generate the file run rule 'mapping'"
+  if not os.path.isfile(knee_f):
+    raise FileNotFoundError(f"knee file for {sample} doesn't exist. To generate the file run rule 'mapping'")
 
   # read knee file
   with gzip.open(knee_f, 'rt') as file:
@@ -497,7 +332,8 @@ if __name__ == '__main__':
   newprj_prsr.add_argument('name', type=str, help="Name of the project")
   newprj_prsr.add_argument('-w', '--where', type=str, default=os.getcwd(), help="Where to create the project (default: current directory)")
   newprj_prsr.add_argument('-s', '--sub', action='store_true', help="Create data/fastqs and data/metadata subdirectories")
-  newprj_prsr.add_argument('-c', '--config', action='store_true', help="Create a blank config.yml file with required scprocess parameters")
+  newprj_prsr.add_argument('-c', '--config', type=str, choices = ["sc", "sn", "multiplex"], nargs="+",
+    help="Create a blank config.yml file with required scprocess parameters. Users must specify at least one option from: sc (single cell); sn (single nuclei); multiplex.")
 
   # subparser for the 'run' subcommand
   run_prsr    = subparsers.add_parser('run', help="run scprocess")
@@ -532,10 +368,12 @@ if __name__ == '__main__':
 
   # define arguments
   knee_parser.add_argument("sample", type = str, help = 'Sample to be plotted.')
-  knee_parser.add_argument("-c", "--configfile", type = str, nargs = '?', default = None,
+  group       = knee_parser.add_mutually_exclusive_group()
+  group.add_argument("-c", "--configfile", type = str, nargs = '?', default = None,
     help = "Path to configuration file used for running scprocess. ")
-  knee_parser.add_argument("-k", "--kneefile", type = str, default = None,
+  group.add_argument("-k", "--kneefile", type = str, default = None,
     help = "Path to knee file")
+
   # define scprocess directory
   sc_dir    = os.path.dirname(os.path.realpath(__file__))
 
@@ -555,10 +393,12 @@ if __name__ == '__main__':
       extraargs = extraargs + " -np"
     
     # call bsub thing
-    run_scsetup(sc_dir, snakefile, extraargs)
+    run_setup(sc_dir, snakefile, extraargs)
 
   elif args.subcommand == "newproj":
     # make new project directory
+    if ('sc' in args.config) and ('sn' in args.config):
+      raise ValueError("When specifying --config / -c, only one of sc and sn can be specified at a time.")
     where_abs = os.path.abspath(args.where)
     new_proj(sc_dir, args.name, where_abs, args.sub, args.config)
 
@@ -596,16 +436,14 @@ if __name__ == '__main__':
     if args.kneefile:
       knee_f = args.kneefile
     else:
-      assert args.configfile, "To use plotknee, either --configfile (-c) or --kneefile (-k) must be provided"
-      
       # open config file and get project directory
       with open(args.configfile) as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
       
       # get required variables
-      proj_dir    = config['proj_dir']
-      short_tag   = config['short_tag']
-      date_stamp  = config['date_stamp']
+      proj_dir    = config['project']['proj_dir']
+      short_tag   = config['project']['short_tag']
+      date_stamp  = config['project']['date_stamp']
 
       # use them to define a knee file to use
       knee_dir    = f"{proj_dir}/output/{short_tag}_mapping/af_{args.sample}"

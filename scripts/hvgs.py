@@ -41,17 +41,17 @@ def sum_SUA(sua_mat, row_names):
   return mats_sum, uniq_genes
 
 
-def get_one_csr_counts(run, hvg_df, keep_df, smpl_stats_df, gene_ids, SAMPLE_VAR, DEMUX_TYPE, chunk_size):
+def get_one_csr_counts(run, hvg_df, keep_df, smpl_stats_df, gene_ids, RUN_VAR, DEMUX_TYPE, chunk_size):
   # get input (ambient) file and output files
-  filt_counts_f = hvg_df.loc[hvg_df[SAMPLE_VAR] == run, "amb_filt_f"].values[0]
-  out_fs        = hvg_df.loc[hvg_df[SAMPLE_VAR] == run, "chunked_f"].tolist()
+  filt_counts_f = hvg_df.loc[hvg_df[RUN_VAR] == run, "amb_filt_f"].values[0]
+  out_fs        = hvg_df.loc[hvg_df[RUN_VAR] == run, "chunked_f"].tolist()
 
   # get bad samples
   bad_samples   = smpl_stats_df.loc[ smpl_stats_df['bad_sample'] == True, 'sample_id'].tolist()
 
   # get which samples we want
   if DEMUX_TYPE != "none":
-    samples = hvg_df.loc[hvg_df[SAMPLE_VAR] == run, "sample_id"].tolist()
+    samples = hvg_df.loc[hvg_df[RUN_VAR] == run, "sample_id"].tolist()
   else:
     samples = [run]
 
@@ -124,7 +124,8 @@ def get_one_csr_counts(run, hvg_df, keep_df, smpl_stats_df, gene_ids, SAMPLE_VAR
     print(f"Sample {s}: CSR matrix successfully saved to {out_f}.")
 
 
-def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals,  smpl_stats_f, rowdata_f, SAMPLE_VAR, DEMUX_TYPE, chunk_size=2000, n_cores = 8):
+def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals, smpl_stats_f, 
+  rowdata_f, RUN_VAR, DEMUX_TYPE, chunk_size=2000, n_cores = 8):
   # load up useful things
   hvg_paths_df  = dt.fread(hvg_paths_f).to_pandas()
   smpl_stats_df = dt.fread(smpl_stats_f).to_pandas()
@@ -139,13 +140,11 @@ def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals,  smpl_stats_
   rows_df       = dt.fread(rowdata_f).to_pandas()
   keep_ids      = rows_df['ensembl_id'].tolist()
 
-  # define list of samples
-  runs          = hvg_paths_df[SAMPLE_VAR].unique()
-
-  # do some parallel calculations
+  # define list of samples, run on them in parallel
+  runs          = hvg_paths_df[RUN_VAR].unique()
   with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
-    futures = [executor.submit(get_one_csr_counts, run, hvg_paths_df, keep_df, 
-      smpl_stats_df, keep_ids, SAMPLE_VAR, DEMUX_TYPE, chunk_size) for run in runs]
+    futures = [executor.submit(get_one_csr_counts, this_run, hvg_paths_df, keep_df, 
+      smpl_stats_df, keep_ids, RUN_VAR, DEMUX_TYPE, chunk_size) for this_run in runs]
 
     # some more parallel stuff i guess
     for future in concurrent.futures.as_completed(futures):
@@ -419,7 +418,7 @@ def calculate_std_var_stats_for_sample(sample, qc_smpl_stats_f, csr_f, rowdata_f
 
 
 def calculate_mean_var_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, mean_var_f, chunk_num, hvg_method,
-                chunk_size=2000, group_var=None, group=None, n_cores = 8):
+  chunk_size=2000, group_var=None, group=None, n_cores = 8):
   
   files, total, start_row, end_row = get_chunk_params(
     hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, 
@@ -698,7 +697,7 @@ def read_top_genes(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, DEMUX_TYPE):
     f.create_dataset('matrix/barcodes', data=np.array(all_barcodes, dtype='S'))
 
 
-def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, SAMPLE_VAR, DEMUX_TYPE):
+def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, RUN_VAR, DEMUX_TYPE):
   # get all hvgs
   hvg_df  = dt.fread(hvg_f).to_pandas()
   hvg_ids = hvg_df.loc[hvg_df['highly_variable'] == True, 'gene_id'].tolist()
@@ -708,6 +707,7 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
 
   # subset to doublets
   dbl_df  = qc_df[qc_df["dbl_class"] == "doublet"]
+  # dbl_df  = qc_df[qc_df["scdbl_class"] == "doublet"]
 
   # extract ensembl ids (maybe keep ensembl is in the df earlier)
   hvg_ensembl   = []
@@ -724,15 +724,15 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
   hvg_paths_df  = dt.fread(hvg_paths_f).to_pandas()
   qc_sample_df  = dt.fread(qc_smpl_stats_f).to_pandas()
   good_samples  = qc_sample_df.loc[ qc_sample_df['bad_sample'] == False, "sample_id"].tolist()
-  keep_runs     = hvg_paths_df.loc[hvg_paths_df['sample_id'].isin(good_samples), SAMPLE_VAR].unique().tolist()
+  keep_runs     = hvg_paths_df.loc[hvg_paths_df['sample_id'].isin(good_samples), RUN_VAR].unique().tolist()
 
   for run in keep_runs:
     # get doublets for this run
-    dbls     = dbl_df.loc[dbl_df[SAMPLE_VAR] == run, "cell_id"].tolist()
+    dbls     = dbl_df.loc[dbl_df[RUN_VAR] == run, "cell_id"].tolist()
     dbl_ids  = np.array(dbls)
 
     # get ambient output file
-    filt_counts_f = hvg_paths_df.loc[hvg_paths_df[SAMPLE_VAR] == run, "amb_filt_f"].values[0]
+    filt_counts_f = hvg_paths_df.loc[hvg_paths_df[RUN_VAR] == run, "amb_filt_f"].values[0]
     # open input file
     with h5py.File(filt_counts_f, 'r') as f:
       indptr      = f['matrix/indptr'][:]
@@ -795,9 +795,9 @@ if __name__ == "__main__":
   parser_makeCSR.add_argument("keep_vals", type=str)
   parser_makeCSR.add_argument("smpl_stats_f", type=str)
   parser_makeCSR.add_argument("rowdata_f", type=str)
-  parser_makeCSR.add_argument("sample_var", type=str)
+  parser_makeCSR.add_argument("run_var", type=str)
   parser_makeCSR.add_argument("demux_type", type=str)
-  parser_makeCSR.add_argument("-s", "--size", required=False, default= 2000, type = int)
+  parser_makeCSR.add_argument("-s", "--chunksize", required=False, default= 2000, type = int)
   parser_makeCSR.add_argument("-n", "--ncores", required=False, default= 8, type = int)
   
 
@@ -810,7 +810,7 @@ if __name__ == "__main__":
   parser_chunkCalcs.add_argument("mean_var_f", type=str)
   parser_chunkCalcs.add_argument("chunk", type=int)
   parser_chunkCalcs.add_argument("method", type=str)
-  parser_chunkCalcs.add_argument("chunk_size", type=int)
+  parser_chunkCalcs.add_argument("-s", "--chunksize", type=int, required=False, default=2000)
   parser_chunkCalcs.add_argument("-v", "--groupvar", type=str, required=False, default=None)
   parser_chunkCalcs.add_argument("-g", "--group", type=str, required=False, default= None)
   parser_chunkCalcs.add_argument("-n", "--ncores", type=int, required=False, default = 8)
@@ -840,7 +840,7 @@ if __name__ == "__main__":
   parser_chunkSssc.add_argument("estim_vars_f", type=str)
   parser_chunkSssc.add_argument("chunk_num", type=int)
   parser_chunkSssc.add_argument("hvg_method", type=str)
-  parser_chunkSssc.add_argument("-s", "--size", type=int, required=False, default=2000)
+  parser_chunkSssc.add_argument("-s", "--chunksize", type=int, required=False, default=2000)
   parser_chunkSssc.add_argument("-v", "--groupvar", type=str, required=False, default=None)
   parser_chunkSssc.add_argument("-g", "--group", type=str, required=False, default= None)
   parser_chunkSssc.add_argument("-n", "--ncores", type=int, required=False, default = 8)
@@ -871,7 +871,7 @@ if __name__ == "__main__":
   parser_getDoublets.add_argument("qc_f", type=str)
   parser_getDoublets.add_argument("qc_smpl_stats_f", type=str)
   parser_getDoublets.add_argument("out_h5_f", type=str)
-  parser_getDoublets.add_argument("sample_var", type=str)
+  parser_getDoublets.add_argument("run_var", type=str)
   parser_getDoublets.add_argument("demux_type", type=str)
  
   args = parser.parse_args()
@@ -880,7 +880,7 @@ if __name__ == "__main__":
     get_csr_counts( 
       args.hvg_paths_f, args.cell_filter_f, args.keep_var,
       args.keep_vals, args.smpl_stats_f, args.rowdata_f,
-      args.sample_var, args.demux_type, args.size, args.ncores
+      args.run_var, args.demux_type, args.chunksize, args.ncores
     )
   elif args.function_name == 'calculate_mean_var_for_chunk':
     calculate_mean_var_for_chunk(
@@ -900,7 +900,7 @@ if __name__ == "__main__":
     calculate_std_var_stats_for_chunk(
       args.hvg_paths_f, args.rowdata_f, args.metadata_f, args.qc_smpl_stats_f,
       args.std_var_stats_f, args.estim_vars_f, args.chunk_num,
-      args.hvg_method, args.size, args.groupvar, args.group, args.ncores
+      args.hvg_method, args.chunk_size, args.groupvar, args.group, args.ncores
     )
   elif args.function_name == 'calculate_hvgs':
     calculate_hvgs(
@@ -914,7 +914,7 @@ if __name__ == "__main__":
   elif args.function_name == 'create_doublets_matrix': 
     create_doublets_matrix(
       args.hvg_paths_f, args.hvg_f, args.qc_f, args.qc_smpl_stats_f, 
-      args.out_h5_f, args.sample_var, args.demux_type
+      args.out_h5_f, args.run_var, args.demux_type
     )
   else:
     parser.print_help()

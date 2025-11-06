@@ -37,7 +37,6 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, de
   }
 
   message('running integration')
-  
   message('  setting up cluster')
   plan("multicore", workers = n_cores)
   options(future.globals.maxSize = 5000 * 1024^3)
@@ -49,7 +48,8 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, de
   assert_that("sample_id" %in% colnames(all_coldata))
   ok_samples  = sample_qc[ bad_sample == FALSE ]$sample_id
   all_coldata = all_coldata %>%
-    .[ keep == TRUE | dbl_class == 'doublet' ] %>% 
+    # .[ keep == TRUE | dbl_class == 'doublet' ] %>% 
+    .[ keep == TRUE | scdbl_class == 'doublet' ] %>% 
     .[ sample_id %in% c(ok_samples, "") ]
 
   message('  loading hvg matrix')
@@ -146,7 +146,7 @@ make_clean_sces <- function(sel_s, integration_f, sces_yaml_f, clean_sce_f){
   }else{
     
     message('Creating clean sce file for sample ', sel_s)
-    qc_sce_f = all_sce_paths[[sel_s]]
+    qc_sce_f  = all_sce_paths[[sel_s]]
     assert_that(file.exists(qc_sce_f))
     qc_sce    = readRDS(qc_sce_f)
     smpl_int  = int_dt %>% .[sample_id == sel_s]
@@ -173,8 +173,6 @@ make_clean_sces <- function(sel_s, integration_f, sces_yaml_f, clean_sce_f){
   
   message('done!')
 }
-
-
 
 .run_one_integration <- function(seu_obj, batch_var, cl_method, n_dims, theta = 0, res_ls, reduction) {
   message('    scaling')
@@ -232,7 +230,6 @@ make_clean_sces <- function(sel_s, integration_f, sces_yaml_f, clean_sce_f){
   return(integration_dt)
 }
 
-
 normalize_hvg_mat = function(hvg_mat, coldata, exclude_mito, scale_f = 10000) {
   
   if(exclude_mito){
@@ -250,7 +247,6 @@ normalize_hvg_mat = function(hvg_mat, coldata, exclude_mito, scale_f = 10000) {
   return(log_norm_mat)
 }
 
-
 .calc_dbl_data <- function(hmny_dbl, dbl_ids, dbl_res, dbl_cl_prop) {
   # assemble useful doublet data
   dbl_data = hmny_dbl %>%
@@ -265,8 +261,6 @@ normalize_hvg_mat = function(hvg_mat, coldata, exclude_mito, scale_f = 10000) {
 
   return(dbl_data)
 }
-
-
 
 plot_umap_density <- function(input_dt) {
   # eps         = 0.001
@@ -414,7 +408,7 @@ plot_cluster_entropies <- function(input_dt, what = c("norm", "raw")) {
     scale_x_continuous(breaks = pretty_breaks(n = 3)) +
     scale_y_continuous(breaks = pretty_breaks(n = 3)) +
     scale_fill_manual( values = cl_cols, guide = "none" ) +
-    expand_limits( y = 0 ) +
+    expand_limits( x = 0, y = 0 ) +
     scale_size(
       range   = c(1, 8),
       breaks  = c(2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4) %>% sqrt,

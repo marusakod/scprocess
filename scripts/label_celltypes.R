@@ -25,141 +25,96 @@ suppressPackageStartupMessages({
   library('purrr')
   library('xgboost')
   library('ggrepel')
+
+  library('Matrix')
+  library('yaml')
 })
 
+save_sce_to_mtx <- function(sces_yaml_f, sel_sample, mtx_f, cells_f, genes_f) {
+  # load sce
+  sce_f     = yaml::read_yaml(sces_yaml_f)[[ sel_sample ]]
+  if (!file.exists(sce_f))
+    stop("sce for sample ", sel_sample, " does not exist")
+  sce       = readRDS(sce_f)
 
-label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integration_f, qc_sample_stats_f, 
-  hvg_mat_f, guesses_f, exclude_mito, sel_res,  gene_var = c("gene_id", "ensembl_id"), 
-  min_pred = 0.5, min_cl_prop = 0.5, min_cl_size = 100, n_cores = 4) {
-  
-  exclude_mito = as.logical(exclude_mito)
-  
+  # save to matrix
+  writeMM( t(counts(sce)), file = mtx_f)
+  colData(sce) %>% as.data.frame %>% as.data.table %>% fwrite(file = cells_f)
+  rowData(sce) %>% as.data.frame %>% as.data.table %>% fwrite(file = genes_f)
+
+  return(NULL)
+}
+
+label_with_xgboost_one_sample <- function(sel_sample, model_name, xgb_f, xgb_cls_f,
+  mtx_f, cells_f, genes_f, pred_f) {
   # check inputs
   assert_that( file.exists(xgb_f) )
-  gene_var    = match.arg(gene_var)
 
   # load XGBoost object
   message('  loading XGBoost classifier')
   xgb_obj     = readRDS(xgb_f)
-  allow_dt    = fread(allow_f)
+  xgb_cls_dt  = fread(xgb_cls_f)
   hvgs        = variable.names(xgb_obj)
 
   # get values for these genes in new datasets
-  message('  getting lognorm counts of HVGs')
-  
-  hvg_mat     = .calc_logcounts(
-    hvg_mat_f, sces_yaml_f, qc_sample_stats_f, gene_var,
-    hvgs, exclude_mito, n_cores = n_cores
-    )
+  message('  getting counts for HVGs')
+  counts_mat  = .get_counts_mat(cells_f, genes_f, mtx_f)
+  hvg_mat     = .normalize_hvg_mat(counts_mat, hvgs)
 
   # predict for new data
   message('  predicting celltypes for all cells')
-  preds_dt    = .predict_on_new_data(xgb_obj, allow_dt, hvg_mat, min_pred)
+  preds_dt    = .predict_on_new_data(xgb_obj, xgb_cls_dt, hvg_mat, min_pred)
 
-  # label harmony clusters
-  message('  predicting majority celltype for each cluster')
-  int_dt      = .load_clusters(integration_f)
-  guesses_dt  = .apply_labels_by_cluster(int_dt, preds_dt, min_cl_prop, min_cl_size)
+  # add labels
+  preds_dt    = preds_dt %>%
+    .[, sample_id := sel_sample ] %>% 
+    .[, labeller  := "scprocess"] %>% 
+    .[, model     := model_name ]
 
   # save
   message('  saving results')
-  fwrite(guesses_dt, file = guesses_f)
+  fwrite(preds_dt, file = pred_f)
   message('done.')
-
 }
 
+.get_counts_mat <- function(cells_f, genes_f, mtx_f) {
+  cells_dt    = cells_f %>% fread
+  genes_dt    = genes_f %>% fread %>% 
+    .[, gene_id := gene_id %>% str_replace("_ENSG", "-ENSG") ]
 
-.calc_logcounts <- function(hvg_mat_f, sces_yaml_f, qc_sample_stats_f, gene_var, hvgs, 
-  exclude_mito, n_cores = 4, overwrite = FALSE) {
-  if (file.exists(hvg_mat_f) & overwrite == FALSE) {
-    message('    already done!')
-    hvg_mat   = readRDS(hvg_mat_f)
+  counts_mat  = readMM(mtx_f)
 
-    return(hvg_mat)
+  rownames(counts_mat) = cells_dt$cell_id
+  colnames(counts_mat) = genes_dt$gene_id
+
+  return(counts_mat)  
+}
+
+.normalize_hvg_mat = function(counts_mat, hvgs, scale_f = 10000) {
+  if (!all(hvgs %in% colnames(counts_mat))) {
+    warning("not all HVGs present")
+    missing_gs  = setdiff(hvgs, colnames(counts_mat))
+    n_rows      = nrow(counts_mat)
+    missing_mat = matrix(0, n_rows, length(missing_gs))
+    colnames(missing_mat) = missing_gs
+    rownames(missing_mat) = rownames(counts_mat)
+
+    # convert to sparse, add to counts
+    missing_mat = as(missing_mat, 'TsparseMatrix')
+    counts_mat  = cbind(counts_mat, missing_mat)
   }
-  # load sce, restrict to ok cells
-  message('    setting up cluster')
-  plan("multicore", workers = n_cores)
-  options( future.globals.maxSize = 2^35 )
 
-  qc_dt      = fread(qc_sample_stats_f)
-  ok_samples = qc_dt[bad_sample == FALSE, sample_id]
-  
-  sce_fs = yaml::read_yaml(sces_yaml_f)
-  
-  bpparam     = MulticoreParam(workers = n_cores, tasks = length(ok_samples))
-  on.exit(bpstop(bpparam))
-  
-  message('    getting HVG matrix for each sample')
-  hvg_mats = ok_samples %>% bplapply(
-    FUN = .get_one_hvg_mat, BPPARAM = bpparam,
-    sce_fs = sce_fs, hvgs = hvgs,
-    gene_var = gene_var, exclude_mito = exclude_mito
-    )
+  hvg_mat   = counts_mat[, hvgs]
+  lib_sizes = rowSums(counts_mat)
 
-  message('    making one large HVG matrix')
-  
-  hvg_mat = do.call('cbind', hvg_mats) %>% t()
-  # switch cluster off
-  message('    saving')
-  saveRDS(hvg_mat, file = hvg_mat_f)
+  norm_mat  = sweep(hvg_mat, 1, lib_sizes, FUN = "/")
+  norm_mat  = norm_mat * scale_f
+  log_mat   = log1p(norm_mat)
 
-  plan("sequential")
-  message('done!')
-
-  return(hvg_mat)
+  return(log_mat)
 }
-
-
-.get_one_hvg_mat <- function(sel_s, sce_fs, hvgs, gene_var, exclude_mito){
-  
-  message('    loading sce for sample ', sel_s)
-  sce_f = sce_fs[[sel_s]]
-  sce   = readRDS(sce_f)
-  
-  # get selected genes
-  ref_gs      = rowData(sce)[[ gene_var ]]
-  if (gene_var == "gene_id")
-    ref_gs = ref_gs %>% str_replace("_ENSG", "-ENSG")
-  
-  # add zero counts matrix for missing hvgs if there are any
-  if(!all(hvgs %in% ref_gs)){
-    missing_hvgs = setdiff(hvgs, ref_gs)
-    n_cols = ncol(sce)
-    missing_mat = matrix(0, length(missing_hvgs), n_cols)
-    rownames(missing_mat) = missing_hvgs
-    colnames(missing_mat) = colnames(sce)
-    # convert to sparse
-    missing_mat = as(missing_mat, 'dgTMatrix')
-    
-    # get counts
-    counts_mat  = counts(sce)
-    rownames(counts_mat) = ref_gs
-    
-    counts_mat = rbind(counts_mat, missing_mat)
-  }else{
-    
-    counts_mat  = counts(sce)
-    rownames(counts_mat) = ref_gs
-    
-  }
-  # select highly variable genes
-  message('    creating normalized HVG matrix for sample ', sel_s)
-  
-  # normalize
-  coldata      = colData(sce) %>% as.data.table()
-  hvg_mat      = counts_mat[hvgs, ]
-  norm_hvg_mat = normalize_hvg_mat(
-    hvg_mat, coldata, exclude_mito
-  )
-  
-  return(norm_hvg_mat)
-  
-}
-
 
 .predict_on_new_data <- function(xgb_obj, allow_dt, hvg_mat, min_pred, chunk_size = 10000) {
-
   # predict on chunks of cells for efficiency
   num_chunks = ceiling(nrow(hvg_mat/chunk_size))
   idx_vec = rep(1:num_chunks, each = chunk_size, length.out = nrow(hvg_mat))
@@ -184,17 +139,14 @@ label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integratio
     set_rownames( rownames(hvg_mat) )
 
   # make data.table with predictions
-  preds_dt    = data.table(
-    cell_id     = rownames(probs_mat),
-    cl_pred_raw = colnames(probs_mat)[ apply(probs_mat, 1, which.max) ],
-    p_pred      = apply(probs_mat, 1, max)
-    ) %>% cbind(probs_mat) %>% 
-    .[, cl_pred_naive := (p_pred > min_pred) %>% ifelse(cl_pred_raw, "unknown") %>% 
-      factor(levels = c(allow_dt$cluster, "unknown"))  ]
+  pred_dt     = data.table(
+    cell_id         = rownames(probs_mat),
+    predicted_label = colnames(probs_mat)[ apply(probs_mat, 1, which.max) ],
+    probability     = apply(probs_mat, 1, max)
+  )
 
-  return(preds_dt)
+  return(pred_dt)
 }
-
 
 .load_clusters <- function(cls_f) {
   cls_dt      = cls_f %>% fread(na.strings = "") %>% .[ !is.na(UMAP1) ]
@@ -204,7 +156,6 @@ label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integratio
 
   return(cls_dt)
 }
-
 
 .apply_labels_by_cluster <- function(int_dt, preds_dt, min_cl_prop, min_cl_size) {
   # melt clusters
@@ -245,35 +196,7 @@ label_celltypes_with_xgboost <- function(xgb_f, allow_f, sces_yaml_f, integratio
   return(guesses_dt)
 }
 
-
 # code for Rmd
-get_guesses_melt <- function(guesses_dt, res_ls, cl_lvls, min_cl_size) {
-  # define some useful variables
-  id_vars       = c("sample_id", "cell_id", "UMAP1", "UMAP2", 
-    "cl_pred_raw", "p_pred", "cl_pred_naive")
-  measure_vars  = c("cl_int", "cl_pred", "prop_pred")
-
-  # split out by resolution
-  guesses_melt  = guesses_dt[, -setdiff(id_vars, "cell_id"), with = FALSE ] %>%
-    melt.data.table( id = "cell_id", 
-      measure = patterns("^cl_int_", "^cl_pred_", "^prop_pred_") ) %>% 
-    set_colnames(c("cell_id", "res_idx", measure_vars)) %>% 
-    .[, res     := sort(res_ls)[ res_idx ] %>% factor(levels = res_ls) ] %>% 
-    .[, cl_pred := cl_pred %>% factor(levels = cl_lvls) ]
-
-  # exclude tiny clusters
-  cl_ns         = guesses_melt[, .(N_cl = .N), by = .(res, cl_int)]
-  keep_cls      = cl_ns[ N_cl >= min_cl_size ]
-  guesses_melt  = guesses_melt %>% merge(keep_cls[, -"N_cl"], by = c("res", "cl_int"))
-
-  # add useful labels back in
-  guesses_melt  = guesses_dt[, id_vars, with = FALSE] %>% 
-    merge(guesses_melt, id = "cell_id") %>% 
-    .[, cl_pred_raw := cl_pred_raw %>% factor(levels = cl_lvls) ]
-
-  return(guesses_melt)
-}
-
 calc_confuse_dt <- function(cl1_dt, cl2_dt, cl1, cl2) {
   assert_that( cl1 %in% names(cl1_dt) )
   assert_that( cl2 %in% names(cl2_dt) )
@@ -540,102 +463,61 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
   return(hm_obj)
 }
 
-plot_qc_by_cluster <- function(clusts_dt, qc_melt, x_lab) {
-  plot_dt     = merge(qc_melt, clusts_dt, by = "cell_id")
+plot_umap_cluster <- function(umap_dt, clust_dt, name) {
+  # join umap and clusters
+  assert_that(
+    all(c('UMAP1', 'UMAP2') %in% names(umap_dt)),
+    'cell_id' %in% names(umap_dt),
+    'cell_id' %in% names(clust_dt),
+    'cluster' %in% names(clust_dt)
+  )
 
-  cl_lvls     = levels(plot_dt$cluster) %>% setdiff("unknown")
-  cl_cols     = seq_along( cl_lvls ) %>% 
-    rep(nice_cols, times = 10)[ . ] %>% 
-    setNames( cl_lvls ) %>% c(unknown = "grey")
+  # define cluster name
+  plot_dt     = merge(umap_dt, clust_dt, by = 'cell_id', all.x = TRUE) %>%
+    .[, .(
+      UMAP1   = rescale(UMAP1, to = c(0.05, 0.95)),
+      UMAP2   = rescale(UMAP2, to = c(0.05, 0.95)),
+      cluster
+      )] %>% .[, cluster := factor(cluster) %>% fct_infreq ]
 
-  # define breaks
-  log_brks    = c(1e1, 2e1, 5e1, 1e2, 2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4) %>%
-    log10
-  log_labs    = c("10", "20", "50", "100", "200", "500",
-    "1k", "2k", "5k", "10k", "20k", "50k")
-  logit_brks  = c(1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 0.10, 0.30,
-    0.50, 0.70, 0.90, 0.97, 0.99) %>% qlogis
-  logit_labs  = c("0.01%", "0.03%", "0.1%", "0.3%", "1%", "3%", "10%", "30%",
-    "50%", "70%", "90%", "97%", "99%")
-  splice_brks = seq(0.1, 0.9, 0.1) %>% qlogis
-  splice_labs = (100*seq(0.1, 0.9, 0.1)) %>% as.integer %>% sprintf("%d%%", .)
+  # tweak if "unknown"
+  if ("unknown" %in% levels(plot_dt$cluster) )
+    plot_dt     = plot_dt[, cluster := cluster %>% fct_relevel("unknown", after = Inf) ]
 
-  # plot
-  g = ggplot(plot_dt) + aes( x = cluster, y = qc_val, fill = cluster ) +
-    geom_violin() +
-    scale_fill_manual( values = cl_cols, guide = "none" ) +
-    facet_grid( qc_full ~ ., scales = 'free_y' ) +
-    facetted_pos_scales(
-      y = list(
-        qc_full == "library size"    ~
-          scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_full == "no. of features" ~
-          scale_y_continuous(breaks = log_brks, labels = log_labs),
-        qc_full == "mito pct"        ~
-          scale_y_continuous(breaks = logit_brks, labels = logit_labs),
-        qc_full == "spliced pct"     ~
-          scale_y_continuous(breaks = splice_brks, labels = splice_labs)
-        )
-      ) +
+  # define colours
+  cl_lvls     = levels(plot_dt$cluster)
+  cl_cols     = seq_along( cl_lvls ) %>% rep(nice_cols, times = 10)[ . ] %>% setNames( cl_lvls )
+  if ("unknown" %in% cl_lvls)
+    cl_cols[[ "unknown" ]] = "grey"
+
+  # make plot
+  plot_dt     = plot_dt[ sample(.N, .N) ]
+  g = ggplot(plot_dt) +
+    aes( x = UMAP1, y = UMAP2, colour = cluster ) +
+    geom_point(size = 0.1) +
+    scale_colour_manual( values = cl_cols, guide = guide_legend(override.aes = list(size = 3)) ) +
+    scale_x_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
+    scale_y_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     theme_bw() +
-    theme(
-      axis.text.x       = element_text( angle = 90, hjust = 1, vjust = 0.5 ),
-      panel.grid        = element_blank(),
-      strip.background  = element_rect( fill = 'white')
-      ) +
-    labs( x = x_lab, y = "QC metric" )
+    theme( panel.grid = element_blank(), aspect.ratio = 1, 
+      axis.ticks = element_blank(), axis.text = element_blank() ) +
+    labs( colour = name )
 
   return(g)
 }
 
-plot_cluster_entropies <- function(input_dt, what = c("norm", "raw")) {
-  # check inputs
-  what      = match.arg(what)
+calc_labels_table <- function(guesses_dt) {
+  ns_dt   = guesses_dt %>%
+    .[, .(cell_id, unagg = predicted_label_naive, agg = predicted_label_agg)] %>%
+    melt(id = "cell_id", variable.name = "label_method", value.name = "label") %>%
+    .[, .N, by = .(label_method, label)] %>%
+    dcast( label ~ label_method, value.var = "N", fill = 0) %>%
+    .[ order(-agg, -unagg) ] %>% setcolorder(c("label", "agg", "unagg"))
+  # put in nice order
+  if ("unknown" %in% ns_dt$label)
+    ns_dt     = rbind( ns_dt[ label != "unknown" ], ns_dt[ label == "unknown" ] )
+  # change names
+  ns_dt     = ns_dt %>% set_colnames(c("predicted\nlabel", "no. cells,\naggregated", "no. cells, not\naggregated"))
 
-  # calculate mixing
-  ns_dt     = input_dt %>% 
-    .[, .N, by = .(sample_id, cluster) ] %>% 
-    .[, p_sample  := N / sum(N), by = sample_id ] %>% 
-    .[, p_cluster := N / sum(N), by = cluster ] %>% 
-    .[, p_cl_norm := p_sample / sum(p_sample), by = cluster ]
-
-  # calculate entropy
-  entropy_dt  = ns_dt[, .(
-      h_cl_raw      = -sum(p_cluster * log2(p_cluster), na.rm = TRUE), 
-      h_cl_norm     = -sum(p_cl_norm * log2(p_cl_norm), na.rm = TRUE), 
-      max_pct_raw   = 100 * max(p_cluster), 
-      max_pct_norm  = 100 * max(p_cl_norm), 
-      N             = sum(N)
-    ), by = cluster ]
-  labels_dt   = entropy_dt[ order(cluster) ]
-
-  # get nice colours
-  cl_ls     = entropy_dt$cluster %>% unique %>% sort
-  cl_cols   = nice_cols[ seq_along(cl_ls) ] %>% setNames(cl_ls)
-
-  # plot
-  g = ggplot(entropy_dt) + 
-    aes_string( x = paste0('h_cl_', what), y = paste0('max_pct_', what) ) +
-    geom_smooth( method = "lm", formula = y ~ x, se = FALSE, colour = "grey" ) +
-    geom_text_repel( data = labels_dt, aes(label = cluster), size = 3, 
-      min.segment.length = 0, max.overlaps = Inf, box.padding = 0.5 ) +
-    geom_point( shape = 21, aes( size = sqrt(N), fill = cluster ) ) +
-    scale_x_continuous(breaks = pretty_breaks(n = 3)) +
-    scale_y_continuous(breaks = pretty_breaks(n = 3)) +
-    scale_fill_manual( values = cl_cols, guide = "none" ) +
-    expand_limits( y = 0 ) +
-    scale_size(
-      range   = c(1, 8),
-      breaks  = c(2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4) %>% sqrt, 
-      labels  = c('200', '500', '1k', '2k', '5k', '10k', '20k', '50k')
-      ) +
-    theme_bw() + 
-    theme( panel.grid = element_blank() ) +
-    labs(
-      x     = 'entropy (high when clusters even across samples)',
-      y     = 'max. pct. of one sample (high when concentrated in few samples)',
-      size  = 'total # cells'
-    )
-
-  return(g)
+  return(ns_dt)
 }

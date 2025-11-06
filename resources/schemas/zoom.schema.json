@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["zoom"],
+  "properties": {
+    "zoom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "labels_source", "sel_labels", "labels_col"],
+      "properties": {
+        "name":             { "type": "string" },
+        "labels_source":    { "type": "string", "enum": ["clusters", "celltypist", "xgboost", "custom"] },
+        "model":            { "type": "string" },
+        "sel_labels":       { "type": "array", "items": { "type": "string" } },
+        "labels_col":       { "type": "string" },
+        "custom_labels_f":  { "type": "string" },
+        "save_subset_sces": { "type": "boolean", "default": true }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"labels_source": { "const": "clusters" } } },
+          "then": {
+            "allOf": [
+              {"not": { "required": ["model"] }},
+              {"not": { "required": ["custom_labels_f"] }}
+            ]
+          }
+        },
+        {
+          "if": {"properties": {"labels_source": { "enum": ["celltypist", "xgboost"] } } },
+          "then": {
+            "allOf": [
+              { "required": ["model"] }, 
+              {"not": { "required": ["custom_labels_f"] }}
+            ]
+          }
+        },
+        {
+          "if": {"properties": {"labels_source": { "const": "custom" } } },
+          "then": {
+            "allOf": [
+              { "required": ["custom_labels_f"] }, 
+              {"not": { "required": ["model"] }}
+            ]
+          }
+        }
+      ]
+    },
+    "qc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "qc_min_cells":  { "type": "integer", "exclusiveMinimum": 0, "default": 10 }
+      }
+    },
+    "pb_empties": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ambient_genes_logfc_thr":  { "type": "number", "default": 0 },
+        "ambient_genes_fdr_thr":    { "type": "number", "default": 0.01 }
+      }
+    },
+    "hvg": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hvg_method":                 { "type": "string", "enum": ["sample", "all", "groups"], "default": "sample" },
+        "hvg_n_hvgs":                 { "type": "integer", "default": 2000 },
+        "hvg_chunk_size":             { "type": "integer", "default": 2000 },
+        "hvg_exclude_ambient_genes":  { "type": "boolean", "default": true },
+        "hvg_metadata_split_var":     { "type": ["string", "null"] }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"hvg_method": {"const": "groups" } } },
+          "then": { "required": ["hvg_metadata_split_var" ] },
+          "else": {
+            "not": { "required": ["hvg_metadata_split_var"] }
+          }
+        }
+      ]
+    },
+    "integration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "int_embedding":    { "type": "string", "enum": ["harmony", "pca"], "default": "harmony" },
+        "int_theta":        { "type": "number", "default": 0.1 },
+        "int_batch_var":    { "type": "string", "enum": ["pool_id", "sample_id"], "default": "sample_id" },
+        "int_n_dims":       { "type": "integer", "default": 50 },
+        "int_dbl_res":      { "type": "number", "default": 4 },
+        "int_dbl_cl_prop":  { "type": "number", "default": 0.5 },
+        "int_cl_method":    { "type": "string", "enum": ["louvain", "leiden"], "default": "louvain"},
+        "int_res_ls": {
+          "type":     "array",
+          "items":    { "type": "number" },
+          "default":  [0.1, 0.2, 0.5, 1, 2]
+        }
+      }
+    },
+    "marker_genes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mkr_sel_res":      { "type": "number",   "default": 0.2 },
+        "mkr_min_cl_size":  { "type": "integer",  "default": 100 },
+        "mkr_min_cells":    { "type": "integer",  "default": 10 },
+        "mkr_not_ok_re":    { "type": "string",   "default": "(lincRNA|lncRNA|pseudogene|antisense)" },
+        "mkr_min_cpm_mkr":  { "type": "integer",  "default": 50 },
+        "mkr_min_cpm_go":   { "type": "integer",  "default": 1 },
+        "mkr_max_zero_p":   { "type": "number",   "default": 0.5 },
+        "mkr_gsea_cut":     { "type": "number",   "default": 0.1 },
+        "mkr_custom_genesets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[^,]*$" },
+              "file": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -39,11 +39,11 @@ mito_labs   = c("0.01%", "0.1%", "1%", "10%", "50%", "90%", "99%", "99.9%")
 splice_brks = c(1e-4, 1e-3, 1e-2, 0.10, 0.50, 0.90, 0.99, 0.999) %>% qlogis
 splice_labs = c("0.01%", "0.1%", "1%", "10%", "50%", "90%", "99%", "99.9%")
 
-main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf_dt_f,
-  ambient_method, sce_fs_str, all_samples_str, rowdata_f, dbl_f, dimred_f, qc_f, 
+main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux_f, gtf_dt_f,
+  ambient_method, sce_fs_str, all_samples_str, rowdata_f, dbl_f, qc_f, 
   coldata_f, mito_str, exclude_mito, hard_min_counts, hard_min_feats, hard_max_mito,
-  min_counts, min_feats, min_mito, max_mito, min_splice, max_splice, 
-  sample_var = 'sample_id', demux_type = "none", dbl_min_feats = 100, dbl_min_cells = 100){
+  run_var = 'sample_id', demux_type = "none", dbl_min_feats = 100, dbl_min_cells = 100){
+
   # check inputs
   exclude_mito  = as.logical(exclude_mito)
 
@@ -61,22 +61,22 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   # check which samples to exclude if cellbender is used
   smpl_status = FALSE
   if (ambient_method == 'cellbender'){
-  # loading file with bad bender samples
-  message(' loading cellbender sample stats file')
-  sample_stats_df = fread(sample_stats_f) 
-  smpl_status = unique(sample_stats_df[get(sample_var) == sel_sample, bad_sample])
-    if(smpl_status){
-      message('  sample ', sel_sample, ' has been excluded. Saving empty results file')
-      lapply(sce_fs_ls, file.create)
-      file.create(dimred_f)
-      file.create(dbl_f)
-      file.create(qc_f)
-      file.create(rowdata_f)
-      file.create(coldata_f)
-      message('done!')
+    # loading file with bad bender samples
+    message(' loading cellbender sample stats file')
+    run_stats_df  = fread(run_stats_f) 
+    smpl_status   = unique(run_stats_df[get(run_var) == run_name, bad_run])
+      if(smpl_status){
+        message('  run ', run_name, ' has been excluded. Saving empty results file')
+        lapply(sce_fs_ls, file.create)
+        # file.create(dimred_f)
+        file.create(dbl_f)
+        file.create(qc_f)
+        file.create(rowdata_f)
+        file.create(coldata_f)
+        message('done!')
 
-      return(NULL)
-    }
+        return(NULL)
+      }
   }
 
   # get filtered ambient file
@@ -87,7 +87,7 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   gene_annots = .get_gene_annots(gtf_dt_f)
 
   # calculate qc metrics
-  sce = .get_sce(filt_counts_f, sel_sample, mito_str, exclude_mito, gene_annots, sample_var)
+  sce = .get_sce(filt_counts_f, run_name, mito_str, exclude_mito, gene_annots, run_var)
 
   # add annotations for rows
   message('  adding gene annotations')
@@ -95,60 +95,60 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 
   # add metadata
   message('  adding metadata')
-  if(demux_type != "none"){
-    sce = sce %>% .add_demux_metadata(meta_f, demux_f, demux_type)
-  }else{
-    sce = sce %>% .add_metadata(meta_f)
+  if (demux_type != "none") {
+    sce = sce %>% .add_demux_metadata(metadata_f, demux_f, demux_type)
+  } else {
+    sce = sce %>% .add_metadata(metadata_f)
   }
 
   # do doublet calcs
   message('   starting doublet detection')
-  dbl_dt = run_scdblfinder(sce, sel_sample, sample_var, ambient_method, dbl_f, dimred_f)
+  dbl_dt  = run_scdblfinder(sce, run_name, run_var, ambient_method, dbl_f)
   
   message('  adding doublet info to column data')
   # add doublet info to coldata
-  sce = .add_dbl_info(sce, dbl_dt, sample_var, demux_type)
-  
+  sce     = .add_dbl_info(sce, dbl_dt, run_var, demux_type)
+
   # save rowdata
-  rd = rowData(sce) %>% as.data.table()
+  rd      = rowData(sce) %>% as.data.table()
   
   message('  saving row data')
-  fwrite(rd, file = rowdata_f, quote = FALSE, row.names = FALSE)
+  fwrite(rd, file = rowdata_f)
   
+  # get sample-level qc thresholds
+  cuts_dt     = fread(cuts_f)
   # do qc filtering, save table with qc for all singlets, coldata for all cells, get sce object with only singlets that pass qc
-  sce_filt = filter_qc(sce, qc_f, coldata_f, hard_min_counts, hard_min_feats, hard_max_mito,
-    min_counts, min_feats, min_mito, max_mito, min_splice, max_splice)
+  sce_filt    = .filter_qc(sce, qc_f, coldata_f, cuts_dt, hard_min_counts, hard_min_feats, hard_max_mito)
   
   # save sce files
-  if(demux_type == "none"){
+  if (demux_type == "none") {
     if(ncol(sce_filt) == 0){
-      message("No cells passed qc for sample ", sel_sample, ". Saving empty file")
+      message("No cells passed qc for sample ", run_name, ". Saving empty file")
       file.create(sce_fs_ls)
-    }else{
+    } else {
       assert_that(length(sce_fs_ls) == 1)
       saveRDS(sce_filt, file =  sce_fs_ls, compress = FALSE)
     }
-    
-  }else{
+  } else {
     # save one sce file per sample_id
     message(' splitting pool sce object and saving one file per sample')
     
     # save one file only for samples that were not removed
     all_samples %>% lapply(function(s){
-      smpl_sce = sce_filt[, colData(sce_filt)$sample_id == s]
-      smpl_f = sce_fs_ls[s]
+      smpl_sce  = sce_filt[, colData(sce_filt)$sample_id == s]
+      smpl_f    = sce_fs_ls[s]
       
       if(ncol(smpl_sce) == 0){
         message("No cells passed qc for sample ", s, ". Saving empty file")
-        file.create()
-      }else{
+        file.create(smpl_f)
+      } else {
         saveRDS(smpl_sce, file = smpl_f, compress = FALSE)
       }
     })
   }
    
-    message('done!')
-    return(NULL)
+  message('done!')
+  return(NULL)
 }
 
 .add_dbl_info <- function(sce, dbl_dt, sample_var, demux_type = "none"){
@@ -169,12 +169,12 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   coldata_out = merge(coldata_in, dbl_data, by = by_cols, all.x = TRUE)
   if(length(missing_cells) != 0){
   # set dbl_class to singlet or replace with demux_class if available
-    if("demux_class" %in% colnames(coldata_out)){
-    coldata_out = coldata_out %>%
-      .[is.na(dbl_class), dbl_class := demux_class]
-    }else{
-    coldata_out = coldata_out %>%
-      .[is.na(dbl_class), dbl_class := 'singlet']
+    if ("demux_class" %in% colnames(coldata_out)) {
+      coldata_out = coldata_out %>%
+        .[is.na(dbl_class), dbl_class := demux_class]
+    } else {
+      coldata_out = coldata_out %>%
+        .[is.na(dbl_class), dbl_class := 'singlet']
     }
   }
   
@@ -212,36 +212,38 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
 }
 
 .add_demux_metadata <- function(sce, meta_f, demux_f, demux_type){
-
   metadata_all = fread(meta_f)
   assert_that( all(unique(sce$pool_id) %in% metadata_all$pool_id))
 
   coldata_in = colData(sce) %>% as.data.frame() %>% as.data.table()
 
-  if(demux_type == 'af'){
-    hto_sce = readRDS(demux_f)
+  if (demux_type == 'hto') {
+    hto_sce   = readRDS(demux_f)
 
     # convert all underscores in hto_id column to match seurat output
     metadata_all$hto_id = gsub('_', '-', metadata_all$hto_id)
 
     # get demultiplexing metadata
     hto_coldata = colData(hto_sce) %>%
-    as.data.frame() %>%
-    as.data.table() %>%
-    setnames(old = c("HTO_classification.global", "HTO_classification") ,new = c("demux_class", "hto_id"))
+      as.data.frame() %>%
+      as.data.table() %>%
+      setnames(
+        old = c("HTO_classification.global", "HTO_classification"),
+        new = c("demux_class", "hto_id")
+      )
 
     coldata_out = hto_coldata %>%
-    # merge with sample metadata
-     merge(metadata_all, by = c("hto_id", "pool_id"), all.x = TRUE) %>%
-    # merge with rest of sce metadata
-     merge(coldata_in, by = c("cell_id", "pool_id"), all.y = TRUE) %>%
-     # label all cells missing from hto mat as negative
-     .[is.na(demux_class), demux_class := 'negative'] %>%
-     .[is.na(guess), guess := 'Negative'] %>%
-     .[is.na(hto_id),hto_id := 'Negative']
+      # merge with sample metadata
+      merge(metadata_all, by = c("hto_id", "pool_id"), all.x = TRUE) %>%
+      # merge with rest of sce metadata
+      merge(coldata_in, by = c("cell_id", "pool_id"), all.y = TRUE) %>%
+      # label all cells missing from hto mat as negative
+      .[is.na(demux_class), demux_class := 'negative'] %>%
+      .[is.na(guess), guess := 'Negative'] %>%
+      .[is.na(hto_id),hto_id := 'Negative']
 
-  }else if(demux_type == 'custom'){
-  demux_out = fread(demux_f)  %>%
+  } else if (demux_type == 'custom') {
+    demux_out = fread(demux_f)  %>%
       .[, cell_id := paste(pool_id, cell_id, sep = ":" )]
 
     common_bcs = length(intersect(demux_out$cell_id, coldata_in$cell_id))
@@ -257,24 +259,23 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
       merge(metadata_all, by =c('pool_id', 'sample_id'), all.x = TRUE)
 
     # check if column global class exists and if ok
-    if('class' %in% colnames(demux_out)){
+    if ('class' %in% colnames(demux_out)) {
       class_vals = unique(demux_out$class)
       assert_that(all(class_vals %in% c("singlet", "negative", "doublet")))
 
       # label cells in sce but not in demux_output as "Negative"
       coldata_out = coldata_out %>%
-      .[is.na(class), class := "negative"] %>%
-      setnames('class', 'demux_class')
+        .[is.na(class), class := "negative"] %>%
+        setnames('class', 'demux_class')
 
-    }else{
+    } else {
       coldata_out = coldata_out %>%
-      .[, demux_class:= fifelse(is.na(sample_id), "negative", "singlet")]
+        .[, demux_class:= fifelse(is.na(sample_id), "negative", "singlet")]
     }
   }
 
   coldata_df    = coldata_out %>% as('DataFrame') %>% set_rownames(.$cell_id)
-  coldata_df = coldata_df[colnames(sce), ]
-
+  coldata_df    = coldata_df[colnames(sce), ]
   assert_that( all(colnames(sce) == coldata_df$cell_id) )
 
   # put updated metadata back to original sce
@@ -413,7 +414,8 @@ main_qc <- function(sel_sample, meta_f, amb_yaml_f, sample_stats_f, demux_f, gtf
   return(sce_out)
 }
 
-run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_method, dbl_f, dimred_f, min_feats = 100, min_cells = 100){
+run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_method, 
+  dbl_f, min_feats = 100, min_cells = 100) {
  
   sample_idx  = sce[[sample_var]] == sel_sample
   sce         = sce[, sample_idx ]
@@ -436,10 +438,10 @@ run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_m
     .[ type == 'real' ] # keep just real cells
   
   # check if class is available from demultiplexing
-  if('demux_class' %in% colnames(colData(sce))){
+  if ('demux_class' %in% colnames(colData(sce))) {
     #extract demux_class
     demux_dt = colData(sce) %>% as.data.table(keep.rownames = 'cell_id') %>%
-    .[, c("cell_id", sample_var, "demux_class"), with = FALSE]
+      .[, c("cell_id", sample_var, "demux_class"), with = FALSE]
       
     # define dt to combine scdbl and demux class
     dbl_dict = data.table(
@@ -449,27 +451,27 @@ run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_m
     )
       
     dbl_dt = dbl_dt %>%
-    merge(demux_dt, by = c('cell_id', sample_var), all.x = TRUE, all.y = FALSE) %>%
-    merge(dbl_dict, by = c('class', 'demux_class')) %>%
-    setnames("class", "scdbl_class")
-  }else{
+      merge(demux_dt, by = c('cell_id', sample_var), all.x = TRUE, all.y = FALSE) %>%
+      merge(dbl_dict, by = c('class', 'demux_class')) %>%
+      setnames("class", "scdbl_class")
+  } else {
     dbl_dt = dbl_dt %>% setnames("class", "dbl_class")
   }
     
   setkeyv(dbl_dt, "cell_id")
   dbl_dt      = dbl_dt[ colnames(sce) ]
     
-  message('  running PCA')
-  dimred_dt   = .calc_one_dimred(sce, sel_sample)
+  # message('  running PCA')
+  # dimred_dt   = .calc_one_dimred(sce, sel_sample)
     
   # check they match
   assert_that( all(dbl_dt$cell_id == colnames(sce)) )
-  assert_that( all(dimred_dt$cell_id == dbl_dt$cell_id) )
+  # assert_that( all(dimred_dt$cell_id == dbl_dt$cell_id) )
     
   # save
   message('  saving results')
   fwrite(dbl_dt, file = dbl_f)
-  fwrite(dimred_dt, file = dimred_f)
+  # fwrite(dimred_dt, file = dimred_f)
   message('done!')
     
   return(dbl_dt)
@@ -489,10 +491,7 @@ run_scdblfinder <- function(sce, sel_sample, sample_var = 'sample_id', ambient_m
   return(dimred_dt)
 }
 
-filter_qc <- function(sce, qc_f, coldata_f, hard_min_counts, hard_min_feats, hard_max_mito,
-                      min_counts, min_feats, min_mito, max_mito, 
-                      min_splice, max_splice) {
-
+.filter_qc <- function(sce, qc_f, coldata_f, cuts_dt, hard_min_counts, hard_min_feats, hard_max_mito) {
   # store initail coldata
   coldata_in = colData(sce) %>% as.data.table()
   
@@ -510,14 +509,16 @@ filter_qc <- function(sce, qc_f, coldata_f, hard_min_counts, hard_min_feats, har
     .[log_feats >= log10(hard_min_feats)] %>%
     .[logit_mito < qlogis(hard_max_mito)]
   
+  assert_that( all(unique(qc_dt$sample_id) %in% cuts_dt$sample_id))
   # apply additional filtering criteria
   keep_dt = qc_dt %>%
-    .[log_counts >= log10(min_counts)] %>%
-    .[log_feats >= log10(min_feats)] %>%
-    .[logit_mito > qlogis(min_mito)] %>%
-    .[logit_mito < qlogis(max_mito)] %>%
-    .[logit_spliced > qlogis(min_splice)] %>%
-    .[logit_spliced < qlogis(max_splice)]
+    merge(cuts_dt, by = "sample_id") %>% 
+    .[ log_counts     >= log10(min_counts)] %>%
+    .[ log_feats      >= log10(min_feats)] %>%
+    .[ logit_mito     > qlogis(min_mito)] %>%
+    .[ logit_mito     < qlogis(max_mito)] %>%
+    .[ logit_spliced  > qlogis(min_splice)] %>%
+    .[ logit_spliced  < qlogis(max_splice)]
   
   # record which kept  
   qc_all    = qc_all %>%
@@ -542,14 +543,39 @@ filter_qc <- function(sce, qc_f, coldata_f, hard_min_counts, hard_min_feats, har
   return(sce_filt)
 }
 
-plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds_dt) {
+make_cuts_dt <- function(cuts_f) {
+  cuts_tmp  = fread(cuts_f) %>% 
+    .[, .(
+      sample_id, 
+      log_counts_min    = log10(min_counts), 
+      log_feats_min     = log10(min_feats), 
+      logit_mito_min    = qlogis(min_mito), 
+      logit_mito_max    = qlogis(max_mito), 
+      logit_spliced_min = qlogis(min_splice), 
+      logit_spliced_max = qlogis(max_splice), 
+      n_cells_min       = log10(min_cells)
+    )] %>% 
+    melt( id = "sample_id", variable.name = "cut_var", value.name = "cut_point") %>% 
+    .[, qc_var  := str_extract(cut_var, "^(.+)(?=_(min|max))") ] %>% 
+    .[, minmax  := str_extract(cut_var, "(min|max)") ]
+
+  cuts_dt   = cuts_tmp %>% 
+    dcast(sample_id + qc_var ~ minmax, value.var = "cut_point") %>% 
+    .[ is.na(min), min := -Inf ] %>% 
+    .[ is.na(max), max := Inf ]
+
+  return(cuts_dt)
+}
+
+plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, cuts_dt) {
   # melt, add names
+  tmp_names = intersect(qc_names, colnames(qc_input))
   qc_melt   = copy(qc_input) %>%
-    melt(measure = qc_names, val = 'qc_val', var = 'qc_var') %>%
-    .[, qc_full   := qc_lu[ qc_var ] ] %>%
-    .[, qc_var    := factor(qc_var, levels = qc_names) ] %>%
+    melt(measure = tmp_names, val = 'qc_val', var = 'qc_var') %>%
+    .[, qc_full   := qc_lu[ as.character(qc_var) ] ] %>%
+    .[, qc_var    := factor(qc_var, levels = tmp_names) ] %>%
     .[, qc_full   := fct_reorder(qc_full, as.integer(qc_var)) ]
-  hlines_dt = thrshlds_dt %>% copy %>%
+  hlines_dt = cuts_dt %>% copy %>%
     .[, qc_full   := qc_lu[ qc_var ] ] %>%
     .[, qc_var    := factor(qc_var, levels = qc_names) ] %>%
     .[, qc_full   := fct_reorder(qc_full, as.integer(qc_var)) ]
@@ -558,11 +584,11 @@ plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds
   qc_meds = qc_melt %>%
     .[, .(
       log10_N = log10(.N),
-      q50 = median(qc_val, na.rm = TRUE),
-      q10 = quantile(qc_val, 0.1, na.rm = TRUE),
-      q90 = quantile(qc_val, 0.9, na.rm = TRUE),
-      q025 = quantile(qc_val, 0.025, na.rm = TRUE),
-      q975 = quantile(qc_val, 0.975, na.rm = TRUE)
+      q50     = median(qc_val, na.rm = TRUE),
+      q10     = quantile(qc_val, 0.1, na.rm = TRUE),
+      q90     = quantile(qc_val, 0.9, na.rm = TRUE),
+      q025    = quantile(qc_val, 0.025, na.rm = TRUE),
+      q975    = quantile(qc_val, 0.975, na.rm = TRUE)
       ), by = c('sample_id', 'qc_var', 'qc_full') ]
 
   # bar width
@@ -578,11 +604,21 @@ plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds
     .[, sample_id := factor(sample_id, levels = rev(s_lvls)) ]
   qc_meds   = qc_meds %>%
     .[, sample_id := factor(sample_id, levels = rev(s_lvls)) ]
+  cuts_dt   = cuts_dt %>%
+    .[, sample_id := factor(sample_id, levels = rev(s_lvls)) ]
+  hlines_dt = hlines_dt %>%
+    .[, sample_id := factor(sample_id, levels = rev(s_lvls)) ]
 
   # make plot of n_cells by sample
-  g_n = ggplot( n_dt ) +
-    geom_point( aes( y = value, x = as.integer(sample_id) ),
-      size = 4, shape = 21, fill = 'grey60') +
+  g_n = ggplot() +
+    geom_rect( data = hlines_dt[ qc_var == "n_cells" ],
+      aes(
+        xmin = as.integer(sample_id) - 0.4, xmax = as.integer(sample_id) + 0.4, 
+        ymin = min, ymax = max
+      ),
+      fill = 'grey80', colour = NA, alpha = 0.2 ) +
+    geom_point( data = n_dt, aes( y = value, x = as.integer(sample_id) ),
+      size = 4, shape = 21, fill = 'grey40') +
     scale_x_continuous( breaks = seq.int(length(s_lvls)), labels = levels(n_dt$sample_id) ) +
     facet_grid( . ~ var, scales = 'free', space = 'free_y' ) +
     scale_y_continuous(breaks = n_brks, labels = n_labs) +
@@ -597,11 +633,17 @@ plot_qc_ranges_marginals <- function(qc_input, s_lvls, qc_names, qc_lu, thrshlds
 
   # make plots of qc metrics by sample
   g_violin = ggplot() +
+    geom_rect( data = hlines_dt[ qc_var != "n_cells" ], 
+      aes(
+        xmin = as.integer(sample_id) - 0.4, xmax = as.integer(sample_id) + 0.4, 
+        ymin = min, ymax = max
+      ),
+      fill = 'grey80', colour = NA, alpha = 0.2 ) +
     geom_violin( data = qc_melt[ !is.na(qc_val) ],
-      aes( x = sample_id, y = qc_val ), colour = NA, fill = 'grey60',
+      aes( x = sample_id, y = qc_val ), colour = NA, fill = 'grey40',
       kernel = 'rectangular', adjust = 0.1, scale = 'width', width = 0.8) +
-    geom_hline( data = hlines_dt, aes( yintercept = cut_point ),
-      colour = 'black', linetype = 'dashed', size = 0.5, alpha = 0.5 ) +
+    # geom_hline( data = hlines_dt, aes( yintercept = cut_point ),
+    #   colour = 'black', linetype = 'dashed', linewidth = 0.5, alpha = 0.5 ) +
     facet_grid( . ~ qc_full, scales = 'free', space = 'free_y' ) +
     scale_x_discrete( breaks = levels(qc_meds$sample_id), drop = FALSE ) +
     facetted_pos_scales(
@@ -679,7 +721,6 @@ plot_qc_ranges_pairwise <- function(qc_input, qc_names, qc_lu, thrshlds_dt) {
 
   # make plot
   g = ggplot(pairs_dt) +
-
     geom_point(
       aes( x = q50.x, y = q50.y, size = log10_N ),
       colour = 'black', shape = 21, alpha = 0.8
@@ -752,28 +793,13 @@ get_cols_dt <- function(sce_f, cols_f, overwrite=FALSE) {
   return(cols_dt)
 }
 
-plot_qc_metric_scatter <- function(dt, qc_names, qc_lu, thrshlds_dt) {
+plot_qc_metric_scatter <- function(dt, qc_names, qc_lu, cuts_one) {
+  qc_names = intersect(qc_names, colnames(dt))
   melt_dt = dt %>%
-    melt(measure=qc_names, value.name='qc_val', variable.name='qc_var') %>%
-    .[, qc_full := qc_lu[ qc_var ] ] %>%
+    melt( measure = qc_names, value.name='qc_val', variable.name='qc_var') %>%
+    .[, qc_full := qc_lu[ as.character(qc_var) ] ] %>%
     .[, qc_var  := factor(qc_var, levels = qc_names) ] %>%
     .[, qc_full := fct_reorder(qc_full, as.integer(qc_var)) ]
-
-  # make some lines
-  hlines_dt = thrshlds_dt[, .(qc_var.y = qc_var, cut.y = cut_point)] %>%
-    .[, qc_y      := qc_lu[ qc_var.y ] ] %>%
-    .[, qc_var.y  := factor(qc_var.y, levels = qc_names) ] %>%
-    .[, qc_y      := fct_reorder(qc_y, as.integer(qc_var.y)) ] %>%
-    .[, dummy     := "dummy" ]
-  vlines_dt = thrshlds_dt[, .(qc_var.x = qc_var, cut.x = cut_point)] %>%
-    .[, qc_x      := qc_lu[ qc_var.x ] ] %>%
-    .[, qc_var.x  := factor(qc_var.x, levels = qc_names) ] %>%
-    .[, qc_x      := fct_reorder(qc_x, as.integer(qc_var.x)) ] %>%
-    .[, dummy     := "dummy" ]
-
-  # remove duplications
-  lines_dt  = merge(hlines_dt, vlines_dt, by = "dummy", allow.cartesian = TRUE) %>%
-    .[ as.integer(qc_x) > as.integer(qc_y) ]
 
   # get what to plot
   plot_dt = merge(
@@ -782,14 +808,29 @@ plot_qc_metric_scatter <- function(dt, qc_names, qc_lu, thrshlds_dt) {
     by = 'cell_id', allow.cartesian = TRUE
     ) %>% .[ as.integer(qc_x) > as.integer(qc_y) ]
 
+  # make some lines
+  rects_dt  = merge(
+    cuts_one[ qc_var %in% qc_names ] %>% 
+      .[, .(sample_id, qc_var.y = qc_var, min.y = min, max.y = max)],
+    cuts_one[ qc_var %in% qc_names ] %>% 
+      .[, .(sample_id, qc_var.x = qc_var, min.x = min, max.x = max)],
+    by = "sample_id", allow.cartesian = TRUE) %>% 
+    .[, qc_x      := qc_lu[ qc_var.x ] ] %>%
+    .[, qc_var.x  := factor(qc_var.x, levels = qc_names) ] %>%
+    .[, qc_x      := fct_reorder(qc_x, as.integer(qc_var.x)) ] %>%
+    .[, qc_y      := qc_lu[ qc_var.y ] ] %>%
+    .[, qc_var.y  := factor(qc_var.y, levels = qc_names) ] %>%
+    .[, qc_y      := fct_reorder(qc_y, as.integer(qc_var.y)) ] %>%
+    .[ as.integer(qc_x) > as.integer(qc_y)]
+
   # get sample name
   sel_s   = unique(dt$sample_id)
-  g = ggplot(plot_dt) + aes( x=val_x, y=val_y ) +
-    geom_bin2d() + scale_fill_distiller( palette='RdBu', trans='log10' ) +
-    geom_hline( data = lines_dt, aes( yintercept = cut.y ),
-      color = 'black', linetype = "dashed", size = 0.5, alpha = 0.5 ) +
-    geom_vline( data = lines_dt, aes( xintercept = cut.x ),
-      color = 'black', linetype = "dashed", size = 0.5, alpha = 0.5 ) +
+  g = ggplot() +
+    geom_rect( data = rects_dt, 
+      aes( xmin = min.x, xmax = max.x, ymin = min.y, ymax = max.y ),
+      fill = 'grey80', colour = NA, alpha = 0.4 ) +
+    geom_bin2d(data = plot_dt, aes( x=val_x, y=val_y )) + 
+    scale_fill_distiller( palette='RdBu', trans='log10' ) +
     facet_grid( qc_y ~ qc_x, scales='free' ) +
     theme_classic() +
     theme(
@@ -1006,7 +1047,7 @@ plot_qc_summary_heatmap <- function(qc_stats, meta_input) {
   return(hm_obj)
 }
 
-calc_qc_summary <- function(qc_dt, kept_dt, thrshlds_ls, qc_lu) {
+calc_qc_summary <- function(qc_dt, kept_dt, cuts_dt, qc_lu) {
   # get totals by sample
   tbl_tmp     = merge(
       qc_dt[, .(n_pre_QC = .N), by = .(sample_id)],
@@ -1018,7 +1059,7 @@ calc_qc_summary <- function(qc_dt, kept_dt, thrshlds_ls, qc_lu) {
     .[, sample_excluded := n_post_QC == 0 ]
 
   # get exclusions split by qc_var
-  exclude_dt  = .calc_exclusions_by_qc_var(qc_dt, thrshlds_ls, qc_lu)
+  exclude_dt  = .calc_exclusions_by_qc_var(qc_dt, cuts_dt, qc_lu)
 
   # join together and make pretty
   tbl_pretty  = tbl_tmp %>% 
@@ -1033,25 +1074,27 @@ calc_qc_summary <- function(qc_dt, kept_dt, thrshlds_ls, qc_lu) {
 }
 
 # calc proportions excluded for each threshold
-.calc_exclusions_by_qc_var <- function(qc_dt, thrshlds_ls, qc_lu) {
+.calc_exclusions_by_qc_var <- function(qc_dt, cuts_dt, qc_lu) {
   # get relevant vars
+  cut_vars    = intersect(cuts_dt$qc_var, colnames(qc_dt))
   qc_tmp      = qc_dt %>% 
-    .[, c("sample_id", "cell_id", names(thrshlds_ls)), with = FALSE]
+    .[, c("sample_id", "cell_id", cut_vars), with = FALSE]
 
   # calc exclusion for each
-  exclude_tmp = lapply(names(thrshlds_ls), function(nn) {
-    # get spec
-    spec  = thrshlds_ls[[nn]]
-    if (length(spec) == 1)
-      spec  = c(spec, Inf)
+  all_samples = unique(qc_tmp$sample_id)
+  exclude_tmp = lapply(cut_vars, function(vv) {
+    tmp_tmp     = lapply(all_samples, function(ss) {
+      # get spec
+      cuts_tmp    = cuts_dt[ (sample_id == ss) & (qc_var == vv) ]
+      spec        = c(cuts_tmp$min, cuts_tmp$max)
 
-    # find how many meet this
-    tmp_dt  = qc_tmp %>% 
-      .[, .(.N, N_keep = sum(get(nn) %between% spec)), by = .(sample_id) ] %>% 
-      .[, qc_var := nn ] %>% 
-      .[, col_title := sprintf("pct. excluded by %s", qc_lu[[ nn ]]) ]
-
-    return(tmp_dt)
+      # find how many meet this
+      tmp_dt  = qc_tmp[ sample_id == ss ] %>% 
+        .[, .(.N, N_keep = sum(get(vv) %between% spec)), by = .(sample_id) ] %>% 
+        .[, sample_id := ss ] %>% 
+        .[, qc_var := vv ] %>% 
+        .[, col_title := sprintf("pct. excluded by %s", qc_lu[[ vv ]]) ]
+      }) %>% rbindlist
     }) %>% rbindlist %>% 
     .[, pct_exc   := round((N - N_keep) / N * 100, 1) ] %>% 
     .[, qc_var    := factor(qc_var, levels = names(qc_lu)) ] %>% 
@@ -1440,7 +1483,7 @@ list_known_metrics <- function() {
   }
 }
 
-plot_upset_of_exclusions <- function(qc_tmp, qc_names, qc_lu, thrshlds_ls) {
+plot_upset_of_exclusions <- function(qc_tmp, qc_names, qc_lu, cuts_dt) {
   # make list for upsets
   qc_tmp    = qc_tmp[ keep_hard == TRUE ]
   var_lu    = c(
@@ -1450,19 +1493,23 @@ plot_upset_of_exclusions <- function(qc_tmp, qc_names, qc_lu, thrshlds_ls) {
     logit_spliced = "spliced"
   )
   eps       = 1e-10
-  tmp_ls    = lapply(names(thrshlds_ls), function(nn) {
-    # sort out thresholds
-    thrsh_spec  = thrshlds_ls[[nn]]
-    if (length(thrsh_spec) == 1)
-      thrsh_spec  = c(thrsh_spec, Inf)
+
+  # get relevant vars
+  cuts_tmp  = cuts_dt[ sample_id == unique(qc_tmp$sample_id) ] %>% 
+    .[ qc_var != "n_cells" ]
+  cut_vars  = unique(cuts_tmp$qc_var)
+  tmp_ls    = lapply(cut_vars, function(cc) {
+    # find spec
+    tmp_dt    = cuts_tmp[ qc_var == cc ]
+    cut_spec  = c(cuts_tmp[ qc_var == cc ]$min, cuts_tmp[ qc_var == cc ]$max)
 
     # find excluded cells
     exc_cells   = list(
-      low   = qc_tmp[ get(nn) + eps < thrsh_spec[1]  ]$cell_id,
-      high  = qc_tmp[ get(nn) - eps > thrsh_spec[2] ]$cell_id
+      low   = qc_tmp[ get(cc) + eps < cut_spec[1] ]$cell_id,
+      high  = qc_tmp[ get(cc) - eps > cut_spec[2] ]$cell_id
     )
     # make names nice
-    names(exc_cells)  = names(exc_cells) %>% paste(var_lu[[ nn ]], sep = "_")
+    names(exc_cells)  = names(exc_cells) %>% paste(var_lu[[ cc ]], sep = "_")
 
     # remove anything that is blank
     n_cells   = sapply(exc_cells, length)
@@ -1495,6 +1542,5 @@ plot_upset_of_exclusions <- function(qc_tmp, qc_names, qc_lu, thrshlds_ls) {
 
   # plot upset
   return(upset(upset_dt, sets = colnames(upset_dt)[-1], order.by = 'freq',
-     mb.ratio = c(1 - mat_prop, mat_prop), sets.bar.color = row_cols))
-    
+     mb.ratio = c(1 - mat_prop, mat_prop), sets.bar.color = row_cols))   
 }

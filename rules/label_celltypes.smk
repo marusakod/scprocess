@@ -6,40 +6,135 @@ import re
 import glob
 from snakemake.utils import validate, min_version
 
-# do labelling
-rule get_xgboost_labels:
+# prep counts matrix for each sample
+rule make_tmp_mtx_file:
   input:
-    sces_yaml_f        = int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml',
-    integration_f      = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    qc_sample_stats_f  = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    sces_yaml_f   = int_dir + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml'
   output:
-    hvg_mat_f   = lbl_dir + '/hvg_mat_for_labelling_' + LBL_GENE_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-    guesses_f   = lbl_dir + '/cell_annotations_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    mtx_f         = temp(lbl_dir + '/tmp_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.mtx'),
+    cells_f       = temp(lbl_dir + '/tmp_cells_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'),
+    genes_f       = temp(lbl_dir + '/tmp_genes_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz')
   threads: 4
-  retries: RETRIES 
+  retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * MB_LABEL_CELLTYPES
-  benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/get_xgboost_labels_' + DATE_STAMP + '.benchmark.txt'
+    mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_label_celltypes'] * MB_PER_GB
   conda: 
     '../envs/rlibs.yaml'
-  shell:
+  shell: """
+    # save sce object
+    Rscript -e "source('scripts/label_celltypes.R'); \
+    save_sce_to_mtx(
+      sces_yaml_f     = '{input.sces_yaml_f}',
+      sel_sample      = '{wildcards.sample}',
+      mtx_f           = '{output.mtx_f}',
+      cells_f         = '{output.cells_f}',
+      genes_f         = '{output.genes_f}'
+    )"
     """
+
+
+# do labelling with celltypist
+rule run_celltypist:
+  input:
+    mtx_f         = lbl_dir + '/tmp_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.mtx',
+    cells_f       = lbl_dir + '/tmp_cells_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
+    genes_f       = lbl_dir + '/tmp_genes_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+  output:
+    pred_f        = temp(lbl_dir + '/tmp_labels_celltypist_model_{model}_' + FULL_TAG + '_' + DATE_STAMP + '_{sample}.csv.gz')
+  threads: 4
+  retries: config['resources']['retries']
+  resources:
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_label_celltypes'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/labels_celltypist_{model}_' + DATE_STAMP + '_{sample}.benchmark.txt'
+  conda: 
+    '../envs/celltypist.yaml'
+  shell:"""
+    python3 scripts/label_celltypes.py celltypist_one_sample \
+      {wildcards.sample} {wildcards.model} \
+      --mtx_f     {input.mtx_f} \
+      --cells_f   {input.cells_f} \
+      --genes_f   {input.genes_f} \
+      --pred_f    {output.pred_f}
+    """
+
+
+# do labelling
+rule run_scprocess_labeller:
+  input:
+    mtx_f     = lbl_dir + '/tmp_counts_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.mtx',
+    cells_f   = lbl_dir + '/tmp_cells_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
+    genes_f   = lbl_dir + '/tmp_genes_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+  output:
+    pred_f    = temp(lbl_dir + '/tmp_labels_scprocess_model_{model}_' + FULL_TAG + '_' + DATE_STAMP + '_{sample}.csv.gz')
+  params:
+    xgb_f     = lambda wildcards: [ entry['xgb_f'] for entry in LABELLER_PARAMS 
+      if (entry['labeller'] == "scprocess") and (entry['model'] == wildcards.model) ],
+    xgb_cls_f = lambda wildcards: [ entry['xgb_cls_f'] for entry in LABELLER_PARAMS 
+      if (entry['labeller'] == "scprocess") and (entry['model'] == wildcards.model) ]
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_label_celltypes'] * MB_PER_GB
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/labels_scprocess_{model}_' + DATE_STAMP + '_{sample}.benchmark.txt'
+  conda: 
+    '../envs/rlibs.yaml'
+  shell: """
     # save sce object
     Rscript -e "source('scripts/label_celltypes.R'); source('scripts/integration.R'); \
-    label_celltypes_with_xgboost(
-      xgb_f              = '{LBL_XGB_F}', 
-      allow_f            = '{LBL_XGB_CLS_F}', 
-      sces_yaml_f        = '{input.sces_yaml_f}',
-      integration_f      = '{input.integration_f}',
-      qc_sample_stats_f  = '{input.qc_sample_stats_f}', 
-      hvg_mat_f          = '{output.hvg_mat_f}',
-      guesses_f          = '{output.guesses_f}',
-      exclude_mito       = '{EXCLUDE_MITO}', 
-      sel_res            = {MKR_SEL_RES}, 
-      gene_var           = '{LBL_GENE_VAR}',
-      min_pred           = {LBL_MIN_PRED},
-      min_cl_prop        = {LBL_MIN_CL_PROP},
-      min_cl_size        = {LBL_MIN_CL_SIZE},
-      n_cores            = {threads})"
+    label_with_xgboost_one_sample(
+      sel_sample  = '{wildcards.sample}', 
+      model_name  = '{wildcards.model}', 
+      xgb_f       = '{params.xgb_f}', 
+      xgb_cls_f   = '{params.xgb_cls_f}', 
+      mtx_f       = '{input.mtx_f}',
+      cells_f     = '{input.cells_f}',
+      genes_f     = '{input.genes_f}',
+      pred_f      = '{output.pred_f}'
+    )"
     """
+
+
+if 'label_celltypes' in config:
+
+  def parse_merge_labels_parameters(LABELLER_PARAMS, labeller, model):
+    # get the one that matches
+    this_entry  = [ entry for entry in LABELLER_PARAMS 
+      if ((entry['labeller'] == labeller) and (entry['model'] == model)) ]
+
+    # check exactly one match
+    if len(this_entry) != 1:
+      raise ValueError("only one entry should match this")
+
+    return this_entry[0]
+
+
+  # do labelling with celltypist
+  rule merge_labels:
+    input:
+      pred_fs       = expand(lbl_dir + '/tmp_labels_{labeller}_model_{model}_' + FULL_TAG + '_' + DATE_STAMP + '_{sample}.csv.gz', 
+        sample = SAMPLES, allow_missing = True),
+      integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+    output:
+      pred_out_f    = lbl_dir + '/labels_{labeller}_model_{model}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+    params:
+      pred_fs_ls    = input.pred_fs,
+      hi_res_cl     = lambda wildcards: parse_merge_labels_parameters(LABELLER_PARAMS, wildcards.labeller, wildcards.model)["hi_res_cl"],
+      min_cl_size   = lambda wildcards: parse_merge_labels_parameters(LABELLER_PARAMS, wildcards.labeller, wildcards.model)["min_cl_size"],
+      min_cl_prop   = lambda wildcards: parse_merge_labels_parameters(LABELLER_PARAMS, wildcards.labeller, wildcards.model)["min_cl_prop"]
+    threads: 4
+    retries: config['resources']['retries']
+    resources:
+      mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_label_celltypes'] * MB_PER_GB
+    conda: 
+      '../envs/celltypist.yaml'
+    shell:"""
+      python3 scripts/label_celltypes.py aggregate_predictions \
+        {params.pred_fs_ls} \
+        --int_f           {input.integration_f} \
+        --hi_res_cl       {params.hi_res_cl} \
+        --min_cl_size     {params.min_cl_size} \
+        --min_cl_prop     {params.min_cl_prop} \
+        --agg_f           {output.pred_out_f}
+      """

@@ -1,10 +1,10 @@
 ---
 title: "Integration diagnostics"
 author:
-- name: ${YOUR_NAME}
+- name: ${your_name}
   affiliation: 
-  - ${AFFILIATION}
-date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
+  - ${affiliation}
+date: '`r format(as.Date("${date_stamp}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -18,7 +18,7 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-fig.path = "figure/${SHORT_TAG}_integration.Rmd/"
+fig.path = "figure/${short_tag}_integration.Rmd/"
 )
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 ```
@@ -39,28 +39,28 @@ qc_f        = "${qc_dt_f}"
 
 # define QC lookups
 qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
-qc_lu       = c('library size', 'no. of features', 'mito pct.', 'spliced pct.') %>% 
+qc_lu       = c('no. of UMIs', 'no. of genes', 'mito pct.', 'spliced pct.') %>% 
   setNames(qc_names)
 
 # define integration inputs
 integration_f      = "${integration_f}"
-int_reduction      = "${INT_REDUCTION}"
-demux_type         = "${DEMUX_TYPE}"
-if(int_reduction == 'harmony'){
+int_embedding      = "${int_embedding}"
+demux_type         = "${demux_type}"
+if (int_embedding == 'harmony') {
   int_txt = "with `Harmony` "
-}else {
+} else {
   int_txt = ''
 }
 
-if(demux_type == 'af'){
+if (demux_type == 'hto') {
   dbl_txt = " and `HTODemux`(`Seurat`)"
-}else{
+} else{
   dbl_txt = ""
 }
 
-res_ls             = "${INT_RES_LS}" %>%
+res_ls             = "${int_res_ls_str}" %>%
  str_split(pattern = ',') %>% unlist() %>% as.numeric()
-dbl_cl_prop = ${INT_DBL_CL_PROP}
+dbl_cl_prop = ${int_dbl_cl_prop}
 ```
 
 

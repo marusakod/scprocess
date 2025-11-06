@@ -1,10 +1,10 @@
 ---
-title: "Cell type labelling with XGBoost"
+title: "Cell type labelling"
 author:
-- name: ${YOUR_NAME}
+- name: ${your_name}
   affiliation: 
-  - ${AFFILIATION}
-date: '`r format(as.Date("${DATE_STAMP}"), "%B %d, %Y")`'
+  - ${affiliation}
+date: '`r format(as.Date("${date_stamp}"), "%B %d, %Y")`'
 output:
   rmdformats::downcute:
     highlight: textmate
@@ -17,11 +17,9 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-fig.path = "figure/${SHORT_TAG}_label_celltypes.Rmd/"
+fig.path = "figure/${short_tag}_label_celltypes.Rmd/"
 )
-
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
-
 ```
 
 
@@ -29,100 +27,109 @@ knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 source('code/utils.R')
 source('code/integration.R')
 source('code/label_celltypes.R')
-n_cores     = ${threads}
+library("kableExtra")
+n_cores       = ${threads}
 setDTthreads(n_cores)
 ```
 
 
 ```{r setup_input, include = FALSE}
-
 # input_files
-guesses_f   = "${guesses_f}"
-xgb_f       = "${LBL_XGB_F}"
-labels_f    = "${LBL_XGB_CLS_F}"
+int_f           = "${int_f}"
+guess_f_ls      = str_split("${guess_f_ls}", " ")[[ 1 ]]
+labeller_ls     = str_split("${labeller_ls}", " ")[[ 1 ]]
+model_ls        = str_split("${model_ls}", " ")[[ 1 ]]
 
 # params
-sel_res_cl   = "${LBL_SEL_RES_CL}"
-min_pred     = ${LBL_MIN_PRED}
-min_cl_prop  = ${LBL_MIN_CL_PROP}
-min_cl_size  = ${LBL_MIN_CL_SIZE}
+hi_res_cl_ls    = str_split("${hi_res_cl_ls}", " ")[[ 1 ]]
+min_cl_prop_ls  = str_split("${min_cl_prop_ls}", " ")[[ 1 ]] %>% as.numeric
+min_cl_size_ls  = str_split("${min_cl_size_ls}", " ")[[ 1 ]] %>% as.numeric
 ```
 
+```{r load_umap, include = FALSE}
+int_dt        = fread(int_f) %>% .[ (is_dbl == FALSE) & (in_dbl_cl == FALSE) ]
+```
 
 ```{r load_guesses, include = FALSE}
-
 # get predictions
-guesses_dt    = guesses_f %>% fread( na.strings = "" )
-
-# get celltype labels
-cl_lvls       = fread(labels_f) %>% .[, cluster]
-
-# get resolutions used
-res_ls        = names(guesses_dt) %>% 
-  str_extract("RNA_snn_res\\.([0-9]*[.])?[0-9]+") %>% unique %>% sort
-assert_that( sel_res_cl %in% res_ls )
-res_ls        = sel_res_cl %>% c(setdiff(res_ls, sel_res_cl))
-
-# format nicely
-guesses_melt  = get_guesses_melt(guesses_dt, res_ls, cl_lvls, min_cl_size)
-
+assert_that( all(sapply(guess_f_ls, file.exists)) )
+guesses_ls    = lapply(guess_f_ls, fread) %>% setNames(model_ls)
 ```
 
+## Integration clusters vs predicted cell types{.tabset}
 
-Annotation of cell types was performed using an XGBoost classifier trained on annotated data from the ${train_data_str}
+Prediction of cell type labels is a two-step process: The labeller first assigns a predicted cell type to each individual cell.
+These cell-level predictions are then aggregated at the level of high-resolution clusters (a majority-voting approach is used, where the final, assigned label for a cluster is the most common predicted label among all the cells within it).
 
-## Integration clusters vs XGBoost-predicted cell types{.tabset}
+The heatmap helps to assess whether this aggregation step seems sensible. Each cell on the heatmap shows the proportion of cells within a cluster (on the x-axis) that are assigned a specific predicted cell type in the first step (on the y-axis).
 
-Prediction of cell type labels is a two-step process: The XGBoost classifier first assigns a predicted cell type to each individual cell.
-These cell-level predictions are then aggregated at the cluster level (a majority-voting approach is used, where the final, assigned label for a
-cluster is the most common predicted label among all the cells within it).
+```{r plot_cls_vs_pred, fig.height = 12, fig.width = 13, results = 'asis'}
+for (ii in seq_along(guess_f_ls)) {
+  # unpack
+  this_labeller   = labeller_ls[[ ii ]]
+  this_model      = model_ls[[ ii ]]
+  this_hi_res_cl  = hi_res_cl_ls[[ ii ]]
 
-The heatmap helps to asses whether cell-level predictions are consistent with clustering results at different resolutions.
-Each cell on the heatmap shows the proportion of cells within a cluster (on the x-axis) that are assigned a specific predicted cell type (on the y-axis).
-By examining these results, clustering resolution that provides the most reliable labels for the final, cluster-level prediction step can be selected.
-
-```{r plot_cls_vs_boost_pred, fig.height = 5, fig.width = 13, results = 'asis'}
-# plot
-for (sel_res in res_ls) {
   # make confusion matrix
-  guesses_sel = guesses_melt[ res == sel_res, .(cell_id, prediction = cl_pred_raw)]
-  int_sel    = guesses_melt[ res == sel_res, .(cell_id, cl_int = cl_int %>% factor)]
-  confuse_dt  = calc_confuse_dt(guesses_sel, int_sel, "prediction", "cl_int")
+  guesses_sel = guesses_ls[[ ii ]] %>% 
+    .[, .(cell_id, prediction = predicted_label_naive %>% factor)]
+  int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2, hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
+  confuse_dt  = calc_confuse_dt(guesses_sel, int_tmp, "prediction", "hi_res_cl")
 
   # plot heatmap
-  cat('### res = ', sel_res, '\n', sep = '')
-  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", "cl_int", 
+  cat('### ', this_labeller, ', ', this_model, '\n', sep = '')
+  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", this_hi_res_cl, 
     plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
   cat('\n\n')
 }
 ```
 
+## Predicted cell types over UMAP{.tabset}
 
-## XGBoost-predicted cell types over UMAP{.tabset}
+Clustering of data is performed with different labellers and models. Each of these is shown over a UMAP together with a plot showing predicted cell type labels.
 
-Clustering of data is performed at different resolution values. For each value the clusters are displayed over a UMAP together with a plot showing predicted cell type labels.
+```{r plot_preds_over_umap, fig.height = 5, fig.width = 12, results = 'asis'}
+for (ii in seq_along(guess_f_ls)) {
+  # unpack
+  this_labeller   = labeller_ls[[ ii ]]
+  this_model      = model_ls[[ ii ]]
+  this_hi_res_cl  = hi_res_cl_ls[[ ii ]]
 
-```{r plot_umap_xgboost_pred, fig.height = 5, fig.width = 12, results = 'asis'}
-# plot
-for (sel_res in res_ls) {
-  # make confusion matrix
-  guesses_sel = guesses_melt[ res == sel_res ]
-  umap_sel    = guesses_sel[, .(cell_id, UMAP1, UMAP2)]
-  g_cl        = plot_umap_cluster(umap_sel, 
-    guesses_sel[, .(cell_id, cluster = cl_int)], "harmony\ncluster")
-  g_pred      = plot_umap_cluster(umap_sel, 
-    guesses_sel[, .(cell_id, cluster = cl_pred)], "prediction")
+  # get data
+  guesses_sel = guesses_ls[[ ii ]] %>% 
+    .[, .(cell_id, prediction = predicted_label_agg %>% factor)]
+  int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2, hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
+
+  # plots
+  g_cl        = plot_umap_cluster(int_dt, 
+    int_tmp[, .(cell_id, cluster = hi_res_cl)], "high resolution\nharmony\ncluster")
+  g_pred      = plot_umap_cluster(int_dt, 
+    guesses_sel[, .(cell_id, cluster = prediction)], "prediction\n(aggregated)")
   g = g_cl + g_pred
 
-  if(sel_res == sel_res_cl){
-    tab_name = 'selected resolution'
-  }else{
-    tab_name = sel_res
-  }
-
   # plot umaps
-  cat('### res = ', tab_name, '\n', sep = '')
+  cat('### ', this_labeller, ', ', this_model, '\n', sep = '')
   print(g)
+  cat('\n\n')
+}
+```
+
+
+## Totals for each predicted cell type{.tabset}
+
+These tables show how many in total of each celltype are predicted for each label, for each combination of labeller and model.
+
+```{r tbl_of_celltypes, results = "asis"}
+for (ii in seq_along(guess_f_ls)) {
+  # unpack
+  this_labeller   = labeller_ls[[ ii ]]
+  this_model      = model_ls[[ ii ]]
+
+  # print table
+  cat('### ', this_labeller, ', ', this_model, '\n', sep = '')
+  guesses_ls[[ ii ]] %>% calc_labels_table %>% kbl("html") %>% row_spec(row = 0, bold = TRUE) %>%
+    kable_styling(bootstrap_options = "striped", full_width = FALSE, font_size = 12, position = "center") %>%
+    scroll_box(width = "60%", height = "500px") %>% print
   cat('\n\n')
 }
 ```

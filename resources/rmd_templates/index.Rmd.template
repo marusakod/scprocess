@@ -1,9 +1,9 @@
 ---
 title: "[insert title]"
 author:
-- name: ${YOUR_NAME}
+- name: ${your_name}
   affiliation: 
-  - ${AFFILIATION}
+  - ${affiliation}
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
   workflowr::wflow_html:
@@ -17,10 +17,10 @@ output:
 
 # Pre-processing
 
-- CellBender checks ([link](${SHORT_TAG}_cellbender.html))
-- QC filtering ([link](${SHORT_TAG}_qc.html))
-- Integrating ([link](${SHORT_TAG}_integration.html))
-- Highly variable and marker genes at pseudobulk level ([link](${SHORT_TAG}_marker_genes.html))
+- CellBender checks ([link](${short_tag}_cellbender.html))
+- QC filtering ([link](${short_tag}_qc.html))
+- Integrating ([link](${short_tag}_integration.html))
+- Highly variable and marker genes at pseudobulk level ([link](${short_tag}_marker_genes.html))
 
 
 

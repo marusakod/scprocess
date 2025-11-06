@@ -102,38 +102,41 @@ This is an example config file for {{sc}} with all parameters and their default 
 
 === "default values"
 
-    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11"
-    proj_dir:
-    fastq_dir:
-    full_tag:
-    short_tag:
-    your_name:
-    affiliation:
-    sample_metadata:
-    species:
-    date_stamp:
-    alevin:
-      chemistry:
-    custom_sample_params:
-    exclude:
-      sample_id:
-      pool_id:
-    metadata_vars:
+    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17"
+    project:
+      proj_dir:
+      fastq_dir:
+      arv_uuids:
+      full_tag:
+      short_tag:
+      your_name:
+      affiliation:
+      date_stamp:
+      sample_metadata:
+      species:
+      tenx_chemistry:
+      metadata_vars:
+      custom_sample_params:
+      exclude:
+        sample_id:
+        pool_id:
     multiplexing:
-      demux_type: "none"
-      fastq_dir: 
-      feature_ref: 
-      batch_var: sample_id 
+      demux_type: none
+      fastq_dir:
+      arv_uuids:
+      feature_ref:
+      demux_output:
     ambient:
       ambient_method: decontx
-      cellbender_version: v0.3.2
       cell_calling: barcodeRanks
+      cb_version: v0.3.2
       cb_max_prop_kept: 0.9
-      cb_force_expected_cells:
-      cb_force_total_droplets_included:
-      cb_force_low_count_threshold:
-      cb_force_learning_rate:
+      cb_learning_rate:
       cb_posterior_batch_size: 128
+      cb_empty_training_fraction:
+      cb_expected_cells:
+      cb_total_droplets_included:
+      cb_low_count_threshold:
     qc:
       qc_min_counts: 500
       qc_min_feats: 300
@@ -141,7 +144,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       qc_max_mito: 0.1
       qc_min_splice: 0
       qc_max_splice: 0.75
-      qc_min_cells: 500
+      qc_min_cells: 100
       dbl_min_feats: 100
       exclude_mito: True
     pb_empties:
@@ -149,22 +152,21 @@ This is an example config file for {{sc}} with all parameters and their default 
       ambient_genes_fdr_thr: 0.01
     hvg:
       hvg_method: sample
-      hvg_metadata_split_var: 
       hvg_n_hvgs: 2000
       hvg_exclude_ambient_genes: True
+      hvg_chunk_size:
+      hvg_metadata_split_var:
     integration:
-      cl_method: louvain
-      reduction: harmony
-      int_n_dims:       50
-      int_dbl_res:      4
-      int_dbl_cl_prop:  0.5
-      int_theta:        0.1
-      int_res_ls:       [0.1, 0.2, 0.5, 1, 2]
+      int_embedding: harmony
+      int_theta: 0.1
+      int_batch_var: sample_id
+      int_n_dims: 50
+      int_dbl_res: 4
+      int_dbl_cl_prop: 0.5
+      int_cl_method: louvain
+      int_res_ls: [0.1, 0.2, 0.5, 1, 2]
     marker_genes:
       mkr_sel_res: 0.2
-      custom_sets:
-        - name:
-          file:
       mkr_min_cl_size: 100
       mkr_min_cells: 10
       mkr_not_ok_re: "(lincRNA|lncRNA|pseudogene|antisense)"
@@ -172,65 +174,67 @@ This is an example config file for {{sc}} with all parameters and their default 
       mkr_min_cpm_go: 1
       mkr_max_zero_p: 0.5
       mkr_gsea_cut: 0.1
+      mkr_custom_genesets:
+      - name:
+        file:
     label_celltypes:
-      lbl_tissue:
-      lbl_sel_res_cl:  "RNA_snn_res.2"
-      lbl_min_pred:    0.8
+      lbl_tissue: ""
+      lbl_sel_res_cl: "RNA_snn_res.2"
+      lbl_min_pred: 0.8
       lbl_min_cl_prop: 0.5
       lbl_min_cl_size: 100
     zoom:
     resources:
       retries: 3
-      mb_run_mapping: 8192
-      mb_save_alevin_to_h5: 8192
-      mb_run_ambient: 8192
-      mb_get_barcode_qc_metrics: 8192
-      mb_run_qc: 8192
-      mb_run_hvgs: 8192
-      mb_run_integration: 8192
-      mb_make_clean_sces: 8192
-      mb_run_marker_genes: 16384
-      mb_render_htmls: 8192
-      mb_label_celltypes: 8192
-      mb_pb_make_pbs: 8192
-      mb_pb_calc_empty_genes: 8192
-      mb_make_hto_sce_objects: 8192
-      mb_make_subset_sces: 8192
+      n_run_mapping: 8
+      gb_run_mapping: 4
+      gb_save_alevin_to_h5: 8
+      gb_run_ambient: 8
+      gb_get_barcode_qc_metrics: 8
+      gb_run_qc: 8
+      gb_run_hvgs: 8
+      gb_run_integration: 8
+      gb_make_clean_sces: 8
+      gb_run_marker_genes: 16
+      gb_render_htmls: 8
+      gb_label_celltypes: 8
+      gb_pb_make_pbs: 8
+      gb_pb_calc_empty_genes: 8
+      gb_make_hto_sce_objects: 8
+      gb_make_subset_sces: 8
     ```
 
 === "placeholders"
 
-    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11"
-    proj_dir: /path/to/proj/directory 
-    fastq_dir: /path/to/directory/with/fastq/files
-    full_tag: test_project
-    short_tag: test
-    your_name: Test McUser
-    affiliation: where you work
-    sample_metadata: /path/to/metadata.csv
-    species: human_2024
-    date_stamp: "2050-01-01"
-    alevin:
-      chemistry: 3v3
-    custom_sample_params: /path/to/file/with/custom_parameters.yaml 
-    exclude:
-      sample_id: [sample1, sample2]
-      pool_id: [pool1, pool2]
-    metadata_vars: [var1, var2]
+    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17"
+    project:
+      proj_dir: /path/to/proj/directory 
+      fastq_dir: /path/to/directory/with/fastq/files
+      full_tag: test_project
+      short_tag: test
+      your_name: Test McUser
+      affiliation: where you work
+      date_stamp: "2050-01-01"
+      sample_metadata: /path/to/metadata.csv
+      species: human_2024
+      tenx_chemistry: 3v3
+      metadata_vars: [var1, var2]
+      custom_sample_params: /path/to/file/with/custom_parameters.yaml
+      exclude:
+        sample_id:  [sample1, sample2]
+        pool_id:    [pool1, pool2]
     multiplexing:
-      demux_type: af
+      demux_type: hto
       fastq_dir: /path/to/directory/with/hto_fastq/files
       feature_ref: /path/to/feature_ref.csv
-      batch_var: sample_id
     ambient:
-      ambient_method: decontx
-      cellbender_version: v0.3.2
-      cell_calling: barcodeRanks
-      cb_max_prop_kept: 0.9
-      cb_force_expected_cells: 10000
-      cb_force_total_droplets_included: 20000
-      cb_force_low_count_threshold: 5
-      cb_force_learning_rate: 0.001
+      ambient_method: cellbender
+      cb_version: v0.3.2
+      cb_empty_training_fraction:
+      cb_expected_cells: 10000
+      cb_total_droplets_included: 20000
+      cb_low_count_threshold: 5
+      cb_learning_rate: 0.001
       cb_posterior_batch_size: 128
     qc:
       qc_min_counts: 500
@@ -239,7 +243,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       qc_max_mito: 0.1
       qc_min_splice: 0
       qc_max_splice: 0.75
-      qc_min_cells: 500
+      qc_min_cells: 100
       dbl_min_feats: 100
       exclude_mito: True
     pb_empties:
@@ -248,21 +252,19 @@ This is an example config file for {{sc}} with all parameters and their default 
     hvg:
       hvg_method: sample
       hvg_n_hvgs: 2000
-      hvg_metadata_split_var: var1
       hvg_exclude_ambient_genes: True
+      hvg_metadata_split_var: var1
     integration:
-      cl_method:        louvain
-      reduction:        harmony
-      int_n_dims:       50
-      int_dbl_res:      4
-      int_dbl_cl_prop:  0.5
-      int_theta:        0.1
-      int_res_ls:       [0.1, 0.2, 0.5, 1, 2]
+      int_embedding: harmony
+      int_theta: 0.1
+      int_batch_var: sample_id
+      int_n_dims: 50
+      int_dbl_res: 4
+      int_dbl_cl_prop: 0.5
+      int_cl_method: louvain
+      int_res_ls: [0.1, 0.2, 0.5, 1, 2]
     marker_genes:
       mkr_sel_res: 0.2
-      custom_sets:
-        - name: mouse_brain
-          file: /path/to/file/with/marker/genes.csv
       mkr_min_cl_size: 100
       mkr_min_cells: 10
       mkr_not_ok_re: "(lincRNA|lncRNA|pseudogene|antisense)"
@@ -270,10 +272,13 @@ This is an example config file for {{sc}} with all parameters and their default 
       mkr_min_cpm_go: 1
       mkr_max_zero_p: 0.5
       mkr_gsea_cut: 0.1
+      mkr_custom_genesets:
+      - name: mouse_brain
+        file: /path/to/file/with/marker/genes.csv
     label_celltypes:
-      lbl_tissue:      "human_cns"
-      lbl_sel_res_cl:  "RNA_snn_res.2"
-      lbl_min_pred:    0.8
+      lbl_tissue: "human_cns"
+      lbl_sel_res_cl: "RNA_snn_res.2"
+      lbl_min_pred: 0.8
       lbl_min_cl_prop: 0.5
       lbl_min_cl_size: 100
     zoom:
@@ -282,89 +287,99 @@ This is an example config file for {{sc}} with all parameters and their default 
       cell_subset_3: /path/to/cell_subset_3_zoom_params.yaml
     resources:
       retries: 3
-      mb_run_mapping: 8192
-      mb_save_alevin_to_h5: 8192
-      mb_run_ambient: 8192
-      mb_get_barcode_qc_metrics: 8192
-      mb_run_qc: 8192
-      mb_run_hvgs: 8192
-      mb_run_integration: 8192
-      mb_make_clean_sces: 8192
-      mb_run_marker_genes: 16384
-      mb_render_htmls: 8192
-      mb_label_celltypes: 8192
-      mb_pb_make_pbs: 8192
-      mb_pb_calc_empty_genes: 8192
-      mb_make_hto_sce_objects: 8192
-      mb_make_subset_sces: 8192
+      n_run_mapping: 8
+      gb_run_mapping: 4
+      gb_save_alevin_to_h5: 8
+      gb_run_ambient: 8
+      gb_get_barcode_qc_metrics: 8
+      gb_run_qc: 8
+      gb_run_hvgs: 8
+      gb_run_integration: 8
+      gb_make_clean_sces: 8
+      gb_run_marker_genes: 16
+      gb_render_htmls: 8
+      gb_label_celltypes: 8
+      gb_pb_make_pbs: 8
+      gb_pb_calc_empty_genes: 8
+      gb_make_hto_sce_objects: 8
+      gb_make_subset_sces: 8
     ```
 
 
 #### Required parameters
 
+##### project
+
 * `proj_dir`: absolute path to `workflowr` project directory created with the `newproj` function.
 * `fastq_dir`: path to directory containing FASTQ files. Should be absolute or relative to `proj_dir`.
+* `arv_uuids`: *ROCHE only:* Instead of specifying `fastq_dir`, you can specify a list of Arvados UUIDs where fastq files are located. Exactly one of `fastq_dir` and `arv_uuids` should be specified.
 * `full_tag`: full project label, used in output file names.
 * `short_tag`: abbreviated project label, used in output directory names.
 * `your_name`: author’s name, displayed in HTML outputs.
 * `affiliation`: author’s affiliation, displayed in HTML outputs.
-* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R_`and `_R2_`strings.
-* `species`: must match one of the values in the `genome_name` column of `index_parameters.csv` (created by `scsetup`).
 * `date_stamp`: start date of the analysis, formatted as `"YYYY-MM-DD"`.
-* `chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).
+* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1` and `_R2`strings.
+* `species`: must match one of the values in the `genome_name` column of `index_parameters.csv` (created by `scsetup`).
+* `tenx_chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).
 
 #### Optional parameters
 
-##### general
+##### project
 
-* `custom_sample_params`: YAML file with optional custom parameters for each sample (custom chemistry, custom ambient and custom cellbender parameters can be specified for each sample). Example:
+* `metadata_vars`: A list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
+* `custom_sample_params`: YAML file with optional custom parameters for each pool or sample (custom tenx_chemistry, custom ambient / cellbender and custom qc parameters can be specified for each sample). Example:
 
 ```yaml
-sample_1:
-  chemistry: 5v2
-  ambient:
-    knee1: 4000
-    shin1: 400
-    knee2: 30
-    shin2: 5
-sample_2:
-  chemistry: 5v2
-  ambient:
-    knee1: 3000
-    shin1: 400
-    knee2: 30
-    shin2: 5
-sample_3:
-  cellbender:
-    total_droplets_included: 20000
-    learning_rate: 0.001
-    posterior_batch_size: 128 # only applicable if cellbender_version is v.0.3.2
-
+pool_id:
+  pool_1:
+    tenx_chemistry: 5v2
+    mapping:
+      knee1: 4000
+      shin1: 400
+      knee2: 30
+      shin2: 5
+  pool_2:
+    tenx_chemistry: 5v2
+    mapping:
+      knee1: 3000
+      shin1: 400
+      knee2: 30
+      shin2: 5
+    ambient:
+      cb_total_droplets_included: 20000
+      cb_learning_rate: 0.001
+      cb_posterior_batch_size: 128 # only applicable if cellbender_version is v.0.3.2
+sample_id:
+  sample_1:
+    qc:
+      qc_min_counts: 100
 ```
 
-* `exclude`: list of all samples that should be excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
-* `metadata_vars`: A list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
-
+* `exclude`: List of all samples that should be "manually" excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
 
 ##### multiplexing
 
-* `demux_type`: `af` if demultiplexing of samples should be performed with {{sc}} or `custom` if demultiplexing results will be used as input to {{sc}}.
-* `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. Required if `demux_type` is `af`.
-* `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `af`.
+* `demux_type`: `demux_type` options (default is `none`):
+    + `none` if experiment is not multiplexed;
+    + `hto` if demultiplexing of samples should be performed with {{sc}}; or
+    + `custom` if demultiplexing results will be used as input to {{sc}}.
+* `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. This entry or `arv_uuids` is required if `demux_type` is `hto`.
+* `arv_uuids`: *ROCHE only:* Instead of specifying `fastq_dir` where HTO files are located, you can specify a list of Arvados UUIDs where fastq files are located. If `demux_type` is `none`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
+* `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `hto`.
 * `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `negative`. Required if `demux_type` is `custom`.
-* `batch_var`: variable to use for integration with `Harmony`. Options are `pool_id` or `sample_id`.
 
 ##### ambient
 
 * `ambient_method`: method for ambient RNA removal; options are `decontx` (default), `cellbender` or `none`.
-* `cellbender_version`: version of `cellbender` to use if `ambient_method` is set to `cellbender`. Options are `v0.3.2` (default), `v0.3.0'` and `v0.2.0'`.
 * `cell_calling`: method for cell calling when `ambient_method` is `none` or `decontx`. Options are `barcodeRanks` and `emptyDrops`.
+* `cb_version`: version of `cellbender` to use if `ambient_method` is set to `cellbender`. Options are `v0.3.2` (default), `v0.3.0'` and `v0.2.0'`.
 * `cb_max_prop_kept`: maximum proportion of droplets, relative to `--total-droplets-included`, that `cellbender` can call as cells. Default is `0.9`, meaning samples are excluded if `cellbender` calls more than 90% of `--total-droplets-included` droplets as cells. Applicable only if `ambient_method` is `cellbender`. For more information about the `--total-droplets-included` parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
-* `cb_force_expected_cells`: forces the `--expected-cells` `Cellbender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
-* `cb_force_total_droplets_included`: forces the `--total-droplets-included` `Cellbender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
-* `cb_force_low_count_threshold`: forces the `--low-count-threshold` `CellBender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
-* `cb_force_learning_rate`: Forces the `--learning-rate` `CellBender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
+* `cb_learning_rate`: Sets the `--learning-rate` `CellBender` parameter to the specified value; applicable only if `ambient_method` is `cellbender`. Default value is `0.0001`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
+* `cb_empty_training_fraction`: Sets the `--empty-drop-training-fraction` `CellBender` parameter to the specified value; applicable only if `ambient_method` is `cellbender`. Default value is `0.2`. Setting this to a lower value (e.g. 0.1 or 0.05) can help if `CellBender` jobs are failing on samples with very few cells. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
 * `cb_posterior_batch_size`: Value of the `--posterior-batch-size` parameter; applicable only if `ambient_method` is `cellbender` and `cellbender_version` is `v0.3.2`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
+* `cb_expected_cells`: forces the `--expected-cells` `Cellbender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
+* `cb_total_droplets_included`: forces the `--total-droplets-included` `Cellbender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
+* `cb_low_count_threshold`: forces the `--low-count-threshold` `CellBender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender's documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
 
 
 ##### qc
@@ -396,20 +411,18 @@ sample_3:
 
 ##### integration
 
-* `cl_method`: algorithm used for clustering, options: `leiden`, `louvain`.
-* `reduction`: which dimensionality reduction method to use for clustering and UMAP, options: `pca` (no batch correction), `harmony` (batch correction). 
+* `int_embedding`: which dimensionality reduction method to use for clustering and UMAP, options: `pca` (no batch correction), `harmony` (batch correction). 
+* `int_theta`: theta parameter for `Harmony` integration, controlling batch variable mixing.
+* `int_batch_var`: variable to use for integration with `Harmony`. Default is `sample_id`; if `demux_type` is set to either `hto` or `custom`, then `pool_id` is an alternative option.
 * `int_n_dims`: number of principal components to use for data integration.
 * `int_dbl_res`: clustering resolution for identification of additional doublets.
 * `int_dbl_cl_prop`: threshold for the proportion of doublets within a cluster. Clusters where the proportion of doublets exceeds this value will be excluded.
-* `int_theta`: theta parameter for `Harmony` integration, controlling batch variable mixing.
+* `int_cl_method`: algorithm used for clustering, options: `leiden`, `louvain`.
 * `int_res_ls`: list of resolution values to be used for clustering.
 
 ##### marker_genes
 
 * `mkr_sel_res`: selected cluster resolution used for identifying marker genes.
-* `custom_sets`: a list of custom marker gene sets, each defined by a unique name and associated file path.
-    + `name`: a string representing the name of the marker gene set
-    + `file`: path to CSV file containing a list of genes in the marker gene set. Must contain column `label` (marker gene category), and `symbol` and/or `ensembl_id`. If not speficied `scprocess` will look for file `$SCPROCESS_DATA_DIR/marker_genes/{name}.csv`
 * `mkr_min_cl_size`: minimum number of cells required in a cluster to calculate marker genes for that cluster.
 * `mkr_min_cells`: minimum number of cells required in a pseudobulk sample to include it in marker gene calculations.
 * `mkr_not_ok_re`: regular expression pattern to exclude specific gene types from plots showing marker gene expression.
@@ -417,6 +430,9 @@ sample_3:
 * `mkr_min_cpm_go`: minimum counts per million (CPM) in a cell type required for a gene to be used in Gene Ontology (GO) analysis.
 * `mkr_max_zero_p`: maximum proportion of pseudobulk samples for a cell type that can have zero counts for a gene to be used in GO analysis.
 * `mkr_gsea_cut`: False discovery rate (FDR) cutoff for Gene Set Enrichment Analysis (GSEA).
+* `mkr_custom_sets`: a list of custom marker gene sets, each defined by a unique name and associated file path.
+    + `name`: a string representing the name of the marker gene set
+    + `file`: path to CSV file containing a list of genes in the marker gene set. Must contain column `label` (marker gene category), and `symbol` and/or `ensembl_id`. If not speficied `scprocess` will look for file `$SCPROCESS_DATA_DIR/marker_genes/{name}.csv`
 
 
 ##### label_celltypes
@@ -448,18 +464,20 @@ Additional parameters include:
 ##### resources
 
 * `retries`: number of times to retry running a specific rule in {{sc}} if it fails. For each attempt, the memory requirement for the rule increases by multiplying the base memory by the attempt number. Useful for when {{sc}} is used on a [cluster](setup.md#cluster-setup).
-* `mb_run_mapping`: maximum memory required (in MB) for running `simpleaf`. Value applies to the entire job, not per thread.
-* `mb_save_alevin_to_h5`:  maximum memory required (in MB) to save `simpleaf` output to H5 format. Value applies to the entire job, not per thread.
-* `mb_run_ambient`: maximum memory required (in MB) to run the ambient RNA removal step. Value applies to the entire job, not per thread.
-* `mb_get_barcode_qc_metrics`: maximum memory required (in MB) to run the step in which qc metrics of all barcodes are collected. Value applies to the entire job, not per thread.
-* `mb_run_qc`: maximum memory required (in MB) to run the qc step. Value applies to the entire job, not per thread.
-* `mb_run_hvgs`: maximum memory required (in MB) to run the hvg detection step. Value applies to the entire job, not per thread.
-* `mb_run_integration`: maximum memory required (in MB) to run integration. Value applies to the entire job, not per thread.
-* `mb_make_clean_sces`: maximum memory required (in MB) to create a `SingleCellExperiment` object. Value applies to the entire job, not per thread.
-* `mb_run_marker_genes`: maximum memory required (in MB) for marker gene identification. Value applies to the entire job, not per thread.
-* `mb_render_htmls`: maximum memory required (in MB) to render html reports. Value applies to the entire job, not per thread.
-* `mb_label_celltypes`: maximum memory required (in MB) to label cell types. Value applies to the entire job, not per thread.
-* `mb_pb_make_pbs`: maximum memory required (in MB) to generate pseudobulk counts. Value applies to the entire job, not per thread.
-* `mb_pb_calc_empty_genes`: maximum memory required (in MB) to calculate ambient gene statistics. Value applies to the entire job, not per thread.
-* `mb_make_hto_sce_objects`: maximum memory required (in MB) to create a `SingleCellExperiment` object with HTO counts. Value applies to the entire job, not per thread.
-* `mb_make_subset_sces`: maximum memory required (in MB) to create `SingleCellExperiment` objects with a subset of cells within rule `zoom`. Value applies to the entire job, not per thread.
+* `n_run_mapping`: number of threads requested for running `simpleaf`. Default is 8.
+* `gb_run_mapping`: maximum memory requested (in GB) for running `simpleaf`. Default is 4. Value applies to the entire job, not per thread.
+* `gb_save_alevin_to_h5`:  maximum memory required (in GB) to save `simpleaf` output to H5 format. Default is 8GB. Value applies to the entire job, not per thread.
+* `gb_run_ambient`: maximum memory required (in GB) to run the ambient RNA removal step. Default is 8GB. Value applies to the entire job, not per thread.
+* `gb_get_barcode_qc_metrics`: maximum memory required (in GB) to run the step in which qc metrics of all barcodes are collected. Default is 8GB. Value applies to the entire job, not per thread.
+* `gb_pb_make_pbs`: maximum memory required (in GB) to generate pseudobulk counts. Default is 8GB. Value applies to the entire job, not per thread.
+* `gb_pb_calc_empty_genes`: maximum memory required (in GB) to calculate ambient gene statistics. Default is 8GB. Value applies to the entire job, not per thread.
+* `gb_make_hto_sce_objects`: maximum memory required (in GB) to create a `SingleCellExperiment` object with HTO counts. Default is 8GB. Value applies to the entire job, not per thread.
+* `gb_run_qc`: maximum memory required (in GB) to run the qc step. Default is 8GB. Value applies to the entire job, not per thread.
+* `gb_run_hvgs`: maximum memory required (in GB) to run the hvg detection step. Default is 8GB. Value applies to the entire job, not per thread.
+* `gb_run_integration`: maximum memory required (in GB) to run integration. Default is 8GB. Value applies to the entire job, not per thread.
+* `gb_make_clean_sces`: maximum memory required (in GB) to create a `SingleCellExperiment` object. Default is 8GB. Value applies to the entire job, not per thread.
+* `gb_run_marker_genes`: maximum memory required (in GB) for marker gene identification. Default is 8GB. Value applies to the entire job, not per thread.
+* `gb_make_subset_sces`: maximum memory required (in GB) to create `SingleCellExperiment` objects with a subset of cells within rule `zoom`. Default is 8GB. Value applies to the entire job, not per thread.
+* `gb_label_celltypes`: maximum memory required (in GB) to label cell types. Default is 8GB. Value applies to the entire job, not per thread.
+* `gb_render_htmls`: maximum memory required (in GB) to render html reports. Default is 8GB. Value applies to the entire job, not per thread.
+

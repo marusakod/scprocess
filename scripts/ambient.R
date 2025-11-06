@@ -271,14 +271,12 @@ get_knee_params <- function(knee_f, sample_var) {
   ranks_df  = fread(knee_f)
   total_thr = unique(ranks_df$total_droplets_included) %>% log10()
   
-  inf1 = unique(ranks_df$inf1)
+  # get x coordinate of shin1
+  shin1     = unique(ranks_df$shin1)
+  shin1_row = which.min( abs(ranks_df$total - shin1) )[1]
   
-  # get x coordinate of inf1
-  infl1_idx = which.min( abs(ranks_df$total - inf1) )[1]
-  
-  # get x coordinate of inf1
-  inf_1_x = ranks_df[ infl1_idx, rank ] %>%
-    log10()
+  # get x coordinate of shin1
+  shin1_x   = ranks_df[ shin1_row, rank ] %>% log10
   
   # fit curve to all points
   ranks_df = ranks_df %>% 
@@ -295,20 +293,20 @@ get_knee_params <- function(knee_f, sample_var) {
   
   # get value of the first derivative at total included and inflection1
   d1       = predict(fit, deriv=1)
-  d1_inf   = d1$y[ which.min(abs(d1$x - inf_1_x))[1] ]
+  d1_shin  = d1$y[ which.min(abs(d1$x - shin1_x))[1] ]
   d1_total = d1$y[ which.min(abs(d1$x - total_thr))[1] ]
   
-  keep_cols = c(sample_var, 'knee1', 'inf1', 'knee2', 'inf2', 'total_droplets_included', 'expected_cells')
+  keep_cols = c(sample_var, 'knee1', 'shin1', 'knee2', 'shin2', 'total_droplets_included', 'expected_cells')
   
   final = ranks_df %>%
     .[, ..keep_cols] %>%
     unique() %>%
     .[, `:=`(
-      slope_inf1 = d1_inf,
+      slope_shin1 = d1_shin,
       slope_total_included = d1_total
     )]%>% 
     .[, `:=`(
-      slope_ratio = abs(slope_total_included) / abs(slope_inf1),
+      slope_ratio = abs(slope_total_included) / abs(slope_shin1),
       expected_total_ratio = expected_cells / total_droplets_included
     )]
   
@@ -331,12 +329,13 @@ plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, b
       .[, (sample_var) := s]
   }) %>% rbindlist()
   
-  knee_vars = c(sample_var, 'knee1', 'inf1', 'knee2', 'inf2',
-                'total_droplets_included', 'expected_cells')
+  knee_vars = c(sample_var, 'knee1', 'shin1', 'knee2', 'shin2',
+    'total_droplets_included', 'expected_cells')
   
   lines_knees = ambient_knees_df %>% as.data.table %>% 
     .[ get(sample_var) %in% s_ord, ..knee_vars] %>%
-    setnames( c("inf1", "inf2", "total_droplets_included"), c("shin1", "shin2", "empty_plateau_middle") ) %>% 
+    setnames( "total_droplets_included", "empty_plateau_middle" ) %>% 
+    setnames( "expected_cells", "expected_cells" ) %>% 
     melt(id.vars = sample_var) %>%
     .[, `:=`(
       axis = fifelse(variable %in% c('knee1', 'knee2', 'shin1', 'shin2'), 'y', 'x'),
@@ -700,12 +699,10 @@ plot_spliced_vs_umis <- function(ss, usa_dt, ok_bcs, total_inc) {
   return(g)
 }
 
-
-
-calc_ambient_exclusions <- function(stats_dt, sample_var) {
-  exc_dt  = stats_dt[, .(get(sample_var), total_droplets, kept_droplets, 
-    pct_kept = round(prop_kept_by_cb * 100, 1), bad_sample)] %>% 
-    setnames("V1", sample_var)
+calc_ambient_exclusions <- function(stats_dt, run_var) {
+  exc_dt  = stats_dt[, .(get(run_var), total_droplets, kept_droplets, 
+    pct_kept = round(prop_kept_by_cb * 100, 1), bad_run)] %>% 
+    setnames("V1", run_var)
 
   return(exc_dt)
 }
