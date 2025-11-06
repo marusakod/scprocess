@@ -1023,7 +1023,7 @@ def get_samples_to_runs(config, RUNS, SAMPLES):
 def get_labeller_parameters(config, schema_f, scdata_dir):
   # if none, done
   if not 'label_celltypes' in config:
-    return config
+    return []
 
   # get defaults for label parameters
   schema          = _load_schema_file(schema_f)
