@@ -88,7 +88,7 @@ if(!is.null(metadata_vars)){
 
 ```{r load_clusters, include = FALSE}
 int_dt    = fread(integration_f) %>% .[ !is.na(UMAP1) ] %>% 
-  .[, c("sample_id", "cell_id", "reduction", "UMAP1", "UMAP2", 
+  .[, c("sample_id", "cell_id", "embedding", "UMAP1", "UMAP2", 
     str_subset(names(.), "RNA_snn_res")), with = FALSE] %>% 
   .[, cluster := get(paste0("RNA_snn_res.", sel_res))]
 int_dt       = int_dt[, .(sample_id, cell_id, UMAP1, UMAP2, cluster)] %>% 

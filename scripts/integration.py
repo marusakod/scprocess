@@ -39,7 +39,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   dbl_theta     = 0
 
   print('loading hvg matrix')
-  all_hvg_mat, all_bcs   = _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f):
+  all_hvg_mat, all_bcs   = _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f)
 
   print('loading relevant cell ids')
   ok_cells_df   = _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs)
@@ -71,7 +71,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   return
 
 
-def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs)
+def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs):
   # load files
   sample_qc     = pl.read_csv(sample_qc_f)
   all_coldata   = pl.read_csv(coldata_f)
