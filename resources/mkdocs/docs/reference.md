@@ -163,7 +163,6 @@ This is an example config file for {{sc}} with all parameters and their default 
       int_n_dims: 50
       int_dbl_res: 4
       int_dbl_cl_prop: 0.5
-      int_cl_method: louvain
       int_res_ls: [0.1, 0.2, 0.5, 1, 2]
     marker_genes:
       mkr_sel_res: 0.2
@@ -261,7 +260,6 @@ This is an example config file for {{sc}} with all parameters and their default 
       int_n_dims: 50
       int_dbl_res: 4
       int_dbl_cl_prop: 0.5
-      int_cl_method: louvain
       int_res_ls: [0.1, 0.2, 0.5, 1, 2]
     marker_genes:
       mkr_sel_res: 0.2
@@ -417,7 +415,6 @@ sample_id:
 * `int_n_dims`: number of principal components to use for data integration.
 * `int_dbl_res`: clustering resolution for identification of additional doublets.
 * `int_dbl_cl_prop`: threshold for the proportion of doublets within a cluster. Clusters where the proportion of doublets exceeds this value will be excluded.
-* `int_cl_method`: algorithm used for clustering, options: `leiden`, `louvain`.
 * `int_res_ls`: list of resolution values to be used for clustering.
 
 ##### marker_genes

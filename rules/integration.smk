@@ -17,7 +17,6 @@ rule run_integration:
     int_n_dims      = config['integration']['int_n_dims'],
     int_dbl_res     = config['integration']['int_dbl_res'],
     int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
-    int_cl_method   = config['integration']['int_cl_method'],
     int_res_ls      = config['integration']['int_res_ls']
   threads: 1
   retries: config['resources']['retries'] 
@@ -28,13 +27,20 @@ rule run_integration:
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_integration/run_integration_' + DATE_STAMP + '.benchmark.txt'
   shell: """
+    set +u
     # check whether gpu available
     if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
       use_gpu=1
     else
       use_gpu=0
     fi
+    set -u
 
+    USE_GPU_FLAG=""
+     if [ $use_gpu = 1 ]; then
+       USE_GPU_FLAG="--use_gpu"
+     fi
+    
     python3 scripts/integration.py \
       --hvg_mat_f     {input.hvg_mat_f} \
       --dbl_hvg_mat_f {input.dbl_hvg_mat_f} \
@@ -44,14 +50,14 @@ rule run_integration:
       --exclude_mito  "{params.exclude_mito}" \
       --embedding     {params.int_embedding} \
       --n_dims        {params.int_n_dims} \
-      --cl_method     {params.int_cl_method} \
+      --cl_method     leiden \
       --dbl_res       {params.int_dbl_res} \
       --dbl_cl_prop   {params.int_dbl_cl_prop} \
       --theta         {params.int_theta} \
       --res_ls_concat "{params.int_res_ls}" \
       --integration_f {output.integration_f} \
       --batch_var     {params.int_batch_var} \
-      --use_gpu       $use_gpu
+      $USE_GPU_FLAG
     """
 
 # if INT_USE_GPU:

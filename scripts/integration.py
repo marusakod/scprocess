@@ -337,13 +337,14 @@ if __name__ == "__main__":
   parser.add_argument('--res_ls_concat',  type = str)
   parser.add_argument('--integration_f',  type = str)
   parser.add_argument('--batch_var',      type = str)
-  parser.add_argument('--use_gpu',        type = bool, 
+  parser.add_argument("-g", "--use_gpu",  action='store_true', 
     help='Use GPU-accelerated libraries if available.'  
   )
   args = parser.parse_args()
 
   # gpu vs cpu setup
   if args.use_gpu:
+    print('using GPU')
     # import some GPU-specific modules
     import rapids_singlecell as sc
     import cupy as cp
@@ -358,6 +359,7 @@ if __name__ == "__main__":
     )
     cp.cuda.set_allocator(rmm_cupy_allocator)
   else:
+    print('not using GPU')
     # import some standard modules
     import scanpy as sc
     import scanpy.external as sce # for harmony
