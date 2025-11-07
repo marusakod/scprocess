@@ -171,6 +171,7 @@
         "mkr_min_cpm_mkr":  { "type": "integer",  "default": 50 },
         "mkr_min_cpm_go":   { "type": "integer",  "default": 1 },
         "mkr_max_zero_p":   { "type": "number",   "default": 0.5 },
+        "mkr_do_gsea":      { "type": "boolean",  "default": true }, 
         "mkr_gsea_cut":     { "type": "number",   "default": 0.1 },
         "mkr_custom_genesets": {
           "type": "array",

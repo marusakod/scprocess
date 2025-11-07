@@ -23,6 +23,45 @@
 #     render_html(PROJ_DIR, template_f, sub_dict, output.rmd_f)
 
 
+# Rule to generate the index file dynamically
+# rule render_html_index:
+#   input:
+#     html_reports=lambda wildcards: sorted(glob.glob(docs_dir + SHORT_TAG + "*.html"))  # Dynamically find all .html files
+#   output:
+#     f"{docs_dir}/index.html"
+#   threads: 1
+#   retries: RETRIES
+#   resources:
+#     mem_mb: 200
+#   params:
+#     your_name       = config['project']['your_name'],
+#     affiliation     = config['project']['affiliation'],
+#     full_tag        = config['project']['full_tag'],
+#     date_stamp      = config['project']['date_stamp']
+#   shell:"""
+#     # Template for the RMarkdown file
+#     template_f=$(realpath resources/rmd_templates/index.Rmd.template)
+#     rule="index"
+
+#     # rendering html
+#     Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+#       render_html(
+#         rule_name       = '$rule', 
+#         your_name       = '{params.your_name}', 
+#         affiliation     = '{params.affiliation}',
+#         docs_dir        = '{docs_dir}', 
+#         short_tag       = '{params.short_tag}', 
+#         full_tag        = '{params.full_tag}',  
+#         date_stamp      = '{params.date_stamp}', 
+#         htmls           = '{input.html_reports}'
+#         temp_f          = '$template_f',
+#         rmd_f           = '{output.rmd_f}'
+    
+#     """
+  
+      
+
+
 # rule render_html_mapping
 rule render_html_mapping:
   input:
@@ -375,7 +414,7 @@ rule render_html_marker_genes:
     integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     hvgs_f        = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
     ambient_f     = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
-    **get_conditional_outputs(config['project']['species'])
+    **get_conditional_outputs(config['project']['species'], config['marker_genes']['mkr_do_gsea'])
   output:
     r_mkr_f       = f"{code_dir}/marker_genes.R",
     rmd_f         = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd',
@@ -398,6 +437,7 @@ rule render_html_marker_genes:
     mkr_not_ok_re     = config['marker_genes']['mkr_not_ok_re'],
     mkr_min_cpm_mkr   = config['marker_genes']['mkr_min_cpm_mkr'],
     mkr_min_cells     = config['marker_genes']['mkr_min_cells'],
+    mkr_do_gsea       = config['marker_genes']['mkr_do_gsea'], 
     mkr_gsea_cut      = config['marker_genes']['mkr_gsea_cut'],
     fgsea_args = lambda wildcards, input: " ".join(
       [
@@ -450,7 +490,8 @@ rule render_html_marker_genes:
       mkr_min_cells     =  {params.mkr_min_cells},
       mkr_gsea_cut      =  {params.mkr_gsea_cut},
       {params.fgsea_args}
-      species           = '{params.species}'
+      species           = '{params.species}', 
+      do_gsea           = '{params.mkr_do_gsea}'
     )"
     """
 

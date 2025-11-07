@@ -142,7 +142,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'gtf_dt_f', 'integration_f', 'pb_f', 'mkrs_f', 'hvgs_f', 'ambient_f',
       'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f','fgsea_paths_f', 'fgsea_hlmk_f',
       'mkr_sel_res', 'custom_mkr_names', 'custom_mkr_paths',
-      'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_cut', 'species')
+      'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_cut', 'species', 'do_gsea')
 
     assert_that(all(req_names %in% add_args_names))
 
@@ -162,8 +162,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       meta_umap_title = ""
       meta_umap_txt   = ""
    }
-  
-    if(add_args[['species']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){
+    do_gsea = as.logical(add_args[['do_gsea']])
+    if((add_args[['species']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) & do_gsea){
       fgsea_title = "## GSEA characterisation of clusters{.tabset}"
       fgsea_txt   = paste0("Gene Set Enrichment Analysis (GSEA) was performed on marker genes for each cluster, using log fold change as the ranking variable.", 
       " The top 10 pathways, grouped into five categories and selected based on a significance threshold of 0.05, are displayed for each cluster.")
@@ -205,7 +205,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'gtf_dt_f', 'qc_f', 'cell_hvgs_f', 'int_f', 'pb_f', 'pb_hvgs_f', 'mkrs_f', 'empty_gs_f', 'pb_empty_f', 
       'fgsea_go_bp_f','fgsea_go_cc_f', 'fgsea_go_mf_f', 'fgsea_paths_f', 'fgsea_hlmk_f', 'int_res_ls',
       'custom_mkr_names', 'custom_mkr_paths', 'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_sel_res',
-      'mkr_min_cells', 'mkr_gsea_cut', 'species')
+      'mkr_min_cells', 'mkr_gsea_cut', 'species', 'do_gsea')
     
     assert_that(all(req_names %in% add_args_names))
 
@@ -225,8 +225,9 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       meta_umap_title = ""
       meta_umap_txt   = ""
    }
-
-    if(add_args[['species']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')){
+    
+    do_gsea = as.logical(add_args[['do_gsea']])
+    if((add_args[['species']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) & do_gsea){
       fgsea_title = "### GSEA characterisation of clusters{.tabset}"
       fgsea_txt   = paste0("Gene Set Enrichment Analysis (GSEA) was performed on marker genes for each cluster, using log fold change as the ranking variable.", 
       " The top 10 pathways, grouped into five categories and selected based on a significance threshold of 0.05, are displayed for each cluster.")
@@ -251,6 +252,36 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'lbl_min_cl_size', 'lbl_min_cl_size')
     
     assert_that(all(req_names %in% add_args_names))
+  } else if (sel_rule == 'index') {
+     req_names = c('your_name', 'affiliation', 'short_tag', 'docs_dir', 'full_tag', 'date_stamp', 'htmls')
+
+     assert_that(all(req_names %in% add_args_names))
+
+     # get list of all htmls
+     short_tag = add_args[['short_tag']]
+     docs_dir  = add_args[['docs_dir']]
+     htmls = add_args[['htmls']] %>%
+      str_split(pattern = " ") %>% unlist()
+    
+     # get list of possible htmls and their names
+     scprocess_htmls = list(
+      Mapping         = sprintf("%s/%s_mapping.html", docs_dir, short_tag), 
+      Multiplexing    = sprintf("%s/%s_demultiplexing.html", docs_dir, short_tag),
+      Ambient         = sprintf("%s/%s_ambient.html", docs_dir, short_tag), 
+      QC              = sprintf("%s/%s_qc.html", docs_dir, short_tag), 
+      HVGs            = sprintf("%s/%s_hvgs.html", docs_dir, short_tag), 
+      Integration     = sprintf("%s/%s_integration.html", docs_dir, short_tag), 
+      Marker_genes    = sprintf("%s/%s_marker_genes.html", docs_dir, short_tag), 
+      Label_celltypes = sprintf("%s/%s_label_celltypes.html", docs_dir, short_tag)
+     )
+
+     # filter list for htmls that exist and format nicelly
+     html_ls = htmls[htmls %in% unname(unlist(scprocess_htmls))]
+
+     params_ls = c(
+      add_args[setdiff(req_names, 'htmls')],
+      list(html_ls = html_ls))
+
   }
   params_ls$proj_dir = proj_dir
 

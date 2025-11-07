@@ -68,7 +68,7 @@ zoom_mkr_report_outs = expand(
     '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_paths_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP),  
     '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_hlmk_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP)
     ]
-    if config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']
+    if (config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & config['marker_genes']['mkr_do_gsea']
     else []
    ),
   zip,
@@ -539,6 +539,7 @@ rule zoom_run_marker_genes:
     zoom_mkr_not_ok_re   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_not_ok_re'],
     zoom_mkr_min_cpm_go  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cpm_go'],
     zoom_mkr_max_zero_p  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_max_zero_p'], 
+    zoom_mkr_do_gsea     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea'], 
     zoom_mkr_gsea_cut    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_cut']
   threads: 8
   retries: config['resources']['retries']

@@ -1,7 +1,7 @@
 # snakemake rule for calculating marker genes
 
-def get_conditional_outputs(species):
-  if species in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']:
+def get_conditional_outputs(species, do_gsea):
+  if (species in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & do_gsea:
     return {
       'fgsea_go_bp_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_bp_' + DATE_STAMP + '.txt.gz',
       'fgsea_go_cc_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_cc_' + DATE_STAMP + '.txt.gz',
@@ -21,7 +21,7 @@ rule run_marker_genes:
     pb_f      = mkr_dir + '/pb_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.rds',
     mkrs_f    = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
     pb_hvgs_f = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
-    **get_conditional_outputs(config['project']['species'])
+    **get_conditional_outputs(config['project']['species'], config['marker_genes']['mkr_do_gsea'])
   params:
     species         = config['project']['species'],
     af_gtf_dt_f     = config['mapping']['af_gtf_dt_f'],
@@ -32,6 +32,7 @@ rule run_marker_genes:
     mkr_not_ok_re   = config['marker_genes']['mkr_not_ok_re'],
     mkr_min_cpm_go  = config['marker_genes']['mkr_min_cpm_go'],
     mkr_max_zero_p  = config['marker_genes']['mkr_max_zero_p'],
+    mkr_do_gsea     = config['marker_genes']['mkr_do_gsea'], 
     mkr_gsea_cut    = config['marker_genes']['mkr_gsea_cut'],
     fgsea_args = lambda wildcards, output: ", ".join([
         f"fgsea_go_bp_f = '{output.get('fgsea_go_bp_f', '')}'",
@@ -56,6 +57,7 @@ rule run_marker_genes:
       pb_hvgs_f     = '{output.pb_hvgs_f}',
       {params.fgsea_args}
       species       = '{params.species}',
+      do_gsea       = '{params.mkr_do_gsea}', 
       gtf_dt_f      = '{params.af_gtf_dt_f}',
       gsea_dir      = '{params.mkr_gsea_dir}',
       sel_res       = '{params.mkr_sel_res}',
