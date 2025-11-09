@@ -88,9 +88,9 @@ if(!is.null(metadata_vars)){
 
 ```{r load_clusters, include = FALSE}
 int_dt    = fread(integration_f) %>% .[ !is.na(UMAP1) ] %>% 
-  .[, c("sample_id", "cell_id", "reduction", "UMAP1", "UMAP2", 
+  .[, c("sample_id", "cell_id", "embedding", "UMAP1", "UMAP2", 
     str_subset(names(.), "RNA_snn_res")), with = FALSE] %>% 
-  .[, cluster := get(paste0("RNA_snn_res.", sel_res))]
+  .[, cluster := get(paste0("RNA_snn_res.", sel_res)) %>% fct_infreq ]
 int_dt       = int_dt[, .(sample_id, cell_id, UMAP1, UMAP2, cluster)] %>% 
   merge(meta_dt, by = "sample_id")
 ```
@@ -128,7 +128,7 @@ ambient_gs  = ambient_dt[ 1:50 ] %>% .[, .(gene_id, symbol, vst_var = NA)] %>%
 # calculate markers
 mkrs_dt     = fread(mkrs_f)
 if (is.null(cl_ord))
-  cl_ord      = sort(unique(mkrs_dt$cluster))
+  cl_ord      = levels(int_dt$cluster) %>% intersect(unique(mkrs_dt$cluster))
 ```
 
 ```{r load_heatmap_markers, include = FALSE}

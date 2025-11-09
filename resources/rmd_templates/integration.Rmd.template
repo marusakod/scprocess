@@ -84,7 +84,7 @@ int_dbl    = integration_all %>%
 
 ```{r extract_normal_integration, include = FALSE}
 int_dt    = integration_all[ !is.na(UMAP1) ] %>% 
-  .[, c("sample_id", "cell_id", "reduction", "UMAP1", "UMAP2", 
+  .[, c("sample_id", "cell_id", "embedding", "UMAP1", "UMAP2", 
     str_subset(names(integration_all), "RNA_snn_res")), with = FALSE]
 ```
 
@@ -92,7 +92,7 @@ int_dt    = integration_all[ !is.na(UMAP1) ] %>%
 ```{r extract_clusters, include = FALSE}
 clusts_dt   = int_dt %>% 
   melt(measure = patterns('RNA_snn_res'), var = 'resolution', val = 'cluster') %>% 
-  .[, .(reduction, sample_id, cell_id, 
+  .[, .(embedding, sample_id, cell_id, 
     resolution = str_extract(resolution, "(?<=res\\.)(.+)"), cluster)]
 ```
 

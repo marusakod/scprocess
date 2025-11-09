@@ -2,6 +2,7 @@ import h5py
 import numpy as np
 import argparse
 import re
+import gzip
 import scipy.sparse as sp
 from scipy.sparse import csc_matrix, csr_matrix, hstack
 import anndata as ad
@@ -39,7 +40,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   dbl_theta     = 0
 
   print('loading hvg matrix')
-  all_hvg_mat, all_bcs   = _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f):
+  all_hvg_mat, all_bcs   = _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f)
 
   print('loading relevant cell ids')
   ok_cells_df   = _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs)
@@ -62,16 +63,19 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   print('running integration on clean data')
   int_ok        = _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, use_gpu, theta)
 
-  print('save results')
+  print('join results')
   int_dt        = int_ok.join(dbl_data, on=["sample_id", "cell_id"], coalesce=True, how = 'full')
-  int_dt.write_csv(file = integration_f, separator = "\t")
+
+  print('save results')
+  with gzip.open(integration_f, 'wb') as f:
+    int_dt.write_csv(f)
 
   print('done!')
 
-  return
+  return int_dt
 
 
-def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs)
+def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs):
   # load files
   sample_qc     = pl.read_csv(sample_qc_f)
   all_coldata   = pl.read_csv(coldata_f)
@@ -189,15 +193,13 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, 
   sc.tl.umap(adata) # need to tell umap to use harmony
 
   print(' finding clusters')
-
   if not isinstance(res_ls, list):
     res_ls = [res_ls]
-
   for res in res_ls:
     if cl_method == 'leiden':
-     sc.tl.leiden(
+      sc.tl.leiden(
         adata, key_added=f"RNA_snn_res.{res}", resolution=float(res)
-     )
+      )
     elif cl_method == 'louvain': # louvain not working in non-gpu mode
       sc.tl.louvain(
         adata, key_added=f"RNA_snn_res.{res}", resolution=float(res)
@@ -214,7 +216,8 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, 
   return int_dt
 
 
-def _get_clusts_from_adata(adata, embedding): 
+def _get_clusts_from_adata(adata, embedding):
+  # get results
   clusts_dt = adata.obs.copy()
   clusts_dt = pl.from_pandas(clusts_dt)
   clusts_dt = clusts_dt.with_columns(pl.lit(embedding).alias('embedding'))
@@ -226,29 +229,31 @@ def _get_clusts_from_adata(adata, embedding):
   
   # get nice labels for clusters
   transform_exprs = []
-    
   for cl_v in cl_vs:
-    expr = (
-      pl.col(cl_v)
-      .cast(pl.Categorical)
-      .to_physical() 
-      .map_batches(lambda s: np.where(s.is_null(), np.nan, s + 1)) 
-      .cast(pl.Int64)
-      .map_elements(
-      lambda x: f"cl{x:02d}", 
-      return_dtype=pl.Utf8
-      )
-      .alias(cl_v)
-    )
-    transform_exprs.append(expr)
+    # count each cluster, put in order, make nice new cluster cluster names
+    cl_lu = clusts_dt.select(
+      cl_v
+    ).filter(
+      pl.col(cl_v).is_not_null()
+    ).group_by(cl_v).agg(
+      pl.len().alias("N")
+    ).sort(
+      "N", descending = True
+    ).with_row_index(
+      "rank", offset = 1
+    ).with_columns(
+      pl.format("cl{}", pl.col("rank").cast(pl.String).str.zfill(2)).alias( cl_v + ".tmp" )
+    ).select([cl_v, cl_v + ".tmp"])
 
-    clusts_dt = clusts_dt.with_columns(transform_exprs)
+    # replace old values
+    clusts_dt   = clusts_dt.join(
+      cl_lu, on = cl_v, how = "left"
+    ).drop(cl_v).rename({ cl_v + ".tmp": cl_v })
 
   return clusts_dt
 
 
 def _get_embeddings_from_adata(adata, embedding,  sel_embed): 
-
   pca_array = adata.obsm[sel_embed]
   n_dims = pca_array.shape[1]
 
