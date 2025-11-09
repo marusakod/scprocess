@@ -45,7 +45,7 @@ make_rmd_from_temp <- function(temp_f, temp_ls, rmd_f) {
 }
 
 get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'integration', 
-  'markers', 'label_celltypes', 'zoom', 'pb_empties'), proj_dir, ...) {
+  'markers', 'label_celltypes', 'zoom', 'pb_empties', 'index'), proj_dir, ...) {
   # get arguments
   sel_rule = match.arg(rule)
   add_args = list(...)
@@ -188,14 +188,6 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
     assert_that(all(req_names %in% add_args_names))
 
-    # if (add_args[["lbl_tissue"]] == 'human_cns') {
-    #   train_data_str = "whole brain human single nuclei atlas (siletti et al. 2023)"
-    # } else if (add_args[["lbl_tissue"]] == 'mouse_cns') {
-    #   train_data_str = "whole brain mouse single nuclei atlas (Langlieb et al. 2023)"
-    # } else {
-    #   train_data_str = "insert name of study here"
-    # }
-
     params_ls = add_args
     # params_ls = c(params_ls, train_data_str = train_data_str)
 
@@ -253,37 +245,73 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     
     assert_that(all(req_names %in% add_args_names))
   } else if (sel_rule == 'index') {
-     req_names = c('your_name', 'affiliation', 'short_tag', 'docs_dir', 'full_tag', 'date_stamp', 'htmls')
+     req_names = c('your_name', 'affiliation', 'short_tag', 'docs_dir', 'full_tag', 'date_stamp', 'mkr_sel_res')
 
      assert_that(all(req_names %in% add_args_names))
 
      # get list of all htmls
      short_tag = add_args[['short_tag']]
      docs_dir  = add_args[['docs_dir']]
-     htmls = add_args[['htmls']] %>%
-      str_split(pattern = " ") %>% unlist()
-    
-     # get list of possible htmls and their names
-     scprocess_htmls = list(
-      Mapping         = sprintf("%s/%s_mapping.html", docs_dir, short_tag), 
-      Multiplexing    = sprintf("%s/%s_demultiplexing.html", docs_dir, short_tag),
-      Ambient         = sprintf("%s/%s_ambient.html", docs_dir, short_tag), 
-      QC              = sprintf("%s/%s_qc.html", docs_dir, short_tag), 
-      HVGs            = sprintf("%s/%s_hvgs.html", docs_dir, short_tag), 
-      Integration     = sprintf("%s/%s_integration.html", docs_dir, short_tag), 
-      Marker_genes    = sprintf("%s/%s_marker_genes.html", docs_dir, short_tag), 
-      Label_celltypes = sprintf("%s/%s_label_celltypes.html", docs_dir, short_tag)
-     )
+     htmls     = list.files(docs_dir, pattern = '.*.html$')
+     
+     # set defaults
+     mapping_link         = ""
+     demultiplexing_link  = ""
+     ambient_link         = ""
+     qc_link              = ""
+     hvgs_link            = ""
+     integration_link     = ""
+     marker_genes_link    = ""
+     label_celltypes_link = ""
 
-     # filter list for htmls that exist and format nicelly
-     html_ls = htmls[htmls %in% unname(unlist(scprocess_htmls))]
+     # get placeholder replacements for all htmls
+     if(paste0(short_tag, '_mapping.html') %in% htmls){
+      mapping_link = sprintf("- Mapping ([link](%s_mapping.html))", short_tag)
+     }
+
+     if(paste0(short_tag, '_demultiplexing.html') %in% htmls){
+      demultiplexing_link = sprintf("- Demultiplexing ([link](%s_demultiplexing.html))", short_tag)
+     }
+
+     if(paste0(short_tag, '_ambient.html') %in% htmls){
+      ambient_link = sprintf("- Ambient RNA removal ([link](%s_ambient.html))", short_tag)
+     }
+     
+     if(paste0(short_tag, '_qc.html') %in% htmls){
+      qc_link = sprintf("- QC ([link](%s_qc.html))", short_tag)
+     }
+
+     if(paste0(short_tag, '_hvgs.html') %in% htmls){
+      hvgs_link = sprintf("- Highly variable genes ([link](%s_hvgs.html))", short_tag)
+     }
+
+     if(paste0(short_tag, '_integration.html') %in% htmls){
+      integration_link = sprintf("- Integration ([link](%s_integration.html))", short_tag)
+     }
+
+     if(paste0(short_tag, '_marker_genes_',  add_args[['mkr_sel_res']], '.html') %in% htmls){
+      marker_genes_link = sprintf("- Marker genes ([link](%s_marker_genes.html))", short_tag)
+     }
+
+     if(paste0(short_tag, '_label_celltypes.html') %in% htmls){
+      label_celltypes_link = sprintf("- Celltype labelling ([link](%s_label_celltypes.html))", short_tag)
+     }
+     
 
      params_ls = c(
-      add_args[setdiff(req_names, 'htmls')],
-      list(html_ls = html_ls))
+      add_args[setdiff(req_names, c('mkr_sel_res', 'docs_dir'))],
+      list(
+        mapping_link        = mapping_link, 
+        demultiplexing_link = demultiplexing_link, 
+        ambient_link        = ambient_link,
+        qc_link             = qc_link, 
+        hvgs_link           = hvgs_link, 
+        integration_link    = integration_link, 
+        marker_genes_link   = marker_genes_link, 
+        label_celltypes_link= label_celltypes_link
+      ))
 
   }
-  params_ls$proj_dir = proj_dir
-
+  
   return(params_ls)
 }

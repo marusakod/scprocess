@@ -293,6 +293,10 @@ rule label_celltypes:
     rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
     docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
 
+rule index:
+  input:
+    docs_dir + '/' + 'index.html'
+
 
 # define rules that are needed
 include: "mapping.smk"
