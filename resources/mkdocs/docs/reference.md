@@ -163,7 +163,6 @@ This is an example config file for {{sc}} with all parameters and their default 
       int_n_dims: 50
       int_dbl_res: 4
       int_dbl_cl_prop: 0.5
-      int_cl_method: louvain
       int_res_ls: [0.1, 0.2, 0.5, 1, 2]
     marker_genes:
       mkr_sel_res: 0.2
@@ -173,6 +172,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       mkr_min_cpm_mkr: 50
       mkr_min_cpm_go: 1
       mkr_max_zero_p: 0.5
+      mkr_do_gsea: True
       mkr_gsea_cut: 0.1
       mkr_custom_genesets:
       - name:
@@ -261,7 +261,6 @@ This is an example config file for {{sc}} with all parameters and their default 
       int_n_dims: 50
       int_dbl_res: 4
       int_dbl_cl_prop: 0.5
-      int_cl_method: louvain
       int_res_ls: [0.1, 0.2, 0.5, 1, 2]
     marker_genes:
       mkr_sel_res: 0.2
@@ -271,6 +270,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       mkr_min_cpm_mkr: 50
       mkr_min_cpm_go: 1
       mkr_max_zero_p: 0.5
+      mkr_do_gsea: True
       mkr_gsea_cut: 0.1
       mkr_custom_genesets:
       - name: mouse_brain
@@ -417,7 +417,6 @@ sample_id:
 * `int_n_dims`: number of principal components to use for data integration.
 * `int_dbl_res`: clustering resolution for identification of additional doublets.
 * `int_dbl_cl_prop`: threshold for the proportion of doublets within a cluster. Clusters where the proportion of doublets exceeds this value will be excluded.
-* `int_cl_method`: algorithm used for clustering, options: `leiden`, `louvain`.
 * `int_res_ls`: list of resolution values to be used for clustering.
 
 ##### marker_genes
@@ -429,6 +428,7 @@ sample_id:
 * `mkr_min_cpm_mkr`: minimum counts per million (CPM) in a cell type required for a gene to be considered a marker gene.
 * `mkr_min_cpm_go`: minimum counts per million (CPM) in a cell type required for a gene to be used in Gene Ontology (GO) analysis.
 * `mkr_max_zero_p`: maximum proportion of pseudobulk samples for a cell type that can have zero counts for a gene to be used in GO analysis.
+* `mkr_do_gsea`: boolean specifiying whether Gene Set Enrichment Analysis (GSEA) should be performed on marker genes. 
 * `mkr_gsea_cut`: False discovery rate (FDR) cutoff for Gene Set Enrichment Analysis (GSEA).
 * `mkr_custom_sets`: a list of custom marker gene sets, each defined by a unique name and associated file path.
     + `name`: a string representing the name of the marker gene set

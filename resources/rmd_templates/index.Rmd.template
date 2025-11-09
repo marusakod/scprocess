@@ -1,30 +1,28 @@
 ---
-title: "[insert title]"
+title: "${full_tag}"
 author:
 - name: ${your_name}
   affiliation: 
   - ${affiliation}
-date: '`r format(Sys.Date(), "%B %d, %Y")`'
+date: '`r format(as.Date("${date_stamp}"), "%B %d, %Y")`'
 output:
-  workflowr::wflow_html:
+  rmdformats::downcute:
+    highlight: textmate
     code_folding: hide
-    toc: true
-    toc_float: true
-    number_sections: false
+    toc_depth: 3
+    css: custom.css
 ---
 
-<!-- workflowr::wflow_build(files='analysis/index.Rmd', view=F, verbose=T, delete_cache=T) -->
 
-# Pre-processing
+# Core steps
 
-- CellBender checks ([link](${short_tag}_cellbender.html))
-- QC filtering ([link](${short_tag}_qc.html))
-- Integrating ([link](${short_tag}_integration.html))
-- Highly variable and marker genes at pseudobulk level ([link](${short_tag}_marker_genes.html))
+${mapping_link}
+${demultiplexing_link}
+${ambient_link}
+${qc_link}
+${hvgs_link}
+${integration_link}
+${marker_genes_link}
+${label_celltypes_link}
 
-
-
-```{r session_info, include=TRUE, echo=TRUE, results="markup"}
-devtools::session_info()
-```
 

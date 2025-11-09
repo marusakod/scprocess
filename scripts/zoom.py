@@ -80,7 +80,8 @@ def extract_zoom_sample_statistics(qc_stats_f, SAMPLES, LABELS_F, LABELS_VAR, LA
 
 # zoom function: specify some optional outputs for zoom (at the moment only FGSEA outputs)
 def get_zoom_conditional_outputs(species, zoom_dir, FULL_TAG, DATE_STAMP):
-  if species in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']:
+  do_gsea = True
+  if (species in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & do_gsea:
     return {
       'fgsea_go_bp_f': zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_go_bp_' + DATE_STAMP + '.txt.gz', 
       'fgsea_go_cc_f': zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_go_cc_' + DATE_STAMP + '.txt.gz',

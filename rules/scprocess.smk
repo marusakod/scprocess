@@ -101,7 +101,7 @@ fgsea_outs = [
     mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
     mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'paths_' + DATE_STAMP + '.txt.gz',
     mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
-] if config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'] else []
+] if (config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & config['marker_genes']['mkr_do_gsea'] else []
 
 # cellbender report (optional)
 ambient_rmd_f  = (rmd_dir  + '/' + SHORT_TAG + '_ambient.Rmd')
@@ -292,6 +292,10 @@ rule label_celltypes:
     code_dir  + '/label_celltypes.R',
     rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
     docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
+
+rule index:
+  input:
+    docs_dir + '/' + 'index.html'
 
 
 # define rules that are needed

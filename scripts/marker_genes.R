@@ -19,10 +19,11 @@ gsea_regex  = "^(HALLMARK_|GOBP_|GOCC_|GOMF_|BIOCARTA_|REACTOME_|KEGG_)(.+)"
 
 calculate_marker_genes <- function(integration_f, sces_yaml_f, pb_f, mkrs_f, pb_hvgs_f,
   fgsea_go_bp_f = "", fgsea_go_cc_f = "", fgsea_go_mf_f = "", fgsea_paths_f = "", fgsea_hlmk_f = "",
-  species, gtf_dt_f, gsea_dir, sel_res, min_cl_size, min_cells,
+  species, do_gsea, gtf_dt_f, gsea_dir, sel_res, min_cl_size, min_cells,
   not_ok_re, min_cpm_go, max_zero_p,  gsea_cut, zoom = FALSE, n_cores = 4) {
   
   zoom = as.logical(zoom)
+  do_gsea = as.logical(do_gsea)
   
   # check some inputs
   assert_that(
@@ -79,7 +80,7 @@ calculate_marker_genes <- function(integration_f, sces_yaml_f, pb_f, mkrs_f, pb_
     n_cores = n_cores)
 
   # do GSEA only if species is human or mouse
-  if (species %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) {
+  if (species %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020') & do_gsea) {
     message("  running FGSEA")
     fgsea_fs    = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f)
     names(fgsea_fs) = str_extract(fgsea_fs, "(go_bp|go_cc|go_mf|paths|hlmk)")
