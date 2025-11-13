@@ -5,7 +5,7 @@ import gzip
 import os
 import numpy as np
 
-localrules: merge_qc, make_qc_thresholds_csv
+localrules: merge_qc, make_qc_thresholds_csv, make_tmp_sce_paths_yaml
 
 # get output file paths as string
 def get_qc_files_str(run, SAMPLES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP):

@@ -148,6 +148,7 @@
       "additionalProperties": false,
       "properties": {
         "int_embedding":    { "type": "string", "enum": ["harmony", "pca"], "default": "harmony" },
+        "int_cl_method":    { "type": "string", "default": "leiden", "enum": ["leiden", "louvain"] },
         "int_theta":        { "type": "number", "default": 0.1 },
         "int_batch_var":    { "type": "string", "enum": ["pool_id", "sample_id"], "default": "sample_id" },
         "int_n_dims":       { "type": "integer", "default": 50 },

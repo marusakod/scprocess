@@ -226,19 +226,12 @@ def _get_clusts_from_adata(adata, embedding):
   cl_vs     = [col for col in clusts_dt.columns if re.match(r'RNA_snn_res.*', col)]
   all_cols  = cl_vs + ['embedding', 'cell_id', 'sample_id']
   clusts_dt = clusts_dt.select(all_cols)
-  
+
   # get nice labels for clusters
-  transform_exprs = []
   for cl_v in cl_vs:
     # count each cluster, put in order, make nice new cluster cluster names
-    cl_lu = clusts_dt.select(
-      cl_v
-    ).filter(
-      pl.col(cl_v).is_not_null()
-    ).group_by(cl_v).agg(
-      pl.len().alias("N")
-    ).sort(
-      "N", descending = True
+    cl_lu = clusts_dt[ cl_v ].value_counts().sort(
+      "count", descending = True
     ).with_row_index(
       "rank", offset = 1
     ).with_columns(

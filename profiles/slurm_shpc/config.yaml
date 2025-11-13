@@ -11,9 +11,9 @@ default-resources:
   runtime: 3h
   mem_mb: 4096
 set-resources:
-  #run_integration:
-   # slurm_partition: "batch_gpu"
-   # slurm_extra: "'--gpus=1'"
+  run_integration:
+    slurm_partition: "batch_gpu"
+    slurm_extra: "'--gpus=1'"
   run_cellbender:
     slurm_partition: "batch_gpu"
     slurm_extra: "'--gpus=1 --cpus-per-task=4'"
