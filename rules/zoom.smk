@@ -558,6 +558,7 @@ rule zoom_run_marker_genes:
       pb_hvgs_f     = '{output.pb_hvgs_f}',
       {params.fgsea_args}
       species       = '{params.species}',
+      do_gsea       = '{params.zoom_mkr_do_gsea}', 
       gtf_dt_f      = '{params.af_gtf_dt_f}',
       gsea_dir      = '{params.mkr_gsea_dir}',
       sel_res       = '{params.zoom_mkr_sel_res}',
@@ -647,6 +648,7 @@ rule render_html_zoom:
     zoom_mkr_min_cpm_mkr  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cpm_mkr'], 
     zoom_mkr_min_cells    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cells'],  
     zoom_mkr_not_ok_re    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_not_ok_re'], 
+    zoom_mkr_do_gsea      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea'], 
     zoom_mkr_gsea_cut     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_cut'], 
     zoom_custom_mkr_names = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_names'], 
     zoom_custom_mkr_paths = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_paths']
@@ -695,7 +697,8 @@ rule render_html_zoom:
       mkr_min_cpm_mkr   =  {params.zoom_mkr_min_cpm_mkr}, 
       mkr_min_cells     =  {params.zoom_mkr_min_cells}, 
       mkr_gsea_cut      =  {params.zoom_mkr_gsea_cut}, 
-      species           = '{params.species}'
+      species           = '{params.species}',
+      do_gsea           = '{params.zoom_mkr_do_gsea}'
     )"
     """
 

@@ -53,6 +53,7 @@ empty_gs_f    = "${empty_gs_f}"
 pb_empty_f    = "${pb_empty_f}"
 
 # fgsea files
+do_gsea       = as.logical("${do_gsea}")
 fgsea_go_bp_f = "${fgsea_go_bp_f}"
 fgsea_go_cc_f = "${fgsea_go_cc_f}"
 fgsea_go_mf_f = "${fgsea_go_mf_f}"
@@ -62,8 +63,7 @@ fgsea_hlmk_f  = "${fgsea_hlmk_f}"
 # custom markers for heatmap
 custom_mkr_names_str = "${custom_mkr_names}"
 custom_mkr_paths_str = "${custom_mkr_paths}"
-
-if(custom_mkr_names_str != ""){
+if (custom_mkr_names_str != "") {
   custom_mkr_names = str_split(custom_mkr_names_str, pattern = ',') %>% unlist()
   custom_mkr_paths = str_split(custom_mkr_paths_str, pattern = ',') %>% unlist() %>%
     setNames(custom_mkr_names)
@@ -215,7 +215,6 @@ gsea_ls       = lapply(fgsea_fs, function(f) if(file.exists(f)) {fread(f)} else 
 
 ```{r plot_setup, include = FALSE}
 do_metadata   = length(metadata_vars) > 0
-do_gsea       = species %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')
 ```
 
 ## HVG selection diagnostics
