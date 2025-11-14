@@ -5,7 +5,7 @@ import gzip
 import os
 import numpy as np
 
-localrules: merge_qc, make_qc_thresholds_csv
+localrules: make_qc_thresholds_csv, make_tmp_sce_paths_yaml
 
 # get output file paths as string
 def get_qc_files_str(run, SAMPLES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP):
@@ -124,6 +124,7 @@ rule make_qc_thresholds_csv:
 
 rule run_qc:
   input:
+    af_h5_f     = af_dir  + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5', 
     cuts_f      = qc_dir  + '/qc_thresholds_by_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     run_stats_f = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     amb_yaml_f  = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
@@ -153,7 +154,14 @@ rule run_qc:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt, input: (
+      attempt * (
+      config['resources'].get('gb_run_qc', None) * MB_PER_GB
+      if config['resources'].get('gb_run_qc') is not None
+      else (1522.029 + 34.180 * (os.path.getsize(input.af_h5_f)//MB_PER_GB**2)) + 2*MB_PER_GB # lm + buffer
+      )
+    ), 
+    runtime = lambda wildcards, input: (35.03 + 1.687*(os.path.getsize(input.af_h5_f)//MB_PER_GB**2))/60 + 5 # lm + 5 min buffer
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/run_qc_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -199,7 +207,14 @@ rule merge_qc:
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/merge_qc_' + DATE_STAMP + '.benchmark.txt'
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: (
+      attempt * (
+      config['resources'].get('gb_run_qc', None) * MB_PER_GB
+      if config['resources'].get('gb_run_qc') is not None
+      else (145.174 + 0.162 * len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
+      )
+    ), 
+    runtime = lambda wildcards: (-1.151 + 0.603*len(SAMPLES))/60 + 5 # lm + 5 min buffer
   run:
     # read all nonempty input files and concatenate them
     qc_df_ls    = [ pl.read_csv(f, schema_overrides = {"log_N": pl.Float64}) for f in input.qc_fs ]
@@ -223,7 +238,14 @@ rule merge_rowdata:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: (
+      attempt * (
+      config['resources'].get('gb_run_qc', None) * MB_PER_GB
+      if config['resources'].get('gb_run_qc') is not None
+      else (111.267 + 7.465 * len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
+      )
+    ), 
+    runtime = lambda wildcards: (0.593 + 0.056*len(SAMPLES))/60 + 5 # lm + 5 min buffer
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/merge_rowdata_' + DATE_STAMP + '.benchmark.txt'
   run:
@@ -252,7 +274,14 @@ rule get_qc_sample_statistics:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: (
+      attempt * (
+      config['resources'].get('gb_run_qc', None) * MB_PER_GB
+      if config['resources'].get('gb_run_qc') is not None
+      else (78.85 + 3.092 * len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
+      )
+    ), 
+    runtime = lambda wildcards: (-0.005 + 0.033*len(SAMPLES))/60 + 5 # lm + 5 min buffer
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/get_qc_sample_statistics_' + DATE_STAMP + '.benchmark.txt'
   run:
