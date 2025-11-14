@@ -203,8 +203,12 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, 
     elif cl_method == 'louvain': # louvain not working in non-gpu mode
       sc.tl.louvain(
         adata, key_added=f"RNA_snn_res.{res}", resolution=float(res)
-      ) 
-  
+      )
+
+  # move anndata back to cpu
+  if use_gpu:
+    sc.get.anndata_to_CPU(adata)
+
   print(' recording clusters')
   clusts_dt = _get_clusts_from_adata(adata, this_embedding)
   
