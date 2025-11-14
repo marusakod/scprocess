@@ -12,6 +12,7 @@ rule run_integration:
     demux_type      = config['multiplexing']['demux_type'],
     exclude_mito    = config['qc']['exclude_mito'],
     int_embedding   = config['integration']['int_embedding'],
+    int_cl_method   = config['integration']['int_cl_method'],
     int_theta       = config['integration']['int_theta'],
     int_batch_var   = config['integration']['int_batch_var'],
     int_n_dims      = config['integration']['int_n_dims'],
@@ -50,7 +51,7 @@ rule run_integration:
       --exclude_mito  "{params.exclude_mito}" \
       --embedding     {params.int_embedding} \
       --n_dims        {params.int_n_dims} \
-      --cl_method     leiden \
+      --cl_method     {params.int_cl_method} \
       --dbl_res       {params.int_dbl_res} \
       --dbl_cl_prop   {params.int_dbl_cl_prop} \
       --theta         {params.int_theta} \
