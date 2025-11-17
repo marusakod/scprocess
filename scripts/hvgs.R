@@ -12,11 +12,19 @@ calc_vst_obj <- function(pb, edger_dt) {
   })
 
   # calculate vst
-  vst_obj     = tryCatch({
-    vst(dds, blind = TRUE)
-    }, error = function(cond) {
-    varianceStabilizingTransformation(dds, blind = TRUE)
+  vst_obj   = tryCatch({
+    tryCatch({
+      vst(dds, blind = TRUE)
+      }, error = function(cond) {
+      varianceStabilizingTransformation(dds, blind = TRUE)
+      })
+  }, error = function(cond) {
+    suppressMessages({
+      dds       = DESeqDataSetFromMatrix(countData = empty_mat + 1,
+        colData = data.frame(dummy = rep(1, ncol(empty_mat))), design = ~ 1)
     })
+    vst(dds, blind = TRUE)
+  })
 
   # add edger stats
   edger_tmp   = copy(edger_dt) %>% 
