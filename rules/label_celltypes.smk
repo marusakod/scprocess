@@ -95,8 +95,9 @@ rule run_scprocess_labeller:
     )"
     """
 
-
-if 'label_celltypes' in config:
+# only do this bit if other parts are finished
+qc_stats_f  = pathlib.Path(f"{qc_dir}/qc_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv")
+if ('label_celltypes' in config) & qc_stats_f.is_file():
 
   def parse_merge_labels_parameters(LABELLER_PARAMS, labeller, model):
     # get the one that matches
@@ -110,7 +111,7 @@ if 'label_celltypes' in config:
     return this_entry[0]
 
   # load up qc outputs
-  qc_stats    = pl.read_csv(f"{qc_dir}/qc_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv").filter( pl.col('bad_sample') == False )
+  qc_stats    = pl.read_csv(qc_stats_f).filter( pl.col('bad_sample') == False )
 
   # do labelling with celltypist
   rule merge_labels:
