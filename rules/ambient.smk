@@ -6,6 +6,7 @@ import yaml
 import pandas as pd
 import polars as pl
 
+localrules: get_ambient_run_statistics
 
 def parse_ambient_params(run, config, RUN_PARAMS, af_dir, af_rna_dir):
   # get cellbender parameters from yaml file
@@ -129,7 +130,7 @@ def extract_ambient_run_statistics(config, RUNS, RUN_PARAMS, metrics_fs_ls, ambi
 if config['ambient']['ambient_method'] == 'cellbender':
   rule run_cellbender:
     input:
-      h5_f        = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
+      af_h5_f     = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
       amb_yaml_f  = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml'
     params:
       cb_version                  = config['ambient']['cb_version'],
@@ -145,7 +146,17 @@ if config['ambient']['ambient_method'] == 'cellbender':
     threads: 4
     retries: config['resources']['retries']
     resources:
-      mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB,
+      mem_mb = lambda wildcards, attempt, input: (
+        attempt * (
+        config['resources'].get('gb_run_cellbender', None) * MB_PER_GB
+        if config['resources'].get('gb_run_cellbender') is not None
+        else (2416 + 4.981 * (os.path.getsize(input.af_h5_f)//MB_PER_GB**2)) + 2*MB_PER_GB # lm + buffer
+      )
+      ), 
+      runtime = lambda wildcards, input:
+        config['resources'].get('min_run_cellbender', None)
+        if config['resources'].get('min_run_cellbender') is not None
+        else (496.085 + 51.868*(os.path.getsize(input.af_h5_f)//MB_PER_GB**2))/60 + 5 # lm + 5 min buffer
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_ambient/run_cellbender_{run}_' + DATE_STAMP + '.benchmark.txt'
     container:
@@ -185,7 +196,7 @@ if config['ambient']['ambient_method'] == 'cellbender':
         echo "running cellbender without expected_cells"
         # run cellbender
         cellbender remove-background \
-          --input {input.h5_f} \
+          --input {input.af_h5_f} \
           --output $raw_counts_f \
           --total-droplets-included $TOTAL_DROPLETS_INCLUDED \
           --low-count-threshold $LOW_COUNT_THRESHOLD \
@@ -198,7 +209,7 @@ if config['ambient']['ambient_method'] == 'cellbender':
         echo "running cellbender with expected_cells"
         # run cellbender
         cellbender remove-background \
-          --input {input.h5_f} \
+          --input {input.af_h5_f} \
           --output $raw_counts_f \
           --expected-cells $EXPECTED_CELLS \
           --total-droplets-included $TOTAL_DROPLETS_INCLUDED \
@@ -226,7 +237,7 @@ if config['ambient']['ambient_method'] == 'cellbender':
 if config['ambient']['ambient_method'] == 'decontx':
   rule run_decontx:
     input:
-      h5_f            = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
+      af_h5_f         = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
       amb_yaml_f      = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml', 
       knee_data_f     = af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
     output:
@@ -237,7 +248,17 @@ if config['ambient']['ambient_method'] == 'decontx':
     threads: 4
     retries: config['resources']['retries']
     resources:
-      mem_mb    = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB
+      mem_mb = lambda wildcards, attempt, input: (
+        attempt * (
+        config['resources'].get('gb_run_decontx', None) * MB_PER_GB
+        if config['resources'].get('gb_run_decontx') is not None
+        else (498.23 + 65.525 * (os.path.getsize(input.af_h5_f)//MB_PER_GB**2)) + 2*MB_PER_GB # lm + buffer
+      )
+      ), 
+      runtime = lambda wildcards, input:
+        config['resources'].get('min_run_decontx', None)
+        if config['resources'].get('min_run_decontx') is not None
+        else (-1.98 + 2.124*(os.path.getsize(input.af_h5_f)//MB_PER_GB**2))/60 + 5 # lm + 5 min buffer
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_ambient/run_decontx_{run}_' + DATE_STAMP + '.benchmark.txt'
     conda: 
@@ -261,7 +282,7 @@ if config['ambient']['ambient_method'] == 'decontx':
         out_bcs_f         = '$bcs_f',
         out_dcx_f         = '$dcx_params_f',
         sel_s             = '{wildcards.run}',
-        af_mat_f          = '{input.h5_f}',
+        af_mat_f          = '{input.af_h5_f}',
         knee_f            = '{input.knee_data_f}',
         ncores            =  {threads},
         cell_calls_method = '{params.cell_calling}',
@@ -292,7 +313,8 @@ if config['ambient']['ambient_method'] == 'none':
     conda:
       '../envs/rlibs.yaml'
     resources:
-      mem_mb    = lambda wildcards, attempt: attempt * config['resources']['gb_run_ambient'] * MB_PER_GB
+      mem_mb    = lambda wildcards, attempt: attempt * config['resources']['gb_run_cell_calling'] * MB_PER_GB, 
+      runtime   = config['resources']['min_run_cell_calling']
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_ambient/run_cell_calling_{run}_' + DATE_STAMP + '.benchmark.txt'
     shell:
@@ -313,7 +335,7 @@ if config['ambient']['ambient_method'] == 'none':
         out_mat_f         = '$filt_counts_f',
         out_bcs_f         = '$bcs_f', 
         sel_s             = '{wildcards.run}', 
-        af_mat_f          = '{input.h5_f}', 
+        af_mat_f          = '{input.af_h5_f}', 
         knee_f            = '{input.knee_data_f}', 
         ncores            =  {threads}, 
         cell_calls_method = '{params.cell_calling}',
@@ -340,7 +362,17 @@ rule get_barcode_qc_metrics:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_get_barcode_qc_metrics'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt, input: (
+      attempt * (
+      config['resources'].get('gb_get_barcode_qc_metrics', None) * MB_PER_GB
+      if config['resources'].get('gb_get_barcode_qc_metrics') is not None
+      else (615.807 + 36.205 * (os.path.getsize(input.af_h5_f)//MB_PER_GB**2)) + 2*MB_PER_GB # lm + buffer
+      )
+    ), 
+    runtime = lambda wildcards, input:
+      config['resources'].get('min_get_barcode_qc_metrics', None) 
+      if config['resources'].get('min_get_barcode_qc_metrics') is not None
+      else (25.172 + 0.963*(os.path.getsize(input.af_h5_f)//MB_PER_GB**2))/60 + 5 # lm + 5 min buffer
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_ambient/get_barcode_qc_metrics_{run}_' + DATE_STAMP + '.benchmark.txt'
   shell: """

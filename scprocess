@@ -200,7 +200,7 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
 
 
 # scprocess run
-def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
+def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
   print('doing some checks on inputs')
 
   # housekeeping
@@ -253,6 +253,18 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
     *shlex.split(extraargs),
     rule
     ])
+  if not noindex:
+    print("\nrendering index:")
+    subprocess.run(["snakemake", 
+      "--snakefile", os.path.join(scprocess_dir, 'rules/scprocess.smk'), 
+      "--configfile", config_path,
+      "--config", f"scprocess_dir={str(scprocess_dir)}",
+      "--software-deployment-method", "conda",
+      "--rerun-triggers", "mtime",
+      "--forcerun",
+      *shlex.split(extraargs),
+      "index"
+      ])
  
   return
 
@@ -362,28 +374,8 @@ if __name__ == '__main__':
       may be locked. If you get an error message saying that it is locked, use this
       option to unlock it, then run scprocess as normal.
       ''')
-  
-  # subparser for the 'index' subcommand
-  index_prsr = subparsers.add_parser('index', help="create/update an index file for html reports")
-
-  index_prsr.add_argument("-n", "--dry-run", action="store_true", 
-    help = '''
-      "Dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.
-      ''')
-  index_prsr.add_argument("-E", "--extraargs", type = str, 
-    help = '''
-      Extra snakamake arguments. Must be provided within quotes. For example, to reduce outputs from snakemake: -E "--quiet"
-      ''')
-  index_prsr.add_argument("--unlock", action="store_true", 
-    help = '''
-      When an scprocess run is stopped before it is finished, the snakemake directory
-      may be locked. If you get an error message saying that it is locked, use this
-      option to unlock it, then run scprocess as normal.
-      ''')
-
-  # add arguments for index
-  index_prsr.add_argument('configfile', type=str, help="Required. YAML file specifying what you want to run, and any non-default parameters")
-  
+  run_prsr.add_argument("--noindex", action='store_true', 
+    help = "")
 
   # subparser for the 'plotknee' subcommand
   knee_parser = subparsers.add_parser('plotknee', help="save interactive knee plot for a specified sample, to help specify custom parameters")
@@ -450,28 +442,8 @@ if __name__ == '__main__':
     
     # print(sc_dir, args.configfile, snakefile, rule)   
     # call bsub thing
-    run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs)
+    run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs, args.noindex)
   
-  elif args.subcommand == "index":
-    # set default rule to all
-    rule = "index" 
-    
-    # select snakefile corresponding to workflow
-    snakefile = os.path.join(sc_dir, "rules/scprocess.smk")
-
-    # sort out extra arguments
-    extraargs = ' '
-    if args.unlock:
-      extraargs = " --unlock"
-    else:
-      if args.extraargs:
-        extraargs = extraargs + args.extraargs
-      if args.dry_run:
-        extraargs = extraargs + " -np"
-  
-    # call bsub thing
-    run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs)
-
   # plot knee for selected sample
   elif args.subcommand == 'plotknee':
     # process plotknee commands

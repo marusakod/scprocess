@@ -3,17 +3,18 @@ import numpy as np
 import argparse
 import re
 import gzip
+import gc
 import scipy.sparse as sp
 from scipy.sparse import csc_matrix, csr_matrix, hstack
 import anndata as ad
 import pandas as pd
 import polars as pl
 
-# hvg_mat_f        = '/pstore/data/mus-brain-analysis/studies/test_project/output/test_hvg/top_hvgs_counts_test_project_2025-01-01.h5'
-# dbl_hvg_mat_f    = '/pstore/data/mus-brain-analysis/studies/test_project/output/test_hvg/top_hvgs_doublet_counts_test_project_2025-01-01.h5'
-# sample_qc_f      = '/pstore/data/mus-brain-analysis/studies/test_project/output/test_qc/qc_sample_statistics_test_project_2025-01-01.csv'
-# coldata_f        = '/pstore/data/mus-brain-analysis/studies/test_project/output/test_qc/coldata_dt_all_samples_test_project_2025-01-01.txt.gz'
-# demux_type       = 'none'
+
+# hvg_mat_f = "/projects/site/pred/mus-brain-analysis/studies/Langlieb_2023_pallidum/output/Langlieb_pal_hvg/top_hvgs_counts_Langlieb_2023_pallidum_2025-10-08.h5"
+# dbl_hvg_mat_f = "/projects/site/pred/mus-brain-analysis/studies/Langlieb_2023_pallidum/output/Langlieb_pal_hvg/top_hvgs_doublet_counts_Langlieb_2023_pallidum_2025-10-08.h5"
+# sample_qc_f = "/projects/site/pred/mus-brain-analysis/studies/Langlieb_2023_pallidum/output/Langlieb_pal_qc/qc_sample_statistics_Langlieb_2023_pallidum_2025-10-08.csv"
+# coldata_f = "/projects/site/pred/mus-brain-analysis/studies/Langlieb_2023_pallidum/output/Langlieb_pal_qc/coldata_dt_all_samples_Langlieb_2023_pallidum_2025-10-08.csv.gz"
 # exclude_mito     = 'True'
 # embedding        = 'harmony'
 # n_dims           = 50
@@ -25,6 +26,8 @@ import polars as pl
 # integration_f    = '/pstore/data/mus-brain-analysis/studies/test_project/output/test_integration/python_integrated_dt_test_project_2025-01-01.txt.gz'
 # batch_var        = 'sample_id' 
 # n_cores          = 8
+# demux_type       = "none"
+# use_gpu          = True
 
 def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
@@ -55,10 +58,16 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   print('running integration to find more doublets')
   int_dbl       = _do_one_integration(adata, dbl_batch_var, cl_method, n_dims,
     dbl_res, embedding, use_gpu, theta = dbl_theta)
+  
+  del adata
+  gc.collect()
 
   print('filter to non-doublet cells')
   dbl_data      = _calc_dbl_data(int_dbl, ok_cells_df, dbl_res, dbl_cl_prop)
-  adata         = _adata_filter_out_doublets(adata, dbl_data)
+  adata         = _adata_filter_out_doublets(all_hvg_mat, ok_cells_df, dbl_data)
+
+  del all_hvg_mat
+  gc.collect()
 
   print('running integration on clean data')
   int_ok        = _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, use_gpu, theta)
@@ -190,7 +199,7 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, 
   
   print(' running UMAP')
   sc.pp.neighbors(adata, n_pcs= n_dims,use_rep=sel_embed)
-  sc.tl.umap(adata) # need to tell umap to use harmony
+  sc.tl.umap(adata, maxiter = 750) # need to tell umap to use harmony
 
   print(' finding clusters')
   if not isinstance(res_ls, list):
@@ -308,17 +317,21 @@ def _calc_dbl_data(int_dbl, ok_cells_df, dbl_res, dbl_cl_prop):
   return dbl_data
 
 
-def _adata_filter_out_doublets(adata, dbl_data):
-  # get non-doublet cell_ids
-  ok_ids        = dbl_data.filter(
-    (pl.col("is_dbl") == False) & (pl.col("in_dbl_cl") == False)
-    )["cell_id"].to_list()
 
-  # remove doublets from anndata object
-  ok_ids_idx    = adata.obs['cell_id'].isin(ok_ids)
-  adata         = adata[ok_ids_idx, :]
+
+def _adata_filter_out_doublets(all_hvg_mat, ok_cells_df, dbl_data):
+ 
+  ok_ids = dbl_data.filter(
+    (pl.col("is_dbl") == False) & (pl.col("in_dbl_cl") == False)
+  )["cell_id"].to_list()
+  
+  adata = ad.AnnData(X = all_hvg_mat.T , obs = ok_cells_df.to_pandas())
+  adata.obs.cell_id.isin(ok_ids)
+  
+  adata
 
   return adata
+
 
 
 if __name__ == "__main__":

@@ -39,6 +39,7 @@ rule make_empty_pb_input_df:
 # make empties per sample then combine
 rule make_one_pb_empty:
   input:
+    af_h5_f       = af_dir  + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5', 
     af_paths_f    = pb_dir +  '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output:
     pb_empty_f    = temp(pb_dir + '/tmp_pb_empties_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds')
@@ -47,7 +48,17 @@ rule make_one_pb_empty:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_pb_make_pbs'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt, input: (
+      attempt * (
+      config['resources'].get('gb_make_one_pb_empty', None) * MB_PER_GB
+      if config['resources'].get('gb_make_one_pb_empty') is not None
+      else (446.932 + 26.863 * (os.path.getsize(input.af_h5_f)//MB_PER_GB**2)) + 2*MB_PER_GB # lm + buffer
+      )
+    ), 
+    runtime = lambda wildcards, input:
+      config['resources'].get('min_make_one_pb_empty', None)
+      if config['resources'].get('min_make_one_pb_empty') is not None
+      else (26.849 + 0.427*(os.path.getsize(input.af_h5_f)//MB_PER_GB**2))/60 + 5 # lm + 5 min buffer
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_pb_empties/make_one_pb_empty_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
@@ -74,7 +85,8 @@ rule merge_pb_empty:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_pb_make_pbs'] * MB_PER_GB
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_merge_pb_empty'] * MB_PER_GB, 
+    runtime     = config['resources']['min_merge_pb_empty']
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_pb_empties/merge_pb_empty_' + DATE_STAMP + '.benchmark.txt'
   conda: 
@@ -101,7 +113,17 @@ rule make_pb_all:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_pb_make_pbs'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: (
+      attempt * (
+      config['resources'].get('gb_make_pb_all', None) * MB_PER_GB
+      if config['resources'].get('gb_make_pb_all') is not None
+      else (5379.419 + 213.689*len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
+      )
+    ), 
+    runtime = lambda wildcards: 
+      config['resources'].get('min_make_pb_all', None)
+      if config['resources'].get('min_make_pb_all') is not None
+      else (19.151 + 4.049*len(SAMPLES))/60 + 5 # lm + 5 min buffer
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_pb_empties/make_pb_all_' + DATE_STAMP + '.benchmark.txt'
   conda: 
@@ -129,7 +151,17 @@ rule calculate_ambient_genes:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_pb_make_pbs'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: (
+      attempt * (
+      config['resources'].get('gb_calculate_ambient_genes', None) * MB_PER_GB
+      if config['resources'].get('gb_calculate_ambient_genes') is not None
+      else (900.397 + 4.057*len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
+      )
+    ), 
+    runtime = lambda wildcards: 
+      config['resources'].get('min_calculate_ambient_genes', None)
+      if config['resources'].get('min_calculate_ambient_genes') is not None
+      else (19.290 + 0.384*len(SAMPLES))/60 + 5 # lm + 5 min buffer
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_pb_empties/calculate_ambient_genes_' + DATE_STAMP + '.benchmark.txt'
   conda: 

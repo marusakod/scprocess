@@ -57,7 +57,7 @@ r_scripts = [
   code_dir  + '/utils.R',
   code_dir  + '/mapping.R',
   code_dir  + '/ambient.R',
-  code_dir  + '/qc.R', 
+  #code_dir  + '/qc.R', 
   code_dir  + '/hvgs.R', 
   code_dir  + '/integration.R', 
   code_dir  + '/marker_genes.R'
@@ -150,7 +150,7 @@ rule all:
     hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-    hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
+    hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
     # integration
     int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     expand(int_dir + '/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample = SAMPLES),
@@ -166,7 +166,7 @@ rule all:
     # markdowns
     rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
     rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
-    rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
+    #rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
     rmd_dir   + '/' + SHORT_TAG + '_hvgs.Rmd',
     rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
     rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd', 
@@ -174,7 +174,7 @@ rule all:
     # reports
     docs_dir  + '/' + SHORT_TAG + '_mapping.html', 
     docs_dir  + '/' + SHORT_TAG + '_ambient.html', 
-    docs_dir  + '/' + SHORT_TAG + '_qc.html',
+    #docs_dir  + '/' + SHORT_TAG + '_qc.html',
     docs_dir  + '/' + SHORT_TAG + '_hvgs.html',
     docs_dir  + '/' + SHORT_TAG + '_integration.html',
     docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{config['marker_genes']['mkr_sel_res']}.html',

@@ -33,7 +33,11 @@ rule make_tmp_csr_matrix:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
+    mem_mb  = lambda wildcards, attempt: attempt * config['resources']['gb_make_tmp_csr_matrix']* MB_PER_GB, 
+    runtime = lambda wildcards:
+      config['resources'].get('min_make_tmp_csr_matrix', None)
+      if config['resources'].get('min_make_tmp_csr_matrix') is not None
+      else (-6.906 + 6.908*len(SAMPLES))/60 + 5 # lm + 5 min buffer
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_hvgs/make_tmp_csr_matrix_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -66,7 +70,17 @@ if config['hvg']['hvg_method'] == 'sample':
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
+      mem_mb = lambda wildcards, attempt, input: (
+        attempt * (
+        config['resources'].get('gb_get_stats_for_std_variance_for_sample', None) * MB_PER_GB
+        if config['resources'].get('gb_get_stats_for_std_variance_for_sample') is not None
+        else (260.69 + 12.782 * (os.path.getsize(input.clean_h5_f)//MB_PER_GB**2)) + 2*MB_PER_GB # lm + buffer
+        )
+      ), 
+      runtime = lambda wildcards, input: 
+        config['resources'].get('min_get_stats_for_std_variance_for_sample', None)
+        if config['resources'].get('min_get_stats_for_std_variance_for_sample') is not None
+        else (0.8 + 0.776*(os.path.getsize(input.clean_h5_f)//MB_PER_GB**2))/60 + 5 # lm + 5 min buffer
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_hvgs/get_stats_for_std_variance_for_sample_{sample}_' + DATE_STAMP + '.benchmark.txt'
     conda:
@@ -88,7 +102,17 @@ if config['hvg']['hvg_method'] == 'sample':
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
+      mem_mb = lambda wildcards, attempt: (
+        attempt * (
+        config['resources'].get('gb_merge_sample_std_var_stats', None) * MB_PER_GB
+        if config['resources'].get('gb_merge_sample_std_var_stats') is not None
+        else (116.076 + 14.053 * len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
+        )
+      ), 
+      runtime = lambda wildcards: 
+        config['resources'].get('min_merge_sample_std_var_stats', None)
+        if config['resources'].get('min_merge_sample_std_var_stats') is not None
+        else (-2.641 + 0.973*len(SAMPLES))/60 + 5 # lm + 5 min buffer
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_hvgs/merge_sample_std_var_stats_' + DATE_STAMP + '.benchmark.txt'
     run:
@@ -114,7 +138,8 @@ else:
       hvg_group_var   = config['hvg']['hvg_metadata_split_var']
     threads: 8
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
+      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_get_mean_var_for_group'] * MB_PER_GB, 
+      runtime = config['resources']['min_get_mean_var_for_group']
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_hvgs/get_mean_var_for_group_{group}_chunk_{chunk}_' + DATE_STAMP + '.benchmark.txt'
     conda:
@@ -146,11 +171,6 @@ else:
     output:
       mean_var_merged_f = temp(hvg_dir + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
     threads: 1
-    retries: config['resources']['retries']
-    resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
-    benchmark:
-      benchmark_dir + '/' + SHORT_TAG + '_hvgs/merge_group_mean_var_' + DATE_STAMP + '.benchmark.txt'
     run:
       merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
 
@@ -167,7 +187,8 @@ else:
     conda:
       '../envs/hvgs.yaml'
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
+      mem_mb  = lambda wildcards, attempt: attempt * config['resources']['gb_get_estimated_variances'] * MB_PER_GB, 
+      runtime = config['resources']['min_get_estimated_variances']
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_hvgs/get_estimated_variances_' + DATE_STAMP + '.benchmark.txt'
     shell: """
@@ -193,7 +214,8 @@ else:
       hvg_group_var   = config['hvg']['hvg_metadata_split_var']
     threads: 8
     resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
+      mem_mb  = lambda wildcards, attempt: attempt * config['resources']['gb_get_stats_for_std_variance_for_group'] * MB_PER_GB, 
+      runtime = config['resources']['min_get_stats_for_std_variance_for_group']
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_hvgs/get_stats_for_std_variance_for_group_{group}_chunk_{chunk}_' + DATE_STAMP + '.benchmark.txt'
     conda:
@@ -224,10 +246,6 @@ else:
         )
     output:
       std_var_stats_merged_f = temp(hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
-    threads: 1
-    retries: config['resources']['retries']
-    resources:
-      mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_hvgs/merge_group_std_var_stats_' + DATE_STAMP + '.benchmark.txt'
     run:
@@ -247,7 +265,14 @@ rule get_highly_variable_genes:
     n_hvgs     = config['hvg']['hvg_n_hvgs'],
     no_ambient = config['hvg']['hvg_exclude_ambient_genes']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: (
+        attempt * (
+        config['resources'].get('gb_get_highly_variable_genes', None) * MB_PER_GB
+        if config['resources'].get('gb_get_highly_variable_genes') is not None
+        else (190.282 + 23.503 * len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
+        )
+      ), 
+    runtime = config['resources']['min_get_highly_variable_genes']
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_hvgs/get_highly_variable_genes_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -281,7 +306,17 @@ rule create_hvg_matrix:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: (
+      attempt * (
+      config['resources'].get('gb_create_hvg_matrix', None) * MB_PER_GB
+      if config['resources'].get('gb_create_hvg_matrix') is not None
+      else (-342.214 + 84.301 * len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
+      )
+    ), 
+    runtime = lambda wildcards: 
+      config['resources'].get('min_create_hvg_matrix', None)
+      if config['resources'].get('min_create_hvg_matrix') is not None
+      else (-22.552 + 3.949*len(SAMPLES))/60 + 5 # lm + 5 min buffer
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_hvgs/create_hvg_matrix_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -310,7 +345,11 @@ rule create_doublets_hvg_matrix:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_hvgs'] * MB_PER_GB
+    mem_mb  = lambda wildcards, attempt: attempt * config['resources']['gb_create_doublets_hvg_matrix'] * MB_PER_GB, 
+    runtime = lambda wildcards: 
+      config['resources'].get('min_create_doublets_hvg_matrix', None) 
+      if config['resources'].get('min_create_doublets_hvg_matrix') is not None
+      else (-3.162 + 3.381*len(SAMPLES))/60 + 5 # lm + 5 min buffer
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_hvgs/create_doublets_hvg_matrix_' + DATE_STAMP + '.benchmark.txt'
   conda: 

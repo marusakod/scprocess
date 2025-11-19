@@ -13,7 +13,6 @@ output:
     css: custom.css
 ---
 
-
 # Core steps
 
 ${mapping_link}

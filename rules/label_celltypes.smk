@@ -17,7 +17,10 @@ rule make_tmp_mtx_file:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_label_celltypes'] * MB_PER_GB
+    mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_make_tmp_mtx_file'] * MB_PER_GB, 
+    runtime       = config['resources']['min_make_tmp_mtx_file']
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/make_tmp_mtx_file_{sample}_' + DATE_STAMP + '_{sample}.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
@@ -44,9 +47,10 @@ rule run_celltypist:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_label_celltypes'] * MB_PER_GB
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_run_celltypist'] * MB_PER_GB, 
+    runtime     = config['resources']['min_run_celltypist']
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/labels_celltypist_{model}_' + DATE_STAMP + '_{sample}.benchmark.txt'
+    benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/run_celltypist_{model}_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/celltypist.yaml'
   shell:"""
@@ -75,9 +79,10 @@ rule run_scprocess_labeller:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_label_celltypes'] * MB_PER_GB
+    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_run_scprocess_labeller'] * MB_PER_GB, 
+    runtime     = config['resources']['min_run_scprocess_labeller']
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/labels_scprocess_{model}_' + DATE_STAMP + '_{sample}.benchmark.txt'
+    benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/run_scprocess_labeller_{model}_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
@@ -126,7 +131,10 @@ if 'label_celltypes' in config:
     threads: 4
     retries: config['resources']['retries']
     resources:
-      mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_label_celltypes'] * MB_PER_GB
+      mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_merge_labels'] * MB_PER_GB, 
+      runtime       = config['resources']['gb_merge_labels']
+    benchmark: 
+      benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/merge_labels_{labeller}_{model}_' + DATE_STAMP + '.benchmark.txt'
     conda: 
       '../envs/celltypist.yaml'
     shell:"""

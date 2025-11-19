@@ -1,4 +1,5 @@
 # snakemake rule for integrating samples with harmony
+localrules: make_clean_sce_paths_yaml
 
 rule run_integration:
   input:
@@ -22,7 +23,8 @@ rule run_integration:
   threads: 1
   retries: config['resources']['retries'] 
   resources:
-    mem_mb   = lambda wildcards, attempt: attempt * config['resources']['gb_run_integration'] * MB_PER_GB
+    mem_mb   = lambda wildcards, attempt: attempt * config['resources']['gb_run_integration'] * MB_PER_GB, 
+    runtime  = config['resources']['min_run_integration']
   conda: 
     '../envs/integration.yaml'
   benchmark:
@@ -167,7 +169,8 @@ rule make_clean_sces:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_make_clean_sces'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_make_clean_sces'] * MB_PER_GB, 
+    runtime = config['resources']['min_make_clean_sces']
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_integration/make_clean_sces_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda:

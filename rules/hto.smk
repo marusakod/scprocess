@@ -6,7 +6,10 @@ rule build_hto_index:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb = 4 * MB_PER_GB
+    mem_mb  = lambda wildcards, attempt: attempt * config['resources']['gb_build_hto_index'] * MB_PER_GB, 
+    runtime = config['resources']['min_build_hto_index']
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_hto/build_hto_index_' + DATE_STAMP + '.benchmark.txt'
   output: 
     hto_f       = af_dir + '/hto.tsv',
     t2g_f       = af_dir + '/t2g_hto.tsv',
@@ -59,7 +62,10 @@ rule run_mapping_hto:
   threads: config['resources']['n_run_mapping']
   retries: config['resources']['retries']
   resources:
-    mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_run_mapping'] * MB_PER_GB
+    mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_run_mapping_hto'] * MB_PER_GB, 
+    runtime       = config['resources']['min_run_mapping_hto']
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_hto/run_mapping_hto_{run}_' + DATE_STAMP + '.benchmark.txt'
   shell:"""
     # check whether doing arvados
     ARV_REGEX="^arkau-[0-9a-z]{{5}}-[0-9a-z]{{15}}$"
@@ -93,7 +99,10 @@ rule save_alevin_hto_to_h5:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_save_alevin_to_h5'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_save_alevin_hto_to_h5'] * MB_PER_GB, 
+    runtime = config['resources']['min_save_alevin_hto_to_h5']
+  benchmark: 
+    benchmark_dir + '/' + SHORT_TAG + '_hto/save_alevin_hto_to_h5_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
@@ -124,9 +133,10 @@ rule make_hto_sce_objects:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_make_hto_sce_objects'] * MB_PER_GB
+    mem_mb  = lambda wildcards, attempt: attempt * config['resources']['gb_make_hto_sce_objects'] * MB_PER_GB, 
+    runtime = config['resources']['min_make_hto_sce_objects']
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_make_hto_sce/make_hto_sce_objects_{run}_' + DATE_STAMP + '.benchmark.txt'
+    benchmark_dir + '/' + SHORT_TAG + '_hto/make_hto_sce_objects_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda:
    '../envs/rlibs.yaml'
   shell: """

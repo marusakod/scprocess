@@ -42,7 +42,7 @@ sample_var  = "${run_var}"
 n_cores     = ${threads}
 setDTthreads(n_cores)
 
-# fine dirs and files
+# define dirs and files
 rna_smpl_dirs = sprintf(paste0(af_dir, '/', 'af_%s', '/', af_rna_dir), s_lvls)
 rna_knee_fs = sapply(
   rna_smpl_dirs,

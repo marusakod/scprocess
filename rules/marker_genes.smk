@@ -44,7 +44,17 @@ rule run_marker_genes:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_marker_genes'] * MB_PER_GB
+    mem_mb = lambda wildcards, attempt: (
+      attempt * (
+      config['resources'].get('gb_run_marker_genes', None) * MB_PER_GB
+      if config['resources'].get('gb_run_marker_genes') is not None
+      else (8708.340 + 1418.016 *len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
+      )
+    ), 
+    runtime = lambda wildcards:
+      config['resources'].get('min_run_marker_genes', None) 
+      if config['resources'].get('min_run_marker_genes') is not None
+      else (290.308 + 21.936*len(SAMPLES))/60 + 5 # lm + 5 min bufferB
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_marker_genes/run_marker_genes_' + DATE_STAMP + '.benchmark.txt'
   conda: '../envs/rlibs.yaml'

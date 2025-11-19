@@ -32,7 +32,8 @@ rule run_mapping:
   threads: config['resources']['n_run_mapping']
   retries: config['resources']['retries']
   resources:
-    mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_run_mapping'] * MB_PER_GB
+    mem_mb  = lambda wildcards, attempt: attempt * config['resources']['gb_run_mapping'] * MB_PER_GB, 
+    runtime = config['resources']['min_run_mapping']
   conda:
     '../envs/alevin_fry.yaml'
   shell:"""
@@ -63,7 +64,7 @@ rule save_alevin_to_h5:
   input: 
     fry_dir     = af_dir + '/af_{run}/' + af_rna_dir + 'af_quant/'
   output: 
-    h5_f        = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
+    af_h5_f     = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
     amb_yaml_f  = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml',
     knee_data_f = af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
   params:
@@ -77,7 +78,8 @@ rule save_alevin_to_h5:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_save_alevin_to_h5'] * MB_PER_GB
+    mem_mb  = lambda wildcards, attempt: attempt*config['resources']['gb_save_alevin_to_h5'] * MB_PER_GB,
+    runtime = config['resources']['min_save_alevin_to_h5']
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_mapping/save_alevin_to_h5_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
@@ -87,7 +89,7 @@ rule save_alevin_to_h5:
       save_alevin_h5_ambient_params(
         run           = '{wildcards.run}',
         fry_dir       = '{input.fry_dir}',
-        h5_f          = '{output.h5_f}',
+        h5_f          = '{output.af_h5_f}',
         cb_yaml_f     = '{output.amb_yaml_f}',
         knee_data_f   = '{output.knee_data_f}',
         run_var       = '{RUN_VAR}',
