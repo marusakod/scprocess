@@ -202,10 +202,10 @@ rule merge_qc:
     mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_run_qc'] * MB_PER_GB
   run:
     # read all nonempty input files and concatenate them
-    qc_df_ls    = [ pl.read_csv(f, schema_overrides = {"log_N": pl.Float64}) for f in input.qc_fs ]
+    qc_df_ls    = [ pl.read_csv(f, schema_overrides = {"log_N": pl.Float64}) for f in input.qc_fs if os.path.getsize(f) > 0 ]
     qc_df_all   = pl.concat(qc_df_ls)
 
-    cols_df_ls  = [ pl.read_csv(f) for f in input.coldata_fs ]
+    cols_df_ls  = [ pl.read_csv(f) for f in input.coldata_fs if os.path.getsize(f) > 0 ]
     cols_df_all = pl.concat(cols_df_ls)
 
     # save merged dataframes to output files
@@ -228,7 +228,7 @@ rule merge_rowdata:
     benchmark_dir + '/' + SHORT_TAG + '_qc/merge_rowdata_' + DATE_STAMP + '.benchmark.txt'
   run:
     # read all nonempty rowdata files 
-    rows_df_ls  = [pl.read_csv(f) for f in input.rowdata_fs ]
+    rows_df_ls  = [pl.read_csv(f) for f in input.rowdata_fs if os.path.getsize(f) > 0 ]
     
     # check if identical
     first_df    = rows_df_ls[0]
