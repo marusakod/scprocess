@@ -100,8 +100,9 @@ rule run_scprocess_labeller:
     )"
     """
 
-
-if 'label_celltypes' in config:
+# only do this bit if other parts are finished
+qc_stats_f  = pathlib.Path(f"{qc_dir}/qc_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv")
+if ('label_celltypes' in config) & qc_stats_f.is_file():
 
   def parse_merge_labels_parameters(LABELLER_PARAMS, labeller, model):
     # get the one that matches
@@ -114,12 +115,14 @@ if 'label_celltypes' in config:
 
     return this_entry[0]
 
+  # load up qc outputs
+  qc_stats    = pl.read_csv(qc_stats_f).filter( pl.col('bad_sample') == False )
 
   # do labelling with celltypist
   rule merge_labels:
     input:
       pred_fs       = expand(lbl_dir + '/tmp_labels_{labeller}_model_{model}_' + FULL_TAG + '_' + DATE_STAMP + '_{sample}.csv.gz', 
-        sample = SAMPLES, allow_missing = True),
+        sample = qc_stats["sample_id"].to_list(), allow_missing = True),
       integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
     output:
       pred_out_f    = lbl_dir + '/labels_{labeller}_model_{model}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'

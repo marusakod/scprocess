@@ -103,10 +103,6 @@ fgsea_outs = [
     mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
 ] if (config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & config['marker_genes']['mkr_do_gsea'] else []
 
-# cellbender report (optional)
-ambient_rmd_f  = (rmd_dir  + '/' + SHORT_TAG + '_ambient.Rmd')
-ambient_html_f = (docs_dir + '/' + SHORT_TAG + '_ambient.html')
-
 # one rule to rule them all
 rule all:
   input:
@@ -166,15 +162,15 @@ rule all:
     # markdowns
     rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
     rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
-    #rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
+    rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
     rmd_dir   + '/' + SHORT_TAG + '_hvgs.Rmd',
     rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
     rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd', 
     hto_rmd_f,
     # reports
     docs_dir  + '/' + SHORT_TAG + '_mapping.html', 
-    docs_dir  + '/' + SHORT_TAG + '_ambient.html', 
-    #docs_dir  + '/' + SHORT_TAG + '_qc.html',
+    docs_dir  + '/' + SHORT_TAG + '_ambient.html',
+    docs_dir  + '/' + SHORT_TAG + '_qc.html',
     docs_dir  + '/' + SHORT_TAG + '_hvgs.html',
     docs_dir  + '/' + SHORT_TAG + '_integration.html',
     docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{config['marker_genes']['mkr_sel_res']}.html',
@@ -211,9 +207,11 @@ rule ambient:
   input: 
     expand(amb_dir   + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml', run = RUNS), 
     expand(amb_dir + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz', run = RUNS),
-    amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    ambient_rmd_f, 
-    ambient_html_f
+    amb_dir   + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_mapping.html',
+    rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_ambient.html'
 
 
 rule qc:
@@ -243,6 +241,10 @@ rule qc:
     qc_dir    + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     qc_dir    + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     qc_dir    + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_mapping.html',
+    rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_ambient.html',
     rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd',
     docs_dir  + '/' + SHORT_TAG + '_qc.html'
 
@@ -258,6 +260,12 @@ rule hvg:
     hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
     hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
+    rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_mapping.html',
+    rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_ambient.html',
+    rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_qc.html',
     rmd_dir   + '/' + SHORT_TAG + '_hvgs.Rmd',
     docs_dir  + '/' + SHORT_TAG + '_hvgs.html'
 
@@ -267,7 +275,15 @@ rule integration:
     expand(int_dir + '/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample = SAMPLES),
     int_dir   + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
     int_dir   + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
+    rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_mapping.html',
+    rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_ambient.html',
+    rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_qc.html',
+    rmd_dir   + '/' + SHORT_TAG + '_hvgs.Rmd',
+    docs_dir  + '/' + SHORT_TAG + '_hvgs.html',
+    rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd',
     docs_dir  + '/' + SHORT_TAG + '_integration.html'
 
 
