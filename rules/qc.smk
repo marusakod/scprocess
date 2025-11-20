@@ -46,8 +46,8 @@ def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, SAMPL
   sample_df = qc_df.group_by('sample_id').agg( pl.col("sample_id").count().alias('n_cells') )
 
   # check all samples present in sample_df
-  if set(sample_df['sample_id'].to_list()) != set(cuts_df['sample_id'].to_list()):
-    raise ValueError("sample_df and cuts_df have different sets of values for 'sample_id'")
+  if set(sample_df['sample_id'].to_list()) > set(cuts_df['sample_id'].to_list()):
+    raise ValueError("sample_df has more 'sample_id' values than cuts_df")
 
   # load cuts, merge and use to identify samples that do not meet the minimum cell threshold
   sample_df = sample_df.join( cuts_df.select(["sample_id", "min_cells"]), on = "sample_id", how = "left")
@@ -78,10 +78,23 @@ def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, SAMPL
        # add bad_bender column to sample_df
       bad_bender_df = pl.DataFrame({
         'sample_id':  bad_bender_samples, 
-        'n_cells':    np.nan, 
+        'n_cells':    0, 
         'bad_qc':     False, 
         'bad_bender': True
-      })
+      }).join(
+        cuts_df.select(["sample_id", "min_cells"]), on = "sample_id"
+      )
+
+      # make sure columns are the same
+      if set(bad_bender_df.columns) != set(sample_df.columns):
+        raise KeyError("bad_bender_df and sample_df don't have the same columns")
+      bad_bender_df = bad_bender_df.select(sample_df.columns)
+
+      # give columns same format
+      bad_bender_df = bad_bender_df.with_columns([
+        pl.col(col_name).cast(dtype)
+        for col_name, dtype in sample_df.schema.items()
+      ])
       sample_df = sample_df.vstack(bad_bender_df)
 
     # check we didn't miss anything
