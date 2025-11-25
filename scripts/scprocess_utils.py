@@ -317,6 +317,7 @@ def _check_multiplexing_parameters(config):
   elif config['multiplexing']['demux_type'] == 'hto':
     # check feature ref specified and valid
     config["multiplexing"]["feature_ref"] = _check_path_exists_in_project(config["multiplexing"]["feature_ref"], config, what = "file")
+    config["multiplexing"]["fastq_dir"] = _check_path_exists_in_project(config["multiplexing"]["fastq_dir"], config, what = "dir")
 
     # check for columns in feature ref
     feat_ref_df   = pl.read_csv(config["multiplexing"]["feature_ref"])

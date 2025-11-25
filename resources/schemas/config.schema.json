@@ -237,11 +237,13 @@
         "gb_run_mapping":                { "type": "integer", "default": 12 },
         "gb_run_mapping_hto":            { "type": "integer", "default": 12 },
         "gb_save_alevin_to_h5":          { "type": "integer", "default": 8 },
+        "gb_make_hto_sce_objects":       { "type": "integer", "default": 8 },
         "gb_save_alevin_hto_to_h5":      { "type": "integer", "default": 8 },
         "min_build_hto_index":           { "type": "integer", "default": 10 },
         "min_run_mapping":               { "type": ["integer", "null"] },
         "min_run_mapping_hto":           { "type": "integer", "default": 180 },
         "min_save_alevin_to_h5":         { "type": "integer", "default": 10 },
+        "min_make_hto_sce_objects":      { "type": "integer", "default": 10 }, 
         "min_save_alevin_hto_to_h5":     { "type": "integer", "default": 5 },
 
         "gb_run_cellbender":             { "type": ["integer", "null"] },
