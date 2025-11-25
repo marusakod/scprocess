@@ -16,6 +16,8 @@ scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 schema_f      = scprocess_dir / "resources/schemas/config.schema.json"
 scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 
+lm_f          = scprocess_dir / "resources/resources_lm_params_2025-11-20.csv"
+
 # check config
 config        = check_config(config, schema_f, scdata_dir, scprocess_dir)
 
@@ -147,6 +149,7 @@ rule all:
     hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
     hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
+    #hvg_dir + '/chunked_counts_h5_sizes_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     # integration
     int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     expand(int_dir + '/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample = SAMPLES),

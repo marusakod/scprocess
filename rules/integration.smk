@@ -23,8 +23,8 @@ rule run_integration:
   threads: 1
   retries: config['resources']['retries'] 
   resources:
-    mem_mb   = lambda wildcards, attempt: attempt * config['resources']['gb_run_integration'] * MB_PER_GB, 
-    runtime  = config['resources']['min_run_integration']
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_integration', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('run_integration', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   conda: 
     '../envs/integration.yaml'
   benchmark:
@@ -63,101 +63,6 @@ rule run_integration:
       $USE_GPU_FLAG
     """
 
-# if INT_USE_GPU:
-#   rule run_gpu_integration:
-#     input:
-#       hvg_mat_f     = hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-#       dbl_hvg_mat_f = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-#       sample_qc_f   = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-#       coldata_f     = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
-#     output:
-#       integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
-#     params:
-#       demux_type      = config['multiplexing']['demux_type'],
-#       exclude_mito    = config['qc']['exclude_mito'],
-#       int_embedding   = config['integration']['int_embedding'],
-#       int_theta       = config['integration']['int_theta'],
-#       int_batch_var   = config['integration']['int_batch_var'],
-#       int_n_dims      = config['integration']['int_n_dims'],
-#       int_dbl_res     = config['integration']['int_dbl_res'],
-#       int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
-#       int_cl_method   = config['integration']['int_cl_method'],
-#       int_res_ls      = config['integration']['int_res_ls']
-#     threads: 1
-#     retries: RETRIES 
-#     resources:
-#       mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_INTEGRATION
-#     conda: 
-#       '../envs/integration.yaml'
-#     benchmark:
-#       benchmark_dir + '/' + SHORT_TAG + '_integration/run_gpu_integration_' + DATE_STAMP + '.benchmark.txt'
-#     shell: """
-#       python3 scripts/integration.py \
-#         --hvg_mat_f       {input.hvg_mat_f} \
-#         --dbl_hvg_mat_f   {input.dbl_hvg_mat_f} \
-#         --sample_qc_f     {input.sample_qc_f} \
-#         --coldata_f       {input.coldata_f} \
-#         --demux_type      {params.demux_type} \
-#         --exclude_mito    "{params.exclude_mito}" \
-#         --embedding       {params.int_embedding} \
-#         --n_dims          {params.int_n_dims} \
-#         --cl_method       {params.int_cl_method} \
-#         --dbl_res         {params.int_dbl_res} \
-#         --dbl_cl_prop     {params.int_dbl_cl_prop} \
-#         --theta           {params.int_theta} \
-#         --res_ls_concat   "{params.int_res_ls}" \
-#         --integration_f   {output.integration_f} \
-#         --batch_var       {params.batch_var} \
-#         --gpu
-#       """
-# else:
-#   rule run_integration:
-#     input:
-#       hvg_mat_f     = hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-#       dbl_hvg_mat_f = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-#       sample_qc_f   = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-#       coldata_f     = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
-#     output:
-#       integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
-#     params:
-#       demux_type      = config['multiplexing']['demux_type'],
-#       exclude_mito    = config['qc']['exclude_mito'],
-#       int_embedding   = config['integration']['int_embedding'],
-#       int_theta       = config['integration']['int_theta'],
-#       int_batch_var   = config['integration']['int_batch_var'],
-#       int_n_dims      = config['integration']['int_n_dims'],
-#       int_dbl_res     = config['integration']['int_dbl_res'],
-#       int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
-#       int_cl_method   = config['integration']['int_cl_method'],
-#       int_res_ls      = config['integration']['int_res_ls']
-#     threads: 1
-#     retries: RETRIES 
-#     resources:
-#       mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_INTEGRATION
-#     conda: 
-#       '../envs/integration.yaml'
-#     benchmark:
-#       benchmark_dir + '/' + SHORT_TAG + '_integration/run_integration_' + DATE_STAMP + '.benchmark.txt'
-#     shell: """
-#       python3 scripts/integration.py \
-#         --hvg_mat_f       {input.hvg_mat_f} \
-#         --dbl_hvg_mat_f   {input.dbl_hvg_mat_f} \
-#         --sample_qc_f     {input.sample_qc_f} \
-#         --coldata_f       {input.coldata_f} \
-#         --demux_type      {params.demux_type} \
-#         --exclude_mito    "{params.exclude_mito}" \
-#         --embedding       {params.int_embedding} \
-#         --n_dims          {params.int_n_dims} \
-#         --cl_method       {params.int_cl_method} \
-#         --dbl_res         {params.int_dbl_res} \
-#         --dbl_cl_prop     {params.int_dbl_cl_prop} \
-#         --theta           {params.int_theta} \
-#         --res_ls_concat   "{params.int_res_ls}" \
-#         --integration_f   {output.integration_f} \
-#         --batch_var       {params.batch_var}
-#       """
-
-
 
 # rule to create sce objects without any doublets (and delete temporary sce objects in the qc directory)
 rule make_clean_sces: 
@@ -169,8 +74,8 @@ rule make_clean_sces:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: attempt * config['resources']['gb_make_clean_sces'] * MB_PER_GB, 
-    runtime = config['resources']['min_make_clean_sces']
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_clean_sces', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('make_clean_sces', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_integration/make_clean_sces_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda:

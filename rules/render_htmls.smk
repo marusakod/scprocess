@@ -7,7 +7,6 @@ rule render_html_index:
     rmd_f  = f"{rmd_dir}/index.Rmd",
     html_f = f"{docs_dir}/index.html"
   threads: 1
-  retries: config['resources']['retries']
   resources: 
     mem_mb  = 2* MB_PER_GB, 
     runtime = 2
@@ -66,11 +65,8 @@ rule render_html_mapping:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb    =  lambda wildcards, attempt: attempt * config['resources']['gb_render_html_mapping'] * MB_PER_GB, 
-    runtime   =  lambda wildcards:
-      config['resources'].get('min_render_html_mapping', None) 
-      if config['resources'].get('min_render_html_mapping') is not None
-      else (-60.022+ 18.196 * len(SAMPLES))/60 + 5
+    mem_mb    =  lambda wildcards, attempt, input: attempt * get_resources('render_html_mapping', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS), 
+    runtime   =  lambda wildcards, input: get_resources('render_html_mapping', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_mapping_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -131,8 +127,8 @@ if config['multiplexing']['demux_type'] == "hto":
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb    =  lambda wildcards, attempt: attempt * config['resources']['gb_render_html_multiplexing'] * MB_PER_GB, 
-      runtime   =  lambda wildcards: config['resources']['min_render_html_multiplexing']
+      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_multiplexing', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+      runtime = lambda wildcards, input: get_resources('render_html_multiplexing', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_multiplexing_' + DATE_STAMP + '.benchmark.txt'
     conda:
@@ -191,18 +187,9 @@ rule render_html_ambient:
   retries: config['resources']['retries'] 
   conda:
     '../envs/rlibs.yaml'
-  resources: # would be better to use raw data size for both runtime and memory
-    mem_mb = lambda wildcards, attempt: (
-      attempt * (
-      config['resources'].get('gb_render_html_ambient', None) * MB_PER_GB
-      if config['resources'].get('gb_render_html_ambient') is not None
-      else (1172.39 + 49.39 * len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
-      )
-    ), 
-    runtime = lambda wildcards:
-      config['resources'].get('min_render_html_ambient', None) 
-      if config['resources'].get('min_render_html_ambient') is not None
-      else (-9.18+ 10.318*len(SAMPLES))/60 + 5 # lm + 5 min buffer
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_ambient', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('render_html_ambient', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_ambient_' + DATE_STAMP + '.benchmark.txt'
   shell: """
@@ -255,18 +242,9 @@ rule render_html_qc:
   retries: config['resources']['retries'] 
   conda:
     '../envs/rlibs.yaml'
-  resources: # would be better to use raw data size for both runtime and memory
-    mem_mb = lambda wildcards, attempt: (
-      attempt * (
-      config['resources'].get('gb_render_html_qc', None) * MB_PER_GB
-      if config['resources'].get('gb_render_html_qc') is not None
-      else (1033.200 + 25.566 * len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
-      )
-    ), 
-    runtime = lambda wildcards:
-      config['resources'].get('min_render_html_qc', None) 
-      if config['resources'].get('min_render_html_qc') is not None
-      else (27.616+ 1.705*len(SAMPLES))/60 + 5 # lm + 5 min buffer
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_qc', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('render_html_qc', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_qc_' + DATE_STAMP + '.benchmark.txt'
   shell: """
@@ -322,8 +300,8 @@ rule render_html_hvgs:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_html_hvgs'] * MB_PER_GB, 
-    runtime     =  config['resources']['min_render_html_hvgs']
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_hvgs', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('render_html_hvgs', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_hvgs_' + DATE_STAMP + '.benchmark.txt'
   shell: """
@@ -378,18 +356,9 @@ rule render_html_integration:
   retries: config['resources']['retries']
   conda:
     '../envs/rlibs.yaml'
-  resources: # would be better to use raw data size for both runtime and memory
-    mem_mb = lambda wildcards, attempt: (
-      attempt * (
-      config['resources'].get('gb_render_html_integration', None) * MB_PER_GB
-      if config['resources'].get('gb_render_html_integration') is not None
-      else (1235.001 + 27.865 * len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
-      )
-    ), 
-    runtime = lambda wildcards:
-      config['resources'].get('min_render_html_integration', None) 
-      if config['resources'].get('min_render_html_integration') is not None
-      else (48.679 + 2.195*len(SAMPLES))/60 + 5 # lm + 5 min buffer
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_integration', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('render_html_integration', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_integration_' + DATE_STAMP + '.benchmark.txt'
   shell: """
@@ -467,18 +436,9 @@ rule render_html_marker_genes:
       ]
     ).strip()
   conda: '../envs/rlibs.yaml'
-  resources: # would be better to use raw data size for both runtime and memory
-    mem_mb = lambda wildcards, attempt: (
-      attempt * (
-      config['resources'].get('gb_render_html_marker_genes', None) * MB_PER_GB
-      if config['resources'].get('gb_render_html_marker_genes') is not None
-      else (1171.07 + 109.022 * len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
-      )
-    ), 
-    runtime = lambda wildcards:
-      config['resources'].get('min_render_html_marker_genes', None) 
-      if config['resources'].get('min_render_html_marker_genes') is not None
-      else (81.638 + 5.777*len(SAMPLES))/60 + 5 # lm + 5 min buffer
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_marker_genes', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('render_html_marker_genes', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_marker_genes_' + DATE_STAMP + '.benchmark.txt'
   shell: """
@@ -553,8 +513,8 @@ if "label_celltypes" in config:
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb      =  lambda wildcards, attempt: attempt * config['resources']['gb_render_html_label_celltypes'] * MB_PER_GB, 
-      runtime     =  config['resources']['min_render_html_label_celltypes'] 
+      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_label_celltypes', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+      runtime = lambda wildcards, input: get_resources('render_html_label_celltypes', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
     conda:
       '../envs/rlibs.yaml'
     benchmark:

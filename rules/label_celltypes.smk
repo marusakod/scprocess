@@ -17,8 +17,8 @@ rule make_tmp_mtx_file:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_make_tmp_mtx_file'] * MB_PER_GB, 
-    runtime       = config['resources']['min_make_tmp_mtx_file']
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_tmp_mtx_file', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('make_tmp_mtx_file', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/make_tmp_mtx_file_{sample}_' + DATE_STAMP + '_{sample}.benchmark.txt'
   conda: 
@@ -47,8 +47,8 @@ rule run_celltypist:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_run_celltypist'] * MB_PER_GB, 
-    runtime     = config['resources']['min_run_celltypist']
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_celltypist', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('run_celltypist', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/run_celltypist_{model}_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
@@ -79,8 +79,8 @@ rule run_scprocess_labeller:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb      = lambda wildcards, attempt: attempt * config['resources']['gb_run_scprocess_labeller'] * MB_PER_GB, 
-    runtime     = config['resources']['min_run_scprocess_labeller']
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_scprocess_labeller', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('run_scprocess_labeller', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/run_scprocess_labeller_{model}_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
@@ -134,8 +134,8 @@ if ('label_celltypes' in config) & qc_stats_f.is_file():
     threads: 4
     retries: config['resources']['retries']
     resources:
-      mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_merge_labels'] * MB_PER_GB, 
-      runtime       = config['resources']['gb_merge_labels']
+      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_labels', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+      runtime = lambda wildcards, input: get_resources('merge_labels', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
     benchmark: 
       benchmark_dir + '/' + SHORT_TAG + '_label_celltypes/merge_labels_{labeller}_{model}_' + DATE_STAMP + '.benchmark.txt'
     conda: 

@@ -45,6 +45,10 @@ def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, SAMPL
   qc_df     = qc_df.filter(pl.col("keep") == True)
   sample_df = qc_df.group_by('sample_id').agg( pl.col("sample_id").count().alias('n_cells') )
 
+  cuts_sample_df = cuts_df.select('sample_id') 
+  sample_df = cuts_sample_df.join(sample_df, on='sample_id', how='left') 
+  sample_df = sample_df.fill_null(0)
+
   # check all samples present in sample_df
   if set(sample_df['sample_id'].to_list()) != set(cuts_df['sample_id'].to_list()):
     raise ValueError("sample_df and cuts_df have different sets of values for 'sample_id'")
@@ -154,17 +158,8 @@ rule run_qc:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt, input: (
-      attempt * (
-      config['resources'].get('gb_run_qc', None) * MB_PER_GB
-      if config['resources'].get('gb_run_qc') is not None
-      else (1522.029 + 34.180 * (os.path.getsize(input.af_h5_f)//MB_PER_GB**2)) + 2*MB_PER_GB # lm + buffer
-      )
-    ), 
-    runtime = lambda wildcards, input:
-      config['resources'].get('min_run_qc', None)
-      if config['resources'].get('min_run_qc') is not None
-      else (35.03 + 1.687*(os.path.getsize(input.af_h5_f)//MB_PER_GB**2))/60 + 5 # lm + 5 min buffer
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_qc', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run),
+    runtime = lambda wildcards, input: get_resources('run_qc', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/run_qc_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -210,17 +205,8 @@ rule merge_qc:
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/merge_qc_' + DATE_STAMP + '.benchmark.txt'
   resources:
-    mem_mb = lambda wildcards, attempt: (
-      attempt * (
-      config['resources'].get('gb_merge_qc', None) * MB_PER_GB
-      if config['resources'].get('gb_merge_qc') is not None
-      else (145.174 + 0.162 * len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
-      )
-    ), 
-    runtime = lambda wildcards:
-      config['resources'].get('min_merge_qc', None) 
-      if config['resources'].get('min_merge_qc') is not None
-      else (-1.151 + 0.603*len(SAMPLES))/60 + 5 # lm + 5 min buffer
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_qc', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('merge_qc', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   run:
     # read all nonempty input files and concatenate them
     qc_df_ls    = [ pl.read_csv(f, schema_overrides = {"log_N": pl.Float64}) for f in input.qc_fs if os.path.getsize(f) > 0 ]
@@ -244,17 +230,8 @@ rule merge_rowdata:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: (
-      attempt * (
-      config['resources'].get('gb_merge_rowdata', None) * MB_PER_GB
-      if config['resources'].get('gb_merge_rowdata') is not None
-      else (111.267 + 7.465 * len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
-      )
-    ), 
-    runtime = lambda wildcards:
-      config['resources'].get('min_merge_rowdata', None)
-      if config['resources'].get('min_merge_rowdata') is not None
-      else (0.593 + 0.056*len(SAMPLES))/60 + 5 # lm + 5 min buffer
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_rowdata', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('merge_rowdata', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/merge_rowdata_' + DATE_STAMP + '.benchmark.txt'
   run:
@@ -283,17 +260,8 @@ rule get_qc_sample_statistics:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = lambda wildcards, attempt: (
-      attempt * (
-      config['resources'].get('gb_get_qc_sample_statistics', None) * MB_PER_GB
-      if config['resources'].get('gb_get_qc_sample_statistics') is not None
-      else (78.85 + 3.092 * len(SAMPLES)) + 2*MB_PER_GB # lm + buffer
-      )
-    ), 
-    runtime = lambda wildcards:
-      config['resources'].get('min_get_qc_sample_statistics', None)
-      if config['resources'].get('min_get_qc_sample_statistics') is not None
-      else (-0.005 + 0.033*len(SAMPLES))/60 + 5 # lm + 5 min buffer
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_qc_sample_statistics', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('get_qc_sample_statistics', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/get_qc_sample_statistics_' + DATE_STAMP + '.benchmark.txt'
   run:
@@ -309,7 +277,6 @@ rule make_tmp_sce_paths_yaml:
   output:
     sces_yaml_f = temp(qc_dir  + '/sce_tmp_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml')
   threads: 1
-  retries: config['resources']['retries']
   run:
     # split paths and sample names
     fs = [f"{qc_dir}/sce_cells_tmp_{s}_{FULL_TAG}_{DATE_STAMP}.rds" for s in SAMPLES]

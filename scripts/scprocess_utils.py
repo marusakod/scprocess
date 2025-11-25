@@ -1087,6 +1087,73 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
 
 
 
+def get_resources(rule, param, lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, run = None):
+    
+    # get lm params
+    lm_df = pl.read_csv(lm_f)
+
+    # get resource name in the config 
+    if param == 'time':
+        config_param_name = f'min_{rule}'
+    else: 
+        config_param_name = f'gb_{rule}'
+
+    # get lm params for rule and param (memory or time)
+    filt_lm_df = lm_df.filter((pl.col("param") == param) & (pl.col("rule") == rule))
+
+    # Load schema and extract default resource values
+    schema   = _load_schema_file(schema_f)
+    defaults = _get_default_config_from_schema(schema)
+    res_defaults = defaults['resources']
+
+    # if no lm params are defined
+    if filt_lm_df["slope"].is_null().all():
+        # make sure default is specified in schema
+        if config_param_name not in res_defaults.keys():
+            raise ValueError(f'Default value for {config_param_name} is missing from JSON schema.')
+        # use values from config file
+        param_val = config['resources'].get(config_param_name, None)
+        if param == 'memory':
+            param_val *= MB_PER_GB
+
+    else: # if lm params are defined
+        # make sure no default value defined in schema
+        if config_param_name in res_defaults.keys():
+            raise ValueError(f'Default value for {config_param_name} should not be specified in JSON schema.')
+        
+        # get lm params
+        x_lm      = filt_lm_df['model_var'].unique().to_list()[0]
+        intercept = filt_lm_df['int'].unique().to_list()[0]
+        slope     = filt_lm_df['slope'].unique().to_list()[0]
+        buffer    = filt_lm_df['buffer'].unique().to_list()[0]
+
+        # get the name of x var
+        if x_lm.startswith('input.'):
+            input_attr = x_lm.replace("input.", "")
+            if hasattr(input, input_attr):
+              x_val = os.path.getsize(getattr(input, input_attr)) // MB_PER_GB**2 
+            else:
+              raise ValueError(f"'{input_attr}' is not a valid input attribute for rule '{rule}'.")
+        elif x_lm == 'raw_data_size':
+            # use raw data size
+            if run is None:
+              raise ValueError(f'run argument should be defined')
+            x_val = RUN_PARAMS[run]["mapping"]["R1_fs_size_gb"]
+        elif x_lm == 'n_smpls_pre_qc':
+            # use the number of samples
+            x_val = len(SAMPLES)
+        else:
+            raise ValueError(f"Unknown variable '{x_lm}' for scaling resources.")
+
+        # get param value with lm
+        param_val = intercept + slope * x_val
+
+        if param == 'time':
+            param_val /= 60  # Convert minutes to hours
+        param_val += buffer
+
+    return param_val
+
 
 ### helpers
 

@@ -146,17 +146,8 @@ if config['ambient']['ambient_method'] == 'cellbender':
     threads: 4
     retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt, input: (
-        attempt * (
-        config['resources'].get('gb_run_cellbender', None) * MB_PER_GB
-        if config['resources'].get('gb_run_cellbender') is not None
-        else (2416 + 4.981 * (os.path.getsize(input.af_h5_f)//MB_PER_GB**2)) + 2*MB_PER_GB # lm + buffer
-      )
-      ), 
-      runtime = lambda wildcards, input:
-        config['resources'].get('min_run_cellbender', None)
-        if config['resources'].get('min_run_cellbender') is not None
-        else (496.085 + 51.868*(os.path.getsize(input.af_h5_f)//MB_PER_GB**2))/60 + 5 # lm + 5 min buffer
+      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_cellbender', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run),
+      runtime = lambda wildcards, input: get_resources('run_cellbender', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run)
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_ambient/run_cellbender_{run}_' + DATE_STAMP + '.benchmark.txt'
     container:
@@ -248,17 +239,8 @@ if config['ambient']['ambient_method'] == 'decontx':
     threads: 4
     retries: config['resources']['retries']
     resources:
-      mem_mb = lambda wildcards, attempt, input: (
-        attempt * (
-        config['resources'].get('gb_run_decontx', None) * MB_PER_GB
-        if config['resources'].get('gb_run_decontx') is not None
-        else (498.23 + 65.525 * (os.path.getsize(input.af_h5_f)//MB_PER_GB**2)) + 2*MB_PER_GB # lm + buffer
-      )
-      ), 
-      runtime = lambda wildcards, input:
-        config['resources'].get('min_run_decontx', None)
-        if config['resources'].get('min_run_decontx') is not None
-        else (-1.98 + 2.124*(os.path.getsize(input.af_h5_f)//MB_PER_GB**2))/60 + 5 # lm + 5 min buffer
+      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_decontx', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run),
+      runtime = lambda wildcards, input: get_resources('run_decontx', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run)
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_ambient/run_decontx_{run}_' + DATE_STAMP + '.benchmark.txt'
     conda: 
@@ -313,8 +295,8 @@ if config['ambient']['ambient_method'] == 'none':
     conda:
       '../envs/rlibs.yaml'
     resources:
-      mem_mb    = lambda wildcards, attempt: attempt * config['resources']['gb_run_cell_calling'] * MB_PER_GB, 
-      runtime   = config['resources']['min_run_cell_calling']
+      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_cell_calling', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run),
+      runtime = lambda wildcards, input: get_resources('run_cell_calling', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run)
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_ambient/run_cell_calling_{run}_' + DATE_STAMP + '.benchmark.txt'
     shell:
@@ -362,17 +344,8 @@ rule get_barcode_qc_metrics:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb = lambda wildcards, attempt, input: (
-      attempt * (
-      config['resources'].get('gb_get_barcode_qc_metrics', None) * MB_PER_GB
-      if config['resources'].get('gb_get_barcode_qc_metrics') is not None
-      else (615.807 + 36.205 * (os.path.getsize(input.af_h5_f)//MB_PER_GB**2)) + 2*MB_PER_GB # lm + buffer
-      )
-    ), 
-    runtime = lambda wildcards, input:
-      config['resources'].get('min_get_barcode_qc_metrics', None) 
-      if config['resources'].get('min_get_barcode_qc_metrics') is not None
-      else (25.172 + 0.963*(os.path.getsize(input.af_h5_f)//MB_PER_GB**2))/60 + 5 # lm + 5 min buffer
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_barcode_qc_metrics', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run),
+    runtime = lambda wildcards, input: get_resources('get_barcode_qc_metrics', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_ambient/get_barcode_qc_metrics_{run}_' + DATE_STAMP + '.benchmark.txt'
   shell: """
