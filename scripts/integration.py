@@ -29,6 +29,24 @@ import polars as pl
 # demux_type       = "none"
 # use_gpu          = True
 
+
+# hvg_mat_f = "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_hvg/top_hvgs_counts_test_multiplexed_project_2025-01-01.h5"
+# dbl_hvg_mat_f= "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_hvg/top_hvgs_doublet_counts_test_multiplexed_project_2025-01-01.h5"
+# sample_qc_f = "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_qc/qc_sample_statistics_test_multiplexed_project_2025-01-01.csv"
+# coldata_f = "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_qc/coldata_dt_all_samples_test_multiplexed_project_2025-01-01.csv.gz"
+# demux_type = "hto"
+# exclude_mito =  "True"
+# embedding = "harmony"
+# n_dims = 50
+# cl_method = "leiden"
+# dbl_res = 4
+# dbl_cl_prop =  0.5
+# theta = 0.1
+# res_ls_concat = "0.1 0.2 0.5 1 2"
+# integration_f = "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_integration/integrated_dt_test_multiplexed_project_2025-01-01.csv.gz"
+# batch_var = "sample_id"
+# use_gpu = False
+
 def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
   integration_f, batch_var, use_gpu = False): 
@@ -40,6 +58,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
     dbl_batch_var = 'sample_id'
   else:
     dbl_batch_var = 'pool_id'
+  
   dbl_theta     = 0
 
   print('loading hvg matrix')
@@ -101,7 +120,7 @@ def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs):
   # get ok cells
   ok_cells_df   = all_coldata.filter(
     ((pl.col("keep") == True) | (pl.col("dbl_class") == "doublet")) & 
-    ((pl.col("sample_id").is_in(ok_samples)) | (pl.col("sample_id") == ""))
+    ((pl.col("sample_id").is_in(ok_samples)) | (pl.col("sample_id").is_null()))
   )
   # check ok
   if not set(all_bcs) == set(ok_cells_df['cell_id'].to_list()):
