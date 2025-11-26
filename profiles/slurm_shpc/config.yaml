@@ -20,6 +20,6 @@ set-resources:
     slurm_partition: "batch_gpu"
     slurm_extra: "'--gpus=1 --cpus-per-task=4'"
     qos: '3h'
-    runtime: 60
+    # runtime: 60
     # qos: '1d'
     # runtime: 1440
