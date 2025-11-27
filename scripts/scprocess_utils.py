@@ -317,7 +317,16 @@ def _check_multiplexing_parameters(config):
   elif config['multiplexing']['demux_type'] == 'hto':
     # check feature ref specified and valid
     config["multiplexing"]["feature_ref"] = _check_path_exists_in_project(config["multiplexing"]["feature_ref"], config, what = "file")
-    config["multiplexing"]["fastq_dir"] = _check_path_exists_in_project(config["multiplexing"]["fastq_dir"], config, what = "dir")
+
+    # check fastq vs arvados
+    has_fastq     = "fastq_dir" in config["multiplexing"]
+    has_arv_uuids = "arv_uuids" in config["multiplexing"]
+    if has_fastq + has_arv_uuids != 1:
+      KeyError('"multiplexing" part of config file must contain exactly one of "fastq_dir" and "arv_uuids"')
+
+    # do some checks if fastq_dir is specified
+    if has_fastq and not has_arv_uuids:
+      config["multiplexing"]["fastq_dir"] = _check_path_exists_in_project(config["multiplexing"]["fastq_dir"], config, what = "dir")
 
     # check for columns in feature ref
     feat_ref_df   = pl.read_csv(config["multiplexing"]["feature_ref"])
