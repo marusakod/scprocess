@@ -1131,36 +1131,44 @@ def get_resources(rule, param, lm_f, config, schema_f, input, SAMPLES, RUN_PARAM
         if config_param_name in res_defaults.keys():
             raise ValueError(f'Default value for {config_param_name} should not be specified in JSON schema.')
         
-        # get lm params
-        x_lm      = filt_lm_df['model_var'].unique().to_list()[0]
-        intercept = filt_lm_df['rq_intercept'].unique().to_list()[0] 
-        slope     = filt_lm_df['rq_slope'].unique().to_list()[0]
-        buffer    = filt_lm_df['buffer'].unique().to_list()[0]
+        param_val = config['resources'].get(config_param_name, None)
 
-        # get the name of x var
-        if x_lm.startswith('input.'):
-            input_attr = x_lm.replace("input.", "")
-            if hasattr(input, input_attr):
-              x_val = os.path.getsize(getattr(input, input_attr)) // MB_PER_GB**2 
-            else:
-              raise ValueError(f"'{input_attr}' is not a valid input attribute for rule '{rule}'.")
-        elif x_lm == 'raw_data_size':
-            # use raw data size
-            if run is None:
-              raise ValueError(f'run argument should be defined')
-            x_val = RUN_PARAMS[run]["mapping"]["R1_fs_size_gb"]
-        elif x_lm == 'n_smpls_pre_qc':
-            # use the number of samples
-            x_val = len(SAMPLES)
+        if param_val is not None:
+          if param == 'memory':
+            param_val *= MB_PER_GB
         else:
-            raise ValueError(f"Unknown variable '{x_lm}' for scaling resources.")
+          # get lm params
+          x_lm      = filt_lm_df['model_var'].unique().to_list()[0]
+          intercept = filt_lm_df['rq_intercept'].unique().to_list()[0] 
+          slope     = filt_lm_df['rq_slope'].unique().to_list()[0]
+          buffer    = filt_lm_df['buffer'].unique().to_list()[0]
 
-        # get param value with lm
-        param_val = intercept + slope * x_val
+          # get the name of x var
+          if x_lm.startswith('input.'):
+              input_attr = x_lm.replace("input.", "")
+              if hasattr(input, input_attr):
+                x_val = os.path.getsize(getattr(input, input_attr)) // MB_PER_GB**2 
+              else:
+                raise ValueError(f"'{input_attr}' is not a valid input attribute for rule '{rule}'.")
+          elif x_lm == 'raw_data_size':
+              # use raw data size
+              if run is None:
+                raise ValueError(f'run argument should be defined')
+              x_val = RUN_PARAMS[run]["mapping"]["R1_fs_size_gb"]
+          elif x_lm == 'n_smpls_pre_qc':
+              # use the number of samples
+              x_val = len(SAMPLES)
+          else:
+              raise ValueError(f"Unknown variable '{x_lm}' for scaling resources.")
 
-        if param == 'time':
+          # get param value with lm
+          param_val = intercept + slope * x_val
+
+          if param == 'time':
             param_val /= 60  # Convert minutes to hours
-        param_val += buffer
+          
+          param_val += buffer
+    
     return param_val
 
 
