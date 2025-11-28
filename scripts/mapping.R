@@ -10,6 +10,7 @@ suppressPackageStartupMessages({
   library("parallel")
   library("testit")
   library('strex')
+  library('BiocParallel')
 })
 
 # load counts data into sce object
@@ -384,3 +385,330 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
   ))
 }
 
+# find slope at first inflection and total droplets included & expected_cells/total ratio
+get_knee_params <- function(knee_f, sample_var) {
+  ranks_df  = fread(knee_f)
+  total_thr = unique(ranks_df$total_droplets_included) %>% log10()
+  
+  # get x coordinate of shin1
+  shin1     = unique(ranks_df$shin1)
+  shin1_row = which.min( abs(ranks_df$total - shin1) )[1]
+  
+  # get x coordinate of shin1
+  shin1_x   = ranks_df[ shin1_row, rank ] %>% log10
+  
+  # fit curve to all points
+  ranks_df = ranks_df %>% 
+    .[total > 5] %>%
+    .[, `:=`(
+      ranks_log = log10(rank),
+      total_log = log10(total)
+    )
+    ] %>%
+    unique
+  
+  fit = smooth.spline(x = ranks_df$ranks_log, y = ranks_df$total_log)
+  fitted.vals = 10^fitted(fit)
+  
+  # get value of the first derivative at total included and inflection1
+  d1       = predict(fit, deriv=1)
+  d1_shin  = d1$y[ which.min(abs(d1$x - shin1_x))[1] ]
+  d1_total = d1$y[ which.min(abs(d1$x - total_thr))[1] ]
+  
+  keep_cols = c(sample_var, 'knee1', 'shin1', 'knee2', 'shin2', 'total_droplets_included', 'expected_cells')
+  
+  final = ranks_df %>%
+    .[, ..keep_cols] %>%
+    unique() %>%
+    .[, `:=`(
+      slope_shin1 = d1_shin,
+      slope_total_included = d1_total
+    )]%>% 
+    .[, `:=`(
+      slope_ratio = abs(slope_total_included) / abs(slope_shin1),
+      expected_total_ratio = expected_cells / total_droplets_included
+    )]
+  
+  return(final)
+}
+
+
+plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, bender_priors_df = NULL, show_lines = TRUE) {
+  
+  s_ord = names(knee_fs)
+  
+  # Add knee and inflection to params
+  knee_data = lapply(s_ord, function(s) {
+    knee_f = knee_fs[[s]]
+    x = fread(knee_f) %>% as.data.table
+    x %>%
+      .[, .(n_bc = .N), by = .(lib_size = total)] %>%
+      .[order(-lib_size)] %>%
+      .[, bc_rank := cumsum(n_bc)] %>%
+      .[, (sample_var) := s]
+  }) %>% rbindlist()
+  
+  knee_vars = c(sample_var, 'knee1', 'shin1', 'knee2', 'shin2',
+    'total_droplets_included', 'expected_cells')
+  
+  lines_knees = ambient_knees_df %>% as.data.table %>% 
+    .[ get(sample_var) %in% s_ord, ..knee_vars] %>%
+    setnames( "total_droplets_included", "empty_plateau_middle" ) %>% 
+    setnames( "expected_cells", "expected_cells" ) %>% 
+    melt(id.vars = sample_var) %>%
+    .[, `:=`(
+      axis = fifelse(variable %in% c('knee1', 'knee2', 'shin1', 'shin2'), 'y', 'x'),
+      type = fifelse(variable %in% c('knee1', 'knee2', 'shin1', 'shin2'),
+                     'cellbender intermediate\nparameter', 
+                     'cellbender input\nparameter')
+    )]
+  
+  if ( is.null(bender_priors_df) ) {
+    lines_priors = NULL
+  } else {
+    prior_vars = c(sample_var, 'cb_prior_cells', 'cb_prior_empty')
+    lines_priors = bender_priors_df %>% as.data.table() %>%
+      .[get(sample_var) %in% s_ord, ..prior_vars] %>%
+      melt(id.vars= sample_var) %>%
+      .[, `:=`(
+        axis = 'y',
+        type = 'cellbender prior\nparameter'
+      )]
+  }
+  
+  lines = list(lines_knees, lines_priors) %>% rbindlist()
+  
+  hlines = lines %>% filter(axis == 'y')
+  vlines = lines %>% filter(axis == 'x')
+  
+  # plot everything above low count threshold
+  p_labels =  c("1", "10", "100", "1k", "10k", "100k", "1M")
+  p_breaks =  c(1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6)
+  
+  # set factor levels for sample_var so the samples will appear in the right order in the plot
+  knee_data[[sample_var]] = factor(knee_data[[sample_var]], levels = s_ord)
+  if (show_lines) {
+    hlines[[sample_var]] = factor(hlines[[sample_var]], levels = s_ord)
+    vlines[[sample_var]] = factor(vlines[[sample_var]], levels = s_ord)
+  }
+  
+  p = ggplot(knee_data) +
+    aes(x = bc_rank, y = lib_size) +
+    geom_line(linewidth = 0.3, color = '#283747') +
+    facet_wrap( ~ get(sample_var), ncol = 4 ) +
+    scale_x_log10(labels = p_labels, breaks = p_breaks) +
+    scale_y_log10(labels = p_labels, breaks = p_breaks) +
+    scale_color_manual(
+      values = c("#7c4b73", "#88a0dc", "#ab3329"),
+      breaks = c('cellbender input\nparameter', 'cellbender intermediate\nparameter',
+                 'cellbender prior\nparameter')) +
+    theme_classic(base_size = 9) +
+    theme(legend.position = 'none') +
+    labs(x = 'barcode rank', y = 'library size', color = NULL)
+  
+  # add lines only if show_lines is TRUE
+  if (show_lines) {
+    p = p +
+      geom_hline(data = hlines,
+                 mapping = aes(yintercept = value, color = type)) +
+      geom_vline(data = vlines,
+                 mapping = aes(xintercept = value, color = type)) +
+      geom_text_repel(data = hlines, mapping = aes(y = value, x = 10, label = variable),
+                      size = 2.5) +
+      geom_text_repel(data = vlines, mapping = aes(x = value, y = 100, label = variable),
+                      size = 2.5, angle = 90)
+  }
+  
+  return(p)
+}
+
+
+
+find_outlier <- function(x) {
+  return(x < quantile(x, .25) - 1.5*IQR(x) | x > quantile(x, .75) + 1.5*IQR(x))
+}
+
+# boxplots of log ratios of slopes and barcode percents
+# log: get outliers on the log10 scale
+plot_amb_params_dotplot <- function(params_qc, sample_var, scales = 'fixed') {
+  all_scales_opts = c('fixed', 'free')
+  scale = match.arg(scales, all_scales_opts)
+  
+  # get outliers
+  outliers_te = params_qc$expected_total_ratio %>%
+    set_names(params_qc[[sample_var]]) %>%
+    log10() %>%
+    find_outlier(.) %>% .[.] %>%
+    names()
+  
+  outliers_slopes = params_qc$slope_ratio %>%
+    set_names(params_qc[[sample_var]]) %>%
+    log10() %>%
+    find_outlier(.) %>% .[.] %>%
+    names()
+  
+  keep_cols = c(sample_var, 'slope_ratio', 'expected_total_ratio')
+  plot_df = params_qc %>% 
+    .[, ..keep_cols] %>%
+    melt(id.vars = sample_var) %>%
+    .[, `:=`(
+      is.outlier_slope = fifelse(get(sample_var) %in% outliers_slopes, TRUE, FALSE), 
+      is.outlier_te    = fifelse(get(sample_var) %in% outliers_te, TRUE, FALSE)
+    )
+     ]
+  
+  outlier_df_slope = copy(plot_df) %>%
+    .[is.outlier_slope == TRUE & variable == 'slope_ratio']
+    
+  outlier_df_te = copy(plot_df) %>% 
+    .[is.outlier_te == TRUE & variable == 'expected_total_ratio'] 
+  
+  pl =  ggplot(plot_df, aes(x = variable, y = value) ) +
+    geom_quasirandom( fill = 'grey', shape = 21, size = 3 ) +
+    labs(x = NULL, y = 'ratio') +
+    ggrepel::geom_text_repel(data = outlier_df_slope, mapping = aes(label = get(sample_var))) +
+    ggrepel::geom_text_repel(data = outlier_df_te, mapping = aes(label = get(sample_var))) +
+    theme_classic() +
+    theme(axis.text.x = element_text(size = 12),
+          axis.text.y = element_text(size = 10),
+          axis.title.y = element_text(size = 12)) +
+    scale_y_log10()
+  
+  if (scales == 'free') {
+    pl =  pl + facet_wrap(~variable, scales ='free') +
+      theme(axis.text.x  = element_blank(),
+            axis.ticks.x = element_blank(),
+            strip.text = element_text(size = 12))
+  }
+  
+  return(pl)
+}
+
+get_amb_sample_level_qc <- function(qc, sel_s, amb_method = c('cellbender', 'decontx')) {
+
+  amb = match.arg(amb_method)
+
+  sum_qc = qc %>%
+    as_tibble() %>%
+    dplyr::select(-barcode) %>%
+    rowwise()
+
+  if (amb == 'cellbender') {
+  sum_qc = sum_qc %>%
+    mutate(af_all = sum(af_S, af_U, af_A),
+           cb_all = sum(cb_S, cb_U, cb_A)) %>%
+    colSums()
+
+  smpl_qc = c((sum_qc['af_S']/sum_qc['af_all']) *100,
+                 (sum_qc['cb_S']/sum_qc['cb_all'])*100,
+                 sum_qc['af_all'],
+                 sum_qc['af_all'] - sum_qc['cb_all'])
+
+  } else {
+    sum_qc = sum_qc %>%
+      mutate(af_all = sum(af_S, af_U, af_A),
+             dcx_all = sum(dcx_S, dcx_U, dcx_A)) %>%
+      colSums()
+
+    smpl_qc <- c((sum_qc['af_S']/sum_qc['af_all']) *100,
+                   (sum_qc['dcx_S']/sum_qc['dcx_all'])*100,
+                   sum_qc['af_all'],
+                   sum_qc['af_all'] - sum_qc['dcx_all'])
+
+
+  }
+
+  names(smpl_qc) = c('af_spliced_pct', 'amb_spliced_pct', 'af_all', 'removed')
+  smpl_qc$sample_id = sel_s
+
+  return(smpl_qc)
+}
+
+get_amb_sample_qc_outliers <- function(qc_df, var1, var2) {
+  bivar =  qc_df %>% dplyr::select(all_of(c(var1, var2)))
+
+  mcd = robustbase::covMcd(bivar)
+  chi_thr = chi_threshold <- qchisq(0.95, df = 2)
+  outliers_df = qc_df[which(mcd$mah > chi_threshold), ]
+
+  return(outliers_df)
+}
+
+make_amb_sample_qc_oulier_plots <- function(qc_df, var1, var2, outliers_df,
+  x_title, y_title, y_thr = NULL, x_thr = NULL) {
+
+  p = ggplot(qc_df, aes(x = get(var1), y = get(var2))) +
+    geom_point(shape = 21, fill = 'grey', color = 'black') +
+    labs(x = x_title,
+         y = y_title) +
+    theme_classic()
+
+  if (nrow(outliers_df) != 0) {
+    p = p + geom_text_repel(data = outliers_df, mapping = aes(label = sample_id), size = 3)
+  }
+
+  if (!is.null(y_thr)) {
+    p = p + geom_hline(yintercept = y_thr, linewidth = 0.2, linetype = 'dashed')
+  }
+
+  if (!is.null(x_thr)) {
+    p = p + geom_vline(xintercept = x_thr, linewidth = 0.2, linetype = 'dashed')
+  }
+
+  return(p)
+}
+
+plot_qc_metrics_split_by_cells_empties <- function(rna_knee_fs, 
+  sample_var = "sample_id", min_umis = 10, n_cores) {
+  
+  # setup cluster
+  bpparam = MulticoreParam(workers = n_cores, progressbar = FALSE)
+  
+  # get cells and empties
+  plot_dt   = rna_knee_fs %>% bplapply(function(f) {
+    tmp_dt = fread(f) %>% 
+      .[rank <= expected_cells | in_empty_plateau == TRUE ] %>% 
+      .[, `:=`(
+        umis       = log10(total), 
+        splice_pct = qlogis((spliced + 1) / (spliced + unspliced + 2)), 
+        what       = fifelse(rank <= expected_cells, "cell", "empty")
+      )] %>%
+      .[, c(sample_var, 'barcode', 'umis', 'splice_pct', 'what'), with = FALSE]
+    }, BPPARAM = bpparam) %>% rbindlist %>%
+    melt(id.vars = c(sample_var, "barcode", "what"), measure.vars = c("umis", "splice_pct"),
+      variable.name = "qc_metric", value.name = "qc_val"
+    ) %>%
+    .[, qc_metric := fcase(
+      qc_metric == 'umis', 'no. of UMIs', 
+      qc_metric == 'splice_pct', "spliced pct.", 
+      default = NA_character_
+    )]
+
+  # breaks and labs
+    umis_brks    = c(1e0, 1e1, 3e1, 1e2, 3e2, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6) %>% log10
+    umis_labs    = c("1", "10", "30", "100", "300", "1k", "3k", "10k", "30k", "100k", "300k", "1M")
+  
+    splice_brks  = c(0.01, 0.03, 0.1, 0.3, 0.5, 0.7, 0.9, 0.97, 0.99) %>% qlogis
+    splice_labs = c("1%", "3%", "10%", "30%", "50%", "70%", "90%", "97%", "99%")
+    
+  g_violin = ggplot() +
+    geom_violin( data = plot_dt[ !is.na(qc_val) ],
+                 aes( x = get(sample_var), y = qc_val, fill = what), colour = NA, 
+                 kernel = 'rectangular', adjust = 0.1, scale = 'width', width = 0.8) +
+    facet_grid( . ~ qc_metric, scales = 'free', space = 'free_y' ) +
+    facetted_pos_scales(
+      y = list(
+        qc_metric == "no. of UMIs"     ~
+          scale_y_continuous(breaks = umis_brks, labels = umis_labs),
+        qc_metric == "spliced pct."    ~
+          scale_y_continuous(breaks = splice_brks, labels = splice_labs)
+      )
+    ) +
+    scale_fill_manual( values = c(cell = "#1965B0", empty = "grey") ) +
+    coord_flip() +
+    theme_classic() +
+    labs( x = NULL, y = NULL, fill = "what does\nthe barcode\nrepresent?" ) +
+    theme(panel.spacing = unit(1, "lines"))
+  
+  return(g_violin)
+}

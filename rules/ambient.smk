@@ -244,7 +244,7 @@ if config['ambient']['ambient_method'] == 'decontx':
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_ambient/run_decontx_{run}_' + DATE_STAMP + '.benchmark.txt'
     conda: 
-      '../envs/rlibs.yaml'
+      '../envs/ambientr.yaml'
     shell:"""
       # create main ambient directory
       mkdir -p {amb_dir}
@@ -259,17 +259,18 @@ if config['ambient']['ambient_method'] == 'decontx':
       dcx_params_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_params.txt.gz"
 
       # run cell calling and decontamination
-      Rscript -e "source('scripts/ambient.R'); get_cell_mat_and_barcodes(
-        out_mat_f         = '$filt_counts_f',
-        out_bcs_f         = '$bcs_f',
-        out_dcx_f         = '$dcx_params_f',
-        sel_s             = '{wildcards.run}',
-        af_mat_f          = '{input.af_h5_f}',
-        knee_f            = '{input.knee_data_f}',
-        ncores            =  {threads},
-        cell_calls_method = '{params.cell_calling}',
-        ambient_method    = '{params.ambient_method}'
-      )"
+      Rscript -e "source('scripts/ambient.R'); source('scripts/utils.R'); \
+        get_cell_mat_and_barcodes(
+          out_mat_f         = '$filt_counts_f',
+          out_bcs_f         = '$bcs_f',
+          out_dcx_f         = '$dcx_params_f',
+          sel_s             = '{wildcards.run}',
+          af_mat_f          = '{input.af_h5_f}',
+          knee_f            = '{input.knee_data_f}',
+          ncores            =  {threads},
+          cell_calls_method = '{params.cell_calling}',
+          ambient_method    = '{params.ambient_method}'
+        )"
 
       # Create the output yaml file
       echo "filt_counts_f: $filt_counts_f" >> {output.amb_yaml_out}
@@ -293,7 +294,7 @@ if config['ambient']['ambient_method'] == 'none':
     threads: 4
     retries: config['resources']['retries']
     conda:
-      '../envs/rlibs.yaml'
+      '../envs/ambientr.yaml'
     resources:
       mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_cell_calling', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run),
       runtime = lambda wildcards, input: get_resources('run_cell_calling', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run)
@@ -313,16 +314,17 @@ if config['ambient']['ambient_method'] == 'none':
       bcs_f="{amb_dir}/ambient_{wildcards.run}/uncorrected_{wildcards.run}_{DATE_STAMP}_cell_barcodes.csv"
 
       # run cell calling and decontamination
-      Rscript -e "source('scripts/ambient.R'); get_cell_mat_and_barcodes(
-        out_mat_f         = '$filt_counts_f',
-        out_bcs_f         = '$bcs_f', 
-        sel_s             = '{wildcards.run}', 
-        af_mat_f          = '{input.af_h5_f}', 
-        knee_f            = '{input.knee_data_f}', 
-        ncores            =  {threads}, 
-        cell_calls_method = '{params.cell_calling}',
-        ambient_method    = '{params.ambient_method}'
-      )"
+      Rscript -e "source('scripts/ambient.R'); source('scripts/utils.R');
+        get_cell_mat_and_barcodes(
+          out_mat_f         = '$filt_counts_f',
+          out_bcs_f         = '$bcs_f', 
+          sel_s             = '{wildcards.run}', 
+          af_mat_f          = '{input.af_h5_f}', 
+          knee_f            = '{input.knee_data_f}', 
+          ncores            =  {threads}, 
+          cell_calls_method = '{params.cell_calling}',
+          ambient_method    = '{params.ambient_method}'
+        )"
 
       # Create the output yaml file
       echo "filt_counts_f: $filt_counts_f" >> {output.ambient_yaml_out}
@@ -342,7 +344,7 @@ rule get_barcode_qc_metrics:
   threads: 1
   retries: config['resources']['retries']
   conda:
-    '../envs/rlibs.yaml'
+    '../envs/ambientr.yaml'
   resources:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_barcode_qc_metrics', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run),
     runtime = lambda wildcards, input: get_resources('get_barcode_qc_metrics', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run)
@@ -350,7 +352,7 @@ rule get_barcode_qc_metrics:
     benchmark_dir + '/' + SHORT_TAG + '_ambient/get_barcode_qc_metrics_{run}_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     # save barcode stats
-    Rscript -e "source('scripts/ambient.R'); \
+    Rscript -e "source('scripts/ambient.R'); source('scripts/utils.R'); \
       save_barcode_qc_metrics('{input.af_h5_f}', '{input.amb_yaml_f}', \
         '{output.bc_qc_f}', '{params.ambient_method}')"
     """

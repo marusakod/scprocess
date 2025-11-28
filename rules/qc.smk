@@ -165,7 +165,7 @@ rule run_qc:
   conda:
     '../envs/rlibs.yaml'
   shell: """
-    Rscript -e "source('scripts/SampleQC.R'); source('scripts/ambient.R'); \
+    Rscript -e "source('scripts/SampleQC.R'); source('scripts/utils.R'); \
       main_qc( \
         run_name        = '{wildcards.run}', \
         metadata_f      = '{params.metadata_f}', \

@@ -26,7 +26,6 @@ knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 
 ```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
 source('code/utils.R')
-source('code/ambient.R')
 source('code/integration.R')
 n_cores     = ${threads}
 setDTthreads(n_cores)

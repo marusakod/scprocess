@@ -141,7 +141,7 @@ rule make_hto_sce_objects:
    '../envs/rlibs.yaml'
   shell: """
   # save hto sce with demultiplexing info
-  Rscript -e "source('scripts/multiplexing.R'); source('scripts/ambient.R'); 
+  Rscript -e "source('scripts/multiplexing.R'); source('scripts/utils.R'); 
     get_one_hto_sce( 
       sel_pool        = '{wildcards.run}', 
       sample_stats_f  = '{input.smpl_stats_f}', 
