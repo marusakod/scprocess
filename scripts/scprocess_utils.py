@@ -1116,7 +1116,7 @@ def get_resources(rule, param, lm_f, config, schema_f, input, SAMPLES, RUN_PARAM
   res_defaults = defaults['resources']
 
   # if no lm params are defined
-  if filt_lm_df["slope"].is_null().all():
+  if filt_lm_df["rq_slope"].is_null().all():
     # make sure default is specified in schema
     if config_param_name not in res_defaults.keys():
       raise ValueError(f'Default value for {config_param_name} is missing from JSON schema.')
@@ -1131,10 +1131,10 @@ def get_resources(rule, param, lm_f, config, schema_f, input, SAMPLES, RUN_PARAM
       raise ValueError(f'Default value for {config_param_name} should not be specified in JSON schema.')
     
     # get lm params
-    x_lm      = filt_lm_df['model_var'].unique().to_list()[0]
-    intercept = filt_lm_df['int'].unique().to_list()[0]
-    slope     = filt_lm_df['slope'].unique().to_list()[0]
-    buffer    = filt_lm_df['buffer'].unique().to_list()[0]
+    x_lm    = filt_lm_df['model_var'].unique().to_list()[0]
+    intercept = filt_lm_df['rq_intercept'].unique().to_list()[0] 
+    slope   = filt_lm_df['rq_slope'].unique().to_list()[0]
+    buffer  = filt_lm_df['buffer'].unique().to_list()[0]
 
     # get the name of x var
     if x_lm.startswith('input.'):

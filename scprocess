@@ -253,7 +253,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
     *shlex.split(extraargs),
     rule
     ])
-  if not noindex:
+  if not noindex and " -np" not in extraargs:
     print("\nRendering index")
     subprocess.run(["snakemake", 
       "--snakefile", os.path.join(scprocess_dir, 'rules/scprocess.smk'), 
