@@ -2,7 +2,7 @@
 
 suppressPackageStartupMessages({
   library("Matrix")
-  library("muscat")
+  #library("muscat")
   library("SingleCellExperiment")
   library("edgeR")
   library("DESeq2")
@@ -393,7 +393,7 @@ make_logcpms_all_rmd <- function(pb, lib_size_method = c("edger", "raw", "pearso
   }) %>% rbindlist
   
   # add # cells
-  ncells_dt   = muscat:::.n_cells(pb) %>%
+  ncells_dt   = muscat_n_cells(pb) %>%
     as.data.table %>% set_colnames(c("cluster", "sample_id", "n_cells"))
   logcpms_all = merge( logcpms_all, ncells_dt, by = c("cluster", "sample_id") )
   
@@ -431,7 +431,7 @@ make_logcpms_all <- function(pb, lib_size_method = c("edger", "raw", "pearson",
     }, BPPARAM = bpparam) %>% rbindlist
 
   # add # cells
-  ncells_dt   = muscat:::.n_cells(pb) %>%
+  ncells_dt   = muscat_n_cells(pb) %>%
     as.data.table %>% set_colnames(c("cluster", "sample_id", "n_cells"))
   logcpms_all = merge( logcpms_all, ncells_dt, by = c("cluster", "sample_id") )
 
@@ -445,7 +445,7 @@ make_logcpms_all <- function(pb, lib_size_method = c("edger", "raw", "pearson",
   lib_size_method   = match.arg(lib_size_method)
 
   # extract raw counts for non-tiny samples
-  use_idx     = muscat:::.n_cells(pb)[cl, ] >= min_cells
+  use_idx     = muscat_n_cells(pb)[cl, ] >= min_cells
   if (sum(use_idx) == 0) {
     message("no samples with sufficient cells for ", cl, "; skipping")
     return(NULL)
@@ -529,7 +529,7 @@ make_props_dt <- function(pb_prop, exc_regex = NULL, min_cells = 10, n_cores = 4
   # calculate logcpms
   props_dt    = bplapply(cl_ls, function(sel_cl) {
       # extract raw counts for non-tiny samples
-      use_idx     = muscat:::.n_cells(pb_prop)[sel_cl, ] >= min_cells
+      use_idx     = muscat_n_cells(pb_prop)[sel_cl, ] >= min_cells
       if (sum(use_idx) == 0) {
         message("no samples with sufficient cells for ", sel_cl, "; skipping")
         return(NULL)
@@ -548,7 +548,7 @@ make_props_dt <- function(pb_prop, exc_regex = NULL, min_cells = 10, n_cores = 4
     }, BPPARAM = bpparam) %>% rbindlist
 
   # add # cells
-  ncells_dt   = muscat:::.n_cells(pb_prop) %>%
+  ncells_dt   = muscat_n_cells(pb_prop) %>%
     as.data.table %>% set_colnames(c("cluster", "sample_id", "n_cells"))
   props_dt    = merge( props_dt, ncells_dt, by = c("cluster", "sample_id") )
 
@@ -1809,4 +1809,13 @@ plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cp
     )
 
   return(hm_obj)
+}
+
+muscat_n_cells <- function(x) {
+  y = int_colData(x)$n_cells
+  if (is.null(y)) 
+    return(NULL)
+  if (length(metadata(x)$agg_pars$by) == 2) 
+    y = as.matrix(data.frame(y, check.names = FALSE))
+  return(as.table(y))
 }
