@@ -45,7 +45,7 @@ def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, SAMPL
   qc_df     = qc_df.filter(pl.col("keep") == True)
   sample_df = qc_df.group_by('sample_id').agg( pl.col("sample_id").count().alias('n_cells') )
 
-  cuts_sample_df = cuts_df.select('sample_id') 
+  cuts_sample_df = cuts_df.select('sample_id')
   sample_df = cuts_sample_df.join(sample_df, on='sample_id', how='left') 
   sample_df = sample_df.fill_null(0)
 
@@ -82,10 +82,14 @@ def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, SAMPL
        # add bad_bender column to sample_df
       bad_bender_df = pl.DataFrame({
         'sample_id':  bad_bender_samples, 
-        'n_cells':    np.nan, 
+        'n_cells':    None, 
+        'min_cells':  None, 
         'bad_qc':     False, 
         'bad_bender': True
-      })
+      }).with_columns(
+        pl.col("n_cells").cast(sample_df["n_cells"].dtype),
+        pl.col("min_cells").cast(sample_df["min_cells"].dtype),
+      )
       sample_df = sample_df.vstack(bad_bender_df)
 
     # check we didn't miss anything
