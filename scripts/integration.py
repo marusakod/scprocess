@@ -50,7 +50,6 @@ import polars as pl
 def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
   integration_f, batch_var, use_gpu = False): 
-
   print('setting up parameters')
   exclude_mito  = bool(exclude_mito)
   res_ls        = res_ls_concat.split()
@@ -71,19 +70,22 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   all_hvg_mat   = _normalize_hvg_mat(all_hvg_mat, ok_cells_df, exclude_mito)
 
   print('making anndata object')
-  adata         = ad.AnnData(X = all_hvg_mat.T , obs = ok_cells_df.to_pandas())
-  print(f"  anndata object has {adata.shape[0]} cells and {adata.shape[1]} dims")
+  adata_dbl     = ad.AnnData(X = all_hvg_mat.T , obs = ok_cells_df.to_pandas())
+  print(adata_dbl)
+  print(f"  anndata object including doublets has {adata_dbl.shape[0]} cells and {adata_dbl.shape[1]} dims")
 
   print('running integration to find more doublets')
-  int_dbl       = _do_one_integration(adata, dbl_batch_var, cl_method, n_dims,
+  int_dbl       = _do_one_integration(adata_dbl, dbl_batch_var, cl_method, n_dims,
     dbl_res, embedding, use_gpu, theta = dbl_theta)
   
-  del adata
+  del adata_dbl
   gc.collect()
 
   print('filter to non-doublet cells')
   dbl_data      = _calc_dbl_data(int_dbl, ok_cells_df, dbl_res, dbl_cl_prop)
   adata         = _adata_filter_out_doublets(all_hvg_mat, ok_cells_df, dbl_data)
+  print(adata)
+  print(f"  anndata object has {adata.shape[0]} cells and {adata.shape[1]} dims")
 
   del all_hvg_mat
   gc.collect()
@@ -209,7 +211,8 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, 
   if this_embedding == 'harmony':
     print(' integrating with Harmony')
     if use_gpu:
-      sc.pp.harmony_integrate(adata, key = batch_var, dtype=cp.float32, theta = theta)
+      sc.pp.harmony_integrate(adata, key = batch_var, max_iter_harmony = 5, 
+        dtype=cp.float32, theta = theta)
     else:
       sce.pp.harmony_integrate(adata, key = batch_var, theta = theta)
     
@@ -217,7 +220,9 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, 
     sel_embed = 'X_pca_harmony'
   
   print(' running UMAP')
-  sc.pp.neighbors(adata, n_pcs= n_dims,use_rep=sel_embed)
+  if np.isnan(adata.obsm[sel_embed]).any():
+    raise ValueError("some NaN values in harmony output")
+  sc.pp.neighbors(adata, n_pcs = n_dims, use_rep=sel_embed)
   sc.tl.umap(adata, maxiter = 750) # need to tell umap to use harmony
 
   print(' finding clusters')
@@ -232,6 +237,9 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, 
       sc.tl.louvain(
         adata, key_added=f"RNA_snn_res.{res}", resolution=float(res)
       )
+
+  if use_gpu:
+    sc.get.anndata_to_CPU(adata)
 
   print(' recording clusters')
   clusts_dt = _get_clusts_from_adata(adata, this_embedding)
@@ -332,21 +340,19 @@ def _calc_dbl_data(int_dbl, ok_cells_df, dbl_res, dbl_cl_prop):
   return dbl_data
 
 
-
-
 def _adata_filter_out_doublets(all_hvg_mat, ok_cells_df, dbl_data):
- 
-  ok_ids = dbl_data.filter(
+  # get ok ids
+  ok_ids    = dbl_data.filter(
     (pl.col("is_dbl") == False) & (pl.col("in_dbl_cl") == False)
   )["cell_id"].to_list()
   
-  adata = ad.AnnData(X = all_hvg_mat.T , obs = ok_cells_df.to_pandas())
-  adata.obs.cell_id.isin(ok_ids)
+  # make adata, subset to ok ids
+  adata     = ad.AnnData(X = all_hvg_mat.T, obs = ok_cells_df.to_pandas())
+  keep_idx  = adata.obs.cell_id.isin(ok_ids).to_numpy()
+  adata     = adata[keep_idx, :].copy()
+  adata.obs_names_make_unique()
   
-  adata
-
   return adata
-
 
 
 if __name__ == "__main__":
