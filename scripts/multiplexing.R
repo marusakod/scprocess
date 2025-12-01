@@ -211,12 +211,12 @@ hto_barplot <- function(hto_dt_ls) {
   plot_dt$guess = factor(plot_dt$guess, levels = names(hto_cols) )
   
   g = ggplot(plot_dt) +
-    aes( x = pool_id, y = pct, fill = guess ) +
+    aes( y = pool_id, x = pct, fill = guess ) +
     geom_col( position="fill" ) +
-    scale_fill_manual( values = hto_cols, breaks = names(hto_cols) ) +
-    scale_y_continuous( breaks = seq(0, 1, 0.2), labels = seq(0, 100, 20) ) +
-    theme_classic() +
-    labs(fill = 'HTO guess', y = 'pct. of barcodes', x = '')
+    scale_fill_manual( values = hto_cols, breaks = names(hto_cols), guide = guide_legend(ncol = 2) ) +
+    scale_x_continuous( breaks = seq(0, 1, 0.2), labels = seq(0, 100, 20) ) +
+    theme_classic() + theme( legend.position = "bottom" ) +
+    labs(fill = 'HTO guess', x = 'pct. of barcodes', y = '')
   
   return(g)
 }

@@ -64,10 +64,18 @@ hto_sce_fs = sapply(
 setNames(s_lvls)
 
 assert_that( length(hto_sce_fs) > 0) 
+assert_that( all(file.exists(hto_sce_fs)))
 ```
 
 ```{r load_hto_sce, include = FALSE}
-hto_sce_ls = lapply(hto_sce_fs, FUN = readRDS)
+# filter out empty files
+nonempty_idx  = sapply(hto_sce_fs, FUN = function(f) file.size(f) > 0)
+s_lvls        = s_lvls[ nonempty_idx ]
+hto_knee_fs   = hto_knee_fs[ nonempty_idx ]
+hto_sce_fs    = hto_sce_fs[ nonempty_idx ]
+
+# then load
+hto_sce_ls    = lapply(hto_sce_fs, FUN = readRDS)
 ```
 
 ```{r load_meta, include=FALSE}
@@ -85,7 +93,6 @@ pool_ids   = unique(proj_meta$pool_id)
 sample_ids = unique(proj_meta$sample_id)
 hto_dt_ls  = lapply(hto_sce_ls, FUN = get_hto_dt)
 ```
-
 
 ```{r arrange_samples_for_hto_qc_plots, include = FALSE}
 # get total sample number
@@ -119,9 +126,9 @@ if (sample_n <= 4) {
 ```
 
 ```{r get_barplot_dims, include=FALSE}
-w_per_s      = 1.5
-bplot_height = 4
-bplot_width  = w_per_s * pmax(sample_n, 4)
+h_per_s   = 0.5
+bplot_w   = 6
+bplot_h   = h_per_s * pmax(sample_n, 4)
 ```
 
 ## Barcode rank plots{.tabset}
@@ -164,7 +171,7 @@ rbindlist(hto_dt_ls) %>%
 
 For each multiplexed sample/pool the proportion of barcodes assigned to different HTO labels is shown.
 
-```{r hto_barplot, fig.width= bplot_width, fig.height= bplot_height}
+```{r hto_barplot, fig.width = bplot_w, fig.height = bplot_h}
 print(hto_barplot(hto_dt_ls))
 ```
 
@@ -173,7 +180,7 @@ print(hto_barplot(hto_dt_ls))
 For each sample, the plot displays the normalized expression levels of all hashtag oligos (HTOs) used to label samples within the same pool.
 Each ridge on the plot corresponds to a single HTO, showing how its expression is distributed across the cells in that sample. 
 
-```{r hto_ridges_plot, results ='asis'}
+```{r hto_ridges_plot, results ='asis', eval = FALSE}
 for (i in sample_ids){
   cat('### ', i, '\n')
   print(hto_ridges(i, proj_meta = proj_meta, hto_dt_ls = hto_dt_ls))
@@ -187,8 +194,12 @@ For each pool, pairwise HTO expression levels are shown.
 
 ```{r hto_pairwise plot, results = 'asis', fig.height = 7, fig.width = 9}
 for (i in pool_ids){
-  pool_dt_tmp = hto_dt_ls[[i]]
   cat('### ', i, '\n')
+  if (!(i %in% names(hto_dt_ls))) {
+    print("No data for this pool.")
+    next
+  }
+  pool_dt_tmp = hto_dt_ls[[i]]
   print(hto_pairwise(pool_dt = pool_dt_tmp, var = "norm_count"))
   cat('\n\n')
 }
