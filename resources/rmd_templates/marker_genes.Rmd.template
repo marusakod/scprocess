@@ -26,6 +26,7 @@ knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 source('code/utils.R')
 source('code/integration.R')
 source('code/marker_genes.R')
+source('code/fgsea.R')
 library(stringi)
 n_cores     = ${threads}
 setDTthreads(n_cores)

@@ -10,26 +10,6 @@ import anndata as ad
 import pandas as pd
 import polars as pl
 
-
-# hvg_mat_f = "/projects/site/pred/mus-brain-analysis/studies/Langlieb_2023_pallidum/output/Langlieb_pal_hvg/top_hvgs_counts_Langlieb_2023_pallidum_2025-10-08.h5"
-# dbl_hvg_mat_f = "/projects/site/pred/mus-brain-analysis/studies/Langlieb_2023_pallidum/output/Langlieb_pal_hvg/top_hvgs_doublet_counts_Langlieb_2023_pallidum_2025-10-08.h5"
-# sample_qc_f = "/projects/site/pred/mus-brain-analysis/studies/Langlieb_2023_pallidum/output/Langlieb_pal_qc/qc_sample_statistics_Langlieb_2023_pallidum_2025-10-08.csv"
-# coldata_f = "/projects/site/pred/mus-brain-analysis/studies/Langlieb_2023_pallidum/output/Langlieb_pal_qc/coldata_dt_all_samples_Langlieb_2023_pallidum_2025-10-08.csv.gz"
-# exclude_mito     = 'True'
-# embedding        = 'harmony'
-# n_dims           = 50
-# cl_method        = 'leiden'
-# dbl_res          = 4
-# dbl_cl_prop      = 0.5
-# theta            = 0.1
-# res_ls_concat    = '0.1 0.2 0.5 1 2'
-# integration_f    = '/pstore/data/mus-brain-analysis/studies/test_project/output/test_integration/python_integrated_dt_test_project_2025-01-01.txt.gz'
-# batch_var        = 'sample_id' 
-# n_cores          = 8
-# demux_type       = "none"
-# use_gpu          = True
-
-
 # hvg_mat_f = "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_hvg/top_hvgs_counts_test_multiplexed_project_2025-01-01.h5"
 # dbl_hvg_mat_f= "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_hvg/top_hvgs_doublet_counts_test_multiplexed_project_2025-01-01.h5"
 # sample_qc_f = "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_qc/qc_sample_statistics_test_multiplexed_project_2025-01-01.csv"
@@ -45,7 +25,7 @@ import polars as pl
 # res_ls_concat = "0.1 0.2 0.5 1 2"
 # integration_f = "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_integration/integrated_dt_test_multiplexed_project_2025-01-01.csv.gz"
 # batch_var = "sample_id"
-# use_gpu = False
+# use_gpu = True
 
 def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
@@ -222,7 +202,7 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, 
   print(' running UMAP')
   if np.isnan(adata.obsm[sel_embed]).any():
     raise ValueError("some NaN values in harmony output")
-  sc.pp.neighbors(adata, n_pcs = n_dims, use_rep=sel_embed)
+  sc.pp.neighbors(adata, n_pcs = n_dims, use_rep = sel_embed)
   sc.tl.umap(adata, maxiter = 750) # need to tell umap to use harmony
 
   print(' finding clusters')

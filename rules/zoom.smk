@@ -76,6 +76,7 @@ zoom_mkr_report_outs = expand(
   mkr_sel_res = [ZOOM_PARAMS[zoom_name]['marker_genes']["mkr_sel_res"] for zoom_name in ZOOMS]
 )
 zooms_to_save = [ zoom_name for zoom_name in ZOOMS if ZOOM_PARAMS[zoom_name]['zoom']['save_subset_sces'] ]
+
 zoom_sce_outs = (
   expand(
     '%s/{zoom_name}/sce_objects/sce_cells_clean_{zoom_name}_{sample}_%s_%s.rds' % \
@@ -153,7 +154,7 @@ rule zoom_make_pb_subset:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('scripts/utils.R'); source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     make_pb_cells( \
       sce_fs_yaml = '{input.sces_yaml_f}',
       qc_stats_f  = '{input.zoom_stats_f}',
@@ -503,7 +504,7 @@ rule zoom_run_integration:
     '../envs/rlibs.yaml'
   shell: """
     # run harmony
-    Rscript -e "source('scripts/integration.R'); source('scripts/ambient.R'); source('scripts/zoom.R'); 
+    Rscript -e "source('scripts/integration.R'); source('scripts/utils.R'); source('scripts/zoom.R'); 
       run_zoom_integration( 
         hvg_mat_f        = '{input.hvg_mat_f}', 
         smpl_stats_f     = '{input.smpl_stats_f}', 

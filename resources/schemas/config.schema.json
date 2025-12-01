@@ -299,6 +299,8 @@
 
         "gb_run_marker_genes":           { "type": ["integer", "null"] },
         "mins_run_marker_genes":          { "type": ["integer", "null"] },
+        "gb_run_fgsea":                   { "type": "integer", "default": 8 },
+        "mins_run_fgsea":                 { "type": "integer", "default": 30 },
 
         "gb_render_html_mapping":        { "type": ["integer", "null"] },
         "gb_render_html_multiplexing":   { "type": "integer", "default": 8 },

@@ -25,7 +25,7 @@ knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 
 ```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
 source('code/utils.R')
-source('code/ambient.R')
+source('code/mapping.R')
 ```
 
 ```{r get_samples, include = FALSE}

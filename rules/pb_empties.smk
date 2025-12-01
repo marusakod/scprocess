@@ -55,7 +55,7 @@ rule make_one_pb_empty:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     make_pb_empty(
       sel_run         = '{wildcards.run}', 
       af_paths_f      = '{input.af_paths_f}', 
@@ -83,7 +83,7 @@ rule merge_pb_empty:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     merge_empty_pbs( \
       af_paths_f      = '{input.af_paths_f}', 
       rowdata_f       = '{input.rowdata_f}',
@@ -111,7 +111,7 @@ rule make_pb_all:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    Rscript -e "source('scripts/utils.R'); source('scripts/ambient.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     make_pb_cells( \
       sce_fs_yaml = '{input.sces_yaml_f}',
       qc_stats_f  = '{input.qc_stats_f}',

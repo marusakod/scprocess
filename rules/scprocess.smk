@@ -100,9 +100,7 @@ hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_demultiplexing.html') if config['m
 fgsea_outs = [
     mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
     mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_mf_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'paths_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'hlmk_' + DATE_STAMP + '.txt.gz', 
+    mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_mf_' + DATE_STAMP + '.txt.gz'
 ] if (config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & config['marker_genes']['mkr_do_gsea'] else []
 
 # one rule to rule them all

@@ -5,6 +5,7 @@ suppressPackageStartupMessages({
   library('assertthat')
   library('forcats')
   library('stringr')
+  library('rhdf5')
 
   library('RColorBrewer')
   library('circlize')
@@ -19,6 +20,7 @@ suppressPackageStartupMessages({
 
   library('ComplexHeatmap')
   library("seriation")
+  library("strex")
 
   library('readxl')
 })
@@ -150,4 +152,47 @@ print_sel_gene <- function(mkrs_dt, sel_ls) {
       CPM = logcpm.sel %>% exp %>% `-`(1) %>% signif(2) %>% round,
       log2fc = logFC %>% round(1), FDR = FDR %>% signif(2)
     )]
+}
+
+.get_alevin_mx <- function(af_mat_f, sel_s) {
+  # get this file
+  h5_filt   = H5Fopen(af_mat_f, flags = "H5F_ACC_RDONLY" )
+
+  # get indices of barcodes
+  mat       = sparseMatrix(
+    i = as.vector(h5_filt$matrix$indices +1),
+    p = as.vector(h5_filt$matrix$indptr),
+    x = as.vector(h5_filt$matrix$data),
+    repr = "C",
+    dims = h5_filt$matrix$shape
+  ) %>% as("TsparseMatrix")
+
+  # add names
+  bcs           = h5_filt$matrix$barcodes
+  colnames(mat) = paste0(sel_s, bcs)
+  rownames(mat) = as.character(h5_filt$matrix$features$name)
+
+  return(mat)
+}
+
+# sum spliced, unspliced and ambiguous counts for same gene
+.sum_SUA <- function(sua_mat) {
+  types = c('_S$', '_U$', '_A')
+  
+  mats  = lapply(types, function(t) sua_mat[grepl(t, rownames(sua_mat)), ])
+  # check if symbols are all in the same order
+  genes = lapply(mats, function(m) rownames(m) %>% str_before_first(pattern = '_'))
+
+  assert_that(
+    sapply(genes, function(gs) identical(gs, genes[[1]])) %>% all(), 
+    msg = "gene names in split matrices don't match"
+  )
+
+  # remove suffixes from rownames
+  mats = lapply(mats, function(m) {
+    rownames(m) = str_before_first(rownames(m), pattern = '_')
+    m
+  })
+  mats_sum = mats[[1]] + mats[[2]] + mats[[3]]
+  return(mats_sum)
 }

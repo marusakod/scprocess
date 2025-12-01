@@ -1,4 +1,14 @@
-# rules to render html files
+def get_conditional_fgsea_files(species, do_gsea):
+  if (species in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & do_gsea:
+    return {
+      'fgsea_go_bp_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_bp_' + DATE_STAMP + '.txt.gz',
+      'fgsea_go_cc_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_cc_' + DATE_STAMP + '.txt.gz',
+      'fgsea_go_mf_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_mf_' + DATE_STAMP + '.txt.gz'
+    }
+  else:
+    return {}
+
+
 
 rule render_html_index:
   input:
@@ -50,7 +60,6 @@ rule render_html_mapping:
   output:
     r_utils_f = f"{code_dir}/utils.R",
     r_map_f   = f"{code_dir}/mapping.R",
-    r_amb_f   = f"{code_dir}/ambient.R",
     rmd_f     = f"{rmd_dir}/{SHORT_TAG}_mapping.Rmd",
     html_f    = f"{docs_dir}/{SHORT_TAG}_mapping.html"
   params:
@@ -76,7 +85,6 @@ rule render_html_mapping:
     echo "copying relevant R files over"
     cp scripts/utils.R {output.r_utils_f}
     cp scripts/mapping.R {output.r_map_f}
-    cp scripts/ambient.R {output.r_amb_f}
 
     # define rule and template
     template_f=$(realpath resources/rmd_templates/mapping.Rmd.template)
@@ -107,7 +115,7 @@ if config['multiplexing']['demux_type'] == "hto":
   rule render_html_multiplexing:
     input:
       r_utils_f   = code_dir + '/utils.R', 
-      r_amb_f     = code_dir + '/ambient.R',
+      r_map_f     = code_dir + '/mapping.R',
       hto_knee_fs = expand(af_dir + '/af_{run}/hto/' + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=RUNS), 
       sce_hto_fs  = expand(demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', run=RUNS)
     output:
@@ -165,11 +173,11 @@ if config['multiplexing']['demux_type'] == "hto":
 
 # render_html_ambient
 rule render_html_ambient:
-  input:
-    r_amb_f       = f"{code_dir}/ambient.R", 
+  input: 
     r_utils_f     = f"{code_dir}/utils.R",
     run_stats_f  = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output:
+    r_amb_f       = f"{code_dir}/ambient.R",
     rmd_f         = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd",
     html_f        = f"{docs_dir}/{SHORT_TAG}_ambient.html"
   params:
@@ -186,13 +194,17 @@ rule render_html_ambient:
   threads: 4
   retries: config['resources']['retries'] 
   conda:
-    '../envs/rlibs.yaml'
+    '../envs/ambientr.yaml'
   resources:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_ambient', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
     runtime = lambda wildcards, input: get_resources('render_html_ambient', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_ambient_' + DATE_STAMP + '.benchmark.txt'
   shell: """
+    # copy R code over
+    echo "copying relevant R files over"
+    cp scripts/ambient.R {output.r_amb_f}
+    
     # define rule and template
     template_f=$(realpath resources/rmd_templates/ambient.Rmd.template)
     rule="ambient"
@@ -401,9 +413,10 @@ rule render_html_marker_genes:
     integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     hvgs_f        = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
     ambient_f     = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
-    **get_conditional_outputs(config['project']['species'], config['marker_genes']['mkr_do_gsea'])
+    **get_conditional_fgsea_files(config['project']['species'], config['marker_genes']['mkr_do_gsea'])
   output:
     r_mkr_f       = f"{code_dir}/marker_genes.R",
+    r_fgsea_f     = f"{code_dir}/fgsea.R",
     rmd_f         = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd',
     html_f        = f'{docs_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.html'
   threads: 8
@@ -445,6 +458,7 @@ rule render_html_marker_genes:
     # copy R code over
     echo "copying relevant R files over"
     cp scripts/marker_genes.R {output.r_mkr_f}
+    cp scripts/fgsea.R {output.r_fgsea_f}
 
     # define rule and template
     template_f=$(realpath resources/rmd_templates/marker_genes.Rmd.template)
