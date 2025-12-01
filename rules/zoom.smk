@@ -76,6 +76,7 @@ zoom_mkr_report_outs = expand(
   mkr_sel_res = [ZOOM_PARAMS[zoom_name]['marker_genes']["mkr_sel_res"] for zoom_name in ZOOMS]
 )
 zooms_to_save = [ zoom_name for zoom_name in ZOOMS if ZOOM_PARAMS[zoom_name]['zoom']['save_subset_sces'] ]
+
 zoom_sce_outs = (
   expand(
     '%s/{zoom_name}/sce_objects/sce_cells_clean_{zoom_name}_{sample}_%s_%s.rds' % \

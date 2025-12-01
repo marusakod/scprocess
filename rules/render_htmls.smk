@@ -1,4 +1,14 @@
-# rules to render html files
+def get_conditional_fgsea_files(species, do_gsea):
+  if (species in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & do_gsea:
+    return {
+      'fgsea_go_bp_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_bp_' + DATE_STAMP + '.txt.gz',
+      'fgsea_go_cc_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_cc_' + DATE_STAMP + '.txt.gz',
+      'fgsea_go_mf_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_mf_' + DATE_STAMP + '.txt.gz'
+    }
+  else:
+    return {}
+
+
 
 rule render_html_index:
   input:
@@ -403,9 +413,10 @@ rule render_html_marker_genes:
     integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     hvgs_f        = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
     ambient_f     = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
-    **get_conditional_outputs(config['project']['species'], config['marker_genes']['mkr_do_gsea'])
+    **get_conditional_fgsea_files(config['project']['species'], config['marker_genes']['mkr_do_gsea'])
   output:
     r_mkr_f       = f"{code_dir}/marker_genes.R",
+    r_fgsea_f     = f"{code_dir}/fgsea.R",
     rmd_f         = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd',
     html_f        = f'{docs_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.html'
   threads: 8
@@ -447,6 +458,7 @@ rule render_html_marker_genes:
     # copy R code over
     echo "copying relevant R files over"
     cp scripts/marker_genes.R {output.r_mkr_f}
+    cp scripts/fgsea.R {output.r_fgsea_f}
 
     # define rule and template
     template_f=$(realpath resources/rmd_templates/marker_genes.Rmd.template)

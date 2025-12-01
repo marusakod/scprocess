@@ -111,6 +111,8 @@ time,,,,zoom_make_subset_sces,
 memory,,,,zoom_make_subset_sces,
 time,,,,render_html_zoom,
 memory,,,,render_html_zoom,
+time,,,,run_fgsea,
+memory,,,,run_fgsea,
 time,input.af_h5_f,53.06,2.489,run_decontx,5
 memory,input.af_h5_f,943.34,68.985,run_decontx,2048
 time,input.clean_h5_f,6.79,0.805,get_stats_for_std_variance_for_sample,5
