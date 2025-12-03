@@ -41,7 +41,7 @@ get_one_hto_sce <- function(sel_pool, sample_stats_f, amb_yaml_f, hto_mat_f, tra
   }
   
   # get file with all barcodes called as cells
-  yaml_data       = yaml.load_file(amb_yaml_f)
+  yaml_data       = yaml::read_yaml(amb_yaml_f)
   bcs_f = yaml_data$bcs_f
   
   # get file for barcode translation
