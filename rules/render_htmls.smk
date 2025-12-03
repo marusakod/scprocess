@@ -74,8 +74,8 @@ rule render_html_mapping:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb    =  lambda wildcards, attempt, input: attempt * get_resources('render_html_mapping', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS), 
-    runtime   =  lambda wildcards, input: get_resources('render_html_mapping', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb    =  lambda wildcards, attempt, input: attempt * get_resources('render_html_mapping', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS), 
+    runtime   =  lambda wildcards, input: get_resources('render_html_mapping', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_mapping_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -135,8 +135,8 @@ if config['multiplexing']['demux_type'] == "hto":
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_multiplexing', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-      runtime = lambda wildcards, input: get_resources('render_html_multiplexing', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_multiplexing', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+      runtime = lambda wildcards, input: get_resources('render_html_multiplexing', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
     benchmark:
       benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_multiplexing_' + DATE_STAMP + '.benchmark.txt'
     conda:
@@ -196,8 +196,8 @@ rule render_html_ambient:
   conda:
     '../envs/ambientr.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_ambient', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('render_html_ambient', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_ambient', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('render_html_ambient', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_ambient_' + DATE_STAMP + '.benchmark.txt'
   shell: """
@@ -255,8 +255,8 @@ rule render_html_qc:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_qc', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('render_html_qc', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_qc', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('render_html_qc', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_qc_' + DATE_STAMP + '.benchmark.txt'
   shell: """
@@ -295,7 +295,7 @@ rule render_html_hvgs:
   input:
     r_utils_f   = f"{code_dir}/utils.R",
     hvgs_f      = hvg_dir   + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    empty_gs_f  = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
+    empty_gs_f  = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.csv.gz',
     pb_empty_f  = pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   output:
     r_hvgs_f    = f"{code_dir}/hvgs.R",
@@ -312,8 +312,8 @@ rule render_html_hvgs:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_hvgs', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('render_html_hvgs', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_hvgs', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('render_html_hvgs', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_hvgs_' + DATE_STAMP + '.benchmark.txt'
   shell: """
@@ -369,8 +369,8 @@ rule render_html_integration:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_integration', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('render_html_integration', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_integration', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('render_html_integration', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_integration_' + DATE_STAMP + '.benchmark.txt'
   shell: """
@@ -412,7 +412,7 @@ rule render_html_marker_genes:
     mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
     integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     hvgs_f        = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
-    ambient_f     = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz',
+    ambient_f     = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.csv.gz',
     **get_conditional_fgsea_files(config['project']['species'], config['marker_genes']['mkr_do_gsea'])
   output:
     r_mkr_f       = f"{code_dir}/marker_genes.R",
@@ -450,8 +450,8 @@ rule render_html_marker_genes:
     ).strip()
   conda: '../envs/rlibs.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_marker_genes', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('render_html_marker_genes', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_marker_genes', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('render_html_marker_genes', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_marker_genes_' + DATE_STAMP + '.benchmark.txt'
   shell: """
@@ -527,8 +527,8 @@ if "label_celltypes" in config:
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_label_celltypes', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-      runtime = lambda wildcards, input: get_resources('render_html_label_celltypes', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_label_celltypes', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+      runtime = lambda wildcards, input: get_resources('render_html_label_celltypes', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
     conda:
       '../envs/rlibs.yaml'
     benchmark:

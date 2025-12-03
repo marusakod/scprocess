@@ -15,8 +15,8 @@ rule run_marker_genes:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_marker_genes', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('run_marker_genes', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_marker_genes', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('run_marker_genes', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_marker_genes/run_marker_genes_' + DATE_STAMP + '.benchmark.txt'
   conda: '../envs/rlibs.yaml'
@@ -51,8 +51,8 @@ rule run_fgsea:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_fgsea', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('run_fgsea', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_fgsea', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('run_fgsea', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_marker_genes/run_marker_genes_' + DATE_STAMP + '.benchmark.txt'
   conda: '../envs/rlibs.yaml'

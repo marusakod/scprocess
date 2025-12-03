@@ -8,53 +8,54 @@ import numpy as np
 localrules: make_qc_thresholds_csv, make_tmp_sce_paths_yaml
 
 # get output file paths as string
-def get_qc_files_str(run, SAMPLES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP):
+def _get_qc_files_str(run, BATCHES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP):
   # make lists
-  sce_fs_ls = []
-  smpls_ls  = []
-  for s in SAMPLES_TO_RUNS[run]:
-    sce_fs_ls.append(f"{qc_dir}/sce_cells_tmp_{s}_{FULL_TAG}_{DATE_STAMP}.rds")
-    smpls_ls.append(s)
+  sce_fs_ls   = []
+  batches_ls  = []
+  for b in BATCHES_TO_RUNS[run]:
+    sce_fs_ls.append(f"{qc_dir}/sce_cells_tmp_{b}_{FULL_TAG}_{DATE_STAMP}.rds")
+    batches_ls.append(b)
 
   # concatenate them
   sce_str   = ','.join(sce_fs_ls)
-  smpl_str  = ','.join(smpls_ls)
+  batch_str  = ','.join(batches_ls)
 
   # make out dictionary
   out_dc = {
-    "smpl_str": smpl_str, 
-    "sce_str":  sce_str
+    "batch_str":  batch_str, 
+    "sce_str":    sce_str
   }
   return out_dc
 
 
 # mini wrapper functions
-def get_all_smpls_str(wildcards):
-  return get_qc_files_str(wildcards.run, SAMPLES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP)['smpl_str']
+def get_all_batches_str(wildcards):
+  return _get_qc_files_str(wildcards.run, BATCHES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP)['batch_str']
+
 
 def get_sce_fs_str(wildcards):
-  return get_qc_files_str(wildcards.run, SAMPLES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP)['sce_str']
+  return _get_qc_files_str(wildcards.run, BATCHES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP)['sce_str']
 
 
-def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, SAMPLES, RUN_VAR, SAMPLES_TO_RUNS):
+def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, BATCHES, BATCHES_TO_RUNS, BATCH_VAR, RUN_VAR):
   # load the merged qc file, also thresholds
   qc_df     = pl.read_csv(qc_merged_f)
   cuts_df   = pl.read_csv(cuts_f)
 
   # count the number of cells that passed qc per sample
   qc_df     = qc_df.filter(pl.col("keep") == True)
-  sample_df = qc_df.group_by('sample_id').agg( pl.col("sample_id").count().alias('n_cells') )
+  sample_df = qc_df.group_by(BATCH_VAR).agg( pl.col(BATCH_VAR).count().alias('n_cells') )
 
-  cuts_sample_df = cuts_df.select('sample_id')
-  sample_df = cuts_sample_df.join(sample_df, on='sample_id', how='left') 
+  cuts_sample_df = cuts_df.select(BATCH_VAR)
+  sample_df = cuts_sample_df.join(sample_df, on=BATCH_VAR, how='left') 
   sample_df = sample_df.fill_null(0)
 
   # check all samples present in sample_df
-  if set(sample_df['sample_id'].to_list()) != set(cuts_df['sample_id'].to_list()):
-    raise ValueError("sample_df and cuts_df have different sets of values for 'sample_id'")
+  if set(sample_df[BATCH_VAR].to_list()) != set(cuts_df[BATCH_VAR].to_list()):
+    raise ValueError("sample_df and cuts_df have different sets of values for BATCH_VAR")
 
   # load cuts, merge and use to identify samples that do not meet the minimum cell threshold
-  sample_df = sample_df.join( cuts_df.select(["sample_id", "min_cells"]), on = "sample_id", how = "left")
+  sample_df = sample_df.join( cuts_df.select([BATCH_VAR, "min_cells"]), on = BATCH_VAR, how = "left")
   sample_df = sample_df.with_columns( (pl.col('n_cells') < pl.col('min_cells')).alias('bad_qc') )
 
   # handle samples excluded after cellbender
@@ -67,21 +68,21 @@ def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, SAMPL
 
     # check for these
     if config['multiplexing']['demux_type'] != "none":
-      bad_bender_samples = []
+      bad_bender_batches = []
       for bad_run in bad_bender:
-        if bad_run in SAMPLES_TO_RUNS:
-          bad_bender_samples.extend(SAMPLES_TO_RUNS[bad_run])
-      if not all(s in SAMPLES for s in bad_bender_samples):
-        raise ValueError("Some bad bender samples are not in the SAMPLES list.")
+        if bad_run in BATCHES_TO_RUNS:
+          bad_bender_batches.extend(BATCHES_TO_RUNS[bad_run])
+      if not all(b in BATCHES for b in bad_bender_batches):
+        raise ValueError("Some bad bender samples are not in the BATCHES list.")
     else:
-      bad_bender_samples = bad_bender
+      bad_bender_batches = bad_bender
 
     # record samples where cellbender went wrong
     sample_df = sample_df.with_columns( pl.lit(False).alias('bad_bender'))
-    if len(bad_bender_samples) != 0: 
+    if len(bad_bender_batches) != 0: 
        # add bad_bender column to sample_df
       bad_bender_df = pl.DataFrame({
-        'sample_id':  bad_bender_samples, 
+        BATCH_VAR:    bad_bender_batches,
         'n_cells':    None, 
         'min_cells':  None, 
         'bad_qc':     False, 
@@ -93,25 +94,25 @@ def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, SAMPL
       sample_df = sample_df.vstack(bad_bender_df)
 
     # check we didn't miss anything
-    if not all([s in sample_df['sample_id'].to_list() for s in SAMPLES]):
+    if not all([b in sample_df[BATCH_VAR].to_list() for b in BATCHES]):
       raise KeyError("some samples missing from sample_df")
 
     # label as bad if bad_bender or bad_qc
-    sample_df   = sample_df.with_columns( (pl.col('bad_bender') | pl.col('bad_qc')).alias('bad_sample') )
+    sample_df   = sample_df.with_columns( (pl.col('bad_bender') | pl.col('bad_qc')).alias(f'bad_{BATCH_VAR}') )
 
   else:
-    sample_df   = sample_df.with_columns( pl.col('bad_qc').alias('bad_sample') )
+    sample_df   = sample_df.with_columns( pl.col('bad_qc').alias(f'bad_{BATCH_VAR}') )
 
   return sample_df
 
 
 rule make_qc_thresholds_csv:
   output:
-    cuts_f      = qc_dir  + '/qc_thresholds_by_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv'
   run:
     # make polars dataframe from dictionary of parameters
     rows_data   = []
-    for sample_id, param_ls in SAMPLE_PARAMS.items():
+    for sample_id, param_ls in BATCH_PARAMS.items():
       qc_params   = param_ls['qc']
       row_data    = {'sample_id': sample_id}
       row_data.update(qc_params)
@@ -130,10 +131,10 @@ rule make_qc_thresholds_csv:
     cuts_df.write_csv(output.cuts_f)
 
 
-rule run_qc:
+rule run_qc_one_run:
   input:
     af_h5_f     = af_dir  + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5', 
-    cuts_f      = qc_dir  + '/qc_thresholds_by_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv',
     run_stats_f = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     amb_yaml_f  = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
     demux_f     = (demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds') \
@@ -148,10 +149,11 @@ rule run_qc:
   params:
     metadata_f      = config['project']['sample_metadata'],
     af_gtf_dt_f     = config['mapping']['af_gtf_dt_f'],
-    all_smpls_str   = get_all_smpls_str,
+    all_batches_str = get_all_batches_str,
     sce_fs_str      = get_sce_fs_str,
     mito_str        = config['mapping']['af_mito_str'],
     ambient_method  = config['ambient']['ambient_method'],
+    batch_var       = BATCH_VAR,
     exclude_mito    = config['qc']['exclude_mito'],
     hard_min_counts = config['qc']['qc_hard_min_counts'],
     hard_min_feats  = config['qc']['qc_hard_min_feats'],
@@ -162,8 +164,8 @@ rule run_qc:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_qc', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run),
-    runtime = lambda wildcards, input: get_resources('run_qc', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_qc', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)*(1.5**(attempt-1)),
+    runtime = lambda wildcards, input: get_resources('run_qc', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/run_qc_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -180,7 +182,7 @@ rule run_qc:
         gtf_dt_f        = '{params.af_gtf_dt_f}', \
         ambient_method  = '{params.ambient_method}', \
         sce_fs_str      = '{params.sce_fs_str}', \
-        all_samples_str = '{params.all_smpls_str}', \
+        all_batches_str = '{params.all_batches_str}', \
         rowdata_f       = '{output.rowdata_f}', \
         qc_f            = '{output.qc_f}', \
         coldata_f       = '{output.coldata_f}', \
@@ -191,6 +193,7 @@ rule run_qc:
         hard_min_feats  =  {params.hard_min_feats}, \
         hard_max_mito   =  {params.hard_max_mito}, \
         run_var         = '{params.run_var}', \
+        batch_var       = '{params.batch_var}', \
         demux_type      = '{params.demux_type}', \
         dbl_min_feats   =  {params.dbl_min_feats} \
       )"
@@ -209,8 +212,8 @@ rule merge_qc:
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/merge_qc_' + DATE_STAMP + '.benchmark.txt'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_qc', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('merge_qc', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_qc', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('merge_qc', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   run:
     # read all nonempty input files and concatenate them
     qc_df_ls    = [ pl.read_csv(f, schema_overrides = {"log_N": pl.Float64}) for f in input.qc_fs if os.path.getsize(f) > 0 ]
@@ -234,8 +237,8 @@ rule merge_rowdata:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_rowdata', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('merge_rowdata', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_rowdata', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('merge_rowdata', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/merge_rowdata_' + DATE_STAMP + '.benchmark.txt'
   run:
@@ -256,34 +259,34 @@ rule merge_rowdata:
 
 rule get_qc_sample_statistics:
   input:
-    run_stats_f   = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    qc_merged_f   = qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    cuts_f        = qc_dir  + '/qc_thresholds_by_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    run_stats_f   = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+    qc_merged_f   = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    cuts_f        = f'{qc_dir}/qc_thresholds_by_sample_{FULL_TAG}_{DATE_STAMP}.csv'
   output:
-    qc_stats_f    = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    qc_stats_f    = f'{qc_dir}/qc_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_qc_sample_statistics', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('get_qc_sample_statistics', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_qc_sample_statistics', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('get_qc_sample_statistics', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_qc/get_qc_sample_statistics_' + DATE_STAMP + '.benchmark.txt'
   run:
     sample_stats_df = extract_qc_sample_statistics(input.run_stats_f, input.qc_merged_f, input.cuts_f,
-      config, SAMPLES, RUN_VAR, SAMPLES_TO_RUNS)
+      config, BATCHES, BATCHES_TO_RUNS, BATCH_VAR, RUN_VAR)
     sample_stats_df.write_csv(output.qc_stats_f)
 
 
 # write sce objects paths to a yaml file
 rule make_tmp_sce_paths_yaml:
   input:
-    qc_stats_f  = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv' # so that this runs after get_qc_sample_statistics
+    qc_stats_f  = f'{qc_dir}/qc_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv' # so that this runs after get_qc_sample_statistics
   output:
-    sces_yaml_f = temp(qc_dir  + '/sce_tmp_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml')
+    sces_yaml_f = temp(f'{qc_dir}/sce_tmp_paths_{FULL_TAG}_{DATE_STAMP}.yaml')
   threads: 1
   run:
     # split paths and sample names
-    fs = [f"{qc_dir}/sce_cells_tmp_{s}_{FULL_TAG}_{DATE_STAMP}.rds" for s in SAMPLES]
+    fs = [f"{qc_dir}/sce_cells_tmp_{b}_{FULL_TAG}_{DATE_STAMP}.rds" for b in BATCHES]
     
     # check that all files exist
     for f in fs:
@@ -291,7 +294,7 @@ rule make_tmp_sce_paths_yaml:
         raise FileNotFoundError(f"file {f} doesn't exist")
 
     # create a dictionary
-    fs_dict = dict(zip(SAMPLES, fs))
+    fs_dict = dict(zip(BATCHES, fs))
 
     # write to yaml
     with open(output.sces_yaml_f, 'w') as f:

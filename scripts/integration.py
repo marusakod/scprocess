@@ -62,7 +62,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   gc.collect()
 
   print('filter to non-doublet cells')
-  dbl_data      = _calc_dbl_data(int_dbl, ok_cells_df, dbl_res, dbl_cl_prop)
+  dbl_data      = _calc_dbl_data(int_dbl, ok_cells_df, dbl_res, dbl_cl_prop, batch_var)
   adata         = _adata_filter_out_doublets(all_hvg_mat, ok_cells_df, dbl_data)
   print(adata)
   print(f"  anndata object has {adata.shape[0]} cells and {adata.shape[1]} dims")
@@ -87,8 +87,8 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
 
 def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs):
   # load files
-  sample_qc     = pl.read_csv(sample_qc_f)
-  all_coldata   = pl.read_csv(coldata_f)
+  sample_qc   = pl.read_csv(sample_qc_f)
+  all_coldata = pl.read_csv(coldata_f)
 
   # checks
   if not 'sample_id' in all_coldata.columns:
@@ -97,13 +97,25 @@ def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs):
     raise KeyError("column sample_id is missing from sample QC file")
 
   # get ok samples
-  ok_samples    = sample_qc.filter(pl.col("bad_sample") == False)["sample_id"].to_list()
+  ok_samples  = sample_qc.filter(pl.col("bad_sample") == False)["sample_id"].to_list()
+  passed_idx  = all_coldata['keep']
+  
+  # subset to doublets
+  if demux_type == "none":
+    dbl_idx     = all_coldata["scdbl_class"] == "doublet"
+  else:
+    if batch_var == "sample_id":
+      dbl_idx     = (all_coldata["scdbl_class"] == "doublet") | (all_coldata["demux_class"] == "doublet")
+    elif batch_var == "pool_id":
+      dbl_idx     = all_coldata["scdbl_class"] == "doublet"
 
   # get ok cells
   ok_cells_df   = all_coldata.filter(
-    ((pl.col("keep") == True) | (pl.col("dbl_class") == "doublet")) & 
+    passed_idx | dbl_idx
+  ).filter(
     ((pl.col("sample_id").is_in(ok_samples)) | (pl.col("sample_id").is_null()))
   )
+
   # check ok
   if not set(all_bcs) == set(ok_cells_df['cell_id'].to_list()):
     raise ValueError("barcodes from hvg mats and cell_ids don't match")
@@ -294,7 +306,7 @@ def _get_embeddings_from_adata(adata, embedding,  sel_embed):
   return embeds_dt
 
 
-def _calc_dbl_data(int_dbl, ok_cells_df, dbl_res, dbl_cl_prop):
+def _calc_dbl_data(int_dbl, ok_cells_df, dbl_res, dbl_cl_prop, demux_type, batch_var):
   # get doublet cells
   dbl_ids       = ok_cells_df.filter(pl.col("dbl_class") == "doublet")["cell_id"].to_list()
 

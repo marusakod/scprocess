@@ -23,8 +23,8 @@ rule run_integration:
   threads: 1
   retries: config['resources']['retries'] 
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_integration', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('run_integration', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_integration', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('run_integration', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   conda: 
     '../envs/integration.yaml'
   benchmark:
@@ -74,8 +74,8 @@ rule make_clean_sces:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_clean_sces', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('make_clean_sces', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_clean_sces', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('make_clean_sces', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_integration/make_clean_sces_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -93,12 +93,12 @@ rule make_clean_sces:
 # make a yaml with all clean sce file paths
 rule make_clean_sce_paths_yaml:
    input:
-    clean_sce_f = expand(int_dir + '/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample = SAMPLES) # not used
+    clean_sce_f = expand(int_dir + '/sce_cells_clean_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', batch = BATCHES) # not used
    output:
     sces_yaml_f = int_dir + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml'
    run:
-    # split paths and sample names
-    fs = [f"{int_dir}/sce_cells_clean_{s}_{FULL_TAG}_{DATE_STAMP}.rds" for s in SAMPLES]
+    # split paths and batch names
+    fs = [f"{int_dir}/sce_cells_clean_{b}_{FULL_TAG}_{DATE_STAMP}.rds" for b in BATCHES]
     
     # check that all files exist
     for f in fs:
@@ -106,7 +106,7 @@ rule make_clean_sce_paths_yaml:
         raise FileNotFoundError(f"File {f} doesn't exist")
 
     # create a dictionary
-    fs_dict = dict(zip(SAMPLES, fs))
+    fs_dict = dict(zip(BATCHES, fs))
 
     # write to yaml
     with open(output.sces_yaml_f, 'w') as f:

@@ -6,8 +6,8 @@ rule build_hto_index:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('build_hto_index', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('build_hto_index', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('build_hto_index', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('build_hto_index', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_hto/build_hto_index_' + DATE_STAMP + '.benchmark.txt'
   output: 
@@ -62,8 +62,8 @@ rule run_mapping_hto:
   threads: config['resources']['n_run_mapping']
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_mapping_hto', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run),
-    runtime = lambda wildcards, input: get_resources('run_mapping_hto', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_mapping_hto', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
+    runtime = lambda wildcards, input: get_resources('run_mapping_hto', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_hto/run_mapping_hto_{run}_' + DATE_STAMP + '.benchmark.txt'
   shell:"""
@@ -99,8 +99,8 @@ rule save_alevin_hto_to_h5:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('save_alevin_hto_to_h5', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run),
-    runtime = lambda wildcards, input: get_resources('save_alevin_hto_to_h5', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('save_alevin_hto_to_h5', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
+    runtime = lambda wildcards, input: get_resources('save_alevin_hto_to_h5', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark: 
     benchmark_dir + '/' + SHORT_TAG + '_hto/save_alevin_hto_to_h5_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
@@ -133,8 +133,8 @@ rule make_hto_sce_objects:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_hto_sce_objects', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run),
-    runtime = lambda wildcards, input: get_resources('make_hto_sce_objects', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_hto_sce_objects', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
+    runtime = lambda wildcards, input: get_resources('make_hto_sce_objects', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_hto/make_hto_sce_objects_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda:

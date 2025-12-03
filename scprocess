@@ -209,7 +209,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
   os.chdir(scprocess_dir)
 
   # do some checks
-  scprocess_data_dir, extraargs = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
+  scdata_dir, extraargs = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
 
   # get validated config
   with open(config_path, "r") as f:
@@ -217,18 +217,18 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
   schema_f        = scprocess_dir / "resources/schemas/config.schema.json"
   if not schema_f.is_file():
     raise FileNotFoundError("schema file not found")
-  config          = scprocess_utils.check_config(config, schema_f, scprocess_data_dir, scprocess_dir)
+  config          = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
 
   # get lists of parameters
-  RUN_PARAMS, RUN_VAR   = scprocess_utils.get_run_parameters(config, scprocess_data_dir)
-  RUNS                  = list(RUN_PARAMS.keys())
-  SAMPLE_PARAMS         = scprocess_utils.get_sample_parameters(config, RUNS, scprocess_data_dir)
-  SAMPLES               = list(SAMPLE_PARAMS.keys())
-  SAMPLES_TO_RUNS       = scprocess_utils.get_samples_to_runs(config, RUNS, SAMPLES)
+  RUN_PARAMS, RUN_VAR     = scprocess_utils.get_run_parameters(config, scdata_dir)
+  RUNS                    = list(RUN_PARAMS.keys())
+  BATCH_PARAMS, BATCH_VAR = scprocess_utils.get_batch_parameters(config, RUNS, scdata_dir)
+  BATCHES                 = list(BATCH_PARAMS.keys())
+  BATCHES_TO_RUNS         = scprocess_utils.get_batches_to_runs(config, RUNS, BATCHES, BATCH_VAR)
 
   # print which files will be processed
-  print(f"\nprocessing {len(SAMPLES)} samples:")
-  print('  ' + ', '.join(SAMPLES))
+  print(f"\nprocessing {len(BATCHES)} samples:")
+  print('  ' + ', '.join(BATCHES))
 
   # print out what we will do:
   print("\nsnakemake command:")
@@ -273,22 +273,42 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
 
 
 # scprocess plotknee
-def plot_interactive_knee(knee_f, sample):
+def plot_interactive_knee(config_f, knee_f, sample):
+  # check we can find the file
+  if args.kneefile:
+    knee_f      = pathlib.Path(args.kneefile)
+    if not knee_f.is_file():
+      raise FileNotFoundError(f"Specified knee file doesn't exist. Check for typos, but", 
+        " if the file doesn't exist you can generate the file by running the rule 'mapping'")
+  else:
+    # open config file and get project directory
+    with open(config_f) as f:
+      config = yaml.load(f, Loader=yaml.FullLoader)
+    
+    # get required variables
+    proj_dir    = pathlib.Path(config['project']['proj_dir'])
+    short_tag   = config['project']['short_tag']
+    date_stamp  = config['project']['date_stamp']
+
+    # use them to define a knee file to use
+    knee_f      = proj_dir / f"output/{short_tag}_mapping/af_{sample}" / f"knee_plot_data_{sample}_{date_stamp}.txt.gz"
+    if not knee_f.is_file():
+      knee_f      = proj_dir / f"output/{short_tag}_mapping/af_{sample}/rna" / f"knee_plot_data_{sample}_{date_stamp}.txt.gz"
+    if not knee_f.is_file():
+      raise FileNotFoundError(f"Knee file for {sample} doesn't exist. You can generate it ", 
+        "by running the rule 'mapping'")
+
   print('importing modules for plotting knees')
   import gzip
   import plotly.express as px
   from plotly.offline import plot
 
-  if not os.path.isfile(knee_f):
-    raise FileNotFoundError(f"knee file for {sample} doesn't exist. To generate the file run rule 'mapping'")
-
   # read knee file
-  with gzip.open(knee_f, 'rt') as file:
-    knee_df = pd.read_csv(file, delimiter=',')
+  knee_df = pl.read_csv(knee_f)
 
   # make plot
   fig = px.scatter(
-    knee_df,
+    knee_df.to_pandas(),
     x='rank',
     y='total',
     title=f"sample_id: {sample}",
@@ -449,25 +469,8 @@ if __name__ == '__main__':
   
   # plot knee for selected sample
   elif args.subcommand == 'plotknee':
-    # process plotknee commands
-    if args.kneefile:
-      knee_f = args.kneefile
-    else:
-      # open config file and get project directory
-      with open(args.configfile) as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
-      
-      # get required variables
-      proj_dir    = config['project']['proj_dir']
-      short_tag   = config['project']['short_tag']
-      date_stamp  = config['project']['date_stamp']
-
-      # use them to define a knee file to use
-      knee_dir    = f"{proj_dir}/output/{short_tag}_mapping/af_{args.sample}"
-      knee_f      = f"{knee_dir}/knee_plot_data_{args.sample}_{date_stamp}.txt.gz"
-
     # call function
-    plot_interactive_knee(knee_f, args.sample)
+    plot_interactive_knee(args.configfile, args.kneefile, args.sample)
 
   else:
     # if no arguments are provided at all, print the help message

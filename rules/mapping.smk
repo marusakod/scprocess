@@ -32,8 +32,8 @@ rule run_mapping:
   threads: config['resources']['n_run_mapping']
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_mapping', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run),
-    runtime = lambda wildcards, input: get_resources('run_mapping', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_mapping', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
+    runtime = lambda wildcards, input: get_resources('run_mapping', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   conda:
     '../envs/alevin_fry.yaml'
   shell:"""
@@ -78,8 +78,8 @@ rule save_alevin_to_h5:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('save_alevin_to_h5', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run),
-    runtime = lambda wildcards, input: get_resources('save_alevin_to_h5', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('save_alevin_to_h5', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
+    runtime = lambda wildcards, input: get_resources('save_alevin_to_h5', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_mapping/save_alevin_to_h5_{run}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
