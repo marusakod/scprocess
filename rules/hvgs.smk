@@ -162,7 +162,8 @@ else:
     output:
       estim_vars_f      = temp(hvg_dir + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz')
     params:
-      hvg_method        = config['hvg']['hvg_method']
+      hvg_method        = config['hvg']['hvg_method'],
+      batch_var         = BATCH_VAR
     threads: 1
     retries: config['resources']['retries']
     conda:
@@ -176,6 +177,7 @@ else:
       python3 scripts/hvgs.py calculate_estimated_vars \
         {output.estim_vars_f} \
         {params.hvg_method} \
+        {params.batch_var} \
         {input.mean_var_merged_f}
       """
 

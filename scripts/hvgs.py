@@ -246,7 +246,7 @@ def _calculate_sum_and_sum_squares_clipped(sparse_csr, estim_vars_df):
   return estim_vars_df
 
 
-def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None,
+def calculate_estimated_vars(estim_vars_f, hvg_method, batch_var, mean_var_merged_f = None,
   mean_var_df = None, min_mean = 0.01, span: float = 0.3 ):
   # read mean var df if not specified
   if mean_var_df is None:
@@ -256,7 +256,7 @@ def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None,
     stats_df = mean_var_df
 
   # group on relevant variable
-  group_var   = 'sample_id' if hvg_method == 'sample' else 'group'
+  group_var   = batch_var if hvg_method == 'sample' else 'group'
   grouped     = stats_df.partition_by( group_var, as_dict = True )
 
   # go through each group
@@ -401,6 +401,7 @@ def calculate_std_var_stats_for_sample(batch, batch_var, qc_smpl_stats_f, csr_f,
     estim_vars_f      = None,
     mean_var_merged_f = None,
     hvg_method        = 'sample',
+    batch_var         = batch_var,
     mean_var_df       = stats_df
     )
   
@@ -821,6 +822,7 @@ if __name__ == "__main__":
   parser_varEstim = subparsers.add_parser('calculate_estimated_vars')
   parser_varEstim.add_argument("estim_vars_f", type=str)
   parser_varEstim.add_argument("hvg_method", type=str)
+  parser_varEstim.add_argument("batch_var", type=str)
   parser_varEstim.add_argument("mean_var_merged_f", type=str)
 
   # parser for calculate_std_var_stats_for_sample
@@ -896,7 +898,7 @@ if __name__ == "__main__":
     )
   elif args.function_name == 'calculate_estimated_vars':
     calculate_estimated_vars(
-      args.estim_vars_f, args.hvg_method, args.mean_var_merged_f
+      args.estim_vars_f, args.hvg_method, args.batch_var, args.mean_var_merged_f
     )
   elif args.function_name == 'calculate_std_var_stats_for_sample':
     calculate_std_var_stats_for_sample(

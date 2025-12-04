@@ -237,7 +237,7 @@ rule render_html_qc:
   input:
     r_utils_f   = f"{code_dir}/utils.R",
     qc_dt_f     = qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    cuts_f      = qc_dir  + '/qc_thresholds_by_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv'
   params:
     metadata_f          = config['project']['sample_metadata'],
     your_name           = config['project']['your_name'],
