@@ -109,12 +109,14 @@ def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, BATCH
 rule make_qc_thresholds_csv:
   output:
     cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv'
+  params:
+    batch_var   = BATCH_VAR
   run:
     # make polars dataframe from dictionary of parameters
     rows_data   = []
-    for sample_id, param_ls in BATCH_PARAMS.items():
+    for batch, param_ls in BATCH_PARAMS.items():
       qc_params   = param_ls['qc']
-      row_data    = {'sample_id': sample_id}
+      row_data    = {params.batch_var: batch}
       row_data.update(qc_params)
       rows_data.append(row_data)
     cuts_df     = pl.DataFrame(rows_data)

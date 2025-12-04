@@ -280,7 +280,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   assert_that( all(unique(sce$sample_id) %in% metadata_all$sample_id) )
 
   # join to coldata
-  coldata_in    = colData(sce) %>% as.data.frame %>% as.data.table
+  coldata_in    = colData(sce) %>% as.data.frame() %>% as.data.table
   coldata_out   = merge(coldata_in, metadata_all, by = "sample_id") %>%
     setkey("cell_id")
   coldata_out   = coldata_out[ colnames(sce) ]
@@ -427,7 +427,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 
 .add_dbl_info <- function(sce, dbl_dt, sample_var, demux_type = "none") {
   # get input
-  coldata_in    = colData(sce) %>% as.data.frame %>% as.data.table
+  coldata_in    = colData(sce) %>% as.data.frame() %>% as.data.table
   missing_cells = setdiff(coldata_in$cell_id, dbl_dt$cell_id)
   
   # define columns we need  
@@ -793,7 +793,7 @@ get_cols_dt <- function(sce_f, cols_f, overwrite=FALSE) {
   sce     = sce_f %>% readRDS
 
   # assemble
-  cols_dt   = colData(sce) %>% as.data.frame %>%
+  cols_dt   = colData(sce) %>% as.data.frame() %>%
     as.data.table(keep.rownames = 'cell_id')
   fwrite(cols_dt, file=cols_f)
 
