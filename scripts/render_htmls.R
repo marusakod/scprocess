@@ -104,7 +104,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
   } else if (sel_rule == 'multiplexing') {
     req_names = c('your_name', 'affiliation', 'short_tag', 
       'date_stamp', 'runs_str','ambient_method','metadata_f',
-      'run_var', 'af_dir', 'demux_dir')
+      'run_var', 'batch_var', 'af_dir', 'demux_dir')
 
     assert_that(all(req_names %in% add_args_names))
 
@@ -112,7 +112,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
   } else if (sel_rule == 'qc') {
     req_names = c('your_name', 'affiliation', 'short_tag', 
-      'date_stamp', 'threads', 'metadata_f', 'qc_dt_f', 'cuts_f',
+      'date_stamp', 'threads', 'metadata_f', 'qc_dt_f', 'cuts_f', 'batch_var',
       'min_cells', 'qc_hard_min_counts', 'qc_hard_min_feats', 'qc_hard_max_mito')
     setdiff(req_names, add_args_names)
     assert_that(all(req_names %in% add_args_names))

@@ -131,11 +131,11 @@ rule all:
     # demultiplexing
     hto_sce_fs,
     # qc
-    qc_dir  + '/qc_thresholds_by_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    qc_dir  + '/qc_thresholds_by_' + BATCH_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-    qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
+    qc_dir  + '/coldata_dt_all_cells_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-    qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    qc_dir  + '/qc_' + BATCH_VAR + '_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     # pseudobulks and empties
     pb_dir  + '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
@@ -143,8 +143,8 @@ rule all:
     empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.csv.gz', 
     # hvgs
     hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
+    hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
     hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
     #hvg_dir + '/chunked_counts_h5_sizes_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
@@ -237,7 +237,7 @@ rule qc:
       dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       # dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       ], run = RUNS),
-    qc_dir    + '/qc_thresholds_by_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    qc_dir    + '/qc_thresholds_by_' + BATCH_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     qc_dir    + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     qc_dir    + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     qc_dir    + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 

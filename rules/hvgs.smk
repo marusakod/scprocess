@@ -7,7 +7,7 @@ rule make_hvg_df:
   input:
     ambient_yml_out = expand([amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'], run = RUNS)
   output:
-    hvg_paths_f     = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv' 
+    hvg_paths_f     = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   params:
     run_var         = RUN_VAR,
     batch_var       = BATCH_VAR,
@@ -23,12 +23,13 @@ rule make_tmp_csr_matrix:
   input:
     hvg_paths_f     = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     cell_filter_f   = qc_dir  + '/coldata_dt_all_cells_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    qc_smpl_stats_f = qc_dir  + '/qc_batch_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    qc_stats_f      = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
     clean_h5_f      = temp(expand(hvg_dir + '/chunked_counts_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', batch = BATCHES))
   params:
     run_var         = RUN_VAR,
+    batch_var       = BATCH_VAR,
     demux_type      = config['multiplexing']['demux_type'],
     hvg_chunk_size  = config['hvg']['hvg_chunk_size']
   threads: 8
@@ -45,10 +46,10 @@ rule make_tmp_csr_matrix:
       {input.hvg_paths_f} \
       {input.cell_filter_f} \
       "keep" \
-      "True" \
-      {input.qc_smpl_stats_f} \
+      {input.qc_stats_f} \
       {input.rowdata_f} \
       {params.run_var} \
+      {params.batch_var} \
       {params.demux_type} \
       --chunksize {params.hvg_chunk_size} \
       --ncores {threads}
@@ -61,10 +62,12 @@ if config['hvg']['hvg_method'] == 'sample':
   rule get_stats_for_std_variance_for_sample:
     input:
       clean_h5_f      = hvg_dir + '/chunked_counts_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-      qc_smpl_stats_f = qc_dir  + '/qc_batch_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+      qc_stats_f      = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
       rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
     output:
       std_var_stats_f = temp(hvg_dir + '/tmp_std_var_stats_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz')
+    params:
+      batch_var       = BATCH_VAR
     threads: 1
     retries: config['resources']['retries']
     resources:
@@ -77,7 +80,8 @@ if config['hvg']['hvg_method'] == 'sample':
     shell: """
       python3 scripts/hvgs.py calculate_std_var_stats_for_sample \
         {wildcards.batch} \
-        {input.qc_smpl_stats_f} \
+        {params.batch_var} \
+        {input.qc_stats_f} \
         {input.clean_h5_f} \
         {input.rowdata_f} \
         {output.std_var_stats_f}
@@ -106,7 +110,7 @@ else:
       clean_h5_f      = expand(hvg_dir + '/chunked_counts_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', batch = BATCHES),
       hvg_paths_f     = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-      qc_smpl_stats_f = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+      qc_stats_f      = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
     output: 
       mean_var_f      = temp(hvg_dir + '/tmp_mean_var_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz')
     params:
@@ -126,7 +130,7 @@ else:
         {input.hvg_paths_f} \
         {input.rowdata_f} \
         {METADATA_F} \
-        {input.qc_smpl_stats_f} \
+        {input.qc_stats_f} \
         {output.mean_var_f} \
         {wildcards.chunk} \
         {params.hvg_method} \
@@ -182,7 +186,7 @@ else:
       estim_vars_f    = hvg_dir + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
       hvg_paths_f     = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
       rowdata_f       = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-      qc_smpl_stats_f = qc_dir + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+      qc_stats_f      = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     output:
       std_var_stats_f = temp(hvg_dir + '/tmp_std_var_stats_{group}_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz')
     params:
@@ -202,7 +206,7 @@ else:
         {input.hvg_paths_f} \
         {input.rowdata_f} \
         {METADATA_F} \
-        {input.qc_smpl_stats_f} \
+        {input.qc_stats_f} \
         {output.std_var_stats_f} \
         {input.estim_vars_f} \
         {wildcards.chunk} \
@@ -238,9 +242,10 @@ rule get_highly_variable_genes:
   threads: 1
   retries: config['resources']['retries']
   params:
-    hvg_method = config['hvg']['hvg_method'],
-    n_hvgs     = config['hvg']['hvg_n_hvgs'],
-    no_ambient = config['hvg']['hvg_exclude_ambient_genes']
+    hvg_method  = config['hvg']['hvg_method'],
+    batch_var   = BATCH_VAR,
+    n_hvgs      = config['hvg']['hvg_n_hvgs'],
+    no_ambient  = config['hvg']['hvg_exclude_ambient_genes']
   resources:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_highly_variable_genes', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
     runtime = lambda wildcards, input: get_resources('get_highly_variable_genes', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
@@ -249,16 +254,17 @@ rule get_highly_variable_genes:
   conda:
     '../envs/hvgs.yaml'
   shell: """
-     NOAMBIENT_FLAG=""
-     if [ "{params.no_ambient}" = "True" ]; then
-       NOAMBIENT_FLAG="--noambient"
-     fi
+    NOAMBIENT_FLAG=""
+    if [ "{params.no_ambient}" = "True" ]; then
+      NOAMBIENT_FLAG="--noambient"
+    fi
 
-     python3 scripts/hvgs.py calculate_hvgs \
+    python3 scripts/hvgs.py calculate_hvgs \
       {input.std_var_stats_f} \
       {output.hvg_f} \
       {input.empty_gs_fs} \
       {params.hvg_method} \
+      {params.batch_var} \
       {params.n_hvgs} \
       $NOAMBIENT_FLAG
      """
@@ -266,14 +272,15 @@ rule get_highly_variable_genes:
 
 rule create_hvg_matrix:
   input: 
-    clean_h5_f      = expand(hvg_dir + '/chunked_counts_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', batch = BATCHES),
-    qc_smpl_stats_f = qc_dir  + '/qc_batch_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    hvg_paths_f     = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    hvg_f           = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
+    clean_h5_f  = expand(hvg_dir + '/chunked_counts_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.h5', batch = BATCHES),
+    qc_stats_f  = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+    hvg_paths_f = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    hvg_f       = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
   output:
-    hvg_mat_f       = hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
+    hvg_mat_f   = hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
   params:
-    demux_type      = config['multiplexing']['demux_type']
+    demux_type  = config['multiplexing']['demux_type'],
+    batch_var   = BATCH_VAR
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -285,25 +292,27 @@ rule create_hvg_matrix:
     '../envs/hvgs.yaml'
   shell: """
     python3 scripts/hvgs.py create_hvg_matrix \
-      {input.qc_smpl_stats_f} \
+      {input.qc_stats_f} \
       {input.hvg_paths_f} \
       {input.hvg_f} \
       {output.hvg_mat_f} \
-      {params.demux_type}
+      {params.demux_type} \
+      {params.batch_var}
     """
 
 
 rule create_doublets_hvg_matrix:
   input: 
-    hvg_paths_f       = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    hvg_f             = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-    qc_f              = qc_dir  + '/coldata_dt_all_cells_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    qc_sample_stats_f = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    hvg_paths_f   = hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    hvg_f         = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
+    qc_f          = qc_dir  + '/coldata_dt_all_cells_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
+    qc_stats_f    = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
   output: 
-    dbl_hvg_mat_f     = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
+    dbl_hvg_mat_f = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
   params:
-    run_var           = RUN_VAR,
-    demux_type        = config['multiplexing']['demux_type']
+    run_var       = RUN_VAR,
+    demux_type    = config['multiplexing']['demux_type'],
+    batch_var     = BATCH_VAR
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -318,9 +327,10 @@ rule create_doublets_hvg_matrix:
       {input.hvg_paths_f} \
       {input.hvg_f} \
       {input.qc_f} \
-      {input.qc_sample_stats_f} \
+      {input.qc_stats_f} \
       {output.dbl_hvg_mat_f} \
       {params.run_var} \
-      {params.demux_type}
+      {params.demux_type} \
+      {params.batch_var}
     """
 

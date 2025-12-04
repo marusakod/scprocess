@@ -98,9 +98,11 @@ rule make_pb_all:
   input:
     sces_yaml_f = qc_dir  + '/sce_tmp_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
     pb_empty_f  = pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
-    qc_stats_f  = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    qc_stats_f  = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
   output:
     pb_all_f    = pb_dir  + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+  params:
+    batch_var   = BATCH_VAR
   threads: 4
   retries: config['resources']['retries']
   resources:
@@ -116,6 +118,7 @@ rule make_pb_all:
       sce_fs_yaml = '{input.sces_yaml_f}',
       qc_stats_f  = '{input.qc_stats_f}',
       pb_f        = '{output.pb_all_f}',
+      batch_var   = '{params.batch_var}',
       n_cores     =  {threads})"
     """
 

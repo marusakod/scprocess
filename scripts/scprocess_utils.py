@@ -1209,18 +1209,16 @@ def _safe_boolean(val):
 # helper function to merge multiple zipped csv/txt files
 def merge_tmp_files(in_files, out_file):
   df_ls     = [ pl.read_csv(f) for f in in_files if gzip.open(f, 'rb').read(1) ]
-  df_merged = pl.vstack(df_ls)
+  df_merged = pl.concat(df_ls)
   with gzip.open(out_file, 'wb') as f:
-    df_merged.write_csv(out_file)
+    df_merged.write_csv(f)
 
 
 # HVGs function: make df with list of chunked counts files
 def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_RUNS, 
   DEMUX_TYPE, FULL_TAG, DATE_STAMP, hvg_dir):
-  # define output variable
-  df_list = []
-
   # loop through ambient yaml files to populate list
+  df_list = []
   for r, yaml_file in zip(runs, ambient_outs_yamls):
     # get filtered ambient outputs
     with open(yaml_file) as f:
@@ -1245,8 +1243,9 @@ def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_
       df_list.append(tmp_df)
 
   # merge dfs for all runs
-  hvg_df_full = pl.vstack(df_list).with_columns(
-    pl.format("{}/chunked_counts_{}_{}_{}.h5", hvg_dir, pl.col(BATCH_VAR), FULL_TAG, DATE_STAMP).alias('chunked_f')
+  chunk_pat   = f"{hvg_dir}/chunked_counts_{{}}_{FULL_TAG}_{DATE_STAMP}.h5"
+  hvg_df_full = pl.concat(df_list).with_columns(
+    pl.format(chunk_pat, BATCH_VAR).alias('chunked_f')
   )
 
   return hvg_df_full

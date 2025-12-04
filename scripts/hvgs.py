@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 import argparse
+import gzip
 import os
 import scanpy as sc
 import scipy.sparse as sp
@@ -41,10 +42,11 @@ def sum_SUA(sua_mat, row_names):
   return mats_sum, uniq_genes
 
 
-def get_one_csr_counts(run, hvg_df, keep_df, smpl_stats_df, gene_ids, RUN_VAR, batch_var, demux_type, chunk_size):
+def get_one_csr_counts(run, hvg_paths_df, keep_df, smpl_stats_df, gene_ids, 
+  RUN_VAR, batch_var, demux_type, chunk_size):
   # get input (ambient) file and output files
-  filt_counts_f = hvg_df.filter(pl.col(RUN_VAR) == run)["amb_filt_f"].item(0)
-  out_fs        = hvg_df.filter(pl.col(RUN_VAR) == run)["chunked_f"].to_list()
+  filt_counts_f = hvg_paths_df.filter(pl.col(RUN_VAR) == run)["amb_filt_f"].item(0)
+  out_fs        = hvg_paths_df.filter(pl.col(RUN_VAR) == run)["chunked_f"].to_list()
 
   # get bad samples
   bad_batches   = smpl_stats_df.filter( pl.col(f'bad_{batch_var}') == True )[batch_var].to_list()
@@ -53,7 +55,7 @@ def get_one_csr_counts(run, hvg_df, keep_df, smpl_stats_df, gene_ids, RUN_VAR, b
   if demux_type == "none":
     batches   = [run]
   else:
-    batches   = hvg_df.filter(pl.col(RUN_VAR) == run)[batch_var].to_list()
+    batches   = hvg_paths_df.filter(pl.col(RUN_VAR) == run)[batch_var].to_list()
 
   # get valid barcodes
   bcs_dict = {}
@@ -122,19 +124,19 @@ def get_one_csr_counts(run, hvg_df, keep_df, smpl_stats_df, gene_ids, RUN_VAR, b
       f.create_dataset('matrix/features/name', data=np.array(uniq_features, dtype='S'), compression='gzip')
       f.create_dataset('matrix/barcodes', data=np.array(filt_bcs, dtype='S'), compression='gzip')
       
-    print(f"Sample {s}: CSR matrix successfully saved to {out_f}.")
+    print(f"CSR matrix for {b} successfully saved to {out_f}.")
 
 
-def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals, smpl_stats_f, 
+def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, smpl_stats_f, 
   rowdata_f, RUN_VAR, batch_var, demux_type, chunk_size=2000, n_cores = 8):
+  
   # load up useful things
   hvg_paths_df  = pl.read_csv(hvg_paths_f)
   smpl_stats_df = pl.read_csv(smpl_stats_f)
   
   # get QCed cells
-  filt_df       = pl.read_csv(cell_filter_f).with_columns( pl.col(keep_var).cast(pl.String) )
-  keep_vals     = keep_vals.split(',')
-  keep_df       = filt_df.filter( pl.col(keep_var).is_in(keep_vals) )
+  filt_df       = pl.read_csv(cell_filter_f)
+  keep_df       = filt_df.filter( pl.col(keep_var) == True )
 
   # get gene details
   rows_df       = pl.read_csv(rowdata_f)
@@ -142,13 +144,16 @@ def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals, smpl_stats_f
 
   # define list of runs, run on them in parallel
   runs          = hvg_paths_df[RUN_VAR].unique().to_list()
-  with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
-    futures = [executor.submit(get_one_csr_counts, this_run, hvg_paths_df, keep_df, 
-      smpl_stats_df, keep_ids, RUN_VAR, batch_var, demux_type, chunk_size) for this_run in runs]
+  for this_run in runs:
+    get_one_csr_counts(this_run, hvg_paths_df, keep_df, smpl_stats_df, keep_ids, 
+      RUN_VAR, batch_var, demux_type, chunk_size)
+  # with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
+  #   futures = [executor.submit(get_one_csr_counts, this_run, hvg_paths_df, keep_df, 
+  #     smpl_stats_df, keep_ids, RUN_VAR, batch_var, demux_type, chunk_size) for this_run in runs]
 
-    # some more parallel stuff i guess
-    for future in concurrent.futures.as_completed(futures):
-      future.result()
+  #   # some more parallel stuff i guess
+  #   for future in concurrent.futures.as_completed(futures):
+  #     future.result()
 
   return
 
@@ -196,21 +201,21 @@ def read_full_csr(file):
 def _calculate_feature_stats(sparse_csr, features, rowdata_f):
   # calculate mean and variance for sparse matrix, put into df
   mean, var = _get_mean_var(sparse_csr, axis=1 )
-  feat_stats_df = pd.DataFrame({
+  feat_stats_df = pl.DataFrame({
     'ensembl_id': features.astype(str),
-    'mean': mean,
-    'variance': var
+    'mean':       mean,
+    'variance':   var
   })
 
   # merge with nice labels for genes
-  rows_df       = dt.fread(rowdata_f).to_pandas()
-  feat_stats_df = pd.merge(feat_stats_df, rows_df, on = 'ensembl_id')
+  rows_df       = pl.read_csv(rowdata_f)
+  feat_stats_df = feat_stats_df.join(rows_df, on = 'ensembl_id')
   
   return feat_stats_df
 
 
 # minor modifiction of scanpy _sum_and_sum_squares_clipped
-def calculate_sum_and_sum_squares_clipped(sparse_csr, estim_vars_df):
+def _calculate_sum_and_sum_squares_clipped(sparse_csr, estim_vars_df):
   # convert to column format, get values we need
   csc       = sparse_csr.tocsc()
   indices   = csc.indices
@@ -234,14 +239,14 @@ def calculate_sum_and_sum_squares_clipped(sparse_csr, estim_vars_df):
 
   # add these values to df
   estim_vars_df = estim_vars_df.with_columns(
-    'squared_counts_sum': sq_counts_sum,
-    'counts_sum': counts_sum
+    pl.lit(sq_counts_sum).alias('squared_counts_sum'),
+    pl.lit(counts_sum).alias('counts_sum')
   )
 
   return estim_vars_df
 
 
-def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None, 
+def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None,
   mean_var_df = None, min_mean = 0.01, span: float = 0.3 ):
   # read mean var df if not specified
   if mean_var_df is None:
@@ -265,11 +270,11 @@ def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None,
      
     # this code is a minor modification of equivalent scanpy code:
     # https://github.com/scverse/scanpy/blob/1.11.1/src/scanpy/preprocessing/_highly_variable_genes.py#L503-L717
-    not_const   = np.array(var) > 0
+    not_const   = var > 0
     y           = np.log10(var[not_const]) 
     x           = np.log10(mean[not_const])
     data_df     = pl.DataFrame({ "x": x, "y": y }).unique()
-    model       = safe_loess( data_df["x"].to_numpy(), data_df.get_column("y").to_numpy(), span = span )
+    model       = safe_loess( data_df["x"].to_numpy(), data_df["y"].to_numpy(), span = span )
 
     # store trended variance values, also get std deviation
     est_var     = np.zeros(num_rows, dtype=np.float64)
@@ -282,14 +287,14 @@ def calculate_estimated_vars(estim_vars_f, hvg_method, mean_var_merged_f = None,
   
     # store values      
     group = group.with_columns(
-      'reg_std':            reg_std,
-      'clip_val':           clip_val,
-      'estimated_variance': est_var
+      pl.lit(reg_std).alias('reg_std'),
+      pl.lit(clip_val).alias('clip_val'),
+      pl.lit(est_var).alias('estimated_variance')
     )
     all_results.append(group)
   
   # join into one nice dataframe
-  final_df = pl.vstack(all_results)
+  final_df = pl.concat(all_results)
 
   # save or just pass back?
   if estim_vars_f is not None:
@@ -371,12 +376,12 @@ def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_
   return files, total, start_row, end_row
 
 
-def calculate_std_var_stats_for_sample(sample, batch_var, qc_smpl_stats_f, csr_f, rowdata_f, std_var_stats_f):
+def calculate_std_var_stats_for_sample(batch, batch_var, qc_smpl_stats_f, csr_f, rowdata_f, std_var_stats_f):
   # get data
   qc_df       = pl.read_csv(qc_smpl_stats_f)
   bad_batches = qc_df.filter( pl.col(f"bad_{batch_var}") == True )[batch_var].to_list()
    
-  if sample in bad_batches:
+  if batch in bad_batches:
     # save an empty file
     open(std_var_stats_f, 'w').close()
     return
@@ -385,23 +390,22 @@ def calculate_std_var_stats_for_sample(sample, batch_var, qc_smpl_stats_f, csr_f
   sparse_csr, features, _ = read_full_csr(csr_f)
   
   # calculate mean and variance
-  stats_df = _calculate_feature_stats(sparse_csr, features, rowdata_f)
-  stats_df['sample_id'] = sample
-
-  # count cells
   n_cells = sparse_csr.shape[1]
-  stats_df['n_cells'] = n_cells
+  stats_df = _calculate_feature_stats(sparse_csr, features, rowdata_f).with_columns(
+    pl.lit(batch).alias(batch_var),
+    pl.lit(n_cells).alias('n_cells')
+  )
 
   # calculate estimated variance
   estim_vars_df = calculate_estimated_vars(
-    estim_vars_f    = None,
-    mean_var_merged_f   = None,
-    hvg_method      = 'sample',
-    mean_var_df     = stats_df
+    estim_vars_f      = None,
+    mean_var_merged_f = None,
+    hvg_method        = 'sample',
+    mean_var_df       = stats_df
     )
   
   # get stats for standardized variance
-  if sample in bad_batches:
+  if batch in bad_batches:
     # save an empty file
     open(std_var_stats_f, 'w').close()
     return
@@ -416,7 +420,8 @@ def calculate_std_var_stats_for_sample(sample, batch_var, qc_smpl_stats_f, csr_f
   stats_df  = _calculate_standardized_variance(stats_df)
 
   # save
-  stats_df.to_csv(std_var_stats_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
+  with gzip.open(std_var_stats_f, 'wb') as f:
+    stats_df.write_csv(f)
 
   return
 
@@ -463,14 +468,14 @@ def calculate_mean_var_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_sta
   n_cells = merged_chunk.shape[1] 
 
   # calculate stats
-  merged_chunk_stats = _calculate_feature_stats(merged_chunk, features, rowdata_f)
-  merged_chunk_stats['n_cells'] = n_cells
-
-  # add group
-  merged_chunk_stats['group'] = group
+  merged_chunk_stats = _calculate_feature_stats(merged_chunk, features, rowdata_f).with_columns(
+    pl.lit(n_cells).alias('n_cells'),
+    pl.lit(group).alias('group')
+    )
 
   # save
-  merged_chunk_stats.to_csv(mean_var_f, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
+  with gzip.open(mean_var_f, 'wb') as f:
+    merged_chunk_stats.write_csv(f)
 
   return
 
@@ -534,23 +539,10 @@ def calculate_std_var_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smp
 
 def _calculate_standardized_variance(df):
   df = df.with_columns(
-    ((pl.col('n_cells') * pl.col('mean').pow(2)) + pl.col('squared_counts_sum') - 2 * pl.col('counts_sum') * pl.col('mean')) / 
-      ((pl.col('n_cells') - 1) * pl.col('reg_std').pow(2))
+    (((pl.col('n_cells') * pl.col('mean').pow(2)) + pl.col('squared_counts_sum') - 2 * pl.col('counts_sum') * pl.col('mean')) / 
+          ((pl.col('n_cells') - 1) * pl.col('reg_std').pow(2))).alias('variances_norm')
   )
   return df
-
-
-def _rank_genes(ranking_df, n_hvgs):
-  # get variance values
-  norm_gene_vars  = ranking_df['variances_norm'].to_numpy()
-
-  # give these rank orders
-  gene_ranks      = np.argsort(np.argsort(-norm_gene_vars)).astype(float)
-  # ranked_norm_gene_vars[ranked_norm_gene_vars >= n_hvgs] = np.nan
-  # ma_ranked = np.ma.masked_invalid(ranked_norm_gene_vars)
-
-  # return ranked_norm_gene_vars, norm_gene_vars, ma_ranked
-  return gene_ranks
 
 
 def _process_single_group(stats_df, empty_gs, n_hvgs, exclude_ambient):
@@ -560,48 +552,47 @@ def _process_single_group(stats_df, empty_gs, n_hvgs, exclude_ambient):
     exclude_gs = empty_gs
   else:
     exclude_gs = []
-  empty_idx   = stats_df['gene_id'].isin(exclude_gs)
 
-  # rank genes
-  ranks_df    = stats_df[ ~empty_idx ]
-  gene_ranks  = _rank_genes(ranks_df, n_hvgs)
-
-  # create output dataframe
-  out_df      = stats_df[['gene_id', 'variances_norm']].copy()
-  out_df.loc[ empty_idx, 'highly_variable_nbatches'] = 1
-  out_df.loc[ ~empty_idx, 'highly_variable_rank'] = gene_ranks
-  out_df.loc[ empty_idx, 'highly_variable_nbatches'] = 0
+  out_df      = stats_df.select(['gene_id', 'variances_norm'])
+  out_df      = out_df.with_columns(
+    pl.when( pl.col('gene_id').is_in(exclude_gs) ).then(None).otherwise('variances_norm').alias('variance_tmp')
+  )
+  out_df      = out_df.sort('variances_norm', descending = True)
+  out_df      = out_df.with_row_index('highly_variable_rank', offset = 1)
+  out_df      = out_df.with_columns(
+    pl.when(pl.col('highly_variable_rank') <= n_hvgs).then(1).otherwise(0).alias("highly_variable_nbatches")
+  )
 
   return out_df
 
 
 def _process_multiple_groups(stats_df, group_var, empty_gs, n_hvgs,  exclude_ambient):
-  # make variables for storing
-  all_gene_ranks = []
-  norm_gene_vars_list = []
+  # decide whether to exclude
+  exclude_gs = []
+  if exclude_ambient:
+    exclude_gs = empty_gs
+  else:
+    exclude_gs = []
 
-  # loop through groups
-  for group_name, group_df in stats_df.groupby(group_var):
-    # for this group, get ranked genes and variances
-    ranks_df    = _process_single_group(group_df, empty_gs, n_hvgs, exclude_ambient)
-    gene_ranks  = ranks_df['highly_variable_rank'].to_numpy()
-    variances   = ranks_df['variances_norm'].to_numpy()
+  # do like for one group, but for multiple
+  tmp_df      = stats_df.select([group_var, 'gene_id', 'variances_norm'])
+  tmp_df      = tmp_df.with_columns(
+    pl.when( pl.col('gene_id').is_in(exclude_gs) ).then(None).otherwise('variances_norm').alias('variance_tmp')
+  )
+  tmp_df      = tmp_df.sort([group_var, 'variances_norm'], descending = [False, True])
+  tmp_df      = tmp_df.with_columns(
+    highly_variable_rank  = pl.col("variance_tmp").rank(method = "average", descending = True).over(group_var)
+  )
 
-    # store values
-    all_gene_ranks.append(gene_ranks)
-    norm_gene_vars_list.append(variances)
-    
-  # merge metrics across multiple groups
-  all_gene_ranks        = np.array(all_gene_ranks)
-  num_batches_high_var  = np.sum((all_gene_ranks < n_hvgs).astype(int), axis=0)
-  median_ranked         = np.median(all_gene_ranks, axis=0)
-  variances_norm        = np.mean(norm_gene_vars_list, axis=0)
+  # aggregate
+  out_df      = tmp_df.group_by("gene_id").agg(
+    (pl.col("highly_variable_rank") <= n_hvgs).sum().alias("highly_variable_nbatches"),
+    pl.col("highly_variable_rank").median().alias("highly_variable_rank"),
+    pl.col("variances_norm").mean().alias("variances_norm")
+  )
 
-  # put into dataframe object
-  out_df = stats_df[['gene_id']].drop_duplicates().copy()
-  out_df['highly_variable_nbatches'] = num_batches_high_var
-  out_df['highly_variable_rank'] = median_ranked
-  out_df['variances_norm'] = variances_norm
+  # sort
+  out_df      = out_df.sort(['highly_variable_nbatches', 'highly_variable_rank'], descending = [True, False])
 
   return out_df
 
@@ -617,7 +608,7 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, batch_var, n_
   stats_df  = pl.read_csv(std_var_stats_f)
 
   # find HVGs for each
-  if stats_df[group_var].nunique() == 1:
+  if stats_df[group_var].n_unique() == 1:
     hvg_df = _process_single_group(stats_df, empty_gs, n_hvgs, exclude_ambient)
   else:
     hvg_df = _process_multiple_groups(stats_df, group_var, empty_gs, n_hvgs, exclude_ambient)
@@ -628,8 +619,8 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, batch_var, n_
   hvg_df    = hvg_df.sort(sort_cols, descending = sort_desc, nulls_last = True)
 
   # finally add label if in top n_hvgs
-  hvg_df    = hvg_df.with_columns( : False ).with_row_count("rank_tmp").with_columns(
-    pl.when( pl.col("rank_tmp") < n_hvgs ).then(True).otherwise(False).alias("highly_variable")
+  hvg_df    = hvg_df.with_row_index("rank_tmp", offset = 1).with_columns(
+    pl.when( pl.col("rank_tmp") <= n_hvgs ).then(True).otherwise(False).alias("highly_variable")
   )      
   if hvg_df["highly_variable"].sum() != n_hvgs:
     raise ValueError(f"somehow more than %d HVGs selected")
@@ -642,10 +633,10 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, batch_var, n_
 
 
 # read top 2000 hvgs from each sample and save file
-def create_hvg_matrix(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, batch_var, demux_type):
+def create_hvg_matrix(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, demux_type, batch_var):
   # get bad samples
   qc_sample_df  = pl.read_csv(qc_smpl_stats_f)
-  bad_samples   = qc_sample_df.filter( pl.col(f"bad_{batch_var}") == True)[ batch_var ].to_list()
+  bad_batches   = qc_sample_df.filter( pl.col(f"bad_{batch_var}") == True)[ batch_var ].to_list()
 
   # get all chunked files
   hvg_paths_df  = pl.read_csv(hvg_paths_f)
@@ -700,7 +691,7 @@ def create_hvg_matrix(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, batch_var, 
     f.create_dataset('matrix/barcodes', data=np.array(all_barcodes, dtype='S'))
 
 
-def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, RUN_VAR, batch_var, DEMUX_TYPE):
+def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, RUN_VAR, demux_type, batch_var):
   # get all hvgs
   hvg_df    = pl.read_csv(hvg_f)
   hvg_ids   = hvg_df.filter( pl.col('highly_variable') == True)['gene_id'].to_list()
@@ -709,7 +700,7 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
   qc_df     = pl.read_csv(qc_f)
 
   # subset to doublets
-  if DEMUX_TYPE == "none":
+  if demux_type == "none":
     dbl_df    = qc_df.filter( pl.col("scdbl_class") == "doublet" )
   else:
     if batch_var == "sample_id":
@@ -802,7 +793,6 @@ if __name__ == "__main__":
   parser_makeCSR.add_argument("hvg_paths_f", type=str)
   parser_makeCSR.add_argument("cell_filter_f", type=str)
   parser_makeCSR.add_argument("keep_var", type=str)
-  parser_makeCSR.add_argument("keep_vals", type=str)
   parser_makeCSR.add_argument("smpl_stats_f", type=str)
   parser_makeCSR.add_argument("rowdata_f", type=str)
   parser_makeCSR.add_argument("run_var", type=str)
@@ -866,6 +856,7 @@ if __name__ == "__main__":
   parser_getHvgs.add_argument("hvg_f", type=str)
   parser_getHvgs.add_argument("empty_gs_f", type=str)
   parser_getHvgs.add_argument("hvg_method", type=str)
+  parser_getHvgs.add_argument("batch_var", type=str)
   parser_getHvgs.add_argument("n_hvgs", type=int)
   parser_getHvgs.add_argument("-e", "--noambient", action='store_true')
 
@@ -876,8 +867,8 @@ if __name__ == "__main__":
   parser_readHvgs.add_argument("hvg_paths_f", type=str)
   parser_readHvgs.add_argument("hvg_f", type=str)
   parser_readHvgs.add_argument("out_h5_f", type=str)
-  parser_readHvgs.add_argument("batch_var", type=str)
   parser_readHvgs.add_argument("demux_type", type=str)
+  parser_readHvgs.add_argument("batch_var", type=str)
 
   # parser for create_doublets_matrix()
   parser_getDoublets = subparsers.add_parser('create_doublets_matrix')
@@ -888,13 +879,13 @@ if __name__ == "__main__":
   parser_getDoublets.add_argument("out_h5_f", type=str)
   parser_getDoublets.add_argument("run_var", type=str)
   parser_getDoublets.add_argument("demux_type", type=str)
+  parser_getDoublets.add_argument("batch_var", type=str)
  
   args = parser.parse_args()
 
   if args.function_name == 'get_csr_counts':
     get_csr_counts( 
-      args.hvg_paths_f, args.cell_filter_f, args.keep_var,
-      args.keep_vals, args.smpl_stats_f, args.rowdata_f,
+      args.hvg_paths_f, args.cell_filter_f, args.keep_var, args.smpl_stats_f, args.rowdata_f,
       args.run_var, args.batch_var, args.demux_type, args.chunksize, args.ncores
     )
   elif args.function_name == 'calculate_mean_var_for_chunk':
@@ -924,12 +915,12 @@ if __name__ == "__main__":
     )
   elif args.function_name == 'create_hvg_matrix':
     create_hvg_matrix(
-      args.qc_smpl_stats_f, args.hvg_paths_f, args.hvg_f, args.out_h5_f, args.batch_var, args.demux_type
+      args.qc_smpl_stats_f, args.hvg_paths_f, args.hvg_f, args.out_h5_f, args.demux_type, args.batch_var
     )
   elif args.function_name == 'create_doublets_matrix': 
     create_doublets_matrix(
       args.hvg_paths_f, args.hvg_f, args.qc_f, args.qc_smpl_stats_f, 
-      args.out_h5_f, args.run_var, args.demux_type
+      args.out_h5_f, args.run_var, args.demux_type, args.batch_var
     )
   else:
     parser.print_help()

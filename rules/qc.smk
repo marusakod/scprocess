@@ -153,13 +153,13 @@ rule run_qc_one_run:
     sce_fs_str      = get_sce_fs_str,
     mito_str        = config['mapping']['af_mito_str'],
     ambient_method  = config['ambient']['ambient_method'],
-    batch_var       = BATCH_VAR,
     exclude_mito    = config['qc']['exclude_mito'],
     hard_min_counts = config['qc']['qc_hard_min_counts'],
     hard_min_feats  = config['qc']['qc_hard_min_feats'],
     hard_max_mito   = config['qc']['qc_hard_max_mito'],
     run_var         = RUN_VAR,
     demux_type      = config['multiplexing']['demux_type'],
+    batch_var       = BATCH_VAR,
     dbl_min_feats   = config['qc']['dbl_min_feats']
   threads: 4
   retries: config['resources']['retries']
@@ -193,8 +193,8 @@ rule run_qc_one_run:
         hard_min_feats  =  {params.hard_min_feats}, \
         hard_max_mito   =  {params.hard_max_mito}, \
         run_var         = '{params.run_var}', \
-        batch_var       = '{params.batch_var}', \
         demux_type      = '{params.demux_type}', \
+        batch_var       = '{params.batch_var}', \
         dbl_min_feats   =  {params.dbl_min_feats} \
       )"
     """
@@ -206,7 +206,7 @@ rule merge_qc:
     coldata_fs = expand(qc_dir + '/tmp_coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', run = RUNS)
   output:
     qc_merged_f      = qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    coldata_merged_f = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+    coldata_merged_f = qc_dir  + '/coldata_dt_all_cells_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   threads: 1
   retries: config['resources']['retries']
   benchmark:
@@ -261,9 +261,9 @@ rule get_qc_sample_statistics:
   input:
     run_stats_f   = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     qc_merged_f   = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    cuts_f        = f'{qc_dir}/qc_thresholds_by_sample_{FULL_TAG}_{DATE_STAMP}.csv'
+    cuts_f        = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv'
   output:
-    qc_stats_f    = f'{qc_dir}/qc_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
+    qc_stats_f    = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -280,7 +280,7 @@ rule get_qc_sample_statistics:
 # write sce objects paths to a yaml file
 rule make_tmp_sce_paths_yaml:
   input:
-    qc_stats_f  = f'{qc_dir}/qc_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv' # so that this runs after get_qc_sample_statistics
+    qc_stats_f  = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv' # so that this runs after get_qc_sample_statistics
   output:
     sces_yaml_f = temp(f'{qc_dir}/sce_tmp_paths_{FULL_TAG}_{DATE_STAMP}.yaml')
   threads: 1

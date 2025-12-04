@@ -115,7 +115,6 @@ if config['multiplexing']['demux_type'] == "hto":
   rule render_html_multiplexing:
     input:
       r_utils_f   = code_dir + '/utils.R', 
-      r_map_f     = code_dir + '/mapping.R',
       hto_knee_fs = expand(af_dir + '/af_{run}/hto/' + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=RUNS), 
       sce_hto_fs  = expand(demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', run=RUNS)
     output:
@@ -131,7 +130,9 @@ if config['multiplexing']['demux_type'] == "hto":
       metadata_f      = config['project']['sample_metadata'],
       ambient_method  = config['ambient']['ambient_method'],
       run_var         = RUN_VAR,
-      runs_str        = ','.join(RUNS)
+      batch_var       = BATCH_VAR,
+      runs_str        = ','.join(RUNS),
+      r_map_f         = code_dir + '/mapping.R'
     threads: 1
     retries: config['resources']['retries']
     resources:
@@ -144,6 +145,7 @@ if config['multiplexing']['demux_type'] == "hto":
     shell: """
       # copy R code over
       echo "copying relevant R files over"
+      cp scripts/mapping.R {params.r_map_f}
       cp scripts/multiplexing.R {output.r_demux_f}
     
       # make and render Rmd file
@@ -166,6 +168,7 @@ if config['multiplexing']['demux_type'] == "hto":
           metadata_f      = '{params.metadata_f}', 
           ambient_method  = '{params.ambient_method}', 
           run_var         = '{params.run_var}', 
+          batch_var       = '{params.batch_var}',
           af_dir          = '{af_dir}', 
           demux_dir       = '{demux_dir}'
         )"
@@ -243,6 +246,7 @@ rule render_html_qc:
     date_stamp          = config['project']['date_stamp'],
     proj_dir            = config['project']['proj_dir'],
     min_cells           = config['qc']['qc_min_cells'],
+    batch_var           = config['integration']['int_batch_var'],
     qc_hard_min_counts  = config['qc']['qc_hard_min_counts'],
     qc_hard_min_feats   = config['qc']['qc_hard_min_feats'],
     qc_hard_max_mito    = config['qc']['qc_hard_max_mito']
@@ -283,6 +287,7 @@ rule render_html_qc:
       metadata_f          = '{params.metadata_f}',
       qc_dt_f             = '{input.qc_dt_f}',
       cuts_f              = '{input.cuts_f}',
+      batch_var           = '{params.batch_var}',
       min_cells           =  {params.min_cells},
       qc_hard_min_counts  =  {params.qc_hard_min_counts},
       qc_hard_min_feats   =  {params.qc_hard_min_feats},

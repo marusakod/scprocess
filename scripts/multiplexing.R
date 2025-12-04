@@ -13,6 +13,7 @@ suppressPackageStartupMessages({
   library("yaml")
 
   library("SingleCellExperiment")
+  library("Seurat")
   library("scattermore")
   library("ggridges")
   library("MetBrewer")

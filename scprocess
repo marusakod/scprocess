@@ -455,17 +455,20 @@ if __name__ == '__main__':
 
     # sort out extra arguments
     extraargs = ' '
+    noindex   = args.noindex
     if args.unlock:
       extraargs = " --unlock"
+      noindex   = True
     else:
       if args.extraargs:
         extraargs = extraargs + args.extraargs
       if args.dry_run:
         extraargs = extraargs + " -np"
+        noindex   = True
     
     # print(sc_dir, args.configfile, snakefile, rule)   
     # call bsub thing
-    run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs, args.noindex)
+    run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs, noindex)
   
   # plot knee for selected sample
   elif args.subcommand == 'plotknee':
