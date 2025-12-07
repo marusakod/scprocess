@@ -28,6 +28,7 @@ source('code/utils.R')
 source('code/integration.R')
 source('code/marker_genes.R')
 source('code/hvgs.R')
+source('code/fgsea.R')
 library(stringi)
 n_cores = ${threads}
 setDTthreads(n_cores)
@@ -57,8 +58,7 @@ do_gsea       = as.logical("${do_gsea}")
 fgsea_go_bp_f = "${fgsea_go_bp_f}"
 fgsea_go_cc_f = "${fgsea_go_cc_f}"
 fgsea_go_mf_f = "${fgsea_go_mf_f}"
-fgsea_paths_f = "${fgsea_paths_f}"
-fgsea_hlmk_f  = "${fgsea_hlmk_f}"
+
 
 # custom markers for heatmap
 custom_mkr_names_str = "${custom_mkr_names}"
@@ -118,7 +118,7 @@ pb          = readRDS(pb_empty_f)
 ```{r extract_integration_res, include = FALSE}
 integration_all = fread(int_f)
 int_dt    = integration_all[ !is.na(UMAP1) ] %>% 
-  .[, c("sample_id", "cell_id", "reduction", "UMAP1", "UMAP2", 
+  .[, c("sample_id", "cell_id", "embedding", "UMAP1", "UMAP2", 
     str_subset(names(integration_all), "RNA_snn_res")), with = FALSE]
 ```
 
@@ -205,8 +205,8 @@ top_min_dt  = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>%
 
 ```{r calc_gsea_pb, include = FALSE}
 # do GSEA
-fgsea_fs      = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f, fgsea_paths_f, fgsea_hlmk_f) %>% 
-  setNames(c("go_bp", "go_cc", "go_mf", "paths", "hlmk"))
+fgsea_fs      = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f) %>% 
+  setNames(c("go_bp", "go_cc", "go_mf"))
 
 # load fgsea results
 gsea_ls       = lapply(fgsea_fs, function(f) if(file.exists(f)) {fread(f)} else {return(NULL)}) %>% setNames(names(fgsea_fs))

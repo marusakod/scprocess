@@ -77,7 +77,8 @@ rule all:
     # expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/index/{file}', genome=GENOMES, file=AF_INDEX_FS)
     expand([ SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/' + f'{file}' for file in AF_INDEX_FS], genome=GENOMES),
     expand(SCPROCESS_DATA_DIR + '/alevin_fry_home/{genome}/{genome}_index_params.yaml', genome=GENOMES),
-    SCPROCESS_DATA_DIR + '/celltypist',
+    #SCPROCESS_DATA_DIR + '/celltypist',
+    SCPROCESS_DATA_DIR + '/celltypist/celltypist_models.csv', 
     # rule get_reference_genome_data 
     SCPROCESS_DATA_DIR + '/index_parameters.csv'
 
@@ -164,28 +165,13 @@ rule save_index_parameters_csv:
     python3 scripts/setup.py save_index_params_csv {output.csv} {input.yamls}
     """
 
-
-# rule for getting scprocess data from github repo (maybe not a good idea to have all files as outputs)
+    
 rule download_celltypist_models:
   output:
     models_f  = SCPROCESS_DATA_DIR + '/celltypist/celltypist_models.csv'
   conda:
     '../envs/celltypist.yaml'
   threads: 1
-  run:
-    # set up
-    import os
-    import celltypist
-    import polars as pl
-
-    # download all available models
-    celltypist.models.download_models()
-    
-    # record their names
-    models_dir  = celltypist.models.models_path
-    models_ls   = [ f.replace(".pkl", "") for f in os.listdir(models_dir) if f.endswith(".pkl") ]
-
-    # make dataframe, save
-    models_df   = pl.DataFrame({ "model": models_ls })
-    models_df.write_csv(models_f)
-
+  shell:"""
+    python3 scripts/label_celltypes.py download_models {output.models_f}
+    """

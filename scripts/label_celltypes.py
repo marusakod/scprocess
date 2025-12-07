@@ -7,6 +7,20 @@ import celltypist
 import gzip
 
 
+def download_celltypist_models(models_f):
+  
+  celltypist.models.download_models()
+    
+  # record their names
+  models_dir  = celltypist.models.models_path
+  models_ls   = [ f.replace(".pkl", "") for f in os.listdir(models_dir) if f.endswith(".pkl") ]
+
+  # make dataframe, save
+  models_df   = pl.DataFrame({ "model": models_ls })
+  models_df.write_csv(models_f)
+
+  return
+
 def run_celltypist(sel_sample, model_name, mtx_f, cells_f, genes_f):
   # get cell and gene info
   cells_df  = pl.read_csv(cells_f)
@@ -107,9 +121,13 @@ if __name__ == "__main__":
 
   # define subparsers
   subparsers  = parser.add_subparsers(dest='subcommand', required=True)
-  typist_prsr = subparsers.add_parser('celltypist_one_sample')
-  agg_prsr    = subparsers.add_parser('aggregate_predictions')
+  downloader_prsr = subparsers.add_parser('download_models')
+  typist_prsr     = subparsers.add_parser('celltypist_one_sample')
+  agg_prsr        = subparsers.add_parser('aggregate_predictions')
 
+  # get arguments
+  downloader_prsr.add_argument("models_f",type = str)  
+  
   # get arguments
   typist_prsr.add_argument(  "sample",   type=str)
   typist_prsr.add_argument(  "model",    type=str)
@@ -173,4 +191,7 @@ if __name__ == "__main__":
     # save
     with gzip.open(args.agg_f, 'wb') as f:
       agg_df.write_csv(f)
+  
+  elif args.subcommand == "download_models":
+    download_celltypist_models(args.models_f)
 

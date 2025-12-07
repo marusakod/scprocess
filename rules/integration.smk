@@ -44,7 +44,7 @@ rule run_integration:
        USE_GPU_FLAG="--use_gpu"
      fi
     
-    python3 scripts/integration.py \
+    python3 scripts/integration.py run_integration \
       --hvg_mat_f     {input.hvg_mat_f} \
       --dbl_hvg_mat_f {input.dbl_hvg_mat_f} \
       --sample_qc_f   {input.sample_qc_f} \

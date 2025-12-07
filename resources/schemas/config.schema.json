@@ -148,7 +148,7 @@
       "additionalProperties": false,
       "properties": {
         "int_embedding":    { "type": "string", "enum": ["harmony", "pca"], "default": "harmony" },
-        "int_cl_method":    { "type": "string", "default": "leiden", "enum": ["leiden", "louvain"] },
+        "int_cl_method":    { "type": "string", "default": "leiden", "enum": ["leiden"] },
         "int_theta":        { "type": "number", "default": 0.1 },
         "int_batch_var":    { "type": "string", "enum": ["pool_id", "sample_id"], "default": "sample_id" },
         "int_n_dims":       { "type": "integer", "default": 50 },
@@ -343,6 +343,7 @@
         "gb_zoom_create_hvg_matrix":                    { "type": "integer", "default": 8 },
         "gb_zoom_run_integration":                      { "type": "integer", "default": 16 },
         "gb_zoom_run_marker_genes":                     { "type": "integer", "default": 16 },
+        "gb_zoom_run_fgsea":                            { "type": "integer", "default": 16 },
         "gb_zoom_make_subset_sces":                     { "type": "integer", "default": 8 },
         "gb_render_html_zoom":                          { "type": "integer", "default": 8 },
         "mins_get_zoom_sample_statistics":               { "type": "integer", "default": 5 },
@@ -360,6 +361,7 @@
         "mins_zoom_create_hvg_matrix":                   { "type": "integer", "default": 15 },
         "mins_zoom_run_integration":                     { "type": "integer", "default": 180 },
         "mins_zoom_run_marker_genes":                    { "type": "integer", "default": 60 },
+        "mins_zoom_run_fgsea":                           { "type": "integer", "default": 60 },
         "mins_zoom_make_subset_sces":                    { "type": "integer", "default": 15 },
         "mins_render_html_zoom":                         { "type": "integer", "default": 20 },
       

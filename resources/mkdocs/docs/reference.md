@@ -452,6 +452,7 @@ Additional parameters include:
 * `labels`: a list of all labels that define cell types/clusters to be included in subclustering (required).
 * `labels_source`: specifies how a cell subset is defined (required). Options include:
     - `xgboost`: labels assigned by the XGBoost classifier (using rule `label_celltypes`)
+    - `celltypist`: labels assigned by `Celltypist`(using the rule `label_celltypes`)
     - `clusters`: labels based on clustering results obtained with {{sc}}
     - `custom`: user-defined cell type annotations
 * `min_n_sample`: the minimum number of cells that a sample must have, after subsetting, to remain in the analysis.
@@ -463,21 +464,13 @@ Additional parameters include:
 
 ##### resources
 
+This section allows users to adjust the resource requirements for specific Snakemake rules. This is especially useful when a step or rule fails on a cluster due to insufficient memory or runtime limits. By specifying the parameters below, users can fine-tune these settings for their pipeline:
+
+* `gb_[rule_name]`: specifies the maximum memory (in GB) requested for running a specific rule. `rule_name` should be replace with {{sc}} rule name. This value applies fro the entire job, not per thread.
+* `mins_[rule_name]`: specifies the maximum runtime (in minutes) requested for running a specific rule. `rule_name` should be replace with {{sc}} rule name.
+
+Additional parameters include:
+
 * `retries`: number of times to retry running a specific rule in {{sc}} if it fails. For each attempt, the memory requirement for the rule increases by multiplying the base memory by the attempt number. Useful for when {{sc}} is used on a [cluster](setup.md#cluster-setup).
 * `n_run_mapping`: number of threads requested for running `simpleaf`. Default is 8.
-* `gb_run_mapping`: maximum memory requested (in GB) for running `simpleaf`. Default is 4. Value applies to the entire job, not per thread.
-* `gb_save_alevin_to_h5`:  maximum memory required (in GB) to save `simpleaf` output to H5 format. Default is 8GB. Value applies to the entire job, not per thread.
-* `gb_run_ambient`: maximum memory required (in GB) to run the ambient RNA removal step. Default is 8GB. Value applies to the entire job, not per thread.
-* `gb_get_barcode_qc_metrics`: maximum memory required (in GB) to run the step in which qc metrics of all barcodes are collected. Default is 8GB. Value applies to the entire job, not per thread.
-* `gb_pb_make_pbs`: maximum memory required (in GB) to generate pseudobulk counts. Default is 8GB. Value applies to the entire job, not per thread.
-* `gb_pb_calc_empty_genes`: maximum memory required (in GB) to calculate ambient gene statistics. Default is 8GB. Value applies to the entire job, not per thread.
-* `gb_make_hto_sce_objects`: maximum memory required (in GB) to create a `SingleCellExperiment` object with HTO counts. Default is 8GB. Value applies to the entire job, not per thread.
-* `gb_run_qc`: maximum memory required (in GB) to run the qc step. Default is 8GB. Value applies to the entire job, not per thread.
-* `gb_run_hvgs`: maximum memory required (in GB) to run the hvg detection step. Default is 8GB. Value applies to the entire job, not per thread.
-* `gb_run_integration`: maximum memory required (in GB) to run integration. Default is 8GB. Value applies to the entire job, not per thread.
-* `gb_make_clean_sces`: maximum memory required (in GB) to create a `SingleCellExperiment` object. Default is 8GB. Value applies to the entire job, not per thread.
-* `gb_run_marker_genes`: maximum memory required (in GB) for marker gene identification. Default is 8GB. Value applies to the entire job, not per thread.
-* `gb_make_subset_sces`: maximum memory required (in GB) to create `SingleCellExperiment` objects with a subset of cells within rule `zoom`. Default is 8GB. Value applies to the entire job, not per thread.
-* `gb_label_celltypes`: maximum memory required (in GB) to label cell types. Default is 8GB. Value applies to the entire job, not per thread.
-* `gb_render_htmls`: maximum memory required (in GB) to render html reports. Default is 8GB. Value applies to the entire job, not per thread.
 

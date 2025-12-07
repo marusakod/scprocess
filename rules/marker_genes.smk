@@ -54,7 +54,7 @@ rule run_fgsea:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_fgsea', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
     runtime = lambda wildcards, input: get_resources('run_fgsea', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_marker_genes/run_marker_genes_' + DATE_STAMP + '.benchmark.txt'
+    benchmark_dir + '/' + SHORT_TAG + '_marker_genes/run_fgsea_' + DATE_STAMP + '.benchmark.txt'
   conda: '../envs/rlibs.yaml'
   shell:"""
     Rscript -e "source('scripts/utils.R'); source('scripts/fgsea.R'); run_fgsea(

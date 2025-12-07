@@ -10,22 +10,6 @@ import anndata as ad
 import pandas as pd
 import polars as pl
 
-# hvg_mat_f = "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_hvg/top_hvgs_counts_test_multiplexed_project_2025-01-01.h5"
-# dbl_hvg_mat_f= "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_hvg/top_hvgs_doublet_counts_test_multiplexed_project_2025-01-01.h5"
-# sample_qc_f = "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_qc/qc_sample_statistics_test_multiplexed_project_2025-01-01.csv"
-# coldata_f = "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_qc/coldata_dt_all_samples_test_multiplexed_project_2025-01-01.csv.gz"
-# demux_type = "hto"
-# exclude_mito =  "True"
-# embedding = "harmony"
-# n_dims = 50
-# cl_method = "leiden"
-# dbl_res = 4
-# dbl_cl_prop =  0.5
-# theta = 0.1
-# res_ls_concat = "0.1 0.2 0.5 1 2"
-# integration_f = "/pstore/data/mus-brain-analysis/studies/test_multiplexed_project/output/test_integration/integrated_dt_test_multiplexed_project_2025-01-01.csv.gz"
-# batch_var = "sample_id"
-# use_gpu = True
 
 def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
@@ -85,7 +69,54 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   return int_dt
 
 
-def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs):
+def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f,
+  exclude_mito, embedding, n_dims, cl_method, theta, res_ls_concat,
+  integration_f, batch_var, use_gpu = False): 
+
+  print('setting up parameters')
+  exclude_mito  = bool(exclude_mito)
+  res_ls        = res_ls_concat.split()
+
+  print('loading hvg matrix')
+  
+  with h5py.File(hvg_mat_f, 'r') as f:
+   # get components
+   indptr      = f['matrix/indptr'][:]
+   indices     = f['matrix/indices'][:]
+   data        = f['matrix/data'][:]
+   features    = f['matrix/features/name'][:]
+   barcodes    = f['matrix/barcodes'][:]
+   num_rows    = f['matrix/shape'][0]
+   num_cols    = f['matrix/shape'][1]
+      
+   # make sparse matrix
+   hvg_mat     = csc_matrix((data, indices, indptr), shape=(num_rows, num_cols))
+   barcodes    = [b.decode('utf-8') for b in barcodes]
+  
+  print('loading relevant cell ids')
+  ok_cells_df   = _get_ok_cells_df(sample_qc_f, coldata_f, barcodes, zoom = True)
+
+  print('normalizing hvg matrix')
+  hvg_mat       = _normalize_hvg_mat(hvg_mat, ok_cells_df, exclude_mito)
+
+  print('making anndata object')
+  adata         = ad.AnnData(X = hvg_mat.T , obs = ok_cells_df.to_pandas())
+  print(adata)
+  print(f"  anndata object has {adata.shape[0]} cells and {adata.shape[1]} dims")
+
+  print('running integration')
+  int_dt       = _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, use_gpu, theta)
+
+  print('save results')
+  with gzip.open(integration_f, 'wb') as f:
+    int_dt.write_csv(f)
+
+  print('done!')
+
+  return int_dt
+
+
+def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs, zoom = False):
   # load files
   sample_qc     = pl.read_csv(sample_qc_f)
   all_coldata   = pl.read_csv(coldata_f)
@@ -98,16 +129,23 @@ def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs):
 
   # get ok samples
   ok_samples    = sample_qc.filter(pl.col("bad_sample") == False)["sample_id"].to_list()
-
+  
+  if not zoom:
   # get ok cells
-  ok_cells_df   = all_coldata.filter(
-    ((pl.col("keep") == True) | (pl.col("dbl_class") == "doublet")) & 
-    ((pl.col("sample_id").is_in(ok_samples)) | (pl.col("sample_id").is_null()))
-  )
-  # check ok
-  if not set(all_bcs) == set(ok_cells_df['cell_id'].to_list()):
-    raise ValueError("barcodes from hvg mats and cell_ids don't match")
-
+    ok_cells_df   = all_coldata.filter(
+      ((pl.col("keep") == True) | (pl.col("dbl_class") == "doublet")) & 
+      ((pl.col("sample_id").is_in(ok_samples)) | (pl.col("sample_id").is_null()))
+    )
+    # check ok
+    if not set(all_bcs) == set(ok_cells_df['cell_id'].to_list()):
+      raise ValueError("barcodes from hvg mats and cell_ids don't match")
+  else:
+    if not set(all_bcs).issubset(set(all_coldata['cell_id'])):
+      raise ValueError("Not all column names in hvg_mat are present in cell metadata.")
+    ok_cells_df = all_coldata.filter(
+      pl.col("cell_id").is_in(all_bcs) 
+    ) 
+      
   # put cell in coldata in the order matching mat cols
   order_dt      = pl.DataFrame({
     "cell_id":    all_bcs,
@@ -338,24 +376,46 @@ def _adata_filter_out_doublets(all_hvg_mat, ok_cells_df, dbl_data):
 if __name__ == "__main__":
   # get inputs
   parser = argparse.ArgumentParser()
-  parser.add_argument('--hvg_mat_f',      type = str)
-  parser.add_argument('--dbl_hvg_mat_f',  type = str)
-  parser.add_argument('--sample_qc_f',    type = str)
-  parser.add_argument('--coldata_f',      type = str)
-  parser.add_argument('--demux_type',     type = str)
-  parser.add_argument('--exclude_mito',   type = str)
-  parser.add_argument('--embedding',      type = str)
-  parser.add_argument('--n_dims',         type = int)
-  parser.add_argument('--cl_method',      type = str)
-  parser.add_argument('--dbl_res',        type = float)
-  parser.add_argument('--dbl_cl_prop',    type = float)
-  parser.add_argument('--theta',          type = float)
-  parser.add_argument('--res_ls_concat',  type = str)
-  parser.add_argument('--integration_f',  type = str)
-  parser.add_argument('--batch_var',      type = str)
-  parser.add_argument("-g", "--use_gpu",  action='store_true', 
+  subparsers = parser.add_subparsers(dest = "function_name", help = "Name of the function to run")
+
+  # parser for run_integration
+  parser_run_integration = subparsers.add_parser('run_integration')
+  parser_run_integration.add_argument('--hvg_mat_f',      type = str)
+  parser_run_integration.add_argument('--dbl_hvg_mat_f',  type = str)
+  parser_run_integration.add_argument('--sample_qc_f',    type = str)
+  parser_run_integration.add_argument('--coldata_f',      type = str)
+  parser_run_integration.add_argument('--demux_type',     type = str)
+  parser_run_integration.add_argument('--exclude_mito',   type = str)
+  parser_run_integration.add_argument('--embedding',      type = str)
+  parser_run_integration.add_argument('--n_dims',         type = int)
+  parser_run_integration.add_argument('--cl_method',      type = str)
+  parser_run_integration.add_argument('--dbl_res',        type = float)
+  parser_run_integration.add_argument('--dbl_cl_prop',    type = float)
+  parser_run_integration.add_argument('--theta',          type = float)
+  parser_run_integration.add_argument('--res_ls_concat',  type = str)
+  parser_run_integration.add_argument('--integration_f',  type = str)
+  parser_run_integration.add_argument('--batch_var',      type = str)
+  parser_run_integration.add_argument("-g", "--use_gpu",  action='store_true', 
     help='Use GPU-accelerated libraries if available.'  
   )
+
+  # parser for run_zoom_integration
+  parser_run_zoom_integration = subparsers.add_parser('run_zoom_integration')
+  parser_run_zoom_integration.add_argument('--hvg_mat_f',      type = str)
+  parser_run_zoom_integration.add_argument('--sample_qc_f',    type = str)
+  parser_run_zoom_integration.add_argument('--coldata_f',      type = str)
+  parser_run_zoom_integration.add_argument('--exclude_mito',   type = str)
+  parser_run_zoom_integration.add_argument('--embedding',      type = str)
+  parser_run_zoom_integration.add_argument('--n_dims',         type = int)
+  parser_run_zoom_integration.add_argument('--cl_method',      type = str)
+  parser_run_zoom_integration.add_argument('--theta',          type = float)
+  parser_run_zoom_integration.add_argument('--res_ls_concat',  type = str)
+  parser_run_zoom_integration.add_argument('--integration_f',  type = str)
+  parser_run_zoom_integration.add_argument('--batch_var',      type = str)
+  parser_run_zoom_integration.add_argument("-g", "--use_gpu",  action='store_true', 
+    help='Use GPU-accelerated libraries if available.'  
+  )
+
   args = parser.parse_args()
 
   # gpu vs cpu setup
@@ -381,8 +441,15 @@ if __name__ == "__main__":
     import scanpy.external as sce # for harmony
 
   # run
-  run_integration(args.hvg_mat_f, args.dbl_hvg_mat_f, args.sample_qc_f, args.coldata_f,
-    args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
-    args.dbl_res, args.dbl_cl_prop, args.theta, args.res_ls_concat, args.integration_f,
-    args.batch_var, args.use_gpu)
-
+  if args.function_name == 'run_integration':
+    run_integration(args.hvg_mat_f, args.dbl_hvg_mat_f, args.sample_qc_f, args.coldata_f,
+      args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
+      args.dbl_res, args.dbl_cl_prop, args.theta, args.res_ls_concat, args.integration_f,
+      args.batch_var, args.use_gpu)
+  elif args.function_name == 'run_zoom_integration':
+    run_zoom_integration(args.hvg_mat_f, args.sample_qc_f, args.coldata_f,
+      args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
+      args.theta, args.res_ls_concat, args.integration_f,
+      args.batch_var, args.use_gpu)
+  else:
+    parser.print_help()

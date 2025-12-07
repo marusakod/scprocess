@@ -21,6 +21,8 @@ proj_schema_f   = scprocess_dir / "resources/schemas/config.schema.json"
 zoom_schema_f   = scprocess_dir / "resources/schemas/zoom.schema.json"
 scdata_dir      = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 
+lm_f            = scprocess_dir / "resources/resources_lm_params_2025-11-27.csv"
+
 # check config
 config          = check_config(config, proj_schema_f, scdata_dir, scprocess_dir)
 
@@ -53,28 +55,31 @@ docs_dir      = f"{PROJ_DIR}/public"
 zoom_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_zoom"
 
 # define zoom marker outputs
-zoom_mkr_report_outs = expand(
-  [
-  '%s/{zoom_name}/pb_%s_{mkr_sel_res}_%s.rds' % (zoom_dir, FULL_TAG, DATE_STAMP), 
-  '%s/{zoom_name}/pb_marker_genes_%s_{mkr_sel_res}_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
-  '%s/{zoom_name}/pb_hvgs_%s_{mkr_sel_res}_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
-  '%s/%s_zoom_{zoom_name}_{mkr_sel_res}.Rmd' % (rmd_dir, SHORT_TAG), 
-  '%s/%s_zoom_{zoom_name}_{mkr_sel_res}.html' % (docs_dir, SHORT_TAG)
-  ] + (
+zoom_mkr_report_outs = [
+  file
+  for zoom_name, mkr_sel_res, do_gsea in zip(
+    ZOOMS,
+    [ZOOM_PARAMS[zoom]['marker_genes']['mkr_sel_res'] for zoom in ZOOMS],
+    [ZOOM_PARAMS[zoom]['marker_genes']['mkr_do_gsea'] for zoom in ZOOMS]
+  )
+  for file in (
     [
-    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_go_bp_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
-    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_go_cc_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
-    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_go_mf_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP), 
-    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_paths_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP),  
-    '%s/{zoom_name}/fgsea_%s_{mkr_sel_res}_hlmk_%s.txt.gz' % (zoom_dir, FULL_TAG, DATE_STAMP)
-    ]
-    if (config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & config['marker_genes']['mkr_do_gsea']
-    else []
-   ),
-  zip,
-  zoom_name = ZOOMS,
-  mkr_sel_res = [ZOOM_PARAMS[zoom_name]['marker_genes']["mkr_sel_res"] for zoom_name in ZOOMS]
-)
+      '%s/%s/pb_%s_%s_%s.rds' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
+      '%s/%s/pb_marker_genes_%s_%s_%s.txt.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
+      '%s/%s/pb_hvgs_%s_%s_%s.txt.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
+      '%s/%s_zoom_%s_%s.Rmd' % (rmd_dir, SHORT_TAG, zoom_name, mkr_sel_res),
+      '%s/%s_zoom_%s_%s.html' % (docs_dir, SHORT_TAG, zoom_name, mkr_sel_res)
+    ] + (
+      [
+      '%s/%s/fgsea_%s_%s_go_bp_%s.txt.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
+      '%s/%s/fgsea_%s_%s_go_cc_%s.txt.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
+      '%s/%s/fgsea_%s_%s_go_mf_%s.txt.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP)
+      ] if do_gsea and (config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'])
+        else []
+      )
+  )
+]
+
 zooms_to_save = [ zoom_name for zoom_name in ZOOMS if ZOOM_PARAMS[zoom_name]['zoom']['save_subset_sces'] ]
 
 zoom_sce_outs = (
@@ -109,7 +114,7 @@ rule zoom:
     # zoom integration
     expand('%s/{zoom_name}/integrated_dt_%s_%s.csv.gz' % \
       (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS),
-    # zoom marker genes and html report
+    # zoom marker genes, fgsea and html report
     zoom_mkr_report_outs, 
     # zoom sce subsets (optional)
     zoom_sce_outs
@@ -147,8 +152,8 @@ rule zoom_make_pb_subset:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_make_pb_subset', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_make_pb_subset', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_make_pb_subset', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_make_pb_subset', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_make_pb_subset_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
@@ -179,8 +184,8 @@ rule zoom_calculate_ambient_genes:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_calculate_ambient_genes', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_calculate_ambient_genes', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_calculate_ambient_genes', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_calculate_ambient_genes', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_calculate_ambient_genes_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
@@ -234,8 +239,8 @@ rule zoom_make_tmp_csr_matrix:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_make_tmp_csr_matrix', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_make_tmp_csr_matrix', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_make_tmp_csr_matrix', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_make_tmp_csr_matrix', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_make_tmp_csr_matrix_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -265,8 +270,8 @@ rule zoom_get_stats_for_std_variance_for_sample:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_stats_for_std_variance_for_sample', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_get_stats_for_std_variance_for_sample', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_stats_for_std_variance_for_sample', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_get_stats_for_std_variance_for_sample', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_stats_for_std_variance_for_sample_{zoom_name}_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -298,8 +303,8 @@ rule zoom_get_mean_var_for_group:
     zoom_group_var      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_split_var']
   threads: 8
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_mean_var_for_group', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_get_mean_var_for_group', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_mean_var_for_group', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_get_mean_var_for_group', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_mean_var_for_group_{zoom_name}_{group}_chunk_{chunk}' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -328,8 +333,8 @@ rule zoom_merge_group_mean_var:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_merge_group_mean_var', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_merge_group_mean_var', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_merge_group_mean_var', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_merge_group_mean_var', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   run:
     merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
 
@@ -346,8 +351,8 @@ rule zoom_get_estimated_variances:
   conda:
     '../envs/hvgs.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_estimated_variances', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_get_estimated_variances', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_estimated_variances', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_get_estimated_variances', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_estimated_variances_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   shell: """
@@ -377,8 +382,8 @@ rule zoom_get_stats_for_std_variance_for_group:
     zoom_hvg_group_var  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_split_var']
   threads: 8
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_stats_for_std_variance_for_group', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_get_stats_for_std_variance_for_group', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_stats_for_std_variance_for_group', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_get_stats_for_std_variance_for_group', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_stats_for_std_variance_for_group_{zoom_name}_{group}_chunk_{chunk}' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -423,8 +428,8 @@ rule zoom_get_highly_variable_genes:
     zoom_n_hvgs     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_n_hvgs'],
     zoom_exclude_ambient_genes = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_exclude_ambient_genes']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_highly_variable_genes', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_get_highly_variable_genes', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_highly_variable_genes', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_get_highly_variable_genes', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_highly_variable_genes_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -461,8 +466,8 @@ rule zoom_create_hvg_matrix:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_create_hvg_matrix', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_create_hvg_matrix', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_create_hvg_matrix', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_create_hvg_matrix', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_create_hvg_matrix_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -480,7 +485,7 @@ rule zoom_create_hvg_matrix:
 rule zoom_run_integration:
   input:
     hvg_mat_f     = zoom_dir + '/{zoom_name}/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-    smpl_stats_f  = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    sample_qc_f   = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     coldata_f     = qc_dir   + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
     integration_f = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
@@ -496,29 +501,40 @@ rule zoom_run_integration:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_run_integration', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_run_integration', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_run_integration', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_run_integration', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_run_integration_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
-    '../envs/rlibs.yaml'
+    '../envs/integration.yaml'
   shell: """
-    # run harmony
-    Rscript -e "source('scripts/integration.R'); source('scripts/utils.R'); source('scripts/zoom.R'); 
-      run_zoom_integration( 
-        hvg_mat_f        = '{input.hvg_mat_f}', 
-        smpl_stats_f     = '{input.smpl_stats_f}', 
-        coldata_f        = '{input.coldata_f}', 
-        demux_type       = '{params.demux_type}', 
-        exclude_mito     = '{params.exclude_mito}', 
-        reduction        = '{params.zoom_int_embedding}',
-        n_dims           =  {params.zoom_int_n_dims}, 
-        cl_method        = '{params.zoom_int_cl_method}', 
-        theta            =  {params.zoom_int_theta}, 
-        res_ls_concat    = '{params.zoom_int_res_ls}', 
-        integration_f    = '{output.integration_f}', 
-        batch_var        = '{params.zoom_int_batch_var}', 
-        n_cores          =  {threads})"
+    set +u
+    # check whether gpu available
+    if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
+      use_gpu=1
+    else
+      use_gpu=0
+    fi
+    set -u
+
+    USE_GPU_FLAG=""
+     if [ $use_gpu = 1 ]; then
+       USE_GPU_FLAG="--use_gpu"
+     fi
+    
+    python3 scripts/integration.py run_zoom_integration \
+      --hvg_mat_f     {input.hvg_mat_f} \
+      --sample_qc_f   {input.sample_qc_f} \
+      --coldata_f     {input.coldata_f} \
+      --exclude_mito  "{params.exclude_mito}" \
+      --embedding     {params.zoom_int_embedding} \
+      --n_dims        {params.zoom_int_n_dims} \
+      --cl_method     {params.zoom_int_cl_method} \
+      --theta         {params.zoom_int_theta} \
+      --res_ls_concat "{params.zoom_int_res_ls}" \
+      --integration_f {output.integration_f} \
+      --batch_var     {params.zoom_int_batch_var} \
+      $USE_GPU_FLAG
     """
 
 
@@ -529,32 +545,18 @@ rule zoom_run_marker_genes:
   output:
     pb_f      = zoom_dir + '/{zoom_name}/pb_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.rds',
     mkrs_f    = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
-    pb_hvgs_f = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz', 
-    **get_zoom_conditional_outputs(config['project']['species'], zoom_dir, FULL_TAG, DATE_STAMP)
+    pb_hvgs_f = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz'
   params:
     species             = config['project']['species'],
     af_gtf_dt_f         = config['mapping']['af_gtf_dt_f'],
-    mkr_gsea_dir        = config['marker_genes']['mkr_gsea_dir'],
-    fgsea_args = lambda wildcards, output: ", ".join([
-        f"fgsea_go_bp_f = '{output.get('fgsea_go_bp_f', '')}'",
-        f"fgsea_go_cc_f = '{output.get('fgsea_go_cc_f', '')}'",
-        f"fgsea_go_mf_f = '{output.get('fgsea_go_mf_f', '')}'",
-        f"fgsea_paths_f = '{output.get('fgsea_paths_f', '')}'",
-        f"fgsea_hlmk_f = '{output.get('fgsea_hlmk_f', '')}',"
-    ]), 
     zoom_mkr_sel_res     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_sel_res'],
     zoom_mkr_min_cl_size = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cl_size'], 
-    zoom_mkr_min_cells   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cells'], 
-    zoom_mkr_not_ok_re   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_not_ok_re'],
-    zoom_mkr_min_cpm_go  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cpm_go'],
-    zoom_mkr_max_zero_p  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_max_zero_p'], 
-    zoom_mkr_do_gsea     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea'], 
-    zoom_mkr_gsea_cut    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_cut']
+    zoom_mkr_min_cells   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cells']
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_run_marker_genes', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_run_marker_genes', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_run_marker_genes', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_run_marker_genes', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_run_marker_genes_{zoom_name}_{mkr_sel_res}_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -566,21 +568,52 @@ rule zoom_run_marker_genes:
       pb_f          = '{output.pb_f}',
       mkrs_f        = '{output.mkrs_f}',
       pb_hvgs_f     = '{output.pb_hvgs_f}',
-      {params.fgsea_args}
-      species       = '{params.species}',
-      do_gsea       = '{params.zoom_mkr_do_gsea}', 
       gtf_dt_f      = '{params.af_gtf_dt_f}',
-      gsea_dir      = '{params.mkr_gsea_dir}',
       sel_res       = '{params.zoom_mkr_sel_res}',
       min_cl_size   =  {params.zoom_mkr_min_cl_size},
       min_cells     =  {params.zoom_mkr_min_cells},
-      not_ok_re     = '{params.zoom_mkr_not_ok_re}',
-      min_cpm_go    =  {params.zoom_mkr_min_cpm_go},
-      max_zero_p    =  {params.zoom_mkr_max_zero_p},
-      gsea_cut      =  {params.zoom_mkr_gsea_cut},
       zoom          = 'True', 
       n_cores       =  {threads})"
     """
+
+
+rule zoom_run_fgsea:
+  input:
+    mkrs_f        = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz'
+  output:
+    fgsea_go_bp_f = zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG + '_{mkr_sel_res}_go_bp_' + DATE_STAMP + '.txt.gz', 
+    fgsea_go_cc_f = zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG + '_{mkr_sel_res}_go_cc_' + DATE_STAMP + '.txt.gz',
+    fgsea_go_mf_f = zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG + '_{mkr_sel_res}_go_mf_' + DATE_STAMP + '.txt.gz'
+  params:
+    species              = config['project']['species'],
+    mkr_gsea_dir         = config['marker_genes']['mkr_gsea_dir'],
+    zoom_mkr_min_cpm_go  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cpm_go'],
+    zoom_mkr_max_zero_p  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_max_zero_p'],
+    zoom_mkr_gsea_cut    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_cut'], 
+    zoom_mkr_not_ok_re   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_not_ok_re']
+  threads: 8
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_run_fgsea', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_run_fgsea', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_run_fgsea_{zoom_name}_{mkr_sel_res}_' + DATE_STAMP + '.benchmark.txt'
+  conda: '../envs/rlibs.yaml'
+  shell:"""
+    Rscript -e "source('scripts/utils.R'); source('scripts/fgsea.R'); run_fgsea(
+      mkrs_f        = '{input.mkrs_f}', 
+      fgsea_go_bp_f = '{output.fgsea_go_bp_f}', 
+      fgsea_go_cc_f = '{output.fgsea_go_cc_f}', 
+      fgsea_go_mf_f = '{output.fgsea_go_mf_f}', 
+      species       = '{params.species}', 
+      gsea_dir      = '{params.mkr_gsea_dir}', 
+      min_cpm_go    = {params.zoom_mkr_min_cpm_go}, 
+      max_zero_p    = {params.zoom_mkr_max_zero_p},
+      gsea_cut      = {params.zoom_mkr_gsea_cut},
+      not_ok_re     = '{params.zoom_mkr_not_ok_re}',
+      n_cores       =  {threads})"
+    """
+
 
 
 rule zoom_make_subset_sces:
@@ -597,8 +630,8 @@ rule zoom_make_subset_sces:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_make_subset_sces', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_make_subset_sces', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_make_subset_sces', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_make_subset_sces', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_make_subset_sces_{zoom_name}_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
@@ -629,10 +662,16 @@ rule render_html_zoom:
     zoom_int_f          = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     zoom_pb_f           = zoom_dir + '/{zoom_name}/pb_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.rds',
     zoom_pb_hvgs_f      = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
-    zoom_mkrs_f         = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
+    zoom_mkrs_f         = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz', 
     zoom_empty_gs_f     = zoom_dir + '/{zoom_name}/edger_empty_genes_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     pb_empty_f          = pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
-    **get_zoom_conditional_outputs(config['project']['species'], zoom_dir, FULL_TAG, DATE_STAMP)
+    fgsea_files         =lambda wildcards: list(get_zoom_conditional_fgsea_files(
+        config['project']['species'],
+        zoom_dir,
+        FULL_TAG,
+        DATE_STAMP,
+        ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea']
+    ).values())
   output:
     rmd_f       = rmd_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{mkr_sel_res}.Rmd',
     html_f      = docs_dir + '/' + SHORT_TAG + '_zoom' + '_{zoom_name}_{mkr_sel_res}.html'
@@ -649,9 +688,7 @@ rule render_html_zoom:
     fgsea_args            = lambda wildcards, input: ", ".join([
         f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}'",
         f"fgsea_go_cc_f = '{input.get('fgsea_go_cc_f', '')}'",
-        f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}'",
-        f"fgsea_paths_f = '{input.get('fgsea_paths_f', '')}'",
-        f"fgsea_hlmk_f = '{input.get('fgsea_hlmk_f', '')}',"
+        f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}',"
     ]), 
     af_gtf_dt_f           = config['mapping']['af_gtf_dt_f'],
     zoom_int_res_ls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'], 
@@ -668,8 +705,8 @@ rule render_html_zoom:
   conda: 
     '../envs/rlibs.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_zoom', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('render_html_zoom', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_zoom', 'memory', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('render_html_zoom', 'time', lm_f, config, proj_schema_f, input, SAMPLES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_zoom/render_html_zoom_{zoom_name}_{mkr_sel_res}_' + DATE_STAMP + '.benchmark.txt'
   shell: """
