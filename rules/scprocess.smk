@@ -22,12 +22,12 @@ lm_f          = scprocess_dir / "resources/resources_lm_params_2025-11-27.csv"
 config        = check_config(config, schema_f, scdata_dir, scprocess_dir)
 
 # get lists of parameters
-RUN_PARAMS, RUN_VAR = get_run_parameters(config, scdata_dir)
-RUNS                = list(RUN_PARAMS.keys())
-SAMPLE_PARAMS       = get_sample_parameters(config, RUNS, scdata_dir)
-SAMPLES             = list(SAMPLE_PARAMS.keys())
-SAMPLES_TO_RUNS     = get_samples_to_runs(config, RUNS, SAMPLES)
-LABELLER_PARAMS     = get_labeller_parameters(config, schema_f, scdata_dir)
+RUN_PARAMS, RUN_VAR     = get_run_parameters(config, scdata_dir)
+RUNS                    = list(RUN_PARAMS.keys())
+BATCH_PARAMS, BATCH_VAR = get_batch_parameters(config, RUNS, scdata_dir)
+BATCHES                 = list(BATCH_PARAMS.keys())
+BATCHES_TO_RUNS         = get_batches_to_runs(config, RUNS, BATCHES, BATCH_VAR)
+LABELLER_PARAMS         = get_labeller_parameters(config, schema_f, scdata_dir)
 
 # unpack some variables that we use a lot
 PROJ_DIR        = config['project']['proj_dir']
@@ -131,26 +131,26 @@ rule all:
     # demultiplexing
     hto_sce_fs,
     # qc
-    qc_dir  + '/qc_thresholds_by_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    qc_dir  + '/qc_thresholds_by_' + BATCH_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-    qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
+    qc_dir  + '/coldata_dt_all_cells_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-    qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    qc_dir  + '/qc_' + BATCH_VAR + '_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     # pseudobulks and empties
     pb_dir  + '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
     pb_dir  + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-    empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.txt.gz', 
+    empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.csv.gz', 
     # hvgs
     hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
+    hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
     hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
     #hvg_dir + '/chunked_counts_h5_sizes_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     # integration
     int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    expand(int_dir + '/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample = SAMPLES),
+    expand(int_dir + '/sce_cells_clean_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', batch = BATCHES),
     int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
     # marker genes
     mkr_dir + '/pb_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.rds',
@@ -237,7 +237,7 @@ rule qc:
       dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       # dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
       ], run = RUNS),
-    qc_dir    + '/qc_thresholds_by_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    qc_dir    + '/qc_thresholds_by_' + BATCH_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     qc_dir    + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     qc_dir    + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     qc_dir    + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
@@ -273,7 +273,7 @@ rule hvg:
 
 rule integration:
   input:
-    expand(int_dir + '/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample = SAMPLES),
+    expand(int_dir + '/sce_cells_clean_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', batch = BATCHES),
     int_dir   + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
     int_dir   + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',

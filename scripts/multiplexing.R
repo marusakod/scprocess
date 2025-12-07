@@ -10,8 +10,10 @@ suppressPackageStartupMessages({
   library("rhdf5")
   library("data.table")
   library("fishpond")
+  library("yaml")
 
   library("SingleCellExperiment")
+  library("Seurat")
   library("scattermore")
   library("ggridges")
   library("MetBrewer")

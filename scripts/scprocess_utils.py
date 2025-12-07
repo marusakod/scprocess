@@ -952,29 +952,41 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
 
 
 # get variables for each run
-def get_sample_parameters(config, RUNS, scprocess_data_dir):
-  # move to another function
-  metadata_f  = config["project"]["sample_metadata"]
-  samples_df  = pl.read_csv( metadata_f )
-  SAMPLES     = samples_df[ "sample_id" ].drop_nulls().to_list()
+def get_batch_parameters(config, RUNS, scprocess_data_dir):
+  # define batch variable
+  BATCH_VAR   = config['integration']['int_batch_var']
+
+  # get parameters if batch_var is sample_id
+  if BATCH_VAR == "sample_id":
+    # move to another function
+    metadata_f  = config["project"]["sample_metadata"]
+    samples_df  = pl.read_csv( metadata_f )
+    SAMPLES     = samples_df[ "sample_id" ].drop_nulls().to_list()
+
+    # should we exclude any runs?
+    SAMPLES     = _do_exclusions(SAMPLES, config, "sample_id")
+
+    # use to define batches
+    BATCHES     = SAMPLES
+
+  # get parameters if batch_var is pool_id
+  elif BATCH_VAR == "pool_id":
+    BATCHES     = RUNS
 
   # get any custom parameters
-  custom_sample_params = _get_custom_parameters(config, "sample_id")
-
-  # should we exclude any runs?
-  SAMPLES     = _do_exclusions(SAMPLES, config, "sample_id")
+  custom_batch_params = _get_custom_parameters(config, BATCH_VAR)
 
   # load sample file, populate everything from config
-  SAMPLE_PARAMS = {
-    sample_name: _get_sample_parameters_one_sample(sample_name, config, custom_sample_params)
-    for sample_name in SAMPLES
+  BATCH_PARAMS = {
+    batch_name: _get_batch_parameters_one_batch(batch_name, config, custom_batch_params)
+    for batch_name in BATCHES
   }
 
-  return SAMPLE_PARAMS
+  return BATCH_PARAMS, BATCH_VAR
 
 
 # get parameters for one sample
-def _get_sample_parameters_one_sample(sample_name, config, custom_sample_params):
+def _get_batch_parameters_one_batch(batch_name, config, custom_batch_params):
   # make dictionary for mapping
   qc_dc   = {
     # set defaults
@@ -987,11 +999,11 @@ def _get_sample_parameters_one_sample(sample_name, config, custom_sample_params)
     "qc_min_cells":   config['qc']['qc_min_cells']
   }
   # add sample-specific QC parameters
-  if sample_name in custom_sample_params:
-    if 'qc' in custom_sample_params[sample_name]:
+  if batch_name in custom_batch_params:
+    if 'qc' in custom_batch_params[batch_name]:
       for v in qc_dc:
-        if v in custom_sample_params[sample_name]['qc']:
-          qc_dc[v]    = custom_sample_params[sample_name]['qc'][v]
+        if v in custom_batch_params[batch_name]['qc']:
+          qc_dc[v]    = custom_batch_params[batch_name]['qc'][v]
 
   # make dict of dicts
   out_dc  = {
@@ -1002,31 +1014,36 @@ def _get_sample_parameters_one_sample(sample_name, config, custom_sample_params)
 
 
 # get mapping from samples to runs
-def get_samples_to_runs(config, RUNS, SAMPLES):
+def get_batches_to_runs(config, RUNS, BATCHES, BATCH_VAR):
   # if nothing to do return none
   if config['multiplexing']['demux_type'] == "none":
-    if not RUNS == SAMPLES:
-      raise ValueError("RUNS and SAMPLES should be identical when demux_type is 'none'")
+    # make dictionary if we can
+    if not RUNS == BATCHES:
+      raise ValueError("RUNS and BATCHES should be identical when demux_type is 'none'")
+    BATCHES_TO_RUNS = { s: [s] for s in BATCHES }
 
-    # make dictionary
-    SAMPLES_TO_RUNS = { s: [s] for s in SAMPLES }
+  else:
+    if BATCH_VAR == "pool_id":
+      # make dictionary if we can
+      if not RUNS == BATCHES:
+        raise ValueError("RUNS and BATCHES should be identical if 'int_batch_var' is 'pool_id'")
+      BATCHES_TO_RUNS = { s: [s] for s in BATCHES }
 
-    return SAMPLES_TO_RUNS
+    elif BATCH_VAR == "sample_id":
+      # get sample_metadata, convert to dictionary
+      sample_metadata = pl.read_csv(config['project']['sample_metadata'])
+      tmp_df          = sample_metadata.group_by("pool_id").agg(pl.col("sample_id").alias("sample_id_list"))
+      pool_vals       = tmp_df["pool_id"]
+      BATCHES_TO_RUNS = { pool_id: tmp_df.filter(pl.col("pool_id") == pool_id)["sample_id_list"].to_list()[0] for pool_id in pool_vals }
 
-  # get sample_metadata, convert to dictionary
-  sample_metadata = pl.read_csv(config['project']['sample_metadata'])
-  tmp_df          = sample_metadata.group_by("pool_id").agg(pl.col("sample_id").alias("sample_id_list"))
-  pool_vals       = tmp_df["pool_id"]
-  SAMPLES_TO_RUNS = { pool_id: tmp_df.filter(pl.col("pool_id") == pool_id)["sample_id_list"].to_list()[0] for pool_id in pool_vals }
+      # filter out any RUNS that shouldn't be there
+      BATCHES_TO_RUNS = { pool_id: sample_ids for pool_id, sample_ids in BATCHES_TO_RUNS.items() if pool_id in RUNS }
 
-  # filter out any RUNS that shouldn't be there
-  SAMPLES_TO_RUNS = { pool_id: sample_ids for pool_id, sample_ids in SAMPLES_TO_RUNS.items() if pool_id in RUNS }
+      # filter out any BATCHES that shouldn't be there
+      for pool_id in BATCHES_TO_RUNS:
+        BATCHES_TO_RUNS[pool_id] = [ sample_id for sample_id in BATCHES_TO_RUNS[pool_id] if sample_id in BATCHES ]
 
-  # filter out any SAMPLES that shouldn't be there
-  for pool_id in SAMPLES_TO_RUNS:
-    SAMPLES_TO_RUNS[pool_id] = [ sample_id for sample_id in SAMPLES_TO_RUNS[pool_id] if sample_id in SAMPLES ]
-
-  return SAMPLES_TO_RUNS
+  return BATCHES_TO_RUNS
 
 
 # get parameters for labelling celltypes
@@ -1097,7 +1114,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
 
 
 
-def get_resources(rule, param, lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS, run = None):
+def get_resources(rule, param, lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, run = None):
   # get lm params
   lm_df = pl.read_csv(lm_f)
 
@@ -1155,7 +1172,7 @@ def get_resources(rule, param, lm_f, config, schema_f, input, SAMPLES, RUN_PARAM
         x_val = RUN_PARAMS[run]["mapping"]["R1_fs_size_gb"]
       elif x_rq == 'n_smpls_pre_qc':
         # use the number of samples
-        x_val = len(SAMPLES)
+        x_val = len(BATCHES)
       else:
         raise ValueError(f"Unknown variable '{x_rq}' for scaling resources.")
 
@@ -1191,48 +1208,45 @@ def _safe_boolean(val):
 
 # helper function to merge multiple zipped csv/txt files
 def merge_tmp_files(in_files, out_file):
-  df_ls     = [pd.read_csv(f, compression='gzip', sep='\t') for f in in_files if gzip.open(f, 'rb').read(1)]
-  df_merged = pd.concat(df_ls, ignore_index=True)
-  df_merged.to_csv(out_file, sep='\t', index=False, compression='gzip', quoting=csv.QUOTE_NONE)
+  df_ls     = [ pl.read_csv(f) for f in in_files if gzip.open(f, 'rb').read(1) ]
+  df_merged = pl.concat(df_ls)
+  with gzip.open(out_file, 'wb') as f:
+    df_merged.write_csv(f)
 
 
 # HVGs function: make df with list of chunked counts files
-def make_hvgs_input_df(DEMUX_TYPE, SAMPLE_VAR, runs, ambient_outs_yamls, SAMPLES_TO_RUNS, FULL_TAG, DATE_STAMP, hvg_dir):
-  # define output variable
+def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_RUNS, 
+  DEMUX_TYPE, FULL_TAG, DATE_STAMP, hvg_dir):
+  # loop through ambient yaml files to populate list
   df_list = []
-
-  # populate list
   for r, yaml_file in zip(runs, ambient_outs_yamls):
     # get filtered ambient outputs
     with open(yaml_file) as f:
       amb_outs = yaml.load(f, Loader=yaml.FullLoader)
-
     amb_filt_f = amb_outs['filt_counts_f']
 
-    if DEMUX_TYPE != "none":
-      # get sample ids for pool
-      sample_ids = SAMPLES_TO_RUNS.get(r, [])
-
-      for sample_id in sample_ids:
-        hvg_df = pd.DataFrame({
-          SAMPLE_VAR:   [r],
-          'amb_filt_f': [amb_filt_f],
-          'sample_id':  [sample_id]
-        })
-
-        df_list.append(hvg_df)
-    else:
-      hvg_df = pd.DataFrame({
-        SAMPLE_VAR:   [r],
-        'amb_filt_f': [amb_filt_f]
+    # if no multiplexing, simple
+    if DEMUX_TYPE == "none":
+      tmp_df = pl.DataFrame({
+        BATCH_VAR:    r,
+        'amb_filt_f': amb_filt_f
       })
       df_list.append(hvg_df)
+    else:
+      # get sample ids for pool
+      sel_batches = BATCHES_TO_RUNS.get(r, [])
+      tmp_df      = pl.DataFrame({
+          RUN_VAR:      r,
+          'amb_filt_f': amb_filt_f,
+          BATCH_VAR:    sel_batches
+        })
+      df_list.append(tmp_df)
 
   # merge dfs for all runs
-  hvg_df_full = pd.concat(df_list, ignore_index=True)
-
-  # add path to chunked file
-  hvg_df_full['chunked_f'] = hvg_df_full['sample_id'].apply(lambda s: f"{hvg_dir}/chunked_counts_{s}_{FULL_TAG}_{DATE_STAMP}.h5")
+  chunk_pat   = f"{hvg_dir}/chunked_counts_{{}}_{FULL_TAG}_{DATE_STAMP}.h5"
+  hvg_df_full = pl.concat(df_list).with_columns(
+    pl.format(chunk_pat, BATCH_VAR).alias('chunked_f')
+  )
 
   return hvg_df_full
 

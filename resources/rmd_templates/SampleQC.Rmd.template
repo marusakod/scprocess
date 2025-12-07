@@ -35,6 +35,7 @@ setDTthreads(n_cores)
 meta_f      = "${metadata_f}"
 qc_f        = "${qc_dt_f}"
 cuts_f      = "${cuts_f}"
+batch_var   = "${batch_var}"
 
 # set default values
 hard_min_counts = ${qc_hard_min_counts}
@@ -48,28 +49,30 @@ qc_lu       = c('no. of cells', 'no. of UMIs', 'no. of genes', 'mito. pct.', 'sp
 ```
 
 ```{r load_qc_values, include = FALSE}
-qc_dt       = fread(qc_f) %>% 
-  .[ log_counts > log10(hard_min_counts) ] %>% 
-  .[ log_feats  > log10(hard_min_feats) ] %>% 
-  .[ logit_mito < qlogis(hard_max_mito) ]
+qc_dt       = fread(qc_f) %>%
+  .[ log_counts > log10(hard_min_counts) ] %>%
+  .[ log_feats  > log10(hard_min_feats) ] %>%
+  .[ logit_mito < qlogis(hard_max_mito) ] %>% 
+  setnames(batch_var, "batch_var")
 kept_dt     = qc_dt[ keep == TRUE ]
 ```
 
 ```{r load_metadata, include = FALSE}
 # get nice ordering for samples
 meta_dt     = fread(meta_f)
-s_lvls      = meta_dt$sample_id %>% intersect(unique(qc_dt$sample_id))
-n_samples   = length(s_lvls)
+b_lvls      = meta_dt[[batch_var]] %>% intersect(unique(qc_dt$batch_var))
+assert_that( length(b_lvls) > 0 )
+n_batches   = length(b_lvls)
 ```
 
 ```{r make_cuts_dt, include = FALSE}
-cuts_dt     = make_cuts_dt(cuts_f)
+cuts_dt     = make_cuts_dt(cuts_f, batch_var)
 ```
 
 ```{r setup_plot_sizes, include = FALSE}
 violin_h    = 0.4
 max_marg_h  = 12
-marg_h      = min((n_samples + 1) * violin_h, max_marg_h)
+marg_h      = min((n_batches + 1) * violin_h, max_marg_h)
 ```
 
 ## Sample QC metrics{.tabset}
@@ -91,10 +94,10 @@ Logit-transformed values are displayed as applying the logit  (inverse logistic)
 ```{r plot_qc_ranges_marginals, fig.height = marg_h, fig.width = 8, results = 'asis'}
 suppressWarnings({
   cat("### Pre-QC\n")
-  print(plot_qc_ranges_marginals(qc_dt, s_lvls, qc_names, qc_lu, cuts_dt))
+  print(plot_qc_ranges_marginals(qc_dt, b_lvls, qc_names, qc_lu, cuts_dt, batch_var))
   cat("\n\n")
   cat("### After light QC\n")
-  print(plot_qc_ranges_marginals(kept_dt, s_lvls, qc_names, qc_lu, cuts_dt))
+  print(plot_qc_ranges_marginals(kept_dt, b_lvls, qc_names, qc_lu, cuts_dt, batch_var))
   cat("\n\n")
 })
 ```
@@ -104,12 +107,12 @@ suppressWarnings({
 Pairwise relationships of QC metrics at individual cell level.
 
 ```{r plot_qc_metric_scatters, fig.height = 6, fig.width = 8, results = 'asis'}
-for (s in s_lvls) {
-  qc_tmp      = qc_dt[ sample_id == s ]
+for (b in b_lvls) {
+  qc_tmp      = qc_dt[ batch_var == b ]
   if (nrow(qc_tmp) == 1)
     next
-  cat('### ', s, '\n')
-  print(plot_qc_metric_scatter(qc_tmp, qc_names, qc_lu, cuts_dt[ sample_id == s ]))
+  cat('### ', b, '\n')
+  print(plot_qc_metric_scatter(qc_tmp, qc_names, qc_lu, cuts_dt[ batch_var == b ], b))
   cat('\n\n')
 }
 ```
@@ -120,7 +123,7 @@ Table summarizing the number of cells before and after qc filtering. Some sample
 may have been excluded from further analysis due to insufficient number of cells.
 
 ```{r print_totals_excluded}
-calc_qc_summary(qc_dt, kept_dt, cuts_dt, qc_lu) %>% knitr::kable()
+calc_qc_summary(qc_dt, kept_dt, cuts_dt, qc_lu, batch_var) %>% knitr::kable()
 ```
 
 ## What were the reasons for excluding barcodes?{.tabset}
@@ -128,11 +131,11 @@ calc_qc_summary(qc_dt, kept_dt, cuts_dt, qc_lu) %>% knitr::kable()
 An upset plot is generated for each sample to visualize the reasons for barcode exclusion. The plot shows the overlap between different exclusion criteria, with vertical bars representing the size of each intersection. Plots are omitted for samples where no barcodes were excluded.
 
 ```{r plot_upsets_of_exclusions, fig.height = 5, fig.width = 7, results = 'asis'}
-for (s in s_lvls) {
-  qc_tmp      = qc_dt[ sample_id == s ]
+for (bb in b_lvls) {
+  qc_tmp      = qc_dt[ batch_var == bb ]
   if (nrow(qc_tmp) == 1 | sum(qc_tmp$keep) == nrow(qc_tmp))
     next
-  cat('### ', s, '\n')
+  cat('### ', bb, '\n')
   suppressMessages( print(plot_upset_of_exclusions(qc_tmp, qc_names, qc_lu, cuts_dt)) )
   cat('\n\n')
 }

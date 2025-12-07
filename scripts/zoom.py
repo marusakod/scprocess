@@ -13,13 +13,13 @@ def get_zoom_raw_mean_var_files(zoom_name, ZOOM_PARAMS, FULL_TAG, DATE_STAMP):
 
 
 # zoom function: get list of all mean var files for zooms
-def get_zoom_std_var_stats_files(zoom_name, zoom_dir, ZOOM_PARAMS, FULL_TAG, DATE_STAMP, SAMPLES):
+def get_zoom_std_var_stats_files(zoom_name, zoom_dir, ZOOM_PARAMS, FULL_TAG, DATE_STAMP, BATCHES):
   hvg_method = ZOOM_PARAMS[zoom_name]['hvg']['hvg_method']
 
   if hvg_method == "sample":
     return [
-      zoom_dir + f'/{zoom_name}/tmp_std_var_stats_{sample}_sample_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-      for sample in SAMPLES
+      zoom_dir + f'/{zoom_name}/tmp_std_var_stats_{batch}_sample_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      for batch in BATCHES
     ]
   else:
     group_names = ZOOM_PARAMS[zoom_name]['hvg']['hvg_group_names']

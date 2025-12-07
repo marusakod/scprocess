@@ -36,21 +36,22 @@ suppressPackageStartupMessages({
   library('yaml')
 })
 
-make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset_col = NULL, subset_str = NULL, n_cores = 8) {
+make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, batch_var, subset_f = NULL, subset_col = NULL, subset_str = NULL, n_cores = 8) {
   # get files
   sce_fs_ls     = yaml::read_yaml(sce_fs_yaml) %>% unlist()
   
   # remove all samples excluded after qc
   qc_stats_dt   = fread(qc_stats_f)
-  keep_samples  = qc_stats_dt[ bad_sample == FALSE ] %>% .$sample_id
-  sce_fs_ls     = sce_fs_ls[keep_samples]
+  bad_var       = paste0("bad_", batch_var)
+  keep_batches  = qc_stats_dt[ get(bad_var) == FALSE ] %>% .[[batch_var]]
+  sce_fs_ls     = sce_fs_ls[ keep_batches ]
   
   # set up parallelization
   bpparam       = MulticoreParam(workers = n_cores, tasks = length(sce_fs_ls))
   on.exit(bpstop(bpparam))  
-  cell_pbs      = bpmapply( sel_s = names(sce_fs_ls), sce_f = unname(sce_fs_ls),
-    FUN = .get_one_cells_pb, SIMPLIFY = FALSE, BPPARAM = bpparam, 
-    MoreArgs = list(subset_f = subset_f, subset_col = subset_col, subset_str = subset_str)
+  cell_pbs      = bpmapply( sel_b = names(sce_fs_ls), sce_f = unname(sce_fs_ls), 
+    FUN = .get_one_cells_pb, SIMPLIFY = FALSE, BPPARAM = bpparam,
+    MoreArgs = list(batch_var = batch_var, subset_f = subset_f, subset_col = subset_col, subset_str = subset_str)
     )
 
   # merge sce objects
@@ -64,11 +65,11 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
 }
 
 
-.get_one_cells_pb <- function(sel_s, sce_f, subset_f = NULL, subset_col = NULL, 
-  subset_str = NULL, agg_fn = c("sum", "prop.detected")){
+.get_one_cells_pb <- function(sel_b, sce_f, batch_var, subset_f = NULL, subset_col = NULL, 
+  subset_str = NULL, agg_fn = c("sum", "prop.detected")) {
   agg_fn      = match.arg(agg_fn)
   
-  message('    loading sce object for sample ', sel_s)
+  message('    loading sce object for sample ', sel_b)
   sce         = readRDS(sce_f)
   if (!is.null(subset_f)) {
     message('    subsetting sce object')
@@ -76,11 +77,11 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
     subset_vals = str_split(subset_str, pattern = ',') %>% unlist
     subset_dt   = fread(subset_f)
     assert_that(subset_col %in% colnames(subset_dt))
-    assert_that(all(c("cell_id", "sample_id") %in% colnames(subset_dt)))
+    assert_that(all(c("cell_id", batch_var) %in% colnames(subset_dt)))
       
-    # keep just cells in sel_s with selected labels
+    # keep just cells in sel_b with selected labels
     subset_dt   = subset_dt %>%
-      .[ sample_id == sel_s ] %>%
+      .[ get(batch_var) == sel_b ] %>%
       .[ get(subset_col) %in% subset_vals ]
     
     # subset sce object
@@ -88,7 +89,7 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, subset_f = NULL, subset
   }
    
   message('   running aggregateData')
-  pb_mat    = .aggregateData_datatable(sce, by_vars = c("sample_id"), fun = agg_fn)
+  pb_mat    = .aggregateData_datatable(sce, by_vars = batch_var, fun = agg_fn)
   pb        = SingleCellExperiment( pb_mat, rowData = rowData(sce) )
   
  return(pb)

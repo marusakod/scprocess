@@ -5,8 +5,8 @@ rule run_integration:
   input:
     hvg_mat_f     = hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
     dbl_hvg_mat_f = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-    sample_qc_f   = qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    coldata_f     = qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+    qc_stats_f    = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+    coldata_f     = qc_dir  + '/coldata_dt_all_cells_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
     integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   params:
@@ -23,31 +23,27 @@ rule run_integration:
   threads: 1
   retries: config['resources']['retries'] 
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_integration', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('run_integration', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = 16 * MB_PER_GB,
+    runtime = 10
+    # mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_integration', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    # runtime = lambda wildcards, input: get_resources('run_integration', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   conda: 
     '../envs/integration.yaml'
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_integration/run_integration_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     set +u
-    # check whether gpu available
+    # if GPU is available, use it
+    USE_GPU_FLAG=""
     if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
-      use_gpu=1
-    else
-      use_gpu=0
+       USE_GPU_FLAG="--use_gpu"
     fi
     set -u
-
-    USE_GPU_FLAG=""
-     if [ $use_gpu = 1 ]; then
-       USE_GPU_FLAG="--use_gpu"
-     fi
     
     python3 scripts/integration.py run_integration \
       --hvg_mat_f     {input.hvg_mat_f} \
       --dbl_hvg_mat_f {input.dbl_hvg_mat_f} \
-      --sample_qc_f   {input.sample_qc_f} \
+      --sample_qc_f   {input.qc_stats_f} \
       --coldata_f     {input.coldata_f} \
       --demux_type    {params.demux_type} \
       --exclude_mito  "{params.exclude_mito}" \
@@ -74,8 +70,8 @@ rule make_clean_sces:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_clean_sces', 'memory', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('make_clean_sces', 'time', lm_f, config, schema_f, input, SAMPLES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_clean_sces', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('make_clean_sces', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     benchmark_dir + '/' + SHORT_TAG + '_integration/make_clean_sces_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda:
@@ -93,12 +89,12 @@ rule make_clean_sces:
 # make a yaml with all clean sce file paths
 rule make_clean_sce_paths_yaml:
    input:
-    clean_sce_f = expand(int_dir + '/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample = SAMPLES) # not used
+    clean_sce_f = expand(int_dir + '/sce_cells_clean_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', batch = BATCHES) # not used
    output:
     sces_yaml_f = int_dir + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml'
    run:
-    # split paths and sample names
-    fs = [f"{int_dir}/sce_cells_clean_{s}_{FULL_TAG}_{DATE_STAMP}.rds" for s in SAMPLES]
+    # split paths and batch names
+    fs = [f"{int_dir}/sce_cells_clean_{b}_{FULL_TAG}_{DATE_STAMP}.rds" for b in BATCHES]
     
     # check that all files exist
     for f in fs:
@@ -106,7 +102,7 @@ rule make_clean_sce_paths_yaml:
         raise FileNotFoundError(f"File {f} doesn't exist")
 
     # create a dictionary
-    fs_dict = dict(zip(SAMPLES, fs))
+    fs_dict = dict(zip(BATCHES, fs))
 
     # write to yaml
     with open(output.sces_yaml_f, 'w') as f:

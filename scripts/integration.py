@@ -14,6 +14,7 @@ import polars as pl
 def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
   integration_f, batch_var, use_gpu = False): 
+
   print('setting up parameters')
   exclude_mito  = bool(exclude_mito)
   res_ls        = res_ls_concat.split()
@@ -21,20 +22,19 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
     dbl_batch_var = 'sample_id'
   else:
     dbl_batch_var = 'pool_id'
-  
   dbl_theta     = 0
 
   print('loading hvg matrix')
-  all_hvg_mat, all_bcs   = _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f)
 
   print('loading relevant cell ids')
-  ok_cells_df   = _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs)
+  all_hvg_mat, bcs_passed, bcs_dbl = _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f)
+  cells_df      = _get_cells_df(sample_qc_f, coldata_f, bcs_passed, bcs_dbl, demux_type, batch_var)
 
   print('normalizing hvg matrix')
-  all_hvg_mat   = _normalize_hvg_mat(all_hvg_mat, ok_cells_df, exclude_mito)
+  all_hvg_mat   = _normalize_hvg_mat(all_hvg_mat, cells_df, exclude_mito)
 
   print('making anndata object')
-  adata_dbl     = ad.AnnData(X = all_hvg_mat.T , obs = ok_cells_df.to_pandas())
+  adata_dbl     = ad.AnnData(X = all_hvg_mat.T , obs = cells_df.to_pandas())
   print(adata_dbl)
   print(f"  anndata object including doublets has {adata_dbl.shape[0]} cells and {adata_dbl.shape[1]} dims")
 
@@ -46,8 +46,8 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   gc.collect()
 
   print('filter to non-doublet cells')
-  dbl_data      = _calc_dbl_data(int_dbl, ok_cells_df, dbl_res, dbl_cl_prop)
-  adata         = _adata_filter_out_doublets(all_hvg_mat, ok_cells_df, dbl_data)
+  dbl_data      = _calc_dbl_data(int_dbl, cells_df, dbl_res, dbl_cl_prop, demux_type, batch_var)
+  adata         = _adata_filter_out_doublets(all_hvg_mat, cells_df, dbl_data)
   print(adata)
   print(f"  anndata object has {adata.shape[0]} cells and {adata.shape[1]} dims")
 
@@ -55,10 +55,11 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   gc.collect()
 
   print('running integration on clean data')
-  int_ok        = _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, use_gpu, theta)
+  int_ok        = _do_one_integration(adata, batch_var, cl_method, n_dims, 
+    res_ls, embedding, use_gpu, theta = theta)
 
   print('join results')
-  int_dt        = int_ok.join(dbl_data, on=["sample_id", "cell_id"], coalesce=True, how = 'full')
+  int_dt        = int_ok.join(dbl_data, on="cell_id", coalesce=True, how = 'full')
 
   print('save results')
   with gzip.open(integration_f, 'wb') as f:
@@ -159,7 +160,8 @@ def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs, zoom = False):
 def _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f):
   # get a matrix with hvgs (cells and doublets)
   all_hvg_mat = None
-  all_bcs     = []
+  bcs_passed  = []
+  bcs_dbl     = []
   features    = []
 
   # open both
@@ -186,20 +188,72 @@ def _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f):
 
       # store barcodes
       barcodes    = [b.decode('utf-8') for b in barcodes]
-      all_bcs.extend(barcodes)
+      if mat_f == hvg_mat_f:
+        bcs_passed  = barcodes
+      elif mat_f == dbl_hvg_mat_f:
+        bcs_dbl     = barcodes
 
-  return all_hvg_mat, all_bcs
+  return all_hvg_mat, bcs_passed, bcs_dbl
 
 
-def _normalize_hvg_mat(hvg_mat, coldata, exclude_mito, scale_f = 10000):
-  if exclude_mito:
-    coldata = coldata.with_columns((pl.col("total") - pl.col("subsets_mito_sum")).alias("total_no_mito"))
-    lib_sizes = coldata["total_no_mito"].to_numpy()
+def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, bcs_dbl, demux_type, batch_var):
+  # load files
+  sample_qc   = pl.read_csv(sample_qc_f)
+  all_coldata = pl.read_csv(coldata_f)
+
+  # checks
+  if not batch_var in all_coldata.columns:
+    raise KeyError("column sample_id is missing from coldata file")
+  if not batch_var in sample_qc.columns:
+    raise KeyError("column sample_id is missing from sample QC file")
+
+  # get ok samples
+  bad_var     = "bad_" + batch_var
+  ok_batches  = sample_qc.filter( pl.col(bad_var) == False )[batch_var].to_list()
+  passed_idx  = all_coldata['keep']
+  if not set(bcs_passed) == set(all_coldata.filter(passed_idx)['cell_id']):
+    raise ValueError("qc-passed barcodes from hvg mats and cell_ids don't match")
+  
+  # subset to doublets
+  if demux_type == "none":
+    dbl_idx     = all_coldata["scdbl_class"] == "doublet"
   else:
-    lib_sizes = coldata["total"].to_numpy()
+    if batch_var == "sample_id":
+      dbl_idx     = (all_coldata["scdbl_class"] == "doublet") | (all_coldata["demux_class"] == "doublet")
+    elif batch_var == "pool_id":
+      dbl_idx     = all_coldata["scdbl_class"] == "doublet"
+  if not set(bcs_dbl) == set(all_coldata.filter(dbl_idx)['cell_id']):
+    raise ValueError("doublet barcodes from hvg mats and cell_ids don't match")
 
-  hvg_mat = hvg_mat.tocsr() 
-  hvg_mat.data /= lib_sizes[hvg_mat.indices]
+  # add doublet label
+  cells_df    = all_coldata.with_columns(
+    pl.when(dbl_idx).then(True).otherwise(False).alias("is_dbl_int")
+  ).filter(
+    passed_idx | dbl_idx
+  ).filter(
+    ((pl.col(batch_var).is_in(ok_batches)) | (pl.col(batch_var).is_null()))
+  )
+
+  # put cell in coldata in the order matching mat cols
+  all_bcs     = [*bcs_passed, *bcs_dbl]
+  order_dt    = pl.DataFrame({
+    "cell_id":  all_bcs,
+    "order":    range(1, len(all_bcs) + 1)
+  })
+  cells_df    = cells_df.join(order_dt, on = 'cell_id').sort('order').drop('order')
+
+  return cells_df
+
+
+def _normalize_hvg_mat(hvg_mat, cells_df, exclude_mito, scale_f = 10000):
+  if exclude_mito:
+    cells_df    = cells_df.with_columns((pl.col("total") - pl.col("subsets_mito_sum")).alias("total_no_mito"))
+    lib_sizes   = cells_df["total_no_mito"].to_numpy()
+  else:
+    lib_sizes   = cells_df["total"].to_numpy()
+
+  hvg_mat     = hvg_mat.tocsr() 
+  hvg_mat.data /= lib_sizes[ hvg_mat.indices ]
   hvg_mat.data *= scale_f
 
   np.log1p(hvg_mat.data, out=hvg_mat.data)
@@ -332,9 +386,9 @@ def _get_embeddings_from_adata(adata, embedding,  sel_embed):
   return embeds_dt
 
 
-def _calc_dbl_data(int_dbl, ok_cells_df, dbl_res, dbl_cl_prop):
+def _calc_dbl_data(int_dbl, cells_df, dbl_res, dbl_cl_prop, demux_type, batch_var):
   # get doublet cells
-  dbl_ids       = ok_cells_df.filter(pl.col("dbl_class") == "doublet")["cell_id"].to_list()
+  dbl_ids       = cells_df.filter( pl.col("is_dbl_int") == True )["cell_id"]
 
   # get doublet cluster column
   dbl_res_str   = str(dbl_res)
@@ -342,7 +396,7 @@ def _calc_dbl_data(int_dbl, ok_cells_df, dbl_res, dbl_cl_prop):
   
   # make nice dataframe
   dbl_data      = int_dbl.select(
-    'cell_id', 'sample_id',
+    'cell_id',
     pl.col('UMAP1').alias('dbl_UMAP1'),  pl.col('UMAP2').alias('dbl_UMAP2'),
     pl.col(dbl_clust_col).alias('dbl_cluster')
   ).with_columns( 
@@ -358,14 +412,14 @@ def _calc_dbl_data(int_dbl, ok_cells_df, dbl_res, dbl_cl_prop):
   return dbl_data
 
 
-def _adata_filter_out_doublets(all_hvg_mat, ok_cells_df, dbl_data):
+def _adata_filter_out_doublets(all_hvg_mat, cells_df, dbl_data):
   # get ok ids
   ok_ids    = dbl_data.filter(
     (pl.col("is_dbl") == False) & (pl.col("in_dbl_cl") == False)
   )["cell_id"].to_list()
   
   # make adata, subset to ok ids
-  adata     = ad.AnnData(X = all_hvg_mat.T, obs = ok_cells_df.to_pandas())
+  adata     = ad.AnnData(X = all_hvg_mat.T, obs = cells_df.to_pandas())
   keep_idx  = adata.obs.cell_id.isin(ok_ids).to_numpy()
   adata     = adata[keep_idx, :].copy()
   adata.obs_names_make_unique()

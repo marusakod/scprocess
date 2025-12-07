@@ -42,7 +42,7 @@ proj_meta_f = "${metadata_f}"
 # files with barcode ranks and ambient parameters
 af_dir      = "${af_dir}"
 demux_dir   = "${demux_dir}"
-sample_var  = "${run_var}"
+run_var     = "${run_var}"
 
 hto_smpl_dirs = sprintf(paste0(af_dir,'/', 'af_%s', '/hto' ), s_lvls)
 
@@ -79,13 +79,13 @@ hto_sce_ls    = lapply(hto_sce_fs, FUN = readRDS)
 ```
 
 ```{r load_meta, include=FALSE}
+# replace all underscores with dashes
 proj_meta = fread(proj_meta_f) %>%
- # replace all underscores with dashes
- .[, hto_id := gsub('_', '-', hto_id)]
+  .[, hto_id := gsub('_', '-', hto_id)]
 ```
 
 ```{r get_hto_knee_params, include = FALSE}
-hto_knee_params_df = lapply(hto_knee_fs, FUN = get_knee_params, sample_var = sample_var) %>% rbindlist()
+hto_knee_params_df = lapply(hto_knee_fs, FUN = get_knee_params, sample_var = run_var) %>% rbindlist()
 ```
 
 ```{r get_hto_dt, include = FALSE}
@@ -101,7 +101,7 @@ sample_n = nrow(hto_knee_params_df)
 # arrange samples into groups of 12 acoording to their slope ratio
 slope_ratio_ordered_samples = hto_knee_params_df %>%
   .[order(-slope_ratio)] %>%
-  .[, get(sample_var)]
+  .[, get(run_var) ]
 
 # split long vector into subsets
 n_per_plot  = 12
@@ -146,7 +146,7 @@ for (i in 1:length(slope_ratio_split_l) ) {
   knee_fs  = hto_knee_fs[samples]
   cat('### ', name, '\n')
   print(plot_barcode_ranks_w_params(
-    knee_fs, hto_knee_params_df, sample_var = sample_var,
+    knee_fs, hto_knee_params_df, sample_var = run_var,
     bender_priors_df = NULL,  show_lines = FALSE))
   cat('\n\n')
 }
@@ -180,8 +180,8 @@ print(hto_barplot(hto_dt_ls))
 For each sample, the plot displays the normalized expression levels of all hashtag oligos (HTOs) used to label samples within the same pool.
 Each ridge on the plot corresponds to a single HTO, showing how its expression is distributed across the cells in that sample. 
 
-```{r hto_ridges_plot, results ='asis', eval = FALSE}
-for (i in sample_ids){
+```{r hto_ridges_plot, results ='asis'}
+for (i in sample_ids) {
   cat('### ', i, '\n')
   print(hto_ridges(i, proj_meta = proj_meta, hto_dt_ls = hto_dt_ls))
   cat('\n\n')
@@ -193,7 +193,7 @@ for (i in sample_ids){
 For each pool, pairwise HTO expression levels are shown.
 
 ```{r hto_pairwise plot, results = 'asis', fig.height = 7, fig.width = 9}
-for (i in pool_ids){
+for (i in pool_ids) {
   cat('### ', i, '\n')
   if (!(i %in% names(hto_dt_ls))) {
     print("No data for this pool.")
