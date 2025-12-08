@@ -77,7 +77,6 @@ hto_index_outs = [
 # alevin hto quantification outputs (optional)
 hto_af_outs = expand(
   [
-<<<<<<< HEAD
     f'{af_dir}/af_{{run}}/hto/af_quant/',
     f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat.mtx',
     f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat_cols.txt',
@@ -85,16 +84,6 @@ hto_af_outs = expand(
     f'{af_dir}/af_{{run}}/hto/af_hto_counts_mat.h5',
     f'{af_dir}/af_{{run}}/hto/knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz'
   ], run = RUNS) if config['multiplexing']['demux_type'] == "hto" else []
-=======
-  af_dir    + '/af_{run}/hto/af_quant/',
-  af_dir    + '/af_{run}/hto/af_quant/alevin/quants_mat.mtx',
-  af_dir    + '/af_{run}/hto/af_quant/alevin/quants_mat_cols.txt',
-  af_dir    + '/af_{run}/hto/af_quant/alevin/quants_mat_rows.txt',
-  af_dir    + '/af_{run}/hto/af_hto_counts_mat.h5',
-  af_dir    + '/af_{run}/hto/knee_plot_data_{run}_' + DATE_STAMP + '.csv.gz'
-  ], run = RUNS
-) if config['multiplexing']['demux_type'] == "hto" else []
->>>>>>> refs/remotes/origin/dev-int
 
 # seurat demultiplexing outputs (optional)
 hto_sce_fs = expand(
