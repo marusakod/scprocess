@@ -230,7 +230,7 @@ if config['ambient']['ambient_method'] == 'decontx':
     input:
       af_h5_f         = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
       amb_yaml_f      = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml', 
-      knee_data_f     = af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
+      knee_data_f     = af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.csv.gz'
     output:
       amb_yaml_out    = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'
     params:
@@ -256,7 +256,7 @@ if config['ambient']['ambient_method'] == 'decontx':
       # define output file names
       filt_counts_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_filtered.h5"
       bcs_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_cell_barcodes.csv"
-      dcx_params_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_params.txt.gz"
+      dcx_params_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_params.csv.gz"
 
       # run cell calling and decontamination
       Rscript -e "source('scripts/ambient.R'); source('scripts/utils.R'); \
@@ -285,7 +285,7 @@ if config['ambient']['ambient_method'] == 'none':
     input:
       h5_f        = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
       amb_yaml_f  = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml',
-      knee_data_f = af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
+      knee_data_f = af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.csv.gz'
     output:
       ambient_yaml_out = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml'
     params:
@@ -340,7 +340,7 @@ rule get_barcode_qc_metrics:
   params:
     ambient_method  = config['ambient']['ambient_method']
   output:
-    bc_qc_f     = amb_dir + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz'
+    bc_qc_f     = amb_dir + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.csv.gz'
   threads: 1
   retries: config['resources']['retries']
   conda:
@@ -360,8 +360,8 @@ rule get_barcode_qc_metrics:
 
 rule get_ambient_run_statistics:
   input:
-    metrics_fs  = expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=RUNS),
-    bc_qc_fs    = expand(amb_dir + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz', run=RUNS),
+    metrics_fs  = expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.csv.gz', run=RUNS),
+    bc_qc_fs    = expand(amb_dir + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.csv.gz', run=RUNS),
     amb_yaml_fs = expand(amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml', run=RUNS)
   output:
     amb_stats_f = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'

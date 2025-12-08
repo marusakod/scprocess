@@ -54,7 +54,7 @@ def get_one_csr_counts(run, hvg_paths_df, keep_df, smpl_stats_df, gene_ids,
   if demux_type == "none":
     batches   = [run]
   else:
-    batches   = hvg_paths_df.filter(pl.col(RUN_VAR) == run)[batch_var].to_list() # This doesn't seem like it's going to return unique values if batch_var is pool_id
+    batches   = hvg_paths_df.filter(pl.col(RUN_VAR) == run)[batch_var].to_list()
 
   # get valid barcodes
   bcs_dict = {}
@@ -143,16 +143,14 @@ def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, smpl_stats_f,
 
   # define list of runs, run on them in parallel
   runs          = hvg_paths_df[RUN_VAR].unique().to_list()
-  for this_run in runs:
-    get_one_csr_counts(this_run, hvg_paths_df, keep_df, smpl_stats_df, keep_ids, 
-      RUN_VAR, batch_var, demux_type, chunk_size)
-  # with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
-  #   futures = [executor.submit(get_one_csr_counts, this_run, hvg_paths_df, keep_df, 
-  #     smpl_stats_df, keep_ids, RUN_VAR, batch_var, demux_type, chunk_size) for this_run in runs]
 
-  #   # some more parallel stuff i guess
-  #   for future in concurrent.futures.as_completed(futures):
-  #     future.result()
+  with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
+    futures = [executor.submit(get_one_csr_counts, run, hvg_paths_df, keep_df, 
+      smpl_stats_df, keep_ids, RUN_VAR, batch_var, demux_type, chunk_size) for run in runs]
+
+    # some more parallel stuff i guess
+    for future in concurrent.futures.as_completed(futures):
+      future.result()
 
   return
 

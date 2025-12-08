@@ -65,15 +65,15 @@ zoom_mkr_report_outs = [
   for file in (
     [
       '%s/%s/pb_%s_%s_%s.rds' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
-      '%s/%s/pb_marker_genes_%s_%s_%s.txt.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
-      '%s/%s/pb_hvgs_%s_%s_%s.txt.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
+      '%s/%s/pb_marker_genes_%s_%s_%s.csv.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
+      '%s/%s/pb_hvgs_%s_%s_%s.csv.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
       '%s/%s_zoom_%s_%s.Rmd' % (rmd_dir, SHORT_TAG, zoom_name, mkr_sel_res),
       '%s/%s_zoom_%s_%s.html' % (docs_dir, SHORT_TAG, zoom_name, mkr_sel_res)
     ] + (
       [
-      '%s/%s/fgsea_%s_%s_go_bp_%s.txt.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
-      '%s/%s/fgsea_%s_%s_go_cc_%s.txt.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
-      '%s/%s/fgsea_%s_%s_go_mf_%s.txt.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP)
+      '%s/%s/fgsea_%s_%s_go_bp_%s.csv.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
+      '%s/%s/fgsea_%s_%s_go_cc_%s.csv.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
+      '%s/%s/fgsea_%s_%s_go_mf_%s.csv.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP)
       ] if do_gsea and (config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'])
         else []
       )
@@ -105,9 +105,9 @@ rule zoom:
     # zoom hvgs
     expand('%s/{zoom_name}/hvg_paths_%s_%s.csv' % \
       (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS),  
-    expand('%s/{zoom_name}/standardized_variance_stats_%s_%s.txt.gz' % \
+    expand('%s/{zoom_name}/standardized_variance_stats_%s_%s.csv.gz' % \
       (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS), 
-    expand('%s/{zoom_name}/hvg_dt_%s_%s.txt.gz' % \
+    expand('%s/{zoom_name}/hvg_dt_%s_%s.csv.gz' % \
       (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS), 
     expand('%s/{zoom_name}/top_hvgs_counts_%s_%s.h5' % \
       (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS), 
@@ -266,7 +266,7 @@ rule zoom_get_stats_for_std_variance_for_sample:
     smpl_stats_f  = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     rowdata_f     = qc_dir   + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
-    std_var_stats_f = temp(zoom_dir + '/{zoom_name}' + '/tmp_std_var_stats_{batch}_sample_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+    std_var_stats_f = temp(zoom_dir + '/{zoom_name}' + '/tmp_std_var_stats_{batch}_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz')
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -296,7 +296,7 @@ rule zoom_get_mean_var_for_group:
     rowdata_f     = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     smpl_stats_f  = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output: 
-    mean_var_f    = temp(zoom_dir + '/{zoom_name}' + '/tmp_mean_var_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+    mean_var_f    = temp(zoom_dir + '/{zoom_name}' + '/tmp_mean_var_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz')
   params:
     zoom_hvg_method     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'], 
     zoom_hvg_chunk_size = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_chunk_size'], 
@@ -329,7 +329,7 @@ rule zoom_merge_group_mean_var:
   input:         
     mean_var_f    = lambda wildcards: get_zoom_raw_mean_var_files(wildcards.zoom_name, ZOOM_PARAMS, FULL_TAG, DATE_STAMP)
   output:
-    mean_var_merged_f = temp(zoom_dir + '/{zoom_name}'  + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+    mean_var_merged_f = temp(zoom_dir + '/{zoom_name}'  + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz')
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -341,9 +341,9 @@ rule zoom_merge_group_mean_var:
 
 rule zoom_get_estimated_variances:
   input:
-    mean_var_merged_f = zoom_dir + '/{zoom_name}' + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    mean_var_merged_f = zoom_dir + '/{zoom_name}' + '/means_variances_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
-    estim_vars_f      = temp(zoom_dir + '/{zoom_name}' + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+    estim_vars_f      = temp(zoom_dir + '/{zoom_name}' + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz')
   params: 
     zoom_hvg_method   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method']
   threads: 1
@@ -369,12 +369,12 @@ rule zoom_get_stats_for_std_variance_for_group:
       zoom_dir + '/{zoom_name}' + '/chunked_counts_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
       zoom_name = ZOOMS, batch = BATCHES
     ),
-    estim_vars_f  = zoom_dir + '/{zoom_name}'  + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    estim_vars_f  = zoom_dir + '/{zoom_name}'  + '/estimated_variances_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     hvg_paths_f   = zoom_dir + '/{zoom_name}'  + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
     rowdata_f     = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     smpl_stats_f  = zoom_dir + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
   output:
-    std_var_stats_f = temp(zoom_dir + '/{zoom_name}' + '/tmp_std_var_stats_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz')
+    std_var_stats_f = temp(zoom_dir + '/{zoom_name}' + '/tmp_std_var_stats_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz')
   params:
     metadata_f          = config['project']['sample_metadata'],
     zoom_hvg_method     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'], 
@@ -410,17 +410,17 @@ rule zoom_merge_stats_for_std_variance:
     tmp_std_var_stats_fs = lambda wildcards: get_zoom_std_var_stats_files(wildcards.zoom_name, \
       zoom_dir, ZOOM_PARAMS, FULL_TAG, DATE_STAMP, BATCHES)
   output:
-    std_var_stats_merged_f= zoom_dir + '/{zoom_name}/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    std_var_stats_merged_f= zoom_dir + '/{zoom_name}/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   run:
     merge_tmp_files(input.tmp_std_var_stats_fs, output.std_var_stats_merged_f)
 
         
 rule zoom_get_highly_variable_genes:
   input:
-    std_var_stats_f = zoom_dir + '/{zoom_name}/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    empty_gs_fs     = zoom_dir + '/{zoom_name}/edger_empty_genes_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz' 
+    std_var_stats_f = zoom_dir + '/{zoom_name}/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
+    empty_gs_fs     = zoom_dir + '/{zoom_name}/edger_empty_genes_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz' 
   output:
-    hvg_f =  zoom_dir + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    hvg_f =  zoom_dir + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   threads: 1
   retries: config['resources']['retries']
   params:
@@ -458,7 +458,7 @@ rule zoom_create_hvg_matrix:
     ),
     smpl_stats_f  = zoom_dir  + '/{zoom_name}/zoom_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
     hvg_paths_f   = zoom_dir  + '/{zoom_name}/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    hvg_f         = zoom_dir  + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    hvg_f         = zoom_dir  + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
     hvg_mat_f     = zoom_dir  + '/{zoom_name}/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5'
   params:
@@ -544,8 +544,8 @@ rule zoom_run_marker_genes:
     integration_f  = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
     pb_f      = zoom_dir + '/{zoom_name}/pb_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.rds',
-    mkrs_f    = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
-    pb_hvgs_f = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz'
+    mkrs_f    = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.csv.gz',
+    pb_hvgs_f = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.csv.gz'
   params:
     species             = config['project']['species'],
     af_gtf_dt_f         = config['mapping']['af_gtf_dt_f'],
@@ -579,11 +579,11 @@ rule zoom_run_marker_genes:
 
 rule zoom_run_fgsea:
   input:
-    mkrs_f        = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz'
+    mkrs_f        = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.csv.gz'
   output:
-    fgsea_go_bp_f = zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG + '_{mkr_sel_res}_go_bp_' + DATE_STAMP + '.txt.gz', 
-    fgsea_go_cc_f = zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG + '_{mkr_sel_res}_go_cc_' + DATE_STAMP + '.txt.gz',
-    fgsea_go_mf_f = zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG + '_{mkr_sel_res}_go_mf_' + DATE_STAMP + '.txt.gz'
+    fgsea_go_bp_f = zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG + '_{mkr_sel_res}_go_bp_' + DATE_STAMP + '.csv.gz', 
+    fgsea_go_cc_f = zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG + '_{mkr_sel_res}_go_cc_' + DATE_STAMP + '.csv.gz',
+    fgsea_go_mf_f = zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG + '_{mkr_sel_res}_go_mf_' + DATE_STAMP + '.csv.gz'
   params:
     species              = config['project']['species'],
     mkr_gsea_dir         = config['marker_genes']['mkr_gsea_dir'],
@@ -658,12 +658,12 @@ rule render_html_zoom:
     r_int_f             = code_dir + '/integration.R',
     r_mkr_f             = code_dir + '/marker_genes.R',
     qc_f                = qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    zoom_cell_hvgs_f    = zoom_dir + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    zoom_cell_hvgs_f    = zoom_dir + '/{zoom_name}/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     zoom_int_f          = zoom_dir + '/{zoom_name}/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     zoom_pb_f           = zoom_dir + '/{zoom_name}/pb_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.rds',
-    zoom_pb_hvgs_f      = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz',
-    zoom_mkrs_f         = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.txt.gz', 
-    zoom_empty_gs_f     = zoom_dir + '/{zoom_name}/edger_empty_genes_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
+    zoom_pb_hvgs_f      = zoom_dir + '/{zoom_name}/pb_hvgs_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.csv.gz',
+    zoom_mkrs_f         = zoom_dir + '/{zoom_name}/pb_marker_genes_' + FULL_TAG + '_' + '{mkr_sel_res}_' + DATE_STAMP + '.csv.gz', 
+    zoom_empty_gs_f     = zoom_dir + '/{zoom_name}/edger_empty_genes_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
     pb_empty_f          = pb_dir + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
     fgsea_files         =lambda wildcards: list(get_zoom_conditional_fgsea_files(
         config['project']['species'],

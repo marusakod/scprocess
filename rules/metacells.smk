@@ -15,7 +15,7 @@ rule meta_save_metacells:
       (int_dir + '/sce_clean_' + FULL_TAG + '_' + DATE_STAMP + '.rds')
   output:
     metacell_f  = meta_dir + '/metacells_sce_' + FULL_TAG + '_{celltype}_{max_cells}_' + DATE_STAMP + '.rds',
-    mc_map_f    = meta_dir + '/metacells_map_' + FULL_TAG + '_{celltype}_{max_cells}_' + DATE_STAMP + '.txt.gz'
+    mc_map_f    = meta_dir + '/metacells_map_' + FULL_TAG + '_{celltype}_{max_cells}_' + DATE_STAMP + '.csv.gz'
   params:
     celltype    = '{celltype}',
     max_cells   = '{max_cells}'

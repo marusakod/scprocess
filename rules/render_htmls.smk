@@ -1,9 +1,9 @@
 def get_conditional_fgsea_files(species, do_gsea):
   if (species in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & do_gsea:
     return {
-      'fgsea_go_bp_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_bp_' + DATE_STAMP + '.txt.gz',
-      'fgsea_go_cc_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_cc_' + DATE_STAMP + '.txt.gz',
-      'fgsea_go_mf_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_mf_' + DATE_STAMP + '.txt.gz'
+      'fgsea_go_bp_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_bp_' + DATE_STAMP + '.csv.gz',
+      'fgsea_go_cc_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_cc_' + DATE_STAMP + '.csv.gz',
+      'fgsea_go_mf_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_mf_' + DATE_STAMP + '.csv.gz'
     }
   else:
     return {}
@@ -56,7 +56,7 @@ rule render_html_index:
 # rule render_html_mapping
 rule render_html_mapping:
   input:
-    knee_fs   = expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=RUNS)
+    knee_fs   = expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.csv.gz', run=RUNS)
   output:
     r_utils_f = f"{code_dir}/utils.R",
     r_map_f   = f"{code_dir}/mapping.R",
@@ -115,7 +115,7 @@ if config['multiplexing']['demux_type'] == "hto":
   rule render_html_multiplexing:
     input:
       r_utils_f   = code_dir + '/utils.R', 
-      hto_knee_fs = expand(af_dir + '/af_{run}/hto/' + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=RUNS), 
+      hto_knee_fs = expand(af_dir + '/af_{run}/hto/' + 'knee_plot_data_{run}_' + DATE_STAMP + '.csv.gz', run=RUNS), 
       sce_hto_fs  = expand(demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', run=RUNS)
     output:
       r_demux_f   = f"{code_dir}/multiplexing.R",
@@ -299,7 +299,7 @@ rule render_html_qc:
 rule render_html_hvgs:
   input:
     r_utils_f   = f"{code_dir}/utils.R",
-    hvgs_f      = hvg_dir   + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    hvgs_f      = hvg_dir   + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     empty_gs_f  = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.csv.gz',
     pb_empty_f  = pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   output:
@@ -414,9 +414,9 @@ rule render_html_marker_genes:
     r_utils_f     = f"{code_dir}/utils.R",
     r_int_f       = f'{code_dir}/integration.R',
     pb_f          = mkr_dir + '/pb_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.rds',
-    mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
+    mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.csv.gz',
     integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    hvgs_f        = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
+    hvgs_f        = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.csv.gz',
     ambient_f     = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.csv.gz',
     **get_conditional_fgsea_files(config['project']['species'], config['marker_genes']['mkr_do_gsea'])
   output:

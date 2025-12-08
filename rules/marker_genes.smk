@@ -4,8 +4,8 @@ rule run_marker_genes:
     integration_f  = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
     pb_f      = mkr_dir + '/pb_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.rds',
-    mkrs_f    = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
-    pb_hvgs_f = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz'
+    mkrs_f    = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.csv.gz',
+    pb_hvgs_f = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.csv.gz'
   params:
     af_gtf_dt_f     = config['mapping']['af_gtf_dt_f'],
     mkr_gsea_dir    = config['marker_genes']['mkr_gsea_dir'],
@@ -36,11 +36,11 @@ rule run_marker_genes:
 
 rule run_fgsea:
   input:
-    mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz'
+    mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.csv.gz'
   output:
-    fgsea_go_bp_f = mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_bp_' + DATE_STAMP + '.txt.gz', 
-    fgsea_go_cc_f = mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_cc_' + DATE_STAMP + '.txt.gz',
-    fgsea_go_mf_f = mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_mf_' + DATE_STAMP + '.txt.gz'
+    fgsea_go_bp_f = mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_bp_' + DATE_STAMP + '.csv.gz', 
+    fgsea_go_cc_f = mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_cc_' + DATE_STAMP + '.csv.gz',
+    fgsea_go_mf_f = mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_mf_' + DATE_STAMP + '.csv.gz'
   params:
     species         = config['project']['species'],
     mkr_gsea_dir    = config['marker_genes']['mkr_gsea_dir'],

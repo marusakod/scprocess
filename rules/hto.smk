@@ -95,7 +95,7 @@ rule save_alevin_hto_to_h5:
     fry_dir     = af_dir + '/af_{run}/hto/af_quant/'
   output: 
     h5_f        = af_dir + '/af_{run}/hto/af_hto_counts_mat.h5',
-    knee_data_f = af_dir + '/af_{run}/hto/knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
+    knee_data_f = af_dir + '/af_{run}/hto/knee_plot_data_{run}_' + DATE_STAMP + '.csv.gz'
   threads: 1
   retries: config['resources']['retries']
   resources:
