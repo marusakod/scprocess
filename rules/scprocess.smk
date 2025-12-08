@@ -111,7 +111,7 @@ rule all:
     expand(
       [
       # mapping
-\      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/',
       f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
       f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
       f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
