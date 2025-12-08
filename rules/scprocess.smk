@@ -122,7 +122,7 @@ rule all:
       f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
       f'{amb_dir}/ambient_{{run}}/barcodes_qc_metrics_{{run}}_{DATE_STAMP}.txt.gz',
       # doublet id
-      f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.txt.gz'
+      f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
       # f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_dimreds_{FULL_TAG}_{DATE_STAMP}.txt.gz'
       ], run =  RUNS),
     # ambient sample statistics
@@ -135,11 +135,11 @@ rule all:
     f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
-    f'{qc_dir}/qc_' + BATCH_VAR + '_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+    f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     # pseudobulks and empties
     f'{pb_dir}/af_paths_{FULL_TAG}_{DATE_STAMP}.csv', 
     f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds', 
-    f'{pb_dir}/pb_all_{FULL_TAG}_{DATE_STAMP}.rds',
+    f'{pb_dir}/pb_cells_all_{FULL_TAG}_{DATE_STAMP}.rds',
     f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     # hvgs
     f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',

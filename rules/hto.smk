@@ -9,12 +9,12 @@ rule build_hto_index:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('build_hto_index', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
     runtime = lambda wildcards, input: get_resources('build_hto_index', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_hto/build_hto_index_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_hto/build_hto_index_{DATE_STAMP}.benchmark.txt'
   output: 
-    hto_f       = af_dir + '/hto.tsv',
-    t2g_f       = af_dir + '/t2g_hto.tsv',
-    idx_log_f   = af_dir + '/hto_index/ref_indexing.log',
-    hto_idx_dir = directory(af_dir + '/hto_index')
+    hto_f       = f'{af_dir}/hto.tsv',
+    t2g_f       = f'{af_dir}/t2g_hto.tsv',
+    idx_log_f   = f'{af_dir}/hto_index/ref_indexing.log',
+    hto_idx_dir = directory(f'{af_dir}/hto_index')
   conda:
     '../envs/alevin_fry.yaml'
   shell: """
@@ -41,13 +41,13 @@ rule build_hto_index:
 # run mapping for HTO files
 rule run_mapping_hto:
   input: 
-    hto_idx_dir   = af_dir + '/hto_index'
+    hto_idx_dir   = f'{af_dir}/hto_index'
   output:
-    fry_dir       = directory(af_dir + '/af_{run}/hto/af_quant/'),
-    rad_f         = temp(af_dir + '/af_{run}/hto/af_map/map.rad'),
-    mtx_f         = af_dir + '/af_{run}/hto/af_quant/alevin/quants_mat.mtx',
-    cols_f        = af_dir + '/af_{run}/hto/af_quant/alevin/quants_mat_cols.txt',
-    rows_f        = af_dir + '/af_{run}/hto/af_quant/alevin/quants_mat_rows.txt'
+    fry_dir       = directory(f'{af_dir}/af_{{run}}/hto/af_quant/'),
+    rad_f         = temp(f'{af_dir}/af_{{run}}/hto/af_map/map.rad'),
+    mtx_f         = f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat.mtx',
+    cols_f        = f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat_cols.txt',
+    rows_f        = f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat_rows.txt'
   params:
     demux_type    = config['multiplexing']['demux_type'],
     af_home_dir   = config['mapping']['alevin_fry_home'],
@@ -65,7 +65,7 @@ rule run_mapping_hto:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_mapping_hto', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
     runtime = lambda wildcards, input: get_resources('run_mapping_hto', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_hto/run_mapping_hto_{run}_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_hto/run_mapping_hto_{{run}}_{DATE_STAMP}.benchmark.txt'
   shell:"""
     # check whether doing arvados
     ARV_REGEX="^arkau-[0-9a-z]{{5}}-[0-9a-z]{{15}}$"
@@ -92,17 +92,17 @@ rule run_mapping_hto:
 
 rule save_alevin_hto_to_h5:
   input: 
-    fry_dir     = af_dir + '/af_{run}/hto/af_quant/'
+    fry_dir     = f'{af_dir}/af_{{run}}/hto/af_quant/'
   output: 
-    h5_f        = af_dir + '/af_{run}/hto/af_hto_counts_mat.h5',
-    knee_data_f = af_dir + '/af_{run}/hto/knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
+    h5_f        = f'{af_dir}/af_{{run}}/hto/af_hto_counts_mat.h5',
+    knee_data_f = f'{af_dir}/af_{{run}}/hto/knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz'
   threads: 1
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('save_alevin_hto_to_h5', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
     runtime = lambda wildcards, input: get_resources('save_alevin_hto_to_h5', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark: 
-    benchmark_dir + '/' + SHORT_TAG + '_hto/save_alevin_hto_to_h5_{run}_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_hto/save_alevin_hto_to_h5_{{run}}_{DATE_STAMP}.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
@@ -121,22 +121,22 @@ rule save_alevin_hto_to_h5:
 # save sce object with hto counts and demultiplex
 rule make_hto_sce_objects: 
   input: 
-    smpl_stats_f = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    amb_yaml_f   = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
-    hto_h5_f     = af_dir + '/af_{run}/hto/af_hto_counts_mat.h5'
+    smpl_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+    amb_yaml_f   = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
+    hto_h5_f     = f'{af_dir}/af_{{run}}/hto/af_hto_counts_mat.h5'
   params:
     whitelist_trans_f = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["whitelist_trans_f"],
     ambient_method    = config['ambient']['ambient_method'],
     seurat_quantile   = config['multiplexing']['seurat_quantile']
   output:
-    sce_hto_f   = demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+    sce_hto_f   = f'{demux_dir}/sce_cells_htos_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds'
   threads: 1
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_hto_sce_objects', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
     runtime = lambda wildcards, input: get_resources('make_hto_sce_objects', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_hto/make_hto_sce_objects_{run}_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_hto/make_hto_sce_objects_{{run}}_{DATE_STAMP}.benchmark.txt'
   conda:
    '../envs/rlibs.yaml'
   shell: """

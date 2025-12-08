@@ -615,7 +615,7 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, batch_var, n_
   # finally add label if in top n_hvgs
   hvg_df    = hvg_df.with_row_index("rank_tmp", offset = 1).with_columns(
     pl.when( pl.col("rank_tmp") <= n_hvgs ).then(True).otherwise(False).alias("highly_variable")
-  )      
+  ).drop("rank_tmp")
   if hvg_df["highly_variable"].sum() != n_hvgs:
     raise ValueError(f"somehow more than %d HVGs selected")
 

@@ -1,9 +1,10 @@
+
 def get_conditional_fgsea_files(species, do_gsea):
   if (species in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & do_gsea:
     return {
-      'fgsea_go_bp_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_bp_' + DATE_STAMP + '.txt.gz',
-      'fgsea_go_cc_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_cc_' + DATE_STAMP + '.txt.gz',
-      'fgsea_go_mf_f': mkr_dir + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_go_mf_' + DATE_STAMP + '.txt.gz'
+      'fgsea_go_bp_f': f'{mkr_dir}/fgsea_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_go_bp_{DATE_STAMP}.txt.gz',
+      'fgsea_go_cc_f': f'{mkr_dir}/fgsea_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_go_cc_{DATE_STAMP}.txt.gz',
+      'fgsea_go_mf_f': f'{mkr_dir}/fgsea_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_go_mf_{DATE_STAMP}.txt.gz'
     }
   else:
     return {}
@@ -12,7 +13,7 @@ def get_conditional_fgsea_files(species, do_gsea):
 
 rule render_html_index:
   input:
-    html_reports= glob.glob(docs_dir + '/'+ SHORT_TAG + "*.html")
+    html_reports  = glob.glob(f'{docs_dir}/{SHORT_TAG}*.html')
   output:
     rmd_f  = f"{rmd_dir}/index.Rmd",
     html_f = f"{docs_dir}/index.html"
@@ -56,7 +57,7 @@ rule render_html_index:
 # rule render_html_mapping
 rule render_html_mapping:
   input:
-    knee_fs   = expand(af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=RUNS)
+    knee_fs   = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz', run=RUNS)
   output:
     r_utils_f = f"{code_dir}/utils.R",
     r_map_f   = f"{code_dir}/mapping.R",
@@ -77,7 +78,7 @@ rule render_html_mapping:
     mem_mb    =  lambda wildcards, attempt, input: attempt * get_resources('render_html_mapping', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS), 
     runtime   =  lambda wildcards, input: get_resources('render_html_mapping', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_mapping_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_mapping_{DATE_STAMP}.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
   shell: """
@@ -114,9 +115,9 @@ if config['multiplexing']['demux_type'] == "hto":
   # rule render_html_multiplexing
   rule render_html_multiplexing:
     input:
-      r_utils_f   = code_dir + '/utils.R', 
-      hto_knee_fs = expand(af_dir + '/af_{run}/hto/' + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz', run=RUNS), 
-      sce_hto_fs  = expand(demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', run=RUNS)
+      r_utils_f   = f'{code_dir}/utils.R', 
+      hto_knee_fs = expand(f'{af_dir}/af_{{run}}/hto/knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz', run=RUNS), 
+      sce_hto_fs  = expand(f'{demux_dir}/sce_cells_htos_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds', run=RUNS)
     output:
       r_demux_f   = f"{code_dir}/multiplexing.R",
       rmd_f       = f"{rmd_dir}/{SHORT_TAG}_demultiplexing.Rmd",
@@ -132,14 +133,14 @@ if config['multiplexing']['demux_type'] == "hto":
       run_var         = RUN_VAR,
       batch_var       = BATCH_VAR,
       runs_str        = ','.join(RUNS),
-      r_map_f         = code_dir + '/mapping.R'
+      r_map_f         = f'{code_dir}/mapping.R'
     threads: 1
     retries: config['resources']['retries']
     resources:
       mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_multiplexing', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
       runtime = lambda wildcards, input: get_resources('render_html_multiplexing', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
     benchmark:
-      benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_multiplexing_' + DATE_STAMP + '.benchmark.txt'
+      f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_multiplexing_{DATE_STAMP}.benchmark.txt'
     conda:
       '../envs/rlibs.yaml'
     shell: """
@@ -177,12 +178,12 @@ if config['multiplexing']['demux_type'] == "hto":
 # render_html_ambient
 rule render_html_ambient:
   input: 
-    r_utils_f     = f"{code_dir}/utils.R",
-    run_stats_f  = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv'
+    r_utils_f   = f"{code_dir}/utils.R",
+    run_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
   output:
-    r_amb_f       = f"{code_dir}/ambient.R",
-    rmd_f         = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd",
-    html_f        = f"{docs_dir}/{SHORT_TAG}_ambient.html"
+    r_amb_f     = f"{code_dir}/ambient.R",
+    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_ambient.Rmd",
+    html_f      = f"{docs_dir}/{SHORT_TAG}_ambient.html"
   params:
     your_name         = config['project']['your_name'],
     affiliation       = config['project']['affiliation'],
@@ -202,7 +203,7 @@ rule render_html_ambient:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_ambient', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
     runtime = lambda wildcards, input: get_resources('render_html_ambient', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_ambient_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_ambient_{DATE_STAMP}.benchmark.txt'
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -236,7 +237,7 @@ rule render_html_ambient:
 rule render_html_qc:
   input:
     r_utils_f   = f"{code_dir}/utils.R",
-    qc_dt_f     = qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
+    qc_dt_f     = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv'
   params:
     metadata_f          = config['project']['sample_metadata'],
@@ -262,7 +263,7 @@ rule render_html_qc:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_qc', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
     runtime = lambda wildcards, input: get_resources('render_html_qc', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_qc_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_qc_{DATE_STAMP}.benchmark.txt'
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -299,9 +300,9 @@ rule render_html_qc:
 rule render_html_hvgs:
   input:
     r_utils_f   = f"{code_dir}/utils.R",
-    hvgs_f      = hvg_dir   + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    empty_gs_f  = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.csv.gz',
-    pb_empty_f  = pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+    hvgs_f      = f'{hvg_dir}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    empty_gs_f  = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    pb_empty_f  = f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds'
   output:
     r_hvgs_f    = f"{code_dir}/hvgs.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_hvgs.Rmd",
@@ -320,7 +321,7 @@ rule render_html_hvgs:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_hvgs', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
     runtime = lambda wildcards, input: get_resources('render_html_hvgs', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_hvgs_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_hvgs_{DATE_STAMP}.benchmark.txt'
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -353,8 +354,8 @@ rule render_html_integration:
   input:
     r_utils_f     = f"{code_dir}/utils.R",
     r_amb_f       = f"{code_dir}/ambient.R",
-    qc_dt_f       = qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+    qc_dt_f       = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
     r_int_f     = f"{code_dir}/integration.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_integration.Rmd",
@@ -378,7 +379,7 @@ rule render_html_integration:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_integration', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
     runtime = lambda wildcards, input: get_resources('render_html_integration', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_integration_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_integration_{DATE_STAMP}.benchmark.txt'
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -415,17 +416,17 @@ rule render_html_marker_genes:
   input:
     r_utils_f     = f"{code_dir}/utils.R",
     r_int_f       = f'{code_dir}/integration.R',
-    pb_f          = mkr_dir + '/pb_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.rds',
-    mkrs_f        = mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
-    integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    hvgs_f        = mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
-    ambient_f     = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.csv.gz',
+    pb_f          = f'{mkr_dir}/pb_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.rds',
+    mkrs_f        = f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.txt.gz',
+    integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    hvgs_f        = f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.txt.gz',
+    empty_gs_f    = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     **get_conditional_fgsea_files(config['project']['species'], config['marker_genes']['mkr_do_gsea'])
   output:
     r_mkr_f       = f"{code_dir}/marker_genes.R",
     r_fgsea_f     = f"{code_dir}/fgsea.R",
-    rmd_f         = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd',
-    html_f        = f'{docs_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.html'
+    rmd_f         = f'{rmd_dir}/{SHORT_TAG}_marker_genes_{ config['marker_genes']['mkr_sel_res'] }.Rmd',
+    html_f        = f'{docs_dir}/{SHORT_TAG}_marker_genes_{ config['marker_genes']['mkr_sel_res'] }.html'
   threads: 8
   retries: config['resources']['retries']
   params:
@@ -460,7 +461,7 @@ rule render_html_marker_genes:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_marker_genes', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
     runtime = lambda wildcards, input: get_resources('render_html_marker_genes', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_marker_genes_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_marker_genes_{DATE_STAMP}.benchmark.txt'
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -486,7 +487,7 @@ rule render_html_marker_genes:
       metadata_f        = '{params.metadata_f}',
       meta_vars_ls      = '{params.meta_vars}',
       gtf_dt_f          = '{params.af_gtf_dt_f}',
-      ambient_f         = '{input.ambient_f}',
+      ambient_f         = '{input.empty_gs_f}',
       integration_f     = '{input.integration_f}',
       pb_f              = '{input.pb_f}',
       hvgs_f            = '{input.hvgs_f}',
@@ -510,8 +511,8 @@ if "label_celltypes" in config:
     input:
       r_utils_f   = f"{code_dir}/utils.R",
       r_mkr_f     = f'{code_dir}/marker_genes.R',
-      int_f       = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-      guess_f_ls  = expand(lbl_dir + '/labels_{labeller}_model_{model}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
+      int_f       = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      guess_f_ls  = expand(f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
         zip, 
           labeller  = [ entry['labeller'] for entry in LABELLER_PARAMS],
           model     = [ entry['model']    for entry in LABELLER_PARAMS]
@@ -539,7 +540,7 @@ if "label_celltypes" in config:
     conda:
       '../envs/rlibs.yaml'
     benchmark:
-      benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_label_celltypes_' + DATE_STAMP + '.benchmark.txt'
+      f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_label_celltypes_{DATE_STAMP}.benchmark.txt'
     shell: """
       # copy R code over
       echo "copying relevant R files over"

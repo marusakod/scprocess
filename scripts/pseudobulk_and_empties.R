@@ -124,7 +124,7 @@ merge_pbs_cells <- function(cells_paths_f, rowdata_f, batch_var, pb_cells_f) {
   rownames(pb_cells) = rows_dt$gene_id
   
   # make one object with pb_mats as assays
-  pb_cells    = SingleCellExperiment( pb_cells, rowData = rows_dt )
+  pb_cells    = SingleCellExperiment( counts(pb_cells), rowData = rows_dt )
 
   # add batch variable
   pb_cells[[ batch_var ]] = colnames(pb_cells)
@@ -185,12 +185,12 @@ merge_pbs_empty <- function(af_paths_f, rowdata_f, pb_empty_f, ambient_method) {
   keep_ids    = rows_dt$ensembl_id
   assert_that(all(keep_ids %in% rownames(pb_empty)))
   pb_empty    = pb_empty[keep_ids, ]
+  
+  # add nice rows
   rows_dt     = rows_dt[ rownames(pb_empty) ]
   assert_that( all(rownames(pb_empty) == rows_dt$ensembl_id) )
-  rownames(pb_empty) = rows_dt$gene_id
-  
-  # make one object with pb_mats as assays
-  pb_empty    = SingleCellExperiment( pb_empty, rowData = rows_dt )
+  rownames(pb_empty)  = rows_dt$gene_id
+  rowData(pb_empty)   = as(rows_dt, "DataFrame")
   
   # store
   message(' save')
@@ -399,6 +399,7 @@ calc_empty_genes <- function(pb_cells_f, pb_empty_f, fdr_thr, logfc_thr, empty_g
   mat_ls    = list(cells_mat, empties_mat) %>% setNames(name_ls)
   x_ls      = name_ls %>% lapply(function(nn) {
     # get matrix
+    browser()
     mat       = mat_ls[[ nn ]]
     
     # remove samples with zero counts

@@ -207,7 +207,7 @@ rule calculate_ambient_genes:
     pb_empty_f  = f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds', 
     pb_cells_f  = f'{pb_dir}/pb_cells_all_{FULL_TAG}_{DATE_STAMP}.rds'
   output:
-    empty_gs_f  = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz' # one file per group
+    empty_gs_f  = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
     fdr_thr     = config['pb_empties']['ambient_genes_fdr_thr'],
     logfc_thr   = config['pb_empties']['ambient_genes_logfc_thr']
