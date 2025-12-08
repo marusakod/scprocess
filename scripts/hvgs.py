@@ -16,7 +16,6 @@ import csv
 from skmisc.loess import loess
 import numba
 import warnings
-import datatable as dt
 
 
 def sum_SUA(sua_mat, row_names):
@@ -55,7 +54,7 @@ def get_one_csr_counts(run, hvg_paths_df, keep_df, smpl_stats_df, gene_ids,
   if demux_type == "none":
     batches   = [run]
   else:
-    batches   = hvg_paths_df.filter(pl.col(RUN_VAR) == run)[batch_var].to_list()
+    batches   = hvg_paths_df.filter(pl.col(RUN_VAR) == run)[batch_var].to_list() # This doesn't seem like it's going to return unique values if batch_var is pool_id
 
   # get valid barcodes
   bcs_dict = {}
@@ -363,7 +362,7 @@ def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_
     assert group is not None, "group must be defined."
     
     # select samples based on group
-    meta = dt.fread(metadata_f).to_pandas()
+    meta = pl.read_csv(metadata_f)
     grp_samples = meta.loc[meta[group_var] == group, 'sample_id'].tolist()
     
     sel_samples = list(set(grp_samples) & set(good_batches))
