@@ -146,7 +146,6 @@ rule run_qc_one_run:
     qc_f         = temp(qc_dir + '/tmp_qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'), 
     coldata_f    = temp(qc_dir + '/tmp_coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'),
     rowdata_f    = temp(qc_dir + '/tmp_rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'), 
-    # dimred_f     = dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     dbl_f        = f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
     metadata_f      = config['project']['sample_metadata'],

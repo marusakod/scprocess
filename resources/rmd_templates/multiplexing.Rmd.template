@@ -49,7 +49,7 @@ hto_smpl_dirs = sprintf(paste0(af_dir,'/', 'af_%s', '/hto' ), s_lvls)
 # find hto knees
 hto_knee_fs = sapply(
   hto_smpl_dirs,
-  function(d) list.files(d, pattern = 'knee_plot_data_(.+)_.*.txt.gz.*', recursive = FALSE, full.names = TRUE)
+  function(d) list.files(d, pattern = 'knee_plot_data_(.+)_.*.csv.gz.*', recursive = FALSE, full.names = TRUE)
 ) %>%
 setNames(s_lvls)
 

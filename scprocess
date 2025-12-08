@@ -291,9 +291,9 @@ def plot_interactive_knee(config_f, knee_f, sample):
     date_stamp  = config['project']['date_stamp']
 
     # use them to define a knee file to use
-    knee_f      = proj_dir / f"output/{short_tag}_mapping/af_{sample}" / f"knee_plot_data_{sample}_{date_stamp}.txt.gz"
+    knee_f      = proj_dir / f"output/{short_tag}_mapping/af_{sample}" / f"knee_plot_data_{sample}_{date_stamp}.csv.gz"
     if not knee_f.is_file():
-      knee_f      = proj_dir / f"output/{short_tag}_mapping/af_{sample}/rna" / f"knee_plot_data_{sample}_{date_stamp}.txt.gz"
+      knee_f      = proj_dir / f"output/{short_tag}_mapping/af_{sample}/rna" / f"knee_plot_data_{sample}_{date_stamp}.csv.gz"
     if not knee_f.is_file():
       raise FileNotFoundError(f"Knee file for {sample} doesn't exist. You can generate it ", 
         "by running the rule 'mapping'")

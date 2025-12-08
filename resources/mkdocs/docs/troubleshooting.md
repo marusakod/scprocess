@@ -4,7 +4,7 @@
 
 ??? question "I changed some parameters, and I would like to rerun {{sc}}"
 
-    One slightly hacky way of doing this is to delete the first output file that would be affected by the parameter change. For example, if you ran {{scrun}} and it completed, and you would like to update the results after changing a QC parameter, then you could delete the file _output/my_project_qc/qc_dt_all_samples_my_project_2025-01-01.txt.gz_. Then you can run `scprocess run config-my_project.yaml -n` and you should see only relevant steps proposed.
+    One slightly hacky way of doing this is to delete the first output file that would be affected by the parameter change. For example, if you ran {{scrun}} and it completed, and you would like to update the results after changing a QC parameter, then you could delete the file _output/my_project_qc/qc_dt_all_samples_my_project_2025-01-01.csv.gz_. Then you can run `scprocess run config-my_project.yaml -n` and you should see only relevant steps proposed.
 
 ??? question "I get an error about `snakemake cannot lock directory` when I try to call {{scrun}}"
 

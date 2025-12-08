@@ -1231,7 +1231,7 @@ def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_
         BATCH_VAR:    r,
         'amb_filt_f': amb_filt_f
       })
-      df_list.append(hvg_df)
+      df_list.append(tmp_df)
     else:
       # get sample ids for pool
       sel_batches = BATCHES_TO_RUNS.get(r, [])

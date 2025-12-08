@@ -41,10 +41,6 @@ time,n_smpls_pre_qc,118.04,6.848,render_html_marker_genes,5
 memory,n_smpls_pre_qc,1236.18,144.663,render_html_marker_genes,2048
 time,n_smpls_pre_qc,23.605,3.205,render_html_qc,5
 memory,n_smpls_pre_qc,1293.303,29.747,render_html_qc,2048
-time,n_smpls_pre_qc,-2132.248,841.963,run_integration,5
-memory,n_smpls_pre_qc,1918.644,11784.809,run_integration,2048
-time,n_smpls_pre_qc,472.08,25.485,run_marker_genes,5
-memory,n_smpls_pre_qc,8587.137,2253.681,run_marker_genes,2048
 time,,,,run_cell_calling,
 memory,,,,run_cell_calling,
 time,,,,build_hto_index,
@@ -61,6 +57,8 @@ time,,,,get_estimated_variances,
 memory,,,,get_estimated_variances,
 time,,,,get_stats_for_std_variance_for_group,
 memory,,,,get_stats_for_std_variance_for_group,
+time,,,,run_integration,
+memory,,,,run_integration,
 time,,,,make_clean_sces,
 memory,,,,make_clean_sces,
 time,,,,make_tmp_mtx_file,
@@ -73,6 +71,12 @@ time,,,,merge_labels,
 memory,,,,merge_labels,
 time,,,,save_alevin_to_h5,
 memory,,,,save_alevin_to_h5,
+time,,,,run_marker_genes,
+memory,,,,run_marker_genes,
+time,,,,run_fgsea,
+memory,,,,run_fgsea,
+time,,,,run_qc_one_run,
+memory,,,,run_qc_one_run,
 time,,,,render_html_multiplexing,
 memory,,,,render_html_multiplexing,
 time,,,,render_html_hvgs,
@@ -109,12 +113,12 @@ time,,,,zoom_run_integration,
 memory,,,,zoom_run_integration,
 time,,,,zoom_run_marker_genes,
 memory,,,,zoom_run_marker_genes,
+time,,,,zoom_run_fgsea,
+memory,,,,zoom_run_fgsea,
 time,,,,zoom_make_subset_sces,
 memory,,,,zoom_make_subset_sces,
 time,,,,render_html_zoom,
 memory,,,,render_html_zoom,
-time,,,,run_fgsea,
-memory,,,,run_fgsea,
 time,input.af_h5_f,53.06,2.489,run_decontx,5
 memory,input.af_h5_f,943.34,68.985,run_decontx,2048
 time,input.clean_h5_f,6.79,0.805,get_stats_for_std_variance_for_sample,5

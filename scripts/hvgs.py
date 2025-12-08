@@ -16,7 +16,6 @@ import csv
 from skmisc.loess import loess
 import numba
 import warnings
-import datatable as dt
 
 
 def sum_SUA(sua_mat, row_names):
@@ -144,16 +143,14 @@ def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, smpl_stats_f,
 
   # define list of runs, run on them in parallel
   runs          = hvg_paths_df[RUN_VAR].unique().to_list()
-  for this_run in runs:
-    get_one_csr_counts(this_run, hvg_paths_df, keep_df, smpl_stats_df, keep_ids, 
-      RUN_VAR, batch_var, demux_type, chunk_size)
-  # with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
-  #   futures = [executor.submit(get_one_csr_counts, this_run, hvg_paths_df, keep_df, 
-  #     smpl_stats_df, keep_ids, RUN_VAR, batch_var, demux_type, chunk_size) for this_run in runs]
 
-  #   # some more parallel stuff i guess
-  #   for future in concurrent.futures.as_completed(futures):
-  #     future.result()
+  with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
+    futures = [executor.submit(get_one_csr_counts, run, hvg_paths_df, keep_df, 
+      smpl_stats_df, keep_ids, RUN_VAR, batch_var, demux_type, chunk_size) for run in runs]
+
+    # some more parallel stuff i guess
+    for future in concurrent.futures.as_completed(futures):
+      future.result()
 
   return
 
@@ -373,7 +370,7 @@ def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_
     assert group is not None, "group must be defined."
     
     # select samples based on group
-    meta = dt.fread(metadata_f).to_pandas()
+    meta = pl.read_csv(metadata_f)
     grp_samples = meta.loc[meta[group_var] == group, 'sample_id'].tolist()
     
     sel_samples = list(set(grp_samples) & set(good_batches))

@@ -256,7 +256,7 @@ if config['ambient']['ambient_method'] == 'decontx':
       # define output file names
       filt_counts_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_filtered.h5"
       bcs_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_cell_barcodes.csv"
-      dcx_params_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_params.txt.gz"
+      dcx_params_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_params.csv.gz"
 
       # run cell calling and decontamination
       Rscript -e "source('scripts/ambient.R'); source('scripts/utils.R'); \

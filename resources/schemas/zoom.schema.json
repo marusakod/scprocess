@@ -92,7 +92,7 @@
         "int_n_dims":       { "type": "integer", "default": 50 },
         "int_dbl_res":      { "type": "number", "default": 4 },
         "int_dbl_cl_prop":  { "type": "number", "default": 0.5 },
-        "int_cl_method":    { "type": "string", "enum": ["louvain", "leiden"], "default": "louvain"},
+        "int_cl_method":    { "type": "string", "enum": ["leiden"], "default": "leiden"},
         "int_res_ls": {
           "type":     "array",
           "items":    { "type": "number" },

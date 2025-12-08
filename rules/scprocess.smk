@@ -77,6 +77,7 @@ hto_index_outs = [
 # alevin hto quantification outputs (optional)
 hto_af_outs = expand(
   [
+<<<<<<< HEAD
     f'{af_dir}/af_{{run}}/hto/af_quant/',
     f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat.mtx',
     f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat_cols.txt',
@@ -84,6 +85,16 @@ hto_af_outs = expand(
     f'{af_dir}/af_{{run}}/hto/af_hto_counts_mat.h5',
     f'{af_dir}/af_{{run}}/hto/knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz'
   ], run = RUNS) if config['multiplexing']['demux_type'] == "hto" else []
+=======
+  af_dir    + '/af_{run}/hto/af_quant/',
+  af_dir    + '/af_{run}/hto/af_quant/alevin/quants_mat.mtx',
+  af_dir    + '/af_{run}/hto/af_quant/alevin/quants_mat_cols.txt',
+  af_dir    + '/af_{run}/hto/af_quant/alevin/quants_mat_rows.txt',
+  af_dir    + '/af_{run}/hto/af_hto_counts_mat.h5',
+  af_dir    + '/af_{run}/hto/knee_plot_data_{run}_' + DATE_STAMP + '.csv.gz'
+  ], run = RUNS
+) if config['multiplexing']['demux_type'] == "hto" else []
+>>>>>>> refs/remotes/origin/dev-int
 
 # seurat demultiplexing outputs (optional)
 hto_sce_fs = expand(
@@ -111,7 +122,7 @@ rule all:
     expand(
       [
       # mapping
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/',
+\      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/',
       f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
       f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
       f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
@@ -123,7 +134,6 @@ rule all:
       f'{amb_dir}/ambient_{{run}}/barcodes_qc_metrics_{{run}}_{DATE_STAMP}.txt.gz',
       # doublet id
       f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
-      # f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_dimreds_{FULL_TAG}_{DATE_STAMP}.txt.gz'
       ], run =  RUNS),
     # ambient sample statistics
     f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
@@ -182,8 +192,7 @@ rule mapping:
   input:
     hto_index_outs, 
     hto_af_outs,
-    expand( 
-      [
+    expand([
       f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/',
       f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
       f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
@@ -191,8 +200,7 @@ rule mapping:
       f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
       f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz',
       f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml'
-      ],
-      run = RUNS), 
+      ], run = RUNS),
     f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
     f'{docs_dir}/{SHORT_TAG}_mapping.html'
 
@@ -234,9 +242,7 @@ rule qc:
     dbl_min_feats   = config['qc']['dbl_min_feats']
   input:     
     expand([
-      # doublet id
       f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
-      # dbl_dir + '/dbl_{{run}}/scDblFinder_{{run}}_dimreds_{FULL_TAG}_{DATE_STAMP}.txt.gz'
       ], run = RUNS),
     f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv',
     f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
