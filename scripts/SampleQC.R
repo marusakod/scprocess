@@ -101,23 +101,27 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   fwrite(rd, file = rowdata_f)
   
   # do qc filtering, save table with qc for all singlets, coldata for all cells, get sce object with only singlets that pass qc
-  sce_filt    = .filter_qc(sce, qc_f, coldata_f, cuts_f, batch_var, demux_type, 
-    hard_min_counts, hard_min_feats, hard_max_mito)
-  
-  # save sce files
-  if (demux_type == "none") {
-    .save_or_save_empty(sce_filt, sce_fs_ls, run_name)
-  } else {
-    # save one sce file per sample_id
-    message(sprintf('  splitting pool sce object and saving one file per %s', batch_var))
+  message('  filtering cells')
+  tmp_ls      = .filter_qc(sce, cuts_f, batch_var, demux_type, hard_min_counts, hard_min_feats, hard_max_mito)
+
+  message('  saving column and qc data')
+  fwrite(tmp_ls$coldata_dt, file = coldata_f)
+  fwrite(tmp_ls$qc_all, file = qc_f)
+
+  # # save sce files
+  # if (demux_type == "none") {
+  #   .save_or_save_empty(sce_filt, sce_fs_ls, run_name)
+  # } else {
+  #   # save one sce file per sample_id
+  #   message(sprintf('  splitting pool sce object and saving one file per %s', batch_var))
     
-    # save one file only for samples that were not removed
-    all_batches %>% lapply(function(b) {
-      batch_sce   = sce_filt[, colData(sce_filt)[[ batch_var ]] == b]
-      batch_f     = sce_fs_ls[[b]]
-      .save_or_save_empty(batch_sce, batch_f, b)
-    })
-  }
+  #   # save one file only for samples that were not removed
+  #   all_batches %>% lapply(function(b) {
+  #     batch_sce   = sce_filt[, colData(sce_filt)[[ batch_var ]] == b]
+  #     batch_f     = sce_fs_ls[[b]]
+  #     .save_or_save_empty(batch_sce, batch_f, b)
+  #   })
+  # }
   message('done!')
    
   return(NULL)
@@ -156,12 +160,17 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   return(gene_annots)
 }
 
-.get_sce <- function(mat_f, sel_s, mito_str, exclude_mito, gene_annots, sample_var) {
+.get_sce <- function(mat_f, sel_run, mito_str, exclude_mito, gene_annots, run_var, subset_cells = NULL) {
   # read matrix
-  mat = .get_alevin_mx(af_mat_f = mat_f, sel_s = paste0(sel_s, ':'))
+  mat         = .get_alevin_mx(mat_f, paste0(sel_run, ':'))
+  if (!is.null(subset_cells)) {
+    message('    subsetting sce to specified cells')
+    assert_that( all(subset_cells %in% colnames(mat)) )
+    mat         = mat[, subset_cells]
+  }
 
   # heck for weird genes
-  weird_gs = str_detect(rownames(mat), "unassigned_gene")
+  weird_gs    = str_detect(rownames(mat), "unassigned_gene")
   assert_that( all(!weird_gs) )
 
   # split rownames into S / U / A
@@ -211,9 +220,9 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   mito_detected = Matrix::colSums(mito_mat > 0 )
   
   # make sce object
-  sce_tmp               = SingleCellExperiment( assays = list(counts = counts_mat) )
-  sce_tmp[[sample_var]] = sel_s
-  sce_tmp$cell_id       = colnames(counts_mat)
+  sce_tmp             = SingleCellExperiment( assays = list(counts = counts_mat) )
+  sce_tmp[[run_var]]  = sel_run
+  sce_tmp$cell_id     = colnames(counts_mat)
 
   # add to sce object
   sce_tmp$sum         = Matrix::colSums(counts_mat)
@@ -475,25 +484,24 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   return(dimred_dt)
 }
 
-.filter_qc <- function(sce, qc_f, coldata_f, cuts_f, batch_var, demux_type, hard_min_counts, hard_min_feats, hard_max_mito) {
+.filter_qc <- function(sce, cuts_f, batch_var, demux_type, hard_min_counts, hard_min_feats, hard_max_mito) {
   # store initial coldata
   coldata_in  = colData(sce) %>% as.data.table()
   cuts_dt     = fread(cuts_f)
   
   # restrict to singlets
   if (demux_type == "none") {
-    keep_idx    = sce$scdbl_class == 'singlet'
+    keep_idx    = coldata_in$scdbl_class == 'singlet'
   } else {
     if (batch_var == "sample_id") {
-      keep_idx    = (sce$scdbl_class == 'singlet') & (sce$demux_class == 'singlet')
+      keep_idx    = (coldata_in$scdbl_class == 'singlet') & (coldata_in$demux_class == 'singlet')
     } else if (batch_var == "pool_id") {
-      keep_idx    = sce$scdbl_class == 'singlet'
+      keep_idx    = coldata_in$scdbl_class == 'singlet'
     }
   }
-  sce         = sce[, keep_idx]
-  
+
   # make qc dt
-  qc_all      = make_qc_dt(colData(sce), batch_var = batch_var,
+  qc_all      = make_qc_dt(coldata_in[keep_idx], batch_var = batch_var,
     qc_names = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced') )
 
   # baseline filtering
@@ -518,22 +526,13 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
     .[, keep_hard := cell_id %in% qc_dt$cell_id ] %>%
     .[, keep      := cell_id %in% keep_dt$cell_id]
   
-  # keep just good cells in sce object
-  message('  filtering sce object')
-  sce_filt    = sce[, qc_all$keep]
-  
   # add keep column to original coldata
-  message('  saving column data')
+  message('  subsetting column and qc data')
+  keep_ids    = qc_all[ keep == TRUE ]$cell_id
   coldata_out = coldata_in %>%
-    .[, keep := fifelse(cell_id %chin% sce_filt$cell_id, TRUE, FALSE)]
-  fwrite(coldata_out, file = coldata_f)
-
-  # save table with qc results for all barcodes
-  message('  saving qc data')
-  fwrite(qc_all, file = qc_f)
+    .[, keep := fifelse(cell_id %chin% keep_ids, TRUE, FALSE)]
   
-  
-  return(sce_filt)
+  return(list( coldata_dt = coldata_out, qc_all = qc_all ))
 }
 
 .save_or_save_empty <- function(sce_obj, f, label) {
@@ -1114,6 +1113,176 @@ calc_qc_summary <- function(qc_dt, kept_dt, cuts_dt, qc_lu, batch_var) {
   return(exclude_dt)
 }
 
+##### for saving sce files. put here bc uses other functions
+
+
+.testing <- function() {
+  sel_b         = "17_24_pool_lane1_5xfad"
+  sel_run       = "17_24_pool_lane1_5xfad"
+
+  proj_dir      = "/pmount/projects/site/pred/neurogenomics/users/macnairw/dam_mice_2"
+  integration_f = file.path(proj_dir, "output/dam_mice_2_integration/integrated_dt_dam_mice_2_2025-11-27.csv.gz")
+  h5_yaml_f     = file.path(proj_dir, "output/dam_mice_2_ambient/ambient_17_24_pool_lane1_5xfad/ambient_17_24_pool_lane1_5xfad_2025-11-27_output_paths.yaml")
+  coldata_f     = file.path(proj_dir, "output/dam_mice_2_qc/coldata_dt_all_cells_dam_mice_2_2025-11-27.csv.gz")
+  gtf_dt_f      = "/pmount/projects/site/pred/neurogenomics/resources/scdata/reference_genomes/mouse_2024/mouse_2024_genes_gtf.txt.gz"
+  run_var       = "pool_id"
+  batch_var     = "pool_id"
+  mito_str      = "^mt-"
+  exclude_mito  = TRUE
+  clean_sce_f   = file.path(proj_dir, "output/dam_mice_2_integration/sce_cells_clean_17_24_pool_lane1_5xfad_dam_mice_2_2025-11-27.rds")
+
+  source('scripts/utils.R')
+  source('scripts/SampleQC.R')
+  make_clean_sces(sel_b, sel_run, integration_f, h5_yaml_f, 
+    coldata_f, gtf_dt_f, run_var, batch_var, mito_str, exclude_mito, clean_sce_f)
+}
+
+make_clean_sces <- function(sel_b, sel_run, integration_f, h5_yaml_f, 
+  coldata_f, gtf_dt_f, run_var, batch_var, mito_str, exclude_mito, clean_sce_f) {
+  # load, exclude doublets
+  int_dt        = fread(integration_f) %>%
+    .[ is_dbl == FALSE & in_dbl_cl == FALSE ]
+  
+  # check if ok
+  ok_batches    = int_dt[[batch_var]] %>% unique
+  if (!(sel_b %in% ok_batches)) {
+    message('excluded ', sel_b, '; creating empty sce file.')
+    file.create(clean_sce_f)
+    return(NULL)
+  }
+  message('creating clean sce file for ', sel_b)
+
+  # get gene annotations
+  gene_annots = .get_gene_annots(gtf_dt_f)
+
+  # get some subsets
+  message('  getting values specific to ', sel_b)
+  batch_int   = int_dt %>% .[ get(batch_var) == sel_b ]
+  batch_ids   = batch_int$cell_id
+  batch_cols  = fread(coldata_f) %>% setkey("cell_id") %>% .[ batch_ids ]
+
+  # get sce object
+  message('  loading counts into sce')
+  h5_paths    = yaml::read_yaml(h5_yaml_f)
+  filtered_f  = h5_paths[["filt_counts_f"]]
+  assert_that(file.exists(filtered_f))
+  sce         = .get_sce_clean(filtered_f, sel_run, mito_str, exclude_mito, gene_annots, run_var,
+    subset_cells = batch_ids)
+  
+  # add things to colData
+  message('  adding coldata')
+  sce         = .add_coldata(sce, batch_cols)
+  message('  adding integration outputs')
+  sce         = .add_int_variables(sce, batch_int)
+
+  # save
+  message('  saving sce')
+  saveRDS(sce, clean_sce_f, compress = FALSE)
+
+  message('done!')
+}
+
+.get_sce_clean <- function(mat_f, sel_run, mito_str, exclude_mito, gene_annots, run_var, subset_cells = NULL) {
+  # read matrix
+  mat         = .get_alevin_mx(mat_f, paste0(sel_run, ':'))
+  if (!is.null(subset_cells)) {
+    message('    subsetting sce to specified cells')
+    assert_that( all(subset_cells %in% colnames(mat)) )
+    mat         = mat[, subset_cells]
+  }
+
+  # heck for weird genes
+  weird_gs    = str_detect(rownames(mat), "unassigned_gene")
+  assert_that( all(!weird_gs) )
+
+  # split rownames into S / U / A
+  splice_ns   = c("U", "S", "A")
+  usa_ls      = splice_ns %>% lapply(function(l) {
+    regex_str   = sprintf("_%s$", l)
+    sel_gs      = str_subset(rownames(mat), regex_str)
+    return(sel_gs)
+    }) %>% setNames(splice_ns)
+
+  # couple of checks that the gene names are sensible
+  assert_that( length(table(sapply(usa_ls, length))) == 1 )
+  g_ns_chk    = lapply(usa_ls, function(gs) str_replace(gs, "_[USA]$", ""))
+  assert_that( all(sapply(g_ns_chk, function(l) all(l == g_ns_chk[[ 1 ]]))) )
+  proper_gs   = g_ns_chk[[ 1 ]]
+
+  # calculate spliced values
+  usa_mat_ls      = lapply(usa_ls, function(gs) mat[ gs, ] )
+  counts_mat      = Reduce("+", usa_mat_ls, accumulate = FALSE) %>%
+    set_rownames( proper_gs )
+  assert_that( all(colnames(counts_mat) == colnames(mat)) )
+  rm(mat); gc(full = TRUE)
+
+  # check for any missing genes
+  missing_gs    = setdiff(rownames(counts_mat), gene_annots$ensembl_id)
+  assert_that( (length(missing_gs) == 0) | (all(str_detect(missing_gs, "unassigned_gene"))) )
+
+  # get counts for rRNA genes, exclude them
+  rrna_ens_ids    = gene_annots[ gene_type %in% c('rRNA', 'Mt_rRNA') ]$ensembl_id
+  rrna_idx        = rownames(counts_mat) %in% rrna_ens_ids
+  counts_mat      = counts_mat[ !rrna_idx, ]
+
+  # get current rows
+  setkey(gene_annots, 'ensembl_id')
+  assert_that( all(rownames(counts_mat) %in% gene_annots$ensembl_id) )
+
+  # add better annotations
+  annots_dt     = gene_annots[ rownames(counts_mat) ]
+
+  # get nice ordering of genes
+  annots_dt     = annots_dt[ order(chromosome, start, end) ]
+  nice_order    = annots_dt$ensembl_id
+  annots_df     = annots_dt[, .(gene_id, ensembl_id, symbol, gene_type)] %>%
+    as('DataFrame') %>% set_rownames(.$gene_id)
+  counts_mat    = counts_mat[nice_order, ] %>% set_rownames(annots_df$gene_id)
+
+  # make sce object
+  sce_clean     = SingleCellExperiment(assays = list(counts = counts_mat), rowData = annots_df)
+  sce_clean$cell_id = colnames(counts_mat)
+  rownames(sce_clean) = rowData(sce_clean)$gene_id
+
+  # remove mitochondrial if requested
+  if (exclude_mito == TRUE) {
+    mt_idx        = str_detect(rowData(sce_clean)$symbol, mito_str)
+    sce_clean     = sce_clean[!mt_idx, ]
+  }
+  
+  # convert to TsparseMatrix
+  counts(sce_clean) = counts(sce_clean) %>% as("TsparseMatrix")
+
+  return(sce_clean)
+}
+
+.add_int_variables <- function(sce_clean, batch_int) {
+  assert_that( all(colnames(sce_clean) == batch_int$cell_id) )
+  batch_int   = batch_int %>% setkey(cell_id)
+  # get useful integration variables, add to sce object
+  int_vs      = c('UMAP1', 'UMAP2', str_subset(names(batch_int), "RNA_snn_res"))
+  for (v in int_vs) {
+    if (str_detect(v, "RNA_snn_res")) {
+      colData(sce_clean)[[ v ]] = batch_int[[ v ]] %>% factor
+    } else {
+      colData(sce_clean)[[ v ]] = batch_int[[ v ]]
+    }
+  }
+
+  return(sce_clean)
+}
+
+.add_coldata <- function(sce, batch_cols) {
+  # some checks
+  assert_that( colnames(colData(sce)) == "cell_id" )
+  assert_that( all(colnames(sce) == batch_cols$cell_id) )
+
+  # add columns
+  cols_df       = batch_cols %>% as("DataFrame") %>% set_rownames(colnames(sce))
+  colData(sce)  = cols_df
+
+  return(sce)
+}
 
 
 ############## FUNCTIONS FROM SampleQC package

@@ -14,7 +14,7 @@ rule make_hvg_df:
     demux_type      = config['multiplexing']['demux_type']
   run:
     hvg_df = make_hvgs_input_df(RUNS, input.ambient_yml_out, params.run_var, params.batch_var, 
-      BATCHES_TO_RUNS, params.demux_type, FULL_TAG, DATE_STAMP, hvg_dir)
+      RUNS_TO_BATCHES, params.demux_type, FULL_TAG, DATE_STAMP, hvg_dir)
     hvg_df.write_csv(output.hvg_paths_f)
 
 
@@ -238,7 +238,7 @@ else:
 rule get_highly_variable_genes:
   input:
     std_var_stats_f = hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-    empty_gs_fs     = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.csv.gz'
+    empty_gs_fs     = empty_dir + '/edger_empty_genes_all_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   output:
     hvg_f = hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
   threads: 1

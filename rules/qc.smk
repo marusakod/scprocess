@@ -8,11 +8,11 @@ import numpy as np
 localrules: make_qc_thresholds_csv, make_tmp_sce_paths_yaml
 
 # get output file paths as string
-def _get_qc_files_str(run, BATCHES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP):
+def _get_qc_files_str(run, RUNS_TO_BATCHES, qc_dir, FULL_TAG, DATE_STAMP):
   # make lists
   sce_fs_ls   = []
   batches_ls  = []
-  for b in BATCHES_TO_RUNS[run]:
+  for b in RUNS_TO_BATCHES[run]:
     sce_fs_ls.append(f"{qc_dir}/sce_cells_tmp_{b}_{FULL_TAG}_{DATE_STAMP}.rds")
     batches_ls.append(b)
 
@@ -30,14 +30,14 @@ def _get_qc_files_str(run, BATCHES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP):
 
 # mini wrapper functions
 def get_all_batches_str(wildcards):
-  return _get_qc_files_str(wildcards.run, BATCHES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP)['batch_str']
+  return _get_qc_files_str(wildcards.run, RUNS_TO_BATCHES, qc_dir, FULL_TAG, DATE_STAMP)['batch_str']
 
 
 def get_sce_fs_str(wildcards):
-  return _get_qc_files_str(wildcards.run, BATCHES_TO_RUNS, qc_dir, FULL_TAG, DATE_STAMP)['sce_str']
+  return _get_qc_files_str(wildcards.run, RUNS_TO_BATCHES, qc_dir, FULL_TAG, DATE_STAMP)['sce_str']
 
 
-def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, BATCHES, BATCHES_TO_RUNS, BATCH_VAR, RUN_VAR):
+def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, BATCHES, RUNS_TO_BATCHES, BATCH_VAR, RUN_VAR):
   # load the merged qc file, also thresholds
   qc_df     = pl.read_csv(qc_merged_f)
   cuts_df   = pl.read_csv(cuts_f)
@@ -70,8 +70,8 @@ def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, BATCH
     if config['multiplexing']['demux_type'] != "none":
       bad_bender_batches = []
       for bad_run in bad_bender:
-        if bad_run in BATCHES_TO_RUNS:
-          bad_bender_batches.extend(BATCHES_TO_RUNS[bad_run])
+        if bad_run in RUNS_TO_BATCHES:
+          bad_bender_batches.extend(RUNS_TO_BATCHES[bad_run])
       if not all(b in BATCHES for b in bad_bender_batches):
         raise ValueError("Some bad bender samples are not in the BATCHES list.")
     else:
@@ -147,7 +147,7 @@ rule run_qc_one_run:
     coldata_f    = temp(qc_dir + '/tmp_coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'),
     rowdata_f    = temp(qc_dir + '/tmp_rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'), 
     # dimred_f     = dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    dbl_f        = dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+    dbl_f        = f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
     metadata_f      = config['project']['sample_metadata'],
     af_gtf_dt_f     = config['mapping']['af_gtf_dt_f'],
@@ -204,11 +204,11 @@ rule run_qc_one_run:
 
 rule merge_qc:
   input:
-    qc_fs      = expand(qc_dir + '/tmp_qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', run = RUNS),
-    coldata_fs = expand(qc_dir + '/tmp_coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', run = RUNS)
+    qc_fs      = expand(f'{qc_dir}/tmp_qc_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz', run = RUNS),
+    coldata_fs = expand(f'{qc_dir}/tmp_coldata_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz', run = RUNS)
   output:
-    qc_merged_f      = qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    coldata_merged_f = qc_dir  + '/coldata_dt_all_cells_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+    qc_merged_f      = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    coldata_merged_f = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   threads: 1
   retries: config['resources']['retries']
   benchmark:
@@ -275,30 +275,6 @@ rule get_qc_sample_statistics:
     benchmark_dir + '/' + SHORT_TAG + '_qc/get_qc_sample_statistics_' + DATE_STAMP + '.benchmark.txt'
   run:
     sample_stats_df = extract_qc_sample_statistics(input.run_stats_f, input.qc_merged_f, input.cuts_f,
-      config, BATCHES, BATCHES_TO_RUNS, BATCH_VAR, RUN_VAR)
+      config, BATCHES, RUNS_TO_BATCHES, BATCH_VAR, RUN_VAR)
     sample_stats_df.write_csv(output.qc_stats_f)
-
-
-# write sce objects paths to a yaml file
-rule make_tmp_sce_paths_yaml:
-  input:
-    qc_stats_f  = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv' # so that this runs after get_qc_sample_statistics
-  output:
-    sces_yaml_f = temp(f'{qc_dir}/sce_tmp_paths_{FULL_TAG}_{DATE_STAMP}.yaml')
-  threads: 1
-  run:
-    # split paths and sample names
-    fs = [f"{qc_dir}/sce_cells_tmp_{b}_{FULL_TAG}_{DATE_STAMP}.rds" for b in BATCHES]
-    
-    # check that all files exist
-    for f in fs:
-      if not os.path.isfile(f):
-        raise FileNotFoundError(f"file {f} doesn't exist")
-
-    # create a dictionary
-    fs_dict = dict(zip(BATCHES, fs))
-
-    # write to yaml
-    with open(output.sces_yaml_f, 'w') as f:
-      yaml.dump(fs_dict, f, default_flow_style=True)
 

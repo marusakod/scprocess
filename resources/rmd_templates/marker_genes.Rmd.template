@@ -103,7 +103,7 @@ biotypes_dt   = load_gene_biotypes(gtf_dt_f)
 
 ```{r load_cpms, include = FALSE}
 cpms_dt     = readRDS(pb_f) %>% 
-  make_logcpms_all_rmd(lib_size_method = "edger", 
+  make_logcpms_all_rmd("sample_id", lib_size_method = "edger", 
     min_cells = min_cells, n_cores = n_cores) %>% 
   merge(biotypes_dt[, .(gene_id, gene_type)], by = "gene_id")
 ```

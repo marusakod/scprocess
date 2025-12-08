@@ -246,7 +246,7 @@ rule render_html_qc:
     date_stamp          = config['project']['date_stamp'],
     proj_dir            = config['project']['proj_dir'],
     min_cells           = config['qc']['qc_min_cells'],
-    batch_var           = config['integration']['int_batch_var'],
+    batch_var           = BATCH_VAR,
     qc_hard_min_counts  = config['qc']['qc_hard_min_counts'],
     qc_hard_min_feats   = config['qc']['qc_hard_min_feats'],
     qc_hard_max_mito    = config['qc']['qc_hard_max_mito']
@@ -299,7 +299,7 @@ rule render_html_qc:
 rule render_html_hvgs:
   input:
     r_utils_f   = f"{code_dir}/utils.R",
-    hvgs_f      = hvg_dir   + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
+    hvgs_f      = hvg_dir   + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
     empty_gs_f  = empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.csv.gz',
     pb_empty_f  = pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
   output:
@@ -368,7 +368,8 @@ rule render_html_integration:
     int_res_ls_str  = ','.join(map(str, config['integration']['int_res_ls'])),
     int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
     int_embedding   = config['integration']['int_embedding'],
-    demux_type      = config['multiplexing']['demux_type']
+    demux_type      = config['multiplexing']['demux_type'],
+    batch_var       = BATCH_VAR
   threads: 1
   retries: config['resources']['retries']
   conda:
@@ -404,7 +405,8 @@ rule render_html_integration:
       int_res_ls_str  = '{params.int_res_ls_str}',
       int_dbl_cl_prop =  {params.int_dbl_cl_prop},
       int_embedding   = '{params.int_embedding}',
-      demux_type      = '{params.demux_type}'
+      demux_type      = '{params.demux_type}',
+      batch_var       = '{params.batch_var}'
     )"
     """
 

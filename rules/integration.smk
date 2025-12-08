@@ -1,14 +1,19 @@
 # snakemake rule for integrating samples with harmony
+
+def get_run_for_one_batch(batch, RUNS_TO_BATCHES):
+  sel_run   = [ run for run, run_batches in RUNS_TO_BATCHES.items() if batch in run_batches ]
+  return sel_run
+
 localrules: make_clean_sce_paths_yaml
 
 rule run_integration:
   input:
-    hvg_mat_f     = hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-    dbl_hvg_mat_f = hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
+    hvg_mat_f     = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5', 
+    dbl_hvg_mat_f = f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5', 
     qc_stats_f    = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
-    coldata_f     = qc_dir  + '/coldata_dt_all_cells_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+    coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
-    integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+    integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
     demux_type      = config['multiplexing']['demux_type'],
     exclude_mito    = config['qc']['exclude_mito'],
@@ -30,7 +35,7 @@ rule run_integration:
   conda: 
     '../envs/integration.yaml'
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_integration/run_integration_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_integration/run_integration_{DATE_STAMP}.benchmark.txt'
   shell: """
     set +u
     # if GPU is available, use it
@@ -63,36 +68,42 @@ rule run_integration:
 # rule to create sce objects without any doublets (and delete temporary sce objects in the qc directory)
 rule make_clean_sces: 
   input:
-    sces_yaml_f   = qc_dir  + '/sce_tmp_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
-    integration_f = int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+    h5_yaml_f     = f'{amb_dir}/paths_h5_filtered_{FULL_TAG}_{DATE_STAMP}.yaml',
+    integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
-    clean_sce_f   = int_dir + '/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds'
+    clean_sce_f   = f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds'
+  params:
+    batch_var     = BATCH_VAR,
+    sel_run       = lambda wildcards: get_run_for_one_batch(wildcards.batch, RUNS_TO_BATCHES)
   threads: 1
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_clean_sces', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
     runtime = lambda wildcards, input: get_resources('make_clean_sces', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_integration/make_clean_sces_{sample}_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_integration/make_clean_sces_{{batch}}_{DATE_STAMP}.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
   shell: """
-    Rscript -e "source('scripts/integration.R');
+    Rscript -e "source('scripts/utils.R'); source('scripts/SampleQC.R');
       make_clean_sces(
-        sel_s         = '{wildcards.sample}', 
+        sel_b         = '{wildcards.batch}',
+        sel_run       = '{params.sel_run}',
         integration_f = '{input.integration_f}', 
-        sces_yaml_f   = '{input.sces_yaml_f}', 
-        clean_sce_f   = '{output.clean_sce_f}')"
+        h5_yaml_f     = '{input.h5_yaml_f}',
+        clean_sce_f   = '{output.clean_sce_f}',
+        batch_var     = '{params.batch_var}'
+      )"
     """
 
 
 # make a yaml with all clean sce file paths
 rule make_clean_sce_paths_yaml:
-   input:
-    clean_sce_f = expand(int_dir + '/sce_cells_clean_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', batch = BATCHES) # not used
-   output:
-    sces_yaml_f = int_dir + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml'
-   run:
+  input:
+    clean_sce_f = expand(f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds', batch = BATCHES) # not used
+  output:
+    sces_yaml_f = f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
+  run:
     # split paths and batch names
     fs = [f"{int_dir}/sce_cells_clean_{b}_{FULL_TAG}_{DATE_STAMP}.rds" for b in BATCHES]
     

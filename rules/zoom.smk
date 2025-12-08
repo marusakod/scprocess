@@ -29,7 +29,7 @@ RUN_PARAMS, RUN_VAR     = get_run_parameters(config, scdata_dir)
 RUNS                    = list(RUN_PARAMS.keys())
 BATCH_PARAMS, BATCH_VAR = get_batch_parameters(config, RUNS, scdata_dir)
 BATCHES                 = list(BATCH_PARAMS.keys())
-BATCHES_TO_RUNS         = get_batches_to_runs(config, RUNS, BATCHES)
+RUNS_TO_BATCHES, BATCHES_TO_RUNS = get_batches_to_runs(config, RUNS, BATCHES)
 
 # get zoom parameters
 ZOOM_PARAMS         = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
@@ -206,7 +206,7 @@ rule zoom_make_hvg_df:
     demux_type  = config['multiplexing']['demux_type'],
     run_var     = RUN_VAR,
     runs        = RUNS,
-    mapping     = BATCHES_TO_RUNS
+    mapping     = RUNS_TO_BATCHS
   run:
     hvg_df = make_hvgs_input_df(
       params.demux_type, params.run_var, params.runs, input.amb_yaml_fs,

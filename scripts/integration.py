@@ -132,9 +132,9 @@ def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, bcs_dbl, demux_type, batch
 
   # checks
   if not batch_var in all_coldata.columns:
-    raise KeyError("column sample_id is missing from coldata file")
+    raise KeyError(f"column {batch_var} is missing from coldata file")
   if not batch_var in sample_qc.columns:
-    raise KeyError("column sample_id is missing from sample QC file")
+    raise KeyError(f"column {batch_var} is missing from sample QC file")
 
   # get ok samples
   bad_var     = "bad_" + batch_var
@@ -243,7 +243,7 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, 
     sc.get.anndata_to_CPU(adata)
 
   print(' recording clusters')
-  clusts_dt = _get_clusts_from_adata(adata, this_embedding)
+  clusts_dt = _get_clusts_from_adata(adata, this_embedding, batch_var)
   
   print(' extracting other outputs')
   embeds_dt = _get_embeddings_from_adata(adata, this_embedding, sel_embed)
@@ -253,7 +253,7 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, 
   return int_dt
 
 
-def _get_clusts_from_adata(adata, embedding):
+def _get_clusts_from_adata(adata, embedding, batch_var):
   # get results
   clusts_dt = adata.obs.copy()
   clusts_dt = pl.from_pandas(clusts_dt)
@@ -261,7 +261,8 @@ def _get_clusts_from_adata(adata, embedding):
   
   # get clustering and id vars and subset
   cl_vs     = [col for col in clusts_dt.columns if re.match(r'RNA_snn_res.*', col)]
-  all_cols  = cl_vs + ['embedding', 'cell_id', 'sample_id']
+  sample_vs = list(set([batch_var, "sample_id"]))
+  all_cols  = cl_vs + ['embedding', 'cell_id', *sample_vs]
   clusts_dt = clusts_dt.select(all_cols)
 
   # get nice labels for clusters
@@ -312,6 +313,7 @@ def _get_embeddings_from_adata(adata, embedding,  sel_embed):
 
   # merge
   embeds_dt = pca_dt.join(umap_dt, on = 'cell_id', how = 'inner')
+
   return embeds_dt
 
 

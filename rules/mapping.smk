@@ -21,14 +21,14 @@ rule run_mapping:
     R1_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["R1_fs"],
     R2_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["R2_fs"]
   output:
-    rad_f         = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_map/map.rad'),
-    collate_rad_f = temp(af_dir + '/af_{run}/' + af_rna_dir + 'af_quant/map.collated.rad'), 
-    fry_dir       = directory(af_dir + '/af_{run}/' +  af_rna_dir + 'af_quant/'),
-    mtx_f         = af_dir + '/af_{run}/'  + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
-    cols_f        = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_cols.txt',
-    rows_f        = af_dir + '/af_{run}/' + af_rna_dir +'af_quant/alevin/quants_mat_rows.txt'
+    rad_f         = temp(f'{af_dir}/af_{{run}}/{af_rna_dir}af_map/map.rad'),
+    collate_rad_f = temp(f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/map.collated.rad'), 
+    fry_dir       = directory(f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/'),
+    mtx_f         = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
+    cols_f        = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
+    rows_f        = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt'
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_mapping/run_mapping_{run}_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_mapping/run_mapping_{{run}}_{DATE_STAMP}.benchmark.txt'
   threads: config['resources']['n_run_mapping']
   retries: config['resources']['retries']
   resources:
@@ -62,11 +62,11 @@ rule run_mapping:
 
 rule save_alevin_to_h5:
   input: 
-    fry_dir     = af_dir + '/af_{run}/' + af_rna_dir + 'af_quant/'
+    fry_dir     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/'
   output: 
-    af_h5_f     = af_dir + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
-    amb_yaml_f  = af_dir + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml',
-    knee_data_f = af_dir + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
+    af_h5_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
+    amb_yaml_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml',
+    knee_data_f = f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz'
   params:
     knee1         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["knee1"],
     shin1         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["shin1"],
@@ -81,7 +81,7 @@ rule save_alevin_to_h5:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('save_alevin_to_h5', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
     runtime = lambda wildcards, input: get_resources('save_alevin_to_h5', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_mapping/save_alevin_to_h5_{run}_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_mapping/save_alevin_to_h5_{{run}}_{DATE_STAMP}.benchmark.txt'
   conda: 
    '../envs/rlibs.yaml'
   shell: """

@@ -93,6 +93,13 @@ Processing multiplexed samples requires a different format for the sample metada
 ![multiplexing](assets/images/scprocess_multiplexing_white_bg.png#only-light)
 ![multiplexing](assets/images/scprocess_multiplexing_black_bg.png#only-dark)
 
+### Options for integrating multiplexed samples
+
+{{sc}} offers two approaches to integration with multiplexed samples, defined by `int_batch_var` in the `integration` section of the config file. The two possibilities are:
+
+* Batch correction performed with `pool_id` as a batch variable. The advantage of this approach is particularly in the case that demultiplexing results in the exclusion of a large proportion of cells which cannot be confidently demultiplexed. There is however no reason to exclude these cells when integrating defining clusters, so by using `pool_id` as the batch correction variable, {{sc}} may obtain better quality clusters.
+* Batch correction performed with `sample_id` as a batch variable. The advantage of this approach is that it can correct out sample-specific batch effects (e.g. if there is sample-specific ambient RNA contamination which has not been completely removed by `cellbender`).
+
 ---
 
 <div class="img-caption">Schematic representation of sample multiplexing for single-cell sequencing. Individual samples (with corresponding names in the <code>sample_id</code> column) are labelled with antibodies carrying different HTOs (with corresponding labels in the <code>hto_id</code> column). These labeled samples are then combined into pools (with corresponding names in the <code>pool_id</code> column). HTO labels can be shared across different pools. </div>

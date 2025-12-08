@@ -26,7 +26,7 @@ RUN_PARAMS, RUN_VAR     = get_run_parameters(config, scdata_dir)
 RUNS                    = list(RUN_PARAMS.keys())
 BATCH_PARAMS, BATCH_VAR = get_batch_parameters(config, RUNS, scdata_dir)
 BATCHES                 = list(BATCH_PARAMS.keys())
-BATCHES_TO_RUNS         = get_batches_to_runs(config, RUNS, BATCHES, BATCH_VAR)
+RUNS_TO_BATCHES         = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
 LABELLER_PARAMS         = get_labeller_parameters(config, schema_f, scdata_dir)
 
 # unpack some variables that we use a lot
@@ -69,38 +69,37 @@ if config['multiplexing']['demux_type'] == "hto":
 
 # alevin hto index outputs (optional)
 hto_index_outs = [
-    af_dir + '/hto.tsv',
-    af_dir + '/t2g_hto.tsv',
-    af_dir + '/hto_index/ref_indexing.log'
+  f'{af_dir}/hto.tsv',
+  f'{af_dir}/t2g_hto.tsv',
+  f'{af_dir}/hto_index/ref_indexing.log'
   ] if config['multiplexing']['demux_type'] == "hto" else []
 
 # alevin hto quantification outputs (optional)
 hto_af_outs = expand(
   [
-  af_dir    + '/af_{run}/hto/af_quant/',
-  af_dir    + '/af_{run}/hto/af_quant/alevin/quants_mat.mtx',
-  af_dir    + '/af_{run}/hto/af_quant/alevin/quants_mat_cols.txt',
-  af_dir    + '/af_{run}/hto/af_quant/alevin/quants_mat_rows.txt',
-  af_dir    + '/af_{run}/hto/af_hto_counts_mat.h5',
-  af_dir    + '/af_{run}/hto/knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz'
-  ], run = RUNS
-) if config['multiplexing']['demux_type'] == "hto" else []
+    f'{af_dir}/af_{{run}}/hto/af_quant/',
+    f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat.mtx',
+    f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat_cols.txt',
+    f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat_rows.txt',
+    f'{af_dir}/af_{{run}}/hto/af_hto_counts_mat.h5',
+    f'{af_dir}/af_{{run}}/hto/knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz'
+  ], run = RUNS) if config['multiplexing']['demux_type'] == "hto" else []
 
 # seurat demultiplexing outputs (optional)
 hto_sce_fs = expand(
-  demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
+  f'{demux_dir}/sce_cells_htos_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds',
   run = RUNS
   ) if config['multiplexing']['demux_type'] == "hto" else []
 
 # multiplexing report (optional)
-hto_rmd_f  = (rmd_dir   + '/' + SHORT_TAG + '_demultiplexing.Rmd') if config['multiplexing']['demux_type'] == "hto" else []
-hto_html_f = (docs_dir  + '/' + SHORT_TAG + '_demultiplexing.html') if config['multiplexing']['demux_type'] == "hto" else []
+hto_rmd_f  = (f'{rmd_dir}/{SHORT_TAG}_demultiplexing.Rmd') if config['multiplexing']['demux_type'] == "hto" else []
+hto_html_f = (f'{docs_dir}/{SHORT_TAG}_demultiplexing.html') if config['multiplexing']['demux_type'] == "hto" else []
 
 # fgsea outputs (optional)
 fgsea_outs = [
-    mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_bp_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_cc_' + DATE_STAMP + '.txt.gz',
-    mkr_dir   + '/fgsea_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + 'go_mf_' + DATE_STAMP + '.txt.gz'
+  f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_bp_{DATE_STAMP}.txt.gz',
+  f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_cc_{DATE_STAMP}.txt.gz',
+  f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_mf_{DATE_STAMP}.txt.gz'
 ] if (config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & config['marker_genes']['mkr_do_gsea'] else []
 
 # one rule to rule them all
@@ -112,69 +111,70 @@ rule all:
     expand(
       [
       # mapping
-      af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/',
-      af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
-      af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/alevin/quants_mat_cols.txt',
-      af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/alevin/quants_mat_rows.txt',
-      af_dir    + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
-      af_dir    + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz',
-      af_dir    + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml',
       # ambient (cellbender, decontx or nothing)
-      amb_dir   + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
-      amb_dir   + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz',
+      f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
+      f'{amb_dir}/ambient_{{run}}/barcodes_qc_metrics_{{run}}_{DATE_STAMP}.txt.gz',
       # doublet id
-      dbl_dir   + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-      # dbl_dir   + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.txt.gz'
+      # f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_dimreds_{FULL_TAG}_{DATE_STAMP}.txt.gz'
       ], run =  RUNS),
     # ambient sample statistics
-    amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+    f'{amb_dir}/paths_h5_filtered_{FULL_TAG}_{DATE_STAMP}.yaml',
     # demultiplexing
     hto_sce_fs,
     # qc
-    qc_dir  + '/qc_thresholds_by_' + BATCH_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    qc_dir  + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-    qc_dir  + '/coldata_dt_all_cells_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-    qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-    qc_dir  + '/qc_' + BATCH_VAR + '_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
+    f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv',
+    f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
+    f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
+    f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
+    f'{qc_dir}/qc_' + BATCH_VAR + '_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     # pseudobulks and empties
-    pb_dir  + '/af_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    pb_dir  + '/pb_empties_' + FULL_TAG + '_' + DATE_STAMP + '.rds', 
-    pb_dir  + '/pb_all_' + FULL_TAG + '_' + DATE_STAMP + '.rds',
-    empty_dir + '/edger_empty_genes_' + FULL_TAG + '_all_' + DATE_STAMP + '.csv.gz', 
+    f'{pb_dir}/af_paths_{FULL_TAG}_{DATE_STAMP}.csv', 
+    f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds', 
+    f'{pb_dir}/pb_all_{FULL_TAG}_{DATE_STAMP}.rds',
+    f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     # hvgs
-    hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-    hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-    hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
-    #hvg_dir + '/chunked_counts_h5_sizes_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
+    f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
+    f'{hvg_dir}/standardized_variance_stats_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    f'{hvg_dir}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
+    f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5', 
+    f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5',
+    #f'{hvg_dir}/chunked_counts_h5_sizes_{FULL_TAG}_{DATE_STAMP}.csv', 
     # integration
-    int_dir + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    expand(int_dir + '/sce_cells_clean_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', batch = BATCHES),
-    int_dir  + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
+    f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    expand(f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds', batch = BATCHES),
+    f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml', 
     # marker genes
-    mkr_dir + '/pb_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.rds',
-    mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
-    mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
+    f'{mkr_dir}/pb_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.rds',
+    f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.txt.gz',
+    f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.txt.gz',
     # fgsea outputs
     fgsea_outs, 
     # code
     r_scripts,
     # markdowns
-    rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
-    rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
-    rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd', 
-    rmd_dir   + '/' + SHORT_TAG + '_hvgs.Rmd',
-    rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
-    rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd', 
+    f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
+    f'{rmd_dir}/{SHORT_TAG}_ambient.Rmd',
+    f'{rmd_dir}/{SHORT_TAG}_qc.Rmd', 
+    f'{rmd_dir}/{SHORT_TAG}_hvgs.Rmd',
+    f'{rmd_dir}/{SHORT_TAG}_integration.Rmd', 
+    f'{rmd_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd', 
     hto_rmd_f,
     # reports
-    docs_dir  + '/' + SHORT_TAG + '_mapping.html', 
-    docs_dir  + '/' + SHORT_TAG + '_ambient.html',
-    docs_dir  + '/' + SHORT_TAG + '_qc.html',
-    docs_dir  + '/' + SHORT_TAG + '_hvgs.html',
-    docs_dir  + '/' + SHORT_TAG + '_integration.html',
-    docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{config['marker_genes']['mkr_sel_res']}.html',
+    f'{docs_dir}/{SHORT_TAG}_mapping.html', 
+    f'{docs_dir}/{SHORT_TAG}_ambient.html',
+    f'{docs_dir}/{SHORT_TAG}_qc.html',
+    f'{docs_dir}/{SHORT_TAG}_hvgs.html',
+    f'{docs_dir}/{SHORT_TAG}_integration.html',
+    f'{docs_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.html',
     hto_html_f 
 
 
@@ -184,17 +184,17 @@ rule mapping:
     hto_af_outs,
     expand( 
       [
-      af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/',
-      af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/alevin/quants_mat.mtx',
-      af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/alevin/quants_mat_cols.txt',
-      af_dir    + '/af_{run}/' + af_rna_dir + 'af_quant/alevin/quants_mat_rows.txt',
-      af_dir    + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5',
-      af_dir    + '/af_{run}/' + af_rna_dir + 'knee_plot_data_{run}_' + DATE_STAMP + '.txt.gz',
-      af_dir    + '/af_{run}/' + af_rna_dir + 'ambient_params_{run}_' + DATE_STAMP + '.yaml'
+      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz',
+      f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml'
       ],
       run = RUNS), 
-    rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_mapping.html'
+    f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_mapping.html'
 
 
 rule demux:
@@ -206,13 +206,14 @@ rule demux:
 
 rule ambient:
   input: 
-    expand(amb_dir   + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml', run = RUNS), 
-    expand(amb_dir + '/ambient_{run}/barcodes_qc_metrics_{run}_' + DATE_STAMP + '.txt.gz', run = RUNS),
-    amb_dir   + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_mapping.html',
-    rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_ambient.html'
+    expand(f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml', run = RUNS), 
+    expand(f'{amb_dir}/ambient_{{run}}/barcodes_qc_metrics_{{run}}_{DATE_STAMP}.txt.gz', run = RUNS),
+    f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+    f'{amb_dir}/paths_h5_filtered_{FULL_TAG}_{DATE_STAMP}.yaml',
+    f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_mapping.html',
+    f'{rmd_dir}/{SHORT_TAG}_ambient.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_ambient.html'
 
 
 rule qc:
@@ -234,20 +235,20 @@ rule qc:
   input:     
     expand([
       # doublet id
-      dbl_dir + '/dbl_{run}/scDblFinder_{run}_outputs_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
-      # dbl_dir + '/dbl_{run}/scDblFinder_{run}_dimreds_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz'
+      f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+      # dbl_dir + '/dbl_{{run}}/scDblFinder_{{run}}_dimreds_{FULL_TAG}_{DATE_STAMP}.txt.gz'
       ], run = RUNS),
-    qc_dir    + '/qc_thresholds_by_' + BATCH_VAR + '_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    qc_dir    + '/qc_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-    qc_dir    + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-    qc_dir    + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
-    qc_dir    + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_mapping.html',
-    rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_ambient.html',
-    rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_qc.html'
+    f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv',
+    f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
+    f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
+    f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
+    f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv', 
+    f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_mapping.html',
+    f'{rmd_dir}/{SHORT_TAG}_ambient.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_ambient.html',
+    f'{rmd_dir}/{SHORT_TAG}_qc.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_qc.html'
 
 
 rule hvg:
@@ -256,63 +257,63 @@ rule hvg:
     n_hvgs      = config['hvg']['hvg_n_hvgs'],
     exclude_ambient_genes = config['hvg']['hvg_exclude_ambient_genes']
   input:
-    hvg_dir + '/hvg_paths_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    hvg_dir + '/standardized_variance_stats_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
-    hvg_dir + '/hvg_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    hvg_dir + '/top_hvgs_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5', 
-    hvg_dir + '/top_hvgs_doublet_counts_' + FULL_TAG + '_' + DATE_STAMP + '.h5',
-    rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_mapping.html',
-    rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_ambient.html',
-    rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_qc.html',
-    rmd_dir   + '/' + SHORT_TAG + '_hvgs.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_hvgs.html'
+    f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
+    f'{hvg_dir}/standardized_variance_stats_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    f'{hvg_dir}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
+    f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5', 
+    f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5',
+    f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_mapping.html',
+    f'{rmd_dir}/{SHORT_TAG}_ambient.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_ambient.html',
+    f'{rmd_dir}/{SHORT_TAG}_qc.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_qc.html',
+    f'{rmd_dir}/{SHORT_TAG}_hvgs.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_hvgs.html'
 
 
 rule integration:
   input:
-    expand(int_dir + '/sce_cells_clean_{batch}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', batch = BATCHES),
-    int_dir   + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
-    int_dir   + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz',
-    rmd_dir   + '/' + SHORT_TAG + '_mapping.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_mapping.html',
-    rmd_dir   + '/' + SHORT_TAG + '_ambient.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_ambient.html',
-    rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_qc.html',
-    rmd_dir   + '/' + SHORT_TAG + '_hvgs.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_hvgs.html',
-    rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd',
-    docs_dir  + '/' + SHORT_TAG + '_integration.html'
+    expand(f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds', batch = BATCHES),
+    f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml', 
+    f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_mapping.html',
+    f'{rmd_dir}/{SHORT_TAG}_ambient.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_ambient.html',
+    f'{rmd_dir}/{SHORT_TAG}_qc.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_qc.html',
+    f'{rmd_dir}/{SHORT_TAG}_hvgs.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_hvgs.html',
+    f'{rmd_dir}/{SHORT_TAG}_integration.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_integration.html'
 
 
 rule marker_genes:
   input:     
-    mkr_dir + '/pb_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.rds',
-    mkr_dir + '/pb_marker_genes_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
-    mkr_dir + '/pb_hvgs_' + FULL_TAG + f'_{config['marker_genes']['mkr_sel_res']}_' + DATE_STAMP + '.txt.gz',
+    f'{mkr_dir}/pb_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.rds',
+    f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.txt.gz',
+    f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.txt.gz',
     # fgsea outputs
     fgsea_outs, 
-    rmd_dir   + '/' + SHORT_TAG + f'_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd',
-    docs_dir  + '/' + SHORT_TAG + f'_marker_genes_{config['marker_genes']['mkr_sel_res']}.html'
+    f'{rmd_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd',
+    f'{docs_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.html'
 
 
 rule label_celltypes:
   input:
-    expand(lbl_dir + '/labels_{labeller}_model_{model}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', 
+    expand(f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
       zip, 
         labeller  = [ entry['labeller'] for entry in LABELLER_PARAMS],
         model     = [ entry['model']    for entry in LABELLER_PARAMS]
       ),
     code_dir  + '/label_celltypes.R',
-    rmd_dir   + '/' + SHORT_TAG + '_label_celltypes.Rmd', 
-    docs_dir  + '/' + SHORT_TAG + '_label_celltypes.html'
+    f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd', 
+    f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
 
 rule index:
   input:
-    docs_dir + '/' + 'index.html'
+    f'{docs_dir}/index.html'
 
 
 # define rules that are needed

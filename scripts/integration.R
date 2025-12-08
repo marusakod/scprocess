@@ -130,50 +130,6 @@ run_integration <- function(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, de
   message('done!')
 }
 
-make_clean_sces <- function(sel_s, integration_f, sces_yaml_f, clean_sce_f){
-
-  int_dt = fread(integration_f) %>%
-    #exclude doublets
-    .[is_dbl == FALSE & in_dbl_cl == FALSE]
-  
-  ok_samples = int_dt$sample_id %>% unique
-  all_sce_paths = yaml::read_yaml(sces_yaml_f)
-  
-  if(!sel_s %in% ok_samples){
-    # write empty file if sample was excluded
-    message('Sample ', sel_s, ' was excluded. Creating empty sce file')
-    file.create(clean_sce_f)
-  }else{
-    
-    message('Creating clean sce file for sample ', sel_s)
-    qc_sce_f  = all_sce_paths[[sel_s]]
-    assert_that(file.exists(qc_sce_f))
-    qc_sce    = readRDS(qc_sce_f)
-    smpl_int  = int_dt %>% .[sample_id == sel_s]
-    clean_sce = qc_sce[, smpl_int$cell_id]
-    
-    # get useful integration variables
-    int_vs   = c('UMAP1', 'UMAP2', str_subset(names(smpl_int), "RNA_snn_res"))
-    
-    # add these to sce object
-    for (v in int_vs) {
-      if (str_detect(v, "RNA_snn_res")) {
-        colData(clean_sce)[[ v ]] = smpl_int[[ v ]] %>% factor
-      } else {
-        colData(clean_sce)[[ v ]] = smpl_int[[ v ]]
-      }
-    }
-    
-    saveRDS(clean_sce, clean_sce_f, compress = FALSE)
-  }
-  
-  # remove qc sce file
-  message('Removing temporary sce file for sample ', sel_s)
-  file.remove(all_sce_paths[[sel_s]])
-  
-  message('done!')
-}
-
 .run_one_integration <- function(seu_obj, batch_var, cl_method, n_dims, theta = 0, res_ls, reduction) {
   message('    scaling')
   seu_obj   = seu_obj %>%
@@ -373,14 +329,14 @@ plot_umap_cluster <- function(umap_dt, clust_dt, name) {
   return(g)
 }
 
-plot_cluster_entropies <- function(input_dt, what = c("norm", "raw")) {
+plot_cluster_entropies <- function(input_dt, batch_var, what = c("norm", "raw")) {
   # check inputs
   what      = match.arg(what)
 
   # calculate mixing
-  ns_dt     = input_dt %>%
-    .[, .N, by = .(sample_id, cluster) ] %>%
-    .[, p_sample  := N / sum(N), by = sample_id ] %>%
+  ns_dt     = input_dt %>% copy %>% 
+    .[, .N, by = .(batch_var, cluster) ] %>%
+    .[, p_sample  := N / sum(N), by = batch_var ] %>%
     .[, p_cluster := N / sum(N), by = cluster ] %>%
     .[, p_cl_norm := p_sample / sum(p_sample), by = cluster ]
 
@@ -418,7 +374,7 @@ plot_cluster_entropies <- function(input_dt, what = c("norm", "raw")) {
     theme( panel.grid = element_blank() ) +
     labs(
       x     = 'entropy',
-      y     = 'max. pct. of one sample',
+      y     = sprintf('max. pct. of one %s', batch_var),
       size  = 'total # cells'
     )
 

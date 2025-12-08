@@ -3,6 +3,8 @@ time,input.af_h5_f,51.023,1.658,get_barcode_qc_metrics,5
 memory,input.af_h5_f,958.405,42.866,get_barcode_qc_metrics,2048
 time,input.af_h5_f,44.126,0.517,make_one_pb_empty,5
 memory,input.af_h5_f,923.889,32.895,make_one_pb_empty,2048
+time,input.af_h5_f,44.126,0.517,make_one_pb_cells,5
+memory,input.af_h5_f,923.889,32.895,make_one_pb_cells,2048
 time,input.af_h5_f,3060.824,24.901,run_cellbender,5
 memory,input.af_h5_f,3374.924,117.196,run_cellbender,2048
 time,raw_data_size,1216.889,224.08,run_mapping,5

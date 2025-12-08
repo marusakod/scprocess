@@ -36,41 +36,47 @@ suppressPackageStartupMessages({
   library('yaml')
 })
 
-make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, batch_var, subset_f = NULL, subset_col = NULL, subset_str = NULL, n_cores = 8) {
-  # get files
-  sce_fs_ls     = yaml::read_yaml(sce_fs_yaml) %>% unlist()
-  
+make_pb_cells <- function(sel_run, batch_lu_f, qc_stats_f, h5_paths_f, qc_f, run_var, batch_var, pb_cells_f, 
+  subset_f = NULL, subset_col = NULL, subset_str = NULL) {
+  # get batches corresponding to this run
+  batch_lu    = fread(batch_lu_f)
+  sel_batches = batch_lu[ run_var == sel_run ] %>% .$batch_var
+
   # remove all samples excluded after qc
-  qc_stats_dt   = fread(qc_stats_f)
-  bad_var       = paste0("bad_", batch_var)
-  keep_batches  = qc_stats_dt[ get(bad_var) == FALSE ] %>% .[[batch_var]]
-  sce_fs_ls     = sce_fs_ls[ keep_batches ]
+  qc_stats_dt = fread(qc_stats_f)
+  bad_var     = paste0("bad_", batch_var)
+  bad_batches = qc_stats_dt[ get(bad_var) == TRUE ] %>% .[[batch_var]]
+
+  # filter out bad ones
+  ok_batches  = setdiff(sel_batches, bad_batches)
+  # write an empty file if nothing left
+  if (length(ok_batches) == 0) {
+    file.create(pb_cells_f)
+    return(NULL)
+  }
+
+  # get what we need
+  h5_fs       = fread(h5_paths_f)
+  h5_f        = h5_fs[ run == sel_run ]$path
+  keep_dt     = fread(qc_f) %>% .[ keep == TRUE ] %>% .[ get(run_var) == sel_run ]
+  keep_ids    = keep_dt %>% .$cell_id
+  cell_lu     = keep_dt[, c(unique(run_var, batch_var), "cell_id"), with = FALSE] %>% setkey("cell_id")
   
-  # set up parallelization
-  bpparam       = MulticoreParam(workers = n_cores, tasks = length(sce_fs_ls))
-  on.exit(bpstop(bpparam))  
-  cell_pbs      = bpmapply( sel_b = names(sce_fs_ls), sce_f = unname(sce_fs_ls), 
-    FUN = .get_one_cells_pb, SIMPLIFY = FALSE, BPPARAM = bpparam,
-    MoreArgs = list(batch_var = batch_var, subset_f = subset_f, subset_col = subset_col, subset_str = subset_str)
-    )
+  # get full alevin matrix
+  message('    loading counts for ', sel_run)
+  barcodes    = keep_ids %>% str_extract("(?<=:)[ATCG]+")
+  cells_mat   = .get_h5(h5_f, barcodes)
+  assert_that( ncol(cells_mat) == length(keep_ids) )
+  cells_mat   = .sum_SUA(cells_mat)
 
-  # merge sce objects
-  pb_sce = Reduce(function(x, y) {cbind(x, y)}, cell_pbs)
+  # turn into sce
+  sce             = SingleCellExperiment( assays = list(counts = cells_mat) )
+  sce$cell_id     = colnames(sce)
+  sce[[run_var]]  = sel_run
+  if (batch_var != run_var)
+    sce[[batch_var]]  = cell_lu[ colnames(sce) ] %>% .[[ batch_var ]]
 
-  # store
-  message('  save')
-  saveRDS(pb_sce, pb_f)
-  
-  message('done!')
-}
-
-
-.get_one_cells_pb <- function(sel_b, sce_f, batch_var, subset_f = NULL, subset_col = NULL, 
-  subset_str = NULL, agg_fn = c("sum", "prop.detected")) {
-  agg_fn      = match.arg(agg_fn)
-  
-  message('    loading sce object for sample ', sel_b)
-  sce         = readRDS(sce_f)
+  # subset if required
   if (!is.null(subset_f)) {
     message('    subsetting sce object')
     # unpack 
@@ -85,14 +91,49 @@ make_pb_cells <- function(sce_fs_yaml, qc_stats_f, pb_f, batch_var, subset_f = N
       .[ get(subset_col) %in% subset_vals ]
     
     # subset sce object
-    sce = sce[, subset_dt$cell_id]
+    sce       = sce[, subset_dt$cell_id]
   }
    
   message('   running aggregateData')
-  pb_mat    = .aggregateData_datatable(sce, by_vars = batch_var, fun = agg_fn)
-  pb        = SingleCellExperiment( pb_mat, rowData = rowData(sce) )
+  agg_fn      = "sum"
+  pb_mat      = .aggregateData_datatable(sce, by_vars = batch_var, fun = agg_fn)
+  # colnames(pb) = sel_b
+
+  # store
+  message('  save')
+  pb          = SingleCellExperiment( assays = list(counts = pb_mat) )
+  saveRDS(pb, pb_cells_f)
   
- return(pb)
+  message('done!')
+}
+
+
+merge_pbs_cells <- function(cells_paths_f, rowdata_f, batch_var, pb_cells_f) {
+  # get paths to ok pb cells files
+  paths_dt    = fread(cells_paths_f)
+  pb_cells    = paths_dt$pb_path %>% lapply(FUN = readRDS) %>% 
+    do.call('cbind', .)
+  
+  # get nice rows
+  rows_dt     = fread(rowdata_f) %>% setkey('ensembl_id')
+  keep_ids    = rows_dt$ensembl_id
+  assert_that(all(keep_ids %in% rownames(pb_cells)))
+  pb_cells    = pb_cells[keep_ids, ]
+  rows_dt     = rows_dt[ rownames(pb_cells) ]
+  assert_that( all(rownames(pb_cells) == rows_dt$ensembl_id) )
+  rownames(pb_cells) = rows_dt$gene_id
+  
+  # make one object with pb_mats as assays
+  pb_cells    = SingleCellExperiment( pb_cells, rowData = rows_dt )
+
+  # add batch variable
+  pb_cells[[ batch_var ]] = colnames(pb_cells)
+  
+  # store
+  message(' save')
+  saveRDS(pb_cells, pb_cells_f)
+  
+  message(' done!')
 }
 
 
@@ -111,10 +152,9 @@ make_pb_empty <- function(sel_run, af_paths_f, pb_empty_f, ambient_method, run_v
     }
   }
   
-  af_mat_f     = af_paths_df %>% .[get(run_var) == sel_run, af_mat_f] %>% unique()
-  af_knee_f    = af_paths_df %>% .[get(run_var) == sel_run, af_knee_f] %>% unique()
-  
   # do some checks
+  af_mat_f     = af_paths_df %>% .[get(run_var) == sel_run, af_mat_f] %>% unique()
+  af_knee_f    = af_paths_df %>% .[get(run_var) == sel_run, af_knee_f] %>% unique() 
   assert_that(str_extract(af_mat_f, '\\/af_.*\\/') == str_extract(af_knee_f, '\\/af_.*\\/'))
   
   # get empty pseudobulk
@@ -128,8 +168,7 @@ make_pb_empty <- function(sel_run, af_paths_f, pb_empty_f, ambient_method, run_v
 }
 
 
-merge_empty_pbs <- function(af_paths_f, rowdata_f, empty_pbs_f, ambient_method){
-  
+merge_pbs_empty <- function(af_paths_f, rowdata_f, pb_empty_f, ambient_method) {
   # get paths to empty pb files for for runs that weren't excluded
   af_paths_df = fread(af_paths_f)  
   if (ambient_method == 'cellbender') {
@@ -137,25 +176,25 @@ merge_empty_pbs <- function(af_paths_f, rowdata_f, empty_pbs_f, ambient_method){
       .[ bad_run == FALSE ]
   }
   
-  empty_pb_fs   = af_paths_df$pb_tmp_f %>% unique()
-  empty_pbs      = empty_pb_fs %>% lapply(FUN = readRDS)
-  pb_empty      = do.call('cbind', empty_pbs)
+  empty_pb_fs = af_paths_df$pb_tmp_f %>% unique()
+  empty_pbs   = empty_pb_fs %>% lapply(FUN = readRDS)
+  pb_empty    = do.call('cbind', empty_pbs)
   
   # get nice rows
-  rows_dt  = fread(rowdata_f) %>% setkey('ensembl_id')
-  keep_ids = rows_dt$ensembl_id
+  rows_dt     = fread(rowdata_f) %>% setkey('ensembl_id')
+  keep_ids    = rows_dt$ensembl_id
   assert_that(all(keep_ids %in% rownames(pb_empty)))
-  pb_empty = pb_empty[keep_ids, ]
-  rows_dt  = rows_dt[ rownames(pb_empty) ]
+  pb_empty    = pb_empty[keep_ids, ]
+  rows_dt     = rows_dt[ rownames(pb_empty) ]
   assert_that( all(rownames(pb_empty) == rows_dt$ensembl_id) )
   rownames(pb_empty) = rows_dt$gene_id
   
   # make one object with pb_mats as assays
-  pb_empty      = SingleCellExperiment( pb_empty, rowData = rows_dt )
+  pb_empty    = SingleCellExperiment( pb_empty, rowData = rows_dt )
   
   # store
   message(' save')
-  saveRDS(pb_empty, empty_pbs_f)
+  saveRDS(pb_empty, pb_empty_f)
   
   message(' done!')
 }
@@ -191,10 +230,13 @@ merge_empty_pbs <- function(af_paths_f, rowdata_f, empty_pbs_f, ambient_method){
   fun = c("sum", "mean", "median", "prop.detected", "num.detected")) {
   fun       = match.arg(fun)
   assay     = "counts"
-  
   # check dimensions; if there are no cells don't return anything
   if (dim(sce)[2] == 0) { return(NULL) }
   
+  # check have matrix format we need
+  if (!("TsparseMatrix" %in% class(counts(sce))))
+    counts(sce)   = counts(sce) %>% as("TsparseMatrix")
+
   # get counts data
   t_start   = Sys.time()
   mat_dt    = data.table(
@@ -228,20 +270,21 @@ merge_empty_pbs <- function(af_paths_f, rowdata_f, empty_pbs_f, ambient_method){
   
   # (what comes makes only sense when by_vars = 'sample_id')
   genes_ls    = rownames(sce)
-  sample_ls   = unique(by_dt$sample_id)
+  batch_ls    = unique(by_dt[[by_vars]])
   n_genes     = length(genes_ls)
-  n_samples   = length(sample_ls)
+  n_batches   = length(batch_ls)
   
   message('making pseudobulk matrix')
   # do pseudobulk
+  cast_frm    = sprintf("gene_id ~ %s", by_vars)
   pb_mat    = pb_dt %>% 
-      dcast.data.table( gene_id ~ sample_id, value.var = fun, fill = 0 ) %>% 
-      as.matrix(rownames = "gene_id")
+    dcast( as.formula(cast_frm), value.var = fun, fill = 0 ) %>% 
+    as.matrix(rownames = "gene_id")
     
   # make full 0 matrix, fill it in to keep order of genes and samples
-  mat         = matrix(0, nrow=n_genes, ncol=n_samples) %>%
+  mat         = matrix(0, nrow=n_genes, ncol=n_batches) %>%
     set_rownames(genes_ls) %>%
-    set_colnames(sample_ls)
+    set_colnames(batch_ls)
   mat[ rownames(pb_mat), colnames(pb_mat) ] = pb_mat
   
   # make sparse

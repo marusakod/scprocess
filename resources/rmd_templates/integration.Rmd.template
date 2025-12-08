@@ -34,37 +34,38 @@ setDTthreads(n_cores)
 
 ```{r setup_input, include = FALSE}
 # inputs via reprocessing
-qc_f        = "${qc_dt_f}"
+qc_f          = "${qc_dt_f}"
 
 # define QC lookups
-qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
-qc_lu       = c('no. of UMIs', 'no. of genes', 'mito pct.', 'spliced pct.') %>% 
+qc_names      = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
+qc_lu         = c('no. of UMIs', 'no. of genes', 'mito pct.', 'spliced pct.') %>% 
   setNames(qc_names)
 
 # define integration inputs
-integration_f      = "${integration_f}"
-int_embedding      = "${int_embedding}"
-demux_type         = "${demux_type}"
+integration_f = "${integration_f}"
+int_embedding = "${int_embedding}"
+demux_type    = "${demux_type}"
+batch_var     = "${batch_var}"
+res_ls        = "${int_res_ls_str}" %>%
+  str_split(pattern = ',') %>% unlist() %>% as.numeric()
+dbl_cl_prop   = ${int_dbl_cl_prop}
+
+# sort out text
 if (int_embedding == 'harmony') {
   int_txt = "with `Harmony` "
 } else {
   int_txt = ''
 }
-
 if (demux_type == 'hto') {
   dbl_txt = " and `HTODemux`(`Seurat`)"
 } else{
   dbl_txt = ""
 }
-
-res_ls             = "${int_res_ls_str}" %>%
- str_split(pattern = ',') %>% unlist() %>% as.numeric()
-dbl_cl_prop = ${int_dbl_cl_prop}
 ```
 
 
 ```{r load_qc_results, include = FALSE}
-qc_melt     = fread(qc_f) %>% 
+qc_melt       = fread(qc_f) %>% 
   melt(id = 'cell_id', measure = qc_names, val = 'qc_val', var = 'qc_var') %>%
   .[, qc_full := qc_lu[ qc_var ] ] %>%
   .[, qc_var  := factor(qc_var, levels = qc_names) ] %>%
@@ -73,25 +74,24 @@ qc_melt     = fread(qc_f) %>%
 ```
 
 ```{r load_integration_results, include = FALSE}
-integration_all    = fread(integration_f)
+int_all       = fread(integration_f)
 ```
 
 ```{r extract_dbl_checks, include = FALSE}
-int_dbl    = integration_all %>% 
-  .[, .(sample_id, cell_id, UMAP1 = dbl_UMAP1, UMAP2 = dbl_UMAP2, is_dbl, dbl_cluster)]
+int_dbl       = int_all %>% 
+  .[, .(batch_var = get(batch_var), cell_id, UMAP1 = dbl_UMAP1, UMAP2 = dbl_UMAP2, is_dbl, dbl_cluster)]
 ```
 
 ```{r extract_normal_integration, include = FALSE}
-int_dt    = integration_all[ !is.na(UMAP1) ] %>% 
-  .[, c("sample_id", "cell_id", "embedding", "UMAP1", "UMAP2", 
-    str_subset(names(integration_all), "RNA_snn_res")), with = FALSE]
+int_dt        = int_all[ !is.na(UMAP1) ] %>% 
+  .[, c(batch_var, "cell_id", "embedding", "UMAP1", "UMAP2", 
+    str_subset(names(int_all), "RNA_snn_res")), with = FALSE]
 ```
-
 
 ```{r extract_clusters, include = FALSE}
 clusts_dt   = int_dt %>% 
   melt(measure = patterns('RNA_snn_res'), var = 'resolution', val = 'cluster') %>% 
-  .[, .(embedding, sample_id, cell_id, 
+  .[, .(embedding, batch_var = get(batch_var), cell_id, 
     resolution = str_extract(resolution, "(?<=res\\.)(.+)"), cluster)]
 ```
 
@@ -143,8 +143,9 @@ Entropy measures how evenly distributed cells are across samples within each clu
 ```{r plot_entropy_selected_clusters, fig.height = 5, fig.width = 7, results = "asis"}
 for (res in res_ls) {
   cat('### ', res, '\n')
-  input_dt  = int_dt[, .(sample_id, cell_id, cluster = get(paste0('RNA_snn_res.', res)))]
-  suppressWarnings(print(plot_cluster_entropies(input_dt, what = "norm")))
+  input_dt  = int_dt[, .(batch_var = get(batch_var), cell_id, 
+    cluster = get(paste0('RNA_snn_res.', res)))]
+  suppressWarnings(print(plot_cluster_entropies(input_dt, batch_var, what = "norm")))
   cat('\n\n')
 }
 ```

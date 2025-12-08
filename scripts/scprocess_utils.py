@@ -1014,36 +1014,36 @@ def _get_batch_parameters_one_batch(batch_name, config, custom_batch_params):
 
 
 # get mapping from samples to runs
-def get_batches_to_runs(config, RUNS, BATCHES, BATCH_VAR):
+def get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR):
   # if nothing to do return none
   if config['multiplexing']['demux_type'] == "none":
     # make dictionary if we can
     if not RUNS == BATCHES:
       raise ValueError("RUNS and BATCHES should be identical when demux_type is 'none'")
-    BATCHES_TO_RUNS = { s: [s] for s in BATCHES }
+    RUNS_TO_BATCHES = { s: [s] for s in BATCHES }
 
   else:
     if BATCH_VAR == "pool_id":
       # make dictionary if we can
       if not RUNS == BATCHES:
         raise ValueError("RUNS and BATCHES should be identical if 'int_batch_var' is 'pool_id'")
-      BATCHES_TO_RUNS = { s: [s] for s in BATCHES }
+      RUNS_TO_BATCHES = { s: [s] for s in BATCHES }
 
     elif BATCH_VAR == "sample_id":
       # get sample_metadata, convert to dictionary
       sample_metadata = pl.read_csv(config['project']['sample_metadata'])
       tmp_df          = sample_metadata.group_by("pool_id").agg(pl.col("sample_id").alias("sample_id_list"))
       pool_vals       = tmp_df["pool_id"]
-      BATCHES_TO_RUNS = { pool_id: tmp_df.filter(pl.col("pool_id") == pool_id)["sample_id_list"].to_list()[0] for pool_id in pool_vals }
+      RUNS_TO_BATCHES = { pool_id: tmp_df.filter(pl.col("pool_id") == pool_id)["sample_id_list"].to_list()[0] for pool_id in pool_vals }
 
       # filter out any RUNS that shouldn't be there
-      BATCHES_TO_RUNS = { pool_id: sample_ids for pool_id, sample_ids in BATCHES_TO_RUNS.items() if pool_id in RUNS }
+      RUNS_TO_BATCHES = { pool_id: sample_ids for pool_id, sample_ids in RUNS_TO_BATCHES.items() if pool_id in RUNS }
 
       # filter out any BATCHES that shouldn't be there
-      for pool_id in BATCHES_TO_RUNS:
-        BATCHES_TO_RUNS[pool_id] = [ sample_id for sample_id in BATCHES_TO_RUNS[pool_id] if sample_id in BATCHES ]
+      for pool_id in RUNS_TO_BATCHES:
+        RUNS_TO_BATCHES[pool_id] = [ sample_id for sample_id in RUNS_TO_BATCHES[pool_id] if sample_id in BATCHES ]
 
-  return BATCHES_TO_RUNS
+  return RUNS_TO_BATCHES
 
 
 # get parameters for labelling celltypes
@@ -1153,10 +1153,10 @@ def get_resources(rule, param, lm_f, config, schema_f, input, BATCHES, RUN_PARAM
         param_val *= MB_PER_GB
     else:
       # get rq params
-      x_rq    = filt_lm_df['model_var'].unique().to_list()[0]
+      x_rq      = filt_lm_df['model_var'].unique().to_list()[0]
       intercept = filt_lm_df['rq_intercept'].unique().to_list()[0] 
-      slope   = filt_lm_df['rq_slope'].unique().to_list()[0]
-      buffer  = filt_lm_df['buffer'].unique().to_list()[0]
+      slope     = filt_lm_df['rq_slope'].unique().to_list()[0]
+      buffer    = filt_lm_df['buffer'].unique().to_list()[0]
 
       # get the name of x var
       if x_rq.startswith('input.'):
