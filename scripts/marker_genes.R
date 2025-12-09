@@ -9,12 +9,11 @@ suppressPackageStartupMessages({
 })
 
 
-calculate_marker_genes <- function(integration_f, sces_yaml_f, pb_f, mkrs_f, pb_hvgs_f,
+calculate_marker_genes <- function(integration_f, sces_yaml_f, batch_var, pb_f, mkrs_f, pb_hvgs_f,
   fgsea_go_bp_f = "", fgsea_go_cc_f = "", fgsea_go_mf_f = "", fgsea_paths_f = "", fgsea_hlmk_f = "",
   do_gsea, gtf_dt_f, gsea_dir, sel_res, min_cl_size, min_cells, zoom = FALSE, 
   n_cores = 4) {
   # define some variables
-  batch_var   = "sample_id"
   zoom        = as.logical(zoom)
   
   # check some inputs
@@ -50,18 +49,18 @@ calculate_marker_genes <- function(integration_f, sces_yaml_f, pb_f, mkrs_f, pb_
   # calc cpms
   message("  calculating logCPMs")
   cpms_dt     = pb %>%
-    make_logcpms_all(batch_var, lib_size_method = "edger",
+    make_logcpms_all("sample_id", lib_size_method = "edger",
       min_cells = min_cells, n_cores = n_cores) %>%
     merge(biotypes_dt[, .(gene_id, gene_type)], by = "gene_id")
   rm(pb); gc()
 
   # calc hvgs
   message("  calculating highly variable genes")
-  calc_hvgs_pseudobulk(pb_hvgs_f, cpms_dt, batch_var, n_cores = n_cores)
+  calc_hvgs_pseudobulk(pb_hvgs_f, cpms_dt, "sample_id", n_cores = n_cores)
 
   # calculate markers
   message("  calculating markers")
-  mkrs_dt     = calc_find_markers_pseudobulk(mkrs_f, cpms_dt, biotypes_dt, batch_var,
+  mkrs_dt     = calc_find_markers_pseudobulk(mkrs_f, cpms_dt, biotypes_dt, "sample_id",
     n_cores = n_cores)
 
   message("done!")
@@ -74,7 +73,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
 
   # load up clusters
   message('    loading integration output')
-  int_dt     = fread(integration_f)
+  int_dt     = fread(integration_f) %>% .[ sample_id != "" ]
   if (zoom == FALSE) {
     #exclude doublets
     int_dt = int_dt %>%
@@ -92,8 +91,9 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   
   # make pseudobulks for selected clusters for each sample
   message('    making pseudobulk counts for individual samples')
-  batches     = int_dt[[ batch_var ]] %>% unique()
+  batches     = int_dt[[ batch_var ]] %>% unique() %>% setdiff("")
   sce_paths   = yaml::read_yaml(sces_yaml_f)
+  assert_that( all(batches %in% names(sce_paths)) )
   
   # set up cluster
   bpparam     = MulticoreParam(workers = n_cores, tasks = length(batches))  
@@ -108,7 +108,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   }
   
   message('    merging pseudobulk counts')
-  assay_ls    = lapply(keep_cls, function(cl){
+  assay_ls    = lapply(keep_cls, function(cl) {
     assays      = lapply(pb_ls, function(pb) assay(pb, cl))
     assay_mat   = Reduce(cbind, assays)  
     return(assay_mat)
@@ -141,8 +141,9 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   colData(tmp_sce)[["cluster"]] = colData(tmp_sce)[[cl_var]] 
 
   # filter sce
-  tmp_sce   = tmp_sce[, colData(tmp_sce)$cluster %in% keep_cls]
-  pb        = aggregateData_datatable(tmp_sce, batch_var, by_vars = c("cluster", batch_var), 
+  keep_idx  = (colData(tmp_sce)$cluster %in% keep_cls) & (colData(tmp_sce)$sample_id != "")
+  tmp_sce   = tmp_sce[,  keep_idx]
+  pb        = aggregateData_datatable(tmp_sce, by_vars = c("cluster", "sample_id"), 
     fun = agg_fn, all_cls = keep_cls)
   
   # make sure all assays are in the object, if not, add columns with zeros
@@ -200,7 +201,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   return(pb)
 }
 
-aggregateData_datatable <- function(sce, batch_var, by_vars = c("cluster", "sample_id"),
+aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
   fun = c("sum", "mean", "median", "prop.detected", "num.detected"), all_cls) {
   fun       = match.arg(fun)
   assay     = "counts"
@@ -222,8 +223,8 @@ aggregateData_datatable <- function(sce, batch_var, by_vars = c("cluster", "samp
   by_dt     = data.table(
     cell_id   = colnames(sce),
     cluster   = factor(sce[[ by_1 ]]),
-    batch_var = factor(sce[[ by_2 ]])
-    ) %>% setkey("cell_id") %>% setnames("batch_var", batch_var)
+    sample_id = factor(sce[[ by_2 ]])
+    ) %>% setkey("cell_id")
 
   # join
   t_start   = Sys.time()
@@ -236,6 +237,7 @@ aggregateData_datatable <- function(sce, batch_var, by_vars = c("cluster", "samp
   n_cells_dt  = by_dt[, .(n_cells = .N), by = by_vars ]
   rows_dt     = data.table(i = seq.int(nrow(sce)), gene_id = rownames(sce))
   pb_dt       = pb_dt %>%
+    .[ sample_id != "" ] %>% .[, sample_id := sample_id %>% fct_drop ] %>% 
     merge(n_cells_dt, by = by_vars) %>%
     merge(rows_dt, by = "i") %>%
     .[, i             := NULL ] %>%
@@ -244,23 +246,22 @@ aggregateData_datatable <- function(sce, batch_var, by_vars = c("cluster", "samp
   # define various things
   genes_ls    = rownames(sce)
   cl_ls       = levels(by_dt$cluster)
-  batches     = levels(by_dt[[ batch_var ]])
+  samples     = levels(by_dt$sample_id)
   n_genes     = length(genes_ls)
-  n_batches   = length(batches)
+  n_samples   = length(samples)
 
   # do pseudobulk
   message('  assembling list of matrices')
-  cast_frm    = sprintf("gene_id ~ %s", batch_var)
   mat_ls      = lapply(cl_ls, function(cl) {
     # get matrix for this cluster
     outs_mat    = pb_dt[ cluster == cl ] %>%
-      dcast.data.table( as.formula(cast_frm), value.var = fun, fill = 0 ) %>%
+      dcast.data.table( gene_id ~ sample_id, value.var = fun, fill = 0 ) %>%
       as.matrix(rownames = "gene_id")
 
     # make full 0 matrix, fill it in
-    mat         = matrix(0, nrow=n_genes, ncol=n_batches) %>%
+    mat         = matrix(0, nrow=n_genes, ncol=n_samples) %>%
         set_rownames(genes_ls) %>%
-        set_colnames(batches)
+        set_colnames(samples)
     mat[ rownames(outs_mat), colnames(outs_mat) ] = outs_mat
 
     return(mat)
@@ -305,41 +306,6 @@ aggregateData_datatable <- function(sce, batch_var, by_vars = c("cluster", "samp
   return(pb)
 }
 
-make_logcpms_all_rmd <- function(pb, batch_var, lib_size_method = c("edger", "raw", "pearson",
-  "vst", "rlog"), exc_regex = NULL, min_cells = 10, n_cores = 4) {  
-  # check inputs
-  lib_size_method   = match.arg(lib_size_method)
-  
-  # set up cluster
-  cl_ls       = assayNames(pb)
- 
-  # exclude genes if requested
-  if (!is.null(exc_regex)) {
-    exc_idx     = rownames(pb) %>% str_detect(exc_regex)
-    exc_gs_str  = rowData(pb)$symbol[ exc_idx ] %>% paste0(collapse = " ")
-    sprintf("    excluding %d genes: %s", sum(exc_idx), exc_gs_str) %>% message
-    pb          = pb[ !exc_idx, ]
-  }
-  
-  # calculate logcpms
-  logcpms_all = lapply(cl_ls, function(sel_cl) {
-    message(sel_cl, appendLF = FALSE)
-    # message(sel_cl)
-    tmp_dt    = .get_logcpm_dt_one_cl(pb, batch_var, cl = sel_cl, min_cells = min_cells, 
-      lib_size_method = lib_size_method)
-    if (!is.null(tmp_dt))
-      tmp_dt   = tmp_dt[, cluster := sel_cl ]
-    return(tmp_dt)
-  }) %>% rbindlist
-  
-  # add # cells
-  ncells_dt   = muscat_n_cells(pb) %>%
-    as.data.table %>% set_colnames(c("cluster", batch_var, "n_cells"))
-  logcpms_all = merge( logcpms_all, ncells_dt, by = c("cluster", batch_var) )
-  
-  return(logcpms_all)
-}
-
 make_logcpms_all <- function(pb, batch_var, lib_size_method = c("edger", "raw", "pearson",
   "vst", "rlog"), exc_regex = NULL, min_cells = 10, n_cores = 4) {  
   # check inputs
@@ -361,20 +327,55 @@ make_logcpms_all <- function(pb, batch_var, lib_size_method = c("edger", "raw", 
 
   # calculate logcpms
   logcpms_all = bplapply(cl_ls, function(sel_cl) {
-      message(sel_cl, appendLF = FALSE)
-      # message(sel_cl)
-      tmp_dt    = .get_logcpm_dt_one_cl(pb, batch_var, cl = sel_cl,
-        min_cells = min_cells, lib_size_method = lib_size_method)
-      if (!is.null(tmp_dt))
-       tmp_dt   = tmp_dt[, cluster := sel_cl ]
-      return(tmp_dt)
-    }, BPPARAM = bpparam) %>% rbindlist
+    message(sel_cl, " ", appendLF = FALSE)
+    # message(sel_cl)
+    tmp_dt    = .get_logcpm_dt_one_cl(pb, batch_var, cl = sel_cl,
+      min_cells = min_cells, lib_size_method = lib_size_method)
+    if (!is.null(tmp_dt))
+      tmp_dt   = tmp_dt[, cluster := sel_cl ]
+    return(tmp_dt)
+  }, BPPARAM = bpparam) %>% rbindlist
 
   # add # cells
   ncells_dt   = muscat_n_cells(pb) %>%
     as.data.table %>% set_colnames(c("cluster", batch_var, "n_cells"))
   logcpms_all = merge( logcpms_all, ncells_dt, by = c("cluster", batch_var) )
+  assert_that( nrow(logcpms_all) > 0 )
 
+  return(logcpms_all)
+}
+
+make_logcpms_all_rmd <- function(pb, batch_var, lib_size_method = c("edger", "raw", "pearson",
+  "vst", "rlog"), exc_regex = NULL, min_cells = 10, n_cores = 4) {  
+  # check inputs
+  lib_size_method   = match.arg(lib_size_method)
+  
+  # set up cluster
+  cl_ls       = assayNames(pb)
+ 
+  # exclude genes if requested
+  if (!is.null(exc_regex)) {
+    exc_idx     = rownames(pb) %>% str_detect(exc_regex)
+    exc_gs_str  = rowData(pb)$symbol[ exc_idx ] %>% paste0(collapse = " ")
+    sprintf("    excluding %d genes: %s", sum(exc_idx), exc_gs_str) %>% message
+    pb          = pb[ !exc_idx, ]
+  }
+  
+  # calculate logcpms
+  logcpms_all = lapply(cl_ls, function(sel_cl) {
+    message(sel_cl, " ", appendLF = FALSE)
+    # message(sel_cl)
+    if (!is.null(tmp_dt))
+      tmp_dt   = tmp_dt[, cluster := sel_cl ]
+    return(tmp_dt)
+  }) %>% rbindlist
+  
+  # add # cells
+  ncells_dt   = muscat_n_cells(pb) %>%
+    as.data.table %>% set_colnames(c("cluster", batch_var, "n_cells"))
+  logcpms_all = merge( logcpms_all, ncells_dt, by = c("cluster", batch_var) )
+  assert_that( nrow(logcpms_all) > 0 )
+  
   return(logcpms_all)
 }
 
@@ -440,7 +441,7 @@ make_logcpms_all <- function(pb, batch_var, lib_size_method = c("edger", "raw", 
     .[, logcpm  := log(count / lib_size * 1e6 + pseudo_count) ] %>%
     .[, symbol  := str_extract(gene_id, "^[^_]+") ]
 
-  return(logcpm_dt)
+    return(logcpm_dt)
 }
 
 make_props_dt <- function(pb_prop, batch_var, exc_regex = NULL, min_cells = 10, n_cores = 4) {
@@ -490,34 +491,38 @@ calc_hvgs_pseudobulk <- function(pb_hvgs_f, cpms_dt, batch_var, n_cores = 8) {
   # remove outliers
   message('calculating highly variable genes')
   cl_ls     = cpms_dt$cluster %>% unique
-  message('  start cluster')
-  bpparam   = MulticoreParam(workers = n_cores, tasks = length(cl_ls))
-  register(bpparam)
-  on.exit(bpstop(bpparam))
+  # message('  start cluster')
+  # bpparam   = MulticoreParam(workers = n_cores, tasks = length(cl_ls))
+  # register(bpparam)
+  # on.exit(bpstop(bpparam))
 
-  message('  remove outlier samples')
-  x_ls      = cl_ls %>% bplapply(function(cl) {
-    # make matrix
-    this_x    = cpms_dt[ cluster == cl ] %>%
-      .[, col_lab := sprintf("%s-%s", cluster, get(batch_var)) ] %>%
-      dcast.data.table( gene_id ~ col_lab, value.var = 'count' ) %>%
-      as.matrix(rownames = 'gene_id')
+  # message('  remove outlier samples')
+  # x_ls      = cl_ls %>% bplapply(function(cl) {
+  #   # make matrix
+  #   this_x    = cpms_dt[ cluster == cl ] %>%
+  #     .[, col_lab := sprintf("%s-%s", cluster, get(batch_var)) ] %>%
+  #     dcast.data.table( gene_id ~ col_lab, value.var = 'count' ) %>%
+  #     as.matrix(rownames = 'gene_id')
 
-    # remove samples with outlier library sizes
-    ls_dt     = cpms_dt[ cluster == cl ] %>% 
-      .[, c("cluster", batch_var, "lib_size"), with = FALSE ] %>%
-      unique %>% .[, col_lab := sprintf("%s-%s", cluster, get(batch_var)) ] %>%
-      .[ order(col_lab) ]
-    ls        = ls_dt$lib_size
-    ol        = scater::isOutlier(ls, log = TRUE, type = "lower", nmads = 3)
-    this_x    = this_x[, !ol, drop = FALSE]
+  #   # remove samples with outlier library sizes
+  #   ls_dt     = cpms_dt[ cluster == cl ] %>% 
+  #     .[, c("cluster", batch_var, "lib_size"), with = FALSE ] %>%
+  #     unique %>% .[, col_lab := sprintf("%s-%s", cluster, get(batch_var)) ] %>%
+  #     .[ order(col_lab) ]
+  #   ls        = ls_dt$lib_size
+  #   ol        = scater::isOutlier(ls, log = TRUE, type = "lower", nmads = 3)
+  #   this_x    = this_x[, !ol, drop = FALSE]
 
-    return(this_x)
-  }, BPPARAM = bpparam) %>% setNames(cl_ls)
+  #   return(this_x)
+  # }, BPPARAM = bpparam) %>% setNames(cl_ls)
 
   # make big matrix
   message('  make big matrix')
-  bulk_mat  = do.call(cbind, x_ls)
+  # bulk_mat  = do.call(cbind, x_ls)
+  bulk_mat  = cpms_dt %>%
+    .[, col_lab := sprintf("%s-%s", cluster, get(batch_var)) ] %>%
+    dcast.data.table( gene_id ~ col_lab, value.var = 'count' ) %>%
+    as.matrix(rownames = 'gene_id')
 
   message('  run VST')
   suppressMessages({
@@ -555,8 +560,7 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt, batch_
   bpparam   = MulticoreParam(workers = n_cores, tasks = length(cl_ls))
   register(bpparam)
   on.exit(bpstop(bpparam))
-  message('  remove outlier samples')
-  # x_ls      = cl_ls %>% bplapply(function(cl) {
+  message('  get matrix for each cluster')
   x_ls      = cl_ls %>% lapply(function(cl) {
     # make matrix
     this_x    = logcpms_all[ cluster == cl ] %>%
@@ -564,23 +568,23 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt, batch_
       dcast.data.table( gene_id ~ col_lab, value.var = 'count' ) %>%
       as.matrix(rownames = 'gene_id')
 
-    # remove samples with outlier library sizes
-    ls_dt     = logcpms_all[ cluster == cl ] %>% 
-      .[, c("cluster", batch_var, "lib_size"), with = FALSE ] %>%
-      unique %>% .[, col_lab := sprintf("%s-%s", cluster, get(batch_var)) ] %>%
-      .[ order(col_lab) ]
-    ls        = ls_dt$lib_size
-    ol        = scater::isOutlier(ls, log = TRUE, type = "lower", nmads = 3)
-    this_x    = this_x[, !ol, drop = FALSE]
+    # # remove samples with outlier library sizes
+    # ls_dt     = logcpms_all[ cluster == cl ] %>% 
+    #   .[, c("cluster", batch_var, "lib_size"), with = FALSE ] %>%
+    #   unique %>% .[, col_lab := sprintf("%s-%s", cluster, get(batch_var)) ] %>%
+    #   .[ order(col_lab) ]
+    # ls        = ls_dt$lib_size
+    # ol        = scater::isOutlier(ls, log = TRUE, type = "lower", nmads = 3)
+    # this_x    = this_x[, !ol, drop = FALSE]
 
     return(this_x)
   }) %>% setNames(cl_ls)
-  # }, BPPARAM = bpparam) %>% setNames(cl_ls)
-  # bpstop(bpparam)
+
+  message('  make big matrix')
+  x_full    = do.call(cbind, x_ls)
 
   # make big matrix
   message('  make big DGE object')
-  x_full    = do.call(cbind, x_ls)
   dge_all   = DGEList(x_full, remove.zeros = TRUE)
 
   # make design matrix
@@ -1544,6 +1548,8 @@ plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cp
 
 muscat_n_cells <- function(x) {
   y = int_colData(x)$n_cells
+  assert_that( length(y) == ncol(x) )
+  names(y) = colnames(x)
   if (is.null(y)) 
     return(NULL)
   if (length(metadata(x)$agg_pars$by) == 2) 

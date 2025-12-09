@@ -24,9 +24,9 @@ config        = check_config(config, schema_f, scdata_dir, scprocess_dir)
 # get lists of parameters
 RUN_PARAMS, RUN_VAR     = get_run_parameters(config, scdata_dir)
 RUNS                    = list(RUN_PARAMS.keys())
-BATCH_PARAMS, BATCH_VAR = get_batch_parameters(config, RUNS, scdata_dir)
+BATCH_PARAMS, BATCH_VAR, SAMPLES = get_batch_parameters(config, RUNS, scdata_dir)
 BATCHES                 = list(BATCH_PARAMS.keys())
-RUNS_TO_BATCHES         = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
+RUNS_TO_BATCHES, RUNS_TO_SAMPLES = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
 LABELLER_PARAMS         = get_labeller_parameters(config, schema_f, scdata_dir)
 
 # unpack some variables that we use a lot
@@ -153,8 +153,8 @@ rule all:
     f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml', 
     # marker genes
     f'{mkr_dir}/pb_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.rds',
-    f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.txt.gz',
-    f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.txt.gz',
+    f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
+    f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
     # fgsea outputs
     fgsea_outs, 
     # code
@@ -287,8 +287,8 @@ rule integration:
 rule marker_genes:
   input:     
     f'{mkr_dir}/pb_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.rds',
-    f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.txt.gz',
-    f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.txt.gz',
+    f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.csv.gz',
+    f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.csv.gz',
     # fgsea outputs
     fgsea_outs, 
     f'{rmd_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd',

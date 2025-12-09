@@ -1117,12 +1117,12 @@ calc_qc_summary <- function(qc_dt, kept_dt, cuts_dt, qc_lu, batch_var) {
 
 
 .testing <- function() {
-  sel_b         = "17_24_pool_lane1_5xfad"
-  sel_run       = "17_24_pool_lane1_5xfad"
+  sel_b         = '1_8_pool_lane1_5xfad'
+  sel_run       = '1_8_pool_lane1_5xfad'
 
   proj_dir      = "/pmount/projects/site/pred/neurogenomics/users/macnairw/dam_mice_2"
   integration_f = file.path(proj_dir, "output/dam_mice_2_integration/integrated_dt_dam_mice_2_2025-11-27.csv.gz")
-  h5_yaml_f     = file.path(proj_dir, "output/dam_mice_2_ambient/ambient_17_24_pool_lane1_5xfad/ambient_17_24_pool_lane1_5xfad_2025-11-27_output_paths.yaml")
+  h5_paths_f    = file.path(proj_dir, "output/dam_mice_2_ambient/paths_h5_filtered_dam_mice_2_2025-11-27.csv")
   coldata_f     = file.path(proj_dir, "output/dam_mice_2_qc/coldata_dt_all_cells_dam_mice_2_2025-11-27.csv.gz")
   gtf_dt_f      = "/pmount/projects/site/pred/neurogenomics/resources/scdata/reference_genomes/mouse_2024/mouse_2024_genes_gtf.txt.gz"
   run_var       = "pool_id"
@@ -1133,11 +1133,11 @@ calc_qc_summary <- function(qc_dt, kept_dt, cuts_dt, qc_lu, batch_var) {
 
   source('scripts/utils.R')
   source('scripts/SampleQC.R')
-  make_clean_sces(sel_b, sel_run, integration_f, h5_yaml_f, 
+  make_clean_sces(sel_b, sel_run, integration_f, h5_paths_f, 
     coldata_f, gtf_dt_f, run_var, batch_var, mito_str, exclude_mito, clean_sce_f)
 }
 
-make_clean_sces <- function(sel_b, sel_run, integration_f, h5_yaml_f, 
+make_clean_sces <- function(sel_b, sel_run, integration_f, h5_paths_f, 
   coldata_f, gtf_dt_f, run_var, batch_var, mito_str, exclude_mito, clean_sce_f) {
   # load, exclude doublets
   int_dt        = fread(integration_f) %>%
@@ -1163,8 +1163,8 @@ make_clean_sces <- function(sel_b, sel_run, integration_f, h5_yaml_f,
 
   # get sce object
   message('  loading counts into sce')
-  h5_paths    = yaml::read_yaml(h5_yaml_f)
-  filtered_f  = h5_paths[["filt_counts_f"]]
+  h5_paths    = fread(h5_paths_f)
+  filtered_f  = h5_paths[ run == sel_run ]$path
   assert_that(file.exists(filtered_f))
   sce         = .get_sce_clean(filtered_f, sel_run, mito_str, exclude_mito, gene_annots, run_var,
     subset_cells = batch_ids)

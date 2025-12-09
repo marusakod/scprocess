@@ -135,17 +135,17 @@ rule make_qc_thresholds_csv:
 
 rule run_qc_one_run:
   input:
-    af_h5_f     = af_dir  + '/af_{run}/' + af_rna_dir + 'af_counts_mat.h5', 
+    af_h5_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5', 
     cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv',
-    run_stats_f = amb_dir + '/ambient_run_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',
-    amb_yaml_f  = amb_dir + '/ambient_{run}/ambient_{run}_' + DATE_STAMP + '_output_paths.yaml',
-    demux_f     = (demux_dir + '/sce_cells_htos_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.rds') \
+    run_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+    amb_yaml_f  = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
+    demux_f     = (f'{demux_dir}/sce_cells_htos_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds') \
       if config['multiplexing']['demux_type'] == 'hto' else \
       config['multiplexing']['demux_output'] if config['multiplexing']['demux_type'] == 'custom' else []
   output:
-    qc_f         = temp(qc_dir + '/tmp_qc_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'), 
-    coldata_f    = temp(qc_dir + '/tmp_coldata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'),
-    rowdata_f    = temp(qc_dir + '/tmp_rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'), 
+    qc_f         = temp(f'{qc_dir}/tmp_qc_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'), 
+    coldata_f    = temp(f'{qc_dir}/tmp_coldata_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'),
+    rowdata_f    = temp(f'{qc_dir}/tmp_rowdata_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'), 
     dbl_f        = f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
     metadata_f      = config['project']['sample_metadata'],
@@ -168,7 +168,7 @@ rule run_qc_one_run:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_qc', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)*(1.5**(attempt-1)),
     runtime = lambda wildcards, input: get_resources('run_qc', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_qc/run_qc_{run}_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_qc/run_qc_{{run}}_{DATE_STAMP}.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
   shell: """
@@ -211,7 +211,7 @@ rule merge_qc:
   threads: 1
   retries: config['resources']['retries']
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_qc/merge_qc_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_qc/merge_qc_{DATE_STAMP}.benchmark.txt'
   resources:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_qc', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
     runtime = lambda wildcards, input: get_resources('merge_qc', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
@@ -232,16 +232,16 @@ rule merge_qc:
 
 rule merge_rowdata:
   input:
-    rowdata_fs = expand(qc_dir + '/tmp_rowdata_dt_{run}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz', run = RUNS)
+    rowdata_fs = expand(f'{qc_dir}/tmp_rowdata_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz', run = RUNS)
   output:
-    rowdata_merged_f = qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+    rowdata_merged_f = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   threads: 1
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_rowdata', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
     runtime = lambda wildcards, input: get_resources('merge_rowdata', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_qc/merge_rowdata_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_qc/merge_rowdata_{DATE_STAMP}.benchmark.txt'
   run:
     # read all nonempty rowdata files 
     rows_df_ls  = [pl.read_csv(f) for f in input.rowdata_fs if os.path.getsize(f) > 0 ]
@@ -271,7 +271,7 @@ rule get_qc_sample_statistics:
     mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_qc_sample_statistics', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
     runtime = lambda wildcards, input: get_resources('get_qc_sample_statistics', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
-    benchmark_dir + '/' + SHORT_TAG + '_qc/get_qc_sample_statistics_' + DATE_STAMP + '.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_qc/get_qc_sample_statistics_{DATE_STAMP}.benchmark.txt'
   run:
     sample_stats_df = extract_qc_sample_statistics(input.run_stats_f, input.qc_merged_f, input.cuts_f,
       config, BATCHES, RUNS_TO_BATCHES, BATCH_VAR, RUN_VAR)

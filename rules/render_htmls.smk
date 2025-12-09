@@ -417,9 +417,9 @@ rule render_html_marker_genes:
     r_utils_f     = f"{code_dir}/utils.R",
     r_int_f       = f'{code_dir}/integration.R',
     pb_f          = f'{mkr_dir}/pb_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.rds',
-    mkrs_f        = f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.txt.gz',
+    mkrs_f        = f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    hvgs_f        = f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.txt.gz',
+    hvgs_f        = f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
     empty_gs_f    = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     **get_conditional_fgsea_files(config['project']['species'], config['marker_genes']['mkr_do_gsea'])
   output:

@@ -4,9 +4,10 @@ rule run_marker_genes:
     integration_f   = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
     pb_f            = f'{mkr_dir}/pb_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.rds',
-    mkrs_f          = f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.txt.gz',
-    pb_hvgs_f       = f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.txt.gz'
+    mkrs_f          = f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.csv.gz',
+    pb_hvgs_f       = f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.csv.gz'
   params:
+    batch_var       = BATCH_VAR,
     af_gtf_dt_f     = config['mapping']['af_gtf_dt_f'],
     mkr_gsea_dir    = config['marker_genes']['mkr_gsea_dir'],
     mkr_sel_res     = config['marker_genes']['mkr_sel_res'],
@@ -21,9 +22,11 @@ rule run_marker_genes:
     f'{benchmark_dir}/{SHORT_TAG}_marker_genes/run_marker_genes_{DATE_STAMP}.benchmark.txt'
   conda: '../envs/rlibs.yaml'
   shell:"""
-    Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); calculate_marker_genes(
+    Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); 
+    calculate_marker_genes(
       integration_f = '{input.integration_f}', 
       sces_yaml_f   = '{input.sces_yaml_f}',
+      batch_var     = '{params.batch_var}',
       pb_f          = '{output.pb_f}',
       mkrs_f        = '{output.mkrs_f}',
       pb_hvgs_f     = '{output.pb_hvgs_f}',
@@ -31,12 +34,13 @@ rule run_marker_genes:
       sel_res       = '{params.mkr_sel_res}',
       min_cl_size   =  {params.mkr_min_cl_size},
       min_cells     =  {params.mkr_min_cells},
-      n_cores       =  {threads})"
+      n_cores       =  {threads}
+    )"
     """
 
 rule run_fgsea:
   input:
-    mkrs_f        = f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.txt.gz'
+    mkrs_f        = f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.csv.gz'
   output:
     fgsea_go_bp_f = f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_bp_{DATE_STAMP}.txt.gz', 
     fgsea_go_cc_f = f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_cc_{DATE_STAMP}.txt.gz',

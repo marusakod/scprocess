@@ -68,18 +68,23 @@ rule run_integration:
 # rule to create sce objects without any doublets (and delete temporary sce objects in the qc directory)
 rule make_clean_sces: 
   input:
-    h5_yaml_f     = f'{amb_dir}/paths_h5_filtered_{FULL_TAG}_{DATE_STAMP}.yaml',
-    integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    h5_paths_f    = f'{amb_dir}/paths_h5_filtered_{FULL_TAG}_{DATE_STAMP}.csv',
+    coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
   output:
     clean_sce_f   = f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds'
   params:
+    sel_run       = lambda wildcards: get_run_for_one_batch(wildcards.batch, RUNS_TO_BATCHES),
+    gtf_dt_f      = config['mapping']['af_gtf_dt_f'],
+    run_var       = RUN_VAR,
     batch_var     = BATCH_VAR,
-    sel_run       = lambda wildcards: get_run_for_one_batch(wildcards.batch, RUNS_TO_BATCHES)
+    mito_str      = config['mapping']['af_mito_str'],
+    exclude_mito  = config['qc']['exclude_mito']
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_clean_sces', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('make_clean_sces', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_clean_sces', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS) * 2,
+    runtime = lambda wildcards, input: get_resources('make_clean_sces', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS) * 2
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_integration/make_clean_sces_{{batch}}_{DATE_STAMP}.benchmark.txt'
   conda:
@@ -89,10 +94,15 @@ rule make_clean_sces:
       make_clean_sces(
         sel_b         = '{wildcards.batch}',
         sel_run       = '{params.sel_run}',
-        integration_f = '{input.integration_f}', 
-        h5_yaml_f     = '{input.h5_yaml_f}',
-        clean_sce_f   = '{output.clean_sce_f}',
-        batch_var     = '{params.batch_var}'
+        integration_f = '{input.integration_f}',
+        h5_paths_f    = '{input.h5_paths_f}',
+        coldata_f     = '{input.coldata_f}',
+        gtf_dt_f      = '{params.gtf_dt_f}',
+        run_var       = '{params.run_var}',
+        batch_var     = '{params.batch_var}',
+        mito_str      = '{params.mito_str}',
+        exclude_mito  = '{params.exclude_mito}',
+        clean_sce_f   = '{output.clean_sce_f}'
       )"
     """
 
@@ -100,12 +110,12 @@ rule make_clean_sces:
 # make a yaml with all clean sce file paths
 rule make_clean_sce_paths_yaml:
   input:
-    clean_sce_f = expand(f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds', batch = BATCHES) # not used
+    clean_sce_fs  = expand(f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds', batch = BATCHES)
   output:
-    sces_yaml_f = f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
+    sces_yaml_f   = f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
   run:
     # split paths and batch names
-    fs = [f"{int_dir}/sce_cells_clean_{b}_{FULL_TAG}_{DATE_STAMP}.rds" for b in BATCHES]
+    fs = [f"{int_dir}/sce_cells_clean_{batch}_{FULL_TAG}_{DATE_STAMP}.rds" for batch in BATCHES]
     
     # check that all files exist
     for f in fs:

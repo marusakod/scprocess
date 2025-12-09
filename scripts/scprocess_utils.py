@@ -956,13 +956,13 @@ def get_batch_parameters(config, RUNS, scprocess_data_dir):
   # define batch variable
   BATCH_VAR   = config['integration']['int_batch_var']
 
+  # get samples
+  metadata_f  = config["project"]["sample_metadata"]
+  samples_df  = pl.read_csv( metadata_f )
+  SAMPLES     = samples_df[ "sample_id" ].drop_nulls().to_list()
+
   # get parameters if batch_var is sample_id
   if BATCH_VAR == "sample_id":
-    # move to another function
-    metadata_f  = config["project"]["sample_metadata"]
-    samples_df  = pl.read_csv( metadata_f )
-    SAMPLES     = samples_df[ "sample_id" ].drop_nulls().to_list()
-
     # should we exclude any runs?
     SAMPLES     = _do_exclusions(SAMPLES, config, "sample_id")
 
@@ -982,7 +982,7 @@ def get_batch_parameters(config, RUNS, scprocess_data_dir):
     for batch_name in BATCHES
   }
 
-  return BATCH_PARAMS, BATCH_VAR
+  return BATCH_PARAMS, BATCH_VAR, SAMPLES
 
 
 # get parameters for one sample
@@ -1021,8 +1021,19 @@ def get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR):
     if not RUNS == BATCHES:
       raise ValueError("RUNS and BATCHES should be identical when demux_type is 'none'")
     RUNS_TO_BATCHES = { s: [s] for s in BATCHES }
+    RUNS_TO_SAMPLES = { s: [s] for s in BATCHES }
 
   else:
+    # get sample_metadata, convert to dictionary
+    sample_metadata = pl.read_csv(config['project']['sample_metadata'])
+    tmp_df          = sample_metadata.group_by("pool_id").agg(pl.col("sample_id").alias("sample_id_list"))
+    pool_vals       = tmp_df["pool_id"]
+    RUNS_TO_SAMPLES = { pool_id: tmp_df.filter(pl.col("pool_id") == pool_id)["sample_id_list"].to_list()[0] for pool_id in pool_vals }
+    
+    # filter out any RUNS that shouldn't be there
+    RUNS_TO_SAMPLES = { pool_id: sample_ids for pool_id, sample_ids in RUNS_TO_SAMPLES.items() if pool_id in RUNS }
+
+    # now choose for runs to batches
     if BATCH_VAR == "pool_id":
       # make dictionary if we can
       if not RUNS == BATCHES:
@@ -1030,20 +1041,13 @@ def get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR):
       RUNS_TO_BATCHES = { s: [s] for s in BATCHES }
 
     elif BATCH_VAR == "sample_id":
-      # get sample_metadata, convert to dictionary
-      sample_metadata = pl.read_csv(config['project']['sample_metadata'])
-      tmp_df          = sample_metadata.group_by("pool_id").agg(pl.col("sample_id").alias("sample_id_list"))
-      pool_vals       = tmp_df["pool_id"]
-      RUNS_TO_BATCHES = { pool_id: tmp_df.filter(pl.col("pool_id") == pool_id)["sample_id_list"].to_list()[0] for pool_id in pool_vals }
+      # filter out any samples that shouldn't be there
+      for pool_id in RUNS_TO_SAMPLES:
+        RUNS_TO_SAMPLES[pool_id] = [ sample_id for sample_id in RUNS_TO_SAMPLES[pool_id] if sample_id in BATCHES ]
+      # duplicate for batches
+      RUNS_TO_BATCHES = RUNS_TO_SAMPLES
 
-      # filter out any RUNS that shouldn't be there
-      RUNS_TO_BATCHES = { pool_id: sample_ids for pool_id, sample_ids in RUNS_TO_BATCHES.items() if pool_id in RUNS }
-
-      # filter out any BATCHES that shouldn't be there
-      for pool_id in RUNS_TO_BATCHES:
-        RUNS_TO_BATCHES[pool_id] = [ sample_id for sample_id in RUNS_TO_BATCHES[pool_id] if sample_id in BATCHES ]
-
-  return RUNS_TO_BATCHES
+  return RUNS_TO_BATCHES, RUNS_TO_SAMPLES
 
 
 # get parameters for labelling celltypes
