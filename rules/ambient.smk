@@ -391,7 +391,7 @@ rule make_paths_h5_csv:
         yaml_ls     = yaml.safe_load(stream)
       tmp_df    = pl.DataFrame({
         "run":  run,
-        "path": yaml_ls['raw_counts_f']
+        "path": yaml_ls['filt_counts_f']
       })
       filt_ls.append( tmp_df )
     
