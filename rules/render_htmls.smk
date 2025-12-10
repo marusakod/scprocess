@@ -510,7 +510,7 @@ if "label_celltypes" in config:
   rule render_html_label_celltypes:
     input:
       r_utils_f   = f"{code_dir}/utils.R",
-      r_mkr_f     = f'{code_dir}/marker_genes.R',
+      r_int_f     = f'{code_dir}/integration.R',
       int_f       = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
       guess_f_ls  = expand(f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
         zip, 

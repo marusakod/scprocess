@@ -89,7 +89,6 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   keep_cls    = names(cl_ns)[ cl_ns >= min_cl_size ]
   int_dt     = int_dt %>%
     .[ get(cl_var) %in% keep_cls ]
-
   
   # make pseudobulks for selected clusters for each sample
   message('    making pseudobulk counts for individual samples')
@@ -97,9 +96,6 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   sce_paths   = yaml::read_yaml(sces_yaml_f)
   assert_that( all(batches %in% names(sce_paths)) )
 
-  .make_one_pseudobulk(batches[[1]], sce_paths = sce_paths, 
-    batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
-  
   # set up cluster
   bpparam     = MulticoreParam(workers = n_cores, tasks = length(batches))  
   if (zoom) {
@@ -146,8 +142,10 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   colData(tmp_sce)[["cluster"]] = colData(tmp_sce)[[cl_var]] 
 
   # filter sce
-  keep_idx  = colData(tmp_sce)$cluster %in% keep_cls
+  keep_idx  = (colData(tmp_sce)$cluster %in% keep_cls) & (colData(tmp_sce)$sample_id != "")
   tmp_sce   = tmp_sce[,  keep_idx]
+
+  # make pb
   pb        = aggregateData_datatable(tmp_sce, by_vars = c("cluster", "sample_id"), 
     fun = agg_fn, all_cls = keep_cls)
   
@@ -228,7 +226,7 @@ aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
   by_dt     = data.table(
     cell_id   = colnames(sce),
     cluster   = factor(sce[[ by_1 ]]),
-    sample_id = factor(sce[[ by_2 ]])
+    sample_id = factor(sce[[ by_2 ]]) %>% fct_drop
     ) %>% setkey("cell_id")
 
   # join
@@ -256,10 +254,9 @@ aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
 
   # do pseudobulk
   message('  assembling list of matrices')
-  browser()
   mat_ls      = lapply(cl_ls, function(cl) {
     # get matrix for this cluster
-    outs_mat    = pb_dt[ cluster == cl ] %>%
+    outs_mat    = pb_dt[ (cluster == cl) & (sample_id != "") ] %>%
       dcast.data.table( gene_id ~ sample_id, value.var = fun, fill = 0 ) %>%
       as.matrix(rownames = "gene_id")
 
@@ -370,6 +367,8 @@ make_logcpms_all_rmd <- function(pb, batch_var, lib_size_method = c("edger", "ra
   logcpms_all = lapply(cl_ls, function(sel_cl) {
     message(sel_cl, " ", appendLF = FALSE)
     # message(sel_cl)
+    tmp_dt    = .get_logcpm_dt_one_cl(pb, batch_var, cl = sel_cl,
+      min_cells = min_cells, lib_size_method = lib_size_method)
     if (!is.null(tmp_dt))
       tmp_dt   = tmp_dt[, cluster := sel_cl ]
     return(tmp_dt)
@@ -1009,7 +1008,7 @@ plot_clusters_by_metadata <- function(meta_dt, clusts_dt, meta_vars = NULL,
         axis.text.x       = element_text( angle = 90, hjust = 1, vjust = 0.5 )
       ) +
       labs(
-        y = "percentage", size = "# cells", x = NULL, fill = this_var
+        y = "percentage", x = NULL, fill = this_var
       )
     }
   g     = lapply(seq_along(meta_vars), .plot_fn) %>% wrap_plots( ncol = 1 )

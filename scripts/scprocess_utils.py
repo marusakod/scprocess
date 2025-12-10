@@ -1072,8 +1072,8 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
     if entry['labeller'] == 'celltypist':
       if not entry['model'] in mdls_typist:
         raise KeyError(
-          f"the value {entry['model']} specified in label_celltypes is not a valid celltypist model"
-          f"The column 'model' in this file contains valid models:\n{str(model_f)}"
+          f"The value {entry['model']} specified in label_celltypes is not a valid celltypist model.\n"
+          f"The following are valid models:\n{", ".join(mdls_typist)}"
           )
 
     # check that parameters for scprocess are ok

@@ -8,7 +8,7 @@ import gzip
 
 
 def download_celltypist_models(models_f):
-  
+  # download
   celltypist.models.download_models()
     
   # record their names
@@ -21,7 +21,8 @@ def download_celltypist_models(models_f):
 
   return
 
-def run_celltypist(sel_sample, model_name, mtx_f, cells_f, genes_f):
+
+def run_celltypist(sel_batch, batch_var, model_name, mtx_f, cells_f, genes_f):
   # get cell and gene info
   cells_df  = pl.read_csv(cells_f)
   genes_df  = pl.read_csv(genes_f)
@@ -53,19 +54,19 @@ def run_celltypist(sel_sample, model_name, mtx_f, cells_f, genes_f):
         pl.exclude('cell_id')
     ).alias('probability')
   ])
-
+  
   # join together
   pred_df     = pred_df.join( probs_df, on = "cell_id" )
   pred_df     = pred_df.with_columns(
-    labeller    = pl.lit("celltypist"),
-    sample_id   = pl.lit(sel_sample),
-    model       = pl.lit(model_name)
+    pl.lit("celltypist").alias("labeller"),
+    pl.lit(sel_batch).alias(batch_var),
+    pl.lit(model_name).alias("model")
   )
 
   return pred_df
 
 
-def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_size, min_cl_prop):
+def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_size, min_cl_prop, batch_var):
   # load integration, check cluster column is there
   int_df      = pl.read_csv(int_f)
   if not hi_res_cl in int_df:
@@ -106,7 +107,7 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_size, min_cl_prop):
 
   # join to 
   agg_df      = data_df.join(hi_res_lu, on = "hi_res_cl", how = "left").select(
-    'model', 'sample_id', 'cell_id', 'hi_res_cl', 'predicted_label_agg', 
+    'model', batch_var, 'cell_id', 'hi_res_cl', 'predicted_label_agg', 
     'prop_hi_res_cl',
     predicted_label_naive = pl.col('predicted_label'),
     probability_naive = pl.col('probability'),
@@ -122,19 +123,20 @@ if __name__ == "__main__":
   # define subparsers
   subparsers  = parser.add_subparsers(dest='subcommand', required=True)
   downloader_prsr = subparsers.add_parser('download_models')
-  typist_prsr     = subparsers.add_parser('celltypist_one_sample')
+  typist_prsr     = subparsers.add_parser('celltypist_one_batch')
   agg_prsr        = subparsers.add_parser('aggregate_predictions')
 
   # get arguments
   downloader_prsr.add_argument("models_f",type = str)  
   
   # get arguments
-  typist_prsr.add_argument(  "sample",   type=str)
-  typist_prsr.add_argument(  "model",    type=str)
-  typist_prsr.add_argument("--mtx_f",    type=str)
-  typist_prsr.add_argument("--cells_f",  type=str)
-  typist_prsr.add_argument("--genes_f",  type=str)
-  typist_prsr.add_argument("--pred_f",   type=str)
+  typist_prsr.add_argument(  "batch",     type=str)
+  typist_prsr.add_argument(  "batch_var", type=str)
+  typist_prsr.add_argument(  "model",     type=str)
+  typist_prsr.add_argument("--mtx_f",     type=str)
+  typist_prsr.add_argument("--cells_f",   type=str)
+  typist_prsr.add_argument("--genes_f",   type=str)
+  typist_prsr.add_argument("--pred_f",    type=str)
 
   # get arguments
   agg_prsr.add_argument(  "pred_fs",      type=str, nargs="+")
@@ -142,13 +144,14 @@ if __name__ == "__main__":
   agg_prsr.add_argument("--hi_res_cl",    type=str)
   agg_prsr.add_argument("--min_cl_size",  type=int)
   agg_prsr.add_argument("--min_cl_prop",  type=float)
+  agg_prsr.add_argument("--batch_var",    type=str)
   agg_prsr.add_argument("--agg_f",        type=str)
 
   # Parse the arguments
   args      = parser.parse_args()
 
   # create new project folder
-  if args.subcommand == "celltypist_one_sample":
+  if args.subcommand == "celltypist_one_batch":
     # set up some locations
     mtx_f     = pathlib.Path(args.mtx_f)
     cells_f   = pathlib.Path(args.cells_f)
@@ -163,7 +166,8 @@ if __name__ == "__main__":
       raise FileNotFoundError(f"genes_f is not a valid file:\n  {genes_f}")
     
     # run
-    pred_df   = run_celltypist(args.sample, args.model, mtx_f, cells_f, genes_f)
+    pred_df   = run_celltypist(args.batch, args.batch_var, args.model, 
+      mtx_f, cells_f, genes_f)
 
     # save
     with gzip.open(args.pred_f, 'wb') as f: 
@@ -186,7 +190,8 @@ if __name__ == "__main__":
       raise ValueError("min_cl_prop must be greater than or equal to 0 and strictly less than 1")
 
     # run
-    agg_df    = aggregate_predictions(pred_fs, int_f, args.hi_res_cl, args.min_cl_size, args.min_cl_prop)
+    agg_df    = aggregate_predictions(pred_fs, int_f, args.hi_res_cl, args.min_cl_size, 
+      args.min_cl_prop, args.batch_var)
 
     # save
     with gzip.open(args.agg_f, 'wb') as f:

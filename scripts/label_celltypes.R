@@ -30,11 +30,11 @@ suppressPackageStartupMessages({
   library('yaml')
 })
 
-save_sce_to_mtx <- function(sces_yaml_f, sel_sample, mtx_f, cells_f, genes_f) {
+save_sce_to_mtx <- function(sces_yaml_f, sel_batch, mtx_f, cells_f, genes_f) {
   # load sce
-  sce_f     = yaml::read_yaml(sces_yaml_f)[[ sel_sample ]]
+  sce_f     = yaml::read_yaml(sces_yaml_f)[[ sel_batch ]]
   if (!file.exists(sce_f))
-    stop("sce for sample ", sel_sample, " does not exist")
+    stop("sce for ", sel_batch, " does not exist")
   sce       = readRDS(sce_f)
 
   # save to matrix
@@ -45,7 +45,7 @@ save_sce_to_mtx <- function(sces_yaml_f, sel_sample, mtx_f, cells_f, genes_f) {
   return(NULL)
 }
 
-label_with_xgboost_one_sample <- function(sel_sample, model_name, xgb_f, xgb_cls_f,
+label_with_xgboost_one_batch <- function(sel_batch, batch_var, model_name, xgb_f, xgb_cls_f,
   mtx_f, cells_f, genes_f, pred_f) {
   # check inputs
   assert_that( file.exists(xgb_f) )
@@ -67,9 +67,9 @@ label_with_xgboost_one_sample <- function(sel_sample, model_name, xgb_f, xgb_cls
 
   # add labels
   preds_dt    = preds_dt %>%
-    .[, sample_id := sel_sample ] %>% 
-    .[, labeller  := "scprocess"] %>% 
-    .[, model     := model_name ]
+    .[, (batch_var) := sel_batch ] %>% 
+    .[, labeller    := "scprocess"] %>% 
+    .[, model       := model_name ]
 
   # save
   message('  saving results')
