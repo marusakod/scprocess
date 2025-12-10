@@ -57,12 +57,12 @@ rule render_html_index:
 # rule render_html_mapping
 rule render_html_mapping:
   input:
-    knee_fs   = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz', run=RUNS)
+    knee_fs         = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz', run=RUNS)
   output:
-    r_utils_f = f"{code_dir}/utils.R",
-    r_map_f   = f"{code_dir}/mapping.R",
-    rmd_f     = f"{rmd_dir}/{SHORT_TAG}_mapping.Rmd",
-    html_f    = f"{docs_dir}/{SHORT_TAG}_mapping.html"
+    r_utils_f       = f"{code_dir}/utils.R",
+    r_map_f         = f"{code_dir}/mapping.R",
+    rmd_f           = f"{rmd_dir}/{SHORT_TAG}_mapping.Rmd",
+    html_f          = f"{docs_dir}/{SHORT_TAG}_mapping.html"
   params:
     your_name       = config['project']['your_name'],
     affiliation     = config['project']['affiliation'],
@@ -96,7 +96,7 @@ rule render_html_mapping:
       render_html(
         rule_name       = '$rule', 
         proj_dir        = '{params.proj_dir}', 
-        temp_f          =  '$template_f', 
+        temp_f          = '$template_f', 
         rmd_f           = '{output.rmd_f}', 
         your_name       = '{params.your_name}', 
         affiliation     = '{params.affiliation}', 

@@ -178,19 +178,21 @@ merge_pbs_empty <- function(af_paths_f, rowdata_f, pb_empty_f, ambient_method) {
   
   empty_pb_fs = af_paths_df$pb_tmp_f %>% unique()
   empty_pbs   = empty_pb_fs %>% lapply(FUN = readRDS)
-  pb_empty    = do.call('cbind', empty_pbs)
+  empty_mat   = do.call('cbind', empty_pbs)
   
   # get nice rows
   rows_dt     = fread(rowdata_f) %>% setkey('ensembl_id')
   keep_ids    = rows_dt$ensembl_id
-  assert_that(all(keep_ids %in% rownames(pb_empty)))
-  pb_empty    = pb_empty[keep_ids, ]
+  assert_that(all(keep_ids %in% rownames(empty_mat)))
+  empty_mat   = empty_mat[keep_ids, ]
   
   # add nice rows
-  rows_dt     = rows_dt[ rownames(pb_empty) ]
-  assert_that( all(rownames(pb_empty) == rows_dt$ensembl_id) )
-  rownames(pb_empty)  = rows_dt$gene_id
-  rowData(pb_empty)   = as(rows_dt, "DataFrame")
+  rows_dt     = rows_dt[ rownames(empty_mat) ]
+  assert_that( all(rownames(empty_mat) == rows_dt$ensembl_id) )
+  rownames(empty_mat)  = rows_dt$gene_id
+
+  # make sce object
+  pb_empty    = SingleCellExperiment( assays = list(counts = empty_mat), rowData = as(rows_dt, "DataFrame") )
   
   # store
   message(' save')

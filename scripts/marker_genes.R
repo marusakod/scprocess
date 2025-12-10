@@ -73,7 +73,8 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
 
   # load up clusters
   message('    loading integration output')
-  int_dt     = fread(integration_f) %>% .[ sample_id != "" ]
+  int_dt     = fread(integration_f) %>% 
+    .[ sample_id != "" ] %>% .[, sample_id := sample_id %>% fct_drop ]
   if (zoom == FALSE) {
     #exclude doublets
     int_dt = int_dt %>%
@@ -88,12 +89,16 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   keep_cls    = names(cl_ns)[ cl_ns >= min_cl_size ]
   int_dt     = int_dt %>%
     .[ get(cl_var) %in% keep_cls ]
+
   
   # make pseudobulks for selected clusters for each sample
   message('    making pseudobulk counts for individual samples')
-  batches     = int_dt[[ batch_var ]] %>% unique() %>% setdiff("")
+  batches     = int_dt[[ batch_var ]] %>% unique()
   sce_paths   = yaml::read_yaml(sces_yaml_f)
   assert_that( all(batches %in% names(sce_paths)) )
+
+  .make_one_pseudobulk(batches[[1]], sce_paths = sce_paths, 
+    batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
   
   # set up cluster
   bpparam     = MulticoreParam(workers = n_cores, tasks = length(batches))  
@@ -119,7 +124,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   pb          = SingleCellExperiment(assays = assay_ls)
   pb@metadata$agg_pars = list(
     assay = "counts", 
-    by    = c("cluster", batch_var),
+    by    = c("cluster", "sample_id"),
     fun   = 'sum'
   )
   int_colData(pb)$n_cells = n_cells_ls
@@ -141,7 +146,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   colData(tmp_sce)[["cluster"]] = colData(tmp_sce)[[cl_var]] 
 
   # filter sce
-  keep_idx  = (colData(tmp_sce)$cluster %in% keep_cls) & (colData(tmp_sce)$sample_id != "")
+  keep_idx  = colData(tmp_sce)$cluster %in% keep_cls
   tmp_sce   = tmp_sce[,  keep_idx]
   pb        = aggregateData_datatable(tmp_sce, by_vars = c("cluster", "sample_id"), 
     fun = agg_fn, all_cls = keep_cls)
@@ -237,7 +242,6 @@ aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
   n_cells_dt  = by_dt[, .(n_cells = .N), by = by_vars ]
   rows_dt     = data.table(i = seq.int(nrow(sce)), gene_id = rownames(sce))
   pb_dt       = pb_dt %>%
-    .[ sample_id != "" ] %>% .[, sample_id := sample_id %>% fct_drop ] %>% 
     merge(n_cells_dt, by = by_vars) %>%
     merge(rows_dt, by = "i") %>%
     .[, i             := NULL ] %>%
@@ -252,6 +256,7 @@ aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
 
   # do pseudobulk
   message('  assembling list of matrices')
+  browser()
   mat_ls      = lapply(cl_ls, function(cl) {
     # get matrix for this cluster
     outs_mat    = pb_dt[ cluster == cl ] %>%

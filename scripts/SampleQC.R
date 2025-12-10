@@ -501,8 +501,10 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   }
 
   # make qc dt
-  qc_all      = make_qc_dt(coldata_in[keep_idx], batch_var = batch_var,
-    qc_names = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced') )
+  suppressMessages({
+    qc_all      = make_qc_dt(coldata_in[keep_idx], batch_var = batch_var,
+      qc_names = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced') )    
+  })
 
   # baseline filtering
   qc_dt       = qc_all %>%
@@ -1258,7 +1260,6 @@ make_clean_sces <- function(sel_b, sel_run, integration_f, h5_paths_f,
 
 .add_int_variables <- function(sce_clean, batch_int) {
   assert_that( all(colnames(sce_clean) == batch_int$cell_id) )
-  batch_int   = batch_int %>% setkey(cell_id)
   # get useful integration variables, add to sce object
   int_vs      = c('UMAP1', 'UMAP2', str_subset(names(batch_int), "RNA_snn_res"))
   for (v in int_vs) {

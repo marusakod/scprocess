@@ -47,8 +47,8 @@ amb_yamls   = amb_dir %>%
   list.files(pattern = '^ambient_.+_${date_stamp}_output_paths.yaml', recursive = TRUE, full.names = TRUE)
 names(amb_yamls) = gsub('.*\\/ambient_(.+)_${date_stamp}.yaml', '\\1', amb_yamls)
 usa_fs      = amb_dir %>%
-  list.files(pattern = '^barcodes_qc_metrics_.*_${date_stamp}.csv.gz', recursive = TRUE, full.names = TRUE)
-names(usa_fs) = gsub('.*\\/barcodes_qc_metrics_(.+)_${date_stamp}.csv.gz.*', '\\1', usa_fs)
+  list.files(pattern = '^barcodes_qc_metrics_.*_${date_stamp}.txt.gz', recursive = TRUE, full.names = TRUE)
+names(usa_fs) = gsub('.*\\/barcodes_qc_metrics_(.+)_${date_stamp}.txt.gz.*', '\\1', usa_fs)
 ok_bcs_fs   = amb_yamls %>% sapply(function(f) read_yaml(f)$bcs_f )
 names(ok_bcs_fs) = gsub('.*\\/(bender|decontx|uncorrected)_(.+)_${date_stamp}_cell_barcodes.csv', '\\2', ok_bcs_fs)
 
