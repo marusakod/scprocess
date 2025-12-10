@@ -126,7 +126,7 @@ rule all:
       ], run =  RUNS),
     # ambient sample statistics
     f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
-    f'{amb_dir}/paths_h5_filtered_{FULL_TAG}_{DATE_STAMP}.yaml',
+    f'{amb_dir}/paths_h5_filtered_{FULL_TAG}_{DATE_STAMP}.csv',
     # demultiplexing
     hto_sce_fs,
     # qc
@@ -206,7 +206,7 @@ rule ambient:
     expand(f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml', run = RUNS), 
     expand(f'{amb_dir}/ambient_{{run}}/barcodes_qc_metrics_{{run}}_{DATE_STAMP}.txt.gz', run = RUNS),
     f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
-    f'{amb_dir}/paths_h5_filtered_{FULL_TAG}_{DATE_STAMP}.yaml',
+    f'{amb_dir}/paths_h5_filtered_{FULL_TAG}_{DATE_STAMP}.csv',
     f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
     f'{docs_dir}/{SHORT_TAG}_mapping.html',
     f'{rmd_dir}/{SHORT_TAG}_ambient.Rmd',

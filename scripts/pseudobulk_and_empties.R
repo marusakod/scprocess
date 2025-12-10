@@ -36,8 +36,8 @@ suppressPackageStartupMessages({
   library('yaml')
 })
 
-make_pb_cells <- function(sel_run, batch_lu_f, qc_stats_f, h5_paths_f, qc_f, run_var, batch_var, pb_cells_f, 
-  subset_f = NULL, subset_col = NULL, subset_str = NULL) {
+make_pb_cells <- function(sel_run, batch_lu_f, qc_stats_f, h5_paths_f, qc_f, run_var, 
+  batch_var, pb_cells_f, subset_f = NULL, subset_col = NULL, subset_str = NULL) {
   # get batches corresponding to this run
   batch_lu    = fread(batch_lu_f)
   sel_batches = batch_lu[ run_var == sel_run ] %>% .$batch_var
@@ -60,21 +60,26 @@ make_pb_cells <- function(sel_run, batch_lu_f, qc_stats_f, h5_paths_f, qc_f, run
   h5_f        = h5_fs[ run == sel_run ]$path
   keep_dt     = fread(qc_f) %>% .[ keep == TRUE ] %>% .[ get(run_var) == sel_run ]
   keep_ids    = keep_dt %>% .$cell_id
-  cell_lu     = keep_dt[, c(unique(run_var, batch_var), "cell_id"), with = FALSE] %>% setkey("cell_id")
+  tmp_vars    = c(run_var, batch_var) %>% unique
+  cell_lu     = keep_dt[, c(tmp_vars, "cell_id"), with = FALSE] %>% setkey("cell_id")
   
   # get full alevin matrix
   message('    loading counts for ', sel_run)
   barcodes    = keep_ids %>% str_extract("(?<=:)[ATCG]+")
-  cells_mat   = .get_h5(h5_f, barcodes)
+  cells_mat   = .get_h5(h5_f, barcodes) %>% .sum_SUA
+
+  # check is ok
   assert_that( ncol(cells_mat) == length(keep_ids) )
-  cells_mat   = .sum_SUA(cells_mat)
+  assert_that( all(str_detect(keep_ids, barcodes)) )
+  colnames(cells_mat) = keep_ids
 
   # turn into sce
   sce             = SingleCellExperiment( assays = list(counts = cells_mat) )
   sce$cell_id     = colnames(sce)
   sce[[run_var]]  = sel_run
-  if (batch_var != run_var)
+  if (batch_var != run_var) {
     sce[[batch_var]]  = cell_lu[ colnames(sce) ] %>% .[[ batch_var ]]
+  }
 
   # subset if required
   if (!is.null(subset_f)) {
@@ -250,7 +255,7 @@ merge_pbs_empty <- function(af_paths_f, rowdata_f, pb_empty_f, ambient_method) {
     setkey("cell_id")
   t_stop    = Sys.time()
   message('  time to create dt: ', round(difftime(t_stop, t_start, units = 'secs')), ' seconds')
-  
+
   # make by dt
   by_dt = colData(sce)[, c('cell_id', by_vars)] %>% as.data.table %>% setkey("cell_id")
   

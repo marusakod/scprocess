@@ -102,7 +102,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   
   # do qc filtering, save table with qc for all singlets, coldata for all cells, get sce object with only singlets that pass qc
   message('  filtering cells')
-  tmp_ls      = .filter_qc(sce, cuts_f, batch_var, demux_type, hard_min_counts, hard_min_feats, hard_max_mito)
+  tmp_ls      = .filter_qc(sce, cuts_f, batch_var, run_var, demux_type, hard_min_counts, hard_min_feats, hard_max_mito)
 
   message('  saving column and qc data')
   fwrite(tmp_ls$coldata_dt, file = coldata_f)
@@ -484,7 +484,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   return(dimred_dt)
 }
 
-.filter_qc <- function(sce, cuts_f, batch_var, demux_type, hard_min_counts, hard_min_feats, hard_max_mito) {
+.filter_qc <- function(sce, cuts_f, batch_var, run_var, demux_type, hard_min_counts, hard_min_feats, hard_max_mito) {
   # store initial coldata
   coldata_in  = colData(sce) %>% as.data.table()
   cuts_dt     = fread(cuts_f)
@@ -502,8 +502,9 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 
   # make qc dt
   suppressMessages({
-    qc_all      = make_qc_dt(coldata_in[keep_idx], batch_var = batch_var,
-      qc_names = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced') )    
+    qc_all      = coldata_in[keep_idx] %>% 
+      make_qc_dt(batch_var = batch_var, run_var = run_var,
+        qc_names = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced') )    
   })
 
   # baseline filtering
@@ -1289,8 +1290,8 @@ make_clean_sces <- function(sel_b, sel_run, integration_f, h5_paths_f,
 ############## FUNCTIONS FROM SampleQC package
 
 # from make_qc_dt.R
-make_qc_dt <- function(qc_df, batch_var = 'sample_id', qc_names = c('log_counts',
-  'log_feats', 'logit_mito'), annot_vars = NULL) {
+make_qc_dt <- function(qc_df, batch_var = 'sample_id', run_var = "sample_id", 
+  qc_names = c('log_counts', 'log_feats', 'logit_mito'), annot_vars = NULL) {
 
   # some checks
   if ( 'DFrame' %in% class(qc_df) )
@@ -1299,6 +1300,9 @@ make_qc_dt <- function(qc_df, batch_var = 'sample_id', qc_names = c('log_counts'
 
   assert_that( batch_var %in% colnames(qc_df),
     msg = sprintf("%s is listed as variable for samples but is not in data.frame", batch_var))
+  if (batch_var != run_var)
+    assert_that( run_var %in% colnames(qc_df),
+      msg = sprintf("%s is listed as variable for samples but is not in data.frame", run_var))
 
   reserved_ns  = c(batch_var, 'group_id', 'cell_id')
   assert_that( length(intersect(annot_vars, reserved_ns)) == 0,
@@ -1310,7 +1314,7 @@ make_qc_dt <- function(qc_df, batch_var = 'sample_id', qc_names = c('log_counts'
       paste(setdiff(annot_vars, names(qc_df)), collapse = ", ")))
 
   # set up qc_dt
-  qc_dt   = .init_qc_dt(qc_df, batch_var)
+  qc_dt   = .init_qc_dt(qc_df, batch_var, run_var)
 
   # add known metrics
   if ('log_counts' %in% qc_names) {
@@ -1336,7 +1340,8 @@ make_qc_dt <- function(qc_df, batch_var = 'sample_id', qc_names = c('log_counts'
   qc_dt   = .add_annot_vars(qc_dt, qc_df, annot_vars)
 
   # put in nice order
-  setcolorder(qc_dt, c('cell_id', batch_var, qc_names))
+  tmp_vars  = c(batch_var, run_var) %>% unique
+  setcolorder(qc_dt, c('cell_id', tmp_vars, qc_names))
 
   # double-check everything is ok
   .check_qc_dt(qc_dt, qc_names, annot_vars)
@@ -1345,7 +1350,7 @@ make_qc_dt <- function(qc_df, batch_var = 'sample_id', qc_names = c('log_counts'
 }
 
 
-.init_qc_dt <- function(qc_df, batch_var) {
+.init_qc_dt <- function(qc_df, batch_var, run_var) {
   # add cell identifiers
   if ('cell_id' %in% colnames(qc_df)) {
     qc_dt   = data.table(cell_id = qc_df$cell_id)
@@ -1359,6 +1364,8 @@ make_qc_dt <- function(qc_df, batch_var = 'sample_id', qc_names = c('log_counts'
 
   # add sample identifiers
   qc_dt[, (batch_var) := qc_df[[batch_var]] ]
+  if (batch_var != run_var)
+    qc_dt[, (run_var) := qc_df[[run_var]] ]
 
   # check no missing values or NAs
   assert_that( all(!is.na(qc_dt$cell_id)), msg = "missing values in cell_id")

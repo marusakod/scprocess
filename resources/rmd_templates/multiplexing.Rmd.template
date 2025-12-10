@@ -126,9 +126,9 @@ if (sample_n <= 4) {
 ```
 
 ```{r get_barplot_dims, include=FALSE}
-h_per_s   = 0.5
+h_per_r   = 0.4
 bplot_w   = 6
-bplot_h   = h_per_s * pmax(sample_n, 4)
+bplot_h   = (h_per_r * sample_n) + 1
 ```
 
 ## Barcode rank plots{.tabset}
