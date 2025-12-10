@@ -406,7 +406,6 @@ calc_empty_genes <- function(pb_cells_f, pb_empty_f, fdr_thr, logfc_thr, empty_g
   mat_ls    = list(cells_mat, empties_mat) %>% setNames(name_ls)
   x_ls      = name_ls %>% lapply(function(nn) {
     # get matrix
-    browser()
     mat       = mat_ls[[ nn ]]
     
     # remove samples with zero counts
