@@ -290,7 +290,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
      }
 
      if(paste0(short_tag, '_marker_genes_',  add_args[['mkr_sel_res']], '.html') %in% htmls){
-      marker_genes_link = sprintf("- Marker genes ([link](%s_marker_genes.html))", short_tag)
+      marker_genes_link = sprintf("- Marker genes ([link](%s_marker_genes_%s.html))", short_tag, add_args[['mkr_sel_res']])
      }
 
      if(paste0(short_tag, '_label_celltypes.html') %in% htmls){

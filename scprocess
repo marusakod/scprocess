@@ -262,6 +262,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
       "--software-deployment-method", "conda",
       "--rerun-triggers", "mtime",
       "--forcerun",
+      "--rerun-incomplete", 
       *shlex.split(extraargs),
       "index"
       ],
