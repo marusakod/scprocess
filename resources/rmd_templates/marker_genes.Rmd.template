@@ -17,12 +17,12 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-  fig.path = "figure/${short_tag}_marker_genes_${mkr_sel_res}.Rmd/")
+  fig.path = "figure/${short_tag}_marker_genes_${mkr_sel_res}.Rmd/", message = FALSE, warning = FALSE)
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 # workflowr::wflow_build(files='analysis/${short_tag}_marker_genes_${mkr_sel_res}.Rmd', view=F, verbose=T, delete_cache=F)
 ```
 
-```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
+```{r setup_helpers, cache=FALSE, include = FALSE}
 source('code/utils.R')
 source('code/integration.R')
 source('code/marker_genes.R')
@@ -186,7 +186,7 @@ print(g)
 ${meta_bars_title}
 ${meta_bars_txt}
 
-```{r plot_clusters_by_metadata, eval = do_metadata, fig.height = (2*length(metadata_vars)) + 1, fig.width = 8, results = "asis"}
+```{r plot_clusters_by_metadata, eval = do_metadata, include=do_metadata, fig.height = (2*length(metadata_vars)) + 1, fig.width = 8, results = "asis"}
 
 print(plot_clusters_by_metadata(meta_dt, int_dt, meta_vars = metadata_vars, cl_order = cl_ord))
 ```
@@ -196,7 +196,7 @@ ${meta_umap_title}
 ${meta_umap_txt}
 
 
-```{r plot_metadata_over_UMAP, eval = do_metadata, fig.height = 5, fig.width = 8, results = 'asis'}
+```{r plot_metadata_over_UMAP, eval = do_metadata, include=do_metadata, fig.height = 5, fig.width = 8, results = 'asis'}
 for (meta_var in metadata_vars) {
   cat('###', meta_var, '\n')
   print(plot_clusters_annotated_by_densities(int_dt, meta_var))

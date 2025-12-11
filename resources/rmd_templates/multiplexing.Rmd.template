@@ -16,13 +16,13 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set(
-  autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', warnings = FALSE, message = FALSE, 
+  autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', warning = FALSE, message = FALSE, 
   fig.path = "figure/${short_tag}_multiplexing.Rmd/"
   )
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 ```
 
-```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
+```{r setup_helpers, cache=FALSE, include = FALSE}
 source('code/utils.R')
 source('code/mapping.R')
 source('code/multiplexing.R')
@@ -126,7 +126,7 @@ if (sample_n <= 4) {
 ```
 
 ```{r get_barplot_dims, include=FALSE}
-h_per_r   = 0.4
+h_per_r   = 1
 bplot_w   = 6
 bplot_h   = (h_per_r * sample_n) + 1
 ```

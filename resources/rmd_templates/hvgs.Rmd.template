@@ -17,13 +17,13 @@ output:
 library('BiocStyle')
 knitr::opts_chunk$set(
   autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-  fig.path = "figure/${short_tag}_hvgs.Rmd/"
+  fig.path = "figure/${short_tag}_hvgs.Rmd/", message = FALSE, warning = FALSE
 )
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 # workflowr::wflow_build(files='analysis/${short_tag}_hvgs.Rmd', view=F, verbose=T, delete_cache=F)
 ```
 
-```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
+```{r setup_helpers, cache=FALSE, include = FALSE}
 source('code/utils.R')
 source('code/hvgs.R')
 n_cores     = ${threads}

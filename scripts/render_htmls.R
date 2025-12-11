@@ -148,7 +148,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
     metadata_vars = add_args[['meta_vars_ls']] %>% 
     str_split(pattern = ",") %>% unlist()
-    if (length(metadata_vars) > 0){
+    if (!all(metadata_vars == "")){
       meta_bars_title = "## Cluster splits by metadata variables"
       meta_bars_txt   = paste0("For each cluster the proportion of cells coming from samples associated with", 
        " specific values of ", paste(metadata_vars, collapse = ', ') %>% stri_replace_last_fixed(",", " and"), ' is shown.')
