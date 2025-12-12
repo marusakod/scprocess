@@ -13,7 +13,12 @@ output:
     css: custom.css
 ---
 
-# Core steps
+
+This page serves as a starting point for exploring the results of the `scprocess`. The links below organize all generated reports, with each one detailing a specific step of the analysis (e.g., mapping, ambient RNA removal, QC).
+
+Use this page to navigate through the full set of visualizations and data outputs for your project.
+
+## Core steps
 
 ${mapping_link}
 ${demultiplexing_link}
@@ -22,6 +27,11 @@ ${qc_link}
 ${hvgs_link}
 ${integration_link}
 ${marker_genes_link}
+
+${lbls_title}
 ${label_celltypes_link}
+
+${zoom_title}
+${zoom_links}
 
 

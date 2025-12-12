@@ -18,13 +18,13 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-fig.path = "figure/${short_tag}_integration.Rmd/"
+fig.path = "figure/${short_tag}_integration.Rmd/", message = FALSE, warning = FALSE
 )
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 ```
 
 
-```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
+```{r setup_helpers, cache=FALSE, include = FALSE}
 source('code/utils.R')
 source('code/integration.R')
 n_cores     = ${threads}

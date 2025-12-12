@@ -17,13 +17,13 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
-fig.path = "figure/${short_tag}_label_celltypes.Rmd/"
+fig.path = "figure/${short_tag}_label_celltypes.Rmd/", message = FALSE, warning = FALSE
 )
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 ```
 
 
-```{r setup_helpers, message=FALSE, cache=FALSE, include = FALSE}
+```{r setup_helpers, cache=FALSE, include = FALSE}
 source('code/utils.R')
 source('code/integration.R')
 source('code/label_celltypes.R')
@@ -117,7 +117,7 @@ for (ii in seq_along(guess_f_ls)) {
 
 ## Totals for each predicted cell type{.tabset}
 
-These tables show how many in total of each celltype are predicted for each label, for each combination of labeller and model.
+Tables showing how many in total of each celltype are predicted for each label, for each combination of labeller and model.
 
 ```{r tbl_of_celltypes, results = "asis"}
 for (ii in seq_along(guess_f_ls)) {

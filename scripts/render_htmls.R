@@ -148,7 +148,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
     metadata_vars = add_args[['meta_vars_ls']] %>% 
     str_split(pattern = ",") %>% unlist()
-    if (length(metadata_vars) > 0){
+    if (!all(metadata_vars == "")){
       meta_bars_title = "## Cluster splits by metadata variables"
       meta_bars_txt   = paste0("For each cluster the proportion of cells coming from samples associated with", 
        " specific values of ", paste(metadata_vars, collapse = ', ') %>% stri_replace_last_fixed(",", " and"), ' is shown.')
@@ -262,7 +262,10 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
      hvgs_link            = ""
      integration_link     = ""
      marker_genes_link    = ""
+     lbls_title           = ""
      label_celltypes_link = ""
+     zoom_title           = ""
+     zoom_links           = ""
 
      # get placeholder replacements for all htmls
      if(paste0(short_tag, '_mapping.html') %in% htmls){
@@ -290,11 +293,32 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
      }
 
      if(paste0(short_tag, '_marker_genes_',  add_args[['mkr_sel_res']], '.html') %in% htmls){
-      marker_genes_link = sprintf("- Marker genes ([link](%s_marker_genes.html))", short_tag)
+      marker_genes_link = sprintf("- Marker genes ([link](%s_marker_genes_%s.html))", short_tag, add_args[['mkr_sel_res']])
      }
 
      if(paste0(short_tag, '_label_celltypes.html') %in% htmls){
       label_celltypes_link = sprintf("- Celltype labelling ([link](%s_label_celltypes.html))", short_tag)
+      lbls_title = "## Cell type annotation"
+     }
+     
+     if(any(grepl(paste0(short_tag, '_zoom.*.html'), htmls))){
+       zoom_htmls  = htmls[grepl(paste0(short_tag, '_zoom.*.html'), htmls)]
+       # extract zoom params
+       pattern = ".*?_zoom_([^_]+)_(\\d+(\\.\\d+)?)\\.html"
+       params_mat = str_match(zoom_htmls, pattern)
+       
+       zoom_names = extracted[, 2]
+       sel_res_ls = as.numeric(extracted[, 3])
+       
+       params_dt =  data.table(
+         html        = zoom_htmls,
+         zoom_name   = zoom_names,
+         mkr_sel_res = sel_res_ls
+       )
+      
+       zoom_links = sprintf("- %s ([link](%s))", params_dt$zoom_name, params_dt$html)
+       zoom_links_md = paste(zoom_links, collapse = "\n")
+       zoom_title = "## Subclustering"
      }
      
 
