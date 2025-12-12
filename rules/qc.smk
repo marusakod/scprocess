@@ -165,8 +165,8 @@ rule run_qc_one_run:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_qc', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)*(1.5**(attempt-1)),
-    runtime = lambda wildcards, input: get_resources('run_qc', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_qc_one_run', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)*(1.5**(attempt-1)),
+    runtime = lambda wildcards, input: get_resources('run_qc_one_run', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_qc/run_qc_{{run}}_{DATE_STAMP}.benchmark.txt'
   conda:

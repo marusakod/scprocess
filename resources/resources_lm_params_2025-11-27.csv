@@ -5,11 +5,13 @@ time,input.af_h5_f,44.126,0.517,make_one_pb_empty,5
 memory,input.af_h5_f,923.889,32.895,make_one_pb_empty,2048
 time,input.af_h5_f,44.126,0.517,make_one_pb_cells,5
 memory,input.af_h5_f,923.889,32.895,make_one_pb_cells,2048
+time,input.af_h5_f,44.126,0.517,make_one_pb_cells,5
+memory,input.af_h5_f,923.889,32.895,make_one_pb_cells,2048
 time,input.af_h5_f,3060.824,24.901,run_cellbender,5
 memory,input.af_h5_f,3374.924,117.196,run_cellbender,2048
 time,raw_data_size,1216.889,224.08,run_mapping,5
-time,input.af_h5_f,64.771,3.409,run_qc,5
-memory,input.af_h5_f,1725.978,51.52,run_qc,2048
+time,input.af_h5_f,64.771,3.409,run_qc_one_run,5
+memory,input.af_h5_f,1725.978,51.52,run_qc_one_run,2048
 time,n_smpls_pre_qc,33.646,0.239,calculate_ambient_genes,5
 memory,n_smpls_pre_qc,974.447,3.952,calculate_ambient_genes,2048
 time,n_smpls_pre_qc,5.072,4.857,create_doublets_hvg_matrix,5
@@ -75,8 +77,6 @@ time,,,,run_marker_genes,
 memory,,,,run_marker_genes,
 time,,,,run_fgsea,
 memory,,,,run_fgsea,
-time,,,,run_qc_one_run,
-memory,,,,run_qc_one_run,
 time,,,,render_html_multiplexing,
 memory,,,,render_html_multiplexing,
 time,,,,render_html_hvgs,
