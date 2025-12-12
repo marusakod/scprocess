@@ -95,8 +95,8 @@ zoom_sce_outs = (
 rule zoom:
   input:
     # zoom sample qc
-    expand('%s/{zoom_name}/zoom_sample_statistics_%s_%s.csv' % \
-      (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS),
+    expand('%s/{zoom_name}/zoom_%s_statistics_%s_%s.csv' % \
+      (zoom_dir, BATCH_VAR, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS),
     # zoom pseudobulks and empties
     expand('%s/{zoom_name}/pb_{zoom_name}_%s_%s.rds' % \
       (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS),
@@ -223,7 +223,7 @@ rule zoom_make_hvg_df:
 rule zoom_make_tmp_csr_matrix:
   input:
     hvg_paths_f     = f'{zoom_dir}/{{zoom_name}}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv', 
-    smpl_stats_f    = f'{zoom_dir}/{{zoom_name}}/zoom_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv', 
+    smpl_stats_f    = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv', 
     rowdata_f       = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
     clean_h5_f      = temp(expand([
@@ -263,7 +263,7 @@ rule zoom_make_tmp_csr_matrix:
 rule zoom_get_stats_for_std_variance_for_sample:
   input: 
     clean_h5_f    = f'{zoom_dir}/{{zoom_name}}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5', 
-    smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv', 
+    smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv', 
     rowdata_f     = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
     std_var_stats_f = temp(zoom_dir + '/{zoom_name}' + '/tmp_std_var_stats_{batch}_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz')
@@ -278,7 +278,7 @@ rule zoom_get_stats_for_std_variance_for_sample:
     '../envs/hvgs.yaml'
   shell: """
     python3 scripts/hvgs.py calculate_std_var_stats_for_sample \
-      {wildcards.sample} \
+      {wildcards.batch} \
       {input.smpl_stats_f} \
       {input.clean_h5_f} \
       {input.rowdata_f} \
@@ -294,7 +294,7 @@ rule zoom_get_mean_var_for_group:
     ),
     hvg_paths_f   = f'{zoom_dir}/{{zoom_name}}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
     rowdata_f     = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
-    smpl_stats_f  = f'z{oom_dir}/{{zoom_name}}/zoom_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
+    smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
   output: 
     mean_var_f    = temp(f'{zoom_dir}/{{zoom_name}}/tmp_mean_var_{{group}}_group_chunk_{{chunk}}_{FULL_TAG}_{DATE_STAMP}.csv.gz')
   params:
@@ -372,7 +372,7 @@ rule zoom_get_stats_for_std_variance_for_group:
     estim_vars_f  = f'{zoom_dir}/{{zoom_name}}/estimated_variances_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     hvg_paths_f   = f'{zoom_dir}/{{zoom_name}}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
     rowdata_f     = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
-    smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
+    smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
   output:
     std_var_stats_f = temp(f'{zoom_dir}/{{zoom_name}}/tmp_std_var_stats_{{group}}_group_chunk_{{chunk}}_{FULL_TAG}_{DATE_STAMP}.csv.gz')
   params:
@@ -456,7 +456,7 @@ rule zoom_create_hvg_matrix:
       f'{zoom_dir}/{{zoom_name}}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5',
       zoom_name = ZOOMS, batch = BATCHES
     ),
-    smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv', 
+    smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv', 
     hvg_paths_f   = f'{zoom_dir}/{{zoom_name}}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv', 
     hvg_f         = f'{zoom_dir}/{{zoom_name}}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
@@ -485,8 +485,8 @@ rule zoom_create_hvg_matrix:
 rule zoom_run_integration:
   input:
     hvg_mat_f     = f'{zoom_dir}/{{zoom_name}}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5', 
-    sample_qc_f   = f'{zoom_dir}/{{zoom_name}}/zoom_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv', 
-    coldata_f     = f'{qc_dir}/coldata_dt_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    sample_qc_f   = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv', 
+    coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
     integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
@@ -619,7 +619,7 @@ rule zoom_run_fgsea:
 rule zoom_make_subset_sces:
   input:
     integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
-    smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_sample_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+    smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     sces_yaml_f   = f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
   output:
     clean_sce_f = f'{zoom_dir}/{{zoom_name}}/sce_objects/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds'
@@ -639,7 +639,7 @@ rule zoom_make_subset_sces:
   shell: """
     Rscript -e "source('scripts/zoom.R');
      make_subset_sces(
-     sel_s          = '{wildcards.sample}',
+     sel_s          = '{wildcards.batch}',
      clean_sce_f    = '{output.clean_sce_f}',
      integration_f  = '{input.integration_f}',
      smpl_stats_f   = '{input.smpl_stats_f}',
