@@ -50,6 +50,7 @@ amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
 qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
 int_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
 pb_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_pseudobulk"
+hvg_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_hvg"
 rmd_dir       = f"{PROJ_DIR}/analysis"
 docs_dir      = f"{PROJ_DIR}/public"
 zoom_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_zoom"
@@ -146,13 +147,13 @@ rule zoom_make_one_pb_cells:
     h5_paths_f  = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
     coldata_f   = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
-    pb_cells_f  = temp(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds')
+    pb_cells_f  = temp(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{zoom_name}}_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds')
   params:
     run_var       = RUN_VAR,
     batch_var     = BATCH_VAR, 
-    zoom_lbls_f   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['labels_f'],
-    zoom_lbls_col = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['labels_col'],
-    zoom_lbls     = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['sel_labels'])
+    zoom_lbls_f   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
+    zoom_lbls_col = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
+    zoom_lbls     = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'])
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -183,7 +184,7 @@ rule zoom_make_one_pb_cells:
 
 rule zoom_make_tmp_pb_cells_df:
   input:
-    pb_cells_fs   = expand(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds', run = RUNS)
+    pb_cells_fs   = expand(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{zoom_name}}_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds', run = RUNS, zoom_name = ZOOMS)
   output:
     cells_paths_f = temp(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_paths_{FULL_TAG}_{DATE_STAMP}.csv')
   params:
@@ -204,10 +205,10 @@ rule zoom_make_tmp_pb_cells_df:
 rule zoom_merge_pb_cells:
   input:
     cells_paths_f = f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_paths_{FULL_TAG}_{DATE_STAMP}.csv',
-    pb_cells_fs   = expand(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds', run = RUNS), 
+    pb_cells_fs   = expand(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{zoom_name}}_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds', run = RUNS, zoom_name = ZOOMS), 
     rowdata_f     = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
-    pb_cells_f    = f'{zoom_dir}/{{zoom_name}}/pb_cells_{FULL_TAG}_{DATE_STAMP}.rds'
+    pb_cells_f    = f'{zoom_dir}/{{zoom_name}}/pb_cells_{{zoom_name}}_{FULL_TAG}_{DATE_STAMP}.rds'
   params:
     batch_var     = BATCH_VAR
   threads: 1
@@ -233,7 +234,7 @@ rule zoom_merge_pb_cells:
 rule zoom_calculate_ambient_genes:
   input:
     pb_empty_f      = f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds', 
-    zoom_pb_f       = f'{zoom_dir}/{{zoom_name}}/pb_cells_{FULL_TAG}_{DATE_STAMP}.rds'
+    zoom_pb_f       = f'{zoom_dir}/{{zoom_name}}/pb_cells_{{zoom_name}}_{FULL_TAG}_{DATE_STAMP}.rds'
   output:
     zoom_empty_gs_f = f'{zoom_dir}/{{zoom_name}}/edger_empty_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
