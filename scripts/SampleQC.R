@@ -44,7 +44,6 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   coldata_f, mito_str, exclude_mito, hard_min_counts, hard_min_feats, hard_max_mito,
   run_var = "sample_id", demux_type = "none", batch_var = "sample_id", dbl_min_feats = 100, 
   dbl_min_cells = 100) {
-
   # check inputs
   exclude_mito  = as.logical(exclude_mito)
 
@@ -324,19 +323,20 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   # do stuff for custom
   } else if (demux_type == 'custom') {
     # load data, check
-    demux_out = fread(demux_f)  %>%
-      .[, cell_id := paste(pool_id, cell_id, sep = ":" )]
-    common_bcs = length(intersect(demux_out$cell_id, coldata_in$cell_id))
+    demux_out   = fread(demux_f)
+    if (!("cell_id" %in% colnames(demux_out)))
+      demux_out   = demux_out %>% .[, cell_id := paste(pool_id, barcode, sep = ":" )]
+    demux_out   = demux_out[, .(cell_id, sample_id)]
+    common_bcs  = length(intersect(demux_out$cell_id, coldata_in$cell_id))
     assert_that(common_bcs > 0)
 
     # discard all cells in demux_output but not in sce
     message(common_bcs, " matching between custom demultiplexing file and input sce")
-    trash_n = length(setdiff(demux_out$cell_id, coldata_in$cell_id))
-    message(trash_n, " cells from custom demultiplexing file discarded")
+    demux_out   = demux_out[ cell_id %in% common_bcs ]
 
     # merge together
     coldata_out = coldata_in %>%
-      merge(demux_out, by = c('cell_id', 'pool_id'), all.x = TRUE, all.y = FALSE) %>%
+      merge(demux_out, by = c('cell_id'), all.x = TRUE, all.y = FALSE) %>%
       merge(metadata_all, by = c('pool_id', 'sample_id'), all.x = TRUE)
 
     # check if column global class exists and if ok

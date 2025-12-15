@@ -1133,12 +1133,12 @@ def get_resources(rule, all_rules, param, lm_f, config, schema_f, input, BATCHES
     config_param_name = f'gb_{rule}'
 
   # get lm params for rule and param (memory or time)
-  filt_lm_df = lm_df.filter((pl.col("param") == param) & (pl.col("rule") == rule))
+  filt_lm_df    = lm_df.filter((pl.col("param") == param) & (pl.col("rule") == rule))
 
   # Load schema and extract default resource values
-  schema   = _load_schema_file(schema_f)
-  defaults = _get_default_config_from_schema(schema)
-  res_defaults = defaults['resources']
+  schema        = _load_schema_file(schema_f)
+  defaults      = _get_default_config_from_schema(schema)
+  res_defaults  = defaults['resources']
 
   # if no lm params are defined
   if filt_lm_df["rq_slope"].is_null().all():
