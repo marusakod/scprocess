@@ -41,6 +41,7 @@ zoom_dir      = "${zoom_dir}"
 zoom_name     = "${zoom_name}"
 sub_dir       = file.path(zoom_dir, zoom_name)
 
+batch_var     = "${batch_var}"
 # define files for calculating pseudobulk marker genes
 metadata_f    = "${metadata_f}"
 gtf_dt_f      = "${gtf_dt_f}"
@@ -145,7 +146,7 @@ biotypes_dt   = load_gene_biotypes(gtf_dt_f)
 
 ```{r load_cpms, include = FALSE}
 cpms_dt     = readRDS(pb_f) %>% 
-  make_logcpms_all(lib_size_method = "edger", 
+  make_logcpms_all("sample_id", lib_size_method = "edger", 
     min_cells = min_cells, n_cores = n_cores) %>% 
   merge(biotypes_dt[, .(gene_id, gene_type)], by = "gene_id")
 ```
@@ -314,10 +315,16 @@ This plot visualizes the relationship between the entropy of clusters and the ma
 Entropy measures how evenly distributed cells are across samples within each cluster—higher entropy indicates that cells from different samples are more evenly distributed, while lower entropy suggests that a cluster is dominated by cells from a small number of samples.
 
 ```{r plot_entropy_selected_clusters, fig.height = 5, fig.width = 7, results = "asis"}
-for (res in res_ls) {
+n_clusts = res_ls %>% lapply(function(res){
+  tmp_dt = int_dt[, .(cluster = get(paste0('RNA_snn_res.', res)))]
+  length(unique(tmp_dt$cluster))
+})
+
+res_ls_pl = res_ls[n_clusts > 1]
+for (res in res_ls_pl) {
   cat('#### ', res, '\n')
-  input_dt  = int_dt[, .(sample_id, cell_id, cluster = get(paste0('RNA_snn_res.', res)))]
-  suppressWarnings(print(plot_cluster_entropies(input_dt, what = "norm")))
+  input_dt  = int_dt[, .(batch_var = get(batch_var), cell_id, cluster = get(paste0('RNA_snn_res.', res)))]
+  suppressWarnings(print(plot_cluster_entropies(input_dt,batch_var, what = "norm")))
   cat('\n\n')
 }
 ```
@@ -341,7 +348,7 @@ for (res in res_ls) {
 ${meta_bars_title}
 ${meta_bars_txt}
 
-```{r plot_clusters_by_metadata, eval = do_metadata, fig.height = (2*length(metadata_vars)) + 1, fig.width = 8, results = 'asis'}
+```{r plot_clusters_by_metadata, eval = do_metadata, include = do_metadata, fig.height = (2*length(metadata_vars)) + 1, fig.width = 8, results = 'asis'}
 
 if (!is.null(metadata_vars))
   (plot_clusters_by_metadata(meta_dt, sel_cl_int_dt, 
@@ -351,7 +358,7 @@ if (!is.null(metadata_vars))
 ${meta_umap_title}
 ${meta_umap_txt}
 
-```{r plot_metadata_over_UMAP, eval = do_metadata, fig.height = 5, fig.width = 8, results = 'asis'}
+```{r plot_metadata_over_UMAP, eval = do_metadata, include = do_metadata, fig.height = 5, fig.width = 8, results = 'asis'}
 for (meta_var in metadata_vars) {
   cat('####', meta_var, '\n')
   print(plot_clusters_annotated_by_densities(sel_cl_int_dt, meta_var))

@@ -141,7 +141,12 @@ This plot visualizes the relationship between the entropy of clusters and the ma
 Entropy measures how evenly distributed cells are across samples within each cluster—higher entropy indicates that cells from different samples are more evenly distributed, while lower entropy suggests that a cluster is dominated by cells from a small number of samples.
 
 ```{r plot_entropy_selected_clusters, fig.height = 5, fig.width = 7, results = "asis"}
-for (res in res_ls) {
+n_clusts = res_ls %>% lapply(function(res){
+  tmp_dt = int_dt[, .(cluster = get(paste0('RNA_snn_res.', res)))]
+  length(unique(tmp_dt$cluster))
+})
+res_ls_pl = res_ls[n_clusts > 1]
+for (res in res_ls_pl) {
   cat('### ', res, '\n')
   input_dt  = int_dt[, .(batch_var = get(batch_var), cell_id, 
     cluster = get(paste0('RNA_snn_res.', res)))]

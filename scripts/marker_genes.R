@@ -186,8 +186,8 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   # add clusters to sce
   colData(tmp_sce)[["cluster"]] = smpl_int_dt[[cl_var]] 
   
-  pb  = aggregateData_datatable(tmp_sce, batch_var, by_vars = c("cluster", batch_var), 
-                                fun = agg_fn, all_cls = keep_cls)
+  pb  = aggregateData_datatable(tmp_sce, by_vars = c("cluster", batch_var), 
+    fun = agg_fn, all_cls = keep_cls)
   
   # make sure all assays are in the object, if not, add columns with zeros
   missing_assays = setdiff(keep_cls, assayNames(pb))  

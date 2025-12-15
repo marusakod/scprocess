@@ -126,24 +126,31 @@ def get_one_csr_counts(run, hvg_paths_df, keep_df, smpl_stats_df, gene_ids,
     print(f"CSR matrix for {b} successfully saved to {out_f}.")
 
 
-def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, smpl_stats_f, 
+def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals_str, smpl_stats_f, 
   rowdata_f, RUN_VAR, batch_var, demux_type, chunk_size=2000, n_cores = 8):
   
-  # load up useful things
   hvg_paths_df  = pl.read_csv(hvg_paths_f)
   smpl_stats_df = pl.read_csv(smpl_stats_f)
-  
+
   # get QCed cells
-  filt_df       = pl.read_csv(cell_filter_f)
-  keep_df       = filt_df.filter( pl.col(keep_var) == True )
+  filt_df   = pl.read_csv(cell_filter_f)
+  keep_vals = keep_vals_str.split(',')
+
+  keep_df: pl.DataFrame = (
+    filt_df.with_columns(
+        pl.col(keep_var).cast(pl.Utf8).alias(keep_var)
+    ).filter(
+        pl.col(keep_var).is_in(keep_vals)
+    )
+  )
 
   # get gene details
-  rows_df       = pl.read_csv(rowdata_f)
-  keep_ids      = rows_df['ensembl_id'].to_list()
+  rows_df  = pl.read_csv(rowdata_f)
+  keep_ids = rows_df['ensembl_id'].to_list()
 
-  # define list of runs, run on them in parallel
-  runs          = hvg_paths_df[RUN_VAR].unique().to_list()
-
+  # define list of samples
+  runs = hvg_paths_df[RUN_VAR].unique().to_list()
+ 
   with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
     futures = [executor.submit(get_one_csr_counts, run, hvg_paths_df, keep_df, 
       smpl_stats_df, keep_ids, RUN_VAR, batch_var, demux_type, chunk_size) for run in runs]
@@ -784,6 +791,7 @@ if __name__ == "__main__":
   parser_makeCSR.add_argument("hvg_paths_f", type=str)
   parser_makeCSR.add_argument("cell_filter_f", type=str)
   parser_makeCSR.add_argument("keep_var", type=str)
+  parser_makeCSR.add_argument("keep_vals_str", type=str)
   parser_makeCSR.add_argument("smpl_stats_f", type=str)
   parser_makeCSR.add_argument("rowdata_f", type=str)
   parser_makeCSR.add_argument("run_var", type=str)
@@ -877,7 +885,7 @@ if __name__ == "__main__":
 
   if args.function_name == 'get_csr_counts':
     get_csr_counts( 
-      args.hvg_paths_f, args.cell_filter_f, args.keep_var, args.smpl_stats_f, args.rowdata_f,
+      args.hvg_paths_f, args.cell_filter_f, args.keep_var, args.keep_vals_str, args.smpl_stats_f, args.rowdata_f,
       args.run_var, args.batch_var, args.demux_type, args.chunksize, args.ncores
     )
   elif args.function_name == 'calculate_mean_var_for_chunk':

@@ -197,13 +197,13 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'gtf_dt_f', 'qc_f', 'cell_hvgs_f', 'int_f', 'pb_f', 'pb_hvgs_f', 'mkrs_f', 'empty_gs_f', 'pb_empty_f', 
       'fgsea_go_bp_f','fgsea_go_cc_f', 'fgsea_go_mf_f', 'int_res_ls',
       'custom_mkr_names', 'custom_mkr_paths', 'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_sel_res',
-      'mkr_min_cells', 'mkr_gsea_cut', 'species', 'do_gsea')
+      'mkr_min_cells', 'mkr_gsea_cut', 'species', 'batch_var', 'do_gsea')
     
     assert_that(all(req_names %in% add_args_names))
 
     metadata_vars = add_args[['meta_vars_ls']] %>% 
     str_split(pattern = ",") %>% unlist()
-    if (length(metadata_vars) > 0){
+    if (!all(metadata_vars == "")){
       meta_bars_title = "### Cluster splits by metadata variables"
       meta_bars_txt   = paste0("For each cluster (resolution: ", add_args[['mkr_sel_res']], ")", " the proportion of cells coming from samples associated with", 
        " specific values of ", paste(metadata_vars, collapse = ', ') %>% stri_replace_last_fixed(",", " and"), ' is shown.')

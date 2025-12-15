@@ -6,7 +6,7 @@ import yaml
 import pandas as pd
 import polars as pl
 
-localrules: get_ambient_run_statistics, make_paths_h5_csv
+localrules: get_ambient_run_statistics
 
 def parse_ambient_params(run, config, RUN_PARAMS, af_dir, af_rna_dir):
   # get cellbender parameters from yaml file
