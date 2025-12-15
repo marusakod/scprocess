@@ -21,7 +21,7 @@ proj_schema_f   = scprocess_dir / "resources/schemas/config.schema.json"
 zoom_schema_f   = scprocess_dir / "resources/schemas/zoom.schema.json"
 scdata_dir      = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 
-lm_f            = scprocess_dir / "resources/resources_lm_params_2025-11-27.csv"
+lm_f            = scprocess_dir / "resources/snakemake/resources_lm_params_2025-11-27.csv"
 
 # check config
 config          = check_config(config, proj_schema_f, scdata_dir, scprocess_dir)
