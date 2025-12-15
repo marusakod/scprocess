@@ -42,7 +42,7 @@ suppressPackageStartupMessages({
 #   assert_that("sample_id" %in% colnames(all_coldata))
 
 #   message('  loading hvg matrix')
-#   hvg_mat     = .get_alevin_mx(hvg_mat_f, sel_s = '')
+#   hvg_mat     = .get_h5_mx(hvg_mat_f, sel_s = '')
   
 #   # subset coldata
 #   assert_that( all(colnames(hvg_mat) %in% all_coldata$cell_id) )

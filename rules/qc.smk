@@ -165,8 +165,8 @@ rule run_qc_one_run:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_qc', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)*(1.5**(attempt-1)),
-    runtime = lambda wildcards, input: get_resources('run_qc', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_qc_one_run', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)*(1.5**(attempt-1)),
+    runtime = lambda wildcards, input: get_resources('run_qc_one_run', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_qc/run_qc_{{run}}_{DATE_STAMP}.benchmark.txt'
   conda:
@@ -213,8 +213,8 @@ rule merge_qc:
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_qc/merge_qc_{DATE_STAMP}.benchmark.txt'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_qc', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('merge_qc', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_qc', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('merge_qc', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   run:
     # read all nonempty input files and concatenate them
     qc_df_ls    = [ pl.read_csv(f, schema_overrides = {"log_N": pl.Float64}) for f in input.qc_fs if os.path.getsize(f) > 0 ]
@@ -238,8 +238,8 @@ rule merge_rowdata:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_rowdata', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('merge_rowdata', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_rowdata', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('merge_rowdata', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_qc/merge_rowdata_{DATE_STAMP}.benchmark.txt'
   run:
@@ -268,8 +268,8 @@ rule get_qc_sample_statistics:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_qc_sample_statistics', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('get_qc_sample_statistics', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_qc_sample_statistics', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('get_qc_sample_statistics', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_qc/get_qc_sample_statistics_{DATE_STAMP}.benchmark.txt'
   run:

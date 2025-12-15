@@ -98,7 +98,7 @@ rule zoom:
     expand('%s/{zoom_name}/zoom_%s_statistics_%s_%s.csv' % \
       (zoom_dir, BATCH_VAR, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS),
     # zoom pseudobulks and empties
-    expand('%s/{zoom_name}/pb_{zoom_name}_%s_%s.rds' % \
+    expand('%s/{zoom_name}/pb_cells_{zoom_name}_%s_%s.rds' % \
       (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS),
     expand('%s/{zoom_name}/edger_empty_genes_%s_%s.csv.gz' % \
       (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS), 
@@ -139,35 +139,93 @@ rule get_zoom_sample_statistics:
 
 
 # pseudobulks and empties
-rule zoom_make_pb_subset:
+rule zoom_make_one_pb_cells:
   input:
-    sces_yaml_f   = f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml', 
-    zoom_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
+    batch_lu_f  = f'{pb_dir}/runs_to_batches_{FULL_TAG}_{DATE_STAMP}.csv',
+    qc_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+    h5_paths_f  = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
+    coldata_f   = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
-    zoom_pb_f     = f'{zoom_dir}/{{zoom_name}}/pb_{{zoom_name}}_{FULL_TAG}_{DATE_STAMP}.rds'
+    pb_cells_f  = temp(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds')
   params:
-    zoom_lbls_f   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
-    zoom_lbls_col = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
-    zoom_lbls     = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'])
-  threads: 4
+    run_var       = RUN_VAR,
+    batch_var     = BATCH_VAR, 
+    zoom_lbls_f   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['labels_f'],
+    zoom_lbls_col = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['labels_col'],
+    zoom_lbls     = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['sel_labels'])
+  threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_make_pb_subset', 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_make_pb_subset', 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_make_one_pb_cells', rules, 'memory', 
+      lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
+    runtime = lambda wildcards, input: get_resources('zoom_make_one_pb_cells', rules, 'time', 
+      lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_make_pb_subset_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_make_one_pb_cells_{{zoom_name}}_{{run}}_{DATE_STAMP}.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    Rscript -e "source('scripts/utils.R'); source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
-    make_pb_cells( \
-      sce_fs_yaml = '{input.sces_yaml_f}',
-      qc_stats_f  = '{input.zoom_stats_f}',
+    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
+    make_pb_cells(
+      sel_run     = '{wildcards.run}',
+      batch_lu_f  = '{input.batch_lu_f}',
+      qc_stats_f  = '{input.qc_stats_f}',
+      h5_paths_f  = '{input.h5_paths_f}', 
+      coldata_f   = '{input.coldata_f}',
+      run_var     = '{params.run_var}',
+      batch_var   = '{params.batch_var}',
       subset_f    = '{params.zoom_lbls_f}',
-      subset_col  = '{params.zoom_lbls_col}', 
+      subset_col  = '{params.zoom_lbls_col}',
       subset_str  = '{params.zoom_lbls}', 
-      pb_f        = '{output.zoom_pb_f}',
-      n_cores     =  {threads}
+      pb_cells_f  = '{output.pb_cells_f}'
+    )"
+    """
+
+rule zoom_make_tmp_pb_cells_df:
+  input:
+    pb_cells_fs   = expand(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds', run = RUNS)
+  output:
+    cells_paths_f = temp(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_paths_{FULL_TAG}_{DATE_STAMP}.csv')
+  params:
+    run_var     = RUN_VAR,
+    runs        = RUNS
+  run:
+    # make df
+    paths_df    = pl.DataFrame({
+      params.run_var: params.runs,
+      "pb_path":      input.pb_cells_fs
+    })
+    paths_df    = paths_df.filter( pl.col("pb_path").map_elements(os.path.getsize, return_dtype=pl.Int64) > 0 )
+
+    # save
+    paths_df.write_csv(output.cells_paths_f)
+
+
+rule zoom_merge_pb_cells:
+  input:
+    cells_paths_f = f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_paths_{FULL_TAG}_{DATE_STAMP}.csv',
+    pb_cells_fs   = expand(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds', run = RUNS), 
+    rowdata_f     = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+  output:
+    pb_cells_f    = f'{zoom_dir}/{{zoom_name}}/pb_cells_{FULL_TAG}_{DATE_STAMP}.rds'
+  params:
+    batch_var     = BATCH_VAR
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_merge_pb_empty', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_merge_pb_empty', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+  benchmark:
+    f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_merge_pb_cells_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
+  conda: 
+    '../envs/rlibs.yaml'
+  shell: """
+    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
+    merge_pbs_cells( \
+      cells_paths_f = '{input.cells_paths_f}', 
+      rowdata_f     = '{input.rowdata_f}',
+      batch_var     = '{params.batch_var}',
+      pb_cells_f    = '{output.pb_cells_f}'
     )"
     """
 
@@ -175,7 +233,7 @@ rule zoom_make_pb_subset:
 rule zoom_calculate_ambient_genes:
   input:
     pb_empty_f      = f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds', 
-    zoom_pb_f       = f'{zoom_dir}/{{zoom_name}}/pb_{{zoom_name}}_{FULL_TAG}_{DATE_STAMP}.rds'
+    zoom_pb_f       = f'{zoom_dir}/{{zoom_name}}/pb_cells_{FULL_TAG}_{DATE_STAMP}.rds'
   output:
     zoom_empty_gs_f = f'{zoom_dir}/{{zoom_name}}/edger_empty_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
@@ -184,8 +242,8 @@ rule zoom_calculate_ambient_genes:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_calculate_ambient_genes', 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_calculate_ambient_genes', 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_calculate_ambient_genes', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('zoom_calculate_ambient_genes', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_calculate_ambient_genes_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   conda: 
@@ -211,11 +269,12 @@ rule zoom_make_hvg_df:
     demux_type  = config['multiplexing']['demux_type'],
     run_var     = RUN_VAR,
     runs        = RUNS,
-    mapping     = RUNS_TO_BATCHES
+    mapping     = RUNS_TO_BATCHES,
+    batch_var   = BATCH_VAR
   run:
-    hvg_df = make_hvgs_input_df(
-      params.demux_type, params.run_var, params.runs, input.amb_yaml_fs,
-      params.mapping, FULL_TAG, DATE_STAMP, f"{zoom_dir}/{wildcards.zoom_name}"
+    hvg_df = make_hvgs_input_df( 
+      params.runs, input.amb_yaml_fs, params.run_var, params.batch_var, params.mapping,
+      params.demux_type, FULL_TAG, DATE_STAMP, f"{zoom_dir}/{wildcards.zoom_name}"
       )
     hvg_df.to_csv(output.hvg_paths_f, index=False)
 

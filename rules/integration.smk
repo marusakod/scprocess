@@ -28,10 +28,8 @@ rule run_integration:
   threads: 1
   retries: config['resources']['retries'] 
   resources:
-    mem_mb  = 16 * MB_PER_GB,
-    runtime = 10
-    # mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_integration', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    # runtime = lambda wildcards, input: get_resources('run_integration', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_integration', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('run_integration', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   conda: 
     '../envs/integration.yaml'
   benchmark:
@@ -69,7 +67,7 @@ rule run_integration:
 rule make_clean_sces: 
   input:
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    h5_paths_f    = f'{amb_dir}/paths_h5_filtered_{FULL_TAG}_{DATE_STAMP}.csv',
+    h5_paths_f    = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
     coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
   output:
     clean_sce_f   = f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds'
@@ -83,8 +81,8 @@ rule make_clean_sces:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_clean_sces', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS) * 2,
-    runtime = lambda wildcards, input: get_resources('make_clean_sces', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS) * 2
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_clean_sces', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS) * 2,
+    runtime = lambda wildcards, input: get_resources('make_clean_sces', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS) * 2
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_integration/make_clean_sces_{{batch}}_{DATE_STAMP}.benchmark.txt'
   conda:

@@ -54,7 +54,7 @@ get_one_hto_sce <- function(sel_pool, sample_stats_f, amb_yaml_f, hto_mat_f, tra
     set_colnames("cell_bc")
   
   # get hto counts
-  hto_counts = .get_alevin_mx(hto_mat_f, sel_s = '')
+  hto_counts = .get_h5_mx(hto_mat_f, sel_s = '')
   
   # translate hto bcs to match rna barcodes
   hto_true_bcs = bc_dict[bc_hto %chin% colnames(hto_counts)] %>%

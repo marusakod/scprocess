@@ -31,7 +31,7 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
   amb_m   = match.arg(ambient_method)
 
   # load alevin matrix
-  af_mat  = .get_alevin_mx(af_mat_f = af_mat_f, sel_s = '')
+  af_mat  = .get_h5_mx(af_mat_f = af_mat_f, sel_s = '')
   
   # load knee
   knee_dt = fread(knee_f)
@@ -153,7 +153,7 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, ambient_met
   }
 
   # get alevin counts
-  af_mat      = .get_alevin_mx(af_h5_f, '')
+  af_mat      = .get_h5_mx(af_h5_f, '')
   af_dt       = .get_usa_dt(af_mat, prefix = 'pre')
 
   # get pre and post ambient removal stats
@@ -163,7 +163,7 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, ambient_met
       as.data.table( keep.rownames = "barcode") %>% .[ order(rank) ]
 
     # get cellbender matrix
-    cb_mat      = .get_alevin_mx(amb_mat_f, '')
+    cb_mat      = .get_h5_mx(amb_mat_f, '')
 
     # sum s/u/a counts for each barcode
     cb_dt       = .get_usa_dt(cb_mat, prefix = 'post')
@@ -174,7 +174,7 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, ambient_met
   } else if (ambient_method == 'decontx') {
 
     # get decontx matrix
-    dcx_mat     = .get_alevin_mx(amb_mat_f, '')
+    dcx_mat     = .get_h5_mx(amb_mat_f, '')
 
     # sum s/u/a counts for each barcode
     dcx_dt      = .get_usa_dt(dcx_mat, prefix = 'post')

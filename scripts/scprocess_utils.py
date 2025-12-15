@@ -1081,7 +1081,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
       if not entry['model'] in mdls_scprocess:
         raise KeyError(
           f"the value {entry['model']} specified in label_celltypes is not a valid scprocess model"
-          f"These models are currently available: {", ".join(models_scprocess)}"
+          f"These models are currently available: {", ".join(mdls_scprocess)}"
           )
     
       # pick labeller
@@ -1118,7 +1118,11 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
 
 
 
-def get_resources(rule, param, lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, run = None):
+def get_resources(rule, all_rules, param, lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, run = None):
+  
+  if not hasattr(all_rules, rule):
+    raise ValueError(f'rule {rule} is not defined.')
+  
   # get lm params
   lm_df = pl.read_csv(lm_f)
 

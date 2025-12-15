@@ -435,8 +435,9 @@ if __name__ == '__main__':
 
   elif args.subcommand == "newproj":
     # make new project directory
-    if ('sc' in args.config) and ('sn' in args.config):
-      raise ValueError("When specifying --config / -c, only one of sc and sn can be specified at a time.")
+    if not args.config is None:
+      if ('sc' in args.config) and ('sn' in args.config):
+        raise ValueError("When specifying --config / -c, only one of sc and sn can be specified at a time.")
     where_abs = os.path.abspath(args.where)
     new_proj(sc_dir, args.name, where_abs, args.sub, args.config)
 

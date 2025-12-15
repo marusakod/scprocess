@@ -16,8 +16,8 @@ rule run_marker_genes:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_marker_genes', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('run_marker_genes', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_marker_genes', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('run_marker_genes', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_marker_genes/run_marker_genes_{DATE_STAMP}.benchmark.txt'
   conda: '../envs/rlibs.yaml'
@@ -42,9 +42,9 @@ rule run_fgsea:
   input:
     mkrs_f        = f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.csv.gz'
   output:
-    fgsea_go_bp_f = f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_bp_{DATE_STAMP}.txt.gz', 
-    fgsea_go_cc_f = f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_cc_{DATE_STAMP}.txt.gz',
-    fgsea_go_mf_f = f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_mf_{DATE_STAMP}.txt.gz'
+    fgsea_go_bp_f = f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_bp_{DATE_STAMP}.csv.gz', 
+    fgsea_go_cc_f = f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_cc_{DATE_STAMP}.csv.gz',
+    fgsea_go_mf_f = f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_mf_{DATE_STAMP}.csv.gz'
   params:
     species         = config['project']['species'],
     mkr_gsea_dir    = config['marker_genes']['mkr_gsea_dir'],
@@ -55,8 +55,8 @@ rule run_fgsea:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_fgsea', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('run_fgsea', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_fgsea', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
+    runtime = lambda wildcards, input: get_resources('run_fgsea', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_marker_genes/run_marker_genes_{DATE_STAMP}.benchmark.txt'
   conda: '../envs/rlibs.yaml'

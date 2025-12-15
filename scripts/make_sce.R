@@ -574,7 +574,7 @@ calc_gene_totals <- function(sce_input) {
 .get_one_nonbender_sce <- function(mat_f, sel_s, mito_str, gene_annots, min_counts, sample_var) {
 
   # read matrix
-  counts = .get_alevin_mx(af_mat_f = mat_f, sel_s = paste0(sel_s, ':'))
+  counts = .get_h5_mx(af_mat_f = mat_f, sel_s = paste0(sel_s, ':'))
 
 
   # exclude barcodes with v low counts (maybe remove?)
@@ -751,7 +751,7 @@ get_one_hto_sce <- function(sel_sample, sample_stats_f, amb_yaml_f, hto_mat_f, t
     set_colnames("cell_bc")
 
   # get hto counts
-  hto_counts = .get_alevin_mx(hto_mat_f, sel_s = '')
+  hto_counts = .get_h5_mx(hto_mat_f, sel_s = '')
 
   # translate hto bcs to match rna barcodes
   hto_true_bcs = bc_dict[bc_hto %chin% colnames(hto_counts)] %>%

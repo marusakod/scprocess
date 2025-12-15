@@ -154,7 +154,7 @@ print_sel_gene <- function(mkrs_dt, sel_ls) {
     )]
 }
 
-.get_alevin_mx <- function(af_mat_f, sel_s) {
+.get_h5_mx <- function(af_mat_f, sel_s) {
   # get this file
   h5_filt   = H5Fopen(af_mat_f, flags = "H5F_ACC_RDONLY" )
 

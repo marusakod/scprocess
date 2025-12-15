@@ -3,13 +3,9 @@ time,input.af_h5_f,51.023,1.658,get_barcode_qc_metrics,5
 memory,input.af_h5_f,958.405,42.866,get_barcode_qc_metrics,2048
 time,input.af_h5_f,44.126,0.517,make_one_pb_empty,5
 memory,input.af_h5_f,923.889,32.895,make_one_pb_empty,2048
-time,input.af_h5_f,44.126,0.517,make_one_pb_cells,5
-memory,input.af_h5_f,923.889,32.895,make_one_pb_cells,2048
 time,input.af_h5_f,3060.824,24.901,run_cellbender,5
 memory,input.af_h5_f,3374.924,117.196,run_cellbender,2048
 time,raw_data_size,1216.889,224.08,run_mapping,5
-time,input.af_h5_f,64.771,3.409,run_qc,5
-memory,input.af_h5_f,1725.978,51.52,run_qc,2048
 time,n_smpls_pre_qc,33.646,0.239,calculate_ambient_genes,5
 memory,n_smpls_pre_qc,974.447,3.952,calculate_ambient_genes,2048
 time,n_smpls_pre_qc,5.072,4.857,create_doublets_hvg_matrix,5
@@ -20,8 +16,8 @@ time,n_smpls_pre_qc,39.581,-0.105,get_highly_variable_genes,5
 memory,n_smpls_pre_qc,237.055,26.797,get_highly_variable_genes,2048
 time,n_smpls_pre_qc,0.217,0.043,get_qc_sample_statistics,5
 memory,n_smpls_pre_qc,90.821,5.441,get_qc_sample_statistics,2048
-time,n_smpls_pre_qc,14.392,7.914,make_pb_all,5
-memory,n_smpls_pre_qc,14653.057,154.665,make_pb_all,2048
+time,n_smpls_pre_qc,14.392,7.914,make_pb_cells,5
+memory,n_smpls_pre_qc,14653.057,154.665,make_pb_cells,2048
 time,n_smpls_pre_qc,31.034,8.009,make_tmp_csr_matrix,5
 memory,n_smpls_pre_qc,6555.972,428.274,make_tmp_csr_matrix,2048
 time,n_smpls_pre_qc,28.621,-0.009,merge_pb_empty,5

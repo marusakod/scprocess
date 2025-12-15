@@ -108,20 +108,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   fwrite(tmp_ls$coldata_dt, file = coldata_f)
   fwrite(tmp_ls$qc_all, file = qc_f)
 
-  # # save sce files
-  # if (demux_type == "none") {
-  #   .save_or_save_empty(sce_filt, sce_fs_ls, run_name)
-  # } else {
-  #   # save one sce file per sample_id
-  #   message(sprintf('  splitting pool sce object and saving one file per %s', batch_var))
-    
-  #   # save one file only for samples that were not removed
-  #   all_batches %>% lapply(function(b) {
-  #     batch_sce   = sce_filt[, colData(sce_filt)[[ batch_var ]] == b]
-  #     batch_f     = sce_fs_ls[[b]]
-  #     .save_or_save_empty(batch_sce, batch_f, b)
-  #   })
-  # }
+ 
   message('done!')
    
   return(NULL)
@@ -162,7 +149,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 
 .get_sce <- function(mat_f, sel_run, mito_str, exclude_mito, gene_annots, run_var, subset_cells = NULL) {
   # read matrix
-  mat         = .get_alevin_mx(mat_f, paste0(sel_run, ':'))
+  mat         = .get_h5_mx(mat_f, paste0(sel_run, ':'))
   if (!is.null(subset_cells)) {
     message('    subsetting sce to specified cells')
     assert_that( all(subset_cells %in% colnames(mat)) )
@@ -422,12 +409,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   # save
   assert_that( all(dbl_dt$cell_id == colnames(sce)) )
   message('  saving results')
-  fwrite(dbl_dt, file = dbl_f)
-    
-  # message('  running PCA')
-  # dimred_dt   = .calc_one_dimred(sce, run_name)
-  # assert_that( all(dimred_dt$cell_id == dbl_dt$cell_id) )
-  # fwrite(dimred_dt, file = dimred_f)
+  fwrite(dbl_dt, file = dbl_f)   
 
   message('done!')
     
@@ -1118,28 +1100,6 @@ calc_qc_summary <- function(qc_dt, kept_dt, cuts_dt, qc_lu, batch_var) {
 
 ##### for saving sce files. put here bc uses other functions
 
-
-.testing <- function() {
-  sel_b         = '1_8_pool_lane1_5xfad'
-  sel_run       = '1_8_pool_lane1_5xfad'
-
-  proj_dir      = "/pmount/projects/site/pred/neurogenomics/users/macnairw/dam_mice_2"
-  integration_f = file.path(proj_dir, "output/dam_mice_2_integration/integrated_dt_dam_mice_2_2025-11-27.csv.gz")
-  h5_paths_f    = file.path(proj_dir, "output/dam_mice_2_ambient/paths_h5_filtered_dam_mice_2_2025-11-27.csv")
-  coldata_f     = file.path(proj_dir, "output/dam_mice_2_qc/coldata_dt_all_cells_dam_mice_2_2025-11-27.csv.gz")
-  gtf_dt_f      = "/pmount/projects/site/pred/neurogenomics/resources/scdata/reference_genomes/mouse_2024/mouse_2024_genes_gtf.txt.gz"
-  run_var       = "pool_id"
-  batch_var     = "pool_id"
-  mito_str      = "^mt-"
-  exclude_mito  = TRUE
-  clean_sce_f   = file.path(proj_dir, "output/dam_mice_2_integration/sce_cells_clean_17_24_pool_lane1_5xfad_dam_mice_2_2025-11-27.rds")
-
-  source('scripts/utils.R')
-  source('scripts/SampleQC.R')
-  make_clean_sces(sel_b, sel_run, integration_f, h5_paths_f, 
-    coldata_f, gtf_dt_f, run_var, batch_var, mito_str, exclude_mito, clean_sce_f)
-}
-
 make_clean_sces <- function(sel_b, sel_run, integration_f, h5_paths_f, 
   coldata_f, gtf_dt_f, run_var, batch_var, mito_str, exclude_mito, clean_sce_f) {
   # load, exclude doublets
@@ -1167,7 +1127,7 @@ make_clean_sces <- function(sel_b, sel_run, integration_f, h5_paths_f,
   # get sce object
   message('  loading counts into sce')
   h5_paths    = fread(h5_paths_f)
-  filtered_f  = h5_paths[ run == sel_run ]$path
+  filtered_f  = h5_paths[ get(run_var) == sel_run ]$amb_filt_f %>% unique
   assert_that(file.exists(filtered_f))
   sce         = .get_sce_clean(filtered_f, sel_run, mito_str, exclude_mito, gene_annots, run_var,
     subset_cells = batch_ids)
@@ -1187,7 +1147,7 @@ make_clean_sces <- function(sel_b, sel_run, integration_f, h5_paths_f,
 
 .get_sce_clean <- function(mat_f, sel_run, mito_str, exclude_mito, gene_annots, run_var, subset_cells = NULL) {
   # read matrix
-  mat         = .get_alevin_mx(mat_f, paste0(sel_run, ':'))
+  mat         = .get_h5_mx(mat_f, paste0(sel_run, ':'))
   if (!is.null(subset_cells)) {
     message('    subsetting sce to specified cells')
     assert_that( all(subset_cells %in% colnames(mat)) )

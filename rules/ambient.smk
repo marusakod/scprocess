@@ -146,8 +146,8 @@ if config['ambient']['ambient_method'] == 'cellbender':
     threads: 4
     retries: config['resources']['retries']
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_cellbender', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
-      runtime = lambda wildcards, attempt, input: get_resources('run_cellbender', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)*(1.5**(attempt-1))
+      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_cellbender', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
+      runtime = lambda wildcards, attempt, input: get_resources('run_cellbender', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)*(1.5**(attempt-1))
     benchmark:
       f'{benchmark_dir}/{SHORT_TAG}_ambient/run_cellbender_{{run}}_{DATE_STAMP}.benchmark.txt'
     container:
@@ -230,7 +230,7 @@ if config['ambient']['ambient_method'] == 'decontx':
     input:
       af_h5_f         = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
       amb_yaml_f      = f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml', 
-      knee_data_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz'
+      knee_data_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz'
     output:
       amb_yaml_out    = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml'
     params:
@@ -239,8 +239,8 @@ if config['ambient']['ambient_method'] == 'decontx':
     threads: 4
     retries: config['resources']['retries']
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_decontx', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
-      runtime = lambda wildcards, input: get_resources('run_decontx', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
+      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_decontx', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
+      runtime = lambda wildcards, input: get_resources('run_decontx', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
     benchmark:
       f'{benchmark_dir}/{SHORT_TAG}_ambient/run_decontx_{{run}}_{DATE_STAMP}.benchmark.txt'
     conda: 
@@ -285,7 +285,7 @@ if config['ambient']['ambient_method'] == 'none':
     input:
       h5_f        = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
       amb_yaml_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml',
-      knee_data_f = f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz'
+      knee_data_f = f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz'
     output:
       ambient_yaml_out = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml'
     params:
@@ -296,8 +296,8 @@ if config['ambient']['ambient_method'] == 'none':
     conda:
       '../envs/ambientr.yaml'
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_cell_calling', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
-      runtime = lambda wildcards, input: get_resources('run_cell_calling', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
+      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_cell_calling', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
+      runtime = lambda wildcards, input: get_resources('run_cell_calling', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
     benchmark:
       f'{benchmark_dir}/{SHORT_TAG}_ambient/run_cell_calling_{{run}}_{DATE_STAMP}.benchmark.txt'
     shell:
@@ -340,14 +340,14 @@ rule get_barcode_qc_metrics:
   params:
     ambient_method  = config['ambient']['ambient_method']
   output:
-    bc_qc_f     = f'{amb_dir}/ambient_{{run}}/barcodes_qc_metrics_{{run}}_{DATE_STAMP}.txt.gz'
+    bc_qc_f     = f'{amb_dir}/ambient_{{run}}/barcodes_qc_metrics_{{run}}_{DATE_STAMP}.csv.gz'
   threads: 1
   retries: config['resources']['retries']
   conda:
     '../envs/ambientr.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_barcode_qc_metrics', 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
-    runtime = lambda wildcards, input: get_resources('get_barcode_qc_metrics', 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_barcode_qc_metrics', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
+    runtime = lambda wildcards, input: get_resources('get_barcode_qc_metrics', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_ambient/get_barcode_qc_metrics_{{run}}_{DATE_STAMP}.benchmark.txt'
   shell: """
@@ -360,8 +360,8 @@ rule get_barcode_qc_metrics:
 
 rule get_ambient_run_statistics:
   input:
-    metrics_fs  = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.txt.gz', run=RUNS),
-    bc_qc_fs    = expand(f'{amb_dir}/ambient_{{run}}/barcodes_qc_metrics_{{run}}_{DATE_STAMP}.txt.gz', run=RUNS),
+    metrics_fs  = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz', run=RUNS),
+    bc_qc_fs    = expand(f'{amb_dir}/ambient_{{run}}/barcodes_qc_metrics_{{run}}_{DATE_STAMP}.csv.gz', run=RUNS),
     amb_yaml_fs = expand(f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml', run=RUNS)
   output:
     amb_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
@@ -369,33 +369,3 @@ rule get_ambient_run_statistics:
     amb_stats_df = extract_ambient_run_statistics(config, RUNS, 
       RUN_PARAMS, input.metrics_fs, input.amb_yaml_fs, RUN_VAR)
     amb_stats_df.write_csv(output.amb_stats_f)
-
-
-rule make_paths_h5_csv:
-  input:
-    amb_yaml_fs = expand(f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml', 
-      run = RUNS)
-  output:
-    h5_paths_f  = f'{amb_dir}/paths_h5_filtered_{FULL_TAG}_{DATE_STAMP}.csv'
-  params:
-    runs        = RUNS
-  threads: 1
-  run:
-    # make empty list
-    filt_ls   = []
-
-    # loop through runs
-    for (run, yaml_f) in zip(params.runs, input.amb_yaml_fs):
-      # open yaml file
-      with open(yaml_f, "r") as stream:
-        yaml_ls     = yaml.safe_load(stream)
-      tmp_df    = pl.DataFrame({
-        "run":  run,
-        "path": yaml_ls['filt_counts_f']
-      })
-      filt_ls.append( tmp_df )
-    
-    # join together, save
-    filt_df   = pl.concat(filt_ls)
-    filt_df.write_csv(output.h5_paths_f)
-

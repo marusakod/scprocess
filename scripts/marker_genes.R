@@ -102,10 +102,10 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
     pb_ls       = bplapply(batches, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam, 
       sce_paths = sce_paths, int_dt = int_dt, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
   } else {
-    pb_ls       = lapply(batches, FUN = .make_one_pseudobulk, sce_paths = sce_paths, 
-      batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
-    # pb_ls       = bplapply(batches, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
-    #   sce_paths = sce_paths, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
+    # pb_ls       = lapply(batches, FUN = .make_one_pseudobulk, sce_paths = sce_paths, 
+    #   batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
+    pb_ls       = bplapply(batches, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
+      sce_paths = sce_paths, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
   }
   
   message('    merging pseudobulk counts')

@@ -46,7 +46,7 @@ setDTthreads(n_cores)
 rna_smpl_dirs = sprintf(paste0(af_dir, '/', 'af_%s', '/', af_rna_dir), s_lvls)
 rna_knee_fs = sapply(
   rna_smpl_dirs,
-  function(d) list.files(d, pattern = 'knee_plot_data_(.+)_.*txt.gz.*', recursive = FALSE, full.names = TRUE)
+  function(d) list.files(d, pattern = 'knee_plot_data_(.+)_.*.csv.gz.*', recursive = FALSE, full.names = TRUE)
   ) %>% setNames(s_lvls)
 
 # check that these are ok
