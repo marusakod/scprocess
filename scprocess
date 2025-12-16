@@ -220,11 +220,13 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
   config          = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
 
   # get lists of parameters
-  RUN_PARAMS, RUN_VAR     = scprocess_utils.get_run_parameters(config, scdata_dir)
-  RUNS                    = list(RUN_PARAMS.keys())
+  RUN_PARAMS, RUN_VAR = scprocess_utils.get_run_parameters(config, scdata_dir)
+  RUNS                = list(RUN_PARAMS.keys())
   BATCH_PARAMS, BATCH_VAR, SAMPLES = scprocess_utils.get_batch_parameters(config, RUNS, scdata_dir)
-  BATCHES                 = list(BATCH_PARAMS.keys())
+  BATCHES             = list(BATCH_PARAMS.keys())
+  RESOURCE_PARAMS     = scprocess_utils.prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES)
   RUNS_TO_BATCHES, RUNS_TO_SAMPLES = scprocess_utils.get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
+  LABELLER_PARAMS     = scprocess_utils.get_labeller_parameters(config, schema_f, scdata_dir)
 
   # print which files will be processed
   print(f"\nprocessing {len(BATCHES)} samples:")

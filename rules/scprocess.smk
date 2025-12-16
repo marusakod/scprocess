@@ -22,12 +22,13 @@ lm_f          = scprocess_dir / "resources/snakemake/resources_lm_params_2025-11
 config        = check_config(config, schema_f, scdata_dir, scprocess_dir)
 
 # get lists of parameters
-RUN_PARAMS, RUN_VAR     = get_run_parameters(config, scdata_dir)
-RUNS                    = list(RUN_PARAMS.keys())
+RUN_PARAMS, RUN_VAR = get_run_parameters(config, scdata_dir)
+RUNS                = list(RUN_PARAMS.keys())
 BATCH_PARAMS, BATCH_VAR, SAMPLES = get_batch_parameters(config, RUNS, scdata_dir)
-BATCHES                 = list(BATCH_PARAMS.keys())
+BATCHES             = list(BATCH_PARAMS.keys())
 RUNS_TO_BATCHES, RUNS_TO_SAMPLES = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
-LABELLER_PARAMS         = get_labeller_parameters(config, schema_f, scdata_dir)
+RESOURCE_PARAMS     = prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES)
+LABELLER_PARAMS     = get_labeller_parameters(config, schema_f, scdata_dir)
 
 # unpack some variables that we use a lot
 PROJ_DIR        = config['project']['proj_dir']

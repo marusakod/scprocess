@@ -1117,80 +1117,137 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
   return LABELLER_PARAMS
 
 
+def prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES):
+  # add default resource values
+  schema      = _load_schema_file(schema_f)
+  defaults    = _get_default_config_from_schema(schema)
+  defaults    = defaults['resources']
 
-def get_resources(rule, all_rules, param, lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, run = None):
+  # get user resource values
+  user_vals   = config['resources']
+
+  # if same as default, remove from user vals
+  for n in list(user_vals):
+    if n in defaults:
+      if defaults[n] == user_vals[n]:
+        del user_vals[n]
   
-  if not hasattr(all_rules, rule):
+  # add lm values
+  lm_df       = pl.read_csv(lm_f)
+
+  # get sizes, n-batches
+  R1_sizes    = { run: vals["mapping"]["R1_fs_size_gb"]  for run,vals in RUN_PARAMS.items() }
+  n_batches   = len(BATCHES)
+
+  # make full dict of useful things
+  RESOURCE_PARAMS = {}
+  RESOURCE_PARAMS["defaults"]   = defaults
+  RESOURCE_PARAMS["user_vals"]  = user_vals
+  RESOURCE_PARAMS["lm_df"]      = lm_df
+  RESOURCE_PARAMS["R1_sizes"]   = R1_sizes
+  RESOURCE_PARAMS["n_batches"]  = n_batches
+
+  return RESOURCE_PARAMS
+
+
+def get_resources(rules, RESOURCE_PARAMS, rule, param, attempt, run = None):
+  # definitions and checks
+  attempt_exp = 1.5
+  if not hasattr(rules, rule):
     raise ValueError(f'rule {rule} is not defined.')
-  
-  # get lm params
-  lm_df = pl.read_csv(lm_f)
-
-  # get resource name in the config 
   if param == 'time':
-    config_param_name = f'mins_{rule}'
+    param_name  = f'mins_{rule}'
   else: 
-    config_param_name = f'gb_{rule}'
+    param_name  = f'gb_{rule}'
+  
+  # unpack
+  defaults    = RESOURCE_PARAMS['defaults']
+  user_vals   = RESOURCE_PARAMS['user_vals']
+  filt_lm_df  = RESOURCE_PARAMS['lm_df'].filter((pl.col("param") == param) & (pl.col("rule") == rule))
+  if filt_lm_df.shape[0] > 1:
+    raise ValueError("filt_lm_df should have at most one row")
 
-  # get lm params for rule and param (memory or time)
-  filt_lm_df    = lm_df.filter((pl.col("param") == param) & (pl.col("rule") == rule))
+  # define some logical values
+  is_user     = param_name in user_vals
+  has_model   = not filt_lm_df["rq_slope"].is_null().all()
+  in_defaults = param_name in defaults
+  if has_model and in_defaults:
+    raise ValueError(f'Default value for {param_name} should not be specified in JSON schema.')
+  if (not has_model) and (not in_defaults):
+    raise ValueError(f'Default value for {param_name} is missing from JSON schema.')
 
-  # Load schema and extract default resource values
-  schema        = _load_schema_file(schema_f)
-  defaults      = _get_default_config_from_schema(schema)
-  res_defaults  = defaults['resources']
-
-  # if no lm params are defined
-  if filt_lm_df["rq_slope"].is_null().all():
-    # make sure default is specified in schema
-    if config_param_name not in res_defaults.keys():
-      raise ValueError(f'Default value for {config_param_name} is missing from JSON schema.')
-    # use values from config file
-    param_val = config['resources'].get(config_param_name, None)
+  # if user has specified value, use that
+  if is_user:
+    # get user specified value
     if param == 'memory':
-      param_val *= MB_PER_GB
+      mem_gb      = user_vals[param_name]
+      mem_mb      = mem_gb * MB_PER_GB
+    elif param == 'time':
+      time_min    = user_vals[param_name]
 
-  else: # if lm params are defined
-    # make sure no default value defined in schema
-    if config_param_name in res_defaults.keys():
-      raise ValueError(f'Default value for {config_param_name} should not be specified in JSON schema.')
-    
-    param_val = config['resources'].get(config_param_name, None)
-    if param_val is not None:
-      if param == 'memory':
-        param_val *= MB_PER_GB
-    else:
-      # get rq params
-      x_rq      = filt_lm_df['model_var'].unique().to_list()[0]
-      intercept = filt_lm_df['rq_intercept'].unique().to_list()[0] 
-      slope     = filt_lm_df['rq_slope'].unique().to_list()[0]
-      buffer    = filt_lm_df['buffer'].unique().to_list()[0]
+  # if lm params are defined
+  elif has_model:
+    param_est   = _estimate_resource_parameter(filt_lm_df, RESOURCE_PARAMS, input, rule, run)
+    if param == "memory":
+      mem_mb      = param_est
+    elif param == 'time':
+      time_s      = param_est
+      time_min    = time_s / 60
 
-      # get the name of x var
-      if x_rq.startswith('input.'):
-        input_attr = x_rq.replace("input.", "")
-        if hasattr(input, input_attr):
-          x_val = os.path.getsize(getattr(input, input_attr)) // MB_PER_GB**2 
-        else:
-          raise ValueError(f"'{input_attr}' is not a valid input attribute for rule '{rule}'.")
-      elif x_rq == 'raw_data_size':
-        # use raw data size
-        if run is None:
-          raise ValueError(f'run argument should be defined')
-        x_val = RUN_PARAMS[run]["mapping"]["R1_fs_size_gb"]
-      elif x_rq == 'n_smpls_pre_qc':
-        # use the number of samples
-        x_val = len(BATCHES)
-      else:
-        raise ValueError(f"Unknown variable '{x_rq}' for scaling resources.")
+    # if no lm params are defined, use values from defaults
+  elif in_defaults:
+    if param == 'memory':
+      mem_gb      = defaults.get(param_name, None)
+      mem_mb      = mem_gb * MB_PER_GB
+    elif param == 'time':
+      time_min    = defaults.get(param_name, None)
 
-      param_val = intercept + slope * x_val
+  else:
+    raise KeyError("should never end up here!!")
 
-      if param == 'time':
-        param_val /= 60  # Convert minutes to hours
-      param_val += buffer
+  # get what we need for end
+  if param == 'memory':
+    mem_mb      *= attempt_exp**(attempt - 1)
+    param_val   = mem_mb
+  elif param == 'time':
+    param_val   = time_min
+  param_val   = pl.Series("dummy", [param_val]).ceil().cast(pl.Int32).item()
 
   return param_val
+
+
+def _estimate_resource_parameter(filt_lm_df, RESOURCE_PARAMS, input, rule, run):
+  # get rq params
+  x_rq      = filt_lm_df['model_var'].item()
+  intercept = filt_lm_df['rq_intercept'].item() 
+  slope     = filt_lm_df['rq_slope'].item()
+  buffer    = filt_lm_df['buffer'].item()
+
+  # get the name of x var
+  if x_rq.startswith('input.'):
+    input_attr  = x_rq.replace("input.", "")
+    if hasattr(input, input_attr):
+      x_val     = os.path.getsize(getattr(input, input_attr)) // (MB_PER_GB**2)
+    else:
+      raise ValueError(f"'{input_attr}' is not a valid input attribute for rule '{rule}'.")
+
+  elif x_rq == 'raw_data_size':
+    # use raw data size
+    if run is None:
+      raise ValueError(f'run argument should be defined')
+    x_val       = RESOURCE_PARAMS['R1_sizes'][run]
+
+  elif x_rq == 'n_smpls_pre_qc':
+    # use the number of samples
+    x_val       = RESOURCE_PARAMS['n_batches']
+
+  else:
+    raise ValueError(f"Unknown variable '{x_rq}' for scaling resources.")
+
+  # do estimate
+  param_est   = intercept + (slope * x_val) + buffer
+
+  return param_est
 
 
 ### helpers
