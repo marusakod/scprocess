@@ -14,9 +14,9 @@ output:
 ---
 
 
-This page serves as a starting point for exploring the results of the `scprocess`. The links below organize all generated reports, with each one detailing a specific step of the analysis (e.g., mapping, ambient RNA removal, QC).
+This page serves as a starting point for exploring the results of `scprocess`. The links below organize all generated reports, with each one detailing a specific step of the analysis (e.g., mapping, ambient RNA removal, QC).
 
-Use this page to navigate through the full set of visualizations and data outputs for your project.
+Use this page to navigate through the full set of visualizations and outputs for your project.
 
 ## Core steps
 

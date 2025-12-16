@@ -186,38 +186,52 @@ rule zoom_make_one_pb_cells:
 
 rule zoom_make_tmp_pb_cells_df:
   input:
-    pb_cells_fs   = expand(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{zoom_name}}_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds', run = RUNS, zoom_name = ZOOMS)
+    pb_cells_fs = lambda wildcards: expand(
+        f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{zoom_name}}_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds',
+        run=RUNS,
+        zoom_name=[wildcards.zoom_name]  
+    )
   output:
     cells_paths_f = temp(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_paths_{FULL_TAG}_{DATE_STAMP}.csv')
   params:
-    run_var     = RUN_VAR,
-    runs        = RUNS
+    run_var = RUN_VAR,
+    runs    = RUNS
   run:
-    # make df
-    paths_df    = pl.DataFrame({
-      params.run_var: params.runs,
-      "pb_path":      input.pb_cells_fs
-    })
-    paths_df    = paths_df.filter( pl.col("pb_path").map_elements(os.path.getsize, return_dtype=pl.Int64) > 0 )
+    import os
+    import polars as pl
 
-    # save
+    paths_df = pl.DataFrame({
+        params.run_var: params.runs,
+        "pb_path": input.pb_cells_fs
+    })
+    paths_df = paths_df.filter(
+        pl.col("pb_path").map_elements(os.path.getsize, return_dtype=pl.Int64) > 0
+    )
     paths_df.write_csv(output.cells_paths_f)
 
 
 rule zoom_merge_pb_cells:
   input:
     cells_paths_f = f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_paths_{FULL_TAG}_{DATE_STAMP}.csv',
-    pb_cells_fs   = expand(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{zoom_name}}_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds', run = RUNS, zoom_name = ZOOMS), 
-    rowdata_f     = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    pb_cells_fs   = lambda wildcards: expand(
+        f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{zoom_name}}_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds',
+        run=RUNS,
+        zoom_name=[wildcards.zoom_name]  # Restrict to current zoom_name
+    ),
+    rowdata_f = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
-    pb_cells_f    = f'{zoom_dir}/{{zoom_name}}/pb_cells_{{zoom_name}}_{FULL_TAG}_{DATE_STAMP}.rds'
+    pb_cells_f = f'{zoom_dir}/{{zoom_name}}/pb_cells_{{zoom_name}}_{FULL_TAG}_{DATE_STAMP}.rds'
   params:
-    batch_var     = BATCH_VAR
+    batch_var  = BATCH_VAR
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_merge_pb_cells', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_merge_pb_cells', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources(
+        'zoom_merge_pb_cells', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS
+    ),
+    runtime = lambda wildcards, input: get_resources(
+        'zoom_merge_pb_cells', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS
+    )
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_merge_pb_cells_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   conda: 
