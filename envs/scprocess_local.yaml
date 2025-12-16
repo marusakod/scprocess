@@ -1,4 +1,4 @@
-name: scprocess_env
+name: scprocess
 channels:
   - bioconda
   - conda-forge
@@ -12,6 +12,7 @@ dependencies:
   - attrs=25.3.0
   - brotli-python=1.1.0
   - bzip2=1.0.8
+  - c-ares=1.34.6
   - ca-certificates=2025.7.14
   - certifi=2025.7.14
   - cffi=1.17.1
@@ -45,9 +46,14 @@ dependencies:
   - jsonschema=4.25.0
   - jsonschema-specifications=2025.4.1
   - jupyter_core=5.8.1
+  - keyutils=1.6.3
+  - krb5=1.21.3
   - ld_impl_linux-64=2.44
   - libblas=3.9.0
   - libcblas=3.9.0
+  - libcurl=8.14.1
+  - libedit=3.1.20250104
+  - libev=4.33
   - libexpat=2.7.1
   - libffi=3.4.6
   - libgcc=15.1.0
@@ -58,9 +64,11 @@ dependencies:
   - liblapack=3.9.0
   - liblapacke=3.9.0
   - liblzma=5.8.1
+  - libnghttp2=1.64.0
   - libnsl=2.0.1
   - libopenblas=0.3.30
   - libsqlite=3.50.3
+  - libssh2=1.11.1
   - libstdcxx=15.1.0
   - libstdcxx-ng=15.1.0
   - libuuid=2.38.1
@@ -89,6 +97,7 @@ dependencies:
   - psutil=7.0.0
   - pulp=2.8.0
   - pycparser=2.22
+  - pycurl=7.45.6
   - pydantic=2.11.7
   - pydantic-core=2.33.2
   - pygments=2.19.2
@@ -144,3 +153,4 @@ dependencies:
   - yaml=0.2.5
   - yte=1.8.1
   - zstandard=0.23.0
+  - zstd=1.5.7
