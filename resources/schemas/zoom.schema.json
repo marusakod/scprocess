@@ -88,7 +88,6 @@
       "properties": {
         "int_embedding":    { "type": "string", "enum": ["harmony", "pca"], "default": "harmony" },
         "int_theta":        { "type": "number", "default": 0.1 },
-        "int_batch_var":    { "type": "string", "enum": ["pool_id", "sample_id"], "default": "sample_id" },
         "int_n_dims":       { "type": "integer", "default": 50 },
         "int_dbl_res":      { "type": "number", "default": 4 },
         "int_dbl_cl_prop":  { "type": "number", "default": 0.5 },

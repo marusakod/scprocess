@@ -136,12 +136,10 @@ def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals_str, smpl_sta
   filt_df   = pl.read_csv(cell_filter_f)
   keep_vals = keep_vals_str.split(',')
 
-  keep_df: pl.DataFrame = (
-    filt_df.with_columns(
-        pl.col(keep_var).cast(pl.Utf8).alias(keep_var)
-    ).filter(
-        pl.col(keep_var).is_in(keep_vals)
-    )
+  keep_df = (
+    filt_df
+    .with_columns(pl.col(keep_var).cast(pl.Utf8).alias(keep_var))  
+    .filter(pl.col(keep_var).is_in(keep_vals)) 
   )
 
   # get gene details

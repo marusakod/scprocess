@@ -21,7 +21,7 @@ proj_schema_f   = scprocess_dir / "resources/schemas/config.schema.json"
 zoom_schema_f   = scprocess_dir / "resources/schemas/zoom.schema.json"
 scdata_dir      = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 
-lm_f            = scprocess_dir / "resources/snakemake/resources_lm_params_2025-11-27.csv"
+lm_f            = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
 
 # check config
 config          = check_config(config, proj_schema_f, scdata_dir, scprocess_dir)
@@ -120,6 +120,8 @@ rule zoom:
     # zoom sce subsets (optional)
     zoom_sce_outs
 
+
+localrules: zoom_make_tmp_pb_cells_df, zoom_make_hvg_df, zoom_merge_group_mean_var, zoom_merge_group_std_var_stats, zoom_merge_stats_for_std_variance
 
 rule get_zoom_sample_statistics:
   input:
@@ -566,7 +568,7 @@ rule zoom_run_integration:
     zoom_int_cl_method  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_cl_method'], 
     zoom_int_theta      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_theta'],
     zoom_int_res_ls     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
-    zoom_int_batch_var  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_batch_var']
+    batch_var           = BATCH_VAR
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -602,7 +604,7 @@ rule zoom_run_integration:
       --theta         {params.zoom_int_theta} \
       --res_ls_concat "{params.zoom_int_res_ls}" \
       --integration_f {output.integration_f} \
-      --batch_var     {params.zoom_int_batch_var} \
+      --batch_var     {params.batch_var} \
       $USE_GPU_FLAG
     """
 
