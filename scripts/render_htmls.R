@@ -183,8 +183,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
   } else if (sel_rule == 'label_celltypes') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp', 'threads',
-      'int_f', 'guess_f_ls', 'labeller_ls', 'model_ls', 'hi_res_cl_ls', 'min_cl_prop_ls', 
-      'min_cl_size_ls')
+      'int_f', 'guess_f_ls', 'labeller_ls', 'model_ls', 'hi_res_cl_ls', 'min_cl_prop_ls')
 
     assert_that(all(req_names %in% add_args_names))
 

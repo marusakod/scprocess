@@ -43,7 +43,6 @@ model_ls        = str_split("${model_ls}", " ")[[ 1 ]]
 # params
 hi_res_cl_ls    = str_split("${hi_res_cl_ls}", " ")[[ 1 ]]
 min_cl_prop_ls  = str_split("${min_cl_prop_ls}", " ")[[ 1 ]] %>% as.numeric
-min_cl_size_ls  = str_split("${min_cl_size_ls}", " ")[[ 1 ]] %>% as.numeric
 ```
 
 ```{r load_umap, include = FALSE}

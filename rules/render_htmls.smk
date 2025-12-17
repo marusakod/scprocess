@@ -530,8 +530,7 @@ if "label_celltypes" in config:
       labeller_ls     = [ entry['labeller']     for entry in LABELLER_PARAMS],
       model_ls        = [ entry['model']        for entry in LABELLER_PARAMS],
       hi_res_cl_ls    = [ entry['hi_res_cl']    for entry in LABELLER_PARAMS], 
-      min_cl_prop_ls  = [ entry['min_cl_prop']  for entry in LABELLER_PARAMS], 
-      min_cl_size_ls  = [ entry['min_cl_size']  for entry in LABELLER_PARAMS]
+      min_cl_prop_ls  = [ entry['min_cl_prop']  for entry in LABELLER_PARAMS]
     threads: 1
     retries: config['resources']['retries']
     resources:
@@ -565,7 +564,6 @@ if "label_celltypes" in config:
         labeller_ls     = '{params.labeller_ls}',
         model_ls        = '{params.model_ls}',
         hi_res_cl_ls    = '{params.hi_res_cl_ls}',
-        min_cl_prop_ls  = '{params.min_cl_prop_ls}',
-        min_cl_size_ls  = '{params.min_cl_size_ls}'
+        min_cl_prop_ls  = '{params.min_cl_prop_ls}'
       )"
       """

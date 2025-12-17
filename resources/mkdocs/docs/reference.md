@@ -182,7 +182,6 @@ This is an example config file for {{sc}} with all parameters and their default 
       lbl_sel_res_cl: "RNA_snn_res.2"
       lbl_min_pred: 0.8
       lbl_min_cl_prop: 0.5
-      lbl_min_cl_size: 100
     zoom:
     resources:
       retries: 3
@@ -280,7 +279,6 @@ This is an example config file for {{sc}} with all parameters and their default 
       lbl_sel_res_cl: "RNA_snn_res.2"
       lbl_min_pred: 0.8
       lbl_min_cl_prop: 0.5
-      lbl_min_cl_size: 100
     zoom:
       cell_subset_1: /path/to/cell_subset_1_zoom_params.yaml
       cell_subset_2: /path/to/cell_subset_2_zoom_params.yaml
@@ -441,7 +439,6 @@ sample_id:
 * `lbl_sel_res_cl`: selected cluster resolution for cell type labeling (must match one of the values in `int_res_ls`); higher values are recommended for optimal performance.
 * `lbl_min_pred`: minimum probability threshold for assigning a cell to a cell type.
 * `lbl_min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.
-* `lbl_min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled.
 
 ##### zoom
 
