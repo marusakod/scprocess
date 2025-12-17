@@ -135,10 +135,10 @@ rule get_zoom_sample_statistics:
     zoom_min_n_smpl = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc']['qc_min_cells'],
     ambient_method  = config['ambient']['ambient_method']
   run:
-    zoom_stats_df   = extract_zoom_sample_statistics(input.qc_stats_f, BATCHES, 
+    zoom_stats_df   = extract_zoom_sample_statistics(input.qc_stats_f, BATCHES, BATCH_VAR,
       params.zoom_lbls_f, params.zoom_lbls_col, params.zoom_lbls, params.zoom_min_n_smpl, 
       params.ambient_method)
-    zoom_stats_df.to_csv(output.zoom_stats_f, index = False)
+    zoom_stats_df.write_csv(output.zoom_stats_f)
 
 
 # pseudobulks and empties

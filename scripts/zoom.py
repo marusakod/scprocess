@@ -1,4 +1,5 @@
 import pandas as pd
+import polars as pl
 
 # zoom function: get list of all mean var files for zooms
 def get_zoom_raw_mean_var_files(zoom_name, ZOOM_PARAMS, FULL_TAG, DATE_STAMP):
@@ -33,49 +34,48 @@ def get_zoom_std_var_stats_files(zoom_name, zoom_dir, ZOOM_PARAMS, FULL_TAG, DAT
 
 
 # zoom function: make df with good / bad sample labels for a specific zoom
-def extract_zoom_sample_statistics(qc_stats_f, SAMPLES, LABELS_F, LABELS_VAR, LABELS, MIN_N_SAMPLE, AMBIENT_METHOD):
-  # load inputs
-  qc_df     = pd.read_csv(qc_stats_f)
-  qc_df     = qc_df.drop('n_cells', axis=1)
-  lbls_dt   = pd.read_csv(LABELS_F, compression='gzip')
+def extract_zoom_sample_statistics(qc_stats_f, BATCHES, BATCH_VAR, LABELS_F, LABELS_VAR, LABELS, MIN_N_SAMPLE, AMBIENT_METHOD):
+ 
+    qc_df   = pl.read_csv(qc_stats_f).drop('n_cells')
+    lbls_dt = pl.read_csv(LABELS_F)
 
-  # keep selected labels
-  lbls_dt   = lbls_dt[ lbls_dt[LABELS_VAR].isin(LABELS) ]
-  
-  # count the number of cells per sample
-  zoom_sample_stats = (
-    lbls_dt.groupby('sample_id')
-    .size()
-    .reset_index(name='n_cells')
-  )
-  
-  # add empty samples
-  empty_ss  = list(set(SAMPLES) - set(zoom_sample_stats["sample_id"].tolist()))
-  empty_df  = pd.DataFrame({ "sample_id": empty_ss, "n_cells": 0 })
-  zoom_sample_stats = pd.concat([zoom_sample_stats, empty_df])
+    # keep selected labels
+    lbls_dt = lbls_dt.filter(lbls_dt[LABELS_VAR].is_in(LABELS))
 
-  # identify samples that do not meet the minimum cell threshold
-  zoom_sample_stats['bad_zoom_qc'] = zoom_sample_stats['n_cells'] < MIN_N_SAMPLE
-  
-  # merge new and existing sample stats
-  sample_df = qc_df.merge(zoom_sample_stats, on='sample_id',how='left')
-  
-  # update 'bad_sample' column
-  if AMBIENT_METHOD == 'cellbender':
-    sample_df['bad_sample'] = (
-      sample_df['bad_bender'] | sample_df['bad_qc'] | sample_df['bad_zoom_qc']
-    )
-  else:
-    sample_df['bad_sample'] = (
-      sample_df['bad_qc'] | sample_df['bad_zoom_qc']
+    # count the number of cells per sample
+    zoom_sample_stats = (lbls_dt.group_by(BATCH_VAR).agg(
+        pl.len().alias("n_cells")
+    ))
+
+    # add empty samples
+    empty_ss = list(set(BATCHES) - set(zoom_sample_stats[BATCH_VAR].to_list()))
+    empty_df = pl.DataFrame({BATCH_VAR: empty_ss, "n_cells": [0] * len(empty_ss)})
+    zoom_sample_stats = pl.concat([zoom_sample_stats, empty_df])
+
+    # identify samples that do not meet the minimum cell thresho
+    zoom_sample_stats = zoom_sample_stats.with_columns(
+        (zoom_sample_stats["n_cells"] < MIN_N_SAMPLE).alias("bad_zoom_qc")
     )
 
-  # check that at least 2 good samples remain
-  good_smpls_count = (sample_df['bad_sample'] == False).sum()
-  assert good_smpls_count >= 2, \
-    "Fewer than 2 samples available for this zoom."
-  
-  return sample_df
+    # merge new and existing sample stats
+    sample_df = qc_df.join(zoom_sample_stats, on=BATCH_VAR, how="left")
+
+    # update 'bad_[batch_var]' column
+    if AMBIENT_METHOD == 'cellbender':
+        sample_df = sample_df.with_columns(
+            (sample_df["bad_bender"] | sample_df["bad_qc"] | sample_df["bad_zoom_qc"]).alias(f'bad_{BATCH_VAR}')
+        )
+    else:
+        sample_df = sample_df.with_columns(
+            (sample_df["bad_qc"] | sample_df["bad_zoom_qc"]).alias(f'bad_{BATCH_VAR}')
+        )
+
+    # Check that at least 2 good samples remain
+    good_smpls_count = (sample_df[f'bad_{BATCH_VAR}'] == False).sum()
+    if good_smpls_count < 2:
+        raise AssertionError("Fewer than 2 samples available for this zoom.")
+
+    return sample_df
 
 
 # zoom function: specify some optional outputs for zoom (at the moment only FGSEA outputs)

@@ -35,7 +35,7 @@
 
 * #### QC filtering
 
-    In addition to removing doublets, {{sc}} filters out cells with low library size, low feature counts, high mitochondrial read proportions, and high spliced read proportions using user-defined thresholds. The spliced proportion is a particularly informative metric in single-nuclei RNA-seq, as elevated levels may indicate residual cytoplasmic material (see Montserrat-Ayuso and Esteve-Codina[^6]).
+    In addition to removing doublets, {{sc}} filters out cells based on library size, feature counts, mitochondrial read proportions and spliced read proportions using user-defined thresholds. The spliced proportion is a particularly informative metric in single-nuclei RNA-seq, as elevated levels may indicate residual cytoplasmic material (see Montserrat-Ayuso and Esteve-Codina[^6]).
 
 * #### Generating pseudobulks from cells and empty droplets and ambient gene detection
 
@@ -62,15 +62,11 @@
 
 * #### Cell type labelling
 
-    {{sc}} provides automated cell type annotation of human and mouse brain datasets using `XGBoost` classifiers Classifiers are trained on the following datasets:
-
-    - Human Brain Classifier: [Transcriptomic diversity of cell types across the adult human brain](https://www.science.org/doi/10.1126/science.add7046) [has to be updated]
-
-    - Mouse Brain Classifier: [The molecular cytoarchitecture of the adult mouse brain](https://www.nature.com/articles/s41586-023-06818-7) and [A high-resolution transcriptomic and spatial atlas of cell types in the whole mouse brain](https://www.nature.com/articles/s41586-023-06812-z) [work in progress]
+    {{sc}} provides automated cell type annotation of human brain datasets using an `XGBoost` classifier trained on the following dataset: [Transcriptomic diversity of cell types across the adult human brain](https://www.science.org/doi/10.1126/science.add7046). In addition, {{sc}} supports cell type annotation using pre-trained models available through `Celltypist`[^11],[^12]
 
 * #### Subclustering
 
-    {{sc}} offers a subclustering feature that enables users to perform a second round of analysis on a specific subset of cells and includes the following steps: generating pseudobulks from selected cells and detecting ambient genes, indentifying higly variable genes, data integration and marker gene identification. Cell subsets can be defined based on user-provided cell type labels, clusters identified during the primary round of {{sc}}, or cell type labels assigned by the XGBoost classifier. This functionality is particularly valuable when a primary cluster or cell type contains diverse cell states, developmental stages, or activation states that warrant more detailed exploration.
+    {{sc}} offers a subclustering feature that enables users to perform a second round of analysis on a specific subset of cells and includes the following steps: generating pseudobulks from selected cells and detecting ambient genes, indentifying higly variable genes, data integration and marker gene identification. Cell subsets can be defined based on user-provided cell type labels, clusters identified during the primary round of {{sc}}, or cell type labels assigned with a selected classifier. This functionality is particularly valuable when a primary cluster or cell type contains diverse cell states, developmental stages, or activation states that warrant more detailed exploration.
 
 <!-- citations -->
 <!-- [Link to paper](). [Link to package](). -->
@@ -93,4 +89,10 @@
 
 [^9]: Robinson MD, McCarthy DJ, Smyth GK. _edgeR: a Bioconductor package for differential expression analysis of digital gene expression data_. Bioinformatics. 2010;26:139–40. [Link to paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC2796818/). [Link to package](https://bioconductor.org/packages/release/bioc/html/edgeR.html).
 
-[^10]: Stoeckius M, Zheng S, Houck-Loomis B, Hao S, Yeung BZ, Mauck WM 3rd, et al. _Cell Hashing with barcoded antibodies enables multiplexing and doublet detection for single cell genomics_. Genome Biol. 2018;19:224. [Link to paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-018-1603-1). [Link to package]().
+[^10]: Stoeckius M, Zheng S, Houck-Loomis B, Hao S, Yeung BZ, Mauck WM 3rd, et al. _Cell Hashing with barcoded antibodies enables multiplexing and doublet detection for single cell genomics_. Genome Biol. 2018;19:224. [Link to paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-018-1603-1). [Link to package](https://satijalab.org/seurat/articles/hashing_vignette.html).
+
+[^11]: Xu C, Prete M, Webb S, Jardine L, Stewart BJ, Hoo R, et al. Automatic cell-type harmonization and integration across Human Cell Atlas datasets. Cell. 2023 Dec 21;186(26):5876–91.e20. [Link to paper](https://www.sciencedirect.com/science/article/pii/S0092867423013120?via%3Dihub):
+
+[^12]: Domínguez Conde C, Xu C, Jarvis LB, Rainbow DB, Wells SB, Gomes T, et al. Cross-tissue immune cell analysis reveals tissue-specific features in humans. Science. 2022 May 13;376(6594):eabl5197. [Link to paper](https://www.science.org/doi/10.1126/science.abl5197): 
+
+
