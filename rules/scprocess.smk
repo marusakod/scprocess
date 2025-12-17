@@ -13,9 +13,8 @@ from scprocess_utils import *
 
 # define some things
 scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
-schema_f      = scprocess_dir / "resources/schemas/config.schema.json"
 scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
-
+schema_f      = scprocess_dir / "resources/schemas/config.schema.json"
 lm_f          = scprocess_dir / "resources/snakemake/resources_lm_params_2025-11-27.csv"
 
 # check config
@@ -310,7 +309,6 @@ rule label_celltypes:
 rule index:
   input:
     f'{docs_dir}/index.html'
-
 
 # define rules that are needed
 include: "mapping.smk"

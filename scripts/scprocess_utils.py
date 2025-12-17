@@ -1124,7 +1124,7 @@ def prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES):
   defaults    = defaults['resources']
 
   # get user resource values
-  user_vals   = config['resources']
+  user_vals   = config['resources'].copy()
 
   # if same as default, remove from user vals
   for n in list(user_vals):
@@ -1150,7 +1150,7 @@ def prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES):
   return RESOURCE_PARAMS
 
 
-def get_resources(rules, RESOURCE_PARAMS, rule, param, attempt, run = None):
+def get_resources(RESOURCE_PARAMS, rules, input, rule, param, attempt, run = None):
   # definitions and checks
   attempt_exp = 1.5
   if not hasattr(rules, rule):

@@ -128,28 +128,21 @@ def get_one_csr_counts(run, hvg_paths_df, keep_df, smpl_stats_df, gene_ids,
 
 def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals_str, smpl_stats_f, 
   rowdata_f, RUN_VAR, batch_var, demux_type, chunk_size=2000, n_cores = 8):
-  
   hvg_paths_df  = pl.read_csv(hvg_paths_f)
   smpl_stats_df = pl.read_csv(smpl_stats_f)
 
   # get QCed cells
   filt_df   = pl.read_csv(cell_filter_f)
-  keep_vals = keep_vals_str.split(',')
-
-  keep_df: pl.DataFrame = (
-    filt_df.with_columns(
-        pl.col(keep_var).cast(pl.Utf8).alias(keep_var)
-    ).filter(
-        pl.col(keep_var).is_in(keep_vals)
-    )
-  )
+  keep_df   = filt_df.filter( pl.col(keep_var) == True )
 
   # get gene details
-  rows_df  = pl.read_csv(rowdata_f)
-  keep_ids = rows_df['ensembl_id'].to_list()
+  rows_df   = pl.read_csv(rowdata_f)
+  keep_ids  = rows_df['ensembl_id'].to_list()
 
   # define list of samples
-  runs = hvg_paths_df[RUN_VAR].unique().to_list()
+  runs      = hvg_paths_df[RUN_VAR].unique().to_list()
+  if not keep_df.filter( pl.col(RUN_VAR).is_in(runs) ).select(RUN_VAR).n_unique() == len(runs):
+    raise ValueError("not all runs are in keep_df")
  
   with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
     futures = [executor.submit(get_one_csr_counts, run, hvg_paths_df, keep_df, 

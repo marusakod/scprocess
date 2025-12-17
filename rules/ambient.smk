@@ -146,8 +146,8 @@ if config['ambient']['ambient_method'] == 'cellbender':
     threads: 4
     retries: config['resources']['retries']
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_cellbender', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
-      runtime = lambda wildcards, attempt, input: get_resources('run_cellbender', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)*(1.5**(attempt-1))
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_cellbender', 'memory', attempt, wildcards.run),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_cellbender', 'time', attempt, wildcards.run)
     benchmark:
       f'{benchmark_dir}/{SHORT_TAG}_ambient/run_cellbender_{{run}}_{DATE_STAMP}.benchmark.txt'
     container:
@@ -239,8 +239,8 @@ if config['ambient']['ambient_method'] == 'decontx':
     threads: 4
     retries: config['resources']['retries']
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_decontx', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
-      runtime = lambda wildcards, input: get_resources('run_decontx', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_decontx', 'memory', attempt, wildcards.run),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_decontx', 'time', attempt, wildcards.run)
     benchmark:
       f'{benchmark_dir}/{SHORT_TAG}_ambient/run_decontx_{{run}}_{DATE_STAMP}.benchmark.txt'
     conda: 
@@ -296,12 +296,11 @@ if config['ambient']['ambient_method'] == 'none':
     conda:
       '../envs/ambientr.yaml'
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_cell_calling', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
-      runtime = lambda wildcards, input: get_resources('run_cell_calling', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_cell_calling', 'memory', attempt, wildcards.run),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_cell_calling', 'time', attempt, wildcards.run)
     benchmark:
       f'{benchmark_dir}/{SHORT_TAG}_ambient/run_cell_calling_{{run}}_{DATE_STAMP}.benchmark.txt'
-    shell:
-      """
+    shell: """
       # create main ambient directory
       mkdir -p {amb_dir}
 
@@ -346,8 +345,8 @@ rule get_barcode_qc_metrics:
   conda:
     '../envs/ambientr.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_barcode_qc_metrics', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
-    runtime = lambda wildcards, input: get_resources('get_barcode_qc_metrics', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_barcode_qc_metrics', 'memory', attempt, wildcards.run),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_barcode_qc_metrics', 'time', attempt, wildcards.run)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_ambient/get_barcode_qc_metrics_{{run}}_{DATE_STAMP}.benchmark.txt'
   shell: """
@@ -369,3 +368,4 @@ rule get_ambient_run_statistics:
     amb_stats_df = extract_ambient_run_statistics(config, RUNS, 
       RUN_PARAMS, input.metrics_fs, input.amb_yaml_fs, RUN_VAR)
     amb_stats_df.write_csv(output.amb_stats_f)
+

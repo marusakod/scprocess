@@ -271,7 +271,7 @@
         "gb_calculate_ambient_genes":    { "type": ["integer", "null"] },
         "mins_make_one_pb_empty":         { "type": ["integer", "null"] },
         "mins_merge_pb_empty":            { "type": ["integer", "null"] },
-        "mins_make_one_pb_cells":         { "type": "integer", "default": 10 },
+        "mins_make_one_pb_cells":         { "type": "integer", "default": 5 },
         "mins_merge_pb_cells":            { "type": "integer", "default": 5 },
         "mins_calculate_ambient_genes":   { "type": ["integer", "null"] },
 

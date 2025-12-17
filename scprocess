@@ -204,17 +204,18 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
   print('doing some checks on inputs')
 
   # housekeeping
-  config_path     = pathlib.Path(configfile).resolve()
-  scprocess_dir   = pathlib.Path(__file__).parent
+  config_path   = pathlib.Path(configfile).resolve()
+  scprocess_dir = pathlib.Path(__file__).parent
   os.chdir(scprocess_dir)
 
   # do some checks
   scdata_dir, extraargs = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
+  lm_f          = scprocess_dir / "resources/snakemake/resources_lm_params_2025-11-27.csv"
 
   # get validated config
   with open(config_path, "r") as f:
-    config          = yaml.safe_load(f)
-  schema_f        = scprocess_dir / "resources/schemas/config.schema.json"
+    config        = yaml.safe_load(f)
+  schema_f      = scprocess_dir / "resources/schemas/config.schema.json"
   if not schema_f.is_file():
     raise FileNotFoundError("schema file not found")
   config          = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
