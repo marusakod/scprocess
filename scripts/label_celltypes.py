@@ -100,7 +100,7 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var):
   hi_res_lu   = counts_df.group_by("hi_res_cl").first().select(
     "hi_res_cl",
     predicted_label_agg = pl.when(pl.col("prop") < min_cl_prop)
-      .then(pl.lit("unknown"))
+      .then(pl.lit("ambiguous"))
       .otherwise(pl.col("predicted_label")),
     prop_hi_res_cl      = pl.col("prop")
   )
