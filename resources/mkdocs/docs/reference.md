@@ -216,7 +216,9 @@ This is an example config file for {{sc}} with all parameters and their default 
     multiplexing:
       demux_type: hto
       fastq_dir: /path/to/directory/with/hto_fastq/files
+      arv_uuids:
       feature_ref: /path/to/feature_ref.csv
+      demux_output: /path/to/demux_output.csv
     ambient:
       ambient_method: cellbender
       cb_version: v0.3.2
