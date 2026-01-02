@@ -317,12 +317,12 @@ rule zoom_make_tmp_csr_matrix:
       "{input.hvg_paths_f}" \
       "{params.zoom_lbls_f}" \
       "{params.zoom_lbls_col}" \
-      "{params.zoom_lbls}" \
       "{input.smpl_stats_f}" \
       "{input.rowdata_f}" \
       "{params.run_var}" \
       "{params.batch_var}" \
       "{params.demux_type}" \
+      --keep_val_strs "{params.zoom_lbls}" \
       --chunksize {params.zoom_chunk_size} \
       --ncores {threads}
     """

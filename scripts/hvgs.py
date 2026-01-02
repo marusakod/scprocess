@@ -126,20 +126,23 @@ def get_one_csr_counts(run, hvg_paths_df, keep_df, smpl_stats_df, gene_ids,
     print(f"CSR matrix for {b} successfully saved to {out_f}.")
 
 
-def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals_str, smpl_stats_f, 
-  rowdata_f, RUN_VAR, batch_var, demux_type, chunk_size = 2000, n_cores = 8):
+def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, smpl_stats_f, 
+  rowdata_f, RUN_VAR, batch_var, demux_type, keep_vals_str = None, chunk_size = 2000, n_cores = 8):
   # load things
   hvg_paths_df  = pl.read_csv(hvg_paths_f)
   smpl_stats_df = pl.read_csv(smpl_stats_f)
 
   # get QCed cells
   filt_df       = pl.read_csv(cell_filter_f)
-  keep_vals     = keep_vals_str.split(',')
-  keep_df       = (
-    filt_df
-    .with_columns(pl.col(keep_var).cast(pl.Utf8).alias(keep_var))  
-    .filter(pl.col(keep_var).is_in(keep_vals)) 
-  )
+  if keep_vals_str is None:
+    keep_df       = filt_df.filter( pl.col(keep_var) )
+  else:
+    keep_vals     = keep_vals_str.split(',')
+    keep_df       = (
+      filt_df
+      .with_columns(pl.col(keep_var).cast(pl.Utf8).alias(keep_var))
+      .filter(pl.col(keep_var).is_in(keep_vals))
+    )
   if not keep_df.shape[0] > 0:
     raise ValueError("keep_df is empty")
 
@@ -149,7 +152,8 @@ def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals_str, smpl_sta
 
   # define list of samples
   runs          = hvg_paths_df[RUN_VAR].unique().to_list()
- 
+  get_one_csr_counts(runs[0], hvg_paths_df, keep_df, smpl_stats_df, keep_ids, 
+    RUN_VAR, batch_var, demux_type, chunk_size)
   with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
     futures = [executor.submit(get_one_csr_counts, run, hvg_paths_df, keep_df, 
       smpl_stats_df, keep_ids, RUN_VAR, batch_var, demux_type, chunk_size) for run in runs]
@@ -790,14 +794,14 @@ if __name__ == "__main__":
   parser_makeCSR.add_argument("hvg_paths_f", type=str)
   parser_makeCSR.add_argument("cell_filter_f", type=str)
   parser_makeCSR.add_argument("keep_var", type=str)
-  parser_makeCSR.add_argument("keep_vals_str", type=str)
   parser_makeCSR.add_argument("smpl_stats_f", type=str)
   parser_makeCSR.add_argument("rowdata_f", type=str)
   parser_makeCSR.add_argument("run_var", type=str)
   parser_makeCSR.add_argument("batch_var", type=str)
   parser_makeCSR.add_argument("demux_type", type=str)
-  parser_makeCSR.add_argument("-s", "--chunksize", required=False, default= 2000, type = int)
-  parser_makeCSR.add_argument("-n", "--ncores", required=False, default= 8, type = int)
+  parser_makeCSR.add_argument("--keep_vals_str", required=False, default=None, type=str)
+  parser_makeCSR.add_argument("-s", "--chunksize", required=False, default=2000, type=int)
+  parser_makeCSR.add_argument("-n", "--ncores", required=False, default=8, type=int)
   
 
   # parser for calculate_mean_var_for_chunk
@@ -884,8 +888,8 @@ if __name__ == "__main__":
 
   if args.function_name == 'get_csr_counts':
     get_csr_counts( 
-      args.hvg_paths_f, args.cell_filter_f, args.keep_var, args.keep_vals_str, args.smpl_stats_f, args.rowdata_f,
-      args.run_var, args.batch_var, args.demux_type, args.chunksize, args.ncores
+      args.hvg_paths_f, args.cell_filter_f, args.keep_var, args.smpl_stats_f, args.rowdata_f,
+      args.run_var, args.batch_var, args.demux_type, args.keep_vals_str, args.chunksize, args.ncores
     )
   elif args.function_name == 'calculate_mean_var_for_chunk':
     calculate_mean_var_for_chunk(

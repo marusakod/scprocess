@@ -47,7 +47,6 @@ rule make_tmp_csr_matrix:
       {input.hvg_paths_f} \
       {input.cell_filter_f} \
       "keep" \
-      "True" \
       {input.qc_stats_f} \
       {input.rowdata_f} \
       {params.run_var} \
