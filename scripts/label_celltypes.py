@@ -76,8 +76,8 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var):
   int_df      = int_df.filter( pl.col(hi_res_cl).is_not_null() )
   int_df      = int_df.select( pl.col("cell_id"), pl.col(hi_res_cl).alias("hi_res_cl") )
 
-  # remove any tiny clusters
-  cl_counts   = int_df["hi_res_cl"].value_counts()
+  # # remove any tiny clusters
+  # cl_counts   = int_df["hi_res_cl"].value_counts()
   # if any( cl_counts["count"] < min_cl_size ):
   #   tiny_cls    = cl_counts.filter( pl.col("count") < min_cl_size )["hi_res_cl"].to_list()
   #   print(f"  excluding some clusters bc they are tiny: {", ".join(tiny_cls)}")

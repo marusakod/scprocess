@@ -118,16 +118,16 @@ pb          = readRDS(pb_empty_f)
 
 ```{r extract_integration_res, include = FALSE}
 integration_all = fread(int_f)
-int_dt    = integration_all[ !is.na(UMAP1) ] %>% 
-  .[, c("sample_id", "cell_id", "embedding", "UMAP1", "UMAP2", 
+int_dt      = integration_all[ !is.na(UMAP1) ] %>% 
+  .[, c(unique(c(batch_var, "sample_id")), "cell_id", "embedding", "UMAP1", "UMAP2", 
     str_subset(names(integration_all), "RNA_snn_res")), with = FALSE]
 ```
 
 ```{r extract_sel_cls, include = FALSE}
 sel_cl_int_dt = copy(int_dt) %>%
-.[, cluster := get(paste0("RNA_snn_res.", sel_res))] %>%
-.[, .(sample_id, cell_id, UMAP1, UMAP2, cluster)] %>% 
-merge(meta_dt, by = "sample_id")
+  .[, cluster := get(paste0("RNA_snn_res.", sel_res))] %>%
+  .[, .(sample_id, cell_id, UMAP1, UMAP2, cluster)] %>% 
+  merge(meta_dt, by = "sample_id")
 ```
 
 ```{r load_qc_results, include = FALSE}
@@ -328,7 +328,6 @@ for (res in res_ls_pl) {
   cat('\n\n')
 }
 ```
-
 
 ### QC metrics of clusters{.tabset}
 

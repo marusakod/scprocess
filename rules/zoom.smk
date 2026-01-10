@@ -130,13 +130,15 @@ rule get_zoom_sample_statistics:
     zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
     zoom_lbls_col   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'], 
     zoom_lbls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'],
+    batch_var       = BATCH_VAR,
+    batches         = BATCHES,
     zoom_min_n_smpl = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc']['qc_min_cells'],
-    ambient_method  = config['ambient']['ambient_method']
+    ambient_method  = config['ambient']['ambient_method'],
   run:
-    zoom_stats_df   = extract_zoom_sample_statistics(input.qc_stats_f, BATCHES, 
-      params.zoom_lbls_f, params.zoom_lbls_col, params.zoom_lbls, params.zoom_min_n_smpl, 
-      params.ambient_method)
-    zoom_stats_df.to_csv(output.zoom_stats_f, index = False)
+    zoom_stats_df   = extract_zoom_sample_statistics(input.qc_stats_f, params.zoom_lbls_f, 
+      params.zoom_lbls_col, params.zoom_lbls, params.batches, params.batch_var, 
+      params.zoom_min_n_smpl, params.ambient_method)
+    zoom_stats_df.write_csv(output.zoom_stats_f)
 
 
 # pseudobulks and empties
@@ -314,15 +316,15 @@ rule zoom_make_tmp_csr_matrix:
     '../envs/hvgs.yaml'
   shell: """
     python3 scripts/hvgs.py get_csr_counts \
-      "{input.hvg_paths_f}" \
-      "{params.zoom_lbls_f}" \
+      {input.hvg_paths_f} \
+      {params.zoom_lbls_f} \
       "{params.zoom_lbls_col}" \
       "{input.smpl_stats_f}" \
-      "{input.rowdata_f}" \
-      "{params.run_var}" \
-      "{params.batch_var}" \
-      "{params.demux_type}" \
-      --keep_val_strs "{params.zoom_lbls}" \
+      {input.rowdata_f} \
+      {params.run_var} \
+      {params.batch_var} \
+      {params.demux_type} \
+      --keep_vals_str "{params.zoom_lbls}" \
       --chunksize {params.zoom_chunk_size} \
       --ncores {threads}
     """
@@ -586,7 +588,7 @@ rule zoom_run_integration:
     zoom_int_cl_method  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_cl_method'], 
     zoom_int_theta      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_theta'],
     zoom_int_res_ls     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
-    zoom_int_batch_var  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_batch_var']
+    batch_var           = BATCH_VAR
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -617,6 +619,7 @@ rule zoom_run_integration:
       --hvg_mat_f     {input.hvg_mat_f} \
       --sample_qc_f   {input.sample_qc_f} \
       --coldata_f     {input.coldata_f} \
+      --demux_type    {params.demux_type} \
       --exclude_mito  "{params.exclude_mito}" \
       --embedding     {params.zoom_int_embedding} \
       --n_dims        {params.zoom_int_n_dims} \
@@ -624,7 +627,7 @@ rule zoom_run_integration:
       --theta         {params.zoom_int_theta} \
       --res_ls_concat "{params.zoom_int_res_ls}" \
       --integration_f {output.integration_f} \
-      --batch_var     {params.zoom_int_batch_var} \
+      --batch_var     {params.batch_var} \
       $USE_GPU_FLAG
     """
 
@@ -712,7 +715,6 @@ rule zoom_run_fgsea:
     """
 
 
-
 rule zoom_make_subset_sces:
   input:
     integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
@@ -721,6 +723,7 @@ rule zoom_make_subset_sces:
   output:
     clean_sce_f = f'{zoom_dir}/{{zoom_name}}/sce_objects/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds'
   params:
+    batch_var       = BATCH_VAR,
     zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
     zoom_lbls_col   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
     zoom_lbls       = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'])
@@ -737,15 +740,17 @@ rule zoom_make_subset_sces:
     '../envs/rlibs.yaml'
   shell: """
     Rscript -e "source('scripts/zoom.R');
-     make_subset_sces(
-     sel_s          = '{wildcards.batch}',
-     clean_sce_f    = '{output.clean_sce_f}',
-     integration_f  = '{input.integration_f}',
-     smpl_stats_f   = '{input.smpl_stats_f}',
-     sces_yaml_f    = '{input.sces_yaml_f}',
-     subset_f       = '{params.zoom_lbls_f}',
-     subset_col     = '{params.zoom_lbls_col}',
-     subset_str     = '{params.zoom_lbls}')"
+    make_subset_sces(
+      sel_b         = '{wildcards.batch}',
+      batch_var     = '{params.batch_var}',
+      smpl_stats_f  = '{input.smpl_stats_f}',
+      sces_yaml_f   = '{input.sces_yaml_f}',
+      subset_f      = '{params.zoom_lbls_f}',
+      subset_col    = '{params.zoom_lbls_col}',
+      subset_str    = '{params.zoom_lbls}',
+      integration_f = '{input.integration_f}',
+      clean_sce_f   = '{output.clean_sce_f}'
+    )"
     """
 
 

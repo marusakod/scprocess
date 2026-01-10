@@ -13,7 +13,7 @@ import polars as pl
 
 def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
-  integration_f, batch_var, use_gpu = False): 
+  integration_f, batch_var, use_gpu = False):
 
   print('setting up parameters')
   exclude_mito  = bool(exclude_mito)
@@ -25,10 +25,10 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   dbl_theta     = 0
 
   print('loading hvg matrix')
+  all_hvg_mat, bcs_passed, bcs_dbl = _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f)
 
   print('loading relevant cell ids')
-  all_hvg_mat, bcs_passed, bcs_dbl = _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f)
-  cells_df      = _get_cells_df(sample_qc_f, coldata_f, bcs_passed, bcs_dbl, demux_type, batch_var)
+  cells_df      = _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, bcs_dbl = bcs_dbl)
 
   print('normalizing hvg matrix')
   all_hvg_mat   = _normalize_hvg_mat(all_hvg_mat, cells_df, exclude_mito)
@@ -59,62 +59,49 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
     res_ls, embedding, use_gpu, theta = theta)
 
   print('join results')
-  int_dt        = int_ok.join(dbl_data, on="cell_id", coalesce=True, how = 'full')
+  int_df        = int_ok.join(dbl_data, on="cell_id", coalesce=True, how = 'full')
 
   print('save results')
   with gzip.open(integration_f, 'wb') as f:
-    int_dt.write_csv(f)
+    int_df.write_csv(f)
 
   print('done!')
 
-  return int_dt
+  return int_df
 
 
-def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f,
+def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
   exclude_mito, embedding, n_dims, cl_method, theta, res_ls_concat,
-  integration_f, batch_var, use_gpu = False): 
+  integration_f, batch_var, use_gpu = False):
 
   print('setting up parameters')
   exclude_mito  = bool(exclude_mito)
   res_ls        = res_ls_concat.split()
 
   print('loading hvg matrix')
-  
-  with h5py.File(hvg_mat_f, 'r') as f:
-   # get components
-   indptr      = f['matrix/indptr'][:]
-   indices     = f['matrix/indices'][:]
-   data        = f['matrix/data'][:]
-   features    = f['matrix/features/name'][:]
-   barcodes    = f['matrix/barcodes'][:]
-   num_rows    = f['matrix/shape'][0]
-   num_cols    = f['matrix/shape'][1]
-      
-   # make sparse matrix
-   hvg_mat     = csc_matrix((data, indices, indptr), shape=(num_rows, num_cols))
-   barcodes    = [b.decode('utf-8') for b in barcodes]
+  hvg_mat, bcs_passed, _ = _get_hvg_mat(hvg_mat_f)
   
   print('loading relevant cell ids')
-  ok_cells_df   = _get_ok_cells_df(sample_qc_f, coldata_f, barcodes, zoom = True)
+  cells_df      = _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoom = True)
 
   print('normalizing hvg matrix')
-  hvg_mat       = _normalize_hvg_mat(hvg_mat, ok_cells_df, exclude_mito)
+  hvg_mat       = _normalize_hvg_mat(hvg_mat, cells_df, exclude_mito)
 
   print('making anndata object')
-  adata         = ad.AnnData(X = hvg_mat.T , obs = ok_cells_df.to_pandas())
+  adata         = ad.AnnData(X = hvg_mat.T , obs = cells_df.to_pandas())
   print(adata)
   print(f"  anndata object has {adata.shape[0]} cells and {adata.shape[1]} dims")
 
   print('running integration')
-  int_dt       = _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, use_gpu, theta)
+  int_df        = _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, use_gpu, theta)
 
   print('save results')
   with gzip.open(integration_f, 'wb') as f:
-    int_dt.write_csv(f)
+    int_df.write_csv(f)
 
   print('done!')
 
-  return int_dt
+  return int_df
 
 
 def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs, zoom = False):
@@ -145,19 +132,19 @@ def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs, zoom = False):
       raise ValueError("Not all column names in hvg_mat are present in cell metadata.")
     ok_cells_df = all_coldata.filter(
       pl.col("cell_id").is_in(all_bcs) 
-    ) 
+    )
       
   # put cell in coldata in the order matching mat cols
-  order_dt      = pl.DataFrame({
+  order_df      = pl.DataFrame({
     "cell_id":    all_bcs,
     "order":      range(1, len(all_bcs) + 1)
   })
-  ok_cells_df   = ok_cells_df.join(order_dt, on = 'cell_id').sort('order').drop('order')
+  ok_cells_df   = ok_cells_df.join(order_df, on = 'cell_id').sort('order').drop('order')
 
   return ok_cells_df
 
 
-def _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f):
+def _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f = None):
   # get a matrix with hvgs (cells and doublets)
   all_hvg_mat = None
   bcs_passed  = []
@@ -165,7 +152,7 @@ def _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f):
   features    = []
 
   # open both
-  for mat_f in [hvg_mat_f, dbl_hvg_mat_f]:
+  for mat_f in [f for f in [hvg_mat_f, dbl_hvg_mat_f] if f is not None]:
     # load
     with h5py.File(mat_f, 'r') as f:
       # get components
@@ -196,7 +183,7 @@ def _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f):
   return all_hvg_mat, bcs_passed, bcs_dbl
 
 
-def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, bcs_dbl, demux_type, batch_var):
+def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoom = False, bcs_dbl = []):
   # load files
   sample_qc   = pl.read_csv(sample_qc_f)
   all_coldata = pl.read_csv(coldata_f)
@@ -210,37 +197,49 @@ def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, bcs_dbl, demux_type, batch
   # get ok samples
   bad_var     = "bad_" + batch_var
   ok_batches  = sample_qc.filter( pl.col(bad_var) == False )[batch_var].to_list()
-  passed_idx  = all_coldata['keep']
-  if not set(bcs_passed) == set(all_coldata.filter(passed_idx)['cell_id']):
-    raise ValueError("qc-passed barcodes from hvg mats and cell_ids don't match")
-  
-  # subset to doublets
-  if demux_type == "none":
-    dbl_idx     = all_coldata["scdbl_class"] == "doublet"
-  else:
-    if batch_var == "sample_id":
-      dbl_idx     = (all_coldata["scdbl_class"] == "doublet") | (all_coldata["demux_class"] == "doublet")
-    elif batch_var == "pool_id":
-      dbl_idx     = all_coldata["scdbl_class"] == "doublet"
-  if not set(bcs_dbl) == set(all_coldata.filter(dbl_idx)['cell_id']):
-    raise ValueError("doublet barcodes from hvg mats and cell_ids don't match")
 
-  # add doublet label
-  cells_df    = all_coldata.with_columns(
-    pl.when(dbl_idx).then(True).otherwise(False).alias("is_dbl_int")
-  ).filter(
-    passed_idx | dbl_idx
-  ).filter(
-    ((pl.col(batch_var).is_in(ok_batches)) | (pl.col(batch_var).is_null()))
-  )
+  # subset to doublets
+  if zoom:
+    if not set(bcs_passed).issubset(set(all_coldata['cell_id'])):
+      raise ValueError("Not all column names in hvg_mat are present in cell metadata.")
+    cells_df    = all_coldata.filter( pl.col("cell_id").is_in(bcs_passed) )
+  else:
+    # get ok cells
+    passed_idx  = all_coldata['keep']
+    if not set(bcs_passed) == set(all_coldata.filter(passed_idx)['cell_id']):
+      raise ValueError("qc-passed barcodes from hvg mats and cell_ids don't match")
+
+    # get dbl cells
+    if demux_type == "none":
+      dbl_idx     = all_coldata["scdbl_class"] == "doublet"
+    else:
+      if batch_var == "sample_id":
+        dbl_idx     = (all_coldata["scdbl_class"] == "doublet") | (all_coldata["demux_class"] == "doublet")
+      elif batch_var == "pool_id":
+        dbl_idx     = all_coldata["scdbl_class"] == "doublet"
+    if not set(bcs_dbl) == set(all_coldata.filter(dbl_idx)['cell_id']):
+      raise ValueError("doublet barcodes from hvg mats and cell_ids don't match")
+    
+    # add doublet label, filter to doublet or ok
+    cells_df    = all_coldata.with_columns(
+      pl.when(dbl_idx).then(True).otherwise(False).alias("is_dbl_int")
+    ).filter(
+      passed_idx | dbl_idx
+    ).filter(
+      ((pl.col(batch_var).is_in(ok_batches)) | (pl.col(batch_var).is_null()))
+    )
 
   # put cell in coldata in the order matching mat cols
   all_bcs     = [*bcs_passed, *bcs_dbl]
-  order_dt    = pl.DataFrame({
+  order_df    = pl.DataFrame({
     "cell_id":  all_bcs,
     "order":    range(1, len(all_bcs) + 1)
   })
-  cells_df    = cells_df.join(order_dt, on = 'cell_id').sort('order').drop('order')
+  cells_df    = cells_df.join(order_df, on = 'cell_id').sort('order').drop('order')
+
+  # check ok
+  if not set(all_bcs) == set(cells_df['cell_id'].to_list()):
+    raise ValueError("barcodes from hvg mats and cell_ids don't match")
 
   return cells_df
 
@@ -314,32 +313,32 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, 
     sc.get.anndata_to_CPU(adata)
 
   print(' recording clusters')
-  clusts_dt = _get_clusts_from_adata(adata, this_embedding, batch_var)
+  clusts_df = _get_clusts_from_adata(adata, this_embedding, batch_var)
   
   print(' extracting other outputs')
-  embeds_dt = _get_embeddings_from_adata(adata, this_embedding, sel_embed)
+  embeds_df = _get_embeddings_from_adata(adata, this_embedding, sel_embed)
 
-  int_dt = clusts_dt.join(embeds_dt, on = 'cell_id', how = 'inner')
+  int_df = clusts_df.join(embeds_df, on = 'cell_id', how = 'inner')
 
-  return int_dt
+  return int_df
 
 
 def _get_clusts_from_adata(adata, embedding, batch_var):
   # get results
-  clusts_dt = adata.obs.copy()
-  clusts_dt = pl.from_pandas(clusts_dt)
-  clusts_dt = clusts_dt.with_columns(pl.lit(embedding).alias('embedding'))
+  clusts_df = adata.obs.copy()
+  clusts_df = pl.from_pandas(clusts_df)
+  clusts_df = clusts_df.with_columns(pl.lit(embedding).alias('embedding'))
   
   # get clustering and id vars and subset
-  cl_vs     = [col for col in clusts_dt.columns if re.match(r'RNA_snn_res.*', col)]
+  cl_vs     = [col for col in clusts_df.columns if re.match(r'RNA_snn_res.*', col)]
   sample_vs = list(set([batch_var, "sample_id"]))
   all_cols  = cl_vs + ['embedding', 'cell_id', *sample_vs]
-  clusts_dt = clusts_dt.select(all_cols)
+  clusts_df = clusts_df.select(all_cols)
 
   # get nice labels for clusters
   for cl_v in cl_vs:
     # count each cluster, put in order, make nice new cluster cluster names
-    cl_lu = clusts_dt[ cl_v ].value_counts().sort(
+    cl_lu = clusts_df[ cl_v ].value_counts().sort(
       "count", descending = True
     ).with_row_index(
       "rank", offset = 1
@@ -348,11 +347,11 @@ def _get_clusts_from_adata(adata, embedding, batch_var):
     ).select([cl_v, cl_v + ".tmp"])
 
     # replace old values
-    clusts_dt   = clusts_dt.join(
+    clusts_df   = clusts_df.join(
       cl_lu, on = cl_v, how = "left"
     ).drop(cl_v).rename({ cl_v + ".tmp": cl_v })
 
-  return clusts_dt
+  return clusts_df
 
 
 def _get_embeddings_from_adata(adata, embedding,  sel_embed): 
@@ -370,22 +369,22 @@ def _get_embeddings_from_adata(adata, embedding,  sel_embed):
   ]
    
   # make dt with reduced dims
-  pca_dt = pl.DataFrame({
+  pca_df = pl.DataFrame({
     'cell_id': adata.obs['cell_id'].to_numpy(), 
      **dict(zip(pca_col_names, pca_array.T))
   })
   
   umap_array = adata.obsm['X_umap']
   umap_col_names = ['UMAP1', 'UMAP2']
-  umap_dt = pl.DataFrame({
+  umap_df = pl.DataFrame({
     'cell_id': adata.obs['cell_id'].to_numpy(),
     **dict(zip(umap_col_names, umap_array.T))
   })
 
   # merge
-  embeds_dt = pca_dt.join(umap_dt, on = 'cell_id', how = 'inner')
+  embeds_df = pca_df.join(umap_df, on = 'cell_id', how = 'inner')
 
-  return embeds_dt
+  return embeds_df
 
 
 def _calc_dbl_data(int_dbl, cells_df, dbl_res, dbl_cl_prop, demux_type, batch_var):
@@ -460,6 +459,7 @@ if __name__ == "__main__":
   parser_run_zoom_integration.add_argument('--hvg_mat_f',      type = str)
   parser_run_zoom_integration.add_argument('--sample_qc_f',    type = str)
   parser_run_zoom_integration.add_argument('--coldata_f',      type = str)
+  parser_run_zoom_integration.add_argument('--demux_type',     type = str)
   parser_run_zoom_integration.add_argument('--exclude_mito',   type = str)
   parser_run_zoom_integration.add_argument('--embedding',      type = str)
   parser_run_zoom_integration.add_argument('--n_dims',         type = int)
@@ -504,7 +504,7 @@ if __name__ == "__main__":
       args.batch_var, args.use_gpu)
   elif args.function_name == 'run_zoom_integration':
     run_zoom_integration(args.hvg_mat_f, args.sample_qc_f, args.coldata_f,
-      args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
+      args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
       args.theta, args.res_ls_concat, args.integration_f,
       args.batch_var, args.use_gpu)
   else:

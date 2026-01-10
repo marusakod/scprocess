@@ -802,7 +802,6 @@ if __name__ == "__main__":
   parser_makeCSR.add_argument("--keep_vals_str", required=False, default=None, type=str)
   parser_makeCSR.add_argument("-s", "--chunksize", required=False, default=2000, type=int)
   parser_makeCSR.add_argument("-n", "--ncores", required=False, default=8, type=int)
-  
 
   # parser for calculate_mean_var_for_chunk
   parser_chunkCalcs = subparsers.add_parser('calculate_mean_var_for_chunk')

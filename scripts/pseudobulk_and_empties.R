@@ -68,10 +68,10 @@ make_pb_cells <- function(sel_run, batch_lu_f, qc_stats_f, h5_paths_f, coldata_f
   }
   
   # get what we need
-  h5_fs_dt  = fread(h5_paths_f)
-  h5_f      = h5_fs_dt[get(run_var) == sel_run]$amb_filt_f %>% unique
-  tmp_vars  = c(run_var, batch_var) %>% unique
-  keep_dt   = fread(coldata_f) %>% .[ keep == TRUE] %>% .[get(batch_var) %in% ok_batches ] %>%
+  h5_fs_dt    = fread(h5_paths_f)
+  h5_f        = h5_fs_dt[get(run_var) == sel_run]$amb_filt_f %>% unique
+  tmp_vars    = c(run_var, batch_var) %>% unique
+  keep_dt     = fread(coldata_f) %>% .[ keep == TRUE] %>% .[ get(batch_var) %in% ok_batches ] %>%
    .[, c(tmp_vars, "cell_id"), with = FALSE] %>%
     setkey("cell_id")
   keep_ids    = keep_dt %>% .$cell_id
@@ -89,7 +89,8 @@ make_pb_cells <- function(sel_run, batch_lu_f, qc_stats_f, h5_paths_f, coldata_f
   sce$cell_id     = colnames(sce)
   sce[[run_var]]  = sel_run
   if (batch_var != run_var) {
-    sce[[batch_var]]  = cell_lu[ colnames(sce) ] %>% .[[ batch_var ]]
+    # get batches to keep in this run
+    sce[[batch_var]]  = keep_dt[ colnames(sce) ] %>% .[[ batch_var ]]
   }
   
   # subset if required
