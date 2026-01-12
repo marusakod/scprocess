@@ -614,18 +614,12 @@ rule zoom_run_integration:
     '../envs/integration.yaml'
   shell: """
     set +u
-    # check whether gpu available
+   # if GPU is available, use it
+    USE_GPU_FLAG=""
     if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
-      use_gpu=1
-    else
-      use_gpu=0
+       USE_GPU_FLAG="--use_gpu"
     fi
     set -u
-
-    USE_GPU_FLAG=""
-     if [ $use_gpu = 1 ]; then
-       USE_GPU_FLAG="--use_gpu"
-     fi
     
     python3 scripts/integration.py run_zoom_integration \
       --hvg_mat_f     {input.hvg_mat_f} \

@@ -12,8 +12,8 @@ default-resources:
   mem_mb: 4096
 set-resources:
   run_integration:
-    #slurm_partition: "batch_gpu"
-    #slurm_extra: "'--gpus=1'"
+    slurm_partition: "batch_gpu"
+    slurm_extra: "'--gpus=1'"
     qos: '3h'
   run_cellbender:
     slurm_partition: "batch_gpu"
