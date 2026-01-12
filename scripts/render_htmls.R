@@ -5,6 +5,7 @@ suppressPackageStartupMessages({
     library('workflowr')
     library('glue')
     library('stringi')
+    library('data.table')
 })
 
 # function that replaces placeholder strings in template Rmds and renders html reports
@@ -264,7 +265,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
      lbls_title           = ""
      label_celltypes_link = ""
      zoom_title           = ""
-     zoom_links           = ""
+     zoom_links_md        = ""
 
      # get placeholder replacements for all htmls
      if(paste0(short_tag, '_mapping.html') %in% htmls){
@@ -306,8 +307,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
        pattern = ".*?_zoom_([^_]+)_(\\d+(\\.\\d+)?)\\.html"
        params_mat = str_match(zoom_htmls, pattern)
        
-       zoom_names = extracted[, 2]
-       sel_res_ls = as.numeric(extracted[, 3])
+       zoom_names = params_mat[, 2]
+       sel_res_ls = as.numeric(params_mat[, 3])
        
        params_dt =  data.table(
          html        = zoom_htmls,
@@ -316,7 +317,10 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
        )
       
        zoom_links = sprintf("- %s ([link](%s))", params_dt$zoom_name, params_dt$html)
-       zoom_links_md = paste(zoom_links, collapse = "\n")
+       zoom_links_md = paste(
+       sprintf("- %s ([link](%s))", params_dt$zoom_name, params_dt$html),
+       collapse = "\n\n"
+       )
        zoom_title = "## Subclustering"
      }
      
@@ -330,8 +334,11 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
         qc_link             = qc_link, 
         hvgs_link           = hvgs_link, 
         integration_link    = integration_link, 
-        marker_genes_link   = marker_genes_link, 
-        label_celltypes_link= label_celltypes_link
+        marker_genes_link   = marker_genes_link,
+        lbls_title          = lbls_title,
+        label_celltypes_link= label_celltypes_link,
+        zoom_title          = zoom_title, 
+        zoom_links          = zoom_links_md
       ))
 
   }

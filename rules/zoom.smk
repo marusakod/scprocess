@@ -20,7 +20,7 @@ scprocess_dir   = pathlib.Path(config.pop('scprocess_dir'))
 proj_schema_f   = scprocess_dir / "resources/schemas/config.schema.json"
 zoom_schema_f   = scprocess_dir / "resources/schemas/zoom.schema.json"
 scdata_dir      = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
-lm_f            = scprocess_dir / "resources/snakemake/resources_lm_params_2025-11-27.csv"
+lm_f            = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
 
 # check config
 config          = check_config(config, proj_schema_f, scdata_dir, scprocess_dir)
@@ -121,6 +121,8 @@ rule zoom:
     zoom_sce_outs
 
 
+localrules: zoom_make_tmp_pb_cells_df, zoom_make_hvg_df, zoom_merge_group_mean_var, zoom_merge_group_std_var_stats, zoom_merge_stats_for_std_variance
+
 rule get_zoom_sample_statistics:
   input:
     qc_stats_f      = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
@@ -186,33 +188,43 @@ rule zoom_make_one_pb_cells:
 
 rule zoom_make_tmp_pb_cells_df:
   input:
-    pb_cells_fs   = expand(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{zoom_name}}_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds', run = RUNS, zoom_name = ZOOMS)
+    pb_cells_fs = lambda wildcards: expand(
+        f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{zoom_name}}_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds',
+        run=RUNS,
+        zoom_name=[wildcards.zoom_name]  
+    )
   output:
     cells_paths_f = temp(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_paths_{FULL_TAG}_{DATE_STAMP}.csv')
   params:
-    run_var     = RUN_VAR,
-    runs        = RUNS
+    run_var = RUN_VAR,
+    runs    = RUNS
   run:
-    # make df
-    paths_df    = pl.DataFrame({
-      params.run_var: params.runs,
-      "pb_path":      input.pb_cells_fs
-    })
-    paths_df    = paths_df.filter( pl.col("pb_path").map_elements(os.path.getsize, return_dtype=pl.Int64) > 0 )
+    import os
+    import polars as pl
 
-    # save
+    paths_df = pl.DataFrame({
+        params.run_var: params.runs,
+        "pb_path": input.pb_cells_fs
+    })
+    paths_df = paths_df.filter(
+        pl.col("pb_path").map_elements(os.path.getsize, return_dtype=pl.Int64) > 0
+    )
     paths_df.write_csv(output.cells_paths_f)
 
 
 rule zoom_merge_pb_cells:
   input:
     cells_paths_f = f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_paths_{FULL_TAG}_{DATE_STAMP}.csv',
-    pb_cells_fs   = expand(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{zoom_name}}_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds', run = RUNS, zoom_name = ZOOMS), 
-    rowdata_f     = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    pb_cells_fs   = lambda wildcards: expand(
+        f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{zoom_name}}_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds',
+        run=RUNS,
+        zoom_name=[wildcards.zoom_name]  # Restrict to current zoom_name
+    ),
+    rowdata_f = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
-    pb_cells_f    = f'{zoom_dir}/{{zoom_name}}/pb_cells_{{zoom_name}}_{FULL_TAG}_{DATE_STAMP}.rds'
+    pb_cells_f = f'{zoom_dir}/{{zoom_name}}/pb_cells_{{zoom_name}}_{FULL_TAG}_{DATE_STAMP}.rds'
   params:
-    batch_var     = BATCH_VAR
+    batch_var  = BATCH_VAR
   threads: 1
   retries: config['resources']['retries']
   resources:

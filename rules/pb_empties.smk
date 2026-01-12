@@ -3,7 +3,7 @@
 import polars as pl
 
 
-localrules: make_runs_to_batches_df,  make_empty_pb_input_df
+localrules: make_runs_to_batches_df, make_tmp_pb_cells_df, make_empty_pb_input_df
 
 # for empty pseudobulks
 rule make_empty_pb_input_df:
@@ -181,8 +181,8 @@ rule merge_pb_cells:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_pb_empty', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_pb_empty', 'time', attempt)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_pb_cells', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_pb_cells', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_pb_empties/merge_pb_cells_{DATE_STAMP}.benchmark.txt'
   conda: 

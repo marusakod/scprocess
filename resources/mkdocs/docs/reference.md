@@ -178,29 +178,16 @@ This is an example config file for {{sc}} with all parameters and their default 
       - name:
         file:
     label_celltypes:
-      lbl_tissue: ""
-      lbl_sel_res_cl: "RNA_snn_res.2"
-      lbl_min_pred: 0.8
-      lbl_min_cl_prop: 0.5
+      labeller:
+      model:
+      hi_res_cl: "RNA_snn_res.2"
+      min_pred: 0.8
+      min_cl_prop: 0.5
+      min_cl_size: 100
     zoom:
     resources:
       retries: 3
       n_run_mapping: 8
-      gb_run_mapping: 4
-      gb_save_alevin_to_h5: 8
-      gb_run_ambient: 8
-      gb_get_barcode_qc_metrics: 8
-      gb_run_qc: 8
-      gb_run_hvgs: 8
-      gb_run_integration: 8
-      gb_make_clean_sces: 8
-      gb_run_marker_genes: 16
-      gb_render_htmls: 8
-      gb_label_celltypes: 8
-      gb_pb_make_pbs: 8
-      gb_pb_calc_empty_genes: 8
-      gb_make_hto_sce_objects: 8
-      gb_make_subset_sces: 8
     ```
 
 === "placeholders"
@@ -220,12 +207,18 @@ This is an example config file for {{sc}} with all parameters and their default 
       metadata_vars: [var1, var2]
       custom_sample_params: /path/to/file/with/custom_parameters.yaml
       exclude:
-        sample_id:  [sample1, sample2]
-        pool_id:    [pool1, pool2]
+        sample_id:
+          - sample1
+          - sample2
+        pool_id:
+          - pool1
+          - pool2
     multiplexing:
       demux_type: hto
       fastq_dir: /path/to/directory/with/hto_fastq/files
+      arv_uuids:
       feature_ref: /path/to/feature_ref.csv
+      demux_output: /path/to/demux_output.csv
     ambient:
       ambient_method: cellbender
       cb_version: v0.3.2
@@ -275,32 +268,19 @@ This is an example config file for {{sc}} with all parameters and their default 
       - name: mouse_brain
         file: /path/to/file/with/marker/genes.csv
     label_celltypes:
-      lbl_tissue: "human_cns"
-      lbl_sel_res_cl: "RNA_snn_res.2"
-      lbl_min_pred: 0.8
-      lbl_min_cl_prop: 0.5
+      labeller: "scprocess"
+      model: "human_cns"
+      hi_res_cl: "RNA_snn_res.2"
+      min_pred: 0.8
+      min_cl_prop: 0.5
+      min_cl_size: 100
     zoom:
-      cell_subset_1: /path/to/cell_subset_1_zoom_params.yaml
-      cell_subset_2: /path/to/cell_subset_2_zoom_params.yaml
-      cell_subset_3: /path/to/cell_subset_3_zoom_params.yaml
+      - /path/to/cell_subset_1_zoom_params.yaml
+      - /path/to/cell_subset_2_zoom_params.yaml
+      - /path/to/cell_subset_3_zoom_params.yaml
     resources:
       retries: 3
       n_run_mapping: 8
-      gb_run_mapping: 4
-      gb_save_alevin_to_h5: 8
-      gb_run_ambient: 8
-      gb_get_barcode_qc_metrics: 8
-      gb_run_qc: 8
-      gb_run_hvgs: 8
-      gb_run_integration: 8
-      gb_make_clean_sces: 8
-      gb_run_marker_genes: 16
-      gb_render_htmls: 8
-      gb_label_celltypes: 8
-      gb_pb_make_pbs: 8
-      gb_pb_calc_empty_genes: 8
-      gb_make_hto_sce_objects: 8
-      gb_make_subset_sces: 8
     ```
 
 
@@ -310,13 +290,13 @@ This is an example config file for {{sc}} with all parameters and their default 
 
 * `proj_dir`: absolute path to `workflowr` project directory created with the `newproj` function.
 * `fastq_dir`: path to directory containing FASTQ files. Should be absolute or relative to `proj_dir`.
-* `arv_uuids`: *ROCHE only:* Instead of specifying `fastq_dir`, you can specify a list of Arvados UUIDs where fastq files are located. Exactly one of `fastq_dir` and `arv_uuids` should be specified.
+* `arv_uuids`: *ROCHE only:* Instead of specifying `fastq_dir`, you can specify a list of Arvados UUIDs where fastq files are located. Exactly one of `fastq_dir` and `arv_uuids` should be specified. **Maybe multiple uuids are now also allowed?**
 * `full_tag`: full project label, used in output file names.
 * `short_tag`: abbreviated project label, used in output directory names.
 * `your_name`: author’s name, displayed in HTML outputs.
 * `affiliation`: author’s affiliation, displayed in HTML outputs.
 * `date_stamp`: start date of the analysis, formatted as `"YYYY-MM-DD"`.
-* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1` and `_R2`strings.
+* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1` and `_R2`strings and should not be integers.
 * `species`: must match one of the values in the `genome_name` column of `index_parameters.csv` (created by `scsetup`).
 * `tenx_chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).
 
@@ -325,7 +305,7 @@ This is an example config file for {{sc}} with all parameters and their default 
 ##### project
 
 * `metadata_vars`: A list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
-* `custom_sample_params`: YAML file with optional custom parameters for each pool or sample (custom tenx_chemistry, custom ambient / cellbender and custom qc parameters can be specified for each sample). Example:
+* `custom_sample_params`: YAML file with optional custom parameters for each pool or sample (custom `tenx_chemistry`, custom mapping, custom ambient / cellbender and custom qc parameters can be specified for each sample). Example:
 
 ```yaml
 pool_id:
@@ -346,14 +326,14 @@ pool_id:
     ambient:
       cb_total_droplets_included: 20000
       cb_learning_rate: 0.001
-      cb_posterior_batch_size: 128 # only applicable if cellbender_version is v.0.3.2
+      cb_posterior_batch_size: 128 # only applicable if cb_version is v.0.3.2
 sample_id:
   sample_1:
     qc:
       qc_min_counts: 100
 ```
 
-* `exclude`: List of all samples that should be "manually" excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
+* `exclude`: List of all samples that should be excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
 
 ##### multiplexing
 
@@ -365,6 +345,7 @@ sample_id:
 * `arv_uuids`: *ROCHE only:* Instead of specifying `fastq_dir` where HTO files are located, you can specify a list of Arvados UUIDs where fastq files are located. If `demux_type` is `none`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
 * `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `hto`.
 * `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `negative`. Required if `demux_type` is `custom`.
+* `seurat_quantile`: equivalent to the `positive.quantile` argument of the `Seurat::HTODemux` function (see [Seurat documentation](https://satijalab.org/seurat/reference/htodemux) for more details).
 
 ##### ambient
 
@@ -424,52 +405,55 @@ sample_id:
 * `mkr_min_cells`: minimum number of cells required in a pseudobulk sample to include it in marker gene calculations.
 * `mkr_not_ok_re`: regular expression pattern to exclude specific gene types from plots showing marker gene expression.
 * `mkr_min_cpm_mkr`: minimum counts per million (CPM) in a cell type required for a gene to be considered a marker gene.
-* `mkr_min_cpm_go`: minimum counts per million (CPM) in a cell type required for a gene to be used in Gene Ontology (GO) analysis.
-* `mkr_max_zero_p`: maximum proportion of pseudobulk samples for a cell type that can have zero counts for a gene to be used in GO analysis.
 * `mkr_do_gsea`: boolean specifiying whether Gene Set Enrichment Analysis (GSEA) should be performed on marker genes. 
-* `mkr_gsea_cut`: False discovery rate (FDR) cutoff for Gene Set Enrichment Analysis (GSEA).
-* `mkr_custom_sets`: a list of custom marker gene sets, each defined by a unique name and associated file path.
+* `mkr_min_cpm_go`: minimum counts per million (CPM) in a cell type required for a gene to be used in GSEA.
+* `mkr_max_zero_p`: maximum proportion of pseudobulk samples for a cell type that can have zero counts for a gene to be used in GSEA.
+* `mkr_gsea_cut`: False discovery rate (FDR) cutoff for GSEA.
+* `mkr_custom_genesets`: a list of custom marker gene sets, each defined by a unique name and associated file path.
     + `name`: a string representing the name of the marker gene set
     + `file`: path to CSV file containing a list of genes in the marker gene set. Must contain column `label` (marker gene category), and `symbol` and/or `ensembl_id`. If not speficied `scprocess` will look for file `$SCPROCESS_DATA_DIR/marker_genes/{name}.csv`
 
 
 ##### label_celltypes
 
-* `lbl_tissue`: target tissue for cell type labeling. Options are `human_cns` and `mouse_cns`. (Only `human_cns` is available at the moment)
-* `lbl_sel_res_cl`: selected cluster resolution for cell type labeling (must match one of the values in `int_res_ls`); higher values are recommended for optimal performance.
-* `lbl_min_pred`: minimum probability threshold for assigning a cell to a cell type.
-* `lbl_min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.
+* `labeller`: specifies the method to annotate cell types; options include:
+    + `celltypist` uses one of the models avialbale in [`CellTypist`](https://www.celltypist.org/models) for annotation.
+    + `scprocess`: use an `XGBoost` classifier for cell type annotation.
+* `model`: determines the model to be used based on the selected `labeller`. For list of all available `Celltypist` models see `$SCPROCESS_DATA_DIR/celltypist/celltypist_models.csv`). If `labeller` is set to `scprocess` the value should be `human_cns`. 
+* `hi_res_cl`: name of the column containing high-resolution clustering results. Default is `"RNA_snn_res.2"`. **Where can that column be found, should this be RNA_snn_res. + one of the values in `int_sel_res`**
+* `min_pred`: minimum probability threshold for assigning a cell to a cell type.
+* `min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.
+* `min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled.
 
 ##### zoom
 
-Name of each cell subset should be specified, followed by the path to a corresponding YAML file containing the parameters for that subset. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `hvg_method`, `hvg_metadata_split_var`, `n_hvgs`, `hvg_exclude_ambient_genes`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `cl_method`, `reduction`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_sel_res`, `custom_sets`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_gsea_cut`, and `mkr_sel_res`.
+In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_exclude_ambient_genes`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut` and `mkr_custom_genesets`.
 
 Additional parameters include:
 
-* `labels`: a list of all labels that define cell types/clusters to be included in subclustering (required).
+* `name`: name of cell subset to be analysed. 
 * `labels_source`: specifies how a cell subset is defined (required). Options include:
-    - `xgboost`: labels assigned by the XGBoost classifier (using rule `label_celltypes`)
+    - `xgboost`: labels assigned by the {{sc}} XGBoost classifier (using rule `label_celltypes`)
     - `celltypist`: labels assigned by `Celltypist`(using the rule `label_celltypes`)
     - `clusters`: labels based on clustering results obtained with {{sc}}
     - `custom`: user-defined cell type annotations
-* `min_n_sample`: the minimum number of cells that a sample must have, after subsetting, to remain in the analysis.
-* `make_subset_sces`: whether to create `SingleCellExperiment` objects containing cells that have been assigned one of the values in `labels`.
-* `cluster_res`: required if `labels_source` is set to `clusters`; selected clustering resolution value matching one of the values in `int_sel_res`.
-* `custom_labels_f`: required if `labels_source` is set to custom; path to CSV file with columns `sample_id`, `cell_id` and `label`.
-* `lbl_sel_res_cl`: equivalent of `lbl_sel_res_cl` parameter used for rule `label_celltypes`. Applicable only if `labels_source` is set to `xgboost`.
+* `sel_labels`: a list of all labels that define cell types/clusters to be included in subclustering (required).
++ `labels_col`: name of column that contains cell type/cluster labels. **Where can that column be found?**
+* `save_subset_sces`: whether to create `SingleCellExperiment` objects containing cells that have been assigned one of the values in `sel_labels`.
+* `custom_labels_f`: required if `labels_source` is set to `custom`; path to CSV file with columns `sample_id`, `cell_id` and `label`.
 
 
 ##### resources
 
-This section allows users to adjust the resource requirements for specific Snakemake rules. This is especially useful when a step or rule fails on a cluster due to insufficient memory or runtime limits. By specifying the parameters below, users can fine-tune these settings for their pipeline:
+This section allows users to adjust the resource requirements for specific Snakemake rules. This is especially useful when a step/rule fails on a cluster due to insufficient memory or runtime limits. By specifying the parameters below, users can fine-tune these settings for their pipeline:
 
-* `gb_[rule_name]`: specifies the maximum memory (in GB) requested for running a specific rule. `rule_name` should be replace with {{sc}} rule name. This value applies fro the entire job, not per thread.
-* `mins_[rule_name]`: specifies the maximum runtime (in minutes) requested for running a specific rule. `rule_name` should be replace with {{sc}} rule name.
+* `gb_[rule_name]`: specifies the maximum memory (in GB) requested for running a specific rule. `rule_name` should be replace with an {{sc}} rule name. This value applies for the entire job, not per thread.
+* `mins_[rule_name]`: specifies the maximum runtime (in minutes) requested for running a specific rule. `rule_name` should be replace with an {{sc}} rule name.
 
 Additional parameters include:
 
-* `retries`: number of times to retry running a specific rule in {{sc}} if it fails. For each attempt, the memory requirement for the rule increases by multiplying the base memory by the attempt number. Useful for when {{sc}} is used on a [cluster](setup.md#cluster-setup).
-* `n_run_mapping`: number of threads requested for running `simpleaf`. Default is 8.
+* `retries`: number of times to retry running a specific rule in {{sc}} if it fails. For each attempt, the memory requirement for the rule increases by multiplying the base memory by the attempt number **Maybe not entirely true?**. Useful for when {{sc}} is ran on a [cluster](setup.md#cluster-setup).
+* `n_run_mapping`: number of threads requested for running the mapping step. Default is 8.
 
 ??? note "Detailed information about resource parameters"
 
@@ -489,7 +473,8 @@ Additional parameters include:
     * `gb_get_qc_sample_statistics`: maximum memory required (in GB) for rule `get_qc_sample_statistics`.
     * `gb_make_one_pb_empty`: maximum memory required (in GB) for rule `make_one_pb_empty`.
     * `gb_merge_pb_empty`: maximum memory required (in GB) for rule `merge_pb_empty`.
-    * `gb_make_pb_all`: maximum memory required (in GB) for rule `make_pb_all`.
+    * `gb_make_one_pb_cells`: maximum memory required (in GB) for rule `make_one_pb_cells`.
+    * `gb_merge_pb_cells`: maximum memory required (in GB) for rule `merge_pb_cells`.
     * `gb_calculate_ambient_genes`: maximum memory required (in GB) for rule `calculate_ambient_genes`.
     * `gb_make_tmp_csr_matrix`: maximum memory required (in GB) for rule `make_tmp_csr_matrix`.
     * `gb_get_stats_for_std_variance_for_sample`: maximum memory required (in GB) for rule `get_stats_for_std_variance_for_sample`.
@@ -550,7 +535,8 @@ Additional parameters include:
     * `mins_get_qc_sample_statistics`: maximum runtime required (in minutes) for rule `get_qc_sample_statistics`.
     * `mins_make_one_pb_empty`: maximum runtime required (in minutes) for rule `make_one_pb_empty`.
     * `mins_merge_pb_empty`: maximum runtime required (in minutes) for rule `merge_pb_empty`.
-    * `mins_make_pb_all`: maximum runtime required (in minutes) for rule `make_pb_all`.
+    * `mins_make_one_pb_cells`: maximum runtime required (in minutes) for rule `make_one_pb_cells`.
+    * `mins_merge_pb_cells`: maximum runtime required (in minutes) for rule `merge_pb_cells`.
     * `mins_calculate_ambient_genes`: maximum runtime required (in minutes) for rule `calculate_ambient_genes`.
     * `mins_make_tmp_csr_matrix`: maximum runtime required (in minutes) for rule `make_tmp_csr_matrix`.
     * `mins_get_stats_for_std_variance_for_sample`: maximum runtime required (in minutes) for rule `get_stats_for_std_variance_for_sample`.

@@ -210,7 +210,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
 
   # do some checks
   scdata_dir, extraargs = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
-  lm_f          = scprocess_dir / "resources/snakemake/resources_lm_params_2025-11-27.csv"
+  lm_f          = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
 
   # get validated config
   with open(config_path, "r") as f:
