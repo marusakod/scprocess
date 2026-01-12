@@ -80,7 +80,7 @@ def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, BATCH
     # record samples where cellbender went wrong
     sample_df = sample_df.with_columns( pl.lit(False).alias('bad_bender'))
     if len(bad_bender_batches) != 0: 
-       # add bad_bender column to sample_df
+      # add bad_bender column to sample_df
       bad_bender_df = pl.DataFrame({
         BATCH_VAR:    bad_bender_batches,
         'n_cells':    None, 
