@@ -2,7 +2,7 @@ import pandas as pd
 import polars as pl
 
 # zoom function: get list of all mean var files for zooms
-def get_zoom_raw_mean_var_files(zoom_name, ZOOM_PARAMS, FULL_TAG, DATE_STAMP):
+def get_zoom_raw_mean_var_files(zoom_name, zoom_dir, ZOOM_PARAMS, FULL_TAG, DATE_STAMP):
   group_names = ZOOM_PARAMS[zoom_name]['hvg']['hvg_group_names']
   num_chunks  = ZOOM_PARAMS[zoom_name]['hvg']['hvg_num_chunks']
 

@@ -308,7 +308,7 @@ def plot_interactive_knee(config_f, knee_f, sample):
   from plotly.offline import plot
 
   # read knee file
-  knee_df = pl.read_csv(knee_f)
+  knee_df = pl.read_csv(knee_f, schema_overrides = {'rank': pl.Float32} )
 
   # make plot
   fig = px.scatter(

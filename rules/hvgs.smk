@@ -104,7 +104,6 @@ else:
   # define some rules that don't need the cluster
   localrules: merge_group_mean_var, merge_group_std_var_stats
 
-
   rule get_mean_var_for_group:
     input:
       clean_h5_f      = expand(f'{hvg_dir}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5', batch = BATCHES),
@@ -114,6 +113,8 @@ else:
     output: 
       mean_var_f      = temp(f'{hvg_dir}/tmp_mean_var_{{group}}_chunk_{{chunk}}_{FULL_TAG}_{DATE_STAMP}.csv.gz')
     params:
+      metadata_f      = config['project']['sample_metadata'],
+      batch_var       = BATCH_VAR,
       hvg_method      = config['hvg']['hvg_method'],
       hvg_chunk_size  = config['hvg']['hvg_chunk_size'],
       hvg_group_var   = config['hvg']['hvg_metadata_split_var']
@@ -126,19 +127,24 @@ else:
     conda:
       '../envs/hvgs.yaml'
     shell: """
+      GROUPVAR_FLAG=""
+      if [ "{params.hvg_method}" = "groups" ]; then
+        GROUPVAR_FLAG="--groupvar {params.hvg_group_var}"
+      fi
+
       python3 scripts/hvgs.py calculate_mean_var_for_chunk \
         {input.hvg_paths_f} \
         {input.rowdata_f} \
-        {METADATA_F} \
+        {params.metadata_f} \
         {input.qc_stats_f} \
         {output.mean_var_f} \
         {wildcards.chunk} \
         {params.hvg_method} \
-        {params.hvg_chunk_size} \
+        {params.batch_var} \
+        --chunksize {params.hvg_chunk_size} \
         --group {wildcards.group} \
-        --groupvar {params.hvg_group_var} \
-        --ncores {threads} 
-    
+        --ncores {threads} \
+        $GROUPVAR_FLAG
       """
 
 
@@ -192,6 +198,8 @@ else:
     output:
       std_var_stats_f = temp(f'{hvg_dir}/tmp_std_var_stats_{{group}}_chunk_{{chunk}}_{FULL_TAG}_{DATE_STAMP}.csv.gz')
     params:
+      metadata_f      = config['project']['sample_metadata'],
+      batch_var       = BATCH_VAR,
       hvg_method      = config['hvg']['hvg_method'],
       hvg_chunk_size  = config['hvg']['hvg_chunk_size'],
       hvg_group_var   = config['hvg']['hvg_metadata_split_var']
@@ -207,12 +215,13 @@ else:
       python3 scripts/hvgs.py calculate_std_var_stats_for_chunk \
         {input.hvg_paths_f} \
         {input.rowdata_f} \
-        {METADATA_F} \
+        {params.metadata_f} \
         {input.qc_stats_f} \
         {output.std_var_stats_f} \
         {input.estim_vars_f} \
         {wildcards.chunk} \
         {params.hvg_method} \
+        {params.batch_var} \
         --chunksize {params.hvg_chunk_size} \
         --group {wildcards.group} \
         --groupvar {params.hvg_group_var} \
@@ -240,7 +249,7 @@ rule get_highly_variable_genes:
     std_var_stats_f = f'{hvg_dir}/standardized_variance_stats_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     empty_gs_fs     = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
-    hvg_f = f'{hvg_dir}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    hvg_f           = f'{hvg_dir}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   threads: 1
   retries: config['resources']['retries']
   params:

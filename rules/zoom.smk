@@ -306,7 +306,7 @@ rule zoom_make_tmp_csr_matrix:
   output:
     clean_h5_f      = temp(expand([
       f'{zoom_dir}/{{zoom_name}}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5'
-      ], zoom_name = '{zoom_name}', batch = BATCHES))
+      ], batch = BATCHES, allow_missing = True))
   params: 
     zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
     zoom_lbls_col   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
@@ -377,17 +377,18 @@ rule zoom_get_mean_var_for_group:
   input:
     clean_h5_f    = expand(
       f'{zoom_dir}/{{zoom_name}}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5',
-      zoom_name = ZOOMS, batch = BATCHES
-    ),
+      batch = BATCHES, allow_missing = True),
     hvg_paths_f   = f'{zoom_dir}/{{zoom_name}}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
     rowdata_f     = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
   output: 
     mean_var_f    = temp(f'{zoom_dir}/{{zoom_name}}/tmp_mean_var_{{group}}_group_chunk_{{chunk}}_{FULL_TAG}_{DATE_STAMP}.csv.gz')
   params:
+    metadata_f          = config['project']['sample_metadata'],
+    batch_var           = BATCH_VAR,
     zoom_hvg_method     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'], 
     zoom_hvg_chunk_size = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_chunk_size'], 
-    zoom_group_var      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_split_var']
+    zoom_group_var      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_metadata_split_var']
   threads: 8
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
@@ -399,24 +400,30 @@ rule zoom_get_mean_var_for_group:
   conda:
     '../envs/hvgs.yaml'
   shell: """
+    GROUPVAR_FLAG=""
+    if [ "{params.zoom_hvg_method}" = "groups" ]; then
+      GROUPVAR_FLAG="--groupvar {params.zoom_group_var}"
+    fi
+
     python3 scripts/hvgs.py calculate_mean_var_for_chunk \
       {input.hvg_paths_f} \
       {input.rowdata_f} \
-      {METADATA_F} \
+      {params.metadata_f} \
       {input.smpl_stats_f} \
       {output.mean_var_f} \
       {wildcards.chunk} \
       {params.zoom_hvg_method} \
-      {params.zoom_hvg_chunk_size} \
+      {params.batch_var} \
+      --chunksize {params.zoom_hvg_chunk_size} \
       --group {wildcards.group} \
-      --groupvar {params.zoom_group_var} \
-      --ncores {threads} 
+      --ncores {threads} \
+      $GROUPVAR_FLAG
     """
 
 
 rule zoom_merge_group_mean_var:
   input:         
-    mean_var_f    = lambda wildcards: get_zoom_raw_mean_var_files(wildcards.zoom_name, ZOOM_PARAMS, FULL_TAG, DATE_STAMP)
+    mean_var_f    = lambda wildcards: get_zoom_raw_mean_var_files(wildcards.zoom_name, zoom_dir, ZOOM_PARAMS, FULL_TAG, DATE_STAMP)
   output:
     mean_var_merged_f = temp(f'{zoom_dir}/{{zoom_name}}/means_variances_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz')
   threads: 1
@@ -436,7 +443,8 @@ rule zoom_get_estimated_variances:
   output:
     estim_vars_f      = temp(f'{zoom_dir}/{{zoom_name}}/estimated_variances_{FULL_TAG}_{DATE_STAMP}.csv.gz')
   params: 
-    zoom_hvg_method   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method']
+    zoom_hvg_method   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'],
+    batch_var         = BATCH_VAR
   threads: 1
   retries: config['resources']['retries']
   conda:
@@ -452,6 +460,7 @@ rule zoom_get_estimated_variances:
     python3 scripts/hvgs.py calculate_estimated_vars \
       {output.estim_vars_f} \
       {params.zoom_hvg_method} \
+      {params.batch_var} \
       {input.mean_var_merged_f}
     """
 
@@ -459,8 +468,8 @@ rule zoom_get_estimated_variances:
 rule zoom_get_stats_for_std_variance_for_group:
   input: 
     clean_h5_fs   = expand(
-      f'zoom_dir/{{zoom_name}}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5',
-      zoom_name = ZOOMS, batch = BATCHES
+      f'{zoom_dir}/{{zoom_name}}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5',
+      batch = BATCHES, allow_missing = True
     ),
     estim_vars_f  = f'{zoom_dir}/{{zoom_name}}/estimated_variances_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     hvg_paths_f   = f'{zoom_dir}/{{zoom_name}}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
@@ -470,9 +479,10 @@ rule zoom_get_stats_for_std_variance_for_group:
     std_var_stats_f = temp(f'{zoom_dir}/{{zoom_name}}/tmp_std_var_stats_{{group}}_group_chunk_{{chunk}}_{FULL_TAG}_{DATE_STAMP}.csv.gz')
   params:
     metadata_f          = config['project']['sample_metadata'],
+    batch_var       = BATCH_VAR,
     zoom_hvg_method     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'], 
     zoom_hvg_chunk_size = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_chunk_size'], 
-    zoom_hvg_group_var  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_split_var']
+    zoom_hvg_group_var  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_metadata_split_var']
   threads: 8
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
@@ -493,6 +503,7 @@ rule zoom_get_stats_for_std_variance_for_group:
       {input.estim_vars_f} \
       {wildcards.chunk} \
       {params.zoom_hvg_method} \
+      {params.batch_var} \
       --chunksize {params.zoom_hvg_chunk_size} \
       --group {wildcards.group} \
       --groupvar {params.zoom_hvg_group_var} \

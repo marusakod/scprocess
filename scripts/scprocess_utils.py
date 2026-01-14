@@ -436,27 +436,29 @@ def _check_pb_empties_parameters(config):
 def _check_hvg_parameters(config):
   # define dummy group names for all
   if config['hvg']['hvg_method'] == 'all':
-    config['hvg']['hvg_group_names'] = ['all_samples']
+    config['hvg']['hvg_group_names']        = ['all_samples']
+    config['hvg']['hvg_metadata_split_var'] = None
+
   # if groups, check that the values are ok
   elif config['hvg']['hvg_method'] == 'groups':
     # check that value of metadata_split_var matches a column in sample metadata
     hvg_split_var = config['hvg']['hvg_metadata_split_var']
-    meta          = pd.read_csv(config['project']['sample_metadata'])
-    if not hvg_split_var in meta.columns():
+    meta_df       = pl.read_csv(config['project']['sample_metadata'])
+    if not hvg_split_var in meta_df.columns:
       raise KeyError(f"{hvg_split_var} is not a column in the sample metadata file.")
     
     # check number of unique group values
-    uniq_groups = meta[ hvg_split_var ].unique().tolist()
-    if len(uniq_groups) == meta.shape[0]:
+    uniq_groups = meta_df[ hvg_split_var ].unique().to_list()
+    if len(uniq_groups) == meta_df.shape[0]:
       raise ValueError(f"Number of unique values in '{hvg_split_var}' is the same as the number of samples.")
 
     # store nice names
-    config['hvg']['hvg_group_names'] = [n.replace(" ", "_") for n in uniq_groups]
+    config['hvg']['hvg_group_names'] = [g.replace(" ", "_") for g in uniq_groups]
 
   # get number of gene chunks if method is 'groups' or 'all'
   if config['hvg']['hvg_method'] in ['groups', 'all']:
     # get total number of genes
-    gtf_df      = pd.read_csv(config['project']['af_gtf_dt_f'],  sep = '\t')
+    gtf_df      = pl.read_csv(config['mapping']['af_gtf_dt_f'], separator = "\t")
     num_genes   = gtf_df.shape[0]
 
     # chunk them up and name them
@@ -464,8 +466,8 @@ def _check_hvg_parameters(config):
     chunk_names = [f"chunk_{i+1}" for i in range(num_chunks)]
     
     # add to config
-    config['hvg']['hvg_num_chunks'] = num_chunks
-    config['hvg']['hvg_chunk_names'] = chunk_names
+    config['hvg']['hvg_num_chunks']   = num_chunks
+    config['hvg']['hvg_chunk_names']  = chunk_names
 
   return config
 
@@ -544,6 +546,9 @@ def get_zoom_parameters(config, zoom_schema_f, scdata_dir):
 
     # make dictionary of zoom params from yamls
     zoom_ls       = [_get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config, scdata_dir) for zoom_yaml_f in zoom_yamls]
+    zoom_ns       = [z['zoom']['name'] for z in zoom_ls]
+    if len(zoom_ns) != len(set(zoom_ns)):
+      raise ValueError("names in specified zoom parameter yaml files are not unique")
     ZOOM_PARAMS   = {z['zoom']['name']: z for z in zoom_ls}
 
   return ZOOM_PARAMS
@@ -568,34 +573,38 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config, scdata_dir):
   _validate_object_against_schema(zoom_config, zoom_schema_f, "zoom config")
 
   # start with defaults, overwrite with config values
-  defaults    = config.copy()
+  defaults      = config.copy()
+  del defaults['hvg']
   snakemake.utils.update_config(defaults, zoom_config)
-  zoom_config = defaults
+  zoom_config   = defaults
+
+  # check hvgs option
+  zoom_config   = _check_hvg_parameters(zoom_config)
 
   # get useful things
-  SHORT_TAG   = config['project']['short_tag']
-  FULL_TAG    = config['project']['full_tag']
-  DATE_STAMP  = config['project']['date_stamp']
+  SHORT_TAG     = config['project']['short_tag']
+  FULL_TAG      = config['project']['full_tag']
+  DATE_STAMP    = config['project']['date_stamp']
 
   # find file for each option
   if zoom_config['zoom']['labels_source'] == 'clusters':
-    labels_f    = f"output/{SHORT_TAG}_integration/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz"
+    labels_f      = f"output/{SHORT_TAG}_integration/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz"
 
   # if using xgboost or celltypist, check those things
   elif zoom_config['zoom']['labels_source'] in ['celltypist', 'xgboost']:
-    labeller    = zoom_config['zoom']['labels_source']
-    model       = zoom_config['zoom']['model']
-    labels_f    = f"output/{SHORT_TAG}_label_celltypes/labels_{labeller}_model_{model}_{FULL_TAG}_{DATE_STAMP}.csv.gz"
+    labeller      = zoom_config['zoom']['labels_source']
+    model         = zoom_config['zoom']['model']
+    labels_f      = f"output/{SHORT_TAG}_label_celltypes/labels_{labeller}_model_{model}_{FULL_TAG}_{DATE_STAMP}.csv.gz"
 
   # unpack
   elif zoom_config['zoom']['labels_source'] == 'custom':
-    labels_f    = pathlib.Path(zoom_config['zoom']['custom_labels_f'])
+    labels_f      = pathlib.Path(zoom_config['zoom']['custom_labels_f'])
   
   # check file exists
-  labels_f    = _check_path_exists_in_project(labels_f, config, what = "file")
+  labels_f      = _check_path_exists_in_project(labels_f, config, what = "file")
   
   # get list of all clusters to check if cluster names are valid
-  sel_labels  = _check_zoom_clusters_in_file(labels_f, zoom_config)
+  sel_labels    = _check_zoom_clusters_in_file(labels_f, zoom_config)
 
   # add this file to params list
   zoom_config['zoom']['labels_f']   = labels_f
