@@ -9,11 +9,12 @@ rule make_hvg_df:
   output:
     hvg_paths_f     = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv'
   params:
+    runs            = RUNS,
     run_var         = RUN_VAR,
     batch_var       = BATCH_VAR,
     demux_type      = config['multiplexing']['demux_type']
   run:
-    hvg_df = make_hvgs_input_df(RUNS, input.ambient_yml_out, params.run_var, params.batch_var, 
+    hvg_df          = make_hvgs_input_df(RUNS, input.ambient_yml_out, params.run_var, params.batch_var, 
       RUNS_TO_BATCHES, params.demux_type, FULL_TAG, DATE_STAMP, hvg_dir)
     hvg_df.write_csv(output.hvg_paths_f)
 

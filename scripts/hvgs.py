@@ -126,7 +126,7 @@ def get_one_csr_counts(run, hvg_paths_df, keep_df, smpl_stats_df, gene_ids,
 
 
 def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, smpl_stats_f, 
-  rowdata_f, RUN_VAR, batch_var, demux_type, keep_vals_str = None, chunk_size = 2000, n_cores = 8):
+  rowdata_f, run_var, batch_var, demux_type, keep_vals_str = None, chunk_size = 2000, n_cores = 8):
   # load things
   hvg_paths_df  = pl.read_csv(hvg_paths_f)
   smpl_stats_df = pl.read_csv(smpl_stats_f)
@@ -150,12 +150,10 @@ def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, smpl_stats_f,
   keep_ids      = rows_df['ensembl_id'].to_list()
 
   # define list of samples
-  runs          = hvg_paths_df[RUN_VAR].unique().to_list()
-  get_one_csr_counts(runs[0], hvg_paths_df, keep_df, smpl_stats_df, keep_ids, 
-    RUN_VAR, batch_var, demux_type, chunk_size)
+  runs          = hvg_paths_df[run_var].unique().to_list()
   with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
     futures = [executor.submit(get_one_csr_counts, run, hvg_paths_df, keep_df, 
-      smpl_stats_df, keep_ids, RUN_VAR, batch_var, demux_type, chunk_size) for run in runs]
+      smpl_stats_df, keep_ids, run_var, batch_var, demux_type, chunk_size) for run in runs]
 
     # some more parallel stuff i guess
     for future in concurrent.futures.as_completed(futures):

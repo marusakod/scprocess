@@ -364,8 +364,12 @@ rule get_ambient_run_statistics:
     amb_yaml_fs = expand(f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml', run=RUNS)
   output:
     amb_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
+  params:
+    runs        = RUNS,
+    run_params  = RUN_PARAMS,
+    run_var     = RUN_VAR
   run:
-    amb_stats_df = extract_ambient_run_statistics(config, RUNS, 
-      RUN_PARAMS, input.metrics_fs, input.amb_yaml_fs, RUN_VAR)
+    amb_stats_df = extract_ambient_run_statistics(config, params.runs, 
+      params.run_params, input.metrics_fs, input.amb_yaml_fs, params.run_var)
     amb_stats_df.write_csv(output.amb_stats_f)
 
