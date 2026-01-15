@@ -744,7 +744,8 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt, batch_
 
 get_top_markers <- function(input_mkrs, fdr_cut = 0.01, n_top = 10, max_zero_p = 0.5) {
   # order and filter
-  top_mkrs_tmp  = input_mkrs %>% .[ order(cluster, FDR, -abs(logFC)) ]
+  # top_mkrs_tmp  = input_mkrs %>% .[ order(cluster, FDR, -abs(logFC)) ]
+  top_mkrs_tmp  = input_mkrs %>% .[ order(cluster, -abs(logFC)) ]
 
   # take some top genes
   top_mkrs_dt   = rbind(
