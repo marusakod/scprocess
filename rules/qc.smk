@@ -110,7 +110,15 @@ rule make_qc_thresholds_csv:
   output:
     cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv'
   params:
-    batch_var   = BATCH_VAR
+    qc_min_counts = config['qc']['qc_min_counts'],
+    qc_min_feats  = config['qc']['qc_min_feats'],
+    qc_min_mito   = config['qc']['qc_min_mito'],
+    qc_max_mito   = config['qc']['qc_max_mito'],
+    qc_min_splice = config['qc']['qc_min_splice'],
+    qc_max_splice = config['qc']['qc_max_splice'],
+    qc_min_cells  = config['qc']['qc_min_cells'],
+    custom_f      = config['project']['custom_sample_params'],
+    batch_var     = BATCH_VAR
   run:
     # make polars dataframe from dictionary of parameters
     rows_data   = []
