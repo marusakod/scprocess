@@ -434,6 +434,33 @@ def _check_pb_empties_parameters(config):
 
 # check parameters for hvgs
 def _check_hvg_parameters(config):
+  # check if any genes were specified to be excluded
+  if 'hvg_exclude_from_file' in config['hvg']:
+    # check file exists
+    exc_f       = pathlib.Path(config['hvg']['hvg_exclude_from_file'])
+    if not exc_f.is_file():
+      raise FileNotFoundError("file specified in 'hvg_exclude_from_file' does not exist")
+    
+    # check file has correct columns
+    exc_df      = pl.read_csv(exc_f)
+    if not ((exc_df.columns == ['gene_id']) | (exc_df.columns == ['symbol'])):
+      raise KeyError("file specified in 'hvg_exclude_from_file' must have exactly one column, called either 'gene_id' or 'symbol'")
+
+    # check for duplicates
+    gene_col    = exc_df.columns[0]
+    exc_vals    = exc_df[ gene_col ]
+    if exc_vals.n_unique() < len(exc_vals):
+      raise ValueError("duplicated values found in file specified in 'hvg_exclude_from_file'")
+    
+    # check values are in relevant ref genome
+    gtf_df      = pl.read_csv(config['mapping']['af_gtf_dt_f'], separator = "\t")
+    all_vals    = gtf_df[ gene_col ]
+    absent_vals = set(exc_vals) - set(all_vals)
+    if len(absent_vals) > 0:
+      raise ValueError(f"the following genes were specified in 'hvg_exclude_from_file' but were not found in the reference transcriptome: {", ".join(missed_vals)}")
+  else:
+    config['hvg']['hvg_exclude_from_file'] = None
+
   # define dummy group names for all
   if config['hvg']['hvg_method'] == 'all':
     config['hvg']['hvg_group_names']        = ['all_samples']

@@ -154,6 +154,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       hvg_method: sample
       hvg_n_hvgs: 2000
       hvg_exclude_ambient_genes: True
+      hvg_exclude_from_file:
       hvg_chunk_size:
       hvg_metadata_split_var:
     integration:
@@ -245,6 +246,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       hvg_method: sample
       hvg_n_hvgs: 2000
       hvg_exclude_ambient_genes: True
+      hvg_exclude_from_file: /path/to/file/with/genes/to/exclude
       hvg_metadata_split_var: var1
     integration:
       int_embedding: harmony
@@ -387,6 +389,7 @@ sample_id:
 * `hvg_metadata_split_var`: if `hvg_method` is `groups`, which variable in `sample_metadata` should be used to define sample groups.
 * `hvg_n_hvgs`: number of HVGs to use for PCA
 * `hvg_exclude_ambient_genes`: if `True`, genes enriched in empty droplets relative to cells will be excluded from highly variable genes selection.
+* `hvg_exclude_from_file`: path to CSV file with genes to be excluded from HVGs. Should be absolute or relative to `proj_dir`. File should contain one column, named either `gene_id` or `symbol`. Values in the column should all be present in reference genome.
 
 ##### integration
 
@@ -427,7 +430,7 @@ sample_id:
 
 ##### zoom
 
-In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_exclude_ambient_genes`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut` and `mkr_custom_genesets`.
+In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut` and `mkr_custom_genesets`.
 
 Additional parameters include:
 

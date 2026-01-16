@@ -14,7 +14,6 @@ import polars as pl
 def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
   integration_f, batch_var, use_gpu = False):
-
   print('setting up parameters')
   exclude_mito  = bool(exclude_mito)
   res_ls        = res_ls_concat.split()
@@ -206,7 +205,7 @@ def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoo
   else:
     # get ok cells
     passed_idx  = all_coldata['keep']
-    if not set(bcs_passed) == set(all_coldata.filter(passed_idx)['cell_id']):
+    if not set(bcs_passed).issubset(set(all_coldata.filter(passed_idx)['cell_id'])):
       raise ValueError("qc-passed barcodes from hvg mats and cell_ids don't match")
 
     # get dbl cells
@@ -217,7 +216,7 @@ def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoo
         dbl_idx     = (all_coldata["scdbl_class"] == "doublet") | (all_coldata["demux_class"] == "doublet")
       elif batch_var == "pool_id":
         dbl_idx     = all_coldata["scdbl_class"] == "doublet"
-    if not set(bcs_dbl) == set(all_coldata.filter(dbl_idx)['cell_id']):
+    if not set(bcs_dbl).issubset(set(all_coldata.filter(dbl_idx)['cell_id'])):
       raise ValueError("doublet barcodes from hvg mats and cell_ids don't match")
     
     # add doublet label, filter to doublet or ok

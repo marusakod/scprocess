@@ -530,10 +530,11 @@ rule zoom_get_highly_variable_genes:
   threads: 1
   retries: config['resources']['retries']
   params:
-    zoom_hvg_method = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'],
-    zoom_n_hvgs     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_n_hvgs'],
-    zoom_exclude_ambient_genes = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_exclude_ambient_genes'],
-    batch_var       = BATCH_VAR
+    zoom_hvg_method   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'],
+    zoom_n_hvgs       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_n_hvgs'],
+    batch_var         = BATCH_VAR,
+    zoom_exc_gs_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_exclude_from_file'],
+    zoom_exc_ambient  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_exclude_ambient_genes']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
       'zoom_get_highly_variable_genes', 'memory', attempt),
@@ -544,20 +545,25 @@ rule zoom_get_highly_variable_genes:
   conda:
     '../envs/hvgs.yaml'
   shell: """
-     NOAMBIENT_FLAG=""
-     if [ "{params.zoom_exclude_ambient_genes}" = "True" ]; then
-       NOAMBIENT_FLAG="--noambient"
-     fi
+    NOAMBIENT_FLAG=""
+    if [ "{params.zoom_exc_ambient}" = "True" ]; then
+      NOAMBIENT_FLAG="--noambient"
+    fi
+    EXC_GS_F_FLAG=""
+    if [ "{params.no_ambient}" = "True" ]; then
+      EXC_GS_F_FLAG="--zoom_exc_gs_f {params.zoom_exc_gs_f}"
+    fi
 
-     python3 scripts/hvgs.py calculate_hvgs \
+    python3 scripts/hvgs.py calculate_hvgs \
       {input.std_var_stats_f} \
       {output.hvg_f} \
       {input.empty_gs_fs} \
       {params.zoom_hvg_method} \
       {params.batch_var} \
       {params.zoom_n_hvgs} \
-      $NOAMBIENT_FLAG
-     """
+      $NOAMBIENT_FLAG \
+      $EXC_GS_F_FLAG
+    """
 
 
 rule zoom_create_hvg_matrix:

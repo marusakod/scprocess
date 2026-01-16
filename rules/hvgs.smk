@@ -257,7 +257,8 @@ rule get_highly_variable_genes:
     hvg_method  = config['hvg']['hvg_method'],
     batch_var   = BATCH_VAR,
     n_hvgs      = config['hvg']['hvg_n_hvgs'],
-    no_ambient  = config['hvg']['hvg_exclude_ambient_genes']
+    no_ambient  = config['hvg']['hvg_exclude_ambient_genes'],
+    exc_gs_f    = config['hvg']['hvg_exclude_from_file']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_highly_variable_genes', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_highly_variable_genes', 'time', attempt)
@@ -266,6 +267,10 @@ rule get_highly_variable_genes:
   conda:
     '../envs/hvgs.yaml'
   shell: """
+    EXC_GS_F_FLAG=""
+    if [ "{params.no_ambient}" = "True" ]; then
+      EXC_GS_F_FLAG="--exc_gs_f {params.exc_gs_f}"
+    fi
     NOAMBIENT_FLAG=""
     if [ "{params.no_ambient}" = "True" ]; then
       NOAMBIENT_FLAG="--noambient"
@@ -278,6 +283,7 @@ rule get_highly_variable_genes:
       {params.hvg_method} \
       {params.batch_var} \
       {params.n_hvgs} \
+      $EXC_GS_F_FLAG \
       $NOAMBIENT_FLAG
      """
 

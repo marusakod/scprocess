@@ -131,6 +131,7 @@
         "hvg_n_hvgs":                 { "type": "integer", "default": 2000 },
         "hvg_chunk_size":             { "type": "integer", "default": 2000 },
         "hvg_exclude_ambient_genes":  { "type": "boolean", "default": true },
+        "hvg_exclude_from_file":      { "type": "string", "items": {"type": "string", "pattern": "^.+\\.csv$"} },
         "hvg_metadata_split_var":     { "type": ["string", "null"] }
       },
       "allOf": [
