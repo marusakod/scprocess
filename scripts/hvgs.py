@@ -541,12 +541,7 @@ def _calculate_standardized_variance(df):
   return df
 
 
-def _process_single_group(stats_df, exc_gs, n_hvgs, exclude_ambient):
-  # get genes to exclude
-  exclude_gs = []
-  if exclude_ambient:
-    exclude_gs = exc_gs
-
+def _process_single_group(stats_df, exclude_gs, n_hvgs):
   # exclude bad gs, put genes in desc order of variance, add rank variable
   out_df      = stats_df.select(['gene_id', 'variances_norm'])
   out_df      = out_df.with_columns(
@@ -566,12 +561,7 @@ def _process_single_group(stats_df, exc_gs, n_hvgs, exclude_ambient):
   return out_df
 
 
-def _process_multiple_groups(stats_df, group_var, exc_gs, n_hvgs,  exclude_ambient):
-  # decide whether to exclude
-  exclude_gs = []
-  if exclude_ambient:
-    exclude_gs = exc_gs
-
+def _process_multiple_groups(stats_df, group_var, exclude_gs, n_hvgs):
   # do like for one group, but for multiple
   tmp_df      = stats_df.select([group_var, 'gene_id', 'variances_norm'])
   tmp_df      = tmp_df.with_columns(
@@ -597,9 +587,11 @@ def _process_multiple_groups(stats_df, group_var, exc_gs, n_hvgs,  exclude_ambie
 
 # main function to calculate highly variable genes
 def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, batch_var, n_hvgs, exclude_ambient=True, exc_gs_f=None):
-  # get empty genes
-  empty_df  = pl.read_csv(empty_gs_f)
-  empty_gs  = empty_df.filter( pl.col("is_ambient") == True )["gene_id"].to_list()
+  # get empty genes to exclude
+  empty_gs  = []
+  if exclude_ambient:
+    empty_df  = pl.read_csv(empty_gs_f)
+    empty_gs  = empty_df.filter( pl.col("is_ambient") == True )["gene_id"].to_list()
 
   # get genes to exclude
   file_gs   = []
@@ -616,9 +608,9 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, batch_var, n_
 
   # find HVGs for each
   if stats_df[ group_var ].n_unique() == 1:
-    hvg_df    = _process_single_group(stats_df, exc_gs, n_hvgs, exclude_ambient)
+    hvg_df    = _process_single_group(stats_df, exc_gs, n_hvgs)
   else:
-    hvg_df    = _process_multiple_groups(stats_df, group_var, exc_gs, n_hvgs, exclude_ambient)
+    hvg_df    = _process_multiple_groups(stats_df, group_var, exc_gs, n_hvgs)
 
   # sort hvg_df nicely
   sort_cols = ["highly_variable_nbatches", "highly_variable_rank"]

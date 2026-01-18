@@ -268,7 +268,7 @@ rule get_highly_variable_genes:
     '../envs/hvgs.yaml'
   shell: """
     EXC_GS_F_FLAG=""
-    if [ "{params.no_ambient}" = "True" ]; then
+    if [ -n "{params.exc_gs_f}" ]; then
       EXC_GS_F_FLAG="--exc_gs_f {params.exc_gs_f}"
     fi
     NOAMBIENT_FLAG=""

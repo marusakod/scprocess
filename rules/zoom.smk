@@ -550,8 +550,8 @@ rule zoom_get_highly_variable_genes:
       NOAMBIENT_FLAG="--noambient"
     fi
     EXC_GS_F_FLAG=""
-    if [ "{params.no_ambient}" = "True" ]; then
-      EXC_GS_F_FLAG="--zoom_exc_gs_f {params.zoom_exc_gs_f}"
+    if [ "{params.zoom_exc_gs_f}" != "None" ]; then
+      EXC_GS_F_FLAG="--exc_gs_f {params.zoom_exc_gs_f}"
     fi
 
     python3 scripts/hvgs.py calculate_hvgs \

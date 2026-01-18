@@ -47,7 +47,7 @@ def extract_zoom_sample_statistics(qc_stats_f, labels_f, labels_col, sel_labels,
 
   # add empty samples
   empty_ss    = list(set(batches) - set(zoom_stats[batch_var]))
-  empty_df    = pl.DataFrame({ batch_var: empty_ss, "n_cells": 0 })
+  empty_df    = pl.DataFrame({ batch_var: empty_ss, "n_cells": 0 }).cast(zoom_stats.schema)
   zoom_stats  = pl.concat([zoom_stats, empty_df])
 
   # identify samples that do not meet the minimum cell threshold
