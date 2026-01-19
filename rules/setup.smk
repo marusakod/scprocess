@@ -173,5 +173,6 @@ rule download_celltypist_models:
     '../envs/celltypist.yaml'
   threads: 1
   shell:"""
+    # download celltypist models
     python3 scripts/label_celltypes.py download_models {output.models_f}
     """

@@ -5,18 +5,46 @@ import polars as pl
 import scanpy as sc
 import celltypist
 import gzip
+import pathlib
+import requests
 
 
 def download_celltypist_models(models_f):
   # download
   celltypist.models.download_models()
+  models_dir  = pathlib.Path(celltypist.models.models_path)
+
+  # define Allen Brain Immunology models
+  allen_base_url  = "https://allenimmunology.org/public/publication/download/84792154-cdfb-42d0-8e42-39e210e980b4/filesets/c5300f8b-f5ff-4010-9371-edc33d489143"
+  allen_urls  = {
+    "AIFI_L1": f"{allen_base_url}/ref_pbmc_clean_celltypist_model_AIFI_L1_2024-04-18.pkl",
+    "AIFI_L2": f"{allen_base_url}/ref_pbmc_clean_celltypist_model_AIFI_L2_2024-04-19.pkl",
+    "AIFI_L3": f"{allen_base_url}/ref_pbmc_clean_celltypist_model_AIFI_L3_2024-04-19.pkl"
+  }
+
+  # download them
+  for model, url in allen_urls.items():
+    # Extract the filename from the URL (or use the model)
+    file_path   = models_dir / (model + ".pkl")
     
+    print(f"Downloading {model} to {file_path}...")
+    try:
+      response = requests.get(url, stream=True)
+      response.raise_for_status() # Check for HTTP errors (404, 500, etc.)
+
+      with open(file_path, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+          f.write(chunk)
+      print(f"Successfully downloaded {model}.")
+
+    except requests.exceptions.RequestException as e:
+      print(f"Failed to download {model}: {e}")
+
   # record their names
-  models_dir  = celltypist.models.models_path
   models_ls   = [ f.replace(".pkl", "") for f in os.listdir(models_dir) if f.endswith(".pkl") ]
 
   # make dataframe, save
-  models_df   = pl.DataFrame({ "model": models_ls })
+  models_df   = pl.DataFrame({ "model": models_ls }).sort("model")
   models_df.write_csv(models_f)
 
   return
