@@ -68,30 +68,30 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
         exp_ori = 'fw'
     
     else: # if selected whitelist corresponds to multiple chemistries with different orrientation, do mapping on downsampled data
-      _subset_fastqs(R1_fs, R2_fs)
-      # need to map downsampled fastqs as well
-      ori_guess = _infer_read_orientation(out_dir)
-      exp_ori   = ori_guess
-      tenx_chemistry = tenx_chemistry # this is not correct, somehow get chemistry
+      sub_R1_f, sub_R2_f = _subset_fastqs(R1_fs, R2_fs)
+      chem_opts = set(sel_wl_dt['chemistry'])
+      if chem_opts == set(['3v2', '5v1', '5v2']):
+        tenx_chemistry = '10xv2'
+      else:
+        tenx_chemistry = '10xv3'
+      
+      tmp_out_dir = f'{out_dir}/tmp_mapping'
+      os.makedirs(tmp_out_dir, exist_ok=True)
 
+      # map downsampled fastqs 
+      _run_simpleaf_quant(tmp_out_dir, sub_R1_f, sub_R2_f, threads, index_dir, 
+        tenx_chemistry, 'fw', t2g_f, whitelist_f)
+      
+
+      ori_guess = _infer_read_orientation(tmp_out_dir)
+      # remove temporary mapping results
+      exp_ori   = ori_guess
+      
   # do quantification
-  simpleaf_cmd  = [
-    "simpleaf", "quant", 
-    "--reads1", ",".join(R1_fs), 
-    "--reads2", ",".join(R2_fs),
-    "--threads", f"{threads}", 
-    "--index", index_dir, 
-    "--chemistry", tenx_chemistry, 
-    "--resolution", "cr-like", 
-    "--expected-ori", exp_ori, 
-    "--t2g-map", t2g_f, 
-    "--unfiltered-pl", whitelist_f,
-    "--min-reads", "1", 
-    "--output", out_dir
-    ]
-  if what == "hto":
-    simpleaf_cmd.append("--no-piscem")
-  subprocess.run(simpleaf_cmd)
+  extra = ["--no-piscem"] if what == "hto" else []
+  _run_simpleaf_quant(out_dir, R1_fs, R2_fs, threads, index_dir,
+    tenx_chemistry, exp_ori, t2g_f, whitelist_f,  extra_args=extra
+  )
 
   # tidy up any temp fastq files
   if on_arvados:
@@ -100,6 +100,30 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
     for f in R2_fs:
       os.unlink(f)
     os.rmdir(tmp_dir)
+
+
+
+def _run_simpleaf_quant(out_dir, R1_fs, R2_fs, threads, index_dir, chemistry, ori, t2g_f, wl_f, extra_args=None):
+  
+  simpleaf_cmd  = [
+    "simpleaf", "quant", 
+    "--reads1", ",".join(R1_fs), 
+    "--reads2", ",".join(R2_fs),
+    "--threads", f"{threads}", 
+    "--index", index_dir, 
+    "--chemistry", chemistry, 
+    "--resolution", "cr-like", 
+    "--expected-ori", ori, 
+    "--t2g-map", t2g_f, 
+    "--unfiltered-pl", wl_f,
+    "--min-reads", "1", 
+    "--output", out_dir
+    ]
+  if extra_args:
+    simpleaf_cmd.extend(extra_args)
+    
+  subprocess.run(simpleaf_cmd, check=True)
+
 
 
 def _download_arvados_file_as_tempfile(arv_uuid, f, tmp_dir, prefix, i, read, threads):
@@ -136,7 +160,7 @@ def _subset_fastqs(R1_fs, R2_fs, smpl_size = 100000):
   subprocess.run(["seqkit", "head", "-n", f"{smpl_size}", R1_f, "-o", sub_R1_f], check=True)
   subprocess.run(["seqkit", "head", "-n", f"{smpl_size}", R2_f, "-o", sub_R2_f], check=True)
   
-  return
+  return sub_R1_f, sub_R2_f
 
 # af_res_dir should be a directory where temporary alevin inputs for inference of chemistry are stored
 def _infer_read_orientation(af_res_dir):
@@ -159,42 +183,34 @@ def _infer_read_orientation(af_res_dir):
       
     return ori_guess
 
-  # pick one random pair and save subsampled data into a new files
-  # check if that has enough reads and if not subsample another pair (probably not necessary)
-  # do mapping of that subsampled pair
-  # also extract just barcodes from the subsampled data for version mapping
-  # remove temporary subsampled files
-  # somehow also consider multiplexing information
 
-def _get_whitelist_overlap(R1_f, wl_lu_f, sample_size = 100000):
+def _get_whitelist_overlap(R1_fs, wl_lu_f, sample_size = 100000):
   # randomly pick one R1 file to extract barcodes from
   random.seed(1234)
-  R1_f = random.sample(R1_f, 1)
+  sel_R1_f = random.sample(R1_fs, 1)
     
   # get all barcode whitelist files
   wl_dt  = pl.read_csv(wl_lu_f).select(['chemistry', 'barcodes_f'])
-  wl_fs  = list(set(wl_dt['barcodes_f'].to_list()))
+  wl_fs  = wl_dt['barcodes_f'].unique().to_list()
     
-  # calculate overlap of barcodes with each whitelist for all R1_fs
-  overlap_dict = {"barcodes_f": [], "overlap": []}
-
-  print(f'Extracting barcodes from {R1_f}')
-  spell     = f"seqkit head -n {sample_size} {R1_f} | seqkit subseq -r 1:16"
+  # calculate overlap of barcodes in sel_R1_f with each whitelist 
+  print(f'Extracting barcodes from {sel_R1_f}')
+  spell     = f"seqkit head -n {sample_size} {sel_R1_f} | seqkit subseq -r 1:16"
   spell_res = subprocess.run(spell, shell=True, capture_output=True, text=True)
-  spell_out = spell_res.stdout
-  barcodes  = _extract_raw_seqs_from_fq(spell_out)
-  barcodes  = np.unique(barcodes)
+  barcodes  = set(_extract_raw_seqs_from_fq(spell_res.stdout))
   n_bcs     = len(barcodes)
   print(f'Number of unique barcodes: {n_bcs}')
-
+  
+  overlap_res = []
   for wl_f in wl_fs:
-    wl = np.loadtxt(wl_f, dtype = 'str')
-    overlap = sum(np.in1d(barcodes, wl)) / n_bcs
-    overlap_dict['barcodes_f'].append(wl_f)
-    overlap_dict['overlap'].append(overlap)
-
+    with open(wl_f, 'r') as f: 
+      wl_set = {line.strip() for line in f}
+      matches = sum(1 for bc in barcodes if bc in wl_set)
+      overlap_pct = matches/n_bcs if n_bcs > 0 else 0
+      overlap_res.append({"barcodes_f": wl_f, "overlap": overlap_pct})
+  
   # merge overlaps with chemistries
-  overlap_dt = pl.DataFrame(overlap_dict)
+  overlap_dt = pl.DataFrame(overlap_res)
   full_dt    = wl_dt.join(overlap_dt, on = 'barcodes_f', coalesce=True, how = 'full')
 
   return full_dt
@@ -229,9 +245,10 @@ if __name__ == "__main__":
   parser.add_argument("--R2_fs", nargs="+")
   parser.add_argument("--threads", default=1, type=int)
   parser.add_argument("--af_index_dir", type=str)
-  parser.add_argument("--tenx_chemistry", type=str)
-  parser.add_argument("--exp_ori", type=str)
-  parser.add_argument("--whitelist_f", type=str)
+  parser.add_argument("--wl_lu_f", type=str)
+  parser.add_argument("--tenx_chemistry", type=str, default=None)
+  parser.add_argument("--exp_ori", type=str, default=None)
+  parser.add_argument("--whitelist_f", type=str, default=None)
 
   # set up some locations
   args    = parser.parse_args()
@@ -243,6 +260,8 @@ if __name__ == "__main__":
     index_dir = f"{args.af_index_dir}/index"
 
   # run
-  map_fastqs_to_counts(args.run, args.af_dir, args.demux_type, args.what, args.af_home_dir, 
-    args.where, args.R1_fs, args.R2_fs, args.threads, args.af_index_dir, args.tenx_chemistry, 
-    args.exp_ori, args.whitelist_f, t2g_f, index_dir)
+  map_fastqs_to_counts(run = args.run, af_dir = args.af_dir, demux_type = args.demux_type, what = args.what, af_home_dir = args.af_home_dir, 
+    where = args.where, R1_fs=args.R1_fs, R1_fs=args.R2_fs, threads=args.threads, index_dir=args.af_index_dir, tenx_chemistry=args.tenx_chemistry, 
+    exp_ori = args.exp_ori, wl_lu_f= args.wl_lu_f, whitelist_f= args.whitelist_f, t2g_f=t2g_f, index_dir= index_dir)
+
+

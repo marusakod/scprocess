@@ -14,6 +14,7 @@ rule run_mapping:
     demux_type    = config['multiplexing']['demux_type'],
     af_home_dir   = config['mapping']['alevin_fry_home'],
     af_index_dir  = config['mapping']['af_index_dir'],
+    wl_lu_f       = config['mapping']['wl_lu_f'],
     af_chemistry  = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["af_chemistry"],
     exp_ori       = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["expected_ori"],
     whitelist_f   = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["whitelist_f"],
@@ -43,6 +44,14 @@ rule run_mapping:
       ml arvados
       arv-env arkau
     fi
+    
+    # get optional flags
+    if [[ "{params.af_chemistry}" != "None" ]]; then
+      OPT_ARGS+=(--tenx_chemistry "{params.af_chemistry}")
+      OPT_ARGS+=(--exp_ori "{params.exp_ori}")
+      OPT_ARGS+=(--whitelist_f "{params.whitelist_f}")
+    fi
+
     # run mapping
     python3 scripts/mapping.py {wildcards.run} \
       --af_dir          {af_dir} \
@@ -54,9 +63,8 @@ rule run_mapping:
       --R2_fs           {params.R2_fs} \
       --threads         {threads} \
       --af_index_dir    {params.af_index_dir} \
-      --tenx_chemistry  {params.af_chemistry} \
-      --exp_ori         {params.exp_ori} \
-      --whitelist_f     {params.whitelist_f}
+      --wl_lu_f         {params.wl_lu_f} \
+      "${{OPT_ARGS[@]}}"
     """
 
 

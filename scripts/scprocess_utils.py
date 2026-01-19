@@ -377,6 +377,7 @@ def _check_mapping_parameters(config, scdata_dir):
   # get af index directory and check if exists
   config['mapping']['alevin_fry_home']  = scdata_dir / 'alevin_fry_home'
   config['mapping']['af_index_dir']     = scdata_dir / 'alevin_fry_home' / species
+  config['mapping']['wl_lu_f']          = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
   if not pathlib.Path(config['mapping']['af_index_dir']).is_dir():
     raise FileNotFoundError(f"alevin index for {species} doesn't exist")
   
