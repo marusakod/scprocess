@@ -141,8 +141,11 @@ if config['ambient']['ambient_method'] == 'cellbender':
       cb_empty_training_fraction  = lambda wildcards: parse_ambient_params(wildcards.run, config, RUN_PARAMS, af_dir, af_rna_dir)['cb_empty_training_fraction'],
       cb_posterior_batch_size     = lambda wildcards: parse_ambient_params(wildcards.run, config, RUN_PARAMS, af_dir, af_rna_dir)['cb_posterior_batch_size']
     output:
-      ambient_yaml_out = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
-      tmp_f            = temp(f'{amb_dir}/ambient_{{run}}/ckpt.tar.gz')
+      ambient_yaml_out  = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
+      tmp_f             = temp(f'{amb_dir}/ambient_{{run}}/ckpt.tar.gz'),
+      bcs_f             = f'{amb_dir}/ambient_{{run}}/bender_{{run}}_{DATE_STAMP}_cell_barcodes.csv',
+      h5_filt_f         = f'{amb_dir}/ambient_{{run}}/bender_{{run}}_{DATE_STAMP}_filtered.h5',
+      h5_full_f         = f'{amb_dir}/ambient_{{run}}/bender_{{run}}_{DATE_STAMP}.h5'
     threads: 4
     retries: config['resources']['retries']
     resources:
@@ -232,7 +235,9 @@ if config['ambient']['ambient_method'] == 'decontx':
       amb_yaml_f      = f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml', 
       knee_data_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz'
     output:
-      amb_yaml_out    = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml'
+      amb_yaml_out    = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
+      bcs_f           = f'{amb_dir}/ambient_{{run}}/decontx_{{run}}_{DATE_STAMP}_cell_barcodes.csv',
+      h5_filt_f       = f'{amb_dir}/ambient_{{run}}/decontx_{{run}}_{DATE_STAMP}_filtered.h5'
     params:
       ambient_method  = config['ambient']['ambient_method'],
       cell_calling    = config['ambient']['cell_calling']
@@ -276,7 +281,6 @@ if config['ambient']['ambient_method'] == 'decontx':
       echo "filt_counts_f: $filt_counts_f" >> {output.amb_yaml_out}
       echo "bcs_f: $bcs_f" >> {output.amb_yaml_out}
       echo "dcx_params_f: $dcx_params_f" >> {output.amb_yaml_out}
-
       """
 
 
@@ -287,7 +291,9 @@ if config['ambient']['ambient_method'] == 'none':
       amb_yaml_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml',
       knee_data_f = f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz'
     output:
-      ambient_yaml_out = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml'
+      ambient_yaml_out  = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
+      bcs_f             = f'{amb_dir}/ambient_{{run}}/uncorrected_{{run}}_{DATE_STAMP}_cell_barcodes.csv',
+      h5_filt_f         = f'{amb_dir}/ambient_{{run}}/uncorrected_{{run}}_{DATE_STAMP}_filtered.h5'
     params:
       ambient_method  = config['ambient']['ambient_method'],
       cell_calling    = config['ambient']['cell_calling']

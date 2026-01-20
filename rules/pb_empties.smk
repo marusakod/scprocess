@@ -114,12 +114,23 @@ rule make_runs_to_batches_df:
     lu_df.write_csv(output.batch_lu_f)
 
 
+def get_filt_counts_f(wildcards):
+  ambient_method = config['ambient']['ambient_method']
+  if ambient_method == "cellbender":
+    return f'{amb_dir}/ambient_{wildcards.run}/bender_{wildcards.run}_{DATE_STAMP}_filtered.h5'
+  elif ambient_method == "decontx":
+    return f'{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_filtered.h5'
+  elif ambient_method == "none":
+    return f'{amb_dir}/ambient_{wildcards.run}/uncorrected_{wildcards.run}_{DATE_STAMP}_filtered.h5'
+
+
 rule make_one_pb_cells:
   input:
-    batch_lu_f  = f'{pb_dir}/runs_to_batches_{FULL_TAG}_{DATE_STAMP}.csv',
-    qc_stats_f  = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
-    h5_paths_f  = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
-    coldata_f   = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    batch_lu_f    = f'{pb_dir}/runs_to_batches_{FULL_TAG}_{DATE_STAMP}.csv',
+    filt_counts_f = get_filt_counts_f,
+    qc_stats_f    = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+    h5_paths_f    = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
+    coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
     pb_cells_f  = temp(f'{pb_dir}/tmp_pb_cells_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds')
   params:

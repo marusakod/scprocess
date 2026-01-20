@@ -18,12 +18,20 @@ rule make_hvg_df:
       RUNS_TO_BATCHES, params.demux_type, FULL_TAG, DATE_STAMP, hvg_dir)
     hvg_df.write_csv(output.hvg_paths_f)
 
-
+def hvgs_get_filt_counts_f(run):
+  ambient_method = config['ambient']['ambient_method']
+  if ambient_method == "cellbender":
+    return f'{amb_dir}/ambient_{run}/bender_{run}_{DATE_STAMP}_filtered.h5'
+  elif ambient_method == "decontx":
+    return f'{amb_dir}/ambient_{run}/decontx_{run}_{DATE_STAMP}_filtered.h5'
+  elif ambient_method == "none":
+    return f'{amb_dir}/ambient_{run}/uncorrected_{run}_{DATE_STAMP}_filtered.h5'
 
 # create temporary csr h5 files
 rule make_tmp_csr_matrix:
   input:
     hvg_paths_f     = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv', 
+    h5_filt_fs      = [hvgs_get_filt_counts_f(run) for run in RUNS],
     cell_filter_f   = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     qc_stats_f      = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     rowdata_f       = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'

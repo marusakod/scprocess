@@ -63,11 +63,21 @@ rule run_integration:
     """
 
 
+def int_get_filt_counts_f(run):
+  ambient_method = config['ambient']['ambient_method']
+  if ambient_method == "cellbender":
+    return f'{amb_dir}/ambient_{run}/bender_{run}_{DATE_STAMP}_filtered.h5'
+  elif ambient_method == "decontx":
+    return f'{amb_dir}/ambient_{run}/decontx_{run}_{DATE_STAMP}_filtered.h5'
+  elif ambient_method == "none":
+    return f'{amb_dir}/ambient_{run}/uncorrected_{run}_{DATE_STAMP}_filtered.h5'
+
 # rule to create sce objects without any doublets (and delete temporary sce objects in the qc directory)
 rule make_clean_sces: 
   input:
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     h5_paths_f    = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
+    h5_filt_fs    = [int_get_filt_counts_f(run) for run in RUNS],
     coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
   output:
     clean_sce_f   = f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds'
