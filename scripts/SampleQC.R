@@ -1154,7 +1154,7 @@ make_clean_sces <- function(sel_b, sel_run, integration_f, h5_paths_f,
     mat         = mat[, subset_cells]
   }
 
-  # heck for weird genes
+  # check for weird genes
   weird_gs    = str_detect(rownames(mat), "unassigned_gene")
   assert_that( all(!weird_gs) )
 
