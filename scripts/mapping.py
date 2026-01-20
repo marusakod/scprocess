@@ -13,7 +13,7 @@ import polars as pl
 import numpy as np
 
 def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, 
-    where, R1_fs, R2_fs, threads, t2g_f, index_dir, wl_lu_f, tenx_chemistry = None, exp_ori = None, whitelist_f = None):
+    where, R1_fs, R2_fs, threads, t2g_f, index_dir, wl_lu_f, tenx_chemistry = 'none', exp_ori = 'none', whitelist_f = 'none'):
   # make output directory, in subdirectory if multiplexed samples
   out_dir   = f"{af_dir}/af_{run}"
   if demux_type == "hto":
@@ -45,15 +45,18 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
     R1_fs       = [ os.path.join(where, f) for f in R1_fs]
     R2_fs       = [ os.path.join(where, f) for f in R2_fs]
 
-  if tenx_chemistry is None: # and exp_ori and whitelist_f
+  if tenx_chemistry == 'none': # and exp_ori and whitelist_f
     wl_overlap_dt = _get_whitelist_overlap(R1_fs, wl_lu_f)
     # check for which barcode whitelist the overlap is the highest
-    max_overlap = max(wl_overlap_dt)
+    # save this for testing
+    wl_overlap_dt_f = f'{out_dir}/wl_overlap_dt_f.csv'
+    wl_overlap_dt.write_csv(wl_overlap_dt_f)
+    max_overlap = max(wl_overlap_dt['overlap'])
     if max_overlap < 0.7:
       raise Warning(f'Maximum overlap ob barcodes is {max_overlap:.1%}, 10x chemistry guess might be incorrect')
     
     sel_wl_dt = wl_overlap_dt.filter(pl.col('overlap') == max_overlap)
-    whitelist_f = sel_wl_dt['whitelist_f'][0]
+    whitelist_f = sel_wl_dt['barcodes_f_full'][0]
     if sel_wl_dt.height == 1:
       sample_chem = sel_wl_dt['chemistry'][0]
       if sample_chem in ['3v2', '5v1', '5v2']:
@@ -187,11 +190,14 @@ def _infer_read_orientation(af_res_dir):
 def _get_whitelist_overlap(R1_fs, wl_lu_f, sample_size = 100000):
   # randomly pick one R1 file to extract barcodes from
   random.seed(1234)
-  sel_R1_f = random.sample(R1_fs, 1)
+  sel_R1_f = random.sample(R1_fs, 1)[0]
     
   # get all barcode whitelist files
   wl_dt  = pl.read_csv(wl_lu_f).select(['chemistry', 'barcodes_f'])
   wl_fs  = wl_dt['barcodes_f'].unique().to_list()
+
+  # get directory where whitelist files are stored
+  wl_dir = os.path.abspath(os.path.dirname(wl_lu_f)) 
     
   # calculate overlap of barcodes in sel_R1_f with each whitelist 
   print(f'Extracting barcodes from {sel_R1_f}')
@@ -203,11 +209,12 @@ def _get_whitelist_overlap(R1_fs, wl_lu_f, sample_size = 100000):
   
   overlap_res = []
   for wl_f in wl_fs:
-    with open(wl_f, 'r') as f: 
+    wl_f_full = f'{wl_dir}/{wl_f}'
+    with open(wl_f_full, 'r') as f: 
       wl_set = {line.strip() for line in f}
       matches = sum(1 for bc in barcodes if bc in wl_set)
       overlap_pct = matches/n_bcs if n_bcs > 0 else 0
-      overlap_res.append({"barcodes_f": wl_f, "overlap": overlap_pct})
+      overlap_res.append({"barcodes_f": wl_f, "barcodes_f_full": wl_f_full, "overlap": overlap_pct})
   
   # merge overlaps with chemistries
   overlap_dt = pl.DataFrame(overlap_res)
@@ -223,13 +230,13 @@ def _get_whitelist_overlap(R1_fs, wl_lu_f, sample_size = 100000):
 #QUALITY - quality score string for the sequence
 # this function extracts DNA sequences from each entry of a FASTQ file
 def _extract_raw_seqs_from_fq(fastq_all):
-    entries = fastq_all.strip().split('\n@')[0:]
-    seqs = []
-    for e in entries:
-        ls = e.split('\n')
-        if len(ls) > 1:
-            seqs.append(ls[1])
-    return seqs     
+  entries = fastq_all.strip().split('\n@')[0:]
+  seqs = []
+  for e in entries:
+    ls = e.split('\n')
+    if len(ls) > 1:
+      seqs.append(ls[1])
+  return seqs     
 
 
 if __name__ == "__main__":
@@ -246,9 +253,9 @@ if __name__ == "__main__":
   parser.add_argument("--threads", default=1, type=int)
   parser.add_argument("--af_index_dir", type=str)
   parser.add_argument("--wl_lu_f", type=str)
-  parser.add_argument("--tenx_chemistry", type=str, default=None)
-  parser.add_argument("--exp_ori", type=str, default=None)
-  parser.add_argument("--whitelist_f", type=str, default=None)
+  parser.add_argument("--tenx_chemistry", type=str, default='none')
+  parser.add_argument("--exp_ori", type=str, default='none')
+  parser.add_argument("--whitelist_f", type=str, default='none')
 
   # set up some locations
   args    = parser.parse_args()
@@ -261,7 +268,7 @@ if __name__ == "__main__":
 
   # run
   map_fastqs_to_counts(run = args.run, af_dir = args.af_dir, demux_type = args.demux_type, what = args.what, af_home_dir = args.af_home_dir, 
-    where = args.where, R1_fs=args.R1_fs, R1_fs=args.R2_fs, threads=args.threads, index_dir=args.af_index_dir, tenx_chemistry=args.tenx_chemistry, 
+    where = args.where, R1_fs=args.R1_fs, R2_fs=args.R2_fs, threads=args.threads, tenx_chemistry=args.tenx_chemistry, 
     exp_ori = args.exp_ori, wl_lu_f= args.wl_lu_f, whitelist_f= args.whitelist_f, t2g_f=t2g_f, index_dir= index_dir)
 
 

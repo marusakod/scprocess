@@ -869,25 +869,33 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
   # get af chemistry and expected orientation
   if sample_chem in ['3v2', '5v1', '5v2']:
     af_chemistry = '10xv2' 
-  else: 
+  elif sample_chem in ['5v3', '3LT', '3v3', '3v4', 'multiome']:
     af_chemistry = '10xv3'
+  else:
+    af_chemistry = 'none'
 
   # get expected orientation
   if sample_chem in ['5v1', '5v2', '5v3']:
     expected_ori = 'rc'
-  else:
+  elif sample_chem in ['3LT', '3v2', '3v3', '3v4', "multiome"]:
     expected_ori = 'fw'
+  else:
+    expected_ori = 'none'
 
   # sort out whitelist file
-  wl_df_f     = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
-  wl_df       = pl.read_csv(wl_df_f)
-  wl_f        = wl_df.filter( pl.col('chemistry') == sample_chem )['barcodes_f'].item()
-  wl_trans_f  = wl_df.filter( pl.col('chemistry') == sample_chem )['translation_f'].item()
-  if type(wl_trans_f) == str:
-    whitelist_trans_f = scdata_dir / 'cellranger_ref' / wl_trans_f
+  if sample_chem == 'none':
+    whitelist_f        = 'none', 
+    whitelist_trans_f  = 'none'
   else:
-    whitelist_trans_f = None
-  whitelist_f = scdata_dir / 'cellranger_ref' / wl_f
+    wl_df_f     = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
+    wl_df       = pl.read_csv(wl_df_f)
+    wl_f        = wl_df.filter( pl.col('chemistry') == sample_chem )['barcodes_f'].item()
+    wl_trans_f  = wl_df.filter( pl.col('chemistry') == sample_chem )['translation_f'].item()
+    if type(wl_trans_f) == str:
+      whitelist_trans_f = scdata_dir / 'cellranger_ref' / wl_trans_f
+    else:
+      whitelist_trans_f = None
+      whitelist_f = scdata_dir / 'cellranger_ref' / wl_f
 
   # make dictionary for mapping
   mapping_dc  = {
