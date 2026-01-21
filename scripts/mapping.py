@@ -11,6 +11,7 @@ import random
 import json
 import polars as pl
 import numpy as np
+import yaml
 
 def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, 
     where, R1_fs, R2_fs, threads, t2g_f, index_dir, wl_lu_f, tenx_chemistry = 'none', exp_ori = 'none', whitelist_f = 'none'):
@@ -45,8 +46,11 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
     R1_fs       = [ os.path.join(where, f) for f in R1_fs]
     R2_fs       = [ os.path.join(where, f) for f in R2_fs]
 
-  if tenx_chemistry == 'none': # and exp_ori and whitelist_f
-    wl_overlap_dt = _get_whitelist_overlap(R1_fs, wl_lu_f)
+  # get whitelist lookup file
+  wl_lu_dt = pl.read_csv(wl_lu_f)
+
+  if tenx_chemistry == 'none': 
+    wl_overlap_dt = _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt)
     # check for which barcode whitelist the overlap is the highest
     # save this for testing
     wl_overlap_dt_f = f'{out_dir}/wl_overlap_dt_f.csv'
@@ -59,17 +63,13 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
     whitelist_f = sel_wl_dt['barcodes_f_full'][0]
     if sel_wl_dt.height == 1:
       sample_chem = sel_wl_dt['chemistry'][0]
-      if sample_chem in ['3v2', '5v1', '5v2']:
-        tenx_chemistry = '10xv2' 
-      else: 
-        tenx_chemistry = '10xv3'
-      
-      # get expected orientation
-      if sample_chem in ['5v1', '5v2', '5v3']:
+      tenx_chemistry = '10xv3'
+      if sample_chem =='5v3':
         exp_ori = 'rc'
       else:
         exp_ori = 'fw'
-    
+
+      pct_mapped = "" # no mapping to downsampled data needs to be done
     else: # if selected whitelist corresponds to multiple chemistries with different orrientation, do mapping on downsampled data
       sub_R1_f, sub_R2_f = _subset_fastqs(R1_fs, R2_fs)
       chem_opts = set(sel_wl_dt['chemistry'])
@@ -85,16 +85,64 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
       _run_simpleaf_quant(tmp_out_dir, [sub_R1_f], [sub_R2_f], threads, index_dir, 
         tenx_chemistry, 'fw', t2g_f, whitelist_f)
       
-
-      ori_guess = _infer_read_orientation(tmp_out_dir)
+      ori_guess, pct_mapped = _infer_read_orientation(tmp_out_dir)
       # remove temporary mapping results
       exp_ori   = ori_guess
-      
+
+      # get sample chemisty
+      if exp_ori == 'fw': 
+        sample_chem = '3v2'
+      else:
+        sample_chem = '5v1/5v2'
+  
+  else:
+    pct_mapped  = ""
+    max_overlap = ""
+    # get sample chemistry based on barcode whitelist and exp_ori
+    chem_opts = (wl_lu_dt
+      .filter(pl.col('barcodes_f') == os.path.basename(whitelist_f))
+      .get_column('chemistry').to_list())
+    if set(chem_opts) == set(['3v2', '5v1', '5v2']):
+      if exp_ori == 'fw': 
+        sample_chem = '3v2'
+      else:
+        sample_chem = '5v1/5v2'
+    else:
+      sample_chem = chem_opts[0]
+ 
+
   # do quantification
   extra = ["--no-piscem"] if what == "hto" else []
   _run_simpleaf_quant(out_dir, R1_fs, R2_fs, threads, index_dir,
     tenx_chemistry, exp_ori, t2g_f, whitelist_f,  extra_args=extra
   )
+  
+  # save yaml with chemistry stats only if what is rna
+  if what == 'rna':
+    chem_stats_f = os.path.join(out_dir, 'chemistry_statistics.yaml')
+    # get translation file
+    trans_fs = (wl_lu_dt
+     .filter(pl.col("barcodes_f") == os.path.basename(whitelist_f))
+     .get_column("translation_f").to_list())
+
+    if trans_fs[0] is None:
+     trans_f = ""
+    else:
+     trans_f  = f'{os.path.dirname(whitelist_f)}/{trans_fs[0]}'
+
+    chem_stats = {
+     "run": run, 
+     "selected_whitelist": whitelist_f, 
+     "selected_translation_f": trans_f,
+     "selected_whitelist_overlap": max_overlap, 
+     "selected_ori": exp_ori, 
+     "percent_mapped_fw": pct_mapped, 
+     "selected_tenx_chemistry": sample_chem, 
+     "selected_af_chemisty": tenx_chemistry
+    }
+  
+    with open(chem_stats_f, "w") as f:
+     yaml.safe_dump(chem_stats, f)
 
   # tidy up any temp fastq files
   if on_arvados:
@@ -184,16 +232,16 @@ def _infer_read_orientation(af_res_dir):
     else:
       ori_guess = "fw" 
       
-    return ori_guess
+    return ori_guess, pct_mapped
 
 
-def _get_whitelist_overlap(R1_fs, wl_lu_f, sample_size = 100000):
+def _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt, sample_size = 100000):
   # randomly pick one R1 file to extract barcodes from
   random.seed(1234)
   sel_R1_f = random.sample(R1_fs, 1)[0]
     
   # get all barcode whitelist files
-  wl_dt  = pl.read_csv(wl_lu_f).select(['chemistry', 'barcodes_f'])
+  wl_dt  = wl_lu_dt.select(['chemistry', 'barcodes_f'])
   wl_fs  = wl_dt['barcodes_f'].unique().to_list()
 
   # get directory where whitelist files are stored

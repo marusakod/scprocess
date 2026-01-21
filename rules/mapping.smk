@@ -27,7 +27,8 @@ rule run_mapping:
     fry_dir       = directory(f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/'),
     mtx_f         = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
     cols_f        = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
-    rows_f        = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt'
+    rows_f        = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
+    chem_stats_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml'
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_mapping/run_mapping_{{run}}_{DATE_STAMP}.benchmark.txt'
   threads: config['resources']['n_run_mapping']

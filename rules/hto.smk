@@ -41,7 +41,8 @@ rule build_hto_index:
 # run mapping for HTO files
 rule run_mapping_hto:
   input: 
-    hto_idx_dir   = f'{af_dir}/hto_index'
+    hto_idx_dir   = f'{af_dir}/hto_index', 
+    chem_stats_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml'
   output:
     fry_dir       = directory(f'{af_dir}/af_{{run}}/hto/af_quant/'),
     rad_f         = temp(f'{af_dir}/af_{{run}}/hto/af_map/map.rad'),
@@ -51,6 +52,7 @@ rule run_mapping_hto:
   params:
     demux_type    = config['multiplexing']['demux_type'],
     af_home_dir   = config['mapping']['alevin_fry_home'],
+    wl_lu_f       = config['mapping']['wl_lu_f'], 
     where         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["where"],
     R1_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R1_fs"],
     R2_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R2_fs"],
@@ -73,6 +75,12 @@ rule run_mapping_hto:
       ml arvados
       arv-env arkau
     fi
+
+    # get chemistry parameters from input yaml file
+    AF_CHEMISTRY=$(grep "selected_af_chemisty:" {input.chem_stats_f} | sed 's/selected_af_chemisty: //')
+    EXP_ORI=$(grep "selected_ori:" {input.chem_stats_f} | sed 's/selected_ori: //')
+    WHITELIST_F=$(grep "selected_whitelist:" {input.chem_stats_f} | sed 's/selected_whitelist: //')
+
     # run mapping
     python3 scripts/mapping.py {wildcards.run} \
       --af_dir          {af_dir}\
@@ -84,9 +92,10 @@ rule run_mapping_hto:
       --R2_fs           {params.R2_fs} \
       --threads         {threads} \
       --af_index_dir    {input.hto_idx_dir} \
-      --tenx_chemistry  {params.af_chemistry} \
-      --exp_ori         {params.expected_ori} \
-      --whitelist_f     {params.whitelist_f}
+      --wl_lu_f         {params.wl_lu_f} \
+      --tenx_chemistry  $AF_CHEMISTRY \
+      --exp_ori         $EXP_ORI \
+      --whitelist_f     $WHITELIST_F
     """
 
 

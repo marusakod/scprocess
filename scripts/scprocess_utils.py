@@ -457,7 +457,7 @@ def _check_hvg_parameters(config):
   # get number of gene chunks if method is 'groups' or 'all'
   if config['hvg']['hvg_method'] in ['groups', 'all']:
     # get total number of genes
-    gtf_df      = pd.read_csv(config['project']['af_gtf_dt_f'],  sep = '\t')
+    gtf_df      = pd.read_csv(config['mapping']['af_gtf_dt_f'],  sep = '\t')
     num_genes   = gtf_df.shape[0]
 
     # chunk them up and name them
