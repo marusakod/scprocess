@@ -132,9 +132,9 @@ rule make_hto_sce_objects:
   input: 
     smpl_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     amb_yaml_f   = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
-    hto_h5_f     = f'{af_dir}/af_{{run}}/hto/af_hto_counts_mat.h5'
+    hto_h5_f     = f'{af_dir}/af_{{run}}/hto/af_hto_counts_mat.h5', 
+    chem_stats_f = f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml'
   params:
-    whitelist_trans_f = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["whitelist_trans_f"],
     ambient_method    = config['ambient']['ambient_method'],
     seurat_quantile   = config['multiplexing']['seurat_quantile']
   output:
@@ -149,6 +149,10 @@ rule make_hto_sce_objects:
   conda:
    '../envs/rlibs.yaml'
   shell: """
+
+  # get translation file from chemistry stats
+  WHITELIST_TRANS_F=$(grep "selected_translation_f:" {input.chem_stats_f} | sed 's/selected_translation_f: //')
+  
   # save hto sce with demultiplexing info
   Rscript -e "source('scripts/multiplexing.R'); source('scripts/utils.R'); 
     get_one_hto_sce( 
@@ -156,7 +160,7 @@ rule make_hto_sce_objects:
       sample_stats_f  = '{input.smpl_stats_f}', 
       amb_yaml_f      = '{input.amb_yaml_f}', 
       hto_mat_f       = '{input.hto_h5_f}', 
-      trans_f         = '{params.whitelist_trans_f}', 
+      trans_f         = '$WHITELIST_TRANS_F', 
       hto_sce_f       = '{output.sce_hto_f}', 
       ambient_method  = '{params.ambient_method}',
       seurat_quantile =  {params.seurat_quantile}
