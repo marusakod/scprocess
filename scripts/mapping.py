@@ -12,6 +12,7 @@ import json
 import polars as pl
 import numpy as np
 import yaml
+import shutil
 
 def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, 
     where, R1_fs, R2_fs, threads, t2g_f, index_dir, wl_lu_f, tenx_chemistry = 'none', exp_ori = 'none', whitelist_f = 'none'):
@@ -52,9 +53,6 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
   if tenx_chemistry == 'none': 
     wl_overlap_dt = _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt)
     # check for which barcode whitelist the overlap is the highest
-    # save this for testing
-    wl_overlap_dt_f = f'{out_dir}/wl_overlap_dt_f.csv'
-    wl_overlap_dt.write_csv(wl_overlap_dt_f)
     max_overlap = max(wl_overlap_dt['overlap'])
     if max_overlap < 0.7:
       raise Warning(f'Maximum overlap ob barcodes is {max_overlap:.1%}, 10x chemistry guess might be incorrect')
@@ -71,24 +69,28 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
 
       pct_mapped = "" # no mapping to downsampled data needs to be done
     else: # if selected whitelist corresponds to multiple chemistries with different orrientation, do mapping on downsampled data
-      sub_R1_f, sub_R2_f = _subset_fastqs(R1_fs, R2_fs)
+      
+      # make directory for temporary output files
+      tmp_out_dir = f'{out_dir}/tmp_mapping'
+      os.makedirs(tmp_out_dir, exist_ok=True)
+      
+      sub_R1_f, sub_R2_f = _subset_fastqs(tmp_out_dir, R1_fs, R2_fs)
       chem_opts = set(sel_wl_dt['chemistry'])
       if chem_opts == set(['3v2', '5v1', '5v2']):
         tenx_chemistry = '10xv2'
       else:
         tenx_chemistry = '10xv3'
       
-      tmp_out_dir = f'{out_dir}/tmp_mapping'
-      os.makedirs(tmp_out_dir, exist_ok=True)
-
       # map downsampled fastqs 
       _run_simpleaf_quant(tmp_out_dir, [sub_R1_f], [sub_R2_f], threads, index_dir, 
         tenx_chemistry, 'fw', t2g_f, whitelist_f)
       
-      ori_guess, pct_mapped = _infer_read_orientation(tmp_out_dir)
-      # remove temporary mapping results
-      exp_ori   = ori_guess
-
+      # infer read orientation
+      exp_ori, pct_mapped = _infer_read_orientation(tmp_out_dir)
+      
+      # remove temporary mapping results and downsampled fastqs
+      shutil.rmtree(tmp_out_dir)
+       
       # get sample chemisty
       if exp_ori == 'fw': 
         sample_chem = '3v2'
@@ -189,7 +191,7 @@ def _download_arvados_file_as_tempfile(arv_uuid, f, tmp_dir, prefix, i, read, th
   return str(temp_file)
 
 
-def _subset_fastqs(R1_fs, R2_fs, smpl_size = 100000):
+def _subset_fastqs(out_dir, R1_fs, R2_fs, smpl_size = 100000):
   # check how many R1 + R2 file pairs
   if len(R1_fs) > 1:
     random.seed(12346)
@@ -206,8 +208,8 @@ def _subset_fastqs(R1_fs, R2_fs, smpl_size = 100000):
   
   # get fastq dir
   fastq_dir = os.path.dirname(R1_f)
-  sub_R1_f = f'{fastq_dir}/downsampled_{R1_f_base}'
-  sub_R2_f = f'{fastq_dir}/downsampled_{R2_f_base}'
+  sub_R1_f = f'{out_dir}/downsampled_{R1_f_base}'
+  sub_R2_f = f'{out_dir}/downsampled_{R2_f_base}'
   subprocess.run(["seqkit", "head", "-n", f"{smpl_size}", R1_f, "-o", sub_R1_f], check=True)
   subprocess.run(["seqkit", "head", "-n", f"{smpl_size}", R2_f, "-o", sub_R2_f], check=True)
   
