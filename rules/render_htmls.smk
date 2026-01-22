@@ -1,3 +1,4 @@
+localrules: render_html_index
 
 def get_conditional_fgsea_files(species, do_gsea):
   if (species in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & do_gsea:
