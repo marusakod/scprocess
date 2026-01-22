@@ -694,8 +694,10 @@ def _get_fastqs(config, RUNS, is_hto = False):
     # get R1 and R2 files matching each run
     R1_regex      = rf".*{run}.*(_|\.)R1.*\.fastq\.gz"
     R1_fs         = [f for f in fastq_fs if re.match(R1_regex, f) ]
+    R1_fs         = sorted(R1_fs)
     R2_regex      = rf".*{run}.*(_|\.)R2.*\.fastq\.gz"
     R2_fs         = [f for f in fastq_fs if re.match(R2_regex, f) ]
+    R2_fs         = sorted(R2_fs)
 
     # find where
     wheres_R1     = [ wheres[i] for i,f in enumerate(fastq_fs) if re.match(R1_regex, f) ]
