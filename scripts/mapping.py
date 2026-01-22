@@ -57,7 +57,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
     # check for which barcode whitelist the overlap is the highest
     max_overlap = max(wl_overlap_dt['overlap'])
     if max_overlap < 0.7:
-      raise Warning(f'Maximum overlap ob barcodes is {max_overlap:.1%}, 10x chemistry guess might be incorrect')
+      warnings.warn(f'Maximum overlap ob barcodes is {max_overlap:.1%}, 10x chemistry guess might be incorrect')
     
     sel_wl_dt = wl_overlap_dt.filter(pl.col('overlap') == max_overlap)
     whitelist_f = sel_wl_dt['barcodes_f_full'][0]
