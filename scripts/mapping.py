@@ -52,6 +52,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
   wl_lu_dt = pl.read_csv(wl_lu_f)
 
   if tenx_chemistry == 'none': 
+    print(' checking overalp of barcodes with different whitelists')
     wl_overlap_dt = _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt)
     # check for which barcode whitelist the overlap is the highest
     max_overlap = max(wl_overlap_dt['overlap'])
@@ -60,28 +61,24 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
     
     sel_wl_dt = wl_overlap_dt.filter(pl.col('overlap') == max_overlap)
     whitelist_f = sel_wl_dt['barcodes_f_full'][0]
+    
     if sel_wl_dt.height == 1:
       sample_chem = sel_wl_dt['chemistry'][0]
       tenx_chemistry = '10xv3'
-      if sample_chem =='5v3':
-        exp_ori = 'rc'
-      else:
-        exp_ori = 'fw'
+      exp_ori = 'rc' if sample_chem =='5v3' else 'fw'
       
       cell_counts_fw = ""
       cell_counts_rc = "" # no mapping to downsampled data needs to be done
     else: # if selected whitelist corresponds to multiple chemistries with different orrientation, do mapping on downsampled data
-      
+      print(' guessing orientation by mapping downsampled FASTQ files')
+
       # make directory for temporary output files
       tmp_out_dir = f'{out_dir}/tmp_mapping'
       os.makedirs(tmp_out_dir, exist_ok=True)
       
       sub_R1_f, sub_R2_f = _subset_fastqs(tmp_out_dir, R1_fs, R2_fs)
       chem_opts = set(sel_wl_dt['chemistry'])
-      if chem_opts == set(['3v2', '5v1', '5v2']):
-        tenx_chemistry = '10xv2'
-      else:
-        tenx_chemistry = '10xv3'
+      tenx_chemistry = '10xv2' if chem_opts == set(['3v2', '5v1', '5v2']) else '10xv3'
       
       # map downsampled fastqs 2x
       for ori in ['fw', 'rc']:
@@ -95,23 +92,18 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
       shutil.rmtree(tmp_out_dir)
        
       # get sample chemisty
-      if exp_ori == 'fw': 
-        sample_chem = '3v2'
-      else:
-        sample_chem = '5v1/5v2'
+      sample_chem = '3v2' if exp_ori == 'fw' else '5v1/5v2'
   
   else:
     cell_counts_fw = ""
     cell_counts_rc = ""
+    max_overlap    = ""
     # get sample chemistry based on barcode whitelist and exp_ori
     chem_opts = (wl_lu_dt
       .filter(pl.col('barcodes_f') == os.path.basename(whitelist_f))
       .get_column('chemistry').to_list())
     if set(chem_opts) == set(['3v2', '5v1', '5v2']):
-      if exp_ori == 'fw': 
-        sample_chem = '3v2'
-      else:
-        sample_chem = '5v1/5v2'
+      sample_chem = '3v2' if exp_ori == "fw" else '5v1/5v2'
     else:
       sample_chem = chem_opts[0]
  
@@ -127,13 +119,13 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
     chem_stats_f = os.path.join(out_dir, 'chemistry_statistics.yaml')
     # get translation file
     trans_fs = (wl_lu_dt
-     .filter(pl.col("barcodes_f") == os.path.basename(whitelist_f))
-     .get_column("translation_f").to_list())
+      .filter(pl.col("barcodes_f") == os.path.basename(whitelist_f))
+      .get_column("translation_f").to_list())
 
     if trans_fs[0] is None:
-     trans_f = ""
+      trans_f = ""
     else:
-     trans_f  = f'{os.path.dirname(whitelist_f)}/{trans_fs[0]}'
+      trans_f  = f'{os.path.dirname(whitelist_f)}/{trans_fs[0]}'
 
     chem_stats = {
      "run": run, 
@@ -148,7 +140,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
     }
   
     with open(chem_stats_f, "w") as f:
-     yaml.safe_dump(chem_stats, f)
+      yaml.safe_dump(chem_stats, f)
 
   # tidy up any temp fastq files
   if on_arvados:
