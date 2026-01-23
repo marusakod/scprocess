@@ -7,8 +7,8 @@ import polars as pl
 import os
 from math import ceil
 
-# mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_run_mapping'] * MB_PER_GB
-# Attempt dynamic memory based on size of R1 fastq file, but at least 32GB. Currently set to 4x size of R1 file, usually in the range of 10-15 GB.
+localrules: collect_chemistry_stats
+
 rule run_mapping:
   params:
     demux_type    = config['multiplexing']['demux_type'],
@@ -111,4 +111,27 @@ rule save_alevin_to_h5:
         low_count_thr = '{params.low_count_thr}'
       )"
     """
+
+rule collect_chemistry_stats:
+  input:
+    chem_stats_fs  = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml', run = RUNS)
+  output:
+    chem_stats_merged_f = f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv'
+  run:
+    rows = []
+        
+    for f in input.chem_stats_fs:
+      with open(f, "r") as stream:
+        data = yaml.safe_load(stream)
+        rows.append(data)
+    
+    chem_stats_dt = pl.from_dicts(rows)
+    col_ord = ["run", "selected_tenx_chemistry", "selected_af_chemistry", 
+      "selected_ori", "selected_whitelist", "selected_whitelist_overlap", 
+      "selected_translation_f", "n_cells_fw", "n_cells_rc"]
+   
+    chem_stats_dt =chem_stats_dt.select(col_ord)
+    chem_stats_dt.write_csv(output.chem_stats_merged_f)
+    
+
 

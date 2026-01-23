@@ -136,7 +136,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
      "n_cells_fw": cell_counts_fw, 
      "n_cells_rc": cell_counts_rc, 
      "selected_tenx_chemistry": sample_chem, 
-     "selected_af_chemisty": tenx_chemistry
+     "selected_af_chemistry": tenx_chemistry
     }
   
     with open(chem_stats_f, "w") as f:
