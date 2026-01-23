@@ -75,8 +75,8 @@ rule render_html_mapping:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb    =  lambda wildcards, attempt, input: attempt * get_resources('render_html_mapping', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS), 
-    runtime   =  lambda wildcards, input: get_resources('render_html_mapping', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_mapping', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_mapping', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_mapping_{DATE_STAMP}.benchmark.txt'
   conda:
@@ -137,8 +137,8 @@ if config['multiplexing']['demux_type'] == "hto":
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_multiplexing', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-      runtime = lambda wildcards, input: get_resources('render_html_multiplexing', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_multiplexing', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_multiplexing', 'time', attempt)
     benchmark:
       f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_multiplexing_{DATE_STAMP}.benchmark.txt'
     conda:
@@ -200,8 +200,8 @@ rule render_html_ambient:
   conda:
     '../envs/ambientr.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_ambient', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('render_html_ambient', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_ambient', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_ambient', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_ambient_{DATE_STAMP}.benchmark.txt'
   shell: """
@@ -260,8 +260,8 @@ rule render_html_qc:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_qc', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('render_html_qc', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_qc', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_qc', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_qc_{DATE_STAMP}.benchmark.txt'
   shell: """
@@ -318,8 +318,8 @@ rule render_html_hvgs:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_hvgs', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('render_html_hvgs', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_hvgs', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_hvgs', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_hvgs_{DATE_STAMP}.benchmark.txt'
   shell: """
@@ -376,8 +376,8 @@ rule render_html_integration:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_integration', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('render_html_integration', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_integration', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_integration', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_integration_{DATE_STAMP}.benchmark.txt'
   shell: """
@@ -458,8 +458,8 @@ rule render_html_marker_genes:
     ).strip()
   conda: '../envs/rlibs.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_marker_genes', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('render_html_marker_genes', rules,'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_marker_genes', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_marker_genes', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_marker_genes_{DATE_STAMP}.benchmark.txt'
   shell: """
@@ -530,13 +530,12 @@ if "label_celltypes" in config:
       labeller_ls     = [ entry['labeller']     for entry in LABELLER_PARAMS],
       model_ls        = [ entry['model']        for entry in LABELLER_PARAMS],
       hi_res_cl_ls    = [ entry['hi_res_cl']    for entry in LABELLER_PARAMS], 
-      min_cl_prop_ls  = [ entry['min_cl_prop']  for entry in LABELLER_PARAMS], 
-      min_cl_size_ls  = [ entry['min_cl_size']  for entry in LABELLER_PARAMS]
+      min_cl_prop_ls  = [ entry['min_cl_prop']  for entry in LABELLER_PARAMS]
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_label_celltypes', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-      runtime = lambda wildcards, input: get_resources('render_html_label_celltypes', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_label_celltypes', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_label_celltypes', 'time', attempt)
     conda:
       '../envs/rlibs.yaml'
     benchmark:
@@ -565,7 +564,6 @@ if "label_celltypes" in config:
         labeller_ls     = '{params.labeller_ls}',
         model_ls        = '{params.model_ls}',
         hi_res_cl_ls    = '{params.hi_res_cl_ls}',
-        min_cl_prop_ls  = '{params.min_cl_prop_ls}',
-        min_cl_size_ls  = '{params.min_cl_size_ls}'
+        min_cl_prop_ls  = '{params.min_cl_prop_ls}'
       )"
       """

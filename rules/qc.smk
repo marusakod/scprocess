@@ -80,7 +80,7 @@ def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, BATCH
     # record samples where cellbender went wrong
     sample_df = sample_df.with_columns( pl.lit(False).alias('bad_bender'))
     if len(bad_bender_batches) != 0: 
-       # add bad_bender column to sample_df
+      # add bad_bender column to sample_df
       bad_bender_df = pl.DataFrame({
         BATCH_VAR:    bad_bender_batches,
         'n_cells':    None, 
@@ -110,7 +110,15 @@ rule make_qc_thresholds_csv:
   output:
     cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv'
   params:
-    batch_var   = BATCH_VAR
+    qc_min_counts = config['qc']['qc_min_counts'],
+    qc_min_feats  = config['qc']['qc_min_feats'],
+    qc_min_mito   = config['qc']['qc_min_mito'],
+    qc_max_mito   = config['qc']['qc_max_mito'],
+    qc_min_splice = config['qc']['qc_min_splice'],
+    qc_max_splice = config['qc']['qc_max_splice'],
+    qc_min_cells  = config['qc']['qc_min_cells'],
+    custom_f      = [config['project']['custom_sample_params'] if 'custom_sample_params' in config['project'] else None],
+    batch_var     = BATCH_VAR
   run:
     # make polars dataframe from dictionary of parameters
     rows_data   = []
@@ -165,8 +173,8 @@ rule run_qc_one_run:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_qc_one_run', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)*(1.5**(attempt-1)),
-    runtime = lambda wildcards, input: get_resources('run_qc_one_run', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_qc_one_run', 'memory', attempt, wildcards.run),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_qc_one_run', 'time', attempt, wildcards.run)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_qc/run_qc_{{run}}_{DATE_STAMP}.benchmark.txt'
   conda:
@@ -213,8 +221,8 @@ rule merge_qc:
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_qc/merge_qc_{DATE_STAMP}.benchmark.txt'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_qc', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('merge_qc', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_qc', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_qc', 'time', attempt)
   run:
     # read all nonempty input files and concatenate them
     qc_df_ls    = [ pl.read_csv(f, schema_overrides = {"log_N": pl.Float64}) for f in input.qc_fs if os.path.getsize(f) > 0 ]
@@ -238,8 +246,8 @@ rule merge_rowdata:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_rowdata', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('merge_rowdata', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_rowdata', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_rowdata', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_qc/merge_rowdata_{DATE_STAMP}.benchmark.txt'
   run:
@@ -268,8 +276,8 @@ rule get_qc_sample_statistics:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_qc_sample_statistics', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('get_qc_sample_statistics', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_qc_sample_statistics', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_qc_sample_statistics', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_qc/get_qc_sample_statistics_{DATE_STAMP}.benchmark.txt'
   run:

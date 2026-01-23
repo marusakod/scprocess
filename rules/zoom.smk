@@ -20,18 +20,18 @@ scprocess_dir   = pathlib.Path(config.pop('scprocess_dir'))
 proj_schema_f   = scprocess_dir / "resources/schemas/config.schema.json"
 zoom_schema_f   = scprocess_dir / "resources/schemas/zoom.schema.json"
 scdata_dir      = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
-
 lm_f            = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
 
 # check config
 config          = check_config(config, proj_schema_f, scdata_dir, scprocess_dir)
 
 # get lists of parameters
-RUN_PARAMS, RUN_VAR     = get_run_parameters(config, scdata_dir)
-RUNS                    = list(RUN_PARAMS.keys())
+RUN_PARAMS, RUN_VAR = get_run_parameters(config, scdata_dir)
+RUNS                = list(RUN_PARAMS.keys())
 BATCH_PARAMS, BATCH_VAR, SAMPLES = get_batch_parameters(config, RUNS, scdata_dir)
-BATCHES                 = list(BATCH_PARAMS.keys())
+BATCHES             = list(BATCH_PARAMS.keys())
 RUNS_TO_BATCHES, RUNS_TO_SAMPLES = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
+RESOURCE_PARAMS     = prep_resource_params(config, proj_schema_f, lm_f, RUN_PARAMS, BATCHES)
 
 # get zoom parameters
 ZOOM_PARAMS         = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
@@ -132,12 +132,14 @@ rule get_zoom_sample_statistics:
     zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
     zoom_lbls_col   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'], 
     zoom_lbls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'],
+    batch_var       = BATCH_VAR,
+    batches         = BATCHES,
     zoom_min_n_smpl = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc']['qc_min_cells'],
-    ambient_method  = config['ambient']['ambient_method']
+    ambient_method  = config['ambient']['ambient_method'],
   run:
-    zoom_stats_df   = extract_zoom_sample_statistics(input.qc_stats_f, BATCHES, BATCH_VAR,
-      params.zoom_lbls_f, params.zoom_lbls_col, params.zoom_lbls, params.zoom_min_n_smpl, 
-      params.ambient_method)
+    zoom_stats_df   = extract_zoom_sample_statistics(input.qc_stats_f, params.zoom_lbls_f, 
+      params.zoom_lbls_col, params.zoom_lbls, params.batches, params.batch_var, 
+      params.zoom_min_n_smpl, params.ambient_method)
     zoom_stats_df.write_csv(output.zoom_stats_f)
 
 
@@ -159,10 +161,10 @@ rule zoom_make_one_pb_cells:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_make_one_pb_cells', rules, 'memory', 
-      lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
-    runtime = lambda wildcards, input: get_resources('zoom_make_one_pb_cells', rules, 'time', 
-      lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_make_one_pb_cells', 'memory', attempt, wildcards.run),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_make_one_pb_cells', 'time', attempt, wildcards.run)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_make_one_pb_cells_{{zoom_name}}_{{run}}_{DATE_STAMP}.benchmark.txt'
   conda: 
@@ -226,12 +228,10 @@ rule zoom_merge_pb_cells:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources(
-        'zoom_merge_pb_cells', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS
-    ),
-    runtime = lambda wildcards, input: get_resources(
-        'zoom_merge_pb_cells', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS
-    )
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_merge_pb_cells', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_merge_pb_cells', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_merge_pb_cells_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   conda: 
@@ -259,8 +259,10 @@ rule zoom_calculate_ambient_genes:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_calculate_ambient_genes', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_calculate_ambient_genes', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_calculate_ambient_genes', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_calculate_ambient_genes', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_calculate_ambient_genes_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   conda: 
@@ -304,7 +306,7 @@ rule zoom_make_tmp_csr_matrix:
   output:
     clean_h5_f      = temp(expand([
       f'{zoom_dir}/{{zoom_name}}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5'
-      ], zoom_name = '{zoom_name}', batch = BATCHES))
+      ], batch = BATCHES, allow_missing = True))
   params: 
     zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
     zoom_lbls_col   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
@@ -316,23 +318,25 @@ rule zoom_make_tmp_csr_matrix:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_make_tmp_csr_matrix', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_make_tmp_csr_matrix', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_make_tmp_csr_matrix', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_make_tmp_csr_matrix', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_make_tmp_csr_matrix_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
   shell: """
     python3 scripts/hvgs.py get_csr_counts \
-      "{input.hvg_paths_f}" \
-      "{params.zoom_lbls_f}" \
+      {input.hvg_paths_f} \
+      {params.zoom_lbls_f} \
       "{params.zoom_lbls_col}" \
-      "{params.zoom_lbls}" \
       "{input.smpl_stats_f}" \
-      "{input.rowdata_f}" \
-      "{params.run_var}" \
-      "{params.batch_var}" \
-      "{params.demux_type}" \
+      {input.rowdata_f} \
+      {params.run_var} \
+      {params.batch_var} \
+      {params.demux_type} \
+      --keep_vals_str "{params.zoom_lbls}" \
       --chunksize {params.zoom_chunk_size} \
       --ncores {threads}
     """
@@ -350,8 +354,10 @@ rule zoom_get_stats_for_std_variance_for_sample:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_stats_for_std_variance_for_sample', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_get_stats_for_std_variance_for_sample', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_get_stats_for_std_variance_for_sample', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_get_stats_for_std_variance_for_sample', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_get_stats_for_std_variance_for_sample_{{zoom_name}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
   conda:
@@ -371,51 +377,62 @@ rule zoom_get_mean_var_for_group:
   input:
     clean_h5_f    = expand(
       f'{zoom_dir}/{{zoom_name}}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5',
-      zoom_name = ZOOMS, batch = BATCHES
-    ),
+      batch = BATCHES, allow_missing = True),
     hvg_paths_f   = f'{zoom_dir}/{{zoom_name}}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
     rowdata_f     = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
   output: 
     mean_var_f    = temp(f'{zoom_dir}/{{zoom_name}}/tmp_mean_var_{{group}}_group_chunk_{{chunk}}_{FULL_TAG}_{DATE_STAMP}.csv.gz')
   params:
+    metadata_f          = config['project']['sample_metadata'],
+    batch_var           = BATCH_VAR,
     zoom_hvg_method     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'], 
     zoom_hvg_chunk_size = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_chunk_size'], 
-    zoom_group_var      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_split_var']
+    zoom_group_var      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_metadata_split_var']
   threads: 8
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_mean_var_for_group', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_get_mean_var_for_group', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_get_mean_var_for_group', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_get_mean_var_for_group', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_get_mean_var_for_group_{{zoom_name}}_{{group}}_chunk_{{chunk}}_{DATE_STAMP}.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
   shell: """
+    GROUPVAR_FLAG=""
+    if [ "{params.zoom_hvg_method}" = "groups" ]; then
+      GROUPVAR_FLAG="--groupvar {params.zoom_group_var}"
+    fi
+
     python3 scripts/hvgs.py calculate_mean_var_for_chunk \
       {input.hvg_paths_f} \
       {input.rowdata_f} \
-      {METADATA_F} \
+      {params.metadata_f} \
       {input.smpl_stats_f} \
       {output.mean_var_f} \
       {wildcards.chunk} \
       {params.zoom_hvg_method} \
-      {params.zoom_hvg_chunk_size} \
+      {params.batch_var} \
+      --chunksize {params.zoom_hvg_chunk_size} \
       --group {wildcards.group} \
-      --groupvar {params.zoom_group_var} \
-      --ncores {threads} 
+      --ncores {threads} \
+      $GROUPVAR_FLAG
     """
 
 
 rule zoom_merge_group_mean_var:
   input:         
-    mean_var_f    = lambda wildcards: get_zoom_raw_mean_var_files(wildcards.zoom_name, ZOOM_PARAMS, FULL_TAG, DATE_STAMP)
+    mean_var_f    = lambda wildcards: get_zoom_raw_mean_var_files(wildcards.zoom_name, zoom_dir, ZOOM_PARAMS, FULL_TAG, DATE_STAMP)
   output:
     mean_var_merged_f = temp(f'{zoom_dir}/{{zoom_name}}/means_variances_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz')
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_merge_group_mean_var', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_merge_group_mean_var', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_merge_group_mean_var', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_merge_group_mean_var', 'time', attempt)
   run:
     merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
 
@@ -426,20 +443,24 @@ rule zoom_get_estimated_variances:
   output:
     estim_vars_f      = temp(f'{zoom_dir}/{{zoom_name}}/estimated_variances_{FULL_TAG}_{DATE_STAMP}.csv.gz')
   params: 
-    zoom_hvg_method   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method']
+    zoom_hvg_method   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'],
+    batch_var         = BATCH_VAR
   threads: 1
   retries: config['resources']['retries']
   conda:
     '../envs/hvgs.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_estimated_variances', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_get_estimated_variances', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_get_estimated_variances', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_get_estimated_variances', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_get_estimated_variances_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   shell: """
     python3 scripts/hvgs.py calculate_estimated_vars \
       {output.estim_vars_f} \
       {params.zoom_hvg_method} \
+      {params.batch_var} \
       {input.mean_var_merged_f}
     """
 
@@ -447,8 +468,8 @@ rule zoom_get_estimated_variances:
 rule zoom_get_stats_for_std_variance_for_group:
   input: 
     clean_h5_fs   = expand(
-      f'zoom_dir/{{zoom_name}}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5',
-      zoom_name = ZOOMS, batch = BATCHES
+      f'{zoom_dir}/{{zoom_name}}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5',
+      batch = BATCHES, allow_missing = True
     ),
     estim_vars_f  = f'{zoom_dir}/{{zoom_name}}/estimated_variances_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     hvg_paths_f   = f'{zoom_dir}/{{zoom_name}}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
@@ -458,13 +479,16 @@ rule zoom_get_stats_for_std_variance_for_group:
     std_var_stats_f = temp(f'{zoom_dir}/{{zoom_name}}/tmp_std_var_stats_{{group}}_group_chunk_{{chunk}}_{FULL_TAG}_{DATE_STAMP}.csv.gz')
   params:
     metadata_f          = config['project']['sample_metadata'],
+    batch_var       = BATCH_VAR,
     zoom_hvg_method     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'], 
     zoom_hvg_chunk_size = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_chunk_size'], 
-    zoom_hvg_group_var  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_split_var']
+    zoom_hvg_group_var  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_metadata_split_var']
   threads: 8
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_stats_for_std_variance_for_group', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_get_stats_for_std_variance_for_group', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_get_stats_for_std_variance_for_group', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_get_stats_for_std_variance_for_group', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_get_stats_for_std_variance_for_group_{{zoom_name}}_{{group}}_chunk_{{chunk}}_{DATE_STAMP}.benchmark.txt'
   conda:
@@ -479,6 +503,7 @@ rule zoom_get_stats_for_std_variance_for_group:
       {input.estim_vars_f} \
       {wildcards.chunk} \
       {params.zoom_hvg_method} \
+      {params.batch_var} \
       --chunksize {params.zoom_hvg_chunk_size} \
       --group {wildcards.group} \
       --groupvar {params.zoom_hvg_group_var} \
@@ -510,8 +535,10 @@ rule zoom_get_highly_variable_genes:
     zoom_exclude_ambient_genes = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_exclude_ambient_genes'],
     batch_var       = BATCH_VAR
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_get_highly_variable_genes', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_get_highly_variable_genes', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_get_highly_variable_genes', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_get_highly_variable_genes', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_get_highly_variable_genes_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   conda:
@@ -550,8 +577,10 @@ rule zoom_create_hvg_matrix:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_create_hvg_matrix', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_create_hvg_matrix', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_create_hvg_matrix', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_create_hvg_matrix', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_create_hvg_matrix_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   conda:
@@ -586,31 +615,28 @@ rule zoom_run_integration:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_run_integration', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_run_integration', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_run_integration', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_run_integration', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_run_integration_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   conda: 
     '../envs/integration.yaml'
   shell: """
     set +u
-    # check whether gpu available
+   # if GPU is available, use it
+    USE_GPU_FLAG=""
     if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
-      use_gpu=1
-    else
-      use_gpu=0
+       USE_GPU_FLAG="--use_gpu"
     fi
     set -u
-
-    USE_GPU_FLAG=""
-     if [ $use_gpu = 1 ]; then
-       USE_GPU_FLAG="--use_gpu"
-     fi
     
     python3 scripts/integration.py run_zoom_integration \
       --hvg_mat_f     {input.hvg_mat_f} \
       --sample_qc_f   {input.sample_qc_f} \
       --coldata_f     {input.coldata_f} \
+      --demux_type    {params.demux_type} \
       --exclude_mito  "{params.exclude_mito}" \
       --embedding     {params.zoom_int_embedding} \
       --n_dims        {params.zoom_int_n_dims} \
@@ -641,8 +667,10 @@ rule zoom_run_marker_genes:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_run_marker_genes', rules,'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_run_marker_genes', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_run_marker_genes', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_run_marker_genes', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_run_marker_genes_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.benchmark.txt'
   conda:
@@ -681,8 +709,10 @@ rule zoom_run_fgsea:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_run_fgsea', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_run_fgsea', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_run_fgsea', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_run_fgsea', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_run_fgsea_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.benchmark.txt'
   conda: '../envs/rlibs.yaml'
@@ -702,7 +732,6 @@ rule zoom_run_fgsea:
     """
 
 
-
 rule zoom_make_subset_sces:
   input:
     integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
@@ -711,29 +740,34 @@ rule zoom_make_subset_sces:
   output:
     clean_sce_f = f'{zoom_dir}/{{zoom_name}}/sce_objects/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds'
   params:
+    batch_var       = BATCH_VAR,
     zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
     zoom_lbls_col   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
     zoom_lbls       = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'])
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('zoom_make_subset_sces', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('zoom_make_subset_sces', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_make_subset_sces', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'zoom_make_subset_sces', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_make_subset_sces_{{zoom_name}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
     Rscript -e "source('scripts/zoom.R');
-     make_subset_sces(
-     sel_s          = '{wildcards.batch}',
-     clean_sce_f    = '{output.clean_sce_f}',
-     integration_f  = '{input.integration_f}',
-     smpl_stats_f   = '{input.smpl_stats_f}',
-     sces_yaml_f    = '{input.sces_yaml_f}',
-     subset_f       = '{params.zoom_lbls_f}',
-     subset_col     = '{params.zoom_lbls_col}',
-     subset_str     = '{params.zoom_lbls}')"
+    make_subset_sces(
+      sel_b         = '{wildcards.batch}',
+      batch_var     = '{params.batch_var}',
+      smpl_stats_f  = '{input.smpl_stats_f}',
+      sces_yaml_f   = '{input.sces_yaml_f}',
+      subset_f      = '{params.zoom_lbls_f}',
+      subset_col    = '{params.zoom_lbls_col}',
+      subset_str    = '{params.zoom_lbls}',
+      integration_f = '{input.integration_f}',
+      clean_sce_f   = '{output.clean_sce_f}'
+    )"
     """
 
 
@@ -793,8 +827,10 @@ rule render_html_zoom:
   conda: 
     '../envs/rlibs.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('render_html_zoom', rules, 'memory', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('render_html_zoom', rules, 'time', lm_f, config, proj_schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'render_html_zoom', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+      'render_html_zoom', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_zoom/render_html_zoom_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.benchmark.txt'
   shell: """

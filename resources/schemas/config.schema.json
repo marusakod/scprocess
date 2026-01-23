@@ -269,7 +269,7 @@
         "gb_merge_pb_cells":             { "type": "integer", "default": 2 },
         "gb_calculate_ambient_genes":    { "type": ["integer", "null"] },
         "mins_make_one_pb_empty":         { "type": ["integer", "null"] },
-        "mins_merge_pb_empty":            { "type": ["integer", "null"] },
+        "mins_merge_pb_empty":            { "type": "integer", "default": 5 },
         "mins_make_one_pb_cells":         { "type": "integer", "default": 5 },
         "mins_merge_pb_cells":            { "type": "integer", "default": 5 },
         "mins_calculate_ambient_genes":   { "type": ["integer", "null"] },
@@ -300,7 +300,7 @@
 
         "gb_run_marker_genes":            { "type": "integer", "default": 32 },
         "mins_run_marker_genes":          { "type": "integer", "default": 30 },
-        "gb_run_fgsea":                   { "type": "integer", "default": 8 },
+        "gb_run_fgsea":                   { "type": "integer", "default": 12 },
         "mins_run_fgsea":                 { "type": "integer", "default": 30 },
 
         "gb_render_html_mapping":        { "type": ["integer", "null"] },

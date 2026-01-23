@@ -203,27 +203,30 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
   print('doing some checks on inputs')
 
   # housekeeping
-  config_path     = pathlib.Path(configfile).resolve()
-  scprocess_dir   = pathlib.Path(__file__).parent
+  config_path   = pathlib.Path(configfile).resolve()
+  scprocess_dir = pathlib.Path(__file__).parent
   os.chdir(scprocess_dir)
 
   # do some checks
   scdata_dir, extraargs = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
+  lm_f          = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
 
   # get validated config
   with open(config_path, "r") as f:
-    config          = yaml.safe_load(f)
-  schema_f        = scprocess_dir / "resources/schemas/config.schema.json"
+    config        = yaml.safe_load(f)
+  schema_f      = scprocess_dir / "resources/schemas/config.schema.json"
   if not schema_f.is_file():
     raise FileNotFoundError("schema file not found")
   config          = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
 
   # get lists of parameters
-  RUN_PARAMS, RUN_VAR     = scprocess_utils.get_run_parameters(config, scdata_dir)
-  RUNS                    = list(RUN_PARAMS.keys())
+  RUN_PARAMS, RUN_VAR = scprocess_utils.get_run_parameters(config, scdata_dir)
+  RUNS                = list(RUN_PARAMS.keys())
   BATCH_PARAMS, BATCH_VAR, SAMPLES = scprocess_utils.get_batch_parameters(config, RUNS, scdata_dir)
-  BATCHES                 = list(BATCH_PARAMS.keys())
+  BATCHES             = list(BATCH_PARAMS.keys())
+  RESOURCE_PARAMS     = scprocess_utils.prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES)
   RUNS_TO_BATCHES, RUNS_TO_SAMPLES = scprocess_utils.get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
+  LABELLER_PARAMS     = scprocess_utils.get_labeller_parameters(config, schema_f, scdata_dir)
 
   # print which files will be processed
   print(f"\nprocessing {len(BATCHES)} samples:")
@@ -252,22 +255,22 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
     *shlex.split(extraargs),
     rule
     ])
-  if not noindex and " -np" not in extraargs:
-    print("\nRendering index")
-    subprocess.run(["snakemake", 
-      "--snakefile", os.path.join(scprocess_dir, 'rules/scprocess.smk'), 
-      "--configfile", config_path,
-      "--config", f"scprocess_dir={str(scprocess_dir)}",
-      "--software-deployment-method", "conda",
-      "--rerun-triggers", "mtime",
-      "--forcerun",
-      "--rerun-incomplete", 
-      *shlex.split(extraargs),
-      "index"
-      ],
-      stdout=subprocess.DEVNULL,
-      stderr=subprocess.DEVNULL  
-    )
+  # if not noindex and " -np" not in extraargs:
+  #   print("\nRendering index")
+  #   subprocess.run(["snakemake", 
+  #     "--snakefile", os.path.join(scprocess_dir, 'rules/scprocess.smk'), 
+  #     "--configfile", config_path,
+  #     "--config", f"scprocess_dir={str(scprocess_dir)}",
+  #     "--software-deployment-method", "conda",
+  #     "--rerun-triggers", "mtime",
+  #     "--forcerun",
+  #     "--rerun-incomplete", 
+  #     *shlex.split(extraargs),
+  #     "index"
+  #     ],
+  #     stdout=subprocess.DEVNULL,
+  #     stderr=subprocess.DEVNULL  
+  #   )
  
   return
 
@@ -304,7 +307,7 @@ def plot_interactive_knee(config_f, knee_f, sample):
   from plotly.offline import plot
 
   # read knee file
-  knee_df = pl.read_csv(knee_f)
+  knee_df = pl.read_csv(knee_f, schema_overrides = {'rank': pl.Float32} )
 
   # make plot
   fig = px.scatter(

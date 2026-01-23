@@ -9,11 +9,12 @@ rule make_hvg_df:
   output:
     hvg_paths_f     = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv'
   params:
+    runs            = RUNS,
     run_var         = RUN_VAR,
     batch_var       = BATCH_VAR,
     demux_type      = config['multiplexing']['demux_type']
   run:
-    hvg_df = make_hvgs_input_df(RUNS, input.ambient_yml_out, params.run_var, params.batch_var, 
+    hvg_df          = make_hvgs_input_df(RUNS, input.ambient_yml_out, params.run_var, params.batch_var, 
       RUNS_TO_BATCHES, params.demux_type, FULL_TAG, DATE_STAMP, hvg_dir)
     hvg_df.write_csv(output.hvg_paths_f)
 
@@ -36,8 +37,8 @@ rule make_tmp_csr_matrix:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_tmp_csr_matrix', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('make_tmp_csr_matrix', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_tmp_csr_matrix', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_tmp_csr_matrix', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_hvgs/make_tmp_csr_matrix_{DATE_STAMP}.benchmark.txt'
   conda:
@@ -47,7 +48,6 @@ rule make_tmp_csr_matrix:
       {input.hvg_paths_f} \
       {input.cell_filter_f} \
       "keep" \
-      "true" \
       {input.qc_stats_f} \
       {input.rowdata_f} \
       {params.run_var} \
@@ -73,8 +73,8 @@ if config['hvg']['hvg_method'] == 'sample':
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_stats_for_std_variance_for_sample', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-      runtime = lambda wildcards, input: get_resources('get_stats_for_std_variance_for_sample', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_stats_for_std_variance_for_sample', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_stats_for_std_variance_for_sample', 'time', attempt)
     benchmark:
       f'{benchmark_dir}/{SHORT_TAG}_hvgs/get_stats_for_std_variance_for_sample_{{batch}}_{DATE_STAMP}.benchmark.txt'
     conda:
@@ -105,7 +105,6 @@ else:
   # define some rules that don't need the cluster
   localrules: merge_group_mean_var, merge_group_std_var_stats
 
-
   rule get_mean_var_for_group:
     input:
       clean_h5_f      = expand(f'{hvg_dir}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5', batch = BATCHES),
@@ -115,31 +114,38 @@ else:
     output: 
       mean_var_f      = temp(f'{hvg_dir}/tmp_mean_var_{{group}}_chunk_{{chunk}}_{FULL_TAG}_{DATE_STAMP}.csv.gz')
     params:
+      metadata_f      = config['project']['sample_metadata'],
+      batch_var       = BATCH_VAR,
       hvg_method      = config['hvg']['hvg_method'],
       hvg_chunk_size  = config['hvg']['hvg_chunk_size'],
       hvg_group_var   = config['hvg']['hvg_metadata_split_var']
     threads: 8
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_mean_var_for_group', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-      runtime = lambda wildcards, input: get_resources('get_mean_var_for_group', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_mean_var_for_group', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_mean_var_for_group', 'time', attempt)
     benchmark:
       f'{benchmark_dir}/{SHORT_TAG}_hvgs/get_mean_var_for_group_{{group}}_chunk_{{chunk}}_{DATE_STAMP}.benchmark.txt'
     conda:
       '../envs/hvgs.yaml'
     shell: """
+      GROUPVAR_FLAG=""
+      if [ "{params.hvg_method}" = "groups" ]; then
+        GROUPVAR_FLAG="--groupvar {params.hvg_group_var}"
+      fi
+
       python3 scripts/hvgs.py calculate_mean_var_for_chunk \
         {input.hvg_paths_f} \
         {input.rowdata_f} \
-        {METADATA_F} \
+        {params.metadata_f} \
         {input.qc_stats_f} \
         {output.mean_var_f} \
         {wildcards.chunk} \
         {params.hvg_method} \
-        {params.hvg_chunk_size} \
+        {params.batch_var} \
+        --chunksize {params.hvg_chunk_size} \
         --group {wildcards.group} \
-        --groupvar {params.hvg_group_var} \
-        --ncores {threads} 
-    
+        --ncores {threads} \
+        $GROUPVAR_FLAG
       """
 
 
@@ -170,8 +176,8 @@ else:
     conda:
       '../envs/hvgs.yaml'
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_estimated_variances', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-      runtime = lambda wildcards, input: get_resources('get_estimated_variances', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_estimated_variances', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_estimated_variances', 'time', attempt)
     benchmark:
       f'{benchmark_dir}/{SHORT_TAG}_hvgs/get_estimated_variances_{DATE_STAMP}.benchmark.txt'
     shell: """
@@ -193,13 +199,15 @@ else:
     output:
       std_var_stats_f = temp(f'{hvg_dir}/tmp_std_var_stats_{{group}}_chunk_{{chunk}}_{FULL_TAG}_{DATE_STAMP}.csv.gz')
     params:
+      metadata_f      = config['project']['sample_metadata'],
+      batch_var       = BATCH_VAR,
       hvg_method      = config['hvg']['hvg_method'],
       hvg_chunk_size  = config['hvg']['hvg_chunk_size'],
       hvg_group_var   = config['hvg']['hvg_metadata_split_var']
     threads: 8
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_stats_for_std_variance_for_group', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-      runtime = lambda wildcards, input: get_resources('get_stats_for_std_variance_for_group', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_stats_for_std_variance_for_group', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_stats_for_std_variance_for_group', 'time', attempt)
     benchmark:
       f'{benchmark_dir}/{SHORT_TAG}_hvgs/get_stats_for_std_variance_for_group_{{group}}_chunk_{{chunk}}_{DATE_STAMP}.benchmark.txt'
     conda:
@@ -208,12 +216,13 @@ else:
       python3 scripts/hvgs.py calculate_std_var_stats_for_chunk \
         {input.hvg_paths_f} \
         {input.rowdata_f} \
-        {METADATA_F} \
+        {params.metadata_f} \
         {input.qc_stats_f} \
         {output.std_var_stats_f} \
         {input.estim_vars_f} \
         {wildcards.chunk} \
         {params.hvg_method} \
+        {params.batch_var} \
         --chunksize {params.hvg_chunk_size} \
         --group {wildcards.group} \
         --groupvar {params.hvg_group_var} \
@@ -241,7 +250,7 @@ rule get_highly_variable_genes:
     std_var_stats_f = f'{hvg_dir}/standardized_variance_stats_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     empty_gs_fs     = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
-    hvg_f = f'{hvg_dir}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    hvg_f           = f'{hvg_dir}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   threads: 1
   retries: config['resources']['retries']
   params:
@@ -250,8 +259,8 @@ rule get_highly_variable_genes:
     n_hvgs      = config['hvg']['hvg_n_hvgs'],
     no_ambient  = config['hvg']['hvg_exclude_ambient_genes']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('get_highly_variable_genes', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('get_highly_variable_genes', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_highly_variable_genes', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_highly_variable_genes', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_hvgs/get_highly_variable_genes_{DATE_STAMP}.benchmark.txt'
   conda:
@@ -287,8 +296,8 @@ rule create_hvg_matrix:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('create_hvg_matrix', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('create_hvg_matrix', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'create_hvg_matrix', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'create_hvg_matrix', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_hvgs/create_hvg_matrix_{DATE_STAMP}.benchmark.txt'
   conda:
@@ -319,8 +328,8 @@ rule create_doublets_hvg_matrix:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('create_doublets_hvg_matrix', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('create_doublets_hvg_matrix', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'create_doublets_hvg_matrix', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'create_doublets_hvg_matrix', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_hvgs/create_doublets_hvg_matrix_{DATE_STAMP}.benchmark.txt'
   conda: 

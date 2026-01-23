@@ -48,8 +48,8 @@ rule make_one_pb_empty:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_one_pb_empty', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
-    runtime = lambda wildcards, input: get_resources('make_one_pb_empty', rules,'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_one_pb_empty', 'memory', attempt, wildcards.run),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_one_pb_empty', 'time', attempt, wildcards.run)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_pb_empties/make_one_pb_empty_{{run}}_{DATE_STAMP}.benchmark.txt'
   conda: 
@@ -77,8 +77,8 @@ rule merge_pb_empty:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_pb_empty', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('merge_pb_empty', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_pb_empty', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_pb_empty', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_pb_empties/merge_pb_empty_{DATE_STAMP}.benchmark.txt'
   conda: 
@@ -114,7 +114,6 @@ rule make_runs_to_batches_df:
     lu_df.write_csv(output.batch_lu_f)
 
 
-
 rule make_one_pb_cells:
   input:
     batch_lu_f  = f'{pb_dir}/runs_to_batches_{FULL_TAG}_{DATE_STAMP}.csv',
@@ -129,10 +128,8 @@ rule make_one_pb_cells:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_one_pb_cells', rules, 'memory', 
-      lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run),
-    runtime = lambda wildcards, input: get_resources('make_one_pb_cells', rules, 'time', 
-      lm_f, config, schema_f, input, BATCHES, RUN_PARAMS, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_one_pb_cells', 'memory', attempt, wildcards.run),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_one_pb_cells', 'time', attempt, wildcards.run)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_pb_empties/make_one_pb_cells_{{run}}_{DATE_STAMP}.benchmark.txt'
   conda: 
@@ -150,6 +147,7 @@ rule make_one_pb_cells:
       pb_cells_f  = '{output.pb_cells_f}'
     )"
     """
+
 
 rule make_tmp_pb_cells_df:
   input:
@@ -183,8 +181,8 @@ rule merge_pb_cells:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_pb_cells', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('merge_pb_cells', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_pb_cells', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_pb_cells', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_pb_empties/merge_pb_cells_{DATE_STAMP}.benchmark.txt'
   conda: 
@@ -214,8 +212,8 @@ rule calculate_ambient_genes:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('calculate_ambient_genes', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('calculate_ambient_genes', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'calculate_ambient_genes', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'calculate_ambient_genes', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_pb_empties/calculate_ambient_genes_{DATE_STAMP}.benchmark.txt'
   conda: 

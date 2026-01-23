@@ -66,7 +66,7 @@ def run_celltypist(sel_batch, batch_var, model_name, mtx_f, cells_f, genes_f):
   return pred_df
 
 
-def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_size, min_cl_prop, batch_var):
+def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var):
   # load integration, check cluster column is there
   int_df      = pl.read_csv(int_f)
   if not hi_res_cl in int_df:
@@ -76,12 +76,12 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_size, min_cl_prop, b
   int_df      = int_df.filter( pl.col(hi_res_cl).is_not_null() )
   int_df      = int_df.select( pl.col("cell_id"), pl.col(hi_res_cl).alias("hi_res_cl") )
 
-  # remove any tiny clusters
-  cl_counts   = int_df["hi_res_cl"].value_counts()
-  if any( cl_counts["count"] < min_cl_size ):
-    tiny_cls    = cl_counts.filter( pl.col("count") < min_cl_size )["hi_res_cl"].to_list()
-    print(f"  excluding some clusters bc they are tiny: {", ".join(tiny_cls)}")
-    int_df      = int_df.filter( pl.col("hi_res_cl").is_in(tiny_cls).not_() )
+  # # remove any tiny clusters
+  # cl_counts   = int_df["hi_res_cl"].value_counts()
+  # if any( cl_counts["count"] < min_cl_size ):
+  #   tiny_cls    = cl_counts.filter( pl.col("count") < min_cl_size )["hi_res_cl"].to_list()
+  #   print(f"  excluding some clusters bc they are tiny: {", ".join(tiny_cls)}")
+  #   int_df      = int_df.filter( pl.col("hi_res_cl").is_in(tiny_cls).not_() )
 
   # get all prediction files
   preds_df    = pl.concat([ pl.read_csv(f) for f in pred_fs ], how = "vertical")
@@ -100,7 +100,7 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_size, min_cl_prop, b
   hi_res_lu   = counts_df.group_by("hi_res_cl").first().select(
     "hi_res_cl",
     predicted_label_agg = pl.when(pl.col("prop") < min_cl_prop)
-      .then(pl.lit("unknown"))
+      .then(pl.lit("ambiguous"))
       .otherwise(pl.col("predicted_label")),
     prop_hi_res_cl      = pl.col("prop")
   )
@@ -142,7 +142,7 @@ if __name__ == "__main__":
   agg_prsr.add_argument(  "pred_fs",      type=str, nargs="+")
   agg_prsr.add_argument("--int_f",        type=str)
   agg_prsr.add_argument("--hi_res_cl",    type=str)
-  agg_prsr.add_argument("--min_cl_size",  type=int)
+  # agg_prsr.add_argument("--min_cl_size",  type=int)
   agg_prsr.add_argument("--min_cl_prop",  type=float)
   agg_prsr.add_argument("--batch_var",    type=str)
   agg_prsr.add_argument("--agg_f",        type=str)
@@ -184,14 +184,11 @@ if __name__ == "__main__":
       raise FileNotFoundError(f"this file does not exist:\n{str(int_f)}")
 
     # do some checks
-    if args.min_cl_size < 0:
-      raise ValueError("min_cl_size must be greater than or equal to 0")
     if (args.min_cl_prop < 0) or (args.min_cl_prop >= 1):
       raise ValueError("min_cl_prop must be greater than or equal to 0 and strictly less than 1")
 
     # run
-    agg_df    = aggregate_predictions(pred_fs, int_f, args.hi_res_cl, args.min_cl_size, 
-      args.min_cl_prop, args.batch_var)
+    agg_df    = aggregate_predictions(pred_fs, int_f, args.hi_res_cl, args.min_cl_prop, args.batch_var)
 
     # save
     with gzip.open(args.agg_f, 'wb') as f:

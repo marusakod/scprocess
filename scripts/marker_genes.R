@@ -73,12 +73,11 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
 
   # load up clusters
   message('    loading integration output')
-  int_dt     = fread(integration_f) %>% 
+  int_dt      = fread(integration_f) %>%
     .[ sample_id != "" ] %>% .[, sample_id := sample_id %>% fct_drop ]
-  if (zoom == FALSE) {
-    #exclude doublets
-    int_dt = int_dt %>%
-      .[ (is_dbl == FALSE) & (in_dbl_cl == FALSE) ]
+  if (!zoom) {
+    # exclude doublets
+    int_dt      = int_dt %>% .[ (is_dbl == FALSE) & (in_dbl_cl == FALSE) ]
   }
 
   # exclude tiny clusters
@@ -87,36 +86,40 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   assert_that( cl_var %in% names(int_dt))
   cl_ns       = int_dt[[ cl_var ]] %>% table
   keep_cls    = names(cl_ns)[ cl_ns >= min_cl_size ]
-  int_dt     = int_dt %>%
-    .[ get(cl_var) %in% keep_cls ]
-  
+  int_dt      = int_dt[ get(cl_var) %in% keep_cls ]
+
   # make pseudobulks for selected clusters for each sample
   message('    making pseudobulk counts for individual samples')
-  batches     = int_dt[[ batch_var ]] %>% unique()
+  batches     = int_dt[[ batch_var ]] %>% unique() %>% as.character
   sce_paths   = yaml::read_yaml(sces_yaml_f)
   assert_that( all(batches %in% names(sce_paths)) )
 
-  # set up cluster
+  # make pbs for each batch
   bpparam     = MulticoreParam(workers = n_cores, tasks = length(batches))  
   if (zoom) {
     pb_ls       = bplapply(batches, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam, 
-      sce_paths = sce_paths, int_dt = int_dt, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
+      sce_paths = sce_paths, int_dt = int_dt, batch_var = batch_var, cl_var = cl_var,
+      keep_cls = keep_cls, agg_fn = agg_fn)
   } else {
     # pb_ls       = lapply(batches, FUN = .make_one_pseudobulk, sce_paths = sce_paths, 
     #   batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
     pb_ls       = bplapply(batches, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
-      sce_paths = sce_paths, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
+      sce_paths = sce_paths, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls,
+      agg_fn = agg_fn)
   }
   
+  # merge together
   message('    merging pseudobulk counts')
   assay_ls    = lapply(keep_cls, function(cl) {
     assays      = lapply(pb_ls, function(pb) assay(pb, cl))
     assay_mat   = Reduce(cbind, assays)  
     return(assay_mat)
     }) %>% setNames(keep_cls)
-  
+
+  # get n cells
   n_cells_ls  = sapply(pb_ls, function(pb) int_colData(pb)$n_cells)
   
+  # make nice
   pb          = SingleCellExperiment(assays = assay_ls)
   pb@metadata$agg_pars = list(
     assay = "counts", 
@@ -169,24 +172,25 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   sce_f       = sce_paths[[sel_b]]
   tmp_sce     = readRDS(sce_f)
   smpl_int_dt = copy(int_dt) %>% .[ get(batch_var) == sel_b ]
+  assert_that(all(smpl_int_dt$cell_id %in% colnames(tmp_sce)))
   
+  # add clusters to sce
+  colData(tmp_sce)[["cluster"]] = colData(tmp_sce)[[cl_var]] 
+
   # remove umap and clustering cols from before and add new ones
-  rm_cols = c('UMAP1', 'UMAP2', str_subset(names(colData(tmp_sce)), "RNA_snn_res"))
+  rm_cols     = c('UMAP1', 'UMAP2', str_subset(names(colData(tmp_sce)), "RNA_snn_res"))
   new_coldata = colData(tmp_sce) %>% as.data.table %>%
     .[ , (rm_cols) := NULL] %>%
     as.data.frame() %>%
     set_rownames(.$cell_id)
-  
   colData(tmp_sce) = DataFrame(new_coldata)
   
-  assert_that(all(smpl_int_dt$cell_id %in% colnames(tmp_sce)))
   # reorder cells in sce
-  tmp_sce = tmp_sce[, smpl_int_dt$cell_id]
+  tmp_sce     = tmp_sce[, smpl_int_dt$cell_id]
   
   # add clusters to sce
   colData(tmp_sce)[["cluster"]] = smpl_int_dt[[cl_var]] 
-  
-  pb  = aggregateData_datatable(tmp_sce, by_vars = c("cluster", batch_var), 
+  pb          = aggregateData_datatable(tmp_sce, by_vars = c("cluster", "sample_id"), 
     fun = agg_fn, all_cls = keep_cls)
   
   # make sure all assays are in the object, if not, add columns with zeros
@@ -194,8 +198,8 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   if ( length(missing_assays) > 0 ) {
     message('  adding assays with zero counts')
     for(assay in missing_assays){
-      missing_counts  = Matrix(0, nrow = nrow(pb), ncol = 1, 
-                               sparse = FALSE, dimnames = list(rownames(pb), sel_b))
+      missing_counts  = Matrix(0, nrow = nrow(pb), ncol = 1, sparse = FALSE, 
+        dimnames = list(rownames(pb), sel_b))
       assay(pb, assay) = missing_counts
     }
   }
@@ -740,7 +744,8 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt, batch_
 
 get_top_markers <- function(input_mkrs, fdr_cut = 0.01, n_top = 10, max_zero_p = 0.5) {
   # order and filter
-  top_mkrs_tmp  = input_mkrs %>% .[ order(cluster, FDR, -abs(logFC)) ]
+  # top_mkrs_tmp  = input_mkrs %>% .[ order(cluster, FDR, -abs(logFC)) ]
+  top_mkrs_tmp  = input_mkrs %>% .[ order(cluster, -abs(logFC)) ]
 
   # take some top genes
   top_mkrs_dt   = rbind(

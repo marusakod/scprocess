@@ -28,8 +28,8 @@ rule run_integration:
   threads: 1
   retries: config['resources']['retries'] 
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_integration', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('run_integration', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'time', attempt)
   conda: 
     '../envs/integration.yaml'
   benchmark:
@@ -81,8 +81,8 @@ rule make_clean_sces:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_clean_sces', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS) * 2,
-    runtime = lambda wildcards, input: get_resources('make_clean_sces', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS) * 2
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_clean_sces', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_clean_sces', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_integration/make_clean_sces_{{batch}}_{DATE_STAMP}.benchmark.txt'
   conda:

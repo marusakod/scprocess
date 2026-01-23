@@ -17,8 +17,8 @@ rule make_tmp_mtx_file:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('make_tmp_mtx_file', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('make_tmp_mtx_file', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_tmp_mtx_file', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_tmp_mtx_file', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_label_celltypes/make_tmp_mtx_file_{{batch}}_{DATE_STAMP}.benchmark.txt'
   conda: 
@@ -49,8 +49,8 @@ rule run_celltypist:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_celltypist', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('run_celltypist', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_celltypist', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_celltypist', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_label_celltypes/run_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
   conda: 
@@ -81,8 +81,8 @@ rule run_scprocess_labeller:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('run_scprocess_labeller', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-    runtime = lambda wildcards, input: get_resources('run_scprocess_labeller', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_scprocess_labeller', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_scprocess_labeller', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_label_celltypes/run_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
   conda: 
@@ -132,14 +132,13 @@ if ('label_celltypes' in config) & qc_stats_f.is_file():
     params:
       pred_fs_ls    = input.pred_fs,
       hi_res_cl     = lambda wildcards: parse_merge_labels_parameters(LABELLER_PARAMS, wildcards.labeller, wildcards.model)["hi_res_cl"],
-      min_cl_size   = lambda wildcards: parse_merge_labels_parameters(LABELLER_PARAMS, wildcards.labeller, wildcards.model)["min_cl_size"],
       min_cl_prop   = lambda wildcards: parse_merge_labels_parameters(LABELLER_PARAMS, wildcards.labeller, wildcards.model)["min_cl_prop"],
       batch_var     = BATCH_VAR
     threads: 4
     retries: config['resources']['retries']
     resources:
-      mem_mb  = lambda wildcards, attempt, input: attempt * get_resources('merge_labels', rules, 'memory', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS),
-      runtime = lambda wildcards, input: get_resources('merge_labels', rules, 'time', lm_f, config, schema_f, input, BATCHES, RUN_PARAMS)
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_labels', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_labels', 'time', attempt)
     benchmark: 
       f'{benchmark_dir}/{SHORT_TAG}_label_celltypes/merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.benchmark.txt'
     conda: 
@@ -149,7 +148,6 @@ if ('label_celltypes' in config) & qc_stats_f.is_file():
         {params.pred_fs_ls} \
         --int_f           {input.integration_f} \
         --hi_res_cl       {params.hi_res_cl} \
-        --min_cl_size     {params.min_cl_size} \
         --min_cl_prop     {params.min_cl_prop} \
         --batch_var       {params.batch_var} \
         --agg_f           {output.pred_out_f}

@@ -610,7 +610,7 @@ plot_qc_ranges_marginals <- function(qc_input, b_lvls, qc_names, qc_lu, cuts_dt,
       fill = 'grey80', colour = NA, alpha = 0.2 ) +
     geom_point( data = n_dt, aes( y = value, x = as.integer(batch_var) ),
       size = 4, shape = 21, fill = 'grey40') +
-    scale_x_continuous( breaks = seq.int(length(b_lvls)), labels = b_lvls ) +
+    scale_x_continuous( breaks = seq.int(length(b_lvls)), labels = rev(b_lvls) ) +
     facet_grid( . ~ var, scales = 'free', space = 'free_y' ) +
     scale_y_continuous(breaks = n_brks, labels = n_labs) +
     expand_limits( y = n_lims ) +

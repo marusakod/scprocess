@@ -1,6 +1,5 @@
 import h5py
 import numpy as np
-import pandas as pd
 import polars as pl
 import argparse
 import gzip
@@ -126,32 +125,35 @@ def get_one_csr_counts(run, hvg_paths_df, keep_df, smpl_stats_df, gene_ids,
     print(f"CSR matrix for {b} successfully saved to {out_f}.")
 
 
-def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, keep_vals_str, smpl_stats_f, 
-  rowdata_f, RUN_VAR, batch_var, demux_type, chunk_size=2000, n_cores = 8):
-  
+def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, smpl_stats_f, 
+  rowdata_f, run_var, batch_var, demux_type, keep_vals_str = None, chunk_size = 2000, n_cores = 8):
+  # load things
   hvg_paths_df  = pl.read_csv(hvg_paths_f)
   smpl_stats_df = pl.read_csv(smpl_stats_f)
 
   # get QCed cells
-  filt_df   = pl.read_csv(cell_filter_f)
-  keep_vals = keep_vals_str.split(',')
-
-  keep_df = (
-    filt_df
-    .with_columns(pl.col(keep_var).cast(pl.Utf8).alias(keep_var))  
-    .filter(pl.col(keep_var).is_in(keep_vals)) 
-  )
+  filt_df       = pl.read_csv(cell_filter_f)
+  if keep_vals_str is None:
+    keep_df       = filt_df.filter( pl.col(keep_var) )
+  else:
+    keep_vals     = keep_vals_str.split(',')
+    keep_df       = (
+      filt_df
+      .with_columns(pl.col(keep_var).cast(pl.Utf8).alias(keep_var))
+      .filter(pl.col(keep_var).is_in(keep_vals))
+    )
+  if not keep_df.shape[0] > 0:
+    raise ValueError("keep_df is empty")
 
   # get gene details
-  rows_df  = pl.read_csv(rowdata_f)
-  keep_ids = rows_df['ensembl_id'].to_list()
+  rows_df       = pl.read_csv(rowdata_f)
+  keep_ids      = rows_df['ensembl_id'].to_list()
 
   # define list of samples
-  runs = hvg_paths_df[RUN_VAR].unique().to_list()
- 
+  runs          = hvg_paths_df[run_var].unique().to_list()
   with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
     futures = [executor.submit(get_one_csr_counts, run, hvg_paths_df, keep_df, 
-      smpl_stats_df, keep_ids, RUN_VAR, batch_var, demux_type, chunk_size) for run in runs]
+      smpl_stats_df, keep_ids, run_var, batch_var, demux_type, chunk_size) for run in runs]
 
     # some more parallel stuff i guess
     for future in concurrent.futures.as_completed(futures):
@@ -369,21 +371,19 @@ def get_chunk_params(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, chunk_
 
   # get input files for selected samples
   if hvg_method == 'all':
-    files = hvg_paths_df.loc[hvg_paths_df['sample_id'].isin(good_batches), 'chunked_f'].tolist()
+    files         = hvg_paths_df.filter( pl.col(batch_var).is_in(good_batches) )['chunked_f'].to_list()
   else:
     assert group_var is not None, "group_var must be defined."
     assert group is not None, "group must be defined."
     
     # select samples based on group
-    meta = pl.read_csv(metadata_f)
-    grp_samples = meta.loc[meta[group_var] == group, 'sample_id'].tolist()
-    
-    sel_samples = list(set(grp_samples) & set(good_batches))
-    files = hvg_paths_df.loc[hvg_paths_df['sample_id'].isin(sel_samples), 'chunked_f'].tolist()
+    meta_df       = pl.read_csv(metadata_f)
+    sel_samples   = meta_df.filter( (pl.col(group_var) == group) & (pl.col(batch_var).is_in(good_batches)) )[batch_var].to_list()
+    files         = hvg_paths_df.filter( pl.col(batch_var).is_in(sel_samples) )['chunked_f'].to_list()
 
    # calculate start and end rows for the chunk
-  start_row = chunk_num * chunk_size
-  end_row = min(start_row + chunk_size, total)
+  start_row   = chunk_num * chunk_size
+  end_row     = min(start_row + chunk_size, total)
 
   return files, total, start_row, end_row
 
@@ -430,12 +430,13 @@ def calculate_std_var_stats_for_sample(batch, batch_var, qc_smpl_stats_f, csr_f,
 def calculate_mean_var_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, 
   mean_var_f, chunk_num, hvg_method, batch_var, chunk_size=2000, group_var=None, 
   group=None, n_cores = 8):
-  
+  # get relevant parameters
   files, total, start_row, end_row = get_chunk_params(
     hvg_paths_f, rowdata_f, metadata_f, qc_smpl_stats_f, 
     chunk_num, hvg_method, batch_var, chunk_size, group_var, group
     )
   
+  # some checks
   if len(files) == 0:
     if hvg_method == 'group':
       print(f"No (good) {batch_var}s found in group '{group}'. Writing an empty output file.")
@@ -443,15 +444,15 @@ def calculate_mean_var_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_sta
     else:
       print("Error: no files selected for calculating hvg statistics")
     return
-  
+
   if start_row >= total:
     print(f"Start row {start_row} exceeds total number of genes ({total}). Writing an empty output file.")
     open(mean_var_f, 'w').close()
     return
   
   # read chunks for multiple samples in parallel
-  merged_chunk = None
-  features = []
+  merged_chunk  = None
+  features      = []
   
   read_csr_chunk_p = partial(read_csr_chunk, start_row=start_row, end_row=end_row)
   with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
@@ -463,7 +464,6 @@ def calculate_mean_var_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smpl_sta
       
       # Merge chunks column-wise
       merged_chunk = csr_chunk if merged_chunk is None else hstack([merged_chunk, csr_chunk])
-
 
   # get number of cells in chunk
   n_cells = merged_chunk.shape[1] 
@@ -522,9 +522,9 @@ def calculate_std_var_stats_for_chunk(hvg_paths_f, rowdata_f, metadata_f, qc_smp
       # merge chunks column-wise
       merged_chunk = csr_chunk if merged_chunk is None else hstack([merged_chunk, csr_chunk])
 
-  # calculate stats 
+  # calculate stats
   chunk_estim_vars    = estim_vars_df.filter( (pl.col('group') == group) & (pl.col('ensembl_id').is_in(features)) )
-  merged_chunk_stats  = _calculate_regularized_variance(merged_chunk, features, merged_chunk_stats)
+  merged_chunk_stats  = _calculate_regularized_variance(merged_chunk, features, chunk_estim_vars)
 
   # save
   with gzip.open(std_var_stats_f, 'wb') as f:
@@ -549,15 +549,21 @@ def _process_single_group(stats_df, empty_gs, n_hvgs, exclude_ambient):
   else:
     exclude_gs = []
 
+  # exclude bad gs, put genes in desc order of variance, add rank variable
   out_df      = stats_df.select(['gene_id', 'variances_norm'])
   out_df      = out_df.with_columns(
     pl.when( pl.col('gene_id').is_in(exclude_gs) ).then(None).otherwise('variances_norm').alias('variance_tmp')
   )
   out_df      = out_df.sort('variances_norm', descending = True)
-  out_df      = out_df.with_row_index('highly_variable_rank', offset = 1)
   out_df      = out_df.with_columns(
-    pl.when(pl.col('highly_variable_rank') <= n_hvgs).then(1).otherwise(0).alias("highly_variable_nbatches")
+    highly_variable_nbatches  = 1,
+    highly_variable_rank      = pl.col("variance_tmp").rank(method = "average", descending = True)
   )
+
+  # check it worked
+  exc_df      = out_df.filter( pl.col("gene_id").is_in(exclude_gs) )
+  if not all(exc_df['highly_variable_rank'].is_null()):
+    raise ValueError("some HVGs are ambient genes")
 
   return out_df
 
@@ -605,9 +611,9 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, batch_var, n_
 
   # find HVGs for each
   if stats_df[ group_var ].n_unique() == 1:
-    hvg_df = _process_single_group(stats_df, empty_gs, n_hvgs, exclude_ambient)
+    hvg_df    = _process_single_group(stats_df, empty_gs, n_hvgs, exclude_ambient)
   else:
-    hvg_df = _process_multiple_groups(stats_df, group_var, empty_gs, n_hvgs, exclude_ambient)
+    hvg_df    = _process_multiple_groups(stats_df, group_var, empty_gs, n_hvgs, exclude_ambient)
 
   # sort hvg_df nicely
   sort_cols = ["highly_variable_nbatches", "highly_variable_rank"]
@@ -615,9 +621,9 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, batch_var, n_
   hvg_df    = hvg_df.sort(sort_cols, descending = sort_desc, nulls_last = True)
 
   # finally add label if in top n_hvgs
-  hvg_df    = hvg_df.with_row_index("rank_tmp", offset = 1).with_columns(
-    pl.when( pl.col("rank_tmp") <= n_hvgs ).then(True).otherwise(False).alias("highly_variable")
-  ).drop("rank_tmp")
+  hvg_df    = hvg_df.with_columns(
+    highly_variable = pl.int_range(pl.len()) < n_hvgs
+  )
   if hvg_df["highly_variable"].sum() != n_hvgs:
     raise ValueError(f"somehow more than %d HVGs selected")
 
@@ -789,15 +795,14 @@ if __name__ == "__main__":
   parser_makeCSR.add_argument("hvg_paths_f", type=str)
   parser_makeCSR.add_argument("cell_filter_f", type=str)
   parser_makeCSR.add_argument("keep_var", type=str)
-  parser_makeCSR.add_argument("keep_vals_str", type=str)
   parser_makeCSR.add_argument("smpl_stats_f", type=str)
   parser_makeCSR.add_argument("rowdata_f", type=str)
   parser_makeCSR.add_argument("run_var", type=str)
   parser_makeCSR.add_argument("batch_var", type=str)
   parser_makeCSR.add_argument("demux_type", type=str)
-  parser_makeCSR.add_argument("-s", "--chunksize", required=False, default= 2000, type = int)
-  parser_makeCSR.add_argument("-n", "--ncores", required=False, default= 8, type = int)
-  
+  parser_makeCSR.add_argument("--keep_vals_str", required=False, default=None, type=str)
+  parser_makeCSR.add_argument("-s", "--chunksize", required=False, default=2000, type=int)
+  parser_makeCSR.add_argument("-n", "--ncores", required=False, default=8, type=int)
 
   # parser for calculate_mean_var_for_chunk
   parser_chunkCalcs = subparsers.add_parser('calculate_mean_var_for_chunk')
@@ -883,13 +888,16 @@ if __name__ == "__main__":
 
   if args.function_name == 'get_csr_counts':
     get_csr_counts( 
-      args.hvg_paths_f, args.cell_filter_f, args.keep_var, args.keep_vals_str, args.smpl_stats_f, args.rowdata_f,
-      args.run_var, args.batch_var, args.demux_type, args.chunksize, args.ncores
+      args.hvg_paths_f, args.cell_filter_f, args.keep_var, args.smpl_stats_f, args.rowdata_f,
+      args.run_var, args.batch_var, args.demux_type, args.keep_vals_str, args.chunksize, args.ncores
     )
   elif args.function_name == 'calculate_mean_var_for_chunk':
+    if args.hvg_method == "all":
+      if not args.groupvar is None:
+        raise KeyError("when hvg_method is 'all', 'group_var' should be None")
     calculate_mean_var_for_chunk(
       args.hvg_paths_f, args.rowdata_f, args.metadata_f, args.qc_smpl_stats_f,
-      args.mean_var_f, args.chunk, args.hvg_method, args.batch_var, args.chunk_size,
+      args.mean_var_f, args.chunk, args.hvg_method, args.batch_var, args.chunksize,
       args.groupvar, args.group, args.ncores
     )
   elif args.function_name == 'calculate_estimated_vars':
@@ -904,7 +912,7 @@ if __name__ == "__main__":
     calculate_std_var_stats_for_chunk(
       args.hvg_paths_f, args.rowdata_f, args.metadata_f, args.qc_smpl_stats_f,
       args.std_var_stats_f, args.estim_vars_f, args.chunk_num,
-      args.hvg_method, args.batch_var, args.chunk_size, args.groupvar, args.group, args.ncores
+      args.hvg_method, args.batch_var, args.chunksize, args.groupvar, args.group, args.ncores
     )
   elif args.function_name == 'calculate_hvgs':
     calculate_hvgs(

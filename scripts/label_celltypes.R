@@ -182,7 +182,7 @@ label_with_xgboost_one_batch <- function(sel_batch, batch_var, model_name, xgb_f
 
   # take top prediction for each cluster
   match_lu    = match_dt[, .SD[1], by = .(res_int, cl_int)] %>%
-    .[ (cl_pred != "unknown") & (prop > min_cl_prop) ]
+    .[ (cl_pred != "ambiguous") & (prop > min_cl_prop) ]
 
   # add these results to original cluster labels
   guesses_dt  = match_lu[, .(res_int, cl_int, cl_pred, prop_pred = prop)] %>%
@@ -480,15 +480,15 @@ plot_umap_cluster <- function(umap_dt, clust_dt, name) {
       cluster
       )] %>% .[, cluster := factor(cluster) %>% fct_infreq ]
 
-  # tweak if "unknown"
-  if ("unknown" %in% levels(plot_dt$cluster) )
-    plot_dt     = plot_dt[, cluster := cluster %>% fct_relevel("unknown", after = Inf) ]
+  # tweak if "ambiguous"
+  if ("ambiguous" %in% levels(plot_dt$cluster) )
+    plot_dt     = plot_dt[, cluster := cluster %>% fct_relevel("ambiguous", after = Inf) ]
 
   # define colours
   cl_lvls     = levels(plot_dt$cluster)
   cl_cols     = seq_along( cl_lvls ) %>% rep(nice_cols, times = 10)[ . ] %>% setNames( cl_lvls )
-  if ("unknown" %in% cl_lvls)
-    cl_cols[[ "unknown" ]] = "grey"
+  if ("ambiguous" %in% cl_lvls)
+    cl_cols[[ "ambiguous" ]] = "grey"
 
   # make plot
   plot_dt     = plot_dt[ sample(.N, .N) ]
@@ -514,8 +514,8 @@ calc_labels_table <- function(guesses_dt) {
     dcast( label ~ label_method, value.var = "N", fill = 0) %>%
     .[ order(-agg, -unagg) ] %>% setcolorder(c("label", "agg", "unagg"))
   # put in nice order
-  if ("unknown" %in% ns_dt$label)
-    ns_dt     = rbind( ns_dt[ label != "unknown" ], ns_dt[ label == "unknown" ] )
+  if ("ambiguous" %in% ns_dt$label)
+    ns_dt     = rbind( ns_dt[ label != "ambiguous" ], ns_dt[ label == "ambiguous" ] )
   # change names
   ns_dt     = ns_dt %>% set_colnames(c("predicted\nlabel", "no. cells,\naggregated", "no. cells, not\naggregated"))
 

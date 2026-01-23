@@ -49,7 +49,7 @@ plot_hvg_stats_vs_empty_log2fc <- function(hvgs_dt, edger_dt, n_top = 20) {
     boring  = "other"
   )
   min_hvg_var = hvgs_dt[ highly_variable == TRUE ]$variances_norm %>% min
-  plot_dt   = merge(hvgs_dt, edger_dt, by = "gene_id", all.x = TRUE) %>% 
+  plot_dt     = merge(hvgs_dt, edger_dt, by = "gene_id", all.x = TRUE) %>% 
     .[ is.na(FDR), is_ambient := FALSE ] %>% 
     .[ is.na(FDR), logFC := 0 ] %>% 
     .[, .(gene_id, log2fc = logFC, padj = FDR, 
@@ -57,7 +57,7 @@ plot_hvg_stats_vs_empty_log2fc <- function(hvgs_dt, edger_dt, n_top = 20) {
       is_hvg = highly_variable, is_ambient)] %>% 
     .[, status := ifelse(is_hvg, "hvg", ifelse(is_ambient, "dirty", "boring")) %>% 
       factor(levels = names(status_labs) )]
-  assert_that( nrow(plot_dt[ is_ambient & is_hvg]) == 0 )
+  assert_that( nrow(plot_dt[ is_ambient & is_hvg]) == 0, msg = "some HVGs are ambient genes" )
   labels_dt = plot_dt[ status != "boring" ] %>% 
     .[ order(status, -mean_var) ] %>% .[, .SD[1:min(.N, n_top)], by = status ] %>%
     .[, symbol := gene_id %>% str_extract(".+(?=_ENS)") ]

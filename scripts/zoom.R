@@ -79,75 +79,80 @@ suppressPackageStartupMessages({
 #   message('done!')
 # }
 
-make_subset_sces <- function(sel_s, clean_sce_f, integration_f, smpl_stats_f,
-  sces_yaml_f, subset_f, subset_col, subset_str){
+
+make_subset_sces <- function(sel_b, batch_var, smpl_stats_f, sces_yaml_f, 
+  subset_f, subset_col, subset_str, integration_f, clean_sce_f) {
   
   # get all good samples
   zoom_stats_dt = fread(smpl_stats_f)
-  keep_samples  = zoom_stats_dt[bad_sample == FALSE, sample_id]
+  bad_var       = paste0("bad_", batch_var)
+  ok_batches    = zoom_stats_dt[ get(bad_var) == FALSE ] %>% .[[ batch_var ]]
   
-  # get list of input files
-  all_sce_paths = yaml::read_yaml(sces_yaml_f) %>% unlist()
-  
-  if(!sel_s %in% keep_samples){
-    # write empty file if sample was excluded
-    message('Sample ', sel_s, ' was excluded. Creating empty sce file')
+  # write empty file if sample was excluded
+  if (!(sel_b %in% ok_batches)) {
+    message('sample ', sel_b, ' was excluded. Creating empty sce file')
     file.create(clean_sce_f)
-  }else{
-    message('Creating sce file for sample ', sel_s)
-    # get input sce file
-    in_sce_f = all_sce_paths[[sel_s]]
-    assert_that(file.exists(in_sce_f))
-    in_sce   = readRDS(in_sce_f)
-    
-    # get cell ids to extract
-    subset_vals = str_split(subset_str, pattern = ',') %>% unlist
-    subset_dt   = fread(subset_f)
-    assert_that(subset_col %in% colnames(subset_dt))
-    assert_that(all(c("cell_id", "sample_id") %in% colnames(subset_dt)))
-    
-    subset_dt = subset_dt %>%
-      .[sample_id == sel_s] %>%
-      .[get(subset_col) %in% subset_vals] %>%
-      .[, c('sample_id', 'cell_id', subset_col), with = FALSE]
-    
-    assert_that(all(subset_dt$cell_id %in% colnames(in_sce)))
 
-    sce_zoom = in_sce[, subset_dt$cell_id]
-    
-    # get integration results
-    int_dt    = fread(integration_f) 
-    smpl_int  = int_dt %>% .[sample_id == sel_s]
-  
-    # remove umap and clustering cols from before and add new ones
-    rm_cols = c('UMAP1', 'UMAP2', str_subset(names(colData(sce_zoom)), "RNA_snn_res"))
-    new_coldata = colData(sce_zoom) %>% as.data.table %>%
-      .[ , (rm_cols) := NULL] %>%
-    # add label
-      merge(subset_dt, by = c('cell_id', 'sample_id')) %>%
-      setnames(new = 'label', old = subset_col) %>%
-      setkey(cell_id)
-    
-    sce_zoom = sce_zoom[, smpl_int$cell_id]
-    new_coldata = new_coldata[smpl_int$cell_id, ]
+    return(NULL)
+  }
 
-    colData(sce_zoom) = DataFrame(as.data.frame(new_coldata))
-    
-    # get useful integration variables
-    int_vs   = c('UMAP1', 'UMAP2', str_subset(names(smpl_int), "RNA_snn_res"))
+  # get list of input files
+  message('Creating sce file for sample ', sel_b)
+  paths_ls    = yaml::read_yaml(sces_yaml_f) %>% unlist()
+
+  # get input sce file
+  in_sce_f    = paths_ls[[sel_b]]
+  assert_that( file.exists(in_sce_f) )
+  in_sce      = readRDS(in_sce_f)
   
-    # add these to sce object
-    for (v in int_vs) {
-      if (str_detect(v, "RNA_snn_res")) {
-        colData(sce_zoom)[[ v ]] = smpl_int[[ v ]] %>% factor
-      } else {
-        colData(sce_zoom)[[ v ]] = smpl_int[[ v ]]
-      }
+  # load subset data.table
+  subset_dt   = fread(subset_f)
+  assert_that( subset_col %in% colnames(subset_dt) )
+  assert_that( all(c("cell_id", batch_var) %in% colnames(subset_dt)) )
+  
+  # get cells matching subset
+  subset_vals = str_split(subset_str, pattern = ',') %>% unlist
+  subset_dt   = subset_dt %>%
+    .[ get(batch_var) == sel_b ] %>%
+    .[ get(subset_col) %in% subset_vals ] %>%
+    .[, c(batch_var, 'cell_id', subset_col), with = FALSE]
+  assert_that( all(subset_dt$cell_id %in% colnames(in_sce)) )
+
+  # subset to cells we need
+  sce_zoom    = in_sce[, subset_dt$cell_id]
+  
+  # get integration results
+  int_dt      = fread(integration_f) 
+  batch_int   = int_dt %>% .[ get(batch_var) == sel_b ]
+  batch_cells = batch_int$cell_id
+
+  # remove umap and clustering cols from before and add new ones, add label
+  rm_cols     = c('UMAP1', 'UMAP2', str_subset(names(colData(sce_zoom)), "RNA_snn_res"))
+  new_coldata = colData(sce_zoom) %>% as.data.table %>%
+    .[, (rm_cols) := NULL ] %>%
+    merge(subset_dt, by = c('cell_id', batch_var)) %>%
+    setnames(new = 'label', old = subset_col) %>%
+    setkey("cell_id") %>% 
+    .[ batch_cells ]
+  
+  # tidy up sce
+  sce_zoom    = sce_zoom[, batch_cells]
+  colData(sce_zoom) = as(new_coldata, "DataFrame")
+  
+  # get useful integration variables
+  int_vs   = c('UMAP1', 'UMAP2', str_subset(names(batch_int), "RNA_snn_res"))
+
+  # add these to sce object
+  for (v in int_vs) {
+    if (str_detect(v, "RNA_snn_res")) {
+      colData(sce_zoom)[[ v ]] = batch_int[[ v ]] %>% factor
+    } else {
+      colData(sce_zoom)[[ v ]] = batch_int[[ v ]]
     }
-    
-    saveRDS(sce_zoom, clean_sce_f, compress = FALSE)
   }
   
+  # save  
+  saveRDS(sce_zoom, clean_sce_f, compress = FALSE)
   message('done!')
 }
 
