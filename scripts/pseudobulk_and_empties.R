@@ -36,18 +36,6 @@ suppressPackageStartupMessages({
   library('yaml')
 })
 
-# h5_paths_f = '/pmount/projects/site/pred/mus-brain-analysis/studies/test_multiplexed_project/output/test_hvg/hvg_paths_test_multiplexed_project_2025-01-01.csv'
-# qc_stats_f = '/pmount/projects/site/pred/mus-brain-analysis/studies/test_multiplexed_project/output/test_qc/qc_pool_id_statistics_test_multiplexed_project_2025-01-01.csv'
-# batch_lu_f = '/pmount/projects/site/pred/mus-brain-analysis/studies/test_multiplexed_project/output/test_pseudobulk/runs_to_batches_test_multiplexed_project_2025-01-01.csv'
-# qc_f = '/pmount/projects/site/pred/mus-brain-analysis/studies/test_multiplexed_project/output/test_qc/coldata_dt_all_cells_test_multiplexed_project_2025-01-01.csv.gz'
-# batch_var = 'pool_id'
-# run_var = 'pool_id'
-# subset_f = NULL
-# subset_col = NULL 
-# subset_str = NULL
-# n_cores=2 
-
-
 make_pb_cells <- function(sel_run, batch_lu_f, qc_stats_f, h5_paths_f, coldata_f, run_var, 
                           batch_var, pb_cells_f, subset_f = NULL, subset_col = NULL, subset_str = NULL) {
   # get batches corresponding to this run
@@ -152,114 +140,6 @@ merge_pbs_cells <- function(cells_paths_f, rowdata_f, batch_var, pb_cells_f) {
   
   message(' done!')
 }
-
-
-
-# 
-# make_pb_cells_from_h5 <- function(h5_paths_f, qc_stats_f, batch_lu_f, coldata_f, rowdata_f, batch_var, run_var,
-#   pb_cells_f, subset_f = NULL, subset_col = NULL, subset_str = NULL, n_cores = 4) {
-#   
-#   # get runs where any batches are left
-#   batch_lu     = fread(batch_lu_f)
-#   qc_stats_dt  = fread(qc_stats_f)
-#   bad_var      = paste0("bad_", batch_var)
-#   keep_batches = qc_stats_dt[ get(bad_var) == FALSE] %>% .[[batch_var]]
-#   keep_runs    = batch_lu[batch_var %in% keep_batches, run_var]
-#   
-#   # get list of h5 files
-#   h5_fs_dt    = fread(h5_paths_f) %>%
-#     .[get(run_var) %in% keep_runs] %>%
-#     unique()
-#   h5_fs_ls    = h5_fs_dt$amb_filt_f %>% 
-#     setNames(h5_fs_dt[[run_var]])
-#   
-#   # get all cells kept after qc
-#   keep_dt     = fread(coldata_f) %>% .[ keep == TRUE ]
-#   
-#   # set up parallelization
-#   bpparam       = MulticoreParam(workers = n_cores, tasks = length(h5_fs_ls))
-#   on.exit(bpstop(bpparam))
-#   
-#   cell_pbs     = bpmapply( sel_run = names(h5_fs_ls), h5_f = unname(h5_fs_ls),
-#    FUN = .get_one_cells_pb, SIMPLIFY = FALSE, BPPARAM = bpparam, 
-#    MoreArgs = list(keep_dt, keep_batches, batch_lu, batch_var, run_var, 
-#     subset_f = subset_f, subset_col = subset_col, subset_str = subset_str)
-#   )
-#   
-#   # merge sce objects
-#   pb_sce = Reduce(function(x, y) {cbind(x, y)}, cell_pbs)
-#   
-#   # subset rows
-#   rows_dt     = fread(rowdata_f) %>% setkey('ensembl_id')
-#   keep_ids    = rows_dt$ensembl_id
-#   assert_that(all(keep_ids %in% rownames(pb_sce)))
-#   pb_sce      = pb_sce[keep_ids, ]
-#   rows_dt     = rows_dt[ rownames(pb_sce) ]
-#   assert_that( all(rownames(pb_sce) == rows_dt$ensembl_id) )
-#   rownames(pb_sce) = rows_dt$gene_id
-#   
-#   # add batch variable
-#   # pb_cells[[ batch_var ]] = colnames(pb_cells)
-#   
-#   # store
-#   message('  save')
-#   saveRDS(pb_sce, pb_cells_f)
-#   
-#   message('done!')
-# }
-# 
-# 
-# 
-# .get_one_cells_pb <- function(sel_run, h5_f, keep_dt, keep_batches, batch_lu, batch_var, run_var,
-#   subset_f = NULL, subset_col = NULL, subset_str = NULL, agg_fn = c("sum", "prop.detected")){
-#   
-#   browser()
-#   
-#   agg_fn         = match.arg(agg_fn)
-#   
-#   # get batches to keep in this run
-#   tmp_vars       = c(run_var, batch_var) %>% unique
-#   batches_in_run  = batch_lu[run_var == sel_run, batch_var]
-#   keep_batches    = intersect(keep_batches, batches_in_run)
-#   cell_lu         = keep_dt[get(batch_var) %in% keep_batches,  c(tmp_vars, "cell_id"), with = FALSE] %>%
-#     setkey("cell_id")
-#   
-#   message('    loading matrix from h5 file for run ', sel_run)
-#   cells_mat      = .get_h5_mx(h5_f, sel_s = paste0(sel_run, ':'))
-#   cells_mat      = .sum_SUA(cells_mat)
-#   assert_that(all(cell_lu$cell_id %in% colnames(cells_mat)))
-#   cells_mat      = cells_mat[, cell_lu$cell_id]
-#   
-#   # turn into sce
-#   coldata = DataFrame(cell_lu)
-#   rownames(coldata) = coldata$cell_id
-#   sce  = SingleCellExperiment( assays = list(counts = cells_mat),colData = coldata )
-#   
-#   rm(cells_mat)
-# 
-#   # subset if required # this is wrong !!!!!
-#   if (!is.null(subset_f)) {
-#     message('    subsetting sce object')
-#    # unpack
-#     subset_vals = str_split(subset_str, pattern = ',') %>% unlist
-#     subset_dt   = fread(subset_f)
-#     assert_that(subset_col %in% colnames(subset_dt))
-#     assert_that(all(c("cell_id", batch_var) %in% colnames(subset_dt)))
-#   
-#    # keep just cells in sel_b with selected labels
-#     subset_dt   = subset_dt %>%
-#     .[ get(batch_var) %in% keep_batches ] %>%
-#     .[ get(subset_col) %in% subset_vals ]
-#   
-#   # subset sce object
-#   sce       = sce[, subset_dt$cell_id]
-#   }
-#   
-#   message('   running aggregateData')
-#   pb_mat      = .aggregateData_datatable(sce, by_vars = batch_var, fun = agg_fn)
-#   pb          = SingleCellExperiment( assays = list(counts = pb_mat) )
-#   return(pb)
-# }
 
 
 
