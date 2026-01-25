@@ -1,6 +1,6 @@
 rule run_marker_genes:
   input:
-    sces_yaml_f     = f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
+    sces_yaml_f     = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
     integration_f   = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
     pb_f            = f'{mkr_dir}/pb_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.rds',

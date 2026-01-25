@@ -57,8 +57,8 @@ memory,n_smpls_pre_qc,974.447,3.952,calculate_ambient_genes,2048
 time,n_smpls_pre_qc,33.646,0.239,calculate_ambient_genes,300
 memory,,,,run_integration,
 time,,,,run_integration,
-memory,,,,make_clean_sces,
-time,,,,make_clean_sces,
+memory,,,,make_clean_h5ads,
+time,,,,make_clean_h5ads,
 memory,,,,run_marker_genes,
 time,,,,run_marker_genes,
 memory,,,,run_fgsea,

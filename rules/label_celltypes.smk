@@ -9,7 +9,7 @@ from snakemake.utils import validate, min_version
 # prep counts matrix for each sample
 rule make_tmp_mtx_file:
   input:
-    sces_yaml_f   = f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
+    sces_yaml_f   = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
   output:
     mtx_f         = temp(f'{lbl_dir}/tmp_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.mtx'),
     cells_f       = temp(f'{lbl_dir}/tmp_cells_{{batch}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'),

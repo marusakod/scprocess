@@ -1098,10 +1098,11 @@ calc_qc_summary <- function(qc_dt, kept_dt, cuts_dt, qc_lu, batch_var) {
   return(exclude_dt)
 }
 
-##### for saving sce files. put here bc uses other functions
+############## for saving sce files. put here bc uses other functions
+
 
 make_clean_sces <- function(sel_b, sel_run, integration_f, h5_paths_f, 
-  coldata_f, gtf_dt_f, run_var, batch_var, mito_str, exclude_mito, clean_sce_f) {
+  coldata_f, rowdata_f, run_var, batch_var, clean_sce_f) {
   # load, exclude doublets
   int_dt        = fread(integration_f) %>%
     .[ is_dbl == FALSE & in_dbl_cl == FALSE ]
@@ -1115,9 +1116,6 @@ make_clean_sces <- function(sel_b, sel_run, integration_f, h5_paths_f,
   }
   message('creating clean sce file for ', sel_b)
 
-  # get gene annotations
-  gene_annots = .get_gene_annots(gtf_dt_f)
-
   # get some subsets
   message('  getting values specific to ', sel_b)
   batch_int   = int_dt %>% .[ get(batch_var) == sel_b ]
@@ -1129,8 +1127,7 @@ make_clean_sces <- function(sel_b, sel_run, integration_f, h5_paths_f,
   h5_paths    = fread(h5_paths_f)
   filtered_f  = h5_paths[ get(run_var) == sel_run ]$amb_filt_f %>% unique
   assert_that(file.exists(filtered_f))
-  sce         = .get_sce_clean(filtered_f, sel_run, mito_str, exclude_mito, gene_annots, run_var,
-    subset_cells = batch_ids)
+  sce         = .get_sce_clean(filtered_f, sel_run, run_var, rowdata_f,  subset_cells = batch_ids)
   
   # add things to colData
   message('  adding coldata')
@@ -1145,91 +1142,32 @@ make_clean_sces <- function(sel_b, sel_run, integration_f, h5_paths_f,
   message('done!')
 }
 
-.get_sce_clean <- function(mat_f, sel_run, mito_str, exclude_mito, gene_annots, run_var, subset_cells = NULL) {
+
+.get_sce_clean <- function(filtered_f, sel_run, run_var, rowdata_f, subset_cells = batch_ids){
   # read matrix
-  mat         = .get_h5_mx(mat_f, paste0(sel_run, ':'))
+  mat         = .get_h5_mx(filtered_f, paste0(sel_run, ':')) %>% .sum_SUA
   if (!is.null(subset_cells)) {
     message('    subsetting sce to specified cells')
     assert_that( all(subset_cells %in% colnames(mat)) )
     mat         = mat[, subset_cells]
   }
 
-  # heck for weird genes
-  weird_gs    = str_detect(rownames(mat), "unassigned_gene")
-  assert_that( all(!weird_gs) )
-
-  # split rownames into S / U / A
-  splice_ns   = c("U", "S", "A")
-  usa_ls      = splice_ns %>% lapply(function(l) {
-    regex_str   = sprintf("_%s$", l)
-    sel_gs      = str_subset(rownames(mat), regex_str)
-    return(sel_gs)
-    }) %>% setNames(splice_ns)
-
-  # couple of checks that the gene names are sensible
-  assert_that( length(table(sapply(usa_ls, length))) == 1 )
-  g_ns_chk    = lapply(usa_ls, function(gs) str_replace(gs, "_[USA]$", ""))
-  assert_that( all(sapply(g_ns_chk, function(l) all(l == g_ns_chk[[ 1 ]]))) )
-  proper_gs   = g_ns_chk[[ 1 ]]
-
-  # calculate spliced values
-  usa_mat_ls      = lapply(usa_ls, function(gs) mat[ gs, ] )
-  counts_mat      = Reduce("+", usa_mat_ls, accumulate = FALSE) %>%
-    set_rownames( proper_gs )
-  assert_that( all(colnames(counts_mat) == colnames(mat)) )
-  rm(mat); gc(full = TRUE)
-
-  # check for any missing genes
-  missing_gs    = setdiff(rownames(counts_mat), gene_annots$ensembl_id)
-  assert_that( (length(missing_gs) == 0) | (all(str_detect(missing_gs, "unassigned_gene"))) )
-
-  # get counts for rRNA genes, exclude them
-  rrna_ens_ids    = gene_annots[ gene_type %in% c('rRNA', 'Mt_rRNA') ]$ensembl_id
-  rrna_idx        = rownames(counts_mat) %in% rrna_ens_ids
-  counts_mat      = counts_mat[ !rrna_idx, ]
-
-  # get current rows
-  setkey(gene_annots, 'ensembl_id')
-  assert_that( all(rownames(counts_mat) %in% gene_annots$ensembl_id) )
-
-  # add better annotations
-  annots_dt     = gene_annots[ rownames(counts_mat) ]
-
-  # get nice ordering of genes
-  annots_dt     = annots_dt[ order(chromosome, start, end) ]
-  nice_order    = annots_dt$ensembl_id
-  annots_df     = annots_dt[, .(gene_id, ensembl_id, symbol, gene_type)] %>%
-    as('DataFrame') %>% set_rownames(.$gene_id)
-  counts_mat    = counts_mat[nice_order, ] %>% set_rownames(annots_df$gene_id)
-
+  # read rowdata
+  rows_dt       = fread(rowdata_f) %>% setkey('ensembl_id')
+  keep_ids      = rows_dt$ensembl_id
+  assert_that(all(keep_ids %in% rownames(mat)))
+  mat           = mat[keep_ids, ]
+  rows_dt       = rows_dt[ rownames(mat) ]
+  assert_that( identical(rownames(mat), rows_dt$ensembl_id) )
+  rownames(mat) = rows_dt$gene_id
+  
   # make sce object
-  sce_clean     = SingleCellExperiment(assays = list(counts = counts_mat), rowData = annots_df)
-  sce_clean$cell_id = colnames(counts_mat)
+  sce_clean           = SingleCellExperiment(assays = list(counts = mat), rowData = rows_dt)
+  sce_clean$cell_id   = colnames(mat)
   rownames(sce_clean) = rowData(sce_clean)$gene_id
-
-  # remove mitochondrial if requested
-  if (exclude_mito == TRUE) {
-    mt_idx        = str_detect(rowData(sce_clean)$symbol, mito_str)
-    sce_clean     = sce_clean[!mt_idx, ]
-  }
   
   # convert to TsparseMatrix
   counts(sce_clean) = counts(sce_clean) %>% as("TsparseMatrix")
-
-  return(sce_clean)
-}
-
-.add_int_variables <- function(sce_clean, batch_int) {
-  assert_that( all(colnames(sce_clean) == batch_int$cell_id) )
-  # get useful integration variables, add to sce object
-  int_vs      = c('UMAP1', 'UMAP2', str_subset(names(batch_int), "RNA_snn_res"))
-  for (v in int_vs) {
-    if (str_detect(v, "RNA_snn_res")) {
-      colData(sce_clean)[[ v ]] = batch_int[[ v ]] %>% factor
-    } else {
-      colData(sce_clean)[[ v ]] = batch_int[[ v ]]
-    }
-  }
 
   return(sce_clean)
 }
@@ -1246,6 +1184,20 @@ make_clean_sces <- function(sel_b, sel_run, integration_f, h5_paths_f,
   return(sce)
 }
 
+.add_int_variables <- function(sce_clean, batch_int) {
+  assert_that( all(colnames(sce_clean) == batch_int$cell_id) )
+  # get useful integration variables, add to sce object
+  int_vs      = c('UMAP1', 'UMAP2', str_subset(names(batch_int), "RNA_snn_res"))
+  for (v in int_vs) {
+    if (str_detect(v, "RNA_snn_res")) {
+      colData(sce_clean)[[ v ]] = batch_int[[ v ]] %>% factor
+    } else {
+      colData(sce_clean)[[ v ]] = batch_int[[ v ]]
+    }
+  }
+
+  return(sce_clean)
+}
 
 ############## FUNCTIONS FROM SampleQC package
 
