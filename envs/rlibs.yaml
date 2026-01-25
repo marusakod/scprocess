@@ -1,5 +1,4 @@
-name: 
-  renviron
+name: renviron
 channels:
   - bioconda
   - conda-forge
@@ -11,6 +10,8 @@ dependencies:
   - binutils_impl_linux-64=2.45
   - bioconductor-apeglm=1.28.0
   - bioconductor-assorthead=1.0.0
+  - bioconductor-basilisk=1.18.0
+  - bioconductor-basilisk.utils=1.18.0
   - bioconductor-beachmat=2.22.0
   - bioconductor-biobase=2.66.0
   - bioconductor-biocgenerics=0.52.0
@@ -28,6 +29,7 @@ dependencies:
   - bioconductor-delayedarray=0.32.0
   - bioconductor-delayedmatrixstats=1.28.0
   - bioconductor-deseq2=1.46.0
+  - bioconductor-dir.expiry=1.14.0
   - bioconductor-dropletutils=1.26.0
   - bioconductor-edger=4.4.0
   - bioconductor-fgsea=1.32.2
@@ -62,11 +64,12 @@ dependencies:
   - bioconductor-ucsc.utils=1.2.0
   - bioconductor-variancepartition=1.36.2
   - bioconductor-xvector=0.46.0
+  - bioconductor-zellkonverter=1.16.0
   - bioconductor-zlibbioc=1.52.0
   - bwidget=1.10.1
   - bzip2=1.0.8
   - c-ares=1.34.5
-  - ca-certificates=2025.11.12
+  - ca-certificates=2026.1.4
   - cairo=1.18.4
   - curl=8.17.0
   - font-ttf-dejavu-sans-mono=2.37
@@ -238,6 +241,7 @@ dependencies:
   - r-fastdummies=1.7.5
   - r-fastmap=1.2.0
   - r-fastmatch=1.1_6
+  - r-filelock=1.0.3
   - r-fitdistrplus=1.2_4
   - r-fnn=1.1.4.1
   - r-fontawesome=0.5.3

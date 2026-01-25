@@ -5,11 +5,12 @@ suppressPackageStartupMessages({
   library("DESeq2")
   library("scater")
   library("BiocParallel")
+  library("zellkonverter")
   RhpcBLASctl::omp_set_num_threads(1L)
 })
 
 
-calculate_marker_genes <- function(integration_f, sces_yaml_f, batch_var, pb_f, mkrs_f, pb_hvgs_f,
+calculate_marker_genes <- function(integration_f, h5ads_yaml_f, batch_var, pb_f, mkrs_f, pb_hvgs_f,
   fgsea_go_bp_f = "", fgsea_go_cc_f = "", fgsea_go_mf_f = "", fgsea_paths_f = "", fgsea_hlmk_f = "",
   do_gsea, gtf_dt_f, gsea_dir, sel_res, min_cl_size, min_cells, zoom = FALSE, 
   n_cores = 4) {
@@ -18,7 +19,7 @@ calculate_marker_genes <- function(integration_f, sces_yaml_f, batch_var, pb_f, 
   
   # check some inputs
   assert_that(
-    is.character(sces_yaml_f),
+    is.character(h5ads_yaml_f),
     is.character(sel_res),
     is.character(pb_f),
     is.character(mkrs_f),
@@ -26,7 +27,7 @@ calculate_marker_genes <- function(integration_f, sces_yaml_f, batch_var, pb_f, 
     is.character(gtf_dt_f)
   )
   assert_that(
-    file.exists(sces_yaml_f),
+    file.exists(h5ads_yaml_f),
     file.exists(gtf_dt_f)
   )
   assert_that(
@@ -43,7 +44,7 @@ calculate_marker_genes <- function(integration_f, sces_yaml_f, batch_var, pb_f, 
 
   # make_pb_object
   message("  making pseudobulk object")
-  pb          = make_pseudobulk_object(pb_f, integration_f, sces_yaml_f, sel_res, batch_var,
+  pb          = make_pseudobulk_object(pb_f, integration_f, h5ads_yaml_f, sel_res, batch_var,
     min_cl_size = min_cl_size, agg_fn = "sum", zoom = zoom, n_cores = n_cores)
 
   # calc cpms
@@ -66,7 +67,7 @@ calculate_marker_genes <- function(integration_f, sces_yaml_f, batch_var, pb_f, 
   message("done!")
 }
 
-make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, batch_var,
+make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, batch_var,
   min_cl_size = 1e2, agg_fn = c("sum", "prop.detected"), zoom = FALSE, n_cores = 8) {
   # check inputs
   agg_fn      = match.arg(agg_fn)
@@ -91,20 +92,18 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   # make pseudobulks for selected clusters for each sample
   message('    making pseudobulk counts for individual samples')
   batches     = int_dt[[ batch_var ]] %>% unique() %>% as.character
-  sce_paths   = yaml::read_yaml(sces_yaml_f)
-  assert_that( all(batches %in% names(sce_paths)) )
+  h5ad_paths   = yaml::read_yaml(h5ads_yaml_f)
+  assert_that( all(batches %in% names(h5ad_paths)) )
 
   # make pbs for each batch
   bpparam     = MulticoreParam(workers = n_cores, tasks = length(batches))  
   if (zoom) {
     pb_ls       = bplapply(batches, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam, 
-      sce_paths = sce_paths, int_dt = int_dt, batch_var = batch_var, cl_var = cl_var,
+      h5ad_paths = h5ad_paths, int_dt = int_dt, batch_var = batch_var, cl_var = cl_var,
       keep_cls = keep_cls, agg_fn = agg_fn)
   } else {
-    # pb_ls       = lapply(batches, FUN = .make_one_pseudobulk, sce_paths = sce_paths, 
-    #   batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls, agg_fn = agg_fn)
     pb_ls       = bplapply(batches, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
-      sce_paths = sce_paths, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls,
+      h5ad_paths = h5ad_paths, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls,
       agg_fn = agg_fn)
   }
   
@@ -136,10 +135,10 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
   return(pb)
 }
 
-.make_one_pseudobulk <- function(sel_b, sce_paths, batch_var, cl_var, keep_cls, agg_fn) {
+.make_one_pseudobulk <- function(sel_b, h5ad_paths, batch_var, cl_var, keep_cls, agg_fn) {
   message(sel_b)
-  sce_f     = sce_paths[[sel_b]]
-  tmp_sce   = readRDS(sce_f)
+  h5ad_f     = h5ad_paths[[sel_b]]
+  tmp_sce    = readH5AD(h5ad_f)
   
   # add clusters to sce
   colData(tmp_sce)[["cluster"]] = colData(tmp_sce)[[cl_var]] 
@@ -211,13 +210,14 @@ make_pseudobulk_object <- function(pb_f, integration_f, sces_yaml_f, sel_res, ba
 aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
   fun = c("sum", "mean", "median", "prop.detected", "num.detected"), all_cls) {
   fun       = match.arg(fun)
-  assay     = "counts"
+  assay     = "X"
   # get counts data
   t_start   = Sys.time()
+  counts = assay(sce, "X") %>% as("TsparseMatrix")
   mat_dt    = data.table(
-    i         = counts(sce)@i + 1,
-    j         = counts(sce)@j + 1,
-    count     = counts(sce)@x
+    i         = counts@i + 1,
+    j         = counts@j + 1,
+    count     = counts@x
     ) %>%
     .[, cell_id := colnames(sce)[j] ] %>%
     setkey("cell_id")
