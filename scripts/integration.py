@@ -104,46 +104,6 @@ def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
   return int_df
 
 
-def _get_ok_cells_df(sample_qc_f, coldata_f, all_bcs, zoom = False):
-  # load files
-  sample_qc     = pl.read_csv(sample_qc_f)
-  all_coldata   = pl.read_csv(coldata_f)
-
-  # checks
-  if not 'sample_id' in all_coldata.columns:
-    raise KeyError("column sample_id is missing from coldata file")
-  if not 'sample_id' in sample_qc.columns:
-    raise KeyError("column sample_id is missing from sample QC file")
-
-  # get ok samples
-  ok_samples    = sample_qc.filter(pl.col("bad_sample") == False)["sample_id"].to_list()
-  
-  if not zoom:
-  # get ok cells
-    ok_cells_df   = all_coldata.filter(
-      ((pl.col("keep") == True) | (pl.col("dbl_class") == "doublet")) & 
-      ((pl.col("sample_id").is_in(ok_samples)) | (pl.col("sample_id").is_null()))
-    )
-    # check ok
-    if not set(all_bcs) == set(ok_cells_df['cell_id'].to_list()):
-      raise ValueError("barcodes from hvg mats and cell_ids don't match")
-  else:
-    if not set(all_bcs).issubset(set(all_coldata['cell_id'])):
-      raise ValueError("Not all column names in hvg_mat are present in cell metadata.")
-    ok_cells_df = all_coldata.filter(
-      pl.col("cell_id").is_in(all_bcs) 
-    )
-      
-  # put cell in coldata in the order matching mat cols
-  order_df      = pl.DataFrame({
-    "cell_id":    all_bcs,
-    "order":      range(1, len(all_bcs) + 1)
-  })
-  ok_cells_df   = ok_cells_df.join(order_df, on = 'cell_id').sort('order').drop('order')
-
-  return ok_cells_df
-
-
 def _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f = None):
   # get a matrix with hvgs (cells and doublets)
   all_hvg_mat = None
