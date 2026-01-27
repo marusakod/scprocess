@@ -256,22 +256,22 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
     *shlex.split(extraargs),
     rule
     ])
-  # if not noindex and " -np" not in extraargs:
-  #   print("\nRendering index")
-  #   subprocess.run(["snakemake", 
-  #     "--snakefile", os.path.join(scprocess_dir, 'rules/scprocess.smk'), 
-  #     "--configfile", config_path,
-  #     "--config", f"scprocess_dir={str(scprocess_dir)}",
-  #     "--software-deployment-method", "conda",
-  #     "--rerun-triggers", "mtime",
-  #     "--forcerun",
-  #     "--rerun-incomplete", 
-  #     *shlex.split(extraargs),
-  #     "index"
-  #     ],
-  #     stdout=subprocess.DEVNULL,
-  #     stderr=subprocess.DEVNULL  
-  #   )
+  if not noindex and " -np" not in extraargs:
+    print("\nRendering index")
+    subprocess.run(["snakemake", 
+      "--snakefile", os.path.join(scprocess_dir, 'rules/scprocess.smk'), 
+      "--configfile", config_path,
+      "--config", f"scprocess_dir={str(scprocess_dir)}",
+      "--software-deployment-method", "conda",
+      "--rerun-triggers", "mtime",
+      "--forcerun",
+      "--rerun-incomplete", 
+      *shlex.split(extraargs),
+      "index"
+      ],
+      stdout=subprocess.DEVNULL,
+      stderr=subprocess.DEVNULL  
+    )
  
   return
 
