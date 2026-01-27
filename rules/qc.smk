@@ -216,6 +216,8 @@ rule merge_qc:
   output:
     qc_merged_f      = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     coldata_merged_f = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+  params:
+    metadata_f       = config['project']['sample_metadata']
   threads: 1
   retries: config['resources']['retries']
   benchmark:
@@ -227,8 +229,9 @@ rule merge_qc:
     # read all nonempty input files and concatenate them
     qc_df_ls    = [ pl.read_csv(f, schema_overrides = {"log_N": pl.Float64}) for f in input.qc_fs if os.path.getsize(f) > 0 ]
     qc_df_all   = pl.concat(qc_df_ls)
-
-    cols_df_ls  = [ pl.read_csv(f) for f in input.coldata_fs if os.path.getsize(f) > 0 ]
+    
+    metadata_schema = pl.read_csv(params.metadata_f).schema
+    cols_df_ls  = [ pl.read_csv(f, schema_overrides=metadata_schema) for f in input.coldata_fs if os.path.getsize(f) > 0 ]
     cols_df_all = pl.concat(cols_df_ls)
 
     # save merged dataframes to output files
