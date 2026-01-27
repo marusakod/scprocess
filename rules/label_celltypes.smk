@@ -6,42 +6,11 @@ import re
 import glob
 from snakemake.utils import validate, min_version
 
-# prep counts matrix for each sample
-rule make_tmp_mtx_file:
-  input:
-    sces_yaml_f   = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
-  output:
-    mtx_f         = temp(f'{lbl_dir}/tmp_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.mtx'),
-    cells_f       = temp(f'{lbl_dir}/tmp_cells_{{batch}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'),
-    genes_f       = temp(f'{lbl_dir}/tmp_genes_{{batch}}_{FULL_TAG}_{DATE_STAMP}.csv.gz')
-  threads: 4
-  retries: config['resources']['retries']
-  resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_tmp_mtx_file', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_tmp_mtx_file', 'time', attempt)
-  benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_label_celltypes/make_tmp_mtx_file_{{batch}}_{DATE_STAMP}.benchmark.txt'
-  conda: 
-    '../envs/rlibs.yaml'
-  shell: """
-    # save sce object
-    Rscript -e "source('scripts/label_celltypes.R'); \
-    save_sce_to_mtx(
-      sces_yaml_f     = '{input.sces_yaml_f}',
-      sel_batch       = '{wildcards.batch}',
-      mtx_f           = '{output.mtx_f}',
-      cells_f         = '{output.cells_f}',
-      genes_f         = '{output.genes_f}'
-    )"
-    """
-
 
 # do labelling with celltypist
 rule run_celltypist:
   input:
-    mtx_f         = f'{lbl_dir}/tmp_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.mtx',
-    cells_f       = f'{lbl_dir}/tmp_cells_{{batch}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    genes_f       = f'{lbl_dir}/tmp_genes_{{batch}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    adata_f       = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad'
   output:
     pred_f        = temp(f'{lbl_dir}/tmp_labels_celltypist_model_{{model}}_{FULL_TAG}_{DATE_STAMP}_{{batch}}.csv.gz')
   params:
@@ -58,26 +27,23 @@ rule run_celltypist:
   shell:"""
     python3 scripts/label_celltypes.py celltypist_one_batch \
       {wildcards.batch} {params.batch_var} {wildcards.model} \
-      --mtx_f     {input.mtx_f} \
-      --cells_f   {input.cells_f} \
-      --genes_f   {input.genes_f} \
+      --adata_f   {input.adata_f} \
       --pred_f    {output.pred_f}
     """
 
 
-# do labelling
+# do labelling with xgboost
 rule run_scprocess_labeller:
   input:
-    mtx_f     = f'{lbl_dir}/tmp_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.mtx',
-    cells_f   = f'{lbl_dir}/tmp_cells_{{batch}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    genes_f   = f'{lbl_dir}/tmp_genes_{{batch}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    adata_f   = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad'
   output:
     pred_f    = temp(f'{lbl_dir}/tmp_labels_scprocess_model_{{model}}_{FULL_TAG}_{DATE_STAMP}_{{batch}}.csv.gz')
   params:
     xgb_f     = lambda wildcards: [ entry['xgb_f'] for entry in LABELLER_PARAMS 
       if (entry['labeller'] == "scprocess") and (entry['model'] == wildcards.model) ],
     xgb_cls_f = lambda wildcards: [ entry['xgb_cls_f'] for entry in LABELLER_PARAMS 
-      if (entry['labeller'] == "scprocess") and (entry['model'] == wildcards.model) ]
+      if (entry['labeller'] == "scprocess") and (entry['model'] == wildcards.model) ], 
+    batch_var = BATCH_VAR
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -90,14 +56,13 @@ rule run_scprocess_labeller:
   shell: """
     # save sce object
     Rscript -e "source('scripts/label_celltypes.R'); source('scripts/integration.R'); \
-    label_with_xgboost_one_sample(
+    label_with_xgboost_one_batch(
       sel_batch   = '{wildcards.batch}', 
+      batch_var   = '{params.batch_var}',
       model_name  = '{wildcards.model}', 
       xgb_f       = '{params.xgb_f}', 
       xgb_cls_f   = '{params.xgb_cls_f}', 
-      mtx_f       = '{input.mtx_f}',
-      cells_f     = '{input.cells_f}',
-      genes_f     = '{input.genes_f}',
+      adata_f     = '{input.adata_f}',
       pred_f      = '{output.pred_f}'
     )"
     """

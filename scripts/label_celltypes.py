@@ -22,21 +22,12 @@ def download_celltypist_models(models_f):
   return
 
 
-def run_celltypist(sel_batch, batch_var, model_name, mtx_f, cells_f, genes_f):
-  # get cell and gene info
-  cells_df  = pl.read_csv(cells_f)
-  genes_df  = pl.read_csv(genes_f)
-
-  # make anndata object
-  adata     = sc.read_mtx(mtx_f)
-  if not adata.shape[0] == cells_df.shape[0]:
-    raise ValueError("cells_f does not have the same number of rows as the counts matrix") 
-  if not adata.shape[1] == genes_df.shape[0]:
-    raise ValueError("genes_f does not have the same number of rows as columns in the counts matrix") 
-  adata.obs = cells_df.to_pandas( use_pyarrow_extension_array = False )
-  adata.var = genes_df.to_pandas( use_pyarrow_extension_array = False )
-  adata.obs_names = cells_df['cell_id'].to_list()
-  adata.var_names = genes_df['symbol'].to_list()
+def run_celltypist(sel_batch, batch_var, model_name, adata_f):
+ 
+  # read anndata 
+  adata = sc.read_h5ad(adata_f)
+  adata.obs_names = adata.obs_names.to_list()
+  adata.var_names = adata.var['symbol'].to_list()
   
   # normalize
   sc.pp.normalize_total(adata)
@@ -76,12 +67,6 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var):
   int_df      = int_df.filter( pl.col(hi_res_cl).is_not_null() )
   int_df      = int_df.select( pl.col("cell_id"), pl.col(hi_res_cl).alias("hi_res_cl") )
 
-  # # remove any tiny clusters
-  # cl_counts   = int_df["hi_res_cl"].value_counts()
-  # if any( cl_counts["count"] < min_cl_size ):
-  #   tiny_cls    = cl_counts.filter( pl.col("count") < min_cl_size )["hi_res_cl"].to_list()
-  #   print(f"  excluding some clusters bc they are tiny: {", ".join(tiny_cls)}")
-  #   int_df      = int_df.filter( pl.col("hi_res_cl").is_in(tiny_cls).not_() )
 
   # get all prediction files
   preds_df    = pl.concat([ pl.read_csv(f) for f in pred_fs ], how = "vertical")
@@ -133,16 +118,13 @@ if __name__ == "__main__":
   typist_prsr.add_argument(  "batch",     type=str)
   typist_prsr.add_argument(  "batch_var", type=str)
   typist_prsr.add_argument(  "model",     type=str)
-  typist_prsr.add_argument("--mtx_f",     type=str)
-  typist_prsr.add_argument("--cells_f",   type=str)
-  typist_prsr.add_argument("--genes_f",   type=str)
+  typist_prsr.add_argument("--adata_f",  type=str)
   typist_prsr.add_argument("--pred_f",    type=str)
 
   # get arguments
   agg_prsr.add_argument(  "pred_fs",      type=str, nargs="+")
   agg_prsr.add_argument("--int_f",        type=str)
   agg_prsr.add_argument("--hi_res_cl",    type=str)
-  # agg_prsr.add_argument("--min_cl_size",  type=int)
   agg_prsr.add_argument("--min_cl_prop",  type=float)
   agg_prsr.add_argument("--batch_var",    type=str)
   agg_prsr.add_argument("--agg_f",        type=str)
@@ -153,21 +135,14 @@ if __name__ == "__main__":
   # create new project folder
   if args.subcommand == "celltypist_one_batch":
     # set up some locations
-    mtx_f     = pathlib.Path(args.mtx_f)
-    cells_f   = pathlib.Path(args.cells_f)
-    genes_f   = pathlib.Path(args.genes_f)
+    adata_f   = pathlib.Path(args.adata_f)
 
     # check that they exist
-    if not mtx_f.is_file():
-      raise FileNotFoundError(f"mtx_f is not a valid file:\n  {mtx_f}")
-    if not cells_f.is_file():
-      raise FileNotFoundError(f"cells_f is not a valid file:\n  {cells_f}")
-    if not genes_f.is_file():
-      raise FileNotFoundError(f"genes_f is not a valid file:\n  {genes_f}")
+    if not adata_f.is_file():
+      raise FileNotFoundError(f"adata_f is not a valid file:\n  {adata_f}")
     
     # run
-    pred_df   = run_celltypist(args.batch, args.batch_var, args.model, 
-      mtx_f, cells_f, genes_f)
+    pred_df   = run_celltypist(args.batch, args.batch_var, args.model, args.adata_f)
 
     # save
     with gzip.open(args.pred_f, 'wb') as f: 
