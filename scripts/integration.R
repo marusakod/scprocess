@@ -13,6 +13,7 @@ suppressPackageStartupMessages({
   library('uwot')
   library('future')
   library('ggplot.multistats')
+  library('zellkonverter')
 })
 
 
@@ -329,4 +330,13 @@ plot_marker_dotplot <- function(exp_dt, clust_dt, name, markers_dt, min_cl_size 
       )
 
   return(g)
+}
+
+make_clean_sce_from_h5ad <- function(sel_batch, adata_f, sce_f){
+  sce = readH5AD(adata_f)
+  # rename X assay to counts
+  assayNames(sce)[assayNames(sce) == "X"] = "counts"
+  
+  message('saving sce object for ', sel_batch)
+  saveRDS(sce, file=sce_f, compress = FALSE)
 }

@@ -114,3 +114,26 @@ rule make_clean_h5ad_paths_yaml:
     with open(output.h5ads_yaml_f, 'w') as f:
       yaml.dump(fs_dict, f, default_flow_style=False)
 
+
+rule convert_h5ad_to_sce: 
+  input:
+    clean_h5ad_f  = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad'
+  output:
+    clean_sce_f   = f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds'
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'convert_h5ad_to_sce', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'convert_h5ad_to_sce', 'time', attempt)
+  benchmark:
+    f'{benchmark_dir}/{SHORT_TAG}_integration/convert_h5ad_to_sce_{{batch}}_{DATE_STAMP}.benchmark.txt'
+  conda:
+    '../envs/rlibs.yaml'
+  shell:"""
+    Rscript -e "source('scripts/integration.R');
+    make_clean_sce_from_h5ad(
+      sel_batch  = '{wildcards.batch}', 
+      adata_f    = '{input.clean_h5ad_f}',
+      sce_f      = '{output.clean_sce_f}'
+    )"
+    """

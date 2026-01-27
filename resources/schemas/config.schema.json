@@ -154,6 +154,7 @@
         "int_n_dims":       { "type": "integer", "default": 50 },
         "int_dbl_res":      { "type": "number", "default": 4 },
         "int_dbl_cl_prop":  { "type": "number", "default": 0.5 },
+        "int_sce_outs":     { "type": "boolean", "default": false},
         "int_res_ls": {
           "type":     "array",
           "items":    { "type": "number" },
@@ -295,8 +296,10 @@
 
         "gb_run_integration":             { "type": "integer", "default": 32 },
         "gb_make_clean_h5ads":            { "type": "integer", "default": 8 },
+        "gb_convert_h5ad_to_sce":         { "type": "integer", "default": 8 },
         "mins_run_integration":           { "type": "integer", "default": 30 },
         "mins_make_clean_h5ads":          { "type": "integer", "default": 5 },
+        "mins_convert_h5ad_to_sce":       { "type": "integer", "default": 5 },
 
         "gb_run_marker_genes":            { "type": "integer", "default": 32 },
         "mins_run_marker_genes":          { "type": "integer", "default": 30 },
