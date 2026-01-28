@@ -94,7 +94,7 @@ def _get_clean_adata(filtered_f, sel_run, rowdata_f, coldata_f, sub_cols ):
   var_df = (pl.DataFrame({"ensembl_id": adata.var_names})
     .join(feats_dt, on="ensembl_id", how="left")
   )
-  adata.var = var_df.to_pandas().set_index("gene_id")
+  adata.var = var_df.to_pandas().set_index("gene_id", drop = False)
   
   # filter cells and add cell metadata
   batch_cols = pl.read_csv(coldata_f).filter(pl.col("cell_id").is_in(sub_cols))
@@ -103,7 +103,7 @@ def _get_clean_adata(filtered_f, sel_run, rowdata_f, coldata_f, sub_cols ):
   obs_df = (pl.DataFrame({"cell_id": adata.obs_names})
     .join(batch_cols, on = "cell_id", how = 'left')
   )
-  adata.obs = obs_df.to_pandas().set_index('cell_id')
+  adata.obs = obs_df.to_pandas().set_index('cell_id', drop = False)
   
   return adata
 

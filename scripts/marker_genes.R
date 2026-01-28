@@ -91,7 +91,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
 
   # make pseudobulks for selected clusters for each sample
   message('    making pseudobulk counts for individual samples')
-  batches     = int_dt[[ batch_var ]] %>% unique() %>% as.character
+  batches      = int_dt[[ batch_var ]] %>% unique() %>% as.character
   h5ad_paths   = yaml::read_yaml(h5ads_yaml_f)
   assert_that( all(batches %in% names(h5ad_paths)) )
 
@@ -166,10 +166,10 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
   return(pb)
 }
 
-.make_one_zoom_pseudobulk <- function(sel_b, sce_paths, int_dt, batch_var, cl_var, keep_cls, agg_fn) {
+.make_one_zoom_pseudobulk <- function(sel_b, h5ad_paths, int_dt, batch_var, cl_var, keep_cls, agg_fn) {
   message(sel_b)
-  sce_f       = sce_paths[[sel_b]]
-  tmp_sce     = readRDS(sce_f)
+  h5ad_f       = h5ad_paths[[sel_b]]
+  tmp_sce      = readH5AD(h5ad_f)
   smpl_int_dt = copy(int_dt) %>% .[ get(batch_var) == sel_b ]
   assert_that(all(smpl_int_dt$cell_id %in% colnames(tmp_sce)))
   

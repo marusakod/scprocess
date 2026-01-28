@@ -437,13 +437,15 @@ Additional parameters include:
 
 * `name`: name of cell subset to be analysed. 
 * `labels_source`: specifies how a cell subset is defined (required). Options include:
-    - `xgboost`: labels assigned by the {{sc}} XGBoost classifier (using rule `label_celltypes`)
+    - `scprocess`: labels assigned by the {{sc}} XGBoost classifier (using rule `label_celltypes`)
     - `celltypist`: labels assigned by `Celltypist`(using the rule `label_celltypes`)
     - `clusters`: labels based on clustering results obtained with {{sc}}
     - `custom`: user-defined cell type annotations
+* `model`: required if `labels_source` is `scprocess` or `celltypist?`. 
 * `sel_labels`: a list of all labels that define cell types/clusters to be included in subclustering (required).
 + `labels_col`: name of column that contains cell type/cluster labels. **Where can that column be found?**
-* `save_subset_sces`: whether to create `SingleCellExperiment` objects containing cells that have been assigned one of the values in `sel_labels`.
+* `save_subset_sces`: whether to create `SingleCellExperiment` objects containing cells that have been assigned one of the values in `sel_labels`; default is `false`.
+* `save_subset_anndata`: whether to create H5AD files containing cells that have been assigned one of the values in `sel_labels`; defaults is `true`.
 * `custom_labels_f`: required if `labels_source` is set to `custom`; path to CSV file with columns `sample_id`, `cell_id` and `label`.
 
 

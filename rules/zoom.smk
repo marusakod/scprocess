@@ -81,17 +81,25 @@ zoom_mkr_report_outs = [
   )
 ]
 
-zooms_to_save = [ zoom_name for zoom_name in ZOOMS if ZOOM_PARAMS[zoom_name]['zoom']['save_subset_sces'] ]
+zooms_to_save_sce     = [ zoom_name for zoom_name in ZOOMS if ZOOM_PARAMS[zoom_name]['zoom']['save_subset_sces']]
+zooms_to_save_anndata = [ zoom_name for zoom_name in ZOOMS if ZOOM_PARAMS[zoom_name]['zoom']['save_subset_anndata']]
 
-zoom_sce_outs = (
-  expand(
-    '%s/{zoom_name}/sce_objects/sce_cells_clean_{zoom_name}_{batch}_%s_%s.rds' % \
-    (zoom_dir, FULL_TAG, DATE_STAMP),
-    zoom_name = zooms_to_save,
-    batch     = BATCHES
-  ) if len(zooms_to_save) > 0 else []
-)
+ZOOM_OUT_MAP = {}
+for name in ZOOMS:
+  ZOOM_OUT_MAP[name] = {}
+  for b in BATCHES:
+    ZOOM_OUT_MAP[name][b] = {}
+    if name in zooms_to_save_sce:
+      ZOOM_OUT_MAP[name][b]["sce"]   = f"{zoom_dir}/{name}/sce_objects/sce_cells_clean_{name}_{b}_{FULL_TAG}_{DATE_STAMP}.rds"
+    if name in zooms_to_save_anndata:
+      ZOOM_OUT_MAP[name][b]["adata"] = f"{zoom_dir}/{name}/anndata_objects/anndata_cells_clean_{name}_{b}_{FULL_TAG}_{DATE_STAMP}.h5ad"
 
+zoom_all_subset_fs = [
+  path 
+  for name_dict in ZOOM_OUT_MAP.values() 
+  for b_dict in name_dict.values() 
+  for path in b_dict.values()
+]
 
 rule zoom:
   input:
@@ -117,8 +125,8 @@ rule zoom:
       (zoom_dir, FULL_TAG, DATE_STAMP), zoom_name = ZOOMS),
     # zoom marker genes, fgsea and html report
     zoom_mkr_report_outs, 
-    # zoom sce subsets (optional)
-    zoom_sce_outs
+    # zoom sce and anndata subsets (optional)
+    zoom_all_subset_fs
 
 
 localrules: zoom_make_tmp_pb_cells_df, zoom_make_hvg_df, zoom_merge_group_mean_var, zoom_merge_group_std_var_stats, zoom_merge_stats_for_std_variance
@@ -651,7 +659,7 @@ rule zoom_run_integration:
 
 rule zoom_run_marker_genes:
   input:
-    sces_yaml_f    = f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
+    h5ads_yaml_f   = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
     integration_f  = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
     pb_f      = f'{zoom_dir}/{{zoom_name}}/pb_{FULL_TAG}_{{mkr_sel_res}}_{DATE_STAMP}.rds',
@@ -678,7 +686,7 @@ rule zoom_run_marker_genes:
   shell: """
     Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); calculate_marker_genes(
       integration_f = '{input.integration_f}', 
-      sces_yaml_f   = '{input.sces_yaml_f}',
+      h5ads_yaml_f  = '{input.h5ads_yaml_f}',
       pb_f          = '{output.pb_f}',
       mkrs_f        = '{output.mkrs_f}',
       pb_hvgs_f     = '{output.pb_hvgs_f}',
@@ -731,45 +739,44 @@ rule zoom_run_fgsea:
       n_cores       =  {threads})"
     """
 
-
-rule zoom_make_subset_sces:
+rule zoom_make_subsets:
   input:
     integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
-    sces_yaml_f   = f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
+    h5ads_yaml_f  = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
   output:
-    clean_sce_f = f'{zoom_dir}/{{zoom_name}}/sce_objects/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds'
+    f"{zoom_dir}/{{zoom_name}}/{{obj_type}}_objects/{{prefix}}_cells_clean_{{zoom_name}}_{{batch}}_{FULL_TAG}_{DATE_STAMP}.{{ext}}"
   params:
-    batch_var       = BATCH_VAR,
-    zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
-    zoom_lbls_col   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
-    zoom_lbls       = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'])
+    batch_var     = BATCH_VAR,
+    zoom_lbls_f   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
+    zoom_lbls_col = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
+    zoom_lbls     = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels']),
+    save_sce      = lambda wildcards: "TRUE" if wildcards.zoom_name in zooms_to_save_sce else "FALSE",
+    save_adata    = lambda wildcards: "TRUE" if wildcards.zoom_name in zooms_to_save_anndata else "FALSE",
+    sce_path      = lambda wildcards: ZOOM_OUT_MAP[wildcards.zoom_name][wildcards.batch].get("sce", ""),
+    adata_path    = lambda wildcards: ZOOM_OUT_MAP[wildcards.zoom_name][wildcards.batch].get("adata", "")
   threads: 1
-  retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
-      'zoom_make_subset_sces', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
-      'zoom_make_subset_sces', 'time', attempt)
-  benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_zoom/zoom_make_subset_sces_{{zoom_name}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
-  conda: 
-    '../envs/rlibs.yaml'
-  shell: """
+    mem_mb  = lambda w, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_make_subsets', 'memory', attempt),
+    runtime = lambda w, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_make_subsets', 'time', attempt)
+  conda: '../envs/rlibs.yaml'
+  shell:"""
     Rscript -e "source('scripts/zoom.R');
-    make_subset_sces(
+    make_subset_objects(
       sel_b         = '{wildcards.batch}',
       batch_var     = '{params.batch_var}',
       smpl_stats_f  = '{input.smpl_stats_f}',
-      sces_yaml_f   = '{input.sces_yaml_f}',
+      h5ads_yaml_f  = '{input.h5ads_yaml_f}',
       subset_f      = '{params.zoom_lbls_f}',
       subset_col    = '{params.zoom_lbls_col}',
       subset_str    = '{params.zoom_lbls}',
       integration_f = '{input.integration_f}',
-      clean_sce_f   = '{output.clean_sce_f}'
+      save_sce      = {params.save_sce},
+      subset_sce_f  = '{params.sce_path}',
+      save_adata    = {params.save_adata},
+      subset_h5ad_f = '{params.adata_path}'
     )"
     """
-
 
 # render_html_zoom
 rule render_html_zoom:

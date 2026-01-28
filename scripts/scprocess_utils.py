@@ -591,7 +591,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config, scdata_dir):
     labels_f      = f"output/{SHORT_TAG}_integration/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz"
 
   # if using xgboost or celltypist, check those things
-  elif zoom_config['zoom']['labels_source'] in ['celltypist', 'xgboost']:
+  elif zoom_config['zoom']['labels_source'] in ['celltypist', 'scprocess']:
     labeller      = zoom_config['zoom']['labels_source']
     model         = zoom_config['zoom']['model']
     labels_f      = f"output/{SHORT_TAG}_label_celltypes/labels_{labeller}_model_{model}_{FULL_TAG}_{DATE_STAMP}.csv.gz"
