@@ -130,6 +130,7 @@ rule all:
       # doublet id
       f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
       ], run =  RUNS),
+    f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv', 
     # ambient sample statistics
     f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     # demultiplexing
@@ -195,6 +196,7 @@ rule mapping:
       f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz',
       f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml'
       ], run = RUNS),
+    f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv',
     f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
     f'{docs_dir}/{SHORT_TAG}_mapping.html'
 

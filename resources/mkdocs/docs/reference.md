@@ -301,12 +301,12 @@ This is an example config file for {{sc}} with all parameters and their default 
 * `date_stamp`: start date of the analysis, formatted as `"YYYY-MM-DD"`.
 * `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1` and `_R2`strings and should not be integers.
 * `species`: must match one of the values in the `genome_name` column of `index_parameters.csv` (created by `scsetup`).
-* `tenx_chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).
 
 #### Optional parameters
 
 ##### project
 
+* `tenx_chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).
 * `metadata_vars`: A list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
 * `custom_sample_params`: YAML file with optional custom parameters for each pool or sample (custom `tenx_chemistry`, custom mapping, custom ambient / cellbender and custom qc parameters can be specified for each sample). Example:
 

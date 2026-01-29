@@ -7,13 +7,14 @@ import polars as pl
 import os
 from math import ceil
 
-# mem_mb        = lambda wildcards, attempt: attempt * config['resources']['gb_run_mapping'] * MB_PER_GB
-# Attempt dynamic memory based on size of R1 fastq file, but at least 32GB. Currently set to 4x size of R1 file, usually in the range of 10-15 GB.
+localrules: collect_chemistry_stats
+
 rule run_mapping:
   params:
     demux_type    = config['multiplexing']['demux_type'],
     af_home_dir   = config['mapping']['alevin_fry_home'],
     af_index_dir  = config['mapping']['af_index_dir'],
+    wl_lu_f       = config['mapping']['wl_lu_f'],
     af_chemistry  = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["af_chemistry"],
     exp_ori       = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["expected_ori"],
     whitelist_f   = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["whitelist_f"],
@@ -26,7 +27,8 @@ rule run_mapping:
     fry_dir       = directory(f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/'),
     mtx_f         = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
     cols_f        = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
-    rows_f        = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt'
+    rows_f        = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
+    chem_stats_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml'
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_mapping/run_mapping_{{run}}_{DATE_STAMP}.benchmark.txt'
   threads: config['resources']['n_run_mapping']
@@ -43,6 +45,14 @@ rule run_mapping:
       ml arvados
       arv-env arkau
     fi
+    
+    # get optional flags
+    if [[ "{params.af_chemistry}" != "none" ]]; then
+      OPT_ARGS+=(--tenx_chemistry "{params.af_chemistry}")
+      OPT_ARGS+=(--exp_ori "{params.exp_ori}")
+      OPT_ARGS+=(--whitelist_f "{params.whitelist_f}")
+    fi
+
     # run mapping
     python3 scripts/mapping.py {wildcards.run} \
       --af_dir          {af_dir} \
@@ -54,9 +64,8 @@ rule run_mapping:
       --R2_fs           {params.R2_fs} \
       --threads         {threads} \
       --af_index_dir    {params.af_index_dir} \
-      --tenx_chemistry  {params.af_chemistry} \
-      --exp_ori         {params.exp_ori} \
-      --whitelist_f     {params.whitelist_f}
+      --wl_lu_f         {params.wl_lu_f} \
+      "${{OPT_ARGS[@]}}"
     """
 
 
@@ -102,4 +111,27 @@ rule save_alevin_to_h5:
         low_count_thr = '{params.low_count_thr}'
       )"
     """
+
+rule collect_chemistry_stats:
+  input:
+    chem_stats_fs  = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml', run = RUNS)
+  output:
+    chem_stats_merged_f = f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv'
+  run:
+    rows = []
+        
+    for f in input.chem_stats_fs:
+      with open(f, "r") as stream:
+        data = yaml.safe_load(stream)
+        rows.append(data)
+    
+    chem_stats_dt = pl.from_dicts(rows)
+    col_ord = ["run", "selected_tenx_chemistry", "selected_af_chemistry", 
+      "selected_ori", "selected_whitelist", "selected_whitelist_overlap", 
+      "selected_translation_f", "n_cells_fw", "n_cells_rc"]
+   
+    chem_stats_dt =chem_stats_dt.select(col_ord)
+    chem_stats_dt.write_csv(output.chem_stats_merged_f)
+    
+
 
