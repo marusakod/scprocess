@@ -4,7 +4,7 @@ def get_run_for_one_batch(batch, RUNS_TO_BATCHES):
   sel_run   = [ run for run, run_batches in RUNS_TO_BATCHES.items() if batch in run_batches ]
   return sel_run
 
-localrules: make_clean_sce_paths_yaml
+localrules: make_clean_h5ad_paths_yaml
 
 rule run_integration:
   input:
