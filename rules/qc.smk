@@ -231,6 +231,8 @@ rule merge_qc:
     qc_df_all   = pl.concat(qc_df_ls)
     
     metadata_schema = pl.read_csv(params.metadata_f).schema
+    metadata_schema["sum"] = pl.Float64
+    metadata_schema["total"] = pl.Float64
     cols_df_ls  = [ pl.read_csv(f, schema_overrides=metadata_schema) for f in input.coldata_fs if os.path.getsize(f) > 0 ]
     cols_df_all = pl.concat(cols_df_ls)
 
