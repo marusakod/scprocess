@@ -45,7 +45,7 @@ rule run_mapping_hto:
   output:
     fry_dir       = directory(f'{af_dir}/af_{{run}}/hto/af_quant/'),
     rad_f         = temp(f'{af_dir}/af_{{run}}/hto/af_map/map.rad'),
-    collate_rad_f = temp(f'{af_dir}/af_{{run}}/hto/af_quant/map.collated.rad'), 
+    collate_rad_f = temp(f'{af_dir}/af_{{run}}/hto/af_quant/map.collated.rad'),
     mtx_f         = f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat.mtx',
     cols_f        = f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat_cols.txt',
     rows_f        = f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat_rows.txt'

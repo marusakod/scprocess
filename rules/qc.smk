@@ -118,7 +118,8 @@ rule make_qc_thresholds_csv:
     qc_max_splice = config['qc']['qc_max_splice'],
     qc_min_cells  = config['qc']['qc_min_cells'],
     custom_f      = [config['project']['custom_sample_params'] if 'custom_sample_params' in config['project'] else None],
-    batch_var     = BATCH_VAR
+    batch_var     = BATCH_VAR,
+    batches       = BATCHES
   run:
     # make polars dataframe from dictionary of parameters
     rows_data   = []

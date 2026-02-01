@@ -440,7 +440,7 @@ def _check_hvg_parameters(config):
     exc_f       = pathlib.Path(config['hvg']['hvg_exclude_from_file'])
     if not exc_f.is_file():
       raise FileNotFoundError("file specified in 'hvg_exclude_from_file' does not exist")
-    
+
     # check file has correct columns
     exc_df      = pl.read_csv(exc_f)
     if not ((exc_df.columns == ['gene_id']) | (exc_df.columns == ['symbol'])):
@@ -451,7 +451,7 @@ def _check_hvg_parameters(config):
     exc_vals    = exc_df[ gene_col ]
     if exc_vals.n_unique() < len(exc_vals):
       raise ValueError("duplicated values found in file specified in 'hvg_exclude_from_file'")
-    
+
     # check values are in relevant ref genome
     gtf_df      = pl.read_csv(config['mapping']['af_gtf_dt_f'], separator = "\t")
     all_vals    = gtf_df[ gene_col ]
