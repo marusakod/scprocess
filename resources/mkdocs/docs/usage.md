@@ -47,7 +47,6 @@ project:
   sample_metadata: /path/to/metadata.csv
   species: human_2024
   date_stamp: "2025-01-01"
-  tenx_chemistry: 3v3
 ```
 
 ### 4. Run the analysis

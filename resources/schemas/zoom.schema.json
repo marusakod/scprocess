@@ -10,12 +10,13 @@
       "required": ["name", "labels_source", "sel_labels", "labels_col"],
       "properties": {
         "name":             { "type": "string" },
-        "labels_source":    { "type": "string", "enum": ["clusters", "celltypist", "xgboost", "custom"] },
+        "labels_source":    { "type": "string", "enum": ["clusters", "celltypist", "scprocess", "custom"] },
         "model":            { "type": "string" },
         "sel_labels":       { "type": "array", "items": { "type": "string" } },
         "labels_col":       { "type": "string" },
         "custom_labels_f":  { "type": "string" },
-        "save_subset_sces": { "type": "boolean", "default": true }
+        "save_subset_sces":    { "type": "boolean", "default": false },
+        "save_subset_anndata": { "type": "boolean", "default": true}
       },
       "allOf": [
         {
@@ -28,7 +29,7 @@
           }
         },
         {
-          "if": {"properties": {"labels_source": { "enum": ["celltypist", "xgboost"] } } },
+          "if": {"properties": {"labels_source": { "enum": ["celltypist", "scprocess"] } } },
           "then": {
             "allOf": [
               { "required": ["model"] }, 

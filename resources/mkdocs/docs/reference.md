@@ -11,13 +11,13 @@ The command requires a configuration file named `scprocess_setup.yaml` located i
 genome:
   tenx:
     - name: human_2024
-      decoys: True
-      rrnas: True
+      decoys: true
+      rrnas: true
   custom:
     - name: custom_genome_name
       fasta: /path/to/genome.fa
       gtf: /path/to/genes.gtf
-      decoys: True
+      decoys: true
       mito_str: "^mt-"
     - name: custom_genome_name2
       index_dir: /path/to/prebuild/alevin/index
@@ -37,7 +37,7 @@ Names and specifications for custom references should be listed in the `custom` 
 
 Optional parameters for both `tenx` and `custom` references are:
 
-* `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `True` for all genomes.
+* `decoys`: whether or not poison k-mer information should be inserted into the index. This parameter is optional. If not specified, it defaults to `true` for all genomes.
 
 Optional paramater for `tenx` references is:
 
@@ -146,7 +146,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       qc_max_splice: 0.75
       qc_min_cells: 100
       dbl_min_feats: 100
-      exclude_mito: True
+      exclude_mito: true
     pb_empties:
       ambient_genes_logfc_thr: 0
       ambient_genes_fdr_thr: 0.01
@@ -155,7 +155,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       hvg_n_hvgs: 2000
       hvg_exclude_ambient_genes: True
       hvg_exclude_from_file:
-      hvg_chunk_size:
+      hvg_chunk_size: 2000
       hvg_metadata_split_var:
     integration:
       int_embedding: harmony
@@ -164,6 +164,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       int_n_dims: 50
       int_dbl_res: 4
       int_dbl_cl_prop: 0.5
+      int_sce_outs: false
       int_res_ls: [0.1, 0.2, 0.5, 1, 2]
     marker_genes:
       mkr_sel_res: 0.2
@@ -173,18 +174,18 @@ This is an example config file for {{sc}} with all parameters and their default 
       mkr_min_cpm_mkr: 50
       mkr_min_cpm_go: 1
       mkr_max_zero_p: 0.5
-      mkr_do_gsea: True
+      mkr_do_gsea: true
       mkr_gsea_cut: 0.1
       mkr_custom_genesets:
       - name:
         file:
     label_celltypes:
-      labeller:
-      model:
-      hi_res_cl: "RNA_snn_res.2"
-      min_pred: 0.8
-      min_cl_prop: 0.5
-      min_cl_size: 100
+      - labeller:
+        model:
+        hi_res_cl: "RNA_snn_res.2"
+        min_pred: 0.8
+        min_cl_prop: 0.5
+        min_cl_size: 100
     zoom:
     resources:
       retries: 3
@@ -238,7 +239,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       qc_max_splice: 0.75
       qc_min_cells: 100
       dbl_min_feats: 100
-      exclude_mito: True
+      exclude_mito: true
     pb_empties:
       ambient_genes_logfc_thr: 0
       ambient_genes_fdr_thr: 0.01
@@ -247,6 +248,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       hvg_n_hvgs: 2000
       hvg_exclude_ambient_genes: True
       hvg_exclude_from_file: /path/to/file/with/genes/to/exclude
+      hvg_chunk_size: 2000
       hvg_metadata_split_var: var1
     integration:
       int_embedding: harmony
@@ -255,6 +257,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       int_n_dims: 50
       int_dbl_res: 4
       int_dbl_cl_prop: 0.5
+      int_sce_outs: false
       int_res_ls: [0.1, 0.2, 0.5, 1, 2]
     marker_genes:
       mkr_sel_res: 0.2
@@ -264,18 +267,18 @@ This is an example config file for {{sc}} with all parameters and their default 
       mkr_min_cpm_mkr: 50
       mkr_min_cpm_go: 1
       mkr_max_zero_p: 0.5
-      mkr_do_gsea: True
+      mkr_do_gsea: true
       mkr_gsea_cut: 0.1
       mkr_custom_genesets:
       - name: mouse_brain
         file: /path/to/file/with/marker/genes.csv
     label_celltypes:
-      labeller: "scprocess"
-      model: "human_cns"
-      hi_res_cl: "RNA_snn_res.2"
-      min_pred: 0.8
-      min_cl_prop: 0.5
-      min_cl_size: 100
+      - labeller: "scprocess"
+        model: "human_cns"
+        hi_res_cl: "RNA_snn_res.2"
+        min_pred: 0.8
+        min_cl_prop: 0.5
+        min_cl_size: 100
     zoom:
       - /path/to/cell_subset_1_zoom_params.yaml
       - /path/to/cell_subset_2_zoom_params.yaml
@@ -300,12 +303,12 @@ This is an example config file for {{sc}} with all parameters and their default 
 * `date_stamp`: start date of the analysis, formatted as `"YYYY-MM-DD"`.
 * `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1` and `_R2`strings and should not be integers.
 * `species`: must match one of the values in the `genome_name` column of `index_parameters.csv` (created by `scsetup`).
-* `tenx_chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).
 
 #### Optional parameters
 
 ##### project
 
+* `tenx_chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).
 * `metadata_vars`: A list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
 * `custom_sample_params`: YAML file with optional custom parameters for each pool or sample (custom `tenx_chemistry`, custom mapping, custom ambient / cellbender and custom qc parameters can be specified for each sample). Example:
 
@@ -390,7 +393,7 @@ sample_id:
 * `hvg_n_hvgs`: number of HVGs to use for PCA
 * `hvg_exclude_ambient_genes`: if `True`, genes enriched in empty droplets relative to cells will be excluded from highly variable genes selection.
 * `hvg_exclude_from_file`: path to CSV file with genes to be excluded from HVGs. Should be absolute or relative to `proj_dir`. File should contain one column, named either `gene_id` or `symbol`. Values in the column should all be present in reference genome.
-
+* `hvg_chunk_size`: Number of genes to use for each chunked matrix.
 ##### integration
 
 * `int_embedding`: which dimensionality reduction method to use for clustering and UMAP, options: `pca` (no batch correction), `harmony` (batch correction). 
@@ -399,6 +402,7 @@ sample_id:
 * `int_n_dims`: number of principal components to use for data integration.
 * `int_dbl_res`: clustering resolution for identification of additional doublets.
 * `int_dbl_cl_prop`: threshold for the proportion of doublets within a cluster. Clusters where the proportion of doublets exceeds this value will be excluded.
+* `int_sce_outs`: if `true` H5AD outputs will be converted to `SingleCellExperiment` objects and stored ad RDS files.
 * `int_res_ls`: list of resolution values to be used for clustering.
 
 ##### marker_genes
@@ -436,13 +440,15 @@ Additional parameters include:
 
 * `name`: name of cell subset to be analysed. 
 * `labels_source`: specifies how a cell subset is defined (required). Options include:
-    - `xgboost`: labels assigned by the {{sc}} XGBoost classifier (using rule `label_celltypes`)
+    - `scprocess`: labels assigned by the {{sc}} XGBoost classifier (using rule `label_celltypes`)
     - `celltypist`: labels assigned by `Celltypist`(using the rule `label_celltypes`)
     - `clusters`: labels based on clustering results obtained with {{sc}}
     - `custom`: user-defined cell type annotations
+* `model`: required if `labels_source` is `scprocess` or `celltypist?`. 
 * `sel_labels`: a list of all labels that define cell types/clusters to be included in subclustering (required).
 + `labels_col`: name of column that contains cell type/cluster labels. **Where can that column be found?**
-* `save_subset_sces`: whether to create `SingleCellExperiment` objects containing cells that have been assigned one of the values in `sel_labels`.
+* `save_subset_sces`: whether to create `SingleCellExperiment` objects containing cells that have been assigned one of the values in `sel_labels`; default is `false`.
+* `save_subset_anndata`: whether to create H5AD files containing cells that have been assigned one of the values in `sel_labels`; defaults is `true`.
 * `custom_labels_f`: required if `labels_source` is set to `custom`; path to CSV file with columns `sample_id`, `cell_id` and `label`.
 
 
@@ -489,7 +495,8 @@ Additional parameters include:
     * `gb_create_hvg_matrix`: maximum memory required (in GB) for rule `create_hvg_matrix`.
     * `gb_create_doublets_hvg_matrix`: maximum memory required (in GB) for rule `create_doublets_hvg_matrix`.
     * `gb_run_integration`: maximum memory required (in GB) for rule `run_integration`.
-    * `gb_make_clean_sces`: maximum memory required (in GB) for rule `make_clean_sces`.
+    * `gb_make_clean_h5ads`: maximum memory required (in GB) for rule `make_clean_h5ads`.
+    * `gb_convert_h5ad_to_sce`: maximum memory required (in GB) for rule `convert_h5ad_to_sce`.
     * `gb_run_marker_genes`: maximum memory required (in GB) for rule `run_marker_genes`.
     * `gb_run_fgsea`: maximum memory required (in GB) for rule `run_fgsea`.
     * `gb_render_html_mapping`: maximum memory required (in GB) for rule `render_html_mapping`.
@@ -551,7 +558,8 @@ Additional parameters include:
     * `mins_create_hvg_matrix`: maximum runtime required (in minutes) for rule `create_hvg_matrix`.
     * `mins_create_doublets_hvg_matrix`: maximum runtime required (in minutes) for rule `create_doublets_hvg_matrix`.
     * `mins_run_integration`: maximum runtime required (in minutes) for rule `run_integration`.
-    * `mins_make_clean_sces`: maximum runtime required (in minutes) for rule `make_clean_sces`.
+    * `mins_make_clean_h5ads`: maximum runtime required (in minutes) for rule `make_clean_h5ads`.
+    * `mins_convert_h5ad_to_sce`: maximum runtime required (in minutes) for rule `convert_h5ad_to_sce`.
     * `mins_run_marker_genes`: maximum runtime required (in minutes) for rule `run_marker_genes`.
     * `mins_run_fgsea`: maximum runtime required (in minutes) for rule `run_fgsea`.
     * `mins_render_html_mapping`: maximum runtime required (in minutes) for rule `render_html_mapping`.

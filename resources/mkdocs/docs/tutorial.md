@@ -110,7 +110,6 @@ project:
   sample_metadata: data/metadata/
   species:
   date_stamp: "2025-01-01"
-  tenx_chemistry:
 ```
 
 In addition to setting values for the required parameters, we will include the optional `metadata_vars` and `custom_sets` parameters. The `metadata_vars` parameter allows us to specify additional metadata variables for visualization, while the `custom_sets` parameter enables us to provide a file containing a list of marker genes associated with different cell types expected in our dataset. In this case, we only need to specify the name of the marker gene file, as the corresponding file `mouse_brain.csv` already exists in the `$SCPROCESS_DATA_DIR/marker_genes` directory.
@@ -129,7 +128,6 @@ project:
   species: mouse_2024
   date_stamp: "2025-01-01"
   metadata_vars: [group]
-  tenx_chemistry: 3v3
 marker_genes:
   mkr_custom_genesets:
     - name: mouse_brain
@@ -186,7 +184,6 @@ project:
   species: mouse_2024
   date_stamp: "2025-01-01"
   metadata_vars: [group]
-  tenx_chemistry: 3v3
 marker_genes:
   custom_sets:
     - name: mouse_brain
@@ -328,7 +325,6 @@ project:
   sample_metadata: data/metadata/
   species:
   date_stamp: "2025-08-19"
-  tenx_chemistry:
 ```
 
 In addition to setting the parameters already present in the template configuration file, we must also define additional parameters specific to the multiplexed nature of the dataset. These key parameters are highlighted below:
@@ -344,7 +340,6 @@ project:
   sample_metadata: data/metadata/multiplexed_test_project_metadata.csv
   species: mouse_2024
   date_stamp: "2025-01-01"
-  tenx_chemistry: 3v3
 multiplexing:
   demux_type: hto
   fastq_dir: data/fastqs/hto

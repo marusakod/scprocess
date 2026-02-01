@@ -95,6 +95,12 @@ hto_sce_fs = expand(
 hto_rmd_f  = (f'{rmd_dir}/{SHORT_TAG}_demultiplexing.Rmd') if config['multiplexing']['demux_type'] == "hto" else []
 hto_html_f = (f'{docs_dir}/{SHORT_TAG}_demultiplexing.html') if config['multiplexing']['demux_type'] == "hto" else []
 
+# sce outputs (optional)
+clean_sce_fs = expand(
+  f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds',
+  batch = BATCHES
+) if config['integration']['int_sce_outs'] else []
+
 # fgsea outputs (optional)
 fgsea_outs = [
   f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_bp_{DATE_STAMP}.csv.gz',
@@ -124,9 +130,9 @@ rule all:
       # doublet id
       f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
       ], run =  RUNS),
+    f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv', 
     # ambient sample statistics
     f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
-    #f'{amb_dir}/paths_h5_filtered_{FULL_TAG}_{DATE_STAMP}.csv',
     # demultiplexing
     hto_sce_fs,
     # qc
@@ -146,11 +152,11 @@ rule all:
     f'{hvg_dir}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5', 
     f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5',
-    #f'{hvg_dir}/chunked_counts_h5_sizes_{FULL_TAG}_{DATE_STAMP}.csv', 
     # integration
     f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    expand(f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds', batch = BATCHES),
-    f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml', 
+    expand(f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad', batch = BATCHES),
+    clean_sce_fs,
+    f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml', 
     # marker genes
     f'{mkr_dir}/pb_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.rds',
     f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
@@ -190,6 +196,7 @@ rule mapping:
       f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz',
       f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml'
       ], run = RUNS),
+    f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv',
     f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
     f'{docs_dir}/{SHORT_TAG}_mapping.html'
 
@@ -268,8 +275,9 @@ rule hvg:
 
 rule integration:
   input:
-    expand(f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds', batch = BATCHES),
-    f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml', 
+    expand(f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad', batch = BATCHES),
+    clean_sce_fs, 
+    f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml', 
     f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
     f'{docs_dir}/{SHORT_TAG}_mapping.html',

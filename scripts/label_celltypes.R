@@ -13,6 +13,7 @@ suppressPackageStartupMessages({
   library('patchwork')
   library('forcats')
   library('readxl')
+  library('zellkonverter')
 
   library('future')
   library('SingleCellExperiment')
@@ -30,23 +31,9 @@ suppressPackageStartupMessages({
   library('yaml')
 })
 
-save_sce_to_mtx <- function(sces_yaml_f, sel_batch, mtx_f, cells_f, genes_f) {
-  # load sce
-  sce_f     = yaml::read_yaml(sces_yaml_f)[[ sel_batch ]]
-  if (!file.exists(sce_f))
-    stop("sce for ", sel_batch, " does not exist")
-  sce       = readRDS(sce_f)
-
-  # save to matrix
-  writeMM( t(counts(sce)), file = mtx_f)
-  colData(sce) %>% as.data.frame %>% as.data.table %>% fwrite(file = cells_f)
-  rowData(sce) %>% as.data.frame %>% as.data.table %>% fwrite(file = genes_f)
-
-  return(NULL)
-}
 
 label_with_xgboost_one_batch <- function(sel_batch, batch_var, model_name, xgb_f, xgb_cls_f,
-  mtx_f, cells_f, genes_f, pred_f) {
+  adata_f, pred_f) {
   # check inputs
   assert_that( file.exists(xgb_f) )
 
@@ -55,10 +42,10 @@ label_with_xgboost_one_batch <- function(sel_batch, batch_var, model_name, xgb_f
   xgb_obj     = readRDS(xgb_f)
   xgb_cls_dt  = fread(xgb_cls_f)
   hvgs        = variable.names(xgb_obj)
-
+  
   # get values for these genes in new datasets
   message('  getting counts for HVGs')
-  counts_mat  = .get_counts_mat(cells_f, genes_f, mtx_f)
+  counts_mat  = .get_counts_mat(adata_f)
   hvg_mat     = .normalize_hvg_mat(counts_mat, hvgs)
 
   # predict for new data
@@ -77,44 +64,41 @@ label_with_xgboost_one_batch <- function(sel_batch, batch_var, model_name, xgb_f
   message('done.')
 }
 
-.get_counts_mat <- function(cells_f, genes_f, mtx_f) {
-  cells_dt    = cells_f %>% fread
-  genes_dt    = genes_f %>% fread %>% 
-    .[, gene_id := gene_id %>% str_replace("_ENSG", "-ENSG") ]
+.get_counts_mat <- function(adata_f) {
+  sce    = readH5AD(adata_f)
+  counts = assay(sce, 'X')
+  rownames(counts) = str_replace(rownames(counts), "_ENSG", "-ENSG")
 
-  counts_mat  = readMM(mtx_f)
-
-  rownames(counts_mat) = cells_dt$cell_id
-  colnames(counts_mat) = genes_dt$gene_id
-
-  return(counts_mat)  
+  return(counts)  
 }
 
 .normalize_hvg_mat = function(counts_mat, hvgs, scale_f = 10000) {
-  if (!all(hvgs %in% colnames(counts_mat))) {
+  
+  if (!all(hvgs %in% rownames(counts_mat))) {
     warning("not all HVGs present")
-    missing_gs  = setdiff(hvgs, colnames(counts_mat))
-    n_rows      = nrow(counts_mat)
-    missing_mat = matrix(0, n_rows, length(missing_gs))
-    colnames(missing_mat) = missing_gs
-    rownames(missing_mat) = rownames(counts_mat)
+    missing_gs  = setdiff(hvgs, rownames(counts_mat))
+    n_cols      = ncol(counts_mat)
+    missing_mat = matrix(0, length(missing_gs), n_cols)
+    rownames(missing_mat) = missing_gs
+    colnames(missing_mat) = colnames(counts_mat)
 
     # convert to sparse, add to counts
     missing_mat = as(missing_mat, 'TsparseMatrix')
-    counts_mat  = cbind(counts_mat, missing_mat)
+    counts_mat  = rbind(counts_mat, missing_mat)
   }
 
-  hvg_mat   = counts_mat[, hvgs]
-  lib_sizes = rowSums(counts_mat)
+  hvg_mat   = counts_mat[hvgs, ]
+  lib_sizes = colSums(counts_mat)
 
-  norm_mat  = sweep(hvg_mat, 1, lib_sizes, FUN = "/")
+  norm_mat  = sweep(hvg_mat, 2, lib_sizes, FUN = "/")
   norm_mat  = norm_mat * scale_f
-  log_mat   = log1p(norm_mat)
+  log_mat   = log1p(norm_mat) %>% t()
 
   return(log_mat)
 }
 
 .predict_on_new_data <- function(xgb_obj, allow_dt, hvg_mat, min_pred, chunk_size = 10000) {
+  browser()
   # predict on chunks of cells for efficiency
   num_chunks = ceiling(nrow(hvg_mat/chunk_size))
   idx_vec = rep(1:num_chunks, each = chunk_size, length.out = nrow(hvg_mat))

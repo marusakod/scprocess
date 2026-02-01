@@ -4,7 +4,7 @@ def get_run_for_one_batch(batch, RUNS_TO_BATCHES):
   sel_run   = [ run for run, run_batches in RUNS_TO_BATCHES.items() if batch in run_batches ]
   return sel_run
 
-localrules: make_clean_sce_paths_yaml
+localrules: make_clean_h5ad_paths_yaml
 
 rule run_integration:
   input:
@@ -73,67 +73,77 @@ def int_get_filt_counts_f(run):
     return f'{amb_dir}/ambient_{run}/uncorrected_{run}_{DATE_STAMP}_filtered.h5'
 
 # rule to create sce objects without any doublets (and delete temporary sce objects in the qc directory)
-rule make_clean_sces: 
+rule make_clean_h5ads: 
   input:
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     h5_paths_f    = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
     h5_filt_fs    = [int_get_filt_counts_f(run) for run in RUNS],
     coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    rowdata_f     = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
   output:
-    clean_sce_f   = f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds'
+    clean_h5ad_f  = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad'
   params:
     sel_run       = lambda wildcards: get_run_for_one_batch(wildcards.batch, RUNS_TO_BATCHES),
-    gtf_dt_f      = config['mapping']['af_gtf_dt_f'],
     run_var       = RUN_VAR,
-    batch_var     = BATCH_VAR,
-    mito_str      = config['mapping']['af_mito_str'],
-    exclude_mito  = config['qc']['exclude_mito']
+    batch_var     = BATCH_VAR
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_clean_sces', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_clean_sces', 'time', attempt)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_clean_h5ads', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_clean_h5ads', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_integration/make_clean_sces_{{batch}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/{SHORT_TAG}_integration/make_clean_h5ads_{{batch}}_{DATE_STAMP}.benchmark.txt'
   conda:
-    '../envs/rlibs.yaml'
+    '../envs/integration.yaml'
   shell: """
-    Rscript -e "source('scripts/utils.R'); source('scripts/SampleQC.R');
-      make_clean_sces(
-        sel_b         = '{wildcards.batch}',
-        sel_run       = '{params.sel_run}',
-        integration_f = '{input.integration_f}',
-        h5_paths_f    = '{input.h5_paths_f}',
-        coldata_f     = '{input.coldata_f}',
-        gtf_dt_f      = '{params.gtf_dt_f}',
-        run_var       = '{params.run_var}',
-        batch_var     = '{params.batch_var}',
-        mito_str      = '{params.mito_str}',
-        exclude_mito  = '{params.exclude_mito}',
-        clean_sce_f   = '{output.clean_sce_f}'
-      )"
+    python3 scripts/make_clean_h5ad.py \
+      {wildcards.batch} \
+      {params.sel_run} \
+      {input.integration_f} \
+      {input.h5_paths_f} \
+      {input.coldata_f} \
+      {input.rowdata_f} \
+      {params.run_var} \
+      {params.batch_var} \
+      {output.clean_h5ad_f}
     """
 
 
 # make a yaml with all clean sce file paths
-rule make_clean_sce_paths_yaml:
+rule make_clean_h5ad_paths_yaml:
   input:
-    clean_sce_fs  = expand(f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds', batch = BATCHES)
+    clean_h5ad_fs  = expand(f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad', batch = BATCHES)
   output:
-    sces_yaml_f   = f'{int_dir}/sce_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
+    h5ads_yaml_f   = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
   run:
     # split paths and batch names
-    fs = [f"{int_dir}/sce_cells_clean_{batch}_{FULL_TAG}_{DATE_STAMP}.rds" for batch in BATCHES]
-    
-    # check that all files exist
-    for f in fs:
-      if not os.path.isfile(f):
-        raise FileNotFoundError(f"File {f} doesn't exist")
-
-    # create a dictionary
+    fs = [f"{int_dir}/anndata_cells_clean_{batch}_{FULL_TAG}_{DATE_STAMP}.h5ad" for batch in BATCHES]
     fs_dict = dict(zip(BATCHES, fs))
 
     # write to yaml
-    with open(output.sces_yaml_f, 'w') as f:
+    with open(output.h5ads_yaml_f, 'w') as f:
       yaml.dump(fs_dict, f, default_flow_style=False)
 
+
+rule convert_h5ad_to_sce: 
+  input:
+    clean_h5ad_f  = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad'
+  output:
+    clean_sce_f   = f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds'
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'convert_h5ad_to_sce', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'convert_h5ad_to_sce', 'time', attempt)
+  benchmark:
+    f'{benchmark_dir}/{SHORT_TAG}_integration/convert_h5ad_to_sce_{{batch}}_{DATE_STAMP}.benchmark.txt'
+  conda:
+    '../envs/rlibs.yaml'
+  shell:"""
+    Rscript -e "source('scripts/integration.R');
+    make_clean_sce_from_h5ad(
+      sel_batch  = '{wildcards.batch}', 
+      adata_f    = '{input.clean_h5ad_f}',
+      sce_f      = '{output.clean_sce_f}'
+    )"
+    """

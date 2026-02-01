@@ -377,6 +377,7 @@ def _check_mapping_parameters(config, scdata_dir):
   # get af index directory and check if exists
   config['mapping']['alevin_fry_home']  = scdata_dir / 'alevin_fry_home'
   config['mapping']['af_index_dir']     = scdata_dir / 'alevin_fry_home' / species
+  config['mapping']['wl_lu_f']          = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
   if not pathlib.Path(config['mapping']['af_index_dir']).is_dir():
     raise FileNotFoundError(f"alevin index for {species} doesn't exist")
   
@@ -618,7 +619,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config, scdata_dir):
     labels_f      = f"output/{SHORT_TAG}_integration/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz"
 
   # if using xgboost or celltypist, check those things
-  elif zoom_config['zoom']['labels_source'] in ['celltypist', 'xgboost']:
+  elif zoom_config['zoom']['labels_source'] in ['celltypist', 'scprocess']:
     labeller      = zoom_config['zoom']['labels_source']
     model         = zoom_config['zoom']['model']
     labels_f      = f"output/{SHORT_TAG}_label_celltypes/labels_{labeller}_model_{model}_{FULL_TAG}_{DATE_STAMP}.csv.gz"
@@ -729,8 +730,10 @@ def _get_fastqs(config, RUNS, is_hto = False):
     # get R1 and R2 files matching each run
     R1_regex      = rf".*{run}.*(_|\.)R1.*\.fastq\.gz"
     R1_fs         = [f for f in fastq_fs if re.match(R1_regex, f) ]
+    R1_fs         = sorted(R1_fs)
     R2_regex      = rf".*{run}.*(_|\.)R2.*\.fastq\.gz"
     R2_fs         = [f for f in fastq_fs if re.match(R2_regex, f) ]
+    R2_fs         = sorted(R2_fs)
 
     # find where
     wheres_R1     = [ wheres[i] for i,f in enumerate(fastq_fs) if re.match(R1_regex, f) ]
@@ -904,25 +907,27 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
   # get af chemistry and expected orientation
   if sample_chem in ['3v2', '5v1', '5v2']:
     af_chemistry = '10xv2' 
-  else: 
+  elif sample_chem in ['5v3', '3LT', '3v3', '3v4', 'multiome']:
     af_chemistry = '10xv3'
+  else:
+    af_chemistry = 'none'
 
   # get expected orientation
   if sample_chem in ['5v1', '5v2', '5v3']:
     expected_ori = 'rc'
-  else:
+  elif sample_chem in ['3LT', '3v2', '3v3', '3v4', "multiome"]:
     expected_ori = 'fw'
+  else:
+    expected_ori = 'none'
 
   # sort out whitelist file
-  wl_df_f     = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
-  wl_df       = pl.read_csv(wl_df_f)
-  wl_f        = wl_df.filter( pl.col('chemistry') == sample_chem )['barcodes_f'].item()
-  wl_trans_f  = wl_df.filter( pl.col('chemistry') == sample_chem )['translation_f'].item()
-  if type(wl_trans_f) == str:
-    whitelist_trans_f = scdata_dir / 'cellranger_ref' / wl_trans_f
+  if sample_chem == 'none':
+    whitelist_f        = 'none', 
   else:
-    whitelist_trans_f = None
-  whitelist_f = scdata_dir / 'cellranger_ref' / wl_f
+    wl_df_f     = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
+    wl_df       = pl.read_csv(wl_df_f)
+    wl_f        = wl_df.filter( pl.col('chemistry') == sample_chem )['barcodes_f'].item()
+    whitelist_f = scdata_dir / 'cellranger_ref' / wl_f
 
   # make dictionary for mapping
   mapping_dc  = {
@@ -932,8 +937,7 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
     "R1_fs_size_gb":      RNA_FQS[run_name]["R1_fs_size_gb"],
     "af_chemistry":       af_chemistry, 
     "expected_ori":       expected_ori, 
-    "whitelist_f":        whitelist_f, 
-    "whitelist_trans_f":  whitelist_trans_f,
+    "whitelist_f":        whitelist_f,
     "knee1":              knee1,
     "shin1":              shin1,
     "knee2":              knee2,
@@ -948,8 +952,7 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
       "R2_fs":              HTO_FQS[run_name]["R2_fs"],
       "R1_fs_size_gb":      HTO_FQS[run_name]["R1_fs_size_gb"],
       "af_chemistry":       af_chemistry, 
-      "whitelist_f":        whitelist_f,
-      "whitelist_trans_f":  whitelist_trans_f
+      "whitelist_f":        whitelist_f
     }
   else:
     multiplexing_dc   = {}
