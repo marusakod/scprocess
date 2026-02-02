@@ -693,7 +693,7 @@ def get_run_parameters(config, scprocess_data_dir):
   # load sample file, populate everything from config
   RUN_PARAMS  = {
     run_name: _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scprocess_data_dir, custom_run_params)
-    for run_name in RUNS
+    for run_name in sorted(RUNS)
   }
 
   return RUN_PARAMS, RUN_VAR
@@ -1018,7 +1018,7 @@ def get_batch_parameters(config, RUNS, scprocess_data_dir):
   # load sample file, populate everything from config
   BATCH_PARAMS = {
     batch_name: _get_batch_parameters_one_batch(batch_name, config, custom_batch_params)
-    for batch_name in BATCHES
+    for batch_name in sorted(BATCHES)
   }
 
   return BATCH_PARAMS, BATCH_VAR, SAMPLES
@@ -1065,24 +1065,30 @@ def get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR):
   else:
     # get sample_metadata, convert to dictionary
     sample_metadata = pl.read_csv(config['project']['sample_metadata'])
-    tmp_df          = sample_metadata.group_by("pool_id").agg(pl.col("sample_id").alias("sample_id_list"))
-    pool_vals       = tmp_df["pool_id"]
-    RUNS_TO_SAMPLES = { pool_id: tmp_df.filter(pl.col("pool_id") == pool_id)["sample_id_list"].to_list()[0] for pool_id in pool_vals }
+    tmp_df          = sample_metadata.sort(["pool_id", "sample_id"]).group_by("pool_id", maintain_order=True).agg(pl.col("sample_id").alias("sample_id_list"))
+    RUNS_TO_SAMPLES = { 
+      row["pool_id"]: row["sample_id_list"]
+      for row in tmp_df.to_dicts()
+      if row["pool_id"] in RUNS
+    }
+    # { pool_id: tmp_df.filter(pl.col("pool_id") == pool_id)["sample_id_list"].to_list()[0] for pool_id in pool_vals }
     
-    # filter out any RUNS that shouldn't be there
-    RUNS_TO_SAMPLES = { pool_id: sample_ids for pool_id, sample_ids in RUNS_TO_SAMPLES.items() if pool_id in RUNS }
+    # # filter out any RUNS that shouldn't be there
+    # RUNS_TO_SAMPLES = { pool_id: sample_ids for pool_id, sample_ids in RUNS_TO_SAMPLES.items() if pool_id in RUNS }
 
     # now choose for runs to batches
     if BATCH_VAR == "pool_id":
       # make dictionary if we can
       if not RUNS == BATCHES:
         raise ValueError("RUNS and BATCHES should be identical if 'int_batch_var' is 'pool_id'")
-      RUNS_TO_BATCHES = { s: [s] for s in BATCHES }
+      RUNS_TO_BATCHES = { s: [s] for s in sorted(BATCHES) }
 
     elif BATCH_VAR == "sample_id":
       # filter out any samples that shouldn't be there
       for pool_id in RUNS_TO_SAMPLES:
-        RUNS_TO_SAMPLES[pool_id] = [ sample_id for sample_id in RUNS_TO_SAMPLES[pool_id] if sample_id in BATCHES ]
+        filtered  = [s for s in RUNS_TO_SAMPLES[pool_id] if s in BATCHES]
+        RUNS_TO_SAMPLES[pool_id] = sorted(filtered)
+
       # duplicate for batches
       RUNS_TO_BATCHES = RUNS_TO_SAMPLES
 
