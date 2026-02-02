@@ -10,50 +10,6 @@ def get_conditional_fgsea_files(species, do_gsea):
     return {}
 
 
-
-rule render_html_index:
-  input:
-    html_reports  = glob.glob(f'{docs_dir}/{SHORT_TAG}*.html')
-  output:
-    rmd_f  = f"{rmd_dir}/index.Rmd",
-    html_f = f"{docs_dir}/index.html"
-  threads: 1
-  resources: 
-    mem_mb  = 2* MB_PER_GB, 
-    runtime = 2
-  params: 
-    your_name       = config['project']['your_name'],
-    affiliation     = config['project']['affiliation'],
-    proj_dir        = config['project']['proj_dir'],
-    short_tag       = SHORT_TAG, 
-    full_tag        = config['project']['full_tag'],
-    date_stamp      = config['project']['date_stamp'], 
-    mkr_sel_res     = config['marker_genes']['mkr_sel_res']
-  conda:
-    '../envs/rlibs.yaml'
-  shell:"""
-    # Template for the RMarkdown file
-    template_f=$(realpath resources/rmd_templates/index.Rmd.template)
-    rule="index"
-    rmd_f={rmd_dir}/index.Rmd
-
-    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
-    render_html(
-      rule_name       = '$rule', 
-      proj_dir        = '{params.proj_dir}', 
-      your_name       = '{params.your_name}', 
-      affiliation     = '{params.affiliation}',
-      docs_dir        = '{docs_dir}', 
-      short_tag       = '{params.short_tag}', 
-      full_tag        = '{params.full_tag}',  
-      date_stamp      = '{params.date_stamp}',
-      mkr_sel_res     = '{params.mkr_sel_res}', 
-      temp_f          = '$template_f',
-      rmd_f           = '{output.rmd_f}'
-    )"
-    """
-
-
 # rule render_html_mapping
 rule render_html_mapping:
   input:

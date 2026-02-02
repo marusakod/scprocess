@@ -14,6 +14,7 @@ import polars as pl
 import glob
 import subprocess
 import shlex
+import filecmp
 
 # import scprocess functions
 scprocess_dir  = os.path.dirname(__file__)
@@ -255,24 +256,80 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
     *shlex.split(extraargs),
     rule
     ])
+
+  # render index if requested
   if not noindex and " -np" not in extraargs:
-    print("\nRendering index")
-    subprocess.run(["snakemake", 
-      "--snakefile", os.path.join(scprocess_dir, 'rules/scprocess.smk'), 
-      "--configfile", config_path,
-      "--config", f"scprocess_dir={str(scprocess_dir)}",
-      "--software-deployment-method", "conda",
-      "--rerun-triggers", "mtime",
-      "--forcerun",
-      "--rerun-incomplete", 
-      *shlex.split(extraargs),
-      "index"
-      ],
-      stdout=subprocess.DEVNULL,
-      stderr=subprocess.DEVNULL  
-    )
+    _render_index(scprocess_dir, config)
  
   return
+
+
+def _render_index(scprocess_dir, config):
+  # 1. Locate the template and script
+  template_f    = os.path.abspath(os.path.join(scprocess_dir, "resources/rmd_templates/index.Rmd.template"))
+  render_script = os.path.join(scprocess_dir, "scripts/render_htmls.R")
+
+  # unpack from config    
+  proj_dir      = config['project']['proj_dir']
+  rmd_dir       = proj_dir / "analysis"
+  docs_dir      = proj_dir / "public"
+
+  # 2. Build the R snippet (escaping quotes where necessary)
+  r_code = f"""
+  source('{render_script}'); 
+  render_html(
+    rule_name   = 'index', 
+    proj_dir    = '{proj_dir}', 
+    your_name   = '{config['project']['your_name']}', 
+    affiliation = '{config['project']['affiliation']}',
+    docs_dir    = '{docs_dir}', 
+    short_tag   = '{config['project']['short_tag']}', 
+    full_tag    = '{config['project']['full_tag']}',  
+    date_stamp  = '{config['project']['date_stamp']}',
+    mkr_sel_res = '{config['marker_genes']['mkr_sel_res']}', 
+    temp_f      = '{template_f}',
+    rmd_f       = '{rmd_dir}/index.Rmd'
+  )
+  """
+
+  # get env
+  conda_dir   = scprocess_dir / ".snakemake/conda"
+  rlibs_f     = scprocess_dir / 'envs/rlibs.yaml'
+  env_path    = _find_env_path_from_yaml(scprocess_dir, rlibs_f)  
+  if not env_path:
+    raise RuntimeError("Could not find a Snakemake conda environment matching rlibs. "
+      "Has the pipeline run successfully at least once?")
+
+  # actually do it
+  print(f"rendering html index")  
+  cmd = [
+    "conda", "run", "--prefix", env_path,
+    "Rscript", "--vanilla", "-e", r_code
+  ]
+  
+  return subprocess.run(cmd, check=True)
+
+
+def _find_env_path_from_yaml(scprocess_dir, source_yaml):
+  conda_dir = os.path.join(scprocess_dir, ".snakemake", "conda")
+  source_yaml = os.path.abspath(source_yaml)
+
+  if not os.path.exists(conda_dir):
+    return None
+
+  # Look for all .yaml files in the snakemake conda folder
+  for f in os.listdir(conda_dir):
+    if f.endswith(".yaml"):
+      potential_match = os.path.join(conda_dir, f)
+      
+      # Compare the content of your rlibs.yaml with Snakemake's copy
+      if filecmp.cmp(source_yaml, potential_match, shallow=False):
+        # The env directory is the filename minus the ".yaml" extension
+        env_path = os.path.join(conda_dir, f.replace(".yaml", ""))
+        if os.path.exists(env_path):
+          return env_path
+
+  return None
 
 
 # scprocess plotknee
