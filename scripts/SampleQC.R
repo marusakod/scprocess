@@ -1160,7 +1160,7 @@ make_clean_sces <- function(sel_b, sel_run, integration_f, h5_paths_f,
   rows_dt       = rows_dt[ rownames(mat) ]
   assert_that( identical(rownames(mat), rows_dt$ensembl_id) )
   rownames(mat) = rows_dt$gene_id
-  
+
   # make sce object
   sce_clean           = SingleCellExperiment(assays = list(counts = mat), rowData = rows_dt)
   sce_clean$cell_id   = colnames(mat)

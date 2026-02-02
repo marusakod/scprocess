@@ -858,7 +858,7 @@ if __name__ == "__main__":
   parser_getHvgs.add_argument("hvg_method", type=str)
   parser_getHvgs.add_argument("batch_var", type=str)
   parser_getHvgs.add_argument("n_hvgs", type=int)
-  parser_getHvgs.add_argument("--exc_gs_f", type=str)
+  parser_getHvgs.add_argument("--exc_gs_f", type=str, default=None)
   parser_getHvgs.add_argument("-e", "--noambient", action='store_true')
 
 

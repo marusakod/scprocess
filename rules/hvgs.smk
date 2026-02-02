@@ -274,16 +274,20 @@ rule get_highly_variable_genes:
     f'{benchmark_dir}/{SHORT_TAG}_hvgs/get_highly_variable_genes_{DATE_STAMP}.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
-  shell: """
+  shell:
+    """
     EXC_GS_F_FLAG=""
-    if [ -n "{input.exc_gs_f}" ]; then
-      EXC_GS_F_FLAG="--exc_gs_f {input.exc_gs_f}"
-    fi
     NOAMBIENT_FLAG=""
+
+    if [ "{params.exc_gs_f}" != "None" ]; then
+      EXC_GS_F_FLAG="--exc_gs_f {params.exc_gs_f}"
+    fi
+    
     if [ "{params.no_ambient}" = "True" ]; then
       NOAMBIENT_FLAG="--noambient"
     fi
 
+    # 4. Execute
     python3 scripts/hvgs.py calculate_hvgs \
       {input.std_var_stats_f} \
       {output.hvg_f} \
@@ -291,9 +295,9 @@ rule get_highly_variable_genes:
       {params.hvg_method} \
       {params.batch_var} \
       {params.n_hvgs} \
-      $EXC_GS_F_FLAG \
-      $NOAMBIENT_FLAG
-     """
+      $NOAMBIENT_FLAG \
+      $EXC_GS_F_FLAG
+    """
 
 
 rule create_hvg_matrix:
