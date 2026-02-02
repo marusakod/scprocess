@@ -78,7 +78,7 @@ rule run_mapping_hto:
     fi
 
     # get chemistry parameters from input yaml file
-    AF_CHEMISTRY=$(grep "selected_af_chemisty:" {input.chem_stats_f} | sed 's/selected_af_chemisty: //')
+    AF_CHEMISTRY=$(grep "selected_af_chemistry:" {input.chem_stats_f} | sed 's/selected_af_chemistry: //')
     EXP_ORI=$(grep "selected_ori:" {input.chem_stats_f} | sed 's/selected_ori: //')
     WHITELIST_F=$(grep "selected_whitelist:" {input.chem_stats_f} | sed 's/selected_whitelist: //')
 

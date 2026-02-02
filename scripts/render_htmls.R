@@ -245,87 +245,87 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     
     assert_that(all(req_names %in% add_args_names))
   } else if (sel_rule == 'index') {
-     req_names = c('your_name', 'affiliation', 'short_tag', 'docs_dir', 'full_tag', 'date_stamp', 'mkr_sel_res')
+    req_names = c('your_name', 'affiliation', 'short_tag', 'docs_dir', 'full_tag', 'date_stamp', 'mkr_sel_res')
 
-     assert_that(all(req_names %in% add_args_names))
+    assert_that(all(req_names %in% add_args_names))
 
-     # get list of all htmls
-     short_tag = add_args[['short_tag']]
-     docs_dir  = add_args[['docs_dir']]
-     htmls     = list.files(docs_dir, pattern = '.*.html$')
-     
-     # set defaults
-     mapping_link         = ""
-     demultiplexing_link  = ""
-     ambient_link         = ""
-     qc_link              = ""
-     hvgs_link            = ""
-     integration_link     = ""
-     marker_genes_link    = ""
-     lbls_title           = ""
-     label_celltypes_link = ""
-     zoom_title           = ""
-     zoom_links_md        = ""
+    # get list of all htmls
+    short_tag = add_args[['short_tag']]
+    docs_dir  = add_args[['docs_dir']]
+    htmls     = list.files(docs_dir, pattern = '.*.html$')
+    
+    # set defaults
+    mapping_link         = ""
+    demultiplexing_link  = ""
+    ambient_link         = ""
+    qc_link              = ""
+    hvgs_link            = ""
+    integration_link     = ""
+    marker_genes_link    = ""
+    lbls_title           = ""
+    label_celltypes_link = ""
+    zoom_title           = ""
+    zoom_links_md        = ""
 
-     # get placeholder replacements for all htmls
-     if(paste0(short_tag, '_mapping.html') %in% htmls){
+    # get placeholder replacements for all htmls
+    if(paste0(short_tag, '_mapping.html') %in% htmls){
       mapping_link = sprintf("- Mapping ([link](%s_mapping.html))", short_tag)
-     }
+    }
 
-     if(paste0(short_tag, '_demultiplexing.html') %in% htmls){
+    if(paste0(short_tag, '_demultiplexing.html') %in% htmls){
       demultiplexing_link = sprintf("- Demultiplexing ([link](%s_demultiplexing.html))", short_tag)
-     }
+    }
 
-     if(paste0(short_tag, '_ambient.html') %in% htmls){
+    if(paste0(short_tag, '_ambient.html') %in% htmls){
       ambient_link = sprintf("- Ambient RNA removal ([link](%s_ambient.html))", short_tag)
-     }
-     
-     if(paste0(short_tag, '_qc.html') %in% htmls){
+    }
+    
+    if(paste0(short_tag, '_qc.html') %in% htmls){
       qc_link = sprintf("- QC ([link](%s_qc.html))", short_tag)
-     }
+    }
 
-     if(paste0(short_tag, '_hvgs.html') %in% htmls){
+    if(paste0(short_tag, '_hvgs.html') %in% htmls){
       hvgs_link = sprintf("- Highly variable genes ([link](%s_hvgs.html))", short_tag)
-     }
+    }
 
-     if(paste0(short_tag, '_integration.html') %in% htmls){
+    if(paste0(short_tag, '_integration.html') %in% htmls){
       integration_link = sprintf("- Integration ([link](%s_integration.html))", short_tag)
-     }
+    }
 
-     if(paste0(short_tag, '_marker_genes_',  add_args[['mkr_sel_res']], '.html') %in% htmls){
+    if(paste0(short_tag, '_marker_genes_',  add_args[['mkr_sel_res']], '.html') %in% htmls){
       marker_genes_link = sprintf("- Marker genes ([link](%s_marker_genes_%s.html))", short_tag, add_args[['mkr_sel_res']])
-     }
+    }
 
-     if(paste0(short_tag, '_label_celltypes.html') %in% htmls){
+    if(paste0(short_tag, '_label_celltypes.html') %in% htmls){
       label_celltypes_link = sprintf("- Celltype labelling ([link](%s_label_celltypes.html))", short_tag)
       lbls_title = "## Cell type annotation"
-     }
-     
-     if(any(grepl(paste0(short_tag, '_zoom.*.html'), htmls))){
-       zoom_htmls  = htmls[grepl(paste0(short_tag, '_zoom.*.html'), htmls)]
-       # extract zoom params
-       pattern = ".*?_zoom_([^_]+)_(\\d+(\\.\\d+)?)\\.html"
-       params_mat = str_match(zoom_htmls, pattern)
-       
-       zoom_names = params_mat[, 2]
-       sel_res_ls = as.numeric(params_mat[, 3])
-       
-       params_dt =  data.table(
-         html        = zoom_htmls,
-         zoom_name   = zoom_names,
-         mkr_sel_res = sel_res_ls
-       )
+    }
+    
+    if(any(grepl(paste0(short_tag, '_zoom.*.html'), htmls))){
+      zoom_htmls  = htmls[grepl(paste0(short_tag, '_zoom.*.html'), htmls)]
+      # extract zoom params
+      pattern = ".*?_zoom_([^_]+)_(\\d+(\\.\\d+)?)\\.html"
+      params_mat = str_match(zoom_htmls, pattern)
       
-       zoom_links = sprintf("- %s ([link](%s))", params_dt$zoom_name, params_dt$html)
-       zoom_links_md = paste(
-       sprintf("- %s ([link](%s))", params_dt$zoom_name, params_dt$html),
-       collapse = "\n\n"
-       )
-       zoom_title = "## Subclustering"
-     }
+      zoom_names = params_mat[, 2]
+      sel_res_ls = as.numeric(params_mat[, 3])
+      
+      params_dt =  data.table(
+        html        = zoom_htmls,
+        zoom_name   = zoom_names,
+        mkr_sel_res = sel_res_ls
+      )
      
+      zoom_links = sprintf("- %s ([link](%s))", params_dt$zoom_name, params_dt$html)
+      zoom_links_md = paste(
+      sprintf("- %s ([link](%s))", params_dt$zoom_name, params_dt$html),
+      collapse = "\n\n"
+      )
+      zoom_title = "## Subclustering"
+     }
 
-     params_ls = c(
+
+    params_ls = c(
       add_args[setdiff(req_names, c('mkr_sel_res', 'docs_dir'))],
       list(
         mapping_link        = mapping_link, 
@@ -340,7 +340,6 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
         zoom_title          = zoom_title, 
         zoom_links          = zoom_links_md
       ))
-
   }
   
   return(params_ls)
