@@ -95,7 +95,10 @@ If you plan to use `cellbender` for ambient RNA correction, you will also need A
 3. Create a configuration file _scprocess_setup.yaml_ in the `$SCPROCESS_DATA_DIR` directory you just created, with the contents as follows:
 
     ```yaml
-    genome:
+    user:
+      your_name:    Testy McUser
+      affiliation:  Unemployed
+    genomes:
       tenx:
       - name: human_2024 
       - name: mouse_2024 
@@ -128,18 +131,21 @@ If you plan to use `cellbender` for ambient RNA correction, you will also need A
 To use {{sc}} with a job scheduler, you need to add a line to your  _scprocess_setup.yaml_ file:
 
 === "SLURM"
-    ```yaml
-    profile: slurm_default
-    ```
+```yaml
+user:
+  profile: slurm_default
+```
 === "LSF"
-    ```yaml
-    profile: lsf_default
-    ```
+```yaml
+user:
+  profile: lsf_default
+```
 
 If you want to make a profile that is specific to your cluster, we recommend that you make a copy one of the default profile folders, e.g. to _profiles/slurm_my_cluster_, then edit the corresponding _config.yaml_ file. Once you are happy with it, edit the _scprocess_setup.yaml_ file to point to this profile like before, e.g. 
 
 ```yaml
-profile: slurm_my_cluster
+user:
+  profile: slurm_my_cluster
 ```
 !!! warning "Roche sHPC Users: use the profile _slurm_shpc_"
 

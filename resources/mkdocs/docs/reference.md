@@ -2,36 +2,44 @@
 
 ## {{scsetup}} { #scprocess-setup }
 
-**Description**: Download all data required for {{sc}} and index reference genomes for `simpleaf`.
+**Description**: Download all data required for {{sc}} and index reference genomes for `simpleaf`, and define cluster configuration.
 
 **Parameters**:
-The command requires a configuration file named `scprocess_setup.yaml` located in {{sc}} data directory (for instructions on how to set up the {{sc}} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, the user has to specify which reference genome will be made available for {{sc}}. For example:
+The command requires a configuration file named `scprocess_setup.yaml` located in {{sc}} data directory (for instructions on how to set up the {{sc}} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, the user can specify parameters that are used across all {{sc}} projects, such as HPC configuration and reference genomes that will be made available for {{sc}}. For example:
 
 ```yaml
-genome:
+user:
+  profile:      slurm_default
+  your_name:    Testy McUser
+  affiliation:  Unemployed
+genomes:
   tenx:
-    - name: human_2024
+    - name:   human_2024
       decoys: true
-      rrnas: true
+      rrnas:  true
   custom:
-    - name: custom_genome_name
-      fasta: /path/to/genome.fa
-      gtf: /path/to/genes.gtf
-      decoys: true
-      mito_str: "^mt-"
-    - name: custom_genome_name2
-      index_dir: /path/to/prebuild/alevin/index
-      gtf: /path/to/genes.gtf
-      mito_str: "^MT-"
+    - name:       custom_genome_name
+      fasta:      /path/to/genome.fa
+      gtf:        /path/to/genes.gtf
+      decoys:     true
+      mito_str:   "^mt-"
+    - name:       custom_genome_name2
+      index_dir:  /path/to/prebuild/alevin/index
+      gtf:        /path/to/genes.gtf
+      mito_str:   "^MT-"
 ```
+
+In the `user` section, users can optionally define:
+* `profile`: the name of the HPC profile to be used by `snakemake`. This must correspond to one of the subfolders in the _profiles_ folder, and it must contain a file called `config.yaml`.
+* `your_name`: your name, which will be shown at the top of html outputs
+* `affiliation`: your affiliation, which will be shown at the top of html outputs
 
 Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with {{scsetup}} by adding `tenx` to the `scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.
 
 Names and specifications for custom references should be listed in the `custom` section of the `scprocess_setup.yaml` file. For each `custom` genome users have to provide the following parameters:
 
-* one of:
-    + `fasta`: path to FASTA file
-    + `index_dir`: path to prebuild alevin index; when specified `decoys` option is ignored
+* `name`: name to be used for the reference
+* `fasta`: path to FASTA file
 * `gtf`: path to GTF file [(specific format?)]
 * `mito_str`: regular expression used to identify genes in the mitochondial genome (example for mouse: `"^mt-"`)
 
