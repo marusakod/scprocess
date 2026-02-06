@@ -530,7 +530,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   }    
 }
 
-make_cuts_dt <- function(cuts_f, batch_var) {
+make_cuts_dt <- function(cuts_f, batch_var, b_lvls) {
   cuts_tmp  = fread(cuts_f) %>% 
     .[, .(
       batch_var         = get(batch_var), 
@@ -545,6 +545,10 @@ make_cuts_dt <- function(cuts_f, batch_var) {
     melt( id = "batch_var", variable.name = "cut_var", value.name = "cut_point") %>% 
     .[, qc_var  := str_extract(cut_var, "^(.+)(?=_(min|max))") ] %>% 
     .[, minmax  := str_extract(cut_var, "(min|max)") ]
+
+  # possibly subset
+  assert_that( all(b_lvls %in% cuts_tmp$batch_var) )
+  cuts_tmp  = cuts_tmp[ batch_var %in% b_lvls ]
 
   # make wide
   cuts_dt   = cuts_tmp %>%
@@ -595,8 +599,6 @@ plot_qc_ranges_marginals <- function(qc_input, b_lvls, qc_names, qc_lu, cuts_dt,
     .[, batch_var := factor(batch_var, levels = rev(b_lvls)) ]
   cuts_dt   = cuts_dt %>% copy %>% 
     .[, batch_var := factor(batch_var, levels = rev(b_lvls)) ]
-  if (any(is.na(cuts_dt$batch_var)))
-    stop("aarrgh")
   hlines_dt = hlines_dt %>%
     .[, batch_var := factor(batch_var, levels = rev(b_lvls)) ]
 
