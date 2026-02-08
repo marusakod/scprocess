@@ -226,22 +226,15 @@ rule merge_qc:
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_qc', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_qc', 'time', attempt)
-  run:
-    # read all nonempty input files and concatenate them
-    qc_df_ls    = [ pl.read_csv(f, schema_overrides = {"log_N": pl.Float64}) for f in input.qc_fs if os.path.getsize(f) > 0 ]
-    qc_df_all   = pl.concat(qc_df_ls)
-    
-    metadata_schema = pl.read_csv(params.metadata_f).schema
-    metadata_schema["sum"] = pl.Float64
-    metadata_schema["total"] = pl.Float64
-    cols_df_ls  = [ pl.read_csv(f, schema_overrides=metadata_schema) for f in input.coldata_fs if os.path.getsize(f) > 0 ]
-    cols_df_all = pl.concat(cols_df_ls)
-
-    # save merged dataframes to output files
-    with gzip.open(output.qc_merged_f, 'wb') as f:
-      qc_df_all.write_csv(f)
-    with gzip.open(output.coldata_merged_f, 'wb') as f:
-      cols_df_all.write_csv(f)
+  conda:
+    '../envs/rlibs.yaml'
+  shell: """
+    QC_LIST="{input.qc_fs}" COL_LIST="{input.coldata_fs}" \
+      Rscript -e "source('scripts/SampleQC.R'); \
+        qc_files <- trimws(strsplit(Sys.getenv('QC_LIST'), ' ')[[1]]); \
+        col_files <- trimws(strsplit(Sys.getenv('COL_LIST'), ' ')[[1]]); \
+        merge_qc_files(qc_files, col_files, '{output.qc_merged_f}', '{output.coldata_merged_f}')"
+    """
 
 
 rule merge_rowdata:

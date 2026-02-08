@@ -530,6 +530,43 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   }    
 }
 
+## Helper to merge QC and coldata files using data.table::fread/fwrite
+merge_qc_files <- function(qc_files, col_files, qc_out, col_out) {
+  # helper to select only existing, non-empty files
+  sel_existing = function(fs) {
+    fs[ file.exists(fs) & (file.info(fs)$size > 0) ]
+  }
+
+  qc_files_ok  = sel_existing(qc_files)
+  col_files_ok = sel_existing(col_files)
+
+  # If no qc files available, create empty outputs and exit
+  if (length(qc_files_ok) == 0) {
+    # create empty gz files to match expected outputs
+    file.create(qc_out)
+    file.create(col_out)
+    return(invisible(NULL))
+  }
+
+  # read and rbind qc tables
+  qc_dt_list = lapply(qc_files_ok, function(f) fread(f))
+  qc_dt_all  = rbindlist(qc_dt_list, use.names = TRUE, fill = TRUE)
+  # write gzipped output
+  fwrite(qc_dt_all, file = qc_out, compress = 'gzip')
+
+  # handle coldata merging
+  if (length(col_files_ok) == 0) {
+    # create only qc output if no coldata
+    file.create(col_out)
+    return(invisible(NULL))
+  }
+  col_dt_list <- lapply(col_files_ok, function(f) fread(f))
+  col_dt_all  <- rbindlist(col_dt_list, use.names = TRUE, fill = TRUE)
+  fwrite(col_dt_all, file = col_out, compress = 'gzip')
+
+  return(invisible(NULL))
+}
+
 make_cuts_dt <- function(cuts_f, batch_var, b_lvls) {
   cuts_tmp  = fread(cuts_f) %>% 
     .[, .(
