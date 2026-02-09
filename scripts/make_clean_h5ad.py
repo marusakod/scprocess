@@ -97,7 +97,7 @@ def _get_clean_adata(filtered_f, sel_run, rowdata_f, coldata_f, sub_cols ):
   adata.var = var_df.to_pandas().set_index("gene_id", drop = False)
   
   # filter cells and add cell metadata
-  batch_cols = pl.read_csv(coldata_f, schema_overrides={"sum": pl.Float64, "total": pl.Float64}).filter(pl.col("cell_id").is_in(sub_cols))
+  batch_cols = pl.read_csv(coldata_f).filter(pl.col("cell_id").is_in(sub_cols))
   adata      = adata[adata.obs_names.isin(sub_cols), :].copy()
 
   obs_df = (pl.DataFrame({"cell_id": adata.obs_names})

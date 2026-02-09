@@ -132,7 +132,7 @@ def get_csr_counts(hvg_paths_f, cell_filter_f, keep_var, smpl_stats_f,
   smpl_stats_df = pl.read_csv(smpl_stats_f)
 
   # get QCed cells
-  filt_df       = pl.read_csv(cell_filter_f, schema_overrides={"sum": pl.Float64, "total": pl.Float64})
+  filt_df       = pl.read_csv(cell_filter_f)
   if keep_vals_str is None:
     keep_df       = filt_df.filter( pl.col(keep_var) )
   else:
@@ -696,7 +696,7 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
   hvg_ids   = hvg_df.filter( pl.col('highly_variable') == True)['gene_id'].to_list()
   
   # get qc file with all cells
-  qc_df     = pl.read_csv(qc_f, schema_overrides={"sum": pl.Float64, "total": pl.Float64})
+  qc_df     = pl.read_csv(qc_f)
 
   # subset to doublets
   if demux_type == "none":

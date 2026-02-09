@@ -145,7 +145,7 @@ def _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f = None):
 def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoom = False, bcs_dbl = []):
   # load files
   sample_qc   = pl.read_csv(sample_qc_f)
-  all_coldata = pl.read_csv(coldata_f, schema_overrides={"sum": pl.Float64, "total": pl.Float64})
+  all_coldata = pl.read_csv(coldata_f)
 
   # checks
   if not batch_var in all_coldata.columns:

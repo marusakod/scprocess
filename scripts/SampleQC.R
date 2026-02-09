@@ -552,7 +552,7 @@ merge_qc_files <- function(qc_files, col_files, qc_out, col_out) {
   qc_dt_list = lapply(qc_files_ok, function(f) fread(f))
   qc_dt_all  = rbindlist(qc_dt_list, use.names = TRUE, fill = TRUE)
   # write gzipped output
-  fwrite(qc_dt_all, file = qc_out, compress = 'gzip')
+  fwrite(qc_dt_all, file = qc_out, scipen = 50, compress = 'gzip')
 
   # handle coldata merging
   if (length(col_files_ok) == 0) {
@@ -562,7 +562,7 @@ merge_qc_files <- function(qc_files, col_files, qc_out, col_out) {
   }
   col_dt_list <- lapply(col_files_ok, function(f) fread(f))
   col_dt_all  <- rbindlist(col_dt_list, use.names = TRUE, fill = TRUE)
-  fwrite(col_dt_all, file = col_out, compress = 'gzip')
+  fwrite(col_dt_all, file = col_out, scipen = 50, compress = 'gzip')
 
   return(invisible(NULL))
 }
