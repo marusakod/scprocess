@@ -16,7 +16,6 @@ For users intending to perform ambient RNA correction with `cellbender`, access 
 
 If you plan to use `cellbender` for ambient RNA correction, you will also need Apptainer. For guidance on installing Apptainer, see the [installation instructions](https://apptainer.org/docs/admin/main/installation.html).
 
-!!! warning "Roche sHPC users: load the Miniforge3 module by running `ml Miniforge3`. This command provides all necessary software"
 
 ## Installation
 
@@ -25,12 +24,7 @@ If you plan to use `cellbender` for ambient RNA correction, you will also need A
     ```bash
      git clone git@github.com:marusakod/scprocess.git
     ```
-    !!! warning "Roche sHPC Users: Use the internal Roche repository instead"
-
-        ```bash
-        git clone git@ssh.code.roche.com:macnairw/scprocess.git
-        ```
-
+  
 2.  Create a Conda environment:
     
     Navigate into the {{sc}} directory and create a Conda environment. Choose the appropriate command based on your operating environment (local machine, SLURM, or LSF cluster).
@@ -50,8 +44,6 @@ If you plan to use `cellbender` for ambient RNA correction, you will also need A
         conda env create -n scprocess -f envs/scprocess_lsf.yaml
         ```
 
-    !!! warning "Roche sHPC Users: select the SLURM option for creating an environment."
-    
     If you are using LSF or SLURM, remember to also review the [Cluster setup](#cluster-setup) section below.
 
 3.  Add {{sc}} to your PATH. 
@@ -147,6 +139,4 @@ If you want to make a profile that is specific to your cluster, we recommend tha
 user:
   profile: slurm_my_cluster
 ```
-!!! warning "Roche sHPC Users: use the profile _slurm_shpc_"
-
 {{scsetup}} and {{scrun}} will then run in cluster mode with the specifications in this profile.
