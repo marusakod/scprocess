@@ -17,7 +17,7 @@ render_html <- function(rule_name, proj_dir, temp_f, rmd_f, ...) {
 
   # make Rmd file
   message('Creating Rmd file from template ', temp_f)
-  make_rmd_from_temp(temp_f, temp_ls, rmd_f)
+  make_rmd_from_temp(rule_name, temp_f, temp_ls, rmd_f)
 
   # convert to html
   message('Rendering html')
@@ -29,8 +29,8 @@ render_html <- function(rule_name, proj_dir, temp_f, rmd_f, ...) {
     )
 }
 
-make_rmd_from_temp <- function(temp_f, temp_ls, rmd_f) {
-  if (!file.exists(rmd_f)) {
+make_rmd_from_temp <- function(rule_name, temp_f, temp_ls, rmd_f) {
+  if (!file.exists(rmd_f) | rule_name == 'index') {
     # read remplate file
     temp_str = readLines(temp_f, warn = FALSE)
 
@@ -246,7 +246,6 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     assert_that(all(req_names %in% add_args_names))
   } else if (sel_rule == 'index') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'docs_dir', 'full_tag', 'date_stamp', 'mkr_sel_res')
-
     assert_that(all(req_names %in% add_args_names))
 
     # get list of all htmls
@@ -304,26 +303,21 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     if(any(grepl(paste0(short_tag, '_zoom.*.html'), htmls))){
       zoom_htmls  = htmls[grepl(paste0(short_tag, '_zoom.*.html'), htmls)]
       # extract zoom params
-      pattern = ".*?_zoom_([^_]+)_(\\d+(\\.\\d+)?)\\.html"
-      params_mat = str_match(zoom_htmls, pattern)
+      pattern     = ".*?_zoom_(.+_\\d+(\\.\\d+)?)\\.html"
+      params_mat  = str_match(zoom_htmls, pattern)
+
+      # check for no NAs
+      if (any(is.na(params_mat))) {
+        stop("Error: Zoom html files must be named in the format '{short_tag}_zoom_{zoomname}_{resolution}.html'")
+      }
       
-      zoom_names = params_mat[, 2]
-      sel_res_ls = as.numeric(params_mat[, 3])
-      
-      params_dt =  data.table(
-        html        = zoom_htmls,
-        zoom_name   = zoom_names,
-        mkr_sel_res = sel_res_ls
-      )
-     
-      zoom_links = sprintf("- %s ([link](%s))", params_dt$zoom_name, params_dt$html)
-      zoom_links_md = paste(
-      sprintf("- %s ([link](%s))", params_dt$zoom_name, params_dt$html),
-      collapse = "\n\n"
+      zoom_names  = params_mat[, 2]
+      zoom_links = paste(
+        sprintf("- %s ([link](%s))", zoom_names, zoom_htmls),
+        collapse = "\n"
       )
       zoom_title = "## Subclustering"
      }
-
 
     params_ls = c(
       add_args[setdiff(req_names, c('mkr_sel_res', 'docs_dir'))],
@@ -338,7 +332,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
         lbls_title          = lbls_title,
         label_celltypes_link= label_celltypes_link,
         zoom_title          = zoom_title, 
-        zoom_links          = zoom_links_md
+        zoom_links          = zoom_links
       ))
   }
   

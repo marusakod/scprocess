@@ -214,7 +214,7 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
 
 
 # scprocess run
-def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
+def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, doindex):
   print('doing some checks on inputs')
 
   # housekeeping
@@ -262,7 +262,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
   subprocess.run( cmd_list, check = True )
 
   # render index if requested
-  if not noindex and "-np" not in extraargs:
+  if doindex:
     _render_index(scprocess_dir, config)
  
   return
@@ -310,7 +310,7 @@ def _render_index(scprocess_dir, config):
     "conda", "run", "--prefix", env_path,
     "Rscript", "--vanilla", "-e", r_code
   ]
-  
+
   return subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -533,8 +533,7 @@ if __name__ == '__main__':
       may be locked. If you get an error message saying that it is locked, use this
       option to unlock it, then run scprocess as normal.
       ''')
-  run_prsr.add_argument("--noindex", action='store_true', 
-    help = "")
+  run_prsr.add_argument("--noindex", action='store_true', help = "")
 
   # subparser for the 'plotknee' subcommand
   knee_parser = subparsers.add_parser('plotknee', help="save interactive knee plot for a specified sample, to help specify custom parameters")
@@ -597,18 +596,17 @@ if __name__ == '__main__':
     # sort out extra arguments
     extraargs   = []
     noindex     = args.noindex
+    doindex     = (not noindex) and (not args.dry_run) and (not args.unlock)
     if args.unlock:
       extraargs.append("--unlock")
-      noindex     = True
     else:
       if args.extraargs:
         extraargs.append(args.extraargs[0])
       if args.dry_run:
         extraargs.append("-np")
-        noindex     = True
     
     # call bsub thing
-    run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs, noindex)
+    run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs, doindex)
   
   # plot knee for selected sample
   elif args.subcommand == 'plotknee':
