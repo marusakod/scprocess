@@ -256,8 +256,7 @@ else:
 rule get_highly_variable_genes:
   input:
     std_var_stats_f = f'{hvg_dir}/standardized_variance_stats_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
-    empty_gs_fs     = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    exc_gs_f        = lambda wildcards: config['hvg'].get('hvg_exclude_from_file', "") or []
+    empty_gs_fs     = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
     hvg_f           = f'{hvg_dir}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   threads: 1
@@ -266,6 +265,7 @@ rule get_highly_variable_genes:
     hvg_method  = config['hvg']['hvg_method'],
     batch_var   = BATCH_VAR,
     n_hvgs      = config['hvg']['hvg_n_hvgs'],
+    exc_gs_f    = lambda wildcards: config['hvg'].get('hvg_exclude_from_file', "") or [],
     no_ambient  = config['hvg']['hvg_exclude_ambient_genes']
   resources:
     mem_mb      = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_highly_variable_genes', 'memory', attempt),
@@ -274,12 +274,11 @@ rule get_highly_variable_genes:
     f'{benchmark_dir}/{SHORT_TAG}_hvgs/get_highly_variable_genes_{DATE_STAMP}.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
-  shell:
-    """
+  shell: """
     EXC_GS_F_FLAG=""
     NOAMBIENT_FLAG=""
 
-    if [ "{params.exc_gs_f}" != "None" ]; then
+    if [ "{params.exc_gs_f}" != "" ]; then
       EXC_GS_F_FLAG="--exc_gs_f {params.exc_gs_f}"
     fi
     
@@ -287,7 +286,7 @@ rule get_highly_variable_genes:
       NOAMBIENT_FLAG="--noambient"
     fi
 
-    # 4. Execute
+    # run script
     python3 scripts/hvgs.py calculate_hvgs \
       {input.std_var_stats_f} \
       {output.hvg_f} \

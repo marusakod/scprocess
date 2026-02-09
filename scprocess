@@ -23,57 +23,53 @@ import scprocess_utils
 
 
 # scprocess setup
-def run_setup(sc_dir, snakefile, extraargs):
+def run_setup(scprocess_dir, snakefile, extraargs):
   print('doing some checks on inputs')
  
   # get scprocess_data_dir; should be defined in .bashrc
-  scprocess_data_dir = os.getenv('SCPROCESS_DATA_DIR')
-  if scprocess_data_dir:
-    print(f'SCPROCESS_DATA_DIR is set to: {scprocess_data_dir}')
+  scdata_dir = os.getenv('SCPROCESS_DATA_DIR')
+  if scdata_dir:
+    print(f'SCPROCESS_DATA_DIR is set to: {scdata_dir}')
   else:
     raise ValueError('SCPROCESS_DATA_DIR is not defined in .bashrc')
   
-  # check that scprocess_data_dir is a directory
-  if not os.path.isdir(scprocess_data_dir):
+  # check that scdata_dir is a directory
+  if not os.path.isdir(scdata_dir):
     raise FileNotFoundError("SCPROCESS_DATA_DIR is not a directory")
   
   # check that config file exists
-  setup_config  = os.path.join(scprocess_data_dir, 'scprocess_setup.yaml')
-  if not os.path.exists(setup_config):
-    raise FileNotFoundError(f"Config file {setup_config} does not exist")
+  setup_f     = scdata_dir / 'scprocess_setup.yaml'
+  if not os.path.exists(setup_f):
+    raise FileNotFoundError(f"Config file {setup_f} does not exist")
   
-  # load config file  
-  with open(setup_config, "r") as stream:
-    config      = yaml.safe_load(stream)
+  # get validated config
+  with open(setup_f, "r") as f:
+    setup_cfg   = yaml.safe_load(f)
+  schema_f    = scprocess_dir / "resources/schemas/setup.schema.json"
+  if not schema_f.is_file():
+    raise FileNotFoundError("setup schema file not found")
+  setup_cfg   = scprocess_utils.check_setup_config(setup_cfg, schema_f, scdata_dir, scprocess_dir)
   
-  # check if cluster profile is defined
-  if ('profile' in config) and config['profile'] is not None:    
-    # check if profile exists
-    profile     = config['profile']
-    profile_dir = os.path.join(sc_dir, 'profiles', profile)
-    profile_f   = os.path.join(profile_dir, 'config.yaml')
-    if not os.path.isfile(profile_f):
-      raise FileNotFoundError(f"cluster configuration file {profile_f} does not exist")
-    
-    # add snakemake flag
-    extraargs = extraargs + ' --workflow-profile ' + profile_dir
+  # add snakemake profile flag if specified
+  if "profile_dir" in setup_cfg['user']:
+    extraargs.extend([' --workflow-profile ', setup_cfg['user']['profile_dir']])
     
   # change scprocess directory
-  scprocess_dir  = os.path.dirname(__file__)
   os.chdir(scprocess_dir)
 
-  # change scprocess directory
+  # set up commands
+  cmd_list    = ['snakemake',
+    "--snakefile", str(snakefile),
+    "--configfile", str(setup_f.resolve()),
+    "--rerun-triggers", "mtime", "params",
+    "--rerun-incomplete", "--verbose", "--use-conda"
+  ]
+  cmd_list.extend(extraargs)
+
+  # run
   print("starting scprocess setup")
-  subprocess.run(['echo', 'snakemake', 
-    "--snakefile", snakefile, 
-    "--configfile", os.path.abspath(setup_config),
-    "--rerun-triggers", "mtime", "params", "--rerun-incomplete", "--verbose", "--use-conda", 
-    *shlex.split(extraargs)])
-  subprocess.run(['snakemake', 
-    "--snakefile", snakefile, 
-    "--configfile", os.path.abspath(setup_config),
-    "--rerun-triggers", "mtime", "params", "--rerun-incomplete", "--verbose", "--use-conda", 
-    *shlex.split(extraargs)])
+  print(f"running command:\n{" ".join(map(str, cmd_list))}" )
+  subprocess.run( cmd_list, check = True )
 
 
 # scprocess newproj
@@ -81,7 +77,7 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
   # define template path
   src_dir   = os.path.join(sc_dir, "resources", "newproj_files")
   proj_dir  = os.path.join(where, name)
-  
+
   # check if where is a valid path
   if not os.path.exists(where):
     raise ValueError(f"Error: The specified directory '{where}' does not exist.")
@@ -105,7 +101,7 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
   if create_subdirs:
     os.mkdir(os.path.join(proj_dir, 'data', 'fastqs'))
     os.mkdir(os.path.join(proj_dir, 'data', 'metadata'))
-  
+
   # define required files and locations
   f_ls = ['_workflowr.yml', '.gitignore', '.gitattributes',
       '_site.yml', 'custom.css', 'about.Rmd', 'index.Rmd', 'license.Rmd', '.nojekyll']
@@ -127,7 +123,7 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
   # copy project file
   proj_ext = '.Rproj'
   subprocess.call(['cp', os.path.join(src_dir, "proj_template" + proj_ext), os.path.join(proj_dir, name + proj_ext)])
-           
+
   # create .Rprofile file
   rprofile_txt = """## This makes sure that R loads the workflowr package
   ## automatically, every time the project is loaded
@@ -154,7 +150,25 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
     date_stamp  = today.strftime('%Y-%m-%d')
     fastq_dir   = 'data/fastqs' if create_subdirs else ''
     meta_dir    = 'data/metadata' if create_subdirs else ''
-    
+
+    # check that config file exists
+    scdata_dir  = os.getenv('SCPROCESS_DATA_DIR')
+    setup_f     = os.path.join(scdata_dir, 'scprocess_setup.yaml')
+    if not os.path.exists(setup_f):
+      raise FileNotFoundError(f"Config file {setup_f} does not exist")
+
+    # get validated config
+    with open(setup_f, "r") as f:
+      setup_cfg   = yaml.safe_load(f)
+    schema_f    = scprocess_dir / "resources/schemas/setup.schema.json"
+    if not schema_f.is_file():
+      raise FileNotFoundError("setup schema file not found")
+    setup_cfg   = scprocess_utils.check_setup_config(setup_cfg, schema_f, scdata_dir, scprocess_dir)
+
+    # get name and affiliation from setup config if they are there
+    your_name   = setup_cfg["user"].get("your_name", "")
+    affiliation = setup_cfg["user"].get("affiliation", "")
+
     # define config text
     proj_txt    = f"""
       # for details on how to fill out the config file, please see the following link:
@@ -163,11 +177,11 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
         proj_dir: {proj_dir}
         fastq_dir: {fastq_dir}
         full_tag: {name}
-        short_tag: 
-        your_name: 
-        affiliation: 
+        short_tag:
+        your_name: {your_name}
+        affiliation: {affiliation}
         sample_metadata: {meta_dir}/
-        species: 
+        species:
         date_stamp: "{date_stamp}"
       """
     if "sc" in create_config:
@@ -191,7 +205,7 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
     # join together
     config_txt  = proj_txt + multi_txt + qc_txt
     config_txt  = textwrap.dedent(config_txt).strip()
-    
+
     # write to file
     with open(config_f, "w") as file:
       file.write(config_txt)
@@ -218,7 +232,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
   schema_f      = scprocess_dir / "resources/schemas/config.schema.json"
   if not schema_f.is_file():
     raise FileNotFoundError("schema file not found")
-  config          = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
+  config        = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
 
   # get lists of parameters
   RUN_PARAMS, RUN_VAR = scprocess_utils.get_run_parameters(config, scdata_dir)
@@ -233,32 +247,21 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
   print(f"\nprocessing {len(BATCHES)} samples:")
   print('  ' + ', '.join(BATCHES))
 
-  # print out what we will do:
-  print("\nsnakemake command:")
-  subprocess.run(["echo", "snakemake", 
-    "--snakefile", snakefile, 
-    "--configfile", config_path,
+  # assemble what we'll do
+  cmd_list    = ["snakemake", 
+    "--snakefile", str(snakefile),
+    "--configfile", str(config_path),
     "--config", f"scprocess_dir={str(scprocess_dir)}",
-    "--rerun-triggers", "mtime", "params", "--rerun-incomplete", "--verbose", 
+    "--rerun-triggers", "mtime", "params", "--rerun-incomplete", "--verbose",
     "--software-deployment-method", "conda",
     "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{config['project']['proj_dir']}",
-    *shlex.split(extraargs),
-    rule
-    ])
-  # do it
-  subprocess.run(["snakemake", 
-    "--snakefile", snakefile, 
-    "--configfile", config_path,
-    "--config", f"scprocess_dir={str(scprocess_dir)}",
-    "--rerun-triggers", "mtime", "params", "--rerun-incomplete", "--verbose", 
-    "--software-deployment-method", "conda",
-    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{config['project']['proj_dir']}",
-    *shlex.split(extraargs),
-    rule
-    ])
+    *extraargs,
+    rule]
+  print( f"snakemake command:\n{" ".join(map(str, cmd_list))}" )
+  subprocess.run( cmd_list, check = True )
 
   # render index if requested
-  if not noindex and " -np" not in extraargs:
+  if not noindex and "-np" not in extraargs:
     _render_index(scprocess_dir, config)
  
   return
@@ -266,8 +269,8 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
 
 def _render_index(scprocess_dir, config):
   # 1. Locate the template and script
-  template_f    = os.path.abspath(os.path.join(scprocess_dir, "resources/rmd_templates/index.Rmd.template"))
-  render_script = os.path.join(scprocess_dir, "scripts/render_htmls.R")
+  template_f    = (scprocess_dir / "resources/rmd_templates/index.Rmd.template").resolve()
+  render_script = scprocess_dir / "scripts/render_htmls.R"
 
   # unpack from config    
   proj_dir      = config['project']['proj_dir']
@@ -307,12 +310,12 @@ def _render_index(scprocess_dir, config):
     "Rscript", "--vanilla", "-e", r_code
   ]
   
-  return subprocess.run(cmd, check=True)
+  return subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _find_env_path_from_yaml(scprocess_dir, source_yaml):
-  conda_dir = os.path.join(scprocess_dir, ".snakemake", "conda")
-  source_yaml = os.path.abspath(source_yaml)
+  conda_dir   = scprocess_dir / ".snakemake" / "conda"
+  source_yaml = source_yaml.resolve()
 
   if not os.path.exists(conda_dir):
     return None
@@ -320,13 +323,13 @@ def _find_env_path_from_yaml(scprocess_dir, source_yaml):
   # Look for all .yaml files in the snakemake conda folder
   for f in os.listdir(conda_dir):
     if f.endswith(".yaml"):
-      potential_match = os.path.join(conda_dir, f)
+      potential_match = conda_dir / f
       
       # Compare the content of your rlibs.yaml with Snakemake's copy
       if filecmp.cmp(source_yaml, potential_match, shallow=False):
         # The env directory is the filename minus the ".yaml" extension
-        env_path = os.path.join(conda_dir, f.replace(".yaml", ""))
-        if os.path.exists(env_path):
+        env_path = conda_dir / f.replace(".yaml", "")
+        if env_path.is_dir():
           return env_path
 
   return None
@@ -447,9 +450,10 @@ if __name__ == '__main__':
     help = '''
       "Dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.
       ''')
-  run_prsr.add_argument("-E", "--extraargs", type = str, 
+  run_prsr.add_argument("-E", "--extraargs", action="store", nargs=1, type=str,
     help = '''
-      Extra snakamake arguments. Must be provided within quotes. For example, to reduce outputs from snakemake: -E "--quiet"
+      Extra snakamake arguments. Must be provided within quotes and given after an equals sign. 
+      For example, to reduce outputs from snakemake: -E="--quiet"
       ''')
   run_prsr.add_argument("--unlock", action="store_true", 
     help = '''
@@ -472,22 +476,22 @@ if __name__ == '__main__':
     help = "Path to knee file")
 
   # define scprocess directory
-  sc_dir    = os.path.dirname(os.path.realpath(__file__))
+  sc_dir    = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
 
   # Parse the arguments
   args      = parser.parse_args()
-  
+
   # create new project folder
   if args.subcommand == "setup":
     # select snakefile corresponding to workflow
-    snakefile = os.path.join(sc_dir, "rules/setup.smk")
+    snakefile   = sc_dir / "rules/setup.smk"
 
     # sort out extra arguments
-    extraargs = ' '
+    extraargs   = []
     if args.extraargs:
-      extraargs = extraargs + args.extraargs[0]
+      extraargs.append(args.extraargs[0])
     if args.dry_run:
-      extraargs = extraargs + " -np"
+      extraargs.append("-np")
     
     # call bsub thing
     run_setup(sc_dir, snakefile, extraargs)
@@ -510,24 +514,23 @@ if __name__ == '__main__':
     
     # select snakefile corresponding to workflow
     if rule == "zoom":
-      snakefile = os.path.join(sc_dir, "rules/zoom.smk")
+      snakefile = sc_dir / "rules/zoom.smk"
     else:
-      snakefile = os.path.join(sc_dir, "rules/scprocess.smk")
+      snakefile = sc_dir / "rules/scprocess.smk"
 
     # sort out extra arguments
-    extraargs = ' '
-    noindex   = args.noindex
+    extraargs   = []
+    noindex     = args.noindex
     if args.unlock:
-      extraargs = " --unlock"
-      noindex   = True
+      extraargs.append("--unlock")
+      noindex     = True
     else:
       if args.extraargs:
-        extraargs = extraargs + args.extraargs
+        extraargs.append(args.extraargs[0])
       if args.dry_run:
-        extraargs = extraargs + " -np"
-        noindex   = True
+        extraargs.append("-np")
+        noindex     = True
     
-    # print(sc_dir, args.configfile, snakefile, rule)   
     # call bsub thing
     run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs, noindex)
   

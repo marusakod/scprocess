@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "user": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile":          { "type": "string" },
+        "your_name":        { "type": "string" },
+        "affiliation":      { "type": "string" }
+      }
+    },
+    "genomes": {
+      "type": "object",
+      "anyOf": [
+          { "required": ["tenx"] },
+          { "required": ["custom"] }
+      ],
+      "properties": {
+        "tenx": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name":       { "type": "string", "enum": ["human_2024", "mouse_2024", "human_2020", "mouse_2020"] },
+              "rrnas":      { "type": "boolean", "default": true },
+              "decoys":     { "type": "boolean", "default": true }
+            }
+          }
+        },
+        "custom": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "fasta", "gtf", "mito_str"],
+            "properties": {
+              "name":       { "type": "string", "not": {"enum": ["human_2024", "mouse_2024", "human_2020", "mouse_2020"] } },
+              "fasta":      { "type": "string", "pattern": "^/.*\\.fa(sta)?$" },
+              "index_dir":  { "type": "string", "default": "/tmp" },
+              "gtf":        { "type": "string", "pattern": "^/.*\\.gtf$" },
+              "mito_str":   { "type": "string" },
+              "decoys":     { "type": "boolean", "default": true },
+              "rrnas":      { "type": "boolean", "default": true }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

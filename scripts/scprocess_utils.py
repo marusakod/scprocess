@@ -41,30 +41,65 @@ def check_setup_before_running_scprocess(scprocess_dir, extraargs):
     raise FileNotFoundError(f"{scsetup_csv} is missing; consider (re)running setup.")
   
   # check if cluster profile is defined
-  setup_configfile = scdata_dir / 'scprocess_setup.yaml'
+  setup_configfile  = scdata_dir / 'scprocess_setup.yaml'
   if not os.path.exists(setup_configfile):
     raise FileNotFoundError(f"scprocess_setup.yaml does not exist in {scdata_dir}")
 
   # load setup config file
   with open(setup_configfile, "r") as stream:
-    setup_config      = yaml.safe_load(stream)
+    setup_cfg     = yaml.safe_load(stream)
 
-  # if there is a cluster profile check it
-  if ('profile' in setup_config) and setup_config['profile'] is not None:
-    # check if profile exists
-    profile     = setup_config['profile']
-    profile_dir = scprocess_dir / 'profiles' / profile
-    profile_f   = profile_dir / 'config.yaml'
-    if not os.path.isfile(profile_f):
-      raise FileNotFoundError(f"cluster configuration file {profile_f} does not exist")
-    
-    # if ok, add profile to snakemake call
-    extraargs = extraargs + ' --workflow-profile ' + str(profile_dir)
+  # add profile to snakemake call (can be empty)
+  profile_dir   = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
+  if profile_dir != '':
+    extraargs.extend(['--workflow-profile', str(profile_dir)])
 
   return scdata_dir, extraargs
 
 
+def _get_cluster_profile_dir(scprocess_dir, setup_cfg):
+  # first define as empty
+  profile_dir   = ''
+
+  # if there is a cluster profile check it
+  if setup_cfg.get('user', {}).get('profile'):
+    # check if profile exists
+    profile       = setup_cfg['user']['profile']
+    profile_dir   = scprocess_dir / 'profiles' / profile
+    profile_f     = profile_dir / 'config.yaml'
+    if not profile_f.is_file():
+      raise FileNotFoundError(f"cluster configuration file {profile_f} does not exist")
+
+  return profile_dir
+
+
 ### much checking
+
+# wrapper for checking setup
+def check_setup_config(setup_cfg, schema_f, scdata_dir, scprocess_dir):
+  # start with defaults, overwrite with setup_cfg values
+  schema      = _load_schema_file(schema_f)
+  defaults    = _get_default_config_from_schema(schema)
+  snakemake.utils.update_config(defaults, setup_cfg)
+  setup_cfg   = defaults
+
+  # check file is ok
+  _validate_object_against_schema(setup_cfg, schema_f, "setup config")
+
+  # add profile to snakemake call (can be empty)
+  profile_dir   = _get_cluster_profile_dir(setup_cfg)
+  if profile_dir != '':
+    setup_cfg['user']['profile_dir'] = profile_dir
+
+  # check that all genome names are unique
+  if ('genomes' in setup_cfg) and ('custom' in setup_cfg['genomes']):
+    gen_names     = [ spec['name'] for spec in setup_cfg['genomes']['custom'] ]
+    not_unique    = len(set(gen_names)) != len(gen_names)
+    if not_unique:
+      raise KeyError("custom genomes do not have unique names")
+
+  return setup_cfg
+
 
 # wrapper for checking
 def check_config(config, schema_f, scdata_dir, scprocess_dir):

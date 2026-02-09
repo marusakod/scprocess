@@ -98,7 +98,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
   # make pbs for each batch
   bpparam     = MulticoreParam(workers = n_cores, tasks = length(batches))  
   if (zoom) {
-    pb_ls       = bplapply(batches, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam, 
+      pb_ls       = bplapply(batches, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam, 
       h5ad_paths = h5ad_paths, int_dt = int_dt, batch_var = batch_var, cl_var = cl_var,
       keep_cls = keep_cls, agg_fn = agg_fn)
   } else {
@@ -146,6 +146,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
   # filter sce
   keep_idx  = (colData(tmp_sce)$cluster %in% keep_cls) & (colData(tmp_sce)$sample_id != "")
   tmp_sce   = tmp_sce[,  keep_idx]
+  colData(tmp_sce)[["sample_id"]] = colData(tmp_sce)[["sample_id"]] %>% fct_drop
 
   # make pb
   pb        = aggregateData_datatable(tmp_sce, by_vars = c("cluster", "sample_id"), 
@@ -168,13 +169,18 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
 
 .make_one_zoom_pseudobulk <- function(sel_b, h5ad_paths, int_dt, batch_var, cl_var, keep_cls, agg_fn) {
   message(sel_b)
-  h5ad_f       = h5ad_paths[[sel_b]]
-  tmp_sce      = readH5AD(h5ad_f)
-  smpl_int_dt = copy(int_dt) %>% .[ get(batch_var) == sel_b ]
+  h5ad_f      = h5ad_paths[[sel_b]]
+  tmp_sce     = readH5AD(h5ad_f)
+  smpl_int_dt = copy(int_dt) %>% .[ get(batch_var) == sel_b ] %>% setkey(cell_id)
   assert_that(all(smpl_int_dt$cell_id %in% colnames(tmp_sce)))
   
   # add clusters to sce
-  colData(tmp_sce)[["cluster"]] = colData(tmp_sce)[[cl_var]] 
+  colData(tmp_sce)[["cluster"]] = smpl_int_dt[colnames(tmp_sce)] %>% .[[cl_var]]
+
+  # filter sce
+  keep_idx  = (colData(tmp_sce)$cluster %in% keep_cls) & (colData(tmp_sce)$sample_id != "")
+  tmp_sce   = tmp_sce[,  keep_idx]
+  colData(tmp_sce)[["sample_id"]] = colData(tmp_sce)[["sample_id"]] %>% fct_drop
 
   # remove umap and clustering cols from before and add new ones
   rm_cols     = c('UMAP1', 'UMAP2', str_subset(names(colData(tmp_sce)), "RNA_snn_res"))
@@ -188,7 +194,6 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
   tmp_sce     = tmp_sce[, smpl_int_dt$cell_id]
   
   # add clusters to sce
-  colData(tmp_sce)[["cluster"]] = smpl_int_dt[[cl_var]] 
   pb          = aggregateData_datatable(tmp_sce, by_vars = c("cluster", "sample_id"), 
     fun = agg_fn, all_cls = keep_cls)
   
@@ -280,7 +285,8 @@ aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
     rowData = rowData(sce), metadata = md)
   cd          = data.frame(colData(sce)[, by_vars])
   # for (i in names(cd)) if (is.factor(cd[[i]]))
-  #   cd[[i]]     = droplevels(cd[[i]])
+  #   cd[[i]]     = fct_drop(cd[[i]])
+
   cd$cluster  = factor(cd$cluster, levels = all_cls)
   ns          = table(cd)
   if (length(by_vars) == 2) {

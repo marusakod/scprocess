@@ -66,34 +66,28 @@ def get_scprocess_data(scdata_dir):
 
 
 def get_af_index_parameters(config):
-  # check that genome is in config
-  assert "genome" in config, "genome not defined in config file"
-  
-  # check that either tenx or custom are in the config 
-  assert 'tenx' in config['genome'] or 'custom' in config['genome'], \
-    "either 'tenx' or 'custom' need to be specified under genome"
-
   # initialize
+  genomes     = config['genomes']
   SETUP_LS    = []
 
   # get parameters for all specified tenx genomes
-  if 'tenx' in config['genome']:
+  if 'tenx' in genomes:
     # get just tenx list
-    tenx_ls     = config['genome']['tenx']
+    tenx_ls     = genomes['tenx']
     for spec_tenx in tenx_ls:
       SETUP_LS.append(_get_index_parameters_tenx(spec_tenx, TENX_NAMES))
 
   # get parameters for all specified custom genomes
-  if 'custom' in config['genome']:
+  if 'custom' in genomes:
     # get just custom list
-    custom_ls     = config['genome']['custom']
+    custom_ls     = genomes['custom']
     for spec_custom in custom_ls:
       SETUP_LS.append(_get_index_parameters_custom(spec_custom, TENX_NAMES))
 
   # check no duplicate names
   setup_names = [ s['name'] for s in SETUP_LS ]
-  assert len(setup_names) == len(set(setup_names)), \
-    "Duplicated genome names are not allowed!"
+  if not len(setup_names) == len(set(setup_names)):
+    raise KeyError("Duplicated genome names are not allowed!")
 
   # check if reference for tutorial needs to be added
   if 'mouse_2024' not in setup_names:
@@ -108,81 +102,34 @@ def get_af_index_parameters(config):
 
 
 def _get_index_parameters_tenx(spec_tenx, TENX_NAMES):
-  # check that all genome names are unique
-  assert spec_tenx['name'] in TENX_NAMES, f"{spec_tenx['name']} not a recognized 10x genome name"
-
   # define defaults
-  params_ls   = {
-    "name":         spec_tenx['name'],
-    "gtf":          None,
-    "mito_str":     TENX_MITOS[ spec_tenx['name'] ],
-    "fasta":        None,
-    "index_dir":    None,
-    "is_prebuilt":  False,
-    "is_tenx":      True,
-    "has_decoys":   True,
-    "has_rrna":     True
-  }
+  spec_tenx["gtf"]          = None
+  spec_tenx["fasta"]        = None
+  spec_tenx["mito_str"]     = TENX_MITOS[ spec_tenx['name'] ]
+  spec_tenx["is_tenx"]      = True
+  if not "decoys" in spec_tenx:
+    spec_tenx["decoys"]       = True
+  if not "rrnas" in spec_tenx:
+    spec_tenx["rrnas"]        = True
+  spec_tenx['is_prebuilt']  = spec_tenx['decoys'] and spec_tenx['rrnas']
 
-  # add decoys
-  if 'decoys' in spec_tenx:
-    params_ls['has_decoys'] = _safe_boolean(spec_tenx['decoys'])
-  if 'rrna' in spec_tenx:
-    params_ls['has_rrna']   = _safe_boolean(spec_tenx['rrna'])
-
-  # add whether is_prebuilt
-  params_ls['is_prebuilt']  = params_ls['has_decoys'] and params_ls['has_rrna']
-
-  return params_ls
+  return spec_tenx
 
 
 def _get_index_parameters_custom(spec_custom, TENX_NAMES):
   # check if all required entries are specified
-  assert 'name'     in spec_custom, "missing 'name' in custom genome specification"
-  assert 'gtf'      in spec_custom, "missing 'gtf' in custom genome specification"
-  assert 'mito_str' in spec_custom, "missing 'mito_str' in custom genome specification"
-  assert spec_custom['name'] not in TENX_NAMES, \
-    f"The name {spec_custom['name']} overlaps with a name for a 10x genome; please use a different name."
-  assert os.path.isfile(spec_custom['gtf']), \
-    f"file {gtf} specified in configfile doesn't exist"
-  has_fasta   = 'fasta' in spec_custom
-  has_index   = 'index_dir' in spec_custom
-  assert has_fasta + has_index == 1, \
-    "Each custom genome requires exactly one of 'fasta' and 'index_dir' to be defined"
+  if not os.path.isfile(spec_custom['gtf']):
+    raise FileNotFoundError(f"file {gtf} specified in configfile doesn't exist")
+  if not os.path.isfile(spec_custom['fasta']):
+    raise FileNotFoundError(f"file {fa} specified in configfile doesn't exist")
 
-  # define defaults
-  params_ls   = {
-    "name":         None,
-    "gtf":          None,
-    "mito_str":     None,
-    "fasta":        None,
-    "index_dir":    None,
-    "is_prebuilt":  False,
-    "is_tenx":      False,
-    "has_decoys":   True,
-    "has_rrna":     True
-  }
+  # fill in defaults if we need to
+  if not "decoys" in spec_custom:
+    spec_custom["decoys"]     = True
+  if not "rrnas" in spec_custom:
+    spec_custom["rrnas"]      = True
 
-  # add some things
-  params_ls['name']     = spec_custom['name']
-  params_ls['gtf']      = spec_custom['gtf']
-  params_ls['mito_str'] = spec_custom['mito_str']
-
-  # add either fasta or index_dir
-  if has_fasta:
-    assert os.path.isfile(spec_custom['fasta']), f"file {fa} specified in configfile doesn't exist"
-    params_ls['fasta'] = spec_custom['fasta']
-  elif has_index:
-    assert _check_valid_index(spec_custom['index']), f"Alevin index for {params_ls['name']} is incomplete."
-    params_ls['index'] = spec_custom['index']
-
-  # add decoys
-  if 'decoys' in spec_custom:
-    params_ls['has_decoys'] = _safe_boolean(spec_custom['decoys'])
-  if 'rrna' in spec_custom:
-    params_ls['has_rrna'] = _safe_boolean(spec_custom['rrna'])
-
-  return params_ls
+  return spec_custom
 
 
 def _safe_boolean(val):
