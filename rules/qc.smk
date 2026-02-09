@@ -5,7 +5,7 @@ import gzip
 import os
 import numpy as np
 
-localrules: make_qc_thresholds_csv
+localrules: make_qc_thresholds_csv, check_qc_quality
 
 # get output file paths as string
 def _get_qc_files_str(run, RUNS_TO_BATCHES, qc_dir, FULL_TAG, DATE_STAMP):
@@ -284,3 +284,20 @@ rule get_qc_sample_statistics:
       config, BATCHES, RUNS_TO_BATCHES, BATCH_VAR, RUN_VAR)
     sample_stats_df.write_csv(output.qc_stats_f)
 
+
+rule check_qc_quality:
+  input:
+    qc_stats_f  = f"{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv"
+  output:
+    qc_flag_f   = touch(f"{qc_dir}/qc_passed_{FULL_TAG}_{DATE_STAMP}.flag")
+  params:
+    batch_var   = BATCH_VAR
+  run:
+    import polars as pl
+    qc_df     = pl.read_csv(input.qc_stats_f)
+    num_ok    = qc_df[f'bad_{params.batch_var}'].not_().sum()
+    
+    if num_ok < 2:
+      # This will crash the job and prevent downstream rules from starting
+      raise Exception(f"CRITICAL: Only {num_ok} samples passed QC. Stopping.")
+    

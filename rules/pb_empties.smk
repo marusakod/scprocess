@@ -128,6 +128,7 @@ rule make_one_pb_cells:
   input:
     batch_lu_f    = f'{pb_dir}/runs_to_batches_{FULL_TAG}_{DATE_STAMP}.csv',
     filt_counts_f = get_filt_counts_f,
+    qc_flag_f     = f"{qc_dir}/qc_passed_{FULL_TAG}_{DATE_STAMP}.flag",
     qc_stats_f    = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     h5_paths_f    = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
     coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
