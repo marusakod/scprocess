@@ -10,7 +10,7 @@ suppressPackageStartupMessages({
 gsea_regex  = "^(HALLMARK_|GOBP_|GOCC_|GOMF_|BIOCARTA_|REACTOME_|KEGG_)(.+)"
 
 run_fgsea <- function(mkrs_f, fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f,
-  species, gsea_dir, min_cpm_go, max_zero_p, gsea_cut, not_ok_re, n_cores){
+  species, gsea_dir, min_cpm_go, max_zero_p, gsea_var, gsea_cut, not_ok_re, n_cores) {
 
   # check some inputs
   assert_that(
@@ -20,7 +20,8 @@ run_fgsea <- function(mkrs_f, fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f,
     is.character(fgsea_go_bp_f), 
     is.character(fgsea_go_cc_f),
     is.character(fgsea_go_mf_f), 
-    is.character(not_ok_re)
+    is.character(not_ok_re),
+    is.character(gsea_var)
   )
   assert_that(
     dir.exists(gsea_dir)
@@ -30,6 +31,9 @@ run_fgsea <- function(mkrs_f, fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f,
     is.numeric(gsea_cut),
     is.numeric(n_cores)
   )
+  # validate gsea_var
+  gsea_var = match.arg(gsea_var, choices = c("logFC", "z_score"))
+
   setDTthreads(n_cores)
   
   # get markers
@@ -47,7 +51,7 @@ run_fgsea <- function(mkrs_f, fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f,
   mkrs_tmp    = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>%
     .[ logcpm.sel > log(min_cpm_go + 1) ] %>%
     .[ (n_zero/n_cl < max_zero_p) | (logFC < 0) ]
-  calc_fgsea_dt(gsets_list, fgsea_fs, mkrs_tmp, gsea_cut, gsea_var = "z_score",
+  calc_fgsea_dt(gsets_list, fgsea_fs, mkrs_tmp, gsea_cut, gsea_var = gsea_var,
     n_cores = n_cores)
 }
 

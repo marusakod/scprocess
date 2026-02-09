@@ -243,6 +243,9 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, doindex):
   _, _                = scprocess_utils.get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
   _                   = scprocess_utils.get_labeller_parameters(config, schema_f, scdata_dir)
 
+  # check config is ok for the rule we want to run
+  scprocess_utils.check_config_ok_for_rule(config, rule)
+
   # print which files will be processed
   print(f"\nprocessing {len(BATCHES)} samples:")
   print('  ' + ', '.join(BATCHES))
@@ -297,7 +300,6 @@ def _render_index(scprocess_dir, config):
   """
 
   # get env
-  conda_dir   = scprocess_dir / ".snakemake/conda"
   rlibs_f     = scprocess_dir / 'envs/rlibs.yaml'
   env_path    = _find_env_path_from_yaml(scprocess_dir, rlibs_f)  
   if not env_path:
@@ -310,7 +312,6 @@ def _render_index(scprocess_dir, config):
     "conda", "run", "--prefix", env_path,
     "Rscript", "--vanilla", "-e", r_code
   ]
-
   return subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -585,7 +586,7 @@ if __name__ == '__main__':
     if args.rule == "":
       rule    = "all"
     else:
-      rule = args.rule  
+      rule    = args.rule
     
     # select snakefile corresponding to workflow
     if rule == "zoom":
@@ -616,5 +617,3 @@ if __name__ == '__main__':
   else:
     # if no arguments are provided at all, print the help message
     parser.print_help()
-
-

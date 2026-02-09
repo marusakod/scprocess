@@ -184,6 +184,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       mkr_max_zero_p: 0.5
       mkr_do_gsea: true
       mkr_gsea_cut: 0.1
+      mkr_gsea_var: z_score
       mkr_custom_genesets:
       - name:
         file:
@@ -277,6 +278,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       mkr_max_zero_p: 0.5
       mkr_do_gsea: true
       mkr_gsea_cut: 0.1
+      mkr_gsea_var: z_score
       mkr_custom_genesets:
       - name: mouse_brain
         file: /path/to/file/with/marker/genes.csv
@@ -426,6 +428,7 @@ sample_id:
 * `mkr_min_cpm_go`: minimum counts per million (CPM) in a cell type required for a gene to be used in GSEA.
 * `mkr_max_zero_p`: maximum proportion of pseudobulk samples for a cell type that can have zero counts for a gene to be used in GSEA.
 * `mkr_gsea_cut`: False discovery rate (FDR) cutoff for GSEA.
+* `mkr_gsea_var`: the statistical measure used for ranking genes in Gene Set Enrichment Analysis (GSEA). Choices are `z_score` (z-score based on signed log10(FDR), the default) or `logFC` (log fold change).
 * `mkr_custom_genesets`: a list of custom marker gene sets, each defined by a unique name and associated file path.
     + `name`: a string representing the name of the marker gene set
     + `file`: path to CSV file containing a list of genes in the marker gene set. Must contain column `label` (marker gene category), and `symbol` and/or `ensembl_id`. If not speficied `scprocess` will look for file `$SCPROCESS_DATA_DIR/marker_genes/{name}.csv`
@@ -444,7 +447,7 @@ sample_id:
 
 ##### zoom
 
-In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut` and `mkr_custom_genesets`.
+In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var` and `mkr_custom_genesets`.
 
 Additional parameters include:
 

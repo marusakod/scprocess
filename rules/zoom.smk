@@ -723,7 +723,8 @@ rule zoom_run_fgsea:
     zoom_mkr_min_cpm_go  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cpm_go'],
     zoom_mkr_max_zero_p  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_max_zero_p'],
     zoom_mkr_gsea_cut    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_cut'], 
-    zoom_mkr_not_ok_re   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_not_ok_re']
+    zoom_mkr_not_ok_re   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_not_ok_re'],
+    zoom_mkr_gsea_var    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_var']
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -746,6 +747,7 @@ rule zoom_run_fgsea:
       max_zero_p    = {params.zoom_mkr_max_zero_p},
       gsea_cut      = {params.zoom_mkr_gsea_cut},
       not_ok_re     = '{params.zoom_mkr_not_ok_re}',
+      gsea_var      = '{params.zoom_mkr_gsea_var}',
       n_cores       =  {threads})"
     """
 

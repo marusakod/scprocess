@@ -188,6 +188,7 @@
         "mkr_min_cpm_go":   { "type": "integer",  "default": 1 },
         "mkr_max_zero_p":   { "type": "number",   "default": 0.5 },
         "mkr_do_gsea":      { "type": "boolean",  "default": true }, 
+        "mkr_gsea_var":     { "type": "string",   "default": "z_score", "enum": ["logFC", "z_score"] },
         "mkr_gsea_cut":     { "type": "number",   "default": 0.1 },
         "mkr_custom_genesets": {
           "type": "array",
@@ -210,7 +211,7 @@
         "required": ["labeller"],
         "properties": {
           "labeller":     { "type": "string", "enum": ["celltypist", "scprocess"] },
-          "model":        {"type": "string" },
+          "model":        { "type": "string" },
           "hi_res_cl":    { "type": "string", "default": "RNA_snn_res.2" },
           "min_pred":     { "type": "number", "default": 0.8 },
           "min_cl_prop":  { "type": "number", "default": 0.5 },

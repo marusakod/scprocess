@@ -125,6 +125,7 @@
         "mkr_max_zero_p":   { "type": "number",   "default": 0.5 },
         "mkr_do_gsea":      { "type": "boolean",  "default": true }, 
         "mkr_gsea_cut":     { "type": "number",   "default": 0.1 },
+        "mkr_gsea_var":     { "type": "string",   "default": "z_score", "enum": ["logFC", "z_score"] },
         "mkr_custom_genesets": {
           "type": "array",
           "items": {

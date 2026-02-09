@@ -143,7 +143,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'gtf_dt_f', 'integration_f', 'pb_f', 'mkrs_f', 'hvgs_f', 'ambient_f',
       'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f','fgsea_paths_f', 'fgsea_hlmk_f',
       'mkr_sel_res', 'custom_mkr_names', 'custom_mkr_paths',
-      'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_cut', 'species', 'do_gsea')
+      'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_var', 'mkr_gsea_cut', 
+      'species', 'do_gsea')
 
     assert_that(all(req_names %in% add_args_names))
 
@@ -264,7 +265,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     lbls_title           = ""
     label_celltypes_link = ""
     zoom_title           = ""
-    zoom_links_md        = ""
+    zoom_links           = ""
 
     # get placeholder replacements for all htmls
     if(paste0(short_tag, '_mapping.html') %in% htmls){

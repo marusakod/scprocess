@@ -50,6 +50,7 @@ rule run_fgsea:
     mkr_gsea_dir    = config['marker_genes']['mkr_gsea_dir'],
     mkr_min_cpm_go  = config['marker_genes']['mkr_min_cpm_go'],
     mkr_max_zero_p  = config['marker_genes']['mkr_max_zero_p'],
+    mkr_gsea_var    = config['marker_genes']['mkr_gsea_var'],
     mkr_gsea_cut    = config['marker_genes']['mkr_gsea_cut'], 
     mkr_not_ok_re   = config['marker_genes']['mkr_not_ok_re']
   threads: 8
@@ -70,6 +71,7 @@ rule run_fgsea:
       gsea_dir      = '{params.mkr_gsea_dir}', 
       min_cpm_go    =  {params.mkr_min_cpm_go}, 
       max_zero_p    =  {params.mkr_max_zero_p},
+      gsea_var      = '{params.mkr_gsea_var}',
       gsea_cut      =  {params.mkr_gsea_cut},
       not_ok_re     = '{params.mkr_not_ok_re}',
       n_cores       =  {threads})"

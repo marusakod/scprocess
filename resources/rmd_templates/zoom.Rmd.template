@@ -87,6 +87,7 @@ min_cells     = ${mkr_min_cells}
 
 # parameters for gsea
 gsea_cut      = ${mkr_gsea_cut}
+gsea_var_sel  = "${mkr_gsea_var}"
 species       = "${species}"
 
 # define nice order for plotting
@@ -428,7 +429,7 @@ for (p in names(gsea_ls)) {
   if (is.null(gsea_ls[[p]]))
     next
   cat('#### ', p, '\n')
-  dt    = gsea_ls[[p]] %>% .[ gsea_var == "z_score" ]
+  dt    = gsea_ls[[p]] %>% .[ gsea_var == gsea_var_sel ]
   plot_gsea_dotplot(dt, gsea_cut = gsea_cut, n_top_paths = 5, max_nes = 2,
     size_range = c(10, 200), what = "pos_only", cl_order = cl_ord) %>% print
   cat('\n\n')

@@ -402,6 +402,7 @@ rule render_html_marker_genes:
     mkr_min_cpm_mkr   = config['marker_genes']['mkr_min_cpm_mkr'],
     mkr_min_cells     = config['marker_genes']['mkr_min_cells'],
     mkr_do_gsea       = config['marker_genes']['mkr_do_gsea'], 
+    mkr_gsea_var      = config['marker_genes']['mkr_gsea_var'],
     mkr_gsea_cut      = config['marker_genes']['mkr_gsea_cut'],
     fgsea_args = lambda wildcards, input: " ".join(
       [
@@ -454,6 +455,7 @@ rule render_html_marker_genes:
       mkr_not_ok_re     = '{params.mkr_not_ok_re}',
       mkr_min_cpm_mkr   =  {params.mkr_min_cpm_mkr},
       mkr_min_cells     =  {params.mkr_min_cells},
+      mkr_gsea_var      = '{params.mkr_gsea_var}',
       mkr_gsea_cut      =  {params.mkr_gsea_cut},
       {params.fgsea_args}
       species           = '{params.species}', 

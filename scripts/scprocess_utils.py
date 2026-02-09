@@ -699,6 +699,15 @@ def _check_zoom_clusters_in_file(labels_f, zoom_config):
   return sel_labels
 
 
+def check_config_ok_for_rule(config, rule):
+  # if rule is zoom, check that zoom parameters are present and that the specified clusters are in the integrated file
+  if rule == 'label_celltypes':
+    if 'label_celltypes' not in config:
+      raise KeyError("no 'label_celltypes' section found in config file")
+  if rule == 'zoom':
+    if 'zoom' not in config:
+      raise KeyError("no 'zoom' section found in config file")
+
 ### much input
 
 # get variables for each run
