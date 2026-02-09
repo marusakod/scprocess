@@ -9,7 +9,6 @@ import sys
 import textwrap
 import yaml
 import pathlib
-import pandas as pd
 import polars as pl
 import glob
 import subprocess
@@ -68,7 +67,8 @@ def run_setup(scprocess_dir, snakefile, extraargs):
 
   # run
   print("starting scprocess setup")
-  print(f"running command:\n{" ".join(map(str, cmd_list))}" )
+  cmd_str = " ".join(map(str, cmd_list))
+  print(f"running command:\n{cmd_str}")
   subprocess.run( cmd_list, check = True )
 
 
@@ -235,13 +235,13 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
   config        = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
 
   # get lists of parameters
-  RUN_PARAMS, RUN_VAR = scprocess_utils.get_run_parameters(config, scdata_dir)
+  RUN_PARAMS, _       = scprocess_utils.get_run_parameters(config, scdata_dir)
   RUNS                = list(RUN_PARAMS.keys())
   BATCH_PARAMS, BATCH_VAR, SAMPLES = scprocess_utils.get_batch_parameters(config, RUNS, scdata_dir)
   BATCHES             = list(BATCH_PARAMS.keys())
-  RESOURCE_PARAMS     = scprocess_utils.prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES)
-  RUNS_TO_BATCHES, RUNS_TO_SAMPLES = scprocess_utils.get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
-  LABELLER_PARAMS     = scprocess_utils.get_labeller_parameters(config, schema_f, scdata_dir)
+  _                   = scprocess_utils.prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES)
+  _, _                = scprocess_utils.get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
+  _                   = scprocess_utils.get_labeller_parameters(config, schema_f, scdata_dir)
 
   # print which files will be processed
   print(f"\nprocessing {len(BATCHES)} samples:")
@@ -257,7 +257,8 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, noindex):
     "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{config['project']['proj_dir']}",
     *extraargs,
     rule]
-  print( f"snakemake command:\n{" ".join(map(str, cmd_list))}" )
+  cmd_str = " ".join(map(str, cmd_list))
+  print(f"snakemake command:\n{cmd_str}")
   subprocess.run( cmd_list, check = True )
 
   # render index if requested
@@ -402,12 +403,83 @@ def plot_interactive_knee(config_f, knee_f, sample):
   print(f"interactive knee plot saved here:\n  {plot_f}")
 
 
+def show_version_and_hpc_info(sc_dir):
+  """Display scprocess version and HPC configuration details."""
+  
+  # Get version
+  version_f   = sc_dir / "VERSION"
+  version     = "unknown"
+  if version_f.exists():
+    with open(version_f, "r") as f:
+      version = f.read().strip()
+  
+  print(f"\nscprocess version: {version}")
+  
+  # Get HPC information from scprocess_setup.yaml if available
+  scdata_dir  = os.getenv('SCPROCESS_DATA_DIR')
+  if not scdata_dir:
+    print("\nNo HPC configuration found (SCPROCESS_DATA_DIR not set)")
+    return
+  setup_f     = pathlib.Path(scdata_dir) / 'scprocess_setup.yaml'
+  if not setup_f.exists():
+    print(f"\nNo HPC configuration found ({setup_f} does not exist)")
+    return
+  
+  # see if we can read the config and display some of the details in a user-friendly way
+  try:
+    with open(setup_f, "r") as f:
+      setup_cfg = yaml.safe_load(f)
+
+    # Display user information
+    if setup_cfg.get('user'):
+      user_info = setup_cfg['user']
+      print("")
+      if user_info.get('your_name'):
+        print(f"  User: {user_info['your_name']}")
+      if user_info.get('affiliation'):
+        print(f"  Affiliation: {user_info['affiliation']}")
+  
+      if user_info.get('profile'):
+        print("\nHPC Configuration:")
+        profile_name = user_info['profile']
+        print(f"  Profile: {profile_name}")
+        # Try to display profile config details
+        profile_f = sc_dir / 'profiles' / profile_name / 'config.yaml'
+        if profile_f.exists():
+          with open(profile_f, "r") as f:
+            profile_cfg = yaml.safe_load(f)
+          if profile_cfg:
+            print(f"  Location: {profile_f}")
+            if profile_cfg.get('executor'):
+              print(f"  Executor: {profile_cfg['executor']}")
+      
+    else:
+      print("  No user information configured")
+    
+    print("\nReference genomes:")
+    
+    # Display reference genomes
+    if setup_cfg.get('genomes'):
+      genomes = setup_cfg['genomes']
+      if genomes.get('tenx'):
+        print(f"  10x:")
+        for genome in genomes['tenx']:
+          print(f"    - {genome['name']}")
+      if genomes.get('custom'):
+        print(f"  custom:")
+        for genome in genomes['custom']:
+          print(f"    - {genome['name']}")
+    
+  except Exception as e:
+    print(f"\nWarning: Could not read HPC configuration: {e}")
+
+
 if __name__ == '__main__':
   # define arguments
   parser      = argparse.ArgumentParser(
     description = 'snakemake workflows for processing single cell RNAseq data.'
   )
-  subparsers  = parser.add_subparsers(dest='subcommand', help="scprocess subcommands:", required=True)
+  subparsers  = parser.add_subparsers(dest='subcommand', help="scprocess subcommands:", required=False)
 
   # subparser for the 'setup' subcommand
   setup_prsr  = subparsers.add_parser('setup', help="do setup for scprocess")
@@ -481,8 +553,12 @@ if __name__ == '__main__':
   # Parse the arguments
   args      = parser.parse_args()
 
+  # If no subcommand provided, show version and HPC info
+  if args.subcommand is None:
+    show_version_and_hpc_info(sc_dir)
+  
   # create new project folder
-  if args.subcommand == "setup":
+  elif args.subcommand == "setup":
     # select snakefile corresponding to workflow
     snakefile   = sc_dir / "rules/setup.smk"
 
