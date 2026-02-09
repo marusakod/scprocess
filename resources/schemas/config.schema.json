@@ -148,20 +148,33 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "int_embedding":    { "type": "string", "enum": ["harmony", "pca"], "default": "harmony" },
-        "int_cl_method":    { "type": "string", "default": "leiden", "enum": ["leiden"] },
-        "int_theta":        { "type": "number", "default": 0.1 },
-        "int_batch_var":    { "type": "string", "enum": ["pool_id", "sample_id"], "default": "sample_id" },
-        "int_n_dims":       { "type": "integer", "default": 50 },
-        "int_dbl_res":      { "type": "number", "default": 4 },
-        "int_dbl_cl_prop":  { "type": "number", "default": 0.5 },
-        "int_sce_outs":     { "type": "boolean", "default": false},
+        "int_embedding":    { "type": "string",   "default": "harmony", "enum": ["harmony", "pca"] },
+        "int_cl_method":    { "type": "string",   "default": "leiden", "enum": ["leiden"] },
+        "int_theta":        { "type": "number",   "default": 0.1 },
+        "int_batch_var":    { "type": "string",   "default": "sample_id", "enum": ["pool_id", "sample_id"] },
+        "int_n_dims":       { "type": "integer",  "default": 50 },
+        "int_dbl_res":      { "type": "number",   "default": 4 },
+        "int_dbl_cl_prop":  { "type": "number",   "default": 0.5 },
+        "int_sce_outs":     { "type": "boolean",  "default": false},
+        "int_use_paga":     { "type": "boolean",  "default": true},
+        "int_paga_cl_res":  { "type": "number",   "default": 2, "exclusiveMinimum": 0},
         "int_res_ls": {
           "type":     "array",
           "items":    { "type": "number" },
           "default":  [0.1, 0.2, 0.5, 1, 2]
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"int_use_paga": {"const": true}}},
+          "then": {
+            "required": ["int_paga_cl_res"]
+          },
+          "else": {
+            "not": {"required": ["int_paga_cl_res"]}
+          }
+        }
+      ]
     },
     "marker_genes": {
       "type": "object",

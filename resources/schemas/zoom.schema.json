@@ -92,12 +92,25 @@
         "int_theta":        { "type": "number", "default": 0.1 },
         "int_n_dims":       { "type": "integer", "default": 50 },
         "int_cl_method":    { "type": "string", "enum": ["leiden"], "default": "leiden"},
+        "int_use_paga":     { "type": "boolean",  "default": true},
+        "int_paga_cl_res":  { "type": "number",   "default": 0.2},
         "int_res_ls": {
           "type":     "array",
           "items":    { "type": "number" },
           "default":  [0.1, 0.2, 0.5, 1, 2]
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"int_use_paga": {"const": true}}},
+          "then": {
+            "required": ["int_paga_cl_res"]
+          },
+          "else": {
+            "not": {"required": ["int_paga_cl_res"]}
+          }
+        }
+      ]
     },
     "marker_genes": {
       "type": "object",

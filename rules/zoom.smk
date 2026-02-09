@@ -618,14 +618,16 @@ rule zoom_run_integration:
   output:
     integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
-    demux_type          = config['multiplexing']['demux_type'],
-    exclude_mito        = config['qc']['exclude_mito'],
-    zoom_int_embedding  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_embedding'],
-    zoom_int_n_dims     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_n_dims'],
-    zoom_int_cl_method  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_cl_method'], 
-    zoom_int_theta      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_theta'],
-    zoom_int_res_ls     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
-    batch_var           = BATCH_VAR
+    demux_type            = config['multiplexing']['demux_type'],
+    exclude_mito          = config['qc']['exclude_mito'],
+    zoom_int_embedding    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_embedding'],
+    zoom_int_n_dims       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_n_dims'],
+    zoom_int_cl_method    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_cl_method'],
+    zoom_int_theta        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_theta'],
+    zoom_int_use_paga     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_use_paga'],
+    zoom_int_paga_cl_res  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_paga_cl_res'],
+    zoom_int_res_ls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
+    batch_var             = BATCH_VAR
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -642,7 +644,7 @@ rule zoom_run_integration:
    # if GPU is available, use it
     USE_GPU_FLAG=""
     if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
-       USE_GPU_FLAG="--use_gpu"
+       USE_GPU_FLAG="--use-gpu"
     fi
     set -u
     
@@ -659,6 +661,8 @@ rule zoom_run_integration:
       --res_ls_concat "{params.zoom_int_res_ls}" \
       --integration_f {output.integration_f} \
       --batch_var     {params.batch_var} \
+      $(if [ "{params.zoom_int_use_paga}" == "True" ]; then echo "--use-paga"; fi) \
+      $(if [ "{params.zoom_int_use_paga}" == "True" ]; then echo "--paga-cl-res {params.zoom_int_paga_cl_res}"; fi) \
       $USE_GPU_FLAG
     """
 

@@ -7,13 +7,12 @@ import gc
 import scipy.sparse as sp
 from scipy.sparse import csc_matrix, csr_matrix, hstack
 import anndata as ad
-import pandas as pd
 import polars as pl
 
 
 def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
-  integration_f, batch_var, use_gpu = False):
+  integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None):
   print('setting up parameters')
   exclude_mito  = bool(exclude_mito)
   res_ls        = res_ls_concat.split()
@@ -39,7 +38,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
 
   print('running integration to find more doublets')
   int_dbl       = _do_one_integration(adata_dbl, dbl_batch_var, cl_method, n_dims,
-    dbl_res, embedding, use_gpu, theta = dbl_theta)
+    dbl_res, embedding, use_gpu, theta = dbl_theta, use_paga = use_paga, paga_cl = f"RNA_snn_res.{dbl_res}")
   
   del adata_dbl
   gc.collect()
@@ -54,8 +53,8 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   gc.collect()
 
   print('running integration on clean data')
-  int_ok        = _do_one_integration(adata, batch_var, cl_method, n_dims, 
-    res_ls, embedding, use_gpu, theta = theta)
+  int_ok        = _do_one_integration(adata, batch_var, cl_method, n_dims,
+    res_ls, embedding, use_gpu, theta = theta, use_paga = use_paga, paga_cl = f"RNA_snn_res.{paga_cl_res}")
 
   print('join results')
   int_df        = int_ok.join(dbl_data, on="cell_id", coalesce=True, how = 'full')
@@ -71,7 +70,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
 
 def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
   exclude_mito, embedding, n_dims, cl_method, theta, res_ls_concat,
-  integration_f, batch_var, use_gpu = False):
+  integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None):
 
   print('setting up parameters')
   exclude_mito  = bool(exclude_mito)
@@ -92,7 +91,8 @@ def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
   print(f"  anndata object has {adata.shape[0]} cells and {adata.shape[1]} dims")
 
   print('running integration')
-  int_df        = _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, use_gpu, theta)
+  int_df        = _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls,
+    embedding, use_gpu, theta, use_paga = use_paga, paga_cl = f"RNA_snn_res.{paga_cl_res}")
 
   print('save results')
   with gzip.open(integration_f, 'wb') as f:
@@ -219,7 +219,8 @@ def _normalize_hvg_mat(hvg_mat, cells_df, exclude_mito, scale_f = 10000):
   return hvg_mat
 
 
-def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, use_gpu, theta):
+def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding,
+  use_gpu, theta, use_paga=False, paga_cl=None):
   # check whether we have one or more values of batch
   n_batches = len(adata.obs[batch_var].unique())
   if n_batches == 1:
@@ -249,11 +250,10 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, 
     # harmony embedding instead of pca has to be used for umap and clustering
     sel_embed = 'X_pca_harmony'
   
-  print(' running UMAP')
+  print(' finding neighbors')
   if np.isnan(adata.obsm[sel_embed]).any():
     raise ValueError("some NaN values in harmony output")
   sc.pp.neighbors(adata, n_pcs = n_dims, use_rep = sel_embed)
-  sc.tl.umap(adata, maxiter = 750) # need to tell umap to use harmony
 
   print(' finding clusters')
   if not isinstance(res_ls, list):
@@ -267,6 +267,18 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding, 
       sc.tl.louvain(
         adata, key_added=f"RNA_snn_res.{res}", resolution=float(res)
       )
+
+  # optionally run PAGA and use as init_pos for UMAP
+  init_pos  = 'paga' if use_paga else 'spectral'
+  if use_paga:
+    import scanpy
+    print(' running PAGA')
+    scanpy.tl.paga(adata, groups = paga_cl)
+    scanpy.pl.paga(adata)
+
+  # run UMAP
+  print(' running UMAP')
+  sc.tl.umap(adata, maxiter = 750, init_pos = init_pos)
 
   if use_gpu:
     sc.get.anndata_to_CPU(adata)
@@ -409,8 +421,14 @@ if __name__ == "__main__":
   parser_run_integration.add_argument('--res_ls_concat',  type = str)
   parser_run_integration.add_argument('--integration_f',  type = str)
   parser_run_integration.add_argument('--batch_var',      type = str)
-  parser_run_integration.add_argument("-g", "--use_gpu",  action='store_true', 
+  parser_run_integration.add_argument("-g", "--use-gpu",  action='store_true',
     help='Use GPU-accelerated libraries if available.'  
+  )
+  parser_run_integration.add_argument("-p", "--use-paga",  action='store_true',
+    help='Use PAGA as initialization for UMAP.'
+  )
+  parser_run_integration.add_argument("--paga-cl-res",  type = str,
+    help='The resolution of the PAGA cluster to use for initialization of UMAP.'
   )
 
   # parser for run_zoom_integration
@@ -427,10 +445,15 @@ if __name__ == "__main__":
   parser_run_zoom_integration.add_argument('--res_ls_concat',  type = str)
   parser_run_zoom_integration.add_argument('--integration_f',  type = str)
   parser_run_zoom_integration.add_argument('--batch_var',      type = str)
-  parser_run_zoom_integration.add_argument("-g", "--use_gpu",  action='store_true', 
+  parser_run_zoom_integration.add_argument("-g", "--use-gpu",  action='store_true',
     help='Use GPU-accelerated libraries if available.'  
   )
-
+  parser_run_zoom_integration.add_argument("-p", "--use-paga",  action='store_true',
+    help='Use PAGA as initialization for UMAP.'
+  )
+  parser_run_zoom_integration.add_argument("--paga-cl-res",  type = str,
+    help='The resolution of the PAGA cluster to use for initialization of UMAP.'
+  )
   args = parser.parse_args()
 
   # gpu vs cpu setup
@@ -460,11 +483,11 @@ if __name__ == "__main__":
     run_integration(args.hvg_mat_f, args.dbl_hvg_mat_f, args.sample_qc_f, args.coldata_f,
       args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
       args.dbl_res, args.dbl_cl_prop, args.theta, args.res_ls_concat, args.integration_f,
-      args.batch_var, args.use_gpu)
+      args.batch_var, args.use_gpu, args.use_paga, args.paga_cl_res)
   elif args.function_name == 'run_zoom_integration':
     run_zoom_integration(args.hvg_mat_f, args.sample_qc_f, args.coldata_f,
       args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
       args.theta, args.res_ls_concat, args.integration_f,
-      args.batch_var, args.use_gpu)
+      args.batch_var, args.use_gpu, args.use_paga, args.paga_cl_res)
   else:
     parser.print_help()

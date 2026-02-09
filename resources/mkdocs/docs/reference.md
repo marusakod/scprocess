@@ -412,6 +412,8 @@ sample_id:
 * `int_dbl_cl_prop`: threshold for the proportion of doublets within a cluster. Clusters where the proportion of doublets exceeds this value will be excluded.
 * `int_sce_outs`: if `true` H5AD outputs will be converted to `SingleCellExperiment` objects and stored ad RDS files.
 * `int_res_ls`: list of resolution values to be used for clustering.
+* `int_use_paga`: if `true`, enable Partition-based graph abstraction (PAGA) for trajectory analysis and cell hierarchy inference. A clustering at the specified resolution will be computed for PAGA.
+* `int_paga_cl_res`: clustering resolution for PAGA analysis. Must be a value listed in `int_res_ls`. Default is 2. Only used when `int_use_paga` is `true`.
 
 ##### marker_genes
 
@@ -442,7 +444,7 @@ sample_id:
 
 ##### zoom
 
-In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut` and `mkr_custom_genesets`.
+In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut` and `mkr_custom_genesets`.
 
 Additional parameters include:
 

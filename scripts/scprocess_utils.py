@@ -537,7 +537,11 @@ def _check_hvg_parameters(config):
 
 # check parameters for integration
 def _check_integration_parameters(config):
-  # nothing to do here at the moment; leaving in case it's useful later
+  # if paga is specified, check that the specified leiden resolution is in the list of valid values
+  if config['integration']['int_use_paga']:
+    valid_res_ls  = config['integration']['int_res_ls']
+    if not config['integration']['int_paga_cl_res'] in valid_res_ls:
+      raise ValueError(f"leiden/louvain resolution specified for paga integration must be one of {valid_res_ls}")
 
   return config
 
@@ -643,6 +647,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config, scdata_dir):
 
   # check hvgs option
   zoom_config   = _check_hvg_parameters(zoom_config)
+  zoom_config   = _check_integration_parameters(zoom_config)
 
   # get useful things
   SHORT_TAG     = config['project']['short_tag']

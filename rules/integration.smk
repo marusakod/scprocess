@@ -25,6 +25,8 @@ rule run_integration:
     int_n_dims      = config['integration']['int_n_dims'],
     int_dbl_res     = config['integration']['int_dbl_res'],
     int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
+    int_use_paga    = config['integration']['int_use_paga'],
+    int_paga_cl_res = config['integration']['int_paga_cl_res'],
     int_res_ls      = config['integration']['int_res_ls']
   threads: 1
   retries: config['resources']['retries'] 
@@ -40,7 +42,7 @@ rule run_integration:
     # if GPU is available, use it
     USE_GPU_FLAG=""
     if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
-       USE_GPU_FLAG="--use_gpu"
+       USE_GPU_FLAG="--use-gpu"
     fi
     set -u
     
@@ -60,6 +62,8 @@ rule run_integration:
       --res_ls_concat "{params.int_res_ls}" \
       --integration_f {output.integration_f} \
       --batch_var     {params.int_batch_var} \
+      $(if [ "{params.int_use_paga}" == "True" ]; then echo "--use-paga"; fi) \
+      $(if [ "{params.int_use_paga}" == "True" ]; then echo "--paga-cl-res {params.int_paga_cl_res}"; fi) \
       $USE_GPU_FLAG
     """
 
