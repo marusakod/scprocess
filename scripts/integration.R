@@ -106,19 +106,17 @@ plot_umap_cluster <- function(umap_dt, clust_dt, name) {
   plot_dt     = plot_dt[ sample(.N, .N) ]
 
   # define colours
-  if (name == 'type_broad') {
-    cl_cols     = broad_cols
-  } else {
-    cl_cols     = seq_along( levels(plot_dt$cluster) ) %>%
-      rep(nice_cols, times = 10)[ . ] %>%
-      setNames( levels(umap_dt$cluster) )
-  }
+  cl_lvls     = levels(plot_dt$cluster)
+  cl_cols     = seq_along( cl_lvls ) %>% rep(nice_cols, times = 10)[ . ] %>%
+    setNames( cl_lvls )
+  n_cols_lgd  = ceiling(length(cl_lvls) / 15)
 
   # make plot
   g = ggplot(plot_dt) +
     aes( x = UMAP1, y = UMAP2, colour = cluster ) +
     geom_point(size = 0.1) +
-    scale_colour_manual( values = cl_cols, guide = guide_legend(override.aes = list(size = 3)) ) +
+    scale_colour_manual( values = cl_cols, 
+      guide = guide_legend(override.aes = list(size = 3), ncol = n_cols_lgd) ) +
     scale_x_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     scale_y_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     theme_bw() +
@@ -202,13 +200,8 @@ plot_cluster_qc_distns <- function(qc_melt, clust_dt, name, min_cl_size = 1e2) {
   plot_dt   = merge(qc_melt, clust_dt, by = 'cell_id')
 
   # define colours
-  if (name == 'type_broad') {
-    cl_cols     = broad_cols
-  } else {
-    cl_cols     = seq_along( levels(plot_dt$cluster) ) %>%
-      rep(nice_cols, times = 10)[ . ] %>%
-      setNames( levels(plot_dt$cluster) )
-  }
+  cl_cols     = seq_along( levels(plot_dt$cluster) ) %>%
+    rep(nice_cols, times = 10)[ . ] %>% setNames( levels(plot_dt$cluster) )
 
   # define breaks
   log_brks    = c(1e1, 2e1, 5e1, 1e2, 2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5, 2e5, 5e5) %>%
