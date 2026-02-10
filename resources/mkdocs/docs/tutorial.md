@@ -105,8 +105,6 @@ project:
   fastq_dir: data/fastqs
   full_tag: test_project
   short_tag: 
-  your_name: 
-  affiliation:
   sample_metadata: data/metadata/
   species:
   date_stamp: "2025-01-01"
@@ -122,8 +120,6 @@ project:
   fastq_dir: data/fastqs
   full_tag: test_project
   short_tag: test
-  your_name: Test McUser
-  affiliation: Unemployed
   sample_metadata: data/metadata/test_project_metadata.csv
   species: mouse_2024
   date_stamp: "2025-01-01"
@@ -141,61 +137,90 @@ We are now ready to run {{scrun}} using:
 scprocess run config-test_project.yaml
 ```
 
-### Inspecting outputs
+### Labelling cell types
 
 ??? warning "Tutorial results may vary from your {{sc}} outputs"
     
     If you modify the default settings for the `mouse_2024` genome in `.scprocess_setup.yaml`, the results you obtain from running {{sc}} on the tutorial dataset may differ slightly from those shown in this guide.
 
-{{sc}} produces detailed reports with diagnostic plots for each step of the analysis, allowing for thorough evaluation and interpretation of the results. These reports include comprehensive descriptions of all plots, making them a valuable resource for downstream analyses. To demonstrate how these reports can be utilized for additional analysis using {{sc}}, we will examine some of the plots from the marker genes report. This report, named `test_marker_genes_0.2.html`, should be located in the `public` directory.
+{{sc}} can automatically annotate cell types using various pretrained models. In this tutorial we will use the mouse whole brain classifier provided by CellTypist. To specify the annotation model, add the highlighed lines to your configuration file:
 
-One of the plots included in the report is a heatmap that displays the expression of canonical marker genes for the mouse brain:
-
-![markers_heatmap](assets/images/tutorial1_heatmap_markers.png)
-
-From this heatmap, we can hypothesize that clusters cl01 and cl04 correspond to oligodendrocytes, as they exhibit high expression of *Plp1* a gene responsible for myelin formation and a well-established marker for mature oligodendrocytes. In contrast, cluster cl06 likely corresponds to oligodendrocyte precursor cells (OPCs), as it shows high expression of *Cspg4* (also known as *NG2*) and *Pdgfra*, both of which are characteristic markers of OPCs[^1] .
-
-In the following section, we will leverage this information to perform subclustering on the identified populations.
-
-### Zooming in 
-
-To perform subclustering analysis, we first need to create a configuration file each cell population we want to subcluster. In this example, we will create a single file for OPCs and oligodendrocytes, named `zoom_params_test_project-oligos_opcs.yaml`, with the following parameters: 
-
-```yaml
-zoom:
-  labels_source: clusters
-  sel_labels: [cl01, cl04, cl06]
-  labels_col: RNA_snn_res.0.2
-```
-
-The value of the `labels_source` parameter is set to `clusters` to indicate that the labels correspond to names of clusters identified by {{sc}}. The `sel_labels` parameter specifies the clusters to include in the subclustering analysis. `labels_col` denotes the name of the column in the clustering file that is used to define the listed clusters during the clustering step.
-
-Next, we need to link this new configuration file to the main project configuration file i.e. `config-test_project.yaml`. To do this, we will add the path to the subclustering configuration file under the `zoom` section, along with the name of the cell population (e.g., `oligos_opcs`), as shown below:
-
-```yaml hl_lines="16 17"
+```yaml hl_lines="10 11 12"
 project:
   proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
   fastq_dir: data/fastqs
   full_tag: test_project
   short_tag: test
-  your_name: Test McUser
-  affiliation: Unemployed
   sample_metadata: data/metadata/test_project_metadata.csv
   species: mouse_2024
   date_stamp: "2025-01-01"
   metadata_vars: [group]
-marker_genes:
-  custom_sets:
-    - name: mouse_brain
-zoom:
-  oligos_opcs: zoom_params_test_project-oligos_opcs.yaml
+label_celltypes:
+  - labeller: "celltypist"
+    model: Mouse_Whole_Brain
 ```
 
-Finally, we can run the subclustering analysis using the following command:
+Cell type annotation can now be initiated using the following command:
 
 ```bash
-scprocess run config-test_project.yaml -r zoom
+scprocess run config-test_project.yaml -r label_celltypes
 ```
+
+### Zooming in 
+
+After label asignment, we can subcluster populations of interest using {{sc}}. To identidy those populations we can inspect the `test_label_celltypes.html` report which should be located in the `public` directory.
+
+The report includes a UMAP plot displaying the predicted cell type annotations:
+
+![labels_umap](assets/images/tutorial1_labels_umap.png)
+
+In this example, we will subcluster the populations labelled "327 Oligo NN" (oligodendrocytes) and "326 OPC NN" (oligodendrocyte precursor cells). 
+
+1. Create a Subclustering configuration file
+    
+    First, create a new configuration file named `zoom_params_test_project-oligos_opcs.yaml`, with the following parameters: 
+
+    ```yaml
+    zoom:
+      name: oligos_opcs
+      labels_source: celltypist
+      model: Mouse_Whole_Brain
+      sel_labels: ["327 Oligo NN", "326 OPC NN"]
+      labels_col: predicted_label_agg
+    ```
+
+    The value of the `labels_source` parameter matches the value of the `labeller` parameter in the main configuration file. The `sel_labels` parameter lists specific clusters/cell types to include in subclustering. `labels_col` referes to a column name in the annotation output file [path to file here] containg cell type names.
+
+2. Link Subclustering configuration file to main project
+    
+    Link the subclustering YAML to your main project configuration file by (`config-test_project.yaml`) by adding it to the `zoom` section:
+
+    ```yaml hl_lines="15 16"
+    project:
+      proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
+      fastq_dir: data/fastqs
+      full_tag: test_project
+      short_tag: test
+      your_name: Test McUser
+      affiliation: Unemployed
+      sample_metadata: data/metadata/test_project_metadata.csv
+      species: mouse_2024
+      date_stamp: "2025-01-01"
+      metadata_vars: [group]
+    label_celltypes:
+      - labeller: "celltypist"
+        model: Mouse_Whole_Brain
+    zoom:
+      - zoom_params_test_project-oligos_opcs.yaml
+    ```
+
+3. Run subclustering
+    
+    To run subclustering use the following command:
+
+    ```bash
+    scprocess run config-test_project.yaml -r zoom
+    ```
 
 
 ## Tutorial 2: Analysis of multiplexed single cell data

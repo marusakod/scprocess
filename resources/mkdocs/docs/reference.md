@@ -114,7 +114,7 @@ This is an example config file for {{sc}} with all parameters and their default 
     project:
       proj_dir:
       fastq_dir:
-      arv_uuids:
+      arv_uuids: 
       full_tag:
       short_tag:
       your_name:
@@ -207,6 +207,7 @@ This is an example config file for {{sc}} with all parameters and their default 
     project:
       proj_dir: /path/to/proj/directory 
       fastq_dir: /path/to/directory/with/fastq/files
+      arv_uuids: ["arkau-qr8st-1a2b3c4d5e6f7g8", "arkau-9v0wx-h9i8j7k6l5m4n3o", "arkau-z2y3x-p0q1r2s3t4u5v6w"]
       full_tag: test_project
       short_tag: test
       your_name: Test McUser
@@ -227,7 +228,7 @@ This is an example config file for {{sc}} with all parameters and their default 
     multiplexing:
       demux_type: hto
       fastq_dir: /path/to/directory/with/hto_fastq/files
-      arv_uuids:
+      arv_uuids: ["arkau-qr8st-1a2b3c4d5e6f7g8", "arkau-9v0wx-h9i8j7k6l5m4n3o", "arkau-z2y3x-p0q1r2s3t4u5v6w"]
       feature_ref: /path/to/feature_ref.csv
       demux_output: /path/to/demux_output.csv
     ambient:
@@ -305,7 +306,7 @@ This is an example config file for {{sc}} with all parameters and their default 
 
 * `proj_dir`: absolute path to `workflowr` project directory created with the `newproj` function.
 * `fastq_dir`: path to directory containing FASTQ files. Should be absolute or relative to `proj_dir`.
-* `arv_uuids`: *ROCHE only:* Instead of specifying `fastq_dir`, you can specify a list of Arvados UUIDs where fastq files are located. Exactly one of `fastq_dir` and `arv_uuids` should be specified. **Maybe multiple uuids are now also allowed?**
+* `arv_uuids`: instead of specifying `fastq_dir`, you can specify a list of Arvados UUIDs where fastq files are located. Exactly one of `fastq_dir` and `arv_uuids` should be specified.
 * `full_tag`: full project label, used in output file names.
 * `short_tag`: abbreviated project label, used in output directory names.
 * `your_name`: author’s name, displayed in HTML outputs.
@@ -357,7 +358,7 @@ sample_id:
     + `hto` if demultiplexing of samples should be performed with {{sc}}; or
     + `custom` if demultiplexing results will be used as input to {{sc}}.
 * `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. This entry or `arv_uuids` is required if `demux_type` is `hto`.
-* `arv_uuids`: *ROCHE only:* Instead of specifying `fastq_dir` where HTO files are located, you can specify a list of Arvados UUIDs where fastq files are located. If `demux_type` is `none`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
+* `arv_uuids`: instead of specifying `fastq_dir` where HTO files are located, you can specify a list of Arvados UUIDs where fastq files are located. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
 * `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `hto`.
 * `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `negative`. Required if `demux_type` is `custom`.
 * `seurat_quantile`: equivalent to the `positive.quantile` argument of the `Seurat::HTODemux` function (see [Seurat documentation](https://satijalab.org/seurat/reference/htodemux) for more details).
