@@ -328,10 +328,13 @@ def _check_samples_df(samples_df, config):
       if not var in samples_df.columns:
         raise KeyError(f"{var} not a column in sample metadata file")
 
-      # check that there are less than 10 unique values (otherwise probably not a categorical variable)
+      # some checks on metadata variables
       var_col     = samples_df[var]
       if var_col.dtype == pl.String:
+        if all(var_col == "NA"):
+          print(f"  {var} variable has all values 'NA'; probably not a useful variable")
         continue
+      # check that there are less than 10 unique values (otherwise probably not a categorical variable)
       if var_col.unique().shape[0] > 10:
         raise ValueError(f"{var} variable has more than 10 unique values; prob not a categorical variable")
   else:
