@@ -16,6 +16,10 @@ For detailed setup instructions, extended reference guides, and step-by-step tut
 
 `scprocess` consists of a series of core steps which can be performed in a single execution of the workflow. Additional steps are available to extend the core analyses as needed. 
 
-![Workflow Diagram](resources/mkdocs/docs/assets/images/scprocess_workflow_diagram_white_bg.png )
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="resources/mkdocs/docs/assets/images/scprocess_workflow_diagram_black_bg.png">
+  <source media="(prefers-color-scheme: light)" srcset="resources/mkdocs/docs/assets/images/scprocess_workflow_diagram_white_bg.png">
+  <img alt="scprocess workflow diagram" src="resources/mkdocs/docs/assets/images/scprocess_workflow_diagram_white_bg.png">
+</picture>
 
 Overview of scprocess including input file requirements, all pipeline steps and specific software packages/algorithms used.
