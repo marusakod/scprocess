@@ -9,7 +9,9 @@
       "properties": {
         "profile":          { "type": "string" },
         "your_name":        { "type": "string" },
-        "affiliation":      { "type": "string" }
+        "affiliation":      { "type": "string" },
+        "use_gpu":          { "type": "boolean", "default": true },
+        "arvados_setup":    { "type": "string", "default": "ml arvados" }
       }
     },
     "genomes": {

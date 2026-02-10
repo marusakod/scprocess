@@ -76,7 +76,7 @@ def _get_cluster_profile_dir(scprocess_dir, setup_cfg):
 ### much checking
 
 # wrapper for checking setup
-def check_setup_config(setup_cfg, schema_f, scdata_dir, scprocess_dir):
+def check_setup_config(setup_cfg, schema_f, scprocess_dir):
   # start with defaults, overwrite with setup_cfg values
   schema      = _load_schema_file(schema_f)
   defaults    = _get_default_config_from_schema(schema)
@@ -87,7 +87,7 @@ def check_setup_config(setup_cfg, schema_f, scdata_dir, scprocess_dir):
   _validate_object_against_schema(setup_cfg, schema_f, "setup config")
 
   # add profile to snakemake call (can be empty)
-  profile_dir   = _get_cluster_profile_dir(setup_cfg)
+  profile_dir   = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
   if profile_dir != '':
     setup_cfg['user']['profile_dir'] = profile_dir
 
@@ -192,7 +192,7 @@ def _validate_object_against_schema(config, schema_f, file_desc):
 
 
 # check parameters for project
-def _check_project_parameters(config, scprocess_data_dir, scprocess_dir):
+def _check_project_parameters(config, scdata_dir, scprocess_dir):
   # do some path stuff
   config["project"]['proj_dir'] = pathlib.Path(config["project"]['proj_dir'])
   project_dc  = config["project"]
@@ -215,7 +215,7 @@ def _check_project_parameters(config, scprocess_data_dir, scprocess_dir):
     config["project"]["fastq_dir"] = _check_path_exists_in_project(config["project"]["fastq_dir"], config, what = "dir")
 
   # check if selected species is valid
-  index_params_f    = scprocess_data_dir / 'index_parameters.csv'
+  index_params_f    = scdata_dir / 'index_parameters.csv'
 
   # from index_parameters.csv get valid values for species
   index_params      = pd.read_csv(index_params_f)
@@ -252,6 +252,18 @@ def _check_project_parameters(config, scprocess_data_dir, scprocess_dir):
 
     # file was fine so store the output
     config["project"]["custom_sample_params"] = custom_f
+
+  # read setup cfg to get arvados_setup (do not write it into project config)
+  scdata_setup_f  = scdata_dir / 'scprocess_setup.yaml'
+  arvados_setup   = None
+  if scdata_setup_f.is_file():
+    try:
+      with open(scdata_setup_f, 'r') as sf:
+        setup_cfg = yaml.safe_load(sf)
+        arvados_setup = setup_cfg.get('user', {}).get('arvados_setup', None)
+    except Exception:
+      arvados_setup = None
+  config['arvados_setup'] = arvados_setup
 
   return config
 

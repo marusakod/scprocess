@@ -9,14 +9,15 @@ The command requires a configuration file named `scprocess_setup.yaml` located i
 
 ```yaml
 user:
-  profile:      slurm_default
-  your_name:    Testy McUser
-  affiliation:  Unemployed
+  profile:        slurm_default
+  your_name:      Testy McUser
+  affiliation:    Unemployed
+  use_gpu:        true
 genomes:
   tenx:
-    - name:   human_2024
-      decoys: true
-      rrnas:  true
+    - name:       human_2024
+      decoys:     true
+      rrnas:      true
   custom:
     - name:       custom_genome_name
       fasta:      /path/to/genome.fa
@@ -33,6 +34,8 @@ In the `user` section, users can optionally define:
 * `profile`: the name of the HPC profile to be used by `snakemake`. This must correspond to one of the subfolders in the _profiles_ folder, and it must contain a file called `config.yaml`.
 * `your_name`: your name, which will be shown at the top of html outputs
 * `affiliation`: your affiliation, which will be shown at the top of html outputs
+* `use_gpu`: whether to use GPU acceleration for integration and clustering steps. Options are `true` (default) or `false`. If set to `true` in `scprocess_setup.yaml`, this value will be used as the default in new projects created with the `scprocess newproj` command.
+* `arvados_setup`: shell command to run to prepare the Arvados environment on compute nodes (for example `ml arvados`). This is configured in `scprocess_setup.yaml` (global setup) and is read at runtime by the `scprocess` wrapper; it is not stored in per-project config files.
 
 Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with {{scsetup}} by adding `tenx` to the `scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.
 
@@ -125,6 +128,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       tenx_chemistry:
       metadata_vars:
       custom_sample_params:
+      use_gpu:
       exclude:
         sample_id:
         pool_id:
@@ -218,6 +222,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       tenx_chemistry: 3v3
       metadata_vars: [var1, var2]
       custom_sample_params: /path/to/file/with/custom_parameters.yaml
+      use_gpu: true
       exclude:
         sample_id:
           - sample1
@@ -349,6 +354,7 @@ sample_id:
       qc_min_counts: 100
 ```
 
+* `use_gpu`: whether to use GPU acceleration for integration and clustering steps. Options are `true` (default) or `false`. GPU acceleration is only available on systems with compatible NVIDIA GPUs and the required CUDA libraries installed.
 * `exclude`: List of all samples that should be excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
 
 ##### multiplexing

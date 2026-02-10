@@ -15,6 +15,7 @@ rule run_mapping:
     af_home_dir   = config['mapping']['alevin_fry_home'],
     af_index_dir  = config['mapping']['af_index_dir'],
     wl_lu_f       = config['mapping']['wl_lu_f'],
+    arvados_setup = config.get('arvados_setup', ""),
     af_chemistry  = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["af_chemistry"],
     exp_ori       = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["expected_ori"],
     whitelist_f   = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["whitelist_f"],
@@ -42,7 +43,7 @@ rule run_mapping:
     # check whether doing arvados
     ARV_REGEX="^arkau-[0-9a-z]{{5}}-[0-9a-z]{{15}}$"
     if [[ {params.where} =~ $ARV_REGEX ]]; then
-      ml arvados
+      {params.arvados_setup}
       arv-env arkau
     fi
     

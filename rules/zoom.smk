@@ -627,7 +627,8 @@ rule zoom_run_integration:
     zoom_int_use_paga     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_use_paga'],
     zoom_int_paga_cl_res  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_paga_cl_res'],
     zoom_int_res_ls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
-    batch_var             = BATCH_VAR
+    batch_var             = BATCH_VAR,
+    use_gpu               = config['project']['use_gpu']
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -641,9 +642,9 @@ rule zoom_run_integration:
     '../envs/integration.yaml'
   shell: """
     set +u
-   # if GPU is available, use it
+    # set use_gpu flag based on config and on whether available
     USE_GPU_FLAG=""
-    if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
+    if [ "{params.use_gpu}" == "True" && -n "$CUDA_VISIBLE_DEVICES" ]; then
        USE_GPU_FLAG="--use-gpu"
     fi
     set -u
@@ -838,6 +839,7 @@ rule render_html_zoom:
     zoom_mkr_min_cells    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cells'],  
     zoom_mkr_not_ok_re    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_not_ok_re'], 
     zoom_mkr_do_gsea      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea'], 
+    zoom_mkr_gsea_var     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_var'],
     zoom_mkr_gsea_cut     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_cut'], 
     zoom_custom_mkr_names = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_names'], 
     zoom_custom_mkr_paths = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_paths']
@@ -888,6 +890,7 @@ rule render_html_zoom:
       mkr_not_ok_re     = '{params.zoom_mkr_not_ok_re}', 
       mkr_min_cpm_mkr   =  {params.zoom_mkr_min_cpm_mkr}, 
       mkr_min_cells     =  {params.zoom_mkr_min_cells}, 
+      mkr_gsea_var      = '{params.zoom_mkr_gsea_var}',
       mkr_gsea_cut      =  {params.zoom_mkr_gsea_cut}, 
       species           = '{params.species}',
       batch_var         = '{params.batch_var}',

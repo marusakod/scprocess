@@ -27,7 +27,8 @@ rule run_integration:
     int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
     int_use_paga    = config['integration']['int_use_paga'],
     int_paga_cl_res = config['integration']['int_paga_cl_res'],
-    int_res_ls      = config['integration']['int_res_ls']
+    int_res_ls      = config['integration']['int_res_ls'],
+    use_gpu         = config['project']['use_gpu']
   threads: 1
   retries: config['resources']['retries'] 
   resources:
@@ -39,10 +40,17 @@ rule run_integration:
     f'{benchmark_dir}/{SHORT_TAG}_integration/run_integration_{DATE_STAMP}.benchmark.txt'
   shell: """
     set +u
-    # if GPU is available, use it
+    # set use_gpu flag based on config and on whether available
     USE_GPU_FLAG=""
-    if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
-       USE_GPU_FLAG="--use-gpu"
+    if [ "{params.use_gpu}" == "True" ]; then
+      if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
+        echo "running on GPU"
+        USE_GPU_FLAG="--use-gpu"
+      else
+        echo "GPU usage requested but no GPU available, running on CPU"
+      fi
+    else
+      echo "running on CPU"
     fi
     set -u
     
