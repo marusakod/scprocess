@@ -5,14 +5,14 @@
 
 ---
 
-## 📖 Documentation & Tutorials
+## Documentation & Tutorials
 For detailed setup instructions, extended reference guides, and step-by-step tutorials on example datasets, please visit:
 
 👉 **[https://macnairw.pages.roche.com/scprocess/](https://macnairw.pages.roche.com/scprocess/)**
 
 ---
 
-## 🧬 Key Features
+## Features
 
 `scprocess` consists of a series of core steps which can be performed in a single execution of the workflow. Additional steps are available to extend the core analyses as needed. 
 
