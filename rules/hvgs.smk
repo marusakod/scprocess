@@ -310,7 +310,7 @@ rule create_hvg_matrix:
   params:
     demux_type  = config['multiplexing']['demux_type'],
     batch_var   = BATCH_VAR
-  threads: 1
+  threads: 8
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'create_hvg_matrix', 'memory', attempt),
@@ -326,7 +326,8 @@ rule create_hvg_matrix:
       {input.hvg_f} \
       {output.hvg_mat_f} \
       {params.demux_type} \
-      {params.batch_var}
+      {params.batch_var} \
+      --ncores {threads}
     """
 
 
@@ -342,7 +343,7 @@ rule create_doublets_hvg_matrix:
     run_var       = RUN_VAR,
     demux_type    = config['multiplexing']['demux_type'],
     batch_var     = BATCH_VAR
-  threads: 1
+  threads: 8
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'create_doublets_hvg_matrix', 'memory', attempt),
@@ -360,6 +361,7 @@ rule create_doublets_hvg_matrix:
       {output.dbl_hvg_mat_f} \
       {params.run_var} \
       {params.demux_type} \
-      {params.batch_var}
+      {params.batch_var} \
+      --ncores {threads}
     """
 
