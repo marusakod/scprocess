@@ -88,7 +88,7 @@ min_cells     = ${mkr_min_cells}
 # parameters for gsea
 gsea_cut      = ${mkr_gsea_cut}
 gsea_var_sel  = "${mkr_gsea_var}"
-species       = "${species}"
+ref_txome     = "${ref_txome}"
 
 # define nice order for plotting
 cl_ord        = NULL

@@ -75,7 +75,7 @@ zoom_mkr_report_outs = [
       '%s/%s/fgsea_%s_%s_go_bp_%s.csv.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
       '%s/%s/fgsea_%s_%s_go_cc_%s.csv.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
       '%s/%s/fgsea_%s_%s_go_mf_%s.csv.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP)
-      ] if do_gsea and (config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'])
+      ] if do_gsea and (config['project']['ref_txome'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'])
         else []
       )
   )
@@ -678,7 +678,7 @@ rule zoom_run_marker_genes:
     mkrs_f    = f'{zoom_dir}/{{zoom_name}}/pb_marker_genes_{FULL_TAG}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
     pb_hvgs_f = f'{zoom_dir}/{{zoom_name}}/pb_hvgs_{FULL_TAG}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz'
   params:
-    species             = config['project']['species'],
+    ref_txome           = config['project']['ref_txome'],
     af_gtf_dt_f         = config['mapping']['af_gtf_dt_f'],
     batch_var           = BATCH_VAR,
     zoom_mkr_sel_res     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_sel_res'],
@@ -720,7 +720,7 @@ rule zoom_run_fgsea:
     fgsea_go_cc_f = f'{zoom_dir}/{{zoom_name}}/fgsea_{FULL_TAG}_{{mkr_sel_res}}_go_cc_{DATE_STAMP}.csv.gz',
     fgsea_go_mf_f = f'{zoom_dir}/{{zoom_name}}/fgsea_{FULL_TAG}_{{mkr_sel_res}}_go_mf_{DATE_STAMP}.csv.gz'
   params:
-    species              = config['project']['species'],
+    ref_txome            = config['project']['ref_txome'],
     mkr_gsea_dir         = config['marker_genes']['mkr_gsea_dir'],
     zoom_mkr_min_cpm_go  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cpm_go'],
     zoom_mkr_max_zero_p  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_max_zero_p'],
@@ -743,7 +743,7 @@ rule zoom_run_fgsea:
       fgsea_go_bp_f = '{output.fgsea_go_bp_f}', 
       fgsea_go_cc_f = '{output.fgsea_go_cc_f}', 
       fgsea_go_mf_f = '{output.fgsea_go_mf_f}', 
-      species       = '{params.species}', 
+      ref_txome     = '{params.ref_txome}', 
       gsea_dir      = '{params.mkr_gsea_dir}', 
       min_cpm_go    = {params.zoom_mkr_min_cpm_go}, 
       max_zero_p    = {params.zoom_mkr_max_zero_p},
@@ -808,7 +808,7 @@ rule render_html_zoom:
     zoom_empty_gs_f     = f'{zoom_dir}/{{zoom_name}}/edger_empty_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     pb_empty_f          = f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds', 
     fgsea_files         =lambda wildcards: list(get_zoom_conditional_fgsea_files(
-        config['project']['species'],
+        config['project']['ref_txome'],
         zoom_dir,
         FULL_TAG,
         DATE_STAMP,
@@ -823,7 +823,7 @@ rule render_html_zoom:
     short_tag             = config['project']['short_tag'],
     date_stamp            = config['project']['date_stamp'],
     proj_dir              = config['project']['proj_dir'],
-    species               = config['project']['species'],
+    ref_txome             = config['project']['ref_txome'],
     metadata_f            = config['project']['sample_metadata'], 
     zoom_dir              = zoom_dir,
     batch_var             = BATCH_VAR,
@@ -893,7 +893,7 @@ rule render_html_zoom:
       mkr_min_cells     =  {params.zoom_mkr_min_cells}, 
       mkr_gsea_var      = '{params.zoom_mkr_gsea_var}',
       mkr_gsea_cut      =  {params.zoom_mkr_gsea_cut}, 
-      species           = '{params.species}',
+      ref_txome         = '{params.ref_txome}',
       batch_var         = '{params.batch_var}',
       do_gsea           = '{params.zoom_mkr_do_gsea}'
     )"

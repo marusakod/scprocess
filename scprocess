@@ -185,7 +185,7 @@ def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
         your_name: {your_name}
         affiliation: {affiliation}
         sample_metadata: {meta_dir}/
-        species:
+        ref_txome:
         date_stamp: "{date_stamp}"
         use_gpu: {str(use_gpu).lower()}
       """
@@ -267,7 +267,7 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, doindex):
     rule]
   cmd_str = " ".join(map(str, cmd_list))
   print(f"snakemake command:\n{cmd_str}")
-  subprocess.run( cmd_list, check = True )
+  subprocess.run( cmd_list )
 
   # render index if requested
   if doindex:

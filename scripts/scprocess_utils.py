@@ -215,15 +215,15 @@ def _check_project_parameters(config, scdata_dir, scprocess_dir):
   if has_fastq and not has_arv_uuids:
     config["project"]["fastq_dir"] = _check_path_exists_in_project(config["project"]["fastq_dir"], config, what = "dir")
 
-  # check if selected species is valid
+  # check if selected ref_txome is valid
   index_params_f    = scdata_dir / 'index_parameters.csv'
 
-  # from index_parameters.csv get valid values for species
-  index_params      = pd.read_csv(index_params_f)
-  valid_species     = index_params['genome_name'].tolist()
-  valid_species_str = ', '.join(valid_species)
-  if not config['project']['species'] in valid_species:
-    raise ValueError(f"species {config['project']['species']} not defined. Valid values are {valid_species_str}")
+  # from index_parameters.csv get valid values for ref_txome
+  index_params        = pd.read_csv(index_params_f)
+  valid_ref_txome     = index_params['genome_name'].tolist()
+  valid_ref_txome_str = ', '.join(valid_ref_txome)
+  if not config['project']['ref_txome'] in valid_ref_txome:
+    raise ValueError(f"ref_txome {config['project']['ref_txome']} not defined. Valid values are {valid_ref_txome_str}")
 
   # check whether date is given as datetime object
   date_regex    = re.compile("^20[0-9]{2}-[0-9]{2}-[0-9]{2}$")
@@ -430,24 +430,24 @@ def _check_multiplexing_parameters(config):
 
 # check parameters for mapping
 def _check_mapping_parameters(config, scdata_dir):
-  # from index_parameters.csv get valid values for species
+  # from index_parameters.csv get valid values for ref_txome
   idx_params_f  = scdata_dir / 'index_parameters.csv'
   index_params  = pl.read_csv(idx_params_f)
      
   # get mito strings from setup params
-  species           = config['project']['species']
+  ref_txome           = config['project']['ref_txome']
   config['mapping'] = {}
-  config['mapping']['af_mito_str'] = index_params.filter(pl.col('genome_name') == species)['mito_str'][0]
+  config['mapping']['af_mito_str'] = index_params.filter(pl.col('genome_name') == ref_txome)['mito_str'][0]
 
   # get af index directory and check if exists
   config['mapping']['alevin_fry_home']  = scdata_dir / 'alevin_fry_home'
-  config['mapping']['af_index_dir']     = scdata_dir / 'alevin_fry_home' / species
+  config['mapping']['af_index_dir']     = scdata_dir / 'alevin_fry_home' / ref_txome
   config['mapping']['wl_lu_f']          = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
   if not pathlib.Path(config['mapping']['af_index_dir']).is_dir():
-    raise FileNotFoundError(f"alevin index for {species} doesn't exist")
+    raise FileNotFoundError(f"alevin index for {ref_txome} doesn't exist")
   
   # get gtf txt file, check that exists
-  config['mapping']['af_gtf_dt_f'] = index_params.filter(pl.col('genome_name') == species)['gtf_txt_f'][0]
+  config['mapping']['af_gtf_dt_f'] = index_params.filter(pl.col('genome_name') == ref_txome)['gtf_txt_f'][0]
 
   return config
 

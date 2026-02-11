@@ -46,7 +46,7 @@ rule run_fgsea:
     fgsea_go_cc_f = f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_cc_{DATE_STAMP}.csv.gz',
     fgsea_go_mf_f = f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_mf_{DATE_STAMP}.csv.gz'
   params:
-    species         = config['project']['species'],
+    ref_txome       = config['project']['ref_txome'],
     mkr_gsea_dir    = config['marker_genes']['mkr_gsea_dir'],
     mkr_min_cpm_go  = config['marker_genes']['mkr_min_cpm_go'],
     mkr_max_zero_p  = config['marker_genes']['mkr_max_zero_p'],
@@ -67,7 +67,7 @@ rule run_fgsea:
       fgsea_go_bp_f = '{output.fgsea_go_bp_f}', 
       fgsea_go_cc_f = '{output.fgsea_go_cc_f}', 
       fgsea_go_mf_f = '{output.fgsea_go_mf_f}', 
-      species       = '{params.species}', 
+      ref_txome     = '{params.ref_txome}', 
       gsea_dir      = '{params.mkr_gsea_dir}', 
       min_cpm_go    =  {params.mkr_min_cpm_go}, 
       max_zero_p    =  {params.mkr_max_zero_p},

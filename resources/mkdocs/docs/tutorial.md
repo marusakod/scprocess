@@ -106,7 +106,7 @@ project:
   full_tag: test_project
   short_tag: 
   sample_metadata: data/metadata/
-  species:
+  ref_txome:
   date_stamp: "2025-01-01"
 ```
 
@@ -121,7 +121,7 @@ project:
   full_tag: test_project
   short_tag: test
   sample_metadata: data/metadata/test_project_metadata.csv
-  species: mouse_2024
+  ref_txome: mouse_2024
   date_stamp: "2025-01-01"
   metadata_vars: [group]
 marker_genes:
@@ -152,7 +152,7 @@ project:
   full_tag: test_project
   short_tag: test
   sample_metadata: data/metadata/test_project_metadata.csv
-  species: mouse_2024
+  ref_txome: mouse_2024
   date_stamp: "2025-01-01"
   metadata_vars: [group]
 label_celltypes:
@@ -204,7 +204,7 @@ In this example, we will subcluster the populations labelled "327 Oligo NN" (oli
       your_name: Test McUser
       affiliation: Unemployed
       sample_metadata: data/metadata/test_project_metadata.csv
-      species: mouse_2024
+      ref_txome: mouse_2024
       date_stamp: "2025-01-01"
       metadata_vars: [group]
     label_celltypes:
@@ -348,7 +348,7 @@ project:
   your_name:
   affiliation:
   sample_metadata: data/metadata/
-  species:
+  ref_txome:
   date_stamp: "2025-08-19"
 ```
 
@@ -363,7 +363,7 @@ project:
   your_name: Test McUser
   affiliation: Unemployed
   sample_metadata: data/metadata/multiplexed_test_project_metadata.csv
-  species: mouse_2024
+  ref_txome: mouse_2024
   date_stamp: "2025-01-01"
 multiplexing:
   demux_type: hto

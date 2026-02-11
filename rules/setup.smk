@@ -13,7 +13,7 @@ from setup import get_af_index_parameters
 # get parameters
 SCDATA_DIR    = os.getenv('SCPROCESS_DATA_DIR')
 IDX_PARAMS_LS = get_af_index_parameters(config) 
-GENOMES       = list(IDX_PARAMS_LS.keys())
+REF_TXOMES    = list(IDX_PARAMS_LS.keys())
 
 # define simpleaf index files
 AF_INDEX_FS = [
@@ -71,8 +71,8 @@ rule all:
     f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv',
     f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds',
     # rule download_or_build_af_indices
-    expand([ f'{SCDATA_DIR}/alevin_fry_home/{{genome}}/{file}' for file in AF_INDEX_FS], genome=GENOMES),
-    expand(f'{SCDATA_DIR}/alevin_fry_home/{{genome}}/{{genome}}_index_params.yaml', genome=GENOMES),
+    expand([ f'{SCDATA_DIR}/alevin_fry_home/{{ref_txome}}/{file}' for file in AF_INDEX_FS], ref_txome=REF_TXOMES),
+    expand(f'{SCDATA_DIR}/alevin_fry_home/{{ref_txome}}/{{ref_txome}}_index_params.yaml', ref_txome=REF_TXOMES),
     f'{SCDATA_DIR}/celltypist/celltypist_models.csv', 
     # rule get_reference_genome_data 
     f'{SCDATA_DIR}/index_parameters.csv'
@@ -123,24 +123,24 @@ rule download_scprocess_files:
 # rule for downloading reference genome files from 10x and dealing with custom genomes
 rule set_up_one_af_index:
   output:
-    [ f'{SCDATA_DIR}/alevin_fry_home/{{genome}}/{file}' for file in AF_INDEX_FS],
-    f'{SCDATA_DIR}/alevin_fry_home/{{genome}}/{{genome}}_index_params.yaml'
+    [ f'{SCDATA_DIR}/alevin_fry_home/{{ref_txome}}/{file}' for file in AF_INDEX_FS],
+    f'{SCDATA_DIR}/alevin_fry_home/{{ref_txome}}/{{ref_txome}}_index_params.yaml'
   params:
-    fasta       = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ].get('fasta', []),
-    gtf         = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ].get('gtf', []),
-    index_dir   = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ].get('index_dir', None),
-    mito_str    = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ].get('mito_str', []),
-    is_prebuilt = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ].get('is_prebuilt', False),
-    is_tenx     = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ].get('is_tenx', False),
-    has_decoys  = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ].get('decoys', True),
-    has_rrna    = lambda wildcards: IDX_PARAMS_LS[ wildcards.genome ].get('rrnas', True)
+    fasta       = lambda wildcards: IDX_PARAMS_LS[ wildcards.ref_txome ].get('fasta', []),
+    gtf         = lambda wildcards: IDX_PARAMS_LS[ wildcards.ref_txome ].get('gtf', []),
+    index_dir   = lambda wildcards: IDX_PARAMS_LS[ wildcards.ref_txome ].get('index_dir', None),
+    mito_str    = lambda wildcards: IDX_PARAMS_LS[ wildcards.ref_txome ].get('mito_str', []),
+    is_prebuilt = lambda wildcards: IDX_PARAMS_LS[ wildcards.ref_txome ].get('is_prebuilt', False),
+    is_tenx     = lambda wildcards: IDX_PARAMS_LS[ wildcards.ref_txome ].get('is_tenx', False),
+    has_decoys  = lambda wildcards: IDX_PARAMS_LS[ wildcards.ref_txome ].get('decoys', True),
+    has_rrna    = lambda wildcards: IDX_PARAMS_LS[ wildcards.ref_txome ].get('rrnas', True)
   conda:
     '../envs/alevin_fry.yaml'
   resources:
     mem_mb = 8192
   threads: 8
   shell: """
-    python3 scripts/setup.py set_up_af_index {SCDATA_DIR} {wildcards.genome} \
+    python3 scripts/setup.py set_up_af_index {SCDATA_DIR} {wildcards.ref_txome} \
       {params.fasta} {params.gtf} {params.index_dir} {params.mito_str} \
       {params.is_prebuilt} {params.is_tenx} {params.has_decoys} {params.has_rrna} {threads}
     """
@@ -148,7 +148,7 @@ rule set_up_one_af_index:
 
 rule save_index_parameters_csv:
   input:
-    yamls   = expand(f'{SCDATA_DIR}/alevin_fry_home/{{genome}}/{{genome}}_index_params.yaml', genome = GENOMES)
+    yamls   = expand(f'{SCDATA_DIR}/alevin_fry_home/{{ref_txome}}/{{ref_txome}}_index_params.yaml', ref_txome = REF_TXOMES)
   output:
     csv     = f'{SCDATA_DIR}/index_parameters.csv'
   conda:

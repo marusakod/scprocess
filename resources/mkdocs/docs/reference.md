@@ -130,7 +130,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       affiliation:
       date_stamp:
       sample_metadata:
-      species:
+      ref_txome:
       tenx_chemistry:
       metadata_vars:
       custom_sample_params:
@@ -224,7 +224,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       affiliation: where you work
       date_stamp: "2050-01-01"
       sample_metadata: /path/to/metadata.csv
-      species: human_2024
+      ref_txome: human_2024
       tenx_chemistry: 3v3
       metadata_vars: [var1, var2]
       custom_sample_params: /path/to/file/with/custom_parameters.yaml
@@ -324,7 +324,7 @@ This is an example config file for {{sc}} with all parameters and their default 
 * `affiliation`: author’s affiliation, displayed in HTML outputs.
 * `date_stamp`: start date of the analysis, formatted as `"YYYY-MM-DD"`.
 * `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1` and `_R2`strings and should not be integers.
-* `species`: must match one of the values in the `genome_name` column of `index_parameters.csv` (created by `scsetup`).
+* `ref_txome`: must match one of the values in the `ref_txome` column of `index_parameters.csv` (created by `scprocess setup`).
 
 #### Optional parameters
 

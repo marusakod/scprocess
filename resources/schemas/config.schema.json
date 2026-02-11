@@ -8,7 +8,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["proj_dir", "full_tag", "short_tag", "your_name", "affiliation",
-        "date_stamp", "sample_metadata", "species"],
+        "date_stamp", "sample_metadata", "ref_txome"],
       "properties": {
         "proj_dir":             { "type": "string" },
         "fastq_dir":            { "type": "string" },
@@ -20,7 +20,7 @@
         "affiliation":          { "type": "string" },
         "date_stamp":           { "type": "string", "format": "date" },
         "sample_metadata":      { "type": "string", "items": {"type": "string", "pattern": "^.+\\.csv$"} },
-        "species":              { "type": "string" },
+        "ref_txome":            { "type": "string" },
         "tenx_chemistry":       { "type": "string", "enum": ["none", "3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"],  "default": "none"},
         "metadata_vars":        { "type": "array", "items": { "type": "string" } },
         "custom_sample_params": { "type": "string" },

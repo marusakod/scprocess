@@ -34,7 +34,7 @@ setDTthreads(n_cores)
 
 ```{r setup_input, include = FALSE}
 # define files for calculating pseudobulk marker genes
-species       = "${species}"
+ref_txome     = "${ref_txome}"
 do_gsea       = as.logical("${do_gsea}")
 metadata_f    = "${metadata_f}"
 gtf_dt_f      = "${gtf_dt_f}"
@@ -167,7 +167,7 @@ gsea_ls       = lapply(fgsea_fs, function(f) if(file.exists(f)) {fread(f)} else 
 
 ```{r plot_setup, include = FALSE}
 do_metadata   = length(metadata_vars) > 0
-do_gsea       = (species %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) & do_gsea
+do_gsea       = (ref_txome %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) & do_gsea
 ```
 
 ## Clusters over UMAP{.tabset}

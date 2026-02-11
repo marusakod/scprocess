@@ -103,10 +103,10 @@ clean_sce_fs = expand(
 
 # fgsea outputs (optional)
 fgsea_outs = [
-  f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_bp_{DATE_STAMP}.csv.gz',
-  f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_cc_{DATE_STAMP}.csv.gz',
-  f'{mkr_dir}/fgsea_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_go_mf_{DATE_STAMP}.csv.gz'
-] if (config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & config['marker_genes']['mkr_do_gsea'] else []
+  f'{mkr_dir}/fgsea_{FULL_TAG}_{config["marker_genes"]["mkr_sel_res"]}_go_bp_{DATE_STAMP}.csv.gz',
+  f'{mkr_dir}/fgsea_{FULL_TAG}_{config["marker_genes"]["mkr_sel_res"]}_go_cc_{DATE_STAMP}.csv.gz',
+  f'{mkr_dir}/fgsea_{FULL_TAG}_{config["marker_genes"]["mkr_sel_res"]}_go_mf_{DATE_STAMP}.csv.gz'
+] if (config['project']['ref_txome'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & config['marker_genes']['mkr_do_gsea'] else []
 
 # one rule to rule them all
 rule all:
