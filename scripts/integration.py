@@ -184,8 +184,6 @@ def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoo
       pl.when(dbl_idx).then(True).otherwise(False).alias("is_dbl_int")
     ).filter(
       passed_idx | dbl_idx
-    ).filter(
-      ((pl.col(batch_var).is_in(ok_batches)) | (pl.col(batch_var).is_null()))
     )
 
   # put cell in coldata in the order matching mat cols
