@@ -189,11 +189,11 @@ In this example, we will subcluster the populations labelled "327 Oligo NN" (oli
       labels_col: predicted_label_agg
     ```
 
-    The value of the `labels_source` parameter matches the value of the `labeller` parameter in the main configuration file. The `sel_labels` parameter lists specific clusters/cell types to include in subclustering. `labels_col` referes to a column name in the annotation output file [path to file here] containg cell type names.
+    The value of the `labels_source` parameter matches the value of the `labeller` parameter in the main configuration file. The `sel_labels` parameter lists specific clusters/cell types to include in subclustering. `labels_col` referes to a column name in the annotation output file (`output/test_label_celltypes/labels_celltypist_model_Mouse_Whole_Brain_test_project_2025-01-01.csv.gz`) containg cell type names.
 
 2. Link Subclustering configuration file to main project
     
-    Link the subclustering YAML to your main project configuration file by (`config-test_project.yaml`) by adding it to the `zoom` section:
+    Link the subclustering YAML to your main project configuration file (`config-test_project.yaml`) by adding it to the `zoom` section:
 
     ```yaml hl_lines="15 16"
     project:

@@ -34,6 +34,7 @@ genomes:
 ```
 
 In the `user` section, users can optionally define:
+
 * `profile`: the name of the HPC profile to be used by `snakemake`. This must correspond to one of the subfolders in the _profiles_ folder, and it must contain a file called `config.yaml`.
 * `your_name`: your name, which will be shown at the top of html outputs
 * `affiliation`: your affiliation, which will be shown at the top of html outputs
