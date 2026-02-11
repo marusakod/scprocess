@@ -46,6 +46,7 @@ pb          = readRDS(pb_empty_f)
 ```{r calc_empty_hvgs, include = FALSE}
 vst_obj     = calc_vst_obj(pb, edger_dt)
 ```
+
 ```{r setup_plot_sizes, include = FALSE}
 base_w      = 1.5
 unit_w      = 0.5

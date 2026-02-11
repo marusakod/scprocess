@@ -33,7 +33,7 @@ plot_umap_density <- function(input_dt) {
     scale_y_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     theme_bw() +
     theme( panel.grid = element_blank(),
-      legend.title.position = "bottom", legend.position = "bottom",
+      legend.title.position = "left", legend.position = "bottom",
       axis.ticks = element_blank(), axis.text = element_blank(),
       aspect.ratio = 1 )
 
@@ -130,7 +130,7 @@ plot_umap_cluster <- function(umap_dt, clust_dt, name) {
     scale_y_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     theme_bw() +
     theme( panel.grid = element_blank(), aspect.ratio = 1,
-      legend.title.position = "bottom", legend.position = "bottom",
+      legend.title.position = "left", legend.position = "bottom",
       axis.ticks = element_blank(), axis.text = element_blank() ) +
     labs( colour = name )
 
