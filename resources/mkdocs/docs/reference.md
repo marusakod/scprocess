@@ -13,6 +13,9 @@ user:
   your_name:      Testy McUser
   affiliation:    Unemployed
   use_gpu:        true
+arvados:
+  arv_setup:      ml arvados
+  arv_instance:   arkau
 genomes:
   tenx:
     - name:       human_2024
@@ -35,7 +38,10 @@ In the `user` section, users can optionally define:
 * `your_name`: your name, which will be shown at the top of html outputs
 * `affiliation`: your affiliation, which will be shown at the top of html outputs
 * `use_gpu`: whether to use GPU acceleration for integration and clustering steps. Options are `true` (default) or `false`. If set to `true` in `scprocess_setup.yaml`, this value will be used as the default in new projects created with the `scprocess newproj` command.
-* `arvados_setup`: shell command to run to prepare the Arvados environment on compute nodes (for example `ml arvados`). This is configured in `scprocess_setup.yaml` (global setup) and is read at runtime by the `scprocess` wrapper; it is not stored in per-project config files.
+
+The optional `arvados` section allows users to set up access to instances of the cloud storage environment `arvados`. If specified, then users must include two entries:
+* `arv_setup`: shell command to run to prepare the Arvados environment on compute nodes (for example `ml arvados`). This is configured in `scprocess_setup.yaml` (global setup) and is read at runtime by the `scprocess` wrapper; it is not stored in per-project config files.
+* `arv_instance`: the name of the default `arvados` instance for the user; this can be overridden by a project-level `arvados` instance defined in the project _config.yaml_.
 
 Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with {{scsetup}} by adding `tenx` to the `scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.
 

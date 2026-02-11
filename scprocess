@@ -167,9 +167,10 @@ def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
     setup_cfg   = scprocess_utils.check_setup_config(setup_cfg, schema_f, sc_dir)
 
     # get name and affiliation from setup config if they are there
-    your_name   = setup_cfg["user"].get("your_name", "")
-    affiliation = setup_cfg["user"].get("affiliation", "")
-    use_gpu     = setup_cfg["user"].get("use_gpu", False)
+    your_name     = setup_cfg["user"].get("your_name", "")
+    affiliation   = setup_cfg["user"].get("affiliation", "")
+    arv_instance  = setup_cfg["user"].get("arv_instance", "")
+    use_gpu       = setup_cfg["user"].get("use_gpu", False)
 
     # define config text
     proj_txt    = f"""
@@ -178,6 +179,7 @@ def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
       project:
         proj_dir: {proj_dir}
         fastq_dir: {fastq_dir}
+        arv_instance: {arv_instance}
         full_tag: {name}
         short_tag:
         your_name: {your_name}

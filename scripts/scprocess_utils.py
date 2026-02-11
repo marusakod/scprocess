@@ -114,6 +114,7 @@ def check_config(config, schema_f, scdata_dir, scprocess_dir):
 
   # get parameters
   config      = _check_project_parameters(config, scdata_dir, scprocess_dir)
+  config      = _check_arvados_parameters(config, scdata_dir)
   config      = _check_multiplexing_parameters(config)
   config      = _check_mapping_parameters(config, scdata_dir)
   config      = _check_ambient_parameters(config)
@@ -253,20 +254,34 @@ def _check_project_parameters(config, scdata_dir, scprocess_dir):
     # file was fine so store the output
     config["project"]["custom_sample_params"] = custom_f
 
+  return config
+
+def _check_arvados_parameters(config, scdata_dir):
   # read setup cfg to get arvados_setup (do not write it into project config)
   scdata_setup_f  = scdata_dir / 'scprocess_setup.yaml'
   arvados_setup   = None
   if scdata_setup_f.is_file():
     try:
       with open(scdata_setup_f, 'r') as sf:
-        setup_cfg = yaml.safe_load(sf)
-        arvados_setup = setup_cfg.get('user', {}).get('arvados_setup', None)
+        setup_cfg   = yaml.safe_load(sf)
+        arv_dict    = setup_cfg.get('arvados', {})
     except Exception:
-      arvados_setup = None
-  config['arvados_setup'] = arvados_setup
+      arv_dict  = {}
+
+  # check whether consistent
+  if 'arv_uuids' in config['project'] and len(arv_dict) == 0:
+    raise ValueError("arv_uuids specified in project config but no arvados section found in scprocess_setup.yaml")
+
+  # add arvados parameters to config if present in setup
+  if len(arv_dict) > 0:
+    arv_setup = arv_dict.get('arv_setup', None)
+    arv_inst  = arv_dict.get('arv_instance', None)
+    config['arvados'] = {
+      'arv_setup':    arv_setup, 
+      'arv_instance': arv_inst
+    }
 
   return config
-
 
 # check proj dir is wflowr
 def _check_proj_dir_is_wflowr(config):

@@ -11,11 +11,12 @@ localrules: collect_chemistry_stats
 
 rule run_mapping:
   params:
+    arv_setup     = config.get('arvados', {}).get('arv_setup', ""),
+    arv_instance  = config.get('arvados', {}).get('arv_instance', ""),
     demux_type    = config['multiplexing']['demux_type'],
     af_home_dir   = config['mapping']['alevin_fry_home'],
     af_index_dir  = config['mapping']['af_index_dir'],
     wl_lu_f       = config['mapping']['wl_lu_f'],
-    arvados_setup = config.get('arvados_setup', ""),
     af_chemistry  = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["af_chemistry"],
     exp_ori       = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["expected_ori"],
     whitelist_f   = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["whitelist_f"],
@@ -41,10 +42,10 @@ rule run_mapping:
     '../envs/alevin_fry.yaml'
   shell:"""
     # check whether doing arvados
-    ARV_REGEX="^arkau-[0-9a-z]{{5}}-[0-9a-z]{{15}}$"
+    ARV_REGEX="^{params.arv_instance}-[0-9a-z]{{5}}-[0-9a-z]{{15}}$"
     if [[ {params.where} =~ $ARV_REGEX ]]; then
-      {params.arvados_setup}
-      arv-env arkau
+      {params.arv_setup}
+      arv-env {params.arv_instance}
     fi
     
     # get optional flags
