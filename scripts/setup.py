@@ -12,6 +12,9 @@ import re
 import subprocess
 import warnings
 import yaml
+import tarfile
+import shutil
+import gzip
 
 TENX_NAMES    = ['human_2020', 'human_2024', 'mouse_2020', 'mouse_2024']
 TENX_MITOS    = {
@@ -59,8 +62,97 @@ def get_scprocess_data(scdata_dir):
   for dir in dirs_ls:
     assert os.path.isdir(dir), \
       f"{dir} directory doesn't exist"
+    
+  # download cellranger and extract whitelists
+  get_cellranger_whitelists(os.path.join(scdata_dir, 'cellranger_ref'))
   
   print('Done!')
+
+  return
+
+
+def get_cellranger_whitelists(output_dir):
+
+  ranger_url ="https://cf.10xgenomics.com/releases/cell-exp/cellranger-10.0.0.tar.gz?Expires=1770847771&Key-Pair-Id=APKAI7S6A5RYOXBWRPDA&Signature=mgOl0oKBQKsOKmbVfykFU4-mLtFXtuicdBqaQbKm-L88XTI2Xw4wBe8zeTB5shMHJqEy7lijI3XXGcMmd-q0MjD61RZepCrjB9oxlZPd~FO4WCwSkSZSNFO99tG7fTurwNk1WrlSYvPIh2POyYw61MtXBqL8OJfrSnceFvfOyYy4LWF3olxUqOs1whDnDjBXXevh8fp0aRbgEXzuQ0~XZEIWg21HHxmPiVHhGDL~HVMayTaD3agecrgxioh1~JiEh17eMxzCccQT5DwmWrdbj2KbDDy~C3~44pxJAfxvWgHapytxR9SiWE-gWLXyUiybO-YK-fOyJckYiNpXKSjrVw__"
+  tmp_tar    = "cellranger-10.0.0.tar.gz"
+  tar_path   = os.path.join(output_dir, tmp_tar)
+
+  # download cellranger
+  print(f"Downloading CellRanger")
+  subprocess.run(["wget", "-O", tar_path, ranger_url])
+  
+   # whitelist names in cellranger and new names for scprocess
+  cr_wls_dict = {
+    "3v2_5v1_5v2": "737K-august-2016.txt",          
+    "3v3": "3M-february-2018_TRU.txt.gz",          
+    "3v4": "3M-3pgex-may-2023_TRU.txt.gz",         
+    "5v3": "3M-5pgex-jan-2023.txt.gz",          
+    "3LT": "9K-LT-march-2021.txt.gz",         
+    "multiome": "737K-arc-v1.txt.gz",               
+  }
+
+  sc_wl_dict = {
+    "3v2_5v1_5v2": "cellranger_barcode_whitelist_3v2_5v1_5v2.txt", 
+    "3v3": "cellranger_barcode_whitelist_3v3.txt", 
+    "3v4": "cellranger_barcode_whitelist_3v4.txt", 
+    "5v3": "cellranger_barcode_whitelist_5v3.txt", 
+    "3LT": "cellranger_barcode_whitelist_3LT.txt", 
+    "multiome": "cellranger_barcode_whitelist_multiome_gex.txt"
+  }
+
+  translation_cr_wl_dict = {
+    "3v3": "3M-february-2018_NXT.txt.gz",          
+    "3v4": "3M-3pgex-may-2023_NXT.txt.gz",         
+    "3LT": "9K-LT-march-2021.txt.gz"           
+  }
+  
+  translation_sc_wl_dict = {
+    "3v3": "cellranger_whitelist_translation_3v3.txt", 
+    "3v4": "cellranger_whitelist_translation_3v4.txt", 
+    "3LT": "cellranger_whitelist_translation_3LT.txt"
+  }
+  
+
+  print("Extracting whitelists from CellRanger")
+  # extract whitelist files from cellranger and rename them
+  _extract_whitelists(tar_path, cr_wls_dict, sc_wl_dict, output_dir, is_translation=False)
+  _extract_whitelists(tar_path, translation_cr_wl_dict, translation_sc_wl_dict, output_dir, is_translation=True)
+                      
+  # cleanup
+  print("Cleaning up")
+  os.remove(tar_path)
+  
+  return
+  
+
+
+def _extract_whitelists(tar_path, cr_wls_dict, sc_wl_dict, output_dir, is_translation = False): 
+  # extract whitelist files from cellranger and rename them
+  with tarfile.open(tar_path, "r:gz") as tar:
+    for member in tar.getmembers():
+      full_path = member.name
+      filename  = os.path.basename(full_path)
+
+      is_in_translation_dir = "barcodes/translation/" in full_path
+      if is_translation != is_in_translation_dir:
+        continue
+
+      if "lib/python/cellranger/barcodes/" in full_path:
+        for key, cr_name in cr_wls_dict.items():
+          if filename == cr_name and key in sc_wl_dict:
+            sc_name     = sc_wl_dict[key]
+            final_path  = os.path.join(output_dir, sc_name)
+                  
+            f_extracted = tar.extractfile(member)
+            if f_extracted:
+              if filename.endswith(".gz"):
+                with gzip.GzipFile(fileobj=f_extracted) as gz:
+                    with open(final_path, 'wb') as f_out:
+                      shutil.copyfileobj(gz, f_out)
+                        
+              else:
+                with open(final_path, 'wb') as f_out:
+                  shutil.copyfileobj(f_extracted, f_out)
 
   return
 
@@ -144,37 +236,6 @@ def _safe_boolean(val):
 
   return res
 
-
-def _check_valid_index(idx_path):
-  # check if main directory exists
-  if not os.path.isdir(idx_path):
-    raise ValueError(f"The provided path '{idx_path}' is not a valid directory.")
-
-  # define expected directories and files
-  req_dirs = {
-    "idx_dir":  os.path.join(idx_path, 'index'),
-    "ref_dir":  os.path.join(idx_path, 'ref')
-  }
-  req_fs = {
-    "index_info.json":          os.path.join(idx_path, 'index_info.json'),
-    "simpleaf_index_log.json":  os.path.join(idx_path, 'simpleaf_index_log.json'),
-    "gene_id_to_name.tsv":      os.path.join(req_dirs["ref_dir"], 'gene_id_to_name.tsv'),
-    "roers_make-ref.json":      os.path.join(req_dirs["ref_dir"], 'roers_make-ref.json'),
-    "roers_ref.fa":             os.path.join(req_dirs["ref_dir"], 'roers_ref.fa'),
-    "t2g_3col.tsv":             os.path.join(req_dirs["ref_dir"], 't2g_3col.tsv')
-  }
-
-  # Check required directories
-  for dir_name, dir_path in req_dirs.items():
-    if not os.path.isdir(dir_path):
-      raise ValueError(f"The required directory '{dir_name}' is missing at '{idx_path}'.")
-
-  # Check required files
-  missing_fs = [file_name for file_name, file_path in req_fs.items() if not os.path.isfile(file_path)]
-  if missing_fs:
-    raise ValueError(f"The following required files are missing: {', '.join(missing_fs)}")
-
-  return True
 
 
 # function that makes simpleaf index
