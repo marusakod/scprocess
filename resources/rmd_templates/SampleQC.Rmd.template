@@ -130,7 +130,7 @@ calc_qc_summary(qc_dt, kept_dt, cuts_dt, qc_lu, batch_var) %>% knitr::kable()
 
 An upset plot is generated for each sample to visualize the reasons for barcode exclusion. The plot shows the overlap between different exclusion criteria, with vertical bars representing the size of each intersection. Plots are omitted for samples where no barcodes were excluded.
 
-```{r plot_upsets_of_exclusions, fig.height = 5, fig.width = 7, results = 'asis'}
+```{r plot_upsets_of_exclusions, fig.height = 4, fig.width = 6, results = 'asis'}
 for (bb in b_lvls) {
   qc_tmp      = qc_dt[ batch_var == bb ]
   if (nrow(qc_tmp) == 1 | sum(qc_tmp$keep) == nrow(qc_tmp))

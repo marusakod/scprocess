@@ -1666,7 +1666,7 @@ plot_upset_of_exclusions <- function(qc_tmp, qc_names, qc_lu, cuts_dt) {
 
   # make ratios nice
   n_cols    = ncol(upset_dt)
-  mat_prop  = 0.4
+  mat_prop  = 0.3
 
   # do nicer colours for up / down
   row_ord   = upset_dt[, -c('cell_id')] %>% as.matrix %>% colSums %>%
@@ -1676,5 +1676,5 @@ plot_upset_of_exclusions <- function(qc_tmp, qc_names, qc_lu, cuts_dt) {
 
   # plot upset
   return(upset(upset_dt, sets = colnames(upset_dt)[-1], order.by = 'freq',
-     mb.ratio = c(1 - mat_prop, mat_prop), sets.bar.color = row_cols))   
+    mb.ratio = c(1 - mat_prop, mat_prop), sets.bar.color = row_cols))
 }

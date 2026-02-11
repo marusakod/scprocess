@@ -32,7 +32,10 @@ plot_umap_density <- function(input_dt) {
     scale_x_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     scale_y_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     theme_bw() +
-    theme( panel.grid = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), aspect.ratio = 1 )
+    theme( panel.grid = element_blank(),
+      legend.title.position = "bottom", legend.position = "bottom",
+      axis.ticks = element_blank(), axis.text = element_blank(),
+      aspect.ratio = 1 )
 
   return(g)
 }
@@ -105,22 +108,29 @@ plot_umap_cluster <- function(umap_dt, clust_dt, name) {
   # plot_dt     = rbind(plot_dt[ is.na(cluster) ], plot_dt[ !is.na(cluster) ])
   plot_dt     = plot_dt[ sample(.N, .N) ]
 
+  # add labels to clusters
+  cl_labels   = plot_dt[, .( N = .N ), by = cluster ] %>%
+    .[ order(cluster) ] %>%
+    .[, cl_label  := sprintf("%s (%d)", cluster, signif(N, 2)) ]
+  label_lu    = cl_labels$cl_label %>% setNames(cl_labels$cluster)
+
   # define colours
-  cl_lvls     = levels(plot_dt$cluster)
-  cl_cols     = seq_along( cl_lvls ) %>% rep(nice_cols, times = 10)[ . ] %>%
-    setNames( cl_lvls )
-  n_cols_lgd  = ceiling(length(cl_lvls) / 15)
+  cl_cols     = seq_along( label_lu ) %>% rep(nice_cols, times = 10)[ . ] %>%
+    setNames( label_lu )
+  n_col       = 4
+  n_rows_lgd  = ceiling(length(label_lu) / n_col)
 
   # make plot
   g = ggplot(plot_dt) +
-    aes( x = UMAP1, y = UMAP2, colour = cluster ) +
+    aes( x = UMAP1, y = UMAP2, colour = label_lu[cluster] ) +
     geom_point(size = 0.1) +
     scale_colour_manual( values = cl_cols, 
-      guide = guide_legend(override.aes = list(size = 3), ncol = n_cols_lgd) ) +
+      guide = guide_legend(override.aes = list(size = 3), nrow = n_rows_lgd) ) +
     scale_x_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     scale_y_continuous( breaks = pretty_breaks(), limits = c(0, 1) ) +
     theme_bw() +
-    theme( panel.grid = element_blank(), aspect.ratio = 1, 
+    theme( panel.grid = element_blank(), aspect.ratio = 1,
+      legend.title.position = "bottom", legend.position = "bottom",
       axis.ticks = element_blank(), axis.text = element_blank() ) +
     labs( colour = name )
 

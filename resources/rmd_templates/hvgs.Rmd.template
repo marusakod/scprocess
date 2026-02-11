@@ -46,6 +46,13 @@ pb          = readRDS(pb_empty_f)
 ```{r calc_empty_hvgs, include = FALSE}
 vst_obj     = calc_vst_obj(pb, edger_dt)
 ```
+```{r setup_plot_sizes, include = FALSE}
+base_w      = 1.5
+unit_w      = 0.5
+max_w       = 12
+n_batches   = ncol(pb)
+heatmap_w   = (n_batches * unit_w + base_w) %>% min(max_w)
+```
 
 The selection of highly variable genes is a crucial step in the integration process and in
 identifying clusters in single-cell experiments. However, contamination from ambient RNA can act as a
@@ -101,7 +108,7 @@ The genes shown are the top 40 selected based on the following criteria:
 and
 - smallest p-value in empty droplets vs cells in `scprocess`'s ambient gene detection procedure.
 
-```{r plot_ambient_profiles, fig.height = 8, fig.width = 6, results = 'asis'}
+```{r plot_ambient_profiles, fig.height = 8, fig.width = heatmap_w, results = 'asis'}
 title_ls = c(
   "var"           = "HVGs",
   "mean"          = "Highest expression",
