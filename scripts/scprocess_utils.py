@@ -974,12 +974,15 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
 
   # sort out whitelist file
   if sample_chem == 'none':
-    whitelist_f        = 'none', 
+    gex_whitelist_f        = 'none', 
+    hto_whitelists_f       = 'none'
   else:
     wl_df_f     = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
     wl_df       = pl.read_csv(wl_df_f)
-    wl_f        = wl_df.filter( pl.col('chemistry') == sample_chem )['barcodes_f'].item()
-    whitelist_f = scdata_dir / 'cellranger_ref' / wl_f
+    wl_gex_f    = wl_df.filter( pl.col('chemistry') == sample_chem )['gex_barcodes_f'].item()
+    wl_hto_f    = wl_df.filter( pl.col('chemistry') == sample_chem )['hto_barcodes_f'].item()
+    gex_whitelist_f  = scdata_dir / 'cellranger_ref' / wl_gex_f
+    hto_whitelist_f = scdata_dir / 'cellranger_ref' / wl_hto_f
 
   # make dictionary for mapping
   mapping_dc  = {
@@ -989,7 +992,7 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
     "R1_fs_size_gb":      RNA_FQS[run_name]["R1_fs_size_gb"],
     "af_chemistry":       af_chemistry, 
     "expected_ori":       expected_ori, 
-    "whitelist_f":        whitelist_f,
+    "gex_whitelist_f":    gex_whitelist_f,
     "knee1":              knee1,
     "shin1":              shin1,
     "knee2":              knee2,
@@ -1004,7 +1007,7 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
       "R2_fs":              HTO_FQS[run_name]["R2_fs"],
       "R1_fs_size_gb":      HTO_FQS[run_name]["R1_fs_size_gb"],
       "af_chemistry":       af_chemistry, 
-      "whitelist_f":        whitelist_f
+      "hto_whitelist_f":    hto_whitelist_f
     }
   else:
     multiplexing_dc   = {}

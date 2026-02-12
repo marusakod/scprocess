@@ -116,7 +116,7 @@ rule download_scprocess_files:
     '../envs/py_env.yaml'
   threads: 1
   shell: """
-    python3 scripts/setup.py get_scprocess_data {SCDATA_DIR}
+    python3 scripts/setup.py get_scprocess_data {SCDATA_DIR} {output.all_wl}
     """
 
 

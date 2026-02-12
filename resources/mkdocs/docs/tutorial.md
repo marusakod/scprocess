@@ -57,7 +57,7 @@ To download input files for {{sc}} run the following lines:
 
 ```bash
 # download all raw sequencing files into data/fastqs
-curl -s https://api.github.com/repos/marusakod/scprocessData/releases/tags/v0.1.4 \
+curl -s https://api.github.com/repos/marusakod/scprocessData/releases/tags/v0.1.0 \
 | grep -o "https://.*GSM.*\.tar\.gz" \
 | wget -c --show-progress -P data/fastqs -i -
 
@@ -65,7 +65,7 @@ curl -s https://api.github.com/repos/marusakod/scprocessData/releases/tags/v0.1.
 for file in data/fastqs/GSM*.tar.gz; do tar -xzvf "$file" -C data/fastqs && rm "$file"; done
 
 # download sample metadata into data/metadata
-wget -P data/metadata https://github.com/marusakod/scprocessData/releases/download/v0.1.4/test_project_metadata.csv
+wget -P data/metadata https://github.com/marusakod/scprocessData/releases/download/v0.1.0/test_project_metadata.csv
 ```
 
 With `ls data/fastqs` you should be able to see the following files:
@@ -263,7 +263,7 @@ To download input files for {{sc}} run the following lines:
 
 ```bash
 # download all raw sequencing files into data/fastqs
-curl -s https://api.github.com/repos/marusakod/scprocessData/releases/tags/v0.1.4 \
+curl -s https://api.github.com/repos/marusakod/scprocessData/releases/tags/v0.1.0 \
 | grep -o "https://.*run.*\.tar\.gz" \
 | wget -c --show-progress -P data/fastqs -i -
 
@@ -274,10 +274,10 @@ for file in data/fastqs/run*_rna*.tar.gz; do tar -xzvf "$file" -C data/fastqs/rn
 for file in data/fastqs/run*_hto*.tar.gz; do tar -xzvf "$file" -C data/fastqs/hto && rm "$file"; done
 
 # download sample metadata into data/metadata
-wget -P data/metadata https://github.com/marusakod/scprocessData/releases/download/v0.1.4/multiplexed_test_project_metadata.csv
+wget -P data/metadata https://github.com/marusakod/scprocessData/releases/download/v0.1.0/multiplexed_test_project_metadata.csv
 
 # dowload feature reference file into data/metadata
-wget -P data/metadata https://github.com/marusakod/scprocessData/releases/download/v0.1.4/multiplexed_test_project_feature_ref.csv
+wget -P data/metadata https://github.com/marusakod/scprocessData/releases/download/v0.1.0/multiplexed_test_project_feature_ref.csv
 ```
 
 With `ls data/fastqs/rna` you should be able to see the following files:
