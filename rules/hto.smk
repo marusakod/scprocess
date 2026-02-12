@@ -38,6 +38,7 @@ rule build_hto_index:
     awk '{{print $1"\t"$1;}}' {output.hto_f} > {output.t2g_f}
     """
 
+
 # run mapping for HTO files
 rule run_mapping_hto:
   input: 
@@ -51,13 +52,11 @@ rule run_mapping_hto:
     cols_f        = f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat_cols.txt',
     rows_f        = f'{af_dir}/af_{{run}}/hto/af_quant/alevin/quants_mat_rows.txt'
   params:
-    arv_setup     = config.get('arvados', {}).get('arv_setup', ""),
-    arv_instance  = config.get('arvados', {}).get('arv_instance', ""),
+    arv_instance  = config['project'].get('arv_instance', ""),
     demux_type    = config['multiplexing']['demux_type'],
     af_home_dir   = config['mapping']['alevin_fry_home'],
     wl_lu_f       = config['mapping']['wl_lu_f'], 
     where         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["where"],
-    arvados_setup = config.get('arvados_setup', ""),
     R1_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R1_fs"],
     R2_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R2_fs"],
     af_chemistry  = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["af_chemistry"],
@@ -73,13 +72,11 @@ rule run_mapping_hto:
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_hto/run_mapping_hto_{{run}}_{DATE_STAMP}.benchmark.txt'
   shell:"""
-    # check whether doing arvados
-    ARV_REGEX="^{params.arv_instance}-[0-9a-z]{{5}}-[0-9a-z]{{15}}$"
-    if [[ "{params.where}" =~ $ARV_REGEX ]]; then
-      {params.arv_setup}
-      arv-env {params.arv_instance}
+    # check if arv_instance is set and if so, run in arvados environment
+    ARV_ARG=""
+    if [[ "{params.arv_instance}" != "" ]]; then
+      ARV_ARG="--arv_instance {params.arv_instance}"
     fi
-
     # get chemistry parameters from input yaml file
     AF_CHEMISTRY=$(grep "selected_af_chemistry:" {input.chem_stats_f} | sed 's/selected_af_chemistry: //')
     EXP_ORI=$(grep "selected_ori:" {input.chem_stats_f} | sed 's/selected_ori: //')
@@ -97,6 +94,7 @@ rule run_mapping_hto:
       --threads         {threads} \
       --af_index_dir    {input.hto_idx_dir} \
       --wl_lu_f         {params.wl_lu_f} \
+      $ARV_ARG \
       --tenx_chemistry  $AF_CHEMISTRY \
       --exp_ori         $EXP_ORI \
       --whitelist_f     $WHITELIST_F

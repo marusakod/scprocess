@@ -1,12 +1,11 @@
-import os
 import argparse
 import pathlib
 import subprocess
+import os
 
 # set up
 import collections
 import tempfile
-import gc
 import random
 import json
 import polars as pl
@@ -15,8 +14,16 @@ import yaml
 import shutil
 import warnings
 
-def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, 
-    where, R1_fs, R2_fs, threads, t2g_f, index_dir, wl_lu_f, tenx_chemistry = 'none', exp_ori = 'none', whitelist_f = 'none'):
+# import relevant libraries for arvados download
+import arvados
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from queue import Queue
+import threading
+
+
+def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where, 
+  R1_fs, R2_fs, threads, t2g_f, index_dir, wl_lu_f, arv_instance = None,
+  tenx_chemistry = 'none', exp_ori = 'none', whitelist_f = 'none'):
   # make output directory, in subdirectory if multiplexed samples
   out_dir   = f"{af_dir}/af_{run}"
   if demux_type == "hto":
@@ -42,8 +49,8 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
     # download files from Arvados
     print('downloading files from arvados')
     arv_uuid    = where
-    R1_fs       = [ _download_arvados_file_as_tempfile(arv_uuid, f, tmp_dir, prefix, i, "R1", threads) for i, f in enumerate(R1_fs) ]
-    R2_fs       = [ _download_arvados_file_as_tempfile(arv_uuid, f, tmp_dir, prefix, i, "R2", threads) for i, f in enumerate(R2_fs) ]
+    R1_fs       = [ _download_arvados_file_as_tempfile(arv_uuid, arv_instance, f, tmp_dir, prefix, i, "R1", threads) for i, f in enumerate(R1_fs) ]
+    R2_fs       = [ _download_arvados_file_as_tempfile(arv_uuid, arv_instance, f, tmp_dir, prefix, i, "R2", threads) for i, f in enumerate(R2_fs) ]
   else:
     R1_fs       = [ os.path.join(where, f) for f in R1_fs]
     R2_fs       = [ os.path.join(where, f) for f in R2_fs]
@@ -52,7 +59,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
   wl_lu_dt = pl.read_csv(wl_lu_f)
 
   if tenx_chemistry == 'none': 
-    print(' checking overalp of barcodes with different whitelists')
+    print(' checking overlap of barcodes with different whitelists')
     wl_overlap_dt = _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt)
     # check for which barcode whitelist the overlap is the highest
     max_overlap = max(wl_overlap_dt['overlap'])
@@ -82,8 +89,8 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
       
       # map downsampled fastqs 2x
       for ori in ['fw', 'rc']:
-       _run_simpleaf_quant(f'{tmp_out_dir}/{ori}_mapping', [sub_R1_f], [sub_R2_f], threads, index_dir, 
-        tenx_chemistry, ori , t2g_f, whitelist_f)
+        _run_simpleaf_quant(f'{tmp_out_dir}/{ori}_mapping', [sub_R1_f], [sub_R2_f], threads, index_dir, 
+          tenx_chemistry, ori , t2g_f, whitelist_f)
         
       # infer read orientation
       exp_ori, cell_counts_fw, cell_counts_rc = _infer_read_orientation(tmp_out_dir)
@@ -128,15 +135,15 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
       trans_f  = f'{os.path.dirname(whitelist_f)}/{trans_fs[0]}'
 
     chem_stats = {
-     "run": run, 
-     "selected_whitelist": whitelist_f, 
-     "selected_translation_f": trans_f,
-     "selected_whitelist_overlap": max_overlap, 
-     "selected_ori": exp_ori, 
-     "n_cells_fw": cell_counts_fw, 
-     "n_cells_rc": cell_counts_rc, 
-     "selected_tenx_chemistry": sample_chem, 
-     "selected_af_chemistry": tenx_chemistry
+      "run": run, 
+      "selected_whitelist": whitelist_f, 
+      "selected_translation_f": trans_f,
+      "selected_whitelist_overlap": max_overlap, 
+      "selected_ori": exp_ori, 
+      "n_cells_fw": cell_counts_fw, 
+      "n_cells_rc": cell_counts_rc, 
+      "selected_tenx_chemistry": sample_chem, 
+      "selected_af_chemistry": tenx_chemistry
     }
   
     with open(chem_stats_f, "w") as f:
@@ -149,7 +156,6 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
     for f in R2_fs:
       os.unlink(f)
     os.rmdir(tmp_dir)
-
 
 
 def _run_simpleaf_quant(out_dir, R1_fs, R2_fs, threads, index_dir, chemistry, ori, t2g_f, wl_f, extra_args=None):
@@ -174,17 +180,110 @@ def _run_simpleaf_quant(out_dir, R1_fs, R2_fs, threads, index_dir, chemistry, or
   subprocess.run(simpleaf_cmd, check=True)
 
 
+def _download_arvados_file_as_tempfile(arv_uuid, arv_instance, f, tmp_dir, prefix, i, read, threads):
+  """
+  Download a file from Arvados using the Python API with multithreading support.
+  
+  Args:
+    arv_uuid: Arvados collection UUID
+    f: File name within the collection
+    tmp_dir: Temporary directory for storing the file
+    prefix: Prefix for the temporary file
+    i: Index for the file
+    read: Read type (e.g., "R1" or "R2")
+    threads: Number of threads to use for concurrent buffering and I/O
+  
+  Returns:
+    Path to the downloaded temporary file as a string
+  """
 
-def _download_arvados_file_as_tempfile(arv_uuid, f, tmp_dir, prefix, i, read, threads):
+  # Create temporary file path
+  temp_file = pathlib.Path(tmp_dir) / f"{prefix}.{i}.{read}.fastq.gz"
 
-  # create a temporary file to store the data
-  temp_file   = pathlib.Path(tmp_dir) / f"{prefix}.{i}.{read}.fastq.gz"
-
-  # write the contents of the arvados file-like object to the temporary file
   print(f"  downloading {f} from arvados as tmp file {temp_file.name}")
-  subprocess.run(["arv-get", f"{arv_uuid}/{f}", str(temp_file), "--threads", str(threads)])
 
-  return str(temp_file)
+  try:
+    # set up arvados access
+    arv_token   = os.environ["ARVADOS_API_TOKEN"]
+    arv_client  = arvados.api('v1', host = f'api.{arv_instance}.roche.com',
+      token = arv_token, insecure = True, num_retries = 2 )
+    
+    # Open the collection
+    collection = arvados.collection.Collection(arv_uuid, api_client=arv_client)
+    
+    # Download file using multithreaded copy
+    _download_file_multithreaded(collection, f, str(temp_file), threads)
+    
+    return str(temp_file)
+  
+  except Exception as e:
+    raise RuntimeError(f"Failed to download {f} from Arvados collection {arv_uuid}: {str(e)}")
+
+
+def _download_file_multithreaded(collection, src_path, dest_path, num_threads, chunk_size=1024*1024):
+  """
+  Download a file from an Arvados collection to disk using multithreading.
+  
+  Uses a queue-based approach where reader threads pull chunks from the source
+  and writer threads push them to disk. This allows for efficient buffering and
+  parallelization of I/O operations.
+  
+  Args:
+    collection: Arvados collection object
+    src_path: Path to file within the collection
+    dest_path: Destination file path on disk
+    num_threads: Number of threads to use (min 2: 1 reader, 1 writer)
+    chunk_size: Size of chunks to read/write (default 1 MB)
+  """
+  # Ensure at least 2 threads (1 for reading, 1 for writing)
+  num_threads = max(2, num_threads)
+  
+  chunk_queue = Queue(maxsize=num_threads * 2)
+  exceptions = []
+  
+  def reader():
+    """Read chunks from source file in the collection."""
+    try:
+      with collection.open(src_path, 'rb') as src:
+        while True:
+          chunk = src.read(chunk_size)
+          if not chunk:
+            chunk_queue.put(None)  # Signal end of file
+            break
+          chunk_queue.put(chunk)
+    except Exception as e:
+      chunk_queue.put(('ERROR', str(e)))
+      exceptions.append(e)
+  
+  def writer():
+    """Write chunks to destination file."""
+    try:
+      with open(dest_path, 'wb') as dst:
+        while True:
+          item = chunk_queue.get()
+          if item is None:
+            break
+          if isinstance(item, tuple) and item[0] == 'ERROR':
+            raise RuntimeError(f"Read error: {item[1]}")
+          dst.write(item)
+    except Exception as e:
+      exceptions.append(e)
+      raise
+  
+  # Start reader and writer threads
+  reader_thread = threading.Thread(target=reader, daemon=False)
+  writer_thread = threading.Thread(target=writer, daemon=False)
+  
+  reader_thread.start()
+  writer_thread.start()
+  
+  # Wait for both threads to complete
+  reader_thread.join()
+  writer_thread.join()
+  
+  # Check for any exceptions
+  if exceptions:
+    raise RuntimeError(f"Error during multithreaded download: {exceptions[0]}")
 
 
 def _subset_fastqs(out_dir, R1_fs, R2_fs, smpl_size = 100000):
@@ -309,6 +408,7 @@ if __name__ == "__main__":
   parser.add_argument("--tenx_chemistry", type=str, default='none')
   parser.add_argument("--exp_ori", type=str, default='none')
   parser.add_argument("--whitelist_f", type=str, default='none')
+  parser.add_argument("--arv_instance", type=str, default=None)
 
   # set up some locations
   args    = parser.parse_args()
@@ -320,8 +420,10 @@ if __name__ == "__main__":
     index_dir = f"{args.af_index_dir}/index"
 
   # run
-  map_fastqs_to_counts(run = args.run, af_dir = args.af_dir, demux_type = args.demux_type, what = args.what, af_home_dir = args.af_home_dir, 
-    where = args.where, R1_fs=args.R1_fs, R2_fs=args.R2_fs, threads=args.threads, tenx_chemistry=args.tenx_chemistry, 
-    exp_ori = args.exp_ori, wl_lu_f= args.wl_lu_f, whitelist_f= args.whitelist_f, t2g_f=t2g_f, index_dir= index_dir)
+  map_fastqs_to_counts(run = args.run, af_dir = args.af_dir, demux_type = args.demux_type, 
+    what = args.what, af_home_dir = args.af_home_dir, where = args.where, 
+    R1_fs=args.R1_fs, R2_fs=args.R2_fs, threads=args.threads, tenx_chemistry=args.tenx_chemistry, 
+    exp_ori = args.exp_ori, wl_lu_f= args.wl_lu_f, whitelist_f= args.whitelist_f, t2g_f=t2g_f, 
+    index_dir= index_dir, arv_instance = args.arv_instance)
 
 

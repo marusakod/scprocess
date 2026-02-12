@@ -274,11 +274,16 @@ def _check_arvados_parameters(config, scdata_dir):
 
   # add arvados parameters to config if present in setup
   if len(arv_dict) > 0:
-    arv_setup = arv_dict.get('arv_setup', None)
-    arv_inst  = arv_dict.get('arv_instance', None)
+    # check that the arv_uuids match the start of the arv_instance
+    arv_instance = arv_dict.get('arv_instance', None)
+    if 'arv_uuids' in config['project'] and arv_instance is not None:
+      for uuid in config['project']['arv_uuids']:
+        if not uuid.startswith(arv_instance):
+          raise ValueError(f"arv_uuids specified in project config do not match the prefix of arv_instance specified in scprocess_setup.yaml") 
+
+    # if ok then store
     config['arvados'] = {
-      'arv_setup':    arv_setup, 
-      'arv_instance': arv_inst
+      'arv_instance': arv_instance
     }
 
   return config
@@ -785,18 +790,20 @@ def _get_fastqs(config, RUNS, is_hto = False):
     tmp_ls      = config['multiplexing']
   else:
     tmp_ls      = config['project']
+
   if "fastq_dir" in tmp_ls:
-    fastq_dir   = tmp_ls['fastq_dir']
-    arv_uuids   = None
+    fastq_dir     = tmp_ls['fastq_dir']
+    arv_uuids     = None
   else:
-    fastq_dir   = None
-    arv_uuids   = tmp_ls['arv_uuids']
+    fastq_dir     = None
+    arv_uuids     = tmp_ls['arv_uuids']
+    arv_instance  = tmp_ls['arv_instance']
 
   # get 
   if fastq_dir is not None:
     fastq_dict    = _list_fastq_files_dir(fastq_dir)
   elif arv_uuids is not None:
-    fastq_dict    = _list_fastq_files_arvados(arv_uuids)
+    fastq_dict    = _list_fastq_files_arvados(arv_uuids, arv_instance)
 
   # get fastq files for each sample
   wheres        = fastq_dict["wheres"]
@@ -856,28 +863,35 @@ def _list_fastq_files_dir(fastq_dir):
 
 
 # get all fastq files in all arvados uuids
-def _list_fastq_files_arvados(arv_uuids):
+def _list_fastq_files_arvados(arv_uuids, arv_instance):
   # get for each UUID
   wheres      = []
   fastqs      = []
   fastq_sizes = []
 
-  # get all fastq files in given arvados uuid
-  def _list_fastq_files_arvados_one_uuid(arv_uuid):
-    # import relevant packages
-    import arvados
-    import collections
-    import pathlib
+  # import relevant packages
+  import arvados
+  import collections
+  import pathlib
 
+  # set up arvados access
+  arv_token   = os.environ["ARVADOS_API_TOKEN"]
+  arv_client  = arvados.api('v1', host = 'api.arkau.roche.com',
+    token = arv_token, insecure = True, num_retries = 2 )
+
+  # check it worked
+  try:
+    user_info = arv_client.users().current().execute()
+    print(f"  Arvados token is valid: logged in as: {user_info['full_name']} ({user_info['uuid']})")
+  except Exception as e:
+    print(f"  Arvados token is invalid or expired. Error: {e}")
+
+  # get all fastq files in given arvados uuid
+  def _list_fastq_files_arvados_one_uuid(arv_uuid, arv_instance):
     # define variables
     arv_files   = []
     wheres      = {}
     file_sizes  = {}
-
-    # set up arvados access
-    arv_token   = os.environ["ARVADOS_API_TOKEN"]
-    arv_client  = arvados.api('v1', host = 'api.arkau.roche.com',
-      token = arv_token, insecure = True, num_retries = 2 )
 
     # access this collection
     arv_colln   = arvados.collection.Collection(arv_uuid, arv_client)
@@ -916,7 +930,7 @@ def _list_fastq_files_arvados(arv_uuids):
   # Iterate through each UUID in the list
   for arv_uuid in arv_uuids:
     # Get the dictionary result for one UUID
-    result = _list_fastq_files_arvados_one_uuid(arv_uuid)
+    result = _list_fastq_files_arvados_one_uuid(arv_uuid, arv_instance)
 
     # Extend the combined lists with the data from the current result
     # Note: We use .extend() for efficient list concatenation

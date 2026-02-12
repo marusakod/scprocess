@@ -12,7 +12,7 @@
       "properties": {
         "proj_dir":             { "type": "string" },
         "fastq_dir":            { "type": "string" },
-        "arv_uuids":            { "type": "array", "items": {"type": "string", "pattern": "^arkau-[0-9a-z]{5}-[0-9a-z]{15}$"} },
+        "arv_uuids":            { "type": "array", "items": {"type": "string", "pattern": "^.+-[0-9a-z]{5}-[0-9a-z]{15}$"} },
         "arv_instance":         { "type": "string" },
         "full_tag":             { "type": "string" },
         "short_tag":            { "type": "string" },

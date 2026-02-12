@@ -11,8 +11,7 @@ localrules: collect_chemistry_stats
 
 rule run_mapping:
   params:
-    arv_setup     = config.get('arvados', {}).get('arv_setup', ""),
-    arv_instance  = config.get('arvados', {}).get('arv_instance', ""),
+    arv_instance  = config['project'].get('arv_instance', ""),
     demux_type    = config['multiplexing']['demux_type'],
     af_home_dir   = config['mapping']['alevin_fry_home'],
     af_index_dir  = config['mapping']['af_index_dir'],
@@ -41,13 +40,11 @@ rule run_mapping:
   conda:
     '../envs/alevin_fry.yaml'
   shell:"""
-    # check whether doing arvados
-    ARV_REGEX="^{params.arv_instance}-[0-9a-z]{{5}}-[0-9a-z]{{15}}$"
-    if [[ {params.where} =~ $ARV_REGEX ]]; then
-      {params.arv_setup}
-      arv-env {params.arv_instance}
+    # check if arv_instance is set and if so, run in arvados environment
+    ARV_ARG=""
+    if [[ "{params.arv_instance}" != "" ]]; then
+      ARV_ARG="--arv_instance {params.arv_instance}"
     fi
-    
     # get optional flags
     if [[ "{params.af_chemistry}" != "none" ]]; then
       OPT_ARGS+=(--tenx_chemistry "{params.af_chemistry}")
@@ -67,6 +64,7 @@ rule run_mapping:
       --threads         {threads} \
       --af_index_dir    {params.af_index_dir} \
       --wl_lu_f         {params.wl_lu_f} \
+      $ARV_ARG \
       "${{OPT_ARGS[@]}}"
     """
 
@@ -114,6 +112,7 @@ rule save_alevin_to_h5:
       )"
     """
 
+
 rule collect_chemistry_stats:
   input:
     chem_stats_fs  = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml', run = RUNS)
@@ -135,5 +134,4 @@ rule collect_chemistry_stats:
     chem_stats_dt =chem_stats_dt.select(col_ord)
     chem_stats_dt.write_csv(output.chem_stats_merged_f)
     
-
 

@@ -15,14 +15,13 @@
     },
     "arvados": {
       "type": "object",
-      "required": ["arv_setup", "arv_instance"],
+      "required": ["arv_instance"],
       "additionalProperties": false,
       "properties": {
-        "arv_setup":       { "type": "string", "default": "ml arvados" },
         "arv_instance":    { "type": "string", "default": "arkau" }
       }
     },
-    "genomes": {
+    "ref_txomes": {
       "type": "object",
       "anyOf": [
           { "required": ["tenx"] },
