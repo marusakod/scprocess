@@ -15,6 +15,7 @@ import yaml
 import tarfile
 import shutil
 import gzip
+import polars as pl
 
 TENX_NAMES    = ['human_2020', 'human_2024', 'mouse_2020', 'mouse_2024']
 TENX_MITOS    = {
@@ -71,7 +72,9 @@ def get_scprocess_data(scdata_dir):
   return
 
 
-def get_cellranger_whitelists(output_dir):
+def get_cellranger_whitelists(output_dir, whitelists_lu_f):
+
+  os.makedirs(output_dir, exist_ok=True)
 
   ranger_url ="https://cf.10xgenomics.com/releases/cell-exp/cellranger-10.0.0.tar.gz?Expires=1770847771&Key-Pair-Id=APKAI7S6A5RYOXBWRPDA&Signature=mgOl0oKBQKsOKmbVfykFU4-mLtFXtuicdBqaQbKm-L88XTI2Xw4wBe8zeTB5shMHJqEy7lijI3XXGcMmd-q0MjD61RZepCrjB9oxlZPd~FO4WCwSkSZSNFO99tG7fTurwNk1WrlSYvPIh2POyYw61MtXBqL8OJfrSnceFvfOyYy4LWF3olxUqOs1whDnDjBXXevh8fp0aRbgEXzuQ0~XZEIWg21HHxmPiVHhGDL~HVMayTaD3agecrgxioh1~JiEh17eMxzCccQT5DwmWrdbj2KbDDy~C3~44pxJAfxvWgHapytxR9SiWE-gWLXyUiybO-YK-fOyJckYiNpXKSjrVw__"
   tmp_tar    = "cellranger-10.0.0.tar.gz"
@@ -91,13 +94,13 @@ def get_cellranger_whitelists(output_dir):
     "multiome": "737K-arc-v1.txt.gz",               
   }
 
-  sc_wl_dict = {
-    "3v2_5v1_5v2": "cellranger_barcode_whitelist_3v2_5v1_5v2.txt", 
-    "3v3": "cellranger_barcode_whitelist_3v3.txt", 
-    "3v4": "cellranger_barcode_whitelist_3v4.txt", 
-    "5v3": "cellranger_barcode_whitelist_5v3.txt", 
-    "3LT": "cellranger_barcode_whitelist_3LT.txt", 
-    "multiome": "cellranger_barcode_whitelist_multiome_gex.txt"
+  sc_gex_wl_dict = {
+    "3v2_5v1_5v2": "cellranger_gex_barcode_whitelist_3v2_5v1_5v2.txt", 
+    "3v3": "cellranger_gex_barcode_whitelist_3v3.txt", 
+    "3v4": "cellranger_gex_barcode_whitelist_3v4.txt", 
+    "5v3": "cellranger_gex_barcode_whitelist_5v3.txt", 
+    "3LT": "cellranger_gex_barcode_whitelist_3LT.txt", 
+    "multiome": "cellranger_gex_barcode_whitelist_multiome_gex.txt"
   }
 
   translation_cr_wl_dict = {
@@ -111,20 +114,57 @@ def get_cellranger_whitelists(output_dir):
     "3v4": "cellranger_whitelist_translation_3v4.txt", 
     "3LT": "cellranger_whitelist_translation_3LT.txt"
   }
+
+  sc_hto_wl_dict = {
+    "3v3": "cellranger_hto_barcode_whitelist_3v3.txt", 
+    "3v4": "cellranger_hto_barcode_whitelist_3v4.txt", 
+    "3LT": "cellranger_hto_barcode_whitelist_3LT.txt",
+  }
   
 
   print("Extracting whitelists from CellRanger")
-  # extract whitelist files from cellranger and rename them
-  _extract_whitelists(tar_path, cr_wls_dict, sc_wl_dict, output_dir, is_translation=False)
+  # extract gex whitelist and translation files from cellranger and rename them
+  _extract_whitelists(tar_path, cr_wls_dict, sc_gex_wl_dict, output_dir, is_translation=False)
   _extract_whitelists(tar_path, translation_cr_wl_dict, translation_sc_wl_dict, output_dir, is_translation=True)
-                      
+
+  # extract hto whitelists from translation files (the second column of barcodes in the translation file corresponds to hto barcodes)
+  print("Extracting hto whitelists")
+  _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict)
+
+  # create a lookup table for all whitelists
+
+  chem_lu_dict = {
+    "3LT": ["3LT"],
+    "3v2_5v1_5v2": ["3v2", "5v1", "5v2"],
+    "3v3": ["3v3"],
+    "3v4": ["3v4"],
+    "5v3": ["5v3"],
+    "multiome": ["multiome"]
+  }
+
+  chem_ord = ["3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"]
+    
+  chem_rows = []
+  reverse_map = {label: dict_key for dict_key, labels in chem_lu_dict.items() for label in labels}
+
+  for chem in chem_ord:
+    dict_key = reverse_map[chem]
+    chem_rows.append({
+     "chemistry": chem,
+     "gex_barcodes_f": sc_gex_wl_dict.get(dict_key, ""),
+     "hto_barcodes_f": sc_hto_wl_dict.get(dict_key, ""),
+     "translation_f": translation_sc_wl_dict.get(dict_key, "")
+    })
+
+  chem_df = pl.from_dicts(chem_rows)
+  chem_df.write_csv(whitelists_lu_f)
+
   # cleanup
   print("Cleaning up")
   os.remove(tar_path)
   
   return
   
-
 
 def _extract_whitelists(tar_path, cr_wls_dict, sc_wl_dict, output_dir, is_translation = False): 
   # extract whitelist files from cellranger and rename them
@@ -155,6 +195,22 @@ def _extract_whitelists(tar_path, cr_wls_dict, sc_wl_dict, output_dir, is_transl
                   shutil.copyfileobj(f_extracted, f_out)
 
   return
+
+
+def _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict): 
+  for chem in sc_hto_wl_dict.keys(): # Changed .key to .keys()
+    translation_f = translation_sc_wl_dict[chem]
+    hto_wl_f      = sc_hto_wl_dict[chem]
+    
+    translation_df = pl.read_csv(translation_f, has_header=False)
+
+    translation_df.select(pl.col("column_2")).write_csv(
+      hto_wl_f, include_header=False
+      )
+
+  return
+
+
 
 
 def get_af_index_parameters(config):

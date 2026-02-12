@@ -100,7 +100,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
     max_overlap    = ""
     # get sample chemistry based on barcode whitelist and exp_ori
     chem_opts = (wl_lu_dt
-      .filter(pl.col('barcodes_f') == os.path.basename(whitelist_f))
+      .filter(pl.col('gex_barcodes_f') == os.path.basename(whitelist_f))
       .get_column('chemistry').to_list())
     if set(chem_opts) == set(['3v2', '5v1', '5v2']):
       sample_chem = '3v2' if exp_ori == "fw" else '5v1/5v2'
@@ -117,19 +117,26 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
   # save yaml with chemistry stats only if what is rna
   if what == 'rna':
     chem_stats_f = os.path.join(out_dir, 'chemistry_statistics.yaml')
-    # get translation file
-    trans_fs = (wl_lu_dt
-      .filter(pl.col("barcodes_f") == os.path.basename(whitelist_f))
+    # get translation file and hto whitelist file
+    trans_fs        = (wl_lu_dt
+      .filter(pl.col("gex_barcodes_f") == os.path.basename(whitelist_f))
       .get_column("translation_f").to_list())
-
+    
+    hto_whitelist_fs = (wl_lu_dt
+      .filter(pl.col("gex_barcodes_f") == os.path.basename(whitelist_f))
+      .get_column("hto_barcodes_f").to_list())
+    
     if trans_fs[0] is None:
-      trans_f = ""
+      trans_f         = ""
+      hto_whitelist_f = ""
     else:
-      trans_f  = f'{os.path.dirname(whitelist_f)}/{trans_fs[0]}'
+      trans_f         =  f'{os.path.dirname(whitelist_f)}/{trans_fs[0]}'
+      hto_whitelist_f =  f'{os.path.dirname(whitelist_f)}/{hto_whitelist_fs[0]}'
 
     chem_stats = {
      "run": run, 
-     "selected_whitelist": whitelist_f, 
+     "selected_gex_whitelist": whitelist_f, 
+     "selected_hto_whitelist": hto_whitelist_f, 
      "selected_translation_f": trans_f,
      "selected_whitelist_overlap": max_overlap, 
      "selected_ori": exp_ori, 
@@ -246,8 +253,8 @@ def _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt, sample_size = 100000):
   sel_R1_f = random.sample(R1_fs, 1)[0]
     
   # get all barcode whitelist files
-  wl_dt  = wl_lu_dt.select(['chemistry', 'barcodes_f'])
-  wl_fs  = wl_dt['barcodes_f'].unique().to_list()
+  wl_dt  = wl_lu_dt.select(['chemistry', 'gex_barcodes_f'])
+  wl_fs  = wl_dt['gex_barcodes_f'].unique().to_list()
 
   # get directory where whitelist files are stored
   wl_dir = os.path.abspath(os.path.dirname(wl_lu_f)) 

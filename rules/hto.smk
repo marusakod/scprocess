@@ -58,8 +58,7 @@ rule run_mapping_hto:
     R1_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R1_fs"],
     R2_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R2_fs"],
     af_chemistry  = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["af_chemistry"],
-    expected_ori  = "fw",
-    whitelist_f   = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["whitelist_f"]
+    expected_ori  = "fw"
   conda:
     '../envs/alevin_fry.yaml'
   threads: config['resources']['n_run_mapping']
@@ -80,7 +79,7 @@ rule run_mapping_hto:
     # get chemistry parameters from input yaml file
     AF_CHEMISTRY=$(grep "selected_af_chemistry:" {input.chem_stats_f} | sed 's/selected_af_chemistry: //')
     EXP_ORI=$(grep "selected_ori:" {input.chem_stats_f} | sed 's/selected_ori: //')
-    WHITELIST_F=$(grep "selected_whitelist:" {input.chem_stats_f} | sed 's/selected_whitelist: //')
+    WHITELIST_F=$(grep "selected_whitelist:" {input.chem_stats_f} | sed 's/selected_hto_whitelist: //')
 
     # run mapping
     python3 scripts/mapping.py {wildcards.run} \

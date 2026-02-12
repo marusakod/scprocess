@@ -17,7 +17,7 @@ rule run_mapping:
     wl_lu_f       = config['mapping']['wl_lu_f'],
     af_chemistry  = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["af_chemistry"],
     exp_ori       = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["expected_ori"],
-    whitelist_f   = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["whitelist_f"],
+    whitelist_f   = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["gex_whitelist_f"],
     where         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["where"],
     R1_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["R1_fs"],
     R2_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["R2_fs"]
