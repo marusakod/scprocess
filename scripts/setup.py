@@ -76,7 +76,7 @@ def get_cellranger_whitelists(output_dir, whitelists_lu_f):
 
   os.makedirs(output_dir, exist_ok=True)
 
-  ranger_url ="https://cf.10xgenomics.com/releases/cell-exp/cellranger-10.0.0.tar.gz?Expires=1770847771&Key-Pair-Id=APKAI7S6A5RYOXBWRPDA&Signature=mgOl0oKBQKsOKmbVfykFU4-mLtFXtuicdBqaQbKm-L88XTI2Xw4wBe8zeTB5shMHJqEy7lijI3XXGcMmd-q0MjD61RZepCrjB9oxlZPd~FO4WCwSkSZSNFO99tG7fTurwNk1WrlSYvPIh2POyYw61MtXBqL8OJfrSnceFvfOyYy4LWF3olxUqOs1whDnDjBXXevh8fp0aRbgEXzuQ0~XZEIWg21HHxmPiVHhGDL~HVMayTaD3agecrgxioh1~JiEh17eMxzCccQT5DwmWrdbj2KbDDy~C3~44pxJAfxvWgHapytxR9SiWE-gWLXyUiybO-YK-fOyJckYiNpXKSjrVw__"
+  ranger_url = "https://cf.10xgenomics.com/releases/cell-exp/cellranger-10.0.0.tar.gz?Expires=1770954672&Key-Pair-Id=APKAI7S6A5RYOXBWRPDA&Signature=IqhLKS82wmDPlZOHUIAuFZlKOoeQGnKyqjpgeUP23Zw1lAbmi23cLSi6jShUijxUP3LXjCpRV13Y89ghIR8ppjyeWnTb6jae9IqRYd1akEF-d9ya2wXKarVNCHr7hp0JCjcjJYMLe38wJ8GHtR0~9r5536x1kCzQaPP09uZH026bDpOVvR7-Lt7gbp7fJYmdvs47MUEjlXVs1buDqBxkkvRPhdeTopH4V7hZya2SjjUX-Z2Oig0-d6QixkttudgDGbhZ1YnGbs4k9Bq210uEZw185Z6k6cZ83JPgilSiqO9XRxQb1wowccwob4hjUc2NvE7L2fF4njn-9QLTBv3q6A__"
   tmp_tar    = "cellranger-10.0.0.tar.gz"
   tar_path   = os.path.join(output_dir, tmp_tar)
 
@@ -129,7 +129,7 @@ def get_cellranger_whitelists(output_dir, whitelists_lu_f):
 
   # extract hto whitelists from translation files (the second column of barcodes in the translation file corresponds to hto barcodes)
   print("Extracting hto whitelists")
-  _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict)
+  _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict, output_dir)
 
   # create a lookup table for all whitelists
 
@@ -197,12 +197,12 @@ def _extract_whitelists(tar_path, cr_wls_dict, sc_wl_dict, output_dir, is_transl
   return
 
 
-def _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict): 
+def _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict, output_dir): 
   for chem in sc_hto_wl_dict.keys(): # Changed .key to .keys()
-    translation_f = translation_sc_wl_dict[chem]
-    hto_wl_f      = sc_hto_wl_dict[chem]
+    translation_f = os.path.join(output_dir, translation_sc_wl_dict[chem])
+    hto_wl_f      = os.path.join(output_dir, sc_hto_wl_dict[chem])
     
-    translation_df = pl.read_csv(translation_f, has_header=False)
+    translation_df = pl.read_csv(translation_f, has_header=False, separator= '\t')
 
     translation_df.select(pl.col("column_2")).write_csv(
       hto_wl_f, include_header=False
@@ -593,6 +593,7 @@ if __name__ == "__main__":
   # parser for get_scprocess_data
   getdata     = subparsers.add_parser('get_scprocess_data')
   getdata.add_argument('scdata_dir', type=str)
+  getdata.add_argument('wl_lu_f', type=str)
 
   # parsers for set_up_af_index
   get_af      = subparsers.add_parser('set_up_af_index')
@@ -620,7 +621,7 @@ if __name__ == "__main__":
   # decide which function
   args = parser.parse_args()
   if args.function_name == 'get_scprocess_data':
-    get_scprocess_data(args.scdata_dir)
+    get_scprocess_data(args.scdata_dir, args.wl_lu_f)
   elif args.function_name == 'set_up_af_index':
     set_up_af_index(args.scdata_dir, args.genome, args.fasta_f, args.gtf_f, args.index_dir, args.mito_str, 
       _safe_boolean(args.is_prebuilt), _safe_boolean(args.is_tenx), 
