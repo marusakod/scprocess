@@ -14,6 +14,8 @@ import glob
 import subprocess
 import shlex
 import filecmp
+from pathlib import Path
+import shutil
 
 # import scprocess functions
 scprocess_dir  = os.path.dirname(__file__)
@@ -44,7 +46,7 @@ def run_setup(scprocess_dir, snakefile, extraargs):
   # get validated config
   with open(setup_f, "r") as f:
     setup_cfg   = yaml.safe_load(f)
-  schema_f    = scprocess_dir / "resources/schemas/setup.schema.json"
+  schema_f = Path(sc_dir) / "resources/schemas/setup.schema.json"
   if not schema_f.is_file():
     raise FileNotFoundError("setup schema file not found")
   setup_cfg   = scprocess_utils.check_setup_config(setup_cfg, schema_f, scprocess_dir)
@@ -88,134 +90,142 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
   # check if project already exists
   if os.path.exists(proj_dir):
     raise ValueError("project already exists")
+  
+  try: 
+    # create project directory
+    os.mkdir(proj_dir)
+    os.chdir(proj_dir)
 
-  # create project directory
-  os.mkdir(proj_dir)
-  os.chdir(proj_dir)
+    # create required directories
+    dir_ls = ['.log', 'data', 'code', 'analysis', 'output', 'public']
+    for d in dir_ls:
+      os.mkdir(d)
 
-  # create required directories
-  dir_ls = ['.log', 'data', 'code', 'analysis', 'output', 'public']
-  for d in dir_ls:
-    os.mkdir(d)
+    # create additional subdirectories if requested
+    if create_subdirs:
+      os.mkdir(os.path.join(proj_dir, 'data', 'fastqs'))
+      os.mkdir(os.path.join(proj_dir, 'data', 'metadata'))
 
-  # create additional subdirectories if requested
-  if create_subdirs:
-    os.mkdir(os.path.join(proj_dir, 'data', 'fastqs'))
-    os.mkdir(os.path.join(proj_dir, 'data', 'metadata'))
-
-  # define required files and locations
-  f_ls = ['_workflowr.yml', '.gitignore', '.gitattributes',
+    # define required files and locations
+    f_ls = ['_workflowr.yml', '.gitignore', '.gitattributes',
       '_site.yml', 'custom.css', 'about.Rmd', 'index.Rmd', 'license.Rmd', '.nojekyll']
-  loc_ls = ['.', '.', '.', 'analysis', 'analysis', 'analysis', 'analysis', 'analysis', 'public']
-  assert len(f_ls) == len(loc_ls)
+    loc_ls = ['.', '.', '.', 'analysis', 'analysis', 'analysis', 'analysis', 'analysis', 'public']
+    assert len(f_ls) == len(loc_ls)
 
-  # copy template files
-  for f, l in zip(f_ls, loc_ls):
-    subprocess.call(['cp', os.path.join(src_dir, f), os.path.join(proj_dir, l, f)])
+    # copy template files
+    for f, l in zip(f_ls, loc_ls):
+      subprocess.call(['cp', os.path.join(src_dir, f), os.path.join(proj_dir, l, f)])
 
-  # Modify _site.yml
-  site_f = os.path.join(proj_dir, 'analysis', '_site.yml')
-  with open(site_f, 'r') as file:
-    site_yml_txt = file.read()
-  site_yml_txt = site_yml_txt.replace("proj_template", name)
-  with open(site_f, 'w') as file:
-    file.write(site_yml_txt)
+    # Modify _site.yml
+    site_f = os.path.join(proj_dir, 'analysis', '_site.yml')
+    with open(site_f, 'r') as file:
+      site_yml_txt = file.read()
+    site_yml_txt = site_yml_txt.replace("proj_template", name)
+    with open(site_f, 'w') as file:
+      file.write(site_yml_txt)
 
-  # copy project file
-  proj_ext = '.Rproj'
-  subprocess.call(['cp', os.path.join(src_dir, "proj_template" + proj_ext), os.path.join(proj_dir, name + proj_ext)])
+    # copy project file
+    proj_ext = '.Rproj'
+    subprocess.call(['cp', os.path.join(src_dir, "proj_template" + proj_ext), os.path.join(proj_dir, name + proj_ext)])
 
-  # create .Rprofile file
-  rprofile_txt = """## This makes sure that R loads the workflowr package
-  ## automatically, every time the project is loaded
-  if (requireNamespace("workflowr", quietly = TRUE)) {
+    # create .Rprofile file
+    rprofile_txt = """## This makes sure that R loads the workflowr package
+    ## automatically, every time the project is loaded
+    if (requireNamespace("workflowr", quietly = TRUE)) {
     message("Loading .Rprofile for the current workflowr project")
     library("workflowr")
-  } else {
+    } else {
     message("workflowr package not installed, please run install.packages(\'workflowr\') to use the workflowr functions")
-  }
-  """
-  rprofile_txt  = textwrap.dedent(rprofile_txt)
-  rprofile_f    = os.path.join(proj_dir, '.Rprofile')
-  with open(rprofile_f, "w") as file:
-    file.write(rprofile_txt)
+    }
+    """
+    rprofile_txt  = textwrap.dedent(rprofile_txt)
+    rprofile_f    = os.path.join(proj_dir, '.Rprofile')
+    with open(rprofile_f, "w") as file:
+      file.write(rprofile_txt)
 
-  # create config file if requested
-  if create_config is not None:
-    # import something we need
-    from datetime import date
+    # create config file if requested
+    if create_config is not None:
+      
+      # import something we need
+      from datetime import date
 
-    # set up files etc
-    config_f    = os.path.join(proj_dir, f"config-{name}.yaml")
-    today       = date.today()
-    date_stamp  = today.strftime('%Y-%m-%d')
-    fastq_dir   = 'data/fastqs' if create_subdirs else ''
-    meta_dir    = 'data/metadata' if create_subdirs else ''
+      # set up files etc
+      config_f    = os.path.join(proj_dir, f"config-{name}.yaml")
+      today       = date.today()
+      date_stamp  = today.strftime('%Y-%m-%d')
+      fastq_dir   = 'data/fastqs' if create_subdirs else ''
+      meta_dir    = 'data/metadata' if create_subdirs else ''
 
-    # check that config file exists
-    scdata_dir  = os.getenv('SCPROCESS_DATA_DIR')
-    setup_f     = os.path.join(scdata_dir, 'scprocess_setup.yaml')
-    if not os.path.exists(setup_f):
-      raise FileNotFoundError(f"Config file {setup_f} does not exist")
+      # check that config file exists
+      scdata_dir  = os.getenv('SCPROCESS_DATA_DIR')
+      setup_f     = os.path.join(scdata_dir, 'scprocess_setup.yaml')
+      if not os.path.exists(setup_f):
+        raise FileNotFoundError(f"Config file {setup_f} does not exist")
 
-    # get validated config
-    with open(setup_f, "r") as f:
-      setup_cfg   = yaml.safe_load(f)
-    schema_f    = scprocess_dir / "resources/schemas/setup.schema.json"
-    if not schema_f.is_file():
-      raise FileNotFoundError("setup schema file not found")
-    setup_cfg   = scprocess_utils.check_setup_config(setup_cfg, schema_f, scdata_dir, scprocess_dir)
+      # get validated config
+      with open(setup_f, "r") as f:
+        setup_cfg   = yaml.safe_load(f)
+      schema_f    = Path(sc_dir) / "resources/schemas/setup.schema.json"
+      if not schema_f.is_file():
+        raise FileNotFoundError("setup schema file not found")
+      setup_cfg   = scprocess_utils.check_setup_config(setup_cfg, schema_f, sc_dir)
 
-    # get name and affiliation from setup config if they are there
-    your_name   = setup_cfg["user"].get("your_name", "")
-    affiliation = setup_cfg["user"].get("affiliation", "")
+      # get name and affiliation from setup config if they are there
+      your_name   = setup_cfg["user"].get("your_name", "")
+      affiliation = setup_cfg["user"].get("affiliation", "")
 
-    # define config text
-    proj_txt    = f"""
-      # for details on how to fill out the config file, please see the following link:
-      # https://macnairw.pages.roche.com/scprocess/reference
-      project:
-        proj_dir: {proj_dir}
-        fastq_dir: {fastq_dir}
-        full_tag: {name}
-        short_tag:
-        your_name: {your_name}
-        affiliation: {affiliation}
-        sample_metadata: {meta_dir}/
-        species:
-        date_stamp: "{date_stamp}"
-      """
-    if "sc" in create_config:
-      qc_txt = """qc:
-        qc_max_mito: 0.1
-        qc_min_splice: 0.10
-        qc_max_splice: 0.99
-      """
-    if "sn" in create_config:
-      qc_txt = """qc:
-        qc_max_mito: 0.1
-        qc_max_splice: 0.75
-      """
-    if "multiplex" in create_config:
-      multi_txt = """multiplexing:
-        demux_type:
-      """
-    else:
-      multi_txt = ""
+      # define config text
+      proj_txt    = f"""
+        # for details on how to fill out the config file, please see the following link:
+        # https://macnairw.pages.roche.com/scprocess/reference
+        project:
+          proj_dir: {proj_dir}
+          fastq_dir: {fastq_dir}
+          full_tag: {name}
+          short_tag:
+          your_name: {your_name}
+          affiliation: {affiliation}
+          sample_metadata: {meta_dir}/
+          species:
+          date_stamp: "{date_stamp}"
+        """
+      if "sc" in create_config:
+        qc_txt = """qc:
+          qc_max_mito: 0.1
+          qc_min_splice: 0.10
+          qc_max_splice: 0.99
+        """
+      if "sn" in create_config:
+        qc_txt = """qc:
+          qc_max_mito: 0.1
+          qc_max_splice: 0.75
+        """
+      if "multiplex" in create_config:
+        multi_txt = """multiplexing:
+          demux_type:
+        """
+      else:
+        multi_txt = ""
 
-    # join together
-    config_txt  = proj_txt + multi_txt + qc_txt
-    config_txt  = textwrap.dedent(config_txt).strip()
+      # join together
+      config_txt  = proj_txt + multi_txt + qc_txt
+      config_txt  = textwrap.dedent(config_txt).strip()
 
-    # write to file
-    with open(config_f, "w") as file:
-      file.write(config_txt)
-
+      # write to file
+      with open(config_f, "w") as file:
+        file.write(config_txt)
+  
+  except Exception as e:
+    # if an error happens, remove the directory we started making
+    if os.path.exists(proj_dir):
+      print(f"Error encountered. Cleaning up directory: {proj_dir}")
+      shutil.rmtree(proj_dir)
+      raise e # Re-raise the error so the user knows what went wrong
   return
 
 
 # scprocess run
-def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs, doindex):
+def run_scprocess( configfile, snakefile, rule, extraargs, doindex):
   print('doing some checks on inputs')
 
   # housekeeping
@@ -576,8 +586,16 @@ if __name__ == '__main__':
   elif args.subcommand == "newproj":
     # make new project directory
     if not args.config is None:
-      if ('sc' in args.config) and ('sn' in args.config):
-        raise ValueError("When specifying --config / -c, only one of sc and sn can be specified at a time.")
+       # check for presence of sc or sn
+      has_sc = "sc" in args.config
+      has_sn = "sn" in args.config
+        
+      if not (has_sc or has_sn):
+        raise ValueError("Error: When using --config/-c, you must specify either 'sc' (single cell) or 'sn' (single nucleus).")
+        
+      if has_sc and has_sn:
+        raise ValueError("Error: Please choose either 'sc' or 'sn', not both.")
+    
     where_abs = os.path.abspath(args.where)
     new_proj(sc_dir, args.name, where_abs, args.sub, args.config)
 
@@ -608,7 +626,7 @@ if __name__ == '__main__':
         extraargs.append("-np")
     
     # call bsub thing
-    run_scprocess(sc_dir, args.configfile, snakefile, rule, extraargs, doindex)
+    run_scprocess(args.configfile, snakefile, rule, extraargs, doindex)
   
   # plot knee for selected sample
   elif args.subcommand == 'plotknee':
