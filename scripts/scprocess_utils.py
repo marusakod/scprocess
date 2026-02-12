@@ -76,7 +76,7 @@ def _get_cluster_profile_dir(scprocess_dir, setup_cfg):
 ### much checking
 
 # wrapper for checking setup
-def check_setup_config(setup_cfg, schema_f, scdata_dir, scprocess_dir):
+def check_setup_config(setup_cfg, schema_f, scprocess_dir):
   # start with defaults, overwrite with setup_cfg values
   schema      = _load_schema_file(schema_f)
   defaults    = _get_default_config_from_schema(schema)
@@ -87,7 +87,7 @@ def check_setup_config(setup_cfg, schema_f, scdata_dir, scprocess_dir):
   _validate_object_against_schema(setup_cfg, schema_f, "setup config")
 
   # add profile to snakemake call (can be empty)
-  profile_dir   = _get_cluster_profile_dir(setup_cfg)
+  profile_dir   = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
   if profile_dir != '':
     setup_cfg['user']['profile_dir'] = profile_dir
 
@@ -496,7 +496,7 @@ def _check_hvg_parameters(config):
     all_vals    = gtf_df[ gene_col ]
     absent_vals = set(exc_vals) - set(all_vals)
     if len(absent_vals) > 0:
-      raise ValueError(f"the following genes were specified in 'hvg_exclude_from_file' but were not found in the reference transcriptome: {", ".join(missed_vals)}")
+      raise ValueError(f"the following genes were specified in 'hvg_exclude_from_file' but were not found in the reference transcriptome: {", ".join(absent_vals)}")
   else:
     config['hvg']['hvg_exclude_from_file'] = None
 
@@ -1126,10 +1126,6 @@ def get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR):
       for row in tmp_df.to_dicts()
       if row["pool_id"] in RUNS
     }
-    # { pool_id: tmp_df.filter(pl.col("pool_id") == pool_id)["sample_id_list"].to_list()[0] for pool_id in pool_vals }
-    
-    # # filter out any RUNS that shouldn't be there
-    # RUNS_TO_SAMPLES = { pool_id: sample_ids for pool_id, sample_ids in RUNS_TO_SAMPLES.items() if pool_id in RUNS }
 
     # now choose for runs to batches
     if BATCH_VAR == "pool_id":

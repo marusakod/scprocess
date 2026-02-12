@@ -26,7 +26,7 @@ def run_setup(scprocess_dir, snakefile, extraargs):
   print('doing some checks on inputs')
  
   # get scprocess_data_dir; should be defined in .bashrc
-  scdata_dir = os.getenv('SCPROCESS_DATA_DIR')
+  scdata_dir = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
   if scdata_dir:
     print(f'SCPROCESS_DATA_DIR is set to: {scdata_dir}')
   else:
@@ -47,11 +47,12 @@ def run_setup(scprocess_dir, snakefile, extraargs):
   schema_f    = scprocess_dir / "resources/schemas/setup.schema.json"
   if not schema_f.is_file():
     raise FileNotFoundError("setup schema file not found")
-  setup_cfg   = scprocess_utils.check_setup_config(setup_cfg, schema_f, scdata_dir, scprocess_dir)
+  setup_cfg   = scprocess_utils.check_setup_config(setup_cfg, schema_f, scprocess_dir)
   
   # add snakemake profile flag if specified
   if "profile_dir" in setup_cfg['user']:
-    extraargs.extend([' --workflow-profile ', setup_cfg['user']['profile_dir']])
+    extraargs.append('--workflow-profile')
+    extraargs.append(str(setup_cfg['user']['profile_dir']))
     
   # change scprocess directory
   os.chdir(scprocess_dir)
