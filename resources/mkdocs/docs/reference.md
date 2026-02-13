@@ -70,7 +70,7 @@ Optional paramater for `tenx` references is:
 * `name` (positional): name of the new `workflowr` project directory.
 * `-w`/`--where` (optional): path to the directory where the new project will be created; defaults to the current working directory
 * `-s`/`--sub` (optional): if provided, creates `data/fastqs` and `data/metadata` subdirectories within the project.
-* `-c`/`--config` (optional): if provided, generates a template configuration YAML file for {{sc}}.
+* `-c`/`--config` (optional): generates a template configuration YAML file. If provided, it must be followed by either `sc` (single-cell) or `sn` (single-nucleus) to define standard QC thresholds. You may also append `multiplex` if your dataset requires demultiplexing.
 
 ## {{scknee}} { #scprocess-plotknee }
 
