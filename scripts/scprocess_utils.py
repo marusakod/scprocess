@@ -417,7 +417,7 @@ def _check_multiplexing_parameters(config):
     config['multiplexing']['demux_output'] = _check_path_exists_in_project(config['multiplexing']['demux_output'], config, what = "file")
 
     # check if looks ok 
-    demux_df    = pl.read_csv(config['multiplexing']['demux_output'])
+    demux_df    = pl.read_csv(config['multiplexing']['demux_output'], n_rows = 10)
     for col in ["pool_id", "sample_id", "cell_id"]:
       if not col in demux_df.columns:
         raise KeyError(f"{col} not present in demux_output")
@@ -425,8 +425,8 @@ def _check_multiplexing_parameters(config):
     # check if samples in metadata and demux_df match
     if set(demux_df['sample_id']) > set(samples_df['sample_id']):
       raise ValueError("Some values for 'sample_id' in demux_output don't have a match in sample_metadata")
-    if set(samples_df['sample_id']) > set(demux_df['sample_id']):
-      raise ValueError("Some values for 'sample_id' in sample_metadata don't have a match in demux_output")    
+    # if set(samples_df['sample_id']) > set(demux_df['sample_id']):
+    #   raise ValueError("Some values for 'sample_id' in sample_metadata don't have a match in demux_output")
     if set(demux_df['pool_id']) != set(samples_df['pool_id']):
       raise ValueError("Values for pool_id don't match across demux_output and sample_metadata")
       

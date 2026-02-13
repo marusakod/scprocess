@@ -327,16 +327,18 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
     if (!("cell_id" %in% colnames(demux_out)))
       demux_out   = demux_out %>% .[, cell_id := paste(pool_id, barcode, sep = ":" )]
     demux_out   = demux_out[, .(cell_id, sample_id)]
-    common_bcs  = length(intersect(demux_out$cell_id, coldata_in$cell_id))
-    assert_that(common_bcs > 0)
+    common_bcs  = intersect(demux_out$cell_id, coldata_in$cell_id)
+    n_common    = length(common_bcs)
+    assert_that(n_common > 0)
 
     # discard all cells in demux_output but not in sce
-    message(common_bcs, " matching between custom demultiplexing file and input sce")
-    demux_out   = demux_out[ cell_id %in% common_bcs ]
+    message(n_common, " matching between custom demultiplexing file and input sce")
+    if (nrow(demux_out) == 0)
+      stop("No cells in custom demultiplexing file match input sce")
 
     # merge together
     coldata_out = coldata_in %>%
-      merge(demux_out, by = c('cell_id'), all.x = TRUE, all.y = FALSE) %>%
+      merge(demux_out, by = c('cell_id'), all.x = TRUE) %>%
       merge(metadata_all, by = c('pool_id', 'sample_id'), all.x = TRUE)
 
     # check if column global class exists and if ok
