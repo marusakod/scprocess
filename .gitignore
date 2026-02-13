@@ -8,6 +8,7 @@ __pycache__
 .snakemake/
 .vscode/
 *.sublime-*
+*.code-workspace
 logs/
 lsf.yaml
 .DS_Store
