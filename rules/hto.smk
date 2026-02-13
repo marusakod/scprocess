@@ -79,7 +79,7 @@ rule run_mapping_hto:
     # get chemistry parameters from input yaml file
     AF_CHEMISTRY=$(grep "selected_af_chemistry:" {input.chem_stats_f} | sed 's/selected_af_chemistry: //')
     EXP_ORI=$(grep "selected_ori:" {input.chem_stats_f} | sed 's/selected_ori: //')
-    WHITELIST_F=$(grep "selected_whitelist:" {input.chem_stats_f} | sed 's/selected_hto_whitelist: //')
+    WHITELIST_F=$(grep "selected_hto_whitelist:" {input.chem_stats_f} | sed 's/selected_hto_whitelist: //')
 
     # run mapping
     python3 scripts/mapping.py {wildcards.run} \

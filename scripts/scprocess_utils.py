@@ -975,7 +975,7 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
   # sort out whitelist file
   if sample_chem == 'none':
     gex_whitelist_f        = 'none', 
-    hto_whitelists_f       = 'none'
+    hto_whitelist_f        = 'none'
   else:
     wl_df_f     = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
     wl_df       = pl.read_csv(wl_df_f)

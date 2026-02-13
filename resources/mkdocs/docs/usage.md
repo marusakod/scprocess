@@ -42,7 +42,7 @@ project:
   fastq_dir: /path/to/directory/with/fastq/files
   full_tag: test_project
   short_tag: test
-  your_name: John Doe
+  your_name: Testy McUser
   affiliation: where you work
   sample_metadata: /path/to/metadata.csv
   species: human_2024

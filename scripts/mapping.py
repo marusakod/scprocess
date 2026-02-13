@@ -98,9 +98,10 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
     cell_counts_fw = ""
     cell_counts_rc = ""
     max_overlap    = ""
+    f_prefix       = 'gex' if what == 'rna' else 'hto'
     # get sample chemistry based on barcode whitelist and exp_ori
     chem_opts = (wl_lu_dt
-      .filter(pl.col('gex_barcodes_f') == os.path.basename(whitelist_f))
+      .filter(pl.col(f'{f_prefix}_barcodes_f') == os.path.basename(whitelist_f))
       .get_column('chemistry').to_list())
     if set(chem_opts) == set(['3v2', '5v1', '5v2']):
       sample_chem = '3v2' if exp_ori == "fw" else '5v1/5v2'

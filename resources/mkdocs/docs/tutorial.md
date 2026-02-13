@@ -20,6 +20,7 @@ First we will create a new project directory where all outputs of {{sc}} for thi
 
 ```bash
 # create a new directory called test_project in your current working directory
+# add the -c flag with the sn option to generate a template configuration file with qc thresholds typically used for single nuclei data
 scprocess newproj test_project -s -c sn
 # change your working directory to test_project
 cd test_project
@@ -109,7 +110,7 @@ project:
   affiliation:
   sample_metadata: data/metadata/
   species:
-  date_stamp: "2026-02-12"
+  date_stamp: "2026-01-01"
 qc:
   qc_max_mito: 0.1
   qc_max_splice: 0.75
@@ -129,7 +130,7 @@ project:
   affiliation: Unemployed
   sample_metadata: data/metadata/test_project_metadata.csv
   species: mouse_2024
-  date_stamp: "2025-01-01"
+  date_stamp: "2026-01-01"
   metadata_vars: [group]
 qc:
   qc_max_mito: 0.1
@@ -155,7 +156,7 @@ scprocess run config-test_project.yaml
 
 {{sc}} can automatically annotate cell types using various pretrained models. In this tutorial we will use the mouse whole brain classifier provided by CellTypist. To specify the annotation model, add the highlighed lines to your configuration file:
 
-```yaml hl_lines="10 11 12"
+```yaml hl_lines="16 17 18"
 project:
   proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
   fastq_dir: data/fastqs
@@ -163,8 +164,14 @@ project:
   short_tag: test
   sample_metadata: data/metadata/test_project_metadata.csv
   species: mouse_2024
-  date_stamp: "2025-01-01"
+  date_stamp: "2026-01-01"
   metadata_vars: [group]
+qc:
+  qc_max_mito: 0.1
+  qc_max_splice: 0.75
+marker_genes:
+  mkr_custom_genesets:
+    - name: mouse_brain
 label_celltypes:
   - labeller: "celltypist"
     model: Mouse_Whole_Brain
@@ -362,36 +369,43 @@ project:
   affiliation:
   sample_metadata: data/metadata/
   species:
-  date_stamp: "2025-08-19"
+  date_stamp: "2026-02-13"
+multiplexing:
+  demux_type:
+qc:
+  qc_max_mito: 0.1
+  qc_min_splice: 0.10
+  qc_max_splice: 0.99
+
 ```
 
 In addition to setting the parameters already present in the template configuration file, we must also define additional parameters specific to the multiplexed nature of the dataset. These key parameters are highlighted below:
 
-```yaml hl_lines="12 13 14 15"
+```yaml hl_lines="3 12 13 14 15"
 project:
   proj_dir: /absolute/path/to/test_multiplexed_project
   fastq_dir: data/fastqs/rna
   full_tag: test_multiplexed_project
   short_tag: test
-  your_name: Test McUser
+  your_name: Testy McUser
   affiliation: Unemployed
   sample_metadata: data/metadata/multiplexed_test_project_metadata.csv
   species: mouse_2024
-  date_stamp: "2025-01-01"
+  date_stamp: "2026-02-13"
 multiplexing:
   demux_type: hto
   fastq_dir: data/fastqs/hto
   feature_ref: data/metadata/multiplexed_test_project_feature_ref.csv
 qc:
+  qc_max_mito: 0.1
+  qc_min_splice: 0.10
+  qc_max_splice: 0.99
   qc_min_cells: 100
-  qc_max_mito: 0.05
-  qc_min_splice: 0.5
-  qc_max_splice: 0.9
 ```
 
 Setting `demux_type` to `hto` instructs {{sc}} to use HTO-based demultiplexing for this dataset. By specifying `fastq_dir` and `feature_ref`, we provide {{sc}} with the paths to the HTO FASTQ files and the feature reference file, respectively. 
 
-Note that this is a downsampled dataset with a limited number of cells. To ensure that all samples with at least 100 cells remaining after QC filtering are retained, we set the `qc_min_cells` parameter to 100. Since this is a single-cell dataset, we also adjust the spliced proportion thresholds to refine cell selection. Specifically, we set `qc_min_splice` to 0.5 to exclude cells with less than 50% spliced reads, as these are likely nuclei, and `qc_max_splice` to 0.9 to exclude cells with more than 90% spliced reads, which likely indicates substantial cytoplasmic contamination.
+Note that this is a downsampled dataset with a limited number of cells. To ensure that all samples with at least 100 cells remaining after QC filtering are retained, we set the `qc_min_cells` parameter to 100.
 
 ### Running {{sc}}
 

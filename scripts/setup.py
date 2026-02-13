@@ -59,7 +59,7 @@ def get_scprocess_data(scdata_dir, whitelists_lu_f):
   os.remove('scprocess_data_archive.tar.gz')
   
   # check if all necessary directories are there
-  dirs_ls = ["cellranger_ref", "gmt_pathways", "marker_genes", "xgboost"]
+  dirs_ls = [ "gmt_pathways", "marker_genes", "xgboost"]
   for dir in dirs_ls:
     assert os.path.isdir(dir), \
       f"{dir} directory doesn't exist"
