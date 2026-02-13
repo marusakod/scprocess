@@ -60,7 +60,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir,
       warnings.warn(f'Maximum overlap ob barcodes is {max_overlap:.1%}, 10x chemistry guess might be incorrect')
     
     sel_wl_dt = wl_overlap_dt.filter(pl.col('overlap') == max_overlap)
-    whitelist_f = sel_wl_dt['barcodes_f_full'][0]
+    whitelist_f = sel_wl_dt['gex_barcodes_f_full'][0]
     
     if sel_wl_dt.height == 1:
       sample_chem = sel_wl_dt['chemistry'][0]
@@ -274,11 +274,11 @@ def _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt, sample_size = 100000):
       wl_set = {line.strip() for line in f}
       matches = sum(1 for bc in barcodes if bc in wl_set)
       overlap_pct = matches/n_bcs if n_bcs > 0 else 0
-      overlap_res.append({"barcodes_f": wl_f, "barcodes_f_full": wl_f_full, "overlap": overlap_pct})
+      overlap_res.append({"gex_barcodes_f": wl_f, "gex_barcodes_f_full": wl_f_full, "overlap": overlap_pct})
   
   # merge overlaps with chemistries
   overlap_dt = pl.DataFrame(overlap_res)
-  full_dt    = wl_dt.join(overlap_dt, on = 'barcodes_f', coalesce=True, how = 'full')
+  full_dt    = wl_dt.join(overlap_dt, on = 'gex_barcodes_f', coalesce=True, how = 'full')
 
   return full_dt
     
