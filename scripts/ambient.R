@@ -548,11 +548,13 @@ get_usa_dt <- function(usa_f, min_umi = 10) {
 }
 
 plot_qc_metrics_split_by_cells_empties <- function(rna_knee_fs, 
-  metric = c("umis", "splice_pct"), sample_var = "sample_id", min_umis = 10) {
-  metric    = match.arg(metric)
-
+  sample_var = "sample_id", min_umis = 10, n_cores) {
+  
+  # setup cluster
+  bpparam = MulticoreParam(workers = n_cores, progressbar = FALSE)
+  
   # get cells and empties
-  plot_dt   = rna_knee_fs %>% lapply(function(f) {
+  plot_dt   = rna_knee_fs %>% bplapply(function(f) {
     tmp_dt = fread(f) %>% 
       .[rank <= expected_cells | in_empty_plateau == TRUE ] %>% 
       .[, `:=`(
@@ -560,32 +562,46 @@ plot_qc_metrics_split_by_cells_empties <- function(rna_knee_fs,
         splice_pct = qlogis((spliced + 1) / (spliced + unspliced + 2)), 
         what       = fifelse(rank <= expected_cells, "cell", "empty")
       )] %>%
-      .[, c(sample_var, 'barcode', 'rank', 'umis', 'splice_pct', 'what'), with = FALSE]
-    }) %>% rbindlist
+      .[, c(sample_var, 'barcode', 'umis', 'splice_pct', 'what'), with = FALSE]
+    }, BPPARAM = bpparam) %>% rbindlist %>%
+    melt(id.vars = c(sample_var, "barcode", "what"), measure.vars = c("umis", "splice_pct"),
+      variable.name = "qc_metric", value.name = "qc_val"
+    ) %>%
+    .[, qc_metric := fcase(
+      qc_metric == 'umis', 'no. of UMIs', 
+      qc_metric == 'splice_pct', "spliced pct.", 
+      default = NA_character_
+    )]
 
-  # plot these
-  if (metric == "umis") {
-    y_brks    = c(1e0, 1e1, 3e1, 1e2, 3e2, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6) %>% log10
-    y_labs    = c("1", "10", "30", "100", "300", "1k", "3k", "10k", "30k", "100k", 
-      "300k", "1M")
-    y_title   = "library size"
-  } else if (metric == "splice_pct") {
-    y_brks    = c(0.01, 0.03, 0.1, 0.3, 0.5, 0.7, 0.9, 0.97, 0.99) %>% qlogis
-    y_labs    = c("1%", "3%", "10%", "30%", "50%", "70%", "90%", "97%", "99%")
-    y_title   = "spliced pct."
-  }
-  g = ggplot(plot_dt) + 
-    aes( fill = what, x = get(sample_var), y = get(metric) ) +
-    geom_violin( colour = NA,
-      kernel = 'rectangular', adjust = 0.1, scale = 'width') +
-    scale_y_continuous( breaks = y_brks, labels = y_labs ) +
+  # breaks and labs
+    umis_brks    = c(1e0, 1e1, 3e1, 1e2, 3e2, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6) %>% log10
+    umis_labs    = c("1", "10", "30", "100", "300", "1k", "3k", "10k", "30k", "100k", "300k", "1M")
+  
+    splice_brks  = c(0.01, 0.03, 0.1, 0.3, 0.5, 0.7, 0.9, 0.97, 0.99) %>% qlogis
+    splice_labs = c("1%", "3%", "10%", "30%", "50%", "70%", "90%", "97%", "99%")
+    
+  g_violin = ggplot() +
+    geom_violin( data = plot_dt[ !is.na(qc_val) ],
+                 aes( x = get(sample_var), y = qc_val, fill = what), colour = NA, 
+                 kernel = 'rectangular', adjust = 0.1, scale = 'width', width = 0.8) +
+    facet_grid( . ~ qc_metric, scales = 'free', space = 'free_y' ) +
+    facetted_pos_scales(
+      y = list(
+        qc_metric == "no. of UMIs"     ~
+          scale_y_continuous(breaks = umis_brks, labels = umis_labs),
+        qc_metric == "spliced pct."    ~
+          scale_y_continuous(breaks = splice_brks, labels = splice_labs)
+      )
+    ) +
     scale_fill_manual( values = c(cell = "#1965B0", empty = "grey") ) +
-    theme_classic() + 
-    theme( axis.text.x = element_text( angle = -45, hjust = 0, vjust = 0.5 ) ) +
-    labs( y = y_title, x = NULL, fill = "what does\nthe barcode\nrepresent?" )
-
-  return(g)
+    coord_flip() +
+    theme_classic() +
+    labs( x = NULL, y = NULL, fill = "what does\nthe barcode\nrepresent?" ) +
+    theme(panel.spacing = unit(1, "lines"))
+  
+  return(g_violin)
 }
+
 
 plot_reads_removed_as_ambient <- function(usa_dt_ls, ok_bcs_ls) {
   logit_brks  = c(1e-4, 1e-3, 1e-2, 0.10, 0.50, 0.90, 0.99, 0.999) %>% qlogis
@@ -619,6 +635,9 @@ plot_reads_removed_as_ambient <- function(usa_dt_ls, ok_bcs_ls) {
 
   return(g)
 }
+
+
+
 
 plot_spliced_vs_umis <- function(ss, usa_dt, ok_bcs, total_inc) {
   pscount     = 10
@@ -680,6 +699,8 @@ plot_spliced_vs_umis <- function(ss, usa_dt, ok_bcs, total_inc) {
 
   return(g)
 }
+
+
 
 calc_ambient_exclusions <- function(stats_dt, sample_var) {
   exc_dt  = stats_dt[, .(get(sample_var), total_droplets, kept_droplets, 

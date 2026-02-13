@@ -1,7 +1,5 @@
 # rules to render html files
 
-# localrules: render_html_index
-
 # # render_html_index --> render from index.Rmd file that is created when workflow R project is started ?
 # rule render_html_index:
 #   output:
@@ -35,10 +33,12 @@ rule render_html_mapping:
     r_amb_f   = f"{code_dir}/ambient.R",
     rmd_f     = f"{rmd_dir}/{SHORT_TAG}_mapping.Rmd",
     html_f    = f"{docs_dir}/{SHORT_TAG}_mapping.html"
-  threads: 1
+  threads: 4
   retries: RETRIES
   resources:
-    mem_mb    =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_mapping_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
   shell: """
@@ -59,6 +59,7 @@ rule render_html_mapping:
         proj_dir       = '{PROJ_DIR}', 
         temp_f         =  '$template_f', 
         rmd_f          = '{output.rmd_f}', 
+        threads        = {threads}, 
         YOUR_NAME      = '{YOUR_NAME}', 
         AFFILIATION    = '{AFFILIATION}', 
         SHORT_TAG      = '{SHORT_TAG}', 
@@ -88,6 +89,8 @@ if DEMUX_TYPE == 'af':
     retries: RETRIES
     resources:
       mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_multiplexing_' + DATE_STAMP + '.benchmark.txt'
     conda:
       '../envs/rlibs.yaml'
     shell: """
@@ -134,8 +137,11 @@ rule render_html_ambient:
   conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb      =  lambda wildcards, attempt: attempt * 4096
-  shell: """
+    mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_ambient_' + DATE_STAMP + '.benchmark.txt'
+  shell: 
+    """
     # define rule and template
     template_f=$(realpath resources/rmd_templates/ambient.Rmd.template)
     rule="ambient"
@@ -176,6 +182,8 @@ rule render_html_qc:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_qc_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -230,6 +238,8 @@ rule render_html_hvgs:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_hvgs_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -277,6 +287,8 @@ rule render_html_integration:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_integration_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -339,6 +351,8 @@ rule render_html_marker_genes:
   conda: '../envs/rlibs.yaml'
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_marker_genes_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     # copy R code over
     echo "copying relevant R files over"
@@ -395,6 +409,8 @@ rule render_html_label_celltypes:
   retries: RETRIES
   resources:
     mem_mb      =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_render_htmls/render_html_label_celltypes_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell: """

@@ -18,7 +18,8 @@ SCPROCESS_DATA_DIR = os.getenv('SCPROCESS_DATA_DIR')
 PROJ_DIR, FASTQ_DIR, SHORT_TAG, FULL_TAG, YOUR_NAME, AFFILIATION, METADATA_F, METADATA_VARS, EXC_SAMPLES, SAMPLES, DATE_STAMP, CUSTOM_SAMPLE_PARAMS_F, SPECIES, DEMUX_TYPE, HTO_FASTQ_DIR, FEATURE_REF, DEMUX_F, BATCH_VAR, EXC_POOLS, POOL_IDS, SAMPLE_VAR, SAMPLE_MAPPING = get_project_parameters(config, SCPROCESS_DATA_DIR)
 AF_MITO_STR, AF_HOME_DIR, AF_INDEX_DIR, AF_GTF_DT_F, CHEMISTRY = \
   get_alevin_parameters(config, SCPROCESS_DATA_DIR, SPECIES)
-CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE = \
+CELLBENDER_IMAGE, CELLBENDER_VERSION, CELLBENDER_PROP_MAX_KEPT, AMBIENT_METHOD, CELL_CALLS_METHOD, \
+FORCE_EXPECTED_CELLS, FORCE_TOTAL_DROPLETS_INCLUDED, FORCE_LOW_COUNT_THRESHOLD, CELLBENDER_LEARNING_RATE, CELLBENDER_POSTERIOR_BATCH_SIZE = \
   get_ambient_parameters(config)
 QC_HARD_MIN_COUNTS, QC_HARD_MIN_FEATS, QC_HARD_MAX_MITO, QC_MIN_COUNTS, QC_MIN_FEATS, QC_MIN_MITO, QC_MAX_MITO, QC_MIN_SPLICE, QC_MAX_SPLICE, QC_MIN_CELLS, DBL_MIN_FEATS, EXCLUDE_MITO = \
   get_qc_parameters(config)
@@ -42,6 +43,7 @@ RETRIES, MB_RUN_MAPPING, MB_SAVE_ALEVIN_TO_H5, \
   get_resource_parameters(config)
 
 # specify locations
+benchmark_dir = f"{PROJ_DIR}/.resources"
 fastqs_dir    = f"{PROJ_DIR}/data/fastqs"
 code_dir      = f"{PROJ_DIR}/code"
 af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
@@ -271,8 +273,7 @@ rule qc:
     qc_dir  + '/qc_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     qc_dir  + '/coldata_dt_all_samples_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
     qc_dir  + '/rowdata_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz', 
-    qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv', 
-    qc_dir  + '/sce_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
+    qc_dir  + '/qc_sample_statistics_' + FULL_TAG + '_' + DATE_STAMP + '.csv',  
     rmd_dir   + '/' + SHORT_TAG + '_qc.Rmd',
     docs_dir  + '/' + SHORT_TAG + '_qc.html'
 
@@ -294,6 +295,8 @@ rule hvg:
 
 rule integration:
   input:
+    expand(int_dir + '/sce_cells_clean_{sample}_' + FULL_TAG + '_' + DATE_STAMP + '.rds', sample = SAMPLES),
+    int_dir   + '/sce_clean_paths_' + FULL_TAG + '_' + DATE_STAMP + '.yaml', 
     int_dir   + '/integrated_dt_' + FULL_TAG + '_' + DATE_STAMP + '.txt.gz',
     rmd_dir   + '/' + SHORT_TAG + '_integration.Rmd', 
     docs_dir  + '/' + SHORT_TAG + '_integration.html'
@@ -323,7 +326,6 @@ rule label_celltypes:
 include: "mapping.smk"
 include: "ambient.smk"
 include: "make_hto_sce.smk"
-include: "doublet_id.smk"
 include: "qc.smk"
 include: "pb_empties.smk"
 include: "hvgs.smk"

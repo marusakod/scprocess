@@ -47,6 +47,7 @@ ZOOM_NAMES, ZOOM_PARAMS_DICT, ZOOM_NAMES_SUBSET = \
     AF_GTF_DT_F, PROJ_DIR, SHORT_TAG, FULL_TAG, DATE_STAMP, SCPROCESS_DATA_DIR)
 
 # specify locations
+benchmark_dir = f"{PROJ_DIR}/.resources"
 code_dir      = f"{PROJ_DIR}/code"
 amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
 qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
@@ -156,6 +157,8 @@ rule zoom_make_pb_subset:
   retries: RETRIES 
   resources:
     mem_mb  = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_make_pb_subset_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell:
@@ -185,6 +188,8 @@ rule zoom_calculate_ambient_genes:
   retries: RETRIES 
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_PB_MAKE_PBS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_calculate_ambient_genes_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell:
@@ -229,6 +234,8 @@ rule zoom_make_tmp_csr_matrix:
   retries: RETRIES
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_make_tmp_csr_matrix_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -258,6 +265,8 @@ rule zoom_get_stats_for_std_variance_for_sample:
   retries: RETRIES
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_stats_for_std_variance_for_sample_{zoom_name}_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -289,6 +298,8 @@ rule zoom_get_mean_var_for_group:
   threads: 8
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_mean_var_for_group_{zoom_name}_{group}_chunk_{chunk}' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -334,6 +345,8 @@ rule zoom_get_estimated_variances:
     '../envs/hvgs.yaml'
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_estimated_variances_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   shell:
     """
     python3 scripts/hvgs.py calculate_estimated_vars \
@@ -362,6 +375,8 @@ rule zoom_get_stats_for_std_variance_for_group:
   threads: 8
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_stats_for_std_variance_for_group_{zoom_name}_{group}_chunk_{chunk}' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -408,7 +423,9 @@ rule zoom_get_highly_variable_genes:
     zoom_n_hvgs     = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['N_HVGS'],
     zoom_exclude_ambient_genes = lambda wildcards: ZOOM_PARAMS_DICT[wildcards.zoom_name]['EXCLUDE_AMBIENT_GENES']
   resources:
-     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+    mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_get_highly_variable_genes_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -443,6 +460,8 @@ rule zoom_create_hvg_matrix:
   retries: RETRIES
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_HVGS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_create_hvg_matrix_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/hvgs.yaml'
   shell:
@@ -473,6 +492,8 @@ rule zoom_run_integration:
   retries: RETRIES 
   resources:
     mem_mb   = lambda wildcards, attempt: attempt * MB_RUN_INTEGRATION
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_run_integration_{zoom_name}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell:
@@ -524,6 +545,8 @@ rule zoom_run_marker_genes:
   retries: RETRIES
   resources:
     mem_mb = lambda wildcards, attempt: attempt * MB_RUN_MARKER_GENES
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_run_marker_genes_{zoom_name}_{mkr_sel_res}_' + DATE_STAMP + '.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
   shell:
@@ -565,6 +588,8 @@ rule zoom_make_subset_sces:
   retries: RETRIES
   resources:
     mem_mb   = lambda wildcards, attempt: attempt * MB_MAKE_SUBSET_SCES
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/zoom_make_subset_sces_{zoom_name}_{sample}_' + DATE_STAMP + '.benchmark.txt'
   conda: 
     '../envs/rlibs.yaml'
   shell:
@@ -624,6 +649,8 @@ rule render_html_zoom:
     '../envs/rlibs.yaml'
   resources:
     mem_mb =  lambda wildcards, attempt: attempt * MB_RENDER_HTMLS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_zoom/render_html_zoom_{zoom_name}_{mkr_sel_res}_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     template_f=$(realpath resources/rmd_templates/zoom.Rmd.template)
     rule="zoom"

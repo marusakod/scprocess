@@ -190,48 +190,48 @@ def check_sample_ids(sample_ids):
 
 
 # find fastq files for a sample
-def find_fastq_files(fastqs_dir, sample, read):
-  # get all files
-  all_fs    = glob.glob(f"{fastqs_dir}/*{sample}*")
+# def find_fastq_files(fastqs_dir, sample, read):
+#   # get all files
+#   all_fs    = glob.glob(f"{fastqs_dir}/*{sample}*")
 
-  # get all reads
-  re_R1     = re.compile('.*_R1.*\\.fastq(\\.gz)?$')
-  R1_fs     = [ f for f in all_fs if re_R1.match(f) ]
-  R1_fs     = sorted(R1_fs)
-  re_R2     = re.compile('.*_R2.*\\.fastq(\\.gz)?$')
-  R2_fs     = [ f for f in all_fs if re_R2.match(f) ]
-  R2_fs     = sorted(R2_fs)
+#   # get all reads
+#   re_R1     = re.compile('.*_R1.*\\.fastq(\\.gz)?$')
+#   R1_fs     = [ f for f in all_fs if re_R1.match(f) ]
+#   R1_fs     = sorted(R1_fs)
+#   re_R2     = re.compile('.*_R2.*\\.fastq(\\.gz)?$')
+#   R2_fs     = [ f for f in all_fs if re_R2.match(f) ]
+#   R2_fs     = sorted(R2_fs)
 
-  # check they match
-  R1_chk    = [ re.sub("_R1", "", f) for f in R1_fs ]
-  R2_chk    = [ re.sub("_R2", "", f) for f in R2_fs ]
-  assert R1_chk == R2_chk, "R1 and R2 fastq files do not match for " + sample
+#   # check they match
+#   R1_chk    = [ re.sub("_R1", "", f) for f in R1_fs ]
+#   R2_chk    = [ re.sub("_R2", "", f) for f in R2_fs ]
+#   assert R1_chk == R2_chk, "R1 and R2 fastq files do not match for " + sample
 
-  if read == "R1":
-    sel_fs = R1_fs
-  elif read == "R2":
-    sel_fs = R2_fs
+#   if read == "R1":
+#     sel_fs = R1_fs
+#   elif read == "R2":
+#     sel_fs = R2_fs
 
-  return sel_fs
+#   return sel_fs
 
 
-# function to exclude samples without valid fastq files
-def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES, HTO = False):
-  # get parameters
+# # function to exclude samples without valid fastq files
+# def exclude_samples_without_fastq_files(FASTQS_DIR, SAMPLES, HTO = False):
+#   # get parameters
 
-  # get fastq files for each sample
-  chk_samples   = []
-  for sample in SAMPLES:
-    R1_fs = find_fastq_files(FASTQS_DIR, sample, "R1")
-    if len(R1_fs) > 0:
-      chk_samples.append(sample)
-    else:
-      if HTO:
-        print(f"WARNING: no hto fastq files found for sample {sample}; excluded")
-      else:
-        print(f"WARNING: no fastq files found for sample {sample}; excluded")
+#   # get fastq files for each sample
+#   chk_samples   = []
+#   for sample in SAMPLES:
+#     R1_fs = find_fastq_files(FASTQS_DIR, sample, "R1")
+#     if len(R1_fs) > 0:
+#       chk_samples.append(sample)
+#     else:
+#       if HTO:
+#         print(f"WARNING: no hto fastq files found for sample {sample}; excluded")
+#       else:
+#         print(f"WARNING: no fastq files found for sample {sample}; excluded")
 
-  return chk_samples
+#   return chk_samples
 
 
 def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
@@ -371,13 +371,13 @@ def run_scprocess(sc_dir, configfile, snakefile, rule, extraargs):
   # check that sample_id values are ok and some fastq files exist
   samples_ls  = list(dict.fromkeys(samples_ls))
   check_sample_ids(samples_ls)
-  samples_ls  = exclude_samples_without_fastq_files(fastq_dir, samples_ls, HTO=False)
+  # samples_ls  = exclude_samples_without_fastq_files(fastq_dir, samples_ls, HTO=False)
 
-  if demux_type == 'af':
-   samples_ls  = exclude_samples_without_fastq_files(hto_fastq_dir, samples_ls , HTO=True)
+  # if demux_type == 'af':
+  #  samples_ls  = exclude_samples_without_fastq_files(hto_fastq_dir, samples_ls , HTO=True)
 
-  assert len(samples_ls) > 0, \
-    "No fastq files found in fastq_dir"
+  # assert len(samples_ls) > 0, \
+  #   "No fastq files found in fastq_dir"
 
   # print which files will be processed
   print(f"Processing {len(samples_ls)} samples:")

@@ -116,6 +116,7 @@ def extract_ambient_sample_statistics(AMBIENT_METHOD, SAMPLE_VAR, samples_ls, me
   return sample_df
 
 
+
 if AMBIENT_METHOD == 'cellbender':
   rule run_cellbender:
     input:
@@ -144,6 +145,8 @@ if AMBIENT_METHOD == 'cellbender':
     retries: RETRIES
     resources:
       mem_mb      = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_ambient/run_cellbender_{run}_' + DATE_STAMP + '.benchmark.txt'
     container:
       CELLBENDER_IMAGE
     shell:
@@ -228,6 +231,8 @@ if AMBIENT_METHOD == 'decontx':
     retries: RETRIES
     resources:
       mem_mb    = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_ambient/run_decontx_{run}_' + DATE_STAMP + '.benchmark.txt'
     conda: 
       '../envs/rlibs.yaml'
     shell:
@@ -280,6 +285,8 @@ if AMBIENT_METHOD == 'none':
       '../envs/rlibs.yaml'
     resources:
       mem_mb    = lambda wildcards, attempt: attempt * MB_RUN_AMBIENT
+    benchmark:
+      benchmark_dir + '/' + SHORT_TAG + '_ambient/run_cell_calling_{run}_' + DATE_STAMP + '.benchmark.txt'
     shell:
       """
       # create main ambient directory
@@ -329,6 +336,8 @@ rule get_barcode_qc_metrics:
     '../envs/rlibs.yaml'
   resources:
     mem_mb      = lambda wildcards, attempt: attempt * MB_GET_BARCODE_QC_METRICS
+  benchmark:
+    benchmark_dir + '/' + SHORT_TAG + '_ambient/get_barcode_qc_metrics_{run}_' + DATE_STAMP + '.benchmark.txt'
   shell: """
     # save barcode stats
     Rscript -e "source('scripts/ambient.R'); \
