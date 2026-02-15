@@ -47,7 +47,7 @@ get_one_hto_sce <- function(sel_pool, sample_stats_f, amb_yaml_f, hto_mat_f, tra
   
   # get file for barcode translation
   bc_dict = trans_f %>% fread(header = FALSE) %>%
-    set_colnames(c("bc_rna", "bc_hto"))
+    set_colnames(c("bc_hto", "bc_rna"))
   
   # get all barcodes called as cells
   cell_bcs = bcs_f %>% fread(header = FALSE) %>%

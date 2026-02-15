@@ -76,7 +76,7 @@ def get_cellranger_whitelists(output_dir, whitelists_lu_f):
 
   os.makedirs(output_dir, exist_ok=True)
 
-  ranger_url = "https://cf.10xgenomics.com/releases/cell-exp/cellranger-10.0.0.tar.gz?Expires=1770954672&Key-Pair-Id=APKAI7S6A5RYOXBWRPDA&Signature=IqhLKS82wmDPlZOHUIAuFZlKOoeQGnKyqjpgeUP23Zw1lAbmi23cLSi6jShUijxUP3LXjCpRV13Y89ghIR8ppjyeWnTb6jae9IqRYd1akEF-d9ya2wXKarVNCHr7hp0JCjcjJYMLe38wJ8GHtR0~9r5536x1kCzQaPP09uZH026bDpOVvR7-Lt7gbp7fJYmdvs47MUEjlXVs1buDqBxkkvRPhdeTopH4V7hZya2SjjUX-Z2Oig0-d6QixkttudgDGbhZ1YnGbs4k9Bq210uEZw185Z6k6cZ83JPgilSiqO9XRxQb1wowccwob4hjUc2NvE7L2fF4njn-9QLTBv3q6A__"
+  ranger_url = "https://cf.10xgenomics.com/releases/cell-exp/cellranger-10.0.0.tar.gz?Expires=1771220097&Key-Pair-Id=APKAI7S6A5RYOXBWRPDA&Signature=AjxFItuAhI3-olsG-FRSooRFWsnD46HSQTFjehrB43hm9rcnFmpjxLGQm2kMP4ikZolQJH9mqxLOFFeQ5UY2rKAdQskBBU1bJ3i-6A7Wlbmw5cJEQx3YUVCUqYdwaGmWgbVYMqPDwmlyg60PnGjQogdckqOVK6qEKmH1Sewtl4nuPvQZ6kpbS3qNQR3BXL0DL~vAqnkFNARqpCYhzWpupbu3MdcuP5ogj7ITK8upKyvFqYg60r5S7T5-EJiGXQi3DFYm3SC-yVZPDayB9vfHOEX2nXkfnsknC1bq7pRe7ZFcvFxJtEGzQusYkkop34RNr0nrOEf09wBepAcPv2AoIw__"
   tmp_tar    = "cellranger-10.0.0.tar.gz"
   tar_path   = os.path.join(output_dir, tmp_tar)
 
@@ -204,7 +204,7 @@ def _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict, output_
     
     translation_df = pl.read_csv(translation_f, has_header=False, separator= '\t')
 
-    translation_df.select(pl.col("column_2")).write_csv(
+    translation_df.select(pl.col("column_1")).write_csv(
       hto_wl_f, include_header=False
       )
 
