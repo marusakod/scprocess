@@ -24,7 +24,7 @@ import scprocess_utils
 
 
 # scprocess setup
-def run_setup(scprocess_dir, snakefile, extraargs):
+def run_setup(scprocess_dir, snakefile, ranger_url, extraargs):
   print('doing some checks on inputs')
  
   # get scprocess_data_dir; should be defined in .bashrc
@@ -42,7 +42,7 @@ def run_setup(scprocess_dir, snakefile, extraargs):
   setup_f     = scdata_dir / 'scprocess_setup.yaml'
   if not os.path.exists(setup_f):
     raise FileNotFoundError(f"Config file {setup_f} does not exist")
-  
+   
   # get validated config
   with open(setup_f, "r") as f:
     setup_cfg   = yaml.safe_load(f)
@@ -50,7 +50,20 @@ def run_setup(scprocess_dir, snakefile, extraargs):
   if not schema_f.is_file():
     raise FileNotFoundError("setup schema file not found")
   setup_cfg   = scprocess_utils.check_setup_config(setup_cfg, schema_f, scprocess_dir)
-  
+
+  # get cellranger version
+  if ranger_url == "":
+    # setup was done already, look for version file
+    ranger_version_f = scdata_dir / 'cellranger_ref/.cellranger_version'
+    if not os.path.exists(ranger_version_f):
+      raise ValueError('Please provide a valid CellRanger download link')
+
+    with open(ranger_version_f, "r") as f:
+      ranger_version = f.read().strip()
+  else:
+    ranger_version = scprocess_utils.check_ranger_url(ranger_url)
+
+
   # add snakemake profile flag if specified
   if "profile_dir" in setup_cfg['user']:
     extraargs.append('--workflow-profile')
@@ -63,6 +76,9 @@ def run_setup(scprocess_dir, snakefile, extraargs):
   cmd_list    = ['snakemake',
     "--snakefile", str(snakefile),
     "--configfile", str(setup_f.resolve()),
+    "--config", 
+    f"cellranger_url={ranger_url}", 
+    f"cellranger_version={ranger_version}",
     "--rerun-triggers", "mtime", "params",
     "--rerun-incomplete", "--verbose", "--use-conda"
   ]
@@ -497,6 +513,10 @@ if __name__ == '__main__':
   setup_prsr  = subparsers.add_parser('setup', help="do setup for scprocess")
 
   # add arguments for setup
+  setup_prsr.add_argument("-c", "--rangerurl", type=str, default="", 
+    help = '''
+      "Valid download link for CellRanger v9.0.0 or higher. Download links can be found at https://www.10xgenomics.com/support/software/cell-ranger/downloads/previous-versions).
+      ''')                      
   setup_prsr.add_argument("-n", "--dry-run", action="store_true", 
     help = '''
       "Dry run" execution, i.e. snakemake will print out what it would do for the setup step, but not actually do it.
@@ -581,7 +601,7 @@ if __name__ == '__main__':
       extraargs.append("-np")
     
     # call bsub thing
-    run_setup(sc_dir, snakefile, extraargs)
+    run_setup(sc_dir, snakefile, args.rangerurl,extraargs)
 
   elif args.subcommand == "newproj":
     # make new project directory

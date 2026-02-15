@@ -2,15 +2,11 @@
 
 
 import argparse
-import glob
 import gzip
-import numpy as np
 import os
 import pandas as pd
 import re
-import re
 import subprocess
-import warnings
 import yaml
 import tarfile
 import shutil
@@ -44,8 +40,12 @@ URLS_ZEN_IDXS = {
 }
 
 
-def get_scprocess_data(scdata_dir, whitelists_lu_f):
+def get_scprocess_data(scdata_dir, ranger_url, whitelists_lu_f, ranger_version_f):
   print('Downloading data from scprocessData github repo')
+
+  if ranger_url == "":
+    raise ValueError('Something went wrong. Please provide a valid cellranger link')
+
   # switch to scprocess data dir
   os.chdir(scdata_dir)
 
@@ -63,21 +63,28 @@ def get_scprocess_data(scdata_dir, whitelists_lu_f):
   for dir in dirs_ls:
     assert os.path.isdir(dir), \
       f"{dir} directory doesn't exist"
-    
-  # download cellranger and extract whitelists
-  get_cellranger_whitelists(os.path.join(scdata_dir, 'cellranger_ref'), whitelists_lu_f)
   
+  # get version of cellranger
+  ranger_version = re.search(r"cellranger-(\d+\.\d+\.\d+)", ranger_url).group(1)
+  
+  # download cellranger and extract whitelists
+  ranger_data_dir = os.path.join(scdata_dir, 'cellranger_ref')
+  get_cellranger_whitelists(ranger_data_dir, whitelists_lu_f, ranger_url, ranger_version)
+
+  # save file with cellranger version
+  with open(ranger_version_f, "w") as f:
+    f.write(str(ranger_version))
+
   print('Done!')
 
   return
 
 
-def get_cellranger_whitelists(output_dir, whitelists_lu_f):
+def get_cellranger_whitelists(output_dir, whitelists_lu_f, ranger_url, ranger_version):
 
   os.makedirs(output_dir, exist_ok=True)
 
-  ranger_url = "https://cf.10xgenomics.com/releases/cell-exp/cellranger-10.0.0.tar.gz?Expires=1771220097&Key-Pair-Id=APKAI7S6A5RYOXBWRPDA&Signature=AjxFItuAhI3-olsG-FRSooRFWsnD46HSQTFjehrB43hm9rcnFmpjxLGQm2kMP4ikZolQJH9mqxLOFFeQ5UY2rKAdQskBBU1bJ3i-6A7Wlbmw5cJEQx3YUVCUqYdwaGmWgbVYMqPDwmlyg60PnGjQogdckqOVK6qEKmH1Sewtl4nuPvQZ6kpbS3qNQR3BXL0DL~vAqnkFNARqpCYhzWpupbu3MdcuP5ogj7ITK8upKyvFqYg60r5S7T5-EJiGXQi3DFYm3SC-yVZPDayB9vfHOEX2nXkfnsknC1bq7pRe7ZFcvFxJtEGzQusYkkop34RNr0nrOEf09wBepAcPv2AoIw__"
-  tmp_tar    = "cellranger-10.0.0.tar.gz"
+  tmp_tar    = f"cellranger-{ranger_version}.tar.gz"
   tar_path   = os.path.join(output_dir, tmp_tar)
 
   # download cellranger
@@ -267,9 +274,9 @@ def _get_index_parameters_tenx(spec_tenx, TENX_NAMES):
 def _get_index_parameters_custom(spec_custom, TENX_NAMES):
   # check if all required entries are specified
   if not os.path.isfile(spec_custom['gtf']):
-    raise FileNotFoundError(f"file {gtf} specified in configfile doesn't exist")
+    raise FileNotFoundError(f"file {spec_custom['gtf']} specified in configfile doesn't exist")
   if not os.path.isfile(spec_custom['fasta']):
-    raise FileNotFoundError(f"file {fa} specified in configfile doesn't exist")
+    raise FileNotFoundError(f"file {spec_custom['fasta']} specified in configfile doesn't exist")
 
   # fill in defaults if we need to
   if not "decoys" in spec_custom:
@@ -320,7 +327,7 @@ def set_up_af_index(scdata_dir, genome_name, fasta_f, gtf_f, index_dir, mito_str
         fasta_f, gtf_f  = _download_predefined_fasta_and_gtf(ref_dir, genome_name)
     else:
       # copy custom files
-      fasta_f, gtf_f  = _copy_custom_fasta_and_gtf(ref_dir, genome_name, fasta_f, gtf_f)
+      fasta_f, gtf_f    = _copy_custom_fasta_and_gtf(ref_dir, genome_name, fasta_f, gtf_f)
 
     # build index
     _build_index_w_simpleaf(genome_name, idx_dir, has_decoy, fasta_f, gtf_f, n_cores = n_cores)
@@ -593,7 +600,9 @@ if __name__ == "__main__":
   # parser for get_scprocess_data
   getdata     = subparsers.add_parser('get_scprocess_data')
   getdata.add_argument('scdata_dir', type=str)
+  getdata.add_argument('cr_url', type = str)
   getdata.add_argument('wl_lu_f', type=str)
+  getdata.add_argument('cr_version_f', type=str)
 
   # parsers for set_up_af_index
   get_af      = subparsers.add_parser('set_up_af_index')
@@ -621,7 +630,7 @@ if __name__ == "__main__":
   # decide which function
   args = parser.parse_args()
   if args.function_name == 'get_scprocess_data':
-    get_scprocess_data(args.scdata_dir, args.wl_lu_f)
+    get_scprocess_data(args.scdata_dir, args.cr_url, args.wl_lu_f, args.cr_version_f)
   elif args.function_name == 'set_up_af_index':
     set_up_af_index(args.scdata_dir, args.genome, args.fasta_f, args.gtf_f, args.index_dir, args.mito_str, 
       _safe_boolean(args.is_prebuilt), _safe_boolean(args.is_tenx), 

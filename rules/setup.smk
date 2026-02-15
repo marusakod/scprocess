@@ -14,6 +14,7 @@ from setup import get_af_index_parameters
 SCDATA_DIR    = os.getenv('SCPROCESS_DATA_DIR')
 IDX_PARAMS_LS = get_af_index_parameters(config) 
 GENOMES       = list(IDX_PARAMS_LS.keys())
+RANGER_URL    = config['cellranger_url']
 
 # define simpleaf index files
 AF_INDEX_FS = [
@@ -54,6 +55,7 @@ rule all:
     f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3v3.txt',
     f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3v4.txt',
     f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelists.csv',
+    f'{SCDATA_DIR}/cellranger_ref/.cellranger_version',
     f'{SCDATA_DIR}/gmt_pathways/c1.all.v2023.1.Hs.symbols.gmt',
     f'{SCDATA_DIR}/gmt_pathways/c2.all.v2023.1.Hs.symbols.gmt',
     f'{SCDATA_DIR}/gmt_pathways/c2.cp.biocarta.v2023.1.Hs.symbols.gmt',
@@ -102,6 +104,7 @@ rule download_scprocess_files:
     wl_translation_3v3 =  f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3v3.txt',
     wl_translation_3v4 =  f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3v4.txt',
     all_wl           = f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelists.csv',
+    cr_version       = f'{SCDATA_DIR}/cellranger_ref/.cellranger_version', 
     gmt_f_1          = f'{SCDATA_DIR}/gmt_pathways/c1.all.v2023.1.Hs.symbols.gmt',
     gmt_f_2          = f'{SCDATA_DIR}/gmt_pathways/c2.all.v2023.1.Hs.symbols.gmt',
     gmt_f_3          = f'{SCDATA_DIR}/gmt_pathways/c2.cp.biocarta.v2023.1.Hs.symbols.gmt',
@@ -124,11 +127,17 @@ rule download_scprocess_files:
     gmt_f_20         = f'{SCDATA_DIR}/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt',
     xgb_csv_f        = f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv',
     xgb_rds_f        = f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds'
+  params: 
+    ranger_version   = config['cellranger_version']
   conda:
     '../envs/py_env.yaml'
   threads: 1
   shell: """
-    python3 scripts/setup.py get_scprocess_data {SCDATA_DIR} {output.all_wl}
+    python3 scripts/setup.py get_scprocess_data \
+      "{SCDATA_DIR}" \
+      "{RANGER_URL}" \
+      "{output.all_wl}" \
+      "{output.cr_version}"
     """
 
 

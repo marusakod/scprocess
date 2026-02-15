@@ -1375,6 +1375,25 @@ def merge_tmp_files(in_files, out_file):
     df_merged.write_csv(f)
 
 
+def check_ranger_url(ranger_url):
+  
+  if not ranger_url.startswith("https://"):
+    # check that link if valid
+    raise ValueError(f"Invalid URL: Link must start with 'https://'")
+    
+  # extract version
+  ranger_version = re.search(r"cellranger-(\d+\.\d+\.\d+)", ranger_url).group(1)
+    
+  # check that version if > 9.0.0
+  version_parts = [int(p) for p in ranger_version.split(".")]
+  min_version = [9, 0, 0]
+  if version_parts <= min_version:
+    raise ValueError(f"Provided download link for CellRanger version {ranger_version}. scprocess requires version > 9.0.0.")
+
+  return ranger_version
+  
+
+
 # HVGs function: make df with list of chunked counts files
 def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_RUNS, 
   DEMUX_TYPE, FULL_TAG, DATE_STAMP, hvg_dir):
