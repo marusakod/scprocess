@@ -209,9 +209,9 @@ In this example, we will subcluster the populations labelled "327 Oligo NN" (oli
       labels_col: predicted_label_agg
     ```
 
-    The value of the `labels_source` parameter matches the value of the `labeller` parameter in the main configuration file. The `sel_labels` parameter lists specific clusters/cell types to include in subclustering. `labels_col` referes to a column name in the annotation output file (`output/test_label_celltypes/labels_celltypist_model_Mouse_Whole_Brain_test_project_2025-01-01.csv.gz`) containg cell type names.
+    The value of the `labels_source` parameter matches the value of the `labeller` parameter in the main configuration file. The `sel_labels` parameter lists specific clusters/cell types to include in subclustering. `labels_col` referes to a column name in the annotation output file (`output/test_label_celltypes/labels_celltypist_model_Mouse_Whole_Brain_test_project_2026-01-01.csv.gz`) containg cell type names.
 
-2. Link Subclustering configuration file to main project
+2. Link subclustering configuration file to main project
     
     Link the subclustering YAML to your main project configuration file (`config-test_project.yaml`) by adding it to the `zoom` section:
 
@@ -225,7 +225,7 @@ In this example, we will subcluster the populations labelled "327 Oligo NN" (oli
       affiliation: Unemployed
       sample_metadata: data/metadata/test_project_metadata.csv
       ref_txome: mouse_2024
-      date_stamp: "2025-01-01"
+      date_stamp: "2026-01-01"
       metadata_vars: [group]
     label_celltypes:
       - labeller: "celltypist"
@@ -404,12 +404,9 @@ qc:
   qc_max_mito: 0.1
   qc_min_splice: 0.10
   qc_max_splice: 0.99
-  qc_min_cells: 100
 ```
 
 Setting `demux_type` to `hto` instructs {{sc}} to use HTO-based demultiplexing for this dataset. By specifying `fastq_dir` and `feature_ref`, we provide {{sc}} with the paths to the HTO FASTQ files and the feature reference file, respectively. 
-
-Note that this is a downsampled dataset with a limited number of cells. To ensure that all samples with at least 100 cells remaining after QC filtering are retained, we set the `qc_min_cells` parameter to 100.
 
 ### Running {{sc}}
 
