@@ -222,20 +222,20 @@ def _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict, output_
 
 def get_af_index_parameters(config):
   # initialize
-  genomes     = config['genomes']
+  ref_txomes  = config['ref_txomes']
   SETUP_LS    = []
 
   # get parameters for all specified tenx genomes
-  if 'tenx' in genomes:
+  if 'tenx' in ref_txomes:
     # get just tenx list
-    tenx_ls     = genomes['tenx']
+    tenx_ls     = ref_txomes['tenx']
     for spec_tenx in tenx_ls:
       SETUP_LS.append(_get_index_parameters_tenx(spec_tenx, TENX_NAMES))
 
   # get parameters for all specified custom genomes
-  if 'custom' in genomes:
+  if 'custom' in ref_txomes:
     # get just custom list
-    custom_ls     = genomes['custom']
+    custom_ls     = ref_txomes['custom']
     for spec_custom in custom_ls:
       SETUP_LS.append(_get_index_parameters_custom(spec_custom))
 
