@@ -144,7 +144,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f','fgsea_paths_f', 'fgsea_hlmk_f',
       'mkr_sel_res', 'custom_mkr_names', 'custom_mkr_paths',
       'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_var', 'mkr_gsea_cut', 
-      'species', 'do_gsea')
+      'ref_txome', 'do_gsea')
 
     assert_that(all(req_names %in% add_args_names))
 
@@ -165,7 +165,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       meta_umap_txt   = ""
    }
     do_gsea = as.logical(add_args[['do_gsea']])
-    if((add_args[['species']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) & do_gsea){
+    if((add_args[['ref_txome']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) & do_gsea){
       fgsea_title = "## GSEA characterisation of clusters{.tabset}"
       fgsea_txt   = paste0("Gene Set Enrichment Analysis (GSEA) was performed on marker genes for each cluster, using log fold change as the ranking variable.", 
       " The top 10 pathways, grouped into five categories and selected based on a significance threshold of 0.05, are displayed for each cluster.")
@@ -198,7 +198,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'gtf_dt_f', 'qc_f', 'cell_hvgs_f', 'int_f', 'pb_f', 'pb_hvgs_f', 'mkrs_f', 'empty_gs_f', 'pb_empty_f', 
       'fgsea_go_bp_f','fgsea_go_cc_f', 'fgsea_go_mf_f', 'int_res_ls',
       'custom_mkr_names', 'custom_mkr_paths', 'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_sel_res',
-      'mkr_min_cells', 'mkr_gsea_cut', 'species', 'batch_var', 'do_gsea')
+      'mkr_min_cells', 'mkr_gsea_var', 'mkr_gsea_cut', 'ref_txome', 'batch_var', 'do_gsea')
     
     assert_that(all(req_names %in% add_args_names))
 
@@ -220,7 +220,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
    }
     
     do_gsea = as.logical(add_args[['do_gsea']])
-    if((add_args[['species']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) & do_gsea){
+    if((add_args[['ref_txome']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) & do_gsea){
       fgsea_title = "### GSEA characterisation of clusters{.tabset}"
       fgsea_txt   = paste0("Gene Set Enrichment Analysis (GSEA) was performed on marker genes for each cluster, using log fold change as the ranking variable.", 
       " The top 10 pathways, grouped into five categories and selected based on a significance threshold of 0.05, are displayed for each cluster.")

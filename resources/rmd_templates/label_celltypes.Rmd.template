@@ -43,6 +43,7 @@ model_ls        = str_split("${model_ls}", " ")[[ 1 ]]
 # params
 hi_res_cl_ls    = str_split("${hi_res_cl_ls}", " ")[[ 1 ]]
 min_cl_prop_ls  = str_split("${min_cl_prop_ls}", " ")[[ 1 ]] %>% as.numeric
+min_cl2_p       = 0.2
 ```
 
 ```{r load_umap, include = FALSE}
@@ -73,7 +74,7 @@ for (ii in seq_along(guess_f_ls)) {
   guesses_sel = guesses_ls[[ ii ]] %>% 
     .[, .(cell_id, prediction = predicted_label_naive %>% factor)]
   int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2, hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
-  confuse_dt  = calc_confuse_dt(guesses_sel, int_tmp, "prediction", "hi_res_cl")
+  confuse_dt  = calc_confuse_dt(guesses_sel, int_tmp, "prediction", "hi_res_cl", min_cl2_p = min_cl2_p)
 
   # plot heatmap
   cat('### ', this_labeller, ', ', this_model, '\n', sep = '')

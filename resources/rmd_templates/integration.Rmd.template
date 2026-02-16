@@ -121,7 +121,9 @@ The plot shows the proportion of doublets for each cluster in relation to the to
 
 Clustering of data is performed at different resolution values. For each value the clusters are displayed over a UMAP together with a plot showing the density of cells. 
 
-```{r plot_clusters_integration, fig.height = 5, fig.width = 11, results = "asis"}
+After removing doublets, there were **`r nrow(int_dt)` QC-ed cells used for integration**.
+
+```{r plot_clusters_integration, fig.height = 7, fig.width = 9, results = "asis"}
 for (res in res_ls) {
   cat('### ', res, '\n')
   g_cl    = plot_umap_cluster(

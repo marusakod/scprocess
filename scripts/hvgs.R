@@ -147,12 +147,13 @@ plot_heatmap_of_ambient_profiles <- function(vst_mat, top_var = c("var", "mean",
   res         = 0.5
   mat_cols    = cols_fn(seq(max(5, min(plot_mat)), ceiling(max(plot_mat)), res),
     res = res, pal = "viridis", pal_dir = 1, range = "natural")
-  lgd         = list(title = "log2cpm-like values\nfrom DESeq2::vst")
+  lgd         = list(title = "log2cpm-like\nvalues from\nDESeq2::vst")
 
   # heatmap
   hm_obj      = Heatmap(
     matrix = plot_mat, col = mat_cols,
     row_labels = row_labs, row_names_gp = gpar(fontsize = 8),
+    column_names_gp = gpar(fontsize = 8),
     heatmap_legend_param = lgd,
     row_names_side = "left", column_names_side = "top",
     na_col = "grey"

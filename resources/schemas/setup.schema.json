@@ -9,10 +9,19 @@
       "properties": {
         "profile":          { "type": "string" },
         "your_name":        { "type": "string" },
-        "affiliation":      { "type": "string" }
+        "affiliation":      { "type": "string" },
+        "int_use_gpu":      { "type": "boolean", "default": false }
       }
     },
-    "genomes": {
+    "arvados": {
+      "type": "object",
+      "required": ["arv_instance"],
+      "additionalProperties": false,
+      "properties": {
+        "arv_instance":    { "type": "string", "default": "" }
+      }
+    },
+    "ref_txomes": {
       "type": "object",
       "anyOf": [
           { "required": ["tenx"] },

@@ -1,6 +1,6 @@
 
-def get_conditional_fgsea_files(species, do_gsea):
-  if (species in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & do_gsea:
+def get_conditional_fgsea_files(ref_txome, do_gsea):
+  if (ref_txome in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & do_gsea:
     return {
       'fgsea_go_bp_f': f'{mkr_dir}/fgsea_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_go_bp_{DATE_STAMP}.csv.gz',
       'fgsea_go_cc_f': f'{mkr_dir}/fgsea_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_go_cc_{DATE_STAMP}.csv.gz',
@@ -377,7 +377,7 @@ rule render_html_marker_genes:
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     hvgs_f        = f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
     empty_gs_f    = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    **get_conditional_fgsea_files(config['project']['species'], config['marker_genes']['mkr_do_gsea'])
+    **get_conditional_fgsea_files(config['project']['ref_txome'], config['marker_genes']['mkr_do_gsea'])
   output:
     r_mkr_f       = f"{code_dir}/marker_genes.R",
     r_fgsea_f     = f"{code_dir}/fgsea.R",
@@ -392,7 +392,7 @@ rule render_html_marker_genes:
     date_stamp        = config['project']['date_stamp'],
     proj_dir          = config['project']['proj_dir'],
     metadata_f        = config['project']['sample_metadata'],
-    species           = config['project']['species'],
+    ref_txome         = config['project']['ref_txome'],
     meta_vars         = ','.join(config['project']['metadata_vars']),
     af_gtf_dt_f       = config['mapping']['af_gtf_dt_f'],
     custom_mkr_names  = config['marker_genes']['custom_mkr_names'],
@@ -458,7 +458,7 @@ rule render_html_marker_genes:
       mkr_gsea_var      = '{params.mkr_gsea_var}',
       mkr_gsea_cut      =  {params.mkr_gsea_cut},
       {params.fgsea_args}
-      species           = '{params.species}', 
+      ref_txome         = '{params.ref_txome}', 
       do_gsea           = '{params.mkr_do_gsea}'
     )"
     """

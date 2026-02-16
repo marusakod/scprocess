@@ -109,7 +109,7 @@ project:
   your_name:
   affiliation:
   sample_metadata: data/metadata/
-  species:
+  ref_txome:
   date_stamp: "2026-01-01"
 qc:
   qc_max_mito: 0.1
@@ -129,7 +129,7 @@ project:
   your_name: Testy McUser
   affiliation: Unemployed
   sample_metadata: data/metadata/test_project_metadata.csv
-  species: mouse_2024
+  ref_txome: mouse_2024
   date_stamp: "2026-01-01"
   metadata_vars: [group]
 qc:
@@ -163,7 +163,7 @@ project:
   full_tag: test_project
   short_tag: test
   sample_metadata: data/metadata/test_project_metadata.csv
-  species: mouse_2024
+  ref_txome: mouse_2024
   date_stamp: "2026-01-01"
   metadata_vars: [group]
 qc:
@@ -221,7 +221,7 @@ In this example, we will subcluster the populations labelled "327 Oligo NN" (oli
       your_name: Test McUser
       affiliation: Unemployed
       sample_metadata: data/metadata/test_project_metadata.csv
-      species: mouse_2024
+      ref_txome: mouse_2024
       date_stamp: "2025-01-01"
       metadata_vars: [group]
     label_celltypes:
@@ -368,8 +368,8 @@ project:
   your_name:
   affiliation:
   sample_metadata: data/metadata/
-  species:
-  date_stamp: "2026-02-13"
+  ref_txome:
+  date_stamp: "2026-01-01"
 multiplexing:
   demux_type:
 qc:
@@ -390,8 +390,8 @@ project:
   your_name: Testy McUser
   affiliation: Unemployed
   sample_metadata: data/metadata/multiplexed_test_project_metadata.csv
-  species: mouse_2024
-  date_stamp: "2026-02-13"
+  ref_txome: mouse_2024
+  date_stamp: "2026-01-01"
 multiplexing:
   demux_type: hto
   fastq_dir: data/fastqs/hto

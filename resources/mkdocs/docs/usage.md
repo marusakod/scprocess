@@ -45,7 +45,7 @@ project:
   your_name: Testy McUser
   affiliation: where you work
   sample_metadata: /path/to/metadata.csv
-  species: human_2024
+  ref_txome: human_2024
   date_stamp: "2025-01-01"
 ```
 

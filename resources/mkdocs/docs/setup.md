@@ -90,7 +90,7 @@ If you plan to use `cellbender` for ambient RNA correction, you will also need A
     user:
       your_name:    Testy McUser
       affiliation:  Unemployed
-    genomes:
+    ref_txomes:
       tenx:
       - name: human_2024 
       - name: mouse_2024 

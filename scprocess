@@ -92,19 +92,19 @@ def run_setup(scprocess_dir, snakefile, ranger_url, extraargs):
 
 
 # scprocess newproj
-def new_proj(sc_dir, name, where, create_subdirs, create_config):
+def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
   # define template path
-  src_dir   = os.path.join(sc_dir, "resources", "newproj_files")
-  proj_dir  = os.path.join(where, name)
+  src_dir   = sc_dir / "resources" / "newproj_files"
+  proj_dir  = where_path / name
 
-  # check if where is a valid path
-  if not os.path.exists(where):
-    raise ValueError(f"Error: The specified directory '{where}' does not exist.")
-  if not os.path.isdir(where):
-    raise ValueError(f"Error: '{where}' is not a directory.")
+  # check if where_path is a valid path
+  if not where_path.exists():
+    raise ValueError(f"Error: The specified directory '{where_path}' does not exist.")
+  if not where_path.is_dir():
+    raise ValueError(f"Error: '{where_path}' is not a directory.")
 
   # check if project already exists
-  if os.path.exists(proj_dir):
+  if proj_dir.exists():
     raise ValueError("project already exists")
   
   try: 
@@ -187,13 +187,14 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
       setup_cfg   = scprocess_utils.check_setup_config(setup_cfg, schema_f, sc_dir)
 
       # get name and affiliation from setup config if they are there
-      your_name   = setup_cfg["user"].get("your_name", "")
-      affiliation = setup_cfg["user"].get("affiliation", "")
+      your_name     = setup_cfg["user"].get("your_name", "")
+      affiliation   = setup_cfg["user"].get("affiliation", "")
+      arv_instance  = setup_cfg["user"].get("arv_instance", "")
+      int_use_gpu   = setup_cfg["user"].get("int_use_gpu", True)
+
 
       # define config text
       proj_txt    = f"""
-        # for details on how to fill out the config file, please see the following link:
-        # https://macnairw.pages.roche.com/scprocess/reference
         project:
           proj_dir: {proj_dir}
           fastq_dir: {fastq_dir}
@@ -202,8 +203,17 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
           your_name: {your_name}
           affiliation: {affiliation}
           sample_metadata: {meta_dir}/
-          species:
+          ref_txome:
           date_stamp: "{date_stamp}"
+        """
+      if arv_instance != "":
+       arv_txt = f"""
+          arv_instance: {arv_instance}
+        """
+      else:
+       arv_txt = ""
+      integration_txt = f"""integration: 
+          int_use_gpu: {str(int_use_gpu).lower()}
         """
       if "sc" in create_config:
         qc_txt = """qc:
@@ -224,7 +234,7 @@ def new_proj(sc_dir, name, where, create_subdirs, create_config):
         multi_txt = ""
 
       # join together
-      config_txt  = proj_txt + multi_txt + qc_txt
+      config_txt  = proj_txt + arv_txt + integration_txt + multi_txt + qc_txt
       config_txt  = textwrap.dedent(config_txt).strip()
 
       # write to file
@@ -289,7 +299,7 @@ def run_scprocess( configfile, snakefile, rule, extraargs, doindex):
     rule]
   cmd_str = " ".join(map(str, cmd_list))
   print(f"snakemake command:\n{cmd_str}")
-  subprocess.run( cmd_list, check = True )
+  subprocess.run( cmd_list )
 
   # render index if requested
   if doindex:

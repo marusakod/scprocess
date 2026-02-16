@@ -631,8 +631,29 @@ def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, batch_var, n_
   return hvg_df
 
 
+def _process_single_hvg_file(f, b, p, bad_batches, hvg_ensembl):
+  """
+  Process a single file to extract HVG data.
+  Returns tuple of (csr_chunk, barcodes) or (None, None) if batch is bad.
+  """
+  if b in bad_batches:
+    return None, None
+
+  sample_csr, features, barcodes = read_full_csr(f)
+
+  features    = np.array(features, dtype=str)
+  hvg_indices = [i for i, feature in enumerate(features) if feature in hvg_ensembl]
+  csr_chunk   = sample_csr[hvg_indices, :]
+
+  barcodes    = barcodes.astype('<U21')
+  barcodes    = [f"{p}:{bc}" for bc in barcodes]
+  barcodes    = np.array(barcodes)
+
+  return csr_chunk, barcodes
+
+
 # read top 2000 hvgs from each sample and save file
-def create_hvg_matrix(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, demux_type, batch_var):
+def create_hvg_matrix(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, demux_type, batch_var, n_cores=8):
   # get bad samples
   qc_sample_df  = pl.read_csv(qc_smpl_stats_f)
   bad_batches   = qc_sample_df.filter( pl.col(f"bad_{batch_var}") == True)[ batch_var ].to_list()
@@ -655,28 +676,23 @@ def create_hvg_matrix(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, demux_type,
   for gene in hvg_ids:
     parts = gene.rsplit('_', 1)
     hvg_ensembl.append(parts[-1])
+  hvg_ensembl   = np.array(hvg_ensembl)
   
   # initialise hvg matrix
   top_genes_mat = None
   all_barcodes  = []
 
-  # open each file separately and extract highly variable genes
-  for f, b, p in zip(chunked_fs, batches, pools):
-    if b in bad_batches:
-      continue
-    sample_csr, features, barcodes = read_full_csr(f)
+  # process each file in parallel
+  process_file_p = partial(_process_single_hvg_file,
+    bad_batches = bad_batches, hvg_ensembl = hvg_ensembl)
+  with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
+    results = list(executor.map(process_file_p, chunked_fs, batches, pools))
 
-    features    = np.array(features, dtype=str)
-    hvg_indices = [i for i, feature in enumerate(features) if feature in hvg_ensembl]
-    csr_chunk   = sample_csr[hvg_indices, :]
-
-    barcodes    = barcodes.astype('<U21')
-    barcodes    = [f"{p}:{bc}" for bc in barcodes]  
-    barcodes    = np.array(barcodes)
-
-    # merge to other chunks column-wise
-    all_barcodes.extend(barcodes)
-    top_genes_mat = csr_chunk if top_genes_mat is None else hstack([top_genes_mat, csr_chunk])
+  # merge results
+  for csr_chunk, barcodes in results:
+    if csr_chunk is not None:
+      all_barcodes.extend(barcodes)
+      top_genes_mat = csr_chunk if top_genes_mat is None else hstack([top_genes_mat, csr_chunk])
 
   top_genes_csc = top_genes_mat.tocsc()
   
@@ -690,7 +706,61 @@ def create_hvg_matrix(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, demux_type,
     f.create_dataset('matrix/barcodes', data=np.array(all_barcodes, dtype='S'))
 
 
-def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, RUN_VAR, demux_type, batch_var):
+def _process_single_doublet_run(run, hvg_paths_df, dbl_df, hvg_ensembl, RUN_VAR):
+  """
+  Process a single run to extract doublet HVG data.
+  Returns tuple of (csc_chunk, barcodes) or (None, None) if no doublets found.
+  """
+  # get doublets for this run
+  dbls     = dbl_df.filter( pl.col(RUN_VAR) == run )["cell_id"].to_list()
+
+  # if no doublets for this run, skip
+  if len(dbls) == 0:
+    return None, None
+
+  dbl_ids  = np.array(dbls)
+
+  # get ambient output file
+  filt_counts_f = hvg_paths_df.filter(pl.col(RUN_VAR) == run)["amb_filt_f"].item(0)
+
+  # open input file
+  with h5py.File(filt_counts_f, 'r') as f:
+    indptr      = f['matrix/indptr'][:]
+    indices     = f['matrix/indices'][:]
+    data        = f['matrix/data'][:]
+    features    = f['matrix/features/name'][:]
+    barcodes    = f['matrix/barcodes'][:]
+
+    num_rows    = f['matrix/shape'][0]
+    num_cols    = f['matrix/shape'][1]
+
+  # add sample ids to barcodes
+  barcodes    = barcodes.astype('<U21')
+  barcodes    = [f"{run}:{bc}" for bc in barcodes]  
+  barcodes    = np.array(barcodes)
+
+  # make a csc sparse matrix
+  sua_csc     = csc_matrix((data, indices, indptr), shape=(num_rows, num_cols))
+
+  # get indices of barcodes to keep
+  keep_idx    = np.where(np.isin(barcodes, dbl_ids))[0]
+  filt_bcs    = barcodes[keep_idx]
+
+  # subset matrix
+  sua_csc_dbl = sua_csc[:, keep_idx]
+
+  # merge splices, unspliced, ambiguous
+  csc, uniq_features = sum_SUA(sua_csc_dbl, features)
+
+  # get indices of highly variable genes
+  features    = features.astype('<U21')
+  hvg_indices = [i for i, feature in enumerate(uniq_features) if feature in hvg_ensembl]
+  csc         = csc[hvg_indices, :]
+
+  return csc, filt_bcs
+
+
+def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, RUN_VAR, demux_type, batch_var, n_cores=8):
   # get all hvgs
   hvg_df    = pl.read_csv(hvg_f)
   hvg_ids   = hvg_df.filter( pl.col('highly_variable') == True)['gene_id'].to_list()
@@ -714,62 +784,25 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
     hvg_ensembl.append(parts[-1])
   hvg_ensembl   = np.array(hvg_ensembl)
   
-  # initialise doublet matrix
-  doublet_mat   = None
-  all_barcodes  = []
-
   # get samples (or pools) that passed qc
   hvg_paths_df  = pl.read_csv(hvg_paths_f)
   qc_sample_df  = pl.read_csv(qc_smpl_stats_f)
   good_batches  = qc_sample_df.filter( pl.col(f'bad_{batch_var}') == False )[batch_var]
   keep_runs     = hvg_paths_df.filter( pl.col(batch_var).is_in(good_batches.to_list()) )[RUN_VAR].unique().to_list()
 
-  # loop through these
-  for run in keep_runs:
-    # get doublets for this run
-    dbls     = dbl_df.filter( pl.col(RUN_VAR) == run )["cell_id"].to_list()
-    dbl_ids  = np.array(dbls)
+  # process each run in parallel
+  process_run_p = partial(_process_single_doublet_run, hvg_paths_df=hvg_paths_df,
+    dbl_df=dbl_df, hvg_ensembl=hvg_ensembl, RUN_VAR=RUN_VAR)
+  with concurrent.futures.ThreadPoolExecutor(max_workers=n_cores) as executor:
+    results = list(executor.map(process_run_p, keep_runs))
 
-    # get ambient output file
-    filt_counts_f = hvg_paths_df.filter(pl.col(RUN_VAR) == run)["amb_filt_f"].item(0)
-
-    # open input file
-    with h5py.File(filt_counts_f, 'r') as f:
-      indptr      = f['matrix/indptr'][:]
-      indices     = f['matrix/indices'][:]
-      data        = f['matrix/data'][:]
-      features    = f['matrix/features/name'][:]
-      barcodes    = f['matrix/barcodes'][:]
-
-      num_rows    = f['matrix/shape'][0]
-      num_cols    = f['matrix/shape'][1]
-     
-    # add sample ids to barcodes
-    barcodes    = barcodes.astype('<U21')
-    barcodes    = [f"{run}:{bc}" for bc in barcodes]  
-    barcodes    = np.array(barcodes)
-
-    # make a csc sparse matrix
-    sua_csc     = csc_matrix((data, indices, indptr), shape=(num_rows, num_cols))
-    
-    # get indices of barcodes to keep
-    keep_idx    = np.where(np.isin(barcodes, dbl_ids))[0]
-    filt_bcs    = barcodes[keep_idx]
-
-    # subset matrix
-    sua_csc_dbl = sua_csc[:, keep_idx]
-
-    # merge splices, unspliced, ambiguous
-    csc, uniq_features = sum_SUA(sua_csc_dbl, features)
-
-    # get indices of highly variable genes
-    features    = features.astype('<U21')
-    hvg_indices = [i for i, feature in enumerate(uniq_features) if feature in hvg_ensembl]
-    csc         = csc[hvg_indices, :]
-
-    # combine matrices and barcodes
-    all_barcodes.extend(filt_bcs)
-    doublet_mat = csc if doublet_mat is None else hstack([doublet_mat, csc])
+  # merge results
+  doublet_mat   = None
+  all_barcodes  = []
+  for csc, barcodes in results:
+    if csc is not None:
+      all_barcodes.extend(barcodes)
+      doublet_mat = csc if doublet_mat is None else hstack([doublet_mat, csc])
 
   # save to a new h5 file
   with h5py.File(out_h5_f, 'w') as f:
@@ -870,6 +903,7 @@ if __name__ == "__main__":
   parser_readHvgs.add_argument("out_h5_f", type=str)
   parser_readHvgs.add_argument("demux_type", type=str)
   parser_readHvgs.add_argument("batch_var", type=str)
+  parser_readHvgs.add_argument("-n", "--ncores", type=int, required=False, default=8)
 
   # parser for create_doublets_matrix()
   parser_getDoublets = subparsers.add_parser('create_doublets_matrix')
@@ -881,6 +915,7 @@ if __name__ == "__main__":
   parser_getDoublets.add_argument("run_var", type=str)
   parser_getDoublets.add_argument("demux_type", type=str)
   parser_getDoublets.add_argument("batch_var", type=str)
+  parser_getDoublets.add_argument("-n", "--ncores", type=int, required=False, default=8)
  
   args = parser.parse_args()
 
@@ -919,12 +954,13 @@ if __name__ == "__main__":
     )
   elif args.function_name == 'create_hvg_matrix':
     create_hvg_matrix(
-      args.qc_smpl_stats_f, args.hvg_paths_f, args.hvg_f, args.out_h5_f, args.demux_type, args.batch_var
+      args.qc_smpl_stats_f, args.hvg_paths_f, args.hvg_f, args.out_h5_f, args.demux_type, 
+      args.batch_var, args.ncores
     )
   elif args.function_name == 'create_doublets_matrix': 
     create_doublets_matrix(
       args.hvg_paths_f, args.hvg_f, args.qc_f, args.qc_smpl_stats_f, 
-      args.out_h5_f, args.run_var, args.demux_type, args.batch_var
+      args.out_h5_f, args.run_var, args.demux_type, args.batch_var, args.ncores
     )
   else:
     parser.print_help()

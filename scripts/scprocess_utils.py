@@ -114,6 +114,7 @@ def check_config(config, schema_f, scdata_dir, scprocess_dir):
 
   # get parameters
   config      = _check_project_parameters(config, scdata_dir, scprocess_dir)
+  config      = _check_arvados_parameters(config, scdata_dir)
   config      = _check_multiplexing_parameters(config)
   config      = _check_mapping_parameters(config, scdata_dir)
   config      = _check_ambient_parameters(config)
@@ -192,7 +193,7 @@ def _validate_object_against_schema(config, schema_f, file_desc):
 
 
 # check parameters for project
-def _check_project_parameters(config, scprocess_data_dir, scprocess_dir):
+def _check_project_parameters(config, scdata_dir, scprocess_dir):
   # do some path stuff
   config["project"]['proj_dir'] = pathlib.Path(config["project"]['proj_dir'])
   project_dc  = config["project"]
@@ -214,15 +215,15 @@ def _check_project_parameters(config, scprocess_data_dir, scprocess_dir):
   if has_fastq and not has_arv_uuids:
     config["project"]["fastq_dir"] = _check_path_exists_in_project(config["project"]["fastq_dir"], config, what = "dir")
 
-  # check if selected species is valid
-  index_params_f    = scprocess_data_dir / 'index_parameters.csv'
+  # check if selected ref_txome is valid
+  index_params_f    = scdata_dir / 'index_parameters.csv'
 
-  # from index_parameters.csv get valid values for species
-  index_params      = pd.read_csv(index_params_f)
-  valid_species     = index_params['genome_name'].tolist()
-  valid_species_str = ', '.join(valid_species)
-  if not config['project']['species'] in valid_species:
-    raise ValueError(f"species {config['project']['species']} not defined. Valid values are {valid_species_str}")
+  # from index_parameters.csv get valid values for ref_txome
+  index_params        = pd.read_csv(index_params_f)
+  valid_ref_txome     = index_params['genome_name'].tolist()
+  valid_ref_txome_str = ', '.join(valid_ref_txome)
+  if not config['project']['ref_txome'] in valid_ref_txome:
+    raise ValueError(f"ref_txome {config['project']['ref_txome']} not defined. Valid values are {valid_ref_txome_str}")
 
   # check whether date is given as datetime object
   date_regex    = re.compile("^20[0-9]{2}-[0-9]{2}-[0-9]{2}$")
@@ -255,6 +256,37 @@ def _check_project_parameters(config, scprocess_data_dir, scprocess_dir):
 
   return config
 
+def _check_arvados_parameters(config, scdata_dir):
+  # read setup cfg to get arvados_setup (do not write it into project config)
+  scdata_setup_f  = scdata_dir / 'scprocess_setup.yaml'
+  arvados_setup   = None
+  if scdata_setup_f.is_file():
+    try:
+      with open(scdata_setup_f, 'r') as sf:
+        setup_cfg   = yaml.safe_load(sf)
+        arv_dict    = setup_cfg.get('arvados', {})
+    except Exception:
+      arv_dict  = {}
+
+  # check whether consistent
+  if 'arv_uuids' in config['project'] and len(arv_dict) == 0:
+    raise ValueError("arv_uuids specified in project config but no arvados section found in scprocess_setup.yaml")
+
+  # add arvados parameters to config if present in setup
+  if len(arv_dict) > 0:
+    # check that the arv_uuids match the start of the arv_instance
+    arv_instance = arv_dict.get('arv_instance', None)
+    if 'arv_uuids' in config['project'] and arv_instance is not None:
+      for uuid in config['project']['arv_uuids']:
+        if not uuid.startswith(arv_instance):
+          raise ValueError(f"arv_uuids specified in project config do not match the prefix of arv_instance specified in scprocess_setup.yaml") 
+
+    # if ok then store
+    config['arvados'] = {
+      'arv_instance': arv_instance
+    }
+
+  return config
 
 # check proj dir is wflowr
 def _check_proj_dir_is_wflowr(config):
@@ -385,7 +417,7 @@ def _check_multiplexing_parameters(config):
     config['multiplexing']['demux_output'] = _check_path_exists_in_project(config['multiplexing']['demux_output'], config, what = "file")
 
     # check if looks ok 
-    demux_df    = pl.read_csv(config['multiplexing']['demux_output'])
+    demux_df    = pl.read_csv(config['multiplexing']['demux_output'], n_rows = 10)
     for col in ["pool_id", "sample_id", "cell_id"]:
       if not col in demux_df.columns:
         raise KeyError(f"{col} not present in demux_output")
@@ -393,8 +425,8 @@ def _check_multiplexing_parameters(config):
     # check if samples in metadata and demux_df match
     if set(demux_df['sample_id']) > set(samples_df['sample_id']):
       raise ValueError("Some values for 'sample_id' in demux_output don't have a match in sample_metadata")
-    if set(samples_df['sample_id']) > set(demux_df['sample_id']):
-      raise ValueError("Some values for 'sample_id' in sample_metadata don't have a match in demux_output")    
+    # if set(samples_df['sample_id']) > set(demux_df['sample_id']):
+    #   raise ValueError("Some values for 'sample_id' in sample_metadata don't have a match in demux_output")
     if set(demux_df['pool_id']) != set(samples_df['pool_id']):
       raise ValueError("Values for pool_id don't match across demux_output and sample_metadata")
       
@@ -403,24 +435,24 @@ def _check_multiplexing_parameters(config):
 
 # check parameters for mapping
 def _check_mapping_parameters(config, scdata_dir):
-  # from index_parameters.csv get valid values for species
+  # from index_parameters.csv get valid values for ref_txome
   idx_params_f  = scdata_dir / 'index_parameters.csv'
   index_params  = pl.read_csv(idx_params_f)
      
   # get mito strings from setup params
-  species           = config['project']['species']
+  ref_txome           = config['project']['ref_txome']
   config['mapping'] = {}
-  config['mapping']['af_mito_str'] = index_params.filter(pl.col('genome_name') == species)['mito_str'][0]
+  config['mapping']['af_mito_str'] = index_params.filter(pl.col('genome_name') == ref_txome)['mito_str'][0]
 
   # get af index directory and check if exists
   config['mapping']['alevin_fry_home']  = scdata_dir / 'alevin_fry_home'
-  config['mapping']['af_index_dir']     = scdata_dir / 'alevin_fry_home' / species
+  config['mapping']['af_index_dir']     = scdata_dir / 'alevin_fry_home' / ref_txome
   config['mapping']['wl_lu_f']          = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
   if not pathlib.Path(config['mapping']['af_index_dir']).is_dir():
-    raise FileNotFoundError(f"alevin index for {species} doesn't exist")
+    raise FileNotFoundError(f"alevin index for {ref_txome} doesn't exist")
   
   # get gtf txt file, check that exists
-  config['mapping']['af_gtf_dt_f'] = index_params.filter(pl.col('genome_name') == species)['gtf_txt_f'][0]
+  config['mapping']['af_gtf_dt_f'] = index_params.filter(pl.col('genome_name') == ref_txome)['gtf_txt_f'][0]
 
   return config
 
@@ -758,18 +790,20 @@ def _get_fastqs(config, RUNS, is_hto = False):
     tmp_ls      = config['multiplexing']
   else:
     tmp_ls      = config['project']
+
   if "fastq_dir" in tmp_ls:
-    fastq_dir   = tmp_ls['fastq_dir']
-    arv_uuids   = None
+    fastq_dir     = tmp_ls['fastq_dir']
+    arv_uuids     = None
   else:
-    fastq_dir   = None
-    arv_uuids   = tmp_ls['arv_uuids']
+    fastq_dir     = None
+    arv_uuids     = tmp_ls['arv_uuids']
+    arv_instance  = tmp_ls['arv_instance']
 
   # get 
   if fastq_dir is not None:
     fastq_dict    = _list_fastq_files_dir(fastq_dir)
   elif arv_uuids is not None:
-    fastq_dict    = _list_fastq_files_arvados(arv_uuids)
+    fastq_dict    = _list_fastq_files_arvados(arv_uuids, arv_instance)
 
   # get fastq files for each sample
   wheres        = fastq_dict["wheres"]
@@ -829,28 +863,35 @@ def _list_fastq_files_dir(fastq_dir):
 
 
 # get all fastq files in all arvados uuids
-def _list_fastq_files_arvados(arv_uuids):
+def _list_fastq_files_arvados(arv_uuids, arv_instance):
   # get for each UUID
   wheres      = []
   fastqs      = []
   fastq_sizes = []
 
-  # get all fastq files in given arvados uuid
-  def _list_fastq_files_arvados_one_uuid(arv_uuid):
-    # import relevant packages
-    import arvados
-    import collections
-    import pathlib
+  # import relevant packages
+  import arvados
+  import collections
+  import pathlib
 
+  # set up arvados access
+  arv_token   = os.environ["ARVADOS_API_TOKEN"]
+  arv_client  = arvados.api('v1', host = 'api.arkau.roche.com',
+    token = arv_token, insecure = True, num_retries = 2 )
+
+  # check it worked
+  try:
+    user_info = arv_client.users().current().execute()
+    print(f"  Arvados token is valid: logged in as: {user_info['full_name']} ({user_info['uuid']})")
+  except Exception as e:
+    print(f"  Arvados token is invalid or expired. Error: {e}")
+
+  # get all fastq files in given arvados uuid
+  def _list_fastq_files_arvados_one_uuid(arv_uuid, arv_instance):
     # define variables
     arv_files   = []
     wheres      = {}
     file_sizes  = {}
-
-    # set up arvados access
-    arv_token   = os.environ["ARVADOS_API_TOKEN"]
-    arv_client  = arvados.api('v1', host = 'api.arkau.roche.com',
-      token = arv_token, insecure = True, num_retries = 2 )
 
     # access this collection
     arv_colln   = arvados.collection.Collection(arv_uuid, arv_client)
@@ -889,7 +930,7 @@ def _list_fastq_files_arvados(arv_uuids):
   # Iterate through each UUID in the list
   for arv_uuid in arv_uuids:
     # Get the dictionary result for one UUID
-    result = _list_fastq_files_arvados_one_uuid(arv_uuid)
+    result = _list_fastq_files_arvados_one_uuid(arv_uuid, arv_instance)
 
     # Extend the combined lists with the data from the current result
     # Note: We use .extend() for efficient list concatenation

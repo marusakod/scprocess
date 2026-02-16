@@ -10,7 +10,7 @@ suppressPackageStartupMessages({
 gsea_regex  = "^(HALLMARK_|GOBP_|GOCC_|GOMF_|BIOCARTA_|REACTOME_|KEGG_)(.+)"
 
 run_fgsea <- function(mkrs_f, fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f,
-  species, gsea_dir, min_cpm_go, max_zero_p, gsea_var, gsea_cut, not_ok_re, n_cores) {
+  ref_txome, gsea_dir, min_cpm_go, max_zero_p, gsea_var, gsea_cut, not_ok_re, n_cores) {
 
   # check some inputs
   assert_that(
@@ -44,7 +44,7 @@ run_fgsea <- function(mkrs_f, fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f,
   names(fgsea_fs) = str_extract(fgsea_fs, "(go_bp|go_cc|go_mf)")
 
   # get genesets, check they match expected files
-  gsets_list  = get_fgsea_genesets(gsea_dir, species)
+  gsets_list  = get_fgsea_genesets(gsea_dir, ref_txome)
   assert_that( all(names(fgsea_fs) == names(gsets_list)) )
 
   # restrict slightly
@@ -56,14 +56,14 @@ run_fgsea <- function(mkrs_f, fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f,
 }
 
 
-get_fgsea_genesets <- function(gsea_dir, species) {
-  if (species %in% c("human_2024","human_2020")) {
+get_fgsea_genesets <- function(gsea_dir, ref_txome) {
+  if (ref_txome %in% c("human_2024","human_2020")) {
     gsets_list  = list(
       go_bp   = "c5.go.bp.v2023.1.Hs.symbols.gmt",
       go_cc   = "c5.go.cc.v2023.1.Hs.symbols.gmt",
       go_mf   = "c5.go.mf.v2023.1.Hs.symbols.gmt"
     ) %>% lapply(function(p) file.path(gsea_dir, p))
-  } else if (species %in% c("mouse_2024", "mouse_2020")) {
+  } else if (ref_txome %in% c("mouse_2024", "mouse_2020")) {
     gsets_list  = list(
       go_bp   = "m5.go.bp.v2023.1.Mm.symbols.gmt",
       go_cc   = "m5.go.cc.v2023.1.Mm.symbols.gmt",

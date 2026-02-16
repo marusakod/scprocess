@@ -1531,7 +1531,11 @@ plot_heatmap_of_selected_genes <- function(mkrs_dt, panel_dt, max_fc = 3, min_cp
     col_lvls    = panel_dt[ symbol %in% keep_gs ]$label %>% fct_inorder %>% levels
     cols_dt     = panel_dt[, .(symbol,  label = label %>% factor(levels = col_lvls))] %>%
       setkey('symbol') %>% .[ rownames(log2fc_mat) ]
-    col_cols    = MetBrewer::met.brewer( name = 'Signac', n = length(col_lvls)) %>% setNames(col_lvls)
+    n_cols      = length(col_lvls)
+    n_signac    = 14
+    n_repeats   = ceiling(n_cols / n_signac)
+    col_cols    = MetBrewer::met.brewer( name = 'Signac', n = min(n_cols, n_signac)) %>% 
+      rep(times = n_repeats) %>% .[ 1:n_cols ] %>% setNames(col_lvls)
     col_annots  = HeatmapAnnotation(
       label    = cols_dt$label,
       col      = list(label = col_cols),

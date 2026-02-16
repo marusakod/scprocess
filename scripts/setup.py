@@ -302,60 +302,60 @@ def _safe_boolean(val):
 
 
 # function that makes simpleaf index
-def set_up_af_index(scdata_dir, genome_name, fasta_f, gtf_f, index_dir, mito_str, is_prebuilt, is_tenx, has_decoy, has_rrna, n_cores):
+def set_up_af_index(scdata_dir, txome_name, fasta_f, gtf_f, index_dir, mito_str, is_prebuilt, is_tenx, has_decoy, has_rrna, n_cores):
   if is_prebuilt:
     print(f"'is_prebuilt' is True, value is {is_prebuilt}")
   else:
     print(f"'is_prebuilt' is False, value is {is_prebuilt}")
 
   # create output directories
-  ref_dir   = os.path.join(scdata_dir, 'reference_genomes', genome_name)
-  idx_dir   = os.path.join(scdata_dir, 'alevin_fry_home', genome_name)
+  ref_dir   = os.path.join(scdata_dir, 'reference_genomes', txome_name)
+  idx_dir   = os.path.join(scdata_dir, 'alevin_fry_home', txome_name)
   os.makedirs(ref_dir,  exist_ok=True)
   os.makedirs(idx_dir,  exist_ok=True)
-  gtf_txt_f = os.path.join(ref_dir, f'{genome_name}_genes_gtf.txt.gz')
+  gtf_txt_f = os.path.join(ref_dir, f'{txome_name}_genes_gtf.txt.gz')
 
   # if prebuilt, just download index
   if is_prebuilt:
-    _download_prebuilt_index(genome_name, idx_dir)
-    _download_gtf_txt_file(genome_name, ref_dir, gtf_txt_f)
+    _download_prebuilt_index(txome_name, idx_dir)
+    _download_gtf_txt_file(txome_name, ref_dir, gtf_txt_f)
   else:
     if is_tenx:
       if has_rrna == True:
-        fasta_f, gtf_f  = _make_10x_fasta_and_gtf_w_rrna(ref_dir, genome_name)
+        fasta_f, gtf_f  = _make_10x_fasta_and_gtf_w_rrna(ref_dir, txome_name)
       else:
-        fasta_f, gtf_f  = _download_predefined_fasta_and_gtf(ref_dir, genome_name)
+        fasta_f, gtf_f  = _download_predefined_fasta_and_gtf(ref_dir, txome_name)
     else:
       # copy custom files
-      fasta_f, gtf_f    = _copy_custom_fasta_and_gtf(ref_dir, genome_name, fasta_f, gtf_f)
+      fasta_f, gtf_f  = _copy_custom_fasta_and_gtf(ref_dir, txome_name, fasta_f, gtf_f)
 
     # build index
-    _build_index_w_simpleaf(genome_name, idx_dir, has_decoy, fasta_f, gtf_f, n_cores = n_cores)
+    _build_index_w_simpleaf(txome_name, idx_dir, has_decoy, fasta_f, gtf_f, n_cores = n_cores)
 
     # save gtf_txt file
     _make_gtf_txt_file(gtf_f, gtf_txt_f)
 
 
   # create one dataframe from all dictionaries
-  yaml_f    = os.path.join(idx_dir, f"{genome_name}_index_params.yaml")
-  _make_index_params_yaml(yaml_f, genome_name, fasta_f, index_dir, gtf_f, gtf_txt_f, mito_str, has_decoy, has_rrna, is_prebuilt, is_tenx)
+  yaml_f    = os.path.join(idx_dir, f"{txome_name}_index_params.yaml")
+  _make_index_params_yaml(yaml_f, txome_name, fasta_f, index_dir, gtf_f, gtf_txt_f, mito_str, has_decoy, has_rrna, is_prebuilt, is_tenx)
 
-  print(f'completed making index for {genome_name} genome in {scdata_dir}.')
+  print(f'completed making index for {txome_name} genome in {scdata_dir}.')
 
   return 
 
 
-def _download_prebuilt_index(genome_name, idx_dir):
+def _download_prebuilt_index(ref_txome, idx_dir):
   # get index url
-  print('Downloading alevin index for ' + genome_name)
-  idx_url   = URLS_ZEN_IDXS[genome_name]
+  print('Downloading alevin index for ' + ref_txome)
+  idx_url   = URLS_ZEN_IDXS[ref_txome]
 
   # make output directory
   os.chdir(idx_dir)
 
   # download index
   subprocess.run(f"wget {idx_url}", shell=True)
-  idx_name  = f'alevin-idx_{genome_name}_rrna.tar.gz'
+  idx_name  = f'alevin-idx_{ref_txome}_rrna.tar.gz'
 
   # untar
   subprocess.run(f'tar --strip-components=1 -xvf {idx_name}', shell=True, capture_output=False)
@@ -366,10 +366,10 @@ def _download_prebuilt_index(genome_name, idx_dir):
   return
 
 
-def _download_gtf_txt_file(genome_name, ref_dir, gtf_txt_f):
+def _download_gtf_txt_file(ref_txome, ref_dir, gtf_txt_f):
   # get index url
-  print('Downloading GTF txt file for ' + genome_name)
-  txt_url   = URLS_GTF_TXTS[genome_name]
+  print('Downloading GTF txt file for ' + ref_txome)
+  txt_url   = URLS_GTF_TXTS[ref_txome]
 
   # make output directory
   os.chdir(ref_dir)
@@ -378,14 +378,14 @@ def _download_gtf_txt_file(genome_name, ref_dir, gtf_txt_f):
   return
 
 
-def _make_10x_fasta_and_gtf_w_rrna(ref_dir, genome_name):
-  print(f"Creating {genome_name} 10x genome with rRNAs")
+def _make_10x_fasta_and_gtf_w_rrna(ref_dir, ref_txome):
+  print(f"Creating {ref_txome} 10x genome with rRNAs")
   # get bash script to download gtf and fasta
-  bash_f     = f"./scripts/build_10x_style_genomes/build_10x_style_{genome_name}_genome_w_rRNAs.sh"
+  bash_f     = f"./scripts/build_10x_style_genomes/build_10x_style_{ref_txome}_genome_w_rRNAs.sh"
   bash_f     = os.path.realpath(bash_f)
 
   # create a new directory for the specified genome and switch to it
-  gnome_dir  = os.path.join(ref_dir, genome_name)
+  gnome_dir  = os.path.join(ref_dir, ref_txome)
   os.makedirs(gnome_dir, exist_ok=True)
   os.chdir(gnome_dir)
 
@@ -400,14 +400,14 @@ def _make_10x_fasta_and_gtf_w_rrna(ref_dir, genome_name):
   return fasta_f, gtf_f
 
 
-def _download_predefined_fasta_and_gtf(ref_dir, genome_name):
-  print(f'Downloading {genome_name} genome from 10x')
-  link          = URLS_10X_REFS[genome_name]
+def _download_predefined_fasta_and_gtf(ref_dir, ref_txome):
+  print(f'Downloading {ref_txome} genome from 10x')
+  link          = URLS_10X_REFS[ref_txome]
   # get tarball 
   tball         = link.rsplit('/', 1)[-1]
   
   # create a new directory for the specified genome and switch to it
-  gnome_dir     = os.path.join(ref_dir, genome_name)
+  gnome_dir     = os.path.join(ref_dir, ref_txome)
   os.makedirs(gnome_dir, exist_ok = True)
   os.chdir(gnome_dir)
         
@@ -443,9 +443,9 @@ def _download_predefined_fasta_and_gtf(ref_dir, genome_name):
   return fasta_f, gtf_f
 
 
-def _copy_custom_fasta_and_gtf(ref_dir, genome_name, fasta_f, gtf_f):
+def _copy_custom_fasta_and_gtf(ref_dir, ref_txome, fasta_f, gtf_f):
   # get index url
-  print('Copying fasta and gtf for ' + genome_name)
+  print('Copying fasta and gtf for ' + ref_txome)
 
   # create a new directory for the specified genome and switch to it
   os.makedirs(ref_dir, exist_ok = True)
@@ -460,8 +460,8 @@ def _copy_custom_fasta_and_gtf(ref_dir, genome_name, fasta_f, gtf_f):
   return fasta_f, gtf_f
 
 
-def _build_index_w_simpleaf(genome_name, idx_dir, has_decoy, fasta_f, gtf_f, n_cores = 8):
-  print(f'Creating alevin index for {genome_name} { "with decoys " if has_decoy else "" }in {idx_dir}')
+def _build_index_w_simpleaf(ref_txome, idx_dir, has_decoy, fasta_f, gtf_f, n_cores = 8):
+  print(f'Creating alevin index for {ref_txome} { "with decoys " if has_decoy else "" }in {idx_dir}')
    
   # define whether or not to include --decoy-paths flag
   decoy_flag  = f"--decoy-paths {fasta_f} " if has_decoy else ""
@@ -483,7 +483,7 @@ def _build_index_w_simpleaf(genome_name, idx_dir, has_decoy, fasta_f, gtf_f, n_c
   cd ${{ALEVIN_FRY_HOME}}
 
   # set up this build
-  TMP_IDX_DIR="${{ALEVIN_FRY_HOME}}/{genome_name}"
+  TMP_IDX_DIR="${{ALEVIN_FRY_HOME}}/{ref_txome}"
 
   # simpleaf index
   simpleaf index \
@@ -557,19 +557,19 @@ def _make_gtf_txt_file(gtf_f, gtf_txt_f):
   return
 
 
-def _make_index_params_yaml(yaml_f, genome_name, fasta_f, index_dir, gtf_f, gtf_txt_f, mito_str, 
+def _make_index_params_yaml(yaml_f, ref_txome, fasta_f, index_dir, gtf_f, gtf_txt_f, mito_str, 
   has_decoy, has_rrna, is_prebuilt, is_tenx):
   param_ls  = {
-    "genome_name": genome_name, 
-    "fasta_f": fasta_f, 
-    "index_dir": index_dir, 
-    "gtf_f": gtf_f, 
-    "gtf_txt_f": gtf_txt_f, 
-    "mito_str": mito_str, 
-    "has_decoy": has_decoy, 
-    "has_rrna": has_rrna, 
-    "is_prebuilt": is_prebuilt, 
-    "is_tenx": is_tenx
+    "ref_txome":    ref_txome, 
+    "fasta_f":      fasta_f, 
+    "index_dir":    index_dir, 
+    "gtf_f":        gtf_f, 
+    "gtf_txt_f":    gtf_txt_f, 
+    "mito_str":     mito_str, 
+    "has_decoy":    has_decoy, 
+    "has_rrna":     has_rrna, 
+    "is_prebuilt":  is_prebuilt, 
+    "is_tenx":      is_tenx
   }
   with open(yaml_f, 'w') as f:
     yaml.dump(param_ls, f)
@@ -582,11 +582,11 @@ def save_index_params_csv(csv_f, yaml_fs):
   assert all([ os.path.isfile(f) for f in yaml_fs]), "not all yaml files exist"
 
   # make df
-  params_df = pd.DataFrame( columns = ["genome_name", "mito_str", "gtf_txt_f"] )
+  params_df = pd.DataFrame( columns = ["ref_txome", "mito_str", "gtf_txt_f"] )
   for i, yaml_f in enumerate(yaml_fs):
     with open(yaml_f) as f:
       yaml_ls = yaml.load(f, Loader=yaml.FullLoader)
-    params_df.loc[i] = [yaml_ls['genome_name'], yaml_ls['mito_str'], yaml_ls['gtf_txt_f']]
+    params_df.loc[i] = [yaml_ls['ref_txome'], yaml_ls['mito_str'], yaml_ls['gtf_txt_f']]
 
   # save to csv
   params_df.to_csv(csv_f, index = False)

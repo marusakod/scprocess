@@ -181,7 +181,7 @@ label_with_xgboost_one_batch <- function(sel_batch, batch_var, model_name, xgb_f
 }
 
 # code for Rmd
-calc_confuse_dt <- function(cl1_dt, cl2_dt, cl1, cl2) {
+calc_confuse_dt <- function(cl1_dt, cl2_dt, cl1, cl2, min_cl2_p = NULL) {
   assert_that( cl1 %in% names(cl1_dt) )
   assert_that( cl2 %in% names(cl2_dt) )
   assert_that( !is.null(levels(cl1_dt[[ cl1 ]])) )
@@ -197,6 +197,16 @@ calc_confuse_dt <- function(cl1_dt, cl2_dt, cl1, cl2) {
     cl2_dt[, .(cell_id, cl2 = get(cl2)) ], 
     by = "cell_id") %>% 
     .[, .N, by = .(cl1, cl2) ]
+
+  # aggregate if requested
+  if (!is.null(min_cl2_p)) {
+    cl1_max_ps  = copy(confuse_dt) %>% .[, p_cl2 := N / sum(N), by = cl2 ] %>%
+      .[, .(max_p = max(p_cl2)), by = cl1]
+    cl1_to_exc  = cl1_max_ps[ max_p < min_cl2_p ]$cl1 %>% as.character
+    confuse_dt  = confuse_dt %>%
+      .[ !(cl1 %in% cl1_to_exc) ] %>% .[, cl1 := cl1 %>% fct_drop ]
+  }
+
   # sort factor levels
   lvls_cl1    = confuse_dt$cl1 %>% levels
   if (is.null(lvls_cl1)) {

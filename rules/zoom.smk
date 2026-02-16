@@ -75,7 +75,7 @@ zoom_mkr_report_outs = [
       '%s/%s/fgsea_%s_%s_go_bp_%s.csv.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
       '%s/%s/fgsea_%s_%s_go_cc_%s.csv.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP),
       '%s/%s/fgsea_%s_%s_go_mf_%s.csv.gz' % (zoom_dir, zoom_name, FULL_TAG, mkr_sel_res, DATE_STAMP)
-      ] if do_gsea and (config['project']['species'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'])
+      ] if do_gsea and (config['project']['ref_txome'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'])
         else []
       )
   )
@@ -588,7 +588,7 @@ rule zoom_create_hvg_matrix:
   params:
     demux_type    = config['multiplexing']['demux_type'], 
     batch_var     = BATCH_VAR
-  threads: 1
+  threads: 8
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
@@ -606,7 +606,8 @@ rule zoom_create_hvg_matrix:
       {input.hvg_f} \
       {output.hvg_mat_f} \
       {params.demux_type} \
-      {params.batch_var}
+      {params.batch_var} \
+      --ncores {threads}
     """
 
 
@@ -627,7 +628,8 @@ rule zoom_run_integration:
     zoom_int_use_paga     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_use_paga'],
     zoom_int_paga_cl_res  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_paga_cl_res'],
     zoom_int_res_ls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
-    batch_var             = BATCH_VAR
+    zoom_int_use_gpu      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_use_gpu'],
+    batch_var             = BATCH_VAR,
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -641,9 +643,9 @@ rule zoom_run_integration:
     '../envs/integration.yaml'
   shell: """
     set +u
-   # if GPU is available, use it
+    # set use_gpu flag based on config and on whether available
     USE_GPU_FLAG=""
-    if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
+    if [ "{params.zoom_int_use_gpu}" == "True" && -n "$CUDA_VISIBLE_DEVICES" ]; then
        USE_GPU_FLAG="--use-gpu"
     fi
     set -u
@@ -676,7 +678,7 @@ rule zoom_run_marker_genes:
     mkrs_f    = f'{zoom_dir}/{{zoom_name}}/pb_marker_genes_{FULL_TAG}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
     pb_hvgs_f = f'{zoom_dir}/{{zoom_name}}/pb_hvgs_{FULL_TAG}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz'
   params:
-    species             = config['project']['species'],
+    ref_txome           = config['project']['ref_txome'],
     af_gtf_dt_f         = config['mapping']['af_gtf_dt_f'],
     batch_var           = BATCH_VAR,
     zoom_mkr_sel_res     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_sel_res'],
@@ -718,7 +720,7 @@ rule zoom_run_fgsea:
     fgsea_go_cc_f = f'{zoom_dir}/{{zoom_name}}/fgsea_{FULL_TAG}_{{mkr_sel_res}}_go_cc_{DATE_STAMP}.csv.gz',
     fgsea_go_mf_f = f'{zoom_dir}/{{zoom_name}}/fgsea_{FULL_TAG}_{{mkr_sel_res}}_go_mf_{DATE_STAMP}.csv.gz'
   params:
-    species              = config['project']['species'],
+    ref_txome            = config['project']['ref_txome'],
     mkr_gsea_dir         = config['marker_genes']['mkr_gsea_dir'],
     zoom_mkr_min_cpm_go  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cpm_go'],
     zoom_mkr_max_zero_p  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_max_zero_p'],
@@ -741,7 +743,7 @@ rule zoom_run_fgsea:
       fgsea_go_bp_f = '{output.fgsea_go_bp_f}', 
       fgsea_go_cc_f = '{output.fgsea_go_cc_f}', 
       fgsea_go_mf_f = '{output.fgsea_go_mf_f}', 
-      species       = '{params.species}', 
+      ref_txome     = '{params.ref_txome}', 
       gsea_dir      = '{params.mkr_gsea_dir}', 
       min_cpm_go    = {params.zoom_mkr_min_cpm_go}, 
       max_zero_p    = {params.zoom_mkr_max_zero_p},
@@ -806,7 +808,7 @@ rule render_html_zoom:
     zoom_empty_gs_f     = f'{zoom_dir}/{{zoom_name}}/edger_empty_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     pb_empty_f          = f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds', 
     fgsea_files         =lambda wildcards: list(get_zoom_conditional_fgsea_files(
-        config['project']['species'],
+        config['project']['ref_txome'],
         zoom_dir,
         FULL_TAG,
         DATE_STAMP,
@@ -821,7 +823,7 @@ rule render_html_zoom:
     short_tag             = config['project']['short_tag'],
     date_stamp            = config['project']['date_stamp'],
     proj_dir              = config['project']['proj_dir'],
-    species               = config['project']['species'],
+    ref_txome             = config['project']['ref_txome'],
     metadata_f            = config['project']['sample_metadata'], 
     zoom_dir              = zoom_dir,
     batch_var             = BATCH_VAR,
@@ -838,6 +840,7 @@ rule render_html_zoom:
     zoom_mkr_min_cells    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cells'],  
     zoom_mkr_not_ok_re    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_not_ok_re'], 
     zoom_mkr_do_gsea      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea'], 
+    zoom_mkr_gsea_var     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_var'],
     zoom_mkr_gsea_cut     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_cut'], 
     zoom_custom_mkr_names = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_names'], 
     zoom_custom_mkr_paths = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_paths']
@@ -888,8 +891,9 @@ rule render_html_zoom:
       mkr_not_ok_re     = '{params.zoom_mkr_not_ok_re}', 
       mkr_min_cpm_mkr   =  {params.zoom_mkr_min_cpm_mkr}, 
       mkr_min_cells     =  {params.zoom_mkr_min_cells}, 
+      mkr_gsea_var      = '{params.zoom_mkr_gsea_var}',
       mkr_gsea_cut      =  {params.zoom_mkr_gsea_cut}, 
-      species           = '{params.species}',
+      ref_txome         = '{params.ref_txome}',
       batch_var         = '{params.batch_var}',
       do_gsea           = '{params.zoom_mkr_do_gsea}'
     )"
