@@ -2,9 +2,13 @@
 
 ## {{scsetup}} { #scprocess-setup }
 
-**Description**: Download all data required for {{sc}} and index reference genomes for `simpleaf`, and define cluster configuration.
+**Description**: Download all data required for {{sc}} and index reference transcriptomes for `simpleaf`.
 
 **Parameters**:
+
+* `-c`/`--rangerurl`:  download link for Cellranger (v9.0.0 or higher) available on the [10x Genomics CellRanger download & installation page](https://www.10xgenomics.com/support/software/cell-ranger/downloads/previous-versions); only required when running the command for the first time.
+
+
 The command requires a configuration file named `scprocess_setup.yaml` located in {{sc}} data directory (for instructions on how to set up the {{sc}} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, the user can specify parameters that are used across all {{sc}} projects, such as HPC configuration and reference genomes that will be made available for {{sc}}. For example:
 
 ```yaml

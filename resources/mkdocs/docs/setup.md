@@ -96,25 +96,29 @@ If you plan to use `cellbender` for ambient RNA correction, you will also need A
       - name: mouse_2024 
     ```
 
-    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) genomes from 10x Genomics. For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](reference.md#scprocess-setup) section.
+    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) reference transcriptomes from 10x Genomics. For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](reference.md#scprocess-setup) section.
 
-    ??? tip "Save some space by removing the reference genome used for the tutorial"
-        [Quick start tutorial](tutorial.md) section demonstrates how to run {{sc}} on an example human dataset. In order for users to be able to follow the tutorial `scsetup` will automatically download the `human_2024` reference genome and build an alevin index with [decoys](reference.md#scprocess-setup) even if `human_2024` is not listed in the _scprocess_setup.yaml_ file. If you would like to remove this reference genome (after running the tutorial) use:
+    ??? tip "Save some space by removing the reference transcriptome used for the tutorial"
+        [Quick start tutorial](tutorial.md) section demonstrates how to run {{sc}} on an example mouse datasets. In order for users to be able to follow the tutorial `scprocess setup` will automatically download the `mouse_2024` reference transcriptome. If you would like to remove it (after running the tutorial) use:
     
         ```bash
-        rm -rf $SCPROCESS_DATA_DIR/reference_genomes/human_2024
-        rm -rf $SCPROCESS_DATA_DIR/alevin_fry_home/human_2024
+        rm -rf $SCPROCESS_DATA_DIR/reference_transcriptomes/mouse_2024
+        rm -rf $SCPROCESS_DATA_DIR/alevin_fry_home/mouse_2024
 
         # optionally modify the setup_parameters.csv file where all genomes available in $SCPROCESS_DATA_DIR are listed
     
-        awk -F',' '$1 != "human_2024"' $SCPROCESS_DATA_DIR/setup_parameters.csv > $SCPROCESS_DATA_DIR/temp.csv && mv $SCPROCESS_DATA_DIR/temp.csv $SCPROCESS_DATA_DIR/setup_parameters.csv 
+        awk -F',' '$1 != "mouse_2024"' $SCPROCESS_DATA_DIR/setup_parameters.csv > $SCPROCESS_DATA_DIR/temp.csv && mv $SCPROCESS_DATA_DIR/temp.csv $SCPROCESS_DATA_DIR/index_parameters.csv 
         ```
     
 
-4. Finish setting up the {{sc}} data directory with:
+4. Finish setting up the {{sc}} data directory:
+
+    To download all required data and index reference transciptomed use the {{scsetup}} command. The first time you run {{scsetup}} you need to specify a `-c`/`--rangerurl` flag and provide a valid download link for Cellranger (v9.0.0 or higher) available on the [10x Genomics CellRanger download & installation page](https://www.10xgenomics.com/support/software/cell-ranger/downloads/previous-versions) : 
+    
     ```bash
-    scprocess setup 
+    scprocess setup -c "https://cf.10xgenomics.com/releases/cell-exp/cellranger-10.0.0.tar.gz..." 
     ```
+    Once the inital setup is complete, you do not need to provide the CellRanger link again i.e if you modify the _scprocess_setup.yaml_ file to add additional reference genomes, simply run {{scsetup}}.
 
 ## Cluster setup
 

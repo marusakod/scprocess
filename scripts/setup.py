@@ -237,7 +237,7 @@ def get_af_index_parameters(config):
     # get just custom list
     custom_ls     = genomes['custom']
     for spec_custom in custom_ls:
-      SETUP_LS.append(_get_index_parameters_custom(spec_custom, TENX_NAMES))
+      SETUP_LS.append(_get_index_parameters_custom(spec_custom))
 
   # check no duplicate names
   setup_names = [ s['name'] for s in SETUP_LS ]
@@ -257,6 +257,10 @@ def get_af_index_parameters(config):
 
 
 def _get_index_parameters_tenx(spec_tenx, TENX_NAMES):
+
+  if spec_tenx['name'] not in TENX_NAMES:
+    raise ValueError(f"name of tenx reference transcriptome {spec_tenx['name']} is incorrect")
+  
   # define defaults
   spec_tenx["gtf"]          = None
   spec_tenx["fasta"]        = None
@@ -271,7 +275,7 @@ def _get_index_parameters_tenx(spec_tenx, TENX_NAMES):
   return spec_tenx
 
 
-def _get_index_parameters_custom(spec_custom, TENX_NAMES):
+def _get_index_parameters_custom(spec_custom):
   # check if all required entries are specified
   if not os.path.isfile(spec_custom['gtf']):
     raise FileNotFoundError(f"file {spec_custom['gtf']} specified in configfile doesn't exist")
@@ -309,7 +313,7 @@ def set_up_af_index(scdata_dir, txome_name, fasta_f, gtf_f, index_dir, mito_str,
     print(f"'is_prebuilt' is False, value is {is_prebuilt}")
 
   # create output directories
-  ref_dir   = os.path.join(scdata_dir, 'reference_genomes', txome_name)
+  ref_dir   = os.path.join(scdata_dir, 'reference_transcriptomes', txome_name)
   idx_dir   = os.path.join(scdata_dir, 'alevin_fry_home', txome_name)
   os.makedirs(ref_dir,  exist_ok=True)
   os.makedirs(idx_dir,  exist_ok=True)
