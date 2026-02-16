@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# human 2020 genome
+# human 2020 genome (this code is a minor modification of code in https://www.10xgenomics.com/support/software/cell-ranger/downloads/cr-ref-build-steps)
 
 
 # Set up source directory
