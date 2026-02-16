@@ -220,7 +220,7 @@ def _check_project_parameters(config, scdata_dir, scprocess_dir):
 
   # from index_parameters.csv get valid values for ref_txome
   index_params        = pd.read_csv(index_params_f)
-  valid_ref_txome     = index_params['genome_name'].tolist()
+  valid_ref_txome     = index_params['ref_txome'].tolist()
   valid_ref_txome_str = ', '.join(valid_ref_txome)
   if not config['project']['ref_txome'] in valid_ref_txome:
     raise ValueError(f"ref_txome {config['project']['ref_txome']} not defined. Valid values are {valid_ref_txome_str}")
@@ -442,7 +442,7 @@ def _check_mapping_parameters(config, scdata_dir):
   # get mito strings from setup params
   ref_txome           = config['project']['ref_txome']
   config['mapping'] = {}
-  config['mapping']['af_mito_str'] = index_params.filter(pl.col('genome_name') == ref_txome)['mito_str'][0]
+  config['mapping']['af_mito_str'] = index_params.filter(pl.col('ref_txome') == ref_txome)['mito_str'][0]
 
   # get af index directory and check if exists
   config['mapping']['alevin_fry_home']  = scdata_dir / 'alevin_fry_home'
@@ -452,7 +452,7 @@ def _check_mapping_parameters(config, scdata_dir):
     raise FileNotFoundError(f"alevin index for {ref_txome} doesn't exist")
   
   # get gtf txt file, check that exists
-  config['mapping']['af_gtf_dt_f'] = index_params.filter(pl.col('genome_name') == ref_txome)['gtf_txt_f'][0]
+  config['mapping']['af_gtf_dt_f'] = index_params.filter(pl.col('ref_txome') == ref_txome)['gtf_txt_f'][0]
 
   return config
 
