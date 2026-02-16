@@ -63,11 +63,13 @@ def run_setup(scprocess_dir, snakefile, ranger_url, extraargs):
   else:
     ranger_version = scprocess_utils.check_ranger_url(ranger_url)
 
-
-  # add snakemake profile flag if specified
-  if "profile_dir" in setup_cfg['user']:
+  if 'profile_dir' in setup_cfg['user']: 
     extraargs.append('--workflow-profile')
     extraargs.append(str(setup_cfg['user']['profile_dir']))
+  else:
+    extraargs.append('--cores')
+    extraargs.append(str(setup_cfg['user']['local_cores']))
+
     
   # change scprocess directory
   os.chdir(scprocess_dir)

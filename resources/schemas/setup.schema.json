@@ -8,10 +8,15 @@
       "additionalProperties": false,
       "properties": {
         "profile":          { "type": "string" },
+        "local_cores":      { "type": "integer", "exclusiveMinimum": 0},
         "your_name":        { "type": "string" },
         "affiliation":      { "type": "string" },
-        "int_use_gpu":      { "type": "boolean", "default": false }
-      }
+        "int_use_gpu":      { "type": "boolean", "default": true }
+      },
+      "oneOf": [
+        { "required": ["profile"] },
+        { "required": ["local_cores"] }
+      ]
     },
     "arvados": {
       "type": "object",

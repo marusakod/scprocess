@@ -49,26 +49,26 @@ def check_setup_before_running_scprocess(scprocess_dir, extraargs):
   with open(setup_configfile, "r") as stream:
     setup_cfg     = yaml.safe_load(stream)
 
-  # add profile to snakemake call (can be empty)
-  profile_dir   = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
-  if profile_dir != '':
-    extraargs.extend(['--workflow-profile', str(profile_dir)])
+  # add profile or local_cores to snakemake call
+  if 'profile' in setup_cfg['user']: 
+    profile_dir   = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
+    extraargs.append('--workflow-profile'),
+    extraargs.append(str(profile_dir))
+  else:
+    extraargs.append('--cores')
+    extraargs.appemd(str(setup_cfg['user']['local_cores']))
 
   return scdata_dir, extraargs
 
 
 def _get_cluster_profile_dir(scprocess_dir, setup_cfg):
-  # first define as empty
-  profile_dir   = ''
 
-  # if there is a cluster profile check it
-  if setup_cfg.get('user', {}).get('profile'):
-    # check if profile exists
-    profile       = setup_cfg['user']['profile']
-    profile_dir   = scprocess_dir / 'profiles' / profile
-    profile_f     = profile_dir / 'config.yaml'
-    if not profile_f.is_file():
-      raise FileNotFoundError(f"cluster configuration file {profile_f} does not exist")
+  # check if profile exists
+  profile       = setup_cfg['user']['profile']
+  profile_dir   = scprocess_dir / 'profiles' / profile
+  profile_f     = profile_dir / 'config.yaml'
+  if not profile_f.is_file():
+    raise FileNotFoundError(f"cluster configuration file {profile_f} does not exist")
 
   return profile_dir
 
@@ -86,17 +86,17 @@ def check_setup_config(setup_cfg, schema_f, scprocess_dir):
   # check file is ok
   _validate_object_against_schema(setup_cfg, schema_f, "setup config")
 
-  # add profile to snakemake call (can be empty)
-  profile_dir   = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
-  if profile_dir != '':
+  if 'profile' in setup_cfg['user']:
+    # check if profile file exists and add profile_dir to conifg
+    profile_dir   = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
     setup_cfg['user']['profile_dir'] = profile_dir
 
   # check that all genome names are unique
-  if ('genomes' in setup_cfg) and ('custom' in setup_cfg['genomes']):
-    gen_names     = [ spec['name'] for spec in setup_cfg['genomes']['custom'] ]
+  if ('ref_txomes' in setup_cfg) and ('custom' in setup_cfg['ref_txomes']):
+    gen_names     = [ spec['name'] for spec in setup_cfg['ref_txomes']['custom'] ]
     not_unique    = len(set(gen_names)) != len(gen_names)
     if not_unique:
-      raise KeyError("custom genomes do not have unique names")
+      raise KeyError("custom reference transcriptomes do not have unique names")
 
   return setup_cfg
 

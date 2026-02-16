@@ -88,6 +88,7 @@ If you plan to use `cellbender` for ambient RNA correction, you will also need A
 
     ```yaml
     user:
+      local_cores: 8
       your_name:    Testy McUser
       affiliation:  Unemployed
     ref_txomes:
@@ -96,7 +97,7 @@ If you plan to use `cellbender` for ambient RNA correction, you will also need A
       - name: mouse_2024 
     ```
 
-    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) reference transcriptomes from 10x Genomics. For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](reference.md#scprocess-setup) section.
+    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) reference transcriptomes from 10x Genomics. `local_cores` should be specified if you're running scprocess locally. If you're running scprocess on a cluster you should use `profile` instead (for more information see Cluster setup). For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](reference.md#scprocess-setup) section.
 
     ??? tip "Save some space by removing the reference transcriptome used for the tutorial"
         [Quick start tutorial](tutorial.md) section demonstrates how to run {{sc}} on an example mouse datasets. In order for users to be able to follow the tutorial `scprocess setup` will automatically download the `mouse_2024` reference transcriptome. If you would like to remove it (after running the tutorial) use:

@@ -36,9 +36,11 @@ ref_txomes:
       mito_str:   "^MT-"
 ```
 
+* `profile`: the name of the HPC profile to be used by `snakemake`. This must correspond to one of the subfolders in the _profiles_ folder, and it must contain a file called `config.yaml`. Exactly one of `profile` and `local_cores` should be specified.
+* `local_cores`: number of CPU cores available for local execution (see [Snakemake documentation](https://snakemake.readthedocs.io/en/v9.8.0/executing/cli.html) for more details). Exactly one of `profile` and `local_cores` should be specified.
+
 In the `user` section, users can optionally define:
 
-* `profile`: the name of the HPC profile to be used by `snakemake`. This must correspond to one of the subfolders in the _profiles_ folder, and it must contain a file called `config.yaml`.
 * `your_name`: your name, which will be shown at the top of html outputs
 * `affiliation`: your affiliation, which will be shown at the top of html outputs
 * `int_use_gpu`: whether to use GPU acceleration for integration and clustering steps. Options are `true` (default) or `false`. This value will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
