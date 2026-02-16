@@ -417,15 +417,6 @@ scprocess run config-test_multiplexed_project.yaml
 ```
 
 
-<!-- citations -->
-<!-- [Link to paper]() -->
-
-[^1]: Marques, S., et al. Oligodendrocyte heterogeneity in the mouse juvenile and adult central nervous system. Science. 2016;352(6291):1326-1329. [Link to paper](https://www.science.org/doi/10.1126/science.aaf6463).
-
-
-
-
-
 
 
 

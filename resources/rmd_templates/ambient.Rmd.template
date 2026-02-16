@@ -33,6 +33,7 @@ setDTthreads(n_cores)
 ```{r setup_input, include = FALSE}
 run_var     = "${run_var}"
 amb_method  = "${ambient_method}"
+demux_type  = "${demux_type}"
 s_lvls      = "${runs_str}" %>%
   str_split(pattern = ',') %>% unlist()
 date_stamp  = "${date_stamp}"
@@ -42,9 +43,15 @@ map_dir     = 'output/${short_tag}_mapping'
 amb_dir     = 'output/${short_tag}_ambient'
 stats_f     = "${run_stats_f}"
 
+if(demux_type == 'hto'){
+  map_subdir = 'rna/'
+}else{
+  map_subdir = ''
+}
+
 # get files with USA counts pre and post ambient removal
 map_yamls   = sapply(s_lvls, function(s)
-  sprintf("%s/af_%s/ambient_params_%s_%s.yaml", map_dir, s, s, date_stamp)) %>%
+  sprintf("%s/af_%s/%sambient_params_%s_%s.yaml", map_dir, s, map_subdir, s, date_stamp)) %>%
   setNames(s_lvls)
 amb_yamls   = sapply(s_lvls, function(s)
   sprintf("%s/ambient_%s/ambient_%s_%s_output_paths.yaml", amb_dir, s, s, date_stamp)) %>%
