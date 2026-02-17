@@ -22,6 +22,7 @@ First we will create a new project directory where all outputs of {{sc}} for thi
 # create a new directory called test_project in your current working directory
 # add the -c flag with the sn option to generate a template configuration file with qc thresholds typically used for single nuclei data
 scprocess newproj test_project -s -c sn
+
 # change your working directory to test_project
 cd test_project
 ```
@@ -188,7 +189,7 @@ scprocess run config-test_project.yaml -r label_celltypes
 
 ### Zooming in 
 
-After label asignment, we can subcluster cell populations of interest using {{sc}}. To identidy those populations we can inspect the `test_label_celltypes.html` report which should be located in the `public` directory.
+After label asignment, we can subcluster cell populations of interest using {{sc}}. To identify those populations we can inspect the `test_label_celltypes.html` report which should be located in the `public` directory.
 
 The report includes a UMAP plot displaying the predicted cell type annotations:
 
