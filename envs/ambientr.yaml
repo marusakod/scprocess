@@ -1,8 +1,9 @@
 name: 
-  /home/kodermam/packages/scprocess/.snakemake/conda/83e974010e3b3dadedbfe8becd866774_
+  ambientr
 channels:
   - bioconda
   - conda-forge
+  - nodefaults
 dependencies:
   - _libgcc_mutex=0.1
   - _openmp_mutex=4.5
