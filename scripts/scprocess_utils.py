@@ -343,6 +343,13 @@ def _check_samples_df(samples_df, config):
   
   run_ids = samples_df[run_var].to_list()
 
+  # check that runs don't have '_R1/.R1' or '_R2/.R2' in their names 
+  forbidden    = ["_R1", "_R2", ".R1", ".R2"]
+  invalid_runs = [r for r in set(run_ids) if any(sub in r for sub in forbidden)]
+
+  if invalid_runs:
+    raise ValueError(f"One or more {run_var} values contain '_R1/.R1' or '_R2/.R2'. Please ensure all elements exclude these substrings")
+
   # some checks for multiplexing
   if config['multiplexing']['demux_type'] == "hto":
     # check that hto fastq path is present
