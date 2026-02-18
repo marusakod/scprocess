@@ -10,7 +10,7 @@
 
 ### configuration file
 
-The command requires a configuration file named `scprocess_setup.yaml` located in {{sc}} data directory (for instructions on how to set up the {{sc}} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, the user can specify parameters that are used across all {{sc}} projects, such as HPC configuration and reference genomes that will be made available for {{sc}}.For example:
+The command requires a configuration file named `scprocess_setup.yaml` located in {{sc}} data directory (for instructions on how to set up the {{sc}} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, the user can specify parameters that are used across all {{sc}} projects, such as HPC configuration and reference genomes that will be made available for {{sc}}. For example:
 
 ```yaml
 user:
@@ -43,7 +43,7 @@ ref_txomes:
 * `local_cores`: number of CPU cores available for local execution (see [Snakemake documentation](https://snakemake.readthedocs.io/en/v9.8.0/executing/cli.html) for more details). Exactly one of `profile` and `local_cores` should be specified.
 * `your_name` (optional): author's name. If specified it will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
 * `affiliation` (optional): author's affiliation. If specified it will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
-* `int_use_gpu` (optional): whether to use GPU acceleratio (`RAPIDS-singlecell`) for integration and clustering steps. If `false` the value will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
+* `int_use_gpu` (optional): whether to use GPU acceleration (`RAPIDS-singlecell`) for integration and clustering steps. If `false` the value will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
 
 ##### arvados
 
@@ -66,15 +66,15 @@ Optional parameters for both `tenx` and `custom` references are:
 
 Optional paramater for `tenx` references is:
 
-* `rrnas`: whether or not ribosomal RNAs should be included in the reference. If not specified it defaults to `True` for all `tenx` genomes.
+* `rrnas`: whether or not ribosomal RNAs should be included in the reference. If not specified it defaults to `true` for all `tenx` genomes.
 
 !!! note "Impact of custom parameters for `tenx` genomes on `scsetup` runtime"
 
-    When configuring `tenx` genomes with their default values, {{scsetup}} will download prebuilt indices optimized for `simpleaf`. However, if the default parameters are modified (e.g., setting `rrnas` or `decoys` to `false`), {{scsetup}} will build the indices from scratch during execution, which will increase the runtime.
+    When configuring `tenx` genomes with their default values, {{scsetup}} will download prebuilt indices for `simpleaf`. However, if the default parameters are modified (e.g., setting `rrnas` or `decoys` to `false`), {{scsetup}} will build the indices from scratch during execution, which will increase the runtime.
 
 
 !!! info "More about decoys"
-    {{sc}} utilizes `simpleaf`, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter in `scsetup` is set to `True`. This option allows `simpleaf` to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to Srivastava et al., 2019[@Srivastava2020-jb].
+    {{sc}} utilizes `simpleaf`, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter for `ref_txomes` is set to `true`. This option allows `simpleaf` to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to Srivastava et al., 2019[@Srivastava2020-jb].
 
 
 ## {{scnew}}
