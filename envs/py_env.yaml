@@ -2,6 +2,7 @@ name: py_libs
 channels:
   - bioconda
   - conda-forge
+  - nodefaults
 dependencies:
   - polars
   - _libgcc_mutex=0.1
