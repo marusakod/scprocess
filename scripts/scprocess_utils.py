@@ -49,26 +49,26 @@ def check_setup_before_running_scprocess(scprocess_dir, extraargs):
   with open(setup_configfile, "r") as stream:
     setup_cfg     = yaml.safe_load(stream)
 
-  # add profile to snakemake call (can be empty)
-  profile_dir   = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
-  if profile_dir != '':
-    extraargs.extend(['--workflow-profile', str(profile_dir)])
+  # add profile or local_cores to snakemake call
+  if 'profile' in setup_cfg['user']: 
+    profile_dir   = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
+    extraargs.append('--workflow-profile'),
+    extraargs.append(str(profile_dir))
+  else:
+    extraargs.append('--cores')
+    extraargs.appemd(str(setup_cfg['user']['local_cores']))
 
   return scdata_dir, extraargs
 
 
 def _get_cluster_profile_dir(scprocess_dir, setup_cfg):
-  # first define as empty
-  profile_dir   = ''
 
-  # if there is a cluster profile check it
-  if setup_cfg.get('user', {}).get('profile'):
-    # check if profile exists
-    profile       = setup_cfg['user']['profile']
-    profile_dir   = scprocess_dir / 'profiles' / profile
-    profile_f     = profile_dir / 'config.yaml'
-    if not profile_f.is_file():
-      raise FileNotFoundError(f"cluster configuration file {profile_f} does not exist")
+  # check if profile exists
+  profile       = setup_cfg['user']['profile']
+  profile_dir   = scprocess_dir / 'profiles' / profile
+  profile_f     = profile_dir / 'config.yaml'
+  if not profile_f.is_file():
+    raise FileNotFoundError(f"cluster configuration file {profile_f} does not exist")
 
   return profile_dir
 
@@ -86,17 +86,17 @@ def check_setup_config(setup_cfg, schema_f, scprocess_dir):
   # check file is ok
   _validate_object_against_schema(setup_cfg, schema_f, "setup config")
 
-  # add profile to snakemake call (can be empty)
-  profile_dir   = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
-  if profile_dir != '':
+  if 'profile' in setup_cfg['user']:
+    # check if profile file exists and add profile_dir to conifg
+    profile_dir   = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
     setup_cfg['user']['profile_dir'] = profile_dir
 
   # check that all genome names are unique
-  if ('genomes' in setup_cfg) and ('custom' in setup_cfg['genomes']):
-    gen_names     = [ spec['name'] for spec in setup_cfg['genomes']['custom'] ]
+  if ('ref_txomes' in setup_cfg) and ('custom' in setup_cfg['ref_txomes']):
+    gen_names     = [ spec['name'] for spec in setup_cfg['ref_txomes']['custom'] ]
     not_unique    = len(set(gen_names)) != len(gen_names)
     if not_unique:
-      raise KeyError("custom genomes do not have unique names")
+      raise KeyError("custom reference transcriptomes do not have unique names")
 
   return setup_cfg
 
@@ -220,7 +220,7 @@ def _check_project_parameters(config, scdata_dir, scprocess_dir):
 
   # from index_parameters.csv get valid values for ref_txome
   index_params        = pd.read_csv(index_params_f)
-  valid_ref_txome     = index_params['genome_name'].tolist()
+  valid_ref_txome     = index_params['ref_txome'].tolist()
   valid_ref_txome_str = ', '.join(valid_ref_txome)
   if not config['project']['ref_txome'] in valid_ref_txome:
     raise ValueError(f"ref_txome {config['project']['ref_txome']} not defined. Valid values are {valid_ref_txome_str}")
@@ -442,7 +442,7 @@ def _check_mapping_parameters(config, scdata_dir):
   # get mito strings from setup params
   ref_txome           = config['project']['ref_txome']
   config['mapping'] = {}
-  config['mapping']['af_mito_str'] = index_params.filter(pl.col('genome_name') == ref_txome)['mito_str'][0]
+  config['mapping']['af_mito_str'] = index_params.filter(pl.col('ref_txome') == ref_txome)['mito_str'][0]
 
   # get af index directory and check if exists
   config['mapping']['alevin_fry_home']  = scdata_dir / 'alevin_fry_home'
@@ -452,7 +452,7 @@ def _check_mapping_parameters(config, scdata_dir):
     raise FileNotFoundError(f"alevin index for {ref_txome} doesn't exist")
   
   # get gtf txt file, check that exists
-  config['mapping']['af_gtf_dt_f'] = index_params.filter(pl.col('genome_name') == ref_txome)['gtf_txt_f'][0]
+  config['mapping']['af_gtf_dt_f'] = index_params.filter(pl.col('ref_txome') == ref_txome)['gtf_txt_f'][0]
 
   return config
 
@@ -528,7 +528,7 @@ def _check_hvg_parameters(config):
     all_vals    = gtf_df[ gene_col ]
     absent_vals = set(exc_vals) - set(all_vals)
     if len(absent_vals) > 0:
-      raise ValueError(f"the following genes were specified in 'hvg_exclude_from_file' but were not found in the reference transcriptome: {", ".join(missed_vals)}")
+      raise ValueError(f"the following genes were specified in 'hvg_exclude_from_file' but were not found in the reference transcriptome: {", ".join(absent_vals)}")
   else:
     config['hvg']['hvg_exclude_from_file'] = None
 
@@ -1015,12 +1015,15 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
 
   # sort out whitelist file
   if sample_chem == 'none':
-    whitelist_f        = 'none', 
+    gex_whitelist_f        = 'none', 
+    hto_whitelist_f        = 'none'
   else:
     wl_df_f     = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
     wl_df       = pl.read_csv(wl_df_f)
-    wl_f        = wl_df.filter( pl.col('chemistry') == sample_chem )['barcodes_f'].item()
-    whitelist_f = scdata_dir / 'cellranger_ref' / wl_f
+    wl_gex_f    = wl_df.filter( pl.col('chemistry') == sample_chem )['gex_barcodes_f'].item()
+    wl_hto_f    = wl_df.filter( pl.col('chemistry') == sample_chem )['hto_barcodes_f'].item()
+    gex_whitelist_f  = scdata_dir / 'cellranger_ref' / wl_gex_f
+    hto_whitelist_f = scdata_dir / 'cellranger_ref' / wl_hto_f
 
   # make dictionary for mapping
   mapping_dc  = {
@@ -1030,7 +1033,7 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
     "R1_fs_size_gb":      RNA_FQS[run_name]["R1_fs_size_gb"],
     "af_chemistry":       af_chemistry, 
     "expected_ori":       expected_ori, 
-    "whitelist_f":        whitelist_f,
+    "gex_whitelist_f":    gex_whitelist_f,
     "knee1":              knee1,
     "shin1":              shin1,
     "knee2":              knee2,
@@ -1045,7 +1048,7 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
       "R2_fs":              HTO_FQS[run_name]["R2_fs"],
       "R1_fs_size_gb":      HTO_FQS[run_name]["R1_fs_size_gb"],
       "af_chemistry":       af_chemistry, 
-      "whitelist_f":        whitelist_f
+      "hto_whitelist_f":    hto_whitelist_f
     }
   else:
     multiplexing_dc   = {}
@@ -1164,10 +1167,6 @@ def get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR):
       for row in tmp_df.to_dicts()
       if row["pool_id"] in RUNS
     }
-    # { pool_id: tmp_df.filter(pl.col("pool_id") == pool_id)["sample_id_list"].to_list()[0] for pool_id in pool_vals }
-    
-    # # filter out any RUNS that shouldn't be there
-    # RUNS_TO_SAMPLES = { pool_id: sample_ids for pool_id, sample_ids in RUNS_TO_SAMPLES.items() if pool_id in RUNS }
 
     # now choose for runs to batches
     if BATCH_VAR == "pool_id":
@@ -1415,6 +1414,25 @@ def merge_tmp_files(in_files, out_file):
   df_merged = pl.concat(df_ls)
   with gzip.open(out_file, 'wb') as f:
     df_merged.write_csv(f)
+
+
+def check_ranger_url(ranger_url):
+  
+  if not ranger_url.startswith("https://"):
+    # check that link if valid
+    raise ValueError(f"Invalid URL: Link must start with 'https://'")
+    
+  # extract version
+  ranger_version = re.search(r"cellranger-(\d+\.\d+\.\d+)", ranger_url).group(1)
+    
+  # check that version if > 9.0.0
+  version_parts = [int(p) for p in ranger_version.split(".")]
+  min_version = [9, 0, 0]
+  if version_parts <= min_version:
+    raise ValueError(f"Provided download link for CellRanger version {ranger_version}. scprocess requires version > 9.0.0.")
+
+  return ranger_version
+  
 
 
 # HVGs function: make df with list of chunked counts files

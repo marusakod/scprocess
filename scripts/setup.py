@@ -2,16 +2,16 @@
 
 
 import argparse
-import glob
 import gzip
-import numpy as np
 import os
 import pandas as pd
 import re
-import re
 import subprocess
-import warnings
 import yaml
+import tarfile
+import shutil
+import gzip
+import polars as pl
 
 TENX_NAMES    = ['human_2020', 'human_2024', 'mouse_2020', 'mouse_2024']
 TENX_MITOS    = {
@@ -40,13 +40,17 @@ URLS_ZEN_IDXS = {
 }
 
 
-def get_scprocess_data(scdata_dir):
+def get_scprocess_data(scdata_dir, ranger_url, whitelists_lu_f, ranger_version_f):
   print('Downloading data from scprocessData github repo')
+
+  if ranger_url == "":
+    raise ValueError('Something went wrong. Please provide a valid cellranger link')
+
   # switch to scprocess data dir
   os.chdir(scdata_dir)
 
   # download tar archive from scprocessData and extract
-  subprocess.run('wget https://github.com/marusakod/scprocessData/releases/download/v0.1.2/scprocess_data_archive.tar.gz',
+  subprocess.run('wget https://github.com/marusakod/scprocessData/releases/download/v0.1.0/scprocess_data_archive.tar.gz',
   shell=True, capture_output=False)
   
   subprocess.run('tar xvf scprocess_data_archive.tar.gz', shell=True, capture_output=False)
@@ -55,34 +59,185 @@ def get_scprocess_data(scdata_dir):
   os.remove('scprocess_data_archive.tar.gz')
   
   # check if all necessary directories are there
-  dirs_ls = ["cellranger_ref", "gmt_pathways", "marker_genes", "xgboost"]
+  dirs_ls = [ "gmt_pathways", "marker_genes", "xgboost"]
   for dir in dirs_ls:
     assert os.path.isdir(dir), \
       f"{dir} directory doesn't exist"
   
+  # get version of cellranger
+  ranger_version = re.search(r"cellranger-(\d+\.\d+\.\d+)", ranger_url).group(1)
+  
+  # download cellranger and extract whitelists
+  ranger_data_dir = os.path.join(scdata_dir, 'cellranger_ref')
+  get_cellranger_whitelists(ranger_data_dir, whitelists_lu_f, ranger_url, ranger_version)
+
+  # save file with cellranger version
+  with open(ranger_version_f, "w") as f:
+    f.write(str(ranger_version))
+
   print('Done!')
 
   return
 
 
+def get_cellranger_whitelists(output_dir, whitelists_lu_f, ranger_url, ranger_version):
+
+  os.makedirs(output_dir, exist_ok=True)
+
+  tmp_tar    = f"cellranger-{ranger_version}.tar.gz"
+  tar_path   = os.path.join(output_dir, tmp_tar)
+
+  # download cellranger
+  print(f"Downloading CellRanger")
+  subprocess.run(["wget", "-O", tar_path, ranger_url])
+  
+   # whitelist names in cellranger and new names for scprocess
+  cr_wls_dict = {
+    "3v2_5v1_5v2": "737K-august-2016.txt",          
+    "3v3": "3M-february-2018_TRU.txt.gz",          
+    "3v4": "3M-3pgex-may-2023_TRU.txt.gz",         
+    "5v3": "3M-5pgex-jan-2023.txt.gz",          
+    "3LT": "9K-LT-march-2021.txt.gz",         
+    "multiome": "737K-arc-v1.txt.gz",               
+  }
+
+  sc_gex_wl_dict = {
+    "3v2_5v1_5v2": "cellranger_gex_barcode_whitelist_3v2_5v1_5v2.txt", 
+    "3v3": "cellranger_gex_barcode_whitelist_3v3.txt", 
+    "3v4": "cellranger_gex_barcode_whitelist_3v4.txt", 
+    "5v3": "cellranger_gex_barcode_whitelist_5v3.txt", 
+    "3LT": "cellranger_gex_barcode_whitelist_3LT.txt", 
+    "multiome": "cellranger_gex_barcode_whitelist_multiome_gex.txt"
+  }
+
+  translation_cr_wl_dict = {
+    "3v3": "3M-february-2018_NXT.txt.gz",          
+    "3v4": "3M-3pgex-may-2023_NXT.txt.gz",         
+    "3LT": "9K-LT-march-2021.txt.gz"           
+  }
+  
+  translation_sc_wl_dict = {
+    "3v3": "cellranger_whitelist_translation_3v3.txt", 
+    "3v4": "cellranger_whitelist_translation_3v4.txt", 
+    "3LT": "cellranger_whitelist_translation_3LT.txt"
+  }
+
+  sc_hto_wl_dict = {
+    "3v3": "cellranger_hto_barcode_whitelist_3v3.txt", 
+    "3v4": "cellranger_hto_barcode_whitelist_3v4.txt", 
+    "3LT": "cellranger_hto_barcode_whitelist_3LT.txt",
+  }
+  
+
+  print("Extracting whitelists from CellRanger")
+  # extract gex whitelist and translation files from cellranger and rename them
+  _extract_whitelists(tar_path, cr_wls_dict, sc_gex_wl_dict, output_dir, is_translation=False)
+  _extract_whitelists(tar_path, translation_cr_wl_dict, translation_sc_wl_dict, output_dir, is_translation=True)
+
+  # extract hto whitelists from translation files (the second column of barcodes in the translation file corresponds to hto barcodes)
+  print("Extracting hto whitelists")
+  _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict, output_dir)
+
+  # create a lookup table for all whitelists
+
+  chem_lu_dict = {
+    "3LT": ["3LT"],
+    "3v2_5v1_5v2": ["3v2", "5v1", "5v2"],
+    "3v3": ["3v3"],
+    "3v4": ["3v4"],
+    "5v3": ["5v3"],
+    "multiome": ["multiome"]
+  }
+
+  chem_ord = ["3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"]
+    
+  chem_rows = []
+  reverse_map = {label: dict_key for dict_key, labels in chem_lu_dict.items() for label in labels}
+
+  for chem in chem_ord:
+    dict_key = reverse_map[chem]
+    chem_rows.append({
+     "chemistry": chem,
+     "gex_barcodes_f": sc_gex_wl_dict.get(dict_key, ""),
+     "hto_barcodes_f": sc_hto_wl_dict.get(dict_key, ""),
+     "translation_f": translation_sc_wl_dict.get(dict_key, "")
+    })
+
+  chem_df = pl.from_dicts(chem_rows)
+  chem_df.write_csv(whitelists_lu_f)
+
+  # cleanup
+  print("Cleaning up")
+  os.remove(tar_path)
+  
+  return
+  
+
+def _extract_whitelists(tar_path, cr_wls_dict, sc_wl_dict, output_dir, is_translation = False): 
+  # extract whitelist files from cellranger and rename them
+  with tarfile.open(tar_path, "r:gz") as tar:
+    for member in tar.getmembers():
+      full_path = member.name
+      filename  = os.path.basename(full_path)
+
+      is_in_translation_dir = "barcodes/translation/" in full_path
+      if is_translation != is_in_translation_dir:
+        continue
+
+      if "lib/python/cellranger/barcodes/" in full_path:
+        for key, cr_name in cr_wls_dict.items():
+          if filename == cr_name and key in sc_wl_dict:
+            sc_name     = sc_wl_dict[key]
+            final_path  = os.path.join(output_dir, sc_name)
+                  
+            f_extracted = tar.extractfile(member)
+            if f_extracted:
+              if filename.endswith(".gz"):
+                with gzip.GzipFile(fileobj=f_extracted) as gz:
+                    with open(final_path, 'wb') as f_out:
+                      shutil.copyfileobj(gz, f_out)
+                        
+              else:
+                with open(final_path, 'wb') as f_out:
+                  shutil.copyfileobj(f_extracted, f_out)
+
+  return
+
+
+def _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict, output_dir): 
+  for chem in sc_hto_wl_dict.keys(): # Changed .key to .keys()
+    translation_f = os.path.join(output_dir, translation_sc_wl_dict[chem])
+    hto_wl_f      = os.path.join(output_dir, sc_hto_wl_dict[chem])
+    
+    translation_df = pl.read_csv(translation_f, has_header=False, separator= '\t')
+
+    translation_df.select(pl.col("column_1")).write_csv(
+      hto_wl_f, include_header=False
+      )
+
+  return
+
+
+
+
 def get_af_index_parameters(config):
   # initialize
-  genomes     = config['genomes']
+  ref_txomes  = config['ref_txomes']
   SETUP_LS    = []
 
   # get parameters for all specified tenx genomes
-  if 'tenx' in genomes:
+  if 'tenx' in ref_txomes:
     # get just tenx list
-    tenx_ls     = genomes['tenx']
+    tenx_ls     = ref_txomes['tenx']
     for spec_tenx in tenx_ls:
       SETUP_LS.append(_get_index_parameters_tenx(spec_tenx, TENX_NAMES))
 
   # get parameters for all specified custom genomes
-  if 'custom' in genomes:
+  if 'custom' in ref_txomes:
     # get just custom list
-    custom_ls     = genomes['custom']
+    custom_ls     = ref_txomes['custom']
     for spec_custom in custom_ls:
-      SETUP_LS.append(_get_index_parameters_custom(spec_custom, TENX_NAMES))
+      SETUP_LS.append(_get_index_parameters_custom(spec_custom))
 
   # check no duplicate names
   setup_names = [ s['name'] for s in SETUP_LS ]
@@ -102,6 +257,10 @@ def get_af_index_parameters(config):
 
 
 def _get_index_parameters_tenx(spec_tenx, TENX_NAMES):
+
+  if spec_tenx['name'] not in TENX_NAMES:
+    raise ValueError(f"name of tenx reference transcriptome {spec_tenx['name']} is incorrect")
+  
   # define defaults
   spec_tenx["gtf"]          = None
   spec_tenx["fasta"]        = None
@@ -116,12 +275,12 @@ def _get_index_parameters_tenx(spec_tenx, TENX_NAMES):
   return spec_tenx
 
 
-def _get_index_parameters_custom(spec_custom, TENX_NAMES):
+def _get_index_parameters_custom(spec_custom):
   # check if all required entries are specified
   if not os.path.isfile(spec_custom['gtf']):
-    raise FileNotFoundError(f"file {gtf} specified in configfile doesn't exist")
+    raise FileNotFoundError(f"file {spec_custom['gtf']} specified in configfile doesn't exist")
   if not os.path.isfile(spec_custom['fasta']):
-    raise FileNotFoundError(f"file {fa} specified in configfile doesn't exist")
+    raise FileNotFoundError(f"file {spec_custom['fasta']} specified in configfile doesn't exist")
 
   # fill in defaults if we need to
   if not "decoys" in spec_custom:
@@ -145,37 +304,6 @@ def _safe_boolean(val):
   return res
 
 
-def _check_valid_index(idx_path):
-  # check if main directory exists
-  if not os.path.isdir(idx_path):
-    raise ValueError(f"The provided path '{idx_path}' is not a valid directory.")
-
-  # define expected directories and files
-  req_dirs = {
-    "idx_dir":  os.path.join(idx_path, 'index'),
-    "ref_dir":  os.path.join(idx_path, 'ref')
-  }
-  req_fs = {
-    "index_info.json":          os.path.join(idx_path, 'index_info.json'),
-    "simpleaf_index_log.json":  os.path.join(idx_path, 'simpleaf_index_log.json'),
-    "gene_id_to_name.tsv":      os.path.join(req_dirs["ref_dir"], 'gene_id_to_name.tsv'),
-    "roers_make-ref.json":      os.path.join(req_dirs["ref_dir"], 'roers_make-ref.json'),
-    "roers_ref.fa":             os.path.join(req_dirs["ref_dir"], 'roers_ref.fa'),
-    "t2g_3col.tsv":             os.path.join(req_dirs["ref_dir"], 't2g_3col.tsv')
-  }
-
-  # Check required directories
-  for dir_name, dir_path in req_dirs.items():
-    if not os.path.isdir(dir_path):
-      raise ValueError(f"The required directory '{dir_name}' is missing at '{idx_path}'.")
-
-  # Check required files
-  missing_fs = [file_name for file_name, file_path in req_fs.items() if not os.path.isfile(file_path)]
-  if missing_fs:
-    raise ValueError(f"The following required files are missing: {', '.join(missing_fs)}")
-
-  return True
-
 
 # function that makes simpleaf index
 def set_up_af_index(scdata_dir, txome_name, fasta_f, gtf_f, index_dir, mito_str, is_prebuilt, is_tenx, has_decoy, has_rrna, n_cores):
@@ -185,7 +313,7 @@ def set_up_af_index(scdata_dir, txome_name, fasta_f, gtf_f, index_dir, mito_str,
     print(f"'is_prebuilt' is False, value is {is_prebuilt}")
 
   # create output directories
-  ref_dir   = os.path.join(scdata_dir, 'reference_genomes', txome_name)
+  ref_dir   = os.path.join(scdata_dir, 'reference_transcriptomes', txome_name)
   idx_dir   = os.path.join(scdata_dir, 'alevin_fry_home', txome_name)
   os.makedirs(ref_dir,  exist_ok=True)
   os.makedirs(idx_dir,  exist_ok=True)
@@ -359,7 +487,7 @@ def _build_index_w_simpleaf(ref_txome, idx_dir, has_decoy, fasta_f, gtf_f, n_cor
   cd ${{ALEVIN_FRY_HOME}}
 
   # set up this build
-  TMP_IDX_DIR="${{ALEVIN_FRY_HOME}}/{genome_name}"
+  TMP_IDX_DIR="${{ALEVIN_FRY_HOME}}/{ref_txome}"
 
   # simpleaf index
   simpleaf index \
@@ -476,6 +604,9 @@ if __name__ == "__main__":
   # parser for get_scprocess_data
   getdata     = subparsers.add_parser('get_scprocess_data')
   getdata.add_argument('scdata_dir', type=str)
+  getdata.add_argument('cr_url', type = str)
+  getdata.add_argument('wl_lu_f', type=str)
+  getdata.add_argument('cr_version_f', type=str)
 
   # parsers for set_up_af_index
   get_af      = subparsers.add_parser('set_up_af_index')
@@ -503,7 +634,7 @@ if __name__ == "__main__":
   # decide which function
   args = parser.parse_args()
   if args.function_name == 'get_scprocess_data':
-    get_scprocess_data(args.scdata_dir)
+    get_scprocess_data(args.scdata_dir, args.cr_url, args.wl_lu_f, args.cr_version_f)
   elif args.function_name == 'set_up_af_index':
     set_up_af_index(args.scdata_dir, args.genome, args.fasta_f, args.gtf_f, args.index_dir, args.mito_str, 
       _safe_boolean(args.is_prebuilt), _safe_boolean(args.is_tenx), 

@@ -628,8 +628,8 @@ rule zoom_run_integration:
     zoom_int_use_paga     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_use_paga'],
     zoom_int_paga_cl_res  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_paga_cl_res'],
     zoom_int_res_ls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
+    zoom_int_use_gpu      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_use_gpu'],
     batch_var             = BATCH_VAR,
-    use_gpu               = config['project']['use_gpu']
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -645,7 +645,7 @@ rule zoom_run_integration:
     set +u
     # set use_gpu flag based on config and on whether available
     USE_GPU_FLAG=""
-    if [ "{params.use_gpu}" == "True" && -n "$CUDA_VISIBLE_DEVICES" ]; then
+    if [ "{params.zoom_int_use_gpu}" == "True" && -n "$CUDA_VISIBLE_DEVICES" ]; then
        USE_GPU_FLAG="--use-gpu"
     fi
     set -u

@@ -55,7 +55,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
   # check if all extra args for a specific rule are present
   if (sel_rule == 'ambient') {
     req_names = c('your_name','affiliation', 'short_tag', 'run_stats_f',
-      'threads','run_var', 'ambient_method', 'date_stamp', 'runs_str', 'cb_prop_max_kept')
+      'threads','run_var', 'ambient_method', 'demux_type', 'date_stamp', 'runs_str', 'cb_prop_max_kept')
 
     assert_that(all(req_names %in% add_args_names))
     

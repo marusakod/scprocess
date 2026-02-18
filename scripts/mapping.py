@@ -67,7 +67,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
       warnings.warn(f'Maximum overlap ob barcodes is {max_overlap:.1%}, 10x chemistry guess might be incorrect')
     
     sel_wl_dt = wl_overlap_dt.filter(pl.col('overlap') == max_overlap)
-    whitelist_f = sel_wl_dt['barcodes_f_full'][0]
+    whitelist_f = sel_wl_dt['gex_barcodes_f_full'][0]
     
     if sel_wl_dt.height == 1:
       sample_chem = sel_wl_dt['chemistry'][0]
@@ -105,9 +105,10 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
     cell_counts_fw = ""
     cell_counts_rc = ""
     max_overlap    = ""
+    f_prefix       = 'gex' if what == 'rna' else 'hto'
     # get sample chemistry based on barcode whitelist and exp_ori
     chem_opts = (wl_lu_dt
-      .filter(pl.col('barcodes_f') == os.path.basename(whitelist_f))
+      .filter(pl.col(f'{f_prefix}_barcodes_f') == os.path.basename(whitelist_f))
       .get_column('chemistry').to_list())
     if set(chem_opts) == set(['3v2', '5v1', '5v2']):
       sample_chem = '3v2' if exp_ori == "fw" else '5v1/5v2'
@@ -124,26 +125,33 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
   # save yaml with chemistry stats only if what is rna
   if what == 'rna':
     chem_stats_f = os.path.join(out_dir, 'chemistry_statistics.yaml')
-    # get translation file
-    trans_fs = (wl_lu_dt
-      .filter(pl.col("barcodes_f") == os.path.basename(whitelist_f))
+    # get translation file and hto whitelist file
+    trans_fs        = (wl_lu_dt
+      .filter(pl.col("gex_barcodes_f") == os.path.basename(whitelist_f))
       .get_column("translation_f").to_list())
-
+    
+    hto_whitelist_fs = (wl_lu_dt
+      .filter(pl.col("gex_barcodes_f") == os.path.basename(whitelist_f))
+      .get_column("hto_barcodes_f").to_list())
+    
     if trans_fs[0] is None:
-      trans_f = ""
+      trans_f         = ""
+      hto_whitelist_f = ""
     else:
-      trans_f  = f'{os.path.dirname(whitelist_f)}/{trans_fs[0]}'
+      trans_f         =  f'{os.path.dirname(whitelist_f)}/{trans_fs[0]}'
+      hto_whitelist_f =  f'{os.path.dirname(whitelist_f)}/{hto_whitelist_fs[0]}'
 
     chem_stats = {
-      "run": run, 
-      "selected_whitelist": whitelist_f, 
-      "selected_translation_f": trans_f,
-      "selected_whitelist_overlap": max_overlap, 
-      "selected_ori": exp_ori, 
-      "n_cells_fw": cell_counts_fw, 
-      "n_cells_rc": cell_counts_rc, 
-      "selected_tenx_chemistry": sample_chem, 
-      "selected_af_chemistry": tenx_chemistry
+     "run": run, 
+     "selected_gex_whitelist": whitelist_f, 
+     "selected_hto_whitelist": hto_whitelist_f, 
+     "selected_translation_f": trans_f,
+     "selected_whitelist_overlap": max_overlap, 
+     "selected_ori": exp_ori, 
+     "n_cells_fw": cell_counts_fw, 
+     "n_cells_rc": cell_counts_rc, 
+     "selected_tenx_chemistry": sample_chem, 
+     "selected_af_chemistry": tenx_chemistry
     }
   
     with open(chem_stats_f, "w") as f:
@@ -345,8 +353,8 @@ def _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt, sample_size = 100000):
   sel_R1_f = random.sample(R1_fs, 1)[0]
     
   # get all barcode whitelist files
-  wl_dt  = wl_lu_dt.select(['chemistry', 'barcodes_f'])
-  wl_fs  = wl_dt['barcodes_f'].unique().to_list()
+  wl_dt  = wl_lu_dt.select(['chemistry', 'gex_barcodes_f'])
+  wl_fs  = wl_dt['gex_barcodes_f'].unique().to_list()
 
   # get directory where whitelist files are stored
   wl_dir = os.path.abspath(os.path.dirname(wl_lu_f)) 
@@ -366,11 +374,11 @@ def _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt, sample_size = 100000):
       wl_set = {line.strip() for line in f}
       matches = sum(1 for bc in barcodes if bc in wl_set)
       overlap_pct = matches/n_bcs if n_bcs > 0 else 0
-      overlap_res.append({"barcodes_f": wl_f, "barcodes_f_full": wl_f_full, "overlap": overlap_pct})
+      overlap_res.append({"gex_barcodes_f": wl_f, "gex_barcodes_f_full": wl_f_full, "overlap": overlap_pct})
   
   # merge overlaps with chemistries
   overlap_dt = pl.DataFrame(overlap_res)
-  full_dt    = wl_dt.join(overlap_dt, on = 'barcodes_f', coalesce=True, how = 'full')
+  full_dt    = wl_dt.join(overlap_dt, on = 'gex_barcodes_f', coalesce=True, how = 'full')
 
   return full_dt
     

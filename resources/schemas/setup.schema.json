@@ -8,17 +8,22 @@
       "additionalProperties": false,
       "properties": {
         "profile":          { "type": "string" },
+        "local_cores":      { "type": "integer", "exclusiveMinimum": 0},
         "your_name":        { "type": "string" },
         "affiliation":      { "type": "string" },
-        "use_gpu":          { "type": "boolean", "default": true }
-      }
+        "int_use_gpu":      { "type": "boolean", "default": true }
+      },
+      "oneOf": [
+        { "required": ["profile"] },
+        { "required": ["local_cores"] }
+      ]
     },
     "arvados": {
       "type": "object",
       "required": ["arv_instance"],
       "additionalProperties": false,
       "properties": {
-        "arv_instance":    { "type": "string", "default": "arkau" }
+        "arv_instance":    { "type": "string", "default": "" }
       }
     },
     "ref_txomes": {

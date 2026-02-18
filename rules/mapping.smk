@@ -18,7 +18,7 @@ rule run_mapping:
     wl_lu_f       = config['mapping']['wl_lu_f'],
     af_chemistry  = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["af_chemistry"],
     exp_ori       = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["expected_ori"],
-    whitelist_f   = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["whitelist_f"],
+    whitelist_f   = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["gex_whitelist_f"],
     where         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["where"],
     R1_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["R1_fs"],
     R2_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["R2_fs"]
@@ -128,8 +128,8 @@ rule collect_chemistry_stats:
     
     chem_stats_dt = pl.from_dicts(rows)
     col_ord = ["run", "selected_tenx_chemistry", "selected_af_chemistry", 
-      "selected_ori", "selected_whitelist", "selected_whitelist_overlap", 
-      "selected_translation_f", "n_cells_fw", "n_cells_rc"]
+      "selected_ori", "selected_gex_whitelist", "selected_whitelist_overlap", 
+      "selected_hto_whitelist", "selected_translation_f", "n_cells_fw", "n_cells_rc"]
    
     chem_stats_dt =chem_stats_dt.select(col_ord)
     chem_stats_dt.write_csv(output.chem_stats_merged_f)

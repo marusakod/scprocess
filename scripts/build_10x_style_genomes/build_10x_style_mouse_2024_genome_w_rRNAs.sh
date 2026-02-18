@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# mouse 2024 genome
-
+# mouse 2024 genome (this code is a minor modification of code in https://www.10xgenomics.com/support/software/cell-ranger/downloads/cr-ref-build-steps)
 
 # Set up source directory
 source="reference_sources"

@@ -2,9 +2,13 @@
 
 ## {{scsetup}} { #scprocess-setup }
 
-**Description**: Download all data required for {{sc}} and index reference genomes for `simpleaf`, and define cluster configuration.
+**Description**: Download all data required for {{sc}} and index reference transcriptomes for `simpleaf`.
 
 **Parameters**:
+
+* `-c`/`--rangerurl`:  download link for Cellranger (v9.0.0 or higher) available on the [10x Genomics CellRanger download & installation page](https://www.10xgenomics.com/support/software/cell-ranger/downloads/previous-versions); only required when running the command for the first time.
+
+
 The command requires a configuration file named `scprocess_setup.yaml` located in {{sc}} data directory (for instructions on how to set up the {{sc}} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, the user can specify parameters that are used across all {{sc}} projects, such as HPC configuration and reference genomes that will be made available for {{sc}}. For example:
 
 ```yaml
@@ -12,11 +16,10 @@ user:
   profile:        slurm_default
   your_name:      Testy McUser
   affiliation:    Unemployed
-  use_gpu:        true
+  int_use_gpu:    true
 arvados:
-  arv_setup:      ml arvados
-  arv_instance:   arkau
-genomes:
+  arv_instance:   instance_name
+ref_txomes:
   tenx:
     - name:       human_2024
       decoys:     true
@@ -33,18 +36,19 @@ genomes:
       mito_str:   "^MT-"
 ```
 
+* `profile`: the name of the HPC profile to be used by `snakemake`. This must correspond to one of the subfolders in the _profiles_ folder, and it must contain a file called `config.yaml`. Exactly one of `profile` and `local_cores` should be specified.
+* `local_cores`: number of CPU cores available for local execution (see [Snakemake documentation](https://snakemake.readthedocs.io/en/v9.8.0/executing/cli.html) for more details). Exactly one of `profile` and `local_cores` should be specified.
+
 In the `user` section, users can optionally define:
 
-* `profile`: the name of the HPC profile to be used by `snakemake`. This must correspond to one of the subfolders in the _profiles_ folder, and it must contain a file called `config.yaml`.
 * `your_name`: your name, which will be shown at the top of html outputs
 * `affiliation`: your affiliation, which will be shown at the top of html outputs
-* `use_gpu`: whether to use GPU acceleration for integration and clustering steps. Options are `true` (default) or `false`. If set to `true` in `scprocess_setup.yaml`, this value will be used as the default in new projects created with the `scprocess newproj` command.
+* `int_use_gpu`: whether to use GPU acceleration for integration and clustering steps. Options are `true` (default) or `false`. This value will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
 
-The optional `arvados` section allows users to set up access to instances of the cloud storage environment `arvados`. If specified, then users must include two entries:
-* `arv_setup`: shell command to run to prepare the Arvados environment on compute nodes (for example `ml arvados`). This is configured in `scprocess_setup.yaml` (global setup) and is read at runtime by the `scprocess` wrapper; it is not stored in per-project config files.
+The optional `arvados` section allows users to set up access to instances of the cloud storage environment `arvados`. If specified, users must include the entry:
 * `arv_instance`: the name of the default `arvados` instance for the user; this can be overridden by a project-level `arvados` instance defined in the project _config.yaml_.
 
-Prebuilt human and mouse reference genomes from 10x Genomics can be downloaded with {{scsetup}} by adding `tenx` to the `scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.
+Prebuilt human and mouse reference transcriptomes from 10x Genomics can be downloaded with {{scsetup}} by adding `tenx` to the `scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.
 
 Names and specifications for custom references should be listed in the `custom` section of the `scprocess_setup.yaml` file. For each `custom` genome users have to provide the following parameters:
 
@@ -79,7 +83,7 @@ Optional paramater for `tenx` references is:
 * `name` (positional): name of the new `workflowr` project directory.
 * `-w`/`--where` (optional): path to the directory where the new project will be created; defaults to the current working directory
 * `-s`/`--sub` (optional): if provided, creates `data/fastqs` and `data/metadata` subdirectories within the project.
-* `-c`/`--config` (optional): if provided, generates a template configuration YAML file for {{sc}}.
+* `-c`/`--config` (optional): generates a template configuration YAML file. If provided, it must be followed by either `sc` (single-cell) or `sn` (single-nucleus) to define standard QC thresholds. You may also append `multiplex` if your dataset requires demultiplexing.
 
 ## {{scknee}} { #scprocess-plotknee }
 
@@ -135,7 +139,6 @@ This is an example config file for {{sc}} with all parameters and their default 
       tenx_chemistry:
       metadata_vars:
       custom_sample_params:
-      use_gpu:
       exclude:
         sample_id:
         pool_id:
@@ -177,6 +180,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       hvg_chunk_size: 2000
       hvg_metadata_split_var:
     integration:
+      int_use_gpu: true
       int_embedding: harmony
       int_theta: 0.1
       int_batch_var: sample_id
@@ -229,7 +233,6 @@ This is an example config file for {{sc}} with all parameters and their default 
       tenx_chemistry: 3v3
       metadata_vars: [var1, var2]
       custom_sample_params: /path/to/file/with/custom_parameters.yaml
-      use_gpu: true
       exclude:
         sample_id:
           - sample1
@@ -273,6 +276,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       hvg_chunk_size: 2000
       hvg_metadata_split_var: var1
     integration:
+      int_use_gpu: true
       int_embedding: harmony
       int_theta: 0.1
       int_batch_var: sample_id
@@ -361,7 +365,6 @@ sample_id:
       qc_min_counts: 100
 ```
 
-* `use_gpu`: whether to use GPU acceleration for integration and clustering steps. Options are `true` (default) or `false`. GPU acceleration is only available on systems with compatible NVIDIA GPUs and the required CUDA libraries installed.
 * `exclude`: List of all samples that should be excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
 
 ##### multiplexing
@@ -418,8 +421,11 @@ sample_id:
 * `hvg_exclude_ambient_genes`: if `True`, genes enriched in empty droplets relative to cells will be excluded from highly variable genes selection.
 * `hvg_exclude_from_file`: path to CSV file with genes to be excluded from HVGs. Should be absolute or relative to `proj_dir`. File should contain one column, named either `gene_id` or `symbol`. Values in the column should all be present in reference genome.
 * `hvg_chunk_size`: Number of genes to use for each chunked matrix.
+
+
 ##### integration
 
+* `int_use_gpu`: whether to use GPU acceleration for integration and clustering steps. Options are `true` (default) or `false`. GPU acceleration is only available on systems with compatible NVIDIA GPUs and the required CUDA libraries installed.
 * `int_embedding`: which dimensionality reduction method to use for clustering and UMAP, options: `pca` (no batch correction), `harmony` (batch correction). 
 * `int_theta`: theta parameter for `Harmony` integration, controlling batch variable mixing.
 * `int_batch_var`: variable to use for integration with `Harmony`. Default is `sample_id`; if `demux_type` is set to either `hto` or `custom`, then `pool_id` is an alternative option.
@@ -461,7 +467,7 @@ sample_id:
 
 ##### zoom
 
-In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var` and `mkr_custom_genesets`.
+In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var` and `mkr_custom_genesets`.
 
 Additional parameters include:
 

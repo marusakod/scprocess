@@ -28,7 +28,7 @@ rule run_integration:
     int_use_paga    = config['integration']['int_use_paga'],
     int_paga_cl_res = config['integration']['int_paga_cl_res'],
     int_res_ls      = config['integration']['int_res_ls'],
-    use_gpu         = config['project']['use_gpu']
+    use_gpu         = config['integration']['int_use_gpu']
   threads: 1
   retries: config['resources']['retries'] 
   resources:

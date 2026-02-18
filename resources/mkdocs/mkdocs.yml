@@ -78,5 +78,7 @@ markdown_extensions:
 extra_css:
   - stylesheets/extra.css
 plugins:
+  - bibtex:
+      bib_file: "docs/refs.bib"
   - search
   - macros

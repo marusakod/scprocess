@@ -13,6 +13,7 @@ from setup import get_af_index_parameters
 # get parameters
 SCDATA_DIR    = os.getenv('SCPROCESS_DATA_DIR')
 IDX_PARAMS_LS = get_af_index_parameters(config) 
+RANGER_URL    = config['cellranger_url']
 REF_TXOMES    = list(IDX_PARAMS_LS.keys())
 
 # define simpleaf index files
@@ -41,13 +42,20 @@ rule all:
     # rule download scprocess repo data
     f'{SCDATA_DIR}/marker_genes/human_brain.csv',
     f'{SCDATA_DIR}/marker_genes/mouse_brain.csv',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_barcode_whitelist_3LT.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_barcode_whitelist_3v2_5v1_5v2.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_barcode_whitelist_3v3.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_barcode_whitelist_multiome_gex.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_barcode_whitelist_3v4.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_barcode_whitelist_5v3.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3LT.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v2_5v1_5v2.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v3.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v4.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_5v3.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_multiome_gex.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3LT.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3v3.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3v4.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3LT.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3v3.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3v4.txt',
     f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelists.csv',
+    f'{SCDATA_DIR}/cellranger_ref/.cellranger_version',
     f'{SCDATA_DIR}/gmt_pathways/c1.all.v2023.1.Hs.symbols.gmt',
     f'{SCDATA_DIR}/gmt_pathways/c2.all.v2023.1.Hs.symbols.gmt',
     f'{SCDATA_DIR}/gmt_pathways/c2.cp.biocarta.v2023.1.Hs.symbols.gmt',
@@ -83,13 +91,20 @@ rule download_scprocess_files:
   output:
     brain_mkrs_hsa   = f'{SCDATA_DIR}/marker_genes/human_brain.csv',
     brain_mkrs_mmu   = f'{SCDATA_DIR}/marker_genes/mouse_brain.csv',
-    wl_3lt           = f'{SCDATA_DIR}/cellranger_ref/cellranger_barcode_whitelist_3LT.txt',
-    wl_3v2_5v1_5v2   = f'{SCDATA_DIR}/cellranger_ref/cellranger_barcode_whitelist_3v2_5v1_5v2.txt',
-    wl_3v3           = f'{SCDATA_DIR}/cellranger_ref/cellranger_barcode_whitelist_3v3.txt',
-    wl_3v4	         = f'{SCDATA_DIR}/cellranger_ref/cellranger_barcode_whitelist_3v4.txt',
-    wl_5v3	         = f'{SCDATA_DIR}/cellranger_ref/cellranger_barcode_whitelist_5v3.txt',
-    wl_multiome      = f'{SCDATA_DIR}/cellranger_ref/cellranger_barcode_whitelist_multiome_gex.txt',
+    wl_3lt           = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3LT.txt',
+    wl_3v2_5v1_5v2   = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v2_5v1_5v2.txt',
+    wl_3v3           = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v3.txt',
+    wl_3v4	         = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v4.txt',
+    wl_5v3	         = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_5v3.txt',
+    wl_multiome      = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_multiome_gex.txt',
+    wl_hto_3lt       = f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3LT.txt',
+    wl_hto_3v3       = f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3v3.txt',
+    wl_hto_3v4	     = f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3v4.txt',
+    wl_translation_3lt =  f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3LT.txt',
+    wl_translation_3v3 =  f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3v3.txt',
+    wl_translation_3v4 =  f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3v4.txt',
     all_wl           = f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelists.csv',
+    cr_version       = f'{SCDATA_DIR}/cellranger_ref/.cellranger_version', 
     gmt_f_1          = f'{SCDATA_DIR}/gmt_pathways/c1.all.v2023.1.Hs.symbols.gmt',
     gmt_f_2          = f'{SCDATA_DIR}/gmt_pathways/c2.all.v2023.1.Hs.symbols.gmt',
     gmt_f_3          = f'{SCDATA_DIR}/gmt_pathways/c2.cp.biocarta.v2023.1.Hs.symbols.gmt',
@@ -112,11 +127,17 @@ rule download_scprocess_files:
     gmt_f_20         = f'{SCDATA_DIR}/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt',
     xgb_csv_f        = f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv',
     xgb_rds_f        = f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds'
+  params: 
+    ranger_version   = config['cellranger_version']
   conda:
     '../envs/py_env.yaml'
   threads: 1
   shell: """
-    python3 scripts/setup.py get_scprocess_data {SCDATA_DIR}
+    python3 scripts/setup.py get_scprocess_data \
+      "{SCDATA_DIR}" \
+      "{RANGER_URL}" \
+      "{output.all_wl}" \
+      "{output.cr_version}"
     """
 
 
