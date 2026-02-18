@@ -6,17 +6,18 @@
 
 **Parameters**:
 
-* `-c`/`--rangerurl`:  download link for Cellranger (v9.0.0 or higher) available on the [10x Genomics CellRanger download & installation page](https://www.10xgenomics.com/support/software/cell-ranger/downloads/previous-versions); only required when running the command for the first time.
+* `-c`/`--rangerurl`:  download link for Cell Ranger (v9.0.0 or higher) available on the [10x Genomics CellRanger download & installation page](https://www.10xgenomics.com/support/software/cell-ranger/downloads/previous-versions); only required when running the command for the first time.
 
+### configuration file
 
-The command requires a configuration file named `scprocess_setup.yaml` located in {{sc}} data directory (for instructions on how to set up the {{sc}} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, the user can specify parameters that are used across all {{sc}} projects, such as HPC configuration and reference genomes that will be made available for {{sc}}. For example:
+The command requires a configuration file named `scprocess_setup.yaml` located in {{sc}} data directory (for instructions on how to set up the {{sc}} data directory see the [Getting started](setup.md#scprocess-data-directory-setup) section). In this file, the user can specify parameters that are used across all {{sc}} projects, such as HPC configuration and reference genomes that will be made available for {{sc}}.For example:
 
 ```yaml
 user:
-  profile:        slurm_default
+  profile:        slurm_default # define local_cores instead if running locally
   your_name:      Testy McUser
   affiliation:    Unemployed
-  int_use_gpu:    true
+  int_use_gpu:    false
 arvados:
   arv_instance:   instance_name
 ref_txomes:
@@ -36,17 +37,19 @@ ref_txomes:
       mito_str:   "^MT-"
 ```
 
-* `profile`: the name of the HPC profile to be used by `snakemake`. This must correspond to one of the subfolders in the _profiles_ folder, and it must contain a file called `config.yaml`. Exactly one of `profile` and `local_cores` should be specified.
+##### user
+
+* `profile`: the name of the HPC profile to be used by `Snakemake`. Must correspond to the name of one of the subfolders in the _profiles_ folder. This subfolder must contain a file called `config.yaml`. Exactly one of `profile` and `local_cores` should be specified.
 * `local_cores`: number of CPU cores available for local execution (see [Snakemake documentation](https://snakemake.readthedocs.io/en/v9.8.0/executing/cli.html) for more details). Exactly one of `profile` and `local_cores` should be specified.
+* `your_name` (optional): author's name. If specified it will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
+* `affiliation` (optional): author's affiliation. If specified it will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
+* `int_use_gpu` (optional): whether to use GPU acceleratio (`RAPIDS-singlecell`) for integration and clustering steps. If `false` the value will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
 
-In the `user` section, users can optionally define:
+##### arvados
 
-* `your_name`: your name, which will be shown at the top of html outputs
-* `affiliation`: your affiliation, which will be shown at the top of html outputs
-* `int_use_gpu`: whether to use GPU acceleration for integration and clustering steps. Options are `true` (default) or `false`. This value will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
+* `arv_instance` (optional): the name of the default `arvados` instance for the user. If specified it will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
 
-The optional `arvados` section allows users to set up access to instances of the cloud storage environment `arvados`. If specified, users must include the entry:
-* `arv_instance`: the name of the default `arvados` instance for the user; this can be overridden by a project-level `arvados` instance defined in the project _config.yaml_.
+##### ref_txomes
 
 Prebuilt human and mouse reference transcriptomes from 10x Genomics can be downloaded with {{scsetup}} by adding `tenx` to the `scprocess_setup.yaml` file. Valid values for names are `human_2024`, `mouse_2024`, `human_2020`, `mouse_2020`.
 
@@ -54,7 +57,7 @@ Names and specifications for custom references should be listed in the `custom` 
 
 * `name`: name to be used for the reference
 * `fasta`: path to FASTA file
-* `gtf`: path to GTF file [(specific format?)]
+* `gtf`: path to GTF file
 * `mito_str`: regular expression used to identify genes in the mitochondial genome (example for mouse: `"^mt-"`)
 
 Optional parameters for both `tenx` and `custom` references are:
@@ -67,11 +70,11 @@ Optional paramater for `tenx` references is:
 
 !!! note "Impact of custom parameters for `tenx` genomes on `scsetup` runtime"
 
-    When configuring `tenx` genomes with their default values, `scsetup` will download prebuilt indices optimized for `simpleaf`. However, if the default parameters are modified (e.g., setting `rrnas` or `decoys` to `False`), `scsetup` will build the indices from scratch during execution, which will increase the runtime.
+    When configuring `tenx` genomes with their default values, {{scsetup}} will download prebuilt indices optimized for `simpleaf`. However, if the default parameters are modified (e.g., setting `rrnas` or `decoys` to `false`), {{scsetup}} will build the indices from scratch during execution, which will increase the runtime.
 
 
 !!! info "More about decoys"
-    {{sc}} utilizes `simpleaf`, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter in `scsetup` is set to `True`. This option allows `simpleaf` to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to [Srivastava et al., 2019](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-020-02151-8).
+    {{sc}} utilizes `simpleaf`, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter in `scsetup` is set to `True`. This option allows `simpleaf` to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to Srivastava et al., 2019[@Srivastava2020-jb].
 
 
 ## {{scnew}}
@@ -83,7 +86,7 @@ Optional paramater for `tenx` references is:
 * `name` (positional): name of the new `workflowr` project directory.
 * `-w`/`--where` (optional): path to the directory where the new project will be created; defaults to the current working directory
 * `-s`/`--sub` (optional): if provided, creates `data/fastqs` and `data/metadata` subdirectories within the project.
-* `-c`/`--config` (optional): generates a template configuration YAML file. If provided, it must be followed by either `sc` (single-cell) or `sn` (single-nucleus) to define standard QC thresholds. You may also append `multiplex` if your dataset requires demultiplexing.
+* `-c`/`--config` (optional): generates a template configuration YAML file. If provided, it must be followed by either `sc` (single-cell) or `sn` (single-nucleus) to define standard QC thresholds. You can also append `multiplex` if your dataset requires demultiplexing e.g. `scprocess newproj project_name -c sc multiplex`
 
 ## {{scknee}} { #scprocess-plotknee }
 
@@ -91,11 +94,9 @@ Optional paramater for `tenx` references is:
 
 **Parameters**:
 
-Specify either `-k`/`--kneefile` or `-c`/`--configfile`:
-
-* `-k`/`--kneefile`: path to the knee plot data file generated by {{sc}}, e.g. `output/[short_tag]_mapping/af_[sample_id]/knee_plot_data_[sample_id]_[date_stamp].csv.gz`.
-* `-c`/`--configfile`: path to configuration file used for running {{sc}}.
-* `-s`/`--sample`: sample_id corresponding to the barcode-rank curve.
+* `sample`: sample_id corresponding to the barcode-rank curve.
+* `-k`/`--kneefile`: path to the knee plot data file generated by {{sc}}, e.g. `output/[short_tag]_mapping/af_[sample_id]/knee_plot_data_[sample_id]_[date_stamp].csv.gz`. Exactly one of `--kneefile` and `--configfile` should be specified.
+* `-c`/`--configfile`: path to configuration file used for running {{sc}}. Exactly one of `--kneefile` and `--configfile` should be specified.
 
 
 ## {{scrun}}
@@ -105,17 +106,18 @@ Specify either `-k`/`--kneefile` or `-c`/`--configfile`:
 **Parameters**:
 
 * `-n`/`--dry-run`: perform a trial run which lists all steps that {{sc}} would do and does not create any new files. Helpful for checking input files and parameters.
-* `-E`/`--extraagrs`: list of additional arguments to pass to `snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for a detailed explanation of available command-line options.
+* `-E`/`--extraagrs`: list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for a detailed explanation of available command-line options.
 * `-r`/`--rule`: Specifies which rule {{sc}} should run. The options are:
     + `all`: default; includes all [Core pipeline steps](introduction.md#core-pipeline-steps)
-    + `mapping`: read alignment and quantification using `simpleaf`.
+    + `mapping`: read alignment and quantification.
     + `ambient`: ambient RNA removal (optional) and cell calling.
     + `demux`: sample demultiplexing.
     + `qc`: qc filtering.
     + `hvg`: calculation of highly variable genes.
-    + `integration`: dimentionality reduction with PCA and optional batch correction with `Harmony`.
-    + `marker_genes`: marker gene identification.
+    + `integration`: dimentionality reduction with PCA, optional batch correction with `Harmony`, UMAP and clustering.
+    + `marker_genes`: marker gene identification and optional gene set enrichment analysis.
     + `label_celltypes`: cell type annotation using a pre-trained classifier.
+    + `zoom`: subclustering.
 
 
 ### configuration file
@@ -124,7 +126,7 @@ This is an example config file for {{sc}} with all parameters and their default 
 
 === "default values"
 
-    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17"
+    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11"
     project:
       proj_dir:
       fastq_dir:
@@ -136,9 +138,9 @@ This is an example config file for {{sc}} with all parameters and their default 
       date_stamp:
       sample_metadata:
       ref_txome:
-      tenx_chemistry:
       metadata_vars:
       custom_sample_params:
+      tenx_chemistry:
       exclude:
         sample_id:
         pool_id:
@@ -218,7 +220,7 @@ This is an example config file for {{sc}} with all parameters and their default 
 
 === "placeholders"
 
-    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17"
+    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11"
     project:
       proj_dir: /path/to/proj/directory 
       fastq_dir: /path/to/directory/with/fastq/files
@@ -320,15 +322,16 @@ This is an example config file for {{sc}} with all parameters and their default 
 
 ##### project
 
-* `proj_dir`: absolute path to `workflowr` project directory created with the `newproj` function.
-* `fastq_dir`: path to directory containing FASTQ files. Should be absolute or relative to `proj_dir`.
-* `arv_uuids`: instead of specifying `fastq_dir`, you can specify a list of Arvados UUIDs where fastq files are located. Exactly one of `fastq_dir` and `arv_uuids` should be specified.
+* `proj_dir`: absolute path to `workflowr` project directory created with the {{scnew}} function.
+* `fastq_dir`: path to directory containing FASTQ files. Should be absolute or relative to `proj_dir`. Exactly one of `fastq_dir` and `arv_uuids` should be specified.
+* `arv_uuids`: list of Arvados UUIDs where fastq files are located. Exactly one of `fastq_dir` and `arv_uuids` should be specified.
+
 * `full_tag`: full project label, used in output file names.
 * `short_tag`: abbreviated project label, used in output directory names.
 * `your_name`: author’s name, displayed in HTML outputs.
 * `affiliation`: author’s affiliation, displayed in HTML outputs.
 * `date_stamp`: start date of the analysis, formatted as `"YYYY-MM-DD"`.
-* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1` and `_R2`strings and should not be integers.
+* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1`/`.R1` and `_R2`/`.R1` strings and should not overlap (a value should not be a subset of any other values).
 * `ref_txome`: must match one of the values in the `ref_txome` column of `index_parameters.csv` (created by `scprocess setup`).
 
 #### Optional parameters
@@ -337,7 +340,8 @@ This is an example config file for {{sc}} with all parameters and their default 
 
 * `tenx_chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data genertaed with the 10x multiome kit (ATACseq data is not supported).
 * `metadata_vars`: A list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
-* `custom_sample_params`: YAML file with optional custom parameters for each pool or sample (custom `tenx_chemistry`, custom mapping, custom ambient / cellbender and custom qc parameters can be specified for each sample). Example:
+* `exclude`: List of all samples that should be excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
+* `custom_sample_params`: YAML file with optional custom parameters for each pool or sample (custom `tenx_chemistry`, custom `mapping`, custom `ambient` and custom `qc` parameters can be specified for each sample). Example:
 
 ```yaml
 pool_id:
@@ -365,16 +369,14 @@ sample_id:
       qc_min_counts: 100
 ```
 
-* `exclude`: List of all samples that should be excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
-
 ##### multiplexing
 
 * `demux_type`: `demux_type` options (default is `none`):
     + `none` if experiment is not multiplexed;
     + `hto` if demultiplexing of samples should be performed with {{sc}}; or
     + `custom` if demultiplexing results will be used as input to {{sc}}.
-* `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. This entry or `arv_uuids` is required if `demux_type` is `hto`.
-* `arv_uuids`: instead of specifying `fastq_dir` where HTO files are located, you can specify a list of Arvados UUIDs where fastq files are located. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
+* `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
+* `arv_uuids`: list of Arvados UUIDs where fastq files are located. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
 * `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `hto`.
 * `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `negative`. Required if `demux_type` is `custom`.
 * `seurat_quantile`: equivalent to the `positive.quantile` argument of the `Seurat::HTODemux` function (see [Seurat documentation](https://satijalab.org/seurat/reference/htodemux) for more details).

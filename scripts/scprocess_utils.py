@@ -337,6 +337,11 @@ def _check_samples_df(samples_df, config):
   if not config['multiplexing']['demux_type'] == "none":
     if "pool_id" not in samples_df.columns:
       raise KeyError(f"'pool_id' not present in sample metadata file")
+    run_var = 'sample_id'
+    run_ids = samples_df[run_var].to_list()
+  else:
+    run_var = 'pool_id'
+    run_ids = samples_df[run_var].to_list()
 
   # some checks for multiplexing
   if config['multiplexing']['demux_type'] == "hto":
@@ -351,6 +356,9 @@ def _check_samples_df(samples_df, config):
   # check columns of samples_df
   if any(' ' in col for col in samples_df.columns):
     raise ValueError("some column names in metadata csv contain spaces.")
+  
+  # check that sample_ids or pool_ids are not overlapping
+  _check_run_ids(run_ids, run_var)
 
   # sort out metadata variables
   if 'metadata_vars' in config["project"]:
@@ -373,6 +381,26 @@ def _check_samples_df(samples_df, config):
     config['project']['metadata_vars'] = []
 
   return
+
+
+def _check_run_ids(run_ids, run_var):
+  run_overlaps = []
+
+  # compare every sample id to every other sample id
+  for i, run in enumerate(run_ids):
+    for j, other_run in enumerate(run_ids):
+      if i != j and run in other_run:
+        run_overlaps.append((run, other_run))
+
+  # if runs overlap print error
+  if run_overlaps:
+    msg = f"The following {run_var} values are problematic (one is a subset of the other):\n"
+    for run, other_run in run_overlaps:
+      msg += f"  - '{run}' is a subset of '{other_run}'\n"
+    raise ValueError(msg)
+
+  return
+
 
 
 # check parameters for multiplexing

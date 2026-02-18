@@ -6,7 +6,6 @@
 To get all necessary software for running `scprocess` load the Miniforge3 module by running
 
 ```bash
-source /apps/rocs/init.sh 2020.08
 ml Miniforge3
 ```
 
@@ -16,6 +15,11 @@ ml Miniforge3
 
     ```bash
      git clone https://github.com/marusakod/scprocess.git
+    ```
+    or
+    
+    ```bash
+    git clone https://code.roche.com/macnairw/scprocess.git
     ```
 
 2.  Create a Conda environment:
@@ -67,72 +71,54 @@ ml Miniforge3
 
     ```yaml
     user:
-      profile: slurm_shpc # scprocess will run with a job scheduler
-      your_name:    Testy McUser # edit this
-      affiliation:  Unemployed # edit this
-    genomes:
+      profile: slurm_shpc
+    ref_txomes:
       tenx:
       - name: human_2024 
       - name: mouse_2024 
     ```
 
-    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) genomes from 10x Genomics. For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](https://macnairw.pages.roche.com/scprocess/reference)section.
+    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) reference transcriptomes from 10x Genomics.
     
-
-4. Finish setting up the `scprocess` data directory with:
-    ```bash
-    scprocess setup 
+    Optionally you can add parameters which will be used to create a template configuration file using the `scprocess newproj -c` command for example:
+    
+    ```yaml
+    user:
+      profile: slurm_shpc
+      your_name: Testy McUser
+      affiliation: F. Hoffmann-La Roche Ltd.
+    arvados:
+      arv_instance: arkau
+    ref_txomes:
+      tenx:
+      - name: human_2024 
+      - name: mouse_2024 
     ```
+    
+    
+    For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](https://macnairw.pages.roche.com/scprocess/reference/) section.
+
+4. Finish setting up the `scprocess` data directory:
+
+    To download all required data and index reference transcriptomes use the `scprocess setup` command. The first time you run `scprocess setup` you need to specify a `-c`/`--rangerurl` flag and provide a valid download link for Cell Ranger (v9.0.0 or higher) available on the [10x Genomics Cell Ranger download & installation page](https://www.10xgenomics.com/support/software/cell-ranger/downloads/previous-versions) : 
+    
+    ```bash
+    scprocess setup -c "https://cf.10xgenomics.com/releases/cell-exp/cellranger-10.0.0.tar.gz..." 
+    ```
+    Once the inital setup is complete, you do not need to provide the Cell Ranger link again i.e if you modify the _scprocess_setup.yaml_ file to add additional reference genomes, simply run `scprocess setup`.
 
 ## Advanced setup and parameters
 
-### Accessing raw data from arvados
-
 ### Accessing raw data from Arvados
 
-`scprocess` supports raw data stored either in a local directory (defined via the `fastq_dir` parameter) or hosted on **Arvados**. To use Arvados directly, provide a list of collection UUIDs to the `arv_uuids` parameter in your configuration file e.g:
+`scprocess` supports raw data stored either in a local directory (defined via the `fastq_dir` parameter) or hosted on **Arvados**. To use Arvados directly, provide a list of collection UUIDs to the `arv_uuids` parameter as well as the name of the Arvados instance to the `arv_instance` parameter in your configuration file e.g:
 
 ```yaml
 project: 
   arv_uuids: ["arkau-qr8st-1a2b3c4d5e6f7g8", "arkau-9v0wx-h9i8j7k6l5m4n3o", "arkau-z2y3x-p0q1r2s3t4u5v6w"]
+  arv_instance: arkau
 ```
-    
-To enable Arvados integration, you must [configure your Arvados API credentials](https://pdc.pages.roche.com/docs/service/pdc-home/get-started/arv-setup.html) and initialize the environment before execution:
-    
-```bash
-ml purge
-module load arvados
-arv-env arkau
-module load Miniforge3
-conda activate scprocess
-unset conda 
-```
-
-For convenience, you can add the following helper function to your `~/.bashrc` to automate this setup: 
-
-```bash
-function arv-setup() {
-  # 1. Load modules
-  module load arvados || { echo "Failed to load arvados"; return 1; }
-
-  # 2. Set environment
-  arv-env arkau
-
-  # 3. Load Miniforge
-  module load Miniforge3 || { echo "Failed to load Miniforge3"; return 1; }
-
-  # 4. Activate Conda environment
-  # Using 'source' ensures the shell picks up the environment correctly
-  conda activate scprocess
-
-  unset conda
-
-  echo "Environment 'scprocess' is now active with Arvados tools."
-}
-```
-
-Once added, simply run `arv-setup` in your terminal to prepare your session.
-
+ 
 ### Running Cellbender
 
 The default ambient correction method in `scprocess` is DexontX which doesn't require any additional software. However, if you choose to use CellBender, Apptainer is required.
@@ -149,7 +135,8 @@ Because Apptainer is not available on login nodes, you must execute `scprocess` 
   srun --pty --qos=interactive --partition=interactive_cpu -t 0-24:00 bash -l
 
   # set up environment
-  arv-setup
+  ml Miniforge3
+  conda activate scprocess
 
   # run scprocess
   scprocess run /path/to/config/config-project.yaml

@@ -67,7 +67,7 @@
 
 * #### Cell type labelling
 
-    {{sc}} provides automated cell type annotation of human brain datasets using an `XGBoost` classifier trained on the following dataset: [Transcriptomic diversity of cell types across the adult human brain](https://www.science.org/doi/10.1126/science.add7046). In addition, {{sc}} supports cell type annotation using pre-trained models available through `Celltypist`[@Xu2023-al],[@Dominguez_Conde2022_kd]
+    {{sc}} provides automated cell type annotation of human brain datasets using an `XGBoost` classifier trained adult human whole-brain dataset[@Siletti2023-rb]. In addition, {{sc}} supports cell type annotation using pre-trained models available through `CellTypist`[@Xu2023-al],[@Dominguez_Conde2022_kd]
 
 * #### Subclustering
 
