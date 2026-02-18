@@ -9,6 +9,7 @@ nav:
     - Tutorials: tutorial.md
     - Reference: reference.md
     - Troubleshooting: troubleshooting.md
+    - Citations: citation.md
 theme:
   font:
     text: Helvetica Neue
