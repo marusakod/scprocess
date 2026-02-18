@@ -337,11 +337,11 @@ def _check_samples_df(samples_df, config):
   if not config['multiplexing']['demux_type'] == "none":
     if "pool_id" not in samples_df.columns:
       raise KeyError(f"'pool_id' not present in sample metadata file")
-    run_var = 'sample_id'
-    run_ids = samples_df[run_var].to_list()
-  else:
     run_var = 'pool_id'
-    run_ids = samples_df[run_var].to_list()
+  else:
+    run_var = 'sample_id'
+  
+  run_ids = samples_df[run_var].to_list()
 
   # some checks for multiplexing
   if config['multiplexing']['demux_type'] == "hto":
