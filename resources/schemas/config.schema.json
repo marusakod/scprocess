@@ -33,9 +33,12 @@
           }
         }
       },
+      "dependentRequired": {
+        "arv_uuids": ["arv_instance"]
+      },
       "oneOf": [
         { "required": ["fastq_dir"] },
-        { "required": ["arv_uuids", "arv_instance"] }
+        { "required": ["arv_uuids"] }
       ]
     },
     "multiplexing": {
@@ -404,6 +407,20 @@
             "properties": {"demux_type": {"not": {"const": "none" } } }, "required": ["demux_type"]
           }
         }, "required": ["multiplexing"]
+      }
+    }, 
+    {
+      "if": {
+        "required": ["multiplexing"],
+        "properties": {
+          "multiplexing": { "required": ["arv_uuids"] }
+        }
+      },
+      "then": {
+        "required": ["project"],
+        "properties": {
+          "project": { "required": ["arv_instance"] }
+        }
       }
     }
   ]
