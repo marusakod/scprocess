@@ -11,6 +11,6 @@ default-resources:
   mem_mb: 4096
 set-resources:
   run_integration:
-    runtime: 12h
+    slurm_extra: "'--gpus=1'"
   run_cellbender:
     slurm_extra: "'--gpus=1'"
