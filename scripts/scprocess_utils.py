@@ -341,7 +341,7 @@ def _check_samples_df(samples_df, config):
   else:
     run_var = 'sample_id'
   
-  run_ids = samples_df[run_var].to_list()
+  run_ids = samples_df[run_var].unique().to_list()
 
   # check that runs don't have '_R1/.R1' or '_R2/.R2' in their names 
   forbidden    = ["_R1", "_R2", ".R1", ".R2"]
