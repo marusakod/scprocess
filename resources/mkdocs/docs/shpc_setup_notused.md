@@ -100,6 +100,9 @@ ml Miniforge3
     ```bash
     scprocess setup -c "https://cf.10xgenomics.com/releases/cell-exp/cellranger-10.0.0.tar.gz..." 
     ```
+    
+    Note that {{sc}} only requires barcode whitelists from Cell Ranger, therefore the full Cell Ranger installation will not be retained after the setup process.
+
     Once the inital setup is complete, you do not need to provide the Cell Ranger link again i.e if you modify the _scprocess_setup.yaml_ file to add additional reference genomes, simply run `scprocess setup`.
 
 ## Advanced setup and parameters
