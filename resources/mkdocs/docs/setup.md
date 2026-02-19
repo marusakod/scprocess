@@ -21,7 +21,7 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
 1. Clone the repository:
 
     ```bash
-     git clone git@github.com:marusakod/scprocess.git
+     git clone https://github.com/marusakod/scprocess.git
     ```
   
 2.  Create a Conda environment:
