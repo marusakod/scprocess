@@ -1,8 +1,8 @@
 # How to cite {{sc}}
 
-If you use `scprocess` in your research, please cite [our paper](https://link-to-your-paper.com).
+If you use {{sc}} in your research, please cite [our paper](https://link-to-your-paper.com).
 
-`scprocess` relies on various open-source tools. Please consider citing the specific methods used in your analysis:
+{{sc}} relies on various open-source tools. Please consider citing the specific methods used in your analysis:
 
 | Tool name | Citation |
 | :--- | :--- |

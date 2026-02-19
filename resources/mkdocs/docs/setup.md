@@ -63,7 +63,7 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
     * Activating the {{sc}} Conda environment and checking for help messages:
       ```bash
       conda activate scprocess
-      scprocess -h
+      scprocess
       ```
 
 
