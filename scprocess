@@ -258,7 +258,7 @@ def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
 
 
 # scprocess run
-def run_scprocess( configfile, snakefile, rule, extraargs, doindex):
+def run_scprocess(configfile, snakefile, rule, extraargs, doindex):
   print('doing some checks on inputs')
 
   # housekeeping
@@ -450,7 +450,6 @@ def plot_interactive_knee(config_f, knee_f, sample):
 
 def show_version_and_hpc_info(sc_dir):
   """Display scprocess version and HPC configuration details."""
-  
   # Get version
   version_f   = sc_dir / "VERSION"
   version     = "unknown"
@@ -504,16 +503,16 @@ def show_version_and_hpc_info(sc_dir):
     print("\nReference genomes:")
     
     # Display reference genomes
-    if setup_cfg.get('genomes'):
-      genomes = setup_cfg['genomes']
-      if genomes.get('tenx'):
+    if setup_cfg.get('ref_txomes'):
+      ref_txomes = setup_cfg['ref_txomes']
+      if ref_txomes.get('tenx'):
         print(f"  10x:")
-        for genome in genomes['tenx']:
-          print(f"    - {genome['name']}")
-      if genomes.get('custom'):
+        for ref_txomes in ref_txomes['tenx']:
+          print(f"    - {ref_txomes['name']}")
+      if ref_txomes.get('custom'):
         print(f"  custom:")
-        for genome in genomes['custom']:
-          print(f"    - {genome['name']}")
+        for ref_txomes in ref_txomes['custom']:
+          print(f"    - {ref_txomes['name']}")
     
   except Exception as e:
     print(f"\nWarning: Could not read HPC configuration: {e}")
