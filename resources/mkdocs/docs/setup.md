@@ -7,7 +7,7 @@
 
 {{sc}} is designed to run on Linux-based high-performance computing (HPC) clusters but can also be used on powerful standalone workstations.
 
-For users intending to perform ambient RNA correction with `CellBender` or the integration step using `RAPIDS-singlecell`, access to GPU with CUDA support is required.
+For users intending to perform ambient RNA correction with `CellBender`[@Fleming2023-cx] or the integration step using `RAPIDS-singlecell`[@Nolet2022-be], access to GPU with CUDA support is required.
 
 ### Software
 
