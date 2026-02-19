@@ -22,6 +22,8 @@ hide:
 
 * If you get stuck, see the [Troubleshooting](troubleshooting.md) section. 
 
+* For how to cite {{sc}}, see the [Citations](citation.md) section. 
+
 
 
 

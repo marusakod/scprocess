@@ -16,11 +16,6 @@ ml Miniforge3
     ```bash
      git clone https://github.com/marusakod/scprocess.git
     ```
-    or
-    
-    ```bash
-    git clone https://code.roche.com/macnairw/scprocess.git
-    ```
 
 2.  Create a Conda environment:
     
@@ -48,7 +43,7 @@ ml Miniforge3
     * Activating the `scprocess` Conda environment and checking for help messages:
       ```bash
       conda activate scprocess
-      scprocess -h
+      scprocess
       ```
 
 ## `scprocess` data directory setup

@@ -156,7 +156,7 @@ scprocess run config-test_project.yaml
     
     Modifying the default `mouse_2024` reference transcriptome settings in `scprocess_setup.yaml` may cause your {{sc}} outputs to differ slightly from the results in this tutorial. Furthermore, if `int_use_gpu` is `false` or a GPU is unavailable, Scanpy will be used for integration instead of RAPIDS-singlecell, which was used for generate results shown on this page.
 
-{{sc}} supports cell type annotation using various pretrained models. In this tutorial we will use the mouse whole brain classifier provided by CellTypist. To specify the annotation model, add the highlighed lines to your configuration file:
+{{sc}} supports cell type annotation using various pretrained models. In this tutorial we will use the mouse whole brain classifier provided by CellTypist [@Xu2023-al],[@Dominguez_Conde2022_kd]. To specify the annotation model, add the highlighed lines to your configuration file:
 
 ```yaml hl_lines="18 19 20"
 project:

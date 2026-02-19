@@ -7,7 +7,7 @@
 
 {{sc}} is designed to run on Linux-based high-performance computing (HPC) clusters but can also be used on powerful standalone workstations.
 
-For users intending to perform ambient RNA correction with `CellBender` or the integration step using `RAPIDS-singlecell`, access to GPU with CUDA support is required.
+For users intending to perform ambient RNA correction with `CellBender`[@Fleming2023-cx] or the integration step using `RAPIDS-singlecell`[@Nolet2022-be], access to GPU with CUDA support is required.
 
 ### Software
 
@@ -21,7 +21,7 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
 1. Clone the repository:
 
     ```bash
-     git clone git@github.com:marusakod/scprocess.git
+     git clone https://github.com/marusakod/scprocess.git
     ```
   
 2.  Create a Conda environment:
@@ -63,7 +63,7 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
     * Activating the {{sc}} Conda environment and checking for help messages:
       ```bash
       conda activate scprocess
-      scprocess -h
+      scprocess
       ```
 
 

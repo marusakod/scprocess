@@ -13,7 +13,7 @@ Assuming the required hardware is available, all software is installed and you h
 
 ### 1. Prepare project directory
 
-{{sc}} relies on the `workflowr` [@Blischak2019-jj] project directory template. You can create a new `workflowr` project using {{scnew}}, as follows:
+{{sc}} relies on the `workflowr`[@Blischak2019-jj] project directory template. You can create a new `workflowr` project using {{scnew}}, as follows:
 
 ```bash
 # create a new project in the current directory, with subdirectories for FASTQ and metadata files, and a default config file
@@ -62,7 +62,7 @@ If you want to run a dry run you can add a `-n` or `--dry-run` flag to this comm
 scprocess run /path/to/config-my_project.yaml -E " --max-threads 8 "
 ```
 
-By default {{scrun}} will run rule `all` which includes all [core steps](introduction.md#core-pipeline-steps). The [optional steps](introduction.md#optional-steps) (with the exception of GSEA) can run only after rule `all` is completed and have to be specifically requested.
+By default {{scrun}} will run rule `all` which includes all [core steps](introduction.md#core-pipeline-steps). The [optional steps](introduction.md#optional-steps) (with the exception of gene set enrichment analysis) can run only after rule `all` is completed and have to be specifically requested.
 
 Additionally, you can run individual rules that generate HTML outputs (`mapping`, `ambient`, `demux`, `qc`, `hvg`, `integration`, `marker_genes`). This is useful if you want to inspect the HTML outputs for the intermediate steps first and then continue with the analysis. To run each rule separately you have to specify the rule using the `-r` or `--rule` flag e.g.
 
@@ -99,7 +99,7 @@ Processing multiplexed samples requires a different format for the sample metada
 
 {{sc}} offers two approaches to integration of multiplexed samples, defined by `int_batch_var` in the `integration` section of the configuration file. The two possibilities are:
 
-* Batch correction performed with `sample_id` as a batch variable: this is the default/standard approach which relies on `Seurat HTODemux` for accurate cell-to-sample assignment and doublet identification. If selected, any cells flagged as doublets by either `scDblFinder` or `Seurat HTODemux` are excluded from the analysis.
+* Batch correction performed with `sample_id` as a batch variable: this is the default/standard approach which relies on `Seurat HTODemux`[@Stoeckius2018-os] for accurate cell-to-sample assignment and doublet identification. If selected, any cells flagged as doublets by either `scDblFinder`[@Germain2021-iv] or `Seurat HTODemux` are excluded from the analysis.
 
 * Batch correction performed with `pool_id` as a batch variable: This approach might be preferred if a significant proportion of cells cannot be confidently demultiplexed, which may point to technical issues with sample multiplexing rather than poor cell quality. If selected, unassigned cells are retained when integrating and defining clusters with the aim to improve clustering results. Doublet calls from `Seurat HTODemux` are ignored.
 
@@ -111,7 +111,7 @@ The default parameters in the configuration file are suitable for running {{sc}}
 
 #### Ambient method
 
-By default {{sc}} will use `DecontX` for ambient RNA removal, which doesn't require GPU. If a GPU is available, we recommend using `CellBender` for ambient RNA decontamination as it was found to perform better than other related algorithms in a recent benchmark [@Janssen2023-te].
+By default {{sc}} will use `DecontX`[@Yang2020-zz] for ambient RNA removal, which doesn't require GPU. If a GPU is available, we recommend using `CellBender`[@Fleming2023-cx] for ambient RNA decontamination as it was found to perform better than other related algorithms in a recent benchmark [@Janssen2023-te].
 
 #### Knee parameters
 
