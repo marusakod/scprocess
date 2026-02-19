@@ -30,6 +30,7 @@ jobs:
         with:
           python-version: '3.9'
           cache: 'pip' 
+          cache-dependency-path: 'resources/mkdocs/mkdocs_reqs.txt'
 
       - name: Install dependencies
         run: pip install -r resources/mkdocs/mkdocs_reqs.txt
