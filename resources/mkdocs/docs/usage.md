@@ -17,7 +17,8 @@ Assuming the required hardware is available, all software is installed and you h
 
 ```bash
 # create a new project in the current directory, with subdirectories for FASTQ and metadata files, and a default config file
-scprocess newproj my_project -c -s
+# use the -c flag with the sc option if you have single cell data or the sn option if you have single nuclei data
+scprocess newproj my_project -c sc
 ```
 
 ### 2. Prepare input files

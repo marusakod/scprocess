@@ -802,6 +802,8 @@ def get_run_parameters(config, scprocess_data_dir):
   # get fastq files
   RNA_FQS     = _get_fastqs(config, RUNS, is_hto = False)
   RUNS        = list(RNA_FQS.keys())
+  if len(RUNS) == 0:
+    raise ValueError("no runs with FASTQs")
 
   # get HTO files
   HTO_FQS     = {}
