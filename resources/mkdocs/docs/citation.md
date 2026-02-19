@@ -13,8 +13,10 @@ If you use `scprocess` in your research, please cite [our paper](https://link-to
 | [edgeR](https://bioconductor.org/packages/edgeR) | @Robinson2010-qz <br><br> @Chen2025-jo |
 | [fgsea](https://bioconductor.org/packages/fgsea) | @Korotkevich2016-od |
 | [Harmony](https://github.com/immunogenomics/harmony) | @Korsunsky2019-rk |
-| [RAPIDS-singlecell](https://github.com/quasiben/rapids-singlecell) | @Nolet2022-be |
-| [SampleQC](https://github.com/m-macnair/SampleQC) | @Macnair2023-ir |
+| [PAGA](https://github.com/theislab/paga) | @Wolf2019-lw |
+| [RAPIDS-singlecell](https://rapids-singlecell.readthedocs.io/en/latest/) | @Nolet2022-be |
+| [SampleQC](https://github.com/wmacnair/SampleQC) | @Macnair2023-ir |
 | [Scanpy](https://scanpy.readthedocs.io/) | @Wolf2018-lf |
 | [scDblFinder](https://bioconductor.org/packages/scDblFinder) | @Germain2021-iv |
+| [Seurat](https://satijalab.org/seurat/) | @Hao2024-ei <br><br> @Hao2021-dy <br><br> @Stuart2019-pv <br><br> @Butler2018-ay <br><br> @Satija2015-gr |
 | [simpleaf](https://simpleaf.readthedocs.io/) | @He2023-fx |

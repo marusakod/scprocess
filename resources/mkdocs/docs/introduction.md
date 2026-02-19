@@ -48,7 +48,7 @@
 
 * #### Integration
     
-    After identifying highly variable genes, {{sc}} proceeds with dimentionality reduction and clustering. In multi-sample analysis, various factors can introduce batch effects that obscure true biological signals. To mitigate this, {{sc}} offers the option to compute batch-corrected PCA embeddings using `Harmony`[@Korsunsky2019-rk]. This ensures that clustering and downstream analyses reflect true biological relationships rather than technical variation. To perform the integration step users can choose between a standard `Scanpy`-based workflow [@Wolf2018-lf] or a workflow with equivalent functionality using `RAPIDS-singlecell`. The latter laverages GPU acceleration to achieve massive performance boosts, particularly for clustering and UMAP [@Dicks2023-gx],[@Nolet2022-be].
+    After identifying highly variable genes, {{sc}} proceeds with dimentionality reduction and clustering. In multi-sample analysis, various factors can introduce batch effects that obscure true biological signals. To mitigate this, {{sc}} offers the option to compute batch-corrected PCA embeddings using `Harmony`[@Korsunsky2019-rk]. This ensures that clustering and downstream analyses reflect true biological relationships rather than technical variation. To perform the integration step users can choose between a standard `Scanpy`-based workflow [@Wolf2018-lf] or a workflow with equivalent functionality using `RAPIDS-singlecell`. The latter laverages GPU acceleration to achieve massive performance boosts, particularly for clustering and UMAP [@Dicks2023-gx],[@Nolet2022-be]. Additionally, users can optionally run partition-based graph abstraction (PAGA)[@Wolf2019-lw] within the integration step.
 
 * #### Marker gene identification
     
