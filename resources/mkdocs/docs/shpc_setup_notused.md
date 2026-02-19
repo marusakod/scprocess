@@ -1,5 +1,5 @@
 
-# How to set up `scprocess` on sHPC
+# Setting up `scprocess` on sHPC
 
 ## First steps
 
@@ -14,7 +14,7 @@ ml Miniforge3
 1. Clone the repository:
 
     ```bash
-     git clone https://github.com/marusakod/scprocess.git
+    git clone https://github.com/marusakod/scprocess.git
     ```
 
 2.  Create a Conda environment:
@@ -91,7 +91,7 @@ ml Miniforge3
     ```
     
     
-    For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](https://macnairw.pages.roche.com/scprocess/reference/) section.
+    For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](https://marusakod.github.io/scprocess/reference/) section.
 
 4. Finish setting up the `scprocess` data directory:
 
@@ -105,9 +105,13 @@ ml Miniforge3
 
     Once the inital setup is complete, you do not need to provide the Cell Ranger link again i.e if you modify the _scprocess_setup.yaml_ file to add additional reference genomes, simply run `scprocess setup`.
 
-## Advanced setup and parameters
+# Using `scprocess`
 
-### Accessing raw data from Arvados
+If you are using scprocess for the first time, we recommend working through the [Tutorials](https://marusakod.github.io/scprocess/tutorials/) and [Usage](https://marusakod.github.io/scprocess/usage/) sections of the documentation. For a detailed explanation of all parameters, please refer to the [Reference](https://marusakod.github.io/scprocess/reference/) page.
+
+# sHPC-specific usage notes
+
+## Accessing raw data from Arvados
 
 `scprocess` supports raw data stored either in a local directory (defined via the `fastq_dir` parameter) or hosted on **Arvados**. To use Arvados directly, provide a list of collection UUIDs to the `arv_uuids` parameter as well as the name of the Arvados instance to the `arv_instance` parameter in your configuration file e.g:
 
@@ -117,7 +121,7 @@ project:
   arv_instance: arkau
 ```
  
-### Running Cellbender
+## Running Cellbender
 
 The default ambient correction method in `scprocess` is DexontX which doesn't require any additional software. However, if you choose to use CellBender, Apptainer is required.
 
