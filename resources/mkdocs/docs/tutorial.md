@@ -366,7 +366,7 @@ The configuration file template `config-test_multiplexed_project.yaml` was creat
 
 ```yaml
 project:
-  proj_dir: /absolute/path/to/test_multiplexed_project
+  proj_dir: /absolute/path/to/test_multiplexed_project # replace with correct absolute path 
   fastq_dir: data/fastqs
   full_tag: test_multiplexed_project
   short_tag:
@@ -386,10 +386,10 @@ qc:
 
 In addition to setting the parameters already present in the template configuration file, we must also define additional parameters specific to the multiplexed nature of the dataset. These key parameters are highlighted below:
 
-```yaml hl_lines="11 12 13 14"
+```yaml hl_lines="3 11 12 13 14"
 project:
   proj_dir: /absolute/path/to/test_multiplexed_project
-  fastq_dir: data/fastqs/rna
+  fastq_dir: data/fastqs/rna 
   full_tag: test_multiplexed_project
   short_tag: test
   your_name: Testy McUser
