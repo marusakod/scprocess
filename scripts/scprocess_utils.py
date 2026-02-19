@@ -791,7 +791,7 @@ def get_run_parameters(config, scprocess_data_dir):
   # move to another function
   metadata_f  = config["project"]["sample_metadata"]
   samples_df  = pl.read_csv( metadata_f )
-  RUNS        = samples_df[ RUN_VAR ].drop_nulls().to_list()
+  RUNS        = samples_df[ RUN_VAR ].drop_nulls().unique().to_list()
 
   # get any custom parameters
   custom_run_params = _get_custom_parameters(config, RUN_VAR)
@@ -802,6 +802,8 @@ def get_run_parameters(config, scprocess_data_dir):
   # get fastq files
   RNA_FQS     = _get_fastqs(config, RUNS, is_hto = False)
   RUNS        = list(RNA_FQS.keys())
+  if len(RUNS) == 0:
+    raise ValueError("no runs with FASTQs")
 
   # get HTO files
   HTO_FQS     = {}
