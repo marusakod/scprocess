@@ -60,7 +60,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     assert_that(all(req_names %in% add_args_names))
     
     if (add_args[['ambient_method']] != "none") {
-      plot_removed_title = "## How many reads were removed as ambient?"
+      plot_removed_title = "## How many reads were removed as ambient?{.tabset}"
       plot_removed_txt = "Plots show what proportion of reads were removed from all barcodes called as cells."
       spl_umis_pl_txt = paste0("The plots show the relationship between the number of UMIs and the percentage of spliced reads, ", 
         "separated by sample, both before and after ambient RNA removal. Ambient RNA is typically characterized by a high proportion of spliced reads, ", 
