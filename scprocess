@@ -24,8 +24,8 @@ import scprocess_utils
 
 
 def _clean_conda_env():
-  """Return a copy of os.environ with CONDA_EXE removed and the conda
-  bash function unset, so snakemake manages conda from a clean state.
+  """Return a copy of os.environ without few conda related variables
+  to minimize conda related clashes. 
   """
   env = os.environ.copy()
   env.pop("CONDA_EXE", None)
@@ -34,10 +34,7 @@ def _clean_conda_env():
   for key in list(env.keys()):
     if key.startswith("BASH_FUNC_conda"):
       del env[key]
-
-  # Unset the conda bash function in the current shell session
-  subprocess.run(["bash", "-c", "unset -f conda 2>/dev/null; true"])
-
+  
   return env
 
 
