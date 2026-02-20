@@ -71,6 +71,12 @@ Additionally, you can run individual rules that generate HTML outputs (`mapping`
 scprocess run /path/to/config.yaml -r qc
 ```
 
+To pre-build all conda environments without running any rules, use the `--create-envs` flag:
+
+```bash
+scprocess run /path/to/config-my_project.yaml --create-envs
+```
+
 ## Analysis of multiplexed samples
 
 {{sc}} supports two approaches for handling multiplexed samples:

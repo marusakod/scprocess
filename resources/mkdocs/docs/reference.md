@@ -106,6 +106,7 @@ Optional paramater for `tenx` references is:
 **Parameters**:
 
 * `-n`/`--dry-run`: perform a trial run which lists all steps that {{sc}} would do and does not create any new files. Helpful for checking input files and parameters.
+* `--create-envs`: only create the conda environments needed for the workflow, without running any rules.
 * `-E`/`--extraagrs`: list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for a detailed explanation of available command-line options.
 * `-r`/`--rule`: Specifies which rule {{sc}} should run. The options are:
     + `all`: default; includes all [Core pipeline steps](introduction.md#core-pipeline-steps)

@@ -56,7 +56,7 @@ def check_setup_before_running_scprocess(scprocess_dir, extraargs):
     extraargs.append(str(profile_dir))
   else:
     extraargs.append('--cores')
-    extraargs.appemd(str(setup_cfg['user']['local_cores']))
+    extraargs.append(str(setup_cfg['user']['local_cores']))
 
   return scdata_dir, extraargs
 
