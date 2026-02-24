@@ -825,6 +825,7 @@ def _get_fastqs(config, RUNS, is_hto = False):
   # get place to look for fastq files
   if is_hto:
     tmp_ls      = config['multiplexing']
+    tmp_ls['arv_instance'] = config['project'].get('arv_instance', [])
   else:
     tmp_ls      = config['project']
 
