@@ -16,6 +16,8 @@ import shlex
 import filecmp
 from pathlib import Path
 import shutil
+import datetime
+import shlex
 
 # import scprocess functions
 scprocess_dir  = os.path.dirname(__file__)
@@ -91,6 +93,9 @@ def run_setup(scprocess_dir, snakefile, ranger_url, extraargs):
   cmd_str = " ".join(map(str, cmd_list))
   print(f"running command:\n{cmd_str}")
   subprocess.run( cmd_list, check = True )
+
+  # make version file
+  #_render_version(scdata_dir, setup_f)
 
 
 # scprocess newproj
@@ -258,7 +263,7 @@ def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
 
 
 # scprocess run
-def run_scprocess(configfile, snakefile, rule, extraargs, doindex):
+def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   print('doing some checks on inputs')
 
   # housekeeping
@@ -277,6 +282,14 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex):
   if not schema_f.is_file():
     raise FileNotFoundError("schema file not found")
   config        = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
+
+
+  # define master log file
+  log_f, log_header = _get_main_log(config_path, config, dryrun)
+
+  # Write the header to the file immediately
+  with open(log_f, "w") as f:
+    f.write(log_header)
 
   # get lists of parameters
   RUN_PARAMS, _       = scprocess_utils.get_run_parameters(config, scdata_dir)
@@ -299,14 +312,22 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex):
     "--snakefile", str(snakefile),
     "--configfile", str(config_path),
     "--config", f"scprocess_dir={str(scprocess_dir)}",
-    "--rerun-triggers", "mtime", "params", "--rerun-incomplete", "--verbose",
+    "--rerun-triggers", "mtime", "params", "--rerun-incomplete",
+    "--show-failed-logs", "--printshellcmds", 
     "--software-deployment-method", "conda",
     "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{config['project']['proj_dir']}",
     *extraargs,
     rule]
-  cmd_str = " ".join(map(str, cmd_list))
+  
+  cmd_str      = " ".join(map(shlex.quote, map(str, cmd_list)))
+  safe_cmd     = shlex.quote(cmd_str)
+  strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
+  final_cmd    = f"script -q -e -c {shlex.quote(cmd_str)} /dev/null | tee /dev/stderr | {strip_colors} >> {log_f}"
+
   print(f"snakemake command:\n{cmd_str}")
-  subprocess.run( cmd_list )
+  print(f"Logging progress to: {log_f}")
+  subprocess.run(final_cmd, shell=True)
+  
 
   # render index if requested
   if doindex:
@@ -358,6 +379,34 @@ def _render_index(scprocess_dir, config):
   ]
   return subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+
+def _get_main_log(config_path, config, dryrun):
+  
+  # get project directory and time stamp
+  proj_dir    = pathlib.Path(config['project']['proj_dir'])
+  log_dir     = proj_dir / ".log"
+  os.makedirs(log_dir, exist_ok=True)
+  timestamp   = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+  # get log file name
+  log_f       = 'scprocess_dry_run.log' if dryrun else f"scprocess_run_{timestamp}.log"
+  log_full_f  = log_dir /  log_f
+  
+  # get git tag
+  git_version = subprocess.check_output(
+    ["git", "describe", "--tags", "--always", "--dirty"],
+    stderr=subprocess.DEVNULL
+  ).decode("utf-8").strip()
+      
+  log_header = (
+      f"\n{'='*60}\n"
+      f"RUN START:    {timestamp}\n"
+      f"GIT VERSION:  {git_version}\n"
+      f"CONFIG:       {config_path}\n"
+      f"{'='*60}\n\n\n\n"
+  )
+
+  return log_full_f, log_header
 
 def _find_env_path_from_yaml(scprocess_dir, source_yaml):
   conda_dir   = scprocess_dir / ".snakemake" / "conda"
@@ -662,7 +711,7 @@ if __name__ == '__main__':
         extraargs.append("-np")
     
     # call bsub thing
-    run_scprocess(args.configfile, snakefile, rule, extraargs, doindex)
+    run_scprocess(args.configfile, snakefile, rule, extraargs, doindex, args.dry_run)
   
   # plot knee for selected sample
   elif args.subcommand == 'plotknee':

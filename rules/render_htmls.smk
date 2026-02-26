@@ -35,6 +35,8 @@ rule render_html_mapping:
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_mapping', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_mapping_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/{SHORT_TAG}_render_htmls/render_html_mapping_{DATE_STAMP}.log'
   conda:
     '../envs/rlibs.yaml'
   shell: """
@@ -64,7 +66,7 @@ rule render_html_mapping:
         run_var         = '{params.run_var}', 
         af_dir          = '{af_dir}', 
         af_rna_dir      = '{af_rna_dir}'
-      )"
+      )" &> {log}
     """
 
 if config['multiplexing']['demux_type'] == "hto":
