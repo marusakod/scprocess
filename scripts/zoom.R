@@ -21,7 +21,7 @@ make_subset_objects <- function(sel_b, batch_var, smpl_stats_f, h5ads_yaml_f,
   if (!(sel_b %in% ok_batches)) {
     message('sample ', sel_b, ' was excluded. Creating empty files')
     if(save_sce) file.create(subset_sce_f)
-    if(save_anndata) file.create(subset_h5ad_f)
+    if(save_adata) file.create(subset_h5ad_f)
     return(NULL)
   }
 
