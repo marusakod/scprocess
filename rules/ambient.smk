@@ -152,10 +152,14 @@ if config['ambient']['ambient_method'] == 'cellbender':
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_cellbender', 'memory', attempt, wildcards.run),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_cellbender', 'time', attempt, wildcards.run)
     benchmark:
-      f'{benchmark_dir}/{SHORT_TAG}_ambient/run_cellbender_{{run}}_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/ambient/run_cellbender_{{run}}_{DATE_STAMP}.benchmark.txt'
+    log: 
+      f'{logs_dir}/ambient/run_cellbender_{{run}}_{DATE_STAMP}.log'
     container:
       config['ambient']['cellbender_image']
     shell: """
+      exec &> {log}
+
       # get parameters for cellbender
       CB_VERSION={params.cb_version}
       EXPECTED_CELLS={params.cb_expected_cells}
@@ -247,10 +251,15 @@ if config['ambient']['ambient_method'] == 'decontx':
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_decontx', 'memory', attempt, wildcards.run),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_decontx', 'time', attempt, wildcards.run)
     benchmark:
-      f'{benchmark_dir}/{SHORT_TAG}_ambient/run_decontx_{{run}}_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/ambient/run_decontx_{{run}}_{DATE_STAMP}.benchmark.txt'
+    log: 
+      f'{logs_dir}/ambient/run_decontx_{{run}}_{DATE_STAMP}.log'
     conda: 
       '../envs/ambientr.yaml'
     shell:"""
+
+      exec &> {log}
+
       # create main ambient directory
       mkdir -p {amb_dir}
 
@@ -305,8 +314,12 @@ if config['ambient']['ambient_method'] == 'none':
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_cell_calling', 'memory', attempt, wildcards.run),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_cell_calling', 'time', attempt, wildcards.run)
     benchmark:
-      f'{benchmark_dir}/{SHORT_TAG}_ambient/run_cell_calling_{{run}}_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/ambient/run_cell_calling_{{run}}_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{log_dir}/ambient/run_cell_calling_{{run}}_{DATE_STAMP}.log'
     shell: """
+      exec &> {log}
+
       # create main ambient directory
       mkdir -p {amb_dir}
 
@@ -354,8 +367,12 @@ rule get_barcode_qc_metrics:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_barcode_qc_metrics', 'memory', attempt, wildcards.run),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_barcode_qc_metrics', 'time', attempt, wildcards.run)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_ambient/get_barcode_qc_metrics_{{run}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/ambient/get_barcode_qc_metrics_{{run}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/ambient/get_barcode_qc_metrics_{{run}}_{DATE_STAMP}.log'
   shell: """
+    exec &> {log}
+
     # save barcode stats
     Rscript -e "source('scripts/ambient.R'); source('scripts/utils.R'); \
       save_barcode_qc_metrics('{input.af_h5_f}', '{input.amb_yaml_f}', \
@@ -374,8 +391,16 @@ rule get_ambient_run_statistics:
     runs        = RUNS,
     run_params  = RUN_PARAMS,
     run_var     = RUN_VAR
+  log:
+    f'{logs_dir}/ambient/get_ambient_run_statistics_{DATE_STAMP}.log'
   run:
-    amb_stats_df = extract_ambient_run_statistics(config, params.runs, 
-      params.run_params, input.metrics_fs, input.amb_yaml_fs, params.run_var)
-    amb_stats_df.write_csv(output.amb_stats_f)
+    import sys
+    with open(str(log), "w") as f:
+      rows = []
+      sys.stdout = f
+      sys.stderr = f
+      
+      amb_stats_df = extract_ambient_run_statistics(config, params.runs, 
+        params.run_params, input.metrics_fs, input.amb_yaml_fs, params.run_var)
+      amb_stats_df.write_csv(output.amb_stats_f)
 

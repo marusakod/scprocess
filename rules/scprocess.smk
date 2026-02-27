@@ -37,7 +37,7 @@ DATE_STAMP      = config['project']['date_stamp']
 
 # specify locations
 benchmark_dir = f"{PROJ_DIR}/.resources"
-logs_dir      = f"{PROJ_DIR}/.logs"
+logs_dir      = f"{PROJ_DIR}/.log"
 code_dir      = f"{PROJ_DIR}/code"
 af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
 af_rna_dir    = 'rna/' if config['multiplexing']['demux_type'] == "hto" else ''

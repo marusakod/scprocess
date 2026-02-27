@@ -51,14 +51,16 @@ def check_setup_before_running_scprocess(scprocess_dir, extraargs):
 
   # add profile or local_cores to snakemake call
   if 'profile' in setup_cfg['user']: 
-    profile_dir   = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
+    profile_dir = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
+    setup_cfg['user']['profile_dir'] = profile_dir
     extraargs.append('--workflow-profile'),
     extraargs.append(str(profile_dir))
+
   else:
     extraargs.append('--cores')
     extraargs.append(str(setup_cfg['user']['local_cores']))
 
-  return scdata_dir, extraargs
+  return scdata_dir, extraargs, setup_cfg
 
 
 def _get_cluster_profile_dir(scprocess_dir, setup_cfg):

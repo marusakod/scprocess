@@ -133,6 +133,8 @@ rule download_scprocess_files:
     '../envs/py_env.yaml'
   threads: 1
   shell: """
+    exec &> {log}
+
     python3 scripts/setup.py get_scprocess_data \
       "{SCDATA_DIR}" \
       "{RANGER_URL}" \
@@ -161,6 +163,8 @@ rule set_up_one_af_index:
     mem_mb = 8192
   threads: 8
   shell: """
+    exec &> {log}
+
     python3 scripts/setup.py set_up_af_index {SCDATA_DIR} {wildcards.ref_txome} \
       {params.fasta} {params.gtf} {params.index_dir} {params.mito_str} \
       {params.is_prebuilt} {params.is_tenx} {params.has_decoys} {params.has_rrna} {threads}
@@ -178,6 +182,8 @@ rule save_index_parameters_csv:
     mem_mb = 512
   threads: 1
   shell: """
+    exec &> {log}
+
     python3 scripts/setup.py save_index_params_csv {output.csv} {input.yamls}
     """
 
@@ -189,6 +195,8 @@ rule download_celltypist_models:
     '../envs/celltypist.yaml'
   threads: 1
   shell:"""
+    exec &> {log}
+    
     # download celltypist models
     python3 scripts/label_celltypes.py download_models {output.models_f}
     """

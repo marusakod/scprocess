@@ -13,6 +13,8 @@ rule make_empty_pb_input_df:
     run_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
   output:
     af_paths_f  = f'{pb_dir}/af_paths_{FULL_TAG}_{DATE_STAMP}.csv'
+  log: 
+    f'{logs_dir}/pb_empties/make_empty_pb_input_df_{DATE_STAMP}.log'
   run:
     # make dataframe with alevin outputs
     df          = pl.DataFrame({
@@ -51,10 +53,14 @@ rule make_one_pb_empty:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_one_pb_empty', 'memory', attempt, wildcards.run),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_one_pb_empty', 'time', attempt, wildcards.run)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_pb_empties/make_one_pb_empty_{{run}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/pb_empties/make_one_pb_empty_{{run}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/pb_empties/make_one_pb_empty_{{run}}_{DATE_STAMP}.log'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
+    exec &> {log}
+
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     make_pb_empty(
       sel_run         = '{wildcards.run}', 
@@ -80,10 +86,14 @@ rule merge_pb_empty:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_pb_empty', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_pb_empty', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_pb_empties/merge_pb_empty_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/pb_empties/merge_pb_empty_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/pb_empties/merge_pb_empty_{DATE_STAMP}.log'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
+    exec &> {log}
+
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     merge_pbs_empty( \
       af_paths_f      = '{input.af_paths_f}', 
@@ -99,19 +109,27 @@ rule make_runs_to_batches_df:
     batch_lu_f  = f'{pb_dir}/runs_to_batches_{FULL_TAG}_{DATE_STAMP}.csv'
   params:
     batches     = RUNS_TO_BATCHES
+  log:
+    f'{logs_dir}/pb_empties/make_runs_to_batches_df_{DATE_STAMP}.log'
   run:
-    # make df
-    lu_ls     = []
-    for r, bs in RUNS_TO_BATCHES.items():
-      lu_tmp    = pl.DataFrame({
-        "run_var":    r,
-        "batch_var":  bs
-      })
-      lu_ls.append(lu_tmp)
-    lu_df     = pl.concat(lu_ls)
+    import sys
+    with open(str(log), "w") as f:
+      rows = []
+      sys.stdout = f
+      sys.stderr = f
+      
+      # make df
+      lu_ls     = []
+      for r, bs in RUNS_TO_BATCHES.items():
+        lu_tmp    = pl.DataFrame({
+          "run_var":    r,
+          "batch_var":  bs
+        })
+        lu_ls.append(lu_tmp)
+      lu_df     = pl.concat(lu_ls)
 
-    # save
-    lu_df.write_csv(output.batch_lu_f)
+      # save
+      lu_df.write_csv(output.batch_lu_f)
 
 
 def get_filt_counts_f(wildcards):
@@ -143,10 +161,14 @@ rule make_one_pb_cells:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_one_pb_cells', 'memory', attempt, wildcards.run),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_one_pb_cells', 'time', attempt, wildcards.run)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_pb_empties/make_one_pb_cells_{{run}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/pb_empties/make_one_pb_cells_{{run}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/pb_empties/make_one_pb_cells_{{run}}_{DATE_STAMP}.log'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
+    exec &> {log}
+
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     make_pb_cells(
       sel_run     = '{wildcards.run}',
@@ -169,16 +191,24 @@ rule make_tmp_pb_cells_df:
   params:
     run_var     = RUN_VAR,
     runs        = RUNS
+  log:
+    f'{logs_dir}/pb_empties/make_tmp_pb_cells_df_{DATE_STAMP}.log'
   run:
-    # make df
-    paths_df    = pl.DataFrame({
-      params.run_var: params.runs,
-      "pb_path":      input.pb_cells_fs
-    })
-    paths_df    = paths_df.filter( pl.col("pb_path").map_elements(os.path.getsize, return_dtype=pl.Int64) > 0 )
+    import sys
+    with open(str(log), "w") as f:
+      rows = []
+      sys.stdout = f
+      sys.stderr = f
 
-    # save
-    paths_df.write_csv(output.cells_paths_f)
+      # make df
+      paths_df    = pl.DataFrame({
+        params.run_var: params.runs,
+        "pb_path":      input.pb_cells_fs
+      })
+      paths_df    = paths_df.filter( pl.col("pb_path").map_elements(os.path.getsize, return_dtype=pl.Int64) > 0 )
+
+      # save
+      paths_df.write_csv(output.cells_paths_f)
 
 
 rule merge_pb_cells:
@@ -196,10 +226,14 @@ rule merge_pb_cells:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_pb_cells', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_pb_cells', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_pb_empties/merge_pb_cells_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/pb_empties/merge_pb_cells_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/pb_empties/merge_pb_cells_{DATE_STAMP}.log'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
+    exec &> {log}
+
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     merge_pbs_cells( \
       cells_paths_f = '{input.cells_paths_f}', 
@@ -227,10 +261,14 @@ rule calculate_ambient_genes:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'calculate_ambient_genes', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'calculate_ambient_genes', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_pb_empties/calculate_ambient_genes_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/pb_empties/calculate_ambient_genes_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/pb_empties/calculate_ambient_genes_{DATE_STAMP}.log'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
+    exec &> {log}
+    
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     calc_empty_genes(
       pb_cells_f = '{input.pb_cells_f}',

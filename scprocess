@@ -68,6 +68,7 @@ def run_setup(scprocess_dir, snakefile, ranger_url, extraargs):
   if 'profile_dir' in setup_cfg['user']: 
     extraargs.append('--workflow-profile')
     extraargs.append(str(setup_cfg['user']['profile_dir']))
+  
   else:
     extraargs.append('--cores')
     extraargs.append(str(setup_cfg['user']['local_cores']))
@@ -272,7 +273,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   os.chdir(scprocess_dir)
 
   # do some checks
-  scdata_dir, extraargs = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
+  scdata_dir, extraargs, setup_cfg = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
   lm_f          = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
 
   # get validated config
@@ -283,14 +284,25 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
     raise FileNotFoundError("schema file not found")
   config        = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
 
-
   # define master log file
   log_f, log_header = _get_main_log(config_path, config, dryrun)
-
   # Write the header to the file immediately
   with open(log_f, "w") as f:
     f.write(log_header)
 
+  # change cluster logs directory if executor is slurm
+  if 'profile_dir' in setup_cfg['user']: 
+    profile_f = setup_cfg['user']['profile_dir'] / 'config.yaml'
+    with open(profile_f, "r") as f:
+      profile = yaml.safe_load(f)
+    
+    if profile['executor'] == 'slurm': 
+      proj_dir = Path(config['project']['proj_dir'])
+      cluster_log_dir = proj_dir / '.log/cluster'
+
+      extraargs.append('--slurm-logdir')
+      extraargs.append(str(cluster_log_dir))
+   
   # get lists of parameters
   RUN_PARAMS, _       = scprocess_utils.get_run_parameters(config, scdata_dir)
   RUNS                = list(RUN_PARAMS.keys())
@@ -320,7 +332,6 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
     rule]
   
   cmd_str      = " ".join(map(shlex.quote, map(str, cmd_list)))
-  safe_cmd     = shlex.quote(cmd_str)
   strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
   final_cmd    = f"script -q -e -c {shlex.quote(cmd_str)} /dev/null | tee /dev/stderr | {strip_colors} >> {log_f}"
 
@@ -384,7 +395,7 @@ def _get_main_log(config_path, config, dryrun):
   
   # get project directory and time stamp
   proj_dir    = pathlib.Path(config['project']['proj_dir'])
-  log_dir     = proj_dir / ".log"
+  log_dir     = proj_dir / ".log/scprocess"
   os.makedirs(log_dir, exist_ok=True)
   timestamp   = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
