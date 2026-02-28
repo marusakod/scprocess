@@ -1,12 +1,11 @@
-
 # How to set up `scprocess` on sHPC
 
 ## First steps
 
-To get all necessary software for running `scprocess` load the Miniforge3 module by running
+To get all necessary software for running `scprocess` load the `Micromamba` module by running
 
 ```bash
-ml Miniforge3
+ml Micromamba
 ```
 
 ## Installation
@@ -73,7 +72,7 @@ ml Miniforge3
       - name: mouse_2024 
     ```
 
-    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) reference transcriptomes from 10x Genomics.
+    This will ask the setup process to download and prepare the most recent reference transcriptomes for human and mouse built by 10x Genomics (links: [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA); [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA)). The setup script cript downloads them from the [scprocessData repo](https://github.com/marusakod/scprocessData).
     
     Optionally you can add parameters which will be used to create a template configuration file using the `scprocess newproj -c` command for example:
     
@@ -105,9 +104,13 @@ ml Miniforge3
 
     Once the inital setup is complete, you do not need to provide the Cell Ranger link again i.e if you modify the _scprocess_setup.yaml_ file to add additional reference genomes, simply run `scprocess setup`.
 
-## Advanced setup and parameters
+# Using `scprocess`
 
-### Accessing raw data from Arvados
+Please refer to the documentation for standard usage: [docs](https://marusakod.github.io/scprocess/).
+
+# sHPC-specific usage notes
+
+## Accessing raw data from Arvados
 
 `scprocess` supports raw data stored either in a local directory (defined via the `fastq_dir` parameter) or hosted on **Arvados**. To use Arvados directly, provide a list of collection UUIDs to the `arv_uuids` parameter as well as the name of the Arvados instance to the `arv_instance` parameter in your configuration file e.g:
 
@@ -117,9 +120,9 @@ project:
   arv_instance: arkau
 ```
  
-### Running Cellbender
+## Running Cellbender
 
-The default ambient correction method in `scprocess` is DexontX which doesn't require any additional software. However, if you choose to use CellBender, Apptainer is required.
+The default ambient correction method in `scprocess` is `DecontX` which doesn't require any additional software. However, if you choose to use CellBender, Apptainer is required.
 
 Because Apptainer is not available on login nodes, you must execute `scprocess` from an interactive session or via a batch job: 
 
@@ -133,7 +136,7 @@ Because Apptainer is not available on login nodes, you must execute `scprocess` 
   srun --pty --qos=interactive --partition=interactive_cpu -t 0-24:00 bash -l
 
   # set up environment
-  ml Miniforge3
+  ml Micromamba
   conda activate scprocess
 
   # run scprocess
@@ -149,7 +152,7 @@ Because Apptainer is not available on login nodes, you must execute `scprocess` 
   #SBATCH -t 0-03:00                       
 
   ml purge
-  ml Miniforge3
+  ml Micromamba
   conda activate scprocess
 
   scprocess run /path/to/config/config-project.yaml
