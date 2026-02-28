@@ -13,7 +13,7 @@ ml Micromamba
 1. Clone the repository:
 
     ```bash
-     git clone https://github.com/marusakod/scprocess.git
+    git clone https://github.com/marusakod/scprocess.git
     ```
 
 2.  Create a Conda environment:
@@ -90,7 +90,7 @@ ml Micromamba
     ```
     
     
-    For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](https://macnairw.pages.roche.com/scprocess/reference/) section.
+    For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](https://marusakod.github.io/scprocess/reference/) section.
 
 4. Finish setting up the `scprocess` data directory:
 
@@ -106,7 +106,7 @@ ml Micromamba
 
 # Using `scprocess`
 
-Please refer to the documentation for standard usage: [docs](https://marusakod.github.io/scprocess/).
+If you are using scprocess for the first time, we recommend working through the [Tutorials](https://marusakod.github.io/scprocess/tutorials/) and [Usage](https://marusakod.github.io/scprocess/usage/) sections of the documentation. For a detailed explanation of all parameters, please refer to the [Reference](https://marusakod.github.io/scprocess/reference/) page.
 
 # sHPC-specific usage notes
 
