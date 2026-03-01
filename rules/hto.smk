@@ -9,7 +9,9 @@ rule build_hto_index:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_hto_index', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_hto_index', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_hto/build_hto_index_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/hto/build_hto_index_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/hto/build_hto_index_{DATE_STAMP}.log'
   output: 
     hto_f       = f'{af_dir}/hto.tsv',
     t2g_f       = f'{af_dir}/t2g_hto.tsv',
@@ -119,7 +121,7 @@ rule save_alevin_hto_to_h5:
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'save_alevin_hto_to_h5', 'time', attempt, wildcards.run)
   benchmark: 
     f'{benchmark_dir}/hto/save_alevin_hto_to_h5_{{run}}_{DATE_STAMP}.benchmark.txt'
-  benchmark: 
+  log: 
     f'{logs_dir}/hto/save_alevin_hto_to_h5_{{run}}_{DATE_STAMP}.log'
   conda: 
     '../envs/rlibs.yaml'

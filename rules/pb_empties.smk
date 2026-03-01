@@ -16,26 +16,32 @@ rule make_empty_pb_input_df:
   log: 
     f'{logs_dir}/pb_empties/make_empty_pb_input_df_{DATE_STAMP}.log'
   run:
-    # make dataframe with alevin outputs
-    df          = pl.DataFrame({
-      RUN_VAR:      RUNS,
-      'af_mat_f':   input.af_mat_ls,
-      'af_knee_f':  input.af_knee_ls
-    })
+    import sys
+    with open(str(log), "w") as f:
+      rows = []
+      sys.stdout = f
+      sys.stderr = f
     
-    # add bad sample labels if cellbender
-    if config['ambient']['ambient_method'] == 'cellbender':
-      run_stats_df  = pl.read_csv(input.run_stats_f).select([RUN_VAR, 'bad_run'])
-      df            = df.join(run_stats_df, on = RUN_VAR)
+      # make dataframe with alevin outputs
+      df          = pl.DataFrame({
+        RUN_VAR:      RUNS,
+        'af_mat_f':   input.af_mat_ls,
+        'af_knee_f':  input.af_knee_ls
+      })
+    
+      # add bad sample labels if cellbender
+      if config['ambient']['ambient_method'] == 'cellbender':
+        run_stats_df  = pl.read_csv(input.run_stats_f).select([RUN_VAR, 'bad_run'])
+        df            = df.join(run_stats_df, on = RUN_VAR)
 
-    # add output file paths
-    pb_tmp_pat  = f"{pb_dir}/tmp_pb_empties_{"{}"}_{FULL_TAG}_{DATE_STAMP}.rds"
-    df          = df.with_columns(
-      pl.format(pb_tmp_pat, pl.col(RUN_VAR)).alias('pb_tmp_f')
-    )
+      # add output file paths
+      pb_tmp_pat  = f"{pb_dir}/tmp_pb_empties_{"{}"}_{FULL_TAG}_{DATE_STAMP}.rds"
+      df          = df.with_columns(
+        pl.format(pb_tmp_pat, pl.col(RUN_VAR)).alias('pb_tmp_f')
+      )
 
-    # save dataframe
-    df.write_csv(output.af_paths_f)
+      # save dataframe
+      df.write_csv(output.af_paths_f)
 
 
 # make empties per sample then combine

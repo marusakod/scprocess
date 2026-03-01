@@ -63,9 +63,9 @@ rule run_fgsea:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_fgsea', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_fgsea', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/marker_genes/run_marker_genes_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/marker_genes/run_fgsea_{DATE_STAMP}.benchmark.txt'
   log:
-    f'{logs_dir}/marker_genes/run_marker_genes_{DATE_STAMP}.log'
+    f'{logs_dir}/marker_genes/run_fgsea_{DATE_STAMP}.log'
   conda: '../envs/rlibs.yaml'
   shell:"""
     exec &> {log}

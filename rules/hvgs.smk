@@ -224,7 +224,7 @@ else:
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_estimated_variances', 'time', attempt)
     benchmark:
       f'{benchmark_dir}/hvgs/get_estimated_variances_{DATE_STAMP}.benchmark.txt'
-    benchmark:
+    log:
       f'{logs_dir}/hvgs/get_estimated_variances_{DATE_STAMP}.log'
     shell: """
       exec &> {log}

@@ -21,9 +21,9 @@ rule run_celltypist:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_celltypist', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_celltypist', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_label_celltypes/run_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/label_celltypes/run_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
   log:
-    f'{logs_dir}/{SHORT_TAG}_label_celltypes/run_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.log'
+    f'{logs_dir}/label_celltypes/run_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.log'
   conda: 
     '../envs/celltypist.yaml'
   shell:"""

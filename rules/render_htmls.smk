@@ -527,9 +527,9 @@ if "label_celltypes" in config:
     conda:
       '../envs/rlibs.yaml'
     benchmark:
-      f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_label_celltypes_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/render_htmls/render_html_label_celltypes_{DATE_STAMP}.benchmark.txt'
     log:
-      f'{logs_dir}/{SHORT_TAG}_render_htmls/render_html_label_celltypes_{DATE_STAMP}.log'
+      f'{logs_dir}/render_htmls/render_html_label_celltypes_{DATE_STAMP}.log'
     shell: """
       exec &> {log}
       

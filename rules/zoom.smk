@@ -593,7 +593,13 @@ rule zoom_merge_stats_for_std_variance:
   log:
     f'{logs_dir}/zoom/zoom_merge_stats_for_std_variance_{{zoom_name}}_{DATE_STAMP}.log'
   run:
-    merge_tmp_files(input.tmp_std_var_stats_fs, output.std_var_stats_merged_f)
+    import sys
+    with open(str(log), "w") as f:
+      rows = []
+      sys.stdout = f
+      sys.stderr = f
+    
+      merge_tmp_files(input.tmp_std_var_stats_fs, output.std_var_stats_merged_f)
 
         
 rule zoom_get_highly_variable_genes:
@@ -724,8 +730,15 @@ rule zoom_run_integration:
     set +u
     # set use_gpu flag based on config and on whether available
     USE_GPU_FLAG=""
-    if [ "{params.zoom_int_use_gpu}" == "True" && -n "$CUDA_VISIBLE_DEVICES" ]; then
-       USE_GPU_FLAG="--use-gpu"
+    if [ "{params.zoom_int_use_gpu}" == "True" ]; then
+      if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
+        echo "running on GPU"
+        USE_GPU_FLAG="--use-gpu"
+      else
+        echo "GPU usage requested but no GPU available, running on CPU"
+      fi
+    else
+      echo "running on CPU"
     fi
     set -u
     

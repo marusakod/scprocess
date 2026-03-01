@@ -316,7 +316,7 @@ if config['ambient']['ambient_method'] == 'none':
     benchmark:
       f'{benchmark_dir}/ambient/run_cell_calling_{{run}}_{DATE_STAMP}.benchmark.txt'
     log:
-      f'{log_dir}/ambient/run_cell_calling_{{run}}_{DATE_STAMP}.log'
+      f'{logs_dir}/ambient/run_cell_calling_{{run}}_{DATE_STAMP}.log'
     shell: """
       exec &> {log}
 
