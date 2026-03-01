@@ -37,6 +37,7 @@ DATE_STAMP      = config['project']['date_stamp']
 
 # specify locations
 benchmark_dir = f"{PROJ_DIR}/.resources"
+logs_dir      = f"{PROJ_DIR}/.log"
 code_dir      = f"{PROJ_DIR}/code"
 af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
 af_rna_dir    = 'rna/' if config['multiplexing']['demux_type'] == "hto" else ''
@@ -312,10 +313,6 @@ rule label_celltypes:
     code_dir  + '/label_celltypes.R',
     f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd', 
     f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
-
-rule index:
-  input:
-    f'{docs_dir}/index.html'
 
 # define rules that are needed
 include: "mapping.smk"

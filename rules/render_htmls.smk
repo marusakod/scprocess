@@ -34,10 +34,14 @@ rule render_html_mapping:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_mapping', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_mapping', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_mapping_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/render_htmls/render_html_mapping_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/render_htmls/render_html_mapping_{DATE_STAMP}.log'
   conda:
     '../envs/rlibs.yaml'
   shell: """
+    exec &> {log}
+
     # copy R code over
     echo "copying relevant R files over"
     cp scripts/utils.R {output.r_utils_f}
@@ -96,10 +100,14 @@ if config['multiplexing']['demux_type'] == "hto":
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_multiplexing', 'memory', attempt),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_multiplexing', 'time', attempt)
     benchmark:
-      f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_multiplexing_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/render_htmls/render_html_multiplexing_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/render_htmls/render_html_multiplexing_{DATE_STAMP}.log'
     conda:
       '../envs/rlibs.yaml'
     shell: """
+      exec &> {log}
+
       # copy R code over
       echo "copying relevant R files over"
       cp scripts/mapping.R {params.r_map_f}
@@ -160,8 +168,12 @@ rule render_html_ambient:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_ambient', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_ambient', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_ambient_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/render_htmls/render_html_ambient_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/render_htmls/render_html_ambient_{DATE_STAMP}.log'
   shell: """
+    exec &> {log}
+
     # copy R code over
     echo "copying relevant R files over"
     cp scripts/ambient.R {output.r_amb_f}
@@ -221,8 +233,12 @@ rule render_html_qc:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_qc', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_qc', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_qc_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/render_htmls/render_html_qc_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/render_htmls/render_html_qc_{DATE_STAMP}.log'
   shell: """
+    exec &> {log}
+
     # copy R code over
     echo "copying relevant R files over"
     cp scripts/SampleQC.R {output.r_qc_f}
@@ -279,8 +295,12 @@ rule render_html_hvgs:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_hvgs', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_hvgs', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_hvgs_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/render_htmls/render_html_hvgs_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/render_htmls/render_html_hvgs_{DATE_STAMP}.log'
   shell: """
+    exec &> {log}
+
     # copy R code over
     echo "copying relevant R files over"
     cp scripts/hvgs.R {output.r_hvgs_f}
@@ -337,8 +357,12 @@ rule render_html_integration:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_integration', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_integration', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_integration_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/render_htmls/render_html_integration_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/render_htmls/render_html_integration_{DATE_STAMP}.log'
   shell: """
+    exec &> {log}
+
     # copy R code over
     echo "copying relevant R files over"
     cp scripts/integration.R {output.r_int_f}
@@ -420,8 +444,12 @@ rule render_html_marker_genes:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_marker_genes', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_marker_genes', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_marker_genes_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/render_htmls/render_html_marker_genes_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/render_htmls/render_html_marker_genes_{DATE_STAMP}.log'
   shell: """
+    exec &> {log}
+
     # copy R code over
     echo "copying relevant R files over"
     cp scripts/marker_genes.R {output.r_mkr_f}
@@ -499,8 +527,12 @@ if "label_celltypes" in config:
     conda:
       '../envs/rlibs.yaml'
     benchmark:
-      f'{benchmark_dir}/{SHORT_TAG}_render_htmls/render_html_label_celltypes_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/render_htmls/render_html_label_celltypes_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/render_htmls/render_html_label_celltypes_{DATE_STAMP}.log'
     shell: """
+      exec &> {log}
+      
       # copy R code over
       echo "copying relevant R files over"
       cp scripts/label_celltypes.R {output.r_lbl_f}
