@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-# PATH="${PATH:+${PATH}:}/home/macnairw/packages/scProcess/scprocess.py"
-
 # import utils
 import argparse
 import os
@@ -26,7 +24,7 @@ import scprocess_utils
 
 
 # scprocess setup
-def run_setup(scprocess_dir, snakefile, ranger_url, extraargs):
+def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
   print('doing some checks on inputs')
  
   # get scprocess_data_dir; should be defined in .bashrc
@@ -52,6 +50,33 @@ def run_setup(scprocess_dir, snakefile, ranger_url, extraargs):
   if not schema_f.is_file():
     raise FileNotFoundError("setup schema file not found")
   setup_cfg   = scprocess_utils.check_setup_config(setup_cfg, schema_f, scprocess_dir)
+   
+  # change scprocess directory
+  os.chdir(scprocess_dir)
+
+  log_dir=scdata_dir / ".log/scprocess"
+  log_f, log_header = _get_main_log(setup_f,log_dir, dryrun)
+
+  with open(log_f, "w") as f:
+    f.write(log_header)
+
+  # handle slurm logs
+  if 'profile_dir' in setup_cfg['user']:
+    extraargs.append('--workflow-profile')
+    extraargs.append(str(setup_cfg['user']['profile_dir']))
+    
+    profile_f = setup_cfg['user']['profile_dir'] / 'config.yaml'
+    with open(profile_f, "r") as f:
+      profile = yaml.safe_load(f)
+    
+    if profile.get('executor') == 'slurm': 
+      cluster_log_dir = scdata_dir / '.log/cluster'
+      os.makedirs(cluster_log_dir, exist_ok=True)
+      extraargs.append('--slurm-logdir')
+      extraargs.append(str(cluster_log_dir))
+  else:
+    extraargs.append('--cores')
+    extraargs.append(str(setup_cfg['user']['local_cores']))
 
   # get cellranger version
   if ranger_url == "":
@@ -65,19 +90,7 @@ def run_setup(scprocess_dir, snakefile, ranger_url, extraargs):
   else:
     ranger_version = scprocess_utils.check_ranger_url(ranger_url)
 
-  if 'profile_dir' in setup_cfg['user']: 
-    extraargs.append('--workflow-profile')
-    extraargs.append(str(setup_cfg['user']['profile_dir']))
-  
-  else:
-    extraargs.append('--cores')
-    extraargs.append(str(setup_cfg['user']['local_cores']))
-
-    
-  # change scprocess directory
-  os.chdir(scprocess_dir)
-
-  # set up commands
+    # set up commands
   cmd_list    = ['snakemake',
     "--snakefile", str(snakefile),
     "--configfile", str(setup_f.resolve()),
@@ -85,19 +98,21 @@ def run_setup(scprocess_dir, snakefile, ranger_url, extraargs):
     f"cellranger_url={ranger_url}", 
     f"cellranger_version={ranger_version}",
     "--rerun-triggers", "mtime", "params",
-    "--rerun-incomplete", "--verbose", "--use-conda"
+    "--rerun-incomplete",
+    "--show-failed-logs", "--printshellcmds", 
+    "--use-conda"
   ]
   cmd_list.extend(extraargs)
 
   # run
+  cmd_str      = " ".join(map(shlex.quote, map(str, cmd_list)))
+  strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
+  final_cmd    = f"script -q -e -c {shlex.quote(cmd_str)} /dev/null | tee /dev/stderr | {strip_colors} >> {log_f}"
+  
   print("starting scprocess setup")
-  cmd_str = " ".join(map(str, cmd_list))
-  print(f"running command:\n{cmd_str}")
-  subprocess.run( cmd_list, check = True )
-
-  # make version file
-  #_render_version(scdata_dir, setup_f)
-
+  print(f"snakemake command:\n{cmd_str}")
+  print(f"Logging progress to: {log_f}")
+  subprocess.run(final_cmd, shell=True)
 
 # scprocess newproj
 def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
@@ -285,7 +300,9 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   config        = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
 
   # define master log file
-  log_f, log_header = _get_main_log(config_path, config, dryrun)
+  proj_dir = Path(config['project']['proj_dir'])
+  log_dir  = proj_dir / ".log/scprocess"
+  log_f, log_header = _get_main_log(config_path, log_dir, dryrun)
   # Write the header to the file immediately
   with open(log_f, "w") as f:
     f.write(log_header)
@@ -297,7 +314,6 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
       profile = yaml.safe_load(f)
     
     if profile['executor'] == 'slurm': 
-      proj_dir = Path(config['project']['proj_dir'])
       cluster_log_dir = proj_dir / '.log/cluster'
 
       extraargs.append('--slurm-logdir')
@@ -316,6 +332,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   scprocess_utils.check_config_ok_for_rule(config, rule)
 
   # print which files will be processed
+  print("starting scprocess")
   print(f"\nprocessing {len(BATCHES)} samples:")
   print('  ' + ', '.join(BATCHES))
 
@@ -334,7 +351,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   cmd_str      = " ".join(map(shlex.quote, map(str, cmd_list)))
   strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
   final_cmd    = f"script -q -e -c {shlex.quote(cmd_str)} /dev/null | tee /dev/stderr | {strip_colors} >> {log_f}"
-
+  
   print(f"snakemake command:\n{cmd_str}")
   print(f"Logging progress to: {log_f}")
   subprocess.run(final_cmd, shell=True)
@@ -391,11 +408,9 @@ def _render_index(scprocess_dir, config):
   return subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def _get_main_log(config_path, config, dryrun):
+def _get_main_log(config_path, log_dir, dryrun):
   
   # get project directory and time stamp
-  proj_dir    = pathlib.Path(config['project']['proj_dir'])
-  log_dir     = proj_dir / ".log/scprocess"
   os.makedirs(log_dir, exist_ok=True)
   timestamp   = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -677,7 +692,7 @@ if __name__ == '__main__':
       extraargs.append("-np")
     
     # call bsub thing
-    run_setup(sc_dir, snakefile, args.rangerurl,extraargs)
+    run_setup(sc_dir, snakefile, args.rangerurl, args.dry_run, extraargs)
 
   elif args.subcommand == "newproj":
     # make new project directory

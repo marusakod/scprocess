@@ -15,6 +15,7 @@ SCDATA_DIR    = os.getenv('SCPROCESS_DATA_DIR')
 IDX_PARAMS_LS = get_af_index_parameters(config) 
 RANGER_URL    = config['cellranger_url']
 REF_TXOMES    = list(IDX_PARAMS_LS.keys())
+logs_dir      = f'{SCDATA_DIR}/.log/setup'
 
 # define simpleaf index files
 AF_INDEX_FS = [
@@ -132,6 +133,8 @@ rule download_scprocess_files:
   conda:
     '../envs/py_env.yaml'
   threads: 1
+  log: 
+    f'{logs_dir}/download_scprocess_files.log'
   shell: """
     exec &> {log}
 
@@ -162,6 +165,8 @@ rule set_up_one_af_index:
   resources:
     mem_mb = 8192
   threads: 8
+  log: 
+    f'{logs_dir}/set_up_one_of_index_{{ref_txome}}.log'
   shell: """
     exec &> {log}
 
@@ -181,6 +186,8 @@ rule save_index_parameters_csv:
   resources:
     mem_mb = 512
   threads: 1
+  log:
+    f'{logs_dir}/save_index_parameters_csv.log'
   shell: """
     exec &> {log}
 
@@ -194,6 +201,8 @@ rule download_celltypist_models:
   conda:
     '../envs/celltypist.yaml'
   threads: 1
+  log:
+    f'{logs_dir}/download_celltypist_models.log'
   shell:"""
     exec &> {log}
     
