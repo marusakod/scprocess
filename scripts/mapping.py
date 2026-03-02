@@ -4,19 +4,15 @@ import subprocess
 import os
 
 # set up
-import collections
-import tempfile
 import random
 import json
 import polars as pl
-import numpy as np
 import yaml
 import shutil
 import warnings
 
 # import relevant libraries for arvados download
 import arvados
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from queue import Queue
 import threading
 

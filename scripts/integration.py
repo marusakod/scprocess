@@ -4,8 +4,7 @@ import argparse
 import re
 import gzip
 import gc
-import scipy.sparse as sp
-from scipy.sparse import csc_matrix, csr_matrix, hstack
+from scipy.sparse import csc_matrix, hstack
 import anndata as ad
 import polars as pl
 
