@@ -1,7 +1,8 @@
 name: renviron
+# NOTE: This environment is not currently referenced by active Snakefiles/docs.
 channels:
-  - bioconda
   - conda-forge
+  - bioconda
 dependencies:
   - _libgcc_mutex=0.1
   - _openmp_mutex=4.5
