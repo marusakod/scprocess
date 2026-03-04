@@ -34,4 +34,6 @@ ${label_celltypes_link}
 ${zoom_title}
 ${zoom_links}
 
+## Config files
 
+${config_files_section}

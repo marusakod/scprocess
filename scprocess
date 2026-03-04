@@ -310,12 +310,12 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex):
 
   # render index if requested
   if doindex:
-    _render_index(scprocess_dir, config)
+    _render_index(scprocess_dir, config, config_path)
  
   return
 
 
-def _render_index(scprocess_dir, config):
+def _render_index(scprocess_dir, config, config_path):
   # 1. Locate the template and script
   template_f    = (scprocess_dir / "resources/rmd_templates/index.Rmd.template").resolve()
   render_script = scprocess_dir / "scripts/render_htmls.R"
@@ -325,7 +325,34 @@ def _render_index(scprocess_dir, config):
   rmd_dir       = proj_dir / "analysis"
   docs_dir      = proj_dir / "public"
 
-  # 2. Build the R snippet (escaping quotes where necessary)
+  # 2. Collect config file paths for inclusion in index
+  config_files = {
+    'config_f': str(config_path)
+  }
+  
+  # Add custom_sample_params if it exists
+  if 'custom_sample_params' in config['project']:
+    config_files['custom_sample_params_f'] = str(config['project']['custom_sample_params'])
+  
+  # Add zoom spec files if they exist
+  if 'zoom' in config and config['zoom']:
+    proj_dir_for_paths = pathlib.Path(config['project']['proj_dir'])
+    zoom_specs_list = []
+    for f in config['zoom']:
+      p = pathlib.Path(f)
+      if not p.is_absolute():
+        p = (proj_dir_for_paths / p)
+      zoom_specs_list.append(str(p.resolve()))
+    config_files['zoom_specs'] = ','.join(zoom_specs_list)
+
+  # 3. Build the R snippet (escaping quotes where necessary)
+  # Escape backslashes in file paths for R
+  config_files_escaped = {k: v.replace('\\', '\\\\') for k, v in config_files.items()}
+  
+  # Get show_arv_uuids setting (default True)
+  show_arv_uuids = config['project'].get('show_arv_uuids', True)
+  show_arv_uuids_r = 'TRUE' if show_arv_uuids else 'FALSE'
+  
   r_code = f"""
   source('{render_script}'); 
   render_html(
@@ -339,7 +366,18 @@ def _render_index(scprocess_dir, config):
     date_stamp  = '{config['project']['date_stamp']}',
     mkr_sel_res = '{config['marker_genes']['mkr_sel_res']}', 
     temp_f      = '{template_f}',
-    rmd_f       = '{rmd_dir}/index.Rmd'
+    rmd_f       = '{rmd_dir}/index.Rmd',
+    config_f    = '{config_files_escaped['config_f']}',
+    show_arv_uuids = {show_arv_uuids_r}"""
+  
+  # Add optional config files to R code if they exist
+  if 'custom_sample_params_f' in config_files_escaped:
+    r_code += f",\n    custom_sample_params_f = '{config_files_escaped['custom_sample_params_f']}'"
+  
+  if 'zoom_specs' in config_files_escaped:
+    r_code += f",\n    zoom_specs = '{config_files_escaped['zoom_specs']}'"
+  
+  r_code += """
   )
   """
 

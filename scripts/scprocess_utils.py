@@ -914,7 +914,7 @@ def _list_fastq_files_arvados(arv_uuids, arv_instance):
 
   # set up arvados access
   arv_token   = os.environ["ARVADOS_API_TOKEN"]
-  arv_client  = arvados.api('v1', host = 'api.arkau.roche.com',
+  arv_client  = arvados.api('v1', host = f'api.{arv_instance}.roche.com',
     token = arv_token, insecure = True, num_retries = 2 )
 
   # check it worked
