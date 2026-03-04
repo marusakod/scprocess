@@ -272,7 +272,7 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding,
     import scanpy
     print(' running PAGA')
     scanpy.tl.paga(adata, groups = paga_cl)
-    scanpy.pl.paga(adata)
+    scanpy.pl.paga(adata, plot = False)
 
   # run UMAP
   print(' running UMAP')

@@ -9,7 +9,9 @@ rule build_hto_index:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_hto_index', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_hto_index', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_hto/build_hto_index_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/hto/build_hto_index_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/hto/build_hto_index_{DATE_STAMP}.log'
   output: 
     hto_f       = f'{af_dir}/hto.tsv',
     t2g_f       = f'{af_dir}/t2g_hto.tsv',
@@ -18,6 +20,8 @@ rule build_hto_index:
   conda:
     '../envs/alevin_fry.yaml'
   shell: """
+    exec &> {log}
+
     cd {af_dir}
     # create a tsv file from feature ref file
     awk -F "," '
@@ -69,8 +73,12 @@ rule run_mapping_hto:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_mapping_hto', 'memory', attempt, wildcards.run),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_mapping_hto', 'time', attempt, wildcards.run)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_hto/run_mapping_hto_{{run}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/hto/run_mapping_hto_{{run}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/hto/run_mapping_hto_{{run}}_{DATE_STAMP}.log'
   shell:"""
+    exec &> {log}
+
     # check if arv_instance is set and if so, run in arvados environment
     ARV_ARG=""
     if [[ "{params.arv_instance}" != "" ]]; then
@@ -112,10 +120,14 @@ rule save_alevin_hto_to_h5:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'save_alevin_hto_to_h5', 'memory', attempt, wildcards.run),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'save_alevin_hto_to_h5', 'time', attempt, wildcards.run)
   benchmark: 
-    f'{benchmark_dir}/{SHORT_TAG}_hto/save_alevin_hto_to_h5_{{run}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/hto/save_alevin_hto_to_h5_{{run}}_{DATE_STAMP}.benchmark.txt'
+  log: 
+    f'{logs_dir}/hto/save_alevin_hto_to_h5_{{run}}_{DATE_STAMP}.log'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
+    exec &> {log}
+
     Rscript -e "source('scripts/mapping.R');
       save_alevin_h5_knee_params_df(
         run         = '{wildcards.run}', 
@@ -146,11 +158,14 @@ rule make_hto_sce_objects:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_hto_sce_objects', 'memory', attempt, wildcards.run),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_hto_sce_objects', 'time', attempt, wildcards.run)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_hto/make_hto_sce_objects_{{run}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/hto/make_hto_sce_objects_{{run}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/hto/make_hto_sce_objects_{{run}}_{DATE_STAMP}.log'
   conda:
    '../envs/rlibs.yaml'
   shell: """
-
+  exec &> {log}
+  
   # get translation file from chemistry stats
   WHITELIST_TRANS_F=$(grep "selected_translation_f:" {input.chem_stats_f} | sed 's/selected_translation_f: //')
   

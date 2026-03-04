@@ -120,26 +120,34 @@ rule make_qc_thresholds_csv:
     custom_f      = [config['project']['custom_sample_params'] if 'custom_sample_params' in config['project'] else None],
     batch_var     = BATCH_VAR,
     batches       = BATCHES
+  log:
+    f'{logs_dir}/qc/make_qc_thresholds_csv_{DATE_STAMP}.log'
   run:
-    # make polars dataframe from dictionary of parameters
-    rows_data   = []
-    for batch, param_ls in BATCH_PARAMS.items():
-      qc_params   = param_ls['qc']
-      row_data    = {params.batch_var: batch}
-      row_data.update(qc_params)
-      rows_data.append(row_data)
-    cuts_df     = pl.DataFrame(rows_data)
+    import sys
+    with open(str(log), "w") as f:
+      rows = []
+      sys.stdout = f
+      sys.stderr = f
     
-    # rename the columns
-    def rename_fn(col):
-      if col.startswith("qc_"):
-        return col.replace("qc_", "")
-      else:
-        return col
-    cuts_df     = cuts_df.rename( lambda col_name: rename_fn(col_name) )
+      # make polars dataframe from dictionary of parameters
+      rows_data   = []
+      for batch, param_ls in BATCH_PARAMS.items():
+        qc_params   = param_ls['qc']
+        row_data    = {params.batch_var: batch}
+        row_data.update(qc_params)
+        rows_data.append(row_data)
+      cuts_df     = pl.DataFrame(rows_data)
+    
+      # rename the columns
+      def rename_fn(col):
+        if col.startswith("qc_"):
+          return col.replace("qc_", "")
+        else:
+          return col
+      cuts_df     = cuts_df.rename( lambda col_name: rename_fn(col_name) )
 
-    # save to csv
-    cuts_df.write_csv(output.cuts_f)
+      # save to csv
+      cuts_df.write_csv(output.cuts_f)
 
 
 rule run_qc_one_run:
@@ -177,10 +185,14 @@ rule run_qc_one_run:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_qc_one_run', 'memory', attempt, wildcards.run),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_qc_one_run', 'time', attempt, wildcards.run)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_qc/run_qc_{{run}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/qc/run_qc_{{run}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/qc/run_qc_{{run}}_{DATE_STAMP}.log'
   conda:
     '../envs/rlibs.yaml'
   shell: """
+    exec &> {log}
+
     Rscript -e "source('scripts/SampleQC.R'); source('scripts/utils.R'); \
       main_qc( \
         run_name        = '{wildcards.run}', \
@@ -222,13 +234,17 @@ rule merge_qc:
   threads: 1
   retries: config['resources']['retries']
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_qc/merge_qc_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/qc/merge_qc_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/qc/merge_qc_{DATE_STAMP}.log'
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_qc', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_qc', 'time', attempt)
   conda:
     '../envs/rlibs.yaml'
   shell: """
+    exec &> {log}
+    
     QC_LIST="{input.qc_fs}" COL_LIST="{input.coldata_fs}" \
       Rscript -e "source('scripts/SampleQC.R'); \
         qc_files <- trimws(strsplit(Sys.getenv('QC_LIST'), ' ')[[1]]); \
@@ -248,21 +264,29 @@ rule merge_rowdata:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_rowdata', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_rowdata', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_qc/merge_rowdata_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/qc/merge_rowdata_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/qc/merge_rowdata_{DATE_STAMP}.log'
   run:
-    # read all nonempty rowdata files 
-    rows_df_ls  = [pl.read_csv(f) for f in input.rowdata_fs if os.path.getsize(f) > 0 ]
+    import sys
+    with open(str(log), "w") as f:
+      rows = []
+      sys.stdout = f
+      sys.stderr = f
     
-    # check if identical
-    first_df    = rows_df_ls[0]
-    all_ident   = all(first_df.equals(df) for df in rows_df_ls[1:])
+      # read all nonempty rowdata files 
+      rows_df_ls  = [pl.read_csv(f) for f in input.rowdata_fs if os.path.getsize(f) > 0 ]
     
-    # save only one df
-    if all_ident:
-      with gzip.open(output.rowdata_merged_f, 'wb') as f:
-        first_df.write_csv(f)
-    else:
-      raise ValueError("error: rowdata for all sce objects not identical.")
+      # check if identical
+      first_df    = rows_df_ls[0]
+      all_ident   = all(first_df.equals(df) for df in rows_df_ls[1:])
+    
+      # save only one df
+      if all_ident:
+        with gzip.open(output.rowdata_merged_f, 'wb') as f:
+          first_df.write_csv(f)
+      else:
+        raise ValueError("error: rowdata for all sce objects not identical.")
 
 
 rule get_qc_sample_statistics:
@@ -278,11 +302,19 @@ rule get_qc_sample_statistics:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_qc_sample_statistics', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_qc_sample_statistics', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_qc/get_qc_sample_statistics_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/qc/get_qc_sample_statistics_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/qc/get_qc_sample_statistics_{DATE_STAMP}.log'
   run:
-    sample_stats_df = extract_qc_sample_statistics(input.run_stats_f, input.qc_merged_f, input.cuts_f,
-      config, BATCHES, RUNS_TO_BATCHES, BATCH_VAR, RUN_VAR)
-    sample_stats_df.write_csv(output.qc_stats_f)
+    import sys
+    with open(str(log), "w") as f:
+      rows = []
+      sys.stdout = f
+      sys.stderr = f
+
+      sample_stats_df = extract_qc_sample_statistics(input.run_stats_f, input.qc_merged_f, input.cuts_f,
+        config, BATCHES, RUNS_TO_BATCHES, BATCH_VAR, RUN_VAR)
+      sample_stats_df.write_csv(output.qc_stats_f)
 
 
 rule check_qc_quality:
@@ -292,12 +324,20 @@ rule check_qc_quality:
     qc_flag_f   = touch(f"{qc_dir}/qc_passed_{FULL_TAG}_{DATE_STAMP}.flag")
   params:
     batch_var   = BATCH_VAR
+  log:
+    f'{logs_dir}/qc/check_qc_quality_{DATE_STAMP}.log'
   run:
-    import polars as pl
-    qc_df     = pl.read_csv(input.qc_stats_f)
-    num_ok    = qc_df[f'bad_{params.batch_var}'].not_().sum()
+    import sys
+    with open(str(log), "w") as f:
+      rows = []
+      sys.stdout = f
+      sys.stderr = f
+
+      import polars as pl
+      qc_df     = pl.read_csv(input.qc_stats_f)
+      num_ok    = qc_df[f'bad_{params.batch_var}'].not_().sum()
     
-    if num_ok < 2:
-      # This will crash the job and prevent downstream rules from starting
-      raise Exception(f"CRITICAL: Only {num_ok} samples passed QC. Stopping.")
+      if num_ok < 2:
+        # This will crash the job and prevent downstream rules from starting
+        raise Exception(f"CRITICAL: Only {num_ok} samples passed QC. Stopping.")
     
