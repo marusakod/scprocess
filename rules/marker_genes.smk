@@ -19,9 +19,13 @@ rule run_marker_genes:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_marker_genes', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_marker_genes', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_marker_genes/run_marker_genes_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/marker_genes/run_marker_genes_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/marker_genes/run_marker_genes_{DATE_STAMP}.log'
   conda: '../envs/rlibs.yaml'
   shell:"""
+    exec &> {log}
+
     Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); 
     calculate_marker_genes(
       integration_f = '{input.integration_f}', 
@@ -59,9 +63,13 @@ rule run_fgsea:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_fgsea', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_fgsea', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_marker_genes/run_marker_genes_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/marker_genes/run_fgsea_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/marker_genes/run_fgsea_{DATE_STAMP}.log'
   conda: '../envs/rlibs.yaml'
   shell:"""
+    exec &> {log}
+    
     Rscript -e "source('scripts/utils.R'); source('scripts/fgsea.R'); run_fgsea(
       mkrs_f        = '{input.mkrs_f}', 
       fgsea_go_bp_f = '{output.fgsea_go_bp_f}', 
