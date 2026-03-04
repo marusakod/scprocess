@@ -12,8 +12,5 @@ dependencies:
   - polars=1.34.0
   - python=3.12.11
   - pyyaml=6.0.2
-  - snakemake=9.8.1
   - snakemake-executor-plugin-slurm=1.4.0
-  - snakemake-executor-plugin-slurm-jobstep=0.3.0
   - snakemake-minimal=9.8.1
-prefix: "/gpfs/scratchfs01/site/u/macnairw/conda/envs/scprocess"
