@@ -39,6 +39,7 @@ dependencies:
   - r-ggridges=0.5.7
   - r-glue=1.8.0
   - r-harmony=1.2.4
+  - r-kableextra=1.4.0
   - r-magrittr=2.0.4
   - r-matrix=1.7_4
   - r-metbrewer=0.2.0

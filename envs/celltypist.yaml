@@ -4,12 +4,13 @@ channels:
   - bioconda
   - nodefaults
 dependencies:
-  - anndata=0.12.0=pyhd8ed1ab_0
-  - celltypist=1.7.1=pyhdfd78af_0
-  - h5py=3.15.1=nompi_py313h253c126_100
-  - pandas=2.3.3=py313h08cd8bf_1
-  - polars=1.35.0=pyh6a1acc5_0
-  - python=3.13.9=hc97d973_101_cp313
-  - requests=2.32.5=pyhd8ed1ab_0
-  - scanpy=1.11.5=pyhd8ed1ab_0
-  - scipy=1.16.2=py313h11c21cd_0
+  - anndata=0.12.0
+  - celltypist=1.7.1
+  - h5py=3.15.1
+  - pandas=2.3.3
+  - polars=1.35.0
+  - pyarrow=22.0.0
+  - python=3.13.9
+  - requests=2.32.5
+  - scanpy=1.11.5
+  - scipy=1.16.2
