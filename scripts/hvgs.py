@@ -3,15 +3,11 @@ import numpy as np
 import polars as pl
 import argparse
 import gzip
-import os
-import scanpy as sc
-import scipy.sparse as sp
 from scipy.sparse import csc_matrix, csr_matrix, hstack
 import concurrent.futures
 import re
 from scanpy.preprocessing._utils import _get_mean_var
 from functools import partial
-import csv
 from skmisc.loess import loess
 import numba
 import warnings

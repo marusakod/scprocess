@@ -1,6 +1,5 @@
 import polars as pl
 import anndata as ad
-import scanpy as sc
 from scipy.sparse import csc_matrix
 import os
 import h5py

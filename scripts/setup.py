@@ -10,7 +10,6 @@ import subprocess
 import yaml
 import tarfile
 import shutil
-import gzip
 import polars as pl
 
 TENX_NAMES    = ['human_2020', 'human_2024', 'mouse_2020', 'mouse_2024']

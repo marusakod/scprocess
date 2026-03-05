@@ -8,9 +8,7 @@ import textwrap
 import yaml
 import pathlib
 import polars as pl
-import glob
 import subprocess
-import shlex
 import filecmp
 from pathlib import Path
 import shutil
@@ -394,9 +392,11 @@ def _render_index(scprocess_dir, config):
 
   # get env
   rlibs_f     = scprocess_dir / 'envs/rlibs.yaml'
-  env_path    = _find_env_path_from_yaml(scprocess_dir, rlibs_f)  
+  rlibs_pins  = sorted(rlibs_f.parent.glob(f"{rlibs_f.stem}.*.pin.txt"))
+  env_path    = _find_env_path_from_yaml(scprocess_dir, rlibs_f, rlibs_pins)
   if not env_path:
-    raise RuntimeError("Could not find a Snakemake conda environment matching rlibs. "
+    raise RuntimeError("Could not find a Snakemake conda environment matching rlibs.yaml "
+      "or any rlibs.<platform>.pin.txt. "
       "Has the pipeline run successfully at least once?")
 
   # actually do it
@@ -434,22 +434,32 @@ def _get_main_log(config_path, log_dir, dryrun):
 
   return log_full_f, log_header
 
-def _find_env_path_from_yaml(scprocess_dir, source_yaml):
+def _find_env_path_from_yaml(scprocess_dir, source_yaml, source_pin=None):
   conda_dir   = scprocess_dir / ".snakemake" / "conda"
   source_yaml = source_yaml.resolve()
 
   if not os.path.exists(conda_dir):
     return None
 
-  # Look for all .yaml files in the snakemake conda folder
+  # Match Snakemake's copied spec files against the source YAML and optional pin file.
+  # If a match is found, the environment prefix is the same basename without extension.
+  source_specs = [(".yaml", source_yaml)]
+  source_pins = []
+  if source_pin:
+    if isinstance(source_pin, (list, tuple, set)):
+      source_pins = [Path(p).resolve() for p in source_pin if Path(p).exists()]
+    else:
+      pin_path = Path(source_pin)
+      if pin_path.exists():
+        source_pins = [pin_path.resolve()]
+  for pin_file in source_pins:
+    source_specs.append((".pin.txt", pin_file))
+
   for f in os.listdir(conda_dir):
-    if f.endswith(".yaml"):
-      potential_match = conda_dir / f
-      
-      # Compare the content of your rlibs.yaml with Snakemake's copy
-      if filecmp.cmp(source_yaml, potential_match, shallow=False):
-        # The env directory is the filename minus the ".yaml" extension
-        env_path = conda_dir / f.replace(".yaml", "")
+    potential_match = conda_dir / f
+    for suffix, source_file in source_specs:
+      if f.endswith(suffix) and filecmp.cmp(source_file, potential_match, shallow=False):
+        env_path = conda_dir / f[:-len(suffix)]
         if env_path.is_dir():
           return env_path
 
