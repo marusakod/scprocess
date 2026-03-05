@@ -3,12 +3,11 @@ channels:
   - conda-forge
   - nodefaults
 dependencies:
-  - anndata=0.12.2
   - h5py=3.14.0
   - numba=0.61.2
   - numpy=2.2.6
   - polars=1.32.3
-  - python=3.11.13
+  - python=3.12.11
   - scanpy=1.11.4
   - scikit-misc=0.5.1
   - scipy=1.16.1
