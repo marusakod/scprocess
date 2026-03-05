@@ -23,9 +23,3 @@ dependencies:
   - rapids=26.02
   - python-igraph=0.11
   - scanpy=1.11.4
-  - pip:
-      - gdown
-      - rapids-singlecell-cu12
-      - scikit-misc
-      - scipy==1.15.3
-      - wget
