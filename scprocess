@@ -687,7 +687,7 @@ if __name__ == '__main__':
     # sort out extra arguments
     extraargs   = []
     if args.extraargs:
-      extraargs.append(args.extraargs[0])
+      extraargs.extend(shlex.split(args.extraargs[0]))
     if args.dry_run:
       extraargs.append("-np")
     
@@ -732,7 +732,7 @@ if __name__ == '__main__':
       extraargs.append("--unlock")
     else:
       if args.extraargs:
-        extraargs.append(args.extraargs[0])
+        extraargs.extend(shlex.split(args.extraargs[0]))
       if args.dry_run:
         extraargs.append("-np")
     
