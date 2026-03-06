@@ -127,7 +127,7 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
   print("starting scprocess setup")
   print(f"snakemake command:\n{cmd_str}")
   print(f"Logging progress to: {log_f}")
-  subprocess.run(final_cmd, check=True, env = _clean_conda_env())
+  subprocess.run(final_cmd, check=True, shell = True, env = _clean_conda_env())
 
 # scprocess newproj
 def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
@@ -369,7 +369,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   
   print(f"snakemake command:\n{cmd_str}")
   print(f"Logging progress to: {log_f}")
-  subprocess.run(final_cmd, check=True, env = _clean_conda_env())
+  subprocess.run(final_cmd, check=True, shell = True, env = _clean_conda_env())
   
 
   # render index if requested
