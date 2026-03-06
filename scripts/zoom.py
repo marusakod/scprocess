@@ -7,7 +7,7 @@ def get_zoom_raw_mean_var_files(zoom_name, zoom_dir, ZOOM_PARAMS, FULL_TAG, DATE
   num_chunks  = ZOOM_PARAMS[zoom_name]['hvg']['hvg_num_chunks']
 
   return [
-    zoom_dir + f'/{zoom_name}/tmp_mean_var_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+    f'{zoom_dir}/{zoom_name}/tmp_mean_var_{group}_group_chunk_{chunk}_{FULL_TAG}_{zoom_name}_{DATE_STAMP}.csv.gz'
     for group in group_names
     for chunk in range(num_chunks)
   ]
@@ -19,7 +19,7 @@ def get_zoom_std_var_stats_files(zoom_name, zoom_dir, ZOOM_PARAMS, FULL_TAG, DAT
 
   if hvg_method == "sample":
     return [
-      zoom_dir + f'/{zoom_name}/tmp_std_var_stats_{batch}_sample_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+      f'{zoom_dir}/{zoom_name}/tmp_std_var_stats_{batch}_sample_{FULL_TAG}_{zoom_name}_{DATE_STAMP}.csv.gz'
       for batch in BATCHES
     ]
   else:
@@ -27,7 +27,7 @@ def get_zoom_std_var_stats_files(zoom_name, zoom_dir, ZOOM_PARAMS, FULL_TAG, DAT
     num_chunks  = ZOOM_PARAMS[zoom_name]['hvg']['hvg_num_chunks']
 
     return [
-      zoom_dir + f'/{zoom_name}/tmp_std_var_stats_{group}_group_chunk_{chunk}_' + FULL_TAG + '_' + DATE_STAMP + '.csv.gz'
+      f'{zoom_dir}/{zoom_name}/tmp_std_var_stats_{group}_group_chunk_{chunk}_{FULL_TAG}_{zoom_name}_{DATE_STAMP}.csv.gz'
       for group in group_names
       for chunk in range(num_chunks)
     ]
@@ -75,9 +75,9 @@ def extract_zoom_sample_statistics(qc_stats_f, labels_f, labels_col, sel_labels,
 def get_zoom_conditional_fgsea_files(ref_txome, zoom_dir, FULL_TAG, DATE_STAMP, do_gsea):
   if do_gsea and (ref_txome in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']):
     return {
-      'fgsea_go_bp_f': zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_go_bp_' + DATE_STAMP + '.csv.gz', 
-      'fgsea_go_cc_f': zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_go_cc_' + DATE_STAMP + '.csv.gz',
-      'fgsea_go_mf_f': zoom_dir + '/{zoom_name}/fgsea_' + FULL_TAG  + '_{mkr_sel_res}_go_mf_' + DATE_STAMP + '.csv.gz'
+      'fgsea_go_bp_f': f'{zoom_dir}/{{zoom_name}}/fgsea_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_go_bp_{DATE_STAMP}.csv.gz', 
+      'fgsea_go_cc_f': f'{zoom_dir}/{{zoom_name}}/fgsea_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_go_cc_{DATE_STAMP}.csv.gz',
+      'fgsea_go_mf_f': f'{zoom_dir}/{{zoom_name}}/fgsea_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_go_mf_{DATE_STAMP}.csv.gz'
     }
   else:
     return {}
