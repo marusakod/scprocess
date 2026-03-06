@@ -68,6 +68,12 @@ scprocess run /path/to/config-my_project.yaml -E "--max-threads 8"
     Before launching your analysis, you should always consider performing a dry run to your {{scrun}} or {{scsetup}} command. This process allows the workflow manager to map out the entire execution plan and display a summary of the tasks to be performed without actually running any scripts or consuming computational resources. It serves as a safety check to ensure that all input files are accessible and that the job sequence aligns with your expectations before you commit to the full execution of the pipeline.
 
 
+The initial run of {{sc}} will take some time as the Conda environments are built. You can pre-build these environments without running the workflow by using the `--create-envs` flag:
+
+```bash
+scprocess run /path/to/config-my_project.yaml --create-envs
+```
+
 By default {{scrun}} will run rule `all` which includes all [core steps](introduction.md#core-pipeline-steps). The [optional steps](introduction.md#optional-steps) (with the exception of gene set enrichment analysis) can run only after rule `all` is completed and have to be specifically requested.
 
 Additionally, you can run individual rules that generate HTML outputs (`mapping`, `ambient`, `demux`, `qc`, `hvg`, `integration`, `marker_genes`). This is useful if you want to inspect the HTML outputs for the intermediate steps first and then continue with the analysis. To run each rule separately you have to specify the rule using the `-r` or `--rule` flag e.g.

@@ -23,6 +23,21 @@ sys.path.append(os.path.join(scprocess_dir, 'scripts'))
 import scprocess_utils
 
 
+def _clean_conda_env():
+  """Return a copy of os.environ without few conda related variables
+  to minimize conda related clashes. 
+  """
+  env = os.environ.copy()
+  env.pop("CONDA_EXE", None)
+
+  # Remove exported conda bash function from the environment
+  for key in list(env.keys()):
+    if key.startswith("BASH_FUNC_conda"):
+      del env[key]
+  
+  return env
+
+
 # scprocess setup
 def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
   print('doing some checks on inputs')
@@ -112,7 +127,7 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
   print("starting scprocess setup")
   print(f"snakemake command:\n{cmd_str}")
   print(f"Logging progress to: {log_f}")
-  subprocess.run(final_cmd, shell=True)
+  subprocess.run(final_cmd, check=True, shell = True, env = _clean_conda_env())
 
 # scprocess newproj
 def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
@@ -354,7 +369,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   
   print(f"snakemake command:\n{cmd_str}")
   print(f"Logging progress to: {log_f}")
-  subprocess.run(final_cmd, shell=True)
+  subprocess.run(final_cmd, check=True, shell = True, env = _clean_conda_env())
   
 
   # render index if requested
@@ -694,6 +709,11 @@ if __name__ == '__main__':
       may be locked. If you get an error message saying that it is locked, use this
       option to unlock it, then run scprocess as normal.
       ''')
+  run_prsr.add_argument("--create-envs", action="store_true",
+    help = '''
+      Only create the conda environments needed for the workflow, without
+      running any rules.
+      ''')
   run_prsr.add_argument("--noindex", action='store_true', help = "")
 
   # subparser for the 'plotknee' subcommand
@@ -765,10 +785,12 @@ if __name__ == '__main__':
     # sort out extra arguments
     extraargs   = []
     noindex     = args.noindex
-    doindex     = (not noindex) and (not args.dry_run) and (not args.unlock)
+    doindex     = (not noindex) and (not args.dry_run) and (not args.unlock) and (not args.create_envs)
     if args.unlock:
       extraargs.append("--unlock")
     else:
+      if args.create_envs:
+        extraargs.append("--conda-create-envs-only")
       if args.extraargs:
         extraargs.extend(shlex.split(args.extraargs[0]))
       if args.dry_run:
