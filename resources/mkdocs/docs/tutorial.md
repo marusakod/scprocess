@@ -236,7 +236,7 @@ marker_genes:
   mkr_custom_genesets:
     - name: mouse_brain
 label_celltypes:
-  - labeller: "celltypist"
+  - labeller: celltypist
     model: Mouse_Whole_Brain
 ```
 
