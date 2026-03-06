@@ -60,8 +60,13 @@ scprocess run /path/to/config-my_project.yaml
 If you want to run a dry run you can add a `-n` or `--dry-run` flag to this command. In case you need to use other [snakemake options](https://snakemake.readthedocs.io/en/stable/executing/cli.html) that are not included in {{scrun}} by default, you can use the `-E` or `--extraargs` flag. For example, if you would like to set a global maximum for the number of threads available to any rule you can use: 
 
 ```bash
-scprocess run /path/to/config-my_project.yaml -E " --max-threads 8 "
+scprocess run /path/to/config-my_project.yaml -E "--max-threads 8"
 ```
+
+??? info "Why you should always consider running a dry run?"
+    
+    Before launching your analysis, you should always consider performing a dry run to your {{scrun}} or {{scsetup}} command. This process allows the workflow manager to map out the entire execution plan and display a summary of the tasks to be performed without actually running any scripts or consuming computational resources. It serves as a safety check to ensure that all input files are accessible and that the job sequence aligns with your expectations before you commit to the full execution of the pipeline.
+
 
 By default {{scrun}} will run rule `all` which includes all [core steps](introduction.md#core-pipeline-steps). The [optional steps](introduction.md#optional-steps) (with the exception of gene set enrichment analysis) can run only after rule `all` is completed and have to be specifically requested.
 

@@ -31,7 +31,9 @@ rule run_mapping:
     rows_f        = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
     chem_stats_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml'
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_mapping/run_mapping_{{run}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/mapping/run_mapping_{{run}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/mapping/run_mapping_{{run}}_{DATE_STAMP}.log'
   threads: config['resources']['n_run_mapping']
   retries: config['resources']['retries']
   resources:
@@ -40,6 +42,8 @@ rule run_mapping:
   conda:
     '../envs/alevin_fry.yaml'
   shell:"""
+    exec &> {log}
+
     # check if arv_instance is set and if so, run in arvados environment
     ARV_ARG=""
     if [[ "{params.arv_instance}" != "" ]]; then
@@ -90,10 +94,14 @@ rule save_alevin_to_h5:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'save_alevin_to_h5', 'memory', attempt, wildcards.run),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'save_alevin_to_h5', 'time', attempt, wildcards.run)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_mapping/save_alevin_to_h5_{{run}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/mapping/save_alevin_to_h5_{{run}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/mapping/save_alevin_to_h5_{{run}}_{DATE_STAMP}.log'
   conda: 
    '../envs/rlibs.yaml'
   shell: """
+    exec &> {log}
+
     Rscript -e "source('scripts/mapping.R');
       save_alevin_h5_ambient_params(
         run           = '{wildcards.run}',
@@ -118,20 +126,27 @@ rule collect_chemistry_stats:
     chem_stats_fs  = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml', run = RUNS)
   output:
     chem_stats_merged_f = f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv'
+  log:
+    f'{logs_dir}/mapping/collect_chemistry_stats_{DATE_STAMP}.log'
   run:
-    rows = []
-        
-    for f in input.chem_stats_fs:
-      with open(f, "r") as stream:
-        data = yaml.safe_load(stream)
-        rows.append(data)
     
-    chem_stats_dt = pl.from_dicts(rows)
-    col_ord = ["run", "selected_tenx_chemistry", "selected_af_chemistry", 
-      "selected_ori", "selected_gex_whitelist", "selected_whitelist_overlap", 
-      "selected_hto_whitelist", "selected_translation_f", "n_cells_fw", "n_cells_rc"]
+    import sys
+    with open(str(log), "w") as f:
+      rows = []
+      sys.stdout = f
+      sys.stderr = f
+
+      for f in input.chem_stats_fs:
+        with open(f, "r") as stream:
+          data = yaml.safe_load(stream)
+          rows.append(data)
+    
+      chem_stats_dt = pl.from_dicts(rows)
+      col_ord = ["run", "selected_tenx_chemistry", "selected_af_chemistry", 
+        "selected_ori", "selected_gex_whitelist", "selected_whitelist_overlap", 
+        "selected_hto_whitelist", "selected_translation_f", "n_cells_fw", "n_cells_rc"]
    
-    chem_stats_dt =chem_stats_dt.select(col_ord)
-    chem_stats_dt.write_csv(output.chem_stats_merged_f)
+      chem_stats_dt =chem_stats_dt.select(col_ord)
+      chem_stats_dt.write_csv(output.chem_stats_merged_f)
     
 

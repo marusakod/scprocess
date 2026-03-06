@@ -8,7 +8,7 @@
 ## Documentation & Tutorials
 For detailed setup instructions, extended reference guides, and step-by-step tutorials on example datasets, please visit:
 
-👉 **[https://macnairw.pages.roche.com/scprocess/](https://macnairw.pages.roche.com/scprocess/)**
+👉 **[https://marusakod.github.io/scprocess/](https://marusakod.github.io/scprocess/)**
 
 ---
 

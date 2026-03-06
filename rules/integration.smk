@@ -37,22 +37,11 @@ rule run_integration:
   conda: 
     '../envs/integration.yaml'
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_integration/run_integration_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/integration/run_integration_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/integration/run_integration_{DATE_STAMP}.log'
   shell: """
-    set +u
-    # set use_gpu flag based on config and on whether available
-    USE_GPU_FLAG=""
-    if [ "{params.use_gpu}" == "True" ]; then
-      if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
-        echo "running on GPU"
-        USE_GPU_FLAG="--use-gpu"
-      else
-        echo "GPU usage requested but no GPU available, running on CPU"
-      fi
-    else
-      echo "running on CPU"
-    fi
-    set -u
+    exec &> {log}
     
     python3 scripts/integration.py run_integration \
       --hvg_mat_f     {input.hvg_mat_f} \
@@ -70,9 +59,9 @@ rule run_integration:
       --res_ls_concat "{params.int_res_ls}" \
       --integration_f {output.integration_f} \
       --batch_var     {params.int_batch_var} \
-      $(if [ "{params.int_use_paga}" == "True" ]; then echo "--use-paga"; fi) \
-      $(if [ "{params.int_use_paga}" == "True" ]; then echo "--paga-cl-res {params.int_paga_cl_res}"; fi) \
-      $USE_GPU_FLAG
+      $( [ "{params.int_use_paga}" == "True" ] && echo "--use-paga" ) \
+      $( [ "{params.int_use_paga}" == "True" ] && echo "--paga-cl-res {params.int_paga_cl_res}" ) \
+      $( [ "{params.use_gpu}" == "True" ] && echo "--use-gpu" )
     """
 
 
@@ -105,10 +94,14 @@ rule make_clean_h5ads:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_clean_h5ads', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_clean_h5ads', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_integration/make_clean_h5ads_{{batch}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/integration/make_clean_h5ads_{{batch}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/integration/make_clean_h5ads_{{batch}}_{DATE_STAMP}.log'
   conda:
     '../envs/integration.yaml'
   shell: """
+    exec &> {log}
+
     python3 scripts/make_clean_h5ad.py \
       {wildcards.batch} \
       {params.sel_run} \
@@ -128,14 +121,22 @@ rule make_clean_h5ad_paths_yaml:
     clean_h5ad_fs  = expand(f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad', batch = BATCHES)
   output:
     h5ads_yaml_f   = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
+  log:
+    f'{logs_dir}/integration/make_clean_h5ad_paths_yaml_{DATE_STAMP}.log'
   run:
-    # split paths and batch names
-    fs = [f"{int_dir}/anndata_cells_clean_{batch}_{FULL_TAG}_{DATE_STAMP}.h5ad" for batch in BATCHES]
-    fs_dict = dict(zip(BATCHES, fs))
+    import sys
+    with open(str(log), "w") as f:
+      rows = []
+      sys.stdout = f
+      sys.stderr = f
+      
+      # split paths and batch names
+      fs = [f"{int_dir}/anndata_cells_clean_{batch}_{FULL_TAG}_{DATE_STAMP}.h5ad" for batch in BATCHES]
+      fs_dict = dict(zip(BATCHES, fs))
 
-    # write to yaml
-    with open(output.h5ads_yaml_f, 'w') as f:
-      yaml.dump(fs_dict, f, default_flow_style=False)
+      # write to yaml
+      with open(output.h5ads_yaml_f, 'w') as f:
+        yaml.dump(fs_dict, f, default_flow_style=False)
 
 
 rule convert_h5ad_to_sce: 
@@ -149,10 +150,14 @@ rule convert_h5ad_to_sce:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'convert_h5ad_to_sce', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'convert_h5ad_to_sce', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_integration/convert_h5ad_to_sce_{{batch}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/integration/convert_h5ad_to_sce_{{batch}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/integration/convert_h5ad_to_sce_{{batch}}_{DATE_STAMP}.log'
   conda:
     '../envs/rlibs.yaml'
   shell:"""
+    exec &> {log}
+    
     Rscript -e "source('scripts/integration.R');
     make_clean_sce_from_h5ad(
       sel_batch  = '{wildcards.batch}', 

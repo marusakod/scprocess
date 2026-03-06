@@ -10,5 +10,7 @@ __pycache__
 *.sublime-*
 *.code-workspace
 logs/
+.vscode/
+scprocess.code-workspace
 lsf.yaml
 .DS_Store

@@ -13,10 +13,18 @@ rule make_hvg_df:
     run_var         = RUN_VAR,
     batch_var       = BATCH_VAR,
     demux_type      = config['multiplexing']['demux_type']
+  log: 
+    f'{logs_dir}/hvgs/make_hvg_df_{DATE_STAMP}.log'
   run:
-    hvg_df          = make_hvgs_input_df(RUNS, input.ambient_yml_out, params.run_var, params.batch_var, 
-      RUNS_TO_BATCHES, params.demux_type, FULL_TAG, DATE_STAMP, hvg_dir)
-    hvg_df.write_csv(output.hvg_paths_f)
+    import sys
+    with open(str(log), "w") as f:
+      rows = []
+      sys.stdout = f
+      sys.stderr = f
+      
+      hvg_df          = make_hvgs_input_df(RUNS, input.ambient_yml_out, params.run_var, params.batch_var, 
+        RUNS_TO_BATCHES, params.demux_type, FULL_TAG, DATE_STAMP, hvg_dir)
+      hvg_df.write_csv(output.hvg_paths_f)
 
 def hvgs_get_filt_counts_f(run):
   ambient_method = config['ambient']['ambient_method']
@@ -48,10 +56,14 @@ rule make_tmp_csr_matrix:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_tmp_csr_matrix', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_tmp_csr_matrix', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_hvgs/make_tmp_csr_matrix_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/hvgs/make_tmp_csr_matrix_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/hvgs/make_tmp_csr_matrix_{DATE_STAMP}.log'
   conda:
     '../envs/hvgs.yaml'
   shell: """
+    exec &> {log}
+
     python3 scripts/hvgs.py get_csr_counts \
       {input.hvg_paths_f} \
       {input.cell_filter_f} \
@@ -84,10 +96,14 @@ if config['hvg']['hvg_method'] == 'sample':
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_stats_for_std_variance_for_sample', 'memory', attempt),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_stats_for_std_variance_for_sample', 'time', attempt)
     benchmark:
-      f'{benchmark_dir}/{SHORT_TAG}_hvgs/get_stats_for_std_variance_for_sample_{{batch}}_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/hvgs/get_stats_for_std_variance_for_sample_{{batch}}_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/hvgs/get_stats_for_std_variance_for_sample_{{batch}}_{DATE_STAMP}.log'
     conda:
       '../envs/hvgs.yaml'
     shell: """
+      exec &> {log}
+
       python3 scripts/hvgs.py calculate_std_var_stats_for_sample \
         {wildcards.batch} \
         {params.batch_var} \
@@ -104,9 +120,17 @@ if config['hvg']['hvg_method'] == 'sample':
       std_var_stats_merged_f = f'{hvg_dir}/standardized_variance_stats_{FULL_TAG}_{DATE_STAMP}.csv.gz'
     threads: 1
     benchmark:
-      f'{benchmark_dir}/{SHORT_TAG}_hvgs/merge_sample_std_var_stats_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/hvgs/merge_sample_std_var_stats_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/hvgs/merge_sample_std_var_stats_{DATE_STAMP}.log'
     run:
-      merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
+      import sys
+      with open(str(log), "w") as f:
+        rows = []
+        sys.stdout = f
+        sys.stderr = f
+        
+        merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
 
 
 else:
@@ -132,10 +156,14 @@ else:
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_mean_var_for_group', 'memory', attempt),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_mean_var_for_group', 'time', attempt)
     benchmark:
-      f'{benchmark_dir}/{SHORT_TAG}_hvgs/get_mean_var_for_group_{{group}}_chunk_{{chunk}}_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/hvgs/get_mean_var_for_group_{{group}}_chunk_{{chunk}}_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/hvgs/get_mean_var_for_group_{{group}}_chunk_{{chunk}}_{DATE_STAMP}.log'
     conda:
       '../envs/hvgs.yaml'
     shell: """
+      exec &> {log}
+
       GROUPVAR_FLAG=""
       if [ "{params.hvg_method}" = "groups" ]; then
         GROUPVAR_FLAG="--groupvar {params.hvg_group_var}"
@@ -167,8 +195,16 @@ else:
     output:
       mean_var_merged_f = temp(f'{hvg_dir}/means_variances_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz')
     threads: 1
+    log:
+      f'{logs_dir}/hvgs/merge_group_mean_var_{DATE_STAMP}.log'
     run:
-      merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
+      import sys
+      with open(str(log), "w") as f:
+        rows = []
+        sys.stdout = f
+        sys.stderr = f
+        
+        merge_tmp_files(input.mean_var_f, output.mean_var_merged_f)
 
 
   rule get_estimated_variances:
@@ -187,8 +223,12 @@ else:
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_estimated_variances', 'memory', attempt),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_estimated_variances', 'time', attempt)
     benchmark:
-      f'{benchmark_dir}/{SHORT_TAG}_hvgs/get_estimated_variances_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/hvgs/get_estimated_variances_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/hvgs/get_estimated_variances_{DATE_STAMP}.log'
     shell: """
+      exec &> {log}
+
       python3 scripts/hvgs.py calculate_estimated_vars \
         {output.estim_vars_f} \
         {params.hvg_method} \
@@ -217,10 +257,14 @@ else:
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_stats_for_std_variance_for_group', 'memory', attempt),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_stats_for_std_variance_for_group', 'time', attempt)
     benchmark:
-      f'{benchmark_dir}/{SHORT_TAG}_hvgs/get_stats_for_std_variance_for_group_{{group}}_chunk_{{chunk}}_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/hvgs/get_stats_for_std_variance_for_group_{{group}}_chunk_{{chunk}}_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/hvgs/get_stats_for_std_variance_for_group_{{group}}_chunk_{{chunk}}_{DATE_STAMP}.log'
     conda:
       '../envs/hvgs.yaml'
     shell: """
+      exec &> {log}
+
       python3 scripts/hvgs.py calculate_std_var_stats_for_chunk \
         {input.hvg_paths_f} \
         {input.rowdata_f} \
@@ -248,9 +292,17 @@ else:
     output:
       std_var_stats_merged_f = temp(f'{hvg_dir}/standardized_variance_stats_{FULL_TAG}_{DATE_STAMP}.csv.gz')
     benchmark:
-      f'{benchmark_dir}/{SHORT_TAG}_hvgs/merge_group_std_var_stats_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/hvgs/merge_group_std_var_stats_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/hvgs/merge_group_std_var_stats_{DATE_STAMP}.log'
     run:
-      merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
+      import sys
+      with open(str(log), "w") as f:
+        rows = []
+        sys.stdout = f
+        sys.stderr = f
+        
+        merge_tmp_files(input.std_var_stats_f, output.std_var_stats_merged_f)
 
 
 rule get_highly_variable_genes:
@@ -271,10 +323,14 @@ rule get_highly_variable_genes:
     mem_mb      = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_highly_variable_genes', 'memory', attempt),
     runtime     = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_highly_variable_genes', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_hvgs/get_highly_variable_genes_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/hvgs/get_highly_variable_genes_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/hvgs/get_highly_variable_genes_{DATE_STAMP}.log'
   conda:
     '../envs/hvgs.yaml'
   shell: """
+    exec &> {log}
+
     EXC_GS_F_FLAG=""
     NOAMBIENT_FLAG=""
 
@@ -316,10 +372,14 @@ rule create_hvg_matrix:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'create_hvg_matrix', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'create_hvg_matrix', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_hvgs/create_hvg_matrix_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/hvgs/create_hvg_matrix_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/hvgs/create_hvg_matrix_{DATE_STAMP}.log'
   conda:
     '../envs/hvgs.yaml'
   shell: """
+    exec &> {log}
+
     python3 scripts/hvgs.py create_hvg_matrix \
       {input.qc_stats_f} \
       {input.hvg_paths_f} \
@@ -349,10 +409,14 @@ rule create_doublets_hvg_matrix:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'create_doublets_hvg_matrix', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'create_doublets_hvg_matrix', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_hvgs/create_doublets_hvg_matrix_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/hvgs/create_doublets_hvg_matrix_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/hvgs/create_doublets_hvg_matrix_{DATE_STAMP}.log'
   conda: 
     '../envs/hvgs.yaml'
   shell: """
+    exec &> {log}
+    
     python3 scripts/hvgs.py create_doublets_matrix \
       {input.hvg_paths_f} \
       {input.hvg_f} \

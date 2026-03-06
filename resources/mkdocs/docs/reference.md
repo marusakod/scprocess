@@ -141,6 +141,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       sample_metadata:
       ref_txome:
       metadata_vars:
+      show_arv_uuids: true
       custom_sample_params:
       tenx_chemistry:
       exclude:
@@ -239,6 +240,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       ref_txome: human_2024
       tenx_chemistry: 3v3
       metadata_vars: [var1, var2]
+      show_arv_uuids: true
       custom_sample_params: /path/to/file/with/custom_parameters.yaml
       exclude:
         sample_id:
@@ -347,6 +349,7 @@ This is an example config file for {{sc}} with all parameters and their default 
 
 * `tenx_chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data generated with the 10x multiome kit (ATACseq data is not supported).
 * `metadata_vars`: A list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
+* `show_arv_uuids`: Whether to display Arvados UUIDs (`arv_uuids`) in the configuration file details box on the index page. If `false`, UUIDs are replaced with "not shown". Defaults to `true`.
 * `exclude`: List of all samples that should be excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
 * `custom_sample_params`: YAML file with optional custom parameters for each pool or sample (custom `tenx_chemistry`, custom `mapping`, custom `ambient` and custom `qc` parameters can be specified for each sample). For example:
 

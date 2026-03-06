@@ -21,10 +21,14 @@ rule run_celltypist:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_celltypist', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_celltypist', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_label_celltypes/run_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/label_celltypes/run_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/label_celltypes/run_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.log'
   conda: 
     '../envs/celltypist.yaml'
   shell:"""
+    exec &> {log}
+    
     python3 scripts/label_celltypes.py celltypist_one_batch \
       {wildcards.batch} {params.batch_var} {wildcards.model} \
       --adata_f   {input.adata_f} \
@@ -50,10 +54,14 @@ rule run_scprocess_labeller:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_scprocess_labeller', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_scprocess_labeller', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/{SHORT_TAG}_label_celltypes/run_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/label_celltypes/run_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/label_celltypes/run_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.log'
   conda: 
     '../envs/rlibs.yaml'
   shell: """
+    exec &> {log}
+
     # save sce object
     Rscript -e "source('scripts/label_celltypes.R'); source('scripts/integration.R'); \
     label_with_xgboost_one_batch(
@@ -105,10 +113,14 @@ if ('label_celltypes' in config) & qc_stats_f.is_file():
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_labels', 'memory', attempt),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_labels', 'time', attempt)
     benchmark: 
-      f'{benchmark_dir}/{SHORT_TAG}_label_celltypes/merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/label_celltypes/merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.benchmark.txt'
+    log: 
+      f'{logs_dir}/label_celltypes/merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.log'
     conda: 
       '../envs/celltypist.yaml'
     shell:"""
+      exec &> {log}
+
       python3 scripts/label_celltypes.py aggregate_predictions \
         {params.pred_fs_ls} \
         --int_f           {input.integration_f} \
