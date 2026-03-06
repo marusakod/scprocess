@@ -43,21 +43,6 @@ rule run_integration:
   shell: """
     exec &> {log}
     
-    set +u
-    # set use_gpu flag based on config and on whether available
-    USE_GPU_FLAG=""
-    if [ "{params.use_gpu}" == "True" ]; then
-      if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
-        echo "running on GPU"
-        USE_GPU_FLAG="--use-gpu"
-      else
-        echo "GPU usage requested but no GPU available, running on CPU"
-      fi
-    else
-      echo "running on CPU"
-    fi
-    set -u
-    
     python3 scripts/integration.py run_integration \
       --hvg_mat_f     {input.hvg_mat_f} \
       --dbl_hvg_mat_f {input.dbl_hvg_mat_f} \
@@ -74,9 +59,9 @@ rule run_integration:
       --res_ls_concat "{params.int_res_ls}" \
       --integration_f {output.integration_f} \
       --batch_var     {params.int_batch_var} \
-      $(if [ "{params.int_use_paga}" == "True" ]; then echo "--use-paga"; fi) \
-      $(if [ "{params.int_use_paga}" == "True" ]; then echo "--paga-cl-res {params.int_paga_cl_res}"; fi) \
-      $USE_GPU_FLAG
+      $( [ "{params.int_use_paga}" == "True" ] && echo "--use-paga" ) \
+      $( [ "{params.int_use_paga}" == "True" ] && echo "--paga-cl-res {params.int_paga_cl_res}" ) \
+      $( [ "{params.use_gpu}" == "True" ] && echo "--use-gpu" )
     """
 
 
