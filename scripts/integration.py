@@ -455,37 +455,53 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   # gpu vs cpu setup
-  if args.use_gpu:
-    print('using GPU')
-    # import some GPU-specific modules
+  use_gpu = args.use_gpu
+  if use_gpu:
+    try:
+      import cupy as cp
+      gpu_count = cp.cuda.runtime.getDeviceCount() # this gives an error if gpu is not found
+            
+      if gpu_count == 0: # Some drivers might still return 0 without erroring
+        print("GPU usage requested but no GPU available, running on CPU")
+        use_gpu = False
+
+    except (ImportError, Exception) as e:
+      print(f"GPU usage requested but no GPU available, running on CPU")
+      print(f"   (Error: {e})")
+      use_gpu = False
+
+  if use_gpu:
+    print(f"Running on GPU")
     import rapids_singlecell as sc
-    import cupy as cp
     import rmm
     from rmm.allocators.cupy import rmm_cupy_allocator
 
-    # do some recommended setup
     rmm.reinitialize(
-      managed_memory=False,  # Allows oversubscription (what is this?)
-      pool_allocator=False,  # default is False; they in the vignette (https://rapids-singlecell.readthedocs.io/en/latest/notebooks/01_demo_gpu.html), they set this to True for harmony 
-      devices=0,  # GPU device IDs to register. By default registers only GPU 0. (???)
+      managed_memory=False, 
+      pool_allocator=True, # Recommended True for performance in iterative tasks like Harmony
+      devices=0,
     )
+    
     cp.cuda.set_allocator(rmm_cupy_allocator)
   else:
-    print('not using GPU')
-    # import some standard modules
+    print("Running on CPU")
     import scanpy as sc
-    import scanpy.external as sce # for harmony
+    import scanpy.external as sce
 
-  # run
+
   if args.function_name == 'run_integration':
-    run_integration(args.hvg_mat_f, args.dbl_hvg_mat_f, args.sample_qc_f, args.coldata_f,
+    run_integration(
+      args.hvg_mat_f, args.dbl_hvg_mat_f, args.sample_qc_f, args.coldata_f,
       args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
       args.dbl_res, args.dbl_cl_prop, args.theta, args.res_ls_concat, args.integration_f,
-      args.batch_var, args.use_gpu, args.use_paga, args.paga_cl_res)
+      args.batch_var, use_gpu, args.use_paga, args.paga_cl_res
+    )
   elif args.function_name == 'run_zoom_integration':
-    run_zoom_integration(args.hvg_mat_f, args.sample_qc_f, args.coldata_f,
+    run_zoom_integration(
+      args.hvg_mat_f, args.sample_qc_f, args.coldata_f,
       args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
       args.theta, args.res_ls_concat, args.integration_f,
-      args.batch_var, args.use_gpu, args.use_paga, args.paga_cl_res)
+      args.batch_var, use_gpu, args.use_paga, args.paga_cl_res
+    )
   else:
     parser.print_help()
