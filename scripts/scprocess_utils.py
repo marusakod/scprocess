@@ -2,6 +2,7 @@
 import os
 import sys
 import re
+import copy
 import pathlib
 import warnings
 import yaml
@@ -684,7 +685,8 @@ def get_zoom_parameters(config, zoom_schema_f, scdata_dir):
     zoom_yamls    = [ pathlib.Path(f) for f in config['zoom']]
 
     # make dictionary of zoom params from yamls
-    zoom_ls       = [_get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config, scdata_dir) for zoom_yaml_f in zoom_yamls]
+    zoom_ls       = [_get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, copy.deepcopy(config)) 
+                      for zoom_yaml_f in zoom_yamls]
     zoom_ns       = [z['zoom']['name'] for z in zoom_ls]
     if len(zoom_ns) != len(set(zoom_ns)):
       raise ValueError("names in specified zoom parameter yaml files are not unique")
@@ -694,7 +696,7 @@ def get_zoom_parameters(config, zoom_schema_f, scdata_dir):
 
 
 # get parameters for one zoom specification
-def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config, scdata_dir):
+def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
   # check file exists
   zoom_yaml_f   = _check_path_exists_in_project(zoom_yaml_f, config, what = "file")
 
