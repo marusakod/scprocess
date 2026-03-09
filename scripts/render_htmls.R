@@ -141,7 +141,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     req_names = c('your_name', 'affiliation', 'short_tag', 
       'date_stamp', 'threads', 'metadata_f','meta_vars_ls',
       'gtf_dt_f', 'integration_f', 'pb_f', 'mkrs_f', 'hvgs_f', 'ambient_f',
-      'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f','fgsea_paths_f', 'fgsea_hlmk_f',
+      'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f',
       'mkr_sel_res', 'custom_mkr_names', 'custom_mkr_paths',
       'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_var', 'mkr_gsea_cut', 
       'ref_txome', 'do_gsea')

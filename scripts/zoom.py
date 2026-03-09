@@ -1,4 +1,3 @@
-import pandas as pd
 import polars as pl
 
 # zoom function: get list of all mean var files for zooms

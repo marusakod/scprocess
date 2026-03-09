@@ -263,7 +263,7 @@ for (sel_cl in cl_ord) {
 ${fgsea_title}
 ${fgsea_txt}
 
-```{r plot_gsea_results_pb, eval = do_gsea, include=do_gsea, fig.height = 12, fig.width = 8, results = "asis"}
+```{r plot_gsea_results_pb, eval = do_gsea, include = do_gsea, fig.height = 12, fig.width = 8, results = "asis"}
 for (p in names(gsea_ls)) {
   if (is.null(gsea_ls[[p]]))
     next

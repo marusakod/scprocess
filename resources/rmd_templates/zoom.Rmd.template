@@ -55,11 +55,11 @@ empty_gs_f    = "${empty_gs_f}"
 pb_empty_f    = "${pb_empty_f}"
 
 # fgsea files
+ref_txome     = "${ref_txome}"
 do_gsea       = as.logical("${do_gsea}")
 fgsea_go_bp_f = "${fgsea_go_bp_f}"
 fgsea_go_cc_f = "${fgsea_go_cc_f}"
 fgsea_go_mf_f = "${fgsea_go_mf_f}"
-
 
 # custom markers for heatmap
 custom_mkr_names_str = "${custom_mkr_names}"
@@ -217,6 +217,7 @@ gsea_ls       = lapply(fgsea_fs, function(f) if(file.exists(f)) {fread(f)} else 
 
 ```{r plot_setup, include = FALSE}
 do_metadata   = length(metadata_vars) > 0
+do_gsea       = (ref_txome %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) & do_gsea
 # for ambient gene heatmaps
 base_w      = 1.5
 unit_w      = 0.5
@@ -430,7 +431,7 @@ for (sel_cl in cl_ord) {
 ${fgsea_title}
 ${fgsea_txt}
 
-```{r plot_gsea_results_pb, eval = do_gsea, fig.height = 12, fig.width = 8, results = "asis"}
+```{r plot_gsea_results_pb, eval = do_gsea, include = do_gsea, fig.height = 12, fig.width = 8, results = "asis"}
 for (p in names(gsea_ls)) {
   if (is.null(gsea_ls[[p]]))
     next

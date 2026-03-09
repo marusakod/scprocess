@@ -900,6 +900,8 @@ rule zoom_make_subsets:
 # render_html_zoom
 rule render_html_zoom:
   input:
+    unpack(lambda wildcards: get_zoom_conditional_fgsea_files(config['project']['ref_txome'], zoom_dir,
+        FULL_TAG, DATE_STAMP, ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea'])),
     r_utils_f             = f'{code_dir}/utils.R',
     r_hvgs_f              = f'{code_dir}/hvgs.R', 
     r_int_f               = f'{code_dir}/integration.R',
@@ -911,9 +913,7 @@ rule render_html_zoom:
     zoom_pb_f             = f'{zoom_dir}/{{zoom_name}}/pb_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.rds',
     zoom_pb_hvgs_f        = f'{zoom_dir}/{{zoom_name}}/pb_hvgs_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
     zoom_mkrs_f           = f'{zoom_dir}/{{zoom_name}}/pb_marker_genes_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz', 
-    zoom_empty_gs_f       = f'{zoom_dir}/{{zoom_name}}/edger_empty_genes_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz', 
-    fgsea_files           = lambda wildcards: list(get_zoom_conditional_fgsea_files(config['project']['ref_txome'], zoom_dir,
-        FULL_TAG, DATE_STAMP, ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea']).values())
+    zoom_empty_gs_f       = f'{zoom_dir}/{{zoom_name}}/edger_empty_genes_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
   output:
     rmd_f                 = f'{rmd_dir}/{SHORT_TAG}_zoom_{{zoom_name}}_{{mkr_sel_res}}.Rmd',
     html_f                = f'{docs_dir}/{SHORT_TAG}_zoom_{{zoom_name}}_{{mkr_sel_res}}.html'
@@ -929,9 +929,9 @@ rule render_html_zoom:
     batch_var             = BATCH_VAR,
     meta_vars             = ','.join(config['project']['metadata_vars']), 
     fgsea_args            = lambda wildcards, input: ", ".join([
-        f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}'",
-        f"fgsea_go_cc_f = '{input.get('fgsea_go_cc_f', '')}'",
-        f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}',"
+      f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}'",
+      f"fgsea_go_cc_f = '{input.get('fgsea_go_cc_f', '')}'",
+      f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}'"
     ]), 
     af_gtf_dt_f           = config['mapping']['af_gtf_dt_f'],
     zoom_int_res_ls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'], 
@@ -987,7 +987,7 @@ rule render_html_zoom:
       pb_hvgs_f         = '{input.zoom_pb_hvgs_f}',
       empty_gs_f        = '{input.zoom_empty_gs_f}', 
       pb_empty_f        = '{input.pb_empty_f}', 
-      {params.fgsea_args}
+      {params.fgsea_args},
       int_res_ls        = '{params.zoom_int_res_ls}', 
       custom_mkr_names  = '{params.zoom_custom_mkr_names}',
       custom_mkr_paths  = '{params.zoom_custom_mkr_paths}',

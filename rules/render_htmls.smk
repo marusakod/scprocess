@@ -434,9 +434,7 @@ rule render_html_marker_genes:
       [
         f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}',",
         f"fgsea_go_cc_f = '{input.get('fgsea_go_cc_f', '')}',",
-        f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}',",
-        f"fgsea_paths_f = '{input.get('fgsea_paths_f', '')}',",
-        f"fgsea_hlmk_f  = '{input.get('fgsea_hlmk_f', '')}',"
+        f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}',"
       ]
     ).strip()
   conda: '../envs/rlibs.yaml'

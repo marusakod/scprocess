@@ -11,9 +11,7 @@ suppressPackageStartupMessages({
 
 
 calculate_marker_genes <- function(integration_f, h5ads_yaml_f, batch_var, pb_f, mkrs_f, pb_hvgs_f,
-  fgsea_go_bp_f = "", fgsea_go_cc_f = "", fgsea_go_mf_f = "", fgsea_paths_f = "", fgsea_hlmk_f = "",
-  do_gsea, gtf_dt_f, gsea_dir, sel_res, min_cl_size, min_cells, zoom = FALSE, 
-  n_cores = 4) {
+  do_gsea, gtf_dt_f, gsea_dir, sel_res, min_cl_size, min_cells, zoom = FALSE, n_cores = 4) {
   # define some variables
   zoom        = as.logical(zoom)
   
