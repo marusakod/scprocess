@@ -4,7 +4,6 @@
 import argparse
 import gzip
 import os
-import pandas as pd
 import re
 import subprocess
 import yaml
@@ -582,18 +581,23 @@ def _make_index_params_yaml(yaml_f, ref_txome, fasta_f, index_dir, gtf_f, gtf_tx
 
 
 def save_index_params_csv(csv_f, yaml_fs):
-  # load all yamls
+  # check yamls exist
   assert all([ os.path.isfile(f) for f in yaml_fs]), "not all yaml files exist"
 
-  # make df
-  params_df = pd.DataFrame( columns = ["ref_txome", "mito_str", "gtf_txt_f"] )
-  for i, yaml_f in enumerate(yaml_fs):
+  # get data we need from each one
+  df_data = []
+  for yaml_f in yaml_fs:
     with open(yaml_f) as f:
       yaml_ls = yaml.load(f, Loader=yaml.FullLoader)
-    params_df.loc[i] = [yaml_ls['ref_txome'], yaml_ls['mito_str'], yaml_ls['gtf_txt_f']]
+      df_data.append({
+        "ref_txome":  yaml_ls.get('ref_txome'),
+        "mito_str":   yaml_ls.get('mito_str'),
+        "gtf_txt_f":  yaml_ls.get('gtf_txt_f')
+      })
 
-  # save to csv
-  params_df.to_csv(csv_f, index = False)
+  # create DataFrame, save
+  params_df = pl.DataFrame(df_data)
+  params_df.write_csv(csv_f)
 
 
 if __name__ == "__main__":

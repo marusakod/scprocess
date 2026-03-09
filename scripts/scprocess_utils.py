@@ -6,7 +6,6 @@ import copy
 import pathlib
 import warnings
 import yaml
-import pandas as pd
 import polars as pl
 import csv
 import math
@@ -222,8 +221,8 @@ def _check_project_parameters(config, scdata_dir, scprocess_dir):
   index_params_f    = scdata_dir / 'index_parameters.csv'
 
   # from index_parameters.csv get valid values for ref_txome
-  index_params        = pd.read_csv(index_params_f)
-  valid_ref_txome     = index_params['ref_txome'].tolist()
+  index_params        = pl.read_csv(index_params_f)
+  valid_ref_txome     = index_params['ref_txome'].to_list()
   valid_ref_txome_str = ', '.join(valid_ref_txome)
   if not config['project']['ref_txome'] in valid_ref_txome:
     raise ValueError(f"ref_txome {config['project']['ref_txome']} not defined. Valid values are {valid_ref_txome_str}")
@@ -657,13 +656,15 @@ def _get_custom_marker_genes_specs(config, scdata_dir):
         raise ValueError(f"File for custom marker set '{name}' is not a csv file")
 
       # check csv file contents
-      mkrs_df   = pd.read_csv(file_path)
+      mkrs_df   = pl.read_csv(file_path)
       req_col   = "label"
       opt_cols  = ["symbol", "ensembl_id"]
       if not req_col in mkrs_df.columns:
         raise KeyError(f"File '{file_path}' is missing the mandatory column 'label'.")
       if not any(col in mkrs_df.columns for col in opt_cols):
         raise KeyError(f"File '{file_path}' must contain at least one of 'symbol' or 'ensembl_id' column.")
+      if any(mkrs_df["symbol"].is_duplicated()):
+        raise KeyError(f"File '{file_path}' cannot have any duplicated values in the 'symbol' column")
 
       # Store validated values
       mkr_names.append(name)
