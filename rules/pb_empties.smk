@@ -17,7 +17,7 @@ rule make_empty_pb_input_df:
     f'{logs_dir}/pb_empties/make_empty_pb_input_df_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -65,7 +65,7 @@ rule make_one_pb_empty:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     make_pb_empty(
@@ -98,7 +98,7 @@ rule merge_pb_empty:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     merge_pbs_empty( \
@@ -119,7 +119,7 @@ rule make_runs_to_batches_df:
     f'{logs_dir}/pb_empties/make_runs_to_batches_df_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -173,7 +173,7 @@ rule make_one_pb_cells:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     make_pb_cells(
@@ -201,7 +201,7 @@ rule make_tmp_pb_cells_df:
     f'{logs_dir}/pb_empties/make_tmp_pb_cells_df_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -238,7 +238,7 @@ rule merge_pb_cells:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     merge_pbs_cells( \
@@ -273,7 +273,7 @@ rule calculate_ambient_genes:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
     
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     calc_empty_genes(

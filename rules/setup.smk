@@ -136,7 +136,7 @@ rule download_scprocess_files:
   log: 
     f'{logs_dir}/download_scprocess_files.log'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     python3 scripts/setup.py get_scprocess_data \
       "{SCDATA_DIR}" \
@@ -168,7 +168,7 @@ rule set_up_one_af_index:
   log: 
     f'{logs_dir}/set_up_one_of_index_{{ref_txome}}.log'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     python3 scripts/setup.py set_up_af_index {SCDATA_DIR} {wildcards.ref_txome} \
       {params.fasta} {params.gtf} {params.index_dir} {params.mito_str} \
@@ -189,7 +189,7 @@ rule save_index_parameters_csv:
   log:
     f'{logs_dir}/save_index_parameters_csv.log'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     python3 scripts/setup.py save_index_params_csv {output.csv} {input.yamls}
     """
@@ -204,7 +204,7 @@ rule download_celltypist_models:
   log:
     f'{logs_dir}/download_celltypist_models.log'
   shell:"""
-    exec &> {log}
+    exec &>> {log}
     
     # download celltypist models
     python3 scripts/label_celltypes.py download_models {output.models_f}

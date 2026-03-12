@@ -149,7 +149,7 @@ rule get_zoom_sample_statistics:
     f'{logs_dir}/zoom/get_zoom_sample_statistics_{{zoom_name}}_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -189,7 +189,7 @@ rule zoom_make_one_pb_cells:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     make_pb_cells(
@@ -224,7 +224,7 @@ rule zoom_make_tmp_pb_cells_df:
     f'{logs_dir}/zoom/zoom_make_tmp_pb_cells_df_{{zoom_name}}_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -267,7 +267,7 @@ rule zoom_merge_pb_cells:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     merge_pbs_cells( \
@@ -302,7 +302,7 @@ rule zoom_calculate_ambient_genes:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
     calc_empty_genes(
@@ -330,7 +330,7 @@ rule zoom_make_hvg_df:
     f'{logs_dir}/zoom/zoom_make_hvg_df_{{zoom_name}}_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -373,7 +373,7 @@ rule zoom_make_tmp_csr_matrix:
   conda:
     '../envs/hvgs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     python3 scripts/hvgs.py get_csr_counts \
       {input.hvg_paths_f} \
@@ -413,7 +413,7 @@ rule zoom_get_stats_for_std_variance_for_sample:
   conda:
     '../envs/hvgs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     python3 scripts/hvgs.py calculate_std_var_stats_for_sample \
       {wildcards.batch} \
@@ -454,7 +454,7 @@ rule zoom_get_mean_var_for_group:
   conda:
     '../envs/hvgs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     GROUPVAR_FLAG=""
     if [ "{params.zoom_hvg_method}" = "groups" ]; then
@@ -493,7 +493,7 @@ rule zoom_merge_group_mean_var:
     f'{logs_dir}/zoom/zoom_get_mean_var_for_group_{{zoom_name}}_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -523,7 +523,7 @@ rule zoom_get_estimated_variances:
   log:
     f'{logs_dir}/zoom/zoom_get_estimated_variances_{{zoom_name}}_{DATE_STAMP}.log'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     python3 scripts/hvgs.py calculate_estimated_vars \
       {output.estim_vars_f} \
@@ -564,7 +564,7 @@ rule zoom_get_stats_for_std_variance_for_group:
   conda:
     '../envs/hvgs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     python3 scripts/hvgs.py calculate_std_var_stats_for_chunk \
       {input.hvg_paths_f} \
@@ -593,7 +593,7 @@ rule zoom_merge_stats_for_std_variance:
     f'{logs_dir}/zoom/zoom_merge_stats_for_std_variance_{{zoom_name}}_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -627,7 +627,7 @@ rule zoom_get_highly_variable_genes:
   conda:
     '../envs/hvgs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     NOAMBIENT_FLAG=""
     if [ "{params.zoom_exc_ambient}" = "True" ]; then
@@ -678,7 +678,7 @@ rule zoom_create_hvg_matrix:
   conda:
     '../envs/hvgs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     python3 scripts/hvgs.py create_hvg_matrix \
       {input.smpl_stats_f} \
@@ -724,7 +724,7 @@ rule zoom_run_integration:
   conda: 
     '../envs/integration.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     set +u
     # set use_gpu flag based on config and on whether available
@@ -789,7 +789,7 @@ rule zoom_run_marker_genes:
   conda:
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); calculate_marker_genes(
       integration_f = '{input.integration_f}', 
@@ -835,7 +835,7 @@ rule zoom_run_fgsea:
     f'{logs_dir}/zoom/zoom_run_fgsea_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.log'
   conda: '../envs/rlibs.yaml'
   shell:"""
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/utils.R'); source('scripts/fgsea.R'); run_fgsea(
       mkrs_f        = '{input.mkrs_f}', 
@@ -878,7 +878,7 @@ rule zoom_make_subsets:
     runtime = lambda w, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_make_subsets', 'time', attempt)
   conda: '../envs/rlibs.yaml'
   shell:"""
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/zoom.R');
     make_subset_objects(
@@ -958,7 +958,7 @@ rule render_html_zoom:
   log:
     f'{logs_dir}/zoom/render_html_zoom_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.log'
   shell: """
-    exec &> {log}
+    exec &>> {log}
     
     template_f=$(realpath resources/rmd_templates/zoom.Rmd.template)
     rule="zoom"

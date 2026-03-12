@@ -27,7 +27,7 @@ rule run_celltypist:
   conda: 
     '../envs/celltypist.yaml'
   shell:"""
-    exec &> {log}
+    exec &>> {log}
     
     python3 scripts/label_celltypes.py celltypist_one_batch \
       {wildcards.batch} {params.batch_var} {wildcards.model} \
@@ -60,7 +60,7 @@ rule run_scprocess_labeller:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     # save sce object
     Rscript -e "source('scripts/label_celltypes.R'); source('scripts/integration.R'); \
@@ -119,7 +119,7 @@ if ('label_celltypes' in config) & qc_stats_f.is_file():
     conda: 
       '../envs/celltypist.yaml'
     shell:"""
-      exec &> {log}
+      exec &>> {log}
 
       python3 scripts/label_celltypes.py aggregate_predictions \
         {params.pred_fs_ls} \

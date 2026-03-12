@@ -41,7 +41,7 @@ rule run_integration:
   log:
     f'{logs_dir}/integration/run_integration_{DATE_STAMP}.log'
   shell: """
-    exec &> {log}
+    exec &>> {log}
     
     python3 scripts/integration.py run_integration \
       --hvg_mat_f     {input.hvg_mat_f} \
@@ -100,7 +100,7 @@ rule make_clean_h5ads:
   conda:
     '../envs/integration.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     python3 scripts/make_clean_h5ad.py \
       {wildcards.batch} \
@@ -125,7 +125,7 @@ rule make_clean_h5ad_paths_yaml:
     f'{logs_dir}/integration/make_clean_h5ad_paths_yaml_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -156,7 +156,7 @@ rule convert_h5ad_to_sce:
   conda:
     '../envs/rlibs.yaml'
   shell:"""
-    exec &> {log}
+    exec &>> {log}
     
     Rscript -e "source('scripts/integration.R');
     make_clean_sce_from_h5ad(

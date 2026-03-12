@@ -158,7 +158,7 @@ if config['ambient']['ambient_method'] == 'cellbender':
     container:
       config['ambient']['cellbender_image']
     shell: """
-      exec &> {log}
+      exec &>> {log}
 
       # get parameters for cellbender
       CB_VERSION={params.cb_version}
@@ -258,7 +258,7 @@ if config['ambient']['ambient_method'] == 'decontx':
       '../envs/ambientr.yaml'
     shell:"""
 
-      exec &> {log}
+      exec &>> {log}
 
       # create main ambient directory
       mkdir -p {amb_dir}
@@ -318,7 +318,7 @@ if config['ambient']['ambient_method'] == 'none':
     log:
       f'{logs_dir}/ambient/run_cell_calling_{{run}}_{DATE_STAMP}.log'
     shell: """
-      exec &> {log}
+      exec &>> {log}
 
       # create main ambient directory
       mkdir -p {amb_dir}
@@ -371,7 +371,7 @@ rule get_barcode_qc_metrics:
   log:
     f'{logs_dir}/ambient/get_barcode_qc_metrics_{{run}}_{DATE_STAMP}.log'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     # save barcode stats
     Rscript -e "source('scripts/ambient.R'); source('scripts/utils.R'); \
@@ -395,7 +395,7 @@ rule get_ambient_run_statistics:
     f'{logs_dir}/ambient/get_ambient_run_statistics_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f

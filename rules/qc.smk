@@ -124,7 +124,7 @@ rule make_qc_thresholds_csv:
     f'{logs_dir}/qc/make_qc_thresholds_csv_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -191,7 +191,7 @@ rule run_qc_one_run:
   conda:
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/SampleQC.R'); source('scripts/utils.R'); \
       main_qc( \
@@ -243,7 +243,7 @@ rule merge_qc:
   conda:
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
     
     QC_LIST="{input.qc_fs}" COL_LIST="{input.coldata_fs}" \
       Rscript -e "source('scripts/SampleQC.R'); \
@@ -269,7 +269,7 @@ rule merge_rowdata:
     f'{logs_dir}/qc/merge_rowdata_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -307,7 +307,7 @@ rule get_qc_sample_statistics:
     f'{logs_dir}/qc/get_qc_sample_statistics_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -328,7 +328,7 @@ rule check_qc_quality:
     f'{logs_dir}/qc/check_qc_quality_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f

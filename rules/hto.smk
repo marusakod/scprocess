@@ -20,7 +20,7 @@ rule build_hto_index:
   conda:
     '../envs/alevin_fry.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     cd {af_dir}
     # create a tsv file from feature ref file
@@ -77,7 +77,7 @@ rule run_mapping_hto:
   log:
     f'{logs_dir}/hto/run_mapping_hto_{{run}}_{DATE_STAMP}.log'
   shell:"""
-    exec &> {log}
+    exec &>> {log}
 
     # check if arv_instance is set and if so, run in arvados environment
     ARV_ARG=""
@@ -126,7 +126,7 @@ rule save_alevin_hto_to_h5:
   conda: 
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/mapping.R');
       save_alevin_h5_knee_params_df(
@@ -164,7 +164,7 @@ rule make_hto_sce_objects:
   conda:
    '../envs/rlibs.yaml'
   shell: """
-  exec &> {log}
+  exec &>> {log}
   
   # get translation file from chemistry stats
   WHITELIST_TRANS_F=$(grep "selected_translation_f:" {input.chem_stats_f} | sed 's/selected_translation_f: //')
