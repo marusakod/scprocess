@@ -1,6 +1,6 @@
 # How to cite {{sc}}
 
-If you use {{sc}} in your research, please cite [our paper](https://link-to-your-paper.com).
+If you use {{sc}} in your research, please cite [our preprint](https://www.biorxiv.org/content/10.64898/2026.03.09.710141v1).
 
 {{sc}} relies on various open-source tools. Please consider citing the specific methods used in your analysis:
 
