@@ -246,7 +246,7 @@ def get_af_index_parameters(config):
   # check if reference for tutorial needs to be added
   if 'mouse_2024' not in setup_names:
     spec_tmp    = {'name': "mouse_2024"}
-    setup_names = [ setup_names, 'mouse_2024' ]
+    setup_names.append('mouse_2024')
     SETUP_LS.append( _get_index_parameters_tenx(spec_tmp, TENX_NAMES) )
 
   # make dictionary instead
