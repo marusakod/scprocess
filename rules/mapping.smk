@@ -58,16 +58,16 @@ rule run_mapping:
 
     # run mapping
     python3 scripts/mapping.py {wildcards.run} \
-      --af_dir          {af_dir} \
-      --demux_type      {params.demux_type} \
+      --af_dir          "{af_dir}" \
+      --demux_type      "{params.demux_type}" \
       --what            "rna" \
-      --af_home_dir     {params.af_home_dir} \
-      --where           {params.where} \
+      --af_home_dir     "{params.af_home_dir}" \
+      --where           "{params.where}" \
       --R1_fs           {params.R1_fs} \
       --R2_fs           {params.R2_fs} \
       --threads         {threads} \
-      --af_index_dir    {params.af_index_dir} \
-      --wl_lu_f         {params.wl_lu_f} \
+      --af_index_dir    "{params.af_index_dir}" \
+      --wl_lu_f         "{params.wl_lu_f}" \
       $ARV_ARG \
       "${{OPT_ARGS[@]}}"
     """

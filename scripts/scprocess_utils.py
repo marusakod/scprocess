@@ -829,10 +829,10 @@ def get_run_parameters(config, scprocess_data_dir):
 def _get_fastqs(config, RUNS, is_hto = False):
   # get place to look for fastq files
   if is_hto:
-    tmp_ls      = config['multiplexing']
+    tmp_ls        = config['multiplexing']
     tmp_ls['arv_instance'] = config['project'].get('arv_instance', [])
   else:
-    tmp_ls      = config['project']
+    tmp_ls        = config['project']
 
   if "fastq_dir" in tmp_ls:
     fastq_dir     = tmp_ls['fastq_dir']
@@ -895,14 +895,15 @@ def _get_fastqs(config, RUNS, is_hto = False):
 # get all fastq files in directory
 def _list_fastq_files_dir(fastq_dir):
   # get all files
-  all_fs      = os.listdir(fastq_dir)
+  all_fs          = os.listdir(fastq_dir)
 
   # filter to just fastqs
   fastq_fs        = [ f for f in all_fs if re.match(r".+\.fastq\.gz", f) ]
-  wheres          = [ fastq_dir for f in all_fs]
+  wheres          = [ fastq_dir for f in fastq_fs]
   fastq_sizes_gb  = [ (fastq_dir / f).stat().st_size  / BYTES_PER_GB for f in fastq_fs ]
+  fastq_fs_strs   = [ f"\"{f}\"" for f in fastq_fs ]
 
-  return { "wheres": wheres, "fastqs": fastq_fs, "fastq_sizes": fastq_sizes_gb }
+  return { "wheres": wheres, "fastqs": fastq_fs_strs, "fastq_sizes": fastq_sizes_gb }
 
 
 # get all fastq files in all arvados uuids
@@ -967,8 +968,9 @@ def _list_fastq_files_arvados(arv_uuids, arv_instance):
     fastq_fs        = [ f for f in arv_files if re.match(fastq_re, f) ]
     fastq_sizes_gb  = [ round(file_sizes[f] / BYTES_PER_GB, 1) for f in fastq_fs ]
     wheres          = [ wheres[f] for f in fastq_fs ]
+    fastq_fs_strs   = [ f"\"{f}\"" for f in fastq_fs ]
 
-    return { "wheres": wheres, "fastqs": fastq_fs, "fastq_sizes": fastq_sizes_gb }
+    return { "wheres": wheres, "fastqs": fastq_fs_strs, "fastq_sizes": fastq_sizes_gb }
 
   # Iterate through each UUID in the list
   for arv_uuid in arv_uuids:

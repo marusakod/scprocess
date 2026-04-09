@@ -91,16 +91,16 @@ rule run_mapping_hto:
 
     # run mapping
     python3 scripts/mapping.py {wildcards.run} \
-      --af_dir          {af_dir}\
-      --demux_type      {params.demux_type} \
+      --af_dir          "{af_dir}" \
+      --demux_type      "{params.demux_type}" \
       --what            "hto" \
-      --af_home_dir     {params.af_home_dir} \
-      --where           {params.where} \
+      --af_home_dir     "{params.af_home_dir}" \
+      --where           "{params.where}" \
       --R1_fs           {params.R1_fs} \
       --R2_fs           {params.R2_fs} \
       --threads         {threads} \
-      --af_index_dir    {input.hto_idx_dir} \
-      --wl_lu_f         {params.wl_lu_f} \
+      --af_index_dir    "{input.hto_idx_dir}" \
+      --wl_lu_f         "{params.wl_lu_f}" \
       $ARV_ARG \
       --tenx_chemistry  $AF_CHEMISTRY \
       --exp_ori         $EXP_ORI \

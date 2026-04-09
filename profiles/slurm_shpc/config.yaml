@@ -15,6 +15,10 @@ set-resources:
     slurm_partition: "batch_gpu"
     slurm_extra: "'--gpus=1'"
     qos: '3h'
+  zoom_run_integration:
+    slurm_partition: "batch_gpu"
+    slurm_extra: "'--gpus=1'"
+    qos: '3h'
   run_cellbender:
     slurm_partition: "batch_gpu"
     slurm_extra: "'--gpus=1 --cpus-per-task=4'"
