@@ -613,10 +613,7 @@ def plot_interactive_knee(config_f, knee_f, sample):
       )
 
   print("importing modules for plotting knees")
-  import gzip
-
   import plotly.express as px
-  from plotly.offline import plot
 
   # read knee file
   knee_df = pl.read_csv(knee_f, schema_overrides={"rank": pl.Float32})
