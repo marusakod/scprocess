@@ -60,9 +60,6 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
     raise FileNotFoundError("setup schema file not found")
   setup_cfg = scprocess_utils.check_setup_config(setup_cfg, schema_f, scprocess_dir)
 
-  # change scprocess directory
-  os.chdir(scprocess_dir)
-
   log_dir = scdata_dir / ".log/scprocess"
   (log_f, log_header) = _get_main_log(setup_f, log_dir, dryrun)
 
@@ -102,6 +99,8 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
     # set up commands
   cmd_list = [
     "snakemake",
+    "--directory",
+    str(scdata_dir),
     "--snakefile",
     str(snakefile),
     "--configfile",
@@ -324,7 +323,6 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   # housekeeping
   config_path = Path(configfile).resolve()
   scprocess_dir = Path(__file__).parent
-  os.chdir(scprocess_dir)
 
   # do some checks
   (scdata_dir, extraargs, setup_cfg) = (
@@ -382,6 +380,8 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   # assemble what we'll do
   cmd_list = [
     "snakemake",
+    "--directory",
+    str(proj_dir),
     "--snakefile",
     str(snakefile),
     "--configfile",
@@ -416,18 +416,18 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 
   # render index if requested
   if doindex:
-    _render_index(scprocess_dir, config, config_path)
+    _render_index(proj_dir, config, config_path)
 
   return
 
 
-def _render_index(scprocess_dir, config, config_path):
+def _render_index(proj_dir: Path, config, config_path):
+  sc_dir = Path(__file__).parent
   # 1. Locate the template and script
-  template_f = (scprocess_dir / "resources/rmd_templates/index.Rmd.template").resolve()
-  render_script = scprocess_dir / "scripts/render_htmls.R"
+  template_f = (sc_dir / "resources/rmd_templates/index.Rmd.template").resolve()
+  render_script = sc_dir / "scripts/render_htmls.R"
 
-  # unpack from config
-  proj_dir = config["project"]["proj_dir"]
+  # unpack from config - proj_dir already passed as parameter
   rmd_dir = proj_dir / "analysis"
   docs_dir = proj_dir / "public"
 
@@ -488,9 +488,9 @@ def _render_index(scprocess_dir, config, config_path):
   """
 
   # get env
-  rlibs_f = scprocess_dir / "envs/rlibs.yaml"
+  rlibs_f = sc_dir / "envs/rlibs.yaml"
   rlibs_pins = sorted(rlibs_f.parent.glob(f"{rlibs_f.stem}.*.pin.txt"))
-  env_path = _find_env_path_from_yaml(scprocess_dir, rlibs_f, rlibs_pins)
+  env_path = _find_env_path_from_yaml(proj_dir, rlibs_f, rlibs_pins)
   if not env_path:
     raise RuntimeError(
       "Could not find a Snakemake conda environment matching rlibs.yaml "
@@ -528,8 +528,8 @@ def _get_main_log(config_path, log_dir, dryrun):
   return (log_full_f, log_header)
 
 
-def _find_env_path_from_yaml(scprocess_dir, source_yaml, source_pin=None):
-  conda_dir = scprocess_dir / ".snakemake" / "conda"
+def _find_env_path_from_yaml(proj_dir: Path, source_yaml, source_pin=None):
+  conda_dir = proj_dir / ".snakemake" / "conda"
   source_yaml = source_yaml.resolve()
 
   if not os.path.exists(conda_dir):
