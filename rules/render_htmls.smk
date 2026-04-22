@@ -40,7 +40,7 @@ rule render_html_mapping:
   conda:
     '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     # copy R code over
     echo "copying relevant R files over"
@@ -106,7 +106,7 @@ if config['multiplexing']['demux_type'] == "hto":
     conda:
       '../envs/rlibs.yaml'
     shell: """
-      exec &> {log}
+      exec &>> {log}
 
       # copy R code over
       echo "copying relevant R files over"
@@ -172,7 +172,7 @@ rule render_html_ambient:
   log:
     f'{logs_dir}/render_htmls/render_html_ambient_{DATE_STAMP}.log'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     # copy R code over
     echo "copying relevant R files over"
@@ -237,7 +237,7 @@ rule render_html_qc:
   log:
     f'{logs_dir}/render_htmls/render_html_qc_{DATE_STAMP}.log'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     # copy R code over
     echo "copying relevant R files over"
@@ -299,7 +299,7 @@ rule render_html_hvgs:
   log:
     f'{logs_dir}/render_htmls/render_html_hvgs_{DATE_STAMP}.log'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     # copy R code over
     echo "copying relevant R files over"
@@ -361,7 +361,7 @@ rule render_html_integration:
   log:
     f'{logs_dir}/render_htmls/render_html_integration_{DATE_STAMP}.log'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     # copy R code over
     echo "copying relevant R files over"
@@ -434,9 +434,7 @@ rule render_html_marker_genes:
       [
         f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}',",
         f"fgsea_go_cc_f = '{input.get('fgsea_go_cc_f', '')}',",
-        f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}',",
-        f"fgsea_paths_f = '{input.get('fgsea_paths_f', '')}',",
-        f"fgsea_hlmk_f  = '{input.get('fgsea_hlmk_f', '')}',"
+        f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}',"
       ]
     ).strip()
   conda: '../envs/rlibs.yaml'
@@ -448,7 +446,7 @@ rule render_html_marker_genes:
   log:
     f'{logs_dir}/render_htmls/render_html_marker_genes_{DATE_STAMP}.log'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     # copy R code over
     echo "copying relevant R files over"
@@ -531,7 +529,7 @@ if "label_celltypes" in config:
     log:
       f'{logs_dir}/render_htmls/render_html_label_celltypes_{DATE_STAMP}.log'
     shell: """
-      exec &> {log}
+      exec &>> {log}
       
       # copy R code over
       echo "copying relevant R files over"

@@ -17,7 +17,7 @@ rule make_hvg_df:
     f'{logs_dir}/hvgs/make_hvg_df_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -62,7 +62,7 @@ rule make_tmp_csr_matrix:
   conda:
     '../envs/hvgs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     python3 scripts/hvgs.py get_csr_counts \
       {input.hvg_paths_f} \
@@ -102,7 +102,7 @@ if config['hvg']['hvg_method'] == 'sample':
     conda:
       '../envs/hvgs.yaml'
     shell: """
-      exec &> {log}
+      exec &>> {log}
 
       python3 scripts/hvgs.py calculate_std_var_stats_for_sample \
         {wildcards.batch} \
@@ -125,7 +125,7 @@ if config['hvg']['hvg_method'] == 'sample':
       f'{logs_dir}/hvgs/merge_sample_std_var_stats_{DATE_STAMP}.log'
     run:
       import sys
-      with open(str(log), "w") as f:
+      with open(str(log), "a") as f:
         rows = []
         sys.stdout = f
         sys.stderr = f
@@ -162,7 +162,7 @@ else:
     conda:
       '../envs/hvgs.yaml'
     shell: """
-      exec &> {log}
+      exec &>> {log}
 
       GROUPVAR_FLAG=""
       if [ "{params.hvg_method}" = "groups" ]; then
@@ -199,7 +199,7 @@ else:
       f'{logs_dir}/hvgs/merge_group_mean_var_{DATE_STAMP}.log'
     run:
       import sys
-      with open(str(log), "w") as f:
+      with open(str(log), "a") as f:
         rows = []
         sys.stdout = f
         sys.stderr = f
@@ -227,7 +227,7 @@ else:
     log:
       f'{logs_dir}/hvgs/get_estimated_variances_{DATE_STAMP}.log'
     shell: """
-      exec &> {log}
+      exec &>> {log}
 
       python3 scripts/hvgs.py calculate_estimated_vars \
         {output.estim_vars_f} \
@@ -263,7 +263,7 @@ else:
     conda:
       '../envs/hvgs.yaml'
     shell: """
-      exec &> {log}
+      exec &>> {log}
 
       python3 scripts/hvgs.py calculate_std_var_stats_for_chunk \
         {input.hvg_paths_f} \
@@ -297,7 +297,7 @@ else:
       f'{logs_dir}/hvgs/merge_group_std_var_stats_{DATE_STAMP}.log'
     run:
       import sys
-      with open(str(log), "w") as f:
+      with open(str(log), "a") as f:
         rows = []
         sys.stdout = f
         sys.stderr = f
@@ -329,7 +329,7 @@ rule get_highly_variable_genes:
   conda:
     '../envs/hvgs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     EXC_GS_F_FLAG=""
     NOAMBIENT_FLAG=""
@@ -378,7 +378,7 @@ rule create_hvg_matrix:
   conda:
     '../envs/hvgs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     python3 scripts/hvgs.py create_hvg_matrix \
       {input.qc_stats_f} \
@@ -415,7 +415,7 @@ rule create_doublets_hvg_matrix:
   conda: 
     '../envs/hvgs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
     
     python3 scripts/hvgs.py create_doublets_matrix \
       {input.hvg_paths_f} \

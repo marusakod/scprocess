@@ -2,10 +2,10 @@
 import os
 import sys
 import re
+import copy
 import pathlib
 import warnings
 import yaml
-import pandas as pd
 import polars as pl
 import csv
 import math
@@ -221,8 +221,8 @@ def _check_project_parameters(config, scdata_dir, scprocess_dir):
   index_params_f    = scdata_dir / 'index_parameters.csv'
 
   # from index_parameters.csv get valid values for ref_txome
-  index_params        = pd.read_csv(index_params_f)
-  valid_ref_txome     = index_params['ref_txome'].tolist()
+  index_params        = pl.read_csv(index_params_f)
+  valid_ref_txome     = index_params['ref_txome'].to_list()
   valid_ref_txome_str = ', '.join(valid_ref_txome)
   if not config['project']['ref_txome'] in valid_ref_txome:
     raise ValueError(f"ref_txome {config['project']['ref_txome']} not defined. Valid values are {valid_ref_txome_str}")
@@ -656,13 +656,15 @@ def _get_custom_marker_genes_specs(config, scdata_dir):
         raise ValueError(f"File for custom marker set '{name}' is not a csv file")
 
       # check csv file contents
-      mkrs_df   = pd.read_csv(file_path)
+      mkrs_df   = pl.read_csv(file_path)
       req_col   = "label"
       opt_cols  = ["symbol", "ensembl_id"]
       if not req_col in mkrs_df.columns:
         raise KeyError(f"File '{file_path}' is missing the mandatory column 'label'.")
       if not any(col in mkrs_df.columns for col in opt_cols):
         raise KeyError(f"File '{file_path}' must contain at least one of 'symbol' or 'ensembl_id' column.")
+      if any(mkrs_df["symbol"].is_duplicated()):
+        raise KeyError(f"File '{file_path}' cannot have any duplicated values in the 'symbol' column")
 
       # Store validated values
       mkr_names.append(name)
@@ -684,7 +686,8 @@ def get_zoom_parameters(config, zoom_schema_f, scdata_dir):
     zoom_yamls    = [ pathlib.Path(f) for f in config['zoom']]
 
     # make dictionary of zoom params from yamls
-    zoom_ls       = [_get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config, scdata_dir) for zoom_yaml_f in zoom_yamls]
+    zoom_ls       = [_get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, copy.deepcopy(config)) 
+                      for zoom_yaml_f in zoom_yamls]
     zoom_ns       = [z['zoom']['name'] for z in zoom_ls]
     if len(zoom_ns) != len(set(zoom_ns)):
       raise ValueError("names in specified zoom parameter yaml files are not unique")
@@ -694,7 +697,7 @@ def get_zoom_parameters(config, zoom_schema_f, scdata_dir):
 
 
 # get parameters for one zoom specification
-def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config, scdata_dir):
+def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
   # check file exists
   zoom_yaml_f   = _check_path_exists_in_project(zoom_yaml_f, config, what = "file")
 
@@ -916,7 +919,7 @@ def _list_fastq_files_arvados(arv_uuids, arv_instance):
 
   # set up arvados access
   arv_token   = os.environ["ARVADOS_API_TOKEN"]
-  arv_client  = arvados.api('v1', host = 'api.arkau.roche.com',
+  arv_client  = arvados.api('v1', host = f'api.{arv_instance}.roche.com',
     token = arv_token, insecure = True, num_retries = 2 )
 
   # check it worked

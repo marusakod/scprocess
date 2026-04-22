@@ -141,7 +141,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     req_names = c('your_name', 'affiliation', 'short_tag', 
       'date_stamp', 'threads', 'metadata_f','meta_vars_ls',
       'gtf_dt_f', 'integration_f', 'pb_f', 'mkrs_f', 'hvgs_f', 'ambient_f',
-      'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f','fgsea_paths_f', 'fgsea_hlmk_f',
+      'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f',
       'mkr_sel_res', 'custom_mkr_names', 'custom_mkr_paths',
       'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_var', 'mkr_gsea_cut', 
       'ref_txome', 'do_gsea')
@@ -246,7 +246,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     
     assert_that(all(req_names %in% add_args_names))
   } else if (sel_rule == 'index') {
-    req_names = c('your_name', 'affiliation', 'short_tag', 'docs_dir', 'full_tag', 'date_stamp', 'mkr_sel_res')
+    req_names = c('your_name', 'affiliation', 'short_tag', 'docs_dir', 'full_tag', 'date_stamp', 'mkr_sel_res', 'config_f', 'show_arv_uuids')
     assert_that(all(req_names %in% add_args_names))
 
     # get list of all htmls
@@ -266,6 +266,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     label_celltypes_link = ""
     zoom_title           = ""
     zoom_links           = ""
+    config_files_section = ""
 
     # get placeholder replacements for all htmls
     if(paste0(short_tag, '_mapping.html') %in% htmls){
@@ -320,8 +321,86 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       zoom_title = "## Subclustering"
      }
 
+    # Process config files: build a bullet list and corresponding details blocks
+    config_items = c()
+    config_details = ""
+
+    # Add main config file
+    if (file.exists(add_args[['config_f']])) {
+      cfg_f = add_args[['config_f']]
+      cfg_name = basename(cfg_f)
+      config_items = c(config_items, cfg_name)
+      config_content = readLines(cfg_f, warn = FALSE)
+      config_content = paste(config_content, collapse = "\n")
+      
+      # Mask arv_uuids if show_arv_uuids is FALSE
+      if (!add_args[['show_arv_uuids']]) {
+        # Replace arv_uuid values with "not shown" (handles arrays and single values)
+        config_content = gsub('ar[a-z]{3}-[a-z0-9]{5}-[a-z0-9]{15}', 'not shown', config_content, ignore.case = FALSE)
+      }
+      
+      config_details = paste0(config_details,
+        "\n<details closed>\n<summary>▸ *", cfg_name, "* (click to expand)</summary>\n\n",
+        "```yaml\n", config_content, "\n```\n\n",
+        "</details>\n")
+    }
+
+    # Add custom_sample_params if it exists
+    if ('custom_sample_params_f' %in% names(add_args) && file.exists(add_args[['custom_sample_params_f']])) {
+      custom_f = add_args[['custom_sample_params_f']]
+      custom_name     = basename(custom_f)
+      config_items    = c(config_items, custom_name)
+      custom_content  = readLines(custom_f, warn = FALSE)
+      custom_content  = paste(custom_content, collapse = "\n")
+      config_details = paste0(config_details,
+        "\n<details closed>\n<summary>▸ *", custom_name, "* (click to expand)</summary>\n\n",
+        "```yaml\n", custom_content, "\n```\n\n",
+        "</details>\n")
+    }
+
+    # Add zoom specification files if they exist
+    if ('zoom_specs' %in% names(add_args) && nchar(add_args[['zoom_specs']]) > 0) {
+      raw_zoom_files = strsplit(add_args[['zoom_specs']], ',')[[1]]
+      zoom_files = trimws(raw_zoom_files)
+      for (zoom_f in zoom_files) {
+        # remove surrounding quotes if any
+        zoom_f = gsub('^"|"$|^\'\'|\'\'$','', zoom_f)
+        found = FALSE
+        candidates = c(
+          zoom_f,
+          file.path(proj_dir, zoom_f),
+          tryCatch(normalizePath(zoom_f, mustWork = FALSE), error = function(e) zoom_f),
+          tryCatch(normalizePath(file.path(proj_dir, zoom_f), mustWork = FALSE), error = function(e) file.path(proj_dir, zoom_f))
+        )
+        for (cand in unique(candidates)) {
+          if (file.exists(cand)) {
+            zoom_path = cand
+            zoom_name = basename(zoom_path)
+            config_items = c(config_items, zoom_name)
+            zoom_content = readLines(zoom_path, warn = FALSE)
+            zoom_content = paste(zoom_content, collapse = "\n")
+            config_details = paste0(config_details,
+              "\n<details closed>\n<summary>▸ *", zoom_name, "* (click to expand)</summary>\n\n",
+              "```yaml\n", zoom_content, "\n```\n\n",
+              "</details>\n")
+            found = TRUE
+            break
+          }
+        }
+        if (!found) {
+          message(sprintf("Warning: zoom spec not found: %s (checked %d candidates)", zoom_f, length(candidates)))
+        }
+      }
+    }
+
+    # Build bullet list (plain text, not bold) if any items exist
+    config_files_section = ""
+    if (length(config_items) > 0) {
+      config_files_section = config_details
+    }
+
     params_ls = c(
-      add_args[setdiff(req_names, c('mkr_sel_res', 'docs_dir'))],
+      add_args[setdiff(req_names, c('mkr_sel_res', 'docs_dir', 'config_f'))],
       list(
         mapping_link        = mapping_link, 
         demultiplexing_link = demultiplexing_link, 
@@ -333,7 +412,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
         lbls_title          = lbls_title,
         label_celltypes_link= label_celltypes_link,
         zoom_title          = zoom_title, 
-        zoom_links          = zoom_links
+        zoom_links          = zoom_links,
+        config_files_section = config_files_section
       ))
   }
   

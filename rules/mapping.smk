@@ -42,7 +42,7 @@ rule run_mapping:
   conda:
     '../envs/alevin_fry.yaml'
   shell:"""
-    exec &> {log}
+    exec &>> {log}
 
     # check if arv_instance is set and if so, run in arvados environment
     ARV_ARG=""
@@ -100,7 +100,7 @@ rule save_alevin_to_h5:
   conda: 
    '../envs/rlibs.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/mapping.R');
       save_alevin_h5_ambient_params(
@@ -131,7 +131,7 @@ rule collect_chemistry_stats:
   run:
     
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f

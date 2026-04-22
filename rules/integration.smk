@@ -41,22 +41,7 @@ rule run_integration:
   log:
     f'{logs_dir}/integration/run_integration_{DATE_STAMP}.log'
   shell: """
-    exec &> {log}
-    
-    set +u
-    # set use_gpu flag based on config and on whether available
-    USE_GPU_FLAG=""
-    if [ "{params.use_gpu}" == "True" ]; then
-      if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
-        echo "running on GPU"
-        USE_GPU_FLAG="--use-gpu"
-      else
-        echo "GPU usage requested but no GPU available, running on CPU"
-      fi
-    else
-      echo "running on CPU"
-    fi
-    set -u
+    exec &>> {log}
     
     python3 scripts/integration.py run_integration \
       --hvg_mat_f     {input.hvg_mat_f} \
@@ -74,9 +59,9 @@ rule run_integration:
       --res_ls_concat "{params.int_res_ls}" \
       --integration_f {output.integration_f} \
       --batch_var     {params.int_batch_var} \
-      $(if [ "{params.int_use_paga}" == "True" ]; then echo "--use-paga"; fi) \
-      $(if [ "{params.int_use_paga}" == "True" ]; then echo "--paga-cl-res {params.int_paga_cl_res}"; fi) \
-      $USE_GPU_FLAG
+      $( [ "{params.int_use_paga}" == "True" ] && echo "--use-paga" ) \
+      $( [ "{params.int_use_paga}" == "True" ] && echo "--paga-cl-res {params.int_paga_cl_res}" ) \
+      $( [ "{params.use_gpu}" == "True" ] && echo "--use-gpu" )
     """
 
 
@@ -115,7 +100,7 @@ rule make_clean_h5ads:
   conda:
     '../envs/integration.yaml'
   shell: """
-    exec &> {log}
+    exec &>> {log}
 
     python3 scripts/make_clean_h5ad.py \
       {wildcards.batch} \
@@ -140,7 +125,7 @@ rule make_clean_h5ad_paths_yaml:
     f'{logs_dir}/integration/make_clean_h5ad_paths_yaml_{DATE_STAMP}.log'
   run:
     import sys
-    with open(str(log), "w") as f:
+    with open(str(log), "a") as f:
       rows = []
       sys.stdout = f
       sys.stderr = f
@@ -171,7 +156,7 @@ rule convert_h5ad_to_sce:
   conda:
     '../envs/rlibs.yaml'
   shell:"""
-    exec &> {log}
+    exec &>> {log}
     
     Rscript -e "source('scripts/integration.R');
     make_clean_sce_from_h5ad(

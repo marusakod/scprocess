@@ -24,7 +24,7 @@ rule run_marker_genes:
     f'{logs_dir}/marker_genes/run_marker_genes_{DATE_STAMP}.log'
   conda: '../envs/rlibs.yaml'
   shell:"""
-    exec &> {log}
+    exec &>> {log}
 
     Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); 
     calculate_marker_genes(
@@ -68,7 +68,7 @@ rule run_fgsea:
     f'{logs_dir}/marker_genes/run_fgsea_{DATE_STAMP}.log'
   conda: '../envs/rlibs.yaml'
   shell:"""
-    exec &> {log}
+    exec &>> {log}
     
     Rscript -e "source('scripts/utils.R'); source('scripts/fgsea.R'); run_fgsea(
       mkrs_f        = '{input.mkrs_f}', 
