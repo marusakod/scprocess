@@ -5,7 +5,6 @@ import argparse
 import datetime
 import filecmp
 import os
-import pathlib
 import shlex
 import shutil
 import subprocess
@@ -42,7 +41,7 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
   print("doing some checks on inputs")
 
   # get scprocess_data_dir; should be defined in .bashrc
-  scdata_dir = pathlib.Path(os.getenv("SCPROCESS_DATA_DIR"))
+  scdata_dir = Path(os.getenv("SCPROCESS_DATA_DIR"))
   if scdata_dir:
     print(f"SCPROCESS_DATA_DIR is set to: {scdata_dir}")
   else:
@@ -327,8 +326,8 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   print("doing some checks on inputs")
 
   # housekeeping
-  config_path = pathlib.Path(configfile).resolve()
-  scprocess_dir = pathlib.Path(__file__).parent
+  config_path = Path(configfile).resolve()
+  scprocess_dir = Path(__file__).parent
   os.chdir(scprocess_dir)
 
   # do some checks
@@ -447,10 +446,10 @@ def _render_index(scprocess_dir, config, config_path):
 
   # Add zoom spec files if they exist
   if "zoom" in config and config["zoom"]:
-    proj_dir_for_paths = pathlib.Path(config["project"]["proj_dir"])
+    proj_dir_for_paths = Path(config["project"]["proj_dir"])
     zoom_specs_list = []
     for f in config["zoom"]:
-      p = pathlib.Path(f)
+      p = Path(f)
       if not p.is_absolute():
         p = proj_dir_for_paths / p
       zoom_specs_list.append(str(p.resolve()))
@@ -579,7 +578,7 @@ def _find_env_path_from_yaml(scprocess_dir, source_yaml, source_pin=None):
 def plot_interactive_knee(config_f, knee_f, sample):
   # check we can find the file
   if args.kneefile:
-    knee_f = pathlib.Path(args.kneefile)
+    knee_f = Path(args.kneefile)
     if not knee_f.is_file():
       raise FileNotFoundError(
         f"Specified knee file doesn't exist. Check for typos, but",
@@ -591,7 +590,7 @@ def plot_interactive_knee(config_f, knee_f, sample):
       config = yaml.load(f, Loader=yaml.FullLoader)
 
     # get required variables
-    proj_dir = pathlib.Path(config["project"]["proj_dir"])
+    proj_dir = Path(config["project"]["proj_dir"])
     short_tag = config["project"]["short_tag"]
     date_stamp = config["project"]["date_stamp"]
 
@@ -671,7 +670,7 @@ def show_version_and_hpc_info(sc_dir):
   if not scdata_dir:
     print("\nNo HPC configuration found (SCPROCESS_DATA_DIR not set)")
     return
-  setup_f = pathlib.Path(scdata_dir) / "scprocess_setup.yaml"
+  setup_f = Path(scdata_dir) / "scprocess_setup.yaml"
   if not setup_f.exists():
     print(f"\nNo HPC configuration found ({setup_f} does not exist)")
     return
@@ -886,7 +885,7 @@ if __name__ == "__main__":
   )
 
   # define scprocess directory
-  sc_dir = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
+  sc_dir = Path(os.path.dirname(os.path.realpath(__file__)))
 
   # Parse the arguments
   args = parser.parse_args()
