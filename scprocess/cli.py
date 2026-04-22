@@ -8,17 +8,13 @@ import os
 import shlex
 import shutil
 import subprocess
-import sys
 import textwrap
 from pathlib import Path
 
 import polars as pl
 import yaml
 
-# import scprocess functions
-scprocess_dir = os.path.dirname(__file__)
-sys.path.append(os.path.join(scprocess_dir, "scripts"))
-import scprocess_utils
+from scprocess import utils as scprocess_utils
 
 
 def _clean_conda_env():
@@ -521,18 +517,10 @@ def _get_main_log(config_path, log_dir, dryrun):
   log_full_f = log_dir / log_f
 
   # get git tag
-  git_version = (
-    subprocess.check_output(
-      ["git", "describe", "--tags", "--always", "--dirty"], stderr=subprocess.DEVNULL
-    )
-    .decode("utf-8")
-    .strip()
-  )
-
   log_header = (
     f"\n{'=' * 60}\n"
     f"RUN START:    {timestamp}\n"
-    f"GIT VERSION:  {git_version}\n"
+    f"GIT VERSION:  {_get_version()}\n"
     f"CONFIG:       {config_path}\n"
     f"{'=' * 60}\n\n\n\n"
   )
@@ -651,15 +639,22 @@ def plot_interactive_knee(config_f, knee_f, sample):
   print(f"interactive knee plot saved here:\n  {plot_f}")
 
 
-def show_version_and_hpc_info(sc_dir):
-  """Display scprocess version and HPC configuration details."""
-  # Get version
-  version_f = sc_dir / "VERSION"
-  version = "unknown"
-  if version_f.exists():
-    with open(version_f, "r") as f:
-      version = f.read().strip()
+def _get_version():
+  try:
+    from importlib.metadata import version
+    return version("scprocess")
+  except Exception:
+    try:
+      return subprocess.check_output(
+        ["git", "describe", "--tags", "--always", "--dirty"],
+        stderr=subprocess.DEVNULL,
+      ).decode().strip()
+    except Exception:
+      return "unknown"
 
+
+def show_version_and_hpc_info(sc_dir: Path):
+  version = _get_version()
   print(f"\nscprocess version: {version}")
 
   # Get HPC information from scprocess_setup.yaml if available
@@ -721,7 +716,7 @@ def show_version_and_hpc_info(sc_dir):
     print(f"\nWarning: Could not read HPC configuration: {e}")
 
 
-if __name__ == "__main__":
+def main():
   # define arguments
   parser = argparse.ArgumentParser(
     description="snakemake workflows for processing single cell RNAseq data."
@@ -968,3 +963,7 @@ if __name__ == "__main__":
   else:
     # if no arguments are provided at all, print the help message
     parser.print_help()
+
+
+if __name__ == "__main__":
+  main()

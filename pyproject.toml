@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "scprocess"
+dynamic = ["version"]
+description = "Snakemake workflows for processing single-cell RNA-seq data"
+requires-python = ">=3.12"
+dependencies = [
+    "polars>=1.34.0",
+    "pandas>=2.3.1",
+    "pyyaml>=6.0.2",
+    "jsonschema>=4.25.0",
+    "plotly>=5.0.0",
+    "snakemake>=9.8.1",
+    "arvados-python-client>=3.2.0",
+]
+
+[project.optional-dependencies]
+slurm = ["snakemake-executor-plugin-slurm>=1.4.0"]
+lsf   = ["snakemake-executor-plugin-lsf>=0.2.7"]
+
+[project.scripts]
+scprocess = "scprocess.cli:main"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+version_scheme = "post-release"
+local_scheme = "node-and-date"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "scprocess/_version.py"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+indent-width = 2
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = true
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]

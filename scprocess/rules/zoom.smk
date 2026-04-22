@@ -1,6 +1,5 @@
 # load modules
 import os
-import sys
 import re
 import glob
 import pandas as pd
@@ -10,9 +9,8 @@ import warnings
 from snakemake.utils import validate, min_version
 
 # import utils
-sys.path.append('scripts')
-from scprocess_utils import *
-from zoom import *
+from scprocess.utils import *
+from scprocess.scripts.zoom import *
 
 
 # define some things

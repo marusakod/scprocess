@@ -1,6 +1,5 @@
 # load modules
 import os
-import sys
 import re
 import glob
 import pandas as pd
@@ -8,8 +7,7 @@ import warnings
 import yaml
 import json
 import pathlib
-sys.path.append('scripts')
-from scprocess_utils import *
+from scprocess.utils import *
 
 # define some things
 scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
