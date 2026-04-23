@@ -44,11 +44,11 @@ rule render_html_mapping:
 
     # copy R code over
     echo "copying relevant R files over"
-    cp scripts/utils.R {output.r_utils_f}
-    cp scripts/mapping.R {output.r_map_f}
+    cp {scprocess_dir}/scripts/utils.R {output.r_utils_f}
+    cp {scprocess_dir}/scripts/mapping.R {output.r_map_f}
 
     # define rule and template
-    template_f=$(realpath resources/rmd_templates/mapping.Rmd.template)
+    template_f=$(realpath {scprocess_dir}/resources/rmd_templates/mapping.Rmd.template)
     rule="mapping"
 
     # rendering html
@@ -110,11 +110,11 @@ if config['multiplexing']['demux_type'] == "hto":
 
       # copy R code over
       echo "copying relevant R files over"
-      cp scripts/mapping.R {params.r_map_f}
-      cp scripts/multiplexing.R {output.r_demux_f}
+      cp {scprocess_dir}/scripts/mapping.R {params.r_map_f}
+      cp {scprocess_dir}/scripts/multiplexing.R {output.r_demux_f}
     
       # make and render Rmd file
-      template_f=$(realpath resources/rmd_templates/multiplexing.Rmd.template)
+      template_f=$(realpath {scprocess_dir}/resources/rmd_templates/multiplexing.Rmd.template)
       rule="multiplexing"
 
       # rendering html
@@ -176,10 +176,10 @@ rule render_html_ambient:
 
     # copy R code over
     echo "copying relevant R files over"
-    cp scripts/ambient.R {output.r_amb_f}
+    cp {scprocess_dir}/scripts/ambient.R {output.r_amb_f}
     
     # define rule and template
-    template_f=$(realpath resources/rmd_templates/ambient.Rmd.template)
+    template_f=$(realpath {scprocess_dir}/resources/rmd_templates/ambient.Rmd.template)
     rule="ambient"
 
     # rendering html
@@ -241,10 +241,10 @@ rule render_html_qc:
 
     # copy R code over
     echo "copying relevant R files over"
-    cp scripts/SampleQC.R {output.r_qc_f}
+    cp {scprocess_dir}/scripts/SampleQC.R {output.r_qc_f}
 
     # define rule and template
-    template_f=$(realpath resources/rmd_templates/SampleQC.Rmd.template)
+    template_f=$(realpath {scprocess_dir}/resources/rmd_templates/SampleQC.Rmd.template)
     rule="qc"
 
     # rendering html
@@ -303,10 +303,10 @@ rule render_html_hvgs:
 
     # copy R code over
     echo "copying relevant R files over"
-    cp scripts/hvgs.R {output.r_hvgs_f}
+    cp {scprocess_dir}/scripts/hvgs.R {output.r_hvgs_f}
 
     # define rule and template
-    template_f=$(realpath resources/rmd_templates/hvgs.Rmd.template)
+    template_f=$(realpath {scprocess_dir}/resources/rmd_templates/hvgs.Rmd.template)
     rule="hvg"
 
     # rendering html
@@ -365,10 +365,10 @@ rule render_html_integration:
 
     # copy R code over
     echo "copying relevant R files over"
-    cp scripts/integration.R {output.r_int_f}
+    cp {scprocess_dir}/scripts/integration.R {output.r_int_f}
 
     # define rule and template
-    template_f=$(realpath resources/rmd_templates/integration.Rmd.template)
+    template_f=$(realpath {scprocess_dir}/resources/rmd_templates/integration.Rmd.template)
     rule="integration"
    
     # rendering html
@@ -450,11 +450,11 @@ rule render_html_marker_genes:
 
     # copy R code over
     echo "copying relevant R files over"
-    cp scripts/marker_genes.R {output.r_mkr_f}
-    cp scripts/fgsea.R {output.r_fgsea_f}
+    cp {scprocess_dir}/scripts/marker_genes.R {output.r_mkr_f}
+    cp {scprocess_dir}/scripts/fgsea.R {output.r_fgsea_f}
 
     # define rule and template
-    template_f=$(realpath resources/rmd_templates/marker_genes.Rmd.template)
+    template_f=$(realpath {scprocess_dir}/resources/rmd_templates/marker_genes.Rmd.template)
     rule="markers"
 
     # rendering html
@@ -533,9 +533,9 @@ if "label_celltypes" in config:
       
       # copy R code over
       echo "copying relevant R files over"
-      cp scripts/label_celltypes.R {output.r_lbl_f}
+      cp {scprocess_dir}/scripts/label_celltypes.R {output.r_lbl_f}
 
-      template_f=$(realpath resources/rmd_templates/label_celltypes.Rmd.template)
+      template_f=$(realpath {scprocess_dir}/resources/rmd_templates/label_celltypes.Rmd.template)
       rule="label_celltypes"
 
       Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \

@@ -958,7 +958,7 @@ rule render_html_zoom:
   shell: """
     exec &>> {log}
     
-    template_f=$(realpath resources/rmd_templates/zoom.Rmd.template)
+    template_f=$(realpath {scprocess_dir}/resources/rmd_templates/zoom.Rmd.template)
     rule="zoom"
 
     Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \
