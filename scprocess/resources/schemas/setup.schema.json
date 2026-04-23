@@ -11,7 +11,8 @@
         "local_cores":      { "type": "integer", "exclusiveMinimum": 0},
         "your_name":        { "type": "string" },
         "affiliation":      { "type": "string" },
-        "int_use_gpu":      { "type": "boolean", "default": true }
+        "int_use_gpu":      { "type": "boolean", "default": true },
+        "conda_prefix":     { "type": "string" }
       },
       "oneOf": [
         { "required": ["profile"] },

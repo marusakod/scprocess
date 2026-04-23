@@ -17,6 +17,14 @@ import yaml
 from scprocess import utils as scprocess_utils
 
 
+def _resolve_conda_prefix(setup_cfg: dict) -> Path:
+  user = setup_cfg.get("user", {})
+  if "conda_prefix" in user:
+    return Path(user["conda_prefix"])
+  base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+  return base / "scprocess"
+
+
 def _clean_conda_env():
   """Return a copy of os.environ without few conda related variables
   to minimize conda related clashes.
@@ -115,6 +123,8 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
     "--show-failed-logs",
     "--printshellcmds",
     "--use-conda",
+    "--conda-prefix",
+    str(_resolve_conda_prefix(setup_cfg)),
   ]
   cmd_list.extend(extraargs)
 
@@ -396,6 +406,8 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
     "--printshellcmds",
     "--software-deployment-method",
     "conda",
+    "--conda-prefix",
+    str(_resolve_conda_prefix(setup_cfg)),
     "--use-apptainer",
     "--apptainer-args",
     f"--cleanenv --nv --bind /tmp,{config['project']['proj_dir']}",
@@ -642,13 +654,18 @@ def plot_interactive_knee(config_f, knee_f, sample):
 def _get_version():
   try:
     from importlib.metadata import version
+
     return version("scprocess")
   except Exception:
     try:
-      return subprocess.check_output(
-        ["git", "describe", "--tags", "--always", "--dirty"],
-        stderr=subprocess.DEVNULL,
-      ).decode().strip()
+      return (
+        subprocess.check_output(
+          ["git", "describe", "--tags", "--always", "--dirty"],
+          stderr=subprocess.DEVNULL,
+        )
+        .decode()
+        .strip()
+      )
     except Exception:
       return "unknown"
 
