@@ -8,17 +8,19 @@ import sys
 import warnings
 
 sys.path.append('./scripts')
-from setup import get_af_index_parameters
+from setup import get_txome_index_parameters, get_probe_set_parameters
 
 # get parameters
-SCDATA_DIR    = os.getenv('SCPROCESS_DATA_DIR')
-IDX_PARAMS_LS = get_af_index_parameters(config) 
-RANGER_URL    = config['cellranger_url']
-REF_TXOMES    = list(IDX_PARAMS_LS.keys())
-logs_dir      = f'{SCDATA_DIR}/.log/setup'
+SCDATA_DIR       = os.getenv('SCPROCESS_DATA_DIR')
+IDX_PARAMS_LS    = get_txome_index_parameters(config) 
+PROBE_SET_LS     = get_probe_set_parameters(config)
+RANGER_URL       = config['cellranger_url']
+REF_TXOMES       = list(IDX_PARAMS_LS.keys())
+PROBE_SET_NAMES  = list(PROBE_SET_LS.keys())
+logs_dir         = f'{SCDATA_DIR}/.log/setup'
 
-# define simpleaf index files
-AF_INDEX_FS = [
+# define simpleaf index files for standard txome indices
+TXOME_INDEX_FS = [
   'index/piscem_idx.ctab',
   'index/piscem_idx.ectab',
   'index/piscem_idx.json',
@@ -31,6 +33,18 @@ AF_INDEX_FS = [
   'ref/roers_make-ref.json',
   'ref/roers_ref.fa',
   'ref/t2g_3col.tsv',
+  'simpleaf_index_log.json'
+]
+
+# define simpleaf index files for probe set (direct-ref) indices
+PROBE_SET_INDEX_FS = [
+  'index/piscem_idx.ctab',
+  'index/piscem_idx.ectab',
+  'index/piscem_idx.sigs.json',
+  'index/piscem_idx.refinfo',
+  'index/piscem_idx_cfish.json',
+  'index/simpleaf_index.json',
+  'index/t2g_3col.tsv',
   'simpleaf_index_log.json'
 ]
 
@@ -49,6 +63,8 @@ rule all:
     f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v4.txt',
     f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_5v3.txt',
     f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_multiome_gex.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_flex_v1.txt',
+    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_flex_v2.txt',
     f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3LT.txt',
     f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3v3.txt',
     f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3v4.txt',
@@ -79,9 +95,12 @@ rule all:
     f'{SCDATA_DIR}/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt',
     f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv',
     f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds',
-    # rule download_or_build_af_indices
-    expand([ f'{SCDATA_DIR}/alevin_fry_home/{{ref_txome}}/{file}' for file in AF_INDEX_FS], ref_txome=REF_TXOMES),
-    expand(f'{SCDATA_DIR}/alevin_fry_home/{{ref_txome}}/{{ref_txome}}_index_params.yaml', ref_txome=REF_TXOMES),
+    # rule download_or_build_txome_indices
+    expand([ f'{SCDATA_DIR}/alevin_fry_home/ref_txomes/{{ref_txome}}/{file}' for file in TXOME_INDEX_FS], ref_txome=REF_TXOMES),
+    expand(f'{SCDATA_DIR}/alevin_fry_home/ref_txomes/{{ref_txome}}/{{ref_txome}}_index_params.yaml', ref_txome=REF_TXOMES),
+    # rule set_up_one_probe_set_index
+    expand([ f'{SCDATA_DIR}/alevin_fry_home/probe_sets/{{probe_set}}/{file}' for file in PROBE_SET_INDEX_FS], probe_set=PROBE_SET_NAMES),
+    expand(f'{SCDATA_DIR}/alevin_fry_home/probe_sets/{{probe_set}}/{{probe_set}}_index_params.yaml', probe_set=PROBE_SET_NAMES),
     f'{SCDATA_DIR}/celltypist/celltypist_models.csv', 
     # rule get_reference_genome_data 
     f'{SCDATA_DIR}/index_parameters.csv'
@@ -98,6 +117,8 @@ rule download_scprocess_files:
     wl_3v4	         = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v4.txt',
     wl_5v3	         = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_5v3.txt',
     wl_multiome      = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_multiome_gex.txt',
+    wl_flex_v1       = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_flex_v1.txt',
+    wl_flex_v2       = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_flex_v2.txt',
     wl_hto_3lt       = f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3LT.txt',
     wl_hto_3v3       = f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3v3.txt',
     wl_hto_3v4	     = f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3v4.txt',
@@ -147,10 +168,10 @@ rule download_scprocess_files:
 
 
 # rule for downloading reference genome files from 10x and dealing with custom genomes
-rule set_up_one_af_index:
+rule set_up_one_txome_index:
   output:
-    [ f'{SCDATA_DIR}/alevin_fry_home/{{ref_txome}}/{file}' for file in AF_INDEX_FS],
-    f'{SCDATA_DIR}/alevin_fry_home/{{ref_txome}}/{{ref_txome}}_index_params.yaml'
+    [ f'{SCDATA_DIR}/alevin_fry_home/ref_txomes/{{ref_txome}}/{file}' for file in TXOME_INDEX_FS],
+    f'{SCDATA_DIR}/alevin_fry_home/ref_txomes/{{ref_txome}}/{{ref_txome}}_index_params.yaml'
   params:
     fasta       = lambda wildcards: IDX_PARAMS_LS[ wildcards.ref_txome ].get('fasta', []),
     gtf         = lambda wildcards: IDX_PARAMS_LS[ wildcards.ref_txome ].get('gtf', []),
@@ -166,19 +187,38 @@ rule set_up_one_af_index:
     mem_mb = 8192
   threads: 8
   log: 
-    f'{logs_dir}/set_up_one_of_index_{{ref_txome}}.log'
+    f'{logs_dir}/set_up_one_txome_index_{{ref_txome}}.log'
   shell: """
     exec &>> {log}
 
-    python3 scripts/setup.py set_up_af_index {SCDATA_DIR} {wildcards.ref_txome} \
+    python3 scripts/setup.py set_up_txome_index {SCDATA_DIR} {wildcards.ref_txome} \
       {params.fasta} {params.gtf} {params.index_dir} {params.mito_str} \
       {params.is_prebuilt} {params.is_tenx} {params.has_decoys} {params.has_rrna} {threads}
     """
 
 
+rule set_up_one_probe_set_index:
+  output:
+    [ f'{SCDATA_DIR}/alevin_fry_home/probe_sets/{{probe_set}}/{file}' for file in PROBE_SET_INDEX_FS],
+    f'{SCDATA_DIR}/alevin_fry_home/probe_sets/{{probe_set}}/{{probe_set}}_index_params.yaml'
+  conda:
+    '../envs/alevin_fry.yaml'
+  resources:
+    mem_mb = 4096
+  threads: 8
+  log:
+    f'{logs_dir}/set_up_one_probe_set_index_{{probe_set}}.log'
+  shell: """
+    exec &>> {log}
+
+    python3 scripts/setup.py set_up_probe_set_index {SCDATA_DIR} {wildcards.probe_set} {threads}
+    """
+
+
 rule save_index_parameters_csv:
   input:
-    yamls   = expand(f'{SCDATA_DIR}/alevin_fry_home/{{ref_txome}}/{{ref_txome}}_index_params.yaml', ref_txome = REF_TXOMES)
+    yamls   = expand(f'{SCDATA_DIR}/alevin_fry_home/ref_txomes/{{ref_txome}}/{{ref_txome}}_index_params.yaml', ref_txome = REF_TXOMES) +
+     expand(f'{SCDATA_DIR}/alevin_fry_home/probe_sets/{{probe_set}}/{{probe_set}}_index_params.yaml', probe_set = PROBE_SET_NAMES)
   output:
     csv     = f'{SCDATA_DIR}/index_parameters.csv'
   conda:
