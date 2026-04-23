@@ -57,7 +57,7 @@ rule run_mapping:
     fi
 
     # run mapping
-    python3 scripts/mapping.py {wildcards.run} \
+    python3 {scprocess_dir}/scripts/mapping.py {wildcards.run} \
       --af_dir          {af_dir} \
       --demux_type      {params.demux_type} \
       --what            "rna" \
@@ -102,7 +102,7 @@ rule save_alevin_to_h5:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('scripts/mapping.R');
+    Rscript -e "source('{scprocess_dir}/scripts/mapping.R');
       save_alevin_h5_ambient_params(
         run           = '{wildcards.run}',
         fry_dir       = '{input.fry_dir}',

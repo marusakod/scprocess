@@ -64,7 +64,7 @@ rule make_tmp_csr_matrix:
   shell: """
     exec &>> {log}
 
-    python3 scripts/hvgs.py get_csr_counts \
+    python3 {scprocess_dir}/scripts/hvgs.py get_csr_counts \
       {input.hvg_paths_f} \
       {input.cell_filter_f} \
       "keep" \
@@ -104,7 +104,7 @@ if config['hvg']['hvg_method'] == 'sample':
     shell: """
       exec &>> {log}
 
-      python3 scripts/hvgs.py calculate_std_var_stats_for_sample \
+      python3 {scprocess_dir}/scripts/hvgs.py calculate_std_var_stats_for_sample \
         {wildcards.batch} \
         {params.batch_var} \
         {input.qc_stats_f} \
@@ -169,7 +169,7 @@ else:
         GROUPVAR_FLAG="--groupvar {params.hvg_group_var}"
       fi
 
-      python3 scripts/hvgs.py calculate_mean_var_for_chunk \
+      python3 {scprocess_dir}/scripts/hvgs.py calculate_mean_var_for_chunk \
         {input.hvg_paths_f} \
         {input.rowdata_f} \
         {params.metadata_f} \
@@ -229,7 +229,7 @@ else:
     shell: """
       exec &>> {log}
 
-      python3 scripts/hvgs.py calculate_estimated_vars \
+      python3 {scprocess_dir}/scripts/hvgs.py calculate_estimated_vars \
         {output.estim_vars_f} \
         {params.hvg_method} \
         {params.batch_var} \
@@ -265,7 +265,7 @@ else:
     shell: """
       exec &>> {log}
 
-      python3 scripts/hvgs.py calculate_std_var_stats_for_chunk \
+      python3 {scprocess_dir}/scripts/hvgs.py calculate_std_var_stats_for_chunk \
         {input.hvg_paths_f} \
         {input.rowdata_f} \
         {params.metadata_f} \
@@ -343,7 +343,7 @@ rule get_highly_variable_genes:
     fi
 
     # run script
-    python3 scripts/hvgs.py calculate_hvgs \
+    python3 {scprocess_dir}/scripts/hvgs.py calculate_hvgs \
       {input.std_var_stats_f} \
       {output.hvg_f} \
       {input.empty_gs_fs} \
@@ -380,7 +380,7 @@ rule create_hvg_matrix:
   shell: """
     exec &>> {log}
 
-    python3 scripts/hvgs.py create_hvg_matrix \
+    python3 {scprocess_dir}/scripts/hvgs.py create_hvg_matrix \
       {input.qc_stats_f} \
       {input.hvg_paths_f} \
       {input.hvg_f} \
@@ -417,7 +417,7 @@ rule create_doublets_hvg_matrix:
   shell: """
     exec &>> {log}
     
-    python3 scripts/hvgs.py create_doublets_matrix \
+    python3 {scprocess_dir}/scripts/hvgs.py create_doublets_matrix \
       {input.hvg_paths_f} \
       {input.hvg_f} \
       {input.qc_f} \

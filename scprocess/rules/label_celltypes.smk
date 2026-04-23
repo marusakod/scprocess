@@ -29,7 +29,7 @@ rule run_celltypist:
   shell:"""
     exec &>> {log}
     
-    python3 scripts/label_celltypes.py celltypist_one_batch \
+    python3 {scprocess_dir}/scripts/label_celltypes.py celltypist_one_batch \
       {wildcards.batch} {params.batch_var} {wildcards.model} \
       --adata_f   {input.adata_f} \
       --pred_f    {output.pred_f}
@@ -63,7 +63,7 @@ rule run_scprocess_labeller:
     exec &>> {log}
 
     # save sce object
-    Rscript -e "source('scripts/label_celltypes.R'); source('scripts/integration.R'); \
+    Rscript -e "source('{scprocess_dir}/scripts/label_celltypes.R'); source('{scprocess_dir}/scripts/integration.R'); \
     label_with_xgboost_one_batch(
       sel_batch   = '{wildcards.batch}', 
       batch_var   = '{params.batch_var}',
@@ -121,7 +121,7 @@ if ('label_celltypes' in config) & qc_stats_f.is_file():
     shell:"""
       exec &>> {log}
 
-      python3 scripts/label_celltypes.py aggregate_predictions \
+      python3 {scprocess_dir}/scripts/label_celltypes.py aggregate_predictions \
         {params.pred_fs_ls} \
         --int_f           {input.integration_f} \
         --hi_res_cl       {params.hi_res_cl} \

@@ -90,7 +90,7 @@ rule run_mapping_hto:
     WHITELIST_F=$(grep "selected_hto_whitelist:" {input.chem_stats_f} | sed 's/selected_hto_whitelist: //')
 
     # run mapping
-    python3 scripts/mapping.py {wildcards.run} \
+    python3 {scprocess_dir}/scripts/mapping.py {wildcards.run} \
       --af_dir          {af_dir}\
       --demux_type      {params.demux_type} \
       --what            "hto" \
@@ -128,7 +128,7 @@ rule save_alevin_hto_to_h5:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('scripts/mapping.R');
+    Rscript -e "source('{scprocess_dir}/scripts/mapping.R');
       save_alevin_h5_knee_params_df(
         run         = '{wildcards.run}', 
         fry_dir     = '{input.fry_dir}', 
@@ -170,7 +170,7 @@ rule make_hto_sce_objects:
   WHITELIST_TRANS_F=$(grep "selected_translation_f:" {input.chem_stats_f} | sed 's/selected_translation_f: //')
   
   # save hto sce with demultiplexing info
-  Rscript -e "source('scripts/multiplexing.R'); source('scripts/utils.R'); 
+  Rscript -e "source('{scprocess_dir}/scripts/multiplexing.R'); source('{scprocess_dir}/scripts/utils.R'); 
     get_one_hto_sce( 
       sel_pool        = '{wildcards.run}', 
       sample_stats_f  = '{input.smpl_stats_f}', 

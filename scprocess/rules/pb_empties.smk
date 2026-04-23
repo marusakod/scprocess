@@ -67,7 +67,7 @@ rule make_one_pb_empty:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
     make_pb_empty(
       sel_run         = '{wildcards.run}', 
       af_paths_f      = '{input.af_paths_f}', 
@@ -100,7 +100,7 @@ rule merge_pb_empty:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
     merge_pbs_empty( \
       af_paths_f      = '{input.af_paths_f}', 
       rowdata_f       = '{input.rowdata_f}',
@@ -175,7 +175,7 @@ rule make_one_pb_cells:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
     make_pb_cells(
       sel_run     = '{wildcards.run}',
       batch_lu_f  = '{input.batch_lu_f}',
@@ -240,7 +240,7 @@ rule merge_pb_cells:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
     merge_pbs_cells( \
       cells_paths_f = '{input.cells_paths_f}', 
       rowdata_f     = '{input.rowdata_f}',
@@ -275,7 +275,7 @@ rule calculate_ambient_genes:
   shell: """
     exec &>> {log}
     
-    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
     calc_empty_genes(
       pb_cells_f = '{input.pb_cells_f}',
       pb_empty_f = '{input.pb_empty_f}',

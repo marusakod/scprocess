@@ -273,7 +273,7 @@ if config['ambient']['ambient_method'] == 'decontx':
       dcx_params_f="{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_params.csv.gz"
 
       # run cell calling and decontamination
-      Rscript -e "source('scripts/ambient.R'); source('scripts/utils.R'); \
+      Rscript -e "source('{scprocess_dir}/scripts/ambient.R'); source('{scprocess_dir}/scripts/utils.R'); \
         get_cell_mat_and_barcodes(
           out_mat_f         = '$filt_counts_f',
           out_bcs_f         = '$bcs_f',
@@ -332,7 +332,7 @@ if config['ambient']['ambient_method'] == 'none':
       bcs_f="{amb_dir}/ambient_{wildcards.run}/uncorrected_{wildcards.run}_{DATE_STAMP}_cell_barcodes.csv"
 
       # run cell calling and decontamination
-      Rscript -e "source('scripts/ambient.R'); source('scripts/utils.R');
+      Rscript -e "source('{scprocess_dir}/scripts/ambient.R'); source('{scprocess_dir}/scripts/utils.R');
         get_cell_mat_and_barcodes(
           out_mat_f         = '$filt_counts_f',
           out_bcs_f         = '$bcs_f', 
@@ -374,7 +374,7 @@ rule get_barcode_qc_metrics:
     exec &>> {log}
 
     # save barcode stats
-    Rscript -e "source('scripts/ambient.R'); source('scripts/utils.R'); \
+    Rscript -e "source('{scprocess_dir}/scripts/ambient.R'); source('{scprocess_dir}/scripts/utils.R'); \
       save_barcode_qc_metrics('{input.af_h5_f}', '{input.amb_yaml_f}', \
         '{output.bc_qc_f}', '{params.ambient_method}')"
     """

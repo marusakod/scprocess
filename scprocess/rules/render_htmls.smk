@@ -52,7 +52,7 @@ rule render_html_mapping:
     rule="mapping"
 
     # rendering html
-    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \
       render_html(
         rule_name       = '$rule', 
         proj_dir        = '{params.proj_dir}', 
@@ -118,7 +118,7 @@ if config['multiplexing']['demux_type'] == "hto":
       rule="multiplexing"
 
       # rendering html
-      Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+      Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \
         render_html(
           rule_name       = '$rule', 
           proj_dir        = '{params.proj_dir}', 
@@ -183,7 +183,7 @@ rule render_html_ambient:
     rule="ambient"
 
     # rendering html
-    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \
       render_html(
         rule_name         = '$rule', 
         temp_f            = '$template_f', 
@@ -248,7 +248,7 @@ rule render_html_qc:
     rule="qc"
 
     # rendering html
-    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \
     render_html(
       rule_name           = '$rule',
       proj_dir            = '{params.proj_dir}', 
@@ -310,7 +310,7 @@ rule render_html_hvgs:
     rule="hvg"
 
     # rendering html
-    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \
     render_html(
       rule_name   = '$rule',
       temp_f      = '$template_f',
@@ -372,7 +372,7 @@ rule render_html_integration:
     rule="integration"
    
     # rendering html
-    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \
     render_html(
       rule_name       = '$rule',
       temp_f          = '$template_f',
@@ -458,7 +458,7 @@ rule render_html_marker_genes:
     rule="markers"
 
     # rendering html
-    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \
     render_html(
       rule_name         = '$rule',
       temp_f            = '$template_f',
@@ -538,7 +538,7 @@ if "label_celltypes" in config:
       template_f=$(realpath resources/rmd_templates/label_celltypes.Rmd.template)
       rule="label_celltypes"
 
-      Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+      Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \
       render_html(
         rule_name       = '$rule', 
         temp_f          = '$template_f', 

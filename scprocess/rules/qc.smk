@@ -193,7 +193,7 @@ rule run_qc_one_run:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('scripts/SampleQC.R'); source('scripts/utils.R'); \
+    Rscript -e "source('{scprocess_dir}/scripts/SampleQC.R'); source('{scprocess_dir}/scripts/utils.R'); \
       main_qc( \
         run_name        = '{wildcards.run}', \
         metadata_f      = '{params.metadata_f}', \
@@ -246,7 +246,7 @@ rule merge_qc:
     exec &>> {log}
     
     QC_LIST="{input.qc_fs}" COL_LIST="{input.coldata_fs}" \
-      Rscript -e "source('scripts/SampleQC.R'); \
+      Rscript -e "source('{scprocess_dir}/scripts/SampleQC.R'); \
         qc_files <- trimws(strsplit(Sys.getenv('QC_LIST'), ' ')[[1]]); \
         col_files <- trimws(strsplit(Sys.getenv('COL_LIST'), ' ')[[1]]); \
         merge_qc_files(qc_files, col_files, '{output.qc_merged_f}', '{output.coldata_merged_f}')"

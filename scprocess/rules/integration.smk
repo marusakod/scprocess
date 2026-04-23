@@ -43,7 +43,7 @@ rule run_integration:
   shell: """
     exec &>> {log}
     
-    python3 scripts/integration.py run_integration \
+    python3 {scprocess_dir}/scripts/integration.py run_integration \
       --hvg_mat_f     {input.hvg_mat_f} \
       --dbl_hvg_mat_f {input.dbl_hvg_mat_f} \
       --sample_qc_f   {input.qc_stats_f} \
@@ -102,7 +102,7 @@ rule make_clean_h5ads:
   shell: """
     exec &>> {log}
 
-    python3 scripts/make_clean_h5ad.py \
+    python3 {scprocess_dir}/scripts/make_clean_h5ad.py \
       {wildcards.batch} \
       {params.sel_run} \
       {input.integration_f} \
@@ -158,7 +158,7 @@ rule convert_h5ad_to_sce:
   shell:"""
     exec &>> {log}
     
-    Rscript -e "source('scripts/integration.R');
+    Rscript -e "source('{scprocess_dir}/scripts/integration.R');
     make_clean_sce_from_h5ad(
       sel_batch  = '{wildcards.batch}', 
       adata_f    = '{input.clean_h5ad_f}',
