@@ -428,12 +428,12 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 
   # render index if requested
   if doindex:
-    _render_index(proj_dir, config, config_path)
+    _render_index(proj_dir, config, config_path, _resolve_conda_prefix(setup_cfg))
 
   return
 
 
-def _render_index(proj_dir: Path, config, config_path):
+def _render_index(proj_dir: Path, config, config_path, conda_prefix: Path):
   sc_dir = Path(__file__).parent
   # 1. Locate the template and script
   template_f = (sc_dir / "resources/rmd_templates/index.Rmd.template").resolve()
@@ -502,7 +502,7 @@ def _render_index(proj_dir: Path, config, config_path):
   # get env
   rlibs_f = sc_dir / "envs/rlibs.yaml"
   rlibs_pins = sorted(rlibs_f.parent.glob(f"{rlibs_f.stem}.*.pin.txt"))
-  env_path = _find_env_path_from_yaml(proj_dir, rlibs_f, rlibs_pins)
+  env_path = _find_env_path_from_yaml(conda_prefix, rlibs_f, rlibs_pins)
   if not env_path:
     raise RuntimeError(
       "Could not find a Snakemake conda environment matching rlibs.yaml "
@@ -540,8 +540,9 @@ def _get_main_log(config_path, log_dir, dryrun):
   return (log_full_f, log_header)
 
 
-def _find_env_path_from_yaml(proj_dir: Path, source_yaml, source_pin=None):
-  conda_dir = proj_dir / ".snakemake" / "conda"
+def _find_env_path_from_yaml(
+  conda_dir: Path, source_yaml: Path, source_pin: Path | list[Path] | None = None
+):
   source_yaml = source_yaml.resolve()
 
   if not os.path.exists(conda_dir):
