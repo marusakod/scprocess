@@ -125,6 +125,7 @@ def check_config(config, schema_f, scdata_dir, scprocess_dir):
   config      = _check_integration_parameters(config)
   config      = _check_marker_genes_parameters(config, scdata_dir)
   config      = _check_pb_empties_parameters(config)
+  config      = _check_shiny_parameters(config)
 
   return config
 
@@ -536,6 +537,62 @@ def _check_qc_parameters(config):
 # check parameters for pb and empties
 def _check_pb_empties_parameters(config):
   # nothing to do here at the moment; leaving in case it's useful later
+
+  return config
+
+
+# check parameters for shiny app build
+def _check_shiny_parameters(config):
+  if 'shiny' not in config:
+    return config
+
+  shiny_cfg = config['shiny']
+
+  # check home_md if specified
+  if shiny_cfg.get('home_md'):
+    home_md_f = _check_path_exists_in_project(shiny_cfg['home_md'], config, what='file')
+    # verify file is readable as UTF-8 and non-empty
+    try:
+      content = pathlib.Path(home_md_f).read_text(encoding='utf-8')
+    except UnicodeDecodeError:
+      raise ValueError(f"home_md file '{shiny_cfg['home_md']}' is not valid UTF-8 text")
+    if not content.strip():
+      raise ValueError(f"home_md file '{shiny_cfg['home_md']}' is empty")
+    config['shiny']['home_md'] = home_md_f
+
+  # check annotation_csv if specified
+  if shiny_cfg.get('annotation_csv'):
+    annot_f  = _check_path_exists_in_project(shiny_cfg['annotation_csv'], config, what='file')
+    annot_df = pl.read_csv(annot_f)
+
+    # check required columns
+    required_cols = ['cluster', 'cluster_name']
+    missing_cols  = [c for c in required_cols if c not in annot_df.columns]
+    if missing_cols:
+      raise KeyError(
+        f"annotation_csv must contain columns: {', '.join(missing_cols)}. "
+        f"Found: {', '.join(annot_df.columns)}"
+      )
+
+    # check no duplicate cluster values
+    if annot_df['cluster'].n_unique() < annot_df.shape[0]:
+      raise ValueError("annotation_csv has duplicate values in the 'cluster' column")
+
+    # warn on non-hex values in optional colour column
+    if 'colour' in annot_df.columns:
+      hex_re        = re.compile(r'^#[0-9A-Fa-f]{6}$')
+      invalid_cols  = [
+        str(c) for c in annot_df['colour'].drop_nulls().to_list()
+        if not hex_re.match(str(c))
+      ]
+      if invalid_cols:
+        warnings.warn(
+          f"annotation_csv 'colour' column contains values that are not hex colours (#RRGGBB): "
+          f"{', '.join(invalid_cols[:5])}"
+          + (f" (and {len(invalid_cols) - 5} more)" if len(invalid_cols) > 5 else "")
+        )
+
+    config['shiny']['annotation_csv'] = annot_f
 
   return config
 

@@ -374,12 +374,82 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 
   # render index if requested
   if doindex:
-    _render_index(scprocess_dir, config, config_path)
+    _render_index(scprocess_dir, config, setup_cfg, config_path)
  
   return
 
 
-def _render_index(scprocess_dir, config, config_path):
+def run_shiny(configfile, sc_dir, extraargs, dryrun):
+  print('doing some checks on inputs')
+
+  config_path   = pathlib.Path(configfile).resolve()
+  scprocess_dir = pathlib.Path(__file__).parent
+  os.chdir(scprocess_dir)
+
+  scdata_dir, extraargs, setup_cfg = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
+
+  # load and validate config
+  with open(config_path, "r") as f:
+    config    = yaml.safe_load(f)
+  schema_f  = scprocess_dir / "resources/schemas/config.schema.json"
+  if not schema_f.is_file():
+    raise FileNotFoundError("schema file not found")
+  config    = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
+
+  # check GSEA outputs exist (required for the shiny app)
+  if not config['marker_genes'].get('mkr_do_gsea', True):
+    raise ValueError(
+      "scprocess shiny requires GSEA results. "
+      "Set mkr_do_gsea: true in the marker_genes section and re-run marker_genes first."
+    )
+
+  if dryrun:
+    extraargs.append("-np")
+
+  proj_dir  = Path(config['project']['proj_dir'])
+  log_dir   = proj_dir / ".log/scprocess"
+  log_f, log_header = _get_main_log(config_path, log_dir, dryrun)
+  with open(log_f, "a") as f:
+    f.write(log_header)
+
+  # change cluster logs directory if executor is slurm
+  if 'profile_dir' in setup_cfg['user']:
+    profile_f = setup_cfg['user']['profile_dir'] / 'config.yaml'
+    with open(profile_f, "r") as f:
+      profile = yaml.safe_load(f)
+    if profile.get('executor') == 'slurm':
+      cluster_log_dir = proj_dir / '.log/cluster'
+      extraargs.append('--slurm-logdir')
+      extraargs.append(str(cluster_log_dir))
+
+  # create shiny deploy directory (skip on dry run)
+  if not dryrun:
+    deploy_dir = proj_dir / "public" / "shiny"
+    os.makedirs(deploy_dir, exist_ok=True)
+
+  snakefile = scprocess_dir / "rules/shiny.smk"
+  cmd_list  = ["snakemake",
+    "--snakefile", str(snakefile),
+    "--configfile", str(config_path),
+    "--config", f"scprocess_dir={str(scprocess_dir)}",
+    "--rerun-triggers", "mtime", "params", "--rerun-incomplete",
+    "--show-failed-logs", "--printshellcmds",
+    "--software-deployment-method", "conda",
+    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{config['project']['proj_dir']}",
+    *extraargs,
+    "build_shiny_app"]
+
+  cmd_str     = " ".join(map(shlex.quote, map(str, cmd_list)))
+  strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
+  final_cmd   = f"script -q -e -c {shlex.quote(cmd_str)} /dev/null | tee /dev/stderr | {strip_colors} >> {log_f}"
+
+  print(f"snakemake command:\n{cmd_str}")
+  print(f"Logging progress to: {log_f}")
+  subprocess.run(final_cmd, check=True, shell=True, env=_clean_conda_env())
+  return
+
+
+def _render_index(scprocess_dir, config, setup_cfg, config_path):
   # 1. Locate the template and script
   template_f    = (scprocess_dir / "resources/rmd_templates/index.Rmd.template").resolve()
   render_script = scprocess_dir / "scripts/render_htmls.R"
@@ -447,7 +517,7 @@ def _render_index(scprocess_dir, config, config_path):
 
   # get env
   rlibs_f     = scprocess_dir / 'envs/rlibs.yaml'
-  env_path    = _find_env_path_from_yaml(scprocess_dir, rlibs_f)  
+  env_path    = _find_env_path_from_yaml(scprocess_dir, setup_cfg, rlibs_f)  
   if not env_path:
     raise RuntimeError("Could not find a Snakemake conda environment matching rlibs. "
       "Has the pipeline run successfully at least once?")
@@ -487,8 +557,14 @@ def _get_main_log(config_path, log_dir, dryrun):
 
   return log_full_f, log_header
 
-def _find_env_path_from_yaml(scprocess_dir, source_yaml):
-  conda_dir   = scprocess_dir / ".snakemake" / "conda"
+
+def _find_env_path_from_yaml(scprocess_dir, setup_cfg, source_yaml):
+  # conda_dir   = scprocess_dir / ".snakemake" / "conda"
+  profile_name = "default"
+  profile_dir = setup_cfg['user'].get('profile_dir', [])
+  if profile_dir:
+    profile_name = profile_dir.name
+  conda_dir = _get_conda_prefix(profile_name)
   source_yaml = source_yaml.resolve()
 
   if not os.path.exists(conda_dir):
@@ -507,6 +583,26 @@ def _find_env_path_from_yaml(scprocess_dir, source_yaml):
           return env_path
 
   return None
+
+
+def _get_conda_prefix(profile_name="default"):
+  # Common locations for snakemake profiles
+  search_paths = [
+    Path.home() / ".config/snakemake" / profile_name / "config.yaml",
+    Path("/etc/snakemake") / profile_name / "config.yaml",
+    Path.cwd() / "profiles" / profile_name / "config.yaml" # Local project profile
+  ]
+
+  for p in search_paths:
+    if p.exists():
+      with open(p, "r") as f:
+        profile_config = yaml.safe_load(f)
+        # Return the prefix if defined in the yaml
+        if "conda-prefix" in profile_config:
+            return Path(profile_config["conda-prefix"])
+    
+    # Fallback to local project directory
+  return Path.cwd() / ".snakemake" / "conda"
 
 
 # scprocess plotknee
@@ -727,6 +823,17 @@ if __name__ == '__main__':
   group.add_argument("-k", "--kneefile", type = str, default = None,
     help = "Path to knee file")
 
+  # subparser for the 'shiny' subcommand
+  shiny_prsr  = subparsers.add_parser('shiny', help="build Shiny app from scprocess outputs into public/shiny/")
+  shiny_prsr.add_argument("configfile", type = str,
+    help = "Project config YAML (same file used for scprocess run).")
+  shiny_prsr.add_argument("-n", "--dry-run", action = "store_true",
+    help = '"Dry run": show what Snakemake would do without executing.')
+  shiny_prsr.add_argument("--unlock", action = "store_true",
+    help = "Unlock the Snakemake directory if a previous run was interrupted.")
+  shiny_prsr.add_argument("-E", "--extraargs", action = "store", nargs = 1, type = str,
+    help = "Extra Snakemake arguments (quoted, using = syntax, e.g. -E=\"--quiet\").")
+
   # define scprocess directory
   sc_dir    = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
 
@@ -803,6 +910,15 @@ if __name__ == '__main__':
   elif args.subcommand == 'plotknee':
     # call function
     plot_interactive_knee(args.configfile, args.kneefile, args.sample)
+
+  # build shiny app
+  elif args.subcommand == 'shiny':
+    extraargs = []
+    if args.unlock:
+      extraargs.append("--unlock")
+    elif args.extraargs:
+      extraargs.extend(shlex.split(args.extraargs[0]))
+    run_shiny(args.configfile, sc_dir, extraargs, args.dry_run)
 
   else:
     # if no arguments are provided at all, print the help message

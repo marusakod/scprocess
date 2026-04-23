@@ -1,0 +1,46 @@
+# template
+date_stamp: "yyyy-mm-dd" # input files containing this date will be sourced in app.R
+deployment_dir: "/path/to/deployment_dir" # directory where the shiny files and app will be stored
+Renviron: "/path/to/env/bin/python" # path to RETICULATE_PYTHON
+build:
+  app_tag: 'atlas' # tag which will appear in all shiny input files
+  species: 'human' # either 'human' or 'mouse'
+  sample_col: 'sample_id' # column in meta_f that contains sample ids
+  # exc_samps: [] # samples to exclude
+  cell_col: 'cell_id' # column in meta_f, clusts_f, umaps_f which contains cell ids
+  cluster_col: 'cluster' # column in clusts_f that contains cluster labels (for which we have markers)
+  # exc_clusts: [] # cluster labels to exclude
+  umap_cols: ['umap_1', 'umap_2'] # columns in umaps_f which contain UMAP embeddings
+  n_keep: 3e4 # number of cells in the downsampled UMAP
+  pb_meta_cols: ['donor_id', 'Diagnosis', 'Tissue_broad', 'study_id', 'Age']
+                 # columns in meta_f that will be preserved in the metadata of pseudobulk objects
+  proj_dir: '/path/to/proj_dir' # directory, in which all the following files are stored
+  meta_f: 'metadata.txt.gz'
+  sce_f: 'sce.rds'
+  umaps_f: 'umap.txt.gz'
+  clusts_f: 'clustering.txt.gz'
+  markers_f: 'marker_genes.txt.gz'
+  pb_hvgs_f: 'hvgs.txt.gz'
+  fgsea_bp_f: 'fgsea_go_bp.txt.gz'
+  fgsea_cc_f: 'fgsea_go_cc.txt.gz'
+  fgsea_mf_f: 'fgsea_go_mf.txt.gz'
+  max_go_term_size: 100
+  # optional:
+  include_paga:
+    paga_mat_f: "paga_mat.csv"
+    paga_pos_f: "paga_pos.csv"
+    paga_weight_cut: 0
+  # gsets_f: # path to a .csv file with 2 columns: name (name of gene signature), symbol (gene symbol)
+  annotation_f: '/path/to/annotation.csv' # path to a .csv file with 3 columns: cluster, proposed_name, nice_order
+  data_sources_f: '/path/to/data_sources.csv' # path to a .csv file with 4 columns: study_id, tag, title, link
+  logo_f: '/path/to/logo.png'
+app:
+  app_title: "Atlas" # app name name will appear as the title in the Home tab as well as on the left side of the header
+  email: "author@mail.com" # contact will appear on the right side of the footer
+  keyword: "example" #. string that will appear in plot descriptions e.g. 'Dots represent vascular clusters in each sample'
+  default_gene: "GENE" # symbol od the gene that will be suggested in the expore genes tab
+metadata:
+  vars: ["Diagnosis", "Tissue_broad", "study_id"] # variables that will be featured in explore metadata tab; can only be character variables
+  var_names: ["Diagnosis", "Brain region", "Study"] # this is how metadata_vars will be displayed in dropdown menus; first element will be set as default values
+  var_combns: [['Diagnosis', 'Tissue_broad']] # combinations of variables from vars
+

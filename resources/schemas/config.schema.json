@@ -394,6 +394,22 @@
       
         "retries":                       { "type": "integer", "default": 0 }
       }
+    },
+    "shiny": {
+      "title": "Shiny App Configuration",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "app_title":    { "type": "string",  "description": "Title displayed in the app header and Home tab" },
+        "email":        { "type": "string",  "description": "Contact email shown in the app footer" },
+        "keyword":      { "type": "string",  "description": "Short noun used in plot descriptions (e.g. 'cells')", "default": "cells" },
+        "default_gene": { "type": "string",  "description": "Gene symbol pre-filled in the Explore Genes tab" },
+        "n_keep":       { "type": "integer", "description": "Number of cells in the downsampled UMAP display", "default": 30000, "exclusiveMinimum": 0 },
+        "var_names":      { "type": "array",  "description": "Display names for metadata_vars (must match length)", "items": { "type": "string" } },
+        "var_combns":     { "type": "array",  "description": "Pairs of metadata_vars to cross-tabulate", "items": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 2 } },
+        "home_md":        { "type": "string", "description": "Path to a Markdown file used as the app landing page (relative to project dir or absolute)" },
+        "annotation_csv": { "type": "string", "description": "Path to a CSV with columns cluster, cluster_name, and optional colour, defining display names and order for clusters (relative to project dir or absolute)" }
+      }
     }
   },
   "allOf": [
