@@ -60,6 +60,11 @@ URLS_10X_PROBE_SETS = {
   'mouse_v2': "https://cf.10xgenomics.com/supp/cell-exp/probeset/Chromium_Mouse_Transcriptome_Probe_Set_v2.0.0_GRCm39-2024-A.csv"
 }
 
+URLS_10X_PROBE_BCS = {
+  'flexv1': "https://cf.10xgenomics.com/supp/cell-exp/probeset/probe-barcodes-fixed-rna-profiling.txt",
+  'flexv2': "https://cf.10xgenomics.com/supp/cell-exp/probeset/flex-v2-384.txt"
+}
+
 
 def get_scprocess_data(scdata_dir, ranger_url, whitelists_lu_f, ranger_version_f):
   print('Downloading data from scprocessData github repo')
@@ -120,8 +125,8 @@ def get_cellranger_whitelists(output_dir, whitelists_lu_f, ranger_url, ranger_ve
     "5v3": "3M-5pgex-jan-2023.txt.gz",          
     "3LT": "9K-LT-march-2021.txt.gz",         
     "multiome": "737K-arc-v1.txt.gz",
-    "flex_v1": "737K-fixed-rna-profiling.txt.gz", 
-    "flex_v2": "737K-flex-v2.txt.gz"            
+    "flexv1": "737K-fixed-rna-profiling.txt.gz", 
+    "flexv2": "737K-flex-v2.txt.gz"            
   }
 
   sc_gex_wl_dict = {
@@ -131,8 +136,8 @@ def get_cellranger_whitelists(output_dir, whitelists_lu_f, ranger_url, ranger_ve
     "5v3": "cellranger_gex_barcode_whitelist_5v3.txt", 
     "3LT": "cellranger_gex_barcode_whitelist_3LT.txt", 
     "multiome": "cellranger_gex_barcode_whitelist_multiome_gex.txt",
-    "flex_v1": "cellranger_gex_barcode_whitelist_flex_v1.txt",
-    "flex_v2": "cellranger_gex_barcode_whitelist_flex_v2.txt"
+    "flexv1": "cellranger_gex_barcode_whitelist_flexv1.txt",
+    "flexv2": "cellranger_gex_barcode_whitelist_flexv2.txt"
   }
 
   translation_cr_wl_dict = {
@@ -164,7 +169,6 @@ def get_cellranger_whitelists(output_dir, whitelists_lu_f, ranger_url, ranger_ve
   _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict, output_dir)
 
   # create a lookup table for all whitelists
-
   chem_lu_dict = {
     "3LT": ["3LT"],
     "3v2_5v1_5v2": ["3v2", "5v1", "5v2"],
@@ -172,11 +176,11 @@ def get_cellranger_whitelists(output_dir, whitelists_lu_f, ranger_url, ranger_ve
     "3v4": ["3v4"],
     "5v3": ["5v3"],
     "multiome": ["multiome"],
-    "flex_v1": ["flex_v1"],
-    "flex_v2": ["flex_v2"]
+    "flexv1": ["flexv1"],
+    "flexv2": ["flexv2"]
     }
 
-  chem_ord = ["3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome", "flex_v1", "flex_v2"]
+  chem_ord = ["3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome", "flexv1", "flexv2"]
     
   chem_rows = []
   reverse_map = {label: dict_key for dict_key, labels in chem_lu_dict.items() for label in labels}
@@ -193,8 +197,23 @@ def get_cellranger_whitelists(output_dir, whitelists_lu_f, ranger_url, ranger_ve
   chem_df = pl.from_dicts(chem_rows)
   chem_df.write_csv(whitelists_lu_f)
 
+  # download proba barcodes and make lookup table
+  print("Downloading probe barcodes")
+  flex_ls = ["flexv1", "flexv2"]
+  for flex in flex_ls:
+    url      = URLS_10X_PROBE_BCS[flex]
+    output_f = os.path.join(output_dir, f"cellranger_probe_barcodes_{flex}.txt")
+    subprocess.run(["wget", "-O", output_f, url])
+    # convert to tsv
+    with open(output_f, 'r') as f:
+      content = f.read().replace(',', '\t')
+
+    with open(os.path.join(output_dir, f"cellranger_probe_barcodes_{flex}.tsv"), 'w') as f:
+      f.write(content)
+  
   # cleanup
   print("Cleaning up")
+  os.remove(output_f)
   os.remove(tar_path)
   
   return
@@ -771,10 +790,12 @@ def save_index_params_csv(csv_f, yaml_fs):
   for yaml_f in yaml_fs:
     with open(yaml_f) as f:
       yaml_ls = yaml.load(f, Loader=yaml.FullLoader)
+      ref_type = "probe_set" if yaml_ls.get('is_probe_set', False) else "ref_txome"
       df_data.append({
-        "reference":   yaml_ls.get('reference') or yaml_ls.get('ref_txome'),
-        "mito_str":    yaml_ls.get('mito_str'),
-        "gene_info_f": yaml_ls.get('gene_info_f') or yaml_ls.get('gtf_txt_f')
+        "reference":      yaml_ls.get('reference') or yaml_ls.get('ref_txome'),
+        "reference_type": ref_type,
+        "mito_str":       yaml_ls.get('mito_str'),
+        "gene_info_f":    yaml_ls.get('gene_info_f') or yaml_ls.get('gtf_txt_f')
       })
 
   # create DataFrame, save
