@@ -72,11 +72,11 @@ get_lvls_and_colours <- function(yaml_data, cluster_meta, sample_meta,
       } else if (!is.null(this_pal$palette)) {
         this_pal = resolve_palette(this_pal$palette, length(this_lvls)) %>% setNames(this_lvls)
       } else {
-        this_pal = nice_cols[ seq_along(this_lvls) ] %>% setNames(this_lvls)
+        this_pal = rep_len(nice_cols, length(this_lvls)) %>% setNames(this_lvls)
       }
     } else {
       this_lvls = def_lvls
-      this_pal  = nice_cols[ seq_along(this_lvls) ] %>% setNames(this_lvls)
+      this_pal  = rep_len(nice_cols, length(this_lvls)) %>% setNames(this_lvls)
     }
 
     vars_lvls[[ v ]] = this_lvls
@@ -97,7 +97,7 @@ get_lvls_and_colours <- function(yaml_data, cluster_meta, sample_meta,
       cl_cols  = if (!is.null(cl_pal) && nchar(cl_pal) > 0)
         resolve_palette(cl_pal, n_cl)
       else
-        nice_cols[ seq_len(n_cl) ]
+        rep_len(nice_cols, n_cl)
       vars_pals[[ 'cluster' ]] = cl_cols %>% setNames(cluster_labels)
     }
   } else {
