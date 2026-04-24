@@ -379,7 +379,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   return
 
 
-def run_shiny(configfile, sc_dir, extraargs, dryrun):
+def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
   print('doing some checks on inputs')
 
   config_path   = pathlib.Path(configfile).resolve()
@@ -395,13 +395,6 @@ def run_shiny(configfile, sc_dir, extraargs, dryrun):
   if not schema_f.is_file():
     raise FileNotFoundError("schema file not found")
   config    = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
-
-  # check GSEA outputs exist (required for the shiny app)
-  if not config['marker_genes'].get('mkr_do_gsea', True):
-    raise ValueError(
-      "scprocess shiny requires GSEA results. "
-      "Set mkr_do_gsea: true in the marker_genes section and re-run marker_genes first."
-    )
 
   if dryrun:
     extraargs.append("-np")
@@ -422,10 +415,34 @@ def run_shiny(configfile, sc_dir, extraargs, dryrun):
       extraargs.append('--slurm-logdir')
       extraargs.append(str(cluster_log_dir))
 
-  # create shiny deploy directory (skip on dry run)
-  if not dryrun:
-    deploy_dir = proj_dir / "public" / "shiny"
-    os.makedirs(deploy_dir, exist_ok=True)
+  # determine target(s)
+  date_stamp = config['project']['date_stamp']
+  docs_dir   = proj_dir / "public"
+  if zoom_name is None:
+    # build main app
+    if not dryrun:
+      os.makedirs(docs_dir / "shiny", exist_ok=True)
+    targets = ["build_shiny_app"]
+  elif zoom_name == "all":
+    # build all zoom apps
+    zoom_names = _get_zoom_names(config, scprocess_dir, scdata_dir)
+    if not zoom_names:
+      raise ValueError("No zoom specs found in config. Add a 'zoom:' section to your config file.")
+    if not dryrun:
+      for zn in zoom_names:
+        os.makedirs(docs_dir / f"shiny_zoom_{zn}", exist_ok=True)
+    targets = ["build_all_zoom_shiny_apps"]
+  else:
+    # build one specific zoom app
+    zoom_names = _get_zoom_names(config, scprocess_dir, scdata_dir)
+    if zoom_name not in zoom_names:
+      raise ValueError(
+        f"Zoom '{zoom_name}' not found in config. "
+        f"Available zooms: {', '.join(zoom_names) if zoom_names else '(none)'}"
+      )
+    if not dryrun:
+      os.makedirs(docs_dir / f"shiny_zoom_{zoom_name}", exist_ok=True)
+    targets = [str(docs_dir / f"shiny_zoom_{zoom_name}" / f".shiny_built_{date_stamp}")]
 
   snakefile = scprocess_dir / "rules/shiny.smk"
   cmd_list  = ["snakemake",
@@ -437,7 +454,7 @@ def run_shiny(configfile, sc_dir, extraargs, dryrun):
     "--software-deployment-method", "conda",
     "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{config['project']['proj_dir']}",
     *extraargs,
-    "build_shiny_app"]
+    *targets]
 
   cmd_str     = " ".join(map(shlex.quote, map(str, cmd_list)))
   strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
@@ -447,6 +464,15 @@ def run_shiny(configfile, sc_dir, extraargs, dryrun):
   print(f"Logging progress to: {log_f}")
   subprocess.run(final_cmd, check=True, shell=True, env=_clean_conda_env())
   return
+
+
+def _get_zoom_names(config, scprocess_dir, scdata_dir):
+  """Return list of zoom names from config, or [] if none defined."""
+  if 'zoom' not in config or not config['zoom']:
+    return []
+  zoom_schema_f = pathlib.Path(scprocess_dir) / "resources/schemas/zoom.schema.json"
+  ZOOM_PARAMS   = scprocess_utils.get_zoom_parameters(config, zoom_schema_f, scdata_dir)
+  return list(ZOOM_PARAMS.keys())
 
 
 def _render_index(scprocess_dir, config, setup_cfg, config_path):
@@ -827,6 +853,10 @@ if __name__ == '__main__':
   shiny_prsr  = subparsers.add_parser('shiny', help="build Shiny app from scprocess outputs into public/shiny/")
   shiny_prsr.add_argument("configfile", type = str,
     help = "Project config YAML (same file used for scprocess run).")
+  shiny_prsr.add_argument("--zoom", type = str, default = None, metavar = "ZOOM_NAME",
+    help = ("Build a Shiny app for a zoom (subclustering) output instead of the main analysis. "
+            "Pass a zoom name (e.g. --zoom immune_cells) or 'all' to build apps for every zoom "
+            "defined in the config (deployed to public/shiny_zoom_<name>/)."))
   shiny_prsr.add_argument("-n", "--dry-run", action = "store_true",
     help = '"Dry run": show what Snakemake would do without executing.')
   shiny_prsr.add_argument("--unlock", action = "store_true",
@@ -918,7 +948,7 @@ if __name__ == '__main__':
       extraargs.append("--unlock")
     elif args.extraargs:
       extraargs.extend(shlex.split(args.extraargs[0]))
-    run_shiny(args.configfile, sc_dir, extraargs, args.dry_run)
+    run_shiny(args.configfile, sc_dir, extraargs, args.dry_run, zoom_name=args.zoom)
 
   else:
     # if no arguments are provided at all, print the help message

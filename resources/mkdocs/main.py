@@ -4,4 +4,5 @@ def define_env(env):
     env.variables['scsetup'] = '<span class="software-name">scprocess setup</span>'
     env.variables['scnew'] = '<span class="software-name">scprocess newproj</span>'
     env.variables['scrun'] = '<span class="software-name">scprocess run</span>'
-    env.variables['scknee'] = '<span class="software-name">scprocess plotknee</span>'
+    env.variables['scknee']  = '<span class="software-name">scprocess plotknee</span>'
+    env.variables['scshiny'] = '<span class="software-name">scprocess shiny</span>'

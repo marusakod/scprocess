@@ -477,6 +477,21 @@ sample_id:
 * `min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.
 * `min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled.
 
+##### shiny
+
+This section controls the interactive Shiny app built by {{scshiny}}. All parameters are optional.
+
+* `app_title`: title displayed in the Shiny app header. Defaults to `short_tag`.
+* `email`: contact email shown in the app footer.
+* `keyword`: short word used in plot axis labels and descriptions (e.g. `"cells"`, `"nuclei"`). Default is `"cells"`.
+* `default_gene`: gene symbol displayed by default in the Explore Genes tab.
+* `n_keep`: number of cells retained in the density-subsampled UMAP shown in the app. Default is `30000`.
+* `var_names`: display names for `metadata_vars` columns (same order). Defaults to `metadata_vars` values.
+* `var_combns`: list of metadata variable pairs to display as combined groupings. Each element should be a two-element list of variable names from `metadata_vars`.
+* `home_md`: path to a Markdown file used as the landing page content. Absolute or relative to `proj_dir`.
+* `annotation_csv`: path to a CSV with columns `cluster`, `cluster_name`, and optionally `colour`, defining display names, order, and colours for clusters. Absolute or relative to `proj_dir`.
+
+
 ##### zoom
 
 In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var` and `mkr_custom_genesets`.
@@ -496,6 +511,8 @@ Additional parameters include:
 * `save_subset_anndata`: whether to create H5AD files containing cells that have been assigned one of the values in `sel_labels`; defaults is `true`.
 * `custom_labels_f`: required if `labels_source` is set to `custom`; path to CSV file with columns `sample_id`, `cell_id` and `label`.
 
+An optional `shiny` block in the zoom spec controls the Shiny app built by `scprocess shiny --zoom`. It accepts the same parameters as the [project-level `shiny` section](#shiny), with `app_title` defaulting to `short_tag — zoom_name`.
+
 Example zoom configuration file:
 
 ```yaml
@@ -510,8 +527,43 @@ zoom:
 qc:
   qc_min_cells: 100
 hvg:
-  hvg_method: all 
+  hvg_method: all
+shiny:
+  app_title: Oligos & OPCs
+  n_keep: 20000
+  default_gene: Mog
 ```
+
+## {{scshiny}} { #scprocess-shiny }
+
+**Description**: Build an interactive Shiny app from {{sc}} outputs and deploy it into `public/shiny/`. GSEA results are incorporated automatically when available but are not required.
+
+**Parameters**:
+
+* `configfile` (positional): path to the project configuration YAML (the same file used for `scprocess run`).
+* `--zoom ZOOM_NAME` (optional): build a Shiny app for a zoom (subclustering) output instead of the main analysis. The app is deployed to `public/shiny_zoom_<zoom_name>/`. Pass `all` to build apps for every zoom defined in the config.
+* `-n`/`--dry-run`: show what Snakemake would do without executing.
+* `--unlock`: unlock the Snakemake directory if a previous run was interrupted.
+* `-E`/`--extraargs`: extra Snakemake arguments (quoted, using `=` syntax).
+
+**Examples**:
+
+```bash
+# Build the main Shiny app (requires completed marker_genes run)
+scprocess shiny config-my_project.yaml
+
+# Build a Shiny app for one zoom subclustering output
+scprocess shiny config-my_project.yaml --zoom immune_cells
+
+# Build Shiny apps for all zoom subclustering outputs
+scprocess shiny config-my_project.yaml --zoom all
+
+# Dry run — preview what would be built
+scprocess shiny config-my_project.yaml -n
+```
+
+The app is deployed to `public/shiny/` (main analysis) or `public/shiny_zoom_<zoom_name>/` (zoom). Configure app appearance via the optional `shiny:` section in the project config file (or in the zoom spec YAML for zoom apps). See [Optional parameters › shiny](#shiny) for available options.
+
 
 ##### resources
 

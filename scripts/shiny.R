@@ -16,9 +16,9 @@ suppressPackageStartupMessages({
 #' @param sample_meta_f  Path to sample metadata CSV (config['project']['sample_metadata'])
 #' @param mkrs_f         Path to pb_marker_genes_{FULL_TAG}_{res}_{DATE_STAMP}.csv.gz
 #' @param pb_hvgs_f      Path to pb_hvgs_{FULL_TAG}_{res}_{DATE_STAMP}.csv.gz
-#' @param fgsea_bp_f     Path to fgsea go_bp CSV.GZ
-#' @param fgsea_cc_f     Path to fgsea go_cc CSV.GZ
-#' @param fgsea_mf_f     Path to fgsea go_mf CSV.GZ
+#' @param fgsea_bp_f     Path to fgsea go_bp CSV.GZ (pass "" to skip GSEA)
+#' @param fgsea_cc_f     Path to fgsea go_cc CSV.GZ (pass "" to skip GSEA)
+#' @param fgsea_mf_f     Path to fgsea go_mf CSV.GZ (pass "" to skip GSEA)
 #' @param deploy_dir     Output directory (e.g. public/shiny)
 #' @param scprocess_dir  Path to the scprocess installation directory
 #' @param app_tag        Short tag for output file names (config['project']['short_tag'])
@@ -39,7 +39,7 @@ suppressPackageStartupMessages({
 #' @param n_cores        Number of data.table threads
 make_shiny_app_scprocess <- function(
   integration_f, h5ads_yaml_f, sample_meta_f,
-  mkrs_f, pb_hvgs_f, fgsea_bp_f, fgsea_cc_f, fgsea_mf_f,
+  mkrs_f, pb_hvgs_f, fgsea_bp_f = "", fgsea_cc_f = "", fgsea_mf_f = "",
   deploy_dir, scprocess_dir,
   app_tag, date_stamp, mkr_sel_res,
   ref_txome, metadata_vars,
@@ -319,42 +319,63 @@ make_shiny_app_scprocess <- function(
   fwrite(pb_hvgs, out_fs["out_pb_hvgs_f"])
 
   # ---- GSEA ----------------------------------------------------------------
-  message("Processing GSEA results")
-  gsea_res <- list(
-    go_bp = fread(fgsea_bp_f),
-    go_cc = fread(fgsea_cc_f),
-    go_mf = fread(fgsea_mf_f)
-  )
+  do_gsea <- nchar(fgsea_bp_f) > 0 && nchar(fgsea_cc_f) > 0 && nchar(fgsea_mf_f) > 0
 
-  top_paths <- lapply(names(gsea_res), function(go_cat) {
-    gsea_dt   <- gsea_res[[go_cat]]
-    assert_that(all(gsea_dt$path_set == go_cat),
-      msg = paste("path_set column in", go_cat, "file does not match expected value"))
-    gsea_dt[
-      main_path == TRUE
-    ][,
-      min_p  := min(padj, na.rm = TRUE), by = pathway
-    ][,
-      signif := ifelse(padj < 0.05, "significant", "not")
-    ][
-      min_p < 0.1 & NES > 0
-    ] %>%
-      setorder(cluster, padj) %>%
-      .[, p_rank := seq_len(.N), by = cluster] %>%
-      .[, .(pathway, padj, NES, size, p_rank, signif, cluster, go_category = path_set)]
-  }) %>% rbindlist()
+  if (do_gsea) {
+    message("Processing GSEA results")
+    gsea_res <- list(
+      go_bp = fread(fgsea_bp_f),
+      go_cc = fread(fgsea_cc_f),
+      go_mf = fread(fgsea_mf_f)
+    )
 
+    top_paths <- lapply(names(gsea_res), function(go_cat) {
+      gsea_dt   <- gsea_res[[go_cat]]
+      assert_that(all(gsea_dt$path_set == go_cat),
+        msg = paste("path_set column in", go_cat, "file does not match expected value"))
+      gsea_dt[
+        main_path == TRUE
+      ][,
+        min_p  := min(padj, na.rm = TRUE), by = pathway
+      ][,
+        signif := ifelse(padj < 0.05, "significant", "not")
+      ][
+        min_p < 0.1 & NES > 0
+      ] %>%
+        setorder(cluster, padj) %>%
+        .[, p_rank := seq_len(.N), by = cluster] %>%
+        .[, .(pathway, padj, NES, size, p_rank, signif, cluster, go_category = path_set)]
+    }) %>% rbindlist()
+
+  } else {
+    message("Skipping GSEA (no fgsea files provided)")
+    top_paths <- data.table(
+      pathway     = character(), padj    = numeric(),
+      NES         = numeric(),   size    = integer(),
+      p_rank      = integer(),   signif  = character(),
+      cluster     = character(), go_category = character()
+    )
+  }
   fwrite(top_paths, out_fs["out_fgsea_f"])
 
   # ---- GO term gene lists --------------------------------------------------
-  message("Building GO term gene lists")
   go_terms_f <- file.path(genesets_dir, paste0("genes_go_pathways_", species, ".txt.gz"))
-  if (!file.exists(go_terms_f)) {
+  if (!do_gsea) {
+    message("Skipping GO term gene lists (no GSEA results)")
+    go_genes <- data.table(
+      pathway      = character(), pathway_nice = character(),
+      path_short   = character(), go_category  = character(),
+      genes        = character()
+    )
+  } else if (!file.exists(go_terms_f)) {
     message(" WARNING: GO terms file not found at ", go_terms_f, " — geneset exploration will be empty")
-    go_genes <- data.table(pathway = character(), pathway_nice = character(),
-                           path_short = character(), go_category = character(),
-                           genes = character())
+    go_genes <- data.table(
+      pathway      = character(), pathway_nice = character(),
+      path_short   = character(), go_category  = character(),
+      genes        = character()
+    )
   } else {
+    message("Building GO term gene lists")
     signif_markers <- markers[
       FDR <= 0.05 & CPM >= 10
     ][,

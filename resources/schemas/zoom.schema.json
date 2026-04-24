@@ -124,7 +124,7 @@
         "mkr_min_cpm_mkr":  { "type": "integer",  "default": 50 },
         "mkr_min_cpm_go":   { "type": "integer",  "default": 1 },
         "mkr_max_zero_p":   { "type": "number",   "default": 0.5 },
-        "mkr_do_gsea":      { "type": "boolean",  "default": true }, 
+        "mkr_do_gsea":      { "type": "boolean",  "default": true },
         "mkr_gsea_cut":     { "type": "number",   "default": 0.1 },
         "mkr_gsea_var":     { "type": "string",   "default": "z_score", "enum": ["logFC", "z_score"] },
         "mkr_custom_genesets": {
@@ -138,6 +138,24 @@
             }
           }
         }
+      }
+    },
+    "shiny": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "app_title":      { "type": "string" },
+        "email":          { "type": "string" },
+        "keyword":        { "type": "string",  "default": "cells" },
+        "default_gene":   { "type": "string",  "default": "" },
+        "n_keep":         { "type": "integer", "exclusiveMinimum": 0, "default": 30000 },
+        "var_names":      { "type": "array",   "items": { "type": "string" } },
+        "var_combns": {
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "string" } }
+        },
+        "home_md":        { "type": "string" },
+        "annotation_csv": { "type": "string" }
       }
     }
   }
