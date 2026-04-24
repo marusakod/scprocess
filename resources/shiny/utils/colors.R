@@ -95,6 +95,90 @@ cols_fn <- function(mat, res, pal, pal_dir = 1, range = 'natural') {
   return(pal_cols)
 }
 
+# ---- Named palette support --------------------------------------------------
+
+# ggsci palette names supported as flat names
+.ggsci_palettes <- c(
+  "npg", "aaas", "nejm", "lancet", "jama", "jco", "ucscgb",
+  "d3", "d3_10", "d3_20", "d3_20b", "d3_20c",
+  "igv", "cosmic", "simpsons", "rickandmorty", "futurama", "tron",
+  "startrek", "uchicago", "frontiers", "flatui", "bootstrap"
+)
+
+# All valid palette names (built at load time from package metadata)
+VALID_PALETTE_NAMES <- c(
+  "nice_cols",
+  names(MetBrewer::MetPalettes),
+  rownames(RColorBrewer::brewer.pal.info),
+  .ggsci_palettes
+)
+
+# Return n colours from a named palette. Handles overflow via interpolation.
+resolve_palette <- function(name, n) {
+  stopifnot(is.character(name), length(name) == 1L)
+  n <- as.integer(n)
+  stopifnot(n > 0L)
+
+  if (name == "nice_cols") {
+    return(rep_len(nice_cols, n))
+  }
+
+  if (name %in% names(MetBrewer::MetPalettes)) {
+    max_n <- length(MetBrewer::MetPalettes[[name]]$colors)
+    if (n <= max_n) {
+      return(MetBrewer::met.brewer(name, n, type = "discrete"))
+    } else {
+      return(MetBrewer::met.brewer(name, n, type = "continuous"))
+    }
+  }
+
+  if (name %in% rownames(RColorBrewer::brewer.pal.info)) {
+    max_n     <- RColorBrewer::brewer.pal.info[name, "maxcolors"]
+    base_cols <- suppressWarnings(RColorBrewer::brewer.pal(min(n, max_n), name))
+    if (n > max_n) return(colorRampPalette(base_cols)(n))
+    return(base_cols[seq_len(n)])
+  }
+
+  if (name %in% .ggsci_palettes) {
+    cols <- .ggsci_cols(name)
+    if (n <= length(cols)) return(cols[seq_len(n)])
+    return(colorRampPalette(cols)(n))
+  }
+
+  stop("Unknown palette '", name, "'. See VALID_PALETTE_NAMES for valid options.")
+}
+
+# Internal: retrieve the full discrete colour vector for a ggsci palette name.
+.ggsci_cols <- function(name) {
+  switch(name,
+    "d3"     = ,
+    "d3_20"  = ggsci::pal_d3("category20")(20),
+    "d3_10"  = ggsci::pal_d3("category10")(10),
+    "d3_20b" = ggsci::pal_d3("category20b")(20),
+    "d3_20c" = ggsci::pal_d3("category20c")(20),
+    "npg"          = ggsci::pal_npg()(10),
+    "aaas"         = ggsci::pal_aaas()(10),
+    "nejm"         = ggsci::pal_nejm()(8),
+    "lancet"       = ggsci::pal_lancet()(9),
+    "jama"         = ggsci::pal_jama()(7),
+    "jco"          = ggsci::pal_jco()(10),
+    "ucscgb"       = ggsci::pal_ucscgb()(26),
+    "igv"          = ggsci::pal_igv()(51),
+    "cosmic"       = ggsci::pal_cosmic()(26),
+    "simpsons"     = ggsci::pal_simpsons()(16),
+    "rickandmorty" = ggsci::pal_rickandmorty()(12),
+    "futurama"     = ggsci::pal_futurama()(12),
+    "tron"         = ggsci::pal_tron()(7),
+    "startrek"     = ggsci::pal_startrek()(7),
+    "uchicago"     = ggsci::pal_uchicago()(9),
+    "frontiers"    = ggsci::pal_frontiers()(10),
+    "flatui"       = ggsci::pal_flatui()(9),
+    "bootstrap"    = ggsci::pal_bootstrap()(5),
+    stop("Unknown ggsci palette: ", name)
+  )
+}
+
+
 # Returns "black" or "white" for readable text overlay on a hex background colour.
 is_light_or_dark <- function(hex_color) {
   hcl       = as(hex2RGB(hex_color), "polarLUV")

@@ -36,6 +36,13 @@ add_metadata_var_cont <- function(meta_dt, var, breaks, labels = NULL) {
 # Uses user-supplied YAML palettes where available; falls back to nice_cols.
 # Also reads an optional annotation.csv for cluster labels and colours.
 # Returns list(vars_lvls, vars_pals, cluster_labels).
+#
+# Palette spec per variable (yaml_data$metadata$palettes[[v]]):
+#   palette:  name  — call resolve_palette(name, n) to generate colours
+#   colours:  [c1, c2, ...]  — explicit hex/named colours
+#   values:   [l1, l2, ...]  — optional level ordering (defaults to freq order)
+#
+# yaml_data$metadata$cluster_palette: named palette for clusters (when no annotation.csv).
 get_lvls_and_colours <- function(yaml_data, cluster_meta, sample_meta,
                                  metadata_vars, data_dir, nice_cols) {
   vars_lvls  = list()
@@ -47,16 +54,25 @@ get_lvls_and_colours <- function(yaml_data, cluster_meta, sample_meta,
     def_lvls = obs_vals %>% as.character %>% fct_infreq %>% levels
 
     if (v %in% names(yaml_pals)) {
-      this_pal = yaml_pals[[ v ]]
-      assert_that( 'values' %in% names(this_pal) )
-      assert_that( all(def_lvls %in% this_pal$values) )
-
-      this_lvls = this_pal$values
-      if ('colours' %in% names(this_pal)) {
-        assert_that( length(this_pal$values) == length(this_pal$colours) )
-        this_pal  = this_pal$colours %>% setNames(this_lvls)
+      this_pal  = yaml_pals[[ v ]]
+      this_lvls = if (!is.null(this_pal$values)) {
+        assert_that( all(def_lvls %in% this_pal$values),
+          msg = paste0("metadata_palettes$", v, "$values does not cover all observed levels: ",
+                       paste(setdiff(def_lvls, this_pal$values), collapse = ", ")) )
+        this_pal$values
       } else {
-        this_pal  = nice_cols[ seq_along(this_lvls) ] %>% setNames(this_lvls)
+        def_lvls
+      }
+
+      if (!is.null(this_pal$colours)) {
+        these_cols = unlist(this_pal$colours)  # list or vector -> character vector
+        assert_that( length(this_lvls) == length(these_cols),
+          msg = paste0("metadata_palettes$", v, ": length(colours) must equal number of levels (", length(this_lvls), ")") )
+        this_pal = these_cols %>% setNames(this_lvls)
+      } else if (!is.null(this_pal$palette)) {
+        this_pal = resolve_palette(this_pal$palette, length(this_lvls)) %>% setNames(this_lvls)
+      } else {
+        this_pal = nice_cols[ seq_along(this_lvls) ] %>% setNames(this_lvls)
       }
     } else {
       this_lvls = def_lvls
@@ -76,14 +92,26 @@ get_lvls_and_colours <- function(yaml_data, cluster_meta, sample_meta,
     if ('colour' %in% names(annot_dt)) {
       vars_pals[[ 'cluster' ]] = annot_dt$colour %>% setNames(cluster_labels)
     } else {
-      vars_pals[[ 'cluster' ]] = nice_cols[ seq_along(cluster_labels) ] %>% setNames(cluster_labels)
+      n_cl     = length(cluster_labels)
+      cl_pal   = yaml_data$metadata$cluster_palette
+      cl_cols  = if (!is.null(cl_pal) && nchar(cl_pal) > 0)
+        resolve_palette(cl_pal, n_cl)
+      else
+        nice_cols[ seq_len(n_cl) ]
+      vars_pals[[ 'cluster' ]] = cl_cols %>% setNames(cluster_labels)
     }
   } else {
     cluster_labels = NULL
     cluster_lvls   = cluster_meta[, .(n_cells = sum(n_cells)), by = cluster] %>%
       .[ order(-n_cells) ] %>% .$cluster
+    n_cl    = length(cluster_lvls)
+    cl_pal  = yaml_data$metadata$cluster_palette
+    cl_cols = if (!is.null(cl_pal) && nchar(cl_pal) > 0)
+      resolve_palette(cl_pal, n_cl)
+    else
+      nice_cols[ seq_len(n_cl) ]
     vars_lvls[[ 'cluster' ]] = cluster_lvls
-    vars_pals[[ 'cluster' ]] = nice_cols[ seq_along(cluster_lvls) ] %>% setNames(cluster_lvls)
+    vars_pals[[ 'cluster' ]] = cl_cols %>% setNames(cluster_lvls)
   }
 
   list(

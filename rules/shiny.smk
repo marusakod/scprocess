@@ -134,6 +134,8 @@ rule build_shiny_app:
     var_combns        = json.dumps(_shiny_cfg.get('var_combns', [])),
     home_md_f         = _home_md_f,
     annotation_csv_f  = _annotation_csv_f,
+    cluster_palette   = _shiny_cfg.get('cluster_palette', ''),
+    metadata_palettes = json.dumps(_shiny_cfg.get('metadata_palettes', {})),
     fgsea_go_bp_f     = lambda wildcards, input: getattr(input, 'fgsea_go_bp_f', ''),
     fgsea_go_cc_f     = lambda wildcards, input: getattr(input, 'fgsea_go_cc_f', ''),
     fgsea_go_mf_f     = lambda wildcards, input: getattr(input, 'fgsea_go_mf_f', ''),
@@ -172,10 +174,12 @@ rule build_shiny_app:
         default_gene  = '{params.default_gene}',
         n_keep        = {params.n_keep},
         var_names     = '{params.var_names}',
-        var_combns       = '{params.var_combns}',
-        home_md_f        = '{params.home_md_f}',
-        annotation_csv_f = '{params.annotation_csv_f}',
-        n_cores          = {threads}
+        var_combns        = '{params.var_combns}',
+        home_md_f         = '{params.home_md_f}',
+        annotation_csv_f  = '{params.annotation_csv_f}',
+        cluster_palette   = '{params.cluster_palette}',
+        metadata_palettes = '{params.metadata_palettes}',
+        n_cores           = {threads}
       )
     "
     touch {output.sentinel_f}
@@ -215,6 +219,9 @@ rule build_zoom_shiny_app:
                          ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('var_combns', [])),
     home_md_f        = lambda wc: _zoom_optional_path(wc.zoom_name, 'home_md'),
     annotation_csv_f = lambda wc: _zoom_optional_path(wc.zoom_name, 'annotation_csv'),
+    cluster_palette  = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('cluster_palette', ''),
+    metadata_palettes = lambda wc: json.dumps(
+                          ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('metadata_palettes', {})),
     fgsea_go_bp_f    = lambda wildcards, input: getattr(input, 'fgsea_go_bp_f', ''),
     fgsea_go_cc_f    = lambda wildcards, input: getattr(input, 'fgsea_go_cc_f', ''),
     fgsea_go_mf_f    = lambda wildcards, input: getattr(input, 'fgsea_go_mf_f', ''),
@@ -253,10 +260,12 @@ rule build_zoom_shiny_app:
         default_gene  = '{params.default_gene}',
         n_keep        = {params.n_keep},
         var_names     = '{params.var_names}',
-        var_combns       = '{params.var_combns}',
-        home_md_f        = '{params.home_md_f}',
-        annotation_csv_f = '{params.annotation_csv_f}',
-        n_cores          = {threads}
+        var_combns        = '{params.var_combns}',
+        home_md_f         = '{params.home_md_f}',
+        annotation_csv_f  = '{params.annotation_csv_f}',
+        cluster_palette   = '{params.cluster_palette}',
+        metadata_palettes = '{params.metadata_palettes}',
+        n_cores           = {threads}
       )
     "
     touch {output.sentinel_f}

@@ -23,6 +23,8 @@ dependencies:
   - r-markdown=1.13
   - r-mass=7.3_65
   - r-matrix=1.7_4
+  - r-metbrewer
+  - r-ggsci
   - r-rcolorbrewer=1.1_3
   - r-scales=1.4.0
   - r-scattermore=1.2

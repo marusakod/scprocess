@@ -24,6 +24,8 @@ suppressPackageStartupMessages({
   library('ggbeeswarm')
   library('scales')
   library('RColorBrewer')
+  library('MetBrewer')
+  library('ggsci')
   library('viridis')
   library('ComplexHeatmap')
   library('circlize')

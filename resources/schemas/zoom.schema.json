@@ -154,8 +154,26 @@
           "type": "array",
           "items": { "type": "array", "items": { "type": "string" } }
         },
-        "home_md":        { "type": "string" },
-        "annotation_csv": { "type": "string" }
+        "home_md":          { "type": "string" },
+        "annotation_csv":   { "type": "string" },
+        "cluster_palette":  { "type": "string" },
+        "metadata_palettes": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "string" } },
+              { "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "palette":  { "type": "string" },
+                  "colours":  { "type": "array", "items": { "type": "string" } },
+                  "values":   { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            ]
+          }
+        }
       }
     }
   }

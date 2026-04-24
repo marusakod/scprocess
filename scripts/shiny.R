@@ -1,10 +1,13 @@
 suppressPackageStartupMessages({
   library("assertthat")
   library("data.table")
+  library("jsonlite")
   library("magrittr")
   library("yaml")
   library("BPCells")
   library("MASS")
+  library("MetBrewer")
+  library("RColorBrewer")
   library("strex")
 })
 
@@ -36,6 +39,11 @@ suppressPackageStartupMessages({
 #' @param home_md_f      Optional path to a Markdown file used as the landing page (overrides placeholder)
 #' @param annotation_csv_f Optional path to a CSV with columns cluster, cluster_name, colour defining
 #'                        display names, colour, and order for clusters
+#' @param cluster_palette  Optional palette name applied to cluster colours (when no annotation_csv).
+#'                        Any name in VALID_PALETTE_NAMES (nice_cols, MetBrewer, RColorBrewer, ggsci).
+#' @param metadata_palettes JSON-encoded object mapping metadata variable names to palette specs.
+#'                        Each value may be: a string (palette name), an array (explicit hex colours),
+#'                        or an object with optional keys 'palette', 'colours', and 'values'.
 #' @param n_cores        Number of data.table threads
 make_shiny_app_scprocess <- function(
   integration_f, h5ads_yaml_f, sample_meta_f,
@@ -52,6 +60,8 @@ make_shiny_app_scprocess <- function(
   var_combns = "[]",
   home_md_f = "",
   annotation_csv_f = "",
+  cluster_palette = "",
+  metadata_palettes = "{}",
   n_cores   = 1L
 ) {
   setDTthreads(n_cores)
@@ -79,6 +89,57 @@ make_shiny_app_scprocess <- function(
 
   n_keep        <- as.integer(n_keep)
   cluster_col   <- paste0("RNA_snn_res.", mkr_sel_res)
+
+  # ---- Parse and validate palette arguments ----------------------------------
+  # Inline registry of valid names (mirrors colors.R VALID_PALETTE_NAMES)
+  .metbrewer_names <- names(MetBrewer::MetPalettes)
+  .rcolorbrewer_names <- rownames(RColorBrewer::brewer.pal.info)
+  .ggsci_names <- c(
+    "npg", "aaas", "nejm", "lancet", "jama", "jco", "ucscgb",
+    "d3", "d3_10", "d3_20", "d3_20b", "d3_20c",
+    "igv", "cosmic", "simpsons", "rickandmorty", "futurama", "tron",
+    "startrek", "uchicago", "frontiers", "flatui", "bootstrap"
+  )
+  .valid_pal_names <- c("nice_cols", .metbrewer_names, .rcolorbrewer_names, .ggsci_names)
+
+  .check_palette_name <- function(name, context) {
+    if (!name %in% .valid_pal_names)
+      stop("Unknown palette '", name, "' in ", context, ". ",
+           "See the scprocess documentation for valid palette names.")
+  }
+
+  # Validate cluster_palette
+  if (nchar(cluster_palette) > 0)
+    .check_palette_name(cluster_palette, "cluster_palette")
+
+  # Parse metadata_palettes from JSON and normalise into shinyconfig format.
+  # Input shapes (per variable):
+  #   "VanGogh1"             -> {palette: "VanGogh1"}
+  #   ["#FF0000", "#0000FF"] -> {colours: [...]}
+  #   {palette: "Klimt", values: [...]} -> {palette: "Klimt", values: [...]}
+  #   {colours: [...], values: [...]}   -> {colours: [...], values: [...]}
+  raw_pals <- jsonlite::fromJSON(metadata_palettes, simplifyVector = FALSE)
+
+  normalised_pals <- lapply(names(raw_pals), function(v) {
+    spec <- raw_pals[[ v ]]
+    if (is.character(spec) && length(spec) == 1L) {
+      # scalar string: palette name
+      .check_palette_name(spec, paste0("metadata_palettes$", v))
+      list(palette = spec)
+    } else if (is.list(spec) && !is.null(names(spec))) {
+      # named object: {palette:, colours:, values:}
+      if (!is.null(spec$palette))
+        .check_palette_name(spec$palette, paste0("metadata_palettes$", v, "$palette"))
+      spec
+    } else if (is.list(spec) && is.null(names(spec))) {
+      # unnamed list from JSON array: explicit colour list
+      list(colours = spec)
+    } else {
+      stop("metadata_palettes$", v, ": unexpected format. ",
+           "Expected a palette name (string), colour list (array), ",
+           "or object with 'palette'/'colours'/'values' keys.")
+    }
+  }) %>% setNames(names(raw_pals))
 
   # ---- Set up output directories ------------------------------------------
   deploy_dir <- gsub("/$", "", deploy_dir)
@@ -398,6 +459,16 @@ make_shiny_app_scprocess <- function(
 
   # ---- Write shinyconfig.yaml ----------------------------------------------
   message("Writing shinyconfig.yaml")
+  meta_section <- list(
+    vars      = as.list(setNames(metadata_vars, var_names)),
+    var_names = as.list(var_names),
+    var_combns = if (length(var_combns) > 0) var_combns else NULL
+  )
+  if (nchar(cluster_palette) > 0)
+    meta_section$cluster_palette <- cluster_palette
+  if (length(normalised_pals) > 0)
+    meta_section$palettes <- normalised_pals
+
   shinyconfig <- list(
     date_stamp = date_stamp,
     data_dir   = "data",
@@ -413,11 +484,7 @@ make_shiny_app_scprocess <- function(
       keyword      = keyword,
       default_gene = if (nchar(default_gene) > 0) default_gene else rowd$symbol[1]
     ),
-    metadata = list(
-      vars      = as.list(setNames(metadata_vars, var_names)),
-      var_names = as.list(var_names),
-      var_combns = if (length(var_combns) > 0) var_combns else NULL
-    )
+    metadata = meta_section
   )
   yaml::write_yaml(shinyconfig, file.path(deploy_dir, "shinyconfig.yaml"))
 

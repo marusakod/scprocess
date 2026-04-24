@@ -490,6 +490,38 @@ This section controls the interactive Shiny app built by {{scshiny}}. All parame
 * `var_combns`: list of metadata variable pairs to display as combined groupings. Each element should be a two-element list of variable names from `metadata_vars`.
 * `home_md`: path to a Markdown file used as the landing page content. Absolute or relative to `proj_dir`.
 * `annotation_csv`: path to a CSV with columns `cluster`, `cluster_name`, and optionally `colour`, defining display names, order, and colours for clusters. Absolute or relative to `proj_dir`.
+* `cluster_palette`: named colour palette applied to clusters when no `annotation_csv` is provided. Accepts any name from the [supported palette list](#palette-names).
+* `metadata_palettes`: per-variable colour palette configuration. Each key is a metadata variable name; the value can be:
+    - a palette name (string): `Condition: VanGogh1`
+    - an explicit colour list (array): `Sex: ["#FF0000", "#0000FF"]`
+    - an object with optional `palette`, `colours`, and `values` keys (the `values` list controls level ordering; defaults to frequency order):
+
+```yaml
+shiny:
+  cluster_palette: Renoir
+  metadata_palettes:
+    Condition: VanGogh1               # palette name
+    Sex: ["#FF0000", "#0000FF"]       # explicit colours
+    Tissue:                           # palette with custom ordering
+      palette: Klimt
+      values: [brain, liver, kidney]
+    Age:                              # explicit colours with custom ordering
+      colours: [red, blue, green]
+      values: [young, middle, old]
+```
+
+###### Palette names { #palette-names }
+
+The following palette names are accepted anywhere a `cluster_palette` or `metadata_palettes` entry expects a name:
+
+| Source | Names |
+|--------|-------|
+| **scprocess built-in** | `nice_cols` (42 colours) |
+| **MetBrewer** | `Archambault`, `Austria`, `Benedictus`, `Cassatt1`, `Cassatt2`, `Cross`, `Degas`, `Demuth`, `Derain`, `Egypt`, `Gauguin`, `Greek`, `Hiroshige`, `Hokusai1`, `Hokusai2`, `Hokusai3`, `Homer1`, `Homer2`, `Ingres`, `Isfahan1`, `Isfahan2`, `Java`, `Johnson`, `Juarez`, `Kandinsky`, `Klimt`, `Lakota`, `Manet`, `Monet`, `Moreau`, `Morgenstern`, `Nattier`, `Navajo`, `NewKingdom`, `Nizami`, `OKeeffe1`, `OKeeffe2`, `Peru1`, `Peru2`, `Pillement`, `Pissaro`, `Redon`, `Renoir`, `Robert`, `Signac`, `Stevens`, `Tam`, `Tara`, `Thomas`, `Tiepolo`, `Troy`, `Tsimshian`, `VanGogh1`, `VanGogh2`, `VanGogh3`, `Veronese`, `Wissing`, `Wright` |
+| **RColorBrewer** | Qualitative: `Accent`, `Dark2`, `Paired`, `Pastel1`, `Pastel2`, `Set1`, `Set2`, `Set3`. Sequential/diverging: `Blues`, `BuGn`, `BuPu`, `GnBu`, `Greens`, `Greys`, `Oranges`, `OrRd`, `PuBu`, `PuBuGn`, `PuRd`, `Purples`, `RdPu`, `Reds`, `YlGn`, `YlGnBu`, `YlOrBr`, `YlOrRd`, `BrBG`, `PiYG`, `PRGn`, `PuOr`, `RdBu`, `RdGy`, `RdYlBu`, `RdYlGn`, `Spectral`. |
+| **ggsci** | `npg`, `aaas`, `nejm`, `lancet`, `jama`, `jco`, `ucscgb`, `d3` / `d3_20`, `d3_10`, `d3_20b`, `d3_20c`, `igv`, `cosmic`, `simpsons`, `rickandmorty`, `futurama`, `tron`, `startrek`, `uchicago`, `frontiers`, `flatui`, `bootstrap` |
+
+When more colours are requested than a palette provides, MetBrewer palettes are interpolated continuously; all others are extended using `colorRampPalette`.
 
 
 ##### zoom
