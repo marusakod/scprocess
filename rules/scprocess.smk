@@ -28,6 +28,9 @@ BATCHES             = list(BATCH_PARAMS.keys())
 RUNS_TO_BATCHES, RUNS_TO_SAMPLES = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
 RESOURCE_PARAMS     = prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES)
 LABELLER_PARAMS     = get_labeller_parameters(config, schema_f, scdata_dir)
+IS_FLEX             = config['project']['is_flex']
+# check if flex data is multiplexed
+IS_FLEX_MUXED       = config['multiplexing']['demux_type'] == "flex"
 
 # unpack some variables that we use a lot
 PROJ_DIR        = config['project']['proj_dir']

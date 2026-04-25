@@ -8,7 +8,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["proj_dir", "full_tag", "short_tag", "your_name", "affiliation",
-        "date_stamp", "sample_metadata", "ref_txome"],
+        "date_stamp", "sample_metadata"],
       "properties": {
         "proj_dir":             { "type": "string" },
         "fastq_dir":            { "type": "string" },
@@ -21,6 +21,8 @@
         "date_stamp":           { "type": "string", "format": "date" },
         "sample_metadata":      { "type": "string", "items": {"type": "string", "pattern": "^.+\\.csv$"} },
         "ref_txome":            { "type": "string" },
+        "probe_set":            { "type": "string" },
+        "tenx_assay_type":      { "type": "string", "enum": ["flex", "poly_a"] },
         "tenx_chemistry":       { "type": "string", "enum": ["none", "3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"],  "default": "none"},
         "metadata_vars":        { "type": "array", "items": { "type": "string" } },
         "show_arv_uuids":       { "type": "boolean", "default": true },
@@ -37,9 +39,18 @@
       "dependentRequired": {
         "arv_uuids": ["arv_instance"]
       },
-      "oneOf": [
-        { "required": ["fastq_dir"] },
-        { "required": ["arv_uuids"] }
+      "allOf": [
+        {
+          "oneOf": [
+            { "required": ["fastq_dir"] },
+            { "required": ["arv_uuids"] }
+          ]
+        },
+        {
+          "if":   { "properties": { "tenx_assay_type": { "const": "flex" } } },
+          "then": { "required": ["probe_set"],  "not": { "required": ["ref_txome"] } },
+          "else": { "required": ["ref_txome"],  "not": { "required": ["probe_set"] } }
+        }
       ]
     },
     "multiplexing": {
@@ -48,7 +59,7 @@
       "additionalProperties": false,
       "required": [ "demux_type" ],
       "properties": {
-        "demux_type":       { "type": "string", "enum": ["none", "hto", "custom"], "default": "none" },
+        "demux_type":       { "type": "string", "enum": ["none", "hto", "custom", "flex"], "default": "none" },
         "fastq_dir":        { "type": "string" },
         "arv_uuids":        { "type": "array", "items": {"type": "string", "pattern": "^arkau-[0-9a-z]{5}-[0-9a-z]{15}$"} },
         "feature_ref":      { "type": "string" },
@@ -81,7 +92,7 @@
           }
         },
         {
-          "if": {"properties": {"demux_type": {"const": "none" } } },
+          "if": {"properties": {"demux_type": {"enum": ["none", "flex"] } } },
           "then": {
             "not": { "required": ["fastq_dir", "arv_uuids", "demux_output", "feature_ref"] }
           }
@@ -398,6 +409,24 @@
   },
   "allOf": [
     {
+      "comment": "If tenx_assay_type is flex AND multiplexing section is present, demux_type must be none or flex.",
+      "if": {
+        "required": ["project", "multiplexing"],
+        "properties": {
+          "project": { "properties": { "tenx_assay_type": { "const": "flex" } } }
+        }
+      },
+      "then": {
+        "properties": {
+          "multiplexing": {
+            "properties": {
+              "demux_type": { "enum": ["none", "flex"] }
+            }
+          }
+        }
+      }
+    },
+    {
       "if": {
         "properties": {"integration": {
           "properties": {"int_batch_var": {"const": "pool_id" } }, "required": ["int_batch_var"] 
@@ -409,7 +438,7 @@
           }
         }, "required": ["multiplexing"]
       }
-    }, 
+    },
     {
       "if": {
         "required": ["multiplexing"],

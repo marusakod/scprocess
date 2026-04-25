@@ -217,15 +217,21 @@ def _check_project_parameters(config, scdata_dir, scprocess_dir):
   if has_fastq and not has_arv_uuids:
     config["project"]["fastq_dir"] = _check_path_exists_in_project(config["project"]["fastq_dir"], config, what = "dir")
 
-  # check if selected ref_txome is valid
+  # check if selected ref_txome or probe_set is valid
   index_params_f    = scdata_dir / 'index_parameters.csv'
+  index_params      = pl.read_csv(index_params_f)
+  is_flex           = config['project'].get('tenx_assay_type', 'poly_a') == 'flex'
 
-  # from index_parameters.csv get valid values for ref_txome
-  index_params        = pl.read_csv(index_params_f)
-  valid_ref_txome     = index_params['ref_txome'].to_list()
-  valid_ref_txome_str = ', '.join(valid_ref_txome)
-  if not config['project']['ref_txome'] in valid_ref_txome:
-    raise ValueError(f"ref_txome {config['project']['ref_txome']} not defined. Valid values are {valid_ref_txome_str}")
+  if is_flex:
+    valid_probe_sets     = index_params.filter(pl.col('reference_type') == 'probe_set')['reference'].to_list()
+    valid_probe_sets_str = ', '.join(valid_probe_sets)
+    if not config['project']['probe_set'] in valid_probe_sets:
+      raise ValueError(f"probe_set {config['project']['probe_set']} not defined. Valid values are {valid_probe_sets_str}")
+  else:
+    valid_ref_txomes    = index_params.filter(pl.col('reference_type') == 'ref_txome')['reference'].to_list()
+    valid_ref_txome_str = ', '.join(valid_ref_txomes)
+    if not config['project']['ref_txome'] in valid_ref_txomes:
+      raise ValueError(f"ref_txome {config['project']['ref_txome']} not defined. Valid values are {valid_ref_txome_str}")
 
   # check whether date is given as datetime object
   date_regex    = re.compile("^20[0-9]{2}-[0-9]{2}-[0-9]{2}$")
@@ -334,7 +340,12 @@ def _check_samples_df(samples_df, config):
   # check for sample_id
   if "sample_id" not in samples_df.columns:
     raise KeyError(f"'sample_id' not present in sample metadata file")
-  
+
+  # for flex data, check probe_id column is present
+  if config['project'].get('tenx_assay_type', 'poly_a') == 'flex':
+    if 'probe_id' not in samples_df.columns:
+      raise KeyError("'probe_id' not present in sample metadata file; required for flex data")
+
   # check for pool_id
   if not config['multiplexing']['demux_type'] == "none":
     if "pool_id" not in samples_df.columns:
@@ -466,30 +477,64 @@ def _check_multiplexing_parameters(config):
     #   raise ValueError("Some values for 'sample_id' in sample_metadata don't have a match in demux_output")
     if set(demux_df['pool_id']) != set(samples_df['pool_id']):
       raise ValueError("Values for pool_id don't match across demux_output and sample_metadata")
-      
+
+  elif config['multiplexing']['demux_type'] == 'flex':
+    # flex multiplexed: no extra files needed here; pool_id check already done above
+    pass
+
   return config
 
 
 # check parameters for mapping
 def _check_mapping_parameters(config, scdata_dir):
-  # from index_parameters.csv get valid values for ref_txome
+  # load index parameters
   idx_params_f  = scdata_dir / 'index_parameters.csv'
   index_params  = pl.read_csv(idx_params_f)
-     
-  # get mito strings from setup params
-  ref_txome           = config['project']['ref_txome']
-  config['mapping'] = {}
-  config['mapping']['af_mito_str'] = index_params.filter(pl.col('ref_txome') == ref_txome)['mito_str'][0]
 
-  # get af index directory and check if exists
-  config['mapping']['alevin_fry_home']  = scdata_dir / 'alevin_fry_home'
-  config['mapping']['af_index_dir']     = scdata_dir / 'alevin_fry_home' / ref_txome
-  config['mapping']['wl_lu_f']          = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
-  if not pathlib.Path(config['mapping']['af_index_dir']).is_dir():
-    raise FileNotFoundError(f"alevin index for {ref_txome} doesn't exist")
-  
-  # get gtf txt file, check that exists
-  config['mapping']['af_gtf_dt_f'] = index_params.filter(pl.col('ref_txome') == ref_txome)['gtf_txt_f'][0]
+  config['mapping'] = {}
+  config['mapping']['alevin_fry_home'] = scdata_dir / 'alevin_fry_home'
+  config['mapping']['wl_lu_f']         = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
+
+  if config['project'].get('tenx_assay_type', 'poly_a') == 'flex':
+    probe_set      = config['project']['probe_set']
+    tenx_chemistry = 'flexv1' if probe_set in ['human_v1', 'mouse_v1'] else 'flexv2'
+
+    # look up mito string and gene info from index_parameters.csv
+    idx_row     = index_params.filter((pl.col('reference') == probe_set))
+    mito_str    = idx_row['mito_str'][0] # this might not be necessary for flex
+    gene_info_f = idx_row['gene_info_f'][0]
+
+    # probe set specific paths
+    probe_idx_dir  = scdata_dir / 'alevin_fry_home' / 'probe_sets' / probe_set
+    probe_set_f    = scdata_dir / 'probe_sets' / probe_set / f'{probe_set}_probe_set.csv'
+    probe_bcs_f    = scdata_dir / 'cellranger_ref' / f'cellranger_probe_barcodes_{tenx_chemistry}.tsv' # this has to be downloaded in the setup step!!!
+
+    if not probe_idx_dir.is_dir():
+      raise FileNotFoundError(f"alevin index for probe set '{probe_set}' doesn't exist at {probe_idx_dir}")
+    if not probe_set_f.is_file():
+      raise FileNotFoundError(f"probe set CSV '{probe_set_f}' doesn't exist")
+    if not probe_bcs_f.is_file():
+      raise FileNotFoundError(f"probe barcodes file '{probe_bcs_f}' doesn't exist.")
+
+    config['mapping']['is_flex']        = True
+    config['mapping']['tenx_chemistry'] = tenx_chemistry
+    config['mapping']['af_index_dir']   = probe_idx_dir
+    config['mapping']['probe_set_f']    = probe_set_f
+    config['mapping']['probe_bcs_f']    = probe_bcs_f
+    config['mapping']['af_mito_str']    = mito_str
+    config['mapping']['gene_info_f']    = gene_info_f
+
+  else:
+    ref_txome = config['project']['ref_txome']
+
+    config['mapping']['is_flex']      = False
+    config['mapping']['af_index_dir'] = scdata_dir / 'alevin_fry_home' / ref_txome
+    if not pathlib.Path(config['mapping']['af_index_dir']).is_dir():
+      raise FileNotFoundError(f"alevin index for '{ref_txome}' doesn't exist")
+
+    idx_row = index_params.filter( (pl.col('reference') == ref_txome))
+    config['mapping']['af_mito_str'] = idx_row['mito_str'][0]
+    config['mapping']['gene_info_f'] = idx_row['gene_info_f'][0]
 
   return config
 
@@ -561,7 +606,7 @@ def _check_hvg_parameters(config):
       raise ValueError("duplicated values found in file specified in 'hvg_exclude_from_file'")
 
     # check values are in relevant ref genome
-    gtf_df      = pl.read_csv(config['mapping']['af_gtf_dt_f'], separator = "\t")
+    gtf_df      = pl.read_csv(config['mapping']['gene_info_f'], separator = "\t")
     all_vals    = gtf_df[ gene_col ]
     absent_vals = set(exc_vals) - set(all_vals)
     if len(absent_vals) > 0:
@@ -774,6 +819,24 @@ def _check_zoom_clusters_in_file(labels_f, zoom_config):
   return sel_labels
 
 
+def get_flex_sample_parameters(config):
+  """
+  Returns a dict mapping sample_id -> {'pool_id': ..., 'probe_id': ...} for flex data.
+  For non-muxed flex (demux_type='none'): pool_id == sample_id.
+  Only call when config['mapping']['is_flex'] is True.
+  """
+  samples_df = pl.read_csv(config['project']['sample_metadata'])
+  is_muxed   = config['multiplexing']['demux_type'] == 'flex'
+  result     = {}
+  for row in samples_df.to_dicts():
+    sid = row['sample_id']
+    result[sid] = {
+      'pool_id':  row['pool_id'] if is_muxed else sid,
+      'probe_id': row['probe_id']
+    }
+  return result
+
+
 def check_config_ok_for_rule(config, rule):
   # if rule is zoom, check that zoom parameters are present and that the specified clusters are in the integrated file
   if rule == 'label_celltypes':
@@ -788,11 +851,17 @@ def check_config_ok_for_rule(config, rule):
 # get variables for each run
 def get_run_parameters(config, scprocess_data_dir):
   # define run variable
-  if config['multiplexing']['demux_type'] == "none":
+  if config['multiplexing']['demux_type'] in ["none", "flex"]:
     RUN_VAR       = "sample_id"
   else:
     RUN_VAR       = "pool_id"
 
+  # define library variable
+  if config['multiplexing']['demux_type'] != "none":
+    LIB_VAR       = "pool_id"
+  else:
+    LIB_VAR       = "sample_id"
+    
   # move to another function
   metadata_f  = config["project"]["sample_metadata"]
   samples_df  = pl.read_csv( metadata_f )
@@ -1023,52 +1092,64 @@ def _do_exclusions(LIST, config, var):
 
 # get parameters for one 10x run
 def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, custom_run_params):
-  # set defaults
-  sample_chem = config['project']['tenx_chemistry']
-  knee1       = ""
-  shin1       = ""
-  knee2       = ""
-  shin2       = ""
+  
+  knee1 = ""
+  shin1 = ""
+  knee2 = ""
+  shin2 = ""
+
   if run_name in custom_run_params:
-    if 'tenx_chemistry' in custom_run_params[run_name]:
-      sample_chem = custom_run_params[run_name]['tenx_chemistry']
     if 'mapping' in custom_run_params[run_name]:
       if 'knee1' in custom_run_params[run_name]['mapping']:
-        knee1       = custom_run_params[run_name]['mapping']['knee1']
+        knee1 = custom_run_params[run_name]['mapping']['knee1']
       if 'shin1' in custom_run_params[run_name]['mapping']:
-        shin1       = custom_run_params[run_name]['mapping']['shin1']
+        shin1 = custom_run_params[run_name]['mapping']['shin1']
       if 'knee2' in custom_run_params[run_name]['mapping']:
-        knee2       = custom_run_params[run_name]['mapping']['knee2']
+        knee2 = custom_run_params[run_name]['mapping']['knee2']
       if 'shin2' in custom_run_params[run_name]['mapping']:
-        shin2       = custom_run_params[run_name]['mapping']['shin2']
+        shin2 = custom_run_params[run_name]['mapping']['shin2']
 
-  # get af chemistry and expected orientation
-  if sample_chem in ['3v2', '5v1', '5v2']:
-    af_chemistry = '10xv2' 
-  elif sample_chem in ['5v3', '3LT', '3v3', '3v4', 'multiome']:
-    af_chemistry = '10xv3'
-  else:
-    af_chemistry = 'none'
+  if config['mapping']['is_flex']:
+    # chemistry and whitelist are determined by the probe set
+    flex_version    = config['mapping']['tenx_chemistry']
+    af_chemistry    = '10x-flexv1-gex-3p' # maybe has to be '10x-flexv2-gex-3p' for flex v2 
+    expected_ori    = 'fw'  # flex is always forward orientation
+    wl_df_f         = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
+    wl_df           = pl.read_csv(wl_df_f)
+    wl_row          = wl_df.filter(pl.col('chemistry') == flex_version)
+    gex_whitelist_f = scdata_dir / 'cellranger_ref' / wl_row['gex_barcodes_f'].item()
+    hto_whitelist_f = 'none'
 
-  # get expected orientation
-  if sample_chem in ['5v1', '5v2', '5v3']:
-    expected_ori = 'rc'
-  elif sample_chem in ['3LT', '3v2', '3v3', '3v4', "multiome"]:
-    expected_ori = 'fw'
   else:
-    expected_ori = 'none'
+    tenx_chemistry = config['project']['tenx_chemistry']
+    if run_name in custom_run_params:
+      if 'project' in custom_run_params[run_name] and 'tenx_chemistry' in custom_run_params[run_name]['project']:
+        tenx_chemistry = custom_run_params[run_name]['project']['tenx_chemistry']
 
-  # sort out whitelist file
-  if sample_chem == 'none':
-    gex_whitelist_f        = 'none', 
-    hto_whitelist_f        = 'none'
-  else:
-    wl_df_f     = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
-    wl_df       = pl.read_csv(wl_df_f)
-    wl_gex_f    = wl_df.filter( pl.col('chemistry') == sample_chem )['gex_barcodes_f'].item()
-    wl_hto_f    = wl_df.filter( pl.col('chemistry') == sample_chem )['hto_barcodes_f'].item()
-    gex_whitelist_f  = scdata_dir / 'cellranger_ref' / wl_gex_f
-    hto_whitelist_f = scdata_dir / 'cellranger_ref' / wl_hto_f
+    if tenx_chemistry in ['3v2', '5v1', '5v2']:
+      af_chemistry = '10xv2'
+    elif tenx_chemistry in ['5v3', '3LT', '3v3', '3v4', 'multiome']:
+      af_chemistry = '10xv3'
+    else:
+      af_chemistry = 'none'
+
+    if tenx_chemistry in ['5v1', '5v2', '5v3']:
+      expected_ori = 'rc'
+    elif tenx_chemistry in ['3LT', '3v2', '3v3', '3v4', 'multiome']:
+      expected_ori = 'fw'
+    else:
+      expected_ori = 'none'
+
+    if tenx_chemistry == 'none':
+      gex_whitelist_f = 'none'
+      hto_whitelist_f = 'none'
+    else:
+      wl_df_f     = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
+      wl_df       = pl.read_csv(wl_df_f)
+      wl_gex_f    = wl_df.filter(pl.col('chemistry') == tenx_chemistry)['gex_barcodes_f'].item()
+      wl_hto_f    = wl_df.filter(pl.col('chemistry') == tenx_chemistry)['hto_barcodes_f'].item()
+      gex_whitelist_f = scdata_dir / 'cellranger_ref' / wl_gex_f
+      hto_whitelist_f = scdata_dir / 'cellranger_ref' / wl_hto_f
 
   # make dictionary for mapping
   mapping_dc  = {
@@ -1483,7 +1564,7 @@ def check_ranger_url(ranger_url):
 # HVGs function: make df with list of chunked counts files
 def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_RUNS, 
   DEMUX_TYPE, FULL_TAG, DATE_STAMP, hvg_dir):
-  # loop through ambient yaml files to populate list
+  # loop through ambient yaml files to populate listf
   df_list = []
   for r, yaml_file in zip(runs, ambient_outs_yamls):
     # get filtered ambient outputs

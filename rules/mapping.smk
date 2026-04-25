@@ -51,7 +51,7 @@ rule run_mapping:
     fi
     # get optional flags
     if [[ "{params.af_chemistry}" != "none" ]]; then
-      OPT_ARGS+=(--tenx_chemistry "{params.af_chemistry}")
+      OPT_ARGS+=(--af_chemistry "{params.af_chemistry}")
       OPT_ARGS+=(--exp_ori "{params.exp_ori}")
       OPT_ARGS+=(--whitelist_f "{params.whitelist_f}")
     fi

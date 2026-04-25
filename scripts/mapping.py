@@ -23,7 +23,7 @@ import threading
 
 def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where, 
   R1_fs, R2_fs, threads, t2g_f, index_dir, wl_lu_f, arv_instance = None,
-  tenx_chemistry = 'none', exp_ori = 'none', whitelist_f = 'none'):
+  af_chemistry = 'none', exp_ori = 'none', whitelist_f = 'none'):
   # make output directory, in subdirectory if multiplexed samples
   out_dir   = f"{af_dir}/af_{run}"
   if demux_type == "hto":
@@ -58,7 +58,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
   # get whitelist lookup file
   wl_lu_dt = pl.read_csv(wl_lu_f)
 
-  if tenx_chemistry == 'none': 
+  if af_chemistry == 'none': 
     print(' checking overlap of barcodes with different whitelists')
     wl_overlap_dt = _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt)
     # check for which barcode whitelist the overlap is the highest
@@ -70,9 +70,9 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
     whitelist_f = sel_wl_dt['gex_barcodes_f_full'][0]
     
     if sel_wl_dt.height == 1:
-      sample_chem = sel_wl_dt['chemistry'][0]
-      tenx_chemistry = '10xv3'
-      exp_ori = 'rc' if sample_chem =='5v3' else 'fw'
+      tenx_chemistry_chem = sel_wl_dt['chemistry'][0]
+      af_chemistry = '10xv3'
+      exp_ori = 'rc' if tenx_chemistry_chem =='5v3' else 'fw'
       
       cell_counts_fw = ""
       cell_counts_rc = "" # no mapping to downsampled data needs to be done
@@ -85,12 +85,12 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
       
       sub_R1_f, sub_R2_f = _subset_fastqs(tmp_out_dir, R1_fs, R2_fs)
       chem_opts = set(sel_wl_dt['chemistry'])
-      tenx_chemistry = '10xv2' if chem_opts == set(['3v2', '5v1', '5v2']) else '10xv3'
+      af_chemistry = '10xv2' if chem_opts == set(['3v2', '5v1', '5v2']) else '10xv3'
       
       # map downsampled fastqs 2x
       for ori in ['fw', 'rc']:
         _run_simpleaf_quant(f'{tmp_out_dir}/{ori}_mapping', [sub_R1_f], [sub_R2_f], threads, index_dir, 
-          tenx_chemistry, ori , t2g_f, whitelist_f)
+          af_chemistry, ori , t2g_f, whitelist_f)
         
       # infer read orientation
       exp_ori, cell_counts_fw, cell_counts_rc = _infer_read_orientation(tmp_out_dir)
@@ -99,7 +99,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
       shutil.rmtree(tmp_out_dir)
        
       # get sample chemisty
-      sample_chem = '3v2' if exp_ori == 'fw' else '5v1/5v2'
+      tenx_chemistry = '3v2' if exp_ori == 'fw' else '5v1/5v2'
   
   else:
     cell_counts_fw = ""
@@ -111,9 +111,9 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
       .filter(pl.col(f'{f_prefix}_barcodes_f') == os.path.basename(whitelist_f))
       .get_column('chemistry').to_list())
     if set(chem_opts) == set(['3v2', '5v1', '5v2']):
-      sample_chem = '3v2' if exp_ori == "fw" else '5v1/5v2'
+      tenx_chemistry = '3v2' if exp_ori == "fw" else '5v1/5v2'
     else:
-      sample_chem = chem_opts[0]
+      tenx_chemistry = chem_opts[0]
  
 
   # do quantification
@@ -150,14 +150,72 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
      "selected_ori": exp_ori, 
      "n_cells_fw": cell_counts_fw, 
      "n_cells_rc": cell_counts_rc, 
-     "selected_tenx_chemistry": sample_chem, 
-     "selected_af_chemistry": tenx_chemistry
+     "selected_tenx_chemistry": tenx_chemistry, 
+     "selected_af_chemistry": af_chemistry
     }
   
     with open(chem_stats_f, "w") as f:
       yaml.safe_dump(chem_stats, f)
 
   # tidy up any temp fastq files
+  if on_arvados:
+    for f in R1_fs:
+      os.unlink(f)
+    for f in R2_fs:
+      os.unlink(f)
+    os.rmdir(tmp_dir)
+
+
+def map_flex_fastqs_to_counts(run, af_dir, af_home_dir, where, 
+  R1_fs, R2_fs, threads, index_dir, af_chemistry, gex_whitelist_f, probset_f, probe_bc_f, arv_instance = None):
+  # make output directory, in subdirectory if multiplexed samples
+  out_dir   = f"{af_dir}/af_{run}"
+  os.makedirs(out_dir, exist_ok = True)
+  print('made out_dir')
+
+  # set up simpleaf
+  os.environ["ALEVIN_FRY_HOME"] = af_home_dir
+  subprocess.run(["simpleaf", "set-paths"])
+
+  # if arvados, download to temp files
+  on_arvados  = not os.path.exists(where)
+  if on_arvados:
+    # set up tmp directory
+    tmp_dir     = f"{af_dir}/.tmp_fastqs_{run}"
+    prefix      = f"{run}"
+    os.makedirs(tmp_dir, exist_ok = True)
+
+    # download files from Arvados
+    print('downloading files from arvados')
+    arv_uuid    = where
+    R1_fs       = [ _download_arvados_file_as_tempfile(arv_uuid, arv_instance, f, tmp_dir, prefix, i, "R1", threads) for i, f in enumerate(R1_fs) ]
+    R2_fs       = [ _download_arvados_file_as_tempfile(arv_uuid, arv_instance, f, tmp_dir, prefix, i, "R2", threads) for i, f in enumerate(R2_fs) ]
+  else:
+    R1_fs       = [ os.path.join(where, f) for f in R1_fs]
+    R2_fs       = [ os.path.join(where, f) for f in R2_fs]
+
+  # refresh chemistry definitions first
+  subprocess.run(["simpleaf", "chemistry", "refresh"], check=True)
+
+  # run simpleaf multiplex-quant
+  simpleaf_cmd = [
+    "simpleaf", "multiplex-quant", 
+    "--reads1", ",".join(R1_fs), 
+    "--reads2", ",".join(R2_fs),
+    "--threads", f"{threads}", 
+    "--index", index_dir,
+    "--probe-set", probset_f,
+    "--chemistry", af_chemistry,
+    "--cell-bc-list", gex_whitelist_f,
+    "--sample-bc-list", probe_bc_f,
+    "--usa", 
+    "--expected-ori", "fw",
+    "--min-reads", "1", 
+    "--output", out_dir
+  ]
+  
+  subprocess.run(simpleaf_cmd, check=True)
+
   if on_arvados:
     for f in R1_fs:
       os.unlink(f)
@@ -400,38 +458,65 @@ def _extract_raw_seqs_from_fq(fastq_all):
 
 
 if __name__ == "__main__":
-  # get arguments
-  parser  = argparse.ArgumentParser()
-  parser.add_argument("run", type=str)
-  parser.add_argument("--af_dir", type=str)
-  parser.add_argument("--demux_type", type=str)
-  parser.add_argument("--what", default="rna", type=str, choices=["rna", "hto"])
-  parser.add_argument("--af_home_dir", type=str)
-  parser.add_argument("--where", type=str)
-  parser.add_argument("--R1_fs", nargs="+")
-  parser.add_argument("--R2_fs", nargs="+")
-  parser.add_argument("--threads", default=1, type=int)
-  parser.add_argument("--af_index_dir", type=str)
-  parser.add_argument("--wl_lu_f", type=str)
-  parser.add_argument("--tenx_chemistry", type=str, default='none')
-  parser.add_argument("--exp_ori", type=str, default='none')
-  parser.add_argument("--whitelist_f", type=str, default='none')
-  parser.add_argument("--arv_instance", type=str, default=None)
+  parser = argparse.ArgumentParser()
+  subparsers = parser.add_subparsers(dest='command', required=True)
 
-  # set up some locations
-  args    = parser.parse_args()
-  if args.what == 'hto':
-    t2g_f     = f"{args.af_dir}/t2g_hto.tsv"
-    index_dir = f"{args.af_dir}/hto_index"
-  else:
-    t2g_f     = f"{args.af_index_dir}/index/t2g_3col.tsv"
+  # map polya fastqs to counts
+  p_map = subparsers.add_parser('map_fastqs_to_counts')
+  p_map.add_argument("run", type=str)
+  p_map.add_argument("--af_dir", type=str)
+  p_map.add_argument("--demux_type", type=str)
+  p_map.add_argument("--what", default="rna", type=str, choices=["rna", "hto"])
+  p_map.add_argument("--af_home_dir", type=str)
+  p_map.add_argument("--where", type=str)
+  p_map.add_argument("--R1_fs", nargs="+")
+  p_map.add_argument("--R2_fs", nargs="+")
+  p_map.add_argument("--threads", default=1, type=int)
+  p_map.add_argument("--af_index_dir", type=str)
+  p_map.add_argument("--wl_lu_f", type=str)
+  p_map.add_argument("--af_chemistry", type=str, default='none')
+  p_map.add_argument("--exp_ori", type=str, default='none')
+  p_map.add_argument("--whitelist_f", type=str, default='none')
+  p_map.add_argument("--arv_instance", type=str, default=None)
+
+  # map flex fastqs to counts
+  p_flex = subparsers.add_parser('map_flex_fastqs_to_counts')
+  p_flex.add_argument("run", type=str)
+  p_flex.add_argument("--af_dir", type=str)
+  p_flex.add_argument("--af_home_dir", type=str)
+  p_flex.add_argument("--where", type=str)
+  p_flex.add_argument("--R1_fs", nargs="+")
+  p_flex.add_argument("--R2_fs", nargs="+")
+  p_flex.add_argument("--threads", default=1, type=int)
+  p_flex.add_argument("--af_index_dir", type=str)
+  p_flex.add_argument("--af_chemistry", type=str)
+  p_flex.add_argument("--gex_whitelist_f", type=str)
+  p_flex.add_argument("--probe_set_f", type=str)
+  p_flex.add_argument("--probe_bc_f", type=str)
+  p_flex.add_argument("--arv_instance", type=str, default=None)
+
+  args = parser.parse_args()
+
+  if args.command == 'map_fastqs_to_counts':
+    if args.what == 'hto':
+      t2g_f     = f"{args.af_dir}/t2g_hto.tsv"
+      index_dir = f"{args.af_dir}/hto_index"
+    else:
+      t2g_f     = f"{args.af_index_dir}/index/t2g_3col.tsv"
+      index_dir = f"{args.af_index_dir}/index"
+      
+    map_fastqs_to_counts(run=args.run, af_dir=args.af_dir, demux_type=args.demux_type,
+      what=args.what, af_home_dir=args.af_home_dir, where=args.where,
+      R1_fs=args.R1_fs, R2_fs=args.R2_fs, threads=args.threads, af_chemistry=args.af_chemistry,
+      exp_ori=args.exp_ori, wl_lu_f=args.wl_lu_f, whitelist_f=args.whitelist_f, t2g_f=t2g_f,
+      index_dir=index_dir, arv_instance=args.arv_instance)
+
+  elif args.command == 'map_flex_fastqs_to_counts':
     index_dir = f"{args.af_index_dir}/index"
+    map_flex_fastqs_to_counts(run=args.run, af_dir=args.af_dir, af_home_dir=args.af_home_dir,
+      where=args.where, R1_fs=args.R1_fs, R2_fs=args.R2_fs, threads=args.threads,
+      index_dir=index_dir, af_chemistry=args.af_chemistry, gex_whitelist_f=args.gex_whitelist_f,
+      probset_f=args.probe_set_f, probe_bc_f=args.probe_bc_f, arv_instance=args.arv_instance)
 
-  # run
-  map_fastqs_to_counts(run = args.run, af_dir = args.af_dir, demux_type = args.demux_type, 
-    what = args.what, af_home_dir = args.af_home_dir, where = args.where, 
-    R1_fs=args.R1_fs, R2_fs=args.R2_fs, threads=args.threads, tenx_chemistry=args.tenx_chemistry, 
-    exp_ori = args.exp_ori, wl_lu_f= args.wl_lu_f, whitelist_f= args.whitelist_f, t2g_f=t2g_f, 
-    index_dir= index_dir, arv_instance = args.arv_instance)
 
 
