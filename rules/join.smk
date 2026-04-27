@@ -85,12 +85,20 @@ def _proj_int_dir(pid):
   return _proj_dir(pid) / f"output/{_proj_short_tag(pid)}_integration"
 
 def _proj_var_stats_f(pid):
+  zoom_name = config['projects'][pid].get('zoom_name')
+  if zoom_name:
+    zoom_dir = _proj_dir(pid) / f"output/{_proj_short_tag(pid)}_zoom"
+    return zoom_dir / zoom_name / f"standardized_variance_stats_{_proj_full_tag(pid)}_{zoom_name}_{_proj_date(pid)}.csv.gz"
   return _proj_hvg_dir(pid) / f"standardized_variance_stats_{_proj_full_tag(pid)}_{_proj_date(pid)}.csv.gz"
 
 def _proj_h5ads_yaml_f(pid):
   return _proj_int_dir(pid) / f"h5ads_clean_paths_{_proj_full_tag(pid)}_{_proj_date(pid)}.yaml"
 
 def _proj_integrated_dt_f(pid):
+  zoom_name = config['projects'][pid].get('zoom_name')
+  if zoom_name:
+    zoom_dir = _proj_dir(pid) / f"output/{_proj_short_tag(pid)}_zoom"
+    return zoom_dir / zoom_name / f"integrated_dt_{_proj_full_tag(pid)}_{zoom_name}_{_proj_date(pid)}.csv.gz"
   return _proj_int_dir(pid) / f"integrated_dt_{_proj_full_tag(pid)}_{_proj_date(pid)}.csv.gz"
 
 def _proj_sample_meta_f(pid):
@@ -159,6 +167,25 @@ MKR_MAX_ZERO_P  = _mkr_cfg.get('mkr_max_zero_p',  0.5)
 MKR_DO_GSEA     = _mkr_cfg.get('mkr_do_gsea',     True)
 MKR_GSEA_CUT    = _mkr_cfg.get('mkr_gsea_cut',    0.1)
 MKR_GSEA_VAR    = _mkr_cfg.get('mkr_gsea_var',    'z_score')
+
+def _get_custom_mkr_strings(genesets, proj_dir, data_dir):
+  """Convert mkr_custom_genesets list to comma-separated name/path strings."""
+  if not genesets:
+    return '', ''
+  names, paths = [], []
+  for g in genesets:
+    names.append(g['name'])
+    if 'file' in g:
+      p = pathlib.Path(g['file'])
+      if not p.is_absolute():
+        p = proj_dir / p
+    else:
+      p = data_dir / 'marker_genes' / f"{g['name']}.csv"
+    paths.append(str(p))
+  return ','.join(names), ','.join(paths)
+
+MKR_CUSTOM_NAMES, MKR_CUSTOM_PATHS = _get_custom_mkr_strings(
+  _mkr_cfg.get('mkr_custom_genesets', []), JOIN_DIR, scdata_dir)
 
 GSEA_TXOMES = ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']
 DO_GSEA     = MKR_DO_GSEA and (REF_TXOME in GSEA_TXOMES)
@@ -476,10 +503,12 @@ rule join_render_html:
     ref_txome     = REF_TXOME,
     mkr_sel_res   = MKR_SEL_RES,
     int_res_ls    = INT_RES_LS_STR,
-    metadata_vars = METADATA_VARS_STR,
-    proj_dir      = str(JOIN_DIR),
-    scprocess_dir = str(scprocess_dir),
-    date_stamp    = DATE_STAMP
+    metadata_vars    = METADATA_VARS_STR,
+    custom_mkr_names = MKR_CUSTOM_NAMES,
+    custom_mkr_paths = MKR_CUSTOM_PATHS,
+    proj_dir         = str(JOIN_DIR),
+    scprocess_dir    = str(scprocess_dir),
+    date_stamp       = DATE_STAMP
   threads: 1
   resources:
     mem_mb = 16 * 1024
@@ -519,8 +548,10 @@ rule join_render_html:
       ref_txome     = '{params.ref_txome}',
       mkr_sel_res   =  {params.mkr_sel_res},
       int_res_ls    = '{params.int_res_ls}',
-      metadata_vars = '{params.metadata_vars}',
-      scprocess_dir = '{params.scprocess_dir}',
-      date_stamp    = '{params.date_stamp}'
+      metadata_vars    = '{params.metadata_vars}',
+      custom_mkr_names = '{params.custom_mkr_names}',
+      custom_mkr_paths = '{params.custom_mkr_paths}',
+      scprocess_dir    = '{params.scprocess_dir}',
+      date_stamp       = '{params.date_stamp}'
     )"
     """

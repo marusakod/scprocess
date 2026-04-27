@@ -249,7 +249,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
   } else if (sel_rule == 'join') {
     req_names = c('your_name', 'affiliation', 'join_name', 'join_tag',
       'join_int_dir', 'join_mkr_dir', 'ref_txome', 'mkr_sel_res',
-      'int_res_ls', 'scprocess_dir', 'date_stamp', 'metadata_vars')
+      'int_res_ls', 'scprocess_dir', 'date_stamp', 'metadata_vars',
+      'custom_mkr_names', 'custom_mkr_paths')
 
     assert_that(all(req_names %in% add_args_names))
 

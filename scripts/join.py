@@ -91,14 +91,22 @@ def select_joint_hvgs(var_stats_fs, project_ids, n_hvgs, out_f):
 # Step 2: Build joint count matrix, coldata, and sample metadata
 # ---------------------------------------------------------------------------
 
+def _ok_cells_filter(int_dt):
+  """Return a boolean filter expression for non-doublet cells.
+  If is_dbl/in_dbl_cl columns are absent (e.g. zoom integrated_dt where
+  doublets were already removed upstream), all cells are considered clean.
+  """
+  if 'is_dbl' in int_dt.columns and 'in_dbl_cl' in int_dt.columns:
+    return (pl.col('is_dbl') == False) & (pl.col('in_dbl_cl') == False)
+  return pl.lit(True)
+
+
 def _check_sample_id_uniqueness(project_ids, integrated_dt_fs):
   """Raise ValueError if any sample_id (among non-doublet cells) appears in >1 project."""
   seen = {}
   for pid, int_f in zip(project_ids, integrated_dt_fs):
     int_dt  = pl.read_csv(int_f)
-    samples = int_dt.filter(
-      (pl.col('is_dbl') == False) & (pl.col('in_dbl_cl') == False)
-    )['sample_id'].unique().to_list()
+    samples = int_dt.filter(_ok_cells_filter(int_dt))['sample_id'].unique().to_list()
     for s in samples:
       if s in seen and seen[s] != pid:
         raise ValueError(
@@ -167,9 +175,8 @@ def _build_project_coldata(int_dt, pid, smeta_dt, metadata_vars):
   Cell IDs are kept as-is (matching h5ad colnames) since sample IDs are
   guaranteed unique across projects by _check_sample_id_uniqueness.
   """
-  proj_cells = int_dt.filter(
-    (pl.col('is_dbl') == False) & (pl.col('in_dbl_cl') == False)
-  ).select(['cell_id', 'sample_id'] +
+  proj_cells = int_dt.filter(_ok_cells_filter(int_dt)).select(
+    ['cell_id', 'sample_id'] +
     [c for c in int_dt.columns if c not in ['cell_id', 'sample_id', 'project_id']])
   proj_cells = proj_cells.with_columns([
     pl.col('sample_id').map_elements(lambda x: f"{pid}_{x}", return_dtype=pl.Utf8),
@@ -201,9 +208,7 @@ def _load_project_data(pid, h5ads_yaml_f, int_f, smeta_f, hvg_list, metadata_var
 
   int_dt   = pl.read_csv(int_f)
   ok_cells = set(
-    int_dt.filter(
-      (pl.col('is_dbl') == False) & (pl.col('in_dbl_cl') == False)
-    )['cell_id'].to_list()
+    int_dt.filter(_ok_cells_filter(int_dt))['cell_id'].to_list()
   )
   print(f"    non-doublet cells: {len(ok_cells)}")
 

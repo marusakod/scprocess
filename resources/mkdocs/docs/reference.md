@@ -683,6 +683,22 @@ projects:                 # key = project_id (used to prefix cell IDs and sample
     config: /path/to/config_b.yaml
 ```
 
+To join zoom (subclustering) outputs instead of the full project integration, add `zoom_name` to any project entry. The join will then use that project's zoom HVGs and integration rather than the whole-project outputs. You can mix zoomed and non-zoomed entries:
+
+```yaml
+projects:
+  project_a:
+    config: /path/to/config_a.yaml
+    zoom_name: T_cells          # use T_cells zoom outputs from this project
+  project_b:
+    config: /path/to/config_b.yaml
+    zoom_name: T_cells          # use T_cells zoom outputs from this project
+  project_c:
+    config: /path/to/config_c.yaml  # no zoom_name: use full-project outputs
+```
+
+The zoom `name` in the zoom spec YAML corresponds to `zoom_name` here. The h5ad files and sample metadata are always taken from the main project pipeline (zoom reuses them).
+
 #### Optional parameters
 
 ```yaml

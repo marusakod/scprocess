@@ -60,6 +60,15 @@ fgsea_go_cc_f = list.files(join_mkr_dir, pattern = "go_cc",  full.names = TRUE)[
 fgsea_go_mf_f = list.files(join_mkr_dir, pattern = "go_mf",  full.names = TRUE)[1]
 
 do_gsea = ref_txome %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')
+
+# custom markers for heatmap
+custom_mkr_names_str = "${custom_mkr_names}"
+custom_mkr_paths_str = "${custom_mkr_paths}"
+if (custom_mkr_names_str != "") {
+  custom_mkr_names = str_split(custom_mkr_names_str, pattern = ',') %>% unlist()
+  custom_mkr_paths = str_split(custom_mkr_paths_str, pattern = ',') %>% unlist() %>%
+    setNames(custom_mkr_names)
+}
 ```
 
 
@@ -95,6 +104,7 @@ cfg_metadata_vars = "${metadata_vars}" %>% str_split(" ") %>% unlist() %>% trimw
 if (!all(cfg_metadata_vars == ""))
   metadata_vars = intersect(cfg_metadata_vars, metadata_vars)
 do_metadata   = length(metadata_vars) > 0
+composition_vars = c('project_id', metadata_vars)
 ```
 
 
@@ -128,6 +138,12 @@ mkrs_dt = fread(mkrs_f)
 if (is.null(cl_ord))
   cl_ord = sort(unique(mkrs_dt$cluster))
 mkrs_ls = list(HVGs = top_hvgs)
+if (custom_mkr_names_str != "") {
+  custom_mkrs_dt_ls = lapply(custom_mkr_paths, FUN = process_custom_markers,
+    biotypes_dt = biotypes_dt, hvgs_dt = pb_hvgs_dt, marker_calcs_dt = mkrs_dt)
+  custom_mkrs_dt_ls = Filter(Negate(is.null), custom_mkrs_dt_ls)
+  mkrs_ls = c(custom_mkrs_dt_ls, mkrs_ls)
+}
 ```
 
 
@@ -164,24 +180,33 @@ for (res in res_ls) {
 ```
 
 
-## Project composition
+## Variable distributions over UMAP{.tabset}
 
-These plots show how cells from each project are distributed across the UMAP and
-across clusters. Even mixing across projects is the primary indicator that Harmony
-integration was successful.
+These plots show how cells from each project (and any metadata variables) are
+distributed across the UMAP. Even mixing across projects is the primary indicator
+that Harmony integration was successful.
 
-### Project distribution over UMAP
-
-```{r plot_project_umap, fig.height=5, fig.width=8}
-print(plot_clusters_annotated_by_densities(int_dt, 'project_id'))
+```{r plot_composition_umap, fig.height=5, fig.width=8, results="asis"}
+for (cv in composition_vars) {
+  cat('###', cv, '\n')
+  print(plot_clusters_annotated_by_densities(sel_cl_int_dt, cv))
+  cat('\n\n')
+}
 ```
 
-### Project proportions per cluster
 
-Proportion of cells from each project within each cluster at resolution `r sel_res`.
+## Variable proportions per cluster{.tabset}
 
-```{r plot_project_per_cluster, fig.height=5, fig.width=8}
-print(plot_clusters_by_metadata(meta_dt, sel_cl_int_dt, meta_vars = 'project_id', cl_order = cl_ord))
+Proportion of cells from each level of the variable within each cluster at
+resolution `r sel_res`.
+
+```{r plot_composition_per_cluster, fig.height=5, fig.width=8, results="asis"}
+for (cv in composition_vars) {
+  cat('###', cv, '\n')
+  print(plot_clusters_by_metadata(meta_dt, sel_cl_int_dt,
+    meta_vars = cv, cl_order = cl_ord))
+  cat('\n\n')
+}
 ```
 
 
@@ -216,29 +241,6 @@ for (res in res_ls_pl) {
   input_dt = int_dt[, .(batch_var = project_id, cell_id,
     cluster = get(paste0('RNA_snn_res.', res)))]
   suppressWarnings(print(plot_cluster_entropies(input_dt, 'batch_var', what = "norm")))
-  cat('\n\n')
-}
-```
-
-
-## Metadata variables over UMAP{.tabset}
-
-```{r plot_metadata_umap, eval=do_metadata, include=do_metadata, fig.height=5, fig.width=8, results="asis"}
-for (meta_var in metadata_vars) {
-  cat('###', meta_var, '\n')
-  print(plot_clusters_annotated_by_densities(sel_cl_int_dt, meta_var))
-  cat('\n\n')
-}
-```
-
-
-## Metadata variable proportions per cluster{.tabset}
-
-```{r plot_metadata_per_cluster, eval=do_metadata, include=do_metadata, fig.height=5, fig.width=8, results="asis"}
-for (meta_var in metadata_vars) {
-  cat('###', meta_var, '\n')
-  print(plot_clusters_by_metadata(meta_dt, sel_cl_int_dt,
-    meta_vars = meta_var, cl_order = cl_ord))
   cat('\n\n')
 }
 ```
