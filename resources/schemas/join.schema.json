@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["join", "projects"],
+  "properties": {
+    "join": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "proj_dir", "date_stamp", "ref_txome", "your_name", "affiliation"],
+      "properties": {
+        "name":           { "type": "string" },
+        "proj_dir":       { "type": "string" },
+        "date_stamp":     { "type": "string", "format": "date" },
+        "ref_txome":      { "type": "string" },
+        "your_name":      { "type": "string" },
+        "affiliation":    { "type": "string" },
+        "metadata_vars":  { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "projects": {
+      "type": "object",
+      "minProperties": 2,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["config"],
+        "properties": {
+          "config": { "type": "string" }
+        }
+      }
+    },
+    "hvg": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hvg_n_hvgs": { "type": "integer", "default": 2000 }
+      }
+    },
+    "integration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "int_use_gpu":      { "type": "boolean",  "default": true },
+        "int_embedding":    { "type": "string",   "enum": ["harmony", "pca"], "default": "harmony" },
+        "int_theta": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "array", "items": { "type": "number" } }
+          ],
+          "default": 0.1
+        },
+        "int_batch_var": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ],
+          "default": "sample_id"
+        },
+        "int_n_dims":       { "type": "integer", "default": 50 },
+        "int_cl_method":    { "type": "string",  "enum": ["leiden"], "default": "leiden" },
+        "int_use_paga":     { "type": "boolean", "default": true },
+        "int_paga_cl_res":  { "type": "number",  "default": 0.2 },
+        "int_res_ls": {
+          "type":     "array",
+          "items":    { "type": "number" },
+          "default":  [0.1, 0.2, 0.5, 1, 2]
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"int_use_paga": {"const": true}}},
+          "then": { "required": ["int_paga_cl_res"] },
+          "else": { "not": {"required": ["int_paga_cl_res"]} }
+        }
+      ]
+    },
+    "marker_genes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mkr_sel_res":      { "type": "number",   "default": 0.2 },
+        "mkr_min_cl_size":  { "type": "integer",  "default": 100 },
+        "mkr_min_cells":    { "type": "integer",  "default": 10 },
+        "mkr_not_ok_re":    { "type": "string",   "default": "(lincRNA|lncRNA|pseudogene|antisense)" },
+        "mkr_min_cpm_mkr":  { "type": "integer",  "default": 50 },
+        "mkr_min_cpm_go":   { "type": "integer",  "default": 1 },
+        "mkr_max_zero_p":   { "type": "number",   "default": 0.5 },
+        "mkr_do_gsea":      { "type": "boolean",  "default": true },
+        "mkr_gsea_cut":     { "type": "number",   "default": 0.1 },
+        "mkr_gsea_var":     { "type": "string",   "default": "z_score", "enum": ["logFC", "z_score"] },
+        "mkr_custom_genesets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[^,]*$" },
+              "file": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "shiny": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "app_title":      { "type": "string" },
+        "email":          { "type": "string" },
+        "keyword":        { "type": "string",  "default": "cells" },
+        "default_gene":   { "type": "string",  "default": "" },
+        "n_keep":         { "type": "integer", "exclusiveMinimum": 0, "default": 30000 },
+        "var_names":      { "type": "array",   "items": { "type": "string" } },
+        "var_combns": {
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "string" } }
+        },
+        "home_md":          { "type": "string" },
+        "annotation_csv":   { "type": "string" },
+        "cluster_palette":  { "type": "string" },
+        "metadata_palettes": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "string" } },
+              { "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "palette":  { "type": "string" },
+                  "colours":  { "type": "array", "items": { "type": "string" } },
+                  "values":   { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

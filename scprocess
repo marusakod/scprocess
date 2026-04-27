@@ -293,6 +293,182 @@ def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
   return
 
 
+# scprocess newjoin
+def new_join(sc_dir, name, where_path, project_configs):
+  """
+  Create a new join project directory with workflowr scaffold, pre-filled
+  join-{name}.yaml, and a substituted join Rmd ready for workflowr::wflow_build().
+
+  Parameters
+  ----------
+  sc_dir         : Path   scprocess installation directory
+  name           : str    Short name for the join (join.name, output prefix, Rmd name)
+  where_path     : str    Parent directory to create {name}/ in
+  project_configs: list   Paths to existing project config-*.yaml files (optional)
+  """
+  sc_dir     = Path(sc_dir)
+  where_path = Path(where_path)
+  proj_dir   = where_path / name
+
+  if not where_path.exists():
+    raise ValueError(f"Error: The specified directory '{where_path}' does not exist.")
+  if not where_path.is_dir():
+    raise ValueError(f"Error: '{where_path}' is not a directory.")
+  if proj_dir.exists():
+    raise ValueError(f"Join project '{proj_dir}' already exists.")
+
+  try:
+    os.mkdir(proj_dir)
+    os.chdir(proj_dir)
+
+    # create directories
+    for d in ['.log', 'output', 'code', 'analysis', 'public']:
+      os.mkdir(d)
+
+    # copy workflowr scaffold from newproj_files (reuse as-is)
+    src_dir = sc_dir / "resources" / "newproj_files"
+    f_ls  = ['_workflowr.yml', '.gitignore', '.gitattributes',
+             '_site.yml', 'custom.css', 'about.Rmd', 'index.Rmd',
+             'license.Rmd', '.nojekyll']
+    loc_ls = ['.', '.', '.', 'analysis', 'analysis', 'analysis',
+              'analysis', 'analysis', 'public']
+    for f, l in zip(f_ls, loc_ls):
+      subprocess.call(['cp', str(src_dir / f), str(proj_dir / l / f)])
+
+    # patch _site.yml
+    site_f = proj_dir / 'analysis' / '_site.yml'
+    site_f.write_text(site_f.read_text().replace('proj_template', name))
+
+    # copy .Rproj
+    subprocess.call(['cp', str(src_dir / 'proj_template.Rproj'),
+                     str(proj_dir / (name + '.Rproj'))])
+
+    # write .Rprofile (same as newproj)
+    rprofile_txt = """## This makes sure that R loads the workflowr package
+    ## automatically, every time the project is loaded
+    if (requireNamespace("workflowr", quietly = TRUE)) {
+    message("Loading .Rprofile for the current workflowr project")
+    library("workflowr")
+    } else {
+    message("workflowr package not installed, please run install.packages(\'workflowr\') to use the workflowr functions")
+    }
+    """
+    (proj_dir / '.Rprofile').write_text(textwrap.dedent(rprofile_txt))
+
+    # ---- best-effort: read setup config for user info ----
+    from datetime import date
+    today      = date.today()
+    date_stamp = today.strftime('%Y-%m-%d')
+    your_name  = ''
+    affiliation = ''
+    scdata_dir = os.getenv('SCPROCESS_DATA_DIR', '')
+    if scdata_dir:
+      setup_f = Path(scdata_dir) / 'scprocess_setup.yaml'
+      if setup_f.exists():
+        try:
+          with open(setup_f) as _f:
+            _setup = yaml.safe_load(_f)
+          your_name   = _setup.get('user', {}).get('your_name',   '')
+          affiliation = _setup.get('user', {}).get('affiliation', '')
+        except Exception:
+          pass
+
+    # ---- parse -p project configs ----
+    project_entries = {}  # full_tag -> abs config path
+    ref_txome = ''
+    for cfg_path in (project_configs or []):
+      cfg_path = Path(cfg_path).resolve()
+      with open(cfg_path) as _f:
+        proj_cfg = yaml.safe_load(_f)
+      full_tag  = proj_cfg['project']['full_tag']
+      proj_ref  = proj_cfg['project'].get('ref_txome', '')
+      if full_tag in project_entries:
+        raise ValueError(
+          f"Two project configs share the same full_tag '{full_tag}'. "
+          f"Each project must have a unique full_tag.")
+      if ref_txome == '':
+        ref_txome = proj_ref
+      elif proj_ref and proj_ref != ref_txome:
+        print(f"Warning: project '{full_tag}' has ref_txome='{proj_ref}', "
+              f"but first project has ref_txome='{ref_txome}'. "
+              f"Using '{ref_txome}' in join.yaml — edit if needed.")
+      project_entries[full_tag] = str(cfg_path)
+
+    if project_entries:
+      projects_block = '\n'.join(
+        f'  {pid}:\n    config: {cfg}'
+        for pid, cfg in project_entries.items()
+      )
+    else:
+      projects_block = (
+        '  project_a:\n    config: /path/to/config-a.yaml\n'
+        '  project_b:\n    config: /path/to/config-b.yaml'
+      )
+
+    # ---- write join-{name}.yaml ----
+    # Build without textwrap.dedent: projects_block has its own indentation
+    # (2-space project_id keys, 4-space config values) which would confuse dedent.
+    join_yaml_txt = (
+      f"join:\n"
+      f"  name: {name}\n"
+      f"  proj_dir: {proj_dir}\n"
+      f'  date_stamp: "{date_stamp}"\n'
+      f"  ref_txome: {ref_txome}\n"
+      f"projects:\n"
+      f"{projects_block}\n"
+      f"hvg:\n"
+      f"  hvg_n_hvgs: 2000\n"
+      f"integration:\n"
+      f"  int_embedding: harmony\n"
+      f"  int_batch_var: sample_id\n"
+      f"  int_theta: 0.1\n"
+      f"  int_n_dims: 50\n"
+      f"  int_use_paga: true\n"
+      f"  int_paga_cl_res: 0.2\n"
+      f"  int_res_ls: [0.1, 0.2, 0.5, 1, 2]\n"
+      f"marker_genes:\n"
+      f"  mkr_sel_res: 0.2\n"
+      f"  mkr_do_gsea: true\n"
+    )
+    join_yaml_f = proj_dir / f"join-{name}.yaml"
+    join_yaml_f.write_text(join_yaml_txt)
+
+    # ---- substitute join.Rmd.template → analysis/{name}_join.Rmd ----
+    join_tag     = f"{name}_join"
+    join_int_dir = str(proj_dir / f"output/{join_tag}")
+    join_mkr_dir = str(proj_dir / f"output/{name}_marker_genes")
+    template_f   = sc_dir / "resources/rmd_templates/join.Rmd.template"
+    rmd_txt      = template_f.read_text()
+    for placeholder, value in [
+      ('@@your_name@@',   your_name),
+      ('@@affiliation@@', affiliation),
+      ('@@date_stamp@@',  date_stamp),
+      ('@@join_name@@',   name),
+      ('@@join_tag@@',    join_tag),
+      ('@@scprocess_dir@@', str(sc_dir)),
+      ('@@join_int_dir@@',  join_int_dir),
+      ('@@join_mkr_dir@@',  join_mkr_dir),
+      ('@@mkr_sel_res@@',   '0.2'),
+      ('@@ref_txome@@',     ref_txome),
+      ('@@int_res_ls@@',    '0.1 0.2 0.5 1 2'),
+    ]:
+      rmd_txt = rmd_txt.replace(placeholder, value)
+    rmd_f = proj_dir / 'analysis' / f"{join_tag}.Rmd"
+    rmd_f.write_text(rmd_txt)
+
+    print(f"Created join project : {proj_dir}")
+    print(f"Edit join config     : {join_yaml_f}")
+    print(f"Run pipeline         : scprocess join {join_yaml_f}")
+    print(f"Render evaluation    : workflowr::wflow_build('{rmd_f.relative_to(proj_dir)}')")
+
+  except Exception as e:
+    if proj_dir.exists():
+      print(f"Error encountered. Cleaning up directory: {proj_dir}")
+      shutil.rmtree(proj_dir)
+    raise e
+  return
+
+
 # scprocess run
 def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   print('doing some checks on inputs')
@@ -380,6 +556,9 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 
 
 def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
+  import json
+  import jsonschema
+
   print('doing some checks on inputs')
 
   config_path   = pathlib.Path(configfile).resolve()
@@ -388,18 +567,36 @@ def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
 
   scdata_dir, extraargs, setup_cfg = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
 
-  # load and validate config
+  # load config and detect type
   with open(config_path, "r") as f:
-    config    = yaml.safe_load(f)
-  schema_f  = scprocess_dir / "resources/schemas/config.schema.json"
-  if not schema_f.is_file():
-    raise FileNotFoundError("schema file not found")
-  config    = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
+    config = yaml.safe_load(f)
+
+  _is_join = 'join' in config
+
+  if _is_join:
+    # validate against join schema
+    join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
+    with open(join_schema_f) as f:
+      join_schema = json.load(f)
+    errors = sorted(jsonschema.Draft202012Validator(join_schema).iter_errors(config),
+                    key=lambda e: e.path)
+    if errors:
+      raise ValueError("join.yaml validation errors:\n" +
+        "\n".join(f"  {list(e.path)}: {e.message}" for e in errors))
+    proj_dir = Path(config['join']['proj_dir'])
+    if zoom_name is not None:
+      raise ValueError("--zoom is not supported for join configs. "
+                       "Use 'scprocess shiny join.yaml' without --zoom.")
+  else:
+    schema_f = scprocess_dir / "resources/schemas/config.schema.json"
+    if not schema_f.is_file():
+      raise FileNotFoundError("schema file not found")
+    config   = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
+    proj_dir = Path(config['project']['proj_dir'])
 
   if dryrun:
     extraargs.append("-np")
 
-  proj_dir  = Path(config['project']['proj_dir'])
   log_dir   = proj_dir / ".log/scprocess"
   log_f, log_header = _get_main_log(config_path, log_dir, dryrun)
   with open(log_f, "a") as f:
@@ -464,6 +661,71 @@ def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
   print(f"Logging progress to: {log_f}")
   subprocess.run(final_cmd, check=True, shell=True, env=_clean_conda_env())
   return
+
+
+def run_join(configfile, sc_dir, extraargs, dryrun):
+  """Run the scprocess join workflow from a join.yaml config."""
+  import json
+  import jsonschema
+
+  config_path   = pathlib.Path(configfile).resolve()
+  scprocess_dir = pathlib.Path(__file__).parent
+  os.chdir(scprocess_dir)
+
+  scdata_dir, extraargs, setup_cfg = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
+
+  # validate join config
+  with open(config_path) as f:
+    config = yaml.safe_load(f)
+  join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
+  if not join_schema_f.is_file():
+    raise FileNotFoundError(f"join schema not found: {join_schema_f}")
+  with open(join_schema_f) as f:
+    join_schema = json.load(f)
+  errors = sorted(jsonschema.Draft202012Validator(join_schema).iter_errors(config),
+                  key=lambda e: e.path)
+  if errors:
+    raise ValueError("join.yaml validation errors:\n" +
+      "\n".join(f"  {list(e.path)}: {e.message}" for e in errors))
+
+  join_dir = pathlib.Path(config['join']['proj_dir'])
+  log_dir  = join_dir / ".log/scprocess"
+  log_f, log_header = _get_main_log(config_path, log_dir, dryrun)
+  with open(log_f, 'a') as f:
+    f.write(log_header)
+
+  # change cluster log dir if slurm
+  if 'profile_dir' in setup_cfg['user']:
+    profile_f = setup_cfg['user']['profile_dir'] / 'config.yaml'
+    with open(profile_f) as f:
+      profile = yaml.safe_load(f)
+    if profile.get('executor') == 'slurm':
+      cluster_log_dir = join_dir / '.log/cluster'
+      os.makedirs(cluster_log_dir, exist_ok=True)
+      extraargs.append('--slurm-logdir')
+      extraargs.append(str(cluster_log_dir))
+
+  if dryrun:
+    extraargs.append('-np')
+
+  snakefile = scprocess_dir / "rules/join.smk"
+  cmd_list  = ["snakemake",
+    "--snakefile",  str(snakefile),
+    "--configfile", str(config_path),
+    "--config",     f"scprocess_dir={str(scprocess_dir)}",
+    "--rerun-triggers", "mtime", "params", "--rerun-incomplete",
+    "--show-failed-logs", "--printshellcmds",
+    "--software-deployment-method", "conda",
+    *extraargs,
+    "all"]
+
+  cmd_str      = " ".join(map(shlex.quote, map(str, cmd_list)))
+  strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
+  final_cmd    = f"script -q -e -c {shlex.quote(cmd_str)} /dev/null | tee /dev/stderr | {strip_colors} >> {log_f}"
+
+  print(f"snakemake command:\n{cmd_str}")
+  print(f"Logging progress to: {log_f}")
+  subprocess.run(final_cmd, check=True, shell=True, env=_clean_conda_env())
 
 
 def _get_zoom_names(config, scprocess_dir, scdata_dir):
@@ -803,6 +1065,15 @@ if __name__ == '__main__':
   newprj_prsr.add_argument('-c', '--config', type=str, choices = ["sc", "sn", "multiplex"], nargs="+",
     help="Create a blank config.yml file with required scprocess parameters. Users must specify at least one option from: sc (single cell); sn (single nuclei); multiplex.")
 
+  # subparser for the 'newjoin' subcommand
+  newjoin_prsr = subparsers.add_parser('newjoin',
+    help="create a new join project folder with workflowr scaffold and pre-filled join.yaml")
+  newjoin_prsr.add_argument('name', type=str, help="Name of the join")
+  newjoin_prsr.add_argument('-w', '--where', type=str, default=os.getcwd(),
+    help="Where to create the join project (default: current directory)")
+  newjoin_prsr.add_argument('-p', '--projects', type=str, nargs='*', default=[],
+    help="Paths to existing project config files to pre-populate the projects: block")
+
   # subparser for the 'run' subcommand
   run_prsr    = subparsers.add_parser('run', help="run scprocess")
 
@@ -852,7 +1123,7 @@ if __name__ == '__main__':
   # subparser for the 'shiny' subcommand
   shiny_prsr  = subparsers.add_parser('shiny', help="build Shiny app from scprocess outputs into public/shiny/")
   shiny_prsr.add_argument("configfile", type = str,
-    help = "Project config YAML (same file used for scprocess run).")
+    help = "Project or join config YAML.")
   shiny_prsr.add_argument("--zoom", type = str, default = None, metavar = "ZOOM_NAME",
     help = ("Build a Shiny app for a zoom (subclustering) output instead of the main analysis. "
             "Pass a zoom name (e.g. --zoom immune_cells) or 'all' to build apps for every zoom "
@@ -862,6 +1133,17 @@ if __name__ == '__main__':
   shiny_prsr.add_argument("--unlock", action = "store_true",
     help = "Unlock the Snakemake directory if a previous run was interrupted.")
   shiny_prsr.add_argument("-E", "--extraargs", action = "store", nargs = 1, type = str,
+    help = "Extra Snakemake arguments (quoted, using = syntax, e.g. -E=\"--quiet\").")
+
+  # subparser for the 'join' subcommand
+  join_prsr   = subparsers.add_parser('join', help="integrate outputs across multiple scprocess projects")
+  join_prsr.add_argument("configfile", type = str,
+    help = "Join config YAML (join.yaml) specifying projects to integrate.")
+  join_prsr.add_argument("-n", "--dry-run", action = "store_true",
+    help = '"Dry run": show what Snakemake would do without executing.')
+  join_prsr.add_argument("--unlock", action = "store_true",
+    help = "Unlock the Snakemake directory if a previous run was interrupted.")
+  join_prsr.add_argument("-E", "--extraargs", action = "store", nargs = 1, type = str,
     help = "Extra Snakemake arguments (quoted, using = syntax, e.g. -E=\"--quiet\").")
 
   # define scprocess directory
@@ -904,6 +1186,10 @@ if __name__ == '__main__':
     
     where_abs = os.path.abspath(args.where)
     new_proj(sc_dir, args.name, where_abs, args.sub, args.config)
+
+  elif args.subcommand == "newjoin":
+    where_abs = os.path.abspath(args.where)
+    new_join(sc_dir, args.name, where_abs, args.projects or [])
 
   # run scprocess
   elif args.subcommand == "run":
@@ -949,6 +1235,15 @@ if __name__ == '__main__':
     elif args.extraargs:
       extraargs.extend(shlex.split(args.extraargs[0]))
     run_shiny(args.configfile, sc_dir, extraargs, args.dry_run, zoom_name=args.zoom)
+
+  # run join workflow
+  elif args.subcommand == 'join':
+    extraargs = []
+    if args.unlock:
+      extraargs.append("--unlock")
+    elif args.extraargs:
+      extraargs.extend(shlex.split(args.extraargs[0]))
+    run_join(args.configfile, sc_dir, extraargs, args.dry_run)
 
   else:
     # if no arguments are provided at all, print the help message

@@ -46,7 +46,7 @@ make_rmd_from_temp <- function(rule_name, temp_f, temp_ls, rmd_f) {
 }
 
 get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'integration', 
-  'markers', 'label_celltypes', 'zoom', 'pb_empties', 'index'), proj_dir, ...) {
+  'markers', 'label_celltypes', 'zoom', 'pb_empties', 'join', 'index'), proj_dir, ...) {
   # get arguments
   sel_rule = match.arg(rule)
   add_args = list(...)
@@ -245,6 +245,16 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'lbl_min_cl_size', 'lbl_min_cl_size')
     
     assert_that(all(req_names %in% add_args_names))
+
+  } else if (sel_rule == 'join') {
+    req_names = c('your_name', 'affiliation', 'join_name', 'join_tag',
+      'join_int_dir', 'join_mkr_dir', 'ref_txome', 'mkr_sel_res',
+      'int_res_ls', 'scprocess_dir', 'date_stamp', 'metadata_vars')
+
+    assert_that(all(req_names %in% add_args_names))
+
+    params_ls = add_args[req_names]
+
   } else if (sel_rule == 'index') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'docs_dir', 'full_tag', 'date_stamp', 'mkr_sel_res', 'config_f', 'show_arv_uuids')
     assert_that(all(req_names %in% add_args_names))

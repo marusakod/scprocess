@@ -241,12 +241,25 @@ make_shiny_app_scprocess <- function(
 
   # ---- Read h5ad files and combine into a single BPCells matrix -----------
   message("Reading h5ad files")
-  h5ad_paths  <- yaml::yaml.load_file(h5ads_yaml_f)  # list: batch_name -> path
+  h5ad_paths  <- yaml::yaml.load_file(h5ads_yaml_f)  # list: batch_name -> path (or {path, project_id})
 
-  mat_list <- lapply(h5ad_paths, function(h5ad_f) {
-    message(" reading ", basename(h5ad_f))
-    BPCells::open_matrix_anndata_hdf5(h5ad_f)
-  })
+  # Helper: load one h5ad; if entry is a join dict {path, project_id}, prefix cell IDs
+  .load_one_h5ad_for_shiny <- function(h5ad_entry) {
+    if (is.character(h5ad_entry)) {
+      h5ad_f  <- h5ad_entry
+      message(" reading ", basename(h5ad_f))
+      BPCells::open_matrix_anndata_hdf5(h5ad_f)
+    } else {
+      h5ad_f  <- h5ad_entry[["path"]]
+      proj_id <- h5ad_entry[["project_id"]]
+      message(" reading ", basename(h5ad_f), " (project: ", proj_id, ")")
+      mat <- BPCells::open_matrix_anndata_hdf5(h5ad_f)
+      colnames(mat) <- paste0(proj_id, ":", colnames(mat))
+      mat
+    }
+  }
+
+  mat_list   <- lapply(h5ad_paths, .load_one_h5ad_for_shiny)
   counts_mat <- do.call(cbind, mat_list)
   rm(mat_list)
 

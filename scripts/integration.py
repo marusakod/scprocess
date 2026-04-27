@@ -14,7 +14,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
   integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None):
   print('setting up parameters')
-  exclude_mito  = bool(exclude_mito)
+  exclude_mito  = str(exclude_mito).strip().lower() == 'true'
   res_ls        = res_ls_concat.split()
   if demux_type == "none":
     dbl_batch_var = 'sample_id'
@@ -71,9 +71,11 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
 def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
   exclude_mito, embedding, n_dims, cl_method, theta, res_ls_concat,
   integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None):
-
+  """
+  batch_var and theta may each be a list (join workflow) or a single value (zoom/standard).
+  """
   print('setting up parameters')
-  exclude_mito  = bool(exclude_mito)
+  exclude_mito  = str(exclude_mito).strip().lower() == 'true'
   res_ls        = res_ls_concat.split()
 
   print('loading hvg matrix')
@@ -147,15 +149,20 @@ def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoo
   sample_qc   = pl.read_csv(sample_qc_f)
   all_coldata = pl.read_csv(coldata_f, ignore_errors = True)
 
-  # checks
-  if not batch_var in all_coldata.columns:
-    raise KeyError(f"column {batch_var} is missing from coldata file")
-  if not batch_var in sample_qc.columns:
-    raise KeyError(f"column {batch_var} is missing from sample QC file")
+  # batch_var may be a list (join workflow) or a single string (standard workflow)
+  batch_vars  = batch_var if isinstance(batch_var, list) else [batch_var]
+  primary_bv  = batch_vars[0]   # used for bad_* filter and ok_batches
 
-  # get ok samples
-  bad_var     = "bad_" + batch_var
-  ok_batches  = sample_qc.filter( pl.col(bad_var) == False )[batch_var].to_list()
+  # checks
+  for bv in batch_vars:
+    if bv not in all_coldata.columns:
+      raise KeyError(f"column {bv} is missing from coldata file")
+    if bv not in sample_qc.columns:
+      raise KeyError(f"column {bv} is missing from sample QC file")
+
+  # get ok samples (use primary batch variable for filtering)
+  bad_var     = "bad_" + primary_bv
+  ok_batches  = sample_qc.filter( pl.col(bad_var) == False )[primary_bv].to_list()
 
   # subset to doublets
   if zoom:
@@ -172,9 +179,9 @@ def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoo
     if demux_type == "none":
       dbl_idx     = all_coldata["scdbl_class"] == "doublet"
     else:
-      if batch_var == "sample_id":
+      if primary_bv == "sample_id":
         dbl_idx     = (all_coldata["scdbl_class"] == "doublet") | (all_coldata["demux_class"] == "doublet")
-      elif batch_var == "pool_id":
+      elif primary_bv == "pool_id":
         dbl_idx     = all_coldata["scdbl_class"] == "doublet"
     if not set(bcs_dbl).issubset(set(all_coldata.filter(dbl_idx)['cell_id'])):
       raise ValueError("doublet barcodes from hvg mats and cell_ids don't match")
@@ -219,8 +226,12 @@ def _normalize_hvg_mat(hvg_mat, cells_df, exclude_mito, scale_f = 10000):
 
 def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding,
   use_gpu, theta, use_paga=False, paga_cl=None):
-  # check whether we have one or more values of batch
-  n_batches = len(adata.obs[batch_var].unique())
+  # batch_var and theta may each be a list (join workflow) or single value
+  # check whether we have variation in the batch variable(s)
+  if isinstance(batch_var, list):
+    n_batches = max(adata.obs[bv].nunique() for bv in batch_var)
+  else:
+    n_batches = len(adata.obs[batch_var].unique())
   if n_batches == 1:
     this_embedding = 'pca'
   else:
@@ -300,7 +311,8 @@ def _get_clusts_from_adata(adata, embedding, batch_var):
   
   # get clustering and id vars and subset
   cl_vs     = [col for col in clusts_df.columns if re.match(r'RNA_snn_res.*', col)]
-  sample_vs = list(set([batch_var, "sample_id"]))
+  bv_list   = batch_var if isinstance(batch_var, list) else [batch_var]
+  sample_vs = list(set([*bv_list, "sample_id"]))
   all_cols  = cl_vs + ['embedding', 'cell_id', *sample_vs]
   clusts_df = clusts_df.select(all_cols)
 
@@ -439,12 +451,18 @@ if __name__ == "__main__":
   parser_run_zoom_integration.add_argument('--embedding',      type = str)
   parser_run_zoom_integration.add_argument('--n_dims',         type = int)
   parser_run_zoom_integration.add_argument('--cl_method',      type = str)
-  parser_run_zoom_integration.add_argument('--theta',          type = float)
+  parser_run_zoom_integration.add_argument('--theta',          type = float,
+    help='Harmony theta (single value). Use --theta_concat for multiple batch vars.')
+  parser_run_zoom_integration.add_argument('--theta_concat',   type = str, default = None,
+    help='Space-separated Harmony theta values for multiple batch vars (join workflow).')
   parser_run_zoom_integration.add_argument('--res_ls_concat',  type = str)
   parser_run_zoom_integration.add_argument('--integration_f',  type = str)
-  parser_run_zoom_integration.add_argument('--batch_var',      type = str)
+  parser_run_zoom_integration.add_argument('--batch_var',      type = str,
+    help='Batch variable (single value). Use --batch_var_concat for multiple.')
+  parser_run_zoom_integration.add_argument('--batch_var_concat', type = str, default = None,
+    help='Space-separated batch variable names for joint integration (join workflow).')
   parser_run_zoom_integration.add_argument("-g", "--use-gpu",  action='store_true',
-    help='Use GPU-accelerated libraries if available.'  
+    help='Use GPU-accelerated libraries if available.'
   )
   parser_run_zoom_integration.add_argument("-p", "--use-paga",  action='store_true',
     help='Use PAGA as initialization for UMAP.'
@@ -497,11 +515,18 @@ if __name__ == "__main__":
       args.batch_var, use_gpu, args.use_paga, args.paga_cl_res
     )
   elif args.function_name == 'run_zoom_integration':
+    # support list batch_var / theta for join workflow via _concat args
+    zoom_batch_var = (
+      args.batch_var_concat.split() if args.batch_var_concat else args.batch_var
+    )
+    zoom_theta = (
+      [float(t) for t in args.theta_concat.split()] if args.theta_concat else args.theta
+    )
     run_zoom_integration(
       args.hvg_mat_f, args.sample_qc_f, args.coldata_f,
       args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
-      args.theta, args.res_ls_concat, args.integration_f,
-      args.batch_var, use_gpu, args.use_paga, args.paga_cl_res
+      zoom_theta, args.res_ls_concat, args.integration_f,
+      zoom_batch_var, use_gpu, args.use_paga, args.paga_cl_res
     )
   else:
     parser.print_help()

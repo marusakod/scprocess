@@ -2,6 +2,7 @@
 import os
 import sys
 import json
+import jsonschema
 import pathlib
 import yaml
 
@@ -13,42 +14,78 @@ scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 schema_f      = scprocess_dir / "resources/schemas/config.schema.json"
 zoom_schema_f = scprocess_dir / "resources/schemas/zoom.schema.json"
+join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
 
-# validate and populate config with defaults
-config = check_config(config, schema_f, scdata_dir, scprocess_dir)
+# detect config type: project (normal) or join
+_is_join = 'join' in config
 
-# unpack frequently used variables
-PROJ_DIR   = config['project']['proj_dir']
-FULL_TAG   = config['project']['full_tag']
-SHORT_TAG  = config['project']['short_tag']
-DATE_STAMP = config['project']['date_stamp']
-
-# pipeline output directories (read-only inputs to this rule)
-int_dir    = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
-mkr_dir    = f"{PROJ_DIR}/output/{SHORT_TAG}_marker_genes"
-zoom_dir   = f"{PROJ_DIR}/output/{SHORT_TAG}_zoom"
-logs_dir   = f"{PROJ_DIR}/.log"
-docs_dir   = f"{PROJ_DIR}/public"
-
-# marker gene resolution (needed to construct file paths)
-MKR_SEL_RES = config['marker_genes']['mkr_sel_res']
-
-# optional shiny config section
-_shiny_cfg  = config.get('shiny', {})
-
-# load zoom parameters (empty dict if no zoom config)
-ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
-ZOOMS       = list(ZOOM_PARAMS.keys())
-
-# reference transcriptomes that support GSEA
+# reference transcriptomes that support GSEA (used below in helper functions)
 _GSEA_TXOMES = {'human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'}
 
-def _gsea_supported():
-  """True if the project ref_txome supports GSEA."""
-  return config['project']['ref_txome'] in _GSEA_TXOMES
+if _is_join:
+  # --- validate and unpack join config ---
+  with open(join_schema_f) as _f:
+    _join_schema = json.load(_f)
+  _errors = sorted(jsonschema.Draft202012Validator(_join_schema).iter_errors(config),
+                   key=lambda e: e.path)
+  if _errors:
+    raise ValueError("join.yaml validation errors:\n" +
+      "\n".join(f"  {list(e.path)}: {e.message}" for e in _errors))
+
+  JOIN_NAME  = config['join']['name']
+  PROJ_DIR   = pathlib.Path(config['join']['proj_dir'])
+  DATE_STAMP = config['join']['date_stamp']
+  REF_TXOME  = config['join']['ref_txome']
+  JOIN_TAG   = f"{JOIN_NAME}_join"
+  FULL_TAG   = JOIN_TAG
+  SHORT_TAG  = JOIN_NAME
+  MKR_SEL_RES = config.get('marker_genes', {}).get('mkr_sel_res', 0.2)
+
+  int_dir   = str(PROJ_DIR / f"output/{JOIN_TAG}")
+  mkr_dir   = str(PROJ_DIR / f"output/{JOIN_NAME}_marker_genes")
+  zoom_dir  = ''   # not used for join
+  logs_dir  = str(PROJ_DIR / ".log")
+  docs_dir  = str(PROJ_DIR / "public")
+
+  _shiny_cfg      = config.get('shiny', {})
+  _sample_meta_f  = str(PROJ_DIR / f"output/{JOIN_TAG}/joint_sample_meta_{JOIN_TAG}_{DATE_STAMP}.csv")
+  _metadata_vars  = ','.join(config['join'].get('metadata_vars', []))
+
+  ZOOM_PARAMS = {}
+  ZOOMS       = []
+
+  def _gsea_supported():
+    return REF_TXOME in _GSEA_TXOMES
+
+else:
+  # --- validate and unpack normal project config ---
+  config = check_config(config, schema_f, scdata_dir, scprocess_dir)
+
+  PROJ_DIR   = config['project']['proj_dir']
+  FULL_TAG   = config['project']['full_tag']
+  SHORT_TAG  = config['project']['short_tag']
+  DATE_STAMP = config['project']['date_stamp']
+  REF_TXOME  = config['project']['ref_txome']
+  MKR_SEL_RES = config['marker_genes']['mkr_sel_res']
+
+  int_dir   = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
+  mkr_dir   = f"{PROJ_DIR}/output/{SHORT_TAG}_marker_genes"
+  zoom_dir  = f"{PROJ_DIR}/output/{SHORT_TAG}_zoom"
+  logs_dir  = f"{PROJ_DIR}/.log"
+  docs_dir  = f"{PROJ_DIR}/public"
+
+  _shiny_cfg     = config.get('shiny', {})
+  _sample_meta_f = config['project']['sample_metadata']
+  _metadata_vars = ','.join(config['project'].get('metadata_vars', []))
+
+  ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
+  ZOOMS       = list(ZOOM_PARAMS.keys())
+
+  def _gsea_supported():
+    return config['project']['ref_txome'] in _GSEA_TXOMES
 
 def _main_has_gsea():
-  return config['marker_genes'].get('mkr_do_gsea', True) and _gsea_supported()
+  return config.get('marker_genes', {}).get('mkr_do_gsea', True) and _gsea_supported()
 
 def _zoom_has_gsea(zoom_name):
   return (ZOOM_PARAMS[zoom_name]['marker_genes'].get('mkr_do_gsea', True)
@@ -118,19 +155,20 @@ rule build_shiny_app:
   params:
     scprocess_dir = str(scprocess_dir),
     deploy_dir    = f'{docs_dir}/shiny',
-    sample_meta_f = config['project']['sample_metadata'],
+    sample_meta_f = _sample_meta_f,
     date_stamp    = DATE_STAMP,
     app_tag       = SHORT_TAG,
     mkr_sel_res   = MKR_SEL_RES,
-    ref_txome     = config['project']['ref_txome'],
-    metadata_vars = ','.join(config['project'].get('metadata_vars', [])),
+    ref_txome     = REF_TXOME,
+    metadata_vars = _metadata_vars,
     app_title     = _shiny_cfg.get('app_title', SHORT_TAG),
     email         = _shiny_cfg.get('email', ''),
     keyword       = _shiny_cfg.get('keyword', 'cells'),
     default_gene  = _shiny_cfg.get('default_gene', ''),
     n_keep        = int(_shiny_cfg.get('n_keep', 30000)),
     var_names     = ','.join(_shiny_cfg.get('var_names',
-                      config['project'].get('metadata_vars', []))),
+                      (config['project'].get('metadata_vars', []) if not _is_join
+                       else config['join'].get('metadata_vars', [])))),
     var_combns        = json.dumps(_shiny_cfg.get('var_combns', [])),
     home_md_f         = _home_md_f,
     annotation_csv_f  = _annotation_csv_f,
@@ -200,12 +238,12 @@ rule build_zoom_shiny_app:
   params:
     scprocess_dir    = str(scprocess_dir),
     deploy_dir       = lambda wc: f'{docs_dir}/shiny_zoom_{wc.zoom_name}',
-    sample_meta_f    = config['project']['sample_metadata'],
+    sample_meta_f    = _sample_meta_f,
     date_stamp       = DATE_STAMP,
     app_tag          = lambda wc: f'{SHORT_TAG}_{wc.zoom_name}',
     mkr_sel_res      = lambda wc: ZOOM_PARAMS[wc.zoom_name]['marker_genes']['mkr_sel_res'],
-    ref_txome        = config['project']['ref_txome'],
-    metadata_vars    = ','.join(config['project'].get('metadata_vars', [])),
+    ref_txome        = REF_TXOME,
+    metadata_vars    = _metadata_vars,
     app_title        = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('app_title',
                          f'{SHORT_TAG} — {wc.zoom_name}'),
     email            = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('email', ''),
@@ -214,7 +252,8 @@ rule build_zoom_shiny_app:
     n_keep           = lambda wc: int(ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('n_keep', 30000)),
     var_names        = lambda wc: ','.join(
                          ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('var_names',
-                         config['project'].get('metadata_vars', []))),
+                         (config['project'].get('metadata_vars', []) if not _is_join
+                          else config['join'].get('metadata_vars', [])))),
     var_combns       = lambda wc: json.dumps(
                          ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('var_combns', [])),
     home_md_f        = lambda wc: _zoom_optional_path(wc.zoom_name, 'home_md'),

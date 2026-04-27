@@ -88,6 +88,44 @@ Optional paramater for `tenx` references is:
 * `-s`/`--sub` (optional): if provided, creates `data/fastqs` and `data/metadata` subdirectories within the project.
 * `-c`/`--config` (optional): generates a template configuration YAML file. If provided, it must be followed by either `sc` (single-cell) or `sn` (single-nucleus) to define standard QC thresholds. You can also append `multiplex` if your dataset requires demultiplexing e.g. `scprocess newproj project_name -c sc multiplex`
 
+## {{scnewjoin}} { #scprocess-newjoin }
+
+**Description**: Create a new `workflowr` project directory for a {{scjoin}} analysis. Creates the standard workflowr scaffold, a pre-filled `join-{name}.yaml`, and a ready-to-render Rmd covering the diagnostics specific to a multi-project join.
+
+**Usage**:
+
+```
+scprocess newjoin <name> [-w <where>] [-p <config>...]
+```
+
+**Parameters**:
+
+* `name` (positional): short name for the join analysis. Used as the output directory name, `join.name` in the YAML, and the Rmd filename.
+* `-w`/`--where` (optional): path to the parent directory where the new join project will be created; defaults to the current working directory.
+* `-p`/`--projects` (optional): one or more paths to existing {{sc}} project `config-*.yaml` files. Their `full_tag` values become the `project_id` keys in the `projects:` block of `join-{name}.yaml`, and `ref_txome` is inferred from the first project supplied.
+
+**What is created**:
+
+```
+{name}/
+  join-{name}.yaml          # pre-filled join config — edit and run with scprocess join
+  {name}.Rproj              # RStudio project
+  analysis/
+    {name}_join.Rmd         # evaluation Rmd (rendered automatically by scprocess join)
+    _site.yml / about.Rmd / index.Rmd / ...
+  output/                   # join pipeline outputs land here
+  .log/ / code/ / public/
+```
+
+**The generated Rmd** covers:
+
+* Integration diagnostics — cluster UMAPs at each resolution
+* Project composition — UMAP and per-cluster bar coloured by `project_id`
+* Cluster entropy across samples and across projects
+* Metadata variables over UMAP (populated from `joint_sample_meta`)
+* Marker gene heatmaps, HVG expression, top markers per cluster
+* GSEA results (if `ref_txome` supports it)
+
 ## {{scknee}} { #scprocess-plotknee }
 
 **Description**: Create an interactive barcode-rank plot. Can only be used once the mapping step is completed.
@@ -595,6 +633,118 @@ scprocess shiny config-my_project.yaml -n
 ```
 
 The app is deployed to `public/shiny/` (main analysis) or `public/shiny_zoom_<zoom_name>/` (zoom). Configure app appearance via the optional `shiny:` section in the project config file (or in the zoom spec YAML for zoom apps). See [Optional parameters › shiny](#shiny) for available options.
+
+`scprocess shiny` also accepts a **join config** (see [scprocess join](#scprocess-join)) instead of a project config. The Shiny app is then built from the joint integration and marker-gene outputs and deployed to `public/shiny/`.
+
+
+## {{scjoin}} { #scprocess-join }
+
+**Description**: Integrate data across the outputs of multiple completed {{sc}} projects. HVG selection uses the existing per-project variance statistics (no recomputation from counts). Cell IDs are prefixed with `{project_id}:` to ensure uniqueness. The output follows the same structure as the main pipeline and is compatible with `scprocess shiny`.
+
+**Parameters**:
+
+* `configfile` (positional): path to a join config YAML (`join.yaml`).
+* `-n`/`--dry-run`: show what Snakemake would do without executing.
+* `--unlock`: unlock the Snakemake directory if a previous run was interrupted.
+* `-E`/`--extraargs`: extra Snakemake arguments.
+
+**Examples**:
+
+```bash
+# Run the join workflow
+scprocess join join.yaml
+
+# Dry run
+scprocess join join.yaml -n
+
+# Build a Shiny app from the join outputs
+scprocess shiny join.yaml
+```
+
+### Join config (`join.yaml`) { #join-config }
+
+The join config is a separate YAML file that specifies the projects to integrate and pipeline parameters. It is validated against a JSON Schema before execution.
+
+#### Required parameters
+
+```yaml
+join:
+  name: my_join           # short name; output directories are {name}_join and {name}_marker_genes
+  proj_dir: /path/to/join_output   # will be created if absent
+  date_stamp: "2025-01-15"
+  ref_txome: human_2024   # must match all projects (validated at startup)
+  your_name: Testy McUser
+  affiliation: where you work
+
+projects:                 # key = project_id (used to prefix cell IDs and sample IDs)
+  project_a:
+    config: /path/to/config_a.yaml
+  project_b:
+    config: /path/to/config_b.yaml
+```
+
+#### Optional parameters
+
+```yaml
+join:
+  metadata_vars: [Condition, Sex, Region]   # union of metadata variables to carry through
+                                             # (default: all variables present in any project)
+hvg:
+  hvg_n_hvgs: 2000                           # number of joint HVGs (default: 2000)
+
+integration:
+  int_embedding: harmony                     # harmony or pca (default: harmony)
+  int_batch_var: sample_id                   # batch variable; can be a list e.g. [sample_id, project_id]
+  int_theta: 0.1                             # Harmony theta; can be a list matching int_batch_var
+  int_n_dims: 50
+  int_res_ls: [0.1, 0.2, 0.5, 1, 2]
+  int_use_paga: true
+  int_paga_cl_res: 0.2
+
+marker_genes:
+  mkr_sel_res: 0.2
+  mkr_do_gsea: true
+  # ... same options as main pipeline
+
+shiny:
+  app_title: My Joint Analysis
+  # ... same options as project-level shiny section
+```
+
+#### How HVGs are selected
+
+For each project, genes are ranked by their standardised variance (`variances_norm`) from the per-project HVG statistics output. Genes absent from a project receive a penalty rank equal to that project's gene count plus one. The **mean rank across projects** is computed and the top `hvg_n_hvgs` genes are selected.
+
+#### Cell and sample IDs in the joint analysis
+
+* **Cell IDs** are prefixed: `{project_id}:{original_cell_id}` (e.g. `project_a:pool_1:AAACCCAAGAAACACT-1`).
+* **Sample IDs** in the joint coldata are prefixed: `{project_id}_{original_sample_id}` (e.g. `project_a_pool_1`).
+* A `project_id` column is added to the joint coldata.
+* Metadata columns absent from a project are filled with `NA`.
+
+#### Output directory structure
+
+```
+{proj_dir}/
+  output/
+    {name}_join/
+      joint_hvgs_*.csv.gz
+      joint_counts_*.h5
+      joint_coldata_*.csv.gz
+      joint_sample_meta_*.csv
+      integrated_dt_*.csv.gz
+      h5ads_clean_paths_*.yaml
+      h5ads/                  ← symlinks to original h5ad files (no copying)
+    {name}_marker_genes/
+      pb_marker_genes_*.csv.gz
+      pb_hvgs_*.csv.gz
+      fgsea_*_go_*.csv.gz     ← if do_gsea and supported ref_txome
+  analysis/
+    {name}_join.Rmd           ← R Markdown source for the report
+  public/
+    {name}_join.html          ← rendered HTML report
+    shiny/               ← built by scprocess shiny join.yaml
+```
 
 
 ##### resources

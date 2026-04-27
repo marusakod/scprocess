@@ -6,3 +6,5 @@ def define_env(env):
     env.variables['scrun'] = '<span class="software-name">scprocess run</span>'
     env.variables['scknee']  = '<span class="software-name">scprocess plotknee</span>'
     env.variables['scshiny'] = '<span class="software-name">scprocess shiny</span>'
+    env.variables['scjoin']    = '<span class="software-name">scprocess join</span>'
+    env.variables['scnewjoin'] = '<span class="software-name">scprocess newjoin</span>'
