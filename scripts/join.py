@@ -363,16 +363,19 @@ def _smart_concat(dfs):
 
   # 2. Check consistency and aggregate to master_schema
   master_schema = {}
-  for i, schema in enumerate(truth_schemas):
+  for schema in truth_schemas:
     for col, dtype in schema.items():
       if col in master_schema:
-        # If the column exists in master, verify the types match
-        if master_schema[col] != dtype:
-          raise ValueError(
-            f"Schema conflict for column '{col}': "
-            f"Found {master_schema[col]} in previous DFs, "
-            f"but DF index {i} has {dtype} (with non-null data)."
-          )
+        prev_dtype = master_schema[col]
+        if prev_dtype != dtype:
+          # Resolve Int vs Float conflict: promote to Float
+          if (prev_dtype.is_integer() and dtype.is_float()):
+            master_schema[col] = dtype
+          elif (prev_dtype.is_float() and dtype.is_integer()):
+            continue # Keep the Float already in master_schema
+          else:
+            # For String vs Int, etc., you might still want an error
+            raise ValueError(f"Hard conflict for '{col}': {prev_dtype} vs {dtype}")
       else:
         master_schema[col] = dtype
 

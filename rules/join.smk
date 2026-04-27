@@ -109,6 +109,14 @@ H5ADS_YAML_FS  = [str(_proj_h5ads_yaml_f(pid)) for pid in JOIN_PROJECT_IDS]
 INTEGRATED_FS  = [str(_proj_integrated_dt_f(pid)) for pid in JOIN_PROJECT_IDS]
 SAMPLE_META_FS = [str(_proj_sample_meta_f(pid)) for pid in JOIN_PROJECT_IDS]
 
+# Pre-compute joint batch keys from per-project h5ads YAMLs (these files already exist)
+_JOIN_BATCH_KEYS = []
+for _pid, _h5yaml in zip(JOIN_PROJECT_IDS, H5ADS_YAML_FS):
+  with open(_h5yaml) as _fh:
+    _h5paths = yaml.safe_load(_fh)
+  for _bk in _h5paths:
+    _JOIN_BATCH_KEYS.append(f"{_pid}_{_bk}")
+
 # ---------------------------------------------------------------------------
 # Derived constants
 # ---------------------------------------------------------------------------
@@ -202,6 +210,39 @@ _idx_params   = pl.read_csv(_idx_params_f)
 GTF_DT_F = _idx_params.filter(pl.col('ref_txome') == REF_TXOME)['gtf_txt_f'][0]
 GSEA_DIR = str(scdata_dir / 'gmt_pathways')
 
+# label_celltypes (optional)
+_lbl_cfg = config.get('label_celltypes', [])
+DO_LABEL = len(_lbl_cfg) > 0
+if DO_LABEL:
+  # apply schema defaults
+  _lbl_schema_props = _join_schema['properties']['label_celltypes']['items']['properties']
+  for entry in _lbl_cfg:
+    for key, prop in _lbl_schema_props.items():
+      if key not in entry and 'default' in prop:
+        entry[key] = prop['default']
+
+  # validate models and resolve paths
+  _typist_ls_f  = scdata_dir / 'celltypist/celltypist_models.csv'
+  _mdls_typist  = pl.read_csv(_typist_ls_f)['model'].to_list() if _typist_ls_f.is_file() else []
+  _mdls_scproc  = ['human_cns']
+  for entry in _lbl_cfg:
+    if entry['labeller'] == 'celltypist':
+      if entry['model'] not in _mdls_typist:
+        raise ValueError(f"CellTypist model '{entry['model']}' not found. Valid: {', '.join(_mdls_typist)}")
+    elif entry['labeller'] == 'scprocess':
+      if entry['model'] not in _mdls_scproc:
+        raise ValueError(f"scprocess model '{entry['model']}' not found. Valid: {', '.join(_mdls_scproc)}")
+      _xgb_dir = scdata_dir / 'xgboost'
+      if entry['model'] == 'human_cns':
+        entry['xgb_f']     = str(_xgb_dir / 'Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds')
+        entry['xgb_cls_f'] = str(_xgb_dir / 'Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv')
+      if not pathlib.Path(entry['xgb_f']).is_file():
+        raise FileNotFoundError(f"XGBoost model file not found: {entry['xgb_f']}")
+      if not pathlib.Path(entry['xgb_cls_f']).is_file():
+        raise FileNotFoundError(f"XGBoost classes file not found: {entry['xgb_cls_f']}")
+
+  LABELLER_PARAMS = _lbl_cfg
+
 # ---------------------------------------------------------------------------
 # Output file paths
 # ---------------------------------------------------------------------------
@@ -220,6 +261,15 @@ pb_hvgs_f   = f"{join_mkr_dir}/pb_hvgs_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv
 fgsea_bp_f  = f"{join_mkr_dir}/fgsea_{JOIN_TAG}_{MKR_SEL_RES}_go_bp_{DATE_STAMP}.csv.gz"
 fgsea_cc_f  = f"{join_mkr_dir}/fgsea_{JOIN_TAG}_{MKR_SEL_RES}_go_cc_{DATE_STAMP}.csv.gz"
 fgsea_mf_f  = f"{join_mkr_dir}/fgsea_{JOIN_TAG}_{MKR_SEL_RES}_go_mf_{DATE_STAMP}.csv.gz"
+
+join_lbl_dir = str(JOIN_DIR / f"output/{JOIN_NAME}_label_celltypes")
+if DO_LABEL:
+  label_fs = [
+    f"{join_lbl_dir}/labels_{e['labeller']}_model_{e['model']}_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
+    for e in LABELLER_PARAMS
+  ]
+else:
+  label_fs = []
 
 docs_dir  = str(JOIN_DIR / "public")
 rmd_dir   = str(JOIN_DIR / "analysis")
@@ -243,6 +293,7 @@ rule all:
     mkrs_f,
     pb_hvgs_f,
     *([fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else []),
+    *label_fs,
     html_f
 
 
@@ -316,15 +367,17 @@ rule join_integration:
   output:
     integration_f = joint_integration_f
   params:
-    embedding       = INT_EMBEDDING,
-    n_dims          = INT_N_DIMS,
-    cl_method       = INT_CL_METHOD,
-    theta_concat    = INT_THETA_CONCAT,
-    batch_var_concat = INT_BATCH_VAR_CONCAT,
-    res_ls_concat   = INT_RES_LS_CONCAT,
-    use_paga        = INT_USE_PAGA,
-    paga_cl_res     = INT_PAGA_CL_RES,
-    int_use_gpu     = INT_USE_GPU
+    embedding         = INT_EMBEDDING,
+    n_dims            = INT_N_DIMS,
+    cl_method         = INT_CL_METHOD,
+    theta_concat      = INT_THETA_CONCAT,
+    batch_var_concat  = INT_BATCH_VAR_CONCAT,
+    res_ls_concat     = INT_RES_LS_CONCAT,
+    use_paga          = INT_USE_PAGA,
+    paga_cl_res       = INT_PAGA_CL_RES,
+    int_use_gpu       = INT_USE_GPU
+  resources:
+    mem_mb      = 64 * 1024
   log:
     f"{logs_dir}/join_integration_{JOIN_TAG}_{DATE_STAMP}.log"
   benchmark:
@@ -372,7 +425,8 @@ rule join_build_h5ads_yaml:
   input:
     h5ads_yaml_fs = H5ADS_YAML_FS
   output:
-    joint_h5ads_yaml_f = joint_h5ads_yaml_f
+    joint_h5ads_yaml_f = joint_h5ads_yaml_f,
+    h5ad_symlinks = [f"{h5ads_dir}/{bk}.h5ad" for bk in _JOIN_BATCH_KEYS]
   params:
     project_ids = " ".join(JOIN_PROJECT_IDS),
     h5ads_dir   = h5ads_dir
@@ -478,6 +532,103 @@ if DO_GSEA:
       """
 
 
+if DO_LABEL:
+  def _parse_join_label_params(labeller, model):
+    matches = [e for e in LABELLER_PARAMS
+      if e['labeller'] == labeller and e['model'] == model]
+    if len(matches) != 1:
+      raise ValueError(f"Expected 1 match for {labeller}/{model}, got {len(matches)}")
+    return matches[0]
+
+  rule join_celltypist:
+    """Run CellTypist on each batch h5ad for the join integration."""
+    input:
+      adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad"
+    output:
+      pred_f  = temp(f"{join_lbl_dir}/tmp_labels_celltypist_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz")
+    threads: 4
+    resources:
+      mem_mb = 16 * 1024
+    log:
+      f"{logs_dir}/join_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.log"
+    benchmark:
+      f"{benchmark_dir}/join_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt"
+    conda:
+      '../envs/celltypist.yaml'
+    shell: """
+      exec &>> {log}
+      python3 scripts/label_celltypes.py celltypist_one_batch \
+        {wildcards.batch} sample_id {wildcards.model} \
+        --adata_f   {input.adata_f} \
+        --pred_f    {output.pred_f}
+      """
+
+  rule join_scprocess_labeller:
+    """Run scprocess XGBoost labeller on each batch h5ad."""
+    input:
+      adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad"
+    output:
+      pred_f  = temp(f"{join_lbl_dir}/tmp_labels_scprocess_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz")
+    params:
+      xgb_f     = lambda wildcards: _parse_join_label_params('scprocess', wildcards.model)['xgb_f'],
+      xgb_cls_f = lambda wildcards: _parse_join_label_params('scprocess', wildcards.model)['xgb_cls_f']
+    threads: 1
+    resources:
+      mem_mb = 16 * 1024
+    log:
+      f"{logs_dir}/join_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.log"
+    benchmark:
+      f"{benchmark_dir}/join_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt"
+    conda:
+      '../envs/rlibs.yaml'
+    shell: """
+      exec &>> {log}
+      Rscript -e "source('scripts/label_celltypes.R'); source('scripts/integration.R'); \\
+      label_with_xgboost_one_batch(
+        sel_batch   = '{wildcards.batch}',
+        batch_var   = 'sample_id',
+        model_name  = '{wildcards.model}',
+        xgb_f       = '{params.xgb_f}',
+        xgb_cls_f   = '{params.xgb_cls_f}',
+        adata_f     = '{input.adata_f}',
+        pred_f      = '{output.pred_f}'
+      )"
+      """
+
+
+  rule join_merge_labels:
+    """Aggregate per-batch CellTypist predictions by majority voting."""
+    input:
+      pred_fs       = lambda wildcards: expand(
+        f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz",
+        batch=_JOIN_BATCH_KEYS, allow_missing=True),
+      integration_f = joint_integration_f
+    output:
+      pred_out_f    = f"{join_lbl_dir}/labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
+    params:
+      hi_res_cl   = lambda wildcards: _parse_join_label_params(wildcards.labeller, wildcards.model)['hi_res_cl'],
+      min_cl_prop = lambda wildcards: _parse_join_label_params(wildcards.labeller, wildcards.model)['min_cl_prop']
+    threads: 4
+    resources:
+      mem_mb = 16 * 1024
+    log:
+      f"{logs_dir}/join_merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.log"
+    benchmark:
+      f"{benchmark_dir}/join_merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.benchmark.txt"
+    conda:
+      '../envs/celltypist.yaml'
+    shell: """
+      exec &>> {log}
+      python3 scripts/label_celltypes.py aggregate_predictions \
+        {input.pred_fs} \
+        --int_f           {input.integration_f} \
+        --hi_res_cl       {params.hi_res_cl} \
+        --min_cl_prop     {params.min_cl_prop} \
+        --batch_var       sample_id \
+        --agg_f           {output.pred_out_f}
+      """
+
+
 rule join_render_html:
   """Render Rmd report and HTML for the join integration."""
   input:
@@ -485,12 +636,14 @@ rule join_render_html:
     mkrs_f        = mkrs_f,
     pb_hvgs_f     = pb_hvgs_f,
     pb_f          = pb_f,
-    fgsea_files   = [fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else []
+    fgsea_files   = [fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else [],
+    label_files   = label_fs
   output:
     r_utils_f     = f"{code_dir}/utils.R",
     r_int_f       = f"{code_dir}/integration.R",
     r_mkr_f       = f"{code_dir}/marker_genes.R",
     r_fgsea_f     = f"{code_dir}/fgsea.R",
+    r_lbl_f       = f"{code_dir}/label_celltypes.R",
     rmd_f         = rmd_f,
     html_f        = html_f
   params:
@@ -506,6 +659,11 @@ rule join_render_html:
     metadata_vars    = METADATA_VARS_STR,
     custom_mkr_names = MKR_CUSTOM_NAMES,
     custom_mkr_paths = MKR_CUSTOM_PATHS,
+    label_f_ls       = ' '.join(label_fs),
+    labeller_ls      = ' '.join(e['labeller']  for e in _lbl_cfg) if DO_LABEL else '',
+    model_ls         = ' '.join(e['model']     for e in _lbl_cfg) if DO_LABEL else '',
+    hi_res_cl_ls     = ' '.join(e['hi_res_cl'] for e in _lbl_cfg) if DO_LABEL else '',
+    min_cl_prop_ls   = ' '.join(str(e['min_cl_prop']) for e in _lbl_cfg) if DO_LABEL else '',
     proj_dir         = str(JOIN_DIR),
     scprocess_dir    = str(scprocess_dir),
     date_stamp       = DATE_STAMP
@@ -527,6 +685,7 @@ rule join_render_html:
     cp scripts/integration.R  {output.r_int_f}
     cp scripts/marker_genes.R {output.r_mkr_f}
     cp scripts/fgsea.R        {output.r_fgsea_f}
+    cp scripts/label_celltypes.R {output.r_lbl_f}
 
     # define rule and template
     template_f=$(realpath resources/rmd_templates/join.Rmd.template)
@@ -551,6 +710,11 @@ rule join_render_html:
       metadata_vars    = '{params.metadata_vars}',
       custom_mkr_names = '{params.custom_mkr_names}',
       custom_mkr_paths = '{params.custom_mkr_paths}',
+      label_f_ls       = '{params.label_f_ls}',
+      labeller_ls      = '{params.labeller_ls}',
+      model_ls         = '{params.model_ls}',
+      hi_res_cl_ls     = '{params.hi_res_cl_ls}',
+      min_cl_prop_ls   = '{params.min_cl_prop_ls}',
       scprocess_dir    = '{params.scprocess_dir}',
       date_stamp       = '{params.date_stamp}'
     )"

@@ -1,0 +1,29 @@
+# General configurations
+executor: slurm
+latency-wait: 10
+show-failed-logs: True
+slurm-keep-successful-logs: True
+keep-going: True
+scheduler: greedy   
+printshellcmds: True
+jobs: 20
+default-resources:
+  runtime: 3h
+  mem_mb: 4096
+set-resources:
+  run_mapping:
+    qos: '1d'
+  run_integration:
+    slurm_partition: "batch_gpu"
+    slurm_extra: "'--gpus=1'"
+    qos: '3h'
+  run_cellbender:
+    slurm_partition: "batch_gpu"
+    slurm_extra: "'--gpus=1 --cpus-per-task=4'"
+    # qos: '3h'
+    qos: '1d'
+    # runtime: 360
+  join_integration:
+    slurm_partition: "batch_gpu"
+    slurm_extra: "'--gpus=1'"
+    qos: '3h'

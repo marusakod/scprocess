@@ -138,6 +138,20 @@
           }
         }
       }
+    },
+    "label_celltypes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["labeller", "model"],
+        "properties": {
+          "labeller":     { "type": "string", "enum": ["celltypist", "scprocess"] },
+          "model":        { "type": "string" },
+          "hi_res_cl":    { "type": "string", "default": "RNA_snn_res.2" },
+          "min_cl_prop":  { "type": "number", "default": 0.5 }
+        }
+      }
     }
   }
 }

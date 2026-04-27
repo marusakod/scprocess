@@ -29,6 +29,7 @@ source(file.path(scprocess_dir, 'scripts/utils.R'))
 source(file.path(scprocess_dir, 'scripts/integration.R'))
 source(file.path(scprocess_dir, 'scripts/marker_genes.R'))
 source(file.path(scprocess_dir, 'scripts/fgsea.R'))
+source(file.path(scprocess_dir, 'scripts/label_celltypes.R'))
 library(stringi)
 setDTthreads(1L)
 ```
@@ -68,6 +69,22 @@ if (custom_mkr_names_str != "") {
   custom_mkr_names = str_split(custom_mkr_names_str, pattern = ',') %>% unlist()
   custom_mkr_paths = str_split(custom_mkr_paths_str, pattern = ',') %>% unlist() %>%
     setNames(custom_mkr_names)
+}
+
+# cell type labeling
+label_f_ls_str    = "${label_f_ls}"
+labeller_ls_str   = "${labeller_ls}"
+model_ls_str      = "${model_ls}"
+hi_res_cl_ls_str  = "${hi_res_cl_ls}"
+min_cl_prop_ls_str = "${min_cl_prop_ls}"
+do_labels = label_f_ls_str != ""
+if (do_labels) {
+  label_f_ls     = str_split(label_f_ls_str, " ")[[1]]
+  labeller_ls    = str_split(labeller_ls_str, " ")[[1]]
+  model_ls       = str_split(model_ls_str, " ")[[1]]
+  hi_res_cl_ls   = str_split(hi_res_cl_ls_str, " ")[[1]]
+  min_cl_prop_ls = str_split(min_cl_prop_ls_str, " ")[[1]] %>% as.numeric()
+  min_cl2_p      = 0.2
 }
 ```
 
@@ -302,6 +319,84 @@ for (p in names(gsea_ls)) {
   dt = gsea_ls[[p]] %>% .[ gsea_var == gsea_var_sel ]
   plot_gsea_dotplot(dt, gsea_cut = gsea_cut, n_top_paths = 5, max_nes = 2,
     size_range = c(10, 200), what = "pos_only", cl_order = cl_ord) %>% print
+  cat('\n\n')
+}
+```
+
+
+```{r load_labels, eval=do_labels, include=FALSE}
+assert_that(all(sapply(label_f_ls, file.exists)))
+guesses_ls = lapply(label_f_ls, fread) %>% setNames(model_ls)
+```
+
+
+## Cell type labelling{.tabset}
+
+```{r label_section_intro, eval=do_labels, include=do_labels, results="asis"}
+cat("Cell type labels were predicted using CellTypist. Per-cell predictions are\n",
+    "aggregated at the level of high-resolution clusters via majority voting.\n")
+```
+
+### Clusters vs predicted cell types{.tabset}
+
+```{r plot_labels_heatmap, eval=do_labels, include=do_labels, fig.height=12, fig.width=13, results="asis"}
+for (ii in seq_along(label_f_ls)) {
+  this_labeller  = labeller_ls[[ii]]
+  this_model     = model_ls[[ii]]
+  this_hi_res_cl = hi_res_cl_ls[[ii]]
+
+  guesses_sel = guesses_ls[[ii]] %>%
+    .[, .(cell_id, prediction = predicted_label_naive %>% factor)]
+  int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2,
+    hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
+  confuse_dt  = calc_confuse_dt(guesses_sel, int_tmp, "prediction",
+    "hi_res_cl", min_cl2_p = min_cl2_p)
+
+  cat('####', this_labeller, ',', this_model, '\n')
+  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", this_hi_res_cl,
+    plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
+  cat('\n\n')
+}
+```
+
+### Predicted cell types over UMAP{.tabset}
+
+```{r plot_labels_umap, eval=do_labels, include=do_labels, fig.height=5, fig.width=12, results="asis"}
+for (ii in seq_along(label_f_ls)) {
+  this_labeller  = labeller_ls[[ii]]
+  this_model     = model_ls[[ii]]
+  this_hi_res_cl = hi_res_cl_ls[[ii]]
+
+  guesses_sel = guesses_ls[[ii]] %>%
+    .[, .(cell_id, prediction = predicted_label_agg %>% factor)]
+  int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2,
+    hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
+
+  g_cl   = plot_umap_labels(int_dt,
+    int_tmp[, .(cell_id, cluster = hi_res_cl)], "high resolution\ncluster")
+  g_pred = plot_umap_labels(int_dt,
+    guesses_sel[, .(cell_id, cluster = prediction)], "prediction\n(aggregated)")
+
+  cat('####', this_labeller, ',', this_model, '\n')
+  print(g_cl + g_pred)
+  cat('\n\n')
+}
+```
+
+### Totals for each predicted cell type{.tabset}
+
+```{r tbl_labels, eval=do_labels, include=do_labels, results="asis"}
+library(kableExtra)
+for (ii in seq_along(label_f_ls)) {
+  this_labeller = labeller_ls[[ii]]
+  this_model    = model_ls[[ii]]
+
+  cat('####', this_labeller, ',', this_model, '\n')
+  guesses_ls[[ii]] %>% calc_labels_table %>% kbl("html") %>%
+    row_spec(row = 0, bold = TRUE) %>%
+    kable_styling(bootstrap_options = "striped", full_width = FALSE,
+      font_size = 12, position = "center") %>%
+    scroll_box(width = "60%", height = "500px") %>% print
   cat('\n\n')
 }
 ```

@@ -125,6 +125,7 @@ scprocess newjoin <name> [-w <where>] [-p <config>...]
 * Metadata variables over UMAP (populated from `joint_sample_meta`)
 * Marker gene heatmaps, HVG expression, top markers per cluster
 * GSEA results (if `ref_txome` supports it)
+* Cell type labelling (if `label_celltypes` is configured)
 
 ## {{scknee}} { #scprocess-plotknee }
 
@@ -722,6 +723,14 @@ marker_genes:
   mkr_do_gsea: true
   # ... same options as main pipeline
 
+label_celltypes:                             # optional; run CellTypist or scprocess on the joint integration
+  - labeller: celltypist
+    model: Immune_All_Low                    # any CellTypist model name
+    hi_res_cl: RNA_snn_res.2                 # cluster column for majority voting (default: RNA_snn_res.2)
+    min_cl_prop: 0.5                         # min proportion to assign label (default: 0.5)
+  - labeller: scprocess
+    model: human_cns                         # XGBoost classifier
+
 shiny:
   app_title: My Joint Analysis
   # ... same options as project-level shiny section
@@ -755,6 +764,8 @@ For each project, genes are ranked by their standardised variance (`variances_no
       pb_marker_genes_*.csv.gz
       pb_hvgs_*.csv.gz
       fgsea_*_go_*.csv.gz     ← if do_gsea and supported ref_txome
+    {name}_label_celltypes/   ← if label_celltypes is configured
+      labels_celltypist_model_*.csv.gz
   analysis/
     {name}_join.Rmd           ← R Markdown source for the report
   public/
