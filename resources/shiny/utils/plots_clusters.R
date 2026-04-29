@@ -69,17 +69,9 @@ plot_cluster_umap <- function(umap_dt, col_pal, centroids,
   }
 
   # -- Legend panel: one row per cluster, circle + number + name ---------------
-  lgd_dt = copy(centroids)[, .(cluster, label_num, text_color)]
-  lgd_dt[, x_circle := 1]
-  lgd_dt[, y        := rev(seq_len(.N))]  # top-to-bottom order
-
-  lgd_dark  = lgd_dt[text_color == "black"]
-  lgd_light = lgd_dt[text_color == "white"]
-
-  # -- Legend panel: one row per cluster, circle + number + name ---------------
   lgd_dt    = copy(centroids)[, .(cluster, label_num, text_color)]
   x_circle  = 0
-  lgd_dt[, x_circle := x_circle ]
+  lgd_dt[, x_circle := x_circle]
   lgd_dt[, y        := rev(seq_len(.N))]  # top-to-bottom order
 
   lgd_dark  = lgd_dt[text_color == "black"]

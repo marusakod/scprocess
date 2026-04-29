@@ -207,6 +207,30 @@ body <- dashboardBody(
   useSweetAlert(),
   useShinyjs(),
   tags$style(HTML(".redBox { background-color: #ff0000; color: #ffffff; }")),
+  tags$style(HTML("
+    /* Header */
+    .main-header .navbar,
+    .main-header .navbar .sidebar-toggle { background-color: #724DB8 !important; }
+    .main-header .logo                   { background-color: #724DB8 !important; border-bottom: 0 !important; }
+    .main-header .logo:hover             { background-color: #543988 !important; }
+    /* Sidebar */
+    .main-sidebar, .left-side            { background-color: #B6A9DF !important; }
+    .sidebar-menu > li > a               { color: #3D3756 !important; }
+    .sidebar-menu > li.active > a        { background-color: rgba(61,55,86,0.12) !important;
+                                           border-left-color: #C9A561 !important;
+                                           color: #3D3756 !important; }
+    .sidebar-menu > li > a:hover         { background-color: rgba(61,55,86,0.08) !important; }
+    /* Body background */
+    .content-wrapper, .right-side        { background-color: #F0F0F0 !important; }
+    /* infoBox icon panels and link text */
+    .info-box .info-box-icon.bg-purple   { background-color: #724DB8 !important; }
+    .info-box .info-box-content a        { color: #724DB8 !important; }
+    /* Buttons */
+    .btn-primary                         { background-color: #724DB8 !important; border-color: #724DB8 !important; }
+    .btn-primary:hover,
+    .btn-primary:focus,
+    .btn-primary:active                  { background-color: #543988 !important; border-color: #543988 !important; }
+  ")),
   tags$script(HTML("
     var openTab = function(tabName) {
       $('a', $('.sidebar')).each(function() {
@@ -223,13 +247,13 @@ body <- dashboardBody(
 
     # HOME ---------------------------------------------------------------------
     tabItem(tabName = "description",
-      div(h2(strong(app_title)), style = "text-align: center; color:#10AFD6"),
+      div(h2(strong(app_title)), style = "text-align: center; color:#724DB8"),
       h3("What would you like to do?"),
       fluidRow(
-        infoBox("", a("Explore genes",      onclick = "openTab('explore_gene')",       href="#"), icon = icon("dna",         verify_fa = FALSE), width = 3),
-        infoBox("", a("Explore clusters",   onclick = "openTab('explore_clusters')",   href="#"), icon = icon("sitemap",     verify_fa = FALSE), width = 3),
-        infoBox("", a("Explore genesets",   onclick = "openTab('explore_gsets')",      href="#"), icon = icon("layer-group", verify_fa = FALSE), width = 3),
-        infoBox("", a("Explore prevalence", onclick = "openTab('explore_prevalence')", href="#"), icon = icon("percent",     verify_fa = FALSE), width = 3)
+        infoBox("", a("Explore genes",      onclick = "openTab('explore_gene')",       href="#"), icon = icon("dna",         verify_fa = FALSE), color = "purple", width = 3),
+        infoBox("", a("Explore clusters",   onclick = "openTab('explore_clusters')",   href="#"), icon = icon("sitemap",     verify_fa = FALSE), color = "purple", width = 3),
+        infoBox("", a("Explore genesets",   onclick = "openTab('explore_gsets')",      href="#"), icon = icon("layer-group", verify_fa = FALSE), color = "purple", width = 3),
+        infoBox("", a("Explore prevalence", onclick = "openTab('explore_prevalence')", href="#"), icon = icon("percent",     verify_fa = FALSE), color = "purple", width = 3)
       ),
       tags$style(".markdown-content { font-size: 17px; text-align: left; }"),
       div(class = "markdown-content", includeMarkdown("data/home.md"))
@@ -255,10 +279,10 @@ footer <- shinydashboardPlus::dashboardFooter(
       "Contact: ",
       a(href = paste0("mailto:", email), email, style = "margin-right: 5px;")
     ),
-  left = div(style = "color: #515A5A; font-size: 18px;",
+  left = div(style = "color: #3D3756; font-size: 18px;",
     "This app was generated with ",
-    a(href = "https://marusakod.github.io/scprocess/", "scprocess",
-      style = "color: #1a73e8;"), " :)"
+    a(href = "https://marusakod.github.io/scprocess/", strong("scprocess"),
+      style = "color: #9785D0;"), " :)"
   )
 )
 
@@ -266,7 +290,7 @@ ui <- function() {
   if (!dir.exists(www_dir)) dir.create(www_dir)
   addResourcePath("www", www_dir)
   tagList(shinydashboardPlus::dashboardPage(
-    skin = 'blue-light', header = header, sidebar = sidebar,
+    skin = 'purple', header = header, sidebar = sidebar,
     body = body, footer = footer
   ))
 }
