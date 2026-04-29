@@ -43,6 +43,11 @@ genesUI <- function(id) {
             choices   = lapply(palette_map, '[[', 'cols'),
             textColor = rep(rgb(0, 0, 0, alpha = 0), 5)
           ),
+          prettySwitch(
+            inputId = ns("gene_repel_labels"),
+            label   = "Repel cluster labels",
+            value   = FALSE
+          ),
           radioButtons(
             inputId  = ns("pb_dots_choice"),
             label    = "Dots are:",
@@ -82,11 +87,19 @@ genesServer <- function(id, shared) {
     ns = session$ns
 
     # populate server-side selectize choices
-    updateSelectizeInput(session, "Entry_gene",
-      server   = TRUE, selected = NULL,
-      options  = list(placeholder = sprintf('e.g. %s', shared$default_gene),
-                      onInitialize = I('function() { this.setValue("");}')),
-      choices  = shared$row_indx$symbol)
+    .init_entry_gene <- function()
+      updateSelectizeInput(session, "Entry_gene",
+        server  = TRUE, selected = shared$default_gene,
+        options = list(placeholder = sprintf('e.g. %s', shared$default_gene)),
+        choices = shared$row_indx$symbol)
+
+    .init_entry_gene()
+
+    # re-sync selectize after the global shinyjs::reset() that fires on tab switch
+    observeEvent(shared$current_tab(), {
+      req(shared$current_tab() == "explore_gene")
+      .init_entry_gene()
+    }, ignoreInit = TRUE)
 
     updateSelectizeInput(session, "Entry_ID",
       server   = TRUE, selected = NULL,
@@ -138,10 +151,16 @@ genesServer <- function(id, shared) {
       shinyjs::reset(ns("Entry_ID"))
     })
 
-    # track most recently entered gene (symbol or ensembl)
-    Entry_variable <- reactiveVal()
-    observeEvent(input$Entry_gene, { Entry_variable(input$Entry_gene) })
-    observeEvent(input$Entry_ID,   { Entry_variable(input$Entry_ID)   })
+    # track most recently entered gene (symbol or ensembl).
+    # initialised with default_gene so plots render immediately on first visit.
+    # guards against empty strings from shinyjs::reset() on tab switch.
+    Entry_variable <- reactiveVal(shared$default_gene)
+    observeEvent(input$Entry_gene, {
+      if (nchar(input$Entry_gene) > 0) Entry_variable(input$Entry_gene)
+    })
+    observeEvent(input$Entry_ID, {
+      if (nchar(input$Entry_ID) > 0) Entry_variable(input$Entry_ID)
+    })
 
     # row index for selected gene
     gene_idx <- reactive({
@@ -255,6 +274,15 @@ genesServer <- function(id, shared) {
           plotOutput(ns("cluster_overview_umap"), height = "680px"))
     })
 
-    output$cluster_overview_umap <- renderPlot({ shared$cl_cluster_umap })
+    output$cluster_overview_umap <- renderPlot({
+      label_mode = if (isTRUE(input$gene_repel_labels)) "repel" else "centroid"
+      plot_cluster_umap(
+        shared$cluster_umap_dt,
+        col_pal    = shared$vars_pals[['cluster']],
+        centroids  = shared$centroids,
+        repel_pos  = shared$repel_pos,
+        label_mode = label_mode
+      )
+    })
   })
 }

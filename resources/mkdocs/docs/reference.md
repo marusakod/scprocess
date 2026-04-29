@@ -637,6 +637,8 @@ scprocess shiny config-my_project.yaml -n
 
 The app is deployed to `public/shiny/` (main analysis) or `public/shiny_zoom_<zoom_name>/` (zoom). Configure app appearance via the optional `shiny:` section in the project config file (or in the zoom spec YAML for zoom apps). See [Optional parameters › shiny](#shiny) for available options.
 
+Pre-computed data files written to `public/shiny/data/` include `*-shiny_centroids-*.txt.gz` (cluster centroid UMAP coordinates) and `*-shiny_repel_pos-*.txt.gz` (low-density label positions for the "Repel cluster labels" toggle), both computed from the full cell population before downsampling.
+
 `scprocess shiny` also accepts a **join config** (see [scprocess join](#scprocess-join)) instead of a project config. The Shiny app is then built from the joint integration and marker-gene outputs and deployed to `public/shiny/`.
 
 

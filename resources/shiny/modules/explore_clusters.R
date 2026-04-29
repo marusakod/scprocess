@@ -46,6 +46,11 @@ clustersUI <- function(id) {
             inputId = ns("cl_order_plot"),
             label   = "Order clusters by mean expression",
             value   = FALSE
+          ),
+          prettySwitch(
+            inputId = ns("cl_repel_labels"),
+            label   = "Repel cluster labels",
+            value   = FALSE
           )
         )
       )
@@ -100,7 +105,14 @@ clustersServer <- function(id, shared) {
           col_pal    = shared$vars_pals[['cluster']]
         )
       } else {
-        shared$cl_cluster_umap
+        label_mode = if (isTRUE(input$cl_repel_labels)) "repel" else "centroid"
+        plot_cluster_umap(
+          shared$cluster_umap_dt,
+          col_pal    = shared$vars_pals[['cluster']],
+          centroids  = shared$centroids,
+          repel_pos  = shared$repel_pos,
+          label_mode = label_mode
+        )
       }
     })
 

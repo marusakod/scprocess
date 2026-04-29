@@ -40,4 +40,5 @@ dependencies:
   - r-stringr=1.6.0
   - r-tibble=3.3.0
   - r-viridis=0.6.5
+  - r-patchwork
   - r-yaml=2.3.11

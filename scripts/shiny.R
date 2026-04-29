@@ -282,6 +282,17 @@ make_shiny_app_scprocess <- function(
   setnames(all_meta, c("umap_1", "umap_2"), c("UMAP_1", "UMAP_2"))
   fwrite(all_meta, out_fs["out_cell_meta_f"])
 
+  # ---- Pre-compute cluster centroids from all cells (before downsampling) --
+  message("Computing cluster centroids")
+  centroids_dt <- all_meta[, .(UMAP_1 = median(UMAP_1), UMAP_2 = median(UMAP_2)), by = cluster] %>%
+    setorder(cluster)
+  fwrite(centroids_dt, out_fs["out_centroids_f"])
+
+  # ---- Pre-compute repelled label positions from full UMAP density ----------
+  message("Computing repelled label positions")
+  repel_pos_dt <- .compute_repel_positions(all_meta, centroids_dt)
+  fwrite(repel_pos_dt, out_fs["out_repel_pos_f"])
+
   # ---- Copy annotation.csv if supplied ------------------------------------
   if (nchar(annotation_csv_f) > 0 && file.exists(annotation_csv_f)) {
     annot <- fread(annotation_csv_f)
@@ -522,7 +533,9 @@ make_shiny_app_scprocess <- function(
     out_go_terms_f        = paste0(app_tag, "-shiny_go_terms-",        date_stamp, ".txt.gz"),
     out_sample_meta_f     = paste0(app_tag, "-shiny_sample_meta-",     date_stamp, ".txt.gz"),
     out_cluster_meta_f    = paste0(app_tag, "-shiny_cluster_meta-",    date_stamp, ".txt.gz"),
-    out_cell_meta_f       = paste0(app_tag, "-shiny_cell_meta-",       date_stamp, ".txt.gz")
+    out_cell_meta_f       = paste0(app_tag, "-shiny_cell_meta-",       date_stamp, ".txt.gz"),
+    out_centroids_f       = paste0(app_tag, "-shiny_centroids-",       date_stamp, ".txt.gz"),
+    out_repel_pos_f       = paste0(app_tag, "-shiny_repel_pos-",       date_stamp, ".txt.gz")
   )
   data_dir <- gsub("/$", "", data_dir)
   sapply(fs, function(f) file.path(data_dir, f))
@@ -541,6 +554,87 @@ make_shiny_app_scprocess <- function(
     keep_cells <- sample(umap_dt$cell_id, prob = umap_dt$p_keep, size = to_keep, replace = FALSE)
   }
   return(keep_cells)
+}
+
+
+# Compute label positions in low-density UMAP space for each cluster centroid.
+# Uses a 200x200 grid density map and a Chebyshev spiral search outward from
+# each centroid, stopping at the first position where the entire label footprint
+# (a clearance neighbourhood of r_clear grid cells) is empty.
+# Returns a data.table with columns: cluster, repel_1, repel_2.
+.compute_repel_positions <- function(all_meta, centroids_dt,
+                                     grid_res = 200L, max_radius_frac = 0.5,
+                                     r_clear  = 6L) {
+  u1_min <- min(all_meta$UMAP_1); u1_max <- max(all_meta$UMAP_1)
+  u2_min <- min(all_meta$UMAP_2); u2_max <- max(all_meta$UMAP_2)
+
+  x_breaks  <- seq(u1_min, u1_max, length.out = grid_res + 1L)
+  y_breaks  <- seq(u2_min, u2_max, length.out = grid_res + 1L)
+  x_centers <- (x_breaks[-1L] + x_breaks[-(grid_res + 1L)]) / 2
+  y_centers <- (y_breaks[-1L] + y_breaks[-(grid_res + 1L)]) / 2
+
+  # Bin all cells (vectorised)
+  gx  <- pmax(1L, pmin(grid_res, findInterval(all_meta$UMAP_1, x_breaks, rightmost.closed = TRUE)))
+  gy  <- pmax(1L, pmin(grid_res, findInterval(all_meta$UMAP_2, y_breaks, rightmost.closed = TRUE)))
+  idx <- gx + (gy - 1L) * grid_res
+  density_grid <- matrix(tabulate(idx, nbins = grid_res^2L),
+                         nrow = grid_res, ncol = grid_res)
+
+  # Build clearance grid: separable 2D box sum over (2*r_clear+1)^2 neighbourhood.
+  # clearance_grid[i,j] == 0  iff  ALL cells within r_clear steps are empty —
+  # i.e. the whole label footprint would sit in white space.
+  # Boundary cells get Inf so they are never chosen as label positions.
+  k <- rep(1, 2L * r_clear + 1L)
+  row_sums <- matrix(Inf, nrow = grid_res, ncol = grid_res)
+  for (i in seq_len(grid_res)) {
+    v <- stats::filter(density_grid[i, ], k, sides = 2)
+    row_sums[i, !is.na(v)] <- v[!is.na(v)]
+  }
+  clearance_grid <- matrix(Inf, nrow = grid_res, ncol = grid_res)
+  for (j in seq_len(grid_res)) {
+    v <- stats::filter(row_sums[, j], k, sides = 2)
+    clearance_grid[!is.na(v), j] <- v[!is.na(v)]
+  }
+
+  # Precompute offsets sorted by Chebyshev distance (the "spiral" order)
+  max_r   <- as.integer(round(grid_res * max_radius_frac))
+  seq_r   <- seq(-max_r, max_r)
+  offsets <- expand.grid(dx = seq_r, dy = seq_r)
+  offsets$r <- pmax(abs(offsets$dx), abs(offsets$dy))
+  offsets <- offsets[offsets$r > 0L, ]
+  offsets <- offsets[order(offsets$r), ]
+
+  repel_ls <- lapply(seq_len(nrow(centroids_dt)), function(i) {
+    cx  <- centroids_dt$UMAP_1[i]
+    cy  <- centroids_dt$UMAP_2[i]
+    cgx <- max(1L, min(grid_res, findInterval(cx, x_breaks, rightmost.closed = TRUE)))
+    cgy <- max(1L, min(grid_res, findInterval(cy, y_breaks, rightmost.closed = TRUE)))
+
+    best_d  <- clearance_grid[cgx, cgy]
+    best_gx <- cgx
+    best_gy <- cgy
+
+    if (best_d > 0) {
+      for (k in seq_len(nrow(offsets))) {
+        nx <- cgx + offsets$dx[k]
+        ny <- cgy + offsets$dy[k]
+        if (nx < 1L || nx > grid_res || ny < 1L || ny > grid_res) next
+        d <- clearance_grid[nx, ny]
+        if (d < best_d) {
+          best_d  <- d
+          best_gx <- nx
+          best_gy <- ny
+          if (d == 0) break
+        }
+      }
+    }
+
+    data.table(cluster = centroids_dt$cluster[i],
+               repel_1 = x_centers[best_gx],
+               repel_2 = y_centers[best_gy])
+  })
+
+  rbindlist(repel_ls)
 }
 
 

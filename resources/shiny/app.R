@@ -26,6 +26,7 @@ suppressPackageStartupMessages({
   library('MetBrewer')
   library('ggsci')
   library('viridis')
+  library('patchwork')
   library('ComplexHeatmap')
   library('circlize')
   library('BPCells')
@@ -148,6 +149,8 @@ if (!is.null(cluster_labels)) {
   cell_meta$cluster       = cluster_labels[cell_meta$cluster]
   cluster_markers$cluster = cluster_labels[cluster_markers$cluster]
   fgsea$cluster           = cluster_labels[fgsea$cluster]
+  centroids$cluster       = cluster_labels[centroids$cluster]
+  repel_pos$cluster       = cluster_labels[repel_pos$cluster]
   if (paga == 1) {
     paga_mat$cluster = cluster_labels[paga_mat$cluster]
     setnames(paga_mat, cluster_lvls, cluster_labels[cluster_lvls])
@@ -160,6 +163,8 @@ cluster_meta$cluster    = factor(cluster_meta$cluster,    levels = cluster_lvls)
 cell_meta$cluster       = factor(cell_meta$cluster,       levels = cluster_lvls)
 cluster_markers$cluster = factor(cluster_markers$cluster, levels = cluster_lvls)
 fgsea$cluster           = factor(fgsea$cluster,           levels = cluster_lvls)
+centroids$cluster       = factor(centroids$cluster,       levels = cluster_lvls)
+repel_pos$cluster       = factor(repel_pos$cluster,       levels = cluster_lvls)
 if (paga == 1) {
   paga_mat$cluster = factor(paga_mat$cluster, levels = cluster_lvls)
   paga_pos$cluster = factor(paga_pos$cluster, levels = cluster_lvls)
@@ -194,7 +199,7 @@ sidebar <- dashboardSidebar(
     menuItem("Explore genes",      tabName = "explore_gene",       icon = icon("dna",         verify_fa = FALSE)),
     menuItem("Explore clusters",   tabName = "explore_clusters",   icon = icon("sitemap",     verify_fa = FALSE)),
     menuItem("Explore genesets",   tabName = "explore_gsets",      icon = icon("layer-group", verify_fa = FALSE)),
-    menuItem("Explore prevalence", tabName = "explore_prevalence", icon = icon("database",    verify_fa = FALSE))
+    menuItem("Explore prevalence", tabName = "explore_prevalence", icon = icon("percent",     verify_fa = FALSE))
   )
 )
 
@@ -224,7 +229,7 @@ body <- dashboardBody(
         infoBox("", a("Explore genes",      onclick = "openTab('explore_gene')",       href="#"), icon = icon("dna",         verify_fa = FALSE), width = 3),
         infoBox("", a("Explore clusters",   onclick = "openTab('explore_clusters')",   href="#"), icon = icon("sitemap",     verify_fa = FALSE), width = 3),
         infoBox("", a("Explore genesets",   onclick = "openTab('explore_gsets')",      href="#"), icon = icon("layer-group", verify_fa = FALSE), width = 3),
-        infoBox("", a("Explore prevalence", onclick = "openTab('explore_prevalence')", href="#"), icon = icon("database",    verify_fa = FALSE), width = 3)
+        infoBox("", a("Explore prevalence", onclick = "openTab('explore_prevalence')", href="#"), icon = icon("percent",     verify_fa = FALSE), width = 3)
       ),
       tags$style(".markdown-content { font-size: 17px; text-align: left; }"),
       div(class = "markdown-content", includeMarkdown("data/home.md"))
@@ -245,12 +250,15 @@ body <- dashboardBody(
 )
 
 footer <- shinydashboardPlus::dashboardFooter(
-  right = div(style = "font-size: 18px;",
-    "Contact: ",
-    a(href = paste0("mailto:", email), email, style = "margin-right: 5px;")
-  ),
+  right = if (!is.null(email) && nchar(email) > 0)
+    div(style = "font-size: 18px;",
+      "Contact: ",
+      a(href = paste0("mailto:", email), email, style = "margin-right: 5px;")
+    ),
   left = div(style = "color: #515A5A; font-size: 18px;",
-    "Shiny template from atlastoolsR"
+    "This app was generated with ",
+    a(href = "https://marusakod.github.io/scprocess/", "scprocess",
+      style = "color: #1a73e8;"), " :)"
   )
 )
 
@@ -267,10 +275,9 @@ ui <- function() {
 
 server <- function(input, output, session) {
 
-  # pre-compute cluster UMAP once (shared by Explore Genes and Explore Clusters)
+  # UMAP data for cluster overview (rendered reactively in each module)
   cluster_umap_dt = copy(cell_meta) %>%
     .[keep_cell == TRUE, .(UMAP_1, UMAP_2, cluster)]
-  cl_cluster_umap = plot_cluster_umap(cluster_umap_dt, col_pal = vars_pals[['cluster']])
 
   # shared data passed to all modules
   shared <- list(
@@ -298,7 +305,10 @@ server <- function(input, output, session) {
     paga_weight_cut  = paga_weight_cut,
     predef_gsets     = predef_gsets,
     heatmap_width    = heatmap_width,
-    cl_cluster_umap  = cl_cluster_umap
+    cluster_umap_dt  = cluster_umap_dt,
+    centroids        = centroids,
+    repel_pos        = repel_pos,
+    current_tab      = reactive(input$tabs)
   )
   if (paga == 1) {
     shared$paga_mat = paga_mat

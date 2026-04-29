@@ -18,7 +18,9 @@ get_all_input_fs <- function(data_dir, date_stamp, paga = 0) {
     "go_terms"         = '-shiny_go_terms',
     "sample_meta"      = '-shiny_sample_meta',
     "cluster_meta"     = '-shiny_cluster_meta',
-    "cell_meta"        = '-shiny_cell_meta'
+    "cell_meta"        = '-shiny_cell_meta',
+    "centroids"        = '-shiny_centroids',
+    "repel_pos"        = '-shiny_repel_pos'
   )
 
   if (paga == 1) {

@@ -1,27 +1,102 @@
 # CLUSTER-LEVEL PLOT FUNCTIONS -------------------------------------------------
 
-# UMAP coloured by cluster identity, with centroid labels.
-plot_cluster_umap <- function(umap_dt, col_pal) {
-  centroids = copy(umap_dt) %>%
-    .[, `:=`(UMAP_1 = median(UMAP_1), UMAP_2 = median(UMAP_2)), by = cluster] %>%
-    unique()
+# UMAP coloured by cluster identity, with filled-circle centroid markers.
+# centroids:  data.table (cluster, UMAP_1, UMAP_2) — pre-computed from full data.
+# repel_pos:  data.table (cluster, repel_1, repel_2) — low-density label positions.
+# label_mode: "centroid" (default) places numbered circles on centroids;
+#             "repel" places them in low-density space with a connecting segment.
+# Returns a patchwork composite: UMAP on the left, numbered-circle legend on the right.
+plot_cluster_umap <- function(umap_dt, col_pal, centroids,
+                              repel_pos  = NULL,
+                              label_mode = c("centroid", "repel")) {
+  label_mode = match.arg(label_mode)
 
-  ggplot(umap_dt, aes(x = UMAP_1, y = UMAP_2, color = cluster)) +
+  centroids = copy(centroids) %>% .[order(cluster)]
+  centroids[, label_num := seq_len(.N)]
+
+  # Pick black or white number/stroke based on fill luminance (BT.709 coefficients)
+  fill_hex = col_pal[as.character(centroids$cluster)]
+  rgb_m    = col2rgb(fill_hex) / 255
+  lum      = 0.2126 * rgb_m[1, ] + 0.7152 * rgb_m[2, ] + 0.0722 * rgb_m[3, ]
+  centroids[, text_color := ifelse(lum > 0.5, "black", "white")]
+
+  ct_dark  = centroids[text_color == "black"]
+  ct_light = centroids[text_color == "white"]
+
+  # -- UMAP panel (no legend) --------------------------------------------------
+  umap_p = ggplot(umap_dt, aes(x = UMAP_1, y = UMAP_2, color = cluster)) +
     geom_scattermore(pointsize = 2.5, pixels = c(1024, 1024)) +
     theme_classic() +
-    labs(x = 'UMAP 1', y = 'UMAP 2', color = "cluster") +
+    labs(x = 'UMAP 1', y = 'UMAP 2') +
     theme(
       axis.text    = element_blank(),
       axis.ticks   = element_blank(),
       axis.title   = element_text(size = FONT_AXIS),
-      legend.text  = element_text(size = FONT_SMALL),
-      legend.title = element_text(size = FONT_TEXT),
       plot.title   = element_text(size = FONT_TITLE)
     ) +
-    guides(color = guide_legend(override.aes = list(size = 5), ncol = 1)) +
-    geom_text(data = centroids, aes(label = cluster),
-              size = 4, vjust = 2, color = "black", fontface = 'bold') +
-    scale_color_manual(values = col_pal, guide = 'none')
+    scale_color_manual(values = col_pal, guide = 'none') +
+    scale_fill_manual(values = col_pal,  guide = 'none')
+
+  if (label_mode == "centroid" || is.null(repel_pos)) {
+    # Numbered circles placed directly on centroids
+    umap_p = umap_p +
+      geom_point(data = ct_dark,  aes(fill = cluster),
+                 shape = 21, size = 9, stroke = 0.8, color = "black") +
+      geom_point(data = ct_light, aes(fill = cluster),
+                 shape = 21, size = 9, stroke = 0.8, color = "white") +
+      geom_text(data = ct_dark,  aes(label = label_num), size = 3.5, color = "black", fontface = "bold") +
+      geom_text(data = ct_light, aes(label = label_num), size = 3.5, color = "white", fontface = "bold")
+  } else {
+    # Small centroid dot + segment to low-density label position
+    rc = merge(centroids, repel_pos, by = "cluster")
+    rc_dark  = rc[text_color == "black"]
+    rc_light = rc[text_color == "white"]
+
+    umap_p = umap_p +
+      geom_point(data = centroids, aes(x = UMAP_1, y = UMAP_2),
+                 shape = 16, size = 2, color = "grey30") +
+      geom_segment(data = rc,
+                   aes(x = UMAP_1, y = UMAP_2, xend = repel_1, yend = repel_2),
+                   color = "grey30", linewidth = 0.35, lineend = "round") +
+      geom_point(data = rc_dark,  aes(x = repel_1, y = repel_2, fill = cluster),
+                 shape = 21, size = 9, stroke = 0.8, color = "black") +
+      geom_point(data = rc_light, aes(x = repel_1, y = repel_2, fill = cluster),
+                 shape = 21, size = 9, stroke = 0.8, color = "black") +
+      geom_text(data = rc_dark,  aes(x = repel_1, y = repel_2, label = label_num),
+                size = 3.5, color = "black", fontface = "bold") +
+      geom_text(data = rc_light, aes(x = repel_1, y = repel_2, label = label_num),
+                size = 3.5, color = "white", fontface = "bold")
+  }
+
+  # -- Legend panel: one row per cluster, circle + number + name ---------------
+  lgd_dt = copy(centroids)[, .(cluster, label_num, text_color)]
+  lgd_dt[, x_circle := 1]
+  lgd_dt[, y        := rev(seq_len(.N))]  # top-to-bottom order
+
+  lgd_dark  = lgd_dt[text_color == "black"]
+  lgd_light = lgd_dt[text_color == "white"]
+
+  n_cl    = nrow(lgd_dt)
+  x_label = lgd_dt$x_circle[1] + 0.15
+  x_max   = x_label + max(nchar(as.character(lgd_dt$cluster))) * 0.05
+
+  legend_p = ggplot(lgd_dt) +
+    geom_point(aes(x = x_circle, y = y, color = cluster),
+              shape = 16, size = 9) +
+    geom_text(data = lgd_dark,  aes(x = x_circle, y = y, label = label_num),
+              size = 3.5, color = "black", fontface = "bold") +
+    geom_text(data = lgd_light, aes(x = x_circle, y = y, label = label_num),
+              size = 3.5, color = "white", fontface = "bold") +
+    geom_text(aes(x = x_label, y = y, label = cluster),
+              hjust = 0, size = FONT_SMALL / .pt) +
+    annotate("text", x = x_title, y = n_cl + 0.9, label = "cluster",
+            hjust = 0.5, fontface = "bold", size = FONT_TEXT / .pt) +
+    scale_color_manual(values = col_pal, guide = 'none') +
+    scale_x_continuous(limits = c(0.7, x_max)) +
+    scale_y_continuous(limits = c(0.5, n_cl + 1.2)) +
+    theme_void() + labs( title = "cluster" )
+
+  patchwork::wrap_plots(umap_p, legend_p, widths = c(5, 1))
 }
 
 # PAGA graph: nodes sized by cell count, edges weighted by connectivity.
