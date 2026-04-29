@@ -2,7 +2,6 @@
 import os
 import sys
 import json
-import jsonschema
 import pathlib
 import yaml
 
@@ -24,13 +23,7 @@ _GSEA_TXOMES = {'human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'}
 
 if _is_join:
   # --- validate and unpack join config ---
-  with open(join_schema_f) as _f:
-    _join_schema = json.load(_f)
-  _errors = sorted(jsonschema.Draft202012Validator(_join_schema).iter_errors(config),
-                   key=lambda e: e.path)
-  if _errors:
-    raise ValueError("join.yaml validation errors:\n" +
-      "\n".join(f"  {list(e.path)}: {e.message}" for e in _errors))
+  config = check_join_config(config, join_schema_f)
 
   JOIN_NAME  = config['join']['name']
   PROJ_DIR   = pathlib.Path(config['join']['proj_dir'])

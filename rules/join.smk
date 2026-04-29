@@ -12,12 +12,11 @@
 import os
 import sys
 import pathlib
-import json
 import yaml
-import jsonschema
 import polars as pl
 
 sys.path.append('scripts')
+from scprocess_utils import check_join_config
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -25,29 +24,10 @@ sys.path.append('scripts')
 
 scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
-schema_f      = scprocess_dir / "resources/schemas/join.schema.json"
+join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
 
-# validate join config
-with open(schema_f) as _f:
-  _join_schema = json.load(_f)
-_validator = jsonschema.Draft202012Validator(_join_schema)
-_errors = sorted(_validator.iter_errors(config), key=lambda e: e.path)
-if _errors:
-  raise ValueError("join.yaml validation errors:\n" +
-    "\n".join(f"  {list(e.path)}: {e.message}" for e in _errors))
-
-# apply schema defaults
-def _apply_defaults(cfg, schema_props):
-  for key, prop in schema_props.items():
-    if key not in cfg and 'default' in prop:
-      cfg[key] = prop['default']
-    elif key in cfg and prop.get('type') == 'object' and 'properties' in prop:
-      _apply_defaults(cfg[key], prop['properties'])
-
-for section in ['hvg', 'integration', 'marker_genes']:
-  if section not in config:
-    config[section] = {}
-  _apply_defaults(config[section], _join_schema['properties'].get(section, {}).get('properties', {}))
+# validate config, apply defaults, and check shiny parameters
+config = check_join_config(config, join_schema_f)
 
 # ---------------------------------------------------------------------------
 # Project config loading

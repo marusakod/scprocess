@@ -666,7 +666,7 @@ scprocess shiny join.yaml
 
 ### Join config (`join.yaml`) { #join-config }
 
-The join config is a separate YAML file that specifies the projects to integrate and pipeline parameters. It is validated against a JSON Schema before execution.
+The join config is a separate YAML file that specifies the projects to integrate and pipeline parameters. It is validated against a JSON Schema before execution — including schema defaults applied to the `hvg`, `integration`, `marker_genes`, and `shiny` sections, and cross-checks on the `shiny` section (palette names, `var_names` length, `var_combns` references, file paths). This validation runs for both `scprocess join` and `scprocess shiny`.
 
 #### Required parameters
 
@@ -735,7 +735,7 @@ label_celltypes:                             # optional; run CellTypist or scpro
 
 shiny:
   app_title: My Joint Analysis
-  # ... same options as project-level shiny section
+  # ... same options as in the project-level shiny section (see Optional parameters › shiny)
 ```
 
 #### How HVGs are selected

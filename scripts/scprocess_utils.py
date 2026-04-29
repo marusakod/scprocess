@@ -598,7 +598,6 @@ def _check_shiny_parameters(config):
 
   # check metadata_palettes palette name strings; warn if keys are not in metadata_vars
   if shiny_cfg.get('metadata_palettes'):
-    import pdb; pdb.set_trace()
     for var, spec in shiny_cfg['metadata_palettes'].items():
       if metadata_vars and var not in metadata_vars:
         warnings.warn(
@@ -1632,6 +1631,47 @@ def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_
   )
 
   return hvg_df_full
+
+
+# ---------------------------------------------------------------------------
+# Join config validation
+# ---------------------------------------------------------------------------
+
+def _apply_join_defaults(cfg, schema_props):
+  """Recursively apply JSON Schema defaults to cfg in-place."""
+  for key, prop in schema_props.items():
+    if key not in cfg and 'default' in prop:
+      cfg[key] = prop['default']
+    elif key in cfg and prop.get('type') == 'object' and 'properties' in prop:
+      _apply_join_defaults(cfg[key], prop['properties'])
+
+
+def check_join_config(config, join_schema_f):
+  """Validate and augment a join.yaml config dict.
+
+  Mirrors check_config() for project configs:
+    1. Validates against join.schema.json
+    2. Applies schema defaults for hvg, integration, marker_genes, and shiny sections
+    3. Calls _check_shiny_parameters for shiny-specific cross-checks
+
+  Returns the (possibly modified) config dict.
+  """
+  with open(join_schema_f) as f:
+    join_schema = json.load(f)
+  errors = sorted(jsonschema.Draft202012Validator(join_schema).iter_errors(config),
+                  key=lambda e: e.path)
+  if errors:
+    raise ValueError("join.yaml validation errors:\n" +
+      "\n".join(f"  {list(e.path)}: {e.message}" for e in errors))
+
+  for section in ['hvg', 'integration', 'marker_genes', 'shiny']:
+    if section not in config:
+      config[section] = {}
+    _apply_join_defaults(config[section],
+      join_schema['properties'].get(section, {}).get('properties', {}))
+
+  config = _check_shiny_parameters(config)
+  return config
 
 
 # end

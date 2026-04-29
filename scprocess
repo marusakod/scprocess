@@ -556,8 +556,6 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 
 
 def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
-  import json
-  import jsonschema
   print('doing some checks on inputs')
 
   config_path   = pathlib.Path(configfile).resolve()
@@ -570,30 +568,21 @@ def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
   with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
-  _is_join = 'join' in config
+  _is_join      = 'join' in config
+  join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
 
   if _is_join:
-    # validate against join schema
-    join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
-    with open(join_schema_f) as f:
-      join_schema = json.load(f)
-    errors = sorted(jsonschema.Draft202012Validator(join_schema).iter_errors(config),
-                    key=lambda e: e.path)
-    if errors:
-      raise ValueError("join.yaml validation errors:\n" +
-        "\n".join(f"  {list(e.path)}: {e.message}" for e in errors))
-    proj_cfg    = config['join']
-
-    proj_dir = Path(config['join']['proj_dir'])
+    config   = scprocess_utils.check_join_config(config, join_schema_f)
+    proj_cfg = config['join']
     if zoom_name is not None:
       raise ValueError("--zoom is not supported for join configs. "
                        "Use 'scprocess shiny join.yaml' without --zoom.")
   else:
-    schema_f  = scprocess_dir / "resources/schemas/config.schema.json"
+    schema_f = scprocess_dir / "resources/schemas/config.schema.json"
     if not schema_f.is_file():
       raise FileNotFoundError("schema file not found")
-    proj_cfg  = config['project']
-    config    = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
+    config   = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
+    proj_cfg = config['project']
 
 
   if dryrun:
