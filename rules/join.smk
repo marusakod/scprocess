@@ -109,9 +109,16 @@ H5ADS_YAML_FS  = [str(_proj_h5ads_yaml_f(pid)) for pid in JOIN_PROJECT_IDS]
 INTEGRATED_FS  = [str(_proj_integrated_dt_f(pid)) for pid in JOIN_PROJECT_IDS]
 SAMPLE_META_FS = [str(_proj_sample_meta_f(pid)) for pid in JOIN_PROJECT_IDS]
 
-# Pre-compute joint batch keys from per-project h5ads YAMLs (these files already exist)
+# Pre-compute joint batch keys from per-project h5ads YAMLs (these files must
+# already exist — they are produced by scprocess integration, which must be
+# completed for every project listed under 'projects:' before running join).
 _JOIN_BATCH_KEYS = []
 for _pid, _h5yaml in zip(JOIN_PROJECT_IDS, H5ADS_YAML_FS):
+  if not pathlib.Path(_h5yaml).is_file():
+    raise FileNotFoundError(
+      f"h5ads YAML not found for project '{_pid}': {_h5yaml}\n"
+      f"  scprocess integration must be completed for this project before running join."
+    )
   with open(_h5yaml) as _fh:
     _h5paths = yaml.safe_load(_fh)
   for _bk in _h5paths:

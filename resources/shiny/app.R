@@ -1,4 +1,3 @@
-# .libPaths('/projects/site/pred/neurogenomics/resources/scprocess_data/rlibs/R-4.2.2-foss')
 # SETUP ------------------------------------------------------------------------
 
 suppressPackageStartupMessages({
