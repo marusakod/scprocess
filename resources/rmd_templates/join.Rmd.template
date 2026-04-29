@@ -45,22 +45,22 @@ sel_res       = "${mkr_sel_res}"
 res_ls        = "${int_res_ls}" %>% str_split(pattern = ' ') %>% unlist() %>% as.numeric()
 
 not_ok_re     = "(lincRNA|lncRNA|pseudogene|antisense)"
-min_cpm_mkr   = 50
-min_cells     = 10
-gsea_cut      = 0.1
+min_cpm_mkr   = ${mkr_min_cpm_mkr}
+min_cells     = ${mkr_min_cells}
+gsea_cut      = ${mkr_gsea_cut}
 gsea_var_sel  = "z_score"
 
 # input file paths
-integration_f = list.files(join_int_dir, pattern = "^integrated_dt_.*\\.csv\\.gz$", full.names = TRUE)[1]
-sample_meta_f = list.files(join_int_dir, pattern = "^joint_sample_meta_.*\\.csv$",  full.names = TRUE)[1]
-mkrs_f        = list.files(join_mkr_dir, pattern = "^pb_marker_genes_.*\\.csv\\.gz$", full.names = TRUE)[1]
-pb_hvgs_f     = list.files(join_mkr_dir, pattern = "^pb_hvgs_.*\\.csv\\.gz$",        full.names = TRUE)[1]
-pb_f          = list.files(join_mkr_dir, pattern = "^pb_.*\\.rds$",                  full.names = TRUE)[1]
-fgsea_go_bp_f = list.files(join_mkr_dir, pattern = "go_bp",  full.names = TRUE)[1]
-fgsea_go_cc_f = list.files(join_mkr_dir, pattern = "go_cc",  full.names = TRUE)[1]
-fgsea_go_mf_f = list.files(join_mkr_dir, pattern = "go_mf",  full.names = TRUE)[1]
+integration_f = "${integration_f}"
+sample_meta_f = "${sample_meta_f}"
+mkrs_f        = "${mkrs_f}"
+pb_hvgs_f     = "${pb_hvgs_f}"
+pb_f          = "${pb_f}"
+fgsea_go_bp_f = "${fgsea_go_bp_f}"
+fgsea_go_cc_f = "${fgsea_go_cc_f}"
+fgsea_go_mf_f = "${fgsea_go_mf_f}"
 
-do_gsea = ref_txome %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')
+do_gsea       = ref_txome %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')
 
 # custom markers for heatmap
 custom_mkr_names_str = "${custom_mkr_names}"
@@ -86,6 +86,8 @@ if (do_labels) {
   min_cl_prop_ls = str_split(min_cl_prop_ls_str, " ")[[1]] %>% as.numeric()
   min_cl2_p      = 0.2
 }
+
+cl_ord        = NULL
 ```
 
 
@@ -98,23 +100,21 @@ int_dt  = int_all[ !is.na(UMAP1) ] %>%
 
 
 ```{r load_metadata, include=FALSE}
-meta_dt = fread(sample_meta_f)
+meta_dt   = fread(sample_meta_f)
 
 # join project_id (and any other metadata) from sample meta into int_dt
 # project_id may not be in integrated_dt if batch_var was only sample_id
-meta_key = meta_dt[, .(sample_id, project_id)] %>% unique
-int_dt   = merge(int_dt, meta_key, by = "sample_id")
+meta_key  = meta_dt[, .(sample_id, project_id)] %>% unique
+int_dt    = merge(int_dt, meta_key, by = "sample_id")
 ```
 
 
 ```{r setup_sel_res, include=FALSE}
 sel_cl_int_dt = copy(int_dt) %>%
-  .[, cluster := get(paste0("RNA_snn_res.", sel_res))] %>%
+  .[, cluster := get(paste0("RNA_snn_res.", sel_res)) %>% fct_infreq ] %>%
   .[, .(sample_id, project_id, cell_id, UMAP1, UMAP2, cluster)] %>%
   merge(meta_dt, by = "sample_id", suffixes = c("", ".y")) %>%
   .[, grep("\\.y$", names(.), value = TRUE) := NULL]
-
-cl_ord = levels(fct_infreq(sel_cl_int_dt$cluster))
 
 metadata_vars = setdiff(names(meta_dt), c("sample_id", "project_id", "bad_sample_id"))
 cfg_metadata_vars = "${metadata_vars}" %>% str_split(" ") %>% unlist() %>% trimws()
@@ -151,9 +151,10 @@ top_hvgs = pb_hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs"]
 
 
 ```{r load_markers, include=FALSE}
-mkrs_dt = fread(mkrs_f)
+mkrs_dt     = fread(mkrs_f)
 if (is.null(cl_ord))
-  cl_ord = sort(unique(mkrs_dt$cluster))
+  cl_ord      = levels(sel_cl_int_dt$cluster) %>% intersect(unique(mkrs_dt$cluster))
+
 mkrs_ls = list(HVGs = top_hvgs)
 if (custom_mkr_names_str != "") {
   custom_mkrs_dt_ls = lapply(custom_mkr_paths, FUN = process_custom_markers,

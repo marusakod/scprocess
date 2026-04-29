@@ -200,7 +200,7 @@ plot_gsea_dotplot <- function(gsea_dt, n_top_paths = 10, gsea_cut = 0.05,
   # check inputs
   what      = match.arg(what)
   if (!is.null(cl_order)) {
-    assert_that( all(sort(unique(gsea_dt$cluster)) == sort(cl_order)) )
+    assert_that( all(unique(gsea_dt$cluster) %in% cl_order) )
   }
 
   # which terms?

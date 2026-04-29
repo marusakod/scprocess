@@ -105,13 +105,20 @@ cols_fn <- function(mat, res, pal, pal_dir = 1, range = 'natural') {
   "startrek", "uchicago", "frontiers", "flatui", "bootstrap"
 )
 
-# All valid palette names (built at load time from package metadata)
-VALID_PALETTE_NAMES <- c(
-  "nice_cols",
-  names(MetBrewer::MetPalettes),
-  rownames(RColorBrewer::brewer.pal.info),
-  .ggsci_palettes
-)
+# All valid palette names — read from valid_palettes.json copied into data/ at build time.
+# Falls back to building from packages if the file is not present.
+.pal_json <- file.path("data", "valid_palettes.json")
+VALID_PALETTE_NAMES <- if (file.exists(.pal_json)) {
+  .groups <- jsonlite::read_json(.pal_json)
+  unlist(.groups[!startsWith(names(.groups), "_")], use.names = FALSE)
+} else {
+  c(
+    "nice_cols",
+    names(MetBrewer::MetPalettes),
+    rownames(RColorBrewer::brewer.pal.info),
+    .ggsci_palettes
+  )
+}
 
 # Return n colours from a named palette. Handles overflow via interpolation.
 resolve_palette <- function(name, n) {

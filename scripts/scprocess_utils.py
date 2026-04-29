@@ -541,12 +541,73 @@ def _check_pb_empties_parameters(config):
   return config
 
 
+# load valid palette names from the shared resource file (mirrors shiny.R)
+_VALID_PALETTES_FILE = pathlib.Path(__file__).parent.parent / "resources" / "valid_palettes.json"
+
+def _load_valid_palette_names():
+  with open(_VALID_PALETTES_FILE) as f:
+    groups = json.load(f)
+  return {name for key, names in groups.items() if not key.startswith('_') for name in names}
+
+def _check_palette_name(name, context, valid_names):
+  if name not in valid_names:
+    raise ValueError(
+      f"Unknown palette '{name}' in {context}. "
+      f"See the scprocess documentation for valid palette names."
+    )
+
+
 # check parameters for shiny app build
 def _check_shiny_parameters(config):
   if 'shiny' not in config:
     return config
 
   shiny_cfg = config['shiny']
+
+  # resolve metadata_vars from whichever config level is present
+  if 'project' in config:
+    metadata_vars = config['project'].get('metadata_vars', [])
+  elif 'join' in config:
+    metadata_vars = config['join'].get('metadata_vars', [])
+  else:
+    metadata_vars = []
+
+  valid_palette_names = _load_valid_palette_names()
+
+  # check var_names length matches metadata_vars
+  if shiny_cfg.get('var_names') is not None:
+    if len(shiny_cfg['var_names']) != len(metadata_vars):
+      raise ValueError(
+        f"shiny.var_names has {len(shiny_cfg['var_names'])} entries but "
+        f"metadata_vars has {len(metadata_vars)}; they must be the same length"
+      )
+
+  # check var_combns values are in metadata_vars
+  if shiny_cfg.get('var_combns'):
+    for pair in shiny_cfg['var_combns']:
+      for v in pair:
+        if v not in metadata_vars:
+          raise ValueError(
+            f"shiny.var_combns references '{v}' which is not in metadata_vars: "
+            f"{metadata_vars}"
+          )
+
+  # check cluster_palette name
+  if shiny_cfg.get('cluster_palette'):
+    _check_palette_name(shiny_cfg['cluster_palette'], 'shiny.cluster_palette', valid_palette_names)
+
+  # check metadata_palettes palette name strings; warn if keys are not in metadata_vars
+  if shiny_cfg.get('metadata_palettes'):
+    import pdb; pdb.set_trace()
+    for var, spec in shiny_cfg['metadata_palettes'].items():
+      if metadata_vars and var not in metadata_vars:
+        warnings.warn(
+          f"shiny.metadata_palettes key '{var}' is not in metadata_vars; it will be ignored"
+        )
+      if isinstance(spec, str):
+        _check_palette_name(spec, f'shiny.metadata_palettes.{var}', valid_palette_names)
+      elif isinstance(spec, dict) and spec.get('palette'):
+        _check_palette_name(spec['palette'], f'shiny.metadata_palettes.{var}.palette', valid_palette_names)
 
   # check home_md if specified
   if shiny_cfg.get('home_md'):
@@ -780,6 +841,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
   # check hvgs option
   zoom_config   = _check_hvg_parameters(zoom_config)
   zoom_config   = _check_integration_parameters(zoom_config)
+  zoom_config   = _check_shiny_parameters(zoom_config)
 
   # get useful things
   SHORT_TAG     = config['project']['short_tag']

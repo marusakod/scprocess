@@ -6,8 +6,6 @@ suppressPackageStartupMessages({
   library("yaml")
   library("BPCells")
   library("MASS")
-  library("MetBrewer")
-  library("RColorBrewer")
   library("strex")
 })
 
@@ -83,6 +81,8 @@ make_shiny_app_scprocess <- function(
   metadata_vars <- strsplit(metadata_vars, ",")[[1]] %>% trimws()
   var_names     <- strsplit(var_names, ",")[[1]] %>% trimws()
   var_combns    <- jsonlite::fromJSON(var_combns)
+  if (is.matrix(var_combns))
+    var_combns  <- lapply(seq_len(nrow(var_combns)), function(i) var_combns[i, ])
 
   assert_that(length(metadata_vars) == length(var_names),
     msg = "metadata_vars and var_names must have the same length")
@@ -91,16 +91,10 @@ make_shiny_app_scprocess <- function(
   cluster_col   <- paste0("RNA_snn_res.", mkr_sel_res)
 
   # ---- Parse and validate palette arguments ----------------------------------
-  # Inline registry of valid names (mirrors colors.R VALID_PALETTE_NAMES)
-  .metbrewer_names <- names(MetBrewer::MetPalettes)
-  .rcolorbrewer_names <- rownames(RColorBrewer::brewer.pal.info)
-  .ggsci_names <- c(
-    "npg", "aaas", "nejm", "lancet", "jama", "jco", "ucscgb",
-    "d3", "d3_10", "d3_20", "d3_20b", "d3_20c",
-    "igv", "cosmic", "simpsons", "rickandmorty", "futurama", "tron",
-    "startrek", "uchicago", "frontiers", "flatui", "bootstrap"
-  )
-  .valid_pal_names <- c("nice_cols", .metbrewer_names, .rcolorbrewer_names, .ggsci_names)
+  # Load valid palette names from the shared resource file (mirrors scprocess_utils.py)
+  .pal_file       <- file.path(scprocess_dir, "resources", "valid_palettes.json")
+  .pal_groups     <- jsonlite::read_json(.pal_file)
+  .valid_pal_names <- unlist(.pal_groups[!startsWith(names(.pal_groups), "_")], use.names = FALSE)
 
   .check_palette_name <- function(name, context) {
     if (!name %in% .valid_pal_names)
@@ -157,6 +151,13 @@ make_shiny_app_scprocess <- function(
   for (f in c("app.R", "constants.R")) {
     file.copy(file.path(app_src, f), deploy_dir, overwrite = TRUE)
   }
+
+  # Copy valid_palettes.json so the deployed server does not need scprocess_dir
+  file.copy(
+    file.path(scprocess_dir, "resources", "valid_palettes.json"),
+    file.path(data_dir, "valid_palettes.json"),
+    overwrite = TRUE
+  )
   for (subdir in c("utils", "modules")) {
     src  <- file.path(app_src, subdir)
     dest <- file.path(deploy_dir, subdir)
@@ -243,20 +244,18 @@ make_shiny_app_scprocess <- function(
   message("Reading h5ad files")
   h5ad_paths  <- yaml::yaml.load_file(h5ads_yaml_f)  # list: batch_name -> path (or {path, project_id})
 
-  # Helper: load one h5ad; if entry is a join dict {path, project_id}, prefix cell IDs
+  # Helper: load one h5ad; if entry is a join dict {path, project_id}, log the project
+  # Cell IDs are kept as-is (the join pipeline already ensures uniqueness across projects)
   .load_one_h5ad_for_shiny <- function(h5ad_entry) {
     if (is.character(h5ad_entry)) {
       h5ad_f  <- h5ad_entry
       message(" reading ", basename(h5ad_f))
-      BPCells::open_matrix_anndata_hdf5(h5ad_f)
     } else {
       h5ad_f  <- h5ad_entry[["path"]]
       proj_id <- h5ad_entry[["project_id"]]
       message(" reading ", basename(h5ad_f), " (project: ", proj_id, ")")
-      mat <- BPCells::open_matrix_anndata_hdf5(h5ad_f)
-      colnames(mat) <- paste0(proj_id, ":", colnames(mat))
-      mat
     }
+    BPCells::open_matrix_anndata_hdf5(h5ad_f)
   }
 
   mat_list   <- lapply(h5ad_paths, .load_one_h5ad_for_shiny)
@@ -379,8 +378,12 @@ make_shiny_app_scprocess <- function(
   assert_that(all(c("symbol", "cluster", "FDR", "logFC", "logcpm.sel") %in% colnames(markers)),
     msg = "markers file missing expected columns (symbol, cluster, FDR, logFC, logcpm.sel)")
   markers[, is.tf := symbol %in% tf_symbols]
-  markers <- markers[, .(symbol, cluster, FDR, log2fc = logFC, CPM = round(exp(logcpm.sel) - 10), is.tf)] %>%
-    setorder(cluster, FDR)
+  if ("gene_type" %in% colnames(markers)) {
+    markers <- markers[, .(symbol, cluster, FDR, log2fc = logFC, CPM = round(exp(logcpm.sel) - 10), gene_type, is.tf)]
+  } else {
+    markers <- markers[, .(symbol, cluster, FDR, log2fc = logFC, CPM = round(exp(logcpm.sel) - 10), is.tf)]
+  }
+  markers <- markers %>% setorder(cluster, FDR)
   fwrite(markers, out_fs["out_cluster_markers_f"])
 
   # ---- HVGs ----------------------------------------------------------------
@@ -473,7 +476,7 @@ make_shiny_app_scprocess <- function(
   # ---- Write shinyconfig.yaml ----------------------------------------------
   message("Writing shinyconfig.yaml")
   meta_section <- list(
-    vars      = as.list(setNames(metadata_vars, var_names)),
+    vars      = as.list(metadata_vars),
     var_names = as.list(var_names),
     var_combns = if (length(var_combns) > 0) var_combns else NULL
   )

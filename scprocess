@@ -558,7 +558,6 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
   import json
   import jsonschema
-
   print('doing some checks on inputs')
 
   config_path   = pathlib.Path(configfile).resolve()
@@ -583,20 +582,25 @@ def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
     if errors:
       raise ValueError("join.yaml validation errors:\n" +
         "\n".join(f"  {list(e.path)}: {e.message}" for e in errors))
+    proj_cfg    = config['join']
+
     proj_dir = Path(config['join']['proj_dir'])
     if zoom_name is not None:
       raise ValueError("--zoom is not supported for join configs. "
                        "Use 'scprocess shiny join.yaml' without --zoom.")
   else:
-    schema_f = scprocess_dir / "resources/schemas/config.schema.json"
+    schema_f  = scprocess_dir / "resources/schemas/config.schema.json"
     if not schema_f.is_file():
       raise FileNotFoundError("schema file not found")
-    config   = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
-    proj_dir = Path(config['project']['proj_dir'])
+    proj_cfg  = config['project']
+    config    = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
+
 
   if dryrun:
     extraargs.append("-np")
 
+  # get directories
+  proj_dir  = Path(proj_cfg['proj_dir'])
   log_dir   = proj_dir / ".log/scprocess"
   log_f, log_header = _get_main_log(config_path, log_dir, dryrun)
   with open(log_f, "a") as f:
@@ -613,8 +617,8 @@ def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
       extraargs.append(str(cluster_log_dir))
 
   # determine target(s)
-  date_stamp = config['project']['date_stamp']
-  docs_dir   = proj_dir / "public"
+  date_stamp  = proj_cfg['date_stamp']
+  docs_dir    = proj_dir / "public"
   if zoom_name is None:
     # build main app
     if not dryrun:
@@ -649,7 +653,7 @@ def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
     "--rerun-triggers", "mtime", "params", "--rerun-incomplete",
     "--show-failed-logs", "--printshellcmds",
     "--software-deployment-method", "conda",
-    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{config['project']['proj_dir']}",
+    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{proj_dir}",
     *extraargs,
     *targets]
 

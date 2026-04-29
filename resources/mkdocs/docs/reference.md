@@ -556,9 +556,11 @@ The following palette names are accepted anywhere a `cluster_palette` or `metada
 | Source | Names |
 |--------|-------|
 | **scprocess built-in** | `nice_cols` (42 colours) |
-| **MetBrewer** | `Archambault`, `Austria`, `Benedictus`, `Cassatt1`, `Cassatt2`, `Cross`, `Degas`, `Demuth`, `Derain`, `Egypt`, `Gauguin`, `Greek`, `Hiroshige`, `Hokusai1`, `Hokusai2`, `Hokusai3`, `Homer1`, `Homer2`, `Ingres`, `Isfahan1`, `Isfahan2`, `Java`, `Johnson`, `Juarez`, `Kandinsky`, `Klimt`, `Lakota`, `Manet`, `Monet`, `Moreau`, `Morgenstern`, `Nattier`, `Navajo`, `NewKingdom`, `Nizami`, `OKeeffe1`, `OKeeffe2`, `Peru1`, `Peru2`, `Pillement`, `Pissaro`, `Redon`, `Renoir`, `Robert`, `Signac`, `Stevens`, `Tam`, `Tara`, `Thomas`, `Tiepolo`, `Troy`, `Tsimshian`, `VanGogh1`, `VanGogh2`, `VanGogh3`, `Veronese`, `Wissing`, `Wright` |
+| **MetBrewer** | `Archambault`, `Austria`, `Benedictus`, `Cassatt1`, `Cassatt2`, `Cross`, `Degas`, `Demuth`, `Derain`, `Egypt`, `Gauguin`, `Greek`, `Hiroshige`, `Hokusai1`, `Hokusai2`, `Hokusai3`, `Homer1`, `Homer2`, `Ingres`, `Isfahan1`, `Isfahan2`, `Java`, `Johnson`, `Juarez`, `Kandinsky`, `Klimt`, `Lakota`, `Manet`, `Monet`, `Moreau`, `Morgenstern`, `Nattier`, `Navajo`, `NewKingdom`, `Nizami`, `OKeeffe1`, `OKeeffe2`, `Paquin`, `Peru1`, `Peru2`, `Pillement`, `Pissaro`, `Redon`, `Renoir`, `Signac`, `Tam`, `Tara`, `Thomas`, `Tiepolo`, `Troy`, `Tsimshian`, `VanGogh1`, `VanGogh2`, `VanGogh3`, `Veronese`, `Wissing` |
 | **RColorBrewer** | Qualitative: `Accent`, `Dark2`, `Paired`, `Pastel1`, `Pastel2`, `Set1`, `Set2`, `Set3`. Sequential/diverging: `Blues`, `BuGn`, `BuPu`, `GnBu`, `Greens`, `Greys`, `Oranges`, `OrRd`, `PuBu`, `PuBuGn`, `PuRd`, `Purples`, `RdPu`, `Reds`, `YlGn`, `YlGnBu`, `YlOrBr`, `YlOrRd`, `BrBG`, `PiYG`, `PRGn`, `PuOr`, `RdBu`, `RdGy`, `RdYlBu`, `RdYlGn`, `Spectral`. |
 | **ggsci** | `npg`, `aaas`, `nejm`, `lancet`, `jama`, `jco`, `ucscgb`, `d3` / `d3_20`, `d3_10`, `d3_20b`, `d3_20c`, `igv`, `cosmic`, `simpsons`, `rickandmorty`, `futurama`, `tron`, `startrek`, `uchicago`, `frontiers`, `flatui`, `bootstrap` |
+
+The authoritative list is in `resources/valid_palettes.json` in the scprocess installation.
 
 When more colours are requested than a palette provides, MetBrewer palettes are interpolated continuously; all others are extended using `colorRampPalette`.
 
@@ -640,7 +642,7 @@ The app is deployed to `public/shiny/` (main analysis) or `public/shiny_zoom_<zo
 
 ## {{scjoin}} { #scprocess-join }
 
-**Description**: Integrate data across the outputs of multiple completed {{sc}} projects. HVG selection uses the existing per-project variance statistics (no recomputation from counts). Cell IDs are prefixed with `{project_id}:` to ensure uniqueness. The output follows the same structure as the main pipeline and is compatible with `scprocess shiny`.
+**Description**: Integrate data across the outputs of multiple completed {{sc}} projects. HVG selection uses the existing per-project variance statistics (no recomputation from counts). The output follows the same structure as the main pipeline and is compatible with `scprocess shiny`.
 
 **Parameters**:
 
@@ -677,7 +679,7 @@ join:
   your_name: Testy McUser
   affiliation: where you work
 
-projects:                 # key = project_id (used to prefix cell IDs and sample IDs)
+projects:                 # key = project_id (used to prefix sample IDs)
   project_a:
     config: /path/to/config_a.yaml
   project_b:
@@ -742,7 +744,7 @@ For each project, genes are ranked by their standardised variance (`variances_no
 
 #### Cell and sample IDs in the joint analysis
 
-* **Cell IDs** are prefixed: `{project_id}:{original_cell_id}` (e.g. `project_a:pool_1:AAACCCAAGAAACACT-1`).
+* **Cell IDs** are kept as-is from the original per-project h5ad files (cell IDs must be unique across all projects).
 * **Sample IDs** in the joint coldata are prefixed: `{project_id}_{original_sample_id}` (e.g. `project_a_pool_1`).
 * A `project_id` column is added to the joint coldata.
 * Metadata columns absent from a project are filled with `NA`.

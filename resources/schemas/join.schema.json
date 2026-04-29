@@ -82,7 +82,7 @@
       "properties": {
         "mkr_sel_res":      { "type": "number",   "default": 0.2 },
         "mkr_min_cl_size":  { "type": "integer",  "default": 100 },
-        "mkr_min_cells":    { "type": "integer",  "default": 10 },
+        "mkr_min_cells":    { "type": "integer",  "default": 1 },
         "mkr_not_ok_re":    { "type": "string",   "default": "(lincRNA|lncRNA|pseudogene|antisense)" },
         "mkr_min_cpm_mkr":  { "type": "integer",  "default": 50 },
         "mkr_min_cpm_go":   { "type": "integer",  "default": 1 },

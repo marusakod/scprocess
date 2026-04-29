@@ -522,6 +522,9 @@ if __name__ == "__main__":
     zoom_theta = (
       [float(t) for t in args.theta_concat.split()] if args.theta_concat else args.theta
     )
+    # unwrap single-element list so rapids_singlecell treats it as a scalar
+    if isinstance(zoom_theta, list) and len(zoom_theta) == 1:
+      zoom_theta = zoom_theta[0]
     run_zoom_integration(
       args.hvg_mat_f, args.sample_qc_f, args.coldata_f,
       args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,

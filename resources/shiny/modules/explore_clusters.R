@@ -115,10 +115,12 @@ clustersServer <- function(id, shared) {
         .[, -'is.tf'] %>%
         setorder(-log2fc)
 
-      if (input$cl_gene_type_filt == 'protein_coding') {
-        mkrs = mkrs[gene_type == 'protein_coding']
-      } else if (input$cl_gene_type_filt == 'no_lncRNA') {
-        mkrs = mkrs[gene_type != 'lncRNA']
+      if ("gene_type" %in% colnames(mkrs)) {
+        if (input$cl_gene_type_filt == 'protein_coding') {
+          mkrs = mkrs[gene_type == 'protein_coding']
+        } else if (input$cl_gene_type_filt == 'no_lncRNA') {
+          mkrs = mkrs[gene_type != 'lncRNA']
+        }
       }
       mkrs
     })
@@ -128,7 +130,9 @@ clustersServer <- function(id, shared) {
         selected_cluster_mkrs_dt(),
         options   = list(pageLength = 15, scrollX = TRUE, dom = 'ftp'),
         selection = "single"
-      ) %>% formatSignif(columns = "FDR", digits = 2)
+      ) %>% 
+      formatSignif(columns = "FDR", digits = 2) %>% 
+      formatRound(columns = "log2fc", digits = 2)
     })
 
     # gene selected by clicking a row in the markers table

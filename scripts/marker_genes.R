@@ -876,7 +876,7 @@ plot_selected_genes <- function(sel_dt, cpms_dt, cl_order = NULL, pseudo_count =
   ncol = 2, nrow = NULL) {
   # check cl_order ok
   if (!is.null(cl_order)) {
-    assert_that( all(sort(unique(cpms_dt$cluster)) == sort(cl_order)) )
+    assert_that( all(unique(cpms_dt$cluster) %in% cl_order) )
   }
   # infer number of rows
   if (is.null(nrow)) {
@@ -931,7 +931,7 @@ plot_top_marker_genes <- function(sel_cl, top_mkrs_dt, logcpms_all,
   cl_order = NULL, pseudo_count = 10) {
   # check cl_order ok
   if (!is.null(cl_order)) {
-    assert_that( all(sort(unique(cpms_dt$cluster)) == sort(cl_order)) )
+    assert_that( all(unique(logcpms_all$cluster) %in% cl_order) )
   }
 
   # which genes?

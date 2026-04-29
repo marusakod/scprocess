@@ -169,11 +169,11 @@ rule build_shiny_app:
     var_names     = ','.join(_shiny_cfg.get('var_names',
                       (config['project'].get('metadata_vars', []) if not _is_join
                        else config['join'].get('metadata_vars', [])))),
-    var_combns        = json.dumps(_shiny_cfg.get('var_combns', [])),
+    var_combns        = json.dumps(_shiny_cfg.get('var_combns', [])).replace('"', '\\"'),
     home_md_f         = _home_md_f,
     annotation_csv_f  = _annotation_csv_f,
     cluster_palette   = _shiny_cfg.get('cluster_palette', ''),
-    metadata_palettes = json.dumps(_shiny_cfg.get('metadata_palettes', {})),
+    metadata_palettes = json.dumps(_shiny_cfg.get('metadata_palettes', {})).replace('"', '\\"'),
     fgsea_go_bp_f     = lambda wildcards, input: getattr(input, 'fgsea_go_bp_f', ''),
     fgsea_go_cc_f     = lambda wildcards, input: getattr(input, 'fgsea_go_cc_f', ''),
     fgsea_go_mf_f     = lambda wildcards, input: getattr(input, 'fgsea_go_mf_f', ''),
@@ -255,12 +255,12 @@ rule build_zoom_shiny_app:
                          (config['project'].get('metadata_vars', []) if not _is_join
                           else config['join'].get('metadata_vars', [])))),
     var_combns       = lambda wc: json.dumps(
-                         ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('var_combns', [])),
+                         ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('var_combns', [])).replace('"', '\\"'),
     home_md_f        = lambda wc: _zoom_optional_path(wc.zoom_name, 'home_md'),
     annotation_csv_f = lambda wc: _zoom_optional_path(wc.zoom_name, 'annotation_csv'),
     cluster_palette  = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('cluster_palette', ''),
     metadata_palettes = lambda wc: json.dumps(
-                          ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('metadata_palettes', {})),
+                          ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('metadata_palettes', {})).replace('"', '\\"'),
     fgsea_go_bp_f    = lambda wildcards, input: getattr(input, 'fgsea_go_bp_f', ''),
     fgsea_go_cc_f    = lambda wildcards, input: getattr(input, 'fgsea_go_cc_f', ''),
     fgsea_go_mf_f    = lambda wildcards, input: getattr(input, 'fgsea_go_mf_f', ''),

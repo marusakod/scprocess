@@ -64,8 +64,8 @@ logo_f        = yaml_data$build$logo_f
 gsets_f       = yaml_data$build$gsets_f
 sample_col    = yaml_data$build$sample_col
 
-metadata_vars        = yaml_data$metadata$vars
-names(metadata_vars) = yaml_data$metadata$var_names
+metadata_vars        = unlist(yaml_data$metadata$vars)
+names(metadata_vars) = unlist(yaml_data$metadata$var_names)
 metadata_var_combns  = yaml_data$metadata$var_combns
 subset_vars          = c('cluster', metadata_vars)
 names(subset_vars)   = c('cluster', names(metadata_vars))
@@ -256,6 +256,7 @@ footer <- shinydashboardPlus::dashboardFooter(
 )
 
 ui <- function() {
+  if (!dir.exists(www_dir)) dir.create(www_dir)
   addResourcePath("www", www_dir)
   tagList(shinydashboardPlus::dashboardPage(
     skin = 'blue-light', header = header, sidebar = sidebar,

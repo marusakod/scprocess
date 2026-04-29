@@ -251,7 +251,10 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'join_int_dir', 'join_mkr_dir', 'ref_txome', 'mkr_sel_res',
       'int_res_ls', 'scprocess_dir', 'date_stamp', 'metadata_vars',
       'custom_mkr_names', 'custom_mkr_paths',
-      'label_f_ls', 'labeller_ls', 'model_ls', 'hi_res_cl_ls', 'min_cl_prop_ls')
+      'label_f_ls', 'labeller_ls', 'model_ls', 'hi_res_cl_ls', 'min_cl_prop_ls',
+      'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_cut',
+      'integration_f', 'sample_meta_f', 'mkrs_f', 'pb_hvgs_f', 'pb_f',
+      'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f')
 
     assert_that(all(req_names %in% add_args_names))
 
