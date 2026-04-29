@@ -76,25 +76,38 @@ plot_cluster_umap <- function(umap_dt, col_pal, centroids,
   lgd_dark  = lgd_dt[text_color == "black"]
   lgd_light = lgd_dt[text_color == "white"]
 
+  # -- Legend panel: one row per cluster, circle + number + name ---------------
+  lgd_dt    = copy(centroids)[, .(cluster, label_num, text_color)]
+  x_circle  = 0
+  lgd_dt[, x_circle := x_circle ]
+  lgd_dt[, y        := rev(seq_len(.N))]  # top-to-bottom order
+
+  lgd_dark  = lgd_dt[text_color == "black"]
+  lgd_light = lgd_dt[text_color == "white"]
+
   n_cl    = nrow(lgd_dt)
   x_label = lgd_dt$x_circle[1] + 0.15
   x_max   = x_label + max(nchar(as.character(lgd_dt$cluster))) * 0.05
 
   legend_p = ggplot(lgd_dt) +
     geom_point(aes(x = x_circle, y = y, color = cluster),
-              shape = 16, size = 9) +
+                shape = 16, size = 9) +
     geom_text(data = lgd_dark,  aes(x = x_circle, y = y, label = label_num),
               size = 3.5, color = "black", fontface = "bold") +
     geom_text(data = lgd_light, aes(x = x_circle, y = y, label = label_num),
               size = 3.5, color = "white", fontface = "bold") +
     geom_text(aes(x = x_label, y = y, label = cluster),
               hjust = 0, size = FONT_SMALL / .pt) +
-    annotate("text", x = x_title, y = n_cl + 0.9, label = "cluster",
-            hjust = 0.5, fontface = "bold", size = FONT_TEXT / .pt) +
     scale_color_manual(values = col_pal, guide = 'none') +
-    scale_x_continuous(limits = c(0.7, x_max)) +
-    scale_y_continuous(limits = c(0.5, n_cl + 1.2)) +
-    theme_void() + labs( title = "cluster" )
+    scale_x_continuous(limits = c(-0.05, x_max)) +
+    # scale_y_continuous(limits = c(0.5, n_cl + 1.2)) +
+    theme_void() +
+    theme(
+      plot.title = element_text(
+        face = "bold", size = 16, hjust = 0.1
+      )
+    ) +
+    labs( title = "cluster" )
 
   patchwork::wrap_plots(umap_p, legend_p, widths = c(5, 1))
 }
