@@ -23,13 +23,13 @@ rule run_mapping:
     R1_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["R1_fs"],
     R2_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["R2_fs"]
   output:
-    rad_f         = temp(f'{af_dir}/af_{{run}}/{af_rna_dir}af_map/map.rad'),
-    collate_rad_f = temp(f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/map.collated.rad'), 
-    fry_dir       = directory(f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/'),
-    mtx_f         = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
-    cols_f        = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
-    rows_f        = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
-    chem_stats_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml'
+    rad_f         = temp(f'{af_dir}/af_{{run}}/rna/af_map/map.rad'),
+    collate_rad_f = temp(f'{af_dir}/af_{{run}}/rna/af_quant/map.collated.rad'), 
+    fry_dir       = directory(f'{af_dir}/af_{{run}}/rna/af_quant/'),
+    mtx_f         = f'{af_dir}/af_{{run}}/rna/af_quant/alevin/quants_mat.mtx',
+    cols_f        = f'{af_dir}/af_{{run}}/rna/af_quant/alevin/quants_mat_cols.txt',
+    rows_f        = f'{af_dir}/af_{{run}}/rna/af_quant/alevin/quants_mat_rows.txt',
+    chem_stats_f  = f'{af_dir}/af_{{run}}/rna/chemistry_statistics.yaml'
   benchmark:
     f'{benchmark_dir}/mapping/run_mapping_{{run}}_{DATE_STAMP}.benchmark.txt'
   log:
@@ -57,9 +57,8 @@ rule run_mapping:
     fi
 
     # run mapping
-    python3 scripts/mapping.py {wildcards.run} \
+    python3 scripts/mapping.py map_fastqs_to_counts {wildcards.run} \
       --af_dir          "{af_dir}" \
-      --demux_type      "{params.demux_type}" \
       --what            "rna" \
       --af_home_dir     "{params.af_home_dir}" \
       --where           "{params.where}" \
@@ -75,11 +74,11 @@ rule run_mapping:
 
 rule save_alevin_to_h5:
   input: 
-    fry_dir     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/'
+    fry_dir     = f'{af_dir}/af_{{run}}/rna/af_quant/'
   output: 
-    af_h5_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
-    amb_yaml_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml',
-    knee_data_f = f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz'
+    af_h5_f     = f'{af_dir}/af_{{run}}/rna/af_counts_mat.h5',
+    amb_yaml_f  = f'{af_dir}/af_{{run}}/rna/ambient_params_{{run}}_{DATE_STAMP}.yaml',
+    knee_data_f = f'{af_dir}/af_{{run}}/rna/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz'
   params:
     knee1         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["knee1"],
     shin1         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["shin1"],
@@ -123,7 +122,7 @@ rule save_alevin_to_h5:
 
 rule collect_chemistry_stats:
   input:
-    chem_stats_fs  = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml', run = RUNS)
+    chem_stats_fs  = expand(f'{af_dir}/af_{{run}}/rna/chemistry_statistics.yaml', run = RUNS)
   output:
     chem_stats_merged_f = f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv'
   log:

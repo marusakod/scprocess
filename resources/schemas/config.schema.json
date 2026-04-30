@@ -23,7 +23,7 @@
         "ref_txome":            { "type": "string" },
         "probe_set":            { "type": "string" },
         "tenx_assay_type":      { "type": "string", "enum": ["flex", "poly_a"] },
-        "tenx_chemistry":       { "type": "string", "enum": ["none", "3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"],  "default": "none"},
+        "tenx_chemistry":       { "type": "string", "enum": ["none", "3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome", "flexv1", "flexv2"],  "default": "none"},
         "metadata_vars":        { "type": "array", "items": { "type": "string" } },
         "show_arv_uuids":       { "type": "boolean", "default": true },
         "custom_sample_params": { "type": "string" },
@@ -50,6 +50,11 @@
           "if":   { "properties": { "tenx_assay_type": { "const": "flex" } } },
           "then": { "required": ["probe_set"],  "not": { "required": ["ref_txome"] } },
           "else": { "required": ["ref_txome"],  "not": { "required": ["probe_set"] } }
+        },
+        {
+          "if":   { "properties": { "tenx_assay_type": { "const": "flex" } } },
+          "then": { "properties": { "tenx_chemistry": { "enum": ["none", "flexv1", "flexv2"] } } },
+          "else": { "properties": { "tenx_chemistry": { "enum": ["none", "3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"] } } }
         }
       ]
     },
@@ -434,7 +439,7 @@
       },
       "then": {
         "properties": {"multiplexing": {
-            "properties": {"demux_type": {"not": {"const": "none" } } }, "required": ["demux_type"]
+            "properties": {"demux_type": {"not": {"enum": ["none", "flex"] } } }, "required": ["demux_type"]
           }
         }, "required": ["multiplexing"]
       }

@@ -21,11 +21,13 @@ lm_f          = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12
 config        = check_config(config, schema_f, scdata_dir, scprocess_dir)
 
 # get lists of parameters
-RUN_PARAMS, RUN_VAR = get_run_parameters(config, scdata_dir)
+LIB_PARAMS, LIB_VAR = get_lib_parameters(config, scdata_dir)
+LIBS                = list(LIB_PARAMS.keys())
+RUN_PARAMS, RUN_VAR = get_run_parameters(config, scdata_dir, LIB_VAR, LIBS)
 RUNS                = list(RUN_PARAMS.keys())
 BATCH_PARAMS, BATCH_VAR, SAMPLES = get_batch_parameters(config, RUNS, scdata_dir)
 BATCHES             = list(BATCH_PARAMS.keys())
-RUNS_TO_BATCHES, RUNS_TO_SAMPLES = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
+RUNS_TO_BATCHES, RUNS_TO_SAMPLES, RUNS_TO_LIBS = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
 RESOURCE_PARAMS     = prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES)
 LABELLER_PARAMS     = get_labeller_parameters(config, schema_f, scdata_dir)
 IS_FLEX             = config['project']['is_flex']
@@ -43,7 +45,6 @@ benchmark_dir = f"{PROJ_DIR}/.resources"
 logs_dir      = f"{PROJ_DIR}/.log"
 code_dir      = f"{PROJ_DIR}/code"
 af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
-af_rna_dir    = 'rna/' if config['multiplexing']['demux_type'] == "hto" else ''
 amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
 demux_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
 dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
@@ -112,29 +113,50 @@ fgsea_outs = [
   f'{mkr_dir}/fgsea_{FULL_TAG}_{config["marker_genes"]["mkr_sel_res"]}_go_mf_{DATE_STAMP}.csv.gz'
 ] if (config['project']['ref_txome'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & config['marker_genes']['mkr_do_gsea'] else []
 
+# mapping outputs differ between flex and polyA
+if IS_FLEX:
+  af_mapping_outs = (
+    expand([
+      f'{af_dir}/af_{{lib}}/flex/af_quant/',
+      f'{af_dir}/af_{{lib}}/flex/af_quant/alevin/quants_mat.mtx',
+      f'{af_dir}/af_{{lib}}/flex/af_quant/alevin/quants_mat_cols.txt',
+      f'{af_dir}/af_{{lib}}/flex/af_quant/alevin/quants_mat_rows.txt',
+    ], lib=LIBS) +
+    expand([
+      f'{af_dir}/af_{{run}}/flex/af_counts_mat.h5',
+      f'{af_dir}/af_{{run}}/flex/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz',
+      f'{af_dir}/af_{{run}}/flex/ambient_params_{{run}}_{DATE_STAMP}.yaml',
+    ], run=RUNS)
+  )
+  chem_stats_outs = []
+else:
+  af_mapping_outs = expand([
+    f'{af_dir}/af_{{run}}/rna/af_quant/',
+    f'{af_dir}/af_{{run}}/rna/af_quant/alevin/quants_mat.mtx',
+    f'{af_dir}/af_{{run}}/rna/af_quant/alevin/quants_mat_cols.txt',
+    f'{af_dir}/af_{{run}}/rna/af_quant/alevin/quants_mat_rows.txt',
+    f'{af_dir}/af_{{run}}/rna/af_counts_mat.h5',
+    f'{af_dir}/af_{{run}}/rna/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz',
+    f'{af_dir}/af_{{run}}/rna/ambient_params_{{run}}_{DATE_STAMP}.yaml',
+  ], run=RUNS)
+  chem_stats_outs = [f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv']
+
 # one rule to rule them all
 rule all:
   input:
     # hto outputs
     hto_index_outs,
     hto_af_outs,
+    af_mapping_outs,
     expand(
       [
-      # mapping
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml',
       # ambient (cellbender, decontx or nothing)
       f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
       f'{amb_dir}/ambient_{{run}}/barcodes_qc_metrics_{{run}}_{DATE_STAMP}.csv.gz',
       # doublet id
       f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
       ], run =  RUNS),
-    f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv', 
+    chem_stats_outs,
     # ambient sample statistics
     f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     # demultiplexing
@@ -191,16 +213,8 @@ rule mapping:
   input:
     hto_index_outs, 
     hto_af_outs,
-    expand([
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml'
-      ], run = RUNS),
-    f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv',
+    af_mapping_outs,
+    chem_stats_outs,
     f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
     f'{docs_dir}/{SHORT_TAG}_mapping.html'
 
@@ -318,7 +332,10 @@ rule label_celltypes:
     f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
 
 # define rules that are needed
-include: "mapping.smk"
+if IS_FLEX:
+  include: "flex.smk"
+else:
+  include: "mapping.smk"
 if config['multiplexing']['demux_type'] == "hto":
   include: "hto.smk"
 include: "ambient.smk"

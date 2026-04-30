@@ -13,7 +13,7 @@ def get_conditional_fgsea_files(ref_txome, do_gsea):
 # rule render_html_mapping
 rule render_html_mapping:
   input:
-    knee_fs         = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz', run=RUNS)
+    knee_fs         = expand(f'{af_dir}/af_{{run}}/rna/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz', run=RUNS)
   output:
     r_utils_f       = f"{code_dir}/utils.R",
     r_map_f         = f"{code_dir}/mapping.R",
@@ -66,8 +66,7 @@ rule render_html_mapping:
         runs_str        = '{params.runs_str}', 
         ambient_method  = '{params.ambient_method}', 
         run_var         = '{params.run_var}', 
-        af_dir          = '{af_dir}', 
-        af_rna_dir      = '{af_rna_dir}'
+        af_dir          = '{af_dir}'
       )"
     """
 

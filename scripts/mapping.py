@@ -21,16 +21,15 @@ from queue import Queue
 import threading
 
 
-def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where, 
+def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where, 
   R1_fs, R2_fs, threads, t2g_f, index_dir, wl_lu_f, arv_instance = None,
   af_chemistry = 'none', exp_ori = 'none', whitelist_f = 'none'):
   # make output directory, in subdirectory if multiplexed samples
   out_dir   = f"{af_dir}/af_{run}"
-  if demux_type == "hto":
-    if what == "rna":
-      out_dir = f"{out_dir}/rna"
-    elif what == "hto":
-      out_dir = f"{out_dir}/hto"
+  if what == "rna":
+    out_dir = f"{out_dir}/rna"
+  elif what == "hto":
+    out_dir = f"{out_dir}/hto"
   os.makedirs(out_dir, exist_ok = True)
   print('made out_dir')
 
@@ -167,7 +166,7 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
 
 
 def map_flex_fastqs_to_counts(run, af_dir, af_home_dir, where, 
-  R1_fs, R2_fs, threads, index_dir, af_chemistry, gex_whitelist_f, probset_f, probe_bc_f, arv_instance = None):
+  R1_fs, R2_fs, threads, index_dir, af_chemistry, whitelist_f, probset_f, probe_bc_f, arv_instance = None):
   # make output directory, in subdirectory if multiplexed samples
   out_dir   = f"{af_dir}/af_{run}"
   os.makedirs(out_dir, exist_ok = True)
@@ -206,7 +205,7 @@ def map_flex_fastqs_to_counts(run, af_dir, af_home_dir, where,
     "--index", index_dir,
     "--probe-set", probset_f,
     "--chemistry", af_chemistry,
-    "--cell-bc-list", gex_whitelist_f,
+    "--cell-bc-list", whitelist_f,
     "--sample-bc-list", probe_bc_f,
     "--usa", 
     "--expected-ori", "fw",
@@ -465,7 +464,6 @@ if __name__ == "__main__":
   p_map = subparsers.add_parser('map_fastqs_to_counts')
   p_map.add_argument("run", type=str)
   p_map.add_argument("--af_dir", type=str)
-  p_map.add_argument("--demux_type", type=str)
   p_map.add_argument("--what", default="rna", type=str, choices=["rna", "hto"])
   p_map.add_argument("--af_home_dir", type=str)
   p_map.add_argument("--where", type=str)
@@ -491,7 +489,7 @@ if __name__ == "__main__":
   p_flex.add_argument("--af_index_dir", type=str)
   p_flex.add_argument("--af_chemistry", type=str)
   p_flex.add_argument("--gex_whitelist_f", type=str)
-  p_flex.add_argument("--probe_set_f", type=str)
+  p_flex.add_argument("--probeset_f", type=str)
   p_flex.add_argument("--probe_bc_f", type=str)
   p_flex.add_argument("--arv_instance", type=str, default=None)
 
@@ -505,7 +503,7 @@ if __name__ == "__main__":
       t2g_f     = f"{args.af_index_dir}/index/t2g_3col.tsv"
       index_dir = f"{args.af_index_dir}/index"
       
-    map_fastqs_to_counts(run=args.run, af_dir=args.af_dir, demux_type=args.demux_type,
+    map_fastqs_to_counts(run=args.run, af_dir=args.af_dir,
       what=args.what, af_home_dir=args.af_home_dir, where=args.where,
       R1_fs=args.R1_fs, R2_fs=args.R2_fs, threads=args.threads, af_chemistry=args.af_chemistry,
       exp_ori=args.exp_ori, wl_lu_f=args.wl_lu_f, whitelist_f=args.whitelist_f, t2g_f=t2g_f,
@@ -515,8 +513,8 @@ if __name__ == "__main__":
     index_dir = f"{args.af_index_dir}/index"
     map_flex_fastqs_to_counts(run=args.run, af_dir=args.af_dir, af_home_dir=args.af_home_dir,
       where=args.where, R1_fs=args.R1_fs, R2_fs=args.R2_fs, threads=args.threads,
-      index_dir=index_dir, af_chemistry=args.af_chemistry, gex_whitelist_f=args.gex_whitelist_f,
-      probset_f=args.probe_set_f, probe_bc_f=args.probe_bc_f, arv_instance=args.arv_instance)
+      index_dir=index_dir, af_chemistry=args.af_chemistry, whitelist_f=args.gex_whitelist_f,
+      probset_f=args.probeset_f, probe_bc_f=args.probe_bc_f, arv_instance=args.arv_instance)
 
 
 

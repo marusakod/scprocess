@@ -7,34 +7,9 @@ import numpy as np
 
 localrules: make_qc_thresholds_csv, check_qc_quality
 
-# get output file paths as string
-def _get_qc_files_str(run, RUNS_TO_BATCHES, qc_dir, FULL_TAG, DATE_STAMP):
-  # make lists
-  sce_fs_ls   = []
-  batches_ls  = []
-  for b in RUNS_TO_BATCHES[run]:
-    sce_fs_ls.append(f"{qc_dir}/sce_cells_tmp_{b}_{FULL_TAG}_{DATE_STAMP}.rds")
-    batches_ls.append(b)
-
-  # concatenate them
-  sce_str   = ','.join(sce_fs_ls)
-  batch_str  = ','.join(batches_ls)
-
-  # make out dictionary
-  out_dc = {
-    "batch_str":  batch_str, 
-    "sce_str":    sce_str
-  }
-  return out_dc
-
-
-# mini wrapper functions
+# mini wrapper function
 def get_all_batches_str(wildcards):
-  return _get_qc_files_str(wildcards.run, RUNS_TO_BATCHES, qc_dir, FULL_TAG, DATE_STAMP)['batch_str']
-
-
-def get_sce_fs_str(wildcards):
-  return _get_qc_files_str(wildcards.run, RUNS_TO_BATCHES, qc_dir, FULL_TAG, DATE_STAMP)['sce_str']
+  return ','.join(RUNS_TO_BATCHES[wildcards.run])
 
 
 def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, BATCHES, RUNS_TO_BATCHES, BATCH_VAR, RUN_VAR):
@@ -152,7 +127,7 @@ rule make_qc_thresholds_csv:
 
 rule run_qc_one_run:
   input:
-    af_h5_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5', 
+    af_h5_f     = f'{af_dir}/af_{{run}}/rna/af_counts_mat.h5', 
     cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv',
     run_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     amb_yaml_f  = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
@@ -168,7 +143,6 @@ rule run_qc_one_run:
     metadata_f      = config['project']['sample_metadata'],
     af_gtf_dt_f     = config['mapping']['af_gtf_dt_f'],
     all_batches_str = get_all_batches_str,
-    sce_fs_str      = get_sce_fs_str,
     mito_str        = config['mapping']['af_mito_str'],
     ambient_method  = config['ambient']['ambient_method'],
     exclude_mito    = config['qc']['exclude_mito'],
@@ -203,7 +177,6 @@ rule run_qc_one_run:
         demux_f         = '{input.demux_f}', \
         gtf_dt_f        = '{params.af_gtf_dt_f}', \
         ambient_method  = '{params.ambient_method}', \
-        sce_fs_str      = '{params.sce_fs_str}', \
         all_batches_str = '{params.all_batches_str}', \
         rowdata_f       = '{output.rowdata_f}', \
         qc_f            = '{output.qc_f}', \

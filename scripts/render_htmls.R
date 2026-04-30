@@ -96,7 +96,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
   } else if (sel_rule == 'mapping') {
     req_names = c('your_name', 'affiliation', 'short_tag', 
       'date_stamp', 'runs_str','ambient_method','run_var',
-      'af_dir', 'af_rna_dir')
+      'af_dir')
 
     assert_that(all(req_names %in% add_args_names))
 
