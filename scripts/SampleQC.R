@@ -310,7 +310,11 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
         new = c("demux_class", "hto_id")
       )
 
+    valid_hto_pools = unique(metadata_all[, .(hto_id, pool_id)])
+
     coldata_out = hto_coldata %>%
+      # flag cells with hto_id not valid for their pool
+      .[, valid_hto := interaction(hto_id, pool_id) %in% interaction(valid_hto_pools$hto_id, valid_hto_pools$pool_id)] %>%
       # merge with sample metadata
       merge(metadata_all, by = c("hto_id", "pool_id"), all.x = TRUE) %>%
       # merge with rest of sce metadata
@@ -476,7 +480,13 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   # restrict to singlets
   if (demux_type == "none") {
     keep_idx    = coldata_in$scdbl_class == 'singlet'
-  } else {
+  } else if (demux_type == "hto") {
+    if (batch_var == "sample_id") {
+      keep_idx    = (coldata_in$scdbl_class == 'singlet') & (coldata_in$demux_class == 'singlet') & (coldata_in$valid_hto == TRUE)
+    } else if (batch_var == "pool_id") {
+      keep_idx    = coldata_in$scdbl_class == 'singlet'
+    }
+  } else if (demux_type == "custom") {
     if (batch_var == "sample_id") {
       keep_idx    = (coldata_in$scdbl_class == 'singlet') & (coldata_in$demux_class == 'singlet')
     } else if (batch_var == "pool_id") {

@@ -58,22 +58,26 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
   # get whitelist lookup file
   wl_lu_dt = pl.read_csv(wl_lu_f)
 
-  if tenx_chemistry == 'none': 
+  if tenx_chemistry == 'none':
     print(' checking overlap of barcodes with different whitelists')
     wl_overlap_dt = _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt)
     # check for which barcode whitelist the overlap is the highest
     max_overlap = max(wl_overlap_dt['overlap'])
     if max_overlap < 0.7:
       warnings.warn(f'Maximum overlap ob barcodes is {max_overlap:.1%}, 10x chemistry guess might be incorrect')
-    
+
     sel_wl_dt = wl_overlap_dt.filter(pl.col('overlap') == max_overlap)
     whitelist_f = sel_wl_dt['gex_barcodes_f_full'][0]
-    
+
+    # check R1 read length to determine correct alevin chemistry
+    r1_length = _get_r1_read_length(R1_fs)
+    print(f' R1 read length: {r1_length}bp')
+
     if sel_wl_dt.height == 1:
       sample_chem = sel_wl_dt['chemistry'][0]
       tenx_chemistry = '10xv3'
       exp_ori = 'rc' if sample_chem =='5v3' else 'fw'
-      
+
       cell_counts_fw = ""
       cell_counts_rc = "" # no mapping to downsampled data needs to be done
     else: # if selected whitelist corresponds to multiple chemistries with different orrientation, do mapping on downsampled data
@@ -82,21 +86,26 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
       # make directory for temporary output files
       tmp_out_dir = f'{out_dir}/tmp_mapping'
       os.makedirs(tmp_out_dir, exist_ok=True)
-      
+
       sub_R1_f, sub_R2_f = _subset_fastqs(tmp_out_dir, R1_fs, R2_fs)
       chem_opts = set(sel_wl_dt['chemistry'])
       tenx_chemistry = '10xv2' if chem_opts == set(['3v2', '5v1', '5v2']) else '10xv3'
-      
+
       # map downsampled fastqs 2x
       for ori in ['fw', 'rc']:
-        _run_simpleaf_quant(f'{tmp_out_dir}/{ori}_mapping', [sub_R1_f], [sub_R2_f], threads, index_dir, 
+        _run_simpleaf_quant(f'{tmp_out_dir}/{ori}_mapping', [sub_R1_f], [sub_R2_f], threads, index_dir,
           tenx_chemistry, ori , t2g_f, whitelist_f)
-        
+
       # infer read orientation
       exp_ori, cell_counts_fw, cell_counts_rc = _infer_read_orientation(tmp_out_dir)
 
       # remove temporary mapping results and downsampled fastqs
       shutil.rmtree(tmp_out_dir)
+
+    # override to 10xv2 if R1 is too short for 10xv3
+    if tenx_chemistry == '10xv3' and r1_length < 28:
+      warnings.warn(f'R1 read length is {r1_length}bp (< 28bp); using 10xv2 chemistry with v3 whitelist')
+      tenx_chemistry = '10xv2'
        
       # get sample chemisty
       sample_chem = '3v2' if exp_ori == 'fw' else '5v1/5v2'
@@ -114,6 +123,16 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
       sample_chem = '3v2' if exp_ori == "fw" else '5v1/5v2'
     else:
       sample_chem = chem_opts[0]
+
+    # check R1 read length is compatible with specified chemistry
+    r1_length = _get_r1_read_length(R1_fs)
+    print(f' R1 read length: {r1_length}bp')
+    if tenx_chemistry == '10xv3' and r1_length < 28:
+      raise ValueError(
+        f"R1 read length is {r1_length}bp but chemistry '10xv3' requires >= 28bp. "
+        f"Set tenx_chemistry to '3v2' in your config or custom_sample_params to use "
+        f"10xv2 chemistry with shorter reads."
+      )
  
 
   # do quantification
@@ -142,7 +161,8 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
       hto_whitelist_f =  f'{os.path.dirname(whitelist_f)}/{hto_whitelist_fs[0]}'
 
     chem_stats = {
-     "run": run, 
+     "run": run,
+     "r1_read_length": r1_length,
      "selected_gex_whitelist": whitelist_f, 
      "selected_hto_whitelist": hto_whitelist_f, 
      "selected_translation_f": trans_f,
@@ -397,6 +417,17 @@ def _extract_raw_seqs_from_fq(fastq_all):
     if len(ls) > 1:
       seqs.append(ls[1])
   return seqs     
+
+
+def _get_r1_read_length(R1_fs):
+  random.seed(1234)
+  sel_R1_f = random.sample(R1_fs, 1)[0]
+  spell = f"seqkit head -n 1 {sel_R1_f} | seqkit seq -s"
+  spell_res = subprocess.run(spell, shell=True, capture_output=True, text=True)
+  seq = spell_res.stdout.strip()
+  if not seq:
+    raise RuntimeError(f"Could not read R1 sequence from {sel_R1_f}")
+  return len(seq)
 
 
 if __name__ == "__main__":

@@ -142,8 +142,8 @@ rule collect_chemistry_stats:
           rows.append(data)
     
       chem_stats_dt = pl.from_dicts(rows)
-      col_ord = ["run", "selected_tenx_chemistry", "selected_af_chemistry", 
-        "selected_ori", "selected_gex_whitelist", "selected_whitelist_overlap", 
+      col_ord = ["run", "r1_read_length", "selected_tenx_chemistry", "selected_af_chemistry",
+        "selected_ori", "selected_gex_whitelist", "selected_whitelist_overlap",
         "selected_hto_whitelist", "selected_translation_f", "n_cells_fw", "n_cells_rc"]
    
       chem_stats_dt =chem_stats_dt.select(col_ord)

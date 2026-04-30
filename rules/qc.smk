@@ -150,12 +150,38 @@ rule make_qc_thresholds_csv:
       cuts_df.write_csv(output.cuts_f)
 
 
+rule check_demux_ids:
+  input:
+    demux_f     = config['multiplexing']['demux_output'] if config['multiplexing']['demux_type'] == 'custom' else []
+  output:
+    check_f     = f'{qc_dir}/demux_ids_check_{FULL_TAG}_{DATE_STAMP}.ok'
+  params:
+    metadata_f  = config['project']['sample_metadata']
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'check_demux_ids', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'check_demux_ids', 'time', attempt)
+  log:
+    f'{logs_dir}/qc/check_demux_ids_{DATE_STAMP}.log'
+  conda:
+    '../envs/py_env.yaml'
+  shell: """
+    exec &>> {log}
+
+    PYTHONPATH=scripts python -c "from scprocess_utils import check_demux_ids; \
+      check_demux_ids('{input.demux_f}', '{params.metadata_f}', '{output.check_f}')"
+    """
+
+
 rule run_qc_one_run:
   input:
-    af_h5_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5', 
+    af_h5_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
     cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv',
     run_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     amb_yaml_f  = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
+    demux_check = f'{qc_dir}/demux_ids_check_{FULL_TAG}_{DATE_STAMP}.ok' \
+      if config['multiplexing']['demux_type'] == 'custom' else [],
     demux_f     = (f'{demux_dir}/sce_cells_htos_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds') \
       if config['multiplexing']['demux_type'] == 'hto' else \
       config['multiplexing']['demux_output'] if config['multiplexing']['demux_type'] == 'custom' else []
@@ -187,7 +213,7 @@ rule run_qc_one_run:
   benchmark:
     f'{benchmark_dir}/qc/run_qc_{{run}}_{DATE_STAMP}.benchmark.txt'
   log:
-    f'{logs_dir}/qc/run_qc_{{run}}_{DATE_STAMP}.log'
+    f'{logs_dir}/qc/run_qc_one_run_{{run}}_{DATE_STAMP}.log'
   conda:
     '../envs/rlibs.yaml'
   shell: """

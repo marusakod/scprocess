@@ -16,6 +16,7 @@ import subprocess
 import snakemake
 import json
 import jsonschema
+from jsonschema.exceptions import best_match
 
 ### not much setup
 
@@ -179,7 +180,9 @@ def _validate_object_against_schema(config, schema_f, file_desc):
     print(f"problem with schema file:\n  {str(e)}")
     sys.exit(1)
   except jsonschema.ValidationError as e:
-    print(f"problem with your {file_desc} file:\n  {str(e)}")
+    best = best_match([e])
+    path = ".".join(str(p) for p in best.absolute_path) if best.absolute_path else "(root)"
+    print(f"problem with your {file_desc} file:\n  At '{path}': {best.message}")
     sys.exit(1)
   except jsonschema.SchemaError as e:
     print(f"schema error: {str(e)}")
@@ -453,21 +456,38 @@ def _check_multiplexing_parameters(config):
     # check specified file is ok
     config['multiplexing']['demux_output'] = _check_path_exists_in_project(config['multiplexing']['demux_output'], config, what = "file")
 
-    # check if looks ok 
+    # check columns look ok (value-matching checks are done in the check_demux_ids rule)
     demux_df    = pl.read_csv(config['multiplexing']['demux_output'], n_rows = 10)
     for col in ["pool_id", "sample_id", "cell_id"]:
       if not col in demux_df.columns:
         raise KeyError(f"{col} not present in demux_output")
-
-    # check if samples in metadata and demux_df match
-    if set(demux_df['sample_id']) > set(samples_df['sample_id']):
-      raise ValueError("Some values for 'sample_id' in demux_output don't have a match in sample_metadata")
-    # if set(samples_df['sample_id']) > set(demux_df['sample_id']):
-    #   raise ValueError("Some values for 'sample_id' in sample_metadata don't have a match in demux_output")
-    if set(demux_df['pool_id']) != set(samples_df['pool_id']):
-      raise ValueError("Values for pool_id don't match across demux_output and sample_metadata")
       
   return config
+
+
+def check_demux_ids(demux_f, metadata_f, check_f):
+  demux_ids    = pl.scan_csv(demux_f).select('pool_id', 'sample_id').unique().collect()
+  metadata_ids = pl.read_csv(metadata_f).select('pool_id', 'sample_id')
+
+  demux_pools = set(demux_ids['pool_id'])
+  meta_pools  = set(metadata_ids['pool_id'])
+  if demux_pools != meta_pools:
+    missing_in_demux = meta_pools - demux_pools
+    missing_in_meta  = demux_pools - meta_pools
+    msg = 'Values for pool_id do not match across demux_output and sample_metadata.'
+    if missing_in_demux:
+      msg += f' In metadata but not demux: {missing_in_demux}'
+    if missing_in_meta:
+      msg += f' In demux but not metadata: {missing_in_meta}'
+    raise ValueError(msg)
+
+  demux_samples = set(demux_ids['sample_id'])
+  meta_samples  = set(metadata_ids['sample_id'])
+  if demux_samples > meta_samples:
+    missing = demux_samples - meta_samples
+    raise ValueError(f"Some values for 'sample_id' in demux_output do not have a match in sample_metadata: {missing}")
+
+  open(check_f, 'w').close()
 
 
 # check parameters for mapping
@@ -806,9 +826,10 @@ def get_run_parameters(config, scprocess_data_dir):
 
   # get fastq files
   RNA_FQS     = _get_fastqs(config, RUNS, is_hto = False)
+  missing_runs = [r for r in RUNS if r not in RNA_FQS]
+  if missing_runs:
+    raise ValueError(f"no FASTQ files found for the following samples: {missing_runs}")
   RUNS        = list(RNA_FQS.keys())
-  if len(RUNS) == 0:
-    raise ValueError("no runs with FASTQs")
 
   # get HTO files
   HTO_FQS     = {}
@@ -1030,8 +1051,9 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
   knee2       = ""
   shin2       = ""
   if run_name in custom_run_params:
-    if 'tenx_chemistry' in custom_run_params[run_name]:
-      sample_chem = custom_run_params[run_name]['tenx_chemistry']
+    if 'project' in custom_run_params[run_name]:
+      if 'tenx_chemistry' in custom_run_params[run_name]['project']:
+        sample_chem = custom_run_params[run_name]['project']['tenx_chemistry']
     if 'mapping' in custom_run_params[run_name]:
       if 'knee1' in custom_run_params[run_name]['mapping']:
         knee1       = custom_run_params[run_name]['mapping']['knee1']

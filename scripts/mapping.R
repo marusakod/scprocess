@@ -89,15 +89,15 @@ save_alevin_h5_knee_params_df <- function(run, fry_dir, h5_f, knee_data_f,
   if (hto_mat == 0) {
     # get spliced / unspliced values
     splice_dt = data.table(
-      barcode   = colnames(sce), 
-      spliced   = colSums(assay(sce, "S")), 
-      unspliced = colSums(assay(sce, "U"))
+      barcode   = colnames(sce),
+      spliced   = as.integer(colSums(assay(sce, "S"))),
+      unspliced = as.integer(colSums(assay(sce, "U")))
     )
     # add to bender_ps
     bender_ps = merge(bender_ps, splice_dt, by = "barcode") %>% .[ order(rank) ]
   }
 
-  fwrite(bender_ps, file = knee_data_f)
+  fwrite(bender_ps, file = knee_data_f, scipen = 999)
 
   return(bender_ps)
 }
