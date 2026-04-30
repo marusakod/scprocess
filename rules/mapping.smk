@@ -13,9 +13,9 @@ rule run_mapping:
   params:
     arv_instance  = config['project'].get('arv_instance', ""),
     demux_type    = config['multiplexing']['demux_type'],
-    af_home_dir   = config['mapping']['alevin_fry_home'],
-    af_index_dir  = config['mapping']['af_index_dir'],
-    wl_lu_f       = config['mapping']['wl_lu_f'],
+    af_home_dir   = config['mapping_af']['alevin_fry_home'],
+    af_index_dir  = config['mapping_af']['af_index_dir'],
+    wl_lu_f       = config['mapping_af']['wl_lu_f'],
     af_chemistry  = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["af_chemistry"],
     exp_ori       = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["expected_ori"],
     whitelist_f   = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["gex_whitelist_f"],

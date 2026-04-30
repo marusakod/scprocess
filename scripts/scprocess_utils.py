@@ -619,7 +619,7 @@ def _check_hvg_parameters(config):
       raise ValueError("duplicated values found in file specified in 'hvg_exclude_from_file'")
 
     # check values are in relevant ref genome
-    gtf_df      = pl.read_csv(config['mapping']['gene_info_f'], separator = "\t")
+    gtf_df      = pl.read_csv(config['mapping_af']['gene_info_f'], separator = "\t")
     all_vals    = gtf_df[ gene_col ]
     absent_vals = set(exc_vals) - set(all_vals)
     if len(absent_vals) > 0:
@@ -651,7 +651,7 @@ def _check_hvg_parameters(config):
   # get number of gene chunks if method is 'groups' or 'all'
   if config['hvg']['hvg_method'] in ['groups', 'all']:
     # get total number of genes
-    gtf_df      = pl.read_csv(config['mapping']['af_gtf_dt_f'], separator = "\t")
+    gtf_df      = pl.read_csv(config['mapping_af']['gene_info_f'], separator = "\t")
     num_genes   = gtf_df.shape[0]
 
     # chunk them up and name them
@@ -1197,7 +1197,7 @@ def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
 
 
 # get parameters for one run
-def _get_run_parameters_one_run(run_name, config, scdata_dir, custom_run_params, probe_id=None):
+def _get_run_parameters_one_run(run_name, config, scdata_dir, custom_run_params, probe_id=None, lib_name=None, LIB_PARAMS=None):
 
   knee1 = ""
   shin1 = ""
@@ -1215,12 +1215,19 @@ def _get_run_parameters_one_run(run_name, config, scdata_dir, custom_run_params,
       if 'shin2' in custom_run_params[run_name]['mapping']:
         shin2 = custom_run_params[run_name]['mapping']['shin2']
 
+  # get R1 size from the corresponding library
+  if LIB_PARAMS is not None and lib_name is not None and lib_name in LIB_PARAMS:
+    r1_size_gb = LIB_PARAMS[lib_name]["mapping_af"]["R1_fs_size_gb"]
+  else:
+    r1_size_gb = 0
+
   # make dictionary for mapping
   mapping_dc  = {
     "knee1":              knee1,
     "shin1":              shin1,
     "knee2":              knee2,
-    "shin2":              shin2
+    "shin2":              shin2,
+    "R1_fs_size_gb":      r1_size_gb
   }
   if probe_id is not None:
     mapping_dc["probe_id"] = probe_id
@@ -1441,7 +1448,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
   return LABELLER_PARAMS
 
 
-def prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES):
+def prep_resource_params(config, schema_f, lm_f, LIB_PARAMS, BATCHES):
   # add default resource values
   schema      = _load_schema_file(schema_f)
   defaults    = _get_default_config_from_schema(schema)
@@ -1460,7 +1467,7 @@ def prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES):
   lm_df       = pl.read_csv(lm_f)
 
   # get sizes, n-batches
-  R1_sizes    = { run: vals["mapping"]["R1_fs_size_gb"]  for run,vals in RUN_PARAMS.items() }
+  R1_sizes    = { lib: vals["mapping_af"]["R1_fs_size_gb"] for lib, vals in LIB_PARAMS.items() }
   n_batches   = len(BATCHES)
 
   # make full dict of useful things

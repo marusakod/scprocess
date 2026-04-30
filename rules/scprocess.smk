@@ -28,11 +28,15 @@ RUNS                = list(RUN_PARAMS.keys())
 BATCH_PARAMS, BATCH_VAR, SAMPLES = get_batch_parameters(config, RUNS, scdata_dir)
 BATCHES             = list(BATCH_PARAMS.keys())
 RUNS_TO_BATCHES, RUNS_TO_SAMPLES, RUNS_TO_LIBS = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
-RESOURCE_PARAMS     = prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES)
+RESOURCE_PARAMS     = prep_resource_params(config, schema_f, lm_f, LIB_PARAMS, BATCHES)
 LABELLER_PARAMS     = get_labeller_parameters(config, schema_f, scdata_dir)
 IS_FLEX             = config['project']['is_flex']
 # check if flex data is multiplexed
 IS_FLEX_MUXED       = config['multiplexing']['demux_type'] == "flex"
+# subdirectory prefix used by ambient/pb_empties rules to locate per-run outputs
+af_rna_dir          = 'flex/' if IS_FLEX else 'rna/'
+# unified reference label: probe_set for flex, ref_txome for polyA
+GENOME_REF          = config['project'].get('probe_set', config['project'].get('ref_txome', ''))
 
 # unpack some variables that we use a lot
 PROJ_DIR        = config['project']['proj_dir']
@@ -111,7 +115,10 @@ fgsea_outs = [
   f'{mkr_dir}/fgsea_{FULL_TAG}_{config["marker_genes"]["mkr_sel_res"]}_go_bp_{DATE_STAMP}.csv.gz',
   f'{mkr_dir}/fgsea_{FULL_TAG}_{config["marker_genes"]["mkr_sel_res"]}_go_cc_{DATE_STAMP}.csv.gz',
   f'{mkr_dir}/fgsea_{FULL_TAG}_{config["marker_genes"]["mkr_sel_res"]}_go_mf_{DATE_STAMP}.csv.gz'
-] if (config['project']['ref_txome'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & config['marker_genes']['mkr_do_gsea'] else []
+] if (
+  (IS_FLEX and config['project'].get('probe_set', '') in ['human_v1', 'mouse_v1', 'human_v2', 'mouse_v2']) or
+  (not IS_FLEX and config['project'].get('ref_txome', '') in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'])
+) and config['marker_genes']['mkr_do_gsea'] else []
 
 # mapping outputs differ between flex and polyA
 if IS_FLEX:
@@ -239,7 +246,7 @@ rule ambient:
 
 rule qc:
   params:
-    mito_str        = config['mapping']['af_mito_str'],
+    mito_str        = config['mapping_af']['af_mito_str'],
     exclude_mito    = config['qc']['exclude_mito'],
     hard_min_counts = config['qc']['qc_hard_min_counts'],
     hard_min_feats  = config['qc']['qc_hard_min_feats'],

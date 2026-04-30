@@ -58,8 +58,8 @@ rule run_mapping_hto:
   params:
     arv_instance  = config['project'].get('arv_instance', ""),
     demux_type    = config['multiplexing']['demux_type'],
-    af_home_dir   = config['mapping']['alevin_fry_home'],
-    wl_lu_f       = config['mapping']['wl_lu_f'], 
+    af_home_dir   = config['mapping_af']['alevin_fry_home'],
+    wl_lu_f       = config['mapping_af']['wl_lu_f'],
     where         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["where"],
     R1_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R1_fs"],
     R2_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R2_fs"],

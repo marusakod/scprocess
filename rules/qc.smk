@@ -127,7 +127,7 @@ rule make_qc_thresholds_csv:
 
 rule run_qc_one_run:
   input:
-    af_h5_f     = f'{af_dir}/af_{{run}}/rna/af_counts_mat.h5', 
+    af_h5_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
     cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv',
     run_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     amb_yaml_f  = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
@@ -141,9 +141,9 @@ rule run_qc_one_run:
     dbl_f        = f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
     metadata_f      = config['project']['sample_metadata'],
-    af_gtf_dt_f     = config['mapping']['af_gtf_dt_f'],
+    af_gtf_dt_f     = config['mapping_af']['gene_info_f'],
     all_batches_str = get_all_batches_str,
-    mito_str        = config['mapping']['af_mito_str'],
+    mito_str        = config['mapping_af']['af_mito_str'],
     ambient_method  = config['ambient']['ambient_method'],
     exclude_mito    = config['qc']['exclude_mito'],
     hard_min_counts = config['qc']['qc_hard_min_counts'],

@@ -1,6 +1,8 @@
 
-def get_conditional_fgsea_files(ref_txome, do_gsea):
-  if (ref_txome in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & do_gsea:
+def get_conditional_fgsea_files(genome_ref, do_gsea):
+  valid_refs = ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020',
+                'human_v1', 'mouse_v1', 'human_v2', 'mouse_v2']
+  if (genome_ref in valid_refs) & do_gsea:
     return {
       'fgsea_go_bp_f': f'{mkr_dir}/fgsea_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_go_bp_{DATE_STAMP}.csv.gz',
       'fgsea_go_cc_f': f'{mkr_dir}/fgsea_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_go_cc_{DATE_STAMP}.csv.gz',
@@ -13,7 +15,7 @@ def get_conditional_fgsea_files(ref_txome, do_gsea):
 # rule render_html_mapping
 rule render_html_mapping:
   input:
-    knee_fs         = expand(f'{af_dir}/af_{{run}}/rna/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz', run=RUNS)
+    knee_fs         = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz', run=RUNS)
   output:
     r_utils_f       = f"{code_dir}/utils.R",
     r_map_f         = f"{code_dir}/mapping.R",
@@ -402,7 +404,7 @@ rule render_html_marker_genes:
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     hvgs_f        = f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
     empty_gs_f    = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    **get_conditional_fgsea_files(config['project']['ref_txome'], config['marker_genes']['mkr_do_gsea'])
+    **get_conditional_fgsea_files(GENOME_REF, config['marker_genes']['mkr_do_gsea'])
   output:
     r_mkr_f       = f"{code_dir}/marker_genes.R",
     r_fgsea_f     = f"{code_dir}/fgsea.R",
@@ -417,9 +419,9 @@ rule render_html_marker_genes:
     date_stamp        = config['project']['date_stamp'],
     proj_dir          = config['project']['proj_dir'],
     metadata_f        = config['project']['sample_metadata'],
-    ref_txome         = config['project']['ref_txome'],
+    genome_ref        = GENOME_REF,
     meta_vars         = ','.join(config['project']['metadata_vars']),
-    af_gtf_dt_f       = config['mapping']['af_gtf_dt_f'],
+    af_gtf_dt_f       = config['mapping_af']['gene_info_f'],
     custom_mkr_names  = config['marker_genes']['custom_mkr_names'],
     custom_mkr_paths  = config['marker_genes']['custom_mkr_paths'],
     mkr_sel_res       = config['marker_genes']['mkr_sel_res'],
@@ -485,7 +487,7 @@ rule render_html_marker_genes:
       mkr_gsea_var      = '{params.mkr_gsea_var}',
       mkr_gsea_cut      =  {params.mkr_gsea_cut},
       {params.fgsea_args}
-      ref_txome         = '{params.ref_txome}', 
+      ref_txome         = '{params.genome_ref}',
       do_gsea           = '{params.mkr_do_gsea}'
     )"
     """

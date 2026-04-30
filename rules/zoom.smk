@@ -26,12 +26,14 @@ lm_f            = scprocess_dir / "resources/snakemake/resources_lm_params_2025-
 config          = check_config(config, proj_schema_f, scdata_dir, scprocess_dir)
 
 # get lists of parameters
-RUN_PARAMS, RUN_VAR = get_run_parameters(config, scdata_dir)
+LIB_PARAMS, LIB_VAR = get_lib_parameters(config, scdata_dir)
+LIBS                = list(LIB_PARAMS.keys())
+RUN_PARAMS, RUN_VAR = get_run_parameters(config, scdata_dir, LIB_VAR, LIBS)
 RUNS                = list(RUN_PARAMS.keys())
 BATCH_PARAMS, BATCH_VAR, SAMPLES = get_batch_parameters(config, RUNS, scdata_dir)
 BATCHES             = list(BATCH_PARAMS.keys())
-RUNS_TO_BATCHES, RUNS_TO_SAMPLES = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
-RESOURCE_PARAMS     = prep_resource_params(config, proj_schema_f, lm_f, RUN_PARAMS, BATCHES)
+RUNS_TO_BATCHES, RUNS_TO_SAMPLES, _ = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
+RESOURCE_PARAMS     = prep_resource_params(config, proj_schema_f, lm_f, LIB_PARAMS, BATCHES)
 
 # get zoom parameters
 ZOOM_PARAMS         = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
@@ -770,7 +772,7 @@ rule zoom_run_marker_genes:
     pb_hvgs_f       = f'{zoom_dir}/{{zoom_name}}/pb_hvgs_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz'
   params:
     ref_txome           = config['project']['ref_txome'],
-    af_gtf_dt_f         = config['mapping']['af_gtf_dt_f'],
+    af_gtf_dt_f         = config['mapping_af']['gene_info_f'],
     batch_var           = BATCH_VAR,
     zoom_mkr_sel_res     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_sel_res'],
     zoom_mkr_min_cl_size = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cl_size'], 
@@ -933,7 +935,7 @@ rule render_html_zoom:
       f"fgsea_go_cc_f = '{input.get('fgsea_go_cc_f', '')}'",
       f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}'"
     ]), 
-    af_gtf_dt_f           = config['mapping']['af_gtf_dt_f'],
+    af_gtf_dt_f           = config['mapping_af']['gene_info_f'],
     zoom_int_res_ls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'], 
     zoom_mkr_sel_res      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_sel_res'],
     zoom_mkr_min_cpm_mkr  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cpm_mkr'], 

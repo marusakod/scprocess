@@ -335,12 +335,14 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
       extraargs.append(str(cluster_log_dir))
    
   # get lists of parameters
-  RUN_PARAMS, _, _   = scprocess_utils.get_run_parameters(config, scdata_dir)
+  LIB_PARAMS, LIB_VAR = scprocess_utils.get_lib_parameters(config, scdata_dir)
+  LIBS                = list(LIB_PARAMS.keys())
+  RUN_PARAMS, _      = scprocess_utils.get_run_parameters(config, scdata_dir, LIB_VAR, LIBS)
   RUNS                = list(RUN_PARAMS.keys())
   BATCH_PARAMS, BATCH_VAR, SAMPLES = scprocess_utils.get_batch_parameters(config, RUNS, scdata_dir)
   BATCHES             = list(BATCH_PARAMS.keys())
-  _                   = scprocess_utils.prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES)
-  _, _, _             = scprocess_utils.get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
+  _                   = scprocess_utils.prep_resource_params(config, schema_f, lm_f, LIB_PARAMS, BATCHES)
+  _, _, _             = scprocess_utils.get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
   _                   = scprocess_utils.get_labeller_parameters(config, schema_f, scdata_dir)
 
   # check config is ok for the rule we want to run
