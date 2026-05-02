@@ -162,6 +162,7 @@ rule render_html_ambient:
     runs_str          = ','.join(RUNS),
     ambient_method    = config['ambient']['ambient_method'],
     demux_type        = config['multiplexing']['demux_type'],
+    af_rna_dir        = af_rna_dir,
     cb_max_prop_kept  = config['ambient']['cb_max_prop_kept']
   threads: 4
   retries: config['resources']['retries'] 
@@ -200,8 +201,9 @@ rule render_html_ambient:
         run_stats_f       = '{input.run_stats_f}', 
         run_var           = '{params.run_var}',
         runs_str          = '{params.runs_str}',
-        ambient_method    = '{params.ambient_method}', 
+        ambient_method    = '{params.ambient_method}',
         demux_type        = '{params.demux_type}',
+        af_rna_dir        = '{params.af_rna_dir}',
         cb_prop_max_kept  =  {params.cb_max_prop_kept}
       )"    
     """
