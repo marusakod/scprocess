@@ -97,14 +97,15 @@ rule all:
     f'{SCDATA_DIR}/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt',
     f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv',
     f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds',
+    f'{SCDATA_DIR}/alevin_fry_home/chemistries.json', 
     # rule download_or_build_txome_indices
     expand([ f'{SCDATA_DIR}/alevin_fry_home/ref_txomes/{{ref_txome}}/{file}' for file in TXOME_INDEX_FS], ref_txome=REF_TXOMES),
     expand(f'{SCDATA_DIR}/alevin_fry_home/ref_txomes/{{ref_txome}}/{{ref_txome}}_index_params.yaml', ref_txome=REF_TXOMES),
     # rule set_up_one_probe_set_index
     expand([ f'{SCDATA_DIR}/alevin_fry_home/probe_sets/{{probe_set}}/{file}' for file in PROBE_SET_INDEX_FS], probe_set=PROBE_SET_NAMES),
     expand(f'{SCDATA_DIR}/alevin_fry_home/probe_sets/{{probe_set}}/{{probe_set}}_index_params.yaml', probe_set=PROBE_SET_NAMES),
-    f'{SCDATA_DIR}/celltypist/celltypist_models.csv', 
-    # rule get_reference_genome_data 
+    f'{SCDATA_DIR}/celltypist/celltypist_models.csv',
+    # rule get_reference_genome_data
     f'{SCDATA_DIR}/index_parameters.csv'
 
 
@@ -168,6 +169,21 @@ rule download_scprocess_files:
       "{RANGER_URL}" \
       "{output.all_wl}" \
       "{output.cr_version}"
+    """
+
+rule refresh_simpleaf_chems:
+  output:
+    chem_json = f'{SCDATA_DIR}/alevin_fry_home/chemistries.json',
+  conda:
+    '../envs/alevin_fry.yaml'
+  threads: 1
+  log:
+    f'{logs_dir}/refresh_simpleaf_chems.log'
+  shell: """
+    exec &>> {log}
+
+    ALEVIN_FRY_HOME="{SCDATA_DIR}/alevin_fry_home" simpleaf set-paths
+    ALEVIN_FRY_HOME="{SCDATA_DIR}/alevin_fry_home" simpleaf chemistry refresh
     """
 
 
@@ -238,7 +254,7 @@ rule save_index_parameters_csv:
     python3 scripts/setup.py save_index_params_csv {output.csv} {input.yamls}
     """
 
-    
+
 rule download_celltypist_models:
   output:
     models_f  = f'{SCDATA_DIR}/celltypist/celltypist_models.csv'

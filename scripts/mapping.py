@@ -168,7 +168,7 @@ def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where,
 def map_flex_fastqs_to_counts(run, af_dir, af_home_dir, where, 
   R1_fs, R2_fs, threads, index_dir, af_chemistry, whitelist_f, probset_f, probe_bc_f, arv_instance = None):
   # make output directory, in subdirectory if multiplexed samples
-  out_dir   = f"{af_dir}/af_{run}"
+  out_dir   = f"{af_dir}/af_{run}/flex"
   os.makedirs(out_dir, exist_ok = True)
   print('made out_dir')
 
@@ -192,9 +192,6 @@ def map_flex_fastqs_to_counts(run, af_dir, af_home_dir, where,
   else:
     R1_fs       = [ os.path.join(where, f) for f in R1_fs]
     R2_fs       = [ os.path.join(where, f) for f in R2_fs]
-
-  # refresh chemistry definitions first
-  subprocess.run(["simpleaf", "chemistry", "refresh"], check=True)
 
   # run simpleaf multiplex-quant
   simpleaf_cmd = [
