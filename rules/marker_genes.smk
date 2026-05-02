@@ -75,7 +75,7 @@ rule run_fgsea:
       fgsea_go_bp_f = '{output.fgsea_go_bp_f}', 
       fgsea_go_cc_f = '{output.fgsea_go_cc_f}', 
       fgsea_go_mf_f = '{output.fgsea_go_mf_f}', 
-      ref_txome     = '{params.genome_ref}',
+      genome_ref    = '{params.genome_ref}',
       gsea_dir      = '{params.mkr_gsea_dir}', 
       min_cpm_go    =  {params.mkr_min_cpm_go}, 
       max_zero_p    =  {params.mkr_max_zero_p},

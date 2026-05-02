@@ -94,15 +94,23 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
   assert_that( all(batches %in% names(h5ad_paths)) )
 
   # make pbs for each batch
-  bpparam     = MulticoreParam(workers = n_cores, tasks = length(batches))  
+  bpparam     = MulticoreParam(workers = n_cores, tasks = length(batches))
   if (zoom) {
-      pb_ls       = bplapply(batches, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam, 
+    pb_ls       = bplapply(batches, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam,
       h5ad_paths = h5ad_paths, int_dt = int_dt, batch_var = batch_var, cl_var = cl_var,
       keep_cls = keep_cls, agg_fn = agg_fn)
   } else {
-    pb_ls       = bplapply(batches, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
-      h5ad_paths = h5ad_paths, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls,
-      agg_fn = agg_fn)
+    pb_ls       = tryCatch(
+      bplapply(batches, FUN = .make_one_pseudobulk, BPPARAM = bpparam,
+        h5ad_paths = h5ad_paths, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls,
+        agg_fn = agg_fn),
+      error = function(e) {
+        message("parallel bplapply failed (", conditionMessage(e), "); retrying serially to surface real error")
+        lapply(batches, .make_one_pseudobulk,
+          h5ad_paths = h5ad_paths, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls,
+          agg_fn = agg_fn)
+      }
+    )
   }
   
   # merge together
