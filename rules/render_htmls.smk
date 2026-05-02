@@ -29,7 +29,8 @@ rule render_html_mapping:
     proj_dir        = config['project']['proj_dir'],
     ambient_method  = config['ambient']['ambient_method'],
     run_var         = RUN_VAR,
-    runs_str        = ','.join(RUNS)
+    runs_str        = ','.join(RUNS),
+    af_rna_dir      = af_rna_dir
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -65,10 +66,11 @@ rule render_html_mapping:
         short_tag       = '{params.short_tag}', 
         date_stamp      = '{params.date_stamp}', 
         threads         =  {threads},
-        runs_str        = '{params.runs_str}', 
-        ambient_method  = '{params.ambient_method}', 
-        run_var         = '{params.run_var}', 
-        af_dir          = '{af_dir}'
+        runs_str        = '{params.runs_str}',
+        ambient_method  = '{params.ambient_method}',
+        run_var         = '{params.run_var}',
+        af_dir          = '{af_dir}',
+        af_rna_dir      = '{params.af_rna_dir}'
       )"
     """
 
