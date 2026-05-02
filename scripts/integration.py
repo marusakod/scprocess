@@ -169,7 +169,7 @@ def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoo
       raise ValueError("qc-passed barcodes from hvg mats and cell_ids don't match")
 
     # get dbl cells
-    if demux_type == "none":
+    if demux_type in ("none", "flex"):
       dbl_idx     = all_coldata["scdbl_class"] == "doublet"
     else:
       if batch_var == "sample_id":

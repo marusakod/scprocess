@@ -1640,8 +1640,8 @@ def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_
       amb_outs = yaml.load(f, Loader=yaml.FullLoader)
     amb_filt_f = amb_outs['filt_counts_f']
 
-    # if no multiplexing, simple
-    if DEMUX_TYPE == "none":
+    # if no multiplexing or flex (samples already extracted per-run), simple
+    if DEMUX_TYPE in ("none", "flex"):
       tmp_df = pl.DataFrame({
         BATCH_VAR:    r,
         'amb_filt_f': amb_filt_f

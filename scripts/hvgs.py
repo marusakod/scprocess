@@ -662,7 +662,7 @@ def create_hvg_matrix(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, demux_type,
   hvg_paths_df  = pl.read_csv(hvg_paths_f)
   chunked_fs    = hvg_paths_df['chunked_f'].to_list()
   batches       = hvg_paths_df[ batch_var ].to_list()
-  if demux_type == "none": 
+  if demux_type in ("none", "flex"):
     pools         = batches
   else:
     pools         = hvg_paths_df['pool_id'].to_list()
@@ -769,7 +769,7 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
   qc_df     = pl.read_csv(qc_f, ignore_errors = True)
 
   # subset to doublets
-  if demux_type == "none":
+  if demux_type in ("none", "flex"):
     dbl_df    = qc_df.filter( pl.col("scdbl_class") == "doublet" )
   else:
     if batch_var == "sample_id":
