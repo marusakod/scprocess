@@ -35,6 +35,8 @@ IS_FLEX             = config['project']['is_flex']
 IS_FLEX_MUXED       = config['multiplexing']['demux_type'] == "flex"
 # subdirectory prefix used by ambient/pb_empties rules to locate per-run outputs
 af_rna_dir          = 'flex/' if IS_FLEX else 'rna/'
+# subdirectory prefix for pool/library-level flex outputs (only when muxed)
+lib_pool_dir        = 'pools/' if IS_FLEX_MUXED else ''
 # unified reference label: probe_set for flex, ref_txome for polyA
 GENOME_REF          = config['project'].get('probe_set', config['project'].get('ref_txome', ''))
 
@@ -124,10 +126,10 @@ fgsea_outs = [
 if IS_FLEX:
   af_mapping_outs = (
     expand([
-      f'{af_dir}/af_{{lib}}/flex/af_quant/',
-      f'{af_dir}/af_{{lib}}/flex/af_quant/alevin/quants_mat.mtx',
-      f'{af_dir}/af_{{lib}}/flex/af_quant/alevin/quants_mat_cols.txt',
-      f'{af_dir}/af_{{lib}}/flex/af_quant/alevin/quants_mat_rows.txt',
+      f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/',
+      f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/alevin/quants_mat.mtx',
+      f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/alevin/quants_mat_cols.txt',
+      f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/alevin/quants_mat_rows.txt',
     ], lib=LIBS) +
     expand([
       f'{af_dir}/af_{{run}}/flex/af_counts_mat.h5',

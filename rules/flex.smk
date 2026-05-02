@@ -10,14 +10,15 @@ rule run_mapping_flex:
     whitelist_f   = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["gex_whitelist_f"],
     where         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["where"],
     R1_fs         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["R1_fs"],
-    R2_fs         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["R2_fs"]
+    R2_fs         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["R2_fs"],
+    lib_pool_dir  = lib_pool_dir
   output:
-    rad_f         = temp(f'{af_dir}/af_{{lib}}/flex/af_map/map.rad'),
-    collate_rad_f = temp(f'{af_dir}/af_{{lib}}/flex/af_quant/map.collated.rad'),
-    fry_dir       = directory(f'{af_dir}/af_{{lib}}/flex/af_quant/'),
-    mtx_f         = f'{af_dir}/af_{{lib}}/flex/af_quant/alevin/quants_mat.mtx',
-    cols_f        = f'{af_dir}/af_{{lib}}/flex/af_quant/alevin/quants_mat_cols.txt',
-    rows_f        = f'{af_dir}/af_{{lib}}/flex/af_quant/alevin/quants_mat_rows.txt'
+    rad_f         = temp(f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_map/map.rad'),
+    collate_rad_f = temp(f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/map.collated.rad'),
+    fry_dir       = directory(f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/'),
+    mtx_f         = f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/alevin/quants_mat.mtx',
+    cols_f        = f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/alevin/quants_mat_cols.txt',
+    rows_f        = f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/alevin/quants_mat_rows.txt'
   benchmark:
     f'{benchmark_dir}/mapping/run_mapping_flex_{{lib}}_{DATE_STAMP}.benchmark.txt'
   log:
@@ -39,6 +40,7 @@ rule run_mapping_flex:
 
     python3 scripts/mapping.py map_flex_fastqs_to_counts {wildcards.lib} \
       --af_dir          "{af_dir}" \
+      --lib_pool_dir    "{params.lib_pool_dir}" \
       --af_home_dir     "{params.af_home_dir}" \
       --where           "{params.where}" \
       --R1_fs           {params.R1_fs} \
@@ -56,7 +58,7 @@ rule run_mapping_flex:
 # rule for saving per-sample h5, knee data, and ambient params - runs per sample/run
 rule save_alevin_flex_to_h5:
   input:
-    fry_dir     = lambda wildcards: f'{af_dir}/af_{RUNS_TO_LIBS[wildcards.run]}/flex/af_quant/'
+    fry_dir     = lambda wildcards: f'{af_dir}/{lib_pool_dir}af_{RUNS_TO_LIBS[wildcards.run]}/flex/af_quant/'
   output:
     af_h5_f     = f'{af_dir}/af_{{run}}/flex/af_counts_mat.h5',
     amb_yaml_f  = f'{af_dir}/af_{{run}}/flex/ambient_params_{{run}}_{DATE_STAMP}.yaml',
