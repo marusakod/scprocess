@@ -46,6 +46,7 @@ project:
   your_name: Testy McUser
   affiliation: where you work
   sample_metadata: /path/to/metadata.csv
+  tenx_assay_type: poly_a
   ref_txome: human_2024
   date_stamp: "2026-01-01"
 ```
@@ -88,6 +89,8 @@ scprocess run /path/to/config.yaml -r qc
 
 * **Hashtag oligo (HTO)-based demultiplexing**: {{sc}} uses HTO-derived cDNA libraries to generate a count matrix which can be used for sample demultiplexing.
 
+* **Flex-based demultiplexing uses probe barocdes to assign each probe back to the original sample
+
 * **Outputs of external demultiplexing algorithms**: If the data has already been demultiplexed using an external method (e.g. genetic demultiplexing tools like `Demuxlet`[@Kang2018-dh]), users can provide a cell-sample assignment file to process the data further using {{sc}}
 
 ### Input files 
@@ -96,6 +99,7 @@ Processing multiplexed samples requires a different format for the sample metada
 
 * `pool_id`: specifies the pool to which each sample belongs. Instead of values in the `sample_id` column, FASTQ filenames must match values in the `pool_id` column.
 * `hto_id`: only required for HTO-based demultiplexing. Specifies the HTO label used to tag each sample before pooling.
+* `probe_id`: only required for Flex-based demultiplexing. Specifies the probe barcode ID assigned to each sample in the 10x Flex experiment.
 
 
 !!! Warning "The dataset must consist entirely of either multiplexed or non-multiplexed samples. Mixed datasets are not supported."
@@ -105,7 +109,13 @@ Processing multiplexed samples requires a different format for the sample metada
 ![multiplexing](assets/images/scprocess_multiplexing_black_bg.png#only-dark)
 ---
 
-<div class="img-caption">Schematic representation of sample multiplexing for single-cell sequencing. Individual samples (with corresponding names in the <code>sample_id</code> column) are labelled with antibodies carrying different HTOs (with corresponding labels in the <code>hto_id</code> column). These labeled samples are then combined into pools (with corresponding names in the <code>pool_id</code> column). HTO labels can be shared across different pools. </div>
+<div class="img-caption">Schematic representation of HTO-based sample multiplexing for single-cell sequencing. Individual samples (with corresponding names in the <code>sample_id</code> column) are labelled with antibodies carrying different HTOs (with corresponding labels in the <code>hto_id</code> column). These labeled samples are then combined into pools (with corresponding names in the <code>pool_id</code> column). HTO labels can be shared across different pools. </div>
+![multiplexing](assets/images/scprocess_multiplexing_white_bg.png#only-light)
+![multiplexing](assets/images/scprocess_multiplexing_black_bg.png#only-dark)
+---
+
+<div class="img-caption">Schematic representation of Flex-based sample multiplexing for single-cell sequencing. Individual samples (with corresponding names in the <code>sample_id</code> column) are labelled using probes with different sample barcodes (with corresponding labels in the <code>probe_id</code> column). These labeled samples are then combined into pools (with corresponding names in the <code>pool_id</code> column). Probe barcode can be shared across different pools. </div>
+
 
 ### Options for integrating multiplexed samples
 

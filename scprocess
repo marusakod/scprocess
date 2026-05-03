@@ -233,6 +233,7 @@ def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
 
 
       # define config text
+      is_flex     = 'flex' in create_config
       proj_txt    = f"""
         project:
           proj_dir: {proj_dir}
@@ -242,7 +243,8 @@ def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
           your_name: {your_name}
           affiliation: {affiliation}
           sample_metadata: {meta_dir}/
-          ref_txome:
+          tenx_assay_type: {'flex' if is_flex else 'poly_a'}
+          {'probe_set:' if is_flex else 'ref_txome:'}
           date_stamp: "{date_stamp}"
         """
       if arv_instance != "":
@@ -270,8 +272,9 @@ def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
           qc_max_splice: 0.75
         """
       if "multiplex" in create_config:
-        multi_txt = """multiplexing:
-          demux_type:
+        demux_val = "flex" if is_flex else ""
+        multi_txt = f"""multiplexing:
+          demux_type: {demux_val}
         """
       else:
         multi_txt = ""
@@ -680,8 +683,8 @@ if __name__ == '__main__':
   newprj_prsr.add_argument('name', type=str, help="Name of the project")
   newprj_prsr.add_argument('-w', '--where', type=str, default=os.getcwd(), help="Where to create the project (default: current directory)")
   newprj_prsr.add_argument('-s', '--sub', action='store_true', help="Create data/fastqs and data/metadata subdirectories")
-  newprj_prsr.add_argument('-c', '--config', type=str, choices = ["sc", "sn", "multiplex"], nargs="+",
-    help="Create a blank config.yml file with required scprocess parameters. Users must specify at least one option from: sc (single cell); sn (single nuclei); multiplex.")
+  newprj_prsr.add_argument('-c', '--config', type=str, choices = ["sc", "sn", "multiplex", "flex"], nargs="+",
+    help="Create a blank config.yml file with required scprocess parameters. Users must specify at least one option from: sc (single cell); sn (single nuclei); multiplex. Optionally add: flex (10x Flex chemistry; sets tenx_assay_type: flex and probe_set instead of ref_txome; if combined with multiplex, sets demux_type: flex).")
 
   # subparser for the 'run' subcommand
   run_prsr    = subparsers.add_parser('run', help="run scprocess")

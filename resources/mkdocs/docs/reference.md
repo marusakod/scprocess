@@ -31,10 +31,9 @@ ref_txomes:
       gtf:        /path/to/genes.gtf
       decoys:     true
       mito_str:   "^mt-"
-    - name:       custom_genome_name2
-      index_dir:  /path/to/prebuild/alevin/index
-      gtf:        /path/to/genes.gtf
-      mito_str:   "^MT-"
+probe_sets:
+  tenx:
+    - name:       human_v1
 ```
 
 ##### user
@@ -76,6 +75,10 @@ Optional paramater for `tenx` references is:
 !!! info "More about decoys"
     {{sc}} utilizes `simpleaf`, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter for `ref_txomes` is set to `true`. This option allows `simpleaf` to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to Srivastava et al., 2019[@Srivastava2020-jb].
 
+##### probe_sets
+
+Probe set indices for 10x Flex data are prepared with {{scsetup}} by adding a `probe_sets` section to the `scprocess_setup.yaml` file. Each entry under `tenx` specifies a named probe set to download and index. Valid values for `name` are `human_v1`, `human_v2`, `mouse_v1`, and `mouse_v2`.
+
 
 ## {{scnew}}
 
@@ -86,7 +89,9 @@ Optional paramater for `tenx` references is:
 * `name` (positional): name of the new `workflowr` project directory.
 * `-w`/`--where` (optional): path to the directory where the new project will be created; defaults to the current working directory
 * `-s`/`--sub` (optional): if provided, creates `data/fastqs` and `data/metadata` subdirectories within the project.
-* `-c`/`--config` (optional): generates a template configuration YAML file. If provided, it must be followed by either `sc` (single-cell) or `sn` (single-nucleus) to define standard QC thresholds. You can also append `multiplex` if your dataset requires demultiplexing e.g. `scprocess newproj project_name -c sc multiplex`
+* `-c`/`--config` (optional): generates a template configuration YAML file. If provided, it must be followed by either `sc` (single-cell) or `sn` (single-nucleus) to define standard QC thresholds. The generated config always includes `tenx_assay_type` in the `project` section. Additional modifiers can be appended:
+    + `flex`: sets `tenx_assay_type: flex` and includes `probe_set` instead of `ref_txome`. e.g. `scprocess newproj project_name -c sc flex`
+    + `multiplex`: adds a `multiplexing` section. When combined with `flex`, sets `demux_type: flex`; otherwise leaves `demux_type` blank for the user to fill in (e.g. `hto` or `custom`). e.g. `scprocess newproj project_name -c sc multiplex` or `scprocess newproj project_name -c sc flex multiplex`
 
 ## {{scknee}} { #scprocess-plotknee }
 
@@ -340,14 +345,16 @@ This is an example config file for {{sc}} with all parameters and their default 
 * `your_name`: author’s name, displayed in HTML outputs.
 * `affiliation`: author’s affiliation, displayed in HTML outputs.
 * `date_stamp`: start date of the analysis, formatted as `"YYYY-MM-DD"`.
-* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1`/`.R1` and `_R2`/`.R2` strings and should not overlap (a value should not be a subset of any other values).
-* `ref_txome`: must match one of the values in the `ref_txome` column of `index_parameters.csv` (created by {{scsetup}}).
+* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1`/`.R1` and `_R2`/`.R2` strings and should not overlap (a value should not be a subset of any other values). For Flex data, columns `pool_id` and `probe_id` are also required (see [Analysis of 10x Flex data](usage.md#analysis-of-10x-flex-data)).
+* `ref_txome`: must match one of the values in the `ref_txome` column of `index_parameters.csv` (created by {{scsetup}}). Required for polyA data; must not be specified for Flex data (use `probe_set` instead).
+* `tenx_assay_type`: assay type. Options are `poly_a` and `flex`. When set to `flex`, `probe_set` is required and `ref_txome` must not be specified.
+* `probe_set`: probe set to use for 10x Flex data. Required when `tenx_assay_type` is `flex`. Valid values are `human_v1`, `human_v2`, `mouse_v1`, and `mouse_v2`. Must not be specified for polyA data.
 
 #### Optional parameters
 
 ##### project
 
-* `tenx_chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data generated with the 10x multiome kit (ATACseq data is not supported).
+* `tenx_chemistry`: 10x assay configuration. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data generated with the 10x multiome kit (ATACseq data is not supported). For Flex data, chemistry is derived automatically from `probe_set` (`flexv1` or `flexv2`) and does not need to be specified.
 * `metadata_vars`: A list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
 * `show_arv_uuids`: Whether to display Arvados UUIDs (`arv_uuids`) in the configuration file details box on the index page. If `false`, UUIDs are replaced with "not shown". Defaults to `true`.
 * `exclude`: List of all samples that should be excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
@@ -383,8 +390,9 @@ sample_id:
 
 * `demux_type`: `demux_type` options (default is `none`):
     + `none` if experiment is not multiplexed;
-    + `hto` if demultiplexing of samples should be performed with {{sc}}; or
-    + `custom` if demultiplexing results will be used as input to {{sc}}.
+    + `hto` if demultiplexing of samples should be performed with {{sc}};
+    + `custom` if demultiplexing results will be used as input to {{sc}}; or
+    + `flex` for 10x Flex data where samples are pooled within a library and demultiplexed using probe barcodes. Requires `tenx_assay_type: flex` in the `project` section.
 * `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
 * `arv_uuids`: list of Arvados UUIDs where fastq files are located. Expects `arv_instance`to be defined. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
 * `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `hto`.
@@ -523,12 +531,15 @@ This section allows users to adjust the resource requirements for specific `Snak
 Additional parameters include:
 
 * `retries`: number of times to retry running a specific rule in {{sc}} if it fails. For each attempt the initial memory requested for the rule is multiplied by `1.5**(attempt - 1)`. Useful for when {{sc}} is ran on a [cluster](setup.md#cluster-setup).
-* `n_run_mapping`: number of threads requested for running the mapping step. Default is 8.
+* `n_run_mapping`: number of threads requested for running the mapping step if `tenx_assay_type` is `poly_a`. Default is 8.
+* `n_run_mapping_flex`: number of threads requested for running the mapping step if `tenx_assay_type` is `flex`. Default is 8.
 
 ??? note "Detailed information about resource parameters"
 
     * `gb_build_hto_index`: maximum memory required (in GB) for rule `build_hto_index`.
     * `gb_run_mapping`: maximum memory required (in GB) for rule `run_mapping`.
+    * `gb_run_mapping_flex`: maximum memory required (in GB) for rule `run_mapping_flex`. Default is 12 GB.
+    * `gb_save_alevin_flex_to_h5`: maximum memory required (in GB) for rule `save_alevin_flex_to_h5`. Default is 32 GB.
     * `gb_run_mapping_hto`: maximum memory required (in GB) for rule `run_mapping_hto`.
     * `gb_save_alevin_to_h5`: maximum memory required (in GB) for rule `save_alevin_to_h5`.
     * `gb_make_hto_sce_objects`: maximum memory required (in GB) for rule `make_hto_sce_objects`.
@@ -592,6 +603,8 @@ Additional parameters include:
     * `gb_render_html_zoom`: maximum memory required (in GB) for rule `render_html_zoom`.
     * `mins_build_hto_index`: maximum runtime required (in minutes) for rule `build_hto_index`.
     * `mins_run_mapping`: maximum runtime required (in minutes) for rule `run_mapping`.
+    * `mins_run_mapping_flex`: maximum runtime required (in minutes) for rule `run_mapping_flex`. Default is 180 minutes.
+    * `mins_save_alevin_flex_to_h5`: maximum runtime required (in minutes) for rule `save_alevin_flex_to_h5`. Default is 10 minutes.
     * `mins_run_mapping_hto`: maximum runtime required (in minutes) for rule `run_mapping_hto`.
     * `mins_save_alevin_to_h5`: maximum runtime required (in minutes) for rule `save_alevin_to_h5`.
     * `mins_make_hto_sce_objects`: maximum runtime required (in minutes) for rule `make_hto_sce_objects`.
