@@ -585,7 +585,7 @@ def _check_hvg_parameters(config):
     all_vals    = gtf_df[ gene_col ]
     absent_vals = set(exc_vals) - set(all_vals)
     if len(absent_vals) > 0:
-      raise ValueError(f"the following genes were specified in 'hvg_exclude_from_file' but were not found in the reference transcriptome: {", ".join(absent_vals)}")
+      raise ValueError(f"the following genes were specified in 'hvg_exclude_from_file' but were not found in the reference transcriptome: {', '.join(absent_vals)}")
   else:
     config['hvg']['hvg_exclude_from_file'] = None
 

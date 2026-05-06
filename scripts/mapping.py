@@ -99,6 +99,12 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
       # infer read orientation
       exp_ori, cell_counts_fw, cell_counts_rc = _infer_read_orientation(tmp_out_dir)
 
+      # determine sample chemistry from inferred orientation
+      if chem_opts == set(['3v2', '5v1', '5v2']):
+        sample_chem = '3v2' if exp_ori == 'fw' else '5v1/5v2'
+      else:
+        sample_chem = '3v3' if exp_ori == 'fw' else '5v3'
+
       # remove temporary mapping results and downsampled fastqs
       shutil.rmtree(tmp_out_dir)
 
