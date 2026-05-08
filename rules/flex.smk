@@ -87,7 +87,7 @@ rule save_alevin_flex_to_h5:
     exec &>> {log}
 
     Rscript -e "source('scripts/mapping.R');
-      save_flex_alevin_h5_ambient_params(
+      save_alevin_h5_ambient_params(
         run           = '{wildcards.run}',
         fry_dir       = '{input.fry_dir}',
         probe_id      = '{params.probe_id}',
