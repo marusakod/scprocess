@@ -31,12 +31,12 @@ RUNS_TO_BATCHES, RUNS_TO_SAMPLES, RUNS_TO_LIBS = get_runs_to_batches(config, RUN
 RESOURCE_PARAMS     = prep_resource_params(config, schema_f, lm_f, LIB_PARAMS, BATCHES)
 LABELLER_PARAMS     = get_labeller_parameters(config, schema_f, scdata_dir)
 IS_FLEX             = config['project']['is_flex']
-# check if flex data is multiplexed
 IS_FLEX_MUXED       = config['multiplexing']['demux_type'] == "flex"
+IS_OCM              = config['multiplexing']['demux_type'] == "ocm"
 # subdirectory prefix used by ambient/pb_empties rules to locate per-run outputs
 af_rna_dir          = 'flex/' if IS_FLEX else 'rna/'
-# subdirectory prefix for pool/library-level flex outputs (only when muxed)
-lib_pool_dir        = 'pools/' if IS_FLEX_MUXED else ''
+# subdirectory prefix for pool/library-level outputs (when multiplexed via flex or OCM)
+lib_pool_dir        = 'pools/' if (IS_FLEX_MUXED or IS_OCM) else ''
 # unified reference label: probe_set for flex, ref_txome for polyA
 GENOME_REF          = config['project'].get('probe_set', config['project'].get('ref_txome', ''))
 
@@ -122,33 +122,21 @@ fgsea_outs = [
   (not IS_FLEX and config['project'].get('ref_txome', '') in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'])
 ) and config['marker_genes']['mkr_do_gsea'] else []
 
-# mapping outputs differ between flex and polyA
-if IS_FLEX:
-  af_mapping_outs = (
-    expand([
-      f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/',
-      f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/alevin/quants_mat.mtx',
-      f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/alevin/quants_mat_cols.txt',
-      f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/alevin/quants_mat_rows.txt',
-    ], lib=LIBS) +
-    expand([
-      f'{af_dir}/af_{{run}}/flex/af_counts_mat.h5',
-      f'{af_dir}/af_{{run}}/flex/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz',
-      f'{af_dir}/af_{{run}}/flex/ambient_params_{{run}}_{DATE_STAMP}.yaml',
-    ], run=RUNS)
-  )
-  chem_stats_outs = []
-else:
-  af_mapping_outs = expand([
-    f'{af_dir}/af_{{run}}/rna/af_quant/',
-    f'{af_dir}/af_{{run}}/rna/af_quant/alevin/quants_mat.mtx',
-    f'{af_dir}/af_{{run}}/rna/af_quant/alevin/quants_mat_cols.txt',
-    f'{af_dir}/af_{{run}}/rna/af_quant/alevin/quants_mat_rows.txt',
-    f'{af_dir}/af_{{run}}/rna/af_counts_mat.h5',
-    f'{af_dir}/af_{{run}}/rna/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz',
-    f'{af_dir}/af_{{run}}/rna/ambient_params_{{run}}_{DATE_STAMP}.yaml',
+# mapping outputs (unified: af_rna_dir is 'flex/' or 'rna/' depending on assay)
+af_mapping_outs = (
+  expand([
+    f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/',
+    f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
+    f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
+    f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
+  ], lib=LIBS) +
+  expand([
+    f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
+    f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz',
+    f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml',
   ], run=RUNS)
-  chem_stats_outs = [f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv']
+)
+chem_stats_outs = [] if IS_FLEX else [f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv']
 
 # one rule to rule them all
 rule all:
@@ -341,10 +329,7 @@ rule label_celltypes:
     f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
 
 # define rules that are needed
-if IS_FLEX:
-  include: "flex.smk"
-else:
-  include: "mapping.smk"
+include: "mapping.smk"
 if config['multiplexing']['demux_type'] == "hto":
   include: "hto.smk"
 include: "ambient.smk"

@@ -16,7 +16,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   print('setting up parameters')
   exclude_mito  = bool(exclude_mito)
   res_ls        = res_ls_concat.split()
-  if demux_type == "none":
+  if demux_type in ("none", "flex", "ocm"):
     dbl_batch_var = 'sample_id'
   else:
     dbl_batch_var = 'pool_id'
@@ -169,7 +169,7 @@ def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoo
       raise ValueError("qc-passed barcodes from hvg mats and cell_ids don't match")
 
     # get dbl cells
-    if demux_type in ("none", "flex"):
+    if demux_type in ("none", "flex", "ocm"):
       dbl_idx     = all_coldata["scdbl_class"] == "doublet"
     else:
       if batch_var == "sample_id":

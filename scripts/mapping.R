@@ -11,6 +11,15 @@ suppressPackageStartupMessages({
   library('BiocParallel')
 })
 
+.get_ocm_overhang <- function(ocm_id, ocm_overhang_f) {
+  overhang_dt = fread(ocm_overhang_f, header = FALSE, col.names = c("oh1", "oh2", "ob_id"))
+  row         = overhang_dt[ob_id == ocm_id]
+  if (nrow(row) != 1)
+    stop(sprintf("OCM ID '%s' not found in overhang map: %s", ocm_id, ocm_overhang_f))
+  return(row$oh1)
+}
+
+
 make_alevin_h5 <- function(fry_dir, h5_f, hto_mat = 0) {
   if (hto_mat) {
     sce = loadFry(fry_dir)
@@ -32,9 +41,14 @@ make_alevin_h5 <- function(fry_dir, h5_f, hto_mat = 0) {
 
 save_alevin_h5_ambient_params <- function(run, fry_dir = NULL, h5_f, cb_yaml_f, knee_data_f,
   run_var, knee1, shin1, knee2, shin2, exp_cells, total_included, low_count_thr,
-  probe_id = NULL) {
+  probe_id = "None", ocm_id = "None", ocm_overhang_f = "None") {
 
-  # for flex: filter pool matrix to this sample's barcodes before writing h5
+  # convert snakemake 'None' strings to R NULL
+  if (probe_id == "None")       probe_id       = NULL
+  if (ocm_id == "None")         ocm_id         = NULL
+  if (ocm_overhang_f == "None") ocm_overhang_f = NULL
+
+  # for flex: filter pool matrix to this sample's barcodes by probe_id prefix
   if (!is.null(probe_id)) {
     sce = loadFry(fry_dir, outputFormat = list(S = c("S"), U = c("U"), A = c("A")))
     mat = assayNames(sce) %>% lapply(function(n) {
@@ -47,6 +61,22 @@ save_alevin_h5_ambient_params <- function(run, fry_dir = NULL, h5_f, cb_yaml_f, 
     colnames(mat) = sub(paste0("^", probe_id, "_"), "", colnames(mat))
     mat           = mat[, colSums(mat) > 0, drop = FALSE]
     message("sample ", run, " (probe_id=", probe_id, "): ", ncol(mat), " barcodes retained")
+    write10xCounts(h5_f, mat, version = "3", overwrite = TRUE)
+    fry_dir = NULL
+
+  # for OCM: filter pool matrix to this sample's barcodes by 2bp overhang at position 8-9
+  } else if (!is.null(ocm_id)) {
+    overhang = .get_ocm_overhang(ocm_id, ocm_overhang_f)
+    sce = loadFry(fry_dir, outputFormat = list(S = c("S"), U = c("U"), A = c("A")))
+    mat = assayNames(sce) %>% lapply(function(n) {
+      m           = assay(sce, n)
+      rownames(m) = paste0(rownames(m), "_", n)
+      m
+    }) %>% do.call(rbind, .)
+    keep          = substr(colnames(mat), 8, 9) == overhang
+    mat           = mat[, keep, drop = FALSE]
+    mat           = mat[, colSums(mat) > 0, drop = FALSE]
+    message("sample ", run, " (ocm_id=", ocm_id, ", overhang=", overhang, "): ", ncol(mat), " barcodes retained")
     write10xCounts(h5_f, mat, version = "3", overwrite = TRUE)
     fry_dir = NULL
   }

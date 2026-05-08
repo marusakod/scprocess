@@ -72,7 +72,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 
   # add metadata
   message('  adding metadata')
-  if (demux_type %in% c("none", "flex")) {
+  if (demux_type %in% c("none", "flex", "ocm")) {
     sce         = sce %>% .add_metadata(metadata_f)
   } else {
     sce         = sce %>% .add_demux_metadata(metadata_f, demux_f, demux_type)
@@ -414,7 +414,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   missing_cells = setdiff(coldata_in$cell_id, dbl_dt$cell_id)
   
   # define columns we need
-  if (demux_type %in% c("none", "flex")) {
+  if (demux_type %in% c("none", "flex", "ocm")) {
     keep_cols     = c("cell_id", sample_var, "scdbl_class")
     by_cols       = c("cell_id", sample_var)
   } else {
@@ -464,7 +464,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   cuts_dt     = fread(cuts_f)
   
   # restrict to singlets
-  if (demux_type %in% c("none", "flex")) {
+  if (demux_type %in% c("none", "flex", "ocm")) {
     keep_idx    = coldata_in$scdbl_class == 'singlet'
   } else {
     if (batch_var == "sample_id") {

@@ -85,11 +85,13 @@ scprocess run /path/to/config.yaml -r qc
 
 ## Analysis of multiplexed samples
 
-{{sc}} supports two approaches for handling multiplexed samples:
+{{sc}} supports several approaches for handling multiplexed samples:
 
 * **Hashtag oligo (HTO)-based demultiplexing**: {{sc}} uses HTO-derived cDNA libraries to generate a count matrix which can be used for sample demultiplexing.
 
-* **Flex-based demultiplexing uses probe barocdes to assign each probe back to the original sample
+* **On-chip multiplexing (OCM)**: For experiments using 10x Genomics' GEM-X Universal Multiplex, {{sc}} performs deterministic barcode-based demultiplexing using partition-specific barcode lists (OB1-OB4). No separate FASTQ library is needed. Both 3' and 5' GEX chemistries are supported.
+
+* **Flex-based demultiplexing**: Uses probe barcodes to assign each cell back to the original sample.
 
 * **Outputs of external demultiplexing algorithms**: If the data has already been demultiplexed using an external method (e.g. genetic demultiplexing tools like `Demuxlet`[@Kang2018-dh]), users can provide a cell-sample assignment file to process the data further using {{sc}}
 
@@ -100,6 +102,7 @@ Processing multiplexed samples requires a different format for the sample metada
 * `pool_id`: specifies the pool to which each sample belongs. Instead of values in the `sample_id` column, FASTQ filenames must match values in the `pool_id` column.
 * `hto_id`: only required for HTO-based demultiplexing. Specifies the HTO label used to tag each sample before pooling.
 * `probe_id`: only required for Flex-based demultiplexing. Specifies the probe barcode ID assigned to each sample in the 10x Flex experiment.
+* `ocm_id`: only required for OCM-based demultiplexing. Specifies the on-chip partition (`OB1`, `OB2`, `OB3`, or `OB4`) assigned to each sample.
 
 
 !!! Warning "The dataset must consist entirely of either multiplexed or non-multiplexed samples. Mixed datasets are not supported."

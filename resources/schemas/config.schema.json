@@ -22,7 +22,7 @@
         "sample_metadata":      { "type": "string", "items": {"type": "string", "pattern": "^.+\\.csv$"} },
         "ref_txome":            { "type": "string" },
         "probe_set":            { "type": "string" },
-        "tenx_assay_type":      { "type": "string", "enum": ["flex", "poly_a"] },
+        "tenx_assay_type":      { "type": "string", "enum": ["flex", "poly_a"], "default": "poly_a" },
         "tenx_chemistry":       { "type": "string", "enum": ["none", "3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome", "flexv1", "flexv2"],  "default": "none"},
         "metadata_vars":        { "type": "array", "items": { "type": "string" } },
         "show_arv_uuids":       { "type": "boolean", "default": true },
@@ -64,7 +64,7 @@
       "additionalProperties": false,
       "required": [ "demux_type" ],
       "properties": {
-        "demux_type":       { "type": "string", "enum": ["none", "hto", "custom", "flex"], "default": "none" },
+        "demux_type":       { "type": "string", "enum": ["none", "hto", "ocm", "flex", "custom"], "default": "none" },
         "fastq_dir":        { "type": "string" },
         "arv_uuids":        { "type": "array", "items": {"type": "string", "pattern": "^arkau-[0-9a-z]{5}-[0-9a-z]{15}$"} },
         "feature_ref":      { "type": "string" },
@@ -97,7 +97,7 @@
           }
         },
         {
-          "if": {"properties": {"demux_type": {"enum": ["none", "flex"] } } },
+          "if": {"properties": {"demux_type": {"enum": ["none", "flex", "ocm"] } } },
           "then": {
             "not": { "required": ["fastq_dir", "arv_uuids", "demux_output", "feature_ref"] }
           }

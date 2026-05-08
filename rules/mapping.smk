@@ -1,4 +1,4 @@
-# snakemake rule for running alevin-fry
+# snakemake rules for read alignment and per-sample h5 generation
 
 import glob
 import re
@@ -9,77 +9,143 @@ from math import ceil
 
 localrules: collect_chemistry_stats
 
-rule run_mapping:
-  params:
-    arv_instance  = config['project'].get('arv_instance', ""),
-    demux_type    = config['multiplexing']['demux_type'],
-    af_home_dir   = config['mapping_af']['alevin_fry_home'],
-    af_index_dir  = config['mapping_af']['af_index_dir'],
-    wl_lu_f       = config['mapping_af']['wl_lu_f'],
-    af_chemistry  = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["af_chemistry"],
-    exp_ori       = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["expected_ori"],
-    whitelist_f   = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["gex_whitelist_f"],
-    where         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["where"],
-    R1_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["R1_fs"],
-    R2_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["R2_fs"]
-  output:
-    rad_f         = temp(f'{af_dir}/af_{{run}}/rna/af_map/map.rad'),
-    collate_rad_f = temp(f'{af_dir}/af_{{run}}/rna/af_quant/map.collated.rad'), 
-    fry_dir       = directory(f'{af_dir}/af_{{run}}/rna/af_quant/'),
-    mtx_f         = f'{af_dir}/af_{{run}}/rna/af_quant/alevin/quants_mat.mtx',
-    cols_f        = f'{af_dir}/af_{{run}}/rna/af_quant/alevin/quants_mat_cols.txt',
-    rows_f        = f'{af_dir}/af_{{run}}/rna/af_quant/alevin/quants_mat_rows.txt',
-    chem_stats_f  = f'{af_dir}/af_{{run}}/rna/chemistry_statistics.yaml'
-  benchmark:
-    f'{benchmark_dir}/mapping/run_mapping_{{run}}_{DATE_STAMP}.benchmark.txt'
-  log:
-    f'{logs_dir}/mapping/run_mapping_{{run}}_{DATE_STAMP}.log'
-  threads: config['resources']['n_run_mapping']
-  retries: config['resources']['retries']
-  resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_mapping', 'memory', attempt, wildcards.run),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_mapping', 'time', attempt, wildcards.run)
-  conda:
-    '../envs/alevin_fry.yaml'
-  shell:"""
-    exec &>> {log}
+# --- Pool-level mapping (assay-specific) ---
 
-    # check if arv_instance is set and if so, run in arvados environment
-    ARV_ARG=""
-    if [[ "{params.arv_instance}" != "" ]]; then
-      ARV_ARG="--arv_instance {params.arv_instance}"
-    fi
-    # get optional flags
-    if [[ "{params.af_chemistry}" != "none" ]]; then
-      OPT_ARGS+=(--af_chemistry "{params.af_chemistry}")
-      OPT_ARGS+=(--exp_ori "{params.exp_ori}")
-      OPT_ARGS+=(--whitelist_f "{params.whitelist_f}")
-    fi
+if IS_FLEX:
+  rule run_mapping_flex:
+    params:
+      arv_instance  = config['project'].get('arv_instance', ""),
+      af_home_dir   = config['mapping_af']['alevin_fry_home'],
+      af_index_dir  = config['mapping_af']['af_index_dir'],
+      probeset_f    = config['mapping_af']['probeset_f'],
+      probe_bcs_f   = config['mapping_af']['probe_bcs_f'],
+      af_chemistry  = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["af_chemistry"],
+      whitelist_f   = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["gex_whitelist_f"],
+      where         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["where"],
+      R1_fs         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["R1_fs"],
+      R2_fs         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["R2_fs"],
+      lib_pool_dir  = lib_pool_dir
+    output:
+      rad_f         = temp(f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_map/map.rad'),
+      collate_rad_f = temp(f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/map.collated.rad'),
+      fry_dir       = directory(f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/'),
+      mtx_f         = f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/alevin/quants_mat.mtx',
+      cols_f        = f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/alevin/quants_mat_cols.txt',
+      rows_f        = f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_quant/alevin/quants_mat_rows.txt'
+    benchmark:
+      f'{benchmark_dir}/mapping/run_mapping_flex_{{lib}}_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/mapping/run_mapping_flex_{{lib}}_{DATE_STAMP}.log'
+    threads: config['resources']['n_run_mapping_flex']
+    retries: config['resources']['retries']
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_mapping_flex', 'memory', attempt, wildcards.lib),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_mapping_flex', 'time', attempt, wildcards.lib)
+    conda:
+      '../envs/alevin_fry.yaml'
+    shell:"""
+      exec &>> {log}
 
-    # run mapping
-    python3 scripts/mapping.py map_fastqs_to_counts {wildcards.run} \
-      --af_dir          "{af_dir}" \
-      --what            "rna" \
-      --af_home_dir     "{params.af_home_dir}" \
-      --where           "{params.where}" \
-      --R1_fs           {params.R1_fs} \
-      --R2_fs           {params.R2_fs} \
-      --threads         {threads} \
-      --af_index_dir    "{params.af_index_dir}" \
-      --wl_lu_f         "{params.wl_lu_f}" \
-      $ARV_ARG \
-      "${{OPT_ARGS[@]}}"
-    """
+      ARV_ARG=""
+      if [[ "{params.arv_instance}" != "" ]]; then
+        ARV_ARG="--arv_instance {params.arv_instance}"
+      fi
 
+      python3 scripts/mapping.py map_flex_fastqs_to_counts {wildcards.lib} \
+        --af_dir          "{af_dir}" \
+        --lib_pool_dir    "{params.lib_pool_dir}" \
+        --af_home_dir     "{params.af_home_dir}" \
+        --where           "{params.where}" \
+        --R1_fs           {params.R1_fs} \
+        --R2_fs           {params.R2_fs} \
+        --threads         {threads} \
+        --af_index_dir    "{params.af_index_dir}" \
+        --af_chemistry    "{params.af_chemistry}" \
+        --gex_whitelist_f "{params.whitelist_f}" \
+        --probeset_f      "{params.probeset_f}" \
+        --probe_bc_f      "{params.probe_bcs_f}" \
+        $ARV_ARG
+      """
+
+else:
+  rule run_mapping:
+    params:
+      arv_instance  = config['project'].get('arv_instance', ""),
+      demux_type    = config['multiplexing']['demux_type'],
+      af_home_dir   = config['mapping_af']['alevin_fry_home'],
+      af_index_dir  = config['mapping_af']['af_index_dir'],
+      wl_lu_f       = config['mapping_af']['wl_lu_f'],
+      af_chemistry  = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["af_chemistry"],
+      exp_ori       = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["expected_ori"],
+      whitelist_f   = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["gex_whitelist_f"],
+      where         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["where"],
+      R1_fs         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["R1_fs"],
+      R2_fs         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["R2_fs"],
+      lib_pool_dir  = lib_pool_dir
+    output:
+      rad_f         = temp(f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/af_map/map.rad'),
+      collate_rad_f = temp(f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/af_quant/map.collated.rad'),
+      fry_dir       = directory(f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/af_quant/'),
+      mtx_f         = f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/af_quant/alevin/quants_mat.mtx',
+      cols_f        = f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/af_quant/alevin/quants_mat_cols.txt',
+      rows_f        = f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/af_quant/alevin/quants_mat_rows.txt',
+      chem_stats_f  = f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/chemistry_statistics.yaml'
+    benchmark:
+      f'{benchmark_dir}/mapping/run_mapping_{{lib}}_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/mapping/run_mapping_{{lib}}_{DATE_STAMP}.log'
+    threads: config['resources']['n_run_mapping']
+    retries: config['resources']['retries']
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_mapping', 'memory', attempt, wildcards.lib),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_mapping', 'time', attempt, wildcards.lib)
+    conda:
+      '../envs/alevin_fry.yaml'
+    shell:"""
+      exec &>> {log}
+
+      # check if arv_instance is set and if so, run in arvados environment
+      ARV_ARG=""
+      if [[ "{params.arv_instance}" != "" ]]; then
+        ARV_ARG="--arv_instance {params.arv_instance}"
+      fi
+      # get optional flags
+      if [[ "{params.af_chemistry}" != "none" ]]; then
+        OPT_ARGS+=(--af_chemistry "{params.af_chemistry}")
+        OPT_ARGS+=(--exp_ori "{params.exp_ori}")
+        OPT_ARGS+=(--whitelist_f "{params.whitelist_f}")
+      fi
+
+      # run mapping
+      python3 scripts/mapping.py map_fastqs_to_counts {wildcards.lib} \
+        --af_dir          "{af_dir}" \
+        --lib_pool_dir    "{params.lib_pool_dir}" \
+        --what            "rna" \
+        --af_home_dir     "{params.af_home_dir}" \
+        --where           "{params.where}" \
+        --R1_fs           {params.R1_fs} \
+        --R2_fs           {params.R2_fs} \
+        --threads         {threads} \
+        --af_index_dir    "{params.af_index_dir}" \
+        --wl_lu_f         "{params.wl_lu_f}" \
+        $ARV_ARG \
+        "${{OPT_ARGS[@]}}"
+      """
+
+
+# --- Per-sample h5 extraction (shared across all assay types) ---
 
 rule save_alevin_to_h5:
-  input: 
-    fry_dir     = f'{af_dir}/af_{{run}}/rna/af_quant/'
-  output: 
-    af_h5_f     = f'{af_dir}/af_{{run}}/rna/af_counts_mat.h5',
-    amb_yaml_f  = f'{af_dir}/af_{{run}}/rna/ambient_params_{{run}}_{DATE_STAMP}.yaml',
-    knee_data_f = f'{af_dir}/af_{{run}}/rna/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz'
+  input:
+    fry_dir       = lambda wildcards: f'{af_dir}/{lib_pool_dir}af_{RUNS_TO_LIBS[wildcards.run]}/{af_rna_dir}af_quant/'
+  output:
+    af_h5_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
+    amb_yaml_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml',
+    knee_data_f = f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz'
   params:
+    probe_id      = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"].get("probe_id"),
+    ocm_id        = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"].get("ocm_id"),
+    ocm_overhang_f = config['multiplexing'].get('ocm_overhang_f', ''),
     knee1         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["knee1"],
     shin1         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["shin1"],
     knee2         = lambda wildcards: RUN_PARAMS[wildcards.run]["mapping"]["knee2"],
@@ -96,8 +162,8 @@ rule save_alevin_to_h5:
     f'{benchmark_dir}/mapping/save_alevin_to_h5_{{run}}_{DATE_STAMP}.benchmark.txt'
   log:
     f'{logs_dir}/mapping/save_alevin_to_h5_{{run}}_{DATE_STAMP}.log'
-  conda: 
-   '../envs/rlibs.yaml'
+  conda:
+    '../envs/rlibs.yaml'
   shell: """
     exec &>> {log}
 
@@ -105,6 +171,9 @@ rule save_alevin_to_h5:
       save_alevin_h5_ambient_params(
         run           = '{wildcards.run}',
         fry_dir       = '{input.fry_dir}',
+        probe_id      = '{params.probe_id}',
+        ocm_id        = '{params.ocm_id}',
+        ocm_overhang_f = '{params.ocm_overhang_f}',
         h5_f          = '{output.af_h5_f}',
         cb_yaml_f     = '{output.amb_yaml_f}',
         knee_data_f   = '{output.knee_data_f}',
@@ -120,32 +189,33 @@ rule save_alevin_to_h5:
     """
 
 
-rule collect_chemistry_stats:
-  input:
-    chem_stats_fs  = expand(f'{af_dir}/af_{{run}}/rna/chemistry_statistics.yaml', run = RUNS)
-  output:
-    chem_stats_merged_f = f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv'
-  log:
-    f'{logs_dir}/mapping/collect_chemistry_stats_{DATE_STAMP}.log'
-  run:
-    
-    import sys
-    with open(str(log), "a") as f:
-      rows = []
-      sys.stdout = f
-      sys.stderr = f
+# --- Chemistry stats (polyA only, not applicable for flex) ---
 
-      for f in input.chem_stats_fs:
-        with open(f, "r") as stream:
-          data = yaml.safe_load(stream)
-          rows.append(data)
-    
-      chem_stats_dt = pl.from_dicts(rows)
-      col_ord = ["run", "selected_tenx_chemistry", "selected_af_chemistry", 
-        "selected_ori", "selected_gex_whitelist", "selected_whitelist_overlap", 
-        "selected_hto_whitelist", "selected_translation_f", "n_cells_fw", "n_cells_rc"]
-   
-      chem_stats_dt =chem_stats_dt.select(col_ord)
-      chem_stats_dt.write_csv(output.chem_stats_merged_f)
-    
+if not IS_FLEX:
+  rule collect_chemistry_stats:
+    input:
+      chem_stats_fs  = expand(f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/chemistry_statistics.yaml', lib = LIBS)
+    output:
+      chem_stats_merged_f = f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv'
+    log:
+      f'{logs_dir}/mapping/collect_chemistry_stats_{DATE_STAMP}.log'
+    run:
 
+      import sys
+      with open(str(log), "a") as f:
+        rows = []
+        sys.stdout = f
+        sys.stderr = f
+
+        for f in input.chem_stats_fs:
+          with open(f, "r") as stream:
+            data = yaml.safe_load(stream)
+            rows.append(data)
+
+        chem_stats_dt = pl.from_dicts(rows)
+        col_ord = ["run", "selected_tenx_chemistry", "selected_af_chemistry",
+          "selected_ori", "selected_gex_whitelist", "selected_whitelist_overlap",
+          "selected_hto_whitelist", "selected_translation_f", "n_cells_fw", "n_cells_rc"]
+
+        chem_stats_dt = chem_stats_dt.select(col_ord)
+        chem_stats_dt.write_csv(output.chem_stats_merged_f)

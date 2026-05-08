@@ -366,9 +366,12 @@ def _check_samples_df(samples_df, config):
 
   # some checks for multiplexing
   if config['multiplexing']['demux_type'] == "hto":
-    # check that hto fastq path is present
     if "hto_id" not in samples_df.columns:
       raise KeyError("'hto_id' not present in sample metadata")
+
+  if config['multiplexing']['demux_type'] == "ocm":
+    if "ocm_id" not in samples_df.columns:
+      raise KeyError("'ocm_id' not present in sample metadata when demux_type is 'ocm'")
 
   # check that sample_id values are unique
   if not samples_df[ "sample_id" ].n_unique() == samples_df.shape[0]:
@@ -480,8 +483,37 @@ def _check_multiplexing_parameters(config):
       raise ValueError("Values for pool_id don't match across demux_output and sample_metadata")
 
   elif config['multiplexing']['demux_type'] == 'flex':
-    # flex multiplexed: no extra files needed here; pool_id check already done above
     pass
+
+  elif config['multiplexing']['demux_type'] == 'ocm':
+    # validate ocm_id values
+    valid_ocm_ids = {"OB1", "OB2", "OB3", "OB4"}
+    ocm_ids = set(samples_df["ocm_id"].to_list())
+    invalid = ocm_ids - valid_ocm_ids
+    if invalid:
+      raise ValueError(f"Invalid ocm_id values: {invalid}. Valid values are {valid_ocm_ids}")
+
+    # check uniqueness of ocm_id within each pool
+    pool_ocm = samples_df.select("pool_id", "ocm_id")
+    dupes = pool_ocm.group_by("pool_id", "ocm_id").len().filter(pl.col("len") > 1)
+    if dupes.shape[0] > 0:
+      raise ValueError(f"Duplicate ocm_id values within pools:\n{dupes}")
+
+    # check max 4 samples per pool
+    pool_counts = samples_df.group_by("pool_id").len()
+    over_4 = pool_counts.filter(pl.col("len") > 4)
+    if over_4.shape[0] > 0:
+      raise ValueError(f"OCM supports max 4 samples per pool, but these pools have more: {over_4['pool_id'].to_list()}")
+
+    # check OCM overhang map file exists
+    scdata_dir = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
+    ocm_overhang_f = scdata_dir / 'cellranger_ref' / 'ocm_overhang_map.txt'
+    if not ocm_overhang_f.is_file():
+      raise FileNotFoundError(
+        f"OCM overhang map file not found: {ocm_overhang_f}\n"
+        f"This file should be created during scprocess setup.")
+
+    config['multiplexing']['ocm_overhang_f'] = str(ocm_overhang_f)
 
   return config
 
@@ -541,9 +573,9 @@ def _check_mapping_parameters(config, scdata_dir):
   
     config['mapping_af']['is_flex']        = False
     config['mapping_af']['tenx_chemistry'] = tenx_chemistry
-    config['mapping_af']['af_index_dir'] = scdata_dir / 'alevin_fry_home' / ref_txome
+    config['mapping_af']['af_index_dir'] = scdata_dir / 'alevin_fry_home' / 'ref_txomes' / ref_txome
     if not pathlib.Path(config['mapping_af']['af_index_dir']).is_dir():
-      raise FileNotFoundError(f"alevin index for '{ref_txome}' doesn't exist")
+      raise FileNotFoundError(f"alevin index for '{ref_txome}' doesn't exist at: {config['mapping_af']['af_index_dir']}")
 
     idx_row = index_params.filter( (pl.col('reference') == ref_txome))
     config['mapping_af']['af_mito_str'] = idx_row['mito_str'][0]
@@ -885,7 +917,7 @@ def get_lib_parameters(config, scprocess_data_dir):
 # get variables for each run
 def get_run_parameters(config, scprocess_data_dir, LIB_VAR, LIBS):
   # define run variable
-  if config['multiplexing']['demux_type'] in ["none", "flex"]:
+  if config['multiplexing']['demux_type'] in ["none", "flex", "ocm"]:
     RUN_VAR       = "sample_id"
   else:
     RUN_VAR       = "pool_id"
@@ -911,11 +943,19 @@ def get_run_parameters(config, scprocess_data_dir, LIB_VAR, LIBS):
   else:
     probe_id_map = {}
 
+  # for OCM, build an ocm_id lookup from sample metadata
+  ocm_id_map = {}
+  if config['multiplexing']['demux_type'] == 'ocm':
+    metadata_f  = config["project"]["sample_metadata"]
+    samples_df  = pl.read_csv(metadata_f)
+    ocm_id_map  = dict(zip(samples_df["sample_id"].to_list(), samples_df["ocm_id"].to_list()))
+
   # load sample file, populate everything from config
   RUN_PARAMS  = {
     run_name: _get_run_parameters_one_run(
       run_name, config, scprocess_data_dir, custom_run_params,
-      probe_id=probe_id_map.get(run_name)
+      probe_id=probe_id_map.get(run_name),
+      ocm_id=ocm_id_map.get(run_name)
     )
     for run_name in sorted(RUNS)
   }
@@ -1197,7 +1237,7 @@ def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
 
 
 # get parameters for one run
-def _get_run_parameters_one_run(run_name, config, scdata_dir, custom_run_params, probe_id=None, lib_name=None, LIB_PARAMS=None):
+def _get_run_parameters_one_run(run_name, config, scdata_dir, custom_run_params, probe_id=None, ocm_id=None, lib_name=None, LIB_PARAMS=None):
 
   knee1 = ""
   shin1 = ""
@@ -1231,6 +1271,8 @@ def _get_run_parameters_one_run(run_name, config, scdata_dir, custom_run_params,
   }
   if probe_id is not None:
     mapping_dc["probe_id"] = probe_id
+  if ocm_id is not None:
+    mapping_dc["ocm_id"] = ocm_id
   # make dictionary for ambient
   ambient_dc = {
     "cb_expected_cells":          "",
@@ -1342,14 +1384,14 @@ def get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS):
   demux_type      = config['multiplexing']['demux_type']
   sample_metadata = config['project']['sample_metadata']
 
-  if demux_type in ["none", "flex"]:
+  if demux_type in ["none", "flex", "ocm"]:
     if RUNS != BATCHES:
       raise ValueError(f"RUNS and BATCHES must match for demux_type '{demux_type}'")
 
     RUNS_TO_SAMPLES = {s: [s] for s in BATCHES}
     RUNS_TO_BATCHES = {s: [s] for s in BATCHES}
 
-    if demux_type == "flex":
+    if demux_type in ["flex", "ocm"]:
       # build sample_id -> pool_id map from metadata
       df           = pl.read_csv(sample_metadata)
       all_run_lib  = dict(zip(df["sample_id"].to_list(), df["pool_id"].to_list()))

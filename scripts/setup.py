@@ -95,7 +95,7 @@ def get_scprocess_data(scdata_dir, ranger_url, whitelists_lu_f, ranger_version_f
   
   # download cellranger and extract whitelists
   ranger_data_dir = os.path.join(scdata_dir, 'cellranger_ref')
-  get_cellranger_whitelists(ranger_data_dir, whitelists_lu_f, ranger_url, ranger_version)
+  extract_cellranger_resources(ranger_data_dir, whitelists_lu_f, ranger_url, ranger_version)
 
   # save file with cellranger version
   with open(ranger_version_f, "w") as f:
@@ -106,7 +106,7 @@ def get_scprocess_data(scdata_dir, ranger_url, whitelists_lu_f, ranger_version_f
   return
 
 
-def get_cellranger_whitelists(output_dir, whitelists_lu_f, ranger_url, ranger_version):
+def extract_cellranger_resources(output_dir, whitelists_lu_f, ranger_url, ranger_version):
 
   os.makedirs(output_dir, exist_ok=True)
 
@@ -167,6 +167,13 @@ def get_cellranger_whitelists(output_dir, whitelists_lu_f, ranger_url, ranger_ve
   # extract hto whitelists from translation files (the second column of barcodes in the translation file corresponds to hto barcodes)
   print("Extracting hto whitelists")
   _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict, output_dir)
+
+  # extract OCM overhang map from cellranger
+  print("Extracting OCM overhang map")
+  _extract_whitelists(tar_path,
+    {"overhang": "overhang.txt"},
+    {"overhang": "ocm_overhang_map.txt"},
+    output_dir, is_translation=True)
 
   # create a lookup table for all whitelists
   chem_lu_dict = {

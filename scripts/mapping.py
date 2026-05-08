@@ -21,11 +21,11 @@ from queue import Queue
 import threading
 
 
-def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where, 
+def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where,
   R1_fs, R2_fs, threads, t2g_f, index_dir, wl_lu_f, arv_instance = None,
-  af_chemistry = 'none', exp_ori = 'none', whitelist_f = 'none'):
+  af_chemistry = 'none', exp_ori = 'none', whitelist_f = 'none', lib_pool_dir = ''):
   # make output directory, in subdirectory if multiplexed samples
-  out_dir   = f"{af_dir}/af_{run}"
+  out_dir   = f"{af_dir}/{lib_pool_dir}af_{run}"
   if what == "rna":
     out_dir = f"{out_dir}/rna"
   elif what == "hto":
@@ -41,7 +41,7 @@ def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where,
   on_arvados  = not os.path.exists(where)
   if on_arvados:
     # set up tmp directory
-    tmp_dir     = f"{af_dir}/.tmp_fastqs_{run}_{what}"
+    tmp_dir     = f"{af_dir}/{lib_pool_dir}.tmp_fastqs_{run}_{what}"
     prefix      = f"{run}_{what}"
     os.makedirs(tmp_dir, exist_ok = True)
 
@@ -69,9 +69,9 @@ def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where,
     whitelist_f = sel_wl_dt['gex_barcodes_f_full'][0]
     
     if sel_wl_dt.height == 1:
-      tenx_chemistry_chem = sel_wl_dt['chemistry'][0]
+      tenx_chemistry = sel_wl_dt['chemistry'][0]
       af_chemistry = '10xv3'
-      exp_ori = 'rc' if tenx_chemistry_chem =='5v3' else 'fw'
+      exp_ori = 'rc' if tenx_chemistry =='5v3' else 'fw'
       
       cell_counts_fw = ""
       cell_counts_rc = "" # no mapping to downsampled data needs to be done
@@ -118,7 +118,7 @@ def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where,
   # do quantification
   extra = ["--no-piscem"] if what == "hto" else []
   _run_simpleaf_quant(out_dir, R1_fs, R2_fs, threads, index_dir,
-    tenx_chemistry, exp_ori, t2g_f, whitelist_f,  extra_args=extra
+    af_chemistry, exp_ori, t2g_f, whitelist_f, extra_args=extra
   )
   
   # save yaml with chemistry stats only if what is rna
@@ -473,6 +473,7 @@ if __name__ == "__main__":
   p_map.add_argument("--exp_ori", type=str, default='none')
   p_map.add_argument("--whitelist_f", type=str, default='none')
   p_map.add_argument("--arv_instance", type=str, default=None)
+  p_map.add_argument("--lib_pool_dir", type=str, default='')
 
   # map flex fastqs to counts
   p_flex = subparsers.add_parser('map_flex_fastqs_to_counts')
@@ -505,7 +506,7 @@ if __name__ == "__main__":
       what=args.what, af_home_dir=args.af_home_dir, where=args.where,
       R1_fs=args.R1_fs, R2_fs=args.R2_fs, threads=args.threads, af_chemistry=args.af_chemistry,
       exp_ori=args.exp_ori, wl_lu_f=args.wl_lu_f, whitelist_f=args.whitelist_f, t2g_f=t2g_f,
-      index_dir=index_dir, arv_instance=args.arv_instance)
+      index_dir=index_dir, arv_instance=args.arv_instance, lib_pool_dir=args.lib_pool_dir)
 
   elif args.command == 'map_flex_fastqs_to_counts':
     index_dir = f"{args.af_index_dir}/index"
