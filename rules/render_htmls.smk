@@ -275,62 +275,63 @@ rule render_html_qc:
       )"
     """
 
-# render_html_hvgs
-rule render_html_hvgs:
-  input:
-    r_utils_f   = f"{code_dir}/utils.R",
-    hvgs_f      = f'{hvg_dir}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    empty_gs_f  = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    pb_empty_f  = f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds'
-  output:
-    r_hvgs_f    = f"{code_dir}/hvgs.R",
-    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_hvgs.Rmd",
-    html_f      = f"{docs_dir}/{SHORT_TAG}_hvgs.html"
-  params:
-    your_name   = config['project']['your_name'],
-    affiliation = config['project']['affiliation'],
-    short_tag   = config['project']['short_tag'],
-    date_stamp  = config['project']['date_stamp'],
-    proj_dir    = config['project']['proj_dir']
-  threads: 1
-  retries: config['resources']['retries'] 
-  conda:
-    '../envs/rlibs.yaml'
-  resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_hvgs', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_hvgs', 'time', attempt)
-  benchmark:
-    f'{benchmark_dir}/render_htmls/render_html_hvgs_{DATE_STAMP}.benchmark.txt'
-  log:
-    f'{logs_dir}/render_htmls/render_html_hvgs_{DATE_STAMP}.log'
-  shell: """
-    exec &>> {log}
+# render_html_hvgs — only when ambient gene calculation is possible
+if CAN_CALC_AMBIENT_GENES:
+  rule render_html_hvgs:
+    input:
+      r_utils_f   = f"{code_dir}/utils.R",
+      hvgs_f      = f'{hvg_dir}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      empty_gs_f  = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      pb_empty_f  = f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds'
+    output:
+      r_hvgs_f    = f"{code_dir}/hvgs.R",
+      rmd_f       = f"{rmd_dir}/{SHORT_TAG}_hvgs.Rmd",
+      html_f      = f"{docs_dir}/{SHORT_TAG}_hvgs.html"
+    params:
+      your_name   = config['project']['your_name'],
+      affiliation = config['project']['affiliation'],
+      short_tag   = config['project']['short_tag'],
+      date_stamp  = config['project']['date_stamp'],
+      proj_dir    = config['project']['proj_dir']
+    threads: 1
+    retries: config['resources']['retries']
+    conda:
+      '../envs/rlibs.yaml'
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_hvgs', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_hvgs', 'time', attempt)
+    benchmark:
+      f'{benchmark_dir}/render_htmls/render_html_hvgs_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/render_htmls/render_html_hvgs_{DATE_STAMP}.log'
+    shell: """
+      exec &>> {log}
 
-    # copy R code over
-    echo "copying relevant R files over"
-    cp scripts/hvgs.R {output.r_hvgs_f}
+      # copy R code over
+      echo "copying relevant R files over"
+      cp scripts/hvgs.R {output.r_hvgs_f}
 
-    # define rule and template
-    template_f=$(realpath resources/rmd_templates/hvgs.Rmd.template)
-    rule="hvg"
+      # define rule and template
+      template_f=$(realpath resources/rmd_templates/hvgs.Rmd.template)
+      rule="hvg"
 
-    # rendering html
-    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
-    render_html(
-      rule_name   = '$rule',
-      temp_f      = '$template_f',
-      rmd_f       = '{output.rmd_f}',
-      your_name   = '{params.your_name}',
-      affiliation = '{params.affiliation}',
-      proj_dir    = '{params.proj_dir}',
-      short_tag   = '{params.short_tag}',
-      date_stamp  = '{params.date_stamp}',
-      threads     =  {threads},
-      hvgs_f      = '{input.hvgs_f}',
-      empty_gs_f  = '{input.empty_gs_f}',
-      pb_empty_f  = '{input.pb_empty_f}'
-    )"   
-    """
+      # rendering html
+      Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+      render_html(
+        rule_name   = '$rule',
+        temp_f      = '$template_f',
+        rmd_f       = '{output.rmd_f}',
+        your_name   = '{params.your_name}',
+        affiliation = '{params.affiliation}',
+        proj_dir    = '{params.proj_dir}',
+        short_tag   = '{params.short_tag}',
+        date_stamp  = '{params.date_stamp}',
+        threads     =  {threads},
+        hvgs_f      = '{input.hvgs_f}',
+        empty_gs_f  = '{input.empty_gs_f}',
+        pb_empty_f  = '{input.pb_empty_f}'
+      )"
+      """
 
 # render_html_integration
 rule render_html_integration:
@@ -407,7 +408,7 @@ rule render_html_marker_genes:
     mkrs_f        = f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     hvgs_f        = f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
-    empty_gs_f    = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    empty_gs_f    = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz' if CAN_CALC_AMBIENT_GENES else [],
     **get_conditional_fgsea_files(GENOME_REF, config['marker_genes']['mkr_do_gsea'])
   output:
     r_mkr_f       = f"{code_dir}/marker_genes.R",
@@ -435,6 +436,7 @@ rule render_html_marker_genes:
     mkr_do_gsea       = config['marker_genes']['mkr_do_gsea'], 
     mkr_gsea_var      = config['marker_genes']['mkr_gsea_var'],
     mkr_gsea_cut      = config['marker_genes']['mkr_gsea_cut'],
+    ambient_f         = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz' if CAN_CALC_AMBIENT_GENES else '',
     fgsea_args = lambda wildcards, input: " ".join(
       [
         f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}',",
@@ -477,7 +479,7 @@ rule render_html_marker_genes:
       metadata_f        = '{params.metadata_f}',
       meta_vars_ls      = '{params.meta_vars}',
       gtf_dt_f          = '{params.af_gtf_dt_f}',
-      ambient_f         = '{input.empty_gs_f}',
+      ambient_f         = '{params.ambient_f}',
       integration_f     = '{input.integration_f}',
       pb_f              = '{input.pb_f}',
       hvgs_f            = '{input.hvgs_f}',

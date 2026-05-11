@@ -22,10 +22,10 @@ suppressPackageStartupMessages({
 })
 
 # get matrix with (decontx cleaned) cells and a list of barcodes called as cells
-get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, sel_s, af_mat_f, knee_f, 
+get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, sel_s, af_mat_f, knee_f,
   cell_calls_method = c('barcodeRanks', 'emptyDrops'), ncores = 4, niters = 1000, hvg_n = 2000,
-  ambient_method = c('none', 'decontx')) {
-  
+  ambient_method = c('none', 'decontx_background', 'decontx_cluster')) {
+
   # check inputs
   call_m  = match.arg(cell_calls_method)
   amb_m   = match.arg(ambient_method)
@@ -61,9 +61,14 @@ get_cell_mat_and_barcodes <- function(out_mat_f, out_bcs_f, out_dcx_f = NULL, se
 
   } else {
     message("Running 'decontx' for ", sel_s)
-    # get empty matrix
-    empty_mat = af_mat[, cell_empty_bcs[["empty"]]]
-    dcx_res   = decontX(x = cell_mat, background = empty_mat, varGenes = hvg_n)
+    if (ambient_method == 'decontx_background') {
+      # use identified empty droplets as explicit background
+      empty_mat = af_mat[, cell_empty_bcs[["empty"]]]
+      dcx_res   = decontX(x = cell_mat, background = empty_mat, varGenes = hvg_n)
+    } else {
+      # estimate contamination from cluster structure without an explicit background
+      dcx_res   = decontX(x = cell_mat, varGenes = hvg_n)
+    }
 
     clean_mat = dcx_res$decontXcounts %>% round()
     # remove barcodes with no remaining counts
@@ -171,7 +176,7 @@ save_barcode_qc_metrics <- function(af_h5_f, amb_out_yaml, out_qc_f, ambient_met
     # merge together
     qc_dt       = merge(af_dt, cb_dt, by = 'barcode')
 
-  } else if (ambient_method == 'decontx') {
+  } else if (ambient_method %in% c('decontx_background', 'decontx_cluster')) {
 
     # get decontx matrix
     dcx_mat     = .get_h5_mx(amb_mat_f, '')

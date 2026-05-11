@@ -69,7 +69,7 @@ def int_get_filt_counts_f(run):
   ambient_method = config['ambient']['ambient_method']
   if ambient_method == "cellbender":
     return f'{amb_dir}/ambient_{run}/bender_{run}_{DATE_STAMP}_filtered.h5'
-  elif ambient_method == "decontx":
+  elif ambient_method in ["decontx_background", "decontx_cluster"]:
     return f'{amb_dir}/ambient_{run}/decontx_{run}_{DATE_STAMP}_filtered.h5'
   elif ambient_method == "none":
     return f'{amb_dir}/ambient_{run}/uncorrected_{run}_{DATE_STAMP}_filtered.h5'

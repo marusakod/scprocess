@@ -30,7 +30,7 @@ def hvgs_get_filt_counts_f(run):
   ambient_method = config['ambient']['ambient_method']
   if ambient_method == "cellbender":
     return f'{amb_dir}/ambient_{run}/bender_{run}_{DATE_STAMP}_filtered.h5'
-  elif ambient_method == "decontx":
+  elif ambient_method in ["decontx_background", "decontx_cluster"]:
     return f'{amb_dir}/ambient_{run}/decontx_{run}_{DATE_STAMP}_filtered.h5'
   elif ambient_method == "none":
     return f'{amb_dir}/ambient_{run}/uncorrected_{run}_{DATE_STAMP}_filtered.h5'
@@ -307,8 +307,8 @@ else:
 
 rule get_highly_variable_genes:
   input:
-    std_var_stats_f = f'{hvg_dir}/standardized_variance_stats_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
-    empty_gs_fs     = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    std_var_stats_f = f'{hvg_dir}/standardized_variance_stats_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    empty_gs_fs     = f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz' if CAN_CALC_AMBIENT_GENES else []
   output:
     hvg_f           = f'{hvg_dir}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   threads: 1
@@ -333,25 +333,30 @@ rule get_highly_variable_genes:
 
     EXC_GS_F_FLAG=""
     NOAMBIENT_FLAG=""
+    AMBIENTGS_FLAG=""
 
     if [ "{params.exc_gs_f}" != "" ]; then
       EXC_GS_F_FLAG="--exc_gs_f {params.exc_gs_f}"
     fi
-    
+
     if [ "{params.no_ambient}" = "True" ]; then
       NOAMBIENT_FLAG="--noambient"
+    fi
+
+    if [ -n "{input.empty_gs_fs}" ]; then
+      AMBIENTGS_FLAG="--empty_gs_f {input.empty_gs_fs}"
     fi
 
     # run script
     python3 scripts/hvgs.py calculate_hvgs \
       {input.std_var_stats_f} \
       {output.hvg_f} \
-      {input.empty_gs_fs} \
       {params.hvg_method} \
       {params.batch_var} \
       {params.n_hvgs} \
       $NOAMBIENT_FLAG \
-      $EXC_GS_F_FLAG
+      $EXC_GS_F_FLAG \
+      $AMBIENTGS_FLAG
     """
 
 

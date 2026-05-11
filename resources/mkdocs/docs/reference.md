@@ -159,7 +159,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       feature_ref:
       demux_output:
     ambient:
-      ambient_method: decontx
+      ambient_method: decontx_background
       cell_calling: barcodeRanks
       cb_version: v0.3.2
       cb_max_prop_kept: 0.9
@@ -401,8 +401,12 @@ sample_id:
 
 ##### ambient
 
-* `ambient_method`: method for ambient RNA removal; options are `decontx` (default), `cellbender` or `none`.
-* `cell_calling`: method for cell calling when `ambient_method` is `none` or `decontx`. Options are `barcodeRanks` (default) and `emptyDrops`.
+* `ambient_method`: method for ambient RNA removal. Options are:
+    + `decontx_background` (default): runs [`decontX`](https://bioconductor.org/packages/release/bioc/html/celda.html) with an estimated ambient RNA profile as input.
+    + `decontx_cluster`: runs `decontX` with a cluster-based background model
+    + `cellbender`: uses [CellBender](https://cellbender.readthedocs.io) for ambient RNA removal.
+    + `none`: skips ambient RNA removal;
+* `cell_calling`: method for cell calling when `ambient_method` is `none`, `decontx_background`, or `decontx_cluster`. Options are `barcodeRanks` (default) and `emptyDrops`.
 * `cb_version`: version of `cellbender` to use if `ambient_method` is set to `cellbender`. Options are `v0.3.2` (default), `v0.3.0'` and `v0.2.0'`.
 * `cb_max_prop_kept`: maximum proportion of droplets, relative to `--total-droplets-included`, that `cellbender` can call as cells. Default is `0.9`, meaning samples are excluded if `cellbender` calls more than 90% of `--total-droplets-included` droplets as cells. Applicable only if `ambient_method` is `cellbender`. For more information about the `--total-droplets-included` parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
 * `cb_learning_rate`: Sets the `--learning-rate` `CellBender` parameter to the specified value; applicable only if `ambient_method` is `cellbender`. Default value is `0.0001`. For more information about this parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).

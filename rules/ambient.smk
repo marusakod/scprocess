@@ -232,7 +232,7 @@ if config['ambient']['ambient_method'] == 'cellbender':
       """
 
 
-if config['ambient']['ambient_method'] == 'decontx':
+if config['ambient']['ambient_method'] in ['decontx_background', 'decontx_cluster']:
   rule run_decontx:
     input:
       af_h5_f         = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',

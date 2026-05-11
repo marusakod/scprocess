@@ -374,6 +374,19 @@ def _check_samples_df(samples_df, config):
   if not samples_df[ "sample_id" ].n_unique() == samples_df.shape[0]:
     raise ValueError("'sample_id' values in metadata csv not unique")
 
+  # check minimum sample counts per pool (or globally for demux_type=none)
+  demux_type = config['multiplexing']['demux_type']
+  if demux_type == 'none':
+    n_samples = samples_df['sample_id'].n_unique()
+    if n_samples < 2:
+      raise ValueError(f"At least 2 sample_ids are required; found {n_samples}.")
+  else:
+    pool_counts = samples_df.group_by('pool_id').agg(pl.col('sample_id').n_unique().alias('n_samples'))
+    small_pools = pool_counts.filter(pl.col('n_samples') < 2)
+    if small_pools.shape[0] > 0:
+      pool_list = ', '.join(small_pools['pool_id'].to_list())
+      raise ValueError(f"Each pool must contain at least 2 sample_ids. The following pools have fewer: {pool_list}")
+
   # check columns of samples_df
   if any(' ' in col for col in samples_df.columns):
     raise ValueError("some column names in metadata csv contain spaces.")
@@ -600,6 +613,21 @@ def _check_pb_empties_parameters(config):
 
 # check parameters for hvgs
 def _check_hvg_parameters(config):
+  # for hto/custom with only 1 pool, ambient gene detection is not possible
+  # (ambient genes are calculated across pseudobulks, which are per pool for these demux types)
+  demux_type = config['multiplexing']['demux_type']
+  if demux_type in ['hto', 'custom'] and config['hvg']['hvg_exclude_ambient_genes']:
+    meta_df = pl.read_csv(config['project']['sample_metadata'])
+    n_pools = meta_df['pool_id'].n_unique()
+    if n_pools < 2:
+      config['hvg']['hvg_exclude_ambient_genes'] = False
+      print(
+        f"  WARNING: hvg_exclude_ambient_genes is True but ambient gene detection requires "
+        f">=2 pools; only {n_pools} pool found with demux_type='{demux_type}'. "
+        f"Setting hvg_exclude_ambient_genes=False. To suppress this warning, set "
+        f"hvg_exclude_ambient_genes: false in your config."
+      )
+
   # check if any genes were specified to be excluded
   if 'hvg_exclude_from_file' in config['hvg']:
     # check file exists
