@@ -789,7 +789,7 @@ def _check_zoom_clusters_in_file(labels_f, zoom_config):
   sel_labels  = zoom_config['zoom']['sel_labels']
   missing_cls = set(sel_labels) - set(labels)
   if len(missing_cls) > 0:
-    raise ValueError(f"the following labels were specified in the zoom params yaml but are not present in the file:\n  {", ".join(missing_cls)}")
+    raise ValueError(f"the following labels were specified in the zoom params yaml but are not present in the file:\n  {', '.join(missing_cls)}")
 
   return sel_labels
 
@@ -899,9 +899,9 @@ def _get_fastqs(config, RUNS, is_hto = False):
     check_R1      = [re.sub(r'(?<=(_|\.))R1', 'R0', f) for f in R1_fs]
     check_R2      = [re.sub(r'(?<=(_|\.))R2', 'R0', f) for f in R2_fs]
     if len(R1_fs) == 0:
-      print(f"  WARNING: no {"hto " if is_hto else ""}fastq files found for run {run}; excluded.")
+      print(f"  WARNING: no {'hto ' if is_hto else ''}fastq files found for run {run}; excluded.")
     elif set(check_R1) != set(check_R2):
-      print(f"  WARNING: {"hto " if is_hto else ""}fastq files found for run {run} but R1 and R2 don't match; excluded.")
+      print(f"  WARNING: {'hto ' if is_hto else ''}fastq files found for run {run} but R1 and R2 don't match; excluded.")
     else:
       fastqs[run] = {
         "where":          this_where[0], 
@@ -1277,7 +1277,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
       if not entry['model'] in mdls_typist:
         raise KeyError(
           f"The value {entry['model']} specified in label_celltypes is not a valid celltypist model.\n"
-          f"The following are valid models:\n{", ".join(mdls_typist)}"
+          f"The following are valid models:\n{', '.join(mdls_typist)}"
           )
 
     # check that parameters for scprocess are ok
@@ -1285,7 +1285,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
       if not entry['model'] in mdls_scprocess:
         raise KeyError(
           f"the value {entry['model']} specified in label_celltypes is not a valid scprocess model"
-          f"These models are currently available: {", ".join(mdls_scprocess)}"
+          f"These models are currently available: {', '.join(mdls_scprocess)}"
           )
     
       # pick labeller
