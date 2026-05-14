@@ -13,7 +13,10 @@ import glob
 import gzip
 import datetime
 import subprocess
-import snakemake
+try:
+  import snakemake
+except ImportError:
+  snakemake = None
 import json
 import jsonschema
 from jsonschema.exceptions import best_match
