@@ -111,6 +111,7 @@ project:
   your_name:
   affiliation:
   sample_metadata: data/metadata/
+  tenx_assay_type: poly_a
   ref_txome:
   date_stamp: "2026-01-01"
 qc:
@@ -131,6 +132,7 @@ project:
   your_name: Testy McUser
   affiliation: Unemployed
   sample_metadata: data/metadata/test_project_metadata.csv
+  tenx_assay_type: poly_a
   ref_txome: mouse_2024
   date_stamp: "2026-01-01"
   metadata_vars: [group]
@@ -227,6 +229,7 @@ project:
   your_name: Testy McUser
   affiliation: Unemployed
   sample_metadata: data/metadata/test_project_metadata.csv
+  tenx_assay_type: poly_a
   ref_txome: mouse_2024
   date_stamp: "2026-01-01"
   metadata_vars: [group]
@@ -285,6 +288,7 @@ In this example, we will subcluster the populations labelled "327 Oligo NN" (oli
       your_name: Test McUser
       affiliation: Unemployed
       sample_metadata: data/metadata/test_project_metadata.csv
+      tenx_assay_type: poly_a
       ref_txome: mouse_2024
       date_stamp: "2026-01-01"
       metadata_vars: [group]
@@ -437,6 +441,7 @@ project:
   your_name:
   affiliation:
   sample_metadata: data/metadata/
+  tenx_assay_type: poly_a
   ref_txome:
   date_stamp: "2026-01-01"
 multiplexing:
@@ -459,6 +464,7 @@ project:
   your_name: Testy McUser
   affiliation: Unemployed
   sample_metadata: data/metadata/multiplexed_test_project_metadata.csv
+  tenx_assay_type: poly_a
   ref_txome: mouse_2024
   date_stamp: "2026-01-01"
 multiplexing:
