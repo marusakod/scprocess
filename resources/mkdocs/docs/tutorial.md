@@ -507,6 +507,11 @@ scprocess setup
 
     This tutorial uses the ["40k Mixture of Mouse Cell Lines dataset"](https://www.10xgenomics.com/datasets/40k-mixture-of-mouse-cell-lines-multiplexed-samples-4-probe-barcodes-1-standard) from 10x Genomics. Four mouse cell lines (A20, NIH 3T3, Neuro-2a and EL4) were profiled together in a single Flex library. Each cell line was labelled with a distinct probe barcode (BC001–BC004) prior to pooling.
 
+    To generate smaller files via downsampling, we first download the BAM and the raw count HDF5 file for each of the four samples from the [10x Genomics website](https://www.10xgenomics.com/datasets/40k-mixture-of-mouse-cell-lines-multiplexed-samples-4-probe-barcodes-1-standard). For each sample independently, barcodes were
+    selected by retaining 40% of barcodes called as cells, 40% of barcodes in the empty plateau, and 30% of the remaining barcodes; any barcode
+    with fewer than 10 UMIs was discarded, as were all reads flagged as PCR duplicates. The four filtered BAMs were then merged and converted back to FASTQ format,
+    resulting in the dataset used for this tutorial.
+
 ### Creating a new project directory and preparing input data
 
 Create a new project directory using the `flex` and `multiplex` flags to generate a configuration template pre-populated with Flex-specific fields:
@@ -524,28 +529,41 @@ Next, download the raw FASTQ files:
 
 !!! warning "File size"
 
-    The size of FASTQ files approximately 99 GB. Download may take a while.
+    The size of FASTQ files approximately 23 GB. Download may take a while.
 
 ```bash
 # dowload FASTQ files
-wget -P data/fastqs \
-  https://s3-us-west-2.amazonaws.com/10x.files/samples/cell-exp/7.1.0/4plex_mouse_cell_lines_multiplex_Multiplex/4plex_mouse_cell_lines_multiplex_Multiplex_fastqs.tar
-
-tar -xvf data/fastqs/4plex_mouse_cell_lines_multiplex_Multiplex_fastqs.tar \
-  -C data/fastqs \
-  && rm data/fastqs/4plex_mouse_cell_lines_multiplex_Multiplex_fastqs.tar
-
-# remove index files (identified by _I1_ and _I2_ tags)
-find data/fastqs -name "*_I1_*" -o -name "*_I2_*" | xargs rm -f
+for url in https://zenodo.org/records/20162591/files/4plex_mouse_cell_lines_multiplex_S1_L00{1..4}.tar; do
+    {
+        file=$(basename "$url")
+        echo "Downloading $file..."
+        wget -q --show-progress -P data/fastqs "$url"
+        
+        echo "Extracting $file..."
+        tar -xf "data/fastqs/$file" -C data/fastqs
+        
+        rm "data/fastqs/$file"
+        echo "Finished $file"
+    } &
+done
+wait
 
 # download sample metadata
-wget -P data/metadata https://github.com/marusakod/scprocessData/releases/download/v0.1.0/flex_test_project_metadata.csv
+wget -P data/metadata https://zenodo.org/records/20162591/files/flex_test_project_metadata.csv
 ```
 
 With `ls data/fastqs` you should be able to see the following files:
 
 ```bash
-# paste fastq files here
+4plex_mouse_cell_lines_multiplex_S1_L001_R1_001.fastq.gz  4plex_mouse_cell_lines_multiplex_S1_L002_R2_002.fastq.gz
+4plex_mouse_cell_lines_multiplex_S1_L001_R1_002.fastq.gz  4plex_mouse_cell_lines_multiplex_S1_L003_R1_001.fastq.gz
+4plex_mouse_cell_lines_multiplex_S1_L001_R1_003.fastq.gz  4plex_mouse_cell_lines_multiplex_S1_L003_R1_002.fastq.gz
+4plex_mouse_cell_lines_multiplex_S1_L001_R2_001.fastq.gz  4plex_mouse_cell_lines_multiplex_S1_L003_R2_001.fastq.gz
+4plex_mouse_cell_lines_multiplex_S1_L001_R2_002.fastq.gz  4plex_mouse_cell_lines_multiplex_S1_L003_R2_002.fastq.gz
+4plex_mouse_cell_lines_multiplex_S1_L001_R2_003.fastq.gz  4plex_mouse_cell_lines_multiplex_S1_L004_R1_001.fastq.gz
+4plex_mouse_cell_lines_multiplex_S1_L002_R1_001.fastq.gz  4plex_mouse_cell_lines_multiplex_S1_L004_R1_002.fastq.gz
+4plex_mouse_cell_lines_multiplex_S1_L002_R1_002.fastq.gz  4plex_mouse_cell_lines_multiplex_S1_L004_R2_001.fastq.gz
+4plex_mouse_cell_lines_multiplex_S1_L002_R2_001.fastq.gz  4plex_mouse_cell_lines_multiplex_S1_L004_R2_002.fastq.gz
 ```
 
 To inspect the contents of the `flex_test_project_metadata.csv` file, you can use the following command:
@@ -567,7 +585,7 @@ pool_id                           sample_id     probe_id
 Note that the first column of the sample metadata file (`pool_id`) contains values that can be matched to FASTQ files i.e. `4plex_mouse_cell_lines_multiplex*`. The metadata file requires two additional columns:
 
 * `sample_id`: lists all samples corresponding to a single pool.
-* `probe_id`: lists the lables of probe barcode ids used for each sample.
+* `probe_id`: lists the lables of probe barcode IDs used for each sample.
 
 ### Creating a configuration file
 
@@ -576,7 +594,7 @@ The `newproj` command created a template at `config-flex_project.yaml`:
 ```yaml
 project:
   proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
-  fastq_dir:
+  fastq_dir: data/fastqs
   full_tag: flex_project
   short_tag:
   your_name: 
@@ -593,7 +611,7 @@ qc:
   qc_max_splice: 0.99
 ```
 
-In addition to parameters common to both 10x assay types we have to set flex-specific paramaters highlighted below:
+In addition to parameters common to both 10x assay types we have to set Flex-specific paramaters highlighted below:
 
 ```yaml hl_lines="9 10 13"
 project:
@@ -625,7 +643,7 @@ scprocess run config-flex_project.yaml
 
 ### Inspecting reports
 
-All reports generated by {{sc}} for this tutorial are available at https://marusakod.github.io/scprocess_test_flex_project/. 
+All reports generated by {{sc}} for this tutorial are available at []
 
 
 
