@@ -1651,8 +1651,9 @@ def check_join_config(config, join_schema_f):
 
   Mirrors check_config() for project configs:
     1. Validates against join.schema.json
-    2. Applies schema defaults for hvg, integration, marker_genes, and shiny sections
-    3. Calls _check_shiny_parameters for shiny-specific cross-checks
+    2. Validates each referenced project config against config.schema.json
+    3. Applies schema defaults for hvg, integration, marker_genes, and shiny sections
+    4. Calls _check_shiny_parameters for shiny-specific cross-checks
 
   Returns the (possibly modified) config dict.
   """
@@ -1663,6 +1664,26 @@ def check_join_config(config, join_schema_f):
   if errors:
     raise ValueError("join.yaml validation errors:\n" +
       "\n".join(f"  {list(e.path)}: {e.message}" for e in errors))
+
+  # validate each referenced project config against the project schema
+  proj_schema_f = pathlib.Path(join_schema_f).parent / "config.schema.json"
+  if proj_schema_f.is_file():
+    proj_schema = _load_schema_file(proj_schema_f)
+    proj_defaults = _get_default_config_from_schema(proj_schema)
+    for pid, proj_entry in config.get('projects', {}).items():
+      cfg_f = proj_entry.get('config')
+      if cfg_f and os.path.isfile(cfg_f):
+        with open(cfg_f) as f:
+          proj_cfg = yaml.safe_load(f)
+        defaults_copy = copy.deepcopy(proj_defaults)
+        snakemake.utils.update_config(defaults_copy, proj_cfg)
+        proj_cfg = defaults_copy
+        proj_errors = sorted(
+          jsonschema.Draft202012Validator(proj_schema).iter_errors(proj_cfg),
+          key=lambda e: e.path)
+        if proj_errors:
+          raise ValueError(f"Validation errors in project '{pid}' config ({cfg_f}):\n" +
+            "\n".join(f"  {list(e.path)}: {e.message}" for e in proj_errors))
 
   for section in ['hvg', 'integration', 'marker_genes', 'shiny']:
     if section not in config:

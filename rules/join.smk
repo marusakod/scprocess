@@ -82,7 +82,10 @@ def _proj_integrated_dt_f(pid):
   return _proj_int_dir(pid) / f"integrated_dt_{_proj_full_tag(pid)}_{_proj_date(pid)}.csv.gz"
 
 def _proj_sample_meta_f(pid):
-  return pathlib.Path(_project_cfgs[pid]['project']['sample_metadata'])
+  meta_f = pathlib.Path(_project_cfgs[pid]['project']['sample_metadata'])
+  if not meta_f.is_absolute():
+    meta_f = _proj_dir(pid) / meta_f
+  return meta_f
 
 VAR_STATS_FS   = [str(_proj_var_stats_f(pid)) for pid in JOIN_PROJECT_IDS]
 H5ADS_YAML_FS  = [str(_proj_h5ads_yaml_f(pid)) for pid in JOIN_PROJECT_IDS]
@@ -202,6 +205,9 @@ _lbl_cfg = config.get('label_celltypes', [])
 DO_LABEL = len(_lbl_cfg) > 0
 if DO_LABEL:
   # apply schema defaults
+  import json
+  with open(join_schema_f) as _f:
+    _join_schema = json.load(_f)
   _lbl_schema_props = _join_schema['properties']['label_celltypes']['items']['properties']
   for entry in _lbl_cfg:
     for key, prop in _lbl_schema_props.items():

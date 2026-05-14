@@ -809,7 +809,10 @@ def _render_index(scprocess_dir, config, setup_cfg, config_path):
     "conda", "run", "--prefix", env_path,
     "Rscript", "--vanilla", "-e", r_code
   ]
-  return subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+  result = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+  if result.returncode != 0:
+    print("Warning: render_index failed (non-fatal); continuing.")
+  return result
 
 
 def _get_main_log(config_path, log_dir, dryrun):
