@@ -460,12 +460,12 @@ def _render_index(scprocess_dir, config, config_path):
       "Has the pipeline run successfully at least once?")
 
   # actually do it
-  print(f"rendering html index")  
+  print(f"rendering html index")
   cmd = [
-    "conda", "run", "--prefix", env_path,
+    "conda", "run", "--prefix", str(env_path),
     "Rscript", "--vanilla", "-e", r_code
   ]
-  return subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+  return subprocess.run(cmd, check=True)
 
 
 def _get_main_log(config_path, log_dir, dryrun):

@@ -52,6 +52,10 @@ save_alevin_h5_ambient_params <- function(run, fry_dir, h5_f, cb_yaml_f, knee_da
   if (ocm_id == "None")         ocm_id         = NULL
   if (ocm_overhang_f == "None") ocm_overhang_f = NULL
 
+  # for flex or OCM: load pool matrix, filter to per-sample barcodes, save h5,
+  # then pass the in-memory matrix directly to avoid re-reading
+  precomputed_mat = NULL
+
   # for flex: filter pool matrix to this sample's barcodes by probe_id prefix
   if (!is.null(probe_id)) {
     sce = loadFry(fry_dir, outputFormat = list(S = c("S"), U = c("U"), A = c("A")))
@@ -66,6 +70,7 @@ save_alevin_h5_ambient_params <- function(run, fry_dir, h5_f, cb_yaml_f, knee_da
     mat           = mat[, colSums(mat) > 0, drop = FALSE]
     message("sample ", run, " (probe_id=", probe_id, "): ", ncol(mat), " barcodes retained")
     write10xCounts(h5_f, mat, version = "3", overwrite = TRUE)
+    precomputed_mat = mat
     fry_dir = NULL
 
   # for OCM: filter pool matrix to this sample's barcodes by 2bp overhang at position 8-9
@@ -82,6 +87,7 @@ save_alevin_h5_ambient_params <- function(run, fry_dir, h5_f, cb_yaml_f, knee_da
     mat           = mat[, colSums(mat) > 0, drop = FALSE]
     message("sample ", run, " (ocm_id=", ocm_id, ", overhang=", overhang, "): ", ncol(mat), " barcodes retained")
     write10xCounts(h5_f, mat, version = "3", overwrite = TRUE)
+    precomputed_mat = mat
     fry_dir = NULL
   }
 
@@ -89,7 +95,7 @@ save_alevin_h5_ambient_params <- function(run, fry_dir, h5_f, cb_yaml_f, knee_da
     knee_data_f = knee_data_f, hto_mat = 0, run_var = run_var, probe_id = probe_id,
     knee1 = knee1, shin1 = shin1, knee2 = knee2, shin2 = shin2,
     exp_cells = exp_cells, total_included = total_included,
-    low_count_thr = low_count_thr)
+    low_count_thr = low_count_thr, precomputed_mat = precomputed_mat)
 
   con_obj = file(cb_yaml_f)
   writeLines(c(
@@ -107,9 +113,14 @@ save_alevin_h5_ambient_params <- function(run, fry_dir, h5_f, cb_yaml_f, knee_da
 
 save_alevin_h5_knee_params_df <- function(run, fry_dir, h5_f, knee_data_f,
   hto_mat = 0, run_var, knee1 = '', shin1 = '', knee2 = '', shin2 ='',
-  exp_cells ='', total_included ='', low_count_thr ='', probe_id = NULL) {
+  exp_cells ='', total_included ='', low_count_thr ='', probe_id = NULL,
+  precomputed_mat = NULL) {
 
-  mat = make_alevin_h5(fry_dir, h5_f, hto_mat = hto_mat, probe_id = probe_id)
+  if (!is.null(precomputed_mat)) {
+    mat = precomputed_mat
+  } else {
+    mat = make_alevin_h5(fry_dir, h5_f, hto_mat = hto_mat, probe_id = probe_id)
+  }
 
   # convert custom knees, shins and cellbender params to integers
   knee1           = as.integer(knee1)

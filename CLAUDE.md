@@ -87,7 +87,7 @@ Python scripts are invoked by Snakemake rules using the `script:` directive. Key
 
 R scripts are invoked via `script:` directive or called in shell blocks:
 
-- `mapping.R` — Converts alevin-fry output to per-sample h5 files; handles Flex (probe_id) and OCM (overhang) barcode splitting.
+- `mapping.R` — Converts alevin-fry output to per-sample h5 files; handles Flex (probe_id) and OCM (overhang) barcode splitting. For flex/OCM, the filtered matrix is passed in-memory via `precomputed_mat` to avoid h5 round-trip issues.
 - `SampleQC.R` — QC metric visualization and filtering.
 - `marker_genes.R` — edgeR pseudobulk DE testing and GSEA visualization (fgsea).
 - `label_celltypes.R` — R-side cell labeling utilities.

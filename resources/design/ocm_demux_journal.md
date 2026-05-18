@@ -57,3 +57,20 @@ Instead: `ocm_overhang_map.txt` is auto-extracted from cellranger during setup (
 - `resources/mkdocs/docs/reference.md` — OCM docs
 - `resources/mkdocs/docs/usage.md` — OCM usage section
 - `scprocess` CLI — pipefail fix for render_index
+
+## 2026-05-18: First OCM test run fixes
+
+### save_alevin_to_h5 fixes (mapping.R)
+
+The flex/OCM path in `save_alevin_h5_ambient_params` wrote the per-sample h5 and
+set `fry_dir = NULL`, but then `save_alevin_h5_knee_params_df` tried to call
+`loadFry(NULL)` → crash. Fixed by passing the in-memory matrix directly via
+`precomputed_mat` parameter, avoiding h5 write→read round-trip entirely.
+
+### Setup fixes
+
+- Updated `TXOME_INDEX_FS` in `setup.smk`: prebuilt Zenodo tarballs now use
+  `piscem_idx.ssi` (not `.sshash`) and `piscem_idx_ver.json` (not `piscem_idx.json`).
+  The filename mismatch caused MissingOutputException, triggering snakemake to
+  delete the successfully extracted files.
+- Added download/extraction error checking in `_download_prebuilt_index`.
