@@ -275,15 +275,15 @@ def resolve_scprocess_paths(config: dict) -> dict:
 
     # validate that scprocess has been run and outputs exist
     assert pathlib.Path(paths["cluster_csv"]).is_file(), (
-        f"Cluster CSV not found: {paths['cluster_csv']}"
+      f"Cluster CSV not found: {paths['cluster_csv']}"
     )
     assert pathlib.Path(paths["h5ads_yaml"]).is_file(), (
-        f"H5AD paths YAML not found: {paths['h5ads_yaml']}"
+      f"H5AD paths YAML not found: {paths['h5ads_yaml']}"
     )
 
     # load the batch→h5ad mapping (e.g. {"sample_A": "/path/to/sample_A.h5ad", ...})
     with open(paths["h5ads_yaml"]) as f:
-        paths["h5ad_dict"] = yaml.safe_load(f)
+      paths["h5ad_dict"] = yaml.safe_load(f)
 
     return paths
 
@@ -321,11 +321,8 @@ def plan_training_cells(config: dict, paths: dict) -> pl.DataFrame:
     hi_res_col = f"RNA_snn_res.{hi_res}"
 
     # Load only the columns we need from the cluster CSV (can be large)
-    cols_to_read = ["cell_id", "sample_id", hi_res_col]
-    if batch_var != "sample_id" and batch_var not in cols_to_read:
-        cols_to_read.append(batch_var)
-
-    cluster_df = pl.read_csv(paths["cluster_csv"], columns=cols_to_read)
+    cols_to_read = ["cell_id", batch_var, hi_res_col]
+    cluster_df   = pl.read_csv(paths["cluster_csv"], columns=cols_to_read)
     print(f"  Loaded cluster CSV: {cluster_df.shape[0]} cells")
 
     # Load annotations — must have cell_id and annotation columns
@@ -345,15 +342,15 @@ def plan_training_cells(config: dict, paths: dict) -> pl.DataFrame:
     # of annotated cells, all cells in that cluster get that label. Mixed clusters
     # keep their original per-cell annotations.
     if config["refine_labels"]:
-        print("  Refining labels by cluster majority voting...")
-        df = refine_labels_by_cluster(df, hi_res_col, config)
+      print("  Refining labels by cluster majority voting...")
+      df = refine_labels_by_cluster(df, hi_res_col, config)
     else:
-        df = df.with_columns(pl.col("annotation").alias("label"))
+      df = df.with_columns(pl.col("annotation").alias("label"))
 
     # Step 4: Apply label mapping (e.g. "excitatory_L5" → "neuron")
     if config["label_map_f"] is not None:
-        print("  Applying label mapping...")
-        df = apply_label_mapping(df, config)
+      print("  Applying label mapping...")
+      df = apply_label_mapping(df, config)
 
     # Drop cells that still have no label (were never annotated and not in a
     # pure-enough cluster to receive a refined label)
@@ -362,16 +359,15 @@ def plan_training_cells(config: dict, paths: dict) -> pl.DataFrame:
 
     # Exclude rare cell types that don't have enough cells for meaningful training
     type_counts = df.group_by("label").len()
-    keep_types = (
-        type_counts
-        .filter(pl.col("len") >= config["min_cells_per_type"])
-        ["label"].to_list()
+    keep_types = (type_counts
+      .filter(pl.col("len") >= config["min_cells_per_type"])
+      ["label"].to_list()
     )
     excluded = type_counts.filter(pl.col("len") < config["min_cells_per_type"])
     if excluded.shape[0] > 0:
-        print(f"  Excluding {excluded.shape[0]} cell types with < {config['min_cells_per_type']} cells:")
-        for row in excluded.iter_rows(named=True):
-            print(f"    {row['label']}: {row['len']} cells")
+      print(f"  Excluding {excluded.shape[0]} cell types with < {config['min_cells_per_type']} cells:")
+      for row in excluded.iter_rows(named=True):
+        print(f"    {row['label']}: {row['len']} cells")
     df = df.filter(pl.col("label").is_in(keep_types))
 
     # Downsample each cell type to at most n_cells_per_type
@@ -387,14 +383,14 @@ def plan_training_cells(config: dict, paths: dict) -> pl.DataFrame:
     # When batch_var="pool_id", each pool (potentially containing multiple samples)
     # has one H5AD.
     if batch_var == "sample_id":
-        df = df.with_columns(pl.col("sample_id").alias("batch"))
+      df = df.with_columns(pl.col("sample_id").alias("batch"))
     else:
-        df = df.with_columns(pl.col(batch_var).alias("batch"))
+      df = df.with_columns(pl.col(batch_var).alias("batch"))
 
     # Print summary
     split_summary = df.group_by("split").len()
     for row in split_summary.iter_rows(named=True):
-        print(f"    {row['split']}: {row['len']} cells")
+      print(f"    {row['split']}: {row['len']} cells")
 
     return df.select(["cell_id", "sample_id", "label", "split", "batch"])
 
@@ -417,51 +413,46 @@ def refine_labels_by_cluster(
     purity_thr = config["purity_threshold"]
     min_cluster_size = 10
 
-    # Only use annotated cells to compute cluster purity
+    # only use annotated cells to compute cluster purity
     annotated = df.filter(pl.col("annotation").is_not_null())
 
-    # Count (cluster, annotation) pairs
+    # count (cluster, annotation) pairs
     cluster_annot_counts = (
-        annotated
-        .group_by([hi_res_col, "annotation"])
-        .len()
-        .rename({"len": "n"})
+      annotated.group_by([hi_res_col, "annotation"])
+      .len().rename({"len": "n"})
     )
 
-    # Total annotated cells per cluster
+    # total annotated cells per cluster
     cluster_totals = (
-        annotated
-        .group_by(hi_res_col)
-        .len()
-        .rename({"len": "n_total"})
+      annotated.group_by(hi_res_col)
+      .len().rename({"len": "n_total"})
     )
 
     # For each cluster, find the majority annotation and its purity (proportion).
     # Keep only clusters that pass both the purity threshold and minimum size.
     cluster_stats = (
-        cluster_annot_counts
-        .join(cluster_totals, on=hi_res_col)
-        .with_columns((pl.col("n") / pl.col("n_total")).alias("purity"))
-        .sort([hi_res_col, "purity"], descending=[False, True])
-        .group_by(hi_res_col)
-        .first()  # takes the top-purity annotation per cluster
-        .filter(
-            (pl.col("purity") >= purity_thr) & (pl.col("n_total") >= min_cluster_size)
-        )
-        .select([hi_res_col, pl.col("annotation").alias("majority_label")])
+      cluster_annot_counts
+      .join(cluster_totals, on=hi_res_col)
+      .with_columns((pl.col("n") / pl.col("n_total")).alias("purity"))
+      .sort([hi_res_col, "purity"], descending=[False, True])
+      .group_by(hi_res_col)
+      .first()  # takes the top-purity annotation per cluster
+      .filter(
+        (pl.col("purity") >= purity_thr) & (pl.col("n_total") >= min_cluster_size)
+     )
+     .select([hi_res_col, pl.col("annotation").alias("majority_label")])
     )
 
     n_refined = cluster_stats.shape[0]
     n_total_clusters = df[hi_res_col].n_unique()
     print(f"    {n_refined}/{n_total_clusters} clusters pass purity threshold")
 
-    # Apply: cells in pure clusters get the majority label; others keep original
+    # cells in pure clusters get the majority label; others keep original
     df = df.join(cluster_stats, on=hi_res_col, how="left")
     df = df.with_columns(
-        pl.when(pl.col("majority_label").is_not_null())
-        .then(pl.col("majority_label"))
-        .otherwise(pl.col("annotation"))
-        .alias("label")
+      pl.when(pl.col("majority_label").is_not_null())
+      .then(pl.col("majority_label")).otherwise(pl.col("annotation"))
+      .alias("label")
     ).drop("majority_label")
 
     return df
@@ -490,13 +481,12 @@ def apply_label_mapping(df: pl.DataFrame, config: dict) -> pl.DataFrame:
         {"annotation": "label", "coarse_label": "mapped_label"}
     )
 
-    # Left join: labels in the map get a mapped_label; others get null
+    # labels in the map get a mapped_label; others get null
     df = df.join(map_df, on="label", how="left")
     df = df.with_columns(
-        pl.when(pl.col("mapped_label").is_not_null())
-        .then(pl.col("mapped_label"))
-        .otherwise(pl.col("label"))
-        .alias("label")
+      pl.when(pl.col("mapped_label").is_not_null())
+      .then(pl.col("mapped_label")).otherwise(pl.col("label"))
+       .alias("label")
     ).drop("mapped_label")
 
     return df
@@ -506,20 +496,15 @@ def downsample_per_type(df: pl.DataFrame, config: dict) -> pl.DataFrame:
     """Downsample to at most n_cells_per_type cells per label.
 
     This ensures the training set is balanced and not too large. Cell types with
-    fewer cells than the cap are kept entirely (no upsampling).
+    fewer cells than the cap are kept entirely.
     """
     n_max = config["n_cells_per_type"]
-    seed = config["seed"]
+    seed  = config["seed"]
 
-    sampled = (
-        df
-        .with_columns(pl.lit(1).alias("_dummy"))
-        .group_by("label")
-        .map_groups(
-            lambda group: group.sample(
-                n=min(n_max, group.shape[0]),
-                seed=seed,
-            )
+    sampled = (df
+      .with_columns(pl.lit(1).alias("_dummy")).group_by("label")
+      .map_groups(
+        lambda group: group.sample(n=min(n_max, group.shape[0]), seed=seed)
         )
         .drop("_dummy")
     )
@@ -544,38 +529,37 @@ def assign_train_val_split(df: pl.DataFrame, config: dict) -> pl.DataFrame:
     """
     seed = config["seed"]
     rng = np.random.default_rng(seed)
-    n_samples = df["sample_id"].n_unique()
+    n_samples = df["sample_id"].n_unique() # should maybe use batch_var instead of sample_id?
 
     if n_samples > 4:
-        # Sample-level holdout: entire samples go to validation
-        samples = sorted(df["sample_id"].unique().to_list())
-        n_val = max(1, len(samples) // 5)
-        val_samples = rng.choice(samples, size=n_val, replace=False).tolist()
-        print(f"    Sample-level holdout: {n_val} val samples of {len(samples)}")
-        print(f"    Val samples: {val_samples}")
+      # Sample-level holdout: entire samples go to validation
+      samples = sorted(df["sample_id"].unique().to_list())
+      n_val   = max(1, len(samples) // 5)
+      val_samples = rng.choice(samples, size=n_val, replace=False).tolist()
+      print(f"    Sample-level holdout: {n_val} val samples of {len(samples)}")
+      print(f"    Val samples: {val_samples}") # What is Val?
 
-        df = df.with_columns(
-            pl.when(pl.col("sample_id").is_in(val_samples))
-            .then(pl.lit("val"))
-            .otherwise(pl.lit("train"))
-            .alias("split")
-        )
+      df = df.with_columns(
+        pl.when(pl.col("sample_id").is_in(val_samples))
+        .then(pl.lit("val")).otherwise(pl.lit("train"))
+        .alias("split")
+      )
     else:
-        # Cell-level stratified split: 20% of cells per label go to validation
-        print(f"    Cell-level stratified split (<=4 samples)")
+      # Cell-level stratified split: 20% of cells per label go to validation
+      print(f"    Cell-level stratified split (<=4 samples)")
 
-        labels = df["label"].to_list()
-        assignments = ["train"] * len(labels)
+      labels = df["label"].to_list()
+      assignments = ["train"] * len(labels)
 
-        # For each cell type, randomly assign 20% of its cells to validation
-        for label in df["label"].unique().to_list():
-            label_indices = [i for i, lbl in enumerate(labels) if lbl == label]
-            n_val = max(1, int(len(label_indices) * 0.2))
-            val_indices = rng.choice(label_indices, size=n_val, replace=False).tolist()
-            for idx in val_indices:
-                assignments[idx] = "val"
+      # For each cell type, randomly assign 20% of its cells to validation
+      for label in df["label"].unique().to_list():
+        label_indices = [i for i, lbl in enumerate(labels) if lbl == label]
+        n_val = max(1, int(len(label_indices) * 0.2))
+        val_indices = rng.choice(label_indices, size=n_val, replace=False).tolist()
+        for idx in val_indices:
+          assignments[idx] = "val"
 
-        df = df.with_columns(pl.Series("split", assignments))
+      df = df.with_columns(pl.Series("split", assignments))
 
     return df
 
