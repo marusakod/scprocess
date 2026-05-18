@@ -565,11 +565,15 @@ def _download_prebuilt_index(ref_txome, idx_dir):
   os.chdir(idx_dir)
 
   # download index
-  subprocess.run(f"wget {idx_url}", shell=True)
   idx_name  = f'alevin-idx_{ref_txome}_rrna.tar.gz'
+  result = subprocess.run(f"wget {idx_url}", shell=True)
+  if result.returncode != 0 or not os.path.exists(idx_name):
+    raise RuntimeError(f"Failed to download prebuilt index from {idx_url}")
 
   # untar
-  subprocess.run(f'tar --strip-components=1 -xvf {idx_name}', shell=True, capture_output=False)
+  result = subprocess.run(f'tar -xvf {idx_name}', shell=True, capture_output=False)
+  if result.returncode != 0:
+    raise RuntimeError(f"Failed to extract {idx_name}")
 
   # remove tar archive
   os.remove(idx_name)

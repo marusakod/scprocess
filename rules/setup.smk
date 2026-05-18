@@ -23,10 +23,10 @@ logs_dir         = f'{SCDATA_DIR}/.log/setup'
 TXOME_INDEX_FS = [
   'index/piscem_idx.ctab',
   'index/piscem_idx.ectab',
-  'index/piscem_idx.json',
   'index/piscem_idx.refinfo',
-  'index/piscem_idx.sshash',
+  'index/piscem_idx.ssi',
   'index/piscem_idx_cfish.json',
+  'index/piscem_idx_ver.json',
   'index/simpleaf_index.json',
   'index/t2g_3col.tsv',
   'ref/gene_id_to_name.tsv',
