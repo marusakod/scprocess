@@ -19,8 +19,7 @@ suppressPackageStartupMessages({
   return(row$oh1)
 }
 
-
-make_alevin_h5 <- function(fry_dir, h5_f, hto_mat = 0) {
+make_alevin_h5 <- function(fry_dir, h5_f, hto_mat = 0, probe_id = NULL) {
   if (hto_mat) {
     sce = loadFry(fry_dir)
     mat = counts(sce)
@@ -31,6 +30,11 @@ make_alevin_h5 <- function(fry_dir, h5_f, hto_mat = 0) {
       rownames(m) = paste0(rownames(m), "_", n)
       m
     }) %>% do.call(rbind, .)
+    if (!is.null(probe_id)) {
+      keep          = startsWith(colnames(mat), paste0(probe_id, "_"))
+      mat           = mat[, keep, drop = FALSE]
+      colnames(mat) = sub(paste0("^", probe_id, "_"), "", colnames(mat))
+    }
   }
 
   mat = mat[, colSums(mat) > 0, drop = FALSE]
@@ -39,7 +43,7 @@ make_alevin_h5 <- function(fry_dir, h5_f, hto_mat = 0) {
   return(mat)
 }
 
-save_alevin_h5_ambient_params <- function(run, fry_dir = NULL, h5_f, cb_yaml_f, knee_data_f,
+save_alevin_h5_ambient_params <- function(run, fry_dir, h5_f, cb_yaml_f, knee_data_f,
   run_var, knee1, shin1, knee2, shin2, exp_cells, total_included, low_count_thr,
   probe_id = "None", ocm_id = "None", ocm_overhang_f = "None") {
 
@@ -82,7 +86,7 @@ save_alevin_h5_ambient_params <- function(run, fry_dir = NULL, h5_f, cb_yaml_f, 
   }
 
   bender_ps = save_alevin_h5_knee_params_df(run, fry_dir = fry_dir, h5_f = h5_f,
-    knee_data_f = knee_data_f, hto_mat = 0, run_var = run_var,
+    knee_data_f = knee_data_f, hto_mat = 0, run_var = run_var, probe_id = probe_id,
     knee1 = knee1, shin1 = shin1, knee2 = knee2, shin2 = shin2,
     exp_cells = exp_cells, total_included = total_included,
     low_count_thr = low_count_thr)
@@ -101,17 +105,11 @@ save_alevin_h5_ambient_params <- function(run, fry_dir = NULL, h5_f, cb_yaml_f, 
   close(con_obj)
 }
 
-save_alevin_h5_knee_params_df <- function(run, fry_dir = NULL, h5_f, knee_data_f,
+save_alevin_h5_knee_params_df <- function(run, fry_dir, h5_f, knee_data_f,
   hto_mat = 0, run_var, knee1 = '', shin1 = '', knee2 = '', shin2 ='',
-  exp_cells ='', total_included ='', low_count_thr ='') {
+  exp_cells ='', total_included ='', low_count_thr ='', probe_id = NULL) {
 
-  if (!is.null(fry_dir)) {
-    mat = make_alevin_h5(fry_dir, h5_f, hto_mat = hto_mat)
-  } else {
-    # load from an already-created h5 file
-    mat = .get_h5_mx(h5_f, sel_s = '')
-    message("number of barcodes loaded from h5: ", ncol(mat))
-  }
+  mat = make_alevin_h5(fry_dir, h5_f, hto_mat = hto_mat, probe_id = probe_id)
 
   # convert custom knees, shins and cellbender params to integers
   knee1           = as.integer(knee1)

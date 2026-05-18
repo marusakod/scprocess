@@ -33,6 +33,12 @@ LABELLER_PARAMS     = get_labeller_parameters(config, schema_f, scdata_dir)
 IS_FLEX             = config['project']['is_flex']
 IS_FLEX_MUXED       = config['multiplexing']['demux_type'] == "flex"
 IS_OCM              = config['multiplexing']['demux_type'] == "ocm"
+# False when demux_type is hto/custom with only 1 pool: edgeR ambient gene detection
+# requires >=2 pseudobulks (one per pool), so it cannot run with a single pool
+CAN_CALC_AMBIENT_GENES = not (
+  config['multiplexing']['demux_type'] in ['hto', 'custom'] and len(RUNS) < 2
+)
+
 # subdirectory prefix used by ambient/pb_empties rules to locate per-run outputs
 af_rna_dir          = 'flex/' if IS_FLEX else 'rna/'
 # subdirectory prefix for pool/library-level outputs (when multiplexed via flex or OCM)
@@ -138,6 +144,18 @@ af_mapping_outs = (
 )
 chem_stats_outs = [] if IS_FLEX else [f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv']
 
+# pseudobulk empty outputs — skipped when ambient gene calculation is not possible
+pb_empty_outs = [
+  f'{pb_dir}/af_paths_{FULL_TAG}_{DATE_STAMP}.csv',
+  f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds',
+] if CAN_CALC_AMBIENT_GENES else []
+
+# hvgs html report — skipped when ambient gene calculation is not possible
+hvgs_html_outs = [
+  f'{rmd_dir}/{SHORT_TAG}_hvgs.Rmd',
+  f'{docs_dir}/{SHORT_TAG}_hvgs.html',
+] if CAN_CALC_AMBIENT_GENES else []
+
 # one rule to rule them all
 rule all:
   input:
@@ -165,10 +183,9 @@ rule all:
     f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     # pseudobulks and empties
-    f'{pb_dir}/af_paths_{FULL_TAG}_{DATE_STAMP}.csv', 
-    f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds', 
+    pb_empty_outs,
     f'{pb_dir}/pb_cells_all_{FULL_TAG}_{DATE_STAMP}.rds',
-    f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
+    f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz' if CAN_CALC_AMBIENT_GENES else [],
     # hvgs
     f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
     f'{hvg_dir}/standardized_variance_stats_{FULL_TAG}_{DATE_STAMP}.csv.gz',
@@ -192,15 +209,14 @@ rule all:
     f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
     f'{rmd_dir}/{SHORT_TAG}_ambient.Rmd',
     f'{rmd_dir}/{SHORT_TAG}_qc.Rmd', 
-    f'{rmd_dir}/{SHORT_TAG}_hvgs.Rmd',
-    f'{rmd_dir}/{SHORT_TAG}_integration.Rmd', 
+    f'{rmd_dir}/{SHORT_TAG}_integration.Rmd',
     f'{rmd_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd', 
     hto_rmd_f,
     # reports
     f'{docs_dir}/{SHORT_TAG}_mapping.html', 
     f'{docs_dir}/{SHORT_TAG}_ambient.html',
     f'{docs_dir}/{SHORT_TAG}_qc.html',
-    f'{docs_dir}/{SHORT_TAG}_hvgs.html',
+    hvgs_html_outs,
     f'{docs_dir}/{SHORT_TAG}_integration.html',
     f'{docs_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.html',
     hto_html_f 
@@ -284,8 +300,7 @@ rule hvg:
     f'{docs_dir}/{SHORT_TAG}_ambient.html',
     f'{rmd_dir}/{SHORT_TAG}_qc.Rmd',
     f'{docs_dir}/{SHORT_TAG}_qc.html',
-    f'{rmd_dir}/{SHORT_TAG}_hvgs.Rmd',
-    f'{docs_dir}/{SHORT_TAG}_hvgs.html'
+    hvgs_html_outs
 
 
 rule integration:
@@ -300,8 +315,7 @@ rule integration:
     f'{docs_dir}/{SHORT_TAG}_ambient.html',
     f'{rmd_dir}/{SHORT_TAG}_qc.Rmd',
     f'{docs_dir}/{SHORT_TAG}_qc.html',
-    f'{rmd_dir}/{SHORT_TAG}_hvgs.Rmd',
-    f'{docs_dir}/{SHORT_TAG}_hvgs.html',
+    hvgs_html_outs,
     f'{rmd_dir}/{SHORT_TAG}_integration.Rmd',
     f'{docs_dir}/{SHORT_TAG}_integration.html'
 

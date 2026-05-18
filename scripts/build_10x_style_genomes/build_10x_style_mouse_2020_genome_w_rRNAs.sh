@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # mouse 2020 genome (this code is a minor modification of code in https://www.10xgenomics.com/support/software/cell-ranger/downloads/cr-ref-build-steps)
 
@@ -14,12 +15,14 @@ gtf_in="${source}/gencode.vM23.primary_assembly.annotation.gtf"
 
 # Download FASTA if it doesn't exist
 if [ ! -f "$fasta_in" ]; then
-    wget -qO- "$fasta_url" | zcat > "$fasta_in"
+    wget --retry-connrefused --waitretry=5 --tries=3 -O "${fasta_in}.gz" "$fasta_url"
+    gunzip "${fasta_in}.gz"
 fi
 
 # Download GTF if it doesn't exist
 if [ ! -f "$gtf_in" ]; then
-    wget -qO- "$gtf_url" | zcat > "$gtf_in"
+    wget --retry-connrefused --waitretry=5 --tries=3 -O "${gtf_in}.gz" "$gtf_url"
+    gunzip "${gtf_in}.gz"
 fi
 
 # Modify sequence headers in the Ensembl FASTA

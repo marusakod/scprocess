@@ -109,7 +109,7 @@
       "required": ["ambient_method"],
       "additionalProperties": false,
       "properties": {
-        "ambient_method":               { "type": "string", "enum": ["decontx", "cellbender", "none"], "default": "decontx" },
+        "ambient_method":               { "type": "string", "enum": ["decontx_background", "decontx_cluster", "cellbender", "none"], "default": "decontx_background" },
         "cell_calling":                 { "type": "string", "enum": ["barcodeRanks", "emptyDrops"], "default": "barcodeRanks" },
         "cb_version":                   { "type": "string", "enum": ["v0.3.2", "v0.3.0'", "v0.2.0'"], "default": "v0.3.2" },
         "cb_max_prop_kept":             { "type": "number", "default": 0.9 },

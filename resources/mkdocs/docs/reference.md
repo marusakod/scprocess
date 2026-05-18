@@ -22,18 +22,18 @@ arvados:
   arv_instance:   instance_name
 ref_txomes:
   tenx:
-    - name:       human_2024
-      decoys:     true
-      rrnas:      true
+  - name:       human_2024
+    decoys:     true
+    rrnas:      true
   custom:
-    - name:       custom_genome_name
-      fasta:      /path/to/genome.fa
-      gtf:        /path/to/genes.gtf
-      decoys:     true
-      mito_str:   "^mt-"
+  - name:       custom_genome_name
+    fasta:      /path/to/genome.fa
+    gtf:        /path/to/genes.gtf
+    decoys:     true
+    mito_str:   "^mt-"
 probe_sets:
   tenx:
-    - name:       human_v1
+  - name:       human_v1
 ```
 
 ##### user
@@ -144,7 +144,9 @@ This is an example config file for {{sc}} with all parameters and their default 
       affiliation:
       date_stamp:
       sample_metadata:
+      tenx_assay_type:
       ref_txome:
+      probe_set:
       metadata_vars:
       show_arv_uuids: true
       custom_sample_params:
@@ -159,7 +161,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       feature_ref:
       demux_output:
     ambient:
-      ambient_method: decontx
+      ambient_method: decontx_background
       cell_calling: barcodeRanks
       cb_version: v0.3.2
       cb_max_prop_kept: 0.9
@@ -242,7 +244,9 @@ This is an example config file for {{sc}} with all parameters and their default 
       affiliation: where you work
       date_stamp: "2050-01-01"
       sample_metadata: /path/to/metadata.csv
+      tenx_assay_type: poly_a
       ref_txome: human_2024
+      probe_set: human_v1
       tenx_chemistry: 3v3
       metadata_vars: [var1, var2]
       show_arv_uuids: true
@@ -345,7 +349,7 @@ This is an example config file for {{sc}} with all parameters and their default 
 * `your_name`: author’s name, displayed in HTML outputs.
 * `affiliation`: author’s affiliation, displayed in HTML outputs.
 * `date_stamp`: start date of the analysis, formatted as `"YYYY-MM-DD"`.
-* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1`/`.R1` and `_R2`/`.R2` strings and should not overlap (a value should not be a subset of any other values). For Flex data, columns `pool_id` and `probe_id` are also required (see [Analysis of 10x Flex data](usage.md#analysis-of-10x-flex-data)).
+* `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1`/`.R1` and `_R2`/`.R2` strings and should not overlap (a value should not be a subset of any other values).
 * `ref_txome`: must match one of the values in the `ref_txome` column of `index_parameters.csv` (created by {{scsetup}}). Required for polyA data; must not be specified for Flex data (use `probe_set` instead).
 * `tenx_assay_type`: assay type. Options are `poly_a` and `flex`. When set to `flex`, `probe_set` is required and `ref_txome` must not be specified.
 * `probe_set`: probe set to use for 10x Flex data. Required when `tenx_assay_type` is `flex`. Valid values are `human_v1`, `human_v2`, `mouse_v1`, and `mouse_v2`. Must not be specified for polyA data.
@@ -390,7 +394,7 @@ sample_id:
 
 * `demux_type`: `demux_type` options (default is `none`):
     + `none` if experiment is not multiplexed;
-    + `hto` if demultiplexing of samples should be performed with {{sc}};
+    + `hto` if hto-based demultiplexing of samples should be performed with {{sc}};
     + `ocm` if 10x on-chip multiplexing (GEM-X Universal Multiplex) was used. Requires an `ocm_id` column in sample metadata with values `OB1`-`OB4`. The correct barcode partition files are auto-selected based on `tenx_chemistry`;
     + `custom` if demultiplexing results will be used as input to {{sc}}; or
     + `flex` for 10x Flex data where samples are pooled within a library and demultiplexed using probe barcodes. Requires `tenx_assay_type: flex` in the `project` section.
@@ -402,8 +406,12 @@ sample_id:
 
 ##### ambient
 
-* `ambient_method`: method for ambient RNA removal; options are `decontx` (default), `cellbender` or `none`.
-* `cell_calling`: method for cell calling when `ambient_method` is `none` or `decontx`. Options are `barcodeRanks` (default) and `emptyDrops`.
+* `ambient_method`: method for ambient RNA removal. Options are:
+    + `decontx_background` (default): runs [`decontX`](https://bioconductor.org/packages/release/bioc/html/celda.html) with an estimated ambient RNA profile as input.
+    + `decontx_cluster`: runs `decontX` with a cluster-based background model.
+    + `cellbender`: uses [CellBender](https://cellbender.readthedocs.io) for ambient RNA removal.
+    + `none`: skips ambient RNA removal;
+* `cell_calling`: method for cell calling when `ambient_method` is `none`, `decontx_background`, or `decontx_cluster`. Options are `barcodeRanks` (default) and `emptyDrops`.
 * `cb_version`: version of `cellbender` to use if `ambient_method` is set to `cellbender`. Options are `v0.3.2` (default), `v0.3.0'` and `v0.2.0'`.
 * `cb_max_prop_kept`: maximum proportion of droplets, relative to `--total-droplets-included`, that `cellbender` can call as cells. Default is `0.9`, meaning samples are excluded if `cellbender` calls more than 90% of `--total-droplets-included` droplets as cells. Applicable only if `ambient_method` is `cellbender`. For more information about the `--total-droplets-included` parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
 * `cb_learning_rate`: Sets the `--learning-rate` `CellBender` parameter to the specified value; applicable only if `ambient_method` is `cellbender`. Default value is `0.0001`. For more information about this parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
