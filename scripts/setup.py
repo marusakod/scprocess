@@ -32,10 +32,10 @@ URLS_GTF_TXTS = {
   'mouse_2024': "https://zenodo.org/records/14247195/files/mouse_2024_rrna_genes_gtf.txt.gz"
 }
 URLS_ZEN_IDXS = { 
-  'human_2020': "https://zenodo.org/records/14247195/files/alevin-idx_human_2020_rrna.tar.gz", 
-  'human_2024': "https://zenodo.org/records/14247195/files/alevin-idx_human_2024_rrna.tar.gz", 
-  'mouse_2020': "https://zenodo.org/records/14247195/files/alevin-idx_mouse_2020_rrna.tar.gz", 
-  'mouse_2024': "https://zenodo.org/records/14247195/files/alevin-idx_mouse_2024_rrna.tar.gz"
+  'human_2020': "https://zenodo.org/records/20270573/files/alevin-idx_human_2020_rrna.tar.gz", 
+  'human_2024': "https://zenodo.org/records/20270573/files/alevin-idx_human_2024_rrna.tar.gz", 
+  'mouse_2020': "https://zenodo.org/records/20270573/files/alevin-idx_mouse_2020_rrna.tar.gz", 
+  'mouse_2024': "https://zenodo.org/records/20270573/files/alevin-idx_mouse_2024_rrna.tar.gz"
 }
 
 TENX_PROBE_SET_NAMES = ['human_v1', 'mouse_v1', 'human_v2', 'mouse_v2']
