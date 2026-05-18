@@ -16,6 +16,7 @@ import subprocess
 import snakemake
 import json
 import jsonschema
+from jsonschema.exceptions import best_match
 
 ### not much setup
 
@@ -179,7 +180,9 @@ def _validate_object_against_schema(config, schema_f, file_desc):
     print(f"problem with schema file:\n  {str(e)}")
     sys.exit(1)
   except jsonschema.ValidationError as e:
-    print(f"problem with your {file_desc} file:\n  {str(e)}")
+    best = best_match([e])
+    path = ".".join(str(p) for p in best.absolute_path) if best.absolute_path else "(root)"
+    print(f"problem with your {file_desc} file:\n  At '{path}': {best.message}")
     sys.exit(1)
   except jsonschema.SchemaError as e:
     print(f"schema error: {str(e)}")
@@ -531,6 +534,31 @@ def _check_multiplexing_parameters(config):
   return config
 
 
+def check_demux_ids(demux_f, metadata_f, check_f):
+  demux_ids    = pl.scan_csv(demux_f).select('pool_id', 'sample_id').unique().collect()
+  metadata_ids = pl.read_csv(metadata_f).select('pool_id', 'sample_id')
+
+  demux_pools = set(demux_ids['pool_id'])
+  meta_pools  = set(metadata_ids['pool_id'])
+  if demux_pools != meta_pools:
+    missing_in_demux = meta_pools - demux_pools
+    missing_in_meta  = demux_pools - meta_pools
+    msg = 'Values for pool_id do not match across demux_output and sample_metadata.'
+    if missing_in_demux:
+      msg += f' In metadata but not demux: {missing_in_demux}'
+    if missing_in_meta:
+      msg += f' In demux but not metadata: {missing_in_meta}'
+    raise ValueError(msg)
+
+  demux_samples = set(demux_ids['sample_id'])
+  meta_samples  = set(metadata_ids['sample_id'])
+  if demux_samples > meta_samples:
+    missing = demux_samples - meta_samples
+    raise ValueError(f"Some values for 'sample_id' in demux_output do not have a match in sample_metadata: {missing}")
+
+  open(check_f, 'w').close()
+
+
 # check parameters for mapping
 def _check_mapping_parameters(config, scdata_dir):
   # load index parameters
@@ -683,7 +711,7 @@ def _check_hvg_parameters(config):
     all_vals    = gtf_df[ gene_col ]
     absent_vals = set(exc_vals) - set(all_vals)
     if len(absent_vals) > 0:
-      raise ValueError(f"the following genes were specified in 'hvg_exclude_from_file' but were not found in the reference transcriptome: {", ".join(absent_vals)}")
+      raise ValueError(f"the following genes were specified in 'hvg_exclude_from_file' but were not found in the reference transcriptome: {', '.join(absent_vals)}")
   else:
     config['hvg']['hvg_exclude_from_file'] = None
 
@@ -887,7 +915,7 @@ def _check_zoom_clusters_in_file(labels_f, zoom_config):
   sel_labels  = zoom_config['zoom']['sel_labels']
   missing_cls = set(sel_labels) - set(labels)
   if len(missing_cls) > 0:
-    raise ValueError(f"the following labels were specified in the zoom params yaml but are not present in the file:\n  {", ".join(missing_cls)}")
+    raise ValueError(f"the following labels were specified in the zoom params yaml but are not present in the file:\n  {', '.join(missing_cls)}")
 
   return sel_labels
 
@@ -923,6 +951,9 @@ def get_lib_parameters(config, scprocess_data_dir):
 
   # get fastq files
   RNA_FQS     = _get_fastqs(config, LIBS, is_hto = False)
+  missing_libs = [l for l in LIBS if l not in RNA_FQS]
+  if missing_libs:
+    raise ValueError(f"no FASTQ files found for the following libraries: {missing_libs}")
   LIBS        = list(RNA_FQS.keys())
   if len(LIBS) == 0:
     raise ValueError("no libraries with FASTQs")
@@ -1044,9 +1075,9 @@ def _get_fastqs(config, RUNS, is_hto = False):
     check_R1      = [re.sub(r'(?<=(_|\.))R1', 'R0', f) for f in R1_fs]
     check_R2      = [re.sub(r'(?<=(_|\.))R2', 'R0', f) for f in R2_fs]
     if len(R1_fs) == 0:
-      print(f"  WARNING: no {"hto " if is_hto else ""}fastq files found for run {run}; excluded.")
+      print(f"  WARNING: no {'hto ' if is_hto else ''}fastq files found for run {run}; excluded.")
     elif set(check_R1) != set(check_R2):
-      print(f"  WARNING: {"hto " if is_hto else ""}fastq files found for run {run} but R1 and R2 don't match; excluded.")
+      print(f"  WARNING: {'hto ' if is_hto else ''}fastq files found for run {run} but R1 and R2 don't match; excluded.")
     else:
       fastqs[run] = {
         "where":          this_where[0], 
@@ -1474,7 +1505,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
       if not entry['model'] in mdls_typist:
         raise KeyError(
           f"The value {entry['model']} specified in label_celltypes is not a valid celltypist model.\n"
-          f"The following are valid models:\n{", ".join(mdls_typist)}"
+          f"The following are valid models:\n{', '.join(mdls_typist)}"
           )
 
     # check that parameters for scprocess are ok
@@ -1482,7 +1513,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
       if not entry['model'] in mdls_scprocess:
         raise KeyError(
           f"the value {entry['model']} specified in label_celltypes is not a valid scprocess model"
-          f"These models are currently available: {", ".join(mdls_scprocess)}"
+          f"These models are currently available: {', '.join(mdls_scprocess)}"
           )
     
       # pick labeller

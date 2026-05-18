@@ -142,7 +142,7 @@ save_alevin_h5_knee_params_df <- function(run, fry_dir, h5_f, knee_data_f,
     bender_ps = merge(bender_ps, splice_dt, by = "barcode") %>% .[ order(rank) ]
   }
 
-  fwrite(bender_ps, file = knee_data_f)
+  fwrite(bender_ps, file = knee_data_f, scipen = 999)
 
   return(bender_ps)
 }
