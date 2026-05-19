@@ -643,10 +643,10 @@ rule zoom_get_highly_variable_genes:
     python3 scripts/hvgs.py calculate_hvgs \
       {input.std_var_stats_f} \
       {output.hvg_f} \
-      {input.empty_gs_fs} \
       {params.zoom_hvg_method} \
       {params.batch_var} \
       {params.zoom_n_hvgs} \
+      --empty_gs_f {input.empty_gs_fs} \
       $NOAMBIENT_FLAG \
       $EXC_GS_F_FLAG
     """
@@ -844,9 +844,9 @@ rule zoom_run_fgsea:
       fgsea_go_bp_f = '{output.fgsea_go_bp_f}', 
       fgsea_go_cc_f = '{output.fgsea_go_cc_f}', 
       fgsea_go_mf_f = '{output.fgsea_go_mf_f}', 
-      ref_txome     = '{params.ref_txome}', 
-      gsea_dir      = '{params.mkr_gsea_dir}', 
-      min_cpm_go    = {params.zoom_mkr_min_cpm_go}, 
+      genome_ref    = '{params.ref_txome}',
+      gsea_dir      = '{params.mkr_gsea_dir}',
+      min_cpm_go    = {params.zoom_mkr_min_cpm_go},
       max_zero_p    = {params.zoom_mkr_max_zero_p},
       gsea_cut      = {params.zoom_mkr_gsea_cut},
       not_ok_re     = '{params.zoom_mkr_not_ok_re}',
