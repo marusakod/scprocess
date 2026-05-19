@@ -1,0 +1,14 @@
+name: train_xgboost
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python>=3.11
+  - polars>=1.0
+  - anndata>=0.10
+  - scipy>=1.10
+  - numpy>=1.24
+  - xgboost>=2.0,<2.1
+  - matplotlib>=3.7
+  - pyyaml>=6.0
+  - h5py>=3.9
