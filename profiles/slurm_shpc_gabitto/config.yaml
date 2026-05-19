@@ -23,3 +23,7 @@ set-resources:
     # qos: '3h'
     qos: '1d'
     # runtime: 360
+  join_integration:
+    slurm_partition: "batch_gpu"
+    slurm_extra: "'--gpus=1'"
+    qos: '3h'

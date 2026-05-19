@@ -126,6 +126,7 @@ def check_config(config, schema_f, scdata_dir, scprocess_dir):
   config      = _check_integration_parameters(config)
   config      = _check_marker_genes_parameters(config, scdata_dir)
   config      = _check_pb_empties_parameters(config)
+  config      = _check_shiny_parameters(config)
 
   return config
 
@@ -671,6 +672,122 @@ def _check_pb_empties_parameters(config):
   return config
 
 
+# load valid palette names from the shared resource file (mirrors shiny.R)
+_VALID_PALETTES_FILE = pathlib.Path(__file__).parent.parent / "resources" / "valid_palettes.json"
+
+def _load_valid_palette_names():
+  with open(_VALID_PALETTES_FILE) as f:
+    groups = json.load(f)
+  return {name for key, names in groups.items() if not key.startswith('_') for name in names}
+
+def _check_palette_name(name, context, valid_names):
+  if name not in valid_names:
+    raise ValueError(
+      f"Unknown palette '{name}' in {context}. "
+      f"See the scprocess documentation for valid palette names."
+    )
+
+
+# check parameters for shiny app build
+def _check_shiny_parameters(config):
+  if 'shiny' not in config:
+    return config
+
+  shiny_cfg = config['shiny']
+
+  # resolve metadata_vars from whichever config level is present
+  if 'project' in config:
+    metadata_vars = config['project'].get('metadata_vars', [])
+  elif 'join' in config:
+    metadata_vars = config['join'].get('metadata_vars', [])
+  else:
+    metadata_vars = []
+
+  valid_palette_names = _load_valid_palette_names()
+
+  # check var_names length matches metadata_vars
+  if shiny_cfg.get('var_names') is not None:
+    if len(shiny_cfg['var_names']) != len(metadata_vars):
+      raise ValueError(
+        f"shiny.var_names has {len(shiny_cfg['var_names'])} entries but "
+        f"metadata_vars has {len(metadata_vars)}; they must be the same length"
+      )
+
+  # check var_combns values are in metadata_vars
+  if shiny_cfg.get('var_combns'):
+    for pair in shiny_cfg['var_combns']:
+      for v in pair:
+        if v not in metadata_vars:
+          raise ValueError(
+            f"shiny.var_combns references '{v}' which is not in metadata_vars: "
+            f"{metadata_vars}"
+          )
+
+  # check cluster_palette name
+  if shiny_cfg.get('cluster_palette'):
+    _check_palette_name(shiny_cfg['cluster_palette'], 'shiny.cluster_palette', valid_palette_names)
+
+  # check metadata_palettes palette name strings; warn if keys are not in metadata_vars
+  if shiny_cfg.get('metadata_palettes'):
+    for var, spec in shiny_cfg['metadata_palettes'].items():
+      if metadata_vars and var not in metadata_vars:
+        warnings.warn(
+          f"shiny.metadata_palettes key '{var}' is not in metadata_vars; it will be ignored"
+        )
+      if isinstance(spec, str):
+        _check_palette_name(spec, f'shiny.metadata_palettes.{var}', valid_palette_names)
+      elif isinstance(spec, dict) and spec.get('palette'):
+        _check_palette_name(spec['palette'], f'shiny.metadata_palettes.{var}.palette', valid_palette_names)
+
+  # check home_md if specified
+  if shiny_cfg.get('home_md'):
+    home_md_f = _check_path_exists_in_project(shiny_cfg['home_md'], config, what='file')
+    # verify file is readable as UTF-8 and non-empty
+    try:
+      content = pathlib.Path(home_md_f).read_text(encoding='utf-8')
+    except UnicodeDecodeError:
+      raise ValueError(f"home_md file '{shiny_cfg['home_md']}' is not valid UTF-8 text")
+    if not content.strip():
+      raise ValueError(f"home_md file '{shiny_cfg['home_md']}' is empty")
+    config['shiny']['home_md'] = home_md_f
+
+  # check annotation_csv if specified
+  if shiny_cfg.get('annotation_csv'):
+    annot_f  = _check_path_exists_in_project(shiny_cfg['annotation_csv'], config, what='file')
+    annot_df = pl.read_csv(annot_f)
+
+    # check required columns
+    required_cols = ['cluster', 'cluster_name']
+    missing_cols  = [c for c in required_cols if c not in annot_df.columns]
+    if missing_cols:
+      raise KeyError(
+        f"annotation_csv must contain columns: {', '.join(missing_cols)}. "
+        f"Found: {', '.join(annot_df.columns)}"
+      )
+
+    # check no duplicate cluster values
+    if annot_df['cluster'].n_unique() < annot_df.shape[0]:
+      raise ValueError("annotation_csv has duplicate values in the 'cluster' column")
+
+    # warn on non-hex values in optional colour column
+    if 'colour' in annot_df.columns:
+      hex_re        = re.compile(r'^#[0-9A-Fa-f]{6}$')
+      invalid_cols  = [
+        str(c) for c in annot_df['colour'].drop_nulls().to_list()
+        if not hex_re.match(str(c))
+      ]
+      if invalid_cols:
+        warnings.warn(
+          f"annotation_csv 'colour' column contains values that are not hex colours (#RRGGBB): "
+          f"{', '.join(invalid_cols[:5])}"
+          + (f" (and {len(invalid_cols) - 5} more)" if len(invalid_cols) > 5 else "")
+        )
+
+    config['shiny']['annotation_csv'] = annot_f
+
+  return config
+
+
 # check parameters for hvgs
 def _check_hvg_parameters(config):
   # for hto/custom with only 1 pool, ambient gene detection is not possible
@@ -869,6 +986,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
   # check hvgs option
   zoom_config   = _check_hvg_parameters(zoom_config)
   zoom_config   = _check_integration_parameters(zoom_config)
+  zoom_config   = _check_shiny_parameters(zoom_config)
 
   # get useful things
   SHORT_TAG     = config['project']['short_tag']
@@ -1765,6 +1883,68 @@ def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_
   )
 
   return hvg_df_full
+
+
+# ---------------------------------------------------------------------------
+# Join config validation
+# ---------------------------------------------------------------------------
+
+def _apply_join_defaults(cfg, schema_props):
+  """Recursively apply JSON Schema defaults to cfg in-place."""
+  for key, prop in schema_props.items():
+    if key not in cfg and 'default' in prop:
+      cfg[key] = prop['default']
+    elif key in cfg and prop.get('type') == 'object' and 'properties' in prop:
+      _apply_join_defaults(cfg[key], prop['properties'])
+
+
+def check_join_config(config, join_schema_f):
+  """Validate and augment a join.yaml config dict.
+
+  Mirrors check_config() for project configs:
+    1. Validates against join.schema.json
+    2. Validates each referenced project config against config.schema.json
+    3. Applies schema defaults for hvg, integration, marker_genes, and shiny sections
+    4. Calls _check_shiny_parameters for shiny-specific cross-checks
+
+  Returns the (possibly modified) config dict.
+  """
+  with open(join_schema_f) as f:
+    join_schema = json.load(f)
+  errors = sorted(jsonschema.Draft202012Validator(join_schema).iter_errors(config),
+                  key=lambda e: e.path)
+  if errors:
+    raise ValueError("join.yaml validation errors:\n" +
+      "\n".join(f"  {list(e.path)}: {e.message}" for e in errors))
+
+  # validate each referenced project config against the project schema
+  proj_schema_f = pathlib.Path(join_schema_f).parent / "config.schema.json"
+  if proj_schema_f.is_file():
+    proj_schema = _load_schema_file(proj_schema_f)
+    proj_defaults = _get_default_config_from_schema(proj_schema)
+    for pid, proj_entry in config.get('projects', {}).items():
+      cfg_f = proj_entry.get('config')
+      if cfg_f and os.path.isfile(cfg_f):
+        with open(cfg_f) as f:
+          proj_cfg = yaml.safe_load(f)
+        defaults_copy = copy.deepcopy(proj_defaults)
+        snakemake.utils.update_config(defaults_copy, proj_cfg)
+        proj_cfg = defaults_copy
+        proj_errors = sorted(
+          jsonschema.Draft202012Validator(proj_schema).iter_errors(proj_cfg),
+          key=lambda e: e.path)
+        if proj_errors:
+          raise ValueError(f"Validation errors in project '{pid}' config ({cfg_f}):\n" +
+            "\n".join(f"  {list(e.path)}: {e.message}" for e in proj_errors))
+
+  for section in ['hvg', 'integration', 'marker_genes', 'shiny']:
+    if section not in config:
+      config[section] = {}
+    _apply_join_defaults(config[section],
+      join_schema['properties'].get(section, {}).get('properties', {}))
+
+  config = _check_shiny_parameters(config)
+  return config
 
 
 # end

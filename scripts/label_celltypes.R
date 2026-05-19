@@ -457,7 +457,7 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
   return(hm_obj)
 }
 
-plot_umap_cluster <- function(umap_dt, clust_dt, name) {
+plot_umap_labels <- function(umap_dt, clust_dt, name) {
   # join umap and clusters
   assert_that(
     all(c('UMAP1', 'UMAP2') %in% names(umap_dt)),
