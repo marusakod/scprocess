@@ -94,6 +94,13 @@ def make_classifier(yaml_f: str) -> None:
     config = load_config(yaml_f)
     paths  = resolve_scprocess_paths(config)
 
+    # Load the optional fine→coarse label mapping (not used for training,
+    # only saved with model outputs and used for evaluation display)
+    label_map = load_label_mapping(config)
+    if label_map is not None:
+        print(f"  Label mapping loaded: {len(label_map)} fine→coarse entries")
+        print(f"  Coarse categories: {sorted(set(label_map.values()))}")
+
     # -------------------------------------------------------------------------
     # Phase 1: plan which cells to use (CSV only, no H5AD)
     # This decides label refinement, downsampling, and train/val split using
@@ -170,13 +177,21 @@ def make_classifier(yaml_f: str) -> None:
     # -------------------------------------------------------------------------
     # Phase 6: evaluate and save outputs
     # -------------------------------------------------------------------------
-    print("\n--- Evaluation ---")
+    print("\n--- Evaluation (fine labels) ---")
     evaluate_model(model_pass2, X_val_sub, y_val, class_names)
+
+    # If a label mapping is provided, also show coarse-level evaluation.
+    # This shows how well the model performs when fine predictions are collapsed
+    # (e.g. confusing excitatory_L5 with excitatory_L2/3 is less concerning if
+    # both map to "Neuron").
+    if label_map is not None:
+        print("\n--- Evaluation (coarse labels) ---")
+        evaluate_model_coarse(model_pass2, X_val_sub, y_val, class_names, label_map)
 
     print("\n--- Saving outputs ---")
     save_outputs(
         model_pass2, class_names, sel_gene_names, gene_importance,
-        config, cells_df, paths
+        config, cells_df, paths, label_map
     )
 
     print("\nDone.")
@@ -303,11 +318,14 @@ def plan_training_cells(config: dict, paths: dict) -> pl.DataFrame:
       1. Load the cluster CSV (has cell_id, sample_id, cluster assignments)
       2. Load annotations CSV and join to clusters
       3. (Optional) Refine labels via cluster majority voting
-      4. (Optional) Apply a fine→coarse label mapping
-      5. Exclude cell types with too few cells
-      6. Downsample to n_cells_per_type per cell type
-      7. Assign train/val split (sample-level holdout or stratified random)
-      8. Map each cell to its batch (determines which H5AD to load later)
+      4. Exclude cell types with too few cells
+      5. Downsample to n_cells_per_type per cell type
+      6. Assign train/val split (sample-level holdout or stratified random)
+      7. Map each cell to its batch (determines which H5AD to load later)
+
+    Note: label mapping (fine→coarse) is NOT applied here. The model trains on
+    fine-grained labels. The mapping is saved alongside the model and applied
+    at prediction time to collapse predictions into coarse categories.
 
     Returns:
       DataFrame with columns: cell_id, sample_id, label, split, batch
@@ -346,11 +364,6 @@ def plan_training_cells(config: dict, paths: dict) -> pl.DataFrame:
       df = refine_labels_by_cluster(df, hi_res_col, config)
     else:
       df = df.with_columns(pl.col("annotation").alias("label"))
-
-    # Step 4: Apply label mapping (e.g. "excitatory_L5" → "neuron")
-    if config["label_map_f"] is not None:
-      print("  Applying label mapping...")
-      df = apply_label_mapping(df, config)
 
     # Drop cells that still have no label (were never annotated and not in a
     # pure-enough cluster to receive a refined label)
@@ -458,38 +471,41 @@ def refine_labels_by_cluster(
     return df
 
 
-def apply_label_mapping(df: pl.DataFrame, config: dict) -> pl.DataFrame:
-    """Map fine-grained annotations to coarse labels.
+def load_label_mapping(config: dict) -> Optional[dict[str, str]]:
+    """Load the fine→coarse label mapping from CSV, if provided.
 
-    Reads a CSV with columns 'annotation' and 'coarse_label'. Any label that
-    appears in the mapping gets replaced; labels not in the mapping are kept as-is.
+    The label mapping is NOT applied during training — the model trains on
+    fine-grained labels (e.g. excitatory_L5, inhibitory_PV). The mapping is
+    saved alongside the model and applied at prediction time to collapse
+    fine predictions into coarse categories (e.g. Neuron).
 
-    Example mapping CSV:
+    This approach gives better classification because each training class is
+    transcriptomically coherent. The model learns what each subtype looks like,
+    then the mapping groups related predictions together.
+
+    Expected CSV format:
       annotation,coarse_label
       excitatory_L2/3,Neuron
       excitatory_L5,Neuron
       inhibitory_PV,Neuron
       Astrocyte,Astrocyte
 
-    This allows training on diverse subtypes while predicting coarse categories.
+    Returns:
+      dict mapping fine label → coarse label, or None if no mapping provided.
     """
+    if config["label_map_f"] is None:
+        return None
+
     map_df = pl.read_csv(config["label_map_f"])
     assert "annotation" in map_df.columns, "label_map_f must have 'annotation' column"
     assert "coarse_label" in map_df.columns, "label_map_f must have 'coarse_label' column"
 
-    map_df = map_df.select(["annotation", "coarse_label"]).rename(
-        {"annotation": "label", "coarse_label": "mapped_label"}
-    )
+    label_map = dict(zip(
+        map_df["annotation"].to_list(),
+        map_df["coarse_label"].to_list(),
+    ))
 
-    # labels in the map get a mapped_label; others get null
-    df = df.join(map_df, on="label", how="left")
-    df = df.with_columns(
-      pl.when(pl.col("mapped_label").is_not_null())
-      .then(pl.col("mapped_label")).otherwise(pl.col("label"))
-       .alias("label")
-    ).drop("mapped_label")
-
-    return df
+    return label_map
 
 
 def downsample_per_type(df: pl.DataFrame, config: dict) -> pl.DataFrame:
@@ -922,6 +938,61 @@ def evaluate_model(
         print(f"  {true_name:<20} {pred_name:<20} {count:>5} {pct:>5.1f}%")
 
 
+def evaluate_model_coarse(
+    model: xgb.Booster,
+    X_val: sp.csr_matrix,
+    y_val: np.ndarray,
+    class_names: list[str],
+    label_map: dict[str, str],
+) -> None:
+    """Evaluate at the coarse label level by collapsing fine predictions via the mapping.
+
+    This shows the "practical" accuracy when fine predictions (e.g. excitatory_L5)
+    are mapped to coarse categories (e.g. Neuron). Confusion between subtypes
+    within the same coarse category does not count as an error here.
+    """
+    dval = xgb.DMatrix(X_val, feature_names=[f"g{i}" for i in range(X_val.shape[1])])
+    probs = model.predict(dval)
+    y_pred_fine = probs.argmax(axis=1)
+
+    # Map fine integer labels → coarse string labels
+    def to_coarse(fine_idx: int) -> str:
+        fine_name = class_names[fine_idx]
+        return label_map.get(fine_name, fine_name)
+
+    y_true_coarse = np.array([to_coarse(i) for i in y_val])
+    y_pred_coarse = np.array([to_coarse(i) for i in y_pred_fine])
+
+    coarse_classes = sorted(set(y_true_coarse))
+    overall_acc = (y_true_coarse == y_pred_coarse).mean()
+    print(f"  Overall coarse accuracy: {overall_acc:.3f}")
+
+    # Per-class metrics at coarse level
+    print(f"\n  {'Coarse class':<30} {'N':>6} {'Acc':>6} {'F1':>6}")
+    print("  " + "-" * 52)
+
+    f1_scores = []
+    for cls in coarse_classes:
+        mask_true = y_true_coarse == cls
+        n_true = mask_true.sum()
+        if n_true == 0:
+            continue
+
+        acc = (y_pred_coarse[mask_true] == cls).mean()
+
+        pred_pos = y_pred_coarse == cls
+        tp = ((y_pred_coarse == cls) & (y_true_coarse == cls)).sum()
+        precision = tp / pred_pos.sum() if pred_pos.sum() > 0 else 0
+        recall = tp / n_true if n_true > 0 else 0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+        f1_scores.append(f1)
+
+        print(f"  {cls:<30} {n_true:>6} {acc:>6.3f} {f1:>6.3f}")
+
+    macro_f1 = np.mean(f1_scores) if f1_scores else 0
+    print(f"\n  Coarse Macro F1: {macro_f1:.3f}")
+
+
 # ---------------------------------------------------------------------------
 # Save outputs
 # ---------------------------------------------------------------------------
@@ -935,6 +1006,7 @@ def save_outputs(
     config: dict,
     cells_df: pl.DataFrame,
     paths: dict,
+    label_map: Optional[dict[str, str]] = None,
 ) -> None:
     """Save all model artifacts to the output directory.
 
@@ -942,13 +1014,17 @@ def save_outputs(
       - {ref_tag}_xgboost_model.json: XGBoost model in native JSON format.
         Portable — can be loaded in both Python (xgb.Booster().load_model)
         and R (xgb.load.model).
-      - {ref_tag}_allowed_cls.csv: one column 'class' with the class names in
-        the order matching the model's integer encoding (0 = first row, etc.).
+      - {ref_tag}_allowed_cls.csv: one column 'class' with the fine-grained
+        class names in the order matching the model's integer encoding
+        (0 = first row, etc.).
       - {ref_tag}_selected_genes.txt: gene symbols, one per line, in the order
         matching the model's feature columns. At prediction time, the new data
         must be subset to these genes in this order.
       - {ref_tag}_gene_importance.csv: full gene ranking by gain from pass 1
         (useful for biological interpretation).
+      - {ref_tag}_label_map.csv (if provided): fine→coarse label mapping.
+        At prediction time, apply this to collapse fine predictions into
+        coarse categories.
       - plots/: UMAP diagnostic plots.
     """
     out_dir = pathlib.Path(config["output_dir"])
@@ -974,6 +1050,17 @@ def save_outputs(
     imp_path = out_dir / f"{ref_tag}_gene_importance.csv"
     gene_importance.write_csv(str(imp_path))
     print(f"  Importance: {imp_path}")
+
+    # Save label mapping if provided — used at prediction time to collapse
+    # fine-grained predictions (e.g. excitatory_L5) into coarse categories
+    # (e.g. Neuron)
+    if label_map is not None:
+        map_path = out_dir / f"{ref_tag}_label_map.csv"
+        pl.DataFrame({
+            "fine_label": list(label_map.keys()),
+            "coarse_label": list(label_map.values()),
+        }).write_csv(str(map_path))
+        print(f"  Label map: {map_path}")
 
     # Diagnostic plots
     print("  Generating plots...")
