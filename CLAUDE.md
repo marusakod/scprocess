@@ -153,9 +153,9 @@ The project config may include an optional `shiny:` section to customise `app_ti
 
 The pipeline determines 10x chemistry at two stages:
 
-### Config-time (`scprocess_utils.py:_get_run_parameters_one_run()`)
+### Config-time (`scprocess_utils.py:_get_lib_parameters_one_lib()`)
 
-`tenx_chemistry` is set in the project config (default `"none"` = auto-detect). Maps to alevin-fry parameters:
+`tenx_chemistry` is set in the project config (default `"none"` = auto-detect). Maps to `af_chemistry` (the alevin-fry `--chemistry` flag):
 
 - `3v2`, `5v1`, `5v2` → `af_chemistry = '10xv2'`, shared 737K whitelist
 - `3v3`, `3v4`, `3LT`, `5v3`, `multiome` → `af_chemistry = '10xv3'`, chemistry-specific whitelist
@@ -172,6 +172,14 @@ When `tenx_chemistry == "none"`, three-step auto-detection:
 3. **Orientation inference** — if multiple chemistries share a whitelist (e.g. `3v2`/`5v1`/`5v2`), downsamples FASTQs, maps twice (fw + rc), picks orientation with more quantified cells.
 
 Results saved per-run to `chemistry_statistics.yaml`, merged into `chemistry_statistics_all_runs_{DATE_STAMP}.csv`.
+
+### Chemistry variable naming
+
+Three related variables are used across the codebase:
+
+- `tenx_chemistry` — user-facing config value (10x kit name: `3v3`, `5v2`, `flexv1`, `none`, etc.)
+- `af_chemistry` — simpleaf `--chemistry` flag (`10xv2`, `10xv3`, `10x-flexv1-gex-3p`, etc.)
+- `sample_tenx_chemistry` — the resolved `tenx_chemistry` for a specific sample at mapping time, written to YAML as `selected_tenx_chemistry`
 
 ## Multiplexing Architecture
 

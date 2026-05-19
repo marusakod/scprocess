@@ -74,3 +74,32 @@ set `fry_dir = NULL`, but then `save_alevin_h5_knee_params_df` tried to call
   The filename mismatch caused MissingOutputException, triggering snakemake to
   delete the successfully extracted files.
 - Added download/extraction error checking in `_download_prebuilt_index`.
+
+## 2026-05-19: Branch consolidation and bug fixes
+
+### Branch merges
+
+Merged `claude-shiny` (shiny app, join functionality) and `dev-fixes` (accumulated
+bug fixes from main) into `dev`. Resolved conflicts where dev-flex refactoring
+(run→lib, af_chemistry naming) diverged from the older branch structures.
+
+### Chemistry variable naming cleanup
+
+Renamed `sample_chem` → `sample_tenx_chemistry` in `mapping.py` for clarity.
+Three chemistry variables now have distinct names:
+- `tenx_chemistry` — user config value (10x kit name)
+- `af_chemistry` — simpleaf `--chemistry` flag
+- `sample_tenx_chemistry` — resolved per-sample chemistry at mapping time
+
+### Zoom bug fixes
+
+- `zoom.smk`: fixed `empty_gs_fs` passed as positional arg instead of `--empty_gs_f` flag to `hvgs.py calculate_hvgs`
+- `zoom.smk`: fixed `ref_txome` → `genome_ref` parameter name in `run_fgsea` R call
+
+### Documentation updates
+
+- Added OCM setup note to `setup.md` (overhang map auto-extracted from cellranger)
+- Expanded Flex and OCM descriptions in `usage.md`
+- Fixed OCM reference in `reference.md` (overhang mechanism, not barcode files)
+- Added `join.smk` to CLAUDE.md rule table
+- Added chemistry variable naming convention to CLAUDE.md
