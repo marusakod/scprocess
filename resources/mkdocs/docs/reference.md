@@ -436,7 +436,7 @@ sample_id:
 * `demux_type`: `demux_type` options (default is `none`):
     + `none` if experiment is not multiplexed;
     + `hto` if hto-based demultiplexing of samples should be performed with {{sc}};
-    + `ocm` if 10x on-chip multiplexing (GEM-X Universal Multiplex) was used. Requires an `ocm_id` column in sample metadata with values `OB1`-`OB4`. The correct barcode partition files are auto-selected based on `tenx_chemistry`;
+    + `ocm` if 10x on-chip multiplexing (GEM-X Universal Multiplex) was used. Requires an `ocm_id` column in sample metadata with values `OB1`-`OB4`. Demultiplexing uses a 2bp overhang at barcode positions 8-9, auto-extracted from Cell Ranger during setup;
     + `custom` if demultiplexing results will be used as input to {{sc}}; or
     + `flex` for 10x Flex data where samples are pooled within a library and demultiplexed using probe barcodes. Requires `tenx_assay_type: flex` in the `project` section.
 * `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.

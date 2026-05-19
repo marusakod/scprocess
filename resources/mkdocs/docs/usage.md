@@ -89,9 +89,9 @@ scprocess run /path/to/config.yaml -r qc
 
 * **Hashtag oligo (HTO)-based demultiplexing**: {{sc}} uses HTO-derived cDNA libraries to generate a count matrix which can be used for sample demultiplexing.
 
-* **On-chip multiplexing (OCM)**: For experiments using 10x Genomics' GEM-X Universal Multiplex, {{sc}} performs deterministic barcode-based demultiplexing using partition-specific barcode lists (OB1-OB4). No separate FASTQ library is needed. Both 3' and 5' GEX chemistries are supported.
+* **Flex-based demultiplexing**: For 10x Chromium Fixed RNA Profiling (Flex) experiments, {{sc}} uses probe barcodes to split pool-level mapping output into per-sample count matrices. Each sample is then processed independently for ambient RNA removal, QC, and doublet detection. No separate FASTQ library is needed.
 
-* **Flex-based demultiplexing**: Uses probe barcodes to assign each cell back to the original sample.
+* **On-chip multiplexing (OCM)**: For experiments using 10x Genomics' GEM-X Universal Multiplex, {{sc}} performs deterministic barcode-based demultiplexing using the 2bp overhang at barcode positions 8-9 to identify partitions (OB1-OB4). Like Flex, pool-level mapping is split into per-sample h5 files for independent downstream processing. No separate FASTQ library is needed. Both 3' and 5' GEX chemistries are supported.
 
 * **Outputs of external demultiplexing algorithms**: If the data has already been demultiplexed using an external method (e.g. genetic demultiplexing tools like `Demuxlet`[@Kang2018-dh]), users can provide a cell-sample assignment file to process the data further using {{sc}}
 

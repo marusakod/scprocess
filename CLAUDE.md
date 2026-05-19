@@ -73,6 +73,7 @@ Each `.smk` file is a self-contained Snakemake rule module. The core orchestrato
 | `shiny.smk` | Standalone rule: builds and deploys Shiny app into `public/shiny/` |
 | `hto.smk` | Hashtag (multiplexing) demultiplexing |
 | `flex.smk` | Flex assay mapping (simpleaf multiplex-quant) |
+| `join.smk` | Join multiple scprocess projects for combined analysis |
 | `pb_empties.smk` | Pseudobulk ambient gene detection |
 
 ### Implementation Scripts (`scripts/`)
