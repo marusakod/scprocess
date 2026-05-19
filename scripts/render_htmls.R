@@ -45,8 +45,8 @@ make_rmd_from_temp <- function(rule_name, temp_f, temp_ls, rmd_f) {
   }
 }
 
-get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'integration', 
-  'markers', 'label_celltypes', 'zoom', 'pb_empties', 'index'), proj_dir, ...) {
+get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'integration',
+  'markers', 'label_celltypes', 'zoom', 'pb_empties', 'index', 'train_xgboost'), proj_dir, ...) {
   # get arguments
   sel_rule = match.arg(rule)
   add_args = list(...)
@@ -417,5 +417,13 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       ))
   }
   
+  } else if (sel_rule == 'train_xgboost') {
+    req_names = c('your_name', 'affiliation', 'short_tag', 'ref_tag',
+      'predictions_f', 'importance_f', 'integration_f', 'has_coarse')
+    assert_that(all(req_names %in% add_args_names))
+
+    params_ls = as.list(add_args[req_names])
+  }
+
   return(params_ls)
 }

@@ -18,9 +18,6 @@ import sys
 from typing import Optional
 
 import anndata as ad
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import scipy.sparse as sp
@@ -135,7 +132,8 @@ def make_classifier(yaml_f: str) -> None:
   print("\n--- Saving outputs ---")
   save_outputs(
     model_pass2, class_names, sel_gene_names, gene_importance,
-    config, cells_df, paths, label_map
+    config, cells_df, paths, label_map,
+    X_train_sub, y_train, X_val_sub, y_val,
   )
 
   print("\nDone.")
@@ -154,9 +152,13 @@ def load_config(yaml_f: str) -> dict:
   with open(yaml_path) as f:
     config = yaml.safe_load(f)
 
-  required = ["scprocess_config_f", "annots_f", "output_dir", "ref_tag"]
+  required = ["scprocess_config_f", "annots_f", "ref_tag"]
   for key in required:
     assert key in config, f"Required key '{key}' missing from config"
+  assert "output_dir" in config, (
+    "output_dir missing from config. "
+    "Run via 'scprocess train_xgboost' (which injects it) or set it manually."
+  )
 
   for key, default in DEFAULTS.items():
     if key not in config:
@@ -736,8 +738,10 @@ def save_outputs(
   model: xgb.Booster, class_names: list[str], selected_genes: list[str],
   gene_importance: pl.DataFrame, config: dict, cells_df: pl.DataFrame,
   paths: dict, label_map: Optional[dict[str, str]] = None,
+  X_train: sp.csr_matrix = None, y_train: np.ndarray = None,
+  X_val: sp.csr_matrix = None, y_val: np.ndarray = None,
 ) -> None:
-  """Save model (.json), allowed classes, selected genes, importance, and plots."""
+  """Save model, gene list, classes, importance, predictions, and label map."""
   out_dir = pathlib.Path(config["output_dir"])
   ref_tag = config["ref_tag"]
 
@@ -766,69 +770,62 @@ def save_outputs(
     }).write_csv(str(map_path))
     print(f"  Label map: {map_path}")
 
-  print("  Generating plots...")
-  make_diagnostic_plots(cells_df, model, class_names, paths, config)
-
-
-def make_diagnostic_plots(
-  cells_df: pl.DataFrame, model: xgb.Booster,
-  class_names: list[str], paths: dict, config: dict,
-) -> None:
-  """UMAP plots using pre-computed coordinates from scprocess."""
-  out_dir = pathlib.Path(config["output_dir"]) / "plots"
-  ref_tag = config["ref_tag"]
-
-  umap_df = pl.read_csv(paths["cluster_csv"], columns=["cell_id", "UMAP1", "UMAP2"])
-
-  plot_df = cells_df.join(umap_df, on="cell_id", how="left")
-  plot_df = plot_df.filter(
-    pl.col("UMAP1").is_not_null() & pl.col("UMAP2").is_not_null()
-  )
-
-  labels = sorted(plot_df["label"].unique().to_list())
-  cmap = plt.cm.get_cmap("tab20", len(labels))
-  label_colors = {lbl: cmap(i) for i, lbl in enumerate(labels)}
-
-  # Plot 1: UMAP colored by label
-  fig, ax = plt.subplots(1, 1, figsize=(10, 8))
-  for lbl in labels:
-    subset = plot_df.filter(pl.col("label") == lbl)
-    ax.scatter(
-      subset["UMAP1"].to_numpy(), subset["UMAP2"].to_numpy(),
-      c=[label_colors[lbl]], s=1, alpha=0.5, label=lbl, rasterized=True,
+  # Save predictions for all cells (train + validation) — consumed by Rmd report
+  if X_val is not None and X_train is not None:
+    preds_path = out_dir / f"{ref_tag}_predictions.csv.gz"
+    preds_df = _make_predictions_df(
+      model, X_train, y_train, X_val, y_val, cells_df, class_names, label_map
     )
-  ax.set_xlabel("UMAP1")
-  ax.set_ylabel("UMAP2")
-  ax.set_title("True labels")
-  ax.legend(markerscale=5, fontsize=7, loc="center left", bbox_to_anchor=(1, 0.5))
-  ax.set_aspect("equal")
-  ax.set_xticks([])
-  ax.set_yticks([])
-  plt.tight_layout()
-  plt.savefig(out_dir / f"{ref_tag}_umap_true_labels.png", dpi=150, bbox_inches="tight")
-  plt.close()
+    preds_df.write_csv(str(preds_path))
+    print(f"  Predictions: {preds_path}")
 
-  # Plot 2: UMAP colored by train/validation split
-  fig, ax = plt.subplots(1, 1, figsize=(8, 7))
-  split_colors = {"train": "#1f77b4", "validation": "#ff7f0e"}
-  for split in ["train", "validation"]:
-    subset = plot_df.filter(pl.col("split") == split)
-    ax.scatter(
-      subset["UMAP1"].to_numpy(), subset["UMAP2"].to_numpy(),
-      c=split_colors[split], s=1, alpha=0.4, label=split, rasterized=True,
-    )
-  ax.set_xlabel("UMAP1")
-  ax.set_ylabel("UMAP2")
-  ax.set_title("Train / Validation split")
-  ax.legend(markerscale=5)
-  ax.set_aspect("equal")
-  ax.set_xticks([])
-  ax.set_yticks([])
-  plt.tight_layout()
-  plt.savefig(out_dir / f"{ref_tag}_umap_train_val_split.png", dpi=150, bbox_inches="tight")
-  plt.close()
 
-  print(f"    Saved plots to {out_dir}/")
+def _make_predictions_df(
+  model: xgb.Booster,
+  X_train: sp.csr_matrix, y_train: np.ndarray,
+  X_val: sp.csr_matrix, y_val: np.ndarray,
+  cells_df: pl.DataFrame, class_names: list[str],
+  label_map: Optional[dict[str, str]] = None,
+) -> pl.DataFrame:
+  """Generate predictions for all cells and return as a DataFrame."""
+  feat_names = [f"g{i}" for i in range(X_val.shape[1])]
+
+  # Predict on validation set
+  dval = xgb.DMatrix(X_val, feature_names=feat_names)
+  val_probs = model.predict(dval)
+  val_pred = val_probs.argmax(axis=1)
+  val_pmax = val_probs.max(axis=1)
+
+  # Predict on training set
+  dtrain = xgb.DMatrix(X_train, feature_names=feat_names)
+  train_probs = model.predict(dtrain)
+  train_pred = train_probs.argmax(axis=1)
+  train_pmax = train_probs.max(axis=1)
+
+  # Build arrays in cells_df order (train first, then validation)
+  train_mask = cells_df["split"].to_numpy() == "train"
+  all_pred = np.empty(len(cells_df), dtype=int)
+  all_pmax = np.empty(len(cells_df))
+  all_pred[train_mask] = train_pred
+  all_pred[~train_mask] = val_pred
+  all_pmax[train_mask] = train_pmax
+  all_pmax[~train_mask] = val_pmax
+
+  pred_labels = [class_names[i] for i in all_pred]
+
+  result = cells_df.select(["cell_id", "sample_id", "label", "split"]).with_columns([
+    pl.Series("predicted_label", pred_labels),
+    pl.Series("probability", all_pmax),
+  ])
+
+  # Add coarse labels if mapping is available
+  if label_map is not None:
+    result = result.with_columns([
+      pl.col("label").replace(label_map).alias("coarse_true"),
+      pl.col("predicted_label").replace(label_map).alias("coarse_predicted"),
+    ])
+
+  return result
 
 
 # ---------------------------------------------------------------------------

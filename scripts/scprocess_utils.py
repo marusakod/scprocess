@@ -1517,4 +1517,87 @@ def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_
   return hvg_df_full
 
 
+
+def check_train_xgboost_config(config, schema_f, scdata_dir):
+  # load schema, merge defaults, validate
+  schema = _load_schema_file(schema_f)
+  defaults = _get_default_config_from_schema(schema)
+  snakemake.utils.update_config(defaults, config)
+  config = defaults
+  _validate_object_against_schema(config, schema_f, "train_xgboost config")
+
+  # check scprocess config exists and has required fields
+  scp_f = pathlib.Path(config["scprocess_config_f"])
+  if not scp_f.is_file():
+    raise FileNotFoundError(f"scprocess config not found: {scp_f}")
+
+  with open(scp_f) as f:
+    scp_config = yaml.safe_load(f)
+
+  for key in ["proj_dir", "short_tag", "full_tag", "date_stamp"]:
+    if key not in scp_config.get("project", {}):
+      raise KeyError(f"scprocess config missing project.{key}")
+
+  # check that scprocess integration outputs exist
+  proj_dir = scp_config["project"]["proj_dir"]
+  short_tag = scp_config["project"]["short_tag"]
+  full_tag = scp_config["project"]["full_tag"]
+  date_stamp = scp_config["project"]["date_stamp"]
+  int_dir = f"{proj_dir}/output/{short_tag}_integration"
+
+  cluster_csv = f"{int_dir}/integrated_dt_{full_tag}_{date_stamp}.csv.gz"
+  h5ads_yaml = f"{int_dir}/h5ads_clean_paths_{full_tag}_{date_stamp}.yaml"
+
+  if not pathlib.Path(cluster_csv).is_file():
+    raise FileNotFoundError(
+      f"Integration cluster CSV not found: {cluster_csv}\n"
+      f"Run scprocess integration before training XGBoost."
+    )
+  if not pathlib.Path(h5ads_yaml).is_file():
+    raise FileNotFoundError(
+      f"H5AD paths YAML not found: {h5ads_yaml}\n"
+      f"Run scprocess integration before training XGBoost."
+    )
+
+  # check annotations file
+  annots_f = pathlib.Path(config["annots_f"])
+  if not annots_f.is_file():
+    raise FileNotFoundError(f"Annotations file not found: {annots_f}")
+
+  # check annotations has required columns
+  annots_df = pl.read_csv(str(annots_f), n_rows=5)
+  if "cell_id" not in annots_df.columns:
+    raise ValueError("annots_f must have 'cell_id' column")
+  if "annotation" not in annots_df.columns:
+    raise ValueError("annots_f must have 'annotation' column")
+
+  # check label map if provided
+  if config.get("label_map_f") is not None:
+    label_map_f = pathlib.Path(config["label_map_f"])
+    if not label_map_f.is_file():
+      raise FileNotFoundError(f"Label map file not found: {label_map_f}")
+    map_df = pl.read_csv(str(label_map_f), n_rows=5)
+    if "annotation" not in map_df.columns:
+      raise ValueError("label_map_f must have 'annotation' column")
+    if "coarse_label" not in map_df.columns:
+      raise ValueError("label_map_f must have 'coarse_label' column")
+
+  # inject output_dir (always $SCPROCESS_DATA_DIR/xgboost/{ref_tag}/)
+  output_dir = os.path.join(str(scdata_dir), "xgboost", config["ref_tag"])
+  config["output_dir"] = output_dir
+
+  # inject scprocess project params needed by the render rule
+  config["_scprocess_project"] = {
+    "proj_dir": proj_dir,
+    "short_tag": short_tag,
+    "full_tag": full_tag,
+    "date_stamp": date_stamp,
+    "cluster_csv": cluster_csv,
+    "your_name": scp_config["project"].get("your_name", ""),
+    "affiliation": scp_config["project"].get("affiliation", ""),
+  }
+
+  return config
+
+
 # end
