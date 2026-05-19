@@ -33,67 +33,36 @@ annotation_f = '/projects/site/pred/neurogenomics/users/kodermam/scprocess/test_
 label_map_f  = '/projects/site/pred/neurogenomics/users/kodermam/scprocess/test_xgboost_label_map.csv.gz'
 scprocess_config_f = '/pmount/projects/site/pred/brain-sc-analysis/configs/config-siletti_2023_hippocampus.yaml'
 
-# Default values for optional config parameters.
 DEFAULTS = {
-  # Label refinement
-  "label_map_f": None,            # optional CSV mapping fine→coarse labels
-  "refine_labels": True,          # whether to smooth labels via cluster majority voting
-  "purity_threshold": 0.65,       # min fraction of majority annotation to relabel a cluster
-
-  # Downsampling
-  "n_cells_per_type": 1000,       # max cells per cell type in training set
-  "min_cells_per_type": 20,       # cell types below this are excluded entirely
-
-  # General
+  "label_map_f": None,
+  "refine_labels": True,
+  "purity_threshold": 0.65,
+  "n_cells_per_type": 1000,
+  "min_cells_per_type": 20,
   "seed": 42,
   "n_cores": 16,
-  "min_cells_expressed": 10,    # genes expressed in fewer cells than this are dropped
-  "use_gpu": False,             # set True to use CUDA GPU for XGBoost training
-
-  # XGBoost Pass 1 — broad exploration across all genes
-  # Low colsample_bytree forces the model to explore many genes per tree,
-  # effectively discovering which genes are informative for classification.
-  "pass1_subsample": 0.632,       # bootstrap fraction of cells per tree
-  "pass1_colsample_bytree": 0.1,  # fraction of genes sampled per tree (low = broad)
+  "min_cells_expressed": 10,
+  "use_gpu": False,
+  # XGBoost Pass 1 — low colsample_bytree forces broad gene exploration
+  "pass1_subsample": 0.632,
+  "pass1_colsample_bytree": 0.1,
   "pass1_learning_rate": 0.1,
   "pass1_nrounds": 300,
   "pass1_early_stopping": 10,
-
   # XGBoost Pass 2 — focused training on selected genes
-  # Higher colsample_bytree since the gene set is already curated.
-  # Lower learning rate for a tighter fit.
   "pass2_colsample_bytree": 0.5,
   "pass2_learning_rate": 0.05,
   "pass2_nrounds": 500,
   "pass2_early_stopping": 10,
-
-  # Feature selection between passes
-  # Selects genes that contribute to the top fraction of total gain from pass 1.
-  # This is adaptive: complex datasets select more genes, simple ones fewer.
-  "gain_threshold": 0.9,          # cumulative gain fraction cutoff
-  "min_genes": 100,               # floor on number of selected genes
-  "max_genes": 3000,              # ceiling on number of selected genes
+  # Feature selection — genes contributing to top fraction of cumulative gain
+  "gain_threshold": 0.9,
+  "min_genes": 100,
+  "max_genes": 3000,
 }
 
 
 def make_classifier(yaml_f: str) -> None:
-  """Main entry point. Orchestrates the full training pipeline.
-
-  The pipeline has two major phases designed for memory efficiency:
-    - Planning phase: uses only lightweight CSV files to decide which cells
-      go into training vs. validation, apply label refinement, and downsample.
-      No H5AD files are loaded during this phase.
-    - Data phase: loads H5AD files one batch at a time, subsets to only the
-      cells selected in the planning phase, normalizes, and appends to a
-      sparse matrix. This keeps peak memory proportional to one batch.
-
-  After data loading, two passes of XGBoost are run:
-    - Pass 1 uses ALL genes with aggressive column subsampling (colsample=0.1)
-      to discover which genes are informative across the full transcriptome.
-    - Feature selection picks genes contributing to 90% of cumulative gain.
-    - Pass 2 retrains from scratch on the selected gene subset with relaxed
-      parameters for a tighter final model.
-  """
+  """Main entry point. Orchestrates the full training pipeline."""
   print("=" * 60)
   print("XGBoost cell type classifier training")
   print("=" * 60)
@@ -101,47 +70,35 @@ def make_classifier(yaml_f: str) -> None:
   config = load_config(yaml_f)
   paths = resolve_scprocess_paths(config)
 
-  # Load the optional fine→coarse label mapping (not used for training,
-  # only saved with model outputs and used for evaluation display)
+  # Label mapping is not used for training — saved alongside model for prediction time
   label_map = load_label_mapping(config)
   if label_map is not None:
     print(f"  Label mapping loaded: {len(label_map)} fine→coarse entries")
     print(f"  Coarse categories: {sorted(set(label_map.values()))}")
 
-  # -------------------------------------------------------------------------
   # Phase 1: plan which cells to use (CSV only, no H5AD)
-  # This decides label refinement, downsampling, and train/val split using
-  # only the cluster CSV and annotations file.
-  # -------------------------------------------------------------------------
   print("\n--- Planning training cells ---")
   cells_df = plan_training_cells(config, paths)
 
-  # -------------------------------------------------------------------------
   # Phase 2: load expression data one H5AD at a time
-  # Each batch's H5AD is loaded, subsetted to selected cells, normalized
-  # (total-count to 10k + log1p), and freed before loading the next.
-  # -------------------------------------------------------------------------
   print("\n--- Loading expression data ---")
   X, gene_names, cell_ids = load_expression_matrix(cells_df, paths)
 
-  # Filter out uninformative genes (expressed in fewer than min_cells_expressed)
   min_cells_expressed = config.get("min_cells_expressed", 10)
   X, gene_names = filter_uninformative_genes(X, gene_names, min_cells_expressed)
 
-  # Align cells_df row order with the matrix row order
+  # Align cells_df row order with the matrix
   cells_df = cells_df.filter(pl.col("cell_id").is_in(cell_ids))
   id_order = pl.DataFrame({"cell_id": cell_ids, "_row_idx": range(len(cell_ids))})
   cells_df = cells_df.join(id_order, on="cell_id").sort("_row_idx").drop("_row_idx")
 
-  # Encode string labels as integers for XGBoost (sorted alphabetically)
+  # Encode labels as integers (sorted alphabetically)
   class_names = sorted(cells_df["label"].unique().to_list())
   label_to_int = {name: i for i, name in enumerate(class_names)}
   y = np.array([label_to_int[lbl] for lbl in cells_df["label"].to_list()])
 
-  # Split into train/val matrices using the pre-assigned split column
   train_mask = cells_df["split"].to_numpy() == "train"
   val_mask = ~train_mask
-
   X_train, y_train = X[train_mask], y[train_mask]
   X_val, y_val = X[val_mask], y[val_mask]
 
@@ -149,52 +106,28 @@ def make_classifier(yaml_f: str) -> None:
   print(f"  Features (genes after filtering): {X_train.shape[1]}")
   print(f"  Classes: {len(class_names)}")
 
-  # -------------------------------------------------------------------------
   # Phase 3: XGBoost pass 1 — broad gene exploration
-  # With colsample_bytree=0.1, each tree only sees 10% of genes, forcing the
-  # ensemble to explore the full transcriptome across many trees. This lets us
-  # identify informative genes without prior HVG selection.
-  # -------------------------------------------------------------------------
   print("\n--- XGBoost Pass 1 (all genes) ---")
   model_pass1 = run_xgboost_pass1(X_train, y_train, X_val, y_val, config)
 
-  # -------------------------------------------------------------------------
   # Phase 4: feature selection via gain scores
-  # Genes are ranked by their total gain (reduction in loss) across all trees.
-  # We keep genes contributing to the top 90% of cumulative gain. This is
-  # adaptive: complex datasets with many informative genes keep more; simple
-  # datasets keep fewer.
-  # -------------------------------------------------------------------------
   print("\n--- Feature selection ---")
   sel_indices, sel_gene_names, gene_importance = select_features_by_gain(
     model_pass1, gene_names, config
   )
   print(f"  Selected {len(sel_indices)} genes (of {len(gene_names)})")
 
-  # Subset expression matrices to selected genes only
   X_train_sub = X_train[:, sel_indices]
   X_val_sub = X_val[:, sel_indices]
 
-  # -------------------------------------------------------------------------
   # Phase 5: XGBoost pass 2 — final training on curated gene set
-  # Now that we have a refined feature set, we retrain from scratch with:
-  #   - Higher colsample (0.5) since genes are already informative
-  #   - Lower learning rate (0.05) for finer convergence
-  #   - More rounds (500) to compensate for the lower learning rate
-  # -------------------------------------------------------------------------
   print("\n--- XGBoost Pass 2 (selected genes) ---")
   model_pass2 = run_xgboost_pass2(X_train_sub, y_train, X_val_sub, y_val, config)
 
-  # -------------------------------------------------------------------------
-  # Phase 6: evaluate and save outputs
-  # -------------------------------------------------------------------------
+  # Phase 6: evaluate and save
   print("\n--- Evaluation (fine labels) ---")
   evaluate_model(model_pass2, X_val_sub, y_val, class_names)
 
-  # If a label mapping is provided, also show coarse-level evaluation.
-  # This shows how well the model performs when fine predictions are collapsed
-  # (e.g. confusing excitatory_L5 with excitatory_L2/3 is less concerning if
-  # both map to "Neuron").
   if label_map is not None:
     print("\n--- Evaluation (coarse labels) ---")
     evaluate_model_coarse(model_pass2, X_val_sub, y_val, class_names, label_map)
@@ -214,54 +147,32 @@ def make_classifier(yaml_f: str) -> None:
 
 
 def load_config(yaml_f: str) -> dict:
-  """Load and validate training config + referenced scprocess config.
-
-  The training config YAML must contain:
-    - scprocess_config_f: path to the scprocess pipeline config YAML
-      (this gives us proj_dir, short_tag, full_tag, date_stamp to locate outputs)
-    - annots_f: path to annotations CSV (columns: cell_id, annotation)
-    - output_dir: directory where model and plots will be saved
-    - ref_tag: short name for this model (used in output filenames)
-
-  Optional keys (see DEFAULTS dict for values):
-    - label_map_f: CSV mapping fine annotations to coarse labels
-    - refine_labels, purity_threshold: label smoothing parameters
-    - n_cells_per_type, min_cells_per_type: downsampling parameters
-    - pass1_*/pass2_*/gain_*: XGBoost and feature selection parameters
-  """
+  """Load training config YAML + referenced scprocess config. Fill defaults."""
   yaml_path = pathlib.Path(yaml_f)
   assert yaml_path.is_file(), f"Config file not found: {yaml_f}"
 
   with open(yaml_path) as f:
     config = yaml.safe_load(f)
 
-  # check required keys
   required = ["scprocess_config_f", "annots_f", "output_dir", "ref_tag"]
   for key in required:
     assert key in config, f"Required key '{key}' missing from config"
 
-  # fill defaults for any unspecified optional parameters
   for key, default in DEFAULTS.items():
     if key not in config:
       config[key] = default
 
-  # Validate that input files exist
   assert pathlib.Path(config["annots_f"]).is_file(), (
-    f"Annotations file not found: {config['annots_f']}"
-  )
+    f"Annotations file not found: {config['annots_f']}")
   assert pathlib.Path(config["scprocess_config_f"]).is_file(), (
-    f"scprocess config not found: {config['scprocess_config_f']}"
-  )
+    f"scprocess config not found: {config['scprocess_config_f']}")
   if config["label_map_f"] is not None:
     assert pathlib.Path(config["label_map_f"]).is_file(), (
-      f"Label map file not found: {config['label_map_f']}"
-    )
+      f"Label map file not found: {config['label_map_f']}")
 
-  # load the scprocess config
   with open(config["scprocess_config_f"]) as f:
     config["scprocess"] = yaml.safe_load(f)
 
-  # create output directory structure
   out_dir = pathlib.Path(config["output_dir"])
   out_dir.mkdir(parents=True, exist_ok=True)
   (out_dir / "plots").mkdir(exist_ok=True)
@@ -270,21 +181,7 @@ def load_config(yaml_f: str) -> dict:
 
 
 def resolve_scprocess_paths(config: dict) -> dict:
-  """Build paths to scprocess integration outputs from the pipeline config.
-
-  scprocess outputs are located at:
-    {proj_dir}/output/{short_tag}_integration/
-
-  Key files:
-    - integrated_dt_{full_tag}_{date_stamp}.csv.gz
-        Cluster assignments, UMAP coords, and sample IDs for all cells.
-    - h5ads_clean_paths_{full_tag}_{date_stamp}.yaml
-        YAML dict mapping batch_name → H5AD file path.
-
-  The 'batch_var' (int_batch_var in scprocess config) determines how cells
-  are split across H5AD files: if "sample_id", one H5AD per sample; if
-  "pool_id", one H5AD per pool (which may contain multiple samples).
-  """
+  """Build paths to scprocess integration outputs."""
   scp = config["scprocess"]
   proj_dir = scp["project"]["proj_dir"]
   short_tag = scp["project"]["short_tag"]
@@ -299,15 +196,11 @@ def resolve_scprocess_paths(config: dict) -> dict:
     "batch_var": scp.get("integration", {}).get("int_batch_var", "sample_id"),
   }
 
-  # validate that scprocess has been run and outputs exist
   assert pathlib.Path(paths["cluster_csv"]).is_file(), (
-    f"Cluster CSV not found: {paths['cluster_csv']}"
-  )
+    f"Cluster CSV not found: {paths['cluster_csv']}")
   assert pathlib.Path(paths["h5ads_yaml"]).is_file(), (
-    f"H5AD paths YAML not found: {paths['h5ads_yaml']}"
-  )
+    f"H5AD paths YAML not found: {paths['h5ads_yaml']}")
 
-  # load the batch→h5ad mapping (e.g. {"sample_A": "/path/to/sample_A.h5ad", ...})
   with open(paths["h5ads_yaml"]) as f:
     paths["h5ad_dict"] = yaml.safe_load(f)
 
@@ -322,66 +215,38 @@ def resolve_scprocess_paths(config: dict) -> dict:
 def plan_training_cells(config: dict, paths: dict) -> pl.DataFrame:
   """Decide which cells to use for training/validation using only CSV files.
 
-  This is the "planning phase" — it operates entirely on lightweight tabular
-  data (the cluster CSV and annotations CSV). No H5AD files are loaded here.
-
-  Steps:
-    1. Load the cluster CSV (has cell_id, sample_id, cluster assignments)
-    2. Load annotations CSV and join to clusters
-    3. (Optional) Refine labels via cluster majority voting
-    4. Exclude cell types with too few cells
-    5. Downsample to n_cells_per_type per cell type
-    6. Assign train/val split (sample-level holdout or stratified random)
-    7. Map each cell to its batch (determines which H5AD to load later)
-
-  Note: label mapping (fine→coarse) is NOT applied here. The model trains on
-  fine-grained labels. The mapping is saved alongside the model and applied
-  at prediction time to collapse predictions into coarse categories.
-
-  Returns:
-    DataFrame with columns: cell_id, sample_id, label, split, batch
+  Label mapping (fine→coarse) is NOT applied here — the model trains on
+  fine-grained labels. The mapping is saved alongside the model for prediction.
   """
   batch_var = paths["batch_var"]
 
-  # Use the highest clustering resolution from scprocess for label refinement.
-  # scprocess defaults to [0.1, 0.2, 0.5, 1, 2], so this is typically res=2.
+  # Highest clustering resolution for label refinement (typically RNA_snn_res.2)
   res_ls = config["scprocess"].get("integration", {}).get("int_res_ls", [0.1, 0.2, 0.5, 1, 2])
-  hi_res = max(res_ls)
-  hi_res_col = f"RNA_snn_res.{hi_res}"
+  hi_res_col = f"RNA_snn_res.{max(res_ls)}"
 
-  # Load only the columns we need from the cluster CSV (can be large)
   cols_to_read = ["cell_id", batch_var, hi_res_col]
   cluster_df = pl.read_csv(paths["cluster_csv"], columns=cols_to_read)
   print(f"  Loaded cluster CSV: {cluster_df.shape[0]} cells")
 
-  # Load annotations — must have cell_id and annotation columns
   annots_df = pl.read_csv(config["annots_f"])
   assert "cell_id" in annots_df.columns, "annots_f must have 'cell_id' column"
   assert "annotation" in annots_df.columns, "annots_f must have 'annotation' column"
   annots_df = annots_df.select(["cell_id", "annotation"])
 
-  # Left join: keep all cells from cluster CSV, add annotations where available.
-  # Cells without annotations will have annotation=null.
   df = cluster_df.join(annots_df, on="cell_id", how="left")
   n_annotated = df.filter(pl.col("annotation").is_not_null()).shape[0]
   print(f"  Cells with annotations: {n_annotated} / {df.shape[0]}")
 
-  # Step 3: Label refinement — smooth per-cell annotations using cluster consensus.
-  # For each high-resolution cluster, if the majority annotation makes up >=65%
-  # of annotated cells, all cells in that cluster get that label. Mixed clusters
-  # keep their original per-cell annotations.
   if config["refine_labels"]:
     print("  Refining labels by cluster majority voting...")
     df = refine_labels_by_cluster(df, hi_res_col, config)
   else:
     df = df.with_columns(pl.col("annotation").alias("label"))
 
-  # Drop cells that still have no label (were never annotated and not in a
-  # pure-enough cluster to receive a refined label)
   df = df.filter(pl.col("label").is_not_null())
   print(f"  Cells with labels after processing: {df.shape[0]}")
 
-  # Exclude rare cell types that don't have enough cells for meaningful training
+  # Exclude rare cell types
   type_counts = df.group_by("label").len()
   keep_types = (
     type_counts
@@ -395,24 +260,18 @@ def plan_training_cells(config: dict, paths: dict) -> pl.DataFrame:
       print(f"    {row['label']}: {row['len']} cells")
   df = df.filter(pl.col("label").is_in(keep_types))
 
-  # Downsample each cell type to at most n_cells_per_type
   print("  Downsampling...")
   df = downsample_per_type(df, config)
 
-  # Assign cells to train or validation split
   print("  Assigning train/val split...")
   df = assign_train_val_split(df, config)
 
-  # Add batch column — this determines which H5AD file contains each cell.
-  # When batch_var="sample_id", each sample has its own H5AD.
-  # When batch_var="pool_id", each pool (potentially containing multiple samples)
-  # has one H5AD.
+  # Batch column determines which H5AD file contains each cell
   if batch_var == "sample_id":
     df = df.with_columns(pl.col("sample_id").alias("batch"))
   else:
     df = df.with_columns(pl.col(batch_var).alias("batch"))
 
-  # Print summary
   split_summary = df.group_by("split").len()
   for row in split_summary.iter_rows(named=True):
     print(f"    {row['split']}: {row['len']} cells")
@@ -423,45 +282,32 @@ def plan_training_cells(config: dict, paths: dict) -> pl.DataFrame:
 def refine_labels_by_cluster(
   df: pl.DataFrame, hi_res_col: str, config: dict
 ) -> pl.DataFrame:
-  """Use highest-resolution clustering to smooth annotations via majority voting.
+  """Smooth annotations via cluster majority voting.
 
-  Rationale: raw per-cell annotations can be noisy (misassigned cells, ambiguous
-  boundaries). By looking at Harmony clusters at high resolution, we can identify
-  groups of cells that are transcriptionally similar. If a cluster is dominated
-  (>= purity_threshold) by one annotation, we trust that consensus and apply it
-  to all cells in the cluster — including any that were mislabeled individually.
-
-  Clusters that are mixed (below purity threshold) or too small (< 10 annotated
-  cells) are left alone — their cells keep their original per-cell annotations.
-  This avoids imposing false consensus on genuinely heterogeneous regions.
+  For each high-res cluster, if majority annotation >= purity_threshold and
+  cluster has >= 10 annotated cells, relabel all cells. Otherwise keep originals.
   """
   purity_thr = config["purity_threshold"]
   min_cluster_size = 10
 
-  # only use annotated cells to compute cluster purity
   annotated = df.filter(pl.col("annotation").is_not_null())
 
-  # count (cluster, annotation) pairs
   cluster_annot_counts = (
     annotated.group_by([hi_res_col, "annotation"])
     .len().rename({"len": "n"})
   )
-
-  # total annotated cells per cluster
   cluster_totals = (
     annotated.group_by(hi_res_col)
     .len().rename({"len": "n_total"})
   )
 
-  # For each cluster, find the majority annotation and its purity (proportion).
-  # Keep only clusters that pass both the purity threshold and minimum size.
   cluster_stats = (
     cluster_annot_counts
     .join(cluster_totals, on=hi_res_col)
     .with_columns((pl.col("n") / pl.col("n_total")).alias("purity"))
     .sort([hi_res_col, "purity"], descending=[False, True])
     .group_by(hi_res_col)
-    .first()  # takes the top-purity annotation per cluster
+    .first()
     .filter(
       (pl.col("purity") >= purity_thr) & (pl.col("n_total") >= min_cluster_size)
     )
@@ -472,7 +318,6 @@ def refine_labels_by_cluster(
   n_total_clusters = df[hi_res_col].n_unique()
   print(f"    {n_refined}/{n_total_clusters} clusters pass purity threshold")
 
-  # cells in pure clusters get the majority label; others keep original
   df = df.join(cluster_stats, on=hi_res_col, how="left")
   df = df.with_columns(
     pl.when(pl.col("majority_label").is_not_null())
@@ -484,26 +329,10 @@ def refine_labels_by_cluster(
 
 
 def load_label_mapping(config: dict) -> Optional[dict[str, str]]:
-  """Load the fine→coarse label mapping from CSV, if provided.
+  """Load fine→coarse label mapping CSV. Not applied during training —
+  saved alongside model and applied at prediction time.
 
-  The label mapping is NOT applied during training — the model trains on
-  fine-grained labels (e.g. excitatory_L5, inhibitory_PV). The mapping is
-  saved alongside the model and applied at prediction time to collapse
-  fine predictions into coarse categories (e.g. Neuron).
-
-  This approach gives better classification because each training class is
-  transcriptomically coherent. The model learns what each subtype looks like,
-  then the mapping groups related predictions together.
-
-  Expected CSV format:
-    annotation,coarse_label
-    excitatory_L2/3,Neuron
-    excitatory_L5,Neuron
-    inhibitory_PV,Neuron
-    Astrocyte,Astrocyte
-
-  Returns:
-    dict mapping fine label → coarse label, or None if no mapping provided.
+  Expected CSV columns: annotation, coarse_label
   """
   if config["label_map_f"] is None:
     return None
@@ -512,20 +341,14 @@ def load_label_mapping(config: dict) -> Optional[dict[str, str]]:
   assert "annotation" in map_df.columns, "label_map_f must have 'annotation' column"
   assert "coarse_label" in map_df.columns, "label_map_f must have 'coarse_label' column"
 
-  label_map = dict(zip(
+  return dict(zip(
     map_df["annotation"].to_list(),
     map_df["coarse_label"].to_list(),
   ))
 
-  return label_map
-
 
 def downsample_per_type(df: pl.DataFrame, config: dict) -> pl.DataFrame:
-  """Downsample to at most n_cells_per_type cells per label.
-
-  This ensures the training set is balanced and not too large. Cell types with
-  fewer cells than the cap are kept entirely.
-  """
+  """Downsample to at most n_cells_per_type cells per label."""
   n_max = config["n_cells_per_type"]
   seed = config["seed"]
 
@@ -546,16 +369,8 @@ def downsample_per_type(df: pl.DataFrame, config: dict) -> pl.DataFrame:
 
 
 def assign_train_val_split(df: pl.DataFrame, config: dict) -> pl.DataFrame:
-  """Assign cells to train or validation split.
-
-  Strategy depends on the number of samples in the dataset:
-    - >4 samples: hold out ~20% of samples entirely. This gives the strongest
-      test of generalization since cells from the same sample share technical
-      artifacts (batch effects, library prep noise).
-    - <=4 samples: fall back to stratified random split at the cell level
-      (80% train / 20% val), preserving label proportions. This is weaker
-      (overestimates performance) but necessary when too few samples exist
-      to hold any out entirely.
+  """Assign cells to train/validation. Sample-level holdout if >4 samples,
+  otherwise stratified random split at cell level.
   """
   seed = config["seed"]
   rng = np.random.default_rng(seed)
@@ -563,7 +378,6 @@ def assign_train_val_split(df: pl.DataFrame, config: dict) -> pl.DataFrame:
   n_samples = len(samples)
 
   if n_samples > 4:
-    # Sample-level holdout: entire samples go to validation
     samples = sorted(samples)
     n_val = max(1, len(samples) // 5)
     val_samples = rng.choice(samples, size=n_val, replace=False).tolist()
@@ -576,13 +390,11 @@ def assign_train_val_split(df: pl.DataFrame, config: dict) -> pl.DataFrame:
       .alias("split")
     )
   else:
-    # Cell-level stratified split: 20% of cells per label go to validation
     print(f"    Cell-level stratified split (<=4 samples)")
 
     labels = df["label"].to_list()
     assignments = ["train"] * len(labels)
 
-    # For each cell type, randomly assign 20% of its cells to validation
     for label in df["label"].unique().to_list():
       label_indices = [i for i, lbl in enumerate(labels) if lbl == label]
       n_val = max(1, int(len(label_indices) * 0.2))
@@ -601,25 +413,13 @@ def assign_train_val_split(df: pl.DataFrame, config: dict) -> pl.DataFrame:
 
 
 def normalize_counts(X: sp.spmatrix, scale_factor: int = 10000) -> sp.csr_matrix:
-  """Total-count normalize, scale by factor, and log1p-transform.
-
-  This matches the normalization in scprocess's label_celltypes.R:
-    1. Compute library size per cell (sum of ALL genes, not just a subset)
-    2. Divide each cell's counts by its library size
-    3. Multiply by scale_factor (default 10k)
-    4. Apply log1p
-
-  Importantly, log1p(0) = 0, so the sparse structure is preserved — zero
-  entries stay zero and don't get stored.
-  """
+  """Total-count normalize to scale_factor, then log1p. Matches label_celltypes.R."""
   X_csr = X.tocsr().astype(np.float64)
   lib_sizes = np.array(X_csr.sum(axis=1)).flatten()
-  lib_sizes[lib_sizes == 0] = 1.0  # avoid division by zero for empty cells
-  # Multiply each row by (1 / lib_size) via diagonal matrix
+  lib_sizes[lib_sizes == 0] = 1.0
   inv_lib = sp.diags(1.0 / lib_sizes)
   X_norm = inv_lib @ X_csr
   X_norm *= scale_factor
-  # log1p on the .data array only touches non-zero entries (preserves sparsity)
   X_norm.data = np.log1p(X_norm.data)
   return X_norm
 
@@ -627,12 +427,7 @@ def normalize_counts(X: sp.spmatrix, scale_factor: int = 10000) -> sp.csr_matrix
 def filter_uninformative_genes(
   X: sp.csr_matrix, gene_names: list[str], min_cells: int = 10
 ) -> tuple[sp.csr_matrix, list[str]]:
-  """Remove genes expressed in fewer than min_cells cells.
-
-  After log-normalization, a non-zero entry means the gene was detected in that
-  cell. Genes detected in very few cells cannot provide useful signal for
-  classification and just slow down XGBoost's split search.
-  """
+  """Remove genes expressed in fewer than min_cells cells."""
   cells_per_gene = np.array(X.getnnz(axis=0)).flatten()
   keep_mask = cells_per_gene >= min_cells
   n_before = len(gene_names)
@@ -652,20 +447,8 @@ def load_expression_matrix(
 ) -> tuple[sp.csr_matrix, list[str], list[str]]:
   """Load and normalize expression data, one H5AD at a time.
 
-  Memory efficiency strategy:
-    - Only batches (H5AD files) that contain selected cells are loaded.
-    - Within each batch, only the selected cells are kept.
-    - After normalization, the AnnData object is freed before loading the next.
-    - Peak memory is thus proportional to one batch, not the full dataset.
-
-  The H5AD files contain raw counts in .X (sparse CSC). Gene names come from
-  .var_names (gene symbols, set in make_clean_h5ad.py). All batches from the
-  same scprocess run share identical gene sets.
-
-  Returns:
-    X: sparse CSR matrix (n_cells x n_genes), log-normalized
-    gene_names: list of gene symbols (column labels)
-    cell_ids_ordered: list of cell_id strings (row labels, matches X row order)
+  Peak memory is proportional to one batch — each H5AD is loaded, subsetted
+  to selected cells, normalized, and freed before loading the next.
   """
   h5ad_dict = paths["h5ad_dict"]
   batches_needed = cells_df["batch"].drop_nulls().unique().to_list()
@@ -692,29 +475,23 @@ def load_expression_matrix(
     print(f"  Loading batch '{batch}': {len(batch_cell_ids)} cells")
     adata = ad.read_h5ad(h5ad_path)
 
-    # Subset to only the cells we selected in the planning phase
     cell_mask = adata.obs["cell_id"].isin(batch_cell_ids)
     adata = adata[cell_mask].copy()
 
-    # All H5AD files from one scprocess run must have identical gene sets
     current_genes = adata.var_names.tolist()
     if gene_names is None:
       gene_names = current_genes
     else:
       assert current_genes == gene_names, (
         f"Gene mismatch in batch '{batch}': expected {len(gene_names)} genes, "
-        f"got {len(current_genes)}"
-      )
+        f"got {len(current_genes)}")
 
-    # Normalize raw counts: total-count → scale to 10k → log1p
     X_norm = normalize_counts(adata.X, scale_factor=10000)
     matrices.append(X_norm)
     cell_ids_ordered.extend(adata.obs["cell_id"].tolist())
 
-    # Free memory before loading next batch
     del adata
 
-  # Vertically stack all batch matrices into one (cells x genes) matrix
   X = sp.vstack(matrices, format="csr")
   print(f"  Final matrix: {X.shape[0]} cells x {X.shape[1]} genes")
 
@@ -727,7 +504,7 @@ def load_expression_matrix(
 
 
 def _build_xgb_params(config: dict, num_class: int, **overrides) -> dict:
-  """Build XGBoost parameter dict, using GPU if use_gpu=True in config."""
+  """Build XGBoost parameter dict. Adds GPU params if use_gpu=True."""
   params = {
     "objective": "multi:softprob",
     "num_class": num_class,
@@ -743,28 +520,10 @@ def _build_xgb_params(config: dict, num_class: int, **overrides) -> dict:
 
 
 def run_xgboost_pass1(
-  X_train: sp.csr_matrix,
-  y_train: np.ndarray,
-  X_val: sp.csr_matrix,
-  y_val: np.ndarray,
-  config: dict,
+  X_train: sp.csr_matrix, y_train: np.ndarray,
+  X_val: sp.csr_matrix, y_val: np.ndarray, config: dict,
 ) -> xgb.Booster:
-  """XGBoost pass 1: broad exploration with all genes.
-
-  Purpose: discover which genes (out of ~20-30k) are informative for cell type
-  classification, WITHOUT prior HVG selection.
-
-  Key parameter choices:
-    - colsample_bytree=0.1: each tree only sees 10% of genes. Over 300 trees,
-      the ensemble explores the full transcriptome. Genes that appear in many
-      trees and produce high gain are the informative ones.
-    - subsample=0.632: bootstrap fraction — standard "bagging" proportion.
-    - learning_rate=0.1: moderate step size since individual trees are weak
-      (only 10% of features).
-
-  The validation set is used for early stopping (no improvement in mlogloss
-  for pass1_early_stopping rounds triggers stopping).
-  """
+  """Pass 1: broad exploration with all genes (low colsample_bytree)."""
   num_class = int(y_train.max()) + 1
 
   params = _build_xgb_params(config, num_class,
@@ -775,13 +534,11 @@ def run_xgboost_pass1(
 
   dtrain = xgb.DMatrix(X_train, label=y_train)
   dval = xgb.DMatrix(X_val, label=y_val)
-  evals = [(dtrain, "train"), (dval, "val")]
 
   model = xgb.train(
-    params=params,
-    dtrain=dtrain,
+    params=params, dtrain=dtrain,
     num_boost_round=config["pass1_nrounds"],
-    evals=evals,
+    evals=[(dtrain, "train"), (dval, "val")],
     early_stopping_rounds=config["pass1_early_stopping"],
     verbose_eval=50,
   )
@@ -793,57 +550,33 @@ def run_xgboost_pass1(
 def select_features_by_gain(
   model: xgb.Booster, gene_names: list[str], config: dict
 ) -> tuple[np.ndarray, list[str], pl.DataFrame]:
-  """Select genes contributing to the top fraction of cumulative gain.
-
-  "Gain" is XGBoost's measure of how much a feature reduces the loss function
-  across all trees and splits where it was used. Higher gain = more informative.
-
-  Selection logic:
-    1. Rank all genes by their total gain (descending).
-    2. Compute cumulative gain as a fraction of total.
-    3. Select genes until the cumulative fraction reaches gain_threshold (0.9).
-    4. Clamp the count to [min_genes, max_genes].
-
-  This is adaptive: datasets with many informative genes (complex) will select
-  more; datasets dominated by a few markers (simple) will select fewer.
-
-  Returns:
-    sel_indices: numpy array of column indices into the original gene matrix
-    sel_gene_names: corresponding gene symbol names
-    gene_importance: full DataFrame of all genes with non-zero gain (for output)
+  """Select genes contributing to top gain_threshold fraction of cumulative gain.
+  Clamped to [min_genes, max_genes].
   """
-  # get_score returns {feature_name: gain} where names are "f0", "f1", etc.
   importance = model.get_score(importance_type="gain")
 
-  # Map feature index strings back to numeric indices
   gene_gains = np.zeros(len(gene_names))
   for feat, gain in importance.items():
-    idx = int(feat[1:])  # "f123" → 123
-    gene_gains[idx] = gain
+    gene_gains[int(feat[1:])] = gain
 
-  # Sort genes by gain, highest first
   sorted_idx = np.argsort(-gene_gains)
   sorted_gains = gene_gains[sorted_idx]
 
-  # Only consider genes that were actually used by the model
   nonzero_mask = sorted_gains > 0
   sorted_idx = sorted_idx[nonzero_mask]
   sorted_gains = sorted_gains[nonzero_mask]
 
-  # Cumulative gain fraction (what percentage of total gain do the top N genes explain?)
   total_gain = sorted_gains.sum()
   cum_gain = np.cumsum(sorted_gains) / total_gain
 
-  # Find how many genes are needed to reach the threshold
   n_sel = int(np.searchsorted(cum_gain, config["gain_threshold"])) + 1
-  n_sel = max(n_sel, config["min_genes"])   # never select fewer than 100
-  n_sel = min(n_sel, config["max_genes"])   # never select more than 3000
-  n_sel = min(n_sel, len(sorted_idx))       # can't exceed available genes
+  n_sel = max(n_sel, config["min_genes"])
+  n_sel = min(n_sel, config["max_genes"])
+  n_sel = min(n_sel, len(sorted_idx))
 
   sel_indices = sorted_idx[:n_sel]
   sel_gene_names = [gene_names[i] for i in sel_indices]
 
-  # Build importance table (saved as output for biological interpretation)
   gene_importance = pl.DataFrame({
     "gene": [gene_names[i] for i in sorted_idx],
     "gain": sorted_gains.tolist(),
@@ -858,23 +591,10 @@ def select_features_by_gain(
 
 
 def run_xgboost_pass2(
-  X_train: sp.csr_matrix,
-  y_train: np.ndarray,
-  X_val: sp.csr_matrix,
-  y_val: np.ndarray,
-  config: dict,
+  X_train: sp.csr_matrix, y_train: np.ndarray,
+  X_val: sp.csr_matrix, y_val: np.ndarray, config: dict,
 ) -> xgb.Booster:
-  """XGBoost pass 2: final model trained on the selected gene subset.
-
-  This is a fresh retrain (not continuing from pass 1) on the curated feature
-  set identified by select_features_by_gain. Since the gene set is already
-  informative, we use:
-    - Higher colsample_bytree (0.5): more features per tree since they're all good
-    - Lower learning_rate (0.05): smaller steps for finer convergence
-    - More rounds (500): compensates for the lower learning rate
-
-  This model is the one that gets saved and used for downstream prediction.
-  """
+  """Pass 2: fresh retrain on selected genes with relaxed parameters."""
   num_class = int(y_train.max()) + 1
 
   params = _build_xgb_params(config, num_class,
@@ -883,18 +603,14 @@ def run_xgboost_pass2(
     learning_rate=config["pass2_learning_rate"],
   )
 
-  # Feature names are generic ("g0", "g1", ...) — the actual gene symbols are
-  # saved separately in the selected_genes.txt output file.
   feat_names = [f"g{i}" for i in range(X_train.shape[1])]
   dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=feat_names)
   dval = xgb.DMatrix(X_val, label=y_val, feature_names=feat_names)
-  evals = [(dtrain, "train"), (dval, "val")]
 
   model = xgb.train(
-    params=params,
-    dtrain=dtrain,
+    params=params, dtrain=dtrain,
     num_boost_round=config["pass2_nrounds"],
-    evals=evals,
+    evals=[(dtrain, "train"), (dval, "val")],
     early_stopping_rounds=config["pass2_early_stopping"],
     verbose_eval=50,
   )
@@ -909,36 +625,24 @@ def run_xgboost_pass2(
 
 
 def evaluate_model(
-  model: xgb.Booster,
-  X_val: sp.csr_matrix,
-  y_val: np.ndarray,
-  class_names: list[str],
+  model: xgb.Booster, X_val: sp.csr_matrix,
+  y_val: np.ndarray, class_names: list[str],
 ) -> None:
-  """Print confusion metrics on the held-out validation set.
-
-  Reports:
-    - Overall accuracy
-    - High-confidence accuracy (cells where max probability > 0.5)
-    - Per-class accuracy and F1 score
-    - Macro-averaged F1
-    - Top misclassification pairs (which true classes get confused with which)
-  """
+  """Print per-class accuracy, F1, and top misclassifications on validation set."""
   feat_names = [f"g{i}" for i in range(X_val.shape[1])]
   dval = xgb.DMatrix(X_val, feature_names=feat_names)
-  probs = model.predict(dval)  # shape: (n_cells, n_classes)
+  probs = model.predict(dval)
   y_pred = probs.argmax(axis=1)
   p_max = probs.max(axis=1)
 
   overall_acc = (y_pred == y_val).mean()
   print(f"  Overall accuracy: {overall_acc:.3f}")
 
-  # High-confidence accuracy (p > 0.5)
   hc_mask = p_max > 0.5
   if hc_mask.sum() > 0:
     hc_acc = (y_pred[hc_mask] == y_val[hc_mask]).mean()
     print(f"  High-confidence accuracy (p>0.5): {hc_acc:.3f} ({hc_mask.sum()} cells)")
 
-  # Per-class metrics
   print(f"\n  {'Class':<30} {'N':>6} {'Acc':>6} {'F1':>6}")
   print("  " + "-" * 52)
 
@@ -950,8 +654,6 @@ def evaluate_model(
       continue
 
     acc = (y_pred[mask_true] == i).mean()
-
-    # F1: precision and recall
     pred_pos = y_pred == i
     tp = ((y_pred == i) & (y_val == i)).sum()
     precision = tp / pred_pos.sum() if pred_pos.sum() > 0 else 0
@@ -964,7 +666,6 @@ def evaluate_model(
   macro_f1 = np.mean(f1_scores) if f1_scores else 0
   print(f"\n  Macro F1: {macro_f1:.3f}")
 
-  # Top misclassifications
   print("\n  Top misclassifications:")
   print(f"  {'True':<20} {'Predicted':<20} {'N':>5} {'%':>6}")
   print("  " + "-" * 55)
@@ -983,27 +684,17 @@ def evaluate_model(
 
 
 def evaluate_model_coarse(
-  model: xgb.Booster,
-  X_val: sp.csr_matrix,
-  y_val: np.ndarray,
-  class_names: list[str],
-  label_map: dict[str, str],
+  model: xgb.Booster, X_val: sp.csr_matrix, y_val: np.ndarray,
+  class_names: list[str], label_map: dict[str, str],
 ) -> None:
-  """Evaluate at the coarse label level by collapsing fine predictions via the mapping.
-
-  This shows the "practical" accuracy when fine predictions (e.g. excitatory_L5)
-  are mapped to coarse categories (e.g. Neuron). Confusion between subtypes
-  within the same coarse category does not count as an error here.
-  """
+  """Evaluate after collapsing fine predictions to coarse labels via mapping."""
   feat_names = [f"g{i}" for i in range(X_val.shape[1])]
   dval = xgb.DMatrix(X_val, feature_names=feat_names)
   probs = model.predict(dval)
   y_pred_fine = probs.argmax(axis=1)
 
-  # Map fine integer labels → coarse string labels
   def to_coarse(fine_idx: int) -> str:
-    fine_name = class_names[fine_idx]
-    return label_map.get(fine_name, fine_name)
+    return label_map.get(class_names[fine_idx], class_names[fine_idx])
 
   y_true_coarse = np.array([to_coarse(i) for i in y_val])
   y_pred_coarse = np.array([to_coarse(i) for i in y_pred_fine])
@@ -1012,7 +703,6 @@ def evaluate_model_coarse(
   overall_acc = (y_true_coarse == y_pred_coarse).mean()
   print(f"  Overall coarse accuracy: {overall_acc:.3f}")
 
-  # Per-class metrics at coarse level
   print(f"\n  {'Coarse class':<30} {'N':>6} {'Acc':>6} {'F1':>6}")
   print("  " + "-" * 52)
 
@@ -1024,7 +714,6 @@ def evaluate_model_coarse(
       continue
 
     acc = (y_pred_coarse[mask_true] == cls).mean()
-
     pred_pos = y_pred_coarse == cls
     tp = ((y_pred_coarse == cls) & (y_true_coarse == cls)).sum()
     precision = tp / pred_pos.sum() if pred_pos.sum() > 0 else 0
@@ -1044,61 +733,31 @@ def evaluate_model_coarse(
 
 
 def save_outputs(
-  model: xgb.Booster,
-  class_names: list[str],
-  selected_genes: list[str],
-  gene_importance: pl.DataFrame,
-  config: dict,
-  cells_df: pl.DataFrame,
-  paths: dict,
-  label_map: Optional[dict[str, str]] = None,
+  model: xgb.Booster, class_names: list[str], selected_genes: list[str],
+  gene_importance: pl.DataFrame, config: dict, cells_df: pl.DataFrame,
+  paths: dict, label_map: Optional[dict[str, str]] = None,
 ) -> None:
-  """Save all model artifacts to the output directory.
-
-  Output files:
-    - {ref_tag}_xgboost_model.json: XGBoost model in native JSON format.
-      Portable — can be loaded in both Python (xgb.Booster().load_model)
-      and R (xgb.load.model).
-    - {ref_tag}_allowed_cls.csv: one column 'class' with the fine-grained
-      class names in the order matching the model's integer encoding
-      (0 = first row, etc.).
-    - {ref_tag}_selected_genes.txt: gene symbols, one per line, in the order
-      matching the model's feature columns. At prediction time, the new data
-      must be subset to these genes in this order.
-    - {ref_tag}_gene_importance.csv: full gene ranking by gain from pass 1
-      (useful for biological interpretation).
-    - {ref_tag}_label_map.csv (if provided): fine→coarse label mapping.
-      At prediction time, apply this to collapse fine predictions into
-      coarse categories.
-    - plots/: UMAP diagnostic plots.
-  """
+  """Save model (.json), allowed classes, selected genes, importance, and plots."""
   out_dir = pathlib.Path(config["output_dir"])
   ref_tag = config["ref_tag"]
 
-  # Save model in native JSON format (portable across Python/R)
   model_path = out_dir / f"{ref_tag}_xgboost_model.json"
   model.save_model(str(model_path))
   print(f"  Model: {model_path}")
 
-  # Save class names — row order matches integer label encoding
   cls_path = out_dir / f"{ref_tag}_allowed_cls.csv"
   pl.DataFrame({"class": class_names}).write_csv(str(cls_path))
   print(f"  Classes: {cls_path}")
 
-  # Save selected gene list — order matches model feature columns
   genes_path = out_dir / f"{ref_tag}_selected_genes.txt"
   with open(genes_path, "w") as f:
     f.write("\n".join(selected_genes) + "\n")
   print(f"  Genes: {genes_path}")
 
-  # Save full gene importance table from pass 1
   imp_path = out_dir / f"{ref_tag}_gene_importance.csv"
   gene_importance.write_csv(str(imp_path))
   print(f"  Importance: {imp_path}")
 
-  # Save label mapping if provided — used at prediction time to collapse
-  # fine-grained predictions (e.g. excitatory_L5) into coarse categories
-  # (e.g. Neuron)
   if label_map is not None:
     map_path = out_dir / f"{ref_tag}_label_map.csv"
     pl.DataFrame({
@@ -1107,53 +766,36 @@ def save_outputs(
     }).write_csv(str(map_path))
     print(f"  Label map: {map_path}")
 
-  # Diagnostic plots
   print("  Generating plots...")
   make_diagnostic_plots(cells_df, model, class_names, paths, config)
 
 
 def make_diagnostic_plots(
-  cells_df: pl.DataFrame,
-  model: xgb.Booster,
-  class_names: list[str],
-  paths: dict,
-  config: dict,
+  cells_df: pl.DataFrame, model: xgb.Booster,
+  class_names: list[str], paths: dict, config: dict,
 ) -> None:
-  """Generate UMAP diagnostic plots using pre-computed coordinates from scprocess.
-
-  Uses UMAP1/UMAP2 from the integration cluster CSV (no re-computation needed).
-  Produces:
-    1. UMAP colored by assigned training label — sanity check that labels
-       correspond to distinct transcriptomic clusters.
-    2. UMAP colored by train/val split — verify that spatial coverage is
-       reasonable in both sets (especially for sample-level holdout).
-  """
+  """UMAP plots using pre-computed coordinates from scprocess."""
   out_dir = pathlib.Path(config["output_dir"]) / "plots"
   ref_tag = config["ref_tag"]
 
-  # Load UMAP coordinates from the scprocess cluster CSV
   umap_df = pl.read_csv(paths["cluster_csv"], columns=["cell_id", "UMAP1", "UMAP2"])
 
-  # Join with our training cells to get labels and split assignments
   plot_df = cells_df.join(umap_df, on="cell_id", how="left")
   plot_df = plot_df.filter(
     pl.col("UMAP1").is_not_null() & pl.col("UMAP2").is_not_null()
   )
 
-  # Assign colors to labels
   labels = sorted(plot_df["label"].unique().to_list())
   cmap = plt.cm.get_cmap("tab20", len(labels))
   label_colors = {lbl: cmap(i) for i, lbl in enumerate(labels)}
 
-  # Plot 1: UMAP colored by true (refined) label
+  # Plot 1: UMAP colored by label
   fig, ax = plt.subplots(1, 1, figsize=(10, 8))
   for lbl in labels:
     subset = plot_df.filter(pl.col("label") == lbl)
     ax.scatter(
-      subset["UMAP1"].to_numpy(),
-      subset["UMAP2"].to_numpy(),
-      c=[label_colors[lbl]],
-      s=1, alpha=0.5, label=lbl, rasterized=True,
+      subset["UMAP1"].to_numpy(), subset["UMAP2"].to_numpy(),
+      c=[label_colors[lbl]], s=1, alpha=0.5, label=lbl, rasterized=True,
     )
   ax.set_xlabel("UMAP1")
   ax.set_ylabel("UMAP2")
@@ -1166,16 +808,14 @@ def make_diagnostic_plots(
   plt.savefig(out_dir / f"{ref_tag}_umap_true_labels.png", dpi=150, bbox_inches="tight")
   plt.close()
 
-  # Plot 2: UMAP showing train/val split
+  # Plot 2: UMAP colored by train/validation split
   fig, ax = plt.subplots(1, 1, figsize=(8, 7))
   split_colors = {"train": "#1f77b4", "validation": "#ff7f0e"}
   for split in ["train", "validation"]:
     subset = plot_df.filter(pl.col("split") == split)
     ax.scatter(
-      subset["UMAP1"].to_numpy(),
-      subset["UMAP2"].to_numpy(),
-      c=split_colors[split],
-      s=1, alpha=0.4, label=split, rasterized=True,
+      subset["UMAP1"].to_numpy(), subset["UMAP2"].to_numpy(),
+      c=split_colors[split], s=1, alpha=0.4, label=split, rasterized=True,
     )
   ax.set_xlabel("UMAP1")
   ax.set_ylabel("UMAP2")
