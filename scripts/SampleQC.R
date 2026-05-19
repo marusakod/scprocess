@@ -476,7 +476,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
     } else if (batch_var == "pool_id") {
       keep_idx    = coldata_in$scdbl_class == 'singlet'
     }
-  } else if (demux_type %in% c("custom")) {
+  } else if (demux_type == "custom") {
     if (batch_var == "sample_id") {
       keep_idx    = (coldata_in$scdbl_class == 'singlet') & (coldata_in$demux_class == 'singlet')
     } else if (batch_var == "pool_id") {

@@ -485,7 +485,7 @@ def _check_multiplexing_parameters(config):
     # check specified file is ok
     config['multiplexing']['demux_output'] = _check_path_exists_in_project(config['multiplexing']['demux_output'], config, what = "file")
 
-    # check if looks ok 
+    # check columns look ok (value-matching checks are done in the check_demux_ids rule)
     demux_df    = pl.read_csv(config['multiplexing']['demux_output'], n_rows = 10)
     for col in ["pool_id", "sample_id", "cell_id"]:
       if not col in demux_df.columns:

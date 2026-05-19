@@ -68,13 +68,14 @@ def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where,
     sel_wl_dt = wl_overlap_dt.filter(pl.col('overlap') == max_overlap)
     whitelist_f = sel_wl_dt['gex_barcodes_f_full'][0]
 
+    # check R1 read length to determine correct alevin chemistry
     r1_length = _get_r1_read_length(R1_fs)
     print(f' R1 read length: {r1_length}bp')
 
     if sel_wl_dt.height == 1:
-      sample_chem = sel_wl_dt['chemistry'][0]
+      sample_tenx_chemistry = sel_wl_dt['chemistry'][0]
       af_chemistry = '10xv3'
-      exp_ori = 'rc' if sample_chem == '5v3' else 'fw'
+      exp_ori = 'rc' if sample_tenx_chemistry == '5v3' else 'fw'
 
       cell_counts_fw = ""
       cell_counts_rc = ""
@@ -99,9 +100,9 @@ def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where,
 
       # determine sample chemistry from inferred orientation
       if chem_opts == set(['3v2', '5v1', '5v2']):
-        sample_chem = '3v2' if exp_ori == 'fw' else '5v1/5v2'
+        sample_tenx_chemistry = '3v2' if exp_ori == 'fw' else '5v1/5v2'
       else:
-        sample_chem = '3v3' if exp_ori == 'fw' else '5v3'
+        sample_tenx_chemistry = '3v3' if exp_ori == 'fw' else '5v3'
 
       # remove temporary mapping results and downsampled fastqs
       shutil.rmtree(tmp_out_dir)
@@ -110,7 +111,9 @@ def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where,
     if af_chemistry == '10xv3' and r1_length < 28:
       warnings.warn(f'R1 read length is {r1_length}bp (< 28bp); using 10xv2 chemistry with v3 whitelist')
       af_chemistry = '10xv2'
-      sample_chem = '3v2' if exp_ori == 'fw' else '5v1/5v2'
+
+      # get sample chemisty
+      sample_tenx_chemistry = '3v2' if exp_ori == 'fw' else '5v1/5v2'
 
   else:
     cell_counts_fw = ""
@@ -122,9 +125,9 @@ def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where,
       .filter(pl.col(f'{f_prefix}_barcodes_f') == os.path.basename(whitelist_f))
       .get_column('chemistry').to_list())
     if set(chem_opts) == set(['3v2', '5v1', '5v2']):
-      sample_chem = '3v2' if exp_ori == "fw" else '5v1/5v2'
+      sample_tenx_chemistry = '3v2' if exp_ori == "fw" else '5v1/5v2'
     else:
-      sample_chem = chem_opts[0]
+      sample_tenx_chemistry = chem_opts[0]
 
     # check R1 read length is compatible with specified chemistry
     r1_length = _get_r1_read_length(R1_fs)
@@ -172,7 +175,7 @@ def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where,
      "selected_ori": exp_ori,
      "n_cells_fw": cell_counts_fw,
      "n_cells_rc": cell_counts_rc,
-     "selected_tenx_chemistry": sample_chem,
+     "selected_tenx_chemistry": sample_tenx_chemistry,
      "selected_af_chemistry": af_chemistry
     }
   
