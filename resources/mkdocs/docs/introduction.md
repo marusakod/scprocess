@@ -52,7 +52,7 @@
 
 * #### Marker gene identification
     
-    Assigning meaningful labels to clusters in single-cell data is essential for interpretation of single cell data. This is commonly achieved by examining marker genes for each cluster, identified by comparing the expression profile of each cluster against all others. In {{sc}}, transcript counts are aggregated per cluster within each sample to generate "pseudobulk" values, which are then compared using `edgeR`[@Robinson2010-qz],[@Chen2025-jo]. This approach avoids the assumption that individual cells from the same sample are independent, thereby enhancing the statistical reliability of the results. For human and mouse datasets {{sc}} also performs gene set enrichment analysis on all marker genes and includes visualizations of user-defined gene sets in the HTML report.
+    Assigning meaningful labels to clusters in single-cell data is essential for interpretation of single cell data. This is commonly achieved by examining marker genes for each cluster, identified by comparing the expression profile of each cluster against all others. In {{sc}}, transcript counts are aggregated per cluster within each sample to generate "pseudobulk" values, which are then compared using `edgeR`[@Robinson2010-qz],[@Chen2025-jo]. This approach avoids the assumption that individual cells from the same sample are independent, thereby enhancing the statistical reliability of the results. 
 
 
 ### Optional steps
@@ -63,7 +63,7 @@
 
 * #### Gene set enrichment analysis
 
-    {{sc}} includes an option to perform gene set enrichment analysis (GSEA)[@Subramanian2005-bd] on the set of identified marker genes using the `fgsea`[@Korotkevich2016-od] R package. By identifying biological processes and pathways unique to each cluster, GSEA can provide additional evidence for characterizing cellular identity.
+    {{sc}} includes an option to perform gene set enrichment analysis (GSEA)[@Subramanian2005-bd] on the set of identified marker genes using the `fgsea`[@Korotkevich2016-od] R package. By identifying biological processes and pathways unique to each cluster, GSEA can provide additional evidence for characterizing cellular identity. This feature is available for human and mouse datasets.
 
 * #### Cell type labelling
 

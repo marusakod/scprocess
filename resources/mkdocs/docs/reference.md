@@ -2,7 +2,7 @@
 
 ## {{scsetup}} { #scprocess-setup }
 
-**Description**: Download all data required for {{sc}} and index reference transcriptomes for `simpleaf`.
+**Description**: Download all data required for {{sc}} and index reference transcriptomes and probe sets for `simpleaf`.
 
 **Parameters**:
 
@@ -87,7 +87,7 @@ Probe set indices for 10x Flex data are prepared with {{scsetup}} by adding a `p
 **Parameters**:
 
 * `name` (positional): name of the new `workflowr` project directory.
-* `-w`/`--where` (optional): path to the directory where the new project will be created; defaults to the current working directory
+* `-w`/`--where` (optional): path to the directory where the new project will be created; defaults to the current working directory.
 * `-s`/`--sub` (optional): if provided, creates `data/fastqs` and `data/metadata` subdirectories within the project.
 * `-c`/`--config` (optional): generates a template configuration YAML file. If provided, it must be followed by either `sc` (single-cell) or `sn` (single-nucleus) to define standard QC thresholds. The generated config always includes `tenx_assay_type` in the `project` section. Additional modifiers can be appended:
     + `flex`: sets `tenx_assay_type: flex` and includes `probe_set` instead of `ref_txome`. e.g. `scprocess newproj project_name -c sc flex`
@@ -95,7 +95,7 @@ Probe set indices for 10x Flex data are prepared with {{scsetup}} by adding a `p
 
 ## {{scnewjoin}} { #scprocess-newjoin }
 
-**Description**: Create a new `workflowr` project directory for a {{scjoin}} analysis. Creates the standard workflowr scaffold, a pre-filled `join-{name}.yaml`, and a ready-to-render Rmd covering the diagnostics specific to a multi-project join.
+**Description**: Create a new `workflowr` project directory for a {{scjoin}} outputs.
 
 **Usage**:
 
@@ -105,32 +105,10 @@ scprocess newjoin <name> [-w <where>] [-p <config>...]
 
 **Parameters**:
 
-* `name` (positional): short name for the join analysis. Used as the output directory name, `join.name` in the YAML, and the Rmd filename.
-* `-w`/`--where` (optional): path to the parent directory where the new join project will be created; defaults to the current working directory.
-* `-p`/`--projects` (optional): one or more paths to existing {{sc}} project `config-*.yaml` files. Their `full_tag` values become the `project_id` keys in the `projects:` block of `join-{name}.yaml`, and `ref_txome` is inferred from the first project supplied.
+* `name` (positional): name of the new `workflowr` project directory.
+* `-w`/`--where` (optional): path to the parent directory where the new project will be created; defaults to the current working directory.
+* `-p`/`--projects` (optional): one or more paths to existing {{sc}} project configuration files.
 
-**What is created**:
-
-```
-{name}/
-  join-{name}.yaml          # pre-filled join config — edit and run with scprocess join
-  {name}.Rproj              # RStudio project
-  analysis/
-    {name}_join.Rmd         # evaluation Rmd (rendered automatically by scprocess join)
-    _site.yml / about.Rmd / index.Rmd / ...
-  output/                   # join pipeline outputs land here
-  .log/ / code/ / public/
-```
-
-**The generated Rmd** covers:
-
-* Integration diagnostics — cluster UMAPs at each resolution
-* Project composition — UMAP and per-cluster bar coloured by `project_id`
-* Cluster entropy across samples and across projects
-* Metadata variables over UMAP (populated from `joint_sample_meta`)
-* Marker gene heatmaps, HVG expression, top markers per cluster
-* GSEA results (if `ref_txome` supports it)
-* Cell type labelling (if `label_celltypes` is configured)
 
 ## {{scknee}} { #scprocess-plotknee }
 
@@ -143,16 +121,17 @@ scprocess newjoin <name> [-w <where>] [-p <config>...]
 * `-c`/`--configfile`: path to configuration file used for running {{sc}}. Exactly one of `--kneefile` and `--configfile` should be specified.
 
 
-## {{scrun}}
+## {{scrun}} { #scprocess-run }
 
 **Description**: Run {{sc}}.
 
 **Parameters**:
 
-* `-n`/`--dry-run`: perform a trial run which lists all steps that {{sc}} would do and does not create any new files. Helpful for checking input files and parameters.
-* `--create-envs`: only create the conda environments needed for the workflow, without running any rules.
-* `-E`/`--extraagrs`: list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for a detailed explanation of available command-line options.
-* `-r`/`--rule`: Specifies which rule {{sc}} should run. The options are:
+* `configfile` (positional): path to a configuration YAML file.
+* `-n`/`--dry-run` (optional): perform a trial run which lists all steps that {{sc}} would do and does not create any new files. Helpful for checking input files and parameters.
+* `--create-envs` (optional): only create the conda environments needed for the workflow, without running any rules.
+* `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for a detailed explanation of available command-line options.
+* `-r`/`--rule` (optional): Specifies which rule {{sc}} should run. The options are:
     + `all`: default; includes all [Core pipeline steps](introduction.md#core-pipeline-steps)
     + `mapping`: read alignment and quantification.
     + `ambient`: ambient RNA removal (optional) and cell calling.
@@ -167,11 +146,11 @@ scprocess newjoin <name> [-w <where>] [-p <config>...]
 
 ### configuration file
 
-This is an example config file for {{sc}} with all parameters and their default values/placeholders. Required parameters are highlighted:
+This is an example `configfile` for {{sc}} with all parameters and their default values/placeholders. Required parameters are highlighted:
 
 === "default values"
 
-    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12"
+    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12 13 14"
     project:
       proj_dir:
       fastq_dir: # should not be defined if arv_uuids is defined
@@ -264,6 +243,7 @@ This is an example config file for {{sc}} with all parameters and their default 
         min_cl_prop: 0.5
         min_cl_size: 100
     zoom:
+    shiny:
     resources:
       retries: 3
       n_run_mapping: 8
@@ -271,7 +251,7 @@ This is an example config file for {{sc}} with all parameters and their default 
 
 === "placeholders"
 
-    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12"
+    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12 13 14"
     project:
       proj_dir: /path/to/proj/directory 
       fastq_dir: /path/to/directory/with/fastq/files
@@ -279,7 +259,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       arv_instance: instance_name
       full_tag: test_project
       short_tag: test
-      your_name: Test McUser
+      your_name: Testy McUser
       affiliation: where you work
       date_stamp: "2050-01-01"
       sample_metadata: /path/to/metadata.csv
@@ -287,7 +267,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       ref_txome: human_2024
       probe_set: human_v1
       tenx_chemistry: 3v3
-      metadata_vars: [var1, var2]
+      metadata_vars: [var1, var2, var3]
       show_arv_uuids: true
       custom_sample_params: /path/to/file/with/custom_parameters.yaml
       exclude:
@@ -369,6 +349,24 @@ This is an example config file for {{sc}} with all parameters and their default 
       - /path/to/cell_subset_1_zoom_params.yaml
       - /path/to/cell_subset_2_zoom_params.yaml
       - /path/to/cell_subset_3_zoom_params.yaml
+    shiny:
+      app_title: Test project shiny app
+      email`: testy.mcuser@email.com
+      keyword`: cells
+      default_gene`: APOE
+      n_keep`: 3000
+      var_names`: ["Variable 1", "Variable 2", "Variable 3"]
+      var_combns`:
+        - ["Variable 1", "Variable 2"]
+      home_md: /path/to/home.md
+      annotation_csv`: /path/to/annotation.csv
+      cluster_palette: Renoir
+      metadata_palettes:
+        var1: VanGogh1               # palette name
+        var2: ["#FF0000", "#0000FF"]       # explicit colours
+        var3:                              # explicit colours with custom ordering
+          colours: [red, blue, green]
+          values: [young, middle, old]
     resources:
       retries: 3
       n_run_mapping: 8
@@ -391,13 +389,13 @@ This is an example config file for {{sc}} with all parameters and their default 
 * `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1`/`.R1` and `_R2`/`.R2` strings and should not overlap (a value should not be a subset of any other values).
 * `ref_txome`: must match one of the values in the `ref_txome` column of `index_parameters.csv` (created by {{scsetup}}). Required for polyA data; must not be specified for Flex data (use `probe_set` instead).
 * `tenx_assay_type`: assay type. Options are `poly_a` and `flex`. When set to `flex`, `probe_set` is required and `ref_txome` must not be specified.
-* `probe_set`: probe set to use for 10x Flex data. Required when `tenx_assay_type` is `flex`. Valid values are `human_v1`, `human_v2`, `mouse_v1`, and `mouse_v2`. Must not be specified for polyA data.
+* `probe_set`: probe set to use for 10x Flex data. Required for Flex data. Valid values are `human_v1`, `human_v2`, `mouse_v1`, and `mouse_v2`. Must not be specified for polyA data (use `ref_txome` instead).
 
 #### Optional parameters
 
 ##### project
 
-* `tenx_chemistry`: 10x assay configuration. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data generated with the 10x multiome kit (ATACseq data is not supported). For Flex data, chemistry is derived automatically from `probe_set` (`flexv1` or `flexv2`) and does not need to be specified. When not specified, chemistry is auto-detected from barcode whitelist overlap. Note: if your R1 reads are shorter than 28bp (e.g. 26bp) but use v3 chemistry barcodes, set `tenx_chemistry: 3v2` to use 10xv2 alevin chemistry (16bp barcode + 10bp UMI) with the v3 whitelist.
+* `tenx_chemistry`: 10x assay configuration. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, `multiome`, `flexv1` and `flexv2`. `multiome` refers only to gene expression data generated with the 10x multiome kit (ATACseq data is not supported). For Flex data, chemistry specification is redundant as chemistry is derived automatically based on `probe_set`. When not specified for polyA data, chemistry is auto-detected from barcode whitelist overlap.
 * `metadata_vars`: A list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
 * `show_arv_uuids`: Whether to display Arvados UUIDs (`arv_uuids`) in the configuration file details box on the index page. If `false`, UUIDs are replaced with "not shown". Defaults to `true`.
 * `exclude`: List of all samples that should be excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
@@ -436,14 +434,14 @@ sample_id:
 * `demux_type`: `demux_type` options (default is `none`):
     + `none` if experiment is not multiplexed;
     + `hto` if hto-based demultiplexing of samples should be performed with {{sc}};
-    + `ocm` if 10x on-chip multiplexing (GEM-X Universal Multiplex) was used. Requires an `ocm_id` column in sample metadata with values `OB1`-`OB4`. Demultiplexing uses a 2bp overhang at barcode positions 8-9, auto-extracted from Cell Ranger during setup;
+    + `ocm` if on-chip multiplexing was used. Requires an `ocm_id` column in sample metadata with values `OB1`-`OB4`.
     + `custom` if demultiplexing results will be used as input to {{sc}}; or
     + `flex` for 10x Flex data where samples are pooled within a library and demultiplexed using probe barcodes. Requires `tenx_assay_type: flex` in the `project` section.
 * `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
-* `arv_uuids`: list of Arvados UUIDs where fastq files are located. Expects `arv_instance`to be defined. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
+* `arv_uuids`: list of Arvados UUIDs where HTO fastq files are located. Expects `arv_instance`to be defined. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
 * `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `hto`.
 * `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `negative`. Required if `demux_type` is `custom`.
-* `seurat_quantile`: equivalent to the `positive.quantile` argument of the `Seurat::HTODemux` function (see [Seurat documentation](https://satijalab.org/seurat/reference/htodemux) for more details).
+* `seurat_quantile`: equivalent to the `positive.quantile` argument of the `Seurat::HTODemux` function (see [Seurat documentation](https://satijalab.org/seurat/reference/htodemux) for more details). Used if `demux_type` is `hto`.
 
 ##### ambient
 
@@ -537,56 +535,37 @@ sample_id:
 
 ##### shiny
 
-This section controls the interactive Shiny app built by {{scshiny}}. All parameters are optional.
-
 * `app_title`: title displayed in the Shiny app header. Defaults to `short_tag`.
 * `email`: contact email shown in the app footer.
 * `keyword`: short word used in plot axis labels and descriptions (e.g. `"cells"`, `"nuclei"`). Default is `"cells"`.
-* `default_gene`: gene symbol displayed by default in the Explore Genes tab.
-* `n_keep`: number of cells retained in the density-subsampled UMAP shown in the app. Default is `30000`.
+* `default_gene`: gene symbol displayed by default in the "Explore Genes" tab.
+* `n_keep`: number of cells retained in the subsampled UMAP shown in the app. Default is 3000.
 * `var_names`: display names for `metadata_vars` columns (same order). Defaults to `metadata_vars` values.
 * `var_combns`: list of metadata variable pairs to display as combined groupings. Each element should be a two-element list of variable names from `metadata_vars`.
-* `home_md`: path to a Markdown file used as the landing page content. Absolute or relative to `proj_dir`.
-* `annotation_csv`: path to a CSV with columns `cluster`, `cluster_name`, and optionally `colour`, defining display names, order, and colours for clusters. Absolute or relative to `proj_dir`.
-* `cluster_palette`: named colour palette applied to clusters when no `annotation_csv` is provided. Accepts any name from the [supported palette list](#palette-names).
+* `home_md`: path to a Markdown file used as the landing page content. Shoule be absolute or relative to `proj_dir`.
+* `annotation_csv`: path to a CSV file with columns `cluster`, `cluster_name`, and optionally `colour`, defining display names, order, and colours for clusters. Absolute or relative to `proj_dir`.
+* `cluster_palette`: name of colour palette applied to clusters when `annotation_csv` is not provided. Accepts any name from the Supported colour palletes list.
 * `metadata_palettes`: per-variable colour palette configuration. Each key is a metadata variable name; the value can be:
-    - a palette name (string): `Condition: VanGogh1`
-    - an explicit colour list (array): `Sex: ["#FF0000", "#0000FF"]`
-    - an object with optional `palette`, `colours`, and `values` keys (the `values` list controls level ordering; defaults to frequency order):
+    - a palette name (string)
+    - an explicit colour list (array)
+    - an object with optional `palette`, `colours`, and `values` keys (the `values` list controls level ordering; defaults to frequency order)
 
-```yaml
-shiny:
-  cluster_palette: Renoir
-  metadata_palettes:
-    Condition: VanGogh1               # palette name
-    Sex: ["#FF0000", "#0000FF"]       # explicit colours
-    Tissue:                           # palette with custom ordering
-      palette: Klimt
-      values: [brain, liver, kidney]
-    Age:                              # explicit colours with custom ordering
-      colours: [red, blue, green]
-      values: [young, middle, old]
-```
 
-###### Palette names { #palette-names }
+??? info "Supported colour palettes"
 
-The following palette names are accepted anywhere a `cluster_palette` or `metadata_palettes` entry expects a name:
+    The following palette names are accepted anywhere a `cluster_palette` or `metadata_palettes` entry expects a name:
 
-| Source | Names |
-|--------|-------|
-| **scprocess built-in** | `nice_cols` (42 colours) |
-| **MetBrewer** | `Archambault`, `Austria`, `Benedictus`, `Cassatt1`, `Cassatt2`, `Cross`, `Degas`, `Demuth`, `Derain`, `Egypt`, `Gauguin`, `Greek`, `Hiroshige`, `Hokusai1`, `Hokusai2`, `Hokusai3`, `Homer1`, `Homer2`, `Ingres`, `Isfahan1`, `Isfahan2`, `Java`, `Johnson`, `Juarez`, `Kandinsky`, `Klimt`, `Lakota`, `Manet`, `Monet`, `Moreau`, `Morgenstern`, `Nattier`, `Navajo`, `NewKingdom`, `Nizami`, `OKeeffe1`, `OKeeffe2`, `Paquin`, `Peru1`, `Peru2`, `Pillement`, `Pissaro`, `Redon`, `Renoir`, `Signac`, `Tam`, `Tara`, `Thomas`, `Tiepolo`, `Troy`, `Tsimshian`, `VanGogh1`, `VanGogh2`, `VanGogh3`, `Veronese`, `Wissing` |
-| **RColorBrewer** | Qualitative: `Accent`, `Dark2`, `Paired`, `Pastel1`, `Pastel2`, `Set1`, `Set2`, `Set3`. Sequential/diverging: `Blues`, `BuGn`, `BuPu`, `GnBu`, `Greens`, `Greys`, `Oranges`, `OrRd`, `PuBu`, `PuBuGn`, `PuRd`, `Purples`, `RdPu`, `Reds`, `YlGn`, `YlGnBu`, `YlOrBr`, `YlOrRd`, `BrBG`, `PiYG`, `PRGn`, `PuOr`, `RdBu`, `RdGy`, `RdYlBu`, `RdYlGn`, `Spectral`. |
-| **ggsci** | `npg`, `aaas`, `nejm`, `lancet`, `jama`, `jco`, `ucscgb`, `d3` / `d3_20`, `d3_10`, `d3_20b`, `d3_20c`, `igv`, `cosmic`, `simpsons`, `rickandmorty`, `futurama`, `tron`, `startrek`, `uchicago`, `frontiers`, `flatui`, `bootstrap` |
-
-The authoritative list is in `resources/valid_palettes.json` in the scprocess installation.
-
-When more colours are requested than a palette provides, MetBrewer palettes are interpolated continuously; all others are extended using `colorRampPalette`.
+    | Source | Names |
+    |--------|-------|
+    | **scprocess built-in** | `nice_cols` (42 colours) |
+    | **MetBrewer** | `Archambault`, `Austria`, `Benedictus`, `Cassatt1`, `Cassatt2`, `Cross`, `Degas`, `Demuth`, `Derain`, `Egypt`, `Gauguin`, `Greek`, `Hiroshige`, `Hokusai1`, `Hokusai2`, `Hokusai3`, `Homer1`, `Homer2`, `Ingres`, `Isfahan1`, `Isfahan2`, `Java`, `Johnson`, `Juarez`, `Kandinsky`, `Klimt`, `Lakota`, `Manet`, `Monet`, `Moreau`, `Morgenstern`, `Nattier`, `Navajo`, `NewKingdom`, `Nizami`, `OKeeffe1`, `OKeeffe2`, `Paquin`, `Peru1`, `Peru2`, `Pillement`, `Pissaro`, `Redon`, `Renoir`, `Signac`, `Tam`, `Tara`, `Thomas`, `Tiepolo`, `Troy`, `Tsimshian`, `VanGogh1`, `VanGogh2`, `VanGogh3`, `Veronese`, `Wissing` |
+    | **RColorBrewer** | Qualitative: `Accent`, `Dark2`, `Paired`, `Pastel1`, `Pastel2`, `Set1`, `Set2`, `Set3`. Sequential/diverging: `Blues`, `BuGn`, `BuPu`, `GnBu`, `Greens`, `Greys`, `Oranges`, `OrRd`, `PuBu`, `PuBuGn`, `PuRd`, `Purples`, `RdPu`, `Reds`, `YlGn`, `YlGnBu`, `YlOrBr`, `YlOrRd`, `BrBG`, `PiYG`, `PRGn`, `PuOr`, `RdBu`, `RdGy`, `RdYlBu`, `RdYlGn`, `Spectral`. |
+    | **ggsci** | `npg`, `aaas`, `nejm`, `lancet`, `jama`, `jco`, `ucscgb`, `d3` / `d3_20`, `d3_10`, `d3_20b`, `d3_20c`, `igv`, `cosmic`, `simpsons`, `rickandmorty`, `futurama`, `tron`, `startrek`, `uchicago`, `frontiers`, `flatui`, `bootstrap` |
 
 
 ##### zoom
 
-In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var` and `mkr_custom_genesets`.
+In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets` and all [shiny app parameters](#shiny) (`app_title` defaults to `name`)
 
 Additional parameters include:
 
@@ -602,8 +581,6 @@ Additional parameters include:
 * `save_subset_sces`: whether to create `SingleCellExperiment` objects containing cells that have been assigned one of the values in `sel_labels`; default is `false`.
 * `save_subset_anndata`: whether to create H5AD files containing cells that have been assigned one of the values in `sel_labels`; defaults is `true`.
 * `custom_labels_f`: required if `labels_source` is set to `custom`; path to CSV file with columns `sample_id`, `cell_id` and `label`.
-
-An optional `shiny` block in the zoom spec controls the Shiny app built by `scprocess shiny --zoom`. It accepts the same parameters as the [project-level `shiny` section](#shiny), with `app_title` defaulting to `short_tag — zoom_name`.
 
 Example zoom configuration file:
 
@@ -625,177 +602,6 @@ shiny:
   n_keep: 20000
   default_gene: Mog
 ```
-
-## {{scshiny}} { #scprocess-shiny }
-
-**Description**: Build an interactive Shiny app from {{sc}} outputs and deploy it into `public/shiny/`. GSEA results are incorporated automatically when available but are not required.
-
-**Parameters**:
-
-* `configfile` (positional): path to the project configuration YAML (the same file used for `scprocess run`).
-* `--zoom ZOOM_NAME` (optional): build a Shiny app for a zoom (subclustering) output instead of the main analysis. The app is deployed to `public/shiny_zoom_<zoom_name>/`. Pass `all` to build apps for every zoom defined in the config.
-* `-n`/`--dry-run`: show what Snakemake would do without executing.
-* `--unlock`: unlock the Snakemake directory if a previous run was interrupted.
-* `-E`/`--extraargs`: extra Snakemake arguments (quoted, using `=` syntax).
-
-**Examples**:
-
-```bash
-# Build the main Shiny app (requires completed marker_genes run)
-scprocess shiny config-my_project.yaml
-
-# Build a Shiny app for one zoom subclustering output
-scprocess shiny config-my_project.yaml --zoom immune_cells
-
-# Build Shiny apps for all zoom subclustering outputs
-scprocess shiny config-my_project.yaml --zoom all
-
-# Dry run — preview what would be built
-scprocess shiny config-my_project.yaml -n
-```
-
-The app is deployed to `public/shiny/` (main analysis) or `public/shiny_zoom_<zoom_name>/` (zoom). Configure app appearance via the optional `shiny:` section in the project config file (or in the zoom spec YAML for zoom apps). See [Optional parameters › shiny](#shiny) for available options.
-
-Pre-computed data files written to `public/shiny/data/` include `*-shiny_centroids-*.txt.gz` (cluster centroid UMAP coordinates) and `*-shiny_repel_pos-*.txt.gz` (low-density label positions for the "Repel cluster labels" toggle), both computed from the full cell population before downsampling.
-
-`scprocess shiny` also accepts a **join config** (see [scprocess join](#scprocess-join)) instead of a project config. The Shiny app is then built from the joint integration and marker-gene outputs and deployed to `public/shiny/`.
-
-
-## {{scjoin}} { #scprocess-join }
-
-**Description**: Integrate data across the outputs of multiple completed {{sc}} projects. HVG selection uses the existing per-project variance statistics (no recomputation from counts). The output follows the same structure as the main pipeline and is compatible with `scprocess shiny`.
-
-**Parameters**:
-
-* `configfile` (positional): path to a join config YAML (`join.yaml`).
-* `-n`/`--dry-run`: show what Snakemake would do without executing.
-* `--unlock`: unlock the Snakemake directory if a previous run was interrupted.
-* `-E`/`--extraargs`: extra Snakemake arguments.
-
-**Examples**:
-
-```bash
-# Run the join workflow
-scprocess join join.yaml
-
-# Dry run
-scprocess join join.yaml -n
-
-# Build a Shiny app from the join outputs
-scprocess shiny join.yaml
-```
-
-### Join config (`join.yaml`) { #join-config }
-
-The join config is a separate YAML file that specifies the projects to integrate and pipeline parameters. It is validated against a JSON Schema before execution — including schema defaults applied to the `hvg`, `integration`, `marker_genes`, and `shiny` sections, and cross-checks on the `shiny` section (palette names, `var_names` length, `var_combns` references, file paths). This validation runs for both `scprocess join` and `scprocess shiny`.
-
-#### Required parameters
-
-```yaml
-join:
-  name: my_join           # short name; output directories are {name}_join and {name}_marker_genes
-  proj_dir: /path/to/join_output   # will be created if absent
-  date_stamp: "2025-01-15"
-  ref_txome: human_2024   # must match all projects (validated at startup)
-  your_name: Testy McUser
-  affiliation: where you work
-
-projects:                 # key = project_id (used to prefix sample IDs)
-  project_a:
-    config: /path/to/config_a.yaml
-  project_b:
-    config: /path/to/config_b.yaml
-```
-
-To join zoom (subclustering) outputs instead of the full project integration, add `zoom_name` to any project entry. The join will then use that project's zoom HVGs and integration rather than the whole-project outputs. You can mix zoomed and non-zoomed entries:
-
-```yaml
-projects:
-  project_a:
-    config: /path/to/config_a.yaml
-    zoom_name: T_cells          # use T_cells zoom outputs from this project
-  project_b:
-    config: /path/to/config_b.yaml
-    zoom_name: T_cells          # use T_cells zoom outputs from this project
-  project_c:
-    config: /path/to/config_c.yaml  # no zoom_name: use full-project outputs
-```
-
-The zoom `name` in the zoom spec YAML corresponds to `zoom_name` here. The h5ad files and sample metadata are always taken from the main project pipeline (zoom reuses them).
-
-#### Optional parameters
-
-```yaml
-join:
-  metadata_vars: [Condition, Sex, Region]   # union of metadata variables to carry through
-                                             # (default: all variables present in any project)
-hvg:
-  hvg_n_hvgs: 2000                           # number of joint HVGs (default: 2000)
-
-integration:
-  int_embedding: harmony                     # harmony or pca (default: harmony)
-  int_batch_var: sample_id                   # batch variable; can be a list e.g. [sample_id, project_id]
-  int_theta: 0.1                             # Harmony theta; can be a list matching int_batch_var
-  int_n_dims: 50
-  int_res_ls: [0.1, 0.2, 0.5, 1, 2]
-  int_use_paga: true
-  int_paga_cl_res: 0.2
-
-marker_genes:
-  mkr_sel_res: 0.2
-  mkr_do_gsea: true
-  # ... same options as main pipeline
-
-label_celltypes:                             # optional; run CellTypist or scprocess on the joint integration
-  - labeller: celltypist
-    model: Immune_All_Low                    # any CellTypist model name
-    hi_res_cl: RNA_snn_res.2                 # cluster column for majority voting (default: RNA_snn_res.2)
-    min_cl_prop: 0.5                         # min proportion to assign label (default: 0.5)
-  - labeller: scprocess
-    model: human_cns                         # XGBoost classifier
-
-shiny:
-  app_title: My Joint Analysis
-  # ... same options as in the project-level shiny section (see Optional parameters › shiny)
-```
-
-#### How HVGs are selected
-
-For each project, genes are ranked by their standardised variance (`variances_norm`) from the per-project HVG statistics output. Genes absent from a project receive a penalty rank equal to that project's gene count plus one. The **mean rank across projects** is computed and the top `hvg_n_hvgs` genes are selected.
-
-#### Cell and sample IDs in the joint analysis
-
-* **Cell IDs** are kept as-is from the original per-project h5ad files (cell IDs must be unique across all projects).
-* **Sample IDs** in the joint coldata are prefixed: `{project_id}_{original_sample_id}` (e.g. `project_a_pool_1`).
-* A `project_id` column is added to the joint coldata.
-* Metadata columns absent from a project are filled with `NA`.
-
-#### Output directory structure
-
-```
-{proj_dir}/
-  output/
-    {name}_join/
-      joint_hvgs_*.csv.gz
-      joint_counts_*.h5
-      joint_coldata_*.csv.gz
-      joint_sample_meta_*.csv
-      integrated_dt_*.csv.gz
-      h5ads_clean_paths_*.yaml
-      h5ads/                  ← symlinks to original h5ad files (no copying)
-    {name}_marker_genes/
-      pb_marker_genes_*.csv.gz
-      pb_hvgs_*.csv.gz
-      fgsea_*_go_*.csv.gz     ← if do_gsea and supported ref_txome
-    {name}_label_celltypes/   ← if label_celltypes is configured
-      labels_celltypist_model_*.csv.gz
-  analysis/
-    {name}_join.Rmd           ← R Markdown source for the report
-  public/
-    {name}_join.html          ← rendered HTML report
-    shiny/               ← built by scprocess shiny join.yaml
-```
-
 
 ##### resources
 
@@ -944,4 +750,68 @@ Additional parameters include:
     * `mins_render_html_zoom`: maximum runtime required (in minutes) for rule `render_html_zoom`.
     
 
+
+
+
+## {{scshiny}} { #scprocess-shiny }
+
+**Description**: Create an interactive Shiny app from {{sc}} outputs.
+
+**Parameters**:
+
+* `configfile` (positional): path to the configuration file used in [{{scrun}}](#scprocess-run) or [{{scjoin}}](#scprocess-join).
+* `--zoom` (optional): name of the cell subset to create the Shiny app for e.g `scprocess shiny config-my_project.yaml --zoom oligos_opcs`. Pass `all` to build apps for every zoom defined in the config e.g. `scprocess shiny config-my_project.yaml --zoom all`.
+* `-n`/`--dry-run` (optional): perform a trial run which lists all steps that {{scshiny}} would do and does not create any new files. Helpful for checking input files and parameters.
+* `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli).
+* `--unlock` (optional): unlock the directory if a previous run was interrupted.
+
+## {{scjoin}} { #scprocess-join }
+
+**Description**: Integrate multiple completed {{sc}} projects.
+
+**Parameters**:
+
+* `configfile` (positional): path to a configuration YAML file.
+* `-n`/`--dry-run` (optional): perform a trial run which lists all steps that {{scjoin}} would do and does not create any new files. Helpful for checking input files and parameters.
+* `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli).
+* `--unlock` (optional): unlock the directory if a previous run was interrupted.
+
+### configuration file
+
+Some parameters in the {{scjoin}} configuratio file inherit their definitions from the {{sc}} configuration file, including [**list here all parameters that inherit definitions from scprocess run***] and all [shiny app parameters](#shiny) (`app_title` defaults to `name`).
+
+Additional parameters include:
+[**Add parameter definitions here (take definitions from comments in the yaml**]
+**Which metadata variables can be listed in `metadata_vars`**?
+
+Example {{scjoin}} configuration file:
+
+```yaml
+join:
+  name: my_join           # short name; output directories are {name}_join and {name}_marker_genes
+  proj_dir: /path/to/join_output   # will be created if absent
+  date_stamp: "2025-01-15"
+  ref_txome: human_2024   # must match all projects (validated at startup)
+  your_name: Testy McUser
+  affiliation: where you work
+  metadata_vars: [Condition, Sex, Region]  # union of metadata variables to carry through
+projects:
+  project_a:
+    config: /path/to/config_a.yaml
+    zoom_name: T_cells          # use T_cells zoom outputs from this project
+  project_b:
+    config: /path/to/config_b.yaml
+    zoom_name: T_cells          # use T_cells zoom outputs from this project
+  project_c:
+    config: /path/to/config_c.yaml  # no zoom_name: use full-project outputs
+  hvg:
+    hvg_n_hvgs: 2000                           # number of joint HVGs (default: 2000)
+  integration:
+    int_embedding: harmony                     # harmony or pca (default: harmony)
+  label_celltypes:                             # optional; run CellTypist or scprocess on the joint integration
+    - labeller: celltypist
+      model: Immune_All_Low                    # any CellTypist model name                  # XGBoost classifier 
+  shiny:
+    app_title: My Joint Analysis # ... same options as in the project-level shiny section (see Optional parameters › shiny)
+```
 

@@ -89,9 +89,9 @@ scprocess run /path/to/config.yaml -r qc
 
 * **Hashtag oligo (HTO)-based demultiplexing**: {{sc}} uses HTO-derived cDNA libraries to generate a count matrix which can be used for sample demultiplexing.
 
-* **Flex-based demultiplexing**: For 10x Chromium Fixed RNA Profiling (Flex) experiments, {{sc}} uses probe barcodes to split pool-level mapping output into per-sample count matrices. Each sample is then processed independently for ambient RNA removal, QC, and doublet detection. No separate FASTQ library is needed.
+* **Flex-based demultiplexing**: For 10x Chromium Fixed RNA Profiling (Flex) experiments, {{sc}} uses probe barcodes to split pool-level mapping output into per-sample count matrices. Ambient RNA removal, QC filtering and doublet detection are performed independently for each sample. No separate FASTQ library is required.
 
-* **On-chip multiplexing (OCM)**: For experiments using 10x Genomics' GEM-X Universal Multiplex, {{sc}} performs deterministic barcode-based demultiplexing using the 2bp overhang at barcode positions 8-9 to identify partitions (OB1-OB4). Like Flex, pool-level mapping is split into per-sample h5 files for independent downstream processing. No separate FASTQ library is needed. Both 3' and 5' GEX chemistries are supported.
+* **On-chip multiplexing (OCM)**: For experiments using the [10x OCM assay](https://www.10xgenomics.com/support/software/cell-ranger/latest/getting-started/cr-3p-what-is-cellplex#on-chip) {{sc}} performs deterministic barcode-based demultiplexing. As with Flex-based demultiplexing, pool-level mapping outputs are split into per-sample count matrices. Ambient RNA removal, QC filtering and doublet detection are performed independently for each sample. No separate FASTQ library is required. 
 
 * **Outputs of external demultiplexing algorithms**: If the data has already been demultiplexed using an external method (e.g. genetic demultiplexing tools like `Demuxlet`[@Kang2018-dh]), users can provide a cell-sample assignment file to process the data further using {{sc}}
 
@@ -118,7 +118,7 @@ Processing multiplexed samples requires a different format for the sample metada
 
 ### Options for integrating multiplexed samples
 
-!!! Warning "These options do not apply to multiplexed Flex samples."
+!!! Warning "These options do not apply to multiplexed Flex or OCM samples."
 
 {{sc}} offers two approaches to integration of multiplexed samples, defined by `int_batch_var` in the `integration` section of the configuration file. The two possibilities are:
 
