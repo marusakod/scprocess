@@ -33,7 +33,7 @@
       "additionalProperties": false,
       "properties": {
         "gb_train_xgboost":    { "type": "integer", "default": 64 },
-        "mins_train_xgboost":  { "type": "integer", "default": 240 }
+        "mins_train_xgboost":  { "type": "integer", "default": 180 }
       }
     }
   }

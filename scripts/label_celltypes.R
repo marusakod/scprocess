@@ -2,6 +2,7 @@
 suppressPackageStartupMessages({
   library('RColorBrewer')
   library("BiocParallel")
+  library('BiocStyle')
   library('circlize')
   library('magrittr')
   library('data.table')
@@ -29,6 +30,7 @@ suppressPackageStartupMessages({
 
   library('Matrix')
   library('yaml')
+  library('kableExtra')
 })
 
 

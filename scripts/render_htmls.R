@@ -415,8 +415,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
         zoom_links          = zoom_links,
         config_files_section = config_files_section
       ))
-  }
-  
+
   } else if (sel_rule == 'train_xgboost') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'ref_tag',
       'predictions_f', 'importance_f', 'integration_f', 'has_coarse')

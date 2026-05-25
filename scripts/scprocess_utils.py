@@ -1586,7 +1586,12 @@ def check_train_xgboost_config(config, schema_f, scdata_dir):
   output_dir = os.path.join(str(scdata_dir), "xgboost", config["ref_tag"])
   config["output_dir"] = output_dir
 
-  # inject scprocess project params needed by the render rule
+  # inject scprocess-derived paths needed by the training script and render rule
+  config["cluster_csv"] = cluster_csv
+  config["h5ads_yaml"] = h5ads_yaml
+  config["batch_var"] = scp_config.get("integration", {}).get("int_batch_var", "sample_id")
+  config["int_res_ls"] = scp_config.get("integration", {}).get("int_res_ls", [0.1, 0.2, 0.5, 1, 2])
+
   config["_scprocess_project"] = {
     "proj_dir": proj_dir,
     "short_tag": short_tag,

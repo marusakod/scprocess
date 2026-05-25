@@ -6,17 +6,13 @@ Workflow:
   3. XGBoost pass 1: broad exploration with all genes
   4. Feature selection via cumulative gain
   5. XGBoost pass 2: final model on selected genes
-  6. Evaluate and save model + diagnostic plots
-
-Usage:
-  python scripts/train_xgboost.py path/to/train_config.yaml
+  6. Evaluate and save model
 """
 
 import argparse
 import pathlib
 import sys
 from typing import Optional
-
 import anndata as ad
 import numpy as np
 import polars as pl
@@ -25,63 +21,52 @@ import xgboost as xgb
 import yaml
 
 
-# test files
-annotation_f = '/projects/site/pred/neurogenomics/users/kodermam/scprocess/test_xgboost_annotation.csv.gz'
-label_map_f  = '/projects/site/pred/neurogenomics/users/kodermam/scprocess/test_xgboost_label_map.csv.gz'
-scprocess_config_f = '/pmount/projects/site/pred/brain-sc-analysis/configs/config-siletti_2023_hippocampus.yaml'
-
-DEFAULTS = {
-  "label_map_f": None,
-  "refine_labels": True,
-  "purity_threshold": 0.65,
-  "n_cells_per_type": 1000,
-  "min_cells_per_type": 20,
-  "seed": 42,
-  "n_cores": 16,
-  "min_cells_expressed": 10,
-  "use_gpu": False,
-  # XGBoost Pass 1 — low colsample_bytree forces broad gene exploration
-  "pass1_subsample": 0.632,
-  "pass1_colsample_bytree": 0.1,
-  "pass1_learning_rate": 0.1,
-  "pass1_nrounds": 300,
-  "pass1_early_stopping": 10,
-  # XGBoost Pass 2 — focused training on selected genes
-  "pass2_colsample_bytree": 0.5,
-  "pass2_learning_rate": 0.05,
-  "pass2_nrounds": 500,
-  "pass2_early_stopping": 10,
-  # Feature selection — genes contributing to top fraction of cumulative gain
-  "gain_threshold": 0.9,
-  "min_genes": 100,
-  "max_genes": 3000,
-}
-
-
-def make_classifier(yaml_f: str) -> None:
-  """Main entry point. Orchestrates the full training pipeline."""
+def make_classifier(
+  annots_f: str, cluster_csv: str, h5ads_yaml: str,
+  ref_tag: str, output_dir: str, batch_var: str, int_res_ls: str,
+  label_map_f: Optional[str],
+  refine_labels: bool, purity_threshold: float,
+  n_cells_per_type: int, min_cells_per_type: int,
+  min_cells_expressed: int, seed: int, n_cores: int, use_gpu: bool,
+  pass1_subsample: float, pass1_colsample_bytree: float,
+  pass1_learning_rate: float, pass1_nrounds: int, pass1_early_stopping: int,
+  pass2_colsample_bytree: float, pass2_learning_rate: float,
+  pass2_nrounds: int, pass2_early_stopping: int,
+  gain_threshold: float, min_genes: int, max_genes: int,
+) -> None:
+  
   print("=" * 60)
   print("XGBoost cell type classifier training")
   print("=" * 60)
 
-  config = load_config(yaml_f)
-  paths = resolve_scprocess_paths(config)
+  out_dir = pathlib.Path(output_dir)
+  out_dir.mkdir(parents=True, exist_ok=True)
+  (out_dir / "plots").mkdir(exist_ok=True)
 
-  # Label mapping is not used for training — saved alongside model for prediction time
-  label_map = load_label_mapping(config)
+  with open(h5ads_yaml) as f:
+    h5ad_dict = yaml.safe_load(f)
+
+  res_ls = [float(x) for x in int_res_ls.split()]
+  max_res = max(res_ls)
+  max_res_str = str(int(max_res)) if max_res == int(max_res) else str(max_res)
+  hi_res_col = f"RNA_snn_res.{max_res_str}"
+
+  label_map = load_label_mapping(label_map_f)
   if label_map is not None:
     print(f"  Label mapping loaded: {len(label_map)} fine→coarse entries")
     print(f"  Coarse categories: {sorted(set(label_map.values()))}")
 
   # Phase 1: plan which cells to use (CSV only, no H5AD)
   print("\n--- Planning training cells ---")
-  cells_df = plan_training_cells(config, paths)
+  cells_df = plan_training_cells(
+    annots_f, cluster_csv, batch_var, hi_res_col,
+    refine_labels, purity_threshold,
+    min_cells_per_type, n_cells_per_type, seed,
+  )
 
   # Phase 2: load expression data one H5AD at a time
   print("\n--- Loading expression data ---")
-  X, gene_names, cell_ids = load_expression_matrix(cells_df, paths)
-
-  min_cells_expressed = config.get("min_cells_expressed", 10)
+  X, gene_names, cell_ids = load_expression_matrix(cells_df, h5ad_dict)
   X, gene_names = filter_uninformative_genes(X, gene_names, min_cells_expressed)
 
   # Align cells_df row order with the matrix
@@ -105,12 +90,17 @@ def make_classifier(yaml_f: str) -> None:
 
   # Phase 3: XGBoost pass 1 — broad gene exploration
   print("\n--- XGBoost Pass 1 (all genes) ---")
-  model_pass1 = run_xgboost_pass1(X_train, y_train, X_val, y_val, config)
+  model_pass1 = run_xgboost_pass1(
+    X_train, y_train, X_val, y_val,
+    n_cores, seed, use_gpu,
+    pass1_subsample, pass1_colsample_bytree, pass1_learning_rate,
+    pass1_nrounds, pass1_early_stopping,
+  )
 
   # Phase 4: feature selection via gain scores
   print("\n--- Feature selection ---")
   sel_indices, sel_gene_names, gene_importance = select_features_by_gain(
-    model_pass1, gene_names, config
+    model_pass1, gene_names, gain_threshold, min_genes, max_genes,
   )
   print(f"  Selected {len(sel_indices)} genes (of {len(gene_names)})")
 
@@ -119,7 +109,12 @@ def make_classifier(yaml_f: str) -> None:
 
   # Phase 5: XGBoost pass 2 — final training on curated gene set
   print("\n--- XGBoost Pass 2 (selected genes) ---")
-  model_pass2 = run_xgboost_pass2(X_train_sub, y_train, X_val_sub, y_val, config)
+  model_pass2 = run_xgboost_pass2(
+    X_train_sub, y_train, X_val_sub, y_val,
+    n_cores, seed, use_gpu,
+    pass1_subsample, pass2_colsample_bytree, pass2_learning_rate,
+    pass2_nrounds, pass2_early_stopping,
+  )
 
   # Phase 6: evaluate and save
   print("\n--- Evaluation (fine labels) ---")
@@ -132,105 +127,26 @@ def make_classifier(yaml_f: str) -> None:
   print("\n--- Saving outputs ---")
   save_outputs(
     model_pass2, class_names, sel_gene_names, gene_importance,
-    config, cells_df, paths, label_map,
+    output_dir, ref_tag, cells_df, label_map,
     X_train_sub, y_train, X_val_sub, y_val,
   )
 
   print("\nDone.")
 
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
+# planning phase (CSV only)
 
-
-def load_config(yaml_f: str) -> dict:
-  """Load training config YAML + referenced scprocess config. Fill defaults."""
-  yaml_path = pathlib.Path(yaml_f)
-  assert yaml_path.is_file(), f"Config file not found: {yaml_f}"
-
-  with open(yaml_path) as f:
-    config = yaml.safe_load(f)
-
-  required = ["scprocess_config_f", "annots_f", "ref_tag"]
-  for key in required:
-    assert key in config, f"Required key '{key}' missing from config"
-  assert "output_dir" in config, (
-    "output_dir missing from config. "
-    "Run via 'scprocess train_xgboost' (which injects it) or set it manually."
-  )
-
-  for key, default in DEFAULTS.items():
-    if key not in config:
-      config[key] = default
-
-  assert pathlib.Path(config["annots_f"]).is_file(), (
-    f"Annotations file not found: {config['annots_f']}")
-  assert pathlib.Path(config["scprocess_config_f"]).is_file(), (
-    f"scprocess config not found: {config['scprocess_config_f']}")
-  if config["label_map_f"] is not None:
-    assert pathlib.Path(config["label_map_f"]).is_file(), (
-      f"Label map file not found: {config['label_map_f']}")
-
-  with open(config["scprocess_config_f"]) as f:
-    config["scprocess"] = yaml.safe_load(f)
-
-  out_dir = pathlib.Path(config["output_dir"])
-  out_dir.mkdir(parents=True, exist_ok=True)
-  (out_dir / "plots").mkdir(exist_ok=True)
-
-  return config
-
-
-def resolve_scprocess_paths(config: dict) -> dict:
-  """Build paths to scprocess integration outputs."""
-  scp = config["scprocess"]
-  proj_dir = scp["project"]["proj_dir"]
-  short_tag = scp["project"]["short_tag"]
-  full_tag = scp["project"]["full_tag"]
-  date_stamp = scp["project"]["date_stamp"]
-  int_dir = f"{proj_dir}/output/{short_tag}_integration"
-
-  paths = {
-    "cluster_csv": f"{int_dir}/integrated_dt_{full_tag}_{date_stamp}.csv.gz",
-    "h5ads_yaml": f"{int_dir}/h5ads_clean_paths_{full_tag}_{date_stamp}.yaml",
-    "int_dir": int_dir,
-    "batch_var": scp.get("integration", {}).get("int_batch_var", "sample_id"),
-  }
-
-  assert pathlib.Path(paths["cluster_csv"]).is_file(), (
-    f"Cluster CSV not found: {paths['cluster_csv']}")
-  assert pathlib.Path(paths["h5ads_yaml"]).is_file(), (
-    f"H5AD paths YAML not found: {paths['h5ads_yaml']}")
-
-  with open(paths["h5ads_yaml"]) as f:
-    paths["h5ad_dict"] = yaml.safe_load(f)
-
-  return paths
-
-
-# ---------------------------------------------------------------------------
-# Planning phase (CSV only)
-# ---------------------------------------------------------------------------
-
-
-def plan_training_cells(config: dict, paths: dict) -> pl.DataFrame:
-  """Decide which cells to use for training/validation using only CSV files.
-
-  Label mapping (fine→coarse) is NOT applied here — the model trains on
-  fine-grained labels. The mapping is saved alongside the model for prediction.
-  """
-  batch_var = paths["batch_var"]
-
-  # Highest clustering resolution for label refinement (typically RNA_snn_res.2)
-  res_ls = config["scprocess"].get("integration", {}).get("int_res_ls", [0.1, 0.2, 0.5, 1, 2])
-  hi_res_col = f"RNA_snn_res.{max(res_ls)}"
+def plan_training_cells(
+  annots_f: str, cluster_csv: str, batch_var: str, hi_res_col: str,
+  refine_labels: bool, purity_threshold: float,
+  min_cells_per_type: int, n_cells_per_type: int, seed: int,
+) -> pl.DataFrame:
 
   cols_to_read = ["cell_id", batch_var, hi_res_col]
-  cluster_df = pl.read_csv(paths["cluster_csv"], columns=cols_to_read)
+  cluster_df = pl.read_csv(cluster_csv, columns=cols_to_read)
   print(f"  Loaded cluster CSV: {cluster_df.shape[0]} cells")
 
-  annots_df = pl.read_csv(config["annots_f"])
+  annots_df = pl.read_csv(annots_f)
   assert "cell_id" in annots_df.columns, "annots_f must have 'cell_id' column"
   assert "annotation" in annots_df.columns, "annots_f must have 'annotation' column"
   annots_df = annots_df.select(["cell_id", "annotation"])
@@ -239,9 +155,9 @@ def plan_training_cells(config: dict, paths: dict) -> pl.DataFrame:
   n_annotated = df.filter(pl.col("annotation").is_not_null()).shape[0]
   print(f"  Cells with annotations: {n_annotated} / {df.shape[0]}")
 
-  if config["refine_labels"]:
+  if refine_labels:
     print("  Refining labels by cluster majority voting...")
-    df = refine_labels_by_cluster(df, hi_res_col, config)
+    df = refine_labels_by_cluster(df, hi_res_col, purity_threshold)
   else:
     df = df.with_columns(pl.col("annotation").alias("label"))
 
@@ -252,21 +168,21 @@ def plan_training_cells(config: dict, paths: dict) -> pl.DataFrame:
   type_counts = df.group_by("label").len()
   keep_types = (
     type_counts
-    .filter(pl.col("len") >= config["min_cells_per_type"])
+    .filter(pl.col("len") >= min_cells_per_type)
     ["label"].to_list()
   )
-  excluded = type_counts.filter(pl.col("len") < config["min_cells_per_type"])
+  excluded = type_counts.filter(pl.col("len") < min_cells_per_type)
   if excluded.shape[0] > 0:
-    print(f"  Excluding {excluded.shape[0]} cell types with < {config['min_cells_per_type']} cells:")
+    print(f"  Excluding {excluded.shape[0]} cell types with < {min_cells_per_type} cells:")
     for row in excluded.iter_rows(named=True):
       print(f"    {row['label']}: {row['len']} cells")
   df = df.filter(pl.col("label").is_in(keep_types))
 
   print("  Downsampling...")
-  df = downsample_per_type(df, config)
+  df = downsample_per_type(df, n_cells_per_type, seed)
 
   print("  Assigning train/val split...")
-  df = assign_train_val_split(df, config)
+  df = assign_train_val_split(df, seed)
 
   # Batch column determines which H5AD file contains each cell
   if batch_var == "sample_id":
@@ -282,14 +198,9 @@ def plan_training_cells(config: dict, paths: dict) -> pl.DataFrame:
 
 
 def refine_labels_by_cluster(
-  df: pl.DataFrame, hi_res_col: str, config: dict
+  df: pl.DataFrame, hi_res_col: str, purity_threshold: float,
 ) -> pl.DataFrame:
-  """Smooth annotations via cluster majority voting.
 
-  For each high-res cluster, if majority annotation >= purity_threshold and
-  cluster has >= 10 annotated cells, relabel all cells. Otherwise keep originals.
-  """
-  purity_thr = config["purity_threshold"]
   min_cluster_size = 10
 
   annotated = df.filter(pl.col("annotation").is_not_null())
@@ -311,7 +222,7 @@ def refine_labels_by_cluster(
     .group_by(hi_res_col)
     .first()
     .filter(
-      (pl.col("purity") >= purity_thr) & (pl.col("n_total") >= min_cluster_size)
+      (pl.col("purity") >= purity_threshold) & (pl.col("n_total") >= min_cluster_size)
     )
     .select([hi_res_col, pl.col("annotation").alias("majority_label")])
   )
@@ -330,16 +241,12 @@ def refine_labels_by_cluster(
   return df
 
 
-def load_label_mapping(config: dict) -> Optional[dict[str, str]]:
-  """Load fine→coarse label mapping CSV. Not applied during training —
-  saved alongside model and applied at prediction time.
+def load_label_mapping(label_map_f: Optional[str]) -> Optional[dict[str, str]]:
 
-  Expected CSV columns: annotation, coarse_label
-  """
-  if config["label_map_f"] is None:
+  if label_map_f is None:
     return None
 
-  map_df = pl.read_csv(config["label_map_f"])
+  map_df = pl.read_csv(label_map_f)
   assert "annotation" in map_df.columns, "label_map_f must have 'annotation' column"
   assert "coarse_label" in map_df.columns, "label_map_f must have 'coarse_label' column"
 
@@ -349,17 +256,15 @@ def load_label_mapping(config: dict) -> Optional[dict[str, str]]:
   ))
 
 
-def downsample_per_type(df: pl.DataFrame, config: dict) -> pl.DataFrame:
-  """Downsample to at most n_cells_per_type cells per label."""
-  n_max = config["n_cells_per_type"]
-  seed = config["seed"]
-
+def downsample_per_type(
+  df: pl.DataFrame, n_cells_per_type: int, seed: int,
+) -> pl.DataFrame:
   sampled = (
     df
     .with_columns(pl.lit(1).alias("_dummy"))
     .group_by("label")
     .map_groups(
-      lambda group: group.sample(n=min(n_max, group.shape[0]), seed=seed)
+      lambda group: group.sample(n=min(n_cells_per_type, group.shape[0]), seed=seed)
     )
     .drop("_dummy")
   )
@@ -370,11 +275,8 @@ def downsample_per_type(df: pl.DataFrame, config: dict) -> pl.DataFrame:
   return sampled
 
 
-def assign_train_val_split(df: pl.DataFrame, config: dict) -> pl.DataFrame:
-  """Assign cells to train/validation. Sample-level holdout if >4 samples,
-  otherwise stratified random split at cell level.
-  """
-  seed = config["seed"]
+def assign_train_val_split(df: pl.DataFrame, seed: int) -> pl.DataFrame:
+
   rng = np.random.default_rng(seed)
   samples = df["sample_id"].drop_nulls().unique().to_list()
   n_samples = len(samples)
@@ -409,10 +311,7 @@ def assign_train_val_split(df: pl.DataFrame, config: dict) -> pl.DataFrame:
   return df
 
 
-# ---------------------------------------------------------------------------
-# Data loading
-# ---------------------------------------------------------------------------
-
+# data loading
 
 def normalize_counts(X: sp.spmatrix, scale_factor: int = 10000) -> sp.csr_matrix:
   """Total-count normalize to scale_factor, then log1p. Matches label_celltypes.R."""
@@ -445,14 +344,9 @@ def filter_uninformative_genes(
 
 
 def load_expression_matrix(
-  cells_df: pl.DataFrame, paths: dict
+  cells_df: pl.DataFrame, h5ad_dict: dict,
 ) -> tuple[sp.csr_matrix, list[str], list[str]]:
-  """Load and normalize expression data, one H5AD at a time.
-
-  Peak memory is proportional to one batch — each H5AD is loaded, subsetted
-  to selected cells, normalized, and freed before loading the next.
-  """
-  h5ad_dict = paths["h5ad_dict"]
+  
   batches_needed = cells_df["batch"].drop_nulls().unique().to_list()
 
   matrices = []
@@ -499,22 +393,20 @@ def load_expression_matrix(
 
   return X, gene_names, cell_ids_ordered
 
+# xgboost training and feature selection
 
-# ---------------------------------------------------------------------------
-# XGBoost training
-# ---------------------------------------------------------------------------
-
-
-def _build_xgb_params(config: dict, num_class: int, **overrides) -> dict:
+def _build_xgb_params(
+  n_cores: int, seed: int, use_gpu: bool, num_class: int, **overrides,
+) -> dict:
   """Build XGBoost parameter dict. Adds GPU params if use_gpu=True."""
   params = {
     "objective": "multi:softprob",
     "num_class": num_class,
     "eval_metric": "mlogloss",
-    "nthread": config["n_cores"],
-    "seed": config["seed"],
+    "nthread": n_cores,
+    "seed": seed,
   }
-  if config.get("use_gpu", False):
+  if use_gpu:
     params["device"] = "cuda"
     params["tree_method"] = "hist"
   params.update(overrides)
@@ -523,15 +415,17 @@ def _build_xgb_params(config: dict, num_class: int, **overrides) -> dict:
 
 def run_xgboost_pass1(
   X_train: sp.csr_matrix, y_train: np.ndarray,
-  X_val: sp.csr_matrix, y_val: np.ndarray, config: dict,
+  X_val: sp.csr_matrix, y_val: np.ndarray,
+  n_cores: int, seed: int, use_gpu: bool,
+  subsample: float, colsample_bytree: float, learning_rate: float,
+  nrounds: int, early_stopping: int,
 ) -> xgb.Booster:
-  """Pass 1: broad exploration with all genes (low colsample_bytree)."""
   num_class = int(y_train.max()) + 1
 
-  params = _build_xgb_params(config, num_class,
-    subsample=config["pass1_subsample"],
-    colsample_bytree=config["pass1_colsample_bytree"],
-    learning_rate=config["pass1_learning_rate"],
+  params = _build_xgb_params(n_cores, seed, use_gpu, num_class,
+    subsample=subsample,
+    colsample_bytree=colsample_bytree,
+    learning_rate=learning_rate,
   )
 
   dtrain = xgb.DMatrix(X_train, label=y_train)
@@ -539,9 +433,9 @@ def run_xgboost_pass1(
 
   model = xgb.train(
     params=params, dtrain=dtrain,
-    num_boost_round=config["pass1_nrounds"],
+    num_boost_round=nrounds,
     evals=[(dtrain, "train"), (dval, "val")],
-    early_stopping_rounds=config["pass1_early_stopping"],
+    early_stopping_rounds=early_stopping,
     verbose_eval=50,
   )
 
@@ -550,11 +444,10 @@ def run_xgboost_pass1(
 
 
 def select_features_by_gain(
-  model: xgb.Booster, gene_names: list[str], config: dict
+  model: xgb.Booster, gene_names: list[str],
+  gain_threshold: float, min_genes: int, max_genes: int,
 ) -> tuple[np.ndarray, list[str], pl.DataFrame]:
-  """Select genes contributing to top gain_threshold fraction of cumulative gain.
-  Clamped to [min_genes, max_genes].
-  """
+
   importance = model.get_score(importance_type="gain")
 
   gene_gains = np.zeros(len(gene_names))
@@ -571,9 +464,9 @@ def select_features_by_gain(
   total_gain = sorted_gains.sum()
   cum_gain = np.cumsum(sorted_gains) / total_gain
 
-  n_sel = int(np.searchsorted(cum_gain, config["gain_threshold"])) + 1
-  n_sel = max(n_sel, config["min_genes"])
-  n_sel = min(n_sel, config["max_genes"])
+  n_sel = int(np.searchsorted(cum_gain, gain_threshold)) + 1
+  n_sel = max(n_sel, min_genes)
+  n_sel = min(n_sel, max_genes)
   n_sel = min(n_sel, len(sorted_idx))
 
   sel_indices = sorted_idx[:n_sel]
@@ -586,7 +479,7 @@ def select_features_by_gain(
   })
 
   print(f"  Total genes with non-zero gain: {len(sorted_idx)}")
-  print(f"  Genes at {config['gain_threshold']*100:.0f}% cumulative gain: {n_sel}")
+  print(f"  Genes at {gain_threshold*100:.0f}% cumulative gain: {n_sel}")
   print(f"  Top 10 genes: {sel_gene_names[:10]}")
 
   return sel_indices, sel_gene_names, gene_importance
@@ -594,15 +487,18 @@ def select_features_by_gain(
 
 def run_xgboost_pass2(
   X_train: sp.csr_matrix, y_train: np.ndarray,
-  X_val: sp.csr_matrix, y_val: np.ndarray, config: dict,
+  X_val: sp.csr_matrix, y_val: np.ndarray,
+  n_cores: int, seed: int, use_gpu: bool,
+  subsample: float, colsample_bytree: float, learning_rate: float,
+  nrounds: int, early_stopping: int,
 ) -> xgb.Booster:
-  """Pass 2: fresh retrain on selected genes with relaxed parameters."""
+  
   num_class = int(y_train.max()) + 1
 
-  params = _build_xgb_params(config, num_class,
-    subsample=config["pass1_subsample"],
-    colsample_bytree=config["pass2_colsample_bytree"],
-    learning_rate=config["pass2_learning_rate"],
+  params = _build_xgb_params(n_cores, seed, use_gpu, num_class,
+    subsample=subsample,
+    colsample_bytree=colsample_bytree,
+    learning_rate=learning_rate,
   )
 
   feat_names = [f"g{i}" for i in range(X_train.shape[1])]
@@ -611,9 +507,9 @@ def run_xgboost_pass2(
 
   model = xgb.train(
     params=params, dtrain=dtrain,
-    num_boost_round=config["pass2_nrounds"],
+    num_boost_round=nrounds,
     evals=[(dtrain, "train"), (dval, "val")],
-    early_stopping_rounds=config["pass2_early_stopping"],
+    early_stopping_rounds=early_stopping,
     verbose_eval=50,
   )
 
@@ -621,16 +517,12 @@ def run_xgboost_pass2(
   return model
 
 
-# ---------------------------------------------------------------------------
-# Evaluation
-# ---------------------------------------------------------------------------
-
+# model evaluation
 
 def evaluate_model(
   model: xgb.Booster, X_val: sp.csr_matrix,
   y_val: np.ndarray, class_names: list[str],
 ) -> None:
-  """Print per-class accuracy, F1, and top misclassifications on validation set."""
   feat_names = [f"g{i}" for i in range(X_val.shape[1])]
   dval = xgb.DMatrix(X_val, feature_names=feat_names)
   probs = model.predict(dval)
@@ -689,7 +581,7 @@ def evaluate_model_coarse(
   model: xgb.Booster, X_val: sp.csr_matrix, y_val: np.ndarray,
   class_names: list[str], label_map: dict[str, str],
 ) -> None:
-  """Evaluate after collapsing fine predictions to coarse labels via mapping."""
+  
   feat_names = [f"g{i}" for i in range(X_val.shape[1])]
   dval = xgb.DMatrix(X_val, feature_names=feat_names)
   probs = model.predict(dval)
@@ -729,21 +621,18 @@ def evaluate_model_coarse(
   print(f"\n  Coarse Macro F1: {macro_f1:.3f}")
 
 
-# ---------------------------------------------------------------------------
-# Save outputs
-# ---------------------------------------------------------------------------
-
+# save outputs
 
 def save_outputs(
   model: xgb.Booster, class_names: list[str], selected_genes: list[str],
-  gene_importance: pl.DataFrame, config: dict, cells_df: pl.DataFrame,
-  paths: dict, label_map: Optional[dict[str, str]] = None,
+  gene_importance: pl.DataFrame,
+  output_dir: str, ref_tag: str, cells_df: pl.DataFrame,
+  label_map: Optional[dict[str, str]] = None,
   X_train: sp.csr_matrix = None, y_train: np.ndarray = None,
   X_val: sp.csr_matrix = None, y_val: np.ndarray = None,
 ) -> None:
   """Save model, gene list, classes, importance, predictions, and label map."""
-  out_dir = pathlib.Path(config["output_dir"])
-  ref_tag = config["ref_tag"]
+  out_dir = pathlib.Path(output_dir)
 
   model_path = out_dir / f"{ref_tag}_xgboost_model.json"
   model.save_model(str(model_path))
@@ -776,7 +665,7 @@ def save_outputs(
     preds_df = _make_predictions_df(
       model, X_train, y_train, X_val, y_val, cells_df, class_names, label_map
     )
-    preds_df.write_csv(str(preds_path))
+    preds_df.write_csv(str(preds_path), compression="gzip")
     print(f"  Predictions: {preds_path}")
 
 
@@ -828,15 +717,68 @@ def _make_predictions_df(
   return result
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-
-if __name__ == "__main__" and len(sys.argv) > 1:
+if __name__ == "__main__":
   parser = argparse.ArgumentParser(
     description="Train XGBoost cell type classifier from scprocess output"
   )
-  parser.add_argument("config_yaml", type=str, help="Path to training config YAML")
+  parser.add_argument("--annots_f",          type=str, required=True)
+  parser.add_argument("--cluster_csv",       type=str, required=True)
+  parser.add_argument("--h5ads_yaml",        type=str, required=True)
+  parser.add_argument("--ref_tag",           type=str, required=True)
+  parser.add_argument("--output_dir",        type=str, required=True)
+  parser.add_argument("--batch_var",         type=str, required=True)
+  parser.add_argument("--int_res_ls",        type=str, required=True)
+  parser.add_argument("--label_map_f",       type=str, default=None)
+  parser.add_argument("--refine_labels",     type=str, required=True)
+  parser.add_argument("--purity_threshold",  type=float, required=True)
+  parser.add_argument("--n_cells_per_type",  type=int, required=True)
+  parser.add_argument("--min_cells_per_type", type=int, required=True)
+  parser.add_argument("--min_cells_expressed", type=int, required=True)
+  parser.add_argument("--seed",             type=int, required=True)
+  parser.add_argument("--n_cores",          type=int, required=True)
+  parser.add_argument("--use_gpu",          action="store_true")
+  parser.add_argument("--pass1_subsample",      type=float, required=True)
+  parser.add_argument("--pass1_colsample_bytree", type=float, required=True)
+  parser.add_argument("--pass1_learning_rate",  type=float, required=True)
+  parser.add_argument("--pass1_nrounds",        type=int, required=True)
+  parser.add_argument("--pass1_early_stopping", type=int, required=True)
+  parser.add_argument("--pass2_colsample_bytree", type=float, required=True)
+  parser.add_argument("--pass2_learning_rate",  type=float, required=True)
+  parser.add_argument("--pass2_nrounds",        type=int, required=True)
+  parser.add_argument("--pass2_early_stopping", type=int, required=True)
+  parser.add_argument("--gain_threshold",   type=float, required=True)
+  parser.add_argument("--min_genes",        type=int, required=True)
+  parser.add_argument("--max_genes",        type=int, required=True)
+
   args = parser.parse_args()
-  make_classifier(args.config_yaml)
+
+  make_classifier(
+    annots_f=args.annots_f,
+    cluster_csv=args.cluster_csv,
+    h5ads_yaml=args.h5ads_yaml,
+    ref_tag=args.ref_tag,
+    output_dir=args.output_dir,
+    batch_var=args.batch_var,
+    int_res_ls=args.int_res_ls,
+    label_map_f=args.label_map_f,
+    refine_labels=args.refine_labels.lower() == "true",
+    purity_threshold=args.purity_threshold,
+    n_cells_per_type=args.n_cells_per_type,
+    min_cells_per_type=args.min_cells_per_type,
+    min_cells_expressed=args.min_cells_expressed,
+    seed=args.seed,
+    n_cores=args.n_cores,
+    use_gpu=args.use_gpu,
+    pass1_subsample=args.pass1_subsample,
+    pass1_colsample_bytree=args.pass1_colsample_bytree,
+    pass1_learning_rate=args.pass1_learning_rate,
+    pass1_nrounds=args.pass1_nrounds,
+    pass1_early_stopping=args.pass1_early_stopping,
+    pass2_colsample_bytree=args.pass2_colsample_bytree,
+    pass2_learning_rate=args.pass2_learning_rate,
+    pass2_nrounds=args.pass2_nrounds,
+    pass2_early_stopping=args.pass2_early_stopping,
+    gain_threshold=args.gain_threshold,
+    min_genes=args.min_genes,
+    max_genes=args.max_genes,
+  )

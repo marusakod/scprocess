@@ -380,16 +380,27 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 
 
 def run_train_xgboost(scprocess_dir, configfile, dryrun, extraargs):
-  """Train an XGBoost cell type classifier."""
+  
   print("doing some checks on inputs")
 
   config_path = pathlib.Path(configfile).resolve()
   os.chdir(scprocess_dir)
 
-  # get scprocess data dir
-  scdata_dir = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
-  if not scdata_dir or not scdata_dir.is_dir():
-    raise ValueError('SCPROCESS_DATA_DIR is not set or is not a directory')
+  # get scprocess data dir + cluster profile / local cores
+  scdata_dir, extraargs, setup_cfg = scprocess_utils.check_setup_before_running_scprocess(
+    scprocess_dir, extraargs
+  )
+
+  # set up cluster log directory if using slurm
+  if 'profile_dir' in setup_cfg['user']:
+    profile_f = setup_cfg['user']['profile_dir'] / 'config.yaml'
+    with open(profile_f, "r") as f:
+      profile = yaml.safe_load(f)
+    if profile.get('executor') == 'slurm':
+      cluster_log_dir = pathlib.Path(scdata_dir) / '.log/cluster'
+      os.makedirs(cluster_log_dir, exist_ok=True)
+      extraargs.append('--slurm-logdir')
+      extraargs.append(str(cluster_log_dir))
 
   # validate config
   with open(config_path, "r") as f:

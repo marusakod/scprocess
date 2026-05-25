@@ -24,20 +24,8 @@ knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 
 
 ```{r setup_libs, cache=FALSE, include = FALSE}
-suppressPackageStartupMessages({
-  library('magrittr')
-  library('data.table')
-  library('ggplot2')
-  library('forcats')
-  library('scales')
-  library('patchwork')
-  library('ComplexHeatmap')
-  library('seriation')
-  library('circlize')
-  library('kableExtra')
-})
-source('code/utils.R')
-source('code/label_celltypes.R')
+source('code/utils_tmp.R')
+source('code/label_celltypes_tmp.R')
 ```
 
 
@@ -198,8 +186,9 @@ ggplot(val_dt) +
 Genes are ranked by their contribution to XGBoost's loss reduction (gain). The vertical line shows the cutoff where the top genes capture 90% of total gain. Genes to the left of the line are included in the final model.
 
 ```{r gain_curve, fig.height = 5, fig.width = 8}
+imp_dt[, gene_rank := .I]
 ggplot(imp_dt) +
-  aes(x = seq_len(.N), y = cumulative_gain_frac) +
+  aes(x = gene_rank, y = cumulative_gain_frac) +
   geom_line() +
   geom_hline(yintercept = 0.9, linetype = "dashed", colour = "red") +
   geom_vline(xintercept = sum(imp_dt$cumulative_gain_frac <= 0.9) + 1,
