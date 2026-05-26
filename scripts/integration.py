@@ -127,8 +127,7 @@ def _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f = None):
       
       # make sparse matrix
       csc_mat     = csc_matrix((data, indices, indptr), shape=(num_rows, num_cols))
-      # all_hvg_mat = csc_mat if all_hvg_mat is None else hstack([all_hvg_mat, csc_mat])
-      all_hvg_mat = hstack( [all_hvg_mat, csc_mat] )
+      all_hvg_mat = csc_mat if all_hvg_mat is None else hstack([all_hvg_mat, csc_mat])
       
       # sort out features and barcodes
       if len(features) == 0:

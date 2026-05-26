@@ -61,7 +61,7 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
   # get validated config
   with open(setup_f, "r") as f:
     setup_cfg   = yaml.safe_load(f)
-  schema_f = Path(sc_dir) / "resources/schemas/setup.schema.json"
+  schema_f = Path(scprocess_dir) / "resources/schemas/setup.schema.json"
   if not schema_f.is_file():
     raise FileNotFoundError("setup schema file not found")
   setup_cfg   = scprocess_utils.check_setup_config(setup_cfg, schema_f, scprocess_dir)
@@ -899,8 +899,8 @@ def _get_conda_prefix(profile_name="default"):
 # scprocess plotknee
 def plot_interactive_knee(config_f, knee_f, sample):
   # check we can find the file
-  if args.kneefile:
-    knee_f      = pathlib.Path(args.kneefile)
+  if knee_f:
+    knee_f      = pathlib.Path(knee_f)
     if not knee_f.is_file():
       raise FileNotFoundError(f"Specified knee file doesn't exist. Check for typos, but", 
         " if the file doesn't exist you can generate the file by running the rule 'mapping'")
@@ -1022,12 +1022,12 @@ def show_version_and_hpc_info(sc_dir):
       ref_txomes = setup_cfg['ref_txomes']
       if ref_txomes.get('tenx'):
         print(f"  10x:")
-        for ref_txomes in ref_txomes['tenx']:
-          print(f"    - {ref_txomes['name']}")
+        for txome in ref_txomes['tenx']:
+          print(f"    - {txome['name']}")
       if ref_txomes.get('custom'):
         print(f"  custom:")
-        for ref_txomes in ref_txomes['custom']:
-          print(f"    - {ref_txomes['name']}")
+        for txome in ref_txomes['custom']:
+          print(f"    - {txome['name']}")
     
   except Exception as e:
     print(f"\nWarning: Could not read HPC configuration: {e}")

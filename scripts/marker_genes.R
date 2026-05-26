@@ -575,7 +575,7 @@ calc_hvgs_pseudobulk <- function(pb_hvgs_f, cpms_dt, batch_var, n_cores = 8) {
 }
 
 calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt, batch_var,
-  method = c("edger", "voom"), n_cores = n_cores) {
+  method = c("edger", "voom"), n_cores = 1) {
   method    = match.arg(method)
 
   cl_ls     = logcpms_all$cluster %>% unique
@@ -1335,7 +1335,7 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1_lab, cl2_lab,
   } else if (do_sort == "seriate") {
     # do seriate
     data_min    = data_mat %>% as.vector %>% min(na.rm = TRUE)
-    data_mat[is.na(data_mat)] = data_mat
+    data_mat[is.na(data_mat)] = data_min
     seriate_obj = seriate(data_mat - data_min, method = "BEA")
 
     # define vars

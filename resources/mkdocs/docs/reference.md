@@ -239,7 +239,6 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       - labeller:
         model:
         hi_res_cl: "RNA_snn_res.2"
-        min_pred: 0.8
         min_cl_prop: 0.5
         min_cl_size: 100
     zoom:
@@ -342,7 +341,6 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       - labeller: "scprocess"
         model: "human_cns"
         hi_res_cl: "RNA_snn_res.2"
-        min_pred: 0.8
         min_cl_prop: 0.5
         min_cl_size: 100
     zoom:
@@ -529,7 +527,6 @@ sample_id:
     + `scprocess`: use an `XGBoost` classifier for cell type annotation.
 * `model`: determines the model to be used based on the selected `labeller`. For list of all available `CellTypist` models see `$SCPROCESS_DATA_DIR/celltypist/celltypist_models.csv`). If `labeller` is set to `scprocess` the value should be `human_cns`. 
 * `hi_res_cl`: name of a column containing high-resolution clustering results. It must follow the pattern `"RNA_snn_res.n"` where `n` should be replaced with one of the values in `int_sel_res`. Default is `"RNA_snn_res.2"`.
-* `min_pred`: minimum probability threshold for assigning a cell to a cell type.
 * `min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.
 * `min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled.
 

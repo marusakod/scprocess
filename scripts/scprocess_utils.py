@@ -215,7 +215,7 @@ def _check_project_parameters(config, scdata_dir, scprocess_dir):
   has_fastq     = "fastq_dir" in project_dc
   has_arv_uuids = "arv_uuids" in project_dc
   if has_fastq + has_arv_uuids != 1:
-    KeyError('"project" part of config file must contain exactly one of "fastq_dir" and "arv_uuids"')
+    raise KeyError('"project" part of config file must contain exactly one of "fastq_dir" and "arv_uuids"')
 
   # do some checks if fastq_dir is specified
   if has_fastq and not has_arv_uuids:
@@ -461,7 +461,7 @@ def _check_multiplexing_parameters(config):
     has_fastq     = "fastq_dir" in config["multiplexing"]
     has_arv_uuids = "arv_uuids" in config["multiplexing"]
     if has_fastq + has_arv_uuids != 1:
-      KeyError('"multiplexing" part of config file must contain exactly one of "fastq_dir" and "arv_uuids"')
+      raise KeyError('"multiplexing" part of config file must contain exactly one of "fastq_dir" and "arv_uuids"')
 
     # do some checks if fastq_dir is specified
     if has_fastq and not has_arv_uuids:
@@ -926,8 +926,10 @@ def _get_custom_marker_genes_specs(config, scdata_dir):
         raise KeyError(f"File '{file_path}' is missing the mandatory column 'label'.")
       if not any(col in mkrs_df.columns for col in opt_cols):
         raise KeyError(f"File '{file_path}' must contain at least one of 'symbol' or 'ensembl_id' column.")
-      if any(mkrs_df["symbol"].is_duplicated()):
+      if "symbol" in mkrs_df.columns and any(mkrs_df["symbol"].is_duplicated()):
         raise KeyError(f"File '{file_path}' cannot have any duplicated values in the 'symbol' column")
+      if "ensembl_id" in mkrs_df.columns and any(mkrs_df["ensembl_id"].is_duplicated()):
+        raise KeyError(f"File '{file_path}' cannot have any duplicated values in the 'ensembl_id' column")
 
       # Store validated values
       mkr_names.append(name)
@@ -1816,7 +1818,7 @@ def _safe_boolean(val):
   elif val in ["False", "false"]:
     res = False
   else:
-    raise ValueError('{val} is not a boolean')
+    raise ValueError(f'{val} is not a boolean')
 
   return res
 
