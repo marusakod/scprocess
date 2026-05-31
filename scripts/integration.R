@@ -13,7 +13,7 @@ suppressPackageStartupMessages({
   library('uwot')
   library('future')
   library('ggplot.multistats')
-  library('zellkonverter')
+  library('anndataR')
 })
 
 
@@ -336,7 +336,7 @@ plot_marker_dotplot <- function(exp_dt, clust_dt, name, markers_dt, min_cl_size 
 }
 
 make_clean_sce_from_h5ad <- function(sel_batch, adata_f, sce_f){
-  sce = readH5AD(adata_f)
+  sce = read_h5ad(adata_f, as = 'SingleCellExperiment')
   # rename X assay to counts
   assayNames(sce)[assayNames(sce) == "X"] = "counts"
   

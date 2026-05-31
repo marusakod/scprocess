@@ -5,7 +5,7 @@ suppressPackageStartupMessages({
   library("assertthat")
   library("SingleCellExperiment")
   library("stringr")
-  library("zellkonverter")
+  library("anndataR")
 })
 
 
@@ -32,7 +32,7 @@ make_subset_objects <- function(sel_b, batch_var, smpl_stats_f, h5ads_yaml_f,
   # get input sce file
   in_h5ad_f    = paths_ls[[sel_b]]
   assert_that( file.exists(in_h5ad_f) )
-  in_sce      = readH5AD(in_h5ad_f)
+  in_sce      = read_h5ad(in_h5ad_f, as = 'SingleCellExperiment')
   
   # load subset data.table
   subset_dt   = fread(subset_f)
@@ -82,6 +82,6 @@ make_subset_objects <- function(sel_b, batch_var, smpl_stats_f, h5ads_yaml_f,
   
   # save  
   if(save_sce) saveRDS(sce_zoom, subset_sce_f, compress = FALSE)
-  if(save_adata) writeH5AD(sce_zoom, subset_h5ad_f)
+  if(save_adata) write_h5ad(sce_zoom, subset_h5ad_f)
   message('done!')
 }

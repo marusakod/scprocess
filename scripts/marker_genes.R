@@ -5,7 +5,7 @@ suppressPackageStartupMessages({
   library("DESeq2")
   library("scater")
   library("BiocParallel")
-  library("zellkonverter")
+  library("anndataR")
   RhpcBLASctl::omp_set_num_threads(1L)
 })
 
@@ -136,10 +136,10 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
 .make_one_pseudobulk <- function(sel_b, h5ad_paths, batch_var, cl_var, keep_cls, agg_fn) {
   message(sel_b)
   h5ad_f     = h5ad_paths[[sel_b]]
-  tmp_sce    = readH5AD(h5ad_f)
-  
+  tmp_sce    = read_h5ad(h5ad_f, as = 'SingleCellExperiment')
+
   # add clusters to sce
-  colData(tmp_sce)[["cluster"]] = colData(tmp_sce)[[cl_var]] 
+  colData(tmp_sce)[["cluster"]] = colData(tmp_sce)[[cl_var]]
 
   # filter sce
   keep_idx  = (colData(tmp_sce)$cluster %in% keep_cls) & (colData(tmp_sce)$sample_id != "")
@@ -168,7 +168,7 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
 .make_one_zoom_pseudobulk <- function(sel_b, h5ad_paths, int_dt, batch_var, cl_var, keep_cls, agg_fn) {
   message(sel_b)
   h5ad_f      = h5ad_paths[[sel_b]]
-  tmp_sce     = readH5AD(h5ad_f)
+  tmp_sce     = read_h5ad(h5ad_f, as = 'SingleCellExperiment')
   smpl_int_dt = copy(int_dt) %>% .[ get(batch_var) == sel_b ] %>% setkey(cell_id)
   assert_that(all(smpl_int_dt$cell_id %in% colnames(tmp_sce)))
   
@@ -335,11 +335,13 @@ make_logcpms_all <- function(pb, batch_var, lib_size_method = c("edger", "raw", 
     pb          = pb[ !exc_idx, ]
   }
 
+  n_cells_mat = muscat_n_cells(pb)
+
   # calculate logcpms
   logcpms_all = bplapply(cl_ls, function(sel_cl) {
     message(sel_cl, " ", appendLF = FALSE)
     # message(sel_cl)
-    tmp_dt    = .get_logcpm_dt_one_cl(pb, batch_var, cl = sel_cl,
+    tmp_dt    = .get_logcpm_dt_one_cl(pb, n_cells_mat, batch_var, cl = sel_cl,
       min_cells = min_cells, lib_size_method = lib_size_method)
     if (!is.null(tmp_dt))
       tmp_dt   = tmp_dt[, cluster := sel_cl ]
@@ -347,7 +349,7 @@ make_logcpms_all <- function(pb, batch_var, lib_size_method = c("edger", "raw", 
   }, BPPARAM = bpparam) %>% rbindlist
 
   # add # cells
-  ncells_dt   = muscat_n_cells(pb) %>%
+  ncells_dt   = n_cells_mat %>%
     as.data.table %>% set_colnames(c("cluster", batch_var, "n_cells"))
   logcpms_all = merge( logcpms_all, ncells_dt, by = c("cluster", batch_var) )
   assert_that( nrow(logcpms_all) > 0 )
@@ -371,11 +373,18 @@ make_logcpms_all_rmd <- function(pb, batch_var, lib_size_method = c("edger", "ra
     pb          = pb[ !exc_idx, ]
   }
   
+  if(!is.null(int_colData(pb)$n_cells)) {
+    n_cells_mat = muscat_n_cells(pb)
+  } else {
+    # this is for python-generated pseudobulk counts
+    n_cells_mat = reducedDim(pb) %>% t() %>% as.table()
+  }
+
   # calculate logcpms
   logcpms_all = lapply(cl_ls, function(sel_cl) {
     message(sel_cl, " ", appendLF = FALSE)
     # message(sel_cl)
-    tmp_dt    = .get_logcpm_dt_one_cl(pb, batch_var, cl = sel_cl,
+    tmp_dt    = .get_logcpm_dt_one_cl(pb, n_cells_mat, batch_var, cl = sel_cl,
       min_cells = min_cells, lib_size_method = lib_size_method)
     if (!is.null(tmp_dt))
       tmp_dt   = tmp_dt[, cluster := sel_cl ]
@@ -383,7 +392,7 @@ make_logcpms_all_rmd <- function(pb, batch_var, lib_size_method = c("edger", "ra
   }) %>% rbindlist
   
   # add # cells
-  ncells_dt   = muscat_n_cells(pb) %>%
+  ncells_dt   = n_cells_mat %>%
     as.data.table %>% set_colnames(c("cluster", batch_var, "n_cells"))
   logcpms_all = merge( logcpms_all, ncells_dt, by = c("cluster", batch_var) )
   assert_that( nrow(logcpms_all) > 0 )
@@ -391,14 +400,14 @@ make_logcpms_all_rmd <- function(pb, batch_var, lib_size_method = c("edger", "ra
   return(logcpms_all)
 }
 
-.get_logcpm_dt_one_cl <- function(pb, batch_var, cl, min_cells = 10, pseudo_count = 10,
+.get_logcpm_dt_one_cl <- function(pb, n_cells_mat, batch_var, cl, min_cells = 10, pseudo_count = 10,
   lib_size_method = c("raw", "edger", "pearson", "vst", "rlog")) {
 
   # check inputs
   lib_size_method   = match.arg(lib_size_method)
-
+ 
   # extract raw counts for non-tiny samples
-  use_idx     = muscat_n_cells(pb)[cl, ] >= min_cells
+  use_idx     = n_cells_mat[cl, ] >= min_cells
   if (sum(use_idx) == 0) {
     message("no samples with sufficient cells for ", cl, "; skipping")
     return(NULL)

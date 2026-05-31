@@ -5,7 +5,7 @@ import yaml
 scprocess_dir = pathlib.Path(config["scprocess_dir"]) if "scprocess_dir" in config else pathlib.Path(workflow.basedir).parent
 ref_tag       = config["ref_tag"]
 output_dir    = config["output_dir"]
-n_cores       = config.get("n_cores", 16)
+n_cores       = config.get("n_cores", 4)
 
 # scprocess project paths (for the html report)
 scp_proj      = config.get("_scprocess_project", {})
@@ -18,7 +18,7 @@ code_dir      = f"{proj_dir}/code"
 # resource defaults (from schema or user override)
 resources_cfg = config.get("resources", {})
 MB_PER_GB     = 1024
-mem_gb        = resources_cfg.get("gb_train_xgboost", 64)
+mem_gb        = resources_cfg.get("gb_train_xgboost", 32)
 runtime_mins  = resources_cfg.get("mins_train_xgboost", 240)
 
 # whether coarse labels are available
@@ -36,6 +36,7 @@ rule train_xgboost:
     genes_f  = f'{output_dir}/{ref_tag}_selected_genes.txt',
     imp_f    = f'{output_dir}/{ref_tag}_gene_importance.csv',
     preds_f  = f'{output_dir}/{ref_tag}_predictions.csv.gz',
+    pb_f     = f'{output_dir}/{ref_tag}_pseudobulk.h5ad',
   params:
     ref_tag              = ref_tag,
     output_dir           = output_dir,
@@ -47,6 +48,7 @@ rule train_xgboost:
     n_cells_per_type     = config["n_cells_per_type"],
     min_cells_per_type   = config["min_cells_per_type"],
     min_cells_expressed  = config["min_cells_expressed"],
+    gene_exclude_re      = config.get("gene_exclude_re", "(lincRNA|lncRNA|pseudogene|antisense)"),
     seed                 = config["seed"],
     use_gpu              = config["use_gpu"],
     pass1_subsample      = config["pass1_subsample"],
@@ -81,6 +83,7 @@ rule train_xgboost:
       --n_cells_per_type  {params.n_cells_per_type} \
       --min_cells_per_type {params.min_cells_per_type} \
       --min_cells_expressed {params.min_cells_expressed} \
+      --gene_exclude_re  "{params.gene_exclude_re}" \
       --seed              {params.seed} \
       --n_cores           {threads} \
       --pass1_subsample      {params.pass1_subsample} \
@@ -104,9 +107,8 @@ rule render_html_train_xgboost:
   input:
     preds_f       = rules.train_xgboost.output.preds_f,
     imp_f         = rules.train_xgboost.output.imp_f,
+    pb_f          = rules.train_xgboost.output.pb_f,
   output:
-    r_utils_f     = f"{code_dir}/utils_tmp.R",
-    r_lbl_f       = f"{code_dir}/label_celltypes_tmp.R",
     rmd_f         = f"{rmd_dir}/{short_tag}_train_xgboost.Rmd",
     html_f        = f"{docs_dir}/{short_tag}_train_xgboost.html"
   params:
@@ -115,10 +117,14 @@ rule render_html_train_xgboost:
     short_tag     = short_tag,
     ref_tag       = ref_tag,
     proj_dir      = proj_dir,
+    output_dir    = output_dir,
     predictions_f = f'{output_dir}/{ref_tag}_predictions.csv.gz',
     importance_f  = f'{output_dir}/{ref_tag}_gene_importance.csv',
+    pseudobulk_f  = f'{output_dir}/{ref_tag}_pseudobulk.h5ad',
     integration_f = scp_proj.get("cluster_csv", ""),
-    has_coarse    = has_coarse
+    has_coarse    = has_coarse,
+    min_cells     = config.get("min_cells_expressed", 10),
+    n_cores       = n_cores,
   threads: 1
   resources:
     mem_mb  = 16 * MB_PER_GB,
@@ -126,9 +132,10 @@ rule render_html_train_xgboost:
   conda:
     '../envs/rlibs.yaml'
   shell: """
-    # copy R code needed by the template
-    cp {scprocess_dir}/scripts/utils.R {output.r_utils_f}
-    cp {scprocess_dir}/scripts/label_celltypes.R {output.r_lbl_f}
+    # copy R scripts to xgboost output directory
+    cp {scprocess_dir}/scripts/utils.R {params.output_dir}/utils.R
+    cp {scprocess_dir}/scripts/label_celltypes.R {params.output_dir}/label_celltypes.R
+    cp {scprocess_dir}/scripts/marker_genes.R {params.output_dir}/marker_genes.R
 
     # define template
     template_f=$(realpath {scprocess_dir}/resources/rmd_templates/train_xgboost.Rmd.template)
@@ -147,8 +154,12 @@ rule render_html_train_xgboost:
         ref_tag         = '{params.ref_tag}',
         predictions_f   = '{params.predictions_f}',
         importance_f    = '{params.importance_f}',
+        pseudobulk_f    = '{params.pseudobulk_f}',
         integration_f   = '{params.integration_f}',
-        has_coarse      = '{params.has_coarse}'
+        has_coarse      = '{params.has_coarse}',
+        min_cells       = '{params.min_cells}',
+        n_cores         = '{params.n_cores}',
+        scripts_dir     = '{params.output_dir}'
       )"
     """
 

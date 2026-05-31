@@ -418,7 +418,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
   } else if (sel_rule == 'train_xgboost') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'ref_tag',
-      'predictions_f', 'importance_f', 'integration_f', 'has_coarse')
+      'predictions_f', 'importance_f', 'pseudobulk_f', 'integration_f', 'has_coarse',
+      'min_cells', 'n_cores', 'scripts_dir')
     assert_that(all(req_names %in% add_args_names))
 
     params_ls = as.list(add_args[req_names])

@@ -13,8 +13,9 @@
     "n_cells_per_type":      { "type": "integer", "minimum": 1, "default": 1000 },
     "min_cells_per_type":    { "type": "integer", "minimum": 1, "default": 20 },
     "min_cells_expressed":   { "type": "integer", "minimum": 1, "default": 10 },
+    "gene_exclude_re":       { "type": ["string", "null"], "default": "(lincRNA|lncRNA|pseudogene|antisense)" },
     "seed":                  { "type": "integer", "default": 42 },
-    "n_cores":               { "type": "integer", "minimum": 1, "default": 16 },
+    "n_cores":               { "type": "integer", "minimum": 1, "default": 4 },
     "use_gpu":               { "type": "boolean", "default": false },
     "pass1_subsample":       { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "default": 0.632 },
     "pass1_colsample_bytree":{ "type": "number", "exclusiveMinimum": 0, "maximum": 1, "default": 0.1 },
@@ -32,7 +33,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "gb_train_xgboost":    { "type": "integer", "default": 64 },
+        "gb_train_xgboost":    { "type": "integer", "default": 32 },
         "mins_train_xgboost":  { "type": "integer", "default": 180 }
       }
     }

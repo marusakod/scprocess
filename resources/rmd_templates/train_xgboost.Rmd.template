@@ -24,101 +24,78 @@ knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 
 
 ```{r setup_libs, cache=FALSE, include = FALSE}
-source('code/utils_tmp.R')
-source('code/label_celltypes_tmp.R')
+source('${scripts_dir}/utils.R')
+source('${scripts_dir}/label_celltypes.R')
+source('${scripts_dir}/marker_genes.R')
 ```
 
 
 ```{r setup_input, include = FALSE}
-# input files (substituted by glue from snakemake params)
 predictions_f   = "${predictions_f}"
-importance_f    = "${importance_f}"
+gain_f          = "${importance_f}"
+pb_f            = "${pseudobulk_f}"
 integration_f   = "${integration_f}"
 has_coarse      = as.logical("${has_coarse}")
+min_cells       = as.integer("${min_cells}")
+n_cores         = as.integer("${n_cores}")
+setDTthreads(n_cores)
 
 # load data
 preds_dt    = fread(predictions_f)
-imp_dt      = fread(importance_f)
+gain_dt     = fread(gain_f)
 int_dt      = fread(integration_f)[, .(cell_id, UMAP1, UMAP2)]
 ```
 
-
-```{r merge_umap, include = FALSE}
-plot_dt = merge(preds_dt, int_dt, by = "cell_id", all.x = TRUE) %>%
+```{r make_xgboost_dt, include = FALSE}
+xgboost_dt = merge(preds_dt, int_dt, by = "cell_id", all.x = TRUE) %>%
   .[ !is.na(UMAP1) ]
+# keep only validation data for plotting
+val_dt     = xgboost_dt[ split == "validation" ]
+```
+
+```{r load_cpms, include = FALSE}
+pb     = read_h5ad(pb_f, as = 'SingleCellExperiment')
+if('X' %in% assayNames(pb)){
+  assays(pb)[['X']] = NULL
+}
+cpms_dt =  pb %>% make_logcpms_all_rmd("sample_id", lib_size_method = "edger",
+  min_cells = min_cells, n_cores = n_cores)
+```
+
+## Train / validation split
+
+Plot showing the split into validation and training sets. The validation set should be well distributed across the UMAP space, indicating that it contains a representative sample of all cell types and states.
+
+```{r plot_train_test_split, fig.height = 6, fig.width = 8}
+plot_train_test_split(xgboost_dt)
 ```
 
 
-## Train / Validation Split
+## Predicted vs true labels UMAP {.tabset}
 
-The dataset was split into training and validation sets. When more than 4 samples are available, entire samples are held out for validation (strongest generalization test). Otherwise a stratified random cell-level split is used.
+UMAPs showing the true (training) labels alongside model predictions on the validation set.
 
-```{r plot_split, fig.height = 6, fig.width = 8}
-ggplot(plot_dt) +
-  aes(x = UMAP1, y = UMAP2, colour = split) +
-  geom_point(size = 0.3, alpha = 0.5) +
-  scale_colour_manual(values = c("train" = "#1f77b4", "validation" = "#ff7f0e")) +
-  theme_bw() +
-  theme(aspect.ratio = 1, axis.text = element_blank(), axis.ticks = element_blank(),
-        panel.grid = element_blank()) +
-  labs(colour = "Split")
-```
-
-
-## Predicted vs True Labels {.tabset}
-
-UMAPs showing the true (training) labels alongside model predictions on the **validation** set. Good agreement indicates the model has learned to generalize across samples.
-
-### Fine labels
-
-```{r plot_fine_labels, fig.height = 7, fig.width = 14}
-val_dt = plot_dt[ split == "validation" ]
-p1 = ggplot(val_dt) +
-  aes(x = UMAP1, y = UMAP2, colour = label) +
-  geom_point(size = 0.3, alpha = 0.5) +
-  theme_bw() +
-  theme(aspect.ratio = 1, axis.text = element_blank(), axis.ticks = element_blank(),
-        panel.grid = element_blank(), legend.text = element_text(size = 6)) +
-  labs(colour = "True label", title = "True labels (validation)")
-
-p2 = ggplot(val_dt) +
-  aes(x = UMAP1, y = UMAP2, colour = predicted_label) +
-  geom_point(size = 0.3, alpha = 0.5) +
-  theme_bw() +
-  theme(aspect.ratio = 1, axis.text = element_blank(), axis.ticks = element_blank(),
-        panel.grid = element_blank(), legend.text = element_text(size = 6)) +
-  labs(colour = "Predicted label", title = "Predicted labels (validation)")
-
-p1 + p2
-```
-
-
-```{r plot_coarse_labels, fig.height = 7, fig.width = 14, eval = has_coarse, results = 'asis'}
-cat("### Coarse labels\n\n")
-
-p1 = ggplot(val_dt) +
-  aes(x = UMAP1, y = UMAP2, colour = coarse_true) +
-  geom_point(size = 0.3, alpha = 0.5) +
-  theme_bw() +
-  theme(aspect.ratio = 1, axis.text = element_blank(), axis.ticks = element_blank(),
-        panel.grid = element_blank(), legend.text = element_text(size = 7)) +
-  labs(colour = "True (coarse)", title = "True coarse labels (validation)")
-
-p2 = ggplot(val_dt) +
-  aes(x = UMAP1, y = UMAP2, colour = coarse_predicted) +
-  geom_point(size = 0.3, alpha = 0.5) +
-  theme_bw() +
-  theme(aspect.ratio = 1, axis.text = element_blank(), axis.ticks = element_blank(),
-        panel.grid = element_blank(), legend.text = element_text(size = 7)) +
-  labs(colour = "Predicted (coarse)", title = "Predicted coarse labels (validation)")
-
-p1 + p2
+```{r plot_pred_true_umap, fig.height = 7, fig.width = 14, results = 'asis'}
+lbl_type_vec = 'Training labels'
+if (has_coarse) {
+  lbl_type_vec = c('Coarse labels', 'Training labels')
+}
+for (lbl in lbl_type_vec) {
+  cat('###', lbl, '\n')
+  if(lbl == 'Coarse labels') {
+    is_coarse = TRUE
+  } else {
+    is_coarse = FALSE
+  }
+  print(plot_pred_true_umap(val_dt, coarse = is_coarse))
+  cat('\n\n')
+}
 ```
 
 
 ## Confusion matrix (validation set)
 
-Heatmap showing the proportion of cells with each true label (rows) that are predicted as each class (columns). A perfect classifier would show signal only on the diagonal.
+Heatmap showing the proportion of cells with each true label (rows) that are predicted as each class (columns).
 
 ```{r confusion_matrix, fig.height = 10, fig.width = 12}
 # prepare inputs for plot_cluster_comparison_heatmap
@@ -133,83 +110,40 @@ plot_cluster_comparison_heatmap(confuse_dt, "true_label", "pred_label",
 
 ## Per-class evaluation metrics (validation set)
 
-**Accuracy**: fraction of cells with this true label that are correctly predicted.
-**Precision**: of all cells predicted as this class, fraction that truly are.
-**Recall**: same as accuracy (fraction of true positives captured).
-**F1**: harmonic mean of precision and recall.
+To asses the model performance the following metrics are calculated for each individual cell type (label) in the validation set:
+
+* N: The total number of cells belonging to some cell type in the validation set.
+* Precision: Out of all cells predicted by the model to be some cell type, the fraction that truly belong to it.
+* Recall: Out of all actual cells belonging to some cell type, the fraction that the model successfully identified.
+* F1 Score: The harmonic mean of precision and recall.
 
 ```{r metrics_table}
-metrics_dt = val_dt[, .(
-  N         = .N,
-  Accuracy  = mean(label == predicted_label),
-  Precision = {
-    tp = sum(predicted_label == label)
-    fp = nrow(val_dt[ predicted_label == .BY$label & label != .BY$label ])
-    tp / max(tp + fp, 1)
-  },
-  Recall    = mean(label == predicted_label),
-  F1        = {
-    prec = sum(predicted_label == label) / max(sum(val_dt$predicted_label == .BY$label), 1)
-    rec  = mean(label == predicted_label)
-    2 * prec * rec / max(prec + rec, 1e-10)
-  }
-), by = .(Class = label)] %>% .[ order(-Accuracy) ]
-
-metrics_dt %>%
-  kable(digits = 3) %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+metrics_dt = get_metrics_dt(val_dt)
+metrics_dt %>% knitr::kable(digits = 3)
 ```
-
-**Overall accuracy**: `r round(val_dt[, mean(label == predicted_label)], 3)`
-**Macro F1**: `r round(mean(metrics_dt$F1), 3)`
-
-
-## Per-class prediction confidence (validation set)
-
-Distribution of the maximum predicted probability for each cell, grouped by true cell type. Cell types where the model is uncertain will show lower probabilities. Very low confidence may indicate that a class is underrepresented or too similar to another class.
-
-```{r confidence_violin, fig.height = 7, fig.width = 10}
-ggplot(val_dt) +
-  aes(x = fct_reorder(label, probability, .fun = median), y = probability, fill = label) +
-  geom_violin(scale = "width", show.legend = FALSE) +
-  geom_boxplot(width = 0.1, outlier.size = 0.3, show.legend = FALSE) +
-  coord_flip() +
-  theme_bw() +
-  labs(x = "True label", y = "Max predicted probability")
-```
-
-
-## Feature selection
 
 ### Cumulative gain curve
 
 Genes are ranked by their contribution to XGBoost's loss reduction (gain). The vertical line shows the cutoff where the top genes capture 90% of total gain. Genes to the left of the line are included in the final model.
 
-```{r gain_curve, fig.height = 5, fig.width = 8}
-imp_dt[, gene_rank := .I]
-ggplot(imp_dt) +
-  aes(x = gene_rank, y = cumulative_gain_frac) +
-  geom_line() +
-  geom_hline(yintercept = 0.9, linetype = "dashed", colour = "red") +
-  geom_vline(xintercept = sum(imp_dt$cumulative_gain_frac <= 0.9) + 1,
-             linetype = "dashed", colour = "blue") +
-  theme_bw() +
-  labs(x = "Gene rank", y = "Cumulative gain fraction",
-       title = "Feature selection: cumulative gain curve") +
-  annotate("text", x = sum(imp_dt$cumulative_gain_frac <= 0.9) + 1,
-           y = 0.5, label = paste0(sum(imp_dt$cumulative_gain_frac <= 0.9) + 1, " genes"),
-           hjust = -0.1, colour = "blue")
+```{r plot_gain_curve, fig.height = 5, fig.width = 8}
+plot_gain_curve(gain_dt)
 ```
 
 
-### Top 30 genes by importance
+### Top XGBoost genes: {.tabset}
 
-```{r gene_importance, fig.height = 7, fig.width = 8}
-top_genes = imp_dt[1:min(30, .N)]
-ggplot(top_genes) +
-  aes(x = fct_reorder(gene, gain), y = gain) +
-  geom_col(fill = "steelblue") +
-  coord_flip() +
-  theme_bw() +
-  labs(x = "Gene", y = "Gain", title = "Top 30 genes by XGBoost gain")
+Pseudobulk logCPM expression of the top 20 most important XGBoost genes, shown per cell type label. Each dot represents one sample; dot size indicates the number of cells contributing to that pseudobulk value.
+
+```{r plot_top_genes, fig.height = 8, fig.width = 8, results = "asis"}
+top_genes_dt = gain_dt[1:min(100, .N)]
+n_pages = 10
+per_p   = 10
+p       = 1
+for (i in seq(1, n_pages * per_p, by = per_p)) {
+  cat('#### page', p, '\n'); p = p + 1
+  sel_gs  = top_genes_dt[ i:(i + 9) ]
+  print(plot_top_xgboost_genes(sel_gs, cpms_dt))
+  cat('\n\n')
+}
 ```

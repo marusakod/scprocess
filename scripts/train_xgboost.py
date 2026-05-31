@@ -11,6 +11,7 @@ Workflow:
 
 import argparse
 import pathlib
+import re
 import sys
 from typing import Optional
 import anndata as ad
@@ -27,14 +28,15 @@ def make_classifier(
   label_map_f: Optional[str],
   refine_labels: bool, purity_threshold: float,
   n_cells_per_type: int, min_cells_per_type: int,
-  min_cells_expressed: int, seed: int, n_cores: int, use_gpu: bool,
+  min_cells_expressed: int, gene_exclude_re: Optional[str],
+  seed: int, n_cores: int, use_gpu: bool,
   pass1_subsample: float, pass1_colsample_bytree: float,
   pass1_learning_rate: float, pass1_nrounds: int, pass1_early_stopping: int,
   pass2_colsample_bytree: float, pass2_learning_rate: float,
   pass2_nrounds: int, pass2_early_stopping: int,
   gain_threshold: float, min_genes: int, max_genes: int,
 ) -> None:
-  
+
   print("=" * 60)
   print("XGBoost cell type classifier training")
   print("=" * 60)
@@ -66,8 +68,11 @@ def make_classifier(
 
   # Phase 2: load expression data one H5AD at a time
   print("\n--- Loading expression data ---")
-  X, gene_names, cell_ids = load_expression_matrix(cells_df, h5ad_dict)
-  X, gene_names = filter_uninformative_genes(X, gene_names, min_cells_expressed)
+  X_raw, X_norm, gene_names, gene_types, cell_ids = load_expression_matrix(cells_df, h5ad_dict)
+  X_norm, X_raw, gene_names, gene_types = filter_genes_by_type(
+    X_norm, X_raw, gene_names, gene_types, gene_exclude_re)
+  X_norm, X_raw, gene_names = filter_uninformative_genes(
+    X_norm, X_raw, gene_names, min_cells_expressed)
 
   # Align cells_df row order with the matrix
   cells_df = cells_df.filter(pl.col("cell_id").is_in(cell_ids))
@@ -81,8 +86,8 @@ def make_classifier(
 
   train_mask = cells_df["split"].to_numpy() == "train"
   val_mask = ~train_mask
-  X_train, y_train = X[train_mask], y[train_mask]
-  X_val, y_val = X[val_mask], y[val_mask]
+  X_train, y_train = X_norm[train_mask], y[train_mask]
+  X_val, y_val = X_norm[val_mask], y[val_mask]
 
   print(f"  Train: {X_train.shape[0]} cells, Validation: {X_val.shape[0]} cells")
   print(f"  Features (genes after filtering): {X_train.shape[1]}")
@@ -103,6 +108,10 @@ def make_classifier(
     model_pass1, gene_names, gain_threshold, min_genes, max_genes,
   )
   print(f"  Selected {len(sel_indices)} genes (of {len(gene_names)})")
+
+  # Compute pseudobulk from raw counts for selected genes
+  print("\n--- Computing pseudobulk ---")
+  pseudobulk_adata = compute_pseudobulk(X_raw, cells_df, gene_names, sel_indices)
 
   X_train_sub = X_train[:, sel_indices]
   X_val_sub = X_val[:, sel_indices]
@@ -129,6 +138,7 @@ def make_classifier(
     model_pass2, class_names, sel_gene_names, gene_importance,
     output_dir, ref_tag, cells_df, label_map,
     X_train_sub, y_train, X_val_sub, y_val,
+    pseudobulk_adata,
   )
 
   print("\nDone.")
@@ -325,33 +335,62 @@ def normalize_counts(X: sp.spmatrix, scale_factor: int = 10000) -> sp.csr_matrix
   return X_norm
 
 
+def filter_genes_by_type(
+  X_norm: sp.csr_matrix, X_raw: sp.csr_matrix,
+  gene_names: list[str], gene_types: list[str],
+  gene_exclude_re: Optional[str],
+) -> tuple[sp.csr_matrix, sp.csr_matrix, list[str], list[str]]:
+  """Remove genes whose gene_type matches the exclusion regex."""
+  if gene_exclude_re is None or gene_exclude_re == "":
+    return X_norm, X_raw, gene_names, gene_types
+
+  pattern = re.compile(gene_exclude_re)
+  keep_mask = np.array([not pattern.search(gt) for gt in gene_types])
+  n_before = len(gene_names)
+  n_after = int(keep_mask.sum())
+
+  X_norm_filtered = X_norm[:, keep_mask]
+  X_raw_filtered = X_raw[:, keep_mask]
+  gene_names_filtered = [g for g, keep in zip(gene_names, keep_mask) if keep]
+  gene_types_filtered = [gt for gt, keep in zip(gene_types, keep_mask) if keep]
+
+  print(f"  Gene type filter (exclude '{gene_exclude_re}'): {n_before} → {n_after} genes "
+        f"({n_before - n_after} removed)")
+
+  return X_norm_filtered, X_raw_filtered, gene_names_filtered, gene_types_filtered
+
+
 def filter_uninformative_genes(
-  X: sp.csr_matrix, gene_names: list[str], min_cells: int = 10
-) -> tuple[sp.csr_matrix, list[str]]:
+  X_norm: sp.csr_matrix, X_raw: sp.csr_matrix,
+  gene_names: list[str], min_cells: int = 10,
+) -> tuple[sp.csr_matrix, sp.csr_matrix, list[str]]:
   """Remove genes expressed in fewer than min_cells cells."""
-  cells_per_gene = np.array(X.getnnz(axis=0)).flatten()
+  cells_per_gene = np.array(X_raw.getnnz(axis=0)).flatten()
   keep_mask = cells_per_gene >= min_cells
   n_before = len(gene_names)
-  n_after = keep_mask.sum()
+  n_after = int(keep_mask.sum())
 
-  X_filtered = X[:, keep_mask]
+  X_norm_filtered = X_norm[:, keep_mask]
+  X_raw_filtered = X_raw[:, keep_mask]
   gene_names_filtered = [g for g, keep in zip(gene_names, keep_mask) if keep]
 
   print(f"  Gene filter (>= {min_cells} cells): {n_before} → {n_after} genes "
         f"({n_before - n_after} removed)")
 
-  return X_filtered, gene_names_filtered
+  return X_norm_filtered, X_raw_filtered, gene_names_filtered
 
 
 def load_expression_matrix(
   cells_df: pl.DataFrame, h5ad_dict: dict,
-) -> tuple[sp.csr_matrix, list[str], list[str]]:
-  
+) -> tuple[sp.csr_matrix, sp.csr_matrix, list[str], list[str], list[str]]:
+  """Load expression data, returning both raw and normalized matrices plus gene metadata."""
   batches_needed = cells_df["batch"].drop_nulls().unique().to_list()
 
-  matrices = []
+  matrices_raw = []
+  matrices_norm = []
   cell_ids_ordered = []
   gene_names: Optional[list[str]] = None
+  gene_types: Optional[list[str]] = None
 
   for batch in sorted(batches_needed):
     if batch not in h5ad_dict:
@@ -377,21 +416,101 @@ def load_expression_matrix(
     current_genes = adata.var_names.tolist()
     if gene_names is None:
       gene_names = current_genes
+      if "gene_type" in adata.var.columns:
+        gene_types = adata.var["gene_type"].tolist()
+      else:
+        gene_types = ["unknown"] * len(current_genes)
     else:
       assert current_genes == gene_names, (
         f"Gene mismatch in batch '{batch}': expected {len(gene_names)} genes, "
         f"got {len(current_genes)}")
 
+    matrices_raw.append(adata.X.tocsr())
     X_norm = normalize_counts(adata.X, scale_factor=10000)
-    matrices.append(X_norm)
+    matrices_norm.append(X_norm)
     cell_ids_ordered.extend(adata.obs["cell_id"].tolist())
 
     del adata
 
-  X = sp.vstack(matrices, format="csr")
-  print(f"  Final matrix: {X.shape[0]} cells x {X.shape[1]} genes")
+  X_raw = sp.vstack(matrices_raw, format="csr")
+  X_norm = sp.vstack(matrices_norm, format="csr")
+  print(f"  Final matrix: {X_norm.shape[0]} cells x {X_norm.shape[1]} genes")
 
-  return X, gene_names, cell_ids_ordered
+  return X_raw, X_norm, gene_names, gene_types, cell_ids_ordered
+
+
+# pseudobulk
+
+def compute_pseudobulk(
+  X_raw: sp.csr_matrix, cells_df: pl.DataFrame,
+  gene_names: list[str], sel_indices: np.ndarray,
+) -> ad.AnnData:
+  """Compute pseudobulk raw counts per (label, sample_id) for selected genes.
+
+  Returns an AnnData:
+    - obs (rows) = samples
+    - var (columns) = selected genes
+    - layers: one per cell type label, each a samples × genes matrix of raw summed counts
+  """
+  import pandas as pd
+
+  X_sel = X_raw[:, sel_indices]
+  sel_gene_names = [gene_names[i] for i in sel_indices]
+
+  labels = cells_df["label"].to_list()
+  sample_ids = cells_df["sample_id"].to_list()
+
+  unique_labels = sorted(set(labels))
+  unique_samples = sorted(set(sample_ids))
+  n_samples = len(unique_samples)
+  n_genes = len(sel_gene_names)
+  sample_to_idx = {s: i for i, s in enumerate(unique_samples)}
+
+  # Group cell indices by (label, sample_id)
+  groups: dict[tuple[str, str], list[int]] = {}
+  for i, (lbl, sid) in enumerate(zip(labels, sample_ids)):
+    key = (lbl, sid)
+    if key not in groups:
+      groups[key] = []
+    groups[key].append(i)
+
+  # Build one layer per label: samples × genes (logCPM values)
+  layers = {}
+  n_cells_dict: dict[str, list[int]] = {}
+  for lbl in unique_labels:
+    count_mat = np.zeros((n_samples, n_genes), dtype=np.float64)
+    n_cells_per_sample = [0] * n_samples
+    for sid in unique_samples:
+      key = (lbl, sid)
+      if key in groups:
+        indices = groups[key]
+        count_mat[sample_to_idx[sid], :] = np.array(
+          X_sel[indices, :].sum(axis=0)).flatten()
+        n_cells_per_sample[sample_to_idx[sid]] = len(indices)
+
+    layers[lbl] = count_mat
+    n_cells_dict[lbl] = n_cells_per_sample
+
+  obs_df = pd.DataFrame({"sample_id": unique_samples}, index=unique_samples)
+  var_df = pd.DataFrame({"gene_id": sel_gene_names}, index=sel_gene_names)
+
+  pb_adata = ad.AnnData(
+    X=np.zeros((n_samples, n_genes)),
+    obs=obs_df,
+    var=var_df,
+    layers=layers,
+  )
+
+  # Store n_cells per label as obsm (samples × labels matrix)
+  n_cells_mat = np.column_stack([n_cells_dict[lbl] for lbl in unique_labels])
+  pb_adata.obsm["n_cells"] = pd.DataFrame(
+    n_cells_mat, index=unique_samples, columns=unique_labels)
+
+  print(f"  Pseudobulk raw counts: {n_samples} samples, {n_genes} genes, "
+        f"{len(unique_labels)} labels (stored as layers)")
+
+  return pb_adata
+
 
 # xgboost training and feature selection
 
@@ -473,7 +592,7 @@ def select_features_by_gain(
   sel_gene_names = [gene_names[i] for i in sel_indices]
 
   gene_importance = pl.DataFrame({
-    "gene": [gene_names[i] for i in sorted_idx],
+    "gene_id": [gene_names[i] for i in sorted_idx],
     "gain": sorted_gains.tolist(),
     "cumulative_gain_frac": cum_gain.tolist(),
   })
@@ -492,7 +611,7 @@ def run_xgboost_pass2(
   subsample: float, colsample_bytree: float, learning_rate: float,
   nrounds: int, early_stopping: int,
 ) -> xgb.Booster:
-  
+
   num_class = int(y_train.max()) + 1
 
   params = _build_xgb_params(n_cores, seed, use_gpu, num_class,
@@ -581,7 +700,7 @@ def evaluate_model_coarse(
   model: xgb.Booster, X_val: sp.csr_matrix, y_val: np.ndarray,
   class_names: list[str], label_map: dict[str, str],
 ) -> None:
-  
+
   feat_names = [f"g{i}" for i in range(X_val.shape[1])]
   dval = xgb.DMatrix(X_val, feature_names=feat_names)
   probs = model.predict(dval)
@@ -630,8 +749,9 @@ def save_outputs(
   label_map: Optional[dict[str, str]] = None,
   X_train: sp.csr_matrix = None, y_train: np.ndarray = None,
   X_val: sp.csr_matrix = None, y_val: np.ndarray = None,
+  pseudobulk_adata: ad.AnnData = None,
 ) -> None:
-  """Save model, gene list, classes, importance, predictions, and label map."""
+  """Save model, gene list, classes, importance, predictions, and pseudobulk."""
   out_dir = pathlib.Path(output_dir)
 
   model_path = out_dir / f"{ref_tag}_xgboost_model.json"
@@ -667,6 +787,11 @@ def save_outputs(
     )
     preds_df.write_csv(str(preds_path), compression="gzip")
     print(f"  Predictions: {preds_path}")
+
+  if pseudobulk_adata is not None:
+    pb_path = out_dir / f"{ref_tag}_pseudobulk.h5ad"
+    pseudobulk_adata.write_h5ad(str(pb_path))
+    print(f"  Pseudobulk: {pb_path}")
 
 
 def _make_predictions_df(
@@ -734,6 +859,7 @@ if __name__ == "__main__":
   parser.add_argument("--n_cells_per_type",  type=int, required=True)
   parser.add_argument("--min_cells_per_type", type=int, required=True)
   parser.add_argument("--min_cells_expressed", type=int, required=True)
+  parser.add_argument("--gene_exclude_re",   type=str, default=None)
   parser.add_argument("--seed",             type=int, required=True)
   parser.add_argument("--n_cores",          type=int, required=True)
   parser.add_argument("--use_gpu",          action="store_true")
@@ -766,6 +892,7 @@ if __name__ == "__main__":
     n_cells_per_type=args.n_cells_per_type,
     min_cells_per_type=args.min_cells_per_type,
     min_cells_expressed=args.min_cells_expressed,
+    gene_exclude_re=args.gene_exclude_re,
     seed=args.seed,
     n_cores=args.n_cores,
     use_gpu=args.use_gpu,
