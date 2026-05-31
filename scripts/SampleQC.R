@@ -1461,16 +1461,16 @@ make_qc_dt <- function(qc_df, batch_var = 'sample_id', run_var = "sample_id",
     qc_dt[, splice_ratio  := log2( (qc_df$total_spliced + 1) / (qc_df$total_unspliced + 1) ) ]
 
   } else {
-    stop("logit_mito requested but required variables not present")
+    stop("splice_ratio requested but required variables not present")
 
   }
 
   # do some checks
   assert_that( "splice_ratio" %in% names(qc_dt) )
-  assert_that( !any(is.na(qc_dt$logit_mito)),
-               msg = "some logit_mito values are NA")
-  assert_that( !any(is.infinite(qc_dt$logit_mito)),
-               msg = "some logit_mito values are infinite")
+  assert_that( !any(is.na(qc_dt$splice_ratio)),
+               msg = "some splice_ratio values are NA")
+  assert_that( !any(is.infinite(qc_dt$splice_ratio)),
+               msg = "some splice_ratio values are infinite")
 
   return(qc_dt)
 }
@@ -1493,8 +1493,8 @@ list_known_metrics <- function() {
   for (v in to_add) {
     assert_that( v %in% names(qc_df), msg = paste0(v, " missing from qc_df"))
     set(qc_dt, i = NULL, v, qc_df[[v]])
-    assert_that( !any(is.na(qc_dt$v)), msg = paste0("NA values for ", v))
-    assert_that( !any(is.infinite(qc_dt$v)), msg = paste0("infinite values for ", v))
+    assert_that( !any(is.na(qc_dt[[v]])), msg = paste0("NA values for ", v))
+    assert_that( !any(is.infinite(qc_dt[[v]])), msg = paste0("infinite values for ", v))
   }
 
   return(qc_dt)

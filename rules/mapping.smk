@@ -200,34 +200,14 @@ if not IS_FLEX:
     log:
       f'{logs_dir}/mapping/collect_chemistry_stats_{DATE_STAMP}.log'
     run:
-      for f in input.chem_stats_fs:
-        with open(f, "r") as stream:
-          data = yaml.safe_load(stream)
-          rows.append(data)
-    
+      rows = []
+      for chem_f in input.chem_stats_fs:
+        with open(chem_f, "r") as stream:
+          rows.append(yaml.safe_load(stream))
+
       chem_stats_dt = pl.from_dicts(rows)
       col_ord = ["run", "r1_read_length", "selected_tenx_chemistry", "selected_af_chemistry",
         "selected_ori", "selected_gex_whitelist", "selected_whitelist_overlap",
         "selected_hto_whitelist", "selected_translation_f", "n_cells_fw", "n_cells_rc"]
-   
-      chem_stats_dt =chem_stats_dt.select(col_ord)
-      chem_stats_dt.write_csv(output.chem_stats_merged_f)
-    
-      import sys
-      with open(str(log), "a") as f:
-        rows = []
-        sys.stdout = f
-        sys.stderr = f
 
-        for f in input.chem_stats_fs:
-          with open(f, "r") as stream:
-            data = yaml.safe_load(stream)
-            rows.append(data)
-
-        chem_stats_dt = pl.from_dicts(rows)
-        col_ord = ["run", "selected_tenx_chemistry", "selected_af_chemistry",
-          "selected_ori", "selected_gex_whitelist", "selected_whitelist_overlap",
-          "selected_hto_whitelist", "selected_translation_f", "n_cells_fw", "n_cells_rc"]
-
-        chem_stats_dt = chem_stats_dt.select(col_ord)
-        chem_stats_dt.write_csv(output.chem_stats_merged_f)
+      chem_stats_dt.select(col_ord).write_csv(output.chem_stats_merged_f)

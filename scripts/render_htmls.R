@@ -46,7 +46,7 @@ make_rmd_from_temp <- function(rule_name, temp_f, temp_ls, rmd_f) {
 }
 
 get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'integration', 
-  'markers', 'label_celltypes', 'zoom', 'pb_empties', 'join', 'index'), proj_dir, ...) {
+  'markers', 'label_celltypes', 'zoom', 'join', 'index'), proj_dir, ...) {
   # get arguments
   sel_rule = match.arg(rule)
   add_args = list(...)
@@ -79,7 +79,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
         " covering both cell-containing droplets and empty droplets.", " If CellBender calls the majority of these included droplets as cells,", 
         " it may indicate an underlying issue. This typically occurs in low-quality samples where cell-containing barcodes and empty droplets cannot", 
         " be clearly distinguished in the barcode rank plot. The table below shows the proportion of included droplets that were classified as cells by CellBender.",
-        " Samples where this proportion exceeded ", add_args[['CB_PROP_MAX_KEPT']]*100,  "% were excluded from further analysis.")
+        " Samples where this proportion exceeded ", add_args[['cb_prop_max_kept']]*100,  "% were excluded from further analysis.")
     } else{
       tbl_removed_title = ""
       tbl_removed_txt = ""
@@ -237,14 +237,6 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
            meta_umap_txt   = meta_umap_txt, 
            fgsea_title     = fgsea_title,
            fgsea_txt       = fgsea_txt))
-
-  } else if (sel_rule == 'pb_empties') {
-    req_names = c('your_name', 'affiliation', 'short_tag', 
-      'date_stamp', 'threads', 'guesses_f', 'empty_csv_f',
-      'lbl_xgb_f', 'lbl_sel_res_cl', 'lbl_min_pred', 'lbl_min_cl_prop',
-      'lbl_min_cl_size', 'lbl_min_cl_size')
-    
-    assert_that(all(req_names %in% add_args_names))
 
   } else if (sel_rule == 'join') {
     req_names = c('your_name', 'affiliation', 'join_name', 'join_tag',

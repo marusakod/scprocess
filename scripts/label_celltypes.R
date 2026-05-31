@@ -50,7 +50,7 @@ label_with_xgboost_one_batch <- function(sel_batch, batch_var, model_name, xgb_f
 
   # predict for new data
   message('  predicting celltypes for all cells')
-  preds_dt    = .predict_on_new_data(xgb_obj, xgb_cls_dt, hvg_mat, min_pred)
+  preds_dt    = .predict_on_new_data(xgb_obj, xgb_cls_dt, hvg_mat)
 
   # add labels
   preds_dt    = preds_dt %>%
@@ -97,10 +97,8 @@ label_with_xgboost_one_batch <- function(sel_batch, batch_var, model_name, xgb_f
   return(log_mat)
 }
 
-.predict_on_new_data <- function(xgb_obj, allow_dt, hvg_mat, min_pred, chunk_size = 10000) {
-  browser()
-  # predict on chunks of cells for efficiency
-  num_chunks = ceiling(nrow(hvg_mat/chunk_size))
+.predict_on_new_data <- function(xgb_obj, allow_dt, hvg_mat, chunk_size = 10000) {
+  num_chunks = ceiling(nrow(hvg_mat) / chunk_size)
   idx_vec = rep(1:num_chunks, each = chunk_size, length.out = nrow(hvg_mat))
   cell_chunks= split(rownames(hvg_mat), idx_vec)
 
@@ -430,7 +428,7 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
   } else if (do_sort == "seriate") {
     # do seriate
     data_min    = data_mat %>% as.vector %>% min(na.rm = TRUE)
-    data_mat[is.na(data_mat)] = data_mat
+    data_mat[is.na(data_mat)] = data_min
     seriate_obj = seriate(data_mat - data_min, method = "BEA")
 
     # define vars
