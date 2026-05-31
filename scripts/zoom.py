@@ -72,7 +72,9 @@ def extract_zoom_sample_statistics(qc_stats_f, labels_f, labels_col, sel_labels,
 
 # zoom function: specify some optional outputs for zoom (at the moment only FGSEA outputs)
 def get_zoom_conditional_fgsea_files(ref_txome, zoom_dir, FULL_TAG, DATE_STAMP, do_gsea):
-  if do_gsea and (ref_txome in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']):
+  valid_refs = ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020',
+                'human_v1', 'mouse_v1', 'human_v2', 'mouse_v2']
+  if do_gsea and (ref_txome in valid_refs):
     return {
       'fgsea_go_bp_f': f'{zoom_dir}/{{zoom_name}}/fgsea_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_go_bp_{DATE_STAMP}.csv.gz', 
       'fgsea_go_cc_f': f'{zoom_dir}/{{zoom_name}}/fgsea_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_go_cc_{DATE_STAMP}.csv.gz',

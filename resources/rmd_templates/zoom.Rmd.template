@@ -217,7 +217,7 @@ gsea_ls       = lapply(fgsea_fs, function(f) if(file.exists(f)) {fread(f)} else 
 
 ```{r plot_setup, include = FALSE}
 do_metadata   = length(metadata_vars) > 0
-do_gsea       = (ref_txome %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) & do_gsea
+do_gsea       = (ref_txome %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020', 'human_v1', 'mouse_v1', 'human_v2', 'mouse_v2')) & do_gsea
 # for ambient gene heatmaps
 base_w      = 1.5
 unit_w      = 0.5
