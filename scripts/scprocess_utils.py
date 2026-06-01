@@ -609,6 +609,7 @@ def _check_mapping_parameters(config, scdata_dir):
     config['mapping_af']['probe_bcs_f']    = probe_bcs_f
     config['mapping_af']['af_mito_str']    = mito_str
     config['mapping_af']['gene_info_f']    = gene_info_f
+    config['mapping_af']['geometry']       = '1{b[16]u[12]x[0-3]hamming(f[TTGCTAGGACCG],1)s[10]x:}2{r:}' if tenx_chemistry == 'flexv2' else ''
 
   else:
     ref_txome = config['project']['ref_txome']
@@ -1387,9 +1388,10 @@ def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
     "R1_fs":              RNA_FQS[lib_name]["R1_fs"],
     "R2_fs":              RNA_FQS[lib_name]["R2_fs"],
     "R1_fs_size_gb":      RNA_FQS[lib_name]["R1_fs_size_gb"],
-    "af_chemistry":       af_chemistry, 
-    "expected_ori":       expected_ori, 
+    "af_chemistry":       af_chemistry,
+    "expected_ori":       expected_ori,
     "gex_whitelist_f":    gex_whitelist_f,
+    "geometry":           config['mapping_af'].get('geometry', ''),
   }
 
   # make dictionary for mapping

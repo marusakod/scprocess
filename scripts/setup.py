@@ -66,6 +66,12 @@ URLS_10X_PROBE_BCS = {
 }
 
 
+COMPLEMENT = str.maketrans('ACGT', 'TGCA')
+
+def _reverse_complement(seq):
+  return seq.translate(COMPLEMENT)[::-1]
+
+
 def get_scprocess_data(scdata_dir, ranger_url, whitelists_lu_f, ranger_version_f):
   print('Downloading data from scprocessData github repo')
 
@@ -214,6 +220,16 @@ def extract_cellranger_resources(output_dir, whitelists_lu_f, ranger_url, ranger
     # convert to tsv
     with open(output_f, 'r') as f:
       content = f.read().replace(',', '\t')
+
+    # reverse complement of flexv2 barcodes required for simpleaf (https://github.com/COMBINE-lab/simpleaf/issues/192)
+    if flex == 'flexv2':
+      lines = []
+      for line in content.strip().split('\n'):
+        cols = line.split('\t')
+        cols[0] = _reverse_complement(cols[0])
+        cols[1] = _reverse_complement(cols[1])
+        lines.append('\t'.join(cols))
+      content = '\n'.join(lines) + '\n'
 
     with open(os.path.join(output_dir, f"cellranger_probe_barcodes_{flex}.tsv"), 'w') as f:
       f.write(content)

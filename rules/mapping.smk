@@ -24,6 +24,7 @@ if IS_FLEX:
       where         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["where"],
       R1_fs         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["R1_fs"],
       R2_fs         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["R2_fs"],
+      geometry      = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["geometry"],
       lib_pool_dir  = lib_pool_dir
     output:
       rad_f         = temp(f'{af_dir}/{lib_pool_dir}af_{{lib}}/flex/af_map/map.rad'),
@@ -51,6 +52,11 @@ if IS_FLEX:
         ARV_ARG="--arv_instance {params.arv_instance}"
       fi
 
+      GEOM_ARG=""
+      if [[ "{params.geometry}" != "" ]]; then
+        GEOM_ARG="--geometry '{params.geometry}'"
+      fi
+
       python3 scripts/mapping.py map_flex_fastqs_to_counts {wildcards.lib} \
         --af_dir          "{af_dir}" \
         --lib_pool_dir    "{params.lib_pool_dir}" \
@@ -64,7 +70,8 @@ if IS_FLEX:
         --gex_whitelist_f "{params.whitelist_f}" \
         --probeset_f      "{params.probeset_f}" \
         --probe_bc_f      "{params.probe_bcs_f}" \
-        $ARV_ARG
+        $ARV_ARG \
+        $GEOM_ARG
       """
 
 else:

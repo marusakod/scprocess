@@ -193,7 +193,7 @@ def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where,
 
 def map_flex_fastqs_to_counts(run, af_dir, af_home_dir, where,
   R1_fs, R2_fs, threads, index_dir, af_chemistry, whitelist_f, probset_f, probe_bc_f,
-  arv_instance=None, lib_pool_dir=''):
+  arv_instance=None, lib_pool_dir='', geometry=None):
   out_dir   = f"{af_dir}/{lib_pool_dir}af_{run}/flex"
   os.makedirs(out_dir, exist_ok = True)
   print('made out_dir')
@@ -232,10 +232,13 @@ def map_flex_fastqs_to_counts(run, af_dir, af_home_dir, where,
     "--sample-bc-list", probe_bc_f,
     "--usa", 
     "--expected-ori", "fw",
-    "--min-reads", "1", 
+    "--min-reads", "1",
     "--output", out_dir
   ]
-  
+
+  if geometry:
+    simpleaf_cmd.extend(["--geometry", geometry])
+
   subprocess.run(simpleaf_cmd, check=True)
 
   if on_arvados:
@@ -527,6 +530,7 @@ if __name__ == "__main__":
   p_flex.add_argument("--probeset_f", type=str)
   p_flex.add_argument("--probe_bc_f", type=str)
   p_flex.add_argument("--arv_instance", type=str, default=None)
+  p_flex.add_argument("--geometry", type=str, default=None)
   p_flex.add_argument("--lib_pool_dir", type=str, default='')
 
   args = parser.parse_args()
@@ -551,7 +555,7 @@ if __name__ == "__main__":
       where=args.where, R1_fs=args.R1_fs, R2_fs=args.R2_fs, threads=args.threads,
       index_dir=index_dir, af_chemistry=args.af_chemistry, whitelist_f=args.gex_whitelist_f,
       probset_f=args.probeset_f, probe_bc_f=args.probe_bc_f, arv_instance=args.arv_instance,
-      lib_pool_dir=args.lib_pool_dir)
+      lib_pool_dir=args.lib_pool_dir, geometry=args.geometry)
 
 
 
