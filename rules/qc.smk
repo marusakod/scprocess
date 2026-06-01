@@ -7,34 +7,9 @@ import numpy as np
 
 localrules: make_qc_thresholds_csv, check_qc_quality
 
-# get output file paths as string
-def _get_qc_files_str(run, RUNS_TO_BATCHES, qc_dir, FULL_TAG, DATE_STAMP):
-  # make lists
-  sce_fs_ls   = []
-  batches_ls  = []
-  for b in RUNS_TO_BATCHES[run]:
-    sce_fs_ls.append(f"{qc_dir}/sce_cells_tmp_{b}_{FULL_TAG}_{DATE_STAMP}.rds")
-    batches_ls.append(b)
-
-  # concatenate them
-  sce_str   = ','.join(sce_fs_ls)
-  batch_str  = ','.join(batches_ls)
-
-  # make out dictionary
-  out_dc = {
-    "batch_str":  batch_str, 
-    "sce_str":    sce_str
-  }
-  return out_dc
-
-
-# mini wrapper functions
+# mini wrapper function
 def get_all_batches_str(wildcards):
-  return _get_qc_files_str(wildcards.run, RUNS_TO_BATCHES, qc_dir, FULL_TAG, DATE_STAMP)['batch_str']
-
-
-def get_sce_fs_str(wildcards):
-  return _get_qc_files_str(wildcards.run, RUNS_TO_BATCHES, qc_dir, FULL_TAG, DATE_STAMP)['sce_str']
+  return ','.join(RUNS_TO_BATCHES[wildcards.run])
 
 
 def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, BATCHES, RUNS_TO_BATCHES, BATCH_VAR, RUN_VAR):
@@ -150,12 +125,38 @@ rule make_qc_thresholds_csv:
       cuts_df.write_csv(output.cuts_f)
 
 
+rule check_demux_ids:
+  input:
+    demux_f     = config['multiplexing']['demux_output'] if config['multiplexing']['demux_type'] == 'custom' else []
+  output:
+    check_f     = f'{qc_dir}/demux_ids_check_{FULL_TAG}_{DATE_STAMP}.ok'
+  params:
+    metadata_f  = config['project']['sample_metadata']
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'check_demux_ids', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'check_demux_ids', 'time', attempt)
+  log:
+    f'{logs_dir}/qc/check_demux_ids_{DATE_STAMP}.log'
+  conda:
+    '../envs/py_env.yaml'
+  shell: """
+    exec &>> {log}
+
+    PYTHONPATH=scripts python -c "from scprocess_utils import check_demux_ids; \
+      check_demux_ids('{input.demux_f}', '{params.metadata_f}', '{output.check_f}')"
+    """
+
+
 rule run_qc_one_run:
   input:
-    af_h5_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5', 
+    af_h5_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
     cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv',
     run_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     amb_yaml_f  = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
+    demux_check = f'{qc_dir}/demux_ids_check_{FULL_TAG}_{DATE_STAMP}.ok' \
+      if config['multiplexing']['demux_type'] == 'custom' else [],
     demux_f     = (f'{demux_dir}/sce_cells_htos_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds') \
       if config['multiplexing']['demux_type'] == 'hto' else \
       config['multiplexing']['demux_output'] if config['multiplexing']['demux_type'] == 'custom' else []
@@ -166,10 +167,9 @@ rule run_qc_one_run:
     dbl_f        = f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
     metadata_f      = config['project']['sample_metadata'],
-    af_gtf_dt_f     = config['mapping']['af_gtf_dt_f'],
+    af_gtf_dt_f     = config['mapping_af']['gene_info_f'],
     all_batches_str = get_all_batches_str,
-    sce_fs_str      = get_sce_fs_str,
-    mito_str        = config['mapping']['af_mito_str'],
+    mito_str        = config['mapping_af']['af_mito_str'],
     ambient_method  = config['ambient']['ambient_method'],
     exclude_mito    = config['qc']['exclude_mito'],
     hard_min_counts = config['qc']['qc_hard_min_counts'],
@@ -187,7 +187,7 @@ rule run_qc_one_run:
   benchmark:
     f'{benchmark_dir}/qc/run_qc_{{run}}_{DATE_STAMP}.benchmark.txt'
   log:
-    f'{logs_dir}/qc/run_qc_{{run}}_{DATE_STAMP}.log'
+    f'{logs_dir}/qc/run_qc_one_run_{{run}}_{DATE_STAMP}.log'
   conda:
     '../envs/rlibs.yaml'
   shell: """
@@ -203,7 +203,6 @@ rule run_qc_one_run:
         demux_f         = '{input.demux_f}', \
         gtf_dt_f        = '{params.af_gtf_dt_f}', \
         ambient_method  = '{params.ambient_method}', \
-        sce_fs_str      = '{params.sce_fs_str}', \
         all_batches_str = '{params.all_batches_str}', \
         rowdata_f       = '{output.rowdata_f}', \
         qc_f            = '{output.qc_f}', \

@@ -16,6 +16,7 @@ import subprocess
 import snakemake
 import json
 import jsonschema
+from jsonschema.exceptions import best_match
 
 ### not much setup
 
@@ -125,6 +126,7 @@ def check_config(config, schema_f, scdata_dir, scprocess_dir):
   config      = _check_integration_parameters(config)
   config      = _check_marker_genes_parameters(config, scdata_dir)
   config      = _check_pb_empties_parameters(config)
+  config      = _check_shiny_parameters(config)
 
   return config
 
@@ -179,7 +181,9 @@ def _validate_object_against_schema(config, schema_f, file_desc):
     print(f"problem with schema file:\n  {str(e)}")
     sys.exit(1)
   except jsonschema.ValidationError as e:
-    print(f"problem with your {file_desc} file:\n  {str(e)}")
+    best = best_match([e])
+    path = ".".join(str(p) for p in best.absolute_path) if best.absolute_path else "(root)"
+    print(f"problem with your {file_desc} file:\n  At '{path}': {best.message}")
     sys.exit(1)
   except jsonschema.SchemaError as e:
     print(f"schema error: {str(e)}")
@@ -211,21 +215,28 @@ def _check_project_parameters(config, scdata_dir, scprocess_dir):
   has_fastq     = "fastq_dir" in project_dc
   has_arv_uuids = "arv_uuids" in project_dc
   if has_fastq + has_arv_uuids != 1:
-    KeyError('"project" part of config file must contain exactly one of "fastq_dir" and "arv_uuids"')
+    raise KeyError('"project" part of config file must contain exactly one of "fastq_dir" and "arv_uuids"')
 
   # do some checks if fastq_dir is specified
   if has_fastq and not has_arv_uuids:
     config["project"]["fastq_dir"] = _check_path_exists_in_project(config["project"]["fastq_dir"], config, what = "dir")
 
-  # check if selected ref_txome is valid
+  # check if selected ref_txome or probe_set is valid
   index_params_f    = scdata_dir / 'index_parameters.csv'
+  index_params      = pl.read_csv(index_params_f)
+  is_flex                      = config['project'].get('tenx_assay_type', 'poly_a') == 'flex'
+  config['project']['is_flex'] = is_flex
 
-  # from index_parameters.csv get valid values for ref_txome
-  index_params        = pl.read_csv(index_params_f)
-  valid_ref_txome     = index_params['ref_txome'].to_list()
-  valid_ref_txome_str = ', '.join(valid_ref_txome)
-  if not config['project']['ref_txome'] in valid_ref_txome:
-    raise ValueError(f"ref_txome {config['project']['ref_txome']} not defined. Valid values are {valid_ref_txome_str}")
+  if is_flex:
+    valid_probe_sets     = index_params.filter(pl.col('reference_type') == 'probe_set')['reference'].to_list()
+    valid_probe_sets_str = ', '.join(valid_probe_sets)
+    if not config['project']['probe_set'] in valid_probe_sets:
+      raise ValueError(f"probe_set {config['project']['probe_set']} not defined. Valid values are {valid_probe_sets_str}")
+  else:
+    valid_ref_txomes    = index_params.filter(pl.col('reference_type') == 'ref_txome')['reference'].to_list()
+    valid_ref_txome_str = ', '.join(valid_ref_txomes)
+    if not config['project']['ref_txome'] in valid_ref_txomes:
+      raise ValueError(f"ref_txome {config['project']['ref_txome']} not defined. Valid values are {valid_ref_txome_str}")
 
   # check whether date is given as datetime object
   date_regex    = re.compile("^20[0-9]{2}-[0-9]{2}-[0-9]{2}$")
@@ -334,40 +345,61 @@ def _check_samples_df(samples_df, config):
   # check for sample_id
   if "sample_id" not in samples_df.columns:
     raise KeyError(f"'sample_id' not present in sample metadata file")
-  
+
+  # for flex data, check probe_id column is present
+  if config['project'].get('tenx_assay_type', 'poly_a') == 'flex':
+    if 'probe_id' not in samples_df.columns:
+      raise KeyError("'probe_id' not present in sample metadata file; required for flex data")
+
   # check for pool_id
   if not config['multiplexing']['demux_type'] == "none":
     if "pool_id" not in samples_df.columns:
       raise KeyError(f"'pool_id' not present in sample metadata file")
-    run_var = 'pool_id'
+    library_var = 'pool_id'
   else:
-    run_var = 'sample_id'
+    library_var = 'sample_id'
   
-  run_ids = samples_df[run_var].unique().to_list()
+  lib_ids = samples_df[library_var].unique().to_list()
 
-  # check that runs don't have '_R1/.R1' or '_R2/.R2' in their names 
+  # check that libraries don't have '_R1/.R1' or '_R2/.R2' in their names 
   forbidden    = ["_R1", "_R2", ".R1", ".R2"]
-  invalid_runs = [r for r in set(run_ids) if any(sub in r for sub in forbidden)]
+  invalid_libs = [r for r in set(lib_ids) if any(sub in r for sub in forbidden)]
 
-  if invalid_runs:
-    raise ValueError(f"One or more {run_var} values contain '_R1/.R1' or '_R2/.R2'. Please ensure all elements exclude these substrings")
+  if invalid_libs:
+    raise ValueError(f"One or more {library_var} values contain '_R1/.R1' or '_R2/.R2'. Please ensure all elements exclude these substrings")
 
   # some checks for multiplexing
   if config['multiplexing']['demux_type'] == "hto":
-    # check that hto fastq path is present
     if "hto_id" not in samples_df.columns:
       raise KeyError("'hto_id' not present in sample metadata")
+
+  if config['multiplexing']['demux_type'] == "ocm":
+    if "ocm_id" not in samples_df.columns:
+      raise KeyError("'ocm_id' not present in sample metadata when demux_type is 'ocm'")
 
   # check that sample_id values are unique
   if not samples_df[ "sample_id" ].n_unique() == samples_df.shape[0]:
     raise ValueError("'sample_id' values in metadata csv not unique")
+
+  # check minimum sample counts per pool (or globally for demux_type=none)
+  demux_type = config['multiplexing']['demux_type']
+  if demux_type == 'none':
+    n_samples = samples_df['sample_id'].n_unique()
+    if n_samples < 2:
+      raise ValueError(f"At least 2 sample_ids are required; found {n_samples}.")
+  else:
+    pool_counts = samples_df.group_by('pool_id').agg(pl.col('sample_id').n_unique().alias('n_samples'))
+    small_pools = pool_counts.filter(pl.col('n_samples') < 2)
+    if small_pools.shape[0] > 0:
+      pool_list = ', '.join(small_pools['pool_id'].to_list())
+      raise ValueError(f"Each pool must contain at least 2 sample_ids. The following pools have fewer: {pool_list}")
 
   # check columns of samples_df
   if any(' ' in col for col in samples_df.columns):
     raise ValueError("some column names in metadata csv contain spaces.")
   
   # check that sample_ids or pool_ids are not overlapping
-  _check_run_ids(run_ids, run_var)
+  _check_lib_ids(lib_ids, library_var)
 
   # sort out metadata variables
   if 'metadata_vars' in config["project"]:
@@ -392,20 +424,20 @@ def _check_samples_df(samples_df, config):
   return
 
 
-def _check_run_ids(run_ids, run_var):
-  run_overlaps = []
+def _check_lib_ids(lib_ids, lib_var):
+  lib_overlaps = []
 
-  # compare every sample id to every other sample id
-  for i, run in enumerate(run_ids):
-    for j, other_run in enumerate(run_ids):
-      if i != j and run in other_run:
-        run_overlaps.append((run, other_run))
+  # compare every library id to every other library id
+  for i, lib in enumerate(lib_ids):
+    for j, other_lib in enumerate(lib_ids):
+      if i != j and lib in other_lib:
+        lib_overlaps.append((lib, other_lib))
 
-  # if runs overlap print error
-  if run_overlaps:
-    msg = f"The following {run_var} values are problematic (one is a subset of the other):\n"
-    for run, other_run in run_overlaps:
-      msg += f"  - '{run}' is a subset of '{other_run}'\n"
+  # if libraries overlap print error
+  if lib_overlaps:
+    msg = f"The following {lib_var} values are problematic (one is a subset of the other):\n"
+    for lib, other_lib in lib_overlaps:
+      msg += f"  - '{lib}' is a subset of '{other_lib}'\n"
     raise ValueError(msg)
 
   return
@@ -429,7 +461,7 @@ def _check_multiplexing_parameters(config):
     has_fastq     = "fastq_dir" in config["multiplexing"]
     has_arv_uuids = "arv_uuids" in config["multiplexing"]
     if has_fastq + has_arv_uuids != 1:
-      KeyError('"multiplexing" part of config file must contain exactly one of "fastq_dir" and "arv_uuids"')
+      raise KeyError('"multiplexing" part of config file must contain exactly one of "fastq_dir" and "arv_uuids"')
 
     # do some checks if fastq_dir is specified
     if has_fastq and not has_arv_uuids:
@@ -453,7 +485,7 @@ def _check_multiplexing_parameters(config):
     # check specified file is ok
     config['multiplexing']['demux_output'] = _check_path_exists_in_project(config['multiplexing']['demux_output'], config, what = "file")
 
-    # check if looks ok 
+    # check columns look ok (value-matching checks are done in the check_demux_ids rule)
     demux_df    = pl.read_csv(config['multiplexing']['demux_output'], n_rows = 10)
     for col in ["pool_id", "sample_id", "cell_id"]:
       if not col in demux_df.columns:
@@ -466,30 +498,131 @@ def _check_multiplexing_parameters(config):
     #   raise ValueError("Some values for 'sample_id' in sample_metadata don't have a match in demux_output")
     if set(demux_df['pool_id']) != set(samples_df['pool_id']):
       raise ValueError("Values for pool_id don't match across demux_output and sample_metadata")
-      
+
+  elif config['multiplexing']['demux_type'] == 'flex':
+    pass
+
+  elif config['multiplexing']['demux_type'] == 'ocm':
+    # validate ocm_id values
+    valid_ocm_ids = {"OB1", "OB2", "OB3", "OB4"}
+    ocm_ids = set(samples_df["ocm_id"].to_list())
+    invalid = ocm_ids - valid_ocm_ids
+    if invalid:
+      raise ValueError(f"Invalid ocm_id values: {invalid}. Valid values are {valid_ocm_ids}")
+
+    # check uniqueness of ocm_id within each pool
+    pool_ocm = samples_df.select("pool_id", "ocm_id")
+    dupes = pool_ocm.group_by("pool_id", "ocm_id").len().filter(pl.col("len") > 1)
+    if dupes.shape[0] > 0:
+      raise ValueError(f"Duplicate ocm_id values within pools:\n{dupes}")
+
+    # check max 4 samples per pool
+    pool_counts = samples_df.group_by("pool_id").len()
+    over_4 = pool_counts.filter(pl.col("len") > 4)
+    if over_4.shape[0] > 0:
+      raise ValueError(f"OCM supports max 4 samples per pool, but these pools have more: {over_4['pool_id'].to_list()}")
+
+    # check OCM overhang map file exists
+    scdata_dir = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
+    ocm_overhang_f = scdata_dir / 'cellranger_ref' / 'ocm_overhang_map.txt'
+    if not ocm_overhang_f.is_file():
+      raise FileNotFoundError(
+        f"OCM overhang map file not found: {ocm_overhang_f}\n"
+        f"This file should be created during scprocess setup.")
+
+    config['multiplexing']['ocm_overhang_f'] = str(ocm_overhang_f)
+
   return config
+
+
+def check_demux_ids(demux_f, metadata_f, check_f):
+  demux_ids    = pl.scan_csv(demux_f).select('pool_id', 'sample_id').unique().collect()
+  metadata_ids = pl.read_csv(metadata_f).select('pool_id', 'sample_id')
+
+  demux_pools = set(demux_ids['pool_id'])
+  meta_pools  = set(metadata_ids['pool_id'])
+  if demux_pools != meta_pools:
+    missing_in_demux = meta_pools - demux_pools
+    missing_in_meta  = demux_pools - meta_pools
+    msg = 'Values for pool_id do not match across demux_output and sample_metadata.'
+    if missing_in_demux:
+      msg += f' In metadata but not demux: {missing_in_demux}'
+    if missing_in_meta:
+      msg += f' In demux but not metadata: {missing_in_meta}'
+    raise ValueError(msg)
+
+  demux_samples = set(demux_ids['sample_id'])
+  meta_samples  = set(metadata_ids['sample_id'])
+  if demux_samples > meta_samples:
+    missing = demux_samples - meta_samples
+    raise ValueError(f"Some values for 'sample_id' in demux_output do not have a match in sample_metadata: {missing}")
+
+  open(check_f, 'w').close()
 
 
 # check parameters for mapping
 def _check_mapping_parameters(config, scdata_dir):
-  # from index_parameters.csv get valid values for ref_txome
+  # load index parameters
   idx_params_f  = scdata_dir / 'index_parameters.csv'
   index_params  = pl.read_csv(idx_params_f)
-     
-  # get mito strings from setup params
-  ref_txome           = config['project']['ref_txome']
-  config['mapping'] = {}
-  config['mapping']['af_mito_str'] = index_params.filter(pl.col('ref_txome') == ref_txome)['mito_str'][0]
 
-  # get af index directory and check if exists
-  config['mapping']['alevin_fry_home']  = scdata_dir / 'alevin_fry_home'
-  config['mapping']['af_index_dir']     = scdata_dir / 'alevin_fry_home' / ref_txome
-  config['mapping']['wl_lu_f']          = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
-  if not pathlib.Path(config['mapping']['af_index_dir']).is_dir():
-    raise FileNotFoundError(f"alevin index for {ref_txome} doesn't exist")
+  config['mapping_af'] = {}
+  config['mapping_af']['alevin_fry_home'] = scdata_dir / 'alevin_fry_home'
+  config['mapping_af']['wl_lu_f']         = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
   
-  # get gtf txt file, check that exists
-  config['mapping']['af_gtf_dt_f'] = index_params.filter(pl.col('ref_txome') == ref_txome)['gtf_txt_f'][0]
+  tenx_chemistry = config['project']['tenx_chemistry']
+  
+  if config['project']['tenx_assay_type'] == 'flex':
+    probe_set      = config['project']['probe_set']
+    if tenx_chemistry == "none":
+      tenx_chemistry = 'flexv1' if probe_set in ['human_v1', 'mouse_v1'] else 'flexv2'
+    else:
+      #check that specified chemistry matches the probe set, if not raise warning and change to correct one
+      if probe_set in ['human_v1', 'mouse_v1'] and tenx_chemistry != 'flexv1':
+        warnings.warn(f"Specified tenx_chemistry '{tenx_chemistry}' does not match the probe set '{probe_set}'. Changing tenx_chemistry to 'flexv1'.")
+        tenx_chemistry = 'flexv1'
+      elif probe_set not in ['human_v1', 'mouse_v1'] and tenx_chemistry != 'flexv2':
+        warnings.warn(f"Specified tenx_chemistry '{tenx_chemistry}' does not match the probe set '{probe_set}'. Changing tenx_chemistry to 'flexv2'.")
+        tenx_chemistry = 'flexv2'
+    
+    # look up mito string and gene info from index_parameters.csv
+    idx_row     = index_params.filter((pl.col('reference') == probe_set))
+    mito_str    = idx_row['mito_str'][0] # this might not be necessary for flex
+    gene_info_f = idx_row['gene_info_f'][0]
+
+    # probe set specific paths
+    probe_idx_dir  = scdata_dir / 'alevin_fry_home' / 'probe_sets' / probe_set
+    probe_set_f    = scdata_dir / 'probe_sets' / probe_set / f'{probe_set}_probe_set.csv'
+    probe_bcs_f    = scdata_dir / 'cellranger_ref' / f'cellranger_probe_barcodes_{tenx_chemistry}.tsv' # this has to be downloaded in the setup step!!!
+
+    if not probe_idx_dir.is_dir():
+      raise FileNotFoundError(f"alevin index for probe set '{probe_set}' doesn't exist at {probe_idx_dir}")
+    if not probe_set_f.is_file():
+      raise FileNotFoundError(f"probe set CSV '{probe_set_f}' doesn't exist")
+    if not probe_bcs_f.is_file():
+      raise FileNotFoundError(f"probe barcodes file '{probe_bcs_f}' doesn't exist.")
+
+    config['mapping_af']['is_flex']        = True
+    config['mapping_af']['tenx_chemistry'] = tenx_chemistry
+    config['mapping_af']['af_index_dir']   = probe_idx_dir
+    config['mapping_af']['probeset_f']    = probe_set_f
+    config['mapping_af']['probe_bcs_f']    = probe_bcs_f
+    config['mapping_af']['af_mito_str']    = mito_str
+    config['mapping_af']['gene_info_f']    = gene_info_f
+    config['mapping_af']['geometry']       = '1{b[16]u[12]x[0-3]hamming(f[TTGCTAGGACCG],1)s[10]x:}2{r:}' if tenx_chemistry == 'flexv2' else ''
+
+  else:
+    ref_txome = config['project']['ref_txome']
+  
+    config['mapping_af']['is_flex']        = False
+    config['mapping_af']['tenx_chemistry'] = tenx_chemistry
+    config['mapping_af']['af_index_dir'] = scdata_dir / 'alevin_fry_home' / 'ref_txomes' / ref_txome
+    if not pathlib.Path(config['mapping_af']['af_index_dir']).is_dir():
+      raise FileNotFoundError(f"alevin index for '{ref_txome}' doesn't exist at: {config['mapping_af']['af_index_dir']}")
+
+    idx_row = index_params.filter( (pl.col('reference') == ref_txome))
+    config['mapping_af']['af_mito_str'] = idx_row['mito_str'][0]
+    config['mapping_af']['gene_info_f'] = idx_row['gene_info_f'][0]
 
   return config
 
@@ -540,8 +673,139 @@ def _check_pb_empties_parameters(config):
   return config
 
 
+# load valid palette names from the shared resource file (mirrors shiny.R)
+_VALID_PALETTES_FILE = pathlib.Path(__file__).parent.parent / "resources" / "valid_palettes.json"
+
+def _load_valid_palette_names():
+  with open(_VALID_PALETTES_FILE) as f:
+    groups = json.load(f)
+  return {name for key, names in groups.items() if not key.startswith('_') for name in names}
+
+def _check_palette_name(name, context, valid_names):
+  if name not in valid_names:
+    raise ValueError(
+      f"Unknown palette '{name}' in {context}. "
+      f"See the scprocess documentation for valid palette names."
+    )
+
+
+# check parameters for shiny app build
+def _check_shiny_parameters(config):
+  if 'shiny' not in config:
+    return config
+
+  shiny_cfg = config['shiny']
+
+  # resolve metadata_vars from whichever config level is present
+  if 'project' in config:
+    metadata_vars = config['project'].get('metadata_vars', [])
+  elif 'join' in config:
+    metadata_vars = config['join'].get('metadata_vars', [])
+  else:
+    metadata_vars = []
+
+  valid_palette_names = _load_valid_palette_names()
+
+  # check var_names length matches metadata_vars
+  if shiny_cfg.get('var_names') is not None:
+    if len(shiny_cfg['var_names']) != len(metadata_vars):
+      raise ValueError(
+        f"shiny.var_names has {len(shiny_cfg['var_names'])} entries but "
+        f"metadata_vars has {len(metadata_vars)}; they must be the same length"
+      )
+
+  # check var_combns values are in metadata_vars
+  if shiny_cfg.get('var_combns'):
+    for pair in shiny_cfg['var_combns']:
+      for v in pair:
+        if v not in metadata_vars:
+          raise ValueError(
+            f"shiny.var_combns references '{v}' which is not in metadata_vars: "
+            f"{metadata_vars}"
+          )
+
+  # check cluster_palette name
+  if shiny_cfg.get('cluster_palette'):
+    _check_palette_name(shiny_cfg['cluster_palette'], 'shiny.cluster_palette', valid_palette_names)
+
+  # check metadata_palettes palette name strings; warn if keys are not in metadata_vars
+  if shiny_cfg.get('metadata_palettes'):
+    for var, spec in shiny_cfg['metadata_palettes'].items():
+      if metadata_vars and var not in metadata_vars:
+        warnings.warn(
+          f"shiny.metadata_palettes key '{var}' is not in metadata_vars; it will be ignored"
+        )
+      if isinstance(spec, str):
+        _check_palette_name(spec, f'shiny.metadata_palettes.{var}', valid_palette_names)
+      elif isinstance(spec, dict) and spec.get('palette'):
+        _check_palette_name(spec['palette'], f'shiny.metadata_palettes.{var}.palette', valid_palette_names)
+
+  # check home_md if specified
+  if shiny_cfg.get('home_md'):
+    home_md_f = _check_path_exists_in_project(shiny_cfg['home_md'], config, what='file')
+    # verify file is readable as UTF-8 and non-empty
+    try:
+      content = pathlib.Path(home_md_f).read_text(encoding='utf-8')
+    except UnicodeDecodeError:
+      raise ValueError(f"home_md file '{shiny_cfg['home_md']}' is not valid UTF-8 text")
+    if not content.strip():
+      raise ValueError(f"home_md file '{shiny_cfg['home_md']}' is empty")
+    config['shiny']['home_md'] = home_md_f
+
+  # check annotation_csv if specified
+  if shiny_cfg.get('annotation_csv'):
+    annot_f  = _check_path_exists_in_project(shiny_cfg['annotation_csv'], config, what='file')
+    annot_df = pl.read_csv(annot_f)
+
+    # check required columns
+    required_cols = ['cluster', 'cluster_name']
+    missing_cols  = [c for c in required_cols if c not in annot_df.columns]
+    if missing_cols:
+      raise KeyError(
+        f"annotation_csv must contain columns: {', '.join(missing_cols)}. "
+        f"Found: {', '.join(annot_df.columns)}"
+      )
+
+    # check no duplicate cluster values
+    if annot_df['cluster'].n_unique() < annot_df.shape[0]:
+      raise ValueError("annotation_csv has duplicate values in the 'cluster' column")
+
+    # warn on non-hex values in optional colour column
+    if 'colour' in annot_df.columns:
+      hex_re        = re.compile(r'^#[0-9A-Fa-f]{6}$')
+      invalid_cols  = [
+        str(c) for c in annot_df['colour'].drop_nulls().to_list()
+        if not hex_re.match(str(c))
+      ]
+      if invalid_cols:
+        warnings.warn(
+          f"annotation_csv 'colour' column contains values that are not hex colours (#RRGGBB): "
+          f"{', '.join(invalid_cols[:5])}"
+          + (f" (and {len(invalid_cols) - 5} more)" if len(invalid_cols) > 5 else "")
+        )
+
+    config['shiny']['annotation_csv'] = annot_f
+
+  return config
+
+
 # check parameters for hvgs
 def _check_hvg_parameters(config):
+  # for hto/custom with only 1 pool, ambient gene detection is not possible
+  # (ambient genes are calculated across pseudobulks, which are per pool for these demux types)
+  demux_type = config['multiplexing']['demux_type']
+  if demux_type in ['hto', 'custom'] and config['hvg']['hvg_exclude_ambient_genes']:
+    meta_df = pl.read_csv(config['project']['sample_metadata'])
+    n_pools = meta_df['pool_id'].n_unique()
+    if n_pools < 2:
+      config['hvg']['hvg_exclude_ambient_genes'] = False
+      print(
+        f"  WARNING: hvg_exclude_ambient_genes is True but ambient gene detection requires "
+        f">=2 pools; only {n_pools} pool found with demux_type='{demux_type}'. "
+        f"Setting hvg_exclude_ambient_genes=False. To suppress this warning, set "
+        f"hvg_exclude_ambient_genes: false in your config."
+      )
+
   # check if any genes were specified to be excluded
   if 'hvg_exclude_from_file' in config['hvg']:
     # check file exists
@@ -561,11 +825,11 @@ def _check_hvg_parameters(config):
       raise ValueError("duplicated values found in file specified in 'hvg_exclude_from_file'")
 
     # check values are in relevant ref genome
-    gtf_df      = pl.read_csv(config['mapping']['af_gtf_dt_f'], separator = "\t")
+    gtf_df      = pl.read_csv(config['mapping_af']['gene_info_f'], separator = "\t")
     all_vals    = gtf_df[ gene_col ]
     absent_vals = set(exc_vals) - set(all_vals)
     if len(absent_vals) > 0:
-      raise ValueError(f"the following genes were specified in 'hvg_exclude_from_file' but were not found in the reference transcriptome: {", ".join(absent_vals)}")
+      raise ValueError(f"the following genes were specified in 'hvg_exclude_from_file' but were not found in the reference transcriptome: {', '.join(absent_vals)}")
   else:
     config['hvg']['hvg_exclude_from_file'] = None
 
@@ -593,7 +857,7 @@ def _check_hvg_parameters(config):
   # get number of gene chunks if method is 'groups' or 'all'
   if config['hvg']['hvg_method'] in ['groups', 'all']:
     # get total number of genes
-    gtf_df      = pl.read_csv(config['mapping']['af_gtf_dt_f'], separator = "\t")
+    gtf_df      = pl.read_csv(config['mapping_af']['gene_info_f'], separator = "\t")
     num_genes   = gtf_df.shape[0]
 
     # chunk them up and name them
@@ -663,8 +927,10 @@ def _get_custom_marker_genes_specs(config, scdata_dir):
         raise KeyError(f"File '{file_path}' is missing the mandatory column 'label'.")
       if not any(col in mkrs_df.columns for col in opt_cols):
         raise KeyError(f"File '{file_path}' must contain at least one of 'symbol' or 'ensembl_id' column.")
-      if any(mkrs_df["symbol"].is_duplicated()):
+      if "symbol" in mkrs_df.columns and any(mkrs_df["symbol"].is_duplicated()):
         raise KeyError(f"File '{file_path}' cannot have any duplicated values in the 'symbol' column")
+      if "ensembl_id" in mkrs_df.columns and any(mkrs_df["ensembl_id"].is_duplicated()):
+        raise KeyError(f"File '{file_path}' cannot have any duplicated values in the 'ensembl_id' column")
 
       # Store validated values
       mkr_names.append(name)
@@ -723,6 +989,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
   # check hvgs option
   zoom_config   = _check_hvg_parameters(zoom_config)
   zoom_config   = _check_integration_parameters(zoom_config)
+  zoom_config   = _check_shiny_parameters(zoom_config)
 
   # get useful things
   SHORT_TAG     = config['project']['short_tag']
@@ -769,7 +1036,7 @@ def _check_zoom_clusters_in_file(labels_f, zoom_config):
   sel_labels  = zoom_config['zoom']['sel_labels']
   missing_cls = set(sel_labels) - set(labels)
   if len(missing_cls) > 0:
-    raise ValueError(f"the following labels were specified in the zoom params yaml but are not present in the file:\n  {", ".join(missing_cls)}")
+    raise ValueError(f"the following labels were specified in the zoom params yaml but are not present in the file:\n  {', '.join(missing_cls)}")
 
   return sel_labels
 
@@ -783,42 +1050,93 @@ def check_config_ok_for_rule(config, rule):
     if 'zoom' not in config:
       raise KeyError("no 'zoom' section found in config file")
 
-### much input
 
-# get variables for each run
-def get_run_parameters(config, scprocess_data_dir):
+# get variables for each library
+def get_lib_parameters(config, scprocess_data_dir):
   # define run variable
   if config['multiplexing']['demux_type'] == "none":
-    RUN_VAR       = "sample_id"
+    LIB_VAR       = "sample_id"
   else:
-    RUN_VAR       = "pool_id"
-
-  # move to another function
+    LIB_VAR       = "pool_id"
+  
+  # get all libraries
   metadata_f  = config["project"]["sample_metadata"]
   samples_df  = pl.read_csv( metadata_f )
-  RUNS        = samples_df[ RUN_VAR ].drop_nulls().unique().to_list()
+  LIBS        = samples_df[ LIB_VAR ].drop_nulls().unique().to_list()
 
   # get any custom parameters
-  custom_run_params = _get_custom_parameters(config, RUN_VAR)
+  custom_lib_params = _get_custom_parameters(config, LIB_VAR)
 
-  # should we exclude any runs?
-  RUNS        = _do_exclusions(RUNS, config, RUN_VAR)
+  # should we exclude any libraries?
+  LIBS        = _do_exclusions(LIBS, config, LIB_VAR)
 
   # get fastq files
-  RNA_FQS     = _get_fastqs(config, RUNS, is_hto = False)
-  RUNS        = list(RNA_FQS.keys())
-  if len(RUNS) == 0:
-    raise ValueError("no runs with FASTQs")
+  RNA_FQS     = _get_fastqs(config, LIBS, is_hto = False)
+  missing_libs = [l for l in LIBS if l not in RNA_FQS]
+  if missing_libs:
+    raise ValueError(f"no FASTQ files found for the following libraries: {missing_libs}")
+  LIBS        = list(RNA_FQS.keys())
+  if len(LIBS) == 0:
+    raise ValueError("no libraries with FASTQs")
 
   # get HTO files
   HTO_FQS     = {}
   if config['multiplexing']['demux_type'] == "hto":
-    HTO_FQS     = _get_fastqs(config, RUNS, is_hto = True)
-    RUNS        = [r for r in RUNS if r in HTO_FQS]
+    HTO_FQS     = _get_fastqs(config, LIBS, is_hto = True)
+    LIBS        = [r for r in LIBS if r in HTO_FQS]
+
+  # load sample file, populate everything from config
+  LIB_PARAMS  = {
+    lib_name: _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scprocess_data_dir, custom_lib_params)
+    for lib_name in sorted(LIBS)
+  }
+
+  return LIB_PARAMS, LIB_VAR
+
+
+# get variables for each run
+def get_run_parameters(config, scprocess_data_dir, LIB_VAR, LIBS):
+  # define run variable
+  if config['multiplexing']['demux_type'] in ["none", "flex", "ocm"]:
+    RUN_VAR       = "sample_id"
+  else:
+    RUN_VAR       = "pool_id"
+
+  if RUN_VAR == LIB_VAR:
+    RUNS = LIBS
+  else:
+    # get all runs from metadata
+    metadata_f  = config["project"]["sample_metadata"]
+    samples_df  = pl.read_csv( metadata_f )
+    RUNS        = samples_df[ RUN_VAR ].drop_nulls().unique().to_list()
+    # should we exclude runs?
+    RUNS        = _do_exclusions(RUNS, config, RUN_VAR)
+
+  # get any custom parameters
+  custom_run_params = _get_custom_parameters(config, RUN_VAR)
+
+  # for flex, build a probe_id lookup from sample metadata
+  if config['project']['is_flex']:
+    metadata_f  = config["project"]["sample_metadata"]
+    samples_df  = pl.read_csv(metadata_f)
+    probe_id_map = dict(zip(samples_df["sample_id"].to_list(), samples_df["probe_id"].to_list()))
+  else:
+    probe_id_map = {}
+
+  # for OCM, build an ocm_id lookup from sample metadata
+  ocm_id_map = {}
+  if config['multiplexing']['demux_type'] == 'ocm':
+    metadata_f  = config["project"]["sample_metadata"]
+    samples_df  = pl.read_csv(metadata_f)
+    ocm_id_map  = dict(zip(samples_df["sample_id"].to_list(), samples_df["ocm_id"].to_list()))
 
   # load sample file, populate everything from config
   RUN_PARAMS  = {
-    run_name: _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scprocess_data_dir, custom_run_params)
+    run_name: _get_run_parameters_one_run(
+      run_name, config, scprocess_data_dir, custom_run_params,
+      probe_id=probe_id_map.get(run_name),
+      ocm_id=ocm_id_map.get(run_name)
+    )
     for run_name in sorted(RUNS)
   }
 
@@ -878,9 +1196,9 @@ def _get_fastqs(config, RUNS, is_hto = False):
     check_R1      = [re.sub(r'(?<=(_|\.))R1', 'R0', f) for f in R1_fs]
     check_R2      = [re.sub(r'(?<=(_|\.))R2', 'R0', f) for f in R2_fs]
     if len(R1_fs) == 0:
-      print(f"  WARNING: no {"hto " if is_hto else ""}fastq files found for run {run}; excluded.")
+      print(f"  WARNING: no {'hto ' if is_hto else ''}fastq files found for run {run}; excluded.")
     elif set(check_R1) != set(check_R2):
-      print(f"  WARNING: {"hto " if is_hto else ""}fastq files found for run {run} but R1 and R2 don't match; excluded.")
+      print(f"  WARNING: {'hto ' if is_hto else ''}fastq files found for run {run} but R1 and R2 don't match; excluded.")
     else:
       fastqs[run] = {
         "where":          this_where[0], 
@@ -1021,83 +1339,121 @@ def _do_exclusions(LIST, config, var):
   return LIST
 
 
-# get parameters for one 10x run
-def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, custom_run_params):
-  # set defaults
-  sample_chem = config['project']['tenx_chemistry']
-  knee1       = ""
-  shin1       = ""
-  knee2       = ""
-  shin2       = ""
-  if run_name in custom_run_params:
-    if 'tenx_chemistry' in custom_run_params[run_name]:
-      sample_chem = custom_run_params[run_name]['tenx_chemistry']
-    if 'mapping' in custom_run_params[run_name]:
-      if 'knee1' in custom_run_params[run_name]['mapping']:
-        knee1       = custom_run_params[run_name]['mapping']['knee1']
-      if 'shin1' in custom_run_params[run_name]['mapping']:
-        shin1       = custom_run_params[run_name]['mapping']['shin1']
-      if 'knee2' in custom_run_params[run_name]['mapping']:
-        knee2       = custom_run_params[run_name]['mapping']['knee2']
-      if 'shin2' in custom_run_params[run_name]['mapping']:
-        shin2       = custom_run_params[run_name]['mapping']['shin2']
+# get parameters for one library
+def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, custom_lib_params):
+  
+  wl_df_f         = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
+  wl_df           = pl.read_csv(wl_df_f)
+  
+  if config['mapping_af']['is_flex']:
+    # chemistry and whitelist are determined by the probe set
+    flex_version    = config['mapping_af']['tenx_chemistry']
+    af_chemistry    = '10x-flexv1-gex-3p' if flex_version == 'flexv1' else '10x-flexv2-gex-3p'
+    expected_ori    = 'fw'  # flex is always forward orientation
+    wl_row          = wl_df.filter(pl.col('chemistry') == flex_version)
+    gex_whitelist_f = scdata_dir / 'cellranger_ref' / wl_row['gex_barcodes_f'].item()
 
-  # get af chemistry and expected orientation
-  if sample_chem in ['3v2', '5v1', '5v2']:
-    af_chemistry = '10xv2' 
-  elif sample_chem in ['5v3', '3LT', '3v3', '3v4', 'multiome']:
-    af_chemistry = '10xv3'
   else:
-    af_chemistry = 'none'
+    tenx_chemistry = config['mapping_af']['tenx_chemistry']
+    if lib_name in custom_lib_params:
+      if 'project' in custom_lib_params[lib_name] and 'tenx_chemistry' in custom_lib_params[lib_name]['project']:
+        tenx_chemistry = custom_lib_params[lib_name]['project']['tenx_chemistry']
 
-  # get expected orientation
-  if sample_chem in ['5v1', '5v2', '5v3']:
-    expected_ori = 'rc'
-  elif sample_chem in ['3LT', '3v2', '3v3', '3v4', "multiome"]:
-    expected_ori = 'fw'
-  else:
-    expected_ori = 'none'
+    if tenx_chemistry in ['3v2', '5v1', '5v2']:
+      af_chemistry = '10xv2'
+    elif tenx_chemistry in ['5v3', '3LT', '3v3', '3v4', 'multiome']:
+      af_chemistry = '10xv3'
+    else:
+      af_chemistry = 'none'
 
-  # sort out whitelist file
-  if sample_chem == 'none':
-    gex_whitelist_f        = 'none', 
-    hto_whitelist_f        = 'none'
-  else:
-    wl_df_f     = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
-    wl_df       = pl.read_csv(wl_df_f)
-    wl_gex_f    = wl_df.filter( pl.col('chemistry') == sample_chem )['gex_barcodes_f'].item()
-    wl_hto_f    = wl_df.filter( pl.col('chemistry') == sample_chem )['hto_barcodes_f'].item()
-    gex_whitelist_f  = scdata_dir / 'cellranger_ref' / wl_gex_f
-    hto_whitelist_f = scdata_dir / 'cellranger_ref' / wl_hto_f
+    if tenx_chemistry in ['5v1', '5v2', '5v3']:
+      expected_ori = 'rc'
+    elif tenx_chemistry in ['3LT', '3v2', '3v3', '3v4', 'multiome']:
+      expected_ori = 'fw'
+    else:
+      expected_ori = 'none'
+
+    if tenx_chemistry == 'none':
+      gex_whitelist_f = 'none'
+      hto_whitelist_f = 'none'
+    else:
+      wl_gex_f    = wl_df.filter(pl.col('chemistry') == tenx_chemistry)['gex_barcodes_f'].item()
+      wl_hto_f    = wl_df.filter(pl.col('chemistry') == tenx_chemistry)['hto_barcodes_f'].item()
+      gex_whitelist_f = scdata_dir / 'cellranger_ref' / wl_gex_f
+      hto_whitelist_f = scdata_dir / 'cellranger_ref' / wl_hto_f
 
   # make dictionary for mapping
   mapping_dc  = {
-    "where":              RNA_FQS[run_name]["where"],
-    "R1_fs":              RNA_FQS[run_name]["R1_fs"],
-    "R2_fs":              RNA_FQS[run_name]["R2_fs"],
-    "R1_fs_size_gb":      RNA_FQS[run_name]["R1_fs_size_gb"],
-    "af_chemistry":       af_chemistry, 
-    "expected_ori":       expected_ori, 
+    "where":              RNA_FQS[lib_name]["where"],
+    "R1_fs":              RNA_FQS[lib_name]["R1_fs"],
+    "R2_fs":              RNA_FQS[lib_name]["R2_fs"],
+    "R1_fs_size_gb":      RNA_FQS[lib_name]["R1_fs_size_gb"],
+    "af_chemistry":       af_chemistry,
+    "expected_ori":       expected_ori,
     "gex_whitelist_f":    gex_whitelist_f,
-    "knee1":              knee1,
-    "shin1":              shin1,
-    "knee2":              knee2,
-    "shin2":              shin2
+    "geometry":           config['mapping_af'].get('geometry', ''),
   }
 
   # make dictionary for mapping
   if config['multiplexing']['demux_type'] == "hto":
     multiplexing_dc  = {
-      "where":              HTO_FQS[run_name]["where"],
-      "R1_fs":              HTO_FQS[run_name]["R1_fs"],
-      "R2_fs":              HTO_FQS[run_name]["R2_fs"],
-      "R1_fs_size_gb":      HTO_FQS[run_name]["R1_fs_size_gb"],
+      "where":              HTO_FQS[lib_name]["where"],
+      "R1_fs":              HTO_FQS[lib_name]["R1_fs"],
+      "R2_fs":              HTO_FQS[lib_name]["R2_fs"],
+      "R1_fs_size_gb":      HTO_FQS[lib_name]["R1_fs_size_gb"],
       "af_chemistry":       af_chemistry, 
       "hto_whitelist_f":    hto_whitelist_f
     }
   else:
     multiplexing_dc   = {}
 
+  # make dict of dicts
+  out_dc      = {
+    "mapping_af":   mapping_dc,
+    "multiplexing": multiplexing_dc,
+  }
+
+  return out_dc
+
+
+
+# get parameters for one run
+def _get_run_parameters_one_run(run_name, config, scdata_dir, custom_run_params, probe_id=None, ocm_id=None, lib_name=None, LIB_PARAMS=None):
+
+  knee1 = ""
+  shin1 = ""
+  knee2 = ""
+  shin2 = ""
+
+  if run_name in custom_run_params:
+    if 'mapping' in custom_run_params[run_name]:
+      if 'knee1' in custom_run_params[run_name]['mapping']:
+        knee1 = custom_run_params[run_name]['mapping']['knee1']
+      if 'shin1' in custom_run_params[run_name]['mapping']:
+        shin1 = custom_run_params[run_name]['mapping']['shin1']
+      if 'knee2' in custom_run_params[run_name]['mapping']:
+        knee2 = custom_run_params[run_name]['mapping']['knee2']
+      if 'shin2' in custom_run_params[run_name]['mapping']:
+        shin2 = custom_run_params[run_name]['mapping']['shin2']
+
+  # get R1 size from the corresponding library
+  if LIB_PARAMS is not None and lib_name is not None and lib_name in LIB_PARAMS:
+    r1_size_gb = LIB_PARAMS[lib_name]["mapping_af"]["R1_fs_size_gb"]
+  else:
+    r1_size_gb = 0
+
+  # make dictionary for mapping
+  mapping_dc  = {
+    "knee1":              knee1,
+    "shin1":              shin1,
+    "knee2":              knee2,
+    "shin2":              shin2,
+    "R1_fs_size_gb":      r1_size_gb
+  }
+  if probe_id is not None:
+    mapping_dc["probe_id"] = probe_id
+  if ocm_id is not None:
+    mapping_dc["ocm_id"] = ocm_id
   # make dictionary for ambient
   ambient_dc = {
     "cb_expected_cells":          "",
@@ -1123,9 +1479,8 @@ def _get_run_parameters_one_run(run_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
 
   # make dict of dicts
   out_dc      = {
-    "mapping":      mapping_dc,
-    "multiplexing": multiplexing_dc,
-    "ambient":      ambient_dc
+    "mapping": mapping_dc,
+    "ambient": ambient_dc
   }
 
   return out_dc
@@ -1193,43 +1548,60 @@ def _get_batch_parameters_one_batch(batch_name, config, custom_batch_params):
   return out_dc
 
 
-# get mapping from samples to runs
-def get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR):
-  # if nothing to do return none
-  if config['multiplexing']['demux_type'] == "none":
-    # make dictionary if we can
-    if not RUNS == BATCHES:
-      raise ValueError("RUNS and BATCHES should be identical when demux_type is 'none'")
-    RUNS_TO_BATCHES = { s: [s] for s in BATCHES }
-    RUNS_TO_SAMPLES = { s: [s] for s in BATCHES }
+def _get_pool_to_sample_map(filter_ids, sample_metadata):
+  df = pl.read_csv(sample_metadata)
+  grouped = (
+    df.filter(pl.col("pool_id").is_in(filter_ids))
+    .sort(["pool_id", "sample_id"])
+    .group_by("pool_id", maintain_order=True)
+    .agg(pl.col("sample_id"))
+  )
+  # returns a dict: {pool_id: [sample_ids]}
+  return dict(zip(grouped["pool_id"], grouped["sample_id"]))
+
+
+def get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS):
+
+  demux_type      = config['multiplexing']['demux_type']
+  sample_metadata = config['project']['sample_metadata']
+
+  if demux_type in ["none", "flex", "ocm"]:
+    if RUNS != BATCHES:
+      raise ValueError(f"RUNS and BATCHES must match for demux_type '{demux_type}'")
+
+    RUNS_TO_SAMPLES = {s: [s] for s in BATCHES}
+    RUNS_TO_BATCHES = {s: [s] for s in BATCHES}
+
+    if demux_type in ["flex", "ocm"]:
+      # build sample_id -> pool_id map from metadata
+      df           = pl.read_csv(sample_metadata)
+      all_run_lib  = dict(zip(df["sample_id"].to_list(), df["pool_id"].to_list()))
+      RUNS_TO_LIBS = {r: all_run_lib[r] for r in RUNS}
+    else:
+      RUNS_TO_LIBS = {r: r for r in RUNS}
+
+    return RUNS_TO_BATCHES, RUNS_TO_SAMPLES, RUNS_TO_LIBS
 
   else:
-    # get sample_metadata, convert to dictionary
-    sample_metadata = pl.read_csv(config['project']['sample_metadata'])
-    tmp_df          = sample_metadata.sort(["pool_id", "sample_id"]).group_by("pool_id", maintain_order=True).agg(pl.col("sample_id").alias("sample_id_list"))
-    RUNS_TO_SAMPLES = { 
-      row["pool_id"]: row["sample_id_list"]
-      for row in tmp_df.to_dicts()
-      if row["pool_id"] in RUNS
-    }
+    RUNS_TO_SAMPLES = _get_pool_to_sample_map(RUNS, sample_metadata)
 
-    # now choose for runs to batches
     if BATCH_VAR == "pool_id":
-      # make dictionary if we can
-      if not RUNS == BATCHES:
-        raise ValueError("RUNS and BATCHES should be identical if 'int_batch_var' is 'pool_id'")
-      RUNS_TO_BATCHES = { s: [s] for s in sorted(BATCHES) }
+      if RUNS != BATCHES:
+        raise ValueError("RUNS and BATCHES must match if BATCH_VAR is 'pool_id'")
+      RUNS_TO_BATCHES = {s: [s] for s in sorted(BATCHES)}
 
     elif BATCH_VAR == "sample_id":
-      # filter out any samples that shouldn't be there
-      for pool_id in RUNS_TO_SAMPLES:
-        filtered  = [s for s in RUNS_TO_SAMPLES[pool_id] if s in BATCHES]
-        RUNS_TO_SAMPLES[pool_id] = sorted(filtered)
+      RUNS_TO_BATCHES = {
+        pool: sorted([s for s in samples if s in BATCHES])
+        for pool, samples in RUNS_TO_SAMPLES.items()
+      }
+      RUNS_TO_SAMPLES = RUNS_TO_BATCHES
 
-      # duplicate for batches
-      RUNS_TO_BATCHES = RUNS_TO_SAMPLES
+    if LIBS != RUNS:
+      raise ValueError(f"LIBS and RUNS must match for demux_type '{demux_type}'")
+    RUNS_TO_LIBS = {r: r for r in RUNS}
 
-  return RUNS_TO_BATCHES, RUNS_TO_SAMPLES
+    return RUNS_TO_BATCHES, RUNS_TO_SAMPLES, RUNS_TO_LIBS
 
 
 # get parameters for labelling celltypes
@@ -1255,7 +1627,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
       if not entry['model'] in mdls_typist:
         raise KeyError(
           f"The value {entry['model']} specified in label_celltypes is not a valid celltypist model.\n"
-          f"The following are valid models:\n{", ".join(mdls_typist)}"
+          f"The following are valid models:\n{', '.join(mdls_typist)}"
           )
 
     # check that parameters for scprocess are ok
@@ -1263,7 +1635,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
       if not entry['model'] in mdls_scprocess:
         raise KeyError(
           f"the value {entry['model']} specified in label_celltypes is not a valid scprocess model"
-          f"These models are currently available: {", ".join(mdls_scprocess)}"
+          f"These models are currently available: {', '.join(mdls_scprocess)}"
           )
     
       # pick labeller
@@ -1299,7 +1671,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
   return LABELLER_PARAMS
 
 
-def prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES):
+def prep_resource_params(config, schema_f, lm_f, LIB_PARAMS, BATCHES):
   # add default resource values
   schema      = _load_schema_file(schema_f)
   defaults    = _get_default_config_from_schema(schema)
@@ -1318,7 +1690,7 @@ def prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES):
   lm_df       = pl.read_csv(lm_f)
 
   # get sizes, n-batches
-  R1_sizes    = { run: vals["mapping"]["R1_fs_size_gb"]  for run,vals in RUN_PARAMS.items() }
+  R1_sizes    = { lib: vals["mapping_af"]["R1_fs_size_gb"] for lib, vals in LIB_PARAMS.items() }
   n_batches   = len(BATCHES)
 
   # make full dict of useful things
@@ -1448,7 +1820,7 @@ def _safe_boolean(val):
   elif val in ["False", "false"]:
     res = False
   else:
-    raise ValueError('{val} is not a boolean')
+    raise ValueError(f'{val} is not a boolean')
 
   return res
 
@@ -1483,7 +1855,7 @@ def check_ranger_url(ranger_url):
 # HVGs function: make df with list of chunked counts files
 def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_RUNS, 
   DEMUX_TYPE, FULL_TAG, DATE_STAMP, hvg_dir):
-  # loop through ambient yaml files to populate list
+  # loop through ambient yaml files to populate listf
   df_list = []
   for r, yaml_file in zip(runs, ambient_outs_yamls):
     # get filtered ambient outputs
@@ -1491,8 +1863,8 @@ def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_
       amb_outs = yaml.load(f, Loader=yaml.FullLoader)
     amb_filt_f = amb_outs['filt_counts_f']
 
-    # if no multiplexing, simple
-    if DEMUX_TYPE == "none":
+    # if no multiplexing or flex (samples already extracted per-run), simple
+    if DEMUX_TYPE in ("none", "flex"):
       tmp_df = pl.DataFrame({
         BATCH_VAR:    r,
         'amb_filt_f': amb_filt_f
@@ -1602,7 +1974,62 @@ def check_train_xgboost_config(config, schema_f, scdata_dir):
     "affiliation": scp_config["project"].get("affiliation", ""),
   }
 
+
+
+def _apply_join_defaults(cfg, schema_props):
+  """Recursively apply JSON Schema defaults to cfg in-place."""
+  for key, prop in schema_props.items():
+    if key not in cfg and 'default' in prop:
+      cfg[key] = prop['default']
+    elif key in cfg and prop.get('type') == 'object' and 'properties' in prop:
+      _apply_join_defaults(cfg[key], prop['properties'])
+
+
+def check_join_config(config, join_schema_f):
+  """Validate and augment a join.yaml config dict.
+
+  Mirrors check_config() for project configs:
+    1. Validates against join.schema.json
+    2. Validates each referenced project config against config.schema.json
+    3. Applies schema defaults for hvg, integration, marker_genes, and shiny sections
+    4. Calls _check_shiny_parameters for shiny-specific cross-checks
+
+  Returns the (possibly modified) config dict.
+  """
+  with open(join_schema_f) as f:
+    join_schema = json.load(f)
+  errors = sorted(jsonschema.Draft202012Validator(join_schema).iter_errors(config),
+                  key=lambda e: e.path)
+  if errors:
+    raise ValueError("join.yaml validation errors:\n" +
+      "\n".join(f"  {list(e.path)}: {e.message}" for e in errors))
+
+  # validate each referenced project config against the project schema
+  proj_schema_f = pathlib.Path(join_schema_f).parent / "config.schema.json"
+  if proj_schema_f.is_file():
+    proj_schema = _load_schema_file(proj_schema_f)
+    proj_defaults = _get_default_config_from_schema(proj_schema)
+    for pid, proj_entry in config.get('projects', {}).items():
+      cfg_f = proj_entry.get('config')
+      if cfg_f and os.path.isfile(cfg_f):
+        with open(cfg_f) as f:
+          proj_cfg = yaml.safe_load(f)
+        defaults_copy = copy.deepcopy(proj_defaults)
+        snakemake.utils.update_config(defaults_copy, proj_cfg)
+        proj_cfg = defaults_copy
+        proj_errors = sorted(
+          jsonschema.Draft202012Validator(proj_schema).iter_errors(proj_cfg),
+          key=lambda e: e.path)
+        if proj_errors:
+          raise ValueError(f"Validation errors in project '{pid}' config ({cfg_f}):\n" +
+            "\n".join(f"  {list(e.path)}: {e.message}" for e in proj_errors))
+
+  for section in ['hvg', 'integration', 'marker_genes', 'shiny']:
+    if section not in config:
+      config[section] = {}
+    _apply_join_defaults(config[section],
+      join_schema['properties'].get(section, {}).get('properties', {}))
+
+  config = _check_shiny_parameters(config)
   return config
 
-
-# end

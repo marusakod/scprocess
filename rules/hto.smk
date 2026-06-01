@@ -47,7 +47,7 @@ rule build_hto_index:
 rule run_mapping_hto:
   input: 
     hto_idx_dir   = f'{af_dir}/hto_index', 
-    chem_stats_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml'
+    chem_stats_f  = f'{af_dir}/af_{{run}}/rna/chemistry_statistics.yaml'
   output:
     fry_dir       = directory(f'{af_dir}/af_{{run}}/hto/af_quant/'),
     rad_f         = temp(f'{af_dir}/af_{{run}}/hto/af_map/map.rad'),
@@ -58,8 +58,8 @@ rule run_mapping_hto:
   params:
     arv_instance  = config['project'].get('arv_instance', ""),
     demux_type    = config['multiplexing']['demux_type'],
-    af_home_dir   = config['mapping']['alevin_fry_home'],
-    wl_lu_f       = config['mapping']['wl_lu_f'], 
+    af_home_dir   = config['mapping_af']['alevin_fry_home'],
+    wl_lu_f       = config['mapping_af']['wl_lu_f'],
     where         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["where"],
     R1_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R1_fs"],
     R2_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R2_fs"],
@@ -146,10 +146,11 @@ rule make_hto_sce_objects:
     smpl_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     amb_yaml_f   = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
     hto_h5_f     = f'{af_dir}/af_{{run}}/hto/af_hto_counts_mat.h5', 
-    chem_stats_f = f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml'
+    chem_stats_f = f'{af_dir}/af_{{run}}/rna/chemistry_statistics.yaml'
   params:
     ambient_method    = config['ambient']['ambient_method'],
-    seurat_quantile   = config['multiplexing']['seurat_quantile']
+    seurat_quantile   = config['multiplexing']['seurat_quantile'],
+    sample_metadata_f = config['project']['sample_metadata']
   output:
     sce_hto_f   = f'{demux_dir}/sce_cells_htos_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds'
   threads: 1
@@ -170,16 +171,17 @@ rule make_hto_sce_objects:
   WHITELIST_TRANS_F=$(grep "selected_translation_f:" {input.chem_stats_f} | sed 's/selected_translation_f: //')
   
   # save hto sce with demultiplexing info
-  Rscript -e "source('scripts/multiplexing.R'); source('scripts/utils.R'); 
-    get_one_hto_sce( 
-      sel_pool        = '{wildcards.run}', 
-      sample_stats_f  = '{input.smpl_stats_f}', 
-      amb_yaml_f      = '{input.amb_yaml_f}', 
-      hto_mat_f       = '{input.hto_h5_f}', 
-      trans_f         = '$WHITELIST_TRANS_F', 
-      hto_sce_f       = '{output.sce_hto_f}', 
-      ambient_method  = '{params.ambient_method}',
-      seurat_quantile =  {params.seurat_quantile}
+  Rscript -e "source('scripts/multiplexing.R'); source('scripts/utils.R');
+    get_one_hto_sce(
+      sel_pool          = '{wildcards.run}',
+      sample_stats_f    = '{input.smpl_stats_f}',
+      amb_yaml_f        = '{input.amb_yaml_f}',
+      hto_mat_f         = '{input.hto_h5_f}',
+      trans_f           = '$WHITELIST_TRANS_F',
+      hto_sce_f         = '{output.sce_hto_f}',
+      ambient_method    = '{params.ambient_method}',
+      seurat_quantile   =  {params.seurat_quantile},
+      sample_metadata_f = '{params.sample_metadata_f}'
     )"
   """
 

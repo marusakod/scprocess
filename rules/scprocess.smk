@@ -21,13 +21,30 @@ lm_f          = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12
 config        = check_config(config, schema_f, scdata_dir, scprocess_dir)
 
 # get lists of parameters
-RUN_PARAMS, RUN_VAR = get_run_parameters(config, scdata_dir)
+LIB_PARAMS, LIB_VAR = get_lib_parameters(config, scdata_dir)
+LIBS                = list(LIB_PARAMS.keys())
+RUN_PARAMS, RUN_VAR = get_run_parameters(config, scdata_dir, LIB_VAR, LIBS)
 RUNS                = list(RUN_PARAMS.keys())
 BATCH_PARAMS, BATCH_VAR, SAMPLES = get_batch_parameters(config, RUNS, scdata_dir)
 BATCHES             = list(BATCH_PARAMS.keys())
-RUNS_TO_BATCHES, RUNS_TO_SAMPLES = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR)
-RESOURCE_PARAMS     = prep_resource_params(config, schema_f, lm_f, RUN_PARAMS, BATCHES)
+RUNS_TO_BATCHES, RUNS_TO_SAMPLES, RUNS_TO_LIBS = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
+RESOURCE_PARAMS     = prep_resource_params(config, schema_f, lm_f, LIB_PARAMS, BATCHES)
 LABELLER_PARAMS     = get_labeller_parameters(config, schema_f, scdata_dir)
+IS_FLEX             = config['project']['is_flex']
+IS_FLEX_MUXED       = config['multiplexing']['demux_type'] == "flex"
+IS_OCM              = config['multiplexing']['demux_type'] == "ocm"
+# False when demux_type is hto/custom with only 1 pool: edgeR ambient gene detection
+# requires >=2 pseudobulks (one per pool), so it cannot run with a single pool
+CAN_CALC_AMBIENT_GENES = not (
+  config['multiplexing']['demux_type'] in ['hto', 'custom'] and len(RUNS) < 2
+)
+
+# subdirectory prefix used by ambient/pb_empties rules to locate per-run outputs
+af_rna_dir          = 'flex/' if IS_FLEX else 'rna/'
+# subdirectory prefix for pool/library-level outputs (when multiplexed via flex or OCM)
+lib_pool_dir        = 'pools/' if (IS_FLEX_MUXED or IS_OCM) else ''
+# unified reference label: probe_set for flex, ref_txome for polyA
+GENOME_REF          = config['project'].get('probe_set', config['project'].get('ref_txome', ''))
 
 # unpack some variables that we use a lot
 PROJ_DIR        = config['project']['proj_dir']
@@ -40,7 +57,6 @@ benchmark_dir = f"{PROJ_DIR}/.resources"
 logs_dir      = f"{PROJ_DIR}/.log"
 code_dir      = f"{PROJ_DIR}/code"
 af_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_mapping"
-af_rna_dir    = 'rna/' if config['multiplexing']['demux_type'] == "hto" else ''
 amb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_ambient"
 demux_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
 dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
@@ -107,7 +123,38 @@ fgsea_outs = [
   f'{mkr_dir}/fgsea_{FULL_TAG}_{config["marker_genes"]["mkr_sel_res"]}_go_bp_{DATE_STAMP}.csv.gz',
   f'{mkr_dir}/fgsea_{FULL_TAG}_{config["marker_genes"]["mkr_sel_res"]}_go_cc_{DATE_STAMP}.csv.gz',
   f'{mkr_dir}/fgsea_{FULL_TAG}_{config["marker_genes"]["mkr_sel_res"]}_go_mf_{DATE_STAMP}.csv.gz'
-] if (config['project']['ref_txome'] in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']) & config['marker_genes']['mkr_do_gsea'] else []
+] if (
+  (IS_FLEX and config['project'].get('probe_set', '') in ['human_v1', 'mouse_v1', 'human_v2', 'mouse_v2']) or
+  (not IS_FLEX and config['project'].get('ref_txome', '') in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'])
+) and config['marker_genes']['mkr_do_gsea'] else []
+
+# mapping outputs (unified: af_rna_dir is 'flex/' or 'rna/' depending on assay)
+af_mapping_outs = (
+  expand([
+    f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/',
+    f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
+    f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
+    f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
+  ], lib=LIBS) +
+  expand([
+    f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
+    f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz',
+    f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml',
+  ], run=RUNS)
+)
+chem_stats_outs = [] if IS_FLEX else [f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv']
+
+# pseudobulk empty outputs — skipped when ambient gene calculation is not possible
+pb_empty_outs = [
+  f'{pb_dir}/af_paths_{FULL_TAG}_{DATE_STAMP}.csv',
+  f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds',
+] if CAN_CALC_AMBIENT_GENES else []
+
+# hvgs html report — skipped when ambient gene calculation is not possible
+hvgs_html_outs = [
+  f'{rmd_dir}/{SHORT_TAG}_hvgs.Rmd',
+  f'{docs_dir}/{SHORT_TAG}_hvgs.html',
+] if CAN_CALC_AMBIENT_GENES else []
 
 # one rule to rule them all
 rule all:
@@ -115,23 +162,16 @@ rule all:
     # hto outputs
     hto_index_outs,
     hto_af_outs,
+    af_mapping_outs,
     expand(
       [
-      # mapping
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml',
       # ambient (cellbender, decontx or nothing)
       f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
       f'{amb_dir}/ambient_{{run}}/barcodes_qc_metrics_{{run}}_{DATE_STAMP}.csv.gz',
       # doublet id
       f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
       ], run =  RUNS),
-    f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv', 
+    chem_stats_outs,
     # ambient sample statistics
     f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     # demultiplexing
@@ -143,10 +183,9 @@ rule all:
     f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     # pseudobulks and empties
-    f'{pb_dir}/af_paths_{FULL_TAG}_{DATE_STAMP}.csv', 
-    f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds', 
+    pb_empty_outs,
     f'{pb_dir}/pb_cells_all_{FULL_TAG}_{DATE_STAMP}.rds',
-    f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
+    f'{empty_dir}/edger_empty_genes_all_{FULL_TAG}_{DATE_STAMP}.csv.gz' if CAN_CALC_AMBIENT_GENES else [],
     # hvgs
     f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
     f'{hvg_dir}/standardized_variance_stats_{FULL_TAG}_{DATE_STAMP}.csv.gz',
@@ -170,15 +209,14 @@ rule all:
     f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
     f'{rmd_dir}/{SHORT_TAG}_ambient.Rmd',
     f'{rmd_dir}/{SHORT_TAG}_qc.Rmd', 
-    f'{rmd_dir}/{SHORT_TAG}_hvgs.Rmd',
-    f'{rmd_dir}/{SHORT_TAG}_integration.Rmd', 
+    f'{rmd_dir}/{SHORT_TAG}_integration.Rmd',
     f'{rmd_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.Rmd', 
     hto_rmd_f,
     # reports
     f'{docs_dir}/{SHORT_TAG}_mapping.html', 
     f'{docs_dir}/{SHORT_TAG}_ambient.html',
     f'{docs_dir}/{SHORT_TAG}_qc.html',
-    f'{docs_dir}/{SHORT_TAG}_hvgs.html',
+    hvgs_html_outs,
     f'{docs_dir}/{SHORT_TAG}_integration.html',
     f'{docs_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.html',
     hto_html_f 
@@ -188,16 +226,8 @@ rule mapping:
   input:
     hto_index_outs, 
     hto_af_outs,
-    expand([
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz',
-      f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml'
-      ], run = RUNS),
-    f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv',
+    af_mapping_outs,
+    chem_stats_outs,
     f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
     f'{docs_dir}/{SHORT_TAG}_mapping.html'
 
@@ -222,7 +252,7 @@ rule ambient:
 
 rule qc:
   params:
-    mito_str        = config['mapping']['af_mito_str'],
+    mito_str        = config['mapping_af']['af_mito_str'],
     exclude_mito    = config['qc']['exclude_mito'],
     hard_min_counts = config['qc']['qc_hard_min_counts'],
     hard_min_feats  = config['qc']['qc_hard_min_feats'],
@@ -270,8 +300,7 @@ rule hvg:
     f'{docs_dir}/{SHORT_TAG}_ambient.html',
     f'{rmd_dir}/{SHORT_TAG}_qc.Rmd',
     f'{docs_dir}/{SHORT_TAG}_qc.html',
-    f'{rmd_dir}/{SHORT_TAG}_hvgs.Rmd',
-    f'{docs_dir}/{SHORT_TAG}_hvgs.html'
+    hvgs_html_outs
 
 
 rule integration:
@@ -286,8 +315,7 @@ rule integration:
     f'{docs_dir}/{SHORT_TAG}_ambient.html',
     f'{rmd_dir}/{SHORT_TAG}_qc.Rmd',
     f'{docs_dir}/{SHORT_TAG}_qc.html',
-    f'{rmd_dir}/{SHORT_TAG}_hvgs.Rmd',
-    f'{docs_dir}/{SHORT_TAG}_hvgs.html',
+    hvgs_html_outs,
     f'{rmd_dir}/{SHORT_TAG}_integration.Rmd',
     f'{docs_dir}/{SHORT_TAG}_integration.html'
 

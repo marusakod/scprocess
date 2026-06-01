@@ -1,0 +1,412 @@
+---
+title: "Join integration: ${join_name}"
+author:
+- name: ${your_name}
+  affiliation:
+  - ${affiliation}
+date: '`r format(as.Date("${date_stamp}"), "%B %d, %Y")`'
+output:
+  rmdformats::downcute:
+    highlight: textmate
+    code_folding: hide
+    toc_depth: 3
+    css: custom.css
+---
+
+
+```{r setup_knitr, include=FALSE}
+library('BiocStyle')
+knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png',
+  fig.path = "figure/${join_tag}.Rmd/", message = FALSE, warning = FALSE)
+knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
+# workflowr::wflow_build(files='analysis/${join_tag}.Rmd', view=F, verbose=T, delete_cache=F)
+```
+
+
+```{r setup_helpers, cache=FALSE, include=FALSE}
+scprocess_dir = "${scprocess_dir}"
+source(file.path(scprocess_dir, 'scripts/utils.R'))
+source(file.path(scprocess_dir, 'scripts/integration.R'))
+source(file.path(scprocess_dir, 'scripts/marker_genes.R'))
+source(file.path(scprocess_dir, 'scripts/fgsea.R'))
+source(file.path(scprocess_dir, 'scripts/label_celltypes.R'))
+library(stringi)
+setDTthreads(1L)
+```
+
+
+```{r setup_input, include=FALSE}
+join_name     = "${join_name}"
+join_tag      = "${join_tag}"
+join_int_dir  = "${join_int_dir}"
+join_mkr_dir  = "${join_mkr_dir}"
+ref_txome     = "${ref_txome}"
+sel_res       = "${mkr_sel_res}"
+res_ls        = "${int_res_ls}" %>% str_split(pattern = ' ') %>% unlist() %>% as.numeric()
+
+not_ok_re     = "(lincRNA|lncRNA|pseudogene|antisense)"
+min_cpm_mkr   = ${mkr_min_cpm_mkr}
+min_cells     = ${mkr_min_cells}
+gsea_cut      = ${mkr_gsea_cut}
+gsea_var_sel  = "z_score"
+
+# input file paths
+integration_f = "${integration_f}"
+sample_meta_f = "${sample_meta_f}"
+mkrs_f        = "${mkrs_f}"
+pb_hvgs_f     = "${pb_hvgs_f}"
+pb_f          = "${pb_f}"
+fgsea_go_bp_f = "${fgsea_go_bp_f}"
+fgsea_go_cc_f = "${fgsea_go_cc_f}"
+fgsea_go_mf_f = "${fgsea_go_mf_f}"
+
+do_gsea       = ref_txome %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')
+
+# custom markers for heatmap
+custom_mkr_names_str = "${custom_mkr_names}"
+custom_mkr_paths_str = "${custom_mkr_paths}"
+if (custom_mkr_names_str != "") {
+  custom_mkr_names = str_split(custom_mkr_names_str, pattern = ',') %>% unlist()
+  custom_mkr_paths = str_split(custom_mkr_paths_str, pattern = ',') %>% unlist() %>%
+    setNames(custom_mkr_names)
+}
+
+# cell type labeling
+label_f_ls_str    = "${label_f_ls}"
+labeller_ls_str   = "${labeller_ls}"
+model_ls_str      = "${model_ls}"
+hi_res_cl_ls_str  = "${hi_res_cl_ls}"
+min_cl_prop_ls_str = "${min_cl_prop_ls}"
+do_labels = label_f_ls_str != ""
+if (do_labels) {
+  label_f_ls     = str_split(label_f_ls_str, " ")[[1]]
+  labeller_ls    = str_split(labeller_ls_str, " ")[[1]]
+  model_ls       = str_split(model_ls_str, " ")[[1]]
+  hi_res_cl_ls   = str_split(hi_res_cl_ls_str, " ")[[1]]
+  min_cl_prop_ls = str_split(min_cl_prop_ls_str, " ")[[1]] %>% as.numeric()
+  min_cl2_p      = 0.2
+}
+
+cl_ord        = NULL
+```
+
+
+```{r load_integration, include=FALSE}
+int_all = fread(integration_f)
+int_dt  = int_all[ !is.na(UMAP1) ] %>%
+  .[, c("sample_id", "cell_id", "embedding", "UMAP1", "UMAP2",
+    str_subset(names(int_all), "RNA_snn_res")), with = FALSE]
+```
+
+
+```{r load_metadata, include=FALSE}
+meta_dt   = fread(sample_meta_f)
+
+# join project_id (and any other metadata) from sample meta into int_dt
+# project_id may not be in integrated_dt if batch_var was only sample_id
+meta_key  = meta_dt[, .(sample_id, project_id)] %>% unique
+int_dt    = merge(int_dt, meta_key, by = "sample_id")
+```
+
+
+```{r setup_sel_res, include=FALSE}
+sel_cl_int_dt = copy(int_dt) %>%
+  .[, cluster := get(paste0("RNA_snn_res.", sel_res)) %>% fct_infreq ] %>%
+  .[, .(sample_id, project_id, cell_id, UMAP1, UMAP2, cluster)] %>%
+  merge(meta_dt, by = "sample_id", suffixes = c("", ".y")) %>%
+  .[, grep("\\.y$", names(.), value = TRUE) := NULL]
+
+metadata_vars = setdiff(names(meta_dt), c("sample_id", "project_id", "bad_sample_id"))
+cfg_metadata_vars = "${metadata_vars}" %>% str_split(" ") %>% unlist() %>% trimws()
+if (!all(cfg_metadata_vars == ""))
+  metadata_vars = intersect(cfg_metadata_vars, metadata_vars)
+do_metadata   = length(metadata_vars) > 0
+composition_vars = c('project_id', metadata_vars)
+```
+
+
+```{r load_gene_biotypes, include=FALSE}
+sel_ref_txome = ref_txome
+idx_params  = Sys.getenv('SCPROCESS_DATA_DIR') %>%
+  file.path('index_parameters.csv') %>% fread
+gtf_dt_f    = idx_params[ref_txome == sel_ref_txome, gtf_txt_f][1]
+biotypes_dt = load_gene_biotypes(gtf_dt_f)
+```
+
+
+```{r load_cpms, include=FALSE}
+cpms_dt = readRDS(pb_f) %>%
+  make_logcpms_all("sample_id", lib_size_method = "edger",
+    min_cells = min_cells, n_cores = 1L) %>%
+  merge(biotypes_dt[, .(gene_id, gene_type)], by = "gene_id")
+```
+
+
+```{r load_hvgs, include=FALSE}
+pb_hvgs_dt = fread(pb_hvgs_f) %>%
+  .[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>%
+  .[ order(-vst_var) ]
+top_hvgs = pb_hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs"]
+```
+
+
+```{r load_markers, include=FALSE}
+mkrs_dt     = fread(mkrs_f)
+if (is.null(cl_ord))
+  cl_ord      = levels(sel_cl_int_dt$cluster) %>% intersect(unique(mkrs_dt$cluster))
+
+mkrs_ls = list(HVGs = top_hvgs)
+if (custom_mkr_names_str != "") {
+  custom_mkrs_dt_ls = lapply(custom_mkr_paths, FUN = process_custom_markers,
+    biotypes_dt = biotypes_dt, hvgs_dt = pb_hvgs_dt, marker_calcs_dt = mkrs_dt)
+  custom_mkrs_dt_ls = Filter(Negate(is.null), custom_mkrs_dt_ls)
+  mkrs_ls = c(custom_mkrs_dt_ls, mkrs_ls)
+}
+```
+
+
+```{r get_top_markers, include=FALSE}
+top_min_dt = mkrs_dt[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>%
+  .[ logcpm.sel >= log(min_cpm_mkr + 1) ] %>%
+  get_top_markers
+```
+
+
+```{r load_gsea, include=FALSE}
+fgsea_fs = c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f) %>%
+  setNames(c("go_bp", "go_cc", "go_mf"))
+gsea_ls = lapply(fgsea_fs, function(f) if (!is.na(f) && file.exists(f)) fread(f) else NULL)
+```
+
+
+## Integration diagnostics{.tabset}
+
+Cells from all projects were integrated using Harmony batch correction. Clustering
+was performed at multiple resolution values.
+
+```{r plot_clusters, fig.height=7, fig.width=9, results="asis"}
+for (res in res_ls) {
+  cat('### ', res, '\n')
+  g_cl   = plot_umap_cluster(
+    umap_dt  = int_dt[, .(cell_id, UMAP1, UMAP2)],
+    clust_dt = int_dt[, .(cell_id, cluster = get(paste0('RNA_snn_res.', res)))],
+    name     = sprintf('res = %s', res))
+  g_dens = plot_umap_density(int_dt[, .(cell_id, UMAP1, UMAP2)])
+  print(g_cl + g_dens)
+  cat('\n\n')
+}
+```
+
+
+## Variable distributions over UMAP{.tabset}
+
+These plots show how cells from each project (and any metadata variables) are
+distributed across the UMAP. Even mixing across projects is the primary indicator
+that Harmony integration was successful.
+
+```{r plot_composition_umap, fig.height=5, fig.width=8, results="asis"}
+for (cv in composition_vars) {
+  cat('###', cv, '\n')
+  print(plot_clusters_annotated_by_densities(sel_cl_int_dt, cv))
+  cat('\n\n')
+}
+```
+
+
+## Variable proportions per cluster{.tabset}
+
+Proportion of cells from each level of the variable within each cluster at
+resolution `r sel_res`.
+
+```{r plot_composition_per_cluster, fig.height=5, fig.width=8, results="asis"}
+for (cv in composition_vars) {
+  cat('###', cv, '\n')
+  print(plot_clusters_by_metadata(meta_dt, sel_cl_int_dt,
+    meta_vars = cv, cl_order = cl_ord))
+  cat('\n\n')
+}
+```
+
+
+## Cluster distribution across samples{.tabset}
+
+This plot shows the entropy of cluster membership across samples. High entropy indicates
+cells from many samples are evenly distributed within a cluster; low entropy indicates a
+cluster is dominated by one or few samples.
+
+```{r plot_entropy_samples, fig.height=5, fig.width=7, results="asis"}
+n_clusts = res_ls %>% lapply(function(res) {
+  length(unique(int_dt[[paste0('RNA_snn_res.', res)]]))
+})
+res_ls_pl = res_ls[n_clusts > 1]
+for (res in res_ls_pl) {
+  cat('### ', res, '\n')
+  input_dt = int_dt[, .(batch_var = sample_id, cell_id,
+    cluster = get(paste0('RNA_snn_res.', res)))]
+  suppressWarnings(print(plot_cluster_entropies(input_dt, 'batch_var', what = "norm")))
+  cat('\n\n')
+}
+```
+
+
+## Cluster distribution across projects{.tabset}
+
+The same entropy metric applied across projects rather than samples.
+
+```{r plot_entropy_projects, fig.height=5, fig.width=7, results="asis"}
+for (res in res_ls_pl) {
+  cat('### ', res, '\n')
+  input_dt = int_dt[, .(batch_var = project_id, cell_id,
+    cluster = get(paste0('RNA_snn_res.', res)))]
+  suppressWarnings(print(plot_cluster_entropies(input_dt, 'batch_var', what = "norm")))
+  cat('\n\n')
+}
+```
+
+
+## Marker genes
+
+Pseudobulk marker genes were identified at resolution `r sel_res` using `edgeR`.
+For each cluster, pseudobulk counts for cells in that cluster were compared against
+all other clusters.
+
+### Heatmaps of marker genes{.tabset}
+
+```{r plot_marker_heatmaps, fig.height=9, fig.width=10, results="asis"}
+for (nn in names(mkrs_ls)) {
+  cat("#### ", nn, "\n")
+  suppressMessages(draw(plot_heatmap_of_selected_genes(mkrs_dt, mkrs_ls[[nn]]),
+    heatmap_legend_side = "bottom", annotation_legend_side = "bottom", merge_legend = TRUE))
+  cat("\n\n")
+}
+```
+
+
+### Highly variable genes{.tabset}
+
+Normalised pseudobulk expression for the top 100 highly variable genes, in descending
+order of variance.
+
+```{r plot_hvgs, fig.height=8, fig.width=8, results="asis"}
+n_pages = 10; per_p = 10; p = 1
+for (i in seq(1, n_pages * per_p, by = per_p)) {
+  cat('#### page', p, '\n'); p = p + 1
+  sel_hvgs = pb_hvgs_dt[ i:(i + 9) ]
+  print(plot_selected_genes(sel_hvgs, cpms_dt, cl_order = cl_ord))
+  cat('\n\n')
+}
+```
+
+
+### Top marker genes per cluster{.tabset}
+
+Top 10 marker genes (FDR < 0.05, CPM ≥ `r min_cpm_mkr`) per cluster.
+
+```{r plot_top_markers, fig.height=8, fig.width=8, results="asis"}
+for (sel_cl in cl_ord) {
+  cat('####', sel_cl, '\n')
+  print(plot_top_marker_genes(sel_cl, top_min_dt, cpms_dt, cl_order = cl_ord))
+  cat('\n\n')
+}
+```
+
+
+## Gene set enrichment analysis{.tabset}
+
+```{r plot_gsea, eval=do_gsea, include=do_gsea, fig.height=12, fig.width=8, results="asis"}
+for (p in names(gsea_ls)) {
+  if (is.null(gsea_ls[[p]])) next
+  cat('### ', p, '\n')
+  dt = gsea_ls[[p]] %>% .[ gsea_var == gsea_var_sel ]
+  plot_gsea_dotplot(dt, gsea_cut = gsea_cut, n_top_paths = 5, max_nes = 2,
+    size_range = c(10, 200), what = "pos_only", cl_order = cl_ord) %>% print
+  cat('\n\n')
+}
+```
+
+
+```{r load_labels, eval=do_labels, include=FALSE}
+assert_that(all(sapply(label_f_ls, file.exists)))
+guesses_ls = lapply(label_f_ls, fread) %>% setNames(model_ls)
+```
+
+
+## Cell type labelling{.tabset}
+
+```{r label_section_intro, eval=do_labels, include=do_labels, results="asis"}
+cat("Cell type labels were predicted using CellTypist. Per-cell predictions are\n",
+    "aggregated at the level of high-resolution clusters via majority voting.\n")
+```
+
+### Clusters vs predicted cell types{.tabset}
+
+```{r plot_labels_heatmap, eval=do_labels, include=do_labels, fig.height=12, fig.width=13, results="asis"}
+for (ii in seq_along(label_f_ls)) {
+  this_labeller  = labeller_ls[[ii]]
+  this_model     = model_ls[[ii]]
+  this_hi_res_cl = hi_res_cl_ls[[ii]]
+
+  guesses_sel = guesses_ls[[ii]] %>%
+    .[, .(cell_id, prediction = predicted_label_naive %>% factor)]
+  int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2,
+    hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
+  confuse_dt  = calc_confuse_dt(guesses_sel, int_tmp, "prediction",
+    "hi_res_cl", min_cl2_p = min_cl2_p)
+
+  cat('####', this_labeller, ',', this_model, '\n')
+  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", this_hi_res_cl,
+    plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
+  cat('\n\n')
+}
+```
+
+### Predicted cell types over UMAP{.tabset}
+
+```{r plot_labels_umap, eval=do_labels, include=do_labels, fig.height=5, fig.width=12, results="asis"}
+for (ii in seq_along(label_f_ls)) {
+  this_labeller  = labeller_ls[[ii]]
+  this_model     = model_ls[[ii]]
+  this_hi_res_cl = hi_res_cl_ls[[ii]]
+
+  guesses_sel = guesses_ls[[ii]] %>%
+    .[, .(cell_id, prediction = predicted_label_agg %>% factor)]
+  int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2,
+    hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
+
+  g_cl   = plot_umap_labels(int_dt,
+    int_tmp[, .(cell_id, cluster = hi_res_cl)], "high resolution\ncluster")
+  g_pred = plot_umap_labels(int_dt,
+    guesses_sel[, .(cell_id, cluster = prediction)], "prediction\n(aggregated)")
+
+  cat('####', this_labeller, ',', this_model, '\n')
+  print(g_cl + g_pred)
+  cat('\n\n')
+}
+```
+
+### Totals for each predicted cell type{.tabset}
+
+```{r tbl_labels, eval=do_labels, include=do_labels, results="asis"}
+library(kableExtra)
+for (ii in seq_along(label_f_ls)) {
+  this_labeller = labeller_ls[[ii]]
+  this_model    = model_ls[[ii]]
+
+  cat('####', this_labeller, ',', this_model, '\n')
+  guesses_ls[[ii]] %>% calc_labels_table %>% kbl("html") %>%
+    row_spec(row = 0, bold = TRUE) %>%
+    kable_styling(bootstrap_options = "striped", full_width = FALSE,
+      font_size = 12, position = "center") %>%
+    scroll_box(width = "60%", height = "500px") %>% print
+  cat('\n\n')
+}
+```
+
+
+## R session info
+
+<details>
+```{r session_info, include=TRUE, echo=TRUE, results="markup"}
+devtools::session_info()
+```
+</details>

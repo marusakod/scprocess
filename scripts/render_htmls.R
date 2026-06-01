@@ -46,7 +46,7 @@ make_rmd_from_temp <- function(rule_name, temp_f, temp_ls, rmd_f) {
 }
 
 get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'integration',
-  'markers', 'label_celltypes', 'zoom', 'pb_empties', 'index', 'train_xgboost'), proj_dir, ...) {
+  'markers', 'label_celltypes', 'zoom', 'index', 'train_xgboost'), proj_dir, ...) {
   # get arguments
   sel_rule = match.arg(rule)
   add_args = list(...)
@@ -55,7 +55,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
   # check if all extra args for a specific rule are present
   if (sel_rule == 'ambient') {
     req_names = c('your_name','affiliation', 'short_tag', 'run_stats_f',
-      'threads','run_var', 'ambient_method', 'demux_type', 'date_stamp', 'runs_str', 'cb_prop_max_kept')
+      'threads','run_var', 'ambient_method', 'demux_type', 'af_rna_dir', 'date_stamp', 'runs_str', 'cb_prop_max_kept')
 
     assert_that(all(req_names %in% add_args_names))
     
@@ -79,7 +79,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
         " covering both cell-containing droplets and empty droplets.", " If CellBender calls the majority of these included droplets as cells,", 
         " it may indicate an underlying issue. This typically occurs in low-quality samples where cell-containing barcodes and empty droplets cannot", 
         " be clearly distinguished in the barcode rank plot. The table below shows the proportion of included droplets that were classified as cells by CellBender.",
-        " Samples where this proportion exceeded ", add_args[['CB_PROP_MAX_KEPT']]*100,  "% were excluded from further analysis.")
+        " Samples where this proportion exceeded ", add_args[['cb_prop_max_kept']]*100,  "% were excluded from further analysis.")
     } else{
       tbl_removed_title = ""
       tbl_removed_txt = ""
@@ -96,7 +96,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
   } else if (sel_rule == 'mapping') {
     req_names = c('your_name', 'affiliation', 'short_tag', 
       'date_stamp', 'runs_str','ambient_method','run_var',
-      'af_dir', 'af_rna_dir')
+      'af_dir')
 
     assert_that(all(req_names %in% add_args_names))
 
@@ -238,13 +238,20 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
            fgsea_title     = fgsea_title,
            fgsea_txt       = fgsea_txt))
 
-  } else if (sel_rule == 'pb_empties') {
-    req_names = c('your_name', 'affiliation', 'short_tag', 
-      'date_stamp', 'threads', 'guesses_f', 'empty_csv_f',
-      'lbl_xgb_f', 'lbl_sel_res_cl', 'lbl_min_pred', 'lbl_min_cl_prop',
-      'lbl_min_cl_size', 'lbl_min_cl_size')
-    
+  } else if (sel_rule == 'join') {
+    req_names = c('your_name', 'affiliation', 'join_name', 'join_tag',
+      'join_int_dir', 'join_mkr_dir', 'ref_txome', 'mkr_sel_res',
+      'int_res_ls', 'scprocess_dir', 'date_stamp', 'metadata_vars',
+      'custom_mkr_names', 'custom_mkr_paths',
+      'label_f_ls', 'labeller_ls', 'model_ls', 'hi_res_cl_ls', 'min_cl_prop_ls',
+      'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_cut',
+      'integration_f', 'sample_meta_f', 'mkrs_f', 'pb_hvgs_f', 'pb_f',
+      'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f')
+
     assert_that(all(req_names %in% add_args_names))
+
+    params_ls = add_args[req_names]
+
   } else if (sel_rule == 'index') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'docs_dir', 'full_tag', 'date_stamp', 'mkr_sel_res', 'config_f', 'show_arv_uuids')
     assert_that(all(req_names %in% add_args_names))

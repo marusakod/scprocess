@@ -10,7 +10,7 @@ dependencies:
   - aiohappyeyeballs=2.6.1
   - aiohttp=3.13.3
   - aiosignal=1.4.0
-  - alevin-fry=0.10.0
+  - alevin-fry=0.13.0
   - arvados-python-client=3.2.0
   - attrs=25.4.0
   - boost-cpp=1.85.0
@@ -51,12 +51,12 @@ dependencies:
   - libev=4.33
   - libexpat=2.7.0
   - libffi=3.4.6
-  - libgcc=14.1.0
-  - libgcc-ng=14.1.0
+  - libgcc=15.2.0
+  - libgcc-ng=15.2.0
   - libgfortran=14.1.0
   - libgfortran-ng=14.1.0
   - libgfortran5=14.1.0
-  - libgomp=14.1.0
+  - libgomp=15.2.0
   - libhwloc=2.11.1
   - libiconv=1.17
   - libjemalloc=5.3.0
@@ -66,8 +66,8 @@ dependencies:
   - libopenblas=0.3.28
   - libsqlite=3.49.2
   - libssh2=1.11.1
-  - libstdcxx=14.1.0
-  - libstdcxx-ng=14.1.0
+  - libstdcxx=15.2.0
+  - libstdcxx-ng=15.2.0
   - libuuid=2.38.1
   - libxcrypt=4.4.36
   - libxml2=2.12.7
@@ -82,7 +82,7 @@ dependencies:
   - openssl=3.6.1
   - pandas=2.2.2
   - pip=25.1.1
-  - piscem=0.10.3
+  - piscem=0.18.0
   - polars=1.37.1
   - polars-runtime-32=1.37.1
   - propcache=0.3.1
@@ -110,7 +110,7 @@ dependencies:
   - salmon=1.10.3
   - seqkit=2.12.0
   - setuptools=80.1.0
-  - simpleaf=0.17.2
+  - simpleaf=0.23.2
   - six=1.17.0
   - sorted_nearest=0.0.39
   - tabulate=0.9.0

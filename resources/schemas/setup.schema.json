@@ -26,6 +26,23 @@
         "arv_instance":    { "type": "string", "default": "" }
       }
     },
+    "probe_sets": {
+      "type": "object",
+      "properties": {
+        "tenx": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "enum": ["human_v1", "mouse_v1", "human_v2", "mouse_v2"] }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "ref_txomes": {
       "type": "object",
       "anyOf": [

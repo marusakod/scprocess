@@ -94,15 +94,23 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
   assert_that( all(batches %in% names(h5ad_paths)) )
 
   # make pbs for each batch
-  bpparam     = MulticoreParam(workers = n_cores, tasks = length(batches))  
+  bpparam     = MulticoreParam(workers = n_cores, tasks = length(batches))
   if (zoom) {
-      pb_ls       = bplapply(batches, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam, 
+    pb_ls       = bplapply(batches, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam,
       h5ad_paths = h5ad_paths, int_dt = int_dt, batch_var = batch_var, cl_var = cl_var,
       keep_cls = keep_cls, agg_fn = agg_fn)
   } else {
-    pb_ls       = bplapply(batches, FUN = .make_one_pseudobulk, BPPARAM = bpparam, 
-      h5ad_paths = h5ad_paths, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls,
-      agg_fn = agg_fn)
+    pb_ls       = tryCatch(
+      bplapply(batches, FUN = .make_one_pseudobulk, BPPARAM = bpparam,
+        h5ad_paths = h5ad_paths, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls,
+        agg_fn = agg_fn),
+      error = function(e) {
+        message("parallel bplapply failed (", conditionMessage(e), "); retrying serially to surface real error")
+        lapply(batches, .make_one_pseudobulk,
+          h5ad_paths = h5ad_paths, batch_var = batch_var, cl_var = cl_var, keep_cls = keep_cls,
+          agg_fn = agg_fn)
+      }
+    )
   }
   
   # merge together
@@ -155,8 +163,8 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
   if ( length(missing_assays) > 0 ) {
     message('  adding assays with zero counts')
     for(assay in missing_assays){
-      missing_counts  = Matrix(0, nrow = nrow(pb), ncol = 1, sparse = FALSE, 
-        dimnames = list(rownames(pb), sel_b))
+      missing_counts  = Matrix(0, nrow = nrow(pb), ncol = ncol(pb), sparse = FALSE, 
+        dimnames = list(rownames(pb), colnames(pb)))
       assay(pb, assay) = missing_counts
     }
   }
@@ -167,8 +175,12 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
 
 .make_one_zoom_pseudobulk <- function(sel_b, h5ad_paths, int_dt, batch_var, cl_var, keep_cls, agg_fn) {
   message(sel_b)
-  h5ad_f      = h5ad_paths[[sel_b]]
-  tmp_sce     = read_h5ad(h5ad_f, as = 'SingleCellExperiment')
+
+  h5ad_entry  = h5ad_paths[[sel_b]]
+  # Support extended YAML format: {path: ..., project_id: ...} (join) or plain string (standard)
+  # Cell IDs in join workflow are not prefixed with project_id (Option D); just extract path.
+  h5ad_path   = if (is.character(h5ad_entry)) h5ad_entry else h5ad_entry[["path"]]
+  tmp_sce     = read_h5ad(h5ad_path, as = 'SingleCellExperiment')
   smpl_int_dt = copy(int_dt) %>% .[ get(batch_var) == sel_b ] %>% setkey(cell_id)
   assert_that(all(smpl_int_dt$cell_id %in% colnames(tmp_sce)))
   
@@ -200,8 +212,8 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
   if ( length(missing_assays) > 0 ) {
     message('  adding assays with zero counts')
     for(assay in missing_assays){
-      missing_counts  = Matrix(0, nrow = nrow(pb), ncol = 1, sparse = FALSE, 
-        dimnames = list(rownames(pb), sel_b))
+      missing_counts  = Matrix(0, nrow = nrow(pb), ncol = ncol(pb), sparse = FALSE, 
+        dimnames = list(rownames(pb), colnames(pb)))
       assay(pb, assay) = missing_counts
     }
   }
@@ -573,7 +585,7 @@ calc_hvgs_pseudobulk <- function(pb_hvgs_f, cpms_dt, batch_var, n_cores = 8) {
 }
 
 calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt, batch_var,
-  method = c("edger", "voom"), n_cores = n_cores) {
+  method = c("edger", "voom"), n_cores = 1) {
   method    = match.arg(method)
 
   cl_ls     = logcpms_all$cluster %>% unique
@@ -882,7 +894,7 @@ plot_selected_genes <- function(sel_dt, cpms_dt, cl_order = NULL, pseudo_count =
   ncol = 2, nrow = NULL) {
   # check cl_order ok
   if (!is.null(cl_order)) {
-    assert_that( all(sort(unique(cpms_dt$cluster)) == sort(cl_order)) )
+    assert_that( all(unique(cpms_dt$cluster) %in% cl_order) )
   }
   # infer number of rows
   if (is.null(nrow)) {
@@ -937,7 +949,7 @@ plot_top_marker_genes <- function(sel_cl, top_mkrs_dt, logcpms_all,
   cl_order = NULL, pseudo_count = 10) {
   # check cl_order ok
   if (!is.null(cl_order)) {
-    assert_that( all(sort(unique(cpms_dt$cluster)) == sort(cl_order)) )
+    assert_that( all(unique(logcpms_all$cluster) %in% cl_order) )
   }
 
   # which genes?
@@ -1013,6 +1025,7 @@ plot_clusters_by_metadata <- function(meta_dt, clusts_dt, meta_vars = NULL,
     this_var  = meta_vars[[ ii ]]
     # plot quasirandom dots facetted by meta_var
     plot_dt   = melt_dt %>% .[ meta_var == this_var ]
+    plot_dt[, meta_val := factor(meta_val)]
     g = ggplot(plot_dt) +
       aes( x = cluster, y = 100 * prop, fill = meta_val ) +
       geom_col( colour = 'black' ) +
@@ -1332,7 +1345,7 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1_lab, cl2_lab,
   } else if (do_sort == "seriate") {
     # do seriate
     data_min    = data_mat %>% as.vector %>% min(na.rm = TRUE)
-    data_mat[is.na(data_mat)] = data_mat
+    data_mat[is.na(data_mat)] = data_min
     seriate_obj = seriate(data_mat - data_min, method = "BEA")
 
     # define vars
@@ -1383,7 +1396,7 @@ plot_clusters_annotated_by_densities = function(int_dt, v, plot_ratio = sqrt(2))
 
   # define rows and cols
   n_vals    = unique(int_dt[[v]]) %>% length
-  n_rows    = sqrt(n_vals / plot_ratio) %>% floor
+  n_rows    = max(1L, floor(sqrt(n_vals / plot_ratio)))
   n_cols    = ceiling(n_vals / n_rows)
 
   # do plot

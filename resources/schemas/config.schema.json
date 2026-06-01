@@ -8,7 +8,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["proj_dir", "full_tag", "short_tag", "your_name", "affiliation",
-        "date_stamp", "sample_metadata", "ref_txome"],
+        "date_stamp", "sample_metadata"],
       "properties": {
         "proj_dir":             { "type": "string" },
         "fastq_dir":            { "type": "string" },
@@ -21,7 +21,9 @@
         "date_stamp":           { "type": "string", "format": "date" },
         "sample_metadata":      { "type": "string", "items": {"type": "string", "pattern": "^.+\\.csv$"} },
         "ref_txome":            { "type": "string" },
-        "tenx_chemistry":       { "type": "string", "enum": ["none", "3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"],  "default": "none"},
+        "probe_set":            { "type": "string" },
+        "tenx_assay_type":      { "type": "string", "enum": ["flex", "poly_a"], "default": "poly_a" },
+        "tenx_chemistry":       { "type": "string", "enum": ["none", "3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome", "flexv1", "flexv2"],  "default": "none"},
         "metadata_vars":        { "type": "array", "items": { "type": "string" } },
         "show_arv_uuids":       { "type": "boolean", "default": true },
         "custom_sample_params": { "type": "string" },
@@ -37,9 +39,23 @@
       "dependentRequired": {
         "arv_uuids": ["arv_instance"]
       },
-      "oneOf": [
-        { "required": ["fastq_dir"] },
-        { "required": ["arv_uuids"] }
+      "allOf": [
+        {
+          "oneOf": [
+            { "required": ["fastq_dir"] },
+            { "required": ["arv_uuids"] }
+          ]
+        },
+        {
+          "if":   { "properties": { "tenx_assay_type": { "const": "flex" } } },
+          "then": { "required": ["probe_set"],  "not": { "required": ["ref_txome"] } },
+          "else": { "required": ["ref_txome"],  "not": { "required": ["probe_set"] } }
+        },
+        {
+          "if":   { "properties": { "tenx_assay_type": { "const": "flex" } } },
+          "then": { "properties": { "tenx_chemistry": { "enum": ["none", "flexv1", "flexv2"] } } },
+          "else": { "properties": { "tenx_chemistry": { "enum": ["none", "3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"] } } }
+        }
       ]
     },
     "multiplexing": {
@@ -48,7 +64,7 @@
       "additionalProperties": false,
       "required": [ "demux_type" ],
       "properties": {
-        "demux_type":       { "type": "string", "enum": ["none", "hto", "custom"], "default": "none" },
+        "demux_type":       { "type": "string", "enum": ["none", "hto", "ocm", "flex", "custom"], "default": "none" },
         "fastq_dir":        { "type": "string" },
         "arv_uuids":        { "type": "array", "items": {"type": "string", "pattern": "^arkau-[0-9a-z]{5}-[0-9a-z]{15}$"} },
         "feature_ref":      { "type": "string" },
@@ -81,7 +97,7 @@
           }
         },
         {
-          "if": {"properties": {"demux_type": {"const": "none" } } },
+          "if": {"properties": {"demux_type": {"enum": ["none", "flex", "ocm"] } } },
           "then": {
             "not": { "required": ["fastq_dir", "arv_uuids", "demux_output", "feature_ref"] }
           }
@@ -93,7 +109,7 @@
       "required": ["ambient_method"],
       "additionalProperties": false,
       "properties": {
-        "ambient_method":               { "type": "string", "enum": ["decontx", "cellbender", "none"], "default": "decontx" },
+        "ambient_method":               { "type": "string", "enum": ["decontx_background", "decontx_cluster", "cellbender", "none"], "default": "decontx_background" },
         "cell_calling":                 { "type": "string", "enum": ["barcodeRanks", "emptyDrops"], "default": "barcodeRanks" },
         "cb_version":                   { "type": "string", "enum": ["v0.3.2", "v0.3.0'", "v0.2.0'"], "default": "v0.3.2" },
         "cb_max_prop_kept":             { "type": "number", "default": 0.9 },
@@ -219,7 +235,6 @@
           "labeller":     { "type": "string", "enum": ["celltypist", "scprocess"] },
           "model":        { "type": "string" },
           "hi_res_cl":    { "type": "string", "default": "RNA_snn_res.2" },
-          "min_pred":     { "type": "number", "default": 0.8 },
           "min_cl_prop":  { "type": "number", "default": 0.5 },
           "min_cl_size":  { "type": "integer", "default": 100 }
         },
@@ -253,17 +268,22 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "n_run_mapping":                 { "type": "integer", "default": 8}, 
+        "n_run_mapping":                 { "type": "integer", "default": 8},
+        "n_run_mapping_flex":            { "type": "integer", "default": 8}, 
         "gb_build_hto_index":            { "type": "integer", "default": 4 },
         "gb_run_mapping":                { "type": "integer", "default": 12 },
         "gb_run_mapping_hto":            { "type": "integer", "default": 12 },
+        "gb_run_mapping_flex":           { "type": "integer", "default": 12 },
         "gb_save_alevin_to_h5":          { "type": "integer", "default": 8 },
+        "gb_save_alevin_flex_to_h5":     { "type": "integer", "default": 32 },
         "gb_make_hto_sce_objects":       { "type": "integer", "default": 8 },
         "gb_save_alevin_hto_to_h5":      { "type": "integer", "default": 8 },
         "mins_build_hto_index":           { "type": "integer", "default": 10 },
         "mins_run_mapping":               { "type": ["integer", "null"] },
         "mins_run_mapping_hto":           { "type": "integer", "default": 180 },
+        "mins_run_mapping_flex":          { "type": "integer", "default": 180 },
         "mins_save_alevin_to_h5":         { "type": "integer", "default": 10 },
+        "mins_save_alevin_flex_to_h5":    { "type": "integer", "default": 10 },
         "mins_make_hto_sce_objects":      { "type": "integer", "default": 10 }, 
         "mins_save_alevin_hto_to_h5":     { "type": "integer", "default": 5 },
 
@@ -276,6 +296,9 @@
         "mins_run_cell_celling":          { "type": "integer", "default": 30 },
         "mins_get_barcode_qc_metrics":    { "type": ["integer", "null"] },
         
+        "gb_check_demux_ids":             { "type": "integer", "default": 4 },
+        "mins_check_demux_ids":           { "type": "integer", "default": 5 },
+
         "gb_run_qc_one_run":              { "type": "integer", "default": 12 },
         "gb_merge_qc":                    { "type": ["integer", "null"] },
         "gb_merge_rowdata":               { "type": ["integer", "null"] },
@@ -394,9 +417,65 @@
       
         "retries":                       { "type": "integer", "default": 0 }
       }
+    },
+    "shiny": {
+      "title": "Shiny App Configuration",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "app_title":    { "type": "string",  "description": "Title displayed in the app header and Home tab" },
+        "email":        { "type": "string",  "description": "Contact email shown in the app footer" },
+        "keyword":      { "type": "string",  "description": "Short noun used in plot descriptions (e.g. 'cells')", "default": "cells" },
+        "default_gene": { "type": "string",  "description": "Gene symbol pre-filled in the Explore Genes tab" },
+        "n_keep":       { "type": "integer", "description": "Number of cells in the downsampled UMAP display", "default": 30000, "exclusiveMinimum": 0 },
+        "var_names":      { "type": "array",  "description": "Display names for metadata_vars (must match length)", "items": { "type": "string" } },
+        "var_combns":     { "type": "array",  "description": "Pairs of metadata_vars to cross-tabulate", "items": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 2 } },
+        "home_md":          { "type": "string", "description": "Path to a Markdown file used as the app landing page (relative to project dir or absolute)" },
+        "annotation_csv":   { "type": "string", "description": "Path to a CSV with columns cluster, cluster_name, and optional colour, defining display names and order for clusters (relative to project dir or absolute)" },
+        "cluster_palette":  { "type": "string", "description": "Named palette applied to cluster colours when no annotation_csv is provided (nice_cols, MetBrewer, RColorBrewer, or ggsci palette name)" },
+        "metadata_palettes": {
+          "type": "object",
+          "description": "Per-variable colour palettes. Each key is a metadata variable name; each value is a palette name (string), colour list (array of strings), or an object with optional 'palette', 'colours', and 'values' keys.",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "string",
+                "description": "Palette name (nice_cols, MetBrewer, RColorBrewer, or ggsci)" },
+              { "type": "array",
+                "items": { "type": "string" },
+                "description": "Explicit list of colour values (hex codes or R colour names)" },
+              { "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "palette":  { "type": "string", "description": "Named palette" },
+                  "colours":  { "type": "array", "items": { "type": "string" }, "description": "Explicit colour list" },
+                  "values":   { "type": "array", "items": { "type": "string" }, "description": "Level ordering (defaults to frequency order)" }
+                }
+              }
+            ]
+          }
+        }
+      }
     }
   },
   "allOf": [
+    {
+      "comment": "If tenx_assay_type is flex AND multiplexing section is present, demux_type must be none or flex.",
+      "if": {
+        "required": ["project", "multiplexing"],
+        "properties": {
+          "project": { "properties": { "tenx_assay_type": { "const": "flex" } } }
+        }
+      },
+      "then": {
+        "properties": {
+          "multiplexing": {
+            "properties": {
+              "demux_type": { "enum": ["none", "flex"] }
+            }
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": {"integration": {
@@ -405,11 +484,11 @@
       },
       "then": {
         "properties": {"multiplexing": {
-            "properties": {"demux_type": {"not": {"const": "none" } } }, "required": ["demux_type"]
+            "properties": {"demux_type": {"not": {"enum": ["none", "flex"] } } }, "required": ["demux_type"]
           }
         }, "required": ["multiplexing"]
       }
-    }, 
+    },
     {
       "if": {
         "required": ["multiplexing"],

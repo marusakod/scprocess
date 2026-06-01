@@ -107,7 +107,19 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
     
         awk -F',' '$1 != "mouse_2024"' $SCPROCESS_DATA_DIR/index_parameters.csv > $SCPROCESS_DATA_DIR/temp.csv && mv $SCPROCESS_DATA_DIR/temp.csv $SCPROCESS_DATA_DIR/index_parameters.csv 
         ```
-    
+
+    To process 10x Flex data, {{sc}} requires a probe set index to be built during setup. Add a `probe_sets` section to your _scprocess_setup.yaml_ file listing the probe sets you need e.g.
+
+    !!! note "OCM (on-chip multiplexing) support"
+        For 10x GEM-X Universal Multiplex (OCM) data, no additional setup is needed beyond the standard Cell Ranger download. The OCM overhang barcode map (`ocm_overhang_map.txt`) is automatically extracted from the Cell Ranger tarball during {{scsetup}}.
+
+    ```yaml
+    probe_sets:
+      tenx:
+      - name: human_v1
+      - name: mouse_v1
+    ```
+
 
 4. Finish setting up the {{sc}} data directory:
 

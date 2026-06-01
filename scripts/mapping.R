@@ -1,5 +1,3 @@
-# alevin_fry.R
-
 suppressPackageStartupMessages({
   library("magrittr")
   library("fishpond")
@@ -13,21 +11,98 @@ suppressPackageStartupMessages({
   library('BiocParallel')
 })
 
-# load counts data into sce object
-save_alevin_h5_ambient_params <- function(run, fry_dir, h5_f, cb_yaml_f, knee_data_f, 
-  run_var, knee1, shin1, knee2, shin2, exp_cells, total_included, low_count_thr) {
-  # load the data, save to h5
-  bender_ps = save_alevin_h5_knee_params_df(run, fry_dir, h5_f, knee_data_f, 
-    hto_mat = 0, run_var, knee1, shin1, knee2, shin2, 
-    exp_cells, total_included, low_count_thr)
+.get_ocm_overhang <- function(ocm_id, ocm_overhang_f) {
+  overhang_dt = fread(ocm_overhang_f, header = FALSE, col.names = c("oh1", "oh2", "ob_id"))
+  row         = overhang_dt[ob_id == ocm_id]
+  if (nrow(row) != 1)
+    stop(sprintf("OCM ID '%s' not found in overhang map: %s", ocm_id, ocm_overhang_f))
+  return(row$oh1)
+}
 
-  # write these parameters to yaml file
-  con_obj     = file(cb_yaml_f)
+make_alevin_h5 <- function(fry_dir, h5_f, hto_mat = 0, probe_id = NULL) {
+  if (hto_mat) {
+    sce = loadFry(fry_dir)
+    mat = counts(sce)
+  } else {
+    sce = loadFry(fry_dir, outputFormat = list(S = c("S"), U = c("U"), A = c("A")))
+    mat = assayNames(sce) %>% lapply(function(n) {
+      m           = assay(sce, n)
+      rownames(m) = paste0(rownames(m), "_", n)
+      m
+    }) %>% do.call(rbind, .)
+    if (!is.null(probe_id)) {
+      keep          = startsWith(colnames(mat), paste0(probe_id, "_"))
+      mat           = mat[, keep, drop = FALSE]
+      colnames(mat) = sub(paste0("^", probe_id, "_"), "", colnames(mat))
+    }
+  }
+
+  mat = mat[, colSums(mat) > 0, drop = FALSE]
+  message("number of barcodes kept: ", ncol(mat))
+  write10xCounts(h5_f, mat, version = "3", overwrite = TRUE)
+  return(mat)
+}
+
+save_alevin_h5_ambient_params <- function(run, fry_dir, h5_f, cb_yaml_f, knee_data_f,
+  run_var, knee1, shin1, knee2, shin2, exp_cells, total_included, low_count_thr,
+  probe_id = "None", ocm_id = "None", ocm_overhang_f = "None") {
+
+  # convert snakemake 'None' strings to R NULL
+  if (probe_id == "None")       probe_id       = NULL
+  if (ocm_id == "None")         ocm_id         = NULL
+  if (ocm_overhang_f == "None") ocm_overhang_f = NULL
+
+  # for flex or OCM: load pool matrix, filter to per-sample barcodes, save h5,
+  # then pass the in-memory matrix directly to avoid re-reading
+  precomputed_mat = NULL
+
+  # for flex: filter pool matrix to this sample's barcodes by probe_id prefix
+  if (!is.null(probe_id)) {
+    sce = loadFry(fry_dir, outputFormat = list(S = c("S"), U = c("U"), A = c("A")))
+    mat = assayNames(sce) %>% lapply(function(n) {
+      m           = assay(sce, n)
+      rownames(m) = paste0(rownames(m), "_", n)
+      m
+    }) %>% do.call(rbind, .)
+    keep          = startsWith(colnames(mat), paste0(probe_id, "_"))
+    mat           = mat[, keep, drop = FALSE]
+    colnames(mat) = sub(paste0("^", probe_id, "_"), "", colnames(mat))
+    mat           = mat[, colSums(mat) > 0, drop = FALSE]
+    message("sample ", run, " (probe_id=", probe_id, "): ", ncol(mat), " barcodes retained")
+    write10xCounts(h5_f, mat, version = "3", overwrite = TRUE)
+    precomputed_mat = mat
+    fry_dir = NULL
+
+  # for OCM: filter pool matrix to this sample's barcodes by 2bp overhang at position 8-9
+  } else if (!is.null(ocm_id)) {
+    overhang = .get_ocm_overhang(ocm_id, ocm_overhang_f)
+    sce = loadFry(fry_dir, outputFormat = list(S = c("S"), U = c("U"), A = c("A")))
+    mat = assayNames(sce) %>% lapply(function(n) {
+      m           = assay(sce, n)
+      rownames(m) = paste0(rownames(m), "_", n)
+      m
+    }) %>% do.call(rbind, .)
+    keep          = substr(colnames(mat), 8, 9) == overhang
+    mat           = mat[, keep, drop = FALSE]
+    mat           = mat[, colSums(mat) > 0, drop = FALSE]
+    message("sample ", run, " (ocm_id=", ocm_id, ", overhang=", overhang, "): ", ncol(mat), " barcodes retained")
+    write10xCounts(h5_f, mat, version = "3", overwrite = TRUE)
+    precomputed_mat = mat
+    fry_dir = NULL
+  }
+
+  bender_ps = save_alevin_h5_knee_params_df(run, fry_dir = fry_dir, h5_f = h5_f,
+    knee_data_f = knee_data_f, hto_mat = 0, run_var = run_var, probe_id = probe_id,
+    knee1 = knee1, shin1 = shin1, knee2 = knee2, shin2 = shin2,
+    exp_cells = exp_cells, total_included = total_included,
+    low_count_thr = low_count_thr, precomputed_mat = precomputed_mat)
+
+  con_obj = file(cb_yaml_f)
   writeLines(c(
     sprintf("run: %s",                          run),
-    sprintf("cb_total_droplets_included: %.0f", unique(bender_ps$total_droplets_included) ),
-    sprintf("cb_expected_cells: %.0f",          unique(bender_ps$expected_cells) ),
-    sprintf("cb_low_count_threshold: %.0f",     unique(bender_ps$low_count_threshold) ),
+    sprintf("cb_total_droplets_included: %.0f", unique(bender_ps$total_droplets_included)),
+    sprintf("cb_expected_cells: %.0f",          unique(bender_ps$expected_cells)),
+    sprintf("cb_low_count_threshold: %.0f",     unique(bender_ps$low_count_threshold)),
     sprintf("knee1: %.0f",                      unique(bender_ps$knee1)),
     sprintf("shin1: %.0f",                      unique(bender_ps$shin1)),
     sprintf("knee2: %.0f",                      unique(bender_ps$knee2)),
@@ -36,34 +111,16 @@ save_alevin_h5_ambient_params <- function(run, fry_dir, h5_f, cb_yaml_f, knee_da
   close(con_obj)
 }
 
-save_alevin_h5_knee_params_df <- function(run, fry_dir, h5_f, knee_data_f, 
+save_alevin_h5_knee_params_df <- function(run, fry_dir, h5_f, knee_data_f,
   hto_mat = 0, run_var, knee1 = '', shin1 = '', knee2 = '', shin2 ='',
-  exp_cells ='', total_included ='', low_count_thr ='') {
-  # load the data
-  if (hto_mat) {
-    sce = loadFry(fry_dir)
-    mat = counts(sce)
+  exp_cells ='', total_included ='', low_count_thr ='', probe_id = NULL,
+  precomputed_mat = NULL) {
+
+  if (!is.null(precomputed_mat)) {
+    mat = precomputed_mat
   } else {
-    # get sce object
-    sce = loadFry(
-      fry_dir,
-      outputFormat = list(S = c("S"), U = c("U"), A = c("A"))
-      )
-
-    # convert to matrix
-    mat = assayNames(sce) %>% lapply(function(n) {
-      mat       = assay(sce, n)
-      rownames(mat) = paste0(rownames(mat), "_", n)
-      return(mat)
-      }) %>% do.call(rbind, .)
+    mat = make_alevin_h5(fry_dir, h5_f, hto_mat = hto_mat, probe_id = probe_id)
   }
-
-  # remove zero cols
-  mat             = mat[, colSums(mat) > 0]
-  message("number of barcodes kept: ", ncol(mat))
-
-  # save to h5 file
-  write10xCounts(h5_f, mat, version = "3", overwrite = TRUE)
 
   # convert custom knees, shins and cellbender params to integers
   knee1           = as.integer(knee1)
@@ -85,19 +142,18 @@ save_alevin_h5_knee_params_df <- function(run, fry_dir, h5_f, knee_data_f,
     run_var = run_var, low_count_threshold = low_count_thr, 
     expected_cells = exp_cells, total_included = total_included )
 
-  # add spliced stats if not hto
+  # add spliced stats if not hto (rows are named gene_S, gene_U, gene_A)
   if (hto_mat == 0) {
-    # get spliced / unspliced values
     splice_dt = data.table(
-      barcode   = colnames(sce), 
-      spliced   = colSums(assay(sce, "S")), 
-      unspliced = colSums(assay(sce, "U"))
+      barcode   = colnames(mat),
+      spliced   = colSums(mat[grepl("_S$", rownames(mat)), , drop = FALSE]),
+      unspliced = colSums(mat[grepl("_U$", rownames(mat)), , drop = FALSE])
     )
     # add to bender_ps
     bender_ps = merge(bender_ps, splice_dt, by = "barcode") %>% .[ order(rank) ]
   }
 
-  fwrite(bender_ps, file = knee_data_f)
+  fwrite(bender_ps, file = knee_data_f, scipen = 999)
 
   return(bender_ps)
 }
@@ -253,8 +309,8 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
     knee2_corr = ranks_dt[ knee2_idx, total]
 
     sel_knee    = c(
-      shin        = shin2_corr,
-      knee        = knee2_corr
+      shin      = shin2_corr,
+      knee      = knee2_corr
     )
 
   } else if (!is.null(rank_empty_plateau)) {
@@ -264,9 +320,10 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
     # use barcodeRanks to find knee
     ranks_obj   = barcodeRanks(split_mat[, ranks_smol], lower = min_umis_empty)
     sel_knee    = c(
-      shin        = as.integer(round(as.numeric(as.character(metadata(ranks_obj)$inflection)))),
-      knee        = as.integer(round(as.numeric(as.character(metadata(ranks_obj)$knee))))
+      shin      = as.integer(round(as.numeric(as.character(metadata(ranks_obj)$inflection)))),
+      knee      = as.integer(round(as.numeric(as.character(metadata(ranks_obj)$knee))))
     )
+
   } else {
     # if rank_empty_plateaus is not specified, filter barcodes based on multiple
     # different thresholds and select knee+inflection with most votes
@@ -301,8 +358,8 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
 
     # we have a knee!
     sel_knee    = c(
-      shin        = as.integer(sel_i),
-      knee        = as.integer(sel_k)
+      shin      = as.integer(sel_i),
+      knee      = as.integer(sel_k)
     )
   }
 
@@ -332,7 +389,7 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
   # pick 10 values (including infection one and middle value) to be used to filter
   # barcodes for second knee and inflection detection
 
-  cuts      = 10^seq(log10(shin_x), log10(middle), length.out = 10)
+  cuts = 10^seq(log10(shin_x), log10(middle), length.out = 10)
 
   return( cuts )
 }

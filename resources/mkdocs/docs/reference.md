@@ -2,7 +2,7 @@
 
 ## {{scsetup}} { #scprocess-setup }
 
-**Description**: Download all data required for {{sc}} and index reference transcriptomes for `simpleaf`.
+**Description**: Download all data required for {{sc}} and index reference transcriptomes and probe sets for `simpleaf`.
 
 **Parameters**:
 
@@ -22,19 +22,18 @@ arvados:
   arv_instance:   instance_name
 ref_txomes:
   tenx:
-    - name:       human_2024
-      decoys:     true
-      rrnas:      true
+  - name:       human_2024
+    decoys:     true
+    rrnas:      true
   custom:
-    - name:       custom_genome_name
-      fasta:      /path/to/genome.fa
-      gtf:        /path/to/genes.gtf
-      decoys:     true
-      mito_str:   "^mt-"
-    - name:       custom_genome_name2
-      index_dir:  /path/to/prebuild/alevin/index
-      gtf:        /path/to/genes.gtf
-      mito_str:   "^MT-"
+  - name:       custom_genome_name
+    fasta:      /path/to/genome.fa
+    gtf:        /path/to/genes.gtf
+    decoys:     true
+    mito_str:   "^mt-"
+probe_sets:
+  tenx:
+  - name:       human_v1
 ```
 
 ##### user
@@ -76,6 +75,10 @@ Optional paramater for `tenx` references is:
 !!! info "More about decoys"
     {{sc}} utilizes `simpleaf`, a lightweight mapping approach that, by default, maps sequenced fragments exclusively to the transcriptome. However, this can lead to incorrect mapping of reads that arise from unannotated genomic loci to the transcriptome. To mitigate this issue, the `decoys` parameter for `ref_txomes` is set to `true`. This option allows `simpleaf` to identify genomic regions with sequences similar to those in transcribed regions (decoys), thereby reducing the likelihood of false mappings. We strongly recommend keeping the decoy setting enabled. For further details, refer to Srivastava et al., 2019[@Srivastava2020-jb].
 
+##### probe_sets
+
+Probe set indices for 10x Flex data are prepared with {{scsetup}} by adding a `probe_sets` section to the `scprocess_setup.yaml` file. Each entry under `tenx` specifies a named probe set to download and index. Valid values for `name` are `human_v1`, `human_v2`, `mouse_v1`, and `mouse_v2`.
+
 
 ## {{scnew}}
 
@@ -84,9 +87,28 @@ Optional paramater for `tenx` references is:
 **Parameters**:
 
 * `name` (positional): name of the new `workflowr` project directory.
-* `-w`/`--where` (optional): path to the directory where the new project will be created; defaults to the current working directory
+* `-w`/`--where` (optional): path to the directory where the new project will be created; defaults to the current working directory.
 * `-s`/`--sub` (optional): if provided, creates `data/fastqs` and `data/metadata` subdirectories within the project.
-* `-c`/`--config` (optional): generates a template configuration YAML file. If provided, it must be followed by either `sc` (single-cell) or `sn` (single-nucleus) to define standard QC thresholds. You can also append `multiplex` if your dataset requires demultiplexing e.g. `scprocess newproj project_name -c sc multiplex`
+* `-c`/`--config` (optional): generates a template configuration YAML file. If provided, it must be followed by either `sc` (single-cell) or `sn` (single-nucleus) to define standard QC thresholds. The generated config always includes `tenx_assay_type` in the `project` section. Additional modifiers can be appended:
+    + `flex`: sets `tenx_assay_type: flex` and includes `probe_set` instead of `ref_txome`. e.g. `scprocess newproj project_name -c sc flex`
+    + `multiplex`: adds a `multiplexing` section. When combined with `flex`, sets `demux_type: flex`; otherwise leaves `demux_type` blank for the user to fill in (e.g. `hto` or `custom`). e.g. `scprocess newproj project_name -c sc multiplex` or `scprocess newproj project_name -c sc flex multiplex`
+
+## {{scnewjoin}} { #scprocess-newjoin }
+
+**Description**: Create a new `workflowr` project directory for a {{scjoin}} outputs.
+
+**Usage**:
+
+```
+scprocess newjoin <name> [-w <where>] [-p <config>...]
+```
+
+**Parameters**:
+
+* `name` (positional): name of the new `workflowr` project directory.
+* `-w`/`--where` (optional): path to the parent directory where the new project will be created; defaults to the current working directory.
+* `-p`/`--projects` (optional): one or more paths to existing {{sc}} project configuration files.
+
 
 ## {{scknee}} { #scprocess-plotknee }
 
@@ -99,16 +121,17 @@ Optional paramater for `tenx` references is:
 * `-c`/`--configfile`: path to configuration file used for running {{sc}}. Exactly one of `--kneefile` and `--configfile` should be specified.
 
 
-## {{scrun}}
+## {{scrun}} { #scprocess-run }
 
 **Description**: Run {{sc}}.
 
 **Parameters**:
 
-* `-n`/`--dry-run`: perform a trial run which lists all steps that {{sc}} would do and does not create any new files. Helpful for checking input files and parameters.
-* `--create-envs`: only create the conda environments needed for the workflow, without running any rules.
-* `-E`/`--extraagrs`: list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for a detailed explanation of available command-line options.
-* `-r`/`--rule`: Specifies which rule {{sc}} should run. The options are:
+* `configfile` (positional): path to a configuration YAML file.
+* `-n`/`--dry-run` (optional): perform a trial run which lists all steps that {{sc}} would do and does not create any new files. Helpful for checking input files and parameters.
+* `--create-envs` (optional): only create the conda environments needed for the workflow, without running any rules.
+* `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for a detailed explanation of available command-line options.
+* `-r`/`--rule` (optional): Specifies which rule {{sc}} should run. The options are:
     + `all`: default; includes all [Core pipeline steps](introduction.md#core-pipeline-steps)
     + `mapping`: read alignment and quantification.
     + `ambient`: ambient RNA removal (optional) and cell calling.
@@ -123,11 +146,11 @@ Optional paramater for `tenx` references is:
 
 ### configuration file
 
-This is an example config file for {{sc}} with all parameters and their default values/placeholders. Required parameters are highlighted:
+This is an example `configfile` for {{sc}} with all parameters and their default values/placeholders. Required parameters are highlighted:
 
 === "default values"
 
-    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12"
+    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12 13 14"
     project:
       proj_dir:
       fastq_dir: # should not be defined if arv_uuids is defined
@@ -139,7 +162,9 @@ This is an example config file for {{sc}} with all parameters and their default 
       affiliation:
       date_stamp:
       sample_metadata:
+      tenx_assay_type:
       ref_txome:
+      probe_set:
       metadata_vars:
       show_arv_uuids: true
       custom_sample_params:
@@ -154,7 +179,7 @@ This is an example config file for {{sc}} with all parameters and their default 
       feature_ref:
       demux_output:
     ambient:
-      ambient_method: decontx
+      ambient_method: decontx_background
       cell_calling: barcodeRanks
       cb_version: v0.3.2
       cb_max_prop_kept: 0.9
@@ -214,10 +239,10 @@ This is an example config file for {{sc}} with all parameters and their default 
       - labeller:
         model:
         hi_res_cl: "RNA_snn_res.2"
-        min_pred: 0.8
         min_cl_prop: 0.5
         min_cl_size: 100
     zoom:
+    shiny:
     resources:
       retries: 3
       n_run_mapping: 8
@@ -225,7 +250,7 @@ This is an example config file for {{sc}} with all parameters and their default 
 
 === "placeholders"
 
-    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12"
+    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12 13 14"
     project:
       proj_dir: /path/to/proj/directory 
       fastq_dir: /path/to/directory/with/fastq/files
@@ -233,13 +258,15 @@ This is an example config file for {{sc}} with all parameters and their default 
       arv_instance: instance_name
       full_tag: test_project
       short_tag: test
-      your_name: Test McUser
+      your_name: Testy McUser
       affiliation: where you work
       date_stamp: "2050-01-01"
       sample_metadata: /path/to/metadata.csv
+      tenx_assay_type: poly_a
       ref_txome: human_2024
+      probe_set: human_v1
       tenx_chemistry: 3v3
-      metadata_vars: [var1, var2]
+      metadata_vars: [var1, var2, var3]
       show_arv_uuids: true
       custom_sample_params: /path/to/file/with/custom_parameters.yaml
       exclude:
@@ -314,13 +341,30 @@ This is an example config file for {{sc}} with all parameters and their default 
       - labeller: "scprocess"
         model: "human_cns"
         hi_res_cl: "RNA_snn_res.2"
-        min_pred: 0.8
         min_cl_prop: 0.5
         min_cl_size: 100
     zoom:
       - /path/to/cell_subset_1_zoom_params.yaml
       - /path/to/cell_subset_2_zoom_params.yaml
       - /path/to/cell_subset_3_zoom_params.yaml
+    shiny:
+      app_title: Test project shiny app
+      email`: testy.mcuser@email.com
+      keyword`: cells
+      default_gene`: APOE
+      n_keep`: 3000
+      var_names`: ["Variable 1", "Variable 2", "Variable 3"]
+      var_combns`:
+        - ["Variable 1", "Variable 2"]
+      home_md: /path/to/home.md
+      annotation_csv`: /path/to/annotation.csv
+      cluster_palette: Renoir
+      metadata_palettes:
+        var1: VanGogh1               # palette name
+        var2: ["#FF0000", "#0000FF"]       # explicit colours
+        var3:                              # explicit colours with custom ordering
+          colours: [red, blue, green]
+          values: [young, middle, old]
     resources:
       retries: 3
       n_run_mapping: 8
@@ -341,13 +385,15 @@ This is an example config file for {{sc}} with all parameters and their default 
 * `affiliation`: author’s affiliation, displayed in HTML outputs.
 * `date_stamp`: start date of the analysis, formatted as `"YYYY-MM-DD"`.
 * `sample_metadata`: path to CSV file with sample metadata. Should be absolute or relative to `proj_dir`. Spaces in column names are not allowed. Only required column is `sample_id`; values in `sample_id` should not contain `_R1`/`.R1` and `_R2`/`.R2` strings and should not overlap (a value should not be a subset of any other values).
-* `ref_txome`: must match one of the values in the `ref_txome` column of `index_parameters.csv` (created by {{scsetup}}).
+* `ref_txome`: must match one of the values in the `ref_txome` column of `index_parameters.csv` (created by {{scsetup}}). Required for polyA data; must not be specified for Flex data (use `probe_set` instead).
+* `tenx_assay_type`: assay type. Options are `poly_a` and `flex`. When set to `flex`, `probe_set` is required and `ref_txome` must not be specified.
+* `probe_set`: probe set to use for 10x Flex data. Required for Flex data. Valid values are `human_v1`, `human_v2`, `mouse_v1`, and `mouse_v2`. Must not be specified for polyA data (use `ref_txome` instead).
 
 #### Optional parameters
 
 ##### project
 
-* `tenx_chemistry`: 10x assay configurtaion. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, and `multiome`. `multiome` refers only to gene expression data generated with the 10x multiome kit (ATACseq data is not supported).
+* `tenx_chemistry`: 10x assay configuration. Accepted values are `3LT`, `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, `multiome`, `flexv1` and `flexv2`. `multiome` refers only to gene expression data generated with the 10x multiome kit (ATACseq data is not supported). For Flex data, chemistry specification is redundant as chemistry is derived automatically based on `probe_set`. When not specified for polyA data, chemistry is auto-detected from barcode whitelist overlap.
 * `metadata_vars`: A list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
 * `show_arv_uuids`: Whether to display Arvados UUIDs (`arv_uuids`) in the configuration file details box on the index page. If `false`, UUIDs are replaced with "not shown". Defaults to `true`.
 * `exclude`: List of all samples that should be excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`. 
@@ -356,14 +402,16 @@ This is an example config file for {{sc}} with all parameters and their default 
 ```yaml
 pool_id:
   pool_1:
-    tenx_chemistry: 5v2
+    project:
+      tenx_chemistry: 5v2
     mapping:
       knee1: 4000
       shin1: 400
       knee2: 30
       shin2: 5
   pool_2:
-    tenx_chemistry: 5v2
+    project:
+      tenx_chemistry: 5v2
     mapping:
       knee1: 3000
       shin1: 400
@@ -383,18 +431,24 @@ sample_id:
 
 * `demux_type`: `demux_type` options (default is `none`):
     + `none` if experiment is not multiplexed;
-    + `hto` if demultiplexing of samples should be performed with {{sc}}; or
-    + `custom` if demultiplexing results will be used as input to {{sc}}.
+    + `hto` if hto-based demultiplexing of samples should be performed with {{sc}};
+    + `ocm` if on-chip multiplexing was used. Requires an `ocm_id` column in sample metadata with values `OB1`-`OB4`.
+    + `custom` if demultiplexing results will be used as input to {{sc}}; or
+    + `flex` for 10x Flex data where samples are pooled within a library and demultiplexed using probe barcodes. Requires `tenx_assay_type: flex` in the `project` section.
 * `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
-* `arv_uuids`: list of Arvados UUIDs where fastq files are located. Expects `arv_instance`to be defined. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
+* `arv_uuids`: list of Arvados UUIDs where HTO fastq files are located. Expects `arv_instance`to be defined. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
 * `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `hto`.
 * `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `negative`. Required if `demux_type` is `custom`.
-* `seurat_quantile`: equivalent to the `positive.quantile` argument of the `Seurat::HTODemux` function (see [Seurat documentation](https://satijalab.org/seurat/reference/htodemux) for more details).
+* `seurat_quantile`: equivalent to the `positive.quantile` argument of the `Seurat::HTODemux` function (see [Seurat documentation](https://satijalab.org/seurat/reference/htodemux) for more details). Used if `demux_type` is `hto`.
 
 ##### ambient
 
-* `ambient_method`: method for ambient RNA removal; options are `decontx` (default), `cellbender` or `none`.
-* `cell_calling`: method for cell calling when `ambient_method` is `none` or `decontx`. Options are `barcodeRanks` (default) and `emptyDrops`.
+* `ambient_method`: method for ambient RNA removal. Options are:
+    + `decontx_background` (default): runs [`decontX`](https://bioconductor.org/packages/release/bioc/html/celda.html) with an estimated ambient RNA profile as input.
+    + `decontx_cluster`: runs `decontX` with a cluster-based background model.
+    + `cellbender`: uses [CellBender](https://cellbender.readthedocs.io) for ambient RNA removal.
+    + `none`: skips ambient RNA removal;
+* `cell_calling`: method for cell calling when `ambient_method` is `none`, `decontx_background`, or `decontx_cluster`. Options are `barcodeRanks` (default) and `emptyDrops`.
 * `cb_version`: version of `cellbender` to use if `ambient_method` is set to `cellbender`. Options are `v0.3.2` (default), `v0.3.0'` and `v0.2.0'`.
 * `cb_max_prop_kept`: maximum proportion of droplets, relative to `--total-droplets-included`, that `cellbender` can call as cells. Default is `0.9`, meaning samples are excluded if `cellbender` calls more than 90% of `--total-droplets-included` droplets as cells. Applicable only if `ambient_method` is `cellbender`. For more information about the `--total-droplets-included` parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
 * `cb_learning_rate`: Sets the `--learning-rate` `CellBender` parameter to the specified value; applicable only if `ambient_method` is `cellbender`. Default value is `0.0001`. For more information about this parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
@@ -473,13 +527,42 @@ sample_id:
     + `scprocess`: use an `XGBoost` classifier for cell type annotation.
 * `model`: determines the model to be used based on the selected `labeller`. For list of all available `CellTypist` models see `$SCPROCESS_DATA_DIR/celltypist/celltypist_models.csv`). If `labeller` is set to `scprocess` the value should be `human_cns`. 
 * `hi_res_cl`: name of a column containing high-resolution clustering results. It must follow the pattern `"RNA_snn_res.n"` where `n` should be replaced with one of the values in `int_sel_res`. Default is `"RNA_snn_res.2"`.
-* `min_pred`: minimum probability threshold for assigning a cell to a cell type.
 * `min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.
 * `min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled.
 
+##### shiny
+
+* `app_title`: title displayed in the Shiny app header. Defaults to `short_tag`.
+* `email`: contact email shown in the app footer.
+* `keyword`: short word used in plot axis labels and descriptions (e.g. `"cells"`, `"nuclei"`). Default is `"cells"`.
+* `default_gene`: gene symbol displayed by default in the "Explore Genes" tab.
+* `n_keep`: number of cells retained in the subsampled UMAP shown in the app. Default is 3000.
+* `var_names`: display names for `metadata_vars` columns (same order). Defaults to `metadata_vars` values.
+* `var_combns`: list of metadata variable pairs to display as combined groupings. Each element should be a two-element list of variable names from `metadata_vars`.
+* `home_md`: path to a Markdown file used as the landing page content. Shoule be absolute or relative to `proj_dir`.
+* `annotation_csv`: path to a CSV file with columns `cluster`, `cluster_name`, and optionally `colour`, defining display names, order, and colours for clusters. Absolute or relative to `proj_dir`.
+* `cluster_palette`: name of colour palette applied to clusters when `annotation_csv` is not provided. Accepts any name from the Supported colour palletes list.
+* `metadata_palettes`: per-variable colour palette configuration. Each key is a metadata variable name; the value can be:
+    - a palette name (string)
+    - an explicit colour list (array)
+    - an object with optional `palette`, `colours`, and `values` keys (the `values` list controls level ordering; defaults to frequency order)
+
+
+??? info "Supported colour palettes"
+
+    The following palette names are accepted anywhere a `cluster_palette` or `metadata_palettes` entry expects a name:
+
+    | Source | Names |
+    |--------|-------|
+    | **scprocess built-in** | `nice_cols` (42 colours) |
+    | **MetBrewer** | `Archambault`, `Austria`, `Benedictus`, `Cassatt1`, `Cassatt2`, `Cross`, `Degas`, `Demuth`, `Derain`, `Egypt`, `Gauguin`, `Greek`, `Hiroshige`, `Hokusai1`, `Hokusai2`, `Hokusai3`, `Homer1`, `Homer2`, `Ingres`, `Isfahan1`, `Isfahan2`, `Java`, `Johnson`, `Juarez`, `Kandinsky`, `Klimt`, `Lakota`, `Manet`, `Monet`, `Moreau`, `Morgenstern`, `Nattier`, `Navajo`, `NewKingdom`, `Nizami`, `OKeeffe1`, `OKeeffe2`, `Paquin`, `Peru1`, `Peru2`, `Pillement`, `Pissaro`, `Redon`, `Renoir`, `Signac`, `Tam`, `Tara`, `Thomas`, `Tiepolo`, `Troy`, `Tsimshian`, `VanGogh1`, `VanGogh2`, `VanGogh3`, `Veronese`, `Wissing` |
+    | **RColorBrewer** | Qualitative: `Accent`, `Dark2`, `Paired`, `Pastel1`, `Pastel2`, `Set1`, `Set2`, `Set3`. Sequential/diverging: `Blues`, `BuGn`, `BuPu`, `GnBu`, `Greens`, `Greys`, `Oranges`, `OrRd`, `PuBu`, `PuBuGn`, `PuRd`, `Purples`, `RdPu`, `Reds`, `YlGn`, `YlGnBu`, `YlOrBr`, `YlOrRd`, `BrBG`, `PiYG`, `PRGn`, `PuOr`, `RdBu`, `RdGy`, `RdYlBu`, `RdYlGn`, `Spectral`. |
+    | **ggsci** | `npg`, `aaas`, `nejm`, `lancet`, `jama`, `jco`, `ucscgb`, `d3` / `d3_20`, `d3_10`, `d3_20b`, `d3_20c`, `igv`, `cosmic`, `simpsons`, `rickandmorty`, `futurama`, `tron`, `startrek`, `uchicago`, `frontiers`, `flatui`, `bootstrap` |
+
+
 ##### zoom
 
-In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var` and `mkr_custom_genesets`.
+In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets` and all [shiny app parameters](#shiny) (`app_title` defaults to `name`)
 
 Additional parameters include:
 
@@ -510,7 +593,11 @@ zoom:
 qc:
   qc_min_cells: 100
 hvg:
-  hvg_method: all 
+  hvg_method: all
+shiny:
+  app_title: Oligos & OPCs
+  n_keep: 20000
+  default_gene: Mog
 ```
 
 ##### resources
@@ -523,12 +610,15 @@ This section allows users to adjust the resource requirements for specific `Snak
 Additional parameters include:
 
 * `retries`: number of times to retry running a specific rule in {{sc}} if it fails. For each attempt the initial memory requested for the rule is multiplied by `1.5**(attempt - 1)`. Useful for when {{sc}} is ran on a [cluster](setup.md#cluster-setup).
-* `n_run_mapping`: number of threads requested for running the mapping step. Default is 8.
+* `n_run_mapping`: number of threads requested for running the mapping step if `tenx_assay_type` is `poly_a`. Default is 8.
+* `n_run_mapping_flex`: number of threads requested for running the mapping step if `tenx_assay_type` is `flex`. Default is 8.
 
 ??? note "Detailed information about resource parameters"
 
     * `gb_build_hto_index`: maximum memory required (in GB) for rule `build_hto_index`.
     * `gb_run_mapping`: maximum memory required (in GB) for rule `run_mapping`.
+    * `gb_run_mapping_flex`: maximum memory required (in GB) for rule `run_mapping_flex`. Default is 12 GB.
+    * `gb_save_alevin_flex_to_h5`: maximum memory required (in GB) for rule `save_alevin_flex_to_h5`. Default is 32 GB.
     * `gb_run_mapping_hto`: maximum memory required (in GB) for rule `run_mapping_hto`.
     * `gb_save_alevin_to_h5`: maximum memory required (in GB) for rule `save_alevin_to_h5`.
     * `gb_make_hto_sce_objects`: maximum memory required (in GB) for rule `make_hto_sce_objects`.
@@ -592,6 +682,8 @@ Additional parameters include:
     * `gb_render_html_zoom`: maximum memory required (in GB) for rule `render_html_zoom`.
     * `mins_build_hto_index`: maximum runtime required (in minutes) for rule `build_hto_index`.
     * `mins_run_mapping`: maximum runtime required (in minutes) for rule `run_mapping`.
+    * `mins_run_mapping_flex`: maximum runtime required (in minutes) for rule `run_mapping_flex`. Default is 180 minutes.
+    * `mins_save_alevin_flex_to_h5`: maximum runtime required (in minutes) for rule `save_alevin_flex_to_h5`. Default is 10 minutes.
     * `mins_run_mapping_hto`: maximum runtime required (in minutes) for rule `run_mapping_hto`.
     * `mins_save_alevin_to_h5`: maximum runtime required (in minutes) for rule `save_alevin_to_h5`.
     * `mins_make_hto_sce_objects`: maximum runtime required (in minutes) for rule `make_hto_sce_objects`.
@@ -655,4 +747,68 @@ Additional parameters include:
     * `mins_render_html_zoom`: maximum runtime required (in minutes) for rule `render_html_zoom`.
     
 
+
+
+
+## {{scshiny}} { #scprocess-shiny }
+
+**Description**: Create an interactive Shiny app from {{sc}} outputs.
+
+**Parameters**:
+
+* `configfile` (positional): path to the configuration file used in [{{scrun}}](#scprocess-run) or [{{scjoin}}](#scprocess-join).
+* `--zoom` (optional): name of the cell subset to create the Shiny app for e.g `scprocess shiny config-my_project.yaml --zoom oligos_opcs`. Pass `all` to build apps for every zoom defined in the config e.g. `scprocess shiny config-my_project.yaml --zoom all`.
+* `-n`/`--dry-run` (optional): perform a trial run which lists all steps that {{scshiny}} would do and does not create any new files. Helpful for checking input files and parameters.
+* `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli).
+* `--unlock` (optional): unlock the directory if a previous run was interrupted.
+
+## {{scjoin}} { #scprocess-join }
+
+**Description**: Integrate multiple completed {{sc}} projects.
+
+**Parameters**:
+
+* `configfile` (positional): path to a configuration YAML file.
+* `-n`/`--dry-run` (optional): perform a trial run which lists all steps that {{scjoin}} would do and does not create any new files. Helpful for checking input files and parameters.
+* `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli).
+* `--unlock` (optional): unlock the directory if a previous run was interrupted.
+
+### configuration file
+
+Some parameters in the {{scjoin}} configuratio file inherit their definitions from the {{sc}} configuration file, including [**list here all parameters that inherit definitions from scprocess run***] and all [shiny app parameters](#shiny) (`app_title` defaults to `name`).
+
+Additional parameters include:
+[**Add parameter definitions here (take definitions from comments in the yaml**]
+**Which metadata variables can be listed in `metadata_vars`**?
+
+Example {{scjoin}} configuration file:
+
+```yaml
+join:
+  name: my_join           # short name; output directories are {name}_join and {name}_marker_genes
+  proj_dir: /path/to/join_output   # will be created if absent
+  date_stamp: "2025-01-15"
+  ref_txome: human_2024   # must match all projects (validated at startup)
+  your_name: Testy McUser
+  affiliation: where you work
+  metadata_vars: [Condition, Sex, Region]  # union of metadata variables to carry through
+projects:
+  project_a:
+    config: /path/to/config_a.yaml
+    zoom_name: T_cells          # use T_cells zoom outputs from this project
+  project_b:
+    config: /path/to/config_b.yaml
+    zoom_name: T_cells          # use T_cells zoom outputs from this project
+  project_c:
+    config: /path/to/config_c.yaml  # no zoom_name: use full-project outputs
+  hvg:
+    hvg_n_hvgs: 2000                           # number of joint HVGs (default: 2000)
+  integration:
+    int_embedding: harmony                     # harmony or pca (default: harmony)
+  label_celltypes:                             # optional; run CellTypist or scprocess on the joint integration
+    - labeller: celltypist
+      model: Immune_All_Low                    # any CellTypist model name                  # XGBoost classifier 
+  shiny:
+    app_title: My Joint Analysis # ... same options as in the project-level shiny section (see Optional parameters › shiny)
+```
 

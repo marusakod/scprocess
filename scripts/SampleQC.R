@@ -39,26 +39,19 @@ mito_labs   = c("0.01%", "0.1%", "1%", "10%", "50%", "90%", "99%", "99.9%")
 splice_brks = c(1e-4, 1e-3, 1e-2, 0.10, 0.50, 0.90, 0.99, 0.999) %>% qlogis
 splice_labs = c("0.01%", "0.1%", "1%", "10%", "50%", "90%", "99%", "99.9%")
 
-main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux_f, 
-  gtf_dt_f, ambient_method, sce_fs_str, all_batches_str, rowdata_f, dbl_f, qc_f,
+main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux_f,
+  gtf_dt_f, ambient_method, all_batches_str, rowdata_f, dbl_f, qc_f,
   coldata_f, mito_str, exclude_mito, hard_min_counts, hard_min_feats, hard_max_mito,
-  run_var = "sample_id", demux_type = "none", batch_var = "sample_id", dbl_min_feats = 100, 
+  run_var = "sample_id", demux_type = "none", batch_var = "sample_id", dbl_min_feats = 100,
   dbl_min_cells = 100) {
   # check inputs
   exclude_mito  = as.logical(exclude_mito)
 
-  # split output files and check if ok
   all_batches = str_split(all_batches_str, pattern = ',') %>% unlist()
-  sce_fs_ls   = str_split(sce_fs_str, pattern = ',') %>% unlist()
-  sce_fs_dirs = lapply(sce_fs_ls, FUN = dirname)
-  assert_that(all(sapply(sce_fs_dirs, dir.exists)))
-  assert_that(length(all_batches) == length(sce_fs_ls))
-  assert_that(all(str_detect(sce_fs_ls, all_batches)))
-  sce_fs_ls   = sce_fs_ls %>% setNames(all_batches)
-  
+
   # check whether to exclude bc of cellbender
   exc_by_cb   = .was_excluded_by_cellbender(ambient_method, run_stats_f, run_var, run_name,
-    sce_fs_ls, dbl_f, qc_f, rowdata_f, coldata_f)
+    dbl_f, qc_f, rowdata_f, coldata_f)
   if (exc_by_cb)
     return(NULL)
 
@@ -79,7 +72,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 
   # add metadata
   message('  adding metadata')
-  if (demux_type == "none") {
+  if (demux_type %in% c("none", "flex", "ocm")) {
     sce         = sce %>% .add_metadata(metadata_f)
   } else {
     sce         = sce %>% .add_demux_metadata(metadata_f, demux_f, demux_type)
@@ -114,17 +107,14 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 }
 
 .was_excluded_by_cellbender <- function(ambient_method, run_stats_f, run_var, run_name,
-  sce_fs_ls, dbl_f, qc_f, rowdata_f, coldata_f) {
+  dbl_f, qc_f, rowdata_f, coldata_f) {
   exc_by_cb   = FALSE
   if (ambient_method == 'cellbender') {
-    # loading file with bad bender samples
     message('  loading cellbender sample stats file')
-    run_stats_df  = fread(run_stats_f) 
+    run_stats_df  = fread(run_stats_f)
     exc_by_cb     = unique(run_stats_df[get(run_var) == run_name, bad_run])
     if (exc_by_cb) {
       message('  run ', run_name, ' has been excluded. Saving empty results file')
-      lapply(sce_fs_ls, file.create)
-      # file.create(dimred_f)
       file.create(dbl_f)
       file.create(qc_f)
       file.create(rowdata_f)
@@ -310,7 +300,11 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
         new = c("demux_class", "hto_id")
       )
 
+    valid_hto_pools = unique(metadata_all[, .(hto_id, pool_id)])
+
     coldata_out = hto_coldata %>%
+      # flag cells with hto_id not valid for their pool
+      .[, valid_hto := interaction(hto_id, pool_id) %in% interaction(valid_hto_pools$hto_id, valid_hto_pools$pool_id)] %>%
       # merge with sample metadata
       merge(metadata_all, by = c("hto_id", "pool_id"), all.x = TRUE) %>%
       # merge with rest of sce metadata
@@ -423,8 +417,8 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   coldata_in    = colData(sce) %>% as.data.frame() %>% as.data.table
   missing_cells = setdiff(coldata_in$cell_id, dbl_dt$cell_id)
   
-  # define columns we need  
-  if (demux_type == "none") {
+  # define columns we need
+  if (demux_type %in% c("none", "flex", "ocm")) {
     keep_cols     = c("cell_id", sample_var, "scdbl_class")
     by_cols       = c("cell_id", sample_var)
   } else {
@@ -474,9 +468,15 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   cuts_dt     = fread(cuts_f)
   
   # restrict to singlets
-  if (demux_type == "none") {
+  if (demux_type %in% c("none", "flex", "ocm")) {
     keep_idx    = coldata_in$scdbl_class == 'singlet'
-  } else {
+  } else if (demux_type == "hto") {
+    if (batch_var == "sample_id") {
+      keep_idx    = (coldata_in$scdbl_class == 'singlet') & (coldata_in$demux_class == 'singlet') & (coldata_in$valid_hto == TRUE)
+    } else if (batch_var == "pool_id") {
+      keep_idx    = coldata_in$scdbl_class == 'singlet'
+    }
+  } else if (demux_type == "custom") {
     if (batch_var == "sample_id") {
       keep_idx    = (coldata_in$scdbl_class == 'singlet') & (coldata_in$demux_class == 'singlet')
     } else if (batch_var == "pool_id") {
@@ -1461,16 +1461,16 @@ make_qc_dt <- function(qc_df, batch_var = 'sample_id', run_var = "sample_id",
     qc_dt[, splice_ratio  := log2( (qc_df$total_spliced + 1) / (qc_df$total_unspliced + 1) ) ]
 
   } else {
-    stop("logit_mito requested but required variables not present")
+    stop("splice_ratio requested but required variables not present")
 
   }
 
   # do some checks
   assert_that( "splice_ratio" %in% names(qc_dt) )
-  assert_that( !any(is.na(qc_dt$logit_mito)),
-               msg = "some logit_mito values are NA")
-  assert_that( !any(is.infinite(qc_dt$logit_mito)),
-               msg = "some logit_mito values are infinite")
+  assert_that( !any(is.na(qc_dt$splice_ratio)),
+               msg = "some splice_ratio values are NA")
+  assert_that( !any(is.infinite(qc_dt$splice_ratio)),
+               msg = "some splice_ratio values are infinite")
 
   return(qc_dt)
 }
@@ -1493,8 +1493,8 @@ list_known_metrics <- function() {
   for (v in to_add) {
     assert_that( v %in% names(qc_df), msg = paste0(v, " missing from qc_df"))
     set(qc_dt, i = NULL, v, qc_df[[v]])
-    assert_that( !any(is.na(qc_dt$v)), msg = paste0("NA values for ", v))
-    assert_that( !any(is.infinite(qc_dt$v)), msg = paste0("infinite values for ", v))
+    assert_that( !any(is.na(qc_dt[[v]])), msg = paste0("NA values for ", v))
+    assert_that( !any(is.infinite(qc_dt[[v]])), msg = paste0("infinite values for ", v))
   }
 
   return(qc_dt)

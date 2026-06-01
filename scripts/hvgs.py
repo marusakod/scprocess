@@ -586,10 +586,10 @@ def _process_multiple_groups(stats_df, group_var, exclude_gs, n_hvgs):
 
 
 # main function to calculate highly variable genes
-def calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_f, hvg_method, batch_var, n_hvgs, exclude_ambient=True, exc_gs_f=None):
+def calculate_hvgs(std_var_stats_f, hvg_f, hvg_method, batch_var, n_hvgs, empty_gs_f=None, exclude_ambient=True, exc_gs_f=None):
   # get empty genes to exclude
   empty_gs  = []
-  if exclude_ambient:
+  if exclude_ambient and empty_gs_f is not None:
     empty_df  = pl.read_csv(empty_gs_f)
     empty_gs  = empty_df.filter( pl.col("is_ambient") == True )["gene_id"].to_list()
 
@@ -662,7 +662,7 @@ def create_hvg_matrix(qc_smpl_stats_f, hvg_paths_f, hvg_f, out_h5_f, demux_type,
   hvg_paths_df  = pl.read_csv(hvg_paths_f)
   chunked_fs    = hvg_paths_df['chunked_f'].to_list()
   batches       = hvg_paths_df[ batch_var ].to_list()
-  if demux_type == "none": 
+  if demux_type in ("none", "flex", "ocm"):
     pools         = batches
   else:
     pools         = hvg_paths_df['pool_id'].to_list()
@@ -769,7 +769,7 @@ def create_doublets_matrix(hvg_paths_f, hvg_f, qc_f, qc_smpl_stats_f, out_h5_f, 
   qc_df     = pl.read_csv(qc_f, ignore_errors = True)
 
   # subset to doublets
-  if demux_type == "none":
+  if demux_type in ("none", "flex", "ocm"):
     dbl_df    = qc_df.filter( pl.col("scdbl_class") == "doublet" )
   else:
     if batch_var == "sample_id":
@@ -883,14 +883,14 @@ if __name__ == "__main__":
   parser_chunkSssc.add_argument("-n", "--ncores", type=int, required=False, default = 8)
 
   
-  # parser for calculate_hvgs(std_var_stats_f, hvg_f, empty_gs_fs, hvg_method, n_hvgs, exclude_empty=True
+  # parser for calculate_hvgs
   parser_getHvgs = subparsers.add_parser('calculate_hvgs')
   parser_getHvgs.add_argument("std_var_stats_f", type=str)
   parser_getHvgs.add_argument("hvg_f", type=str)
-  parser_getHvgs.add_argument("empty_gs_f", type=str)
   parser_getHvgs.add_argument("hvg_method", type=str)
   parser_getHvgs.add_argument("batch_var", type=str)
   parser_getHvgs.add_argument("n_hvgs", type=int)
+  parser_getHvgs.add_argument("--empty_gs_f", type=str, default=None)
   parser_getHvgs.add_argument("--exc_gs_f", type=str, default=None)
   parser_getHvgs.add_argument("-e", "--noambient", action='store_true')
 
@@ -949,8 +949,8 @@ if __name__ == "__main__":
     )
   elif args.function_name == 'calculate_hvgs':
     calculate_hvgs(
-      args.std_var_stats_f, args.hvg_f, args.empty_gs_f, args.hvg_method, args.batch_var, 
-      args.n_hvgs, args.noambient, args.exc_gs_f
+      args.std_var_stats_f, args.hvg_f, args.hvg_method, args.batch_var,
+      args.n_hvgs, args.empty_gs_f, args.noambient, args.exc_gs_f
     )
   elif args.function_name == 'create_hvg_matrix':
     create_hvg_matrix(

@@ -46,6 +46,7 @@ project:
   your_name: Testy McUser
   affiliation: where you work
   sample_metadata: /path/to/metadata.csv
+  tenx_assay_type: poly_a
   ref_txome: human_2024
   date_stamp: "2026-01-01"
 ```
@@ -84,9 +85,13 @@ scprocess run /path/to/config.yaml -r qc
 
 ## Analysis of multiplexed samples
 
-{{sc}} supports two approaches for handling multiplexed samples:
+{{sc}} supports several approaches for handling multiplexed samples:
 
 * **Hashtag oligo (HTO)-based demultiplexing**: {{sc}} uses HTO-derived cDNA libraries to generate a count matrix which can be used for sample demultiplexing.
+
+* **Flex-based demultiplexing**: For 10x Chromium Fixed RNA Profiling (Flex) experiments, {{sc}} uses probe barcodes to split pool-level mapping output into per-sample count matrices. Ambient RNA removal, QC filtering and doublet detection are performed independently for each sample. No separate FASTQ library is required.
+
+* **On-chip multiplexing (OCM)**: For experiments using the [10x OCM assay](https://www.10xgenomics.com/support/software/cell-ranger/latest/getting-started/cr-3p-what-is-cellplex#on-chip) {{sc}} performs deterministic barcode-based demultiplexing. As with Flex-based demultiplexing, pool-level mapping outputs are split into per-sample count matrices. Ambient RNA removal, QC filtering and doublet detection are performed independently for each sample. No separate FASTQ library is required. 
 
 * **Outputs of external demultiplexing algorithms**: If the data has already been demultiplexed using an external method (e.g. genetic demultiplexing tools like `Demuxlet`[@Kang2018-dh]), users can provide a cell-sample assignment file to process the data further using {{sc}}
 
@@ -96,6 +101,8 @@ Processing multiplexed samples requires a different format for the sample metada
 
 * `pool_id`: specifies the pool to which each sample belongs. Instead of values in the `sample_id` column, FASTQ filenames must match values in the `pool_id` column.
 * `hto_id`: only required for HTO-based demultiplexing. Specifies the HTO label used to tag each sample before pooling.
+* `probe_id`: only required for Flex-based demultiplexing. Specifies the probe barcode ID assigned to each sample in the 10x Flex experiment.
+* `ocm_id`: only required for OCM-based demultiplexing. Specifies the on-chip partition (`OB1`, `OB2`, `OB3`, or `OB4`) assigned to each sample.
 
 
 !!! Warning "The dataset must consist entirely of either multiplexed or non-multiplexed samples. Mixed datasets are not supported."
@@ -103,11 +110,15 @@ Processing multiplexed samples requires a different format for the sample metada
 
 ![multiplexing](assets/images/scprocess_multiplexing_white_bg.png#only-light)
 ![multiplexing](assets/images/scprocess_multiplexing_black_bg.png#only-dark)
----
 
-<div class="img-caption">Schematic representation of sample multiplexing for single-cell sequencing. Individual samples (with corresponding names in the <code>sample_id</code> column) are labelled with antibodies carrying different HTOs (with corresponding labels in the <code>hto_id</code> column). These labeled samples are then combined into pools (with corresponding names in the <code>pool_id</code> column). HTO labels can be shared across different pools. </div>
+---
+<div class="img-caption">Schematic representation of HTO-based and Flex-based sample multiplexing for single-cell sequencing. Individual samples (with corresponding names in the <code>sample_id</code> column) are labelled with antibodies carrying different HTOs (with corresponding labels in the <code>hto_id</code> column) or probes with different barcode sequences. These labeled samples are then combined into pools (with corresponding names in the <code>pool_id</code> column). HTO labels or probe barcodes can be shared across different pools. </div>
+
+
 
 ### Options for integrating multiplexed samples
+
+!!! Warning "These options do not apply to multiplexed Flex or OCM samples."
 
 {{sc}} offers two approaches to integration of multiplexed samples, defined by `int_batch_var` in the `integration` section of the configuration file. The two possibilities are:
 
