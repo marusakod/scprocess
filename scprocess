@@ -563,7 +563,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 
 
 def run_train_xgboost(scprocess_dir, configfile, dryrun, extraargs):
-  
+  """Train an XGBoost cell type classifier."""
   print("doing some checks on inputs")
 
   config_path = pathlib.Path(configfile).resolve()
@@ -574,10 +574,39 @@ def run_train_xgboost(scprocess_dir, configfile, dryrun, extraargs):
     scprocess_dir, extraargs
   )
 
-  # set up cluster log directory if using slurm
-    _render_index(scprocess_dir, config, setup_cfg, config_path)
- 
-  return
+  # validate config
+  with open(config_path, "r") as f:
+    config = yaml.safe_load(f)
+  schema_f = scprocess_dir / "resources/schemas/train_xgboost.schema.json"
+  config = scprocess_utils.check_train_xgboost_config(config, schema_f, scdata_dir)
+
+  # write validated config (with output_dir injected) to temp file for snakemake
+  validated_config_f = pathlib.Path(config["output_dir"]) / "_validated_config.yaml"
+  pathlib.Path(config["output_dir"]).mkdir(parents=True, exist_ok=True)
+  with open(validated_config_f, "w") as f:
+    yaml.dump(config, f, default_flow_style=False)
+
+  if dryrun:
+    extraargs.append('-np')
+
+  snakefile = scprocess_dir / "rules/train_xgboost.smk"
+  cmd_list = ["snakemake",
+    "--snakefile", str(snakefile),
+    "--configfile", str(validated_config_f),
+    "--config", f"scprocess_dir={str(scprocess_dir)}",
+    f"_config_path={str(validated_config_f)}",
+    "--rerun-triggers", "mtime", "params",
+    "--rerun-incomplete",
+    "--show-failed-logs", "--printshellcmds",
+    "--software-deployment-method", "conda",
+    *extraargs,
+    "all"]
+
+  cmd_str = " ".join(map(shlex.quote, map(str, cmd_list)))
+  print(f"starting XGBoost training")
+  print(f"output directory: {config['output_dir']}")
+  print(f"snakemake command:\n{cmd_str}")
+  subprocess.run(cmd_str, check=True, shell=True, env=_clean_conda_env())
 
 
 def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
@@ -723,28 +752,6 @@ def run_join(configfile, sc_dir, extraargs, dryrun):
       extraargs.append('--slurm-logdir')
       extraargs.append(str(cluster_log_dir))
 
-  # validate config
-  with open(config_path, "r") as f:
-    config = yaml.safe_load(f)
-  schema_f = scprocess_dir / "resources/schemas/train_xgboost.schema.json"
-  config = scprocess_utils.check_train_xgboost_config(config, schema_f, scdata_dir)
-
-  # write validated config (with output_dir injected) to temp file for snakemake
-  validated_config_f = pathlib.Path(config["output_dir"]) / "_validated_config.yaml"
-  pathlib.Path(config["output_dir"]).mkdir(parents=True, exist_ok=True)
-  with open(validated_config_f, "w") as f:
-    yaml.dump(config, f, default_flow_style=False)
-
-  # add the config path so the snakemake rule can pass it to the script
-  snakefile = scprocess_dir / "rules/train_xgboost.smk"
-  cmd_list = ["snakemake",
-    "--snakefile", str(snakefile),
-    "--configfile", str(validated_config_f),
-    "--config", f"scprocess_dir={str(scprocess_dir)}",
-    f"_config_path={str(validated_config_f)}",
-    "--rerun-triggers", "mtime", "params",
-    "--rerun-incomplete"
-  ] # this is strange
   if dryrun:
     extraargs.append('-np')
 
@@ -759,14 +766,6 @@ def run_join(configfile, sc_dir, extraargs, dryrun):
     *extraargs,
     "all"]
 
-  cmd_str = " ".join(map(shlex.quote, map(str, cmd_list)))
-  print(f"starting XGBoost training")
-  print(f"output directory: {config['output_dir']}")
-  print(f"snakemake command:\n{cmd_str}")
-  subprocess.run(cmd_str, check=True, shell=True, env=_clean_conda_env())
-
-
-def _render_index(scprocess_dir, config, config_path):
   cmd_str      = " ".join(map(shlex.quote, map(str, cmd_list)))
   strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
   final_cmd    = f"script -q -e -c {shlex.quote(cmd_str)} /dev/null | tee /dev/stderr | {strip_colors} >> {log_f}"

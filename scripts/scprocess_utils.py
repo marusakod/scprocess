@@ -1974,6 +1974,7 @@ def check_train_xgboost_config(config, schema_f, scdata_dir):
     "affiliation": scp_config["project"].get("affiliation", ""),
   }
 
+  return config
 
 
 def _apply_join_defaults(cfg, schema_props):

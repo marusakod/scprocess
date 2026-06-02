@@ -127,7 +127,7 @@ metrics_dt %>% knitr::kable(digits = 3)
 Genes are ranked by their contribution to XGBoost's loss reduction (gain). The vertical line shows the cutoff where the top genes capture 90% of total gain. Genes to the left of the line are included in the final model.
 
 ```{r plot_gain_curve, fig.height = 5, fig.width = 8}
-plot_gain_curve(gain_dt)
+print(plot_gain_curve(gain_dt))
 ```
 
 
