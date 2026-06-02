@@ -159,9 +159,11 @@ INT_RES_LS_CONCAT = " ".join(str(r) for r in INT_RES_LS)
 if isinstance(INT_BATCH_VAR, list):
   INT_BATCH_VAR_CONCAT = " ".join(INT_BATCH_VAR)
   INT_BATCH_IS_LIST    = True
+  PRIMARY_BATCH_VAR    = INT_BATCH_VAR[0]
 else:
   INT_BATCH_VAR_CONCAT = INT_BATCH_VAR
   INT_BATCH_IS_LIST    = False
+  PRIMARY_BATCH_VAR    = INT_BATCH_VAR
 
 if isinstance(INT_THETA_RAW, list):
   INT_THETA_CONCAT  = " ".join(str(t) for t in INT_THETA_RAW)
@@ -350,7 +352,8 @@ rule join_build_matrix:
     joint_sample_meta_f = joint_sample_meta_f
   params:
     project_ids   = " ".join(JOIN_PROJECT_IDS),
-    metadata_vars = METADATA_VARS_STR
+    metadata_vars = METADATA_VARS_STR,
+    batch_var     = PRIMARY_BATCH_VAR
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_matrix', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_matrix', 'time', attempt)
@@ -369,6 +372,7 @@ rule join_build_matrix:
       --integrated_dt_fs    {input.integrated_fs} \
       --sample_meta_fs      {input.sample_meta_fs} \
       --metadata_vars       "{params.metadata_vars}" \
+      --batch_var           {params.batch_var} \
       --out_h5_f            {output.joint_counts_f} \
       --out_coldata_f       {output.joint_coldata_f} \
       --out_sample_meta_f   {output.joint_sample_meta_f}
@@ -536,7 +540,7 @@ rule join_marker_genes:
   benchmark:
     f"{benchmark_dir}/join_marker_genes_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.benchmark.txt"
   conda:
-    '../envs/rlibs.yaml'
+    '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
     Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); calculate_marker_genes(
@@ -551,7 +555,8 @@ rule join_marker_genes:
       min_cells     =  {params.min_cells},
       zoom          = 'True',
       batch_var     = '{params.batch_var}',
-      n_cores       =  {threads})"
+      n_cores       =  {threads},
+      use_bpcells   = 'True')"
     """
 
 

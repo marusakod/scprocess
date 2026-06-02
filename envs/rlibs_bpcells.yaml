@@ -1,0 +1,39 @@
+name: rlibs_bpcells
+channels:
+  - bioconda
+  - conda-forge
+  - nodefaults
+dependencies:
+  - r-base=4.4.3
+  - r-bpcells
+  - r-data.table
+  - r-matrix
+  - r-purrr
+  - r-assertthat
+  - r-yaml
+  - r-forcats
+  - r-stringr
+  - r-magrittr
+  - r-circlize
+  - r-viridis
+  - r-scales
+  - r-rcolorbrewer
+  - r-ggplot2
+  - r-ggbeeswarm
+  - r-ggrepel
+  - r-ggh4x
+  - r-patchwork
+  - r-readxl
+  - r-strex
+  - r-seriation
+  - r-r.utils
+  - bioconductor-complexheatmap
+  - bioconductor-edger
+  - bioconductor-deseq2
+  - bioconductor-singlecellexperiment
+  - bioconductor-scater
+  - bioconductor-biocparallel
+  - bioconductor-rhdf5
+  - bioconductor-fgsea
+  - bioconductor-zellkonverter
+  - r-rhpcblasctl

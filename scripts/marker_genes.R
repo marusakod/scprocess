@@ -11,7 +11,8 @@ suppressPackageStartupMessages({
 
 
 calculate_marker_genes <- function(integration_f, h5ads_yaml_f, batch_var, pb_f, mkrs_f, pb_hvgs_f,
-  do_gsea, gtf_dt_f, gsea_dir, sel_res, min_cl_size, min_cells, zoom = FALSE, n_cores = 4) {
+  do_gsea, gtf_dt_f, gsea_dir, sel_res, min_cl_size, min_cells, zoom = FALSE, n_cores = 4,
+  use_bpcells = FALSE) {
   # define some variables
   zoom        = as.logical(zoom)
   
@@ -42,8 +43,14 @@ calculate_marker_genes <- function(integration_f, h5ads_yaml_f, batch_var, pb_f,
 
   # make_pb_object
   message("  making pseudobulk object")
-  pb          = make_pseudobulk_object(pb_f, integration_f, h5ads_yaml_f, sel_res, batch_var,
-    min_cl_size = min_cl_size, agg_fn = "sum", zoom = zoom, n_cores = n_cores)
+  use_bpcells = as.logical(use_bpcells)
+  if (use_bpcells) {
+    pb        = make_pseudobulk_object_bpcells(pb_f, integration_f, h5ads_yaml_f, sel_res,
+      batch_var, min_cl_size = min_cl_size, agg_fn = "sum", n_cores = n_cores)
+  } else {
+    pb        = make_pseudobulk_object(pb_f, integration_f, h5ads_yaml_f, sel_res, batch_var,
+      min_cl_size = min_cl_size, agg_fn = "sum", zoom = zoom, n_cores = n_cores)
+  }
 
   # calc cpms
   message("  calculating logCPMs")
@@ -141,6 +148,79 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
   return(pb)
 }
 
+
+make_pseudobulk_object_bpcells <- function(pb_f, integration_f, h5ads_yaml_f, sel_res,
+  batch_var, min_cl_size, agg_fn = "sum", n_cores = 8) {
+  library("BPCells")
+
+  message("    loading integration output")
+  int_dt      = fread(integration_f)
+  cl_var      = paste0("RNA_snn_res.", sel_res)
+  assert_that(cl_var %in% names(int_dt))
+
+  message("    excluding tiny clusters")
+  cl_ns       = table(int_dt[[cl_var]])
+  keep_cls    = names(cl_ns)[cl_ns >= min_cl_size]
+  int_dt      = int_dt[get(cl_var) %in% keep_cls]
+  setkey(int_dt, "cell_id")
+
+  message("    pseudobulking per batch (BPCells, ", n_cores, " cores)")
+  h5ad_paths  = yaml::read_yaml(h5ads_yaml_f)
+
+  pb_mats     = parallel::mclapply(names(h5ad_paths), function(batch_name) {
+    entry     = h5ad_paths[[batch_name]]
+    h5ad_path = if (is.character(entry)) entry else entry[["path"]]
+    message("      ", batch_name)
+
+    mat       = BPCells::open_matrix_anndata_hdf5(h5ad_path)
+    ok_cells  = intersect(colnames(mat), int_dt$cell_id)
+    if (length(ok_cells) == 0) return(NULL)
+    mat       = mat[, ok_cells]
+
+    batch_int = int_dt[ok_cells]
+    group_vec = paste(batch_int[[cl_var]], batch_int[[batch_var]], sep = ".")
+    pb_one    = BPCells::pseudobulk_matrix(mat, group_vec, method = "sum")
+    as.matrix(pb_one)
+  }, mc.cores = n_cores)
+  pb_mats     = Filter(Negate(is.null), pb_mats)
+
+  message("    merging per-batch pseudobulks")
+  all_genes   = unique(unlist(lapply(pb_mats, rownames)))
+  all_groups  = unique(unlist(lapply(pb_mats, colnames)))
+  merged      = matrix(0, nrow = length(all_genes), ncol = length(all_groups),
+                       dimnames = list(all_genes, all_groups))
+  for (pb_one in pb_mats) {
+    merged[rownames(pb_one), colnames(pb_one)] =
+      merged[rownames(pb_one), colnames(pb_one)] + pb_one
+  }
+
+  message("    assembling pseudobulk SCE")
+  samples     = unique(int_dt[[batch_var]])
+  mat_ls      = lapply(keep_cls, function(cl) {
+    col_prefix = paste0(cl, ".")
+    sel_cols   = colnames(merged)[startsWith(colnames(merged), col_prefix)]
+    mat        = matrix(0, nrow = length(all_genes), ncol = length(samples),
+                        dimnames = list(all_genes, samples))
+    for (col in sel_cols) {
+      smpl = sub(paste0("^\\Q", cl, "\\E\\."), "", col)
+      if (smpl %in% samples) mat[, smpl] = merged[, col]
+    }
+    mat
+  }) %>% setNames(keep_cls)
+
+  pb = SingleCellExperiment(mat_ls)
+  ns = table(factor(int_dt[[cl_var]], levels = keep_cls),
+             factor(int_dt[[batch_var]], levels = samples))
+  ns = asplit(ns, 2) %>% purrr::map(~c(unclass(.)))
+  int_colData(pb)$n_cells = ns
+  metadata(pb)$agg_pars = list(assay = "X", by = c("cluster", batch_var), fun = agg_fn)
+
+  message("    saving outputs")
+  saveRDS(pb, file = pb_f, compress = FALSE)
+  return(pb)
+}
+
+
 .make_one_pseudobulk <- function(sel_b, h5ad_paths, batch_var, cl_var, keep_cls, agg_fn) {
   message(sel_b)
   h5ad_f     = h5ad_paths[[sel_b]]
@@ -182,7 +262,10 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
   tmp_sce     = readH5AD(h5ad_path)
   smpl_int_dt = copy(int_dt) %>% .[ get(batch_var) == sel_b ] %>% setkey(cell_id)
   assert_that(all(smpl_int_dt$cell_id %in% colnames(tmp_sce)))
-  
+
+  # subset to cells present in integration output (excludes undemultiplexed/filtered cells)
+  tmp_sce     = tmp_sce[, colnames(tmp_sce) %in% smpl_int_dt$cell_id]
+
   # add clusters to sce
   colData(tmp_sce)[["cluster"]] = smpl_int_dt[colnames(tmp_sce)] %>% .[[cl_var]]
 
