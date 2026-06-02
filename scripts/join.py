@@ -91,30 +91,34 @@ def select_joint_hvgs(var_stats_fs, project_ids, n_hvgs, out_f):
 # Step 2: Build joint count matrix, coldata, and sample metadata
 # ---------------------------------------------------------------------------
 
-def _ok_cells_filter(int_dt):
-  """Return a boolean filter expression for non-doublet cells.
+def _ok_cells_filter(int_dt, batch_var='sample_id'):
+  """Return a boolean filter expression for non-doublet, demultiplexed cells.
   If is_dbl/in_dbl_cl columns are absent (e.g. zoom integrated_dt where
   doublets were already removed upstream), all cells are considered clean.
+  Cells with null/None batch_var are excluded (undemultiplexed HTO cells).
   """
+  filt = pl.lit(True)
   if 'is_dbl' in int_dt.columns and 'in_dbl_cl' in int_dt.columns:
-    return (pl.col('is_dbl') == False) & (pl.col('in_dbl_cl') == False)
-  return pl.lit(True)
+    filt = filt & (pl.col('is_dbl') == False) & (pl.col('in_dbl_cl') == False)
+  if batch_var in int_dt.columns:
+    filt = filt & pl.col(batch_var).is_not_null() & (pl.col(batch_var).cast(pl.Utf8) != 'None')
+  return filt
 
 
-def _check_sample_id_uniqueness(project_ids, integrated_dt_fs):
-  """Raise ValueError if any sample_id (among non-doublet cells) appears in >1 project."""
+def _check_batch_id_uniqueness(project_ids, integrated_dt_fs, batch_var='sample_id'):
+  """Raise ValueError if any batch_var value (among clean cells) appears in >1 project."""
   seen = {}
   for pid, int_f in zip(project_ids, integrated_dt_fs):
     int_dt  = pl.read_csv(int_f)
-    samples = int_dt.filter(_ok_cells_filter(int_dt))['sample_id'].unique().to_list()
-    for s in samples:
-      if s in seen and seen[s] != pid:
+    batches = int_dt.filter(_ok_cells_filter(int_dt, batch_var))[batch_var].unique().to_list()
+    for b in batches:
+      if b in seen and seen[b] != pid:
         raise ValueError(
-          f"sample_id '{s}' appears in both project '{seen[s]}' "
-          f"and '{pid}'. Use unique sample IDs across projects, or the joint "
-          f"sample_id ('{pid}_{s}') will still be unique."
+          f"{batch_var} '{b}' appears in both project '{seen[b]}' "
+          f"and '{pid}'. Use unique {batch_var} values across projects, or the joint "
+          f"{batch_var} ('{pid}_{b}') will still be unique."
         )
-      seen[s] = pid
+      seen[b] = pid
 
 
 def _load_batch_hvg_matrix(h5ad_path, ok_cells, hvg_list, pid, batch_key):
@@ -168,33 +172,35 @@ def _load_batch_hvg_matrix(h5ad_path, ok_cells, hvg_list, pid, batch_key):
   return csc_sub, kept_bcs.tolist()
 
 
-def _build_project_coldata(int_dt, pid, smeta_dt, metadata_vars):
+def _build_project_coldata(int_dt, pid, smeta_dt, metadata_vars, batch_var='sample_id'):
   """
-  Build per-project coldata: filter to non-doublets, prefix sample IDs with the
+  Build per-project coldata: filter to clean cells, prefix batch_var IDs with the
   project ID, and optionally join extra metadata variables from sample_meta.
-  Cell IDs are kept as-is (matching h5ad colnames) since sample IDs are
-  guaranteed unique across projects by _check_sample_id_uniqueness.
   """
-  proj_cells = int_dt.filter(_ok_cells_filter(int_dt)).select(
-    ['cell_id', 'sample_id'] +
-    [c for c in int_dt.columns if c not in ['cell_id', 'sample_id', 'project_id']])
+  proj_cells = int_dt.filter(_ok_cells_filter(int_dt, batch_var)).select(
+    ['cell_id', batch_var] +
+    [c for c in int_dt.columns if c not in ['cell_id', batch_var, 'project_id']])
   proj_cells = proj_cells.with_columns([
-    pl.col('sample_id').map_elements(lambda x: f"{pid}_{x}", return_dtype=pl.Utf8),
+    pl.col(batch_var).cast(pl.Utf8).map_elements(lambda x: f"{pid}_{x}", return_dtype=pl.Utf8).alias('sample_id'),
     pl.lit(pid).alias('project_id')
   ])
   if metadata_vars:
-    meta_cols  = ['sample_id'] + [v for v in metadata_vars if v in smeta_dt.columns]
-    orig_smeta = smeta_dt.select(meta_cols).unique()
-    orig_smeta = orig_smeta.with_columns(
-      pl.col('sample_id').map_elements(lambda x: f"{pid}_{x}", return_dtype=pl.Utf8)
-    )
-    proj_cells = proj_cells.join(orig_smeta, on='sample_id', how='left')
+    meta_cols  = [batch_var] + [v for v in metadata_vars if v in smeta_dt.columns]
+    meta_cols  = [c for c in meta_cols if c in smeta_dt.columns]
+    if meta_cols:
+      orig_smeta = smeta_dt.select(meta_cols).unique()
+      orig_smeta = orig_smeta.with_columns(
+        pl.col(batch_var).cast(pl.Utf8).map_elements(lambda x: f"{pid}_{x}", return_dtype=pl.Utf8).alias('sample_id')
+      )
+      if batch_var != 'sample_id':
+        orig_smeta = orig_smeta.drop(batch_var)
+      proj_cells = proj_cells.join(orig_smeta, on='sample_id', how='left')
   return proj_cells
 
 
-def _load_project_data(pid, h5ads_yaml_f, int_f, smeta_f, hvg_list, metadata_vars):
+def _load_project_data(pid, h5ads_yaml_f, int_f, smeta_f, hvg_list, metadata_vars, batch_var='sample_id'):
   """
-  Load one project: iterate batches, filter to non-doublets, build the per-project
+  Load one project: iterate batches, filter to clean cells, build the per-project
   count matrix (n_hvgs x n_cells), coldata, and sample metadata.
 
   Returns (proj_mat, proj_barcodes, coldata_df, smeta_df).
@@ -208,9 +214,9 @@ def _load_project_data(pid, h5ads_yaml_f, int_f, smeta_f, hvg_list, metadata_var
 
   int_dt   = pl.read_csv(int_f)
   ok_cells = set(
-    int_dt.filter(_ok_cells_filter(int_dt))['cell_id'].to_list()
+    int_dt.filter(_ok_cells_filter(int_dt, batch_var))['cell_id'].to_list()
   )
-  print(f"    non-doublet cells: {len(ok_cells)}")
+  print(f"    clean cells: {len(ok_cells)}")
 
   smeta_dt      = pl.read_csv(smeta_f)
   proj_mats     = []
@@ -229,7 +235,7 @@ def _load_project_data(pid, h5ads_yaml_f, int_f, smeta_f, hvg_list, metadata_var
 
   proj_mat = hstack(proj_mats, format='csc') if len(proj_mats) > 1 else proj_mats[0]
 
-  coldata_df = _build_project_coldata(int_dt, pid, smeta_dt, metadata_vars)
+  coldata_df = _build_project_coldata(int_dt, pid, smeta_dt, metadata_vars, batch_var)
 
   smeta_df = smeta_dt.with_columns([
     pl.col('sample_id').map_elements(lambda x: f"{pid}_{x}", return_dtype=pl.Utf8),
@@ -281,7 +287,7 @@ def _save_joint_outputs(joint_csc, hvg_list, all_barcodes, all_coldata_dfs,
 
 def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_fs,
                        sample_meta_fs, metadata_vars_str, out_h5_f, out_coldata_f,
-                       out_sample_meta_f):
+                       out_sample_meta_f, batch_var='sample_id'):
   """
   Assemble a joint HVG count matrix from per-project h5ads.
 
@@ -296,11 +302,13 @@ def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_f
   out_h5_f            : str   Output joint HVG count matrix (H5, CSC format).
   out_coldata_f       : str   Output joint coldata CSV.gz.
   out_sample_meta_f   : str   Output joint sample metadata CSV.
+  batch_var           : str   Column to use as sample identifier (default: sample_id, also supports pool_id).
   """
   import numpy as np
   from scipy.sparse import hstack
 
   print("building joint count matrix")
+  print(f"  batch variable: {batch_var}")
 
   metadata_vars = metadata_vars_str.split() if metadata_vars_str.strip() else []
 
@@ -308,7 +316,7 @@ def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_f
   hvg_list = hvg_df['gene_id'].to_list()
   print(f"  joint HVGs: {len(hvg_list)}")
 
-  _check_sample_id_uniqueness(project_ids, integrated_dt_fs)
+  _check_batch_id_uniqueness(project_ids, integrated_dt_fs, batch_var)
 
   all_mats        = []
   all_barcodes    = []
@@ -318,7 +326,7 @@ def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_f
   for pid, h5ads_yaml_f, int_f, smeta_f in zip(
       project_ids, h5ads_yaml_fs, integrated_dt_fs, sample_meta_fs):
     proj_mat, proj_barcodes, coldata_df, smeta_df = _load_project_data(
-      pid, h5ads_yaml_f, int_f, smeta_f, hvg_list, metadata_vars
+      pid, h5ads_yaml_f, int_f, smeta_f, hvg_list, metadata_vars, batch_var
     )
     all_mats.append(proj_mat)
     all_barcodes.extend(proj_barcodes)
@@ -477,6 +485,8 @@ def _parse_args():
     help='Per-project sample metadata CSV files')
   p2.add_argument('--metadata_vars',    default='',
     help='Space-separated metadata variable names')
+  p2.add_argument('--batch_var',        default='sample_id',
+    help='Column to use as sample identifier (sample_id or pool_id)')
   p2.add_argument('--out_h5_f',         required=True)
   p2.add_argument('--out_coldata_f',    required=True)
   p2.add_argument('--out_sample_meta_f', required=True)
@@ -512,7 +522,8 @@ if __name__ == '__main__':
       metadata_vars_str  = args.metadata_vars,
       out_h5_f           = args.out_h5_f,
       out_coldata_f      = args.out_coldata_f,
-      out_sample_meta_f  = args.out_sample_meta_f
+      out_sample_meta_f  = args.out_sample_meta_f,
+      batch_var          = args.batch_var
     )
 
   elif args.cmd == 'build_join_h5ads_yaml':

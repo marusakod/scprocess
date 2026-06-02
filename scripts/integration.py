@@ -92,7 +92,7 @@ def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
     print('loading cell metadata')
     coldata_df  = pl.read_csv(coldata_f, ignore_errors = True)
     batch_vars  = batch_var if isinstance(batch_var, list) else [batch_var]
-    keep_cols   = ['cell_id', 'sample_id', *batch_vars]
+    keep_cols   = ['cell_id', 'sample_id', 'project_id', *batch_vars]
     keep_cols   = list(dict.fromkeys(keep_cols))
     cells_df    = coldata_df.filter(pl.col('cell_id').is_in(pca_cells)).select(
       [c for c in keep_cols if c in coldata_df.columns]
@@ -345,7 +345,8 @@ def _get_clusts_from_adata(adata, embedding, batch_var):
   cl_vs     = [col for col in clusts_df.columns if re.match(r'RNA_snn_res.*', col)]
   bv_list   = batch_var if isinstance(batch_var, list) else [batch_var]
   sample_vs = list(set([*bv_list, "sample_id"]))
-  all_cols  = cl_vs + ['embedding', 'cell_id', *sample_vs]
+  id_cols   = [c for c in ['project_id'] if c in clusts_df.columns]
+  all_cols  = cl_vs + ['embedding', 'cell_id', *sample_vs, *id_cols]
   clusts_df = clusts_df.select(all_cols)
 
   # get nice labels for clusters
