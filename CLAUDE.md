@@ -73,7 +73,7 @@ Each `.smk` file is a self-contained Snakemake rule module. The core orchestrato
 | `shiny.smk` | Standalone rule: builds and deploys Shiny app into `public/shiny/` |
 | `hto.smk` | Hashtag (multiplexing) demultiplexing |
 | `flex.smk` | Flex assay mapping (simpleaf multiplex-quant) |
-| `join.smk` | Join multiple scprocess projects for combined analysis |
+| `join.smk` | Join multiple scprocess projects for combined analysis (BPCells PCA → Harmony) |
 | `pb_empties.smk` | Pseudobulk ambient gene detection |
 
 ### Implementation Scripts (`scripts/`)
@@ -82,7 +82,7 @@ Python scripts are invoked by Snakemake rules using the `script:` directive. Key
 
 - `scprocess_utils.py` — Config loading, JSON Schema validation, parameter resolution, setup verification. Central to all rule setup.
 - `hvgs.py` — Memory-efficient HVG detection: chunks the expression matrix and applies Seurat VST per chunk.
-- `integration.py` — Scanpy-based integration: Harmony batch correction, optional GPU-accelerated RAPIDS, UMAP, Leiden clustering.
+- `integration.py` — Scanpy-based integration: Harmony batch correction, optional GPU-accelerated RAPIDS, UMAP, Leiden clustering. Supports pre-computed PCA embeddings via `--precomputed_pca_f` (used by BPCells join path).
 - `label_celltypes.py` — CellTypist and XGBoost-based cell type annotation.
 - `mapping.py` — Chemistry auto-detection, simpleaf alignment, per-pool mapping.
 
@@ -93,6 +93,7 @@ R scripts are invoked via `script:` directive or called in shell blocks:
 - `marker_genes.R` — edgeR pseudobulk DE testing and GSEA visualization (fgsea).
 - `label_celltypes.R` — R-side cell labeling utilities.
 - `shiny.R` — Builds and deploys the Shiny app; exports `make_shiny_app_scprocess()`. Reads scprocess-format inputs (`integrated_dt`, per-batch h5ads, markers, HVGs, fgsea), writes a BPCells on-disk count matrix, and produces `shinyconfig.yaml` in the deploy directory.
+- `join_pca.R` — BPCells disk-backed PCA for join workflow: opens HDF5 count matrix lazily, normalizes (lib size → 1e4 → log1p), runs irlba SVD with per-gene centering/scaling, writes PC scores to CSV.gz.
 
 ### Configuration System
 
@@ -105,6 +106,7 @@ Both configs are validated against JSON Schemas in `resources/schemas/` via `jso
 - `resources/schemas/config.schema.json` — project config
 - `resources/schemas/setup.schema.json` — setup config
 - `resources/schemas/zoom.schema.json` — zoom (subclustering) config
+- `resources/schemas/join.schema.json` — join config
 - `resources/schemas/custom_sample_params.schema.json` — per-sample overrides
 
 ### Execution Profiles
@@ -120,6 +122,7 @@ Each rule specifies a `conda:` environment file from `envs/`. Key environments:
 - `envs/alevin_fry.yaml` — alignment
 - `envs/rlibs.yaml` — R libraries (edgeR, fgsea, ggplot2)
 - `envs/integration.yaml` — GPU-compatible scanpy/rapids stack
+- `envs/bpcells_pca.yaml` — BPCells + irlba for disk-backed PCA (join workflow)
 - `envs/shiny.yaml` — Shiny app build environment (BPCells, zellkonverter, shiny, shinydashboard, ComplexHeatmap, Seurat, etc.)
 
 ### Shiny App (`resources/shiny/`)
@@ -201,3 +204,4 @@ For Flex and OCM, pool-level mapping output is split into per-sample h5 files at
 - **Chunked processing**: HVG detection and some QC steps process data in chunks to handle datasets with millions of cells.
 - **Batch iteration**: Rules in `scprocess.smk` expand over `batches` defined in the project config, enabling parallel sample processing.
 - **HTML reports**: Rendered via `render_htmls.smk` from R Markdown templates in `resources/rmd_templates/`; generated at QC, integration, and marker gene stages.
+- **BPCells PCA for join**: The join workflow supports disk-backed PCA via BPCells (`int_pca_method: bpcells`, default) to handle datasets exceeding GPU memory. The HDF5 count matrix is copied to local `/tmp` for fast I/O during irlba's iterative SVD. The resulting PC embeddings are passed to Harmony on GPU.

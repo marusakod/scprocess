@@ -70,31 +70,62 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
 
 def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
   exclude_mito, embedding, n_dims, cl_method, theta, res_ls_concat,
-  integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None):
+  integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None,
+  precomputed_pca_f = None):
   """
   batch_var and theta may each be a list (join workflow) or a single value (zoom/standard).
+  precomputed_pca_f: optional path to pre-computed PCA embeddings CSV.gz (BPCells output).
   """
   print('setting up parameters')
   exclude_mito  = str(exclude_mito).strip().lower() == 'true'
   res_ls        = res_ls_concat.split()
 
-  print('loading hvg matrix')
-  hvg_mat, bcs_passed, _ = _get_hvg_mat(hvg_mat_f)
-  
-  print('loading relevant cell ids')
-  cells_df      = _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoom = True)
+  skip_pca = precomputed_pca_f is not None
+  if skip_pca:
+    print(f'loading precomputed PCA from {precomputed_pca_f}')
+    pca_df      = pl.read_csv(precomputed_pca_f)
+    pca_cols    = [c for c in pca_df.columns if c.startswith('pca_')]
+    pca_mat     = pca_df.select(pca_cols).to_numpy()
+    pca_cells   = pca_df['cell_id'].to_list()
+    print(f'  loaded {len(pca_cells)} cells x {len(pca_cols)} PCs')
 
-  print('normalizing hvg matrix')
-  hvg_mat       = _normalize_hvg_mat(hvg_mat, cells_df, exclude_mito)
+    print('loading cell metadata')
+    coldata_df  = pl.read_csv(coldata_f, ignore_errors = True)
+    batch_vars  = batch_var if isinstance(batch_var, list) else [batch_var]
+    keep_cols   = ['cell_id', 'sample_id', *batch_vars]
+    keep_cols   = list(dict.fromkeys(keep_cols))
+    cells_df    = coldata_df.filter(pl.col('cell_id').is_in(pca_cells)).select(
+      [c for c in keep_cols if c in coldata_df.columns]
+    )
+    order_df    = pl.DataFrame({'cell_id': pca_cells, '_order': range(len(pca_cells))})
+    cells_df    = cells_df.join(order_df, on='cell_id').sort('_order').drop('_order')
 
-  print('making anndata object')
-  adata         = ad.AnnData(X = hvg_mat.T , obs = cells_df.to_pandas())
-  print(adata)
-  print(f"  anndata object has {adata.shape[0]} cells and {adata.shape[1]} dims")
+    print('making anndata object with precomputed PCA')
+    adata       = ad.AnnData(
+      X   = np.zeros((len(pca_cells), 1), dtype=np.float32),
+      obs = cells_df.to_pandas()
+    )
+    adata.obsm['X_pca'] = pca_mat.astype(np.float32)
+    print(f"  anndata object has {adata.shape[0]} cells with {pca_mat.shape[1]} precomputed PCs")
+  else:
+    print('loading hvg matrix')
+    hvg_mat, bcs_passed, _ = _get_hvg_mat(hvg_mat_f)
+
+    print('loading relevant cell ids')
+    cells_df    = _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoom = True)
+
+    print('normalizing hvg matrix')
+    hvg_mat     = _normalize_hvg_mat(hvg_mat, cells_df, exclude_mito)
+
+    print('making anndata object')
+    adata       = ad.AnnData(X = hvg_mat.T , obs = cells_df.to_pandas())
+    print(adata)
+    print(f"  anndata object has {adata.shape[0]} cells and {adata.shape[1]} dims")
 
   print('running integration')
   int_df        = _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls,
-    embedding, use_gpu, theta, use_paga = use_paga, paga_cl = f"RNA_snn_res.{paga_cl_res}")
+    embedding, use_gpu, theta, use_paga = use_paga, paga_cl = f"RNA_snn_res.{paga_cl_res}",
+    skip_pca = skip_pca)
 
   print('save results')
   with gzip.open(integration_f, 'wb') as f:
@@ -224,7 +255,7 @@ def _normalize_hvg_mat(hvg_mat, cells_df, exclude_mito, scale_f = 10000):
 
 
 def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding,
-  use_gpu, theta, use_paga=False, paga_cl=None):
+  use_gpu, theta, use_paga=False, paga_cl=None, skip_pca=False):
   # batch_var and theta may each be a list (join workflow) or single value
   # check whether we have variation in the batch variable(s)
   if isinstance(batch_var, list):
@@ -235,16 +266,18 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding,
     this_embedding = 'pca'
   else:
     this_embedding = embedding
-  
+
   # move anndata to gpu if necessary
   if use_gpu:
     sc.get.anndata_to_GPU(adata)
-  
-  # start integration
-  print(' scaling')
-  sc.pp.scale(adata, max_value = 10)
-  print(' PCA')
-  sc.tl.pca(adata, n_comps = n_dims)
+
+  if skip_pca:
+    print(' using precomputed PCA (skipping scale + PCA)')
+  else:
+    print(' scaling')
+    sc.pp.scale(adata, max_value = 10)
+    print(' PCA')
+    sc.tl.pca(adata, n_comps = n_dims)
   
   sel_embed = 'X_pca'
   if this_embedding == 'harmony':
@@ -469,6 +502,8 @@ if __name__ == "__main__":
   parser_run_zoom_integration.add_argument("--paga-cl-res",  type = str,
     help='The resolution of the PAGA cluster to use for initialization of UMAP.'
   )
+  parser_run_zoom_integration.add_argument('--precomputed_pca_f', type = str, default = None,
+    help='Path to pre-computed PCA embeddings CSV.gz (from BPCells). Skips normalization and PCA.')
   args = parser.parse_args()
 
   # gpu vs cpu setup
@@ -528,7 +563,8 @@ if __name__ == "__main__":
       args.hvg_mat_f, args.sample_qc_f, args.coldata_f,
       args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
       zoom_theta, args.res_ls_concat, args.integration_f,
-      zoom_batch_var, use_gpu, args.use_paga, args.paga_cl_res
+      zoom_batch_var, use_gpu, args.use_paga, args.paga_cl_res,
+      precomputed_pca_f = args.precomputed_pca_f
     )
   else:
     parser.print_help()

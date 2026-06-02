@@ -256,6 +256,7 @@ def _save_joint_outputs(joint_csc, hvg_list, all_barcodes, all_coldata_dfs,
     f.create_dataset('matrix/indptr',        data=joint_csc.indptr)
     f.create_dataset('matrix/shape',         data=joint_csc.shape)
     f.create_dataset('matrix/features/name', data=np.array(hvg_list, dtype='S'))
+    f.create_dataset('matrix/features/id',   data=np.array(hvg_list, dtype='S'))
     f.create_dataset('matrix/barcodes',      data=np.array(all_barcodes, dtype='S'))
 
   print("  saving coldata")

@@ -60,10 +60,10 @@ rule run_mapping_hto:
     demux_type    = config['multiplexing']['demux_type'],
     af_home_dir   = config['mapping_af']['alevin_fry_home'],
     wl_lu_f       = config['mapping_af']['wl_lu_f'],
-    where         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["where"],
-    R1_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R1_fs"],
-    R2_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R2_fs"],
-    af_chemistry  = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["af_chemistry"],
+    where         = lambda wildcards: LIB_PARAMS[wildcards.run]["multiplexing"]["where"],
+    R1_fs         = lambda wildcards: LIB_PARAMS[wildcards.run]["multiplexing"]["R1_fs"],
+    R2_fs         = lambda wildcards: LIB_PARAMS[wildcards.run]["multiplexing"]["R2_fs"],
+    af_chemistry  = lambda wildcards: LIB_PARAMS[wildcards.run]["multiplexing"]["af_chemistry"],
     expected_ori  = "fw"
   conda:
     '../envs/alevin_fry.yaml'

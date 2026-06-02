@@ -42,6 +42,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "int_pca_method":   { "type": "string",   "enum": ["bpcells", "scanpy"], "default": "bpcells" },
         "int_use_gpu":      { "type": "boolean",  "default": true },
         "int_embedding":    { "type": "string",   "enum": ["harmony", "pca"], "default": "harmony" },
         "int_theta": {
@@ -137,6 +138,34 @@
             ]
           }
         }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gb_join_select_hvgs":        { "type": "integer", "default": 4 },
+        "gb_join_build_matrix":       { "type": "integer", "default": 16 },
+        "gb_join_pca":                { "type": "integer", "default": 16 },
+        "gb_join_integration":        { "type": "integer", "default": 16 },
+        "gb_join_build_h5ads_yaml":   { "type": "integer", "default": 4 },
+        "gb_join_marker_genes":       { "type": "integer", "default": 64 },
+        "gb_join_fgsea":              { "type": "integer", "default": 16 },
+        "gb_join_celltypist":         { "type": "integer", "default": 16 },
+        "gb_join_scprocess_labeller": { "type": "integer", "default": 16 },
+        "gb_join_merge_labels":       { "type": "integer", "default": 16 },
+        "gb_join_render_html":        { "type": "integer", "default": 16 },
+        "mins_join_select_hvgs":        { "type": "integer", "default": 10 },
+        "mins_join_build_matrix":       { "type": "integer", "default": 30 },
+        "mins_join_pca":                { "type": "integer", "default": 60 },
+        "mins_join_integration":        { "type": "integer", "default": 60 },
+        "mins_join_build_h5ads_yaml":   { "type": "integer", "default": 5 },
+        "mins_join_marker_genes":       { "type": "integer", "default": 120 },
+        "mins_join_fgsea":              { "type": "integer", "default": 30 },
+        "mins_join_celltypist":         { "type": "integer", "default": 30 },
+        "mins_join_scprocess_labeller": { "type": "integer", "default": 30 },
+        "mins_join_merge_labels":       { "type": "integer", "default": 10 },
+        "mins_join_render_html":        { "type": "integer", "default": 30 }
       }
     },
     "label_celltypes": {

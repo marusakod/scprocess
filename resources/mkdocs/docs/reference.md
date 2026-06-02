@@ -781,6 +781,10 @@ Additional parameters include:
 [**Add parameter definitions here (take definitions from comments in the yaml**]
 **Which metadata variables can be listed in `metadata_vars`**?
 
+##### join-specific integration parameters
+
+* `int_pca_method`: PCA computation method. Options: `bpcells` (default) uses disk-backed SVD via BPCells (R), suitable for very large datasets (>1M cells) without GPU memory limits; `scanpy` uses the standard in-memory PCA on GPU/CPU (original behaviour).
+
 Example {{scjoin}} configuration file:
 
 ```yaml
@@ -804,6 +808,7 @@ projects:
   hvg:
     hvg_n_hvgs: 2000                           # number of joint HVGs (default: 2000)
   integration:
+    int_pca_method: bpcells                    # bpcells (default) or scanpy; bpcells uses disk-backed SVD for large datasets
     int_embedding: harmony                     # harmony or pca (default: harmony)
   label_celltypes:                             # optional; run CellTypist or scprocess on the joint integration
     - labeller: celltypist

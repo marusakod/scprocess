@@ -129,7 +129,7 @@ composition_vars = c('project_id', metadata_vars)
 sel_ref_txome = ref_txome
 idx_params  = Sys.getenv('SCPROCESS_DATA_DIR') %>%
   file.path('index_parameters.csv') %>% fread
-gtf_dt_f    = idx_params[ref_txome == sel_ref_txome, gtf_txt_f][1]
+gtf_dt_f    = idx_params[reference == sel_ref_txome, gene_info_f][1]
 biotypes_dt = load_gene_biotypes(gtf_dt_f)
 ```
 
