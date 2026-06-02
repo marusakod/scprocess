@@ -116,12 +116,10 @@ sel_cl_int_dt = copy(int_dt) %>%
   merge(meta_dt, by = "sample_id", suffixes = c("", ".y")) %>%
   .[, grep("\\.y$", names(.), value = TRUE) := NULL]
 
-metadata_vars = setdiff(names(meta_dt), c("sample_id", "project_id", "bad_sample_id"))
 cfg_metadata_vars = "${metadata_vars}" %>% str_split(" ") %>% unlist() %>% trimws()
-if (!all(cfg_metadata_vars == ""))
-  metadata_vars = intersect(cfg_metadata_vars, metadata_vars)
-do_metadata   = length(metadata_vars) > 0
-composition_vars = c('project_id', metadata_vars)
+cfg_metadata_vars = cfg_metadata_vars[cfg_metadata_vars != ""]
+metadata_vars = intersect(cfg_metadata_vars, names(meta_dt))
+composition_vars = unique(c('project_id', metadata_vars))
 ```
 
 
