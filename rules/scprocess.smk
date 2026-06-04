@@ -30,6 +30,7 @@ BATCHES             = list(BATCH_PARAMS.keys())
 RUNS_TO_BATCHES, RUNS_TO_SAMPLES, RUNS_TO_LIBS = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
 RESOURCE_PARAMS     = prep_resource_params(config, schema_f, lm_f, LIB_PARAMS, BATCHES)
 LABELLER_PARAMS     = get_labeller_parameters(config, schema_f, scdata_dir)
+TRAIN_XGB_PARAMS    = get_train_xgboost_parameters(config, schema_f)
 IS_FLEX             = config['project']['is_flex']
 IS_FLEX_MUXED       = config['multiplexing']['demux_type'] == "flex"
 IS_OCM              = config['multiplexing']['demux_type'] == "ocm"
@@ -65,6 +66,7 @@ hvg_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_hvg"
 int_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
 mkr_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_marker_genes"
 lbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
+xgb_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_train_xgboost"
 meta_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_metacells"
 pb_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_pseudobulk"
 empty_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_empties"
@@ -333,14 +335,22 @@ rule marker_genes:
 
 rule label_celltypes:
   input:
-    expand(f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
-      zip, 
+    expand(f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      zip,
         labeller  = [ entry['labeller'] for entry in LABELLER_PARAMS],
         model     = [ entry['model']    for entry in LABELLER_PARAMS]
       ),
     code_dir  + '/label_celltypes.R',
-    f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd', 
+    f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd',
     f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
+
+
+if TRAIN_XGB_PARAMS is not None:
+  rule train_xgboost:
+    input:
+      f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_xgboost_model.json',
+      f'{rmd_dir}/{SHORT_TAG}_train_xgboost.Rmd',
+      f'{docs_dir}/{SHORT_TAG}_train_xgboost.html'
 
 # define rules that are needed
 include: "mapping.smk"
@@ -354,4 +364,5 @@ include: "integration.smk"
 include: "marker_genes.smk"
 include: "render_htmls.smk"
 include: "label_celltypes.smk"
+include: "train_xgboost.smk"
 

@@ -523,6 +523,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   _                   = scprocess_utils.prep_resource_params(config, schema_f, lm_f, LIB_PARAMS, BATCHES)
   _, _, _             = scprocess_utils.get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
   _                   = scprocess_utils.get_labeller_parameters(config, schema_f, scdata_dir)
+  _                   = scprocess_utils.get_train_xgboost_parameters(config, schema_f)
 
   # check config is ok for the rule we want to run
   scprocess_utils.check_config_ok_for_rule(config, rule)
@@ -557,56 +558,9 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 
   # render index if requested
   if doindex:
-    _render_index(scprocess_dir, config, config_path)
+    _render_index(scprocess_dir, config, setup_cfg, config_path)
 
   return
-
-
-def run_train_xgboost(scprocess_dir, configfile, dryrun, extraargs):
-  """Train an XGBoost cell type classifier."""
-  print("doing some checks on inputs")
-
-  config_path = pathlib.Path(configfile).resolve()
-  os.chdir(scprocess_dir)
-
-  # get scprocess data dir + cluster profile / local cores
-  scdata_dir, extraargs, setup_cfg = scprocess_utils.check_setup_before_running_scprocess(
-    scprocess_dir, extraargs
-  )
-
-  # validate config
-  with open(config_path, "r") as f:
-    config = yaml.safe_load(f)
-  schema_f = scprocess_dir / "resources/schemas/train_xgboost.schema.json"
-  config = scprocess_utils.check_train_xgboost_config(config, schema_f, scdata_dir)
-
-  # write validated config (with output_dir injected) to temp file for snakemake
-  validated_config_f = pathlib.Path(config["output_dir"]) / "_validated_config.yaml"
-  pathlib.Path(config["output_dir"]).mkdir(parents=True, exist_ok=True)
-  with open(validated_config_f, "w") as f:
-    yaml.dump(config, f, default_flow_style=False)
-
-  if dryrun:
-    extraargs.append('-np')
-
-  snakefile = scprocess_dir / "rules/train_xgboost.smk"
-  cmd_list = ["snakemake",
-    "--snakefile", str(snakefile),
-    "--configfile", str(validated_config_f),
-    "--config", f"scprocess_dir={str(scprocess_dir)}",
-    f"_config_path={str(validated_config_f)}",
-    "--rerun-triggers", "mtime", "params",
-    "--rerun-incomplete",
-    "--show-failed-logs", "--printshellcmds",
-    "--software-deployment-method", "conda",
-    *extraargs,
-    "all"]
-
-  cmd_str = " ".join(map(shlex.quote, map(str, cmd_list)))
-  print(f"starting XGBoost training")
-  print(f"output directory: {config['output_dir']}")
-  print(f"snakemake command:\n{cmd_str}")
-  subprocess.run(cmd_str, check=True, shell=True, env=_clean_conda_env())
 
 
 def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
@@ -710,7 +664,7 @@ def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
   return
 
 
-def run_join(configfile, sc_dir, extraargs, dryrun):
+def run_join(configfile, sc_dir, extraargs, dryrun, rule='all'):
   """Run the scprocess join workflow from a join.yaml config."""
   import json
   import jsonschema
@@ -764,7 +718,7 @@ def run_join(configfile, sc_dir, extraargs, dryrun):
     "--show-failed-logs", "--printshellcmds",
     "--software-deployment-method", "conda",
     *extraargs,
-    "all"]
+    rule]
 
   cmd_str      = " ".join(map(shlex.quote, map(str, cmd_list)))
   strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
@@ -1132,7 +1086,7 @@ if __name__ == '__main__':
     help = "Required. YAML file specifying what you want to run, and any non-default parameters")
   run_prsr.add_argument("-r", "--rule", type = str, default = "all",
     choices = [
-        "all", "mapping", "ambient", "demux", "qc", "hvg", "integration", "marker_genes", "label_celltypes", "zoom"
+        "all", "mapping", "ambient", "demux", "qc", "hvg", "integration", "marker_genes", "label_celltypes", "train_xgboost", "zoom"
         ],
     help = '''
       Leave empty to run the whole workflow, or alternatively select the rule you want to run.
@@ -1170,13 +1124,6 @@ if __name__ == '__main__':
   group.add_argument("-k", "--kneefile", type = str, default = None,
     help = "Path to knee file")
 
-  # subparser for the 'train_xgboost' subcommand
-  train_prsr = subparsers.add_parser('train_xgboost', help="train an XGBoost cell type classifier")
-  train_prsr.add_argument("configfile", type=str, help="YAML config for XGBoost training")
-  train_prsr.add_argument("-n", "--dry-run", action="store_true",
-    help="Dry run — snakemake prints what it would do without executing.")
-  train_prsr.add_argument("-E", "--extraargs", action="store", nargs=1, type=str,
-    help="Extra snakemake arguments (in quotes, with equals sign).")
   # subparser for the 'shiny' subcommand
   shiny_prsr  = subparsers.add_parser('shiny', help="build Shiny app from scprocess outputs into public/shiny/")
   shiny_prsr.add_argument("configfile", type = str,
@@ -1200,6 +1147,9 @@ if __name__ == '__main__':
     help = '"Dry run": show what Snakemake would do without executing.')
   join_prsr.add_argument("--unlock", action = "store_true",
     help = "Unlock the Snakemake directory if a previous run was interrupted.")
+  join_prsr.add_argument("-r", "--rule", type = str, default = "all",
+    choices = ["all", "train_xgboost"],
+    help = "Leave empty for full join, or select a specific rule.")
   join_prsr.add_argument("-E", "--extraargs", action = "store", nargs = 1, type = str,
     help = "Extra Snakemake arguments (quoted, using = syntax, e.g. -E=\"--quiet\").")
 
@@ -1284,14 +1234,6 @@ if __name__ == '__main__':
     # call function
     plot_interactive_knee(args.configfile, args.kneefile, args.sample)
 
-  # train xgboost classifier
-  elif args.subcommand == 'train_xgboost':
-    extraargs = []
-    if args.extraargs:
-      extraargs.extend(shlex.split(args.extraargs[0]))
-    if args.dry_run:
-      extraargs.append("-np")
-    run_train_xgboost(sc_dir, args.configfile, args.dry_run, extraargs)
   # build shiny app
   elif args.subcommand == 'shiny':
     extraargs = []
@@ -1308,7 +1250,7 @@ if __name__ == '__main__':
       extraargs.append("--unlock")
     elif args.extraargs:
       extraargs.extend(shlex.split(args.extraargs[0]))
-    run_join(args.configfile, sc_dir, extraargs, args.dry_run)
+    run_join(args.configfile, sc_dir, extraargs, args.dry_run, rule=args.rule)
 
   else:
     # if no arguments are provided at all, print the help message

@@ -127,6 +127,7 @@ def check_config(config, schema_f, scdata_dir, scprocess_dir):
   config      = _check_marker_genes_parameters(config, scdata_dir)
   config      = _check_pb_empties_parameters(config)
   config      = _check_shiny_parameters(config)
+  config      = _check_train_xgboost_parameters(config)
 
   return config
 
@@ -1046,6 +1047,9 @@ def check_config_ok_for_rule(config, rule):
   if rule == 'label_celltypes':
     if 'label_celltypes' not in config:
       raise KeyError("no 'label_celltypes' section found in config file")
+  if rule == 'train_xgboost':
+    if 'train_xgboost' not in config:
+      raise KeyError("no 'train_xgboost' section found in config file")
   if rule == 'zoom':
     if 'zoom' not in config:
       raise KeyError("no 'zoom' section found in config file")
@@ -1890,53 +1894,21 @@ def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_
 
 
 
-def check_train_xgboost_config(config, schema_f, scdata_dir):
-  # load schema, merge defaults, validate
-  schema = _load_schema_file(schema_f)
-  defaults = _get_default_config_from_schema(schema)
-  snakemake.utils.update_config(defaults, config)
-  config = defaults
-  _validate_object_against_schema(config, schema_f, "train_xgboost config")
+def _check_train_xgboost_parameters(config):
+  if 'train_xgboost' not in config:
+    return config
 
-  # check scprocess config exists and has required fields
-  scp_f = pathlib.Path(config["scprocess_config_f"])
-  if not scp_f.is_file():
-    raise FileNotFoundError(f"scprocess config not found: {scp_f}")
+  xgb = config['train_xgboost']
 
-  with open(scp_f) as f:
-    scp_config = yaml.safe_load(f)
-
-  for key in ["proj_dir", "short_tag", "full_tag", "date_stamp"]:
-    if key not in scp_config.get("project", {}):
-      raise KeyError(f"scprocess config missing project.{key}")
-
-  # check that scprocess integration outputs exist
-  proj_dir = scp_config["project"]["proj_dir"]
-  short_tag = scp_config["project"]["short_tag"]
-  full_tag = scp_config["project"]["full_tag"]
-  date_stamp = scp_config["project"]["date_stamp"]
-  int_dir = f"{proj_dir}/output/{short_tag}_integration"
-
-  cluster_csv = f"{int_dir}/integrated_dt_{full_tag}_{date_stamp}.csv.gz"
-  h5ads_yaml = f"{int_dir}/h5ads_clean_paths_{full_tag}_{date_stamp}.yaml"
-
-  if not pathlib.Path(cluster_csv).is_file():
-    raise FileNotFoundError(
-      f"Integration cluster CSV not found: {cluster_csv}\n"
-      f"Run scprocess integration before training XGBoost."
-    )
-  if not pathlib.Path(h5ads_yaml).is_file():
-    raise FileNotFoundError(
-      f"H5AD paths YAML not found: {h5ads_yaml}\n"
-      f"Run scprocess integration before training XGBoost."
-    )
+  # resolve annots_f relative to proj_dir
+  annots_f = pathlib.Path(xgb['annots_f'])
+  if not annots_f.is_absolute():
+    annots_f = pathlib.Path(config['project']['proj_dir']) / annots_f
+  xgb['annots_f'] = str(annots_f)
 
   # check annotations file
-  annots_f = pathlib.Path(config["annots_f"])
   if not annots_f.is_file():
     raise FileNotFoundError(f"Annotations file not found: {annots_f}")
-
-  # check annotations has required columns
   annots_df = pl.read_csv(str(annots_f), n_rows=5)
   if "cell_id" not in annots_df.columns:
     raise ValueError("annots_f must have 'cell_id' column")
@@ -1944,8 +1916,11 @@ def check_train_xgboost_config(config, schema_f, scdata_dir):
     raise ValueError("annots_f must have 'annotation' column")
 
   # check label map if provided
-  if config.get("label_map_f") is not None:
-    label_map_f = pathlib.Path(config["label_map_f"])
+  if xgb.get("label_map_f") is not None:
+    label_map_f = pathlib.Path(xgb["label_map_f"])
+    if not label_map_f.is_absolute():
+      label_map_f = pathlib.Path(config['project']['proj_dir']) / label_map_f
+    xgb['label_map_f'] = str(label_map_f)
     if not label_map_f.is_file():
       raise FileNotFoundError(f"Label map file not found: {label_map_f}")
     map_df = pl.read_csv(str(label_map_f), n_rows=5)
@@ -1954,27 +1929,37 @@ def check_train_xgboost_config(config, schema_f, scdata_dir):
     if "coarse_label" not in map_df.columns:
       raise ValueError("label_map_f must have 'coarse_label' column")
 
-  # inject output_dir (always $SCPROCESS_DATA_DIR/xgboost/{ref_tag}/)
-  output_dir = os.path.join(str(scdata_dir), "xgboost", config["ref_tag"])
-  config["output_dir"] = output_dir
+  # inject derived paths from the project's own config
+  proj_dir   = config['project']['proj_dir']
+  short_tag  = config['project']['short_tag']
+  full_tag   = config['project']['full_tag']
+  date_stamp = config['project']['date_stamp']
+  int_dir    = f"{proj_dir}/output/{short_tag}_integration"
 
-  # inject scprocess-derived paths needed by the training script and render rule
-  config["cluster_csv"] = cluster_csv
-  config["h5ads_yaml"] = h5ads_yaml
-  config["batch_var"] = scp_config.get("integration", {}).get("int_batch_var", "sample_id")
-  config["int_res_ls"] = scp_config.get("integration", {}).get("int_res_ls", [0.1, 0.2, 0.5, 1, 2])
-
-  config["_scprocess_project"] = {
-    "proj_dir": proj_dir,
-    "short_tag": short_tag,
-    "full_tag": full_tag,
-    "date_stamp": date_stamp,
-    "cluster_csv": cluster_csv,
-    "your_name": scp_config["project"].get("your_name", ""),
-    "affiliation": scp_config["project"].get("affiliation", ""),
-  }
+  xgb['cluster_csv'] = f"{int_dir}/integrated_dt_{full_tag}_{date_stamp}.csv.gz"
+  xgb['h5ads_yaml']  = f"{int_dir}/h5ads_clean_paths_{full_tag}_{date_stamp}.yaml"
+  xgb['batch_var']   = config.get('integration', {}).get('int_batch_var', 'sample_id')
+  xgb['int_res_ls']  = config.get('integration', {}).get('int_res_ls', [0.1, 0.2, 0.5, 1, 2])
+  xgb['output_dir']  = f"{proj_dir}/output/{short_tag}_train_xgboost"
 
   return config
+
+
+def get_train_xgboost_parameters(config, schema_f):
+  """Return validated train_xgboost params dict, or None if section absent."""
+  if 'train_xgboost' not in config:
+    return None
+
+  schema     = _load_schema_file(schema_f)
+  xgb_schema = schema["properties"]["train_xgboost"]
+  xgb_defaults = _get_default_config_from_schema(xgb_schema)
+
+  xgb = config['train_xgboost']
+  for v in xgb_defaults:
+    if v not in xgb:
+      xgb[v] = xgb_defaults[v]
+
+  return xgb
 
 
 def _apply_join_defaults(cfg, schema_props):
@@ -2032,5 +2017,38 @@ def check_join_config(config, join_schema_f):
       join_schema['properties'].get(section, {}).get('properties', {}))
 
   config = _check_shiny_parameters(config)
+
+  # validate train_xgboost section if present
+  if 'train_xgboost' in config:
+    xgb = config['train_xgboost']
+    _apply_join_defaults(xgb,
+      join_schema['properties'].get('train_xgboost', {}).get('properties', {}))
+
+    # resolve annots_f
+    annots_f = pathlib.Path(xgb['annots_f'])
+    if not annots_f.is_file():
+      raise FileNotFoundError(f"Annotations file not found: {annots_f}")
+    annots_df = pl.read_csv(str(annots_f), n_rows=5)
+    if "cell_id" not in annots_df.columns:
+      raise ValueError("train_xgboost.annots_f must have 'cell_id' column")
+    if "annotation" not in annots_df.columns:
+      raise ValueError("train_xgboost.annots_f must have 'annotation' column")
+
+    # check label_map_f if provided
+    if xgb.get("label_map_f") is not None:
+      label_map_f = pathlib.Path(xgb["label_map_f"])
+      if not label_map_f.is_file():
+        raise FileNotFoundError(f"Label map file not found: {label_map_f}")
+      map_df = pl.read_csv(str(label_map_f), n_rows=5)
+      if "annotation" not in map_df.columns:
+        raise ValueError("label_map_f must have 'annotation' column")
+      if "coarse_label" not in map_df.columns:
+        raise ValueError("label_map_f must have 'coarse_label' column")
+
+    # inject output_dir
+    join_dir = pathlib.Path(config['join']['proj_dir'])
+    join_name = config['join']['name']
+    xgb['output_dir'] = str(join_dir / f"output/{join_name}_train_xgboost")
+
   return config
 

@@ -260,6 +260,36 @@
         ]
       }
     },
+    "train_xgboost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["annots_f", "ref_tag"],
+      "properties": {
+        "annots_f":              { "type": "string" },
+        "ref_tag":               { "type": "string", "pattern": "^[a-zA-Z0-9_-]+$" },
+        "label_map_f":           { "type": ["string", "null"], "default": null },
+        "refine_labels":         { "type": "boolean", "default": true },
+        "purity_threshold":      { "type": "number", "minimum": 0, "maximum": 1, "default": 0.65 },
+        "n_cells_per_type":      { "type": "integer", "minimum": 1, "default": 1000 },
+        "min_cells_per_type":    { "type": "integer", "minimum": 1, "default": 20 },
+        "min_cells_expressed":   { "type": "integer", "minimum": 1, "default": 10 },
+        "gene_exclude_re":       { "type": ["string", "null"], "default": "(lincRNA|lncRNA|pseudogene|antisense)" },
+        "seed":                  { "type": "integer", "default": 42 },
+        "use_gpu":               { "type": "boolean", "default": false },
+        "pass1_subsample":       { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "default": 0.632 },
+        "pass1_colsample_bytree":{ "type": "number", "exclusiveMinimum": 0, "maximum": 1, "default": 0.1 },
+        "pass1_learning_rate":   { "type": "number", "exclusiveMinimum": 0, "default": 0.1 },
+        "pass1_nrounds":         { "type": "integer", "minimum": 1, "default": 300 },
+        "pass1_early_stopping":  { "type": "integer", "minimum": 1, "default": 10 },
+        "pass2_colsample_bytree":{ "type": "number", "exclusiveMinimum": 0, "maximum": 1, "default": 0.5 },
+        "pass2_learning_rate":   { "type": "number", "exclusiveMinimum": 0, "default": 0.05 },
+        "pass2_nrounds":         { "type": "integer", "minimum": 1, "default": 500 },
+        "pass2_early_stopping":  { "type": "integer", "minimum": 1, "default": 10 },
+        "gain_threshold":        { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "default": 0.9 },
+        "min_genes":             { "type": "integer", "minimum": 1, "default": 100 },
+        "max_genes":             { "type": "integer", "minimum": 1, "default": 3000 }
+      }
+    },
     "zoom": {
       "description": "Contains mappings of logical names to YAML file paths.",
       "type": "array", "items": { "type": "string" }, "uniqueItems": true
@@ -414,6 +444,11 @@
         "mins_zoom_run_fgsea":                           { "type": "integer", "default": 60 },
         "mins_zoom_make_subsets":                        { "type": "integer", "default": 15 },
         "mins_render_html_zoom":                         { "type": "integer", "default": 20 },
+  
+        "gb_train_xgboost_train":              { "type": "integer", "default": 32 },
+        "gb_render_html_train_xgboost":        { "type": "integer", "default": 8 },
+        "mins_train_xgboost_train":            { "type": "integer", "default": 180 },
+        "mins_render_html_train_xgboost":      { "type": "integer", "default": 15 },
       
         "retries":                       { "type": "integer", "default": 0 }
       }

@@ -22,7 +22,7 @@ scprocess run <config.yaml>
 scprocess run <config.yaml> -n
 
 # Run a specific pipeline stage
-scprocess run <config.yaml> -r mapping|ambient|qc|hvg|integration|marker_genes|label_celltypes|zoom
+scprocess run <config.yaml> -r mapping|ambient|qc|hvg|integration|marker_genes|label_celltypes|train_xgboost|zoom
 
 # Unlock after an interrupted run
 scprocess run <config.yaml> --unlock
