@@ -2012,6 +2012,36 @@ def check_join_config(config, join_schema_f):
         if not pathlib.Path(entry['xgb_cls_f']).is_file():
           raise FileNotFoundError(f"XGBoost classes file not found: {entry['xgb_cls_f']}")
 
+  # check that each metadata_var is present in at least one project's sample
+  # metadata file. Unlike the standard pipeline (which requires all vars in a
+  # single file), join allows vars to be present in only a subset of projects
+  # (e.g. when projects have different experimental designs).
+  metadata_vars = config['join'].get('metadata_vars', [])
+  if metadata_vars:
+    for var in metadata_vars:
+      found = False
+      for pid, proj_entry in config.get('projects', {}).items():
+        cfg_f = proj_entry.get('config')
+        if cfg_f and os.path.isfile(cfg_f):
+          with open(cfg_f) as f:
+            proj_cfg = yaml.safe_load(f)
+          # resolve sample metadata path (may be relative to project dir)
+          meta_f = proj_cfg['project'].get('sample_metadata', '')
+          if meta_f:
+            proj_dir = pathlib.Path(proj_cfg['project']['proj_dir'])
+            meta_p   = pathlib.Path(meta_f)
+            if not meta_p.is_absolute():
+              meta_p = proj_dir / meta_p
+            # read header only to check column names
+            if meta_p.is_file():
+              samples_df = pl.read_csv(meta_p, n_rows=0)
+              if var in samples_df.columns:
+                found = True
+                break
+      if not found:
+        raise KeyError(
+          f"metadata_var '{var}' not found in any project's sample metadata file")
+
   return config
 
 
