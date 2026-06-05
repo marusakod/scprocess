@@ -297,16 +297,17 @@ def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
 
 
 # scprocess newjoin
-def new_join(sc_dir, name, where_path, project_configs):
+def new_join(sc_dir, name, where_path, create_config, project_configs):
   """
-  Create a new join project directory with workflowr scaffold, pre-filled
-  join-{name}.yaml, and a substituted join Rmd ready for workflowr::wflow_build().
+  Create a new join project directory with workflowr scaffold and optionally
+  a pre-filled join-{name}.yaml config.
 
   Parameters
   ----------
   sc_dir         : Path   scprocess installation directory
   name           : str    Short name for the join (join.name, output prefix, Rmd name)
   where_path     : str    Parent directory to create {name}/ in
+  create_config  : bool   Whether to generate a template join config YAML
   project_configs: list   Paths to existing project config-*.yaml files (optional)
   """
   sc_dir     = Path(sc_dir)
@@ -358,111 +359,77 @@ def new_join(sc_dir, name, where_path, project_configs):
     """
     (proj_dir / '.Rprofile').write_text(textwrap.dedent(rprofile_txt))
 
-    # ---- best-effort: read setup config for user info ----
-    from datetime import date
-    today      = date.today()
-    date_stamp = today.strftime('%Y-%m-%d')
-    your_name  = ''
-    affiliation = ''
-    scdata_dir = os.getenv('SCPROCESS_DATA_DIR', '')
-    if scdata_dir:
-      setup_f = Path(scdata_dir) / 'scprocess_setup.yaml'
-      if setup_f.exists():
-        try:
-          with open(setup_f) as _f:
-            _setup = yaml.safe_load(_f)
-          your_name   = _setup.get('user', {}).get('your_name',   '')
-          affiliation = _setup.get('user', {}).get('affiliation', '')
-        except Exception:
-          pass
-
-    # ---- parse -p project configs ----
-    project_entries = {}  # full_tag -> abs config path
-    ref_txome = ''
-    for cfg_path in (project_configs or []):
-      cfg_path = Path(cfg_path).resolve()
-      with open(cfg_path) as _f:
-        proj_cfg = yaml.safe_load(_f)
-      full_tag  = proj_cfg['project']['full_tag']
-      proj_ref  = proj_cfg['project'].get('ref_txome', '')
-      if full_tag in project_entries:
-        raise ValueError(
-          f"Two project configs share the same full_tag '{full_tag}'. "
-          f"Each project must have a unique full_tag.")
-      if ref_txome == '':
-        ref_txome = proj_ref
-      elif proj_ref and proj_ref != ref_txome:
-        print(f"Warning: project '{full_tag}' has ref_txome='{proj_ref}', "
-              f"but first project has ref_txome='{ref_txome}'. "
-              f"Using '{ref_txome}' in join.yaml — edit if needed.")
-      project_entries[full_tag] = str(cfg_path)
-
-    if project_entries:
-      projects_block = '\n'.join(
-        f'  {pid}:\n    config: {cfg}'
-        for pid, cfg in project_entries.items()
-      )
-    else:
-      projects_block = (
-        '  project_a:\n    config: /path/to/config-a.yaml\n'
-        '  project_b:\n    config: /path/to/config-b.yaml'
-      )
-
-    # ---- write join-{name}.yaml ----
-    # Build without textwrap.dedent: projects_block has its own indentation
-    # (2-space project_id keys, 4-space config values) which would confuse dedent.
-    join_yaml_txt = (
-      f"join:\n"
-      f"  name: {name}\n"
-      f"  proj_dir: {proj_dir}\n"
-      f'  date_stamp: "{date_stamp}"\n'
-      f"  ref_txome: {ref_txome}\n"
-      f"projects:\n"
-      f"{projects_block}\n"
-      f"hvg:\n"
-      f"  hvg_n_hvgs: 2000\n"
-      f"integration:\n"
-      f"  int_embedding: harmony\n"
-      f"  int_batch_var: sample_id\n"
-      f"  int_theta: 0.1\n"
-      f"  int_n_dims: 50\n"
-      f"  int_use_paga: true\n"
-      f"  int_paga_cl_res: 0.2\n"
-      f"  int_res_ls: [0.1, 0.2, 0.5, 1, 2]\n"
-      f"marker_genes:\n"
-      f"  mkr_sel_res: 0.2\n"
-      f"  mkr_do_gsea: true\n"
-    )
-    join_yaml_f = proj_dir / f"join-{name}.yaml"
-    join_yaml_f.write_text(join_yaml_txt)
-
-    # ---- substitute join.Rmd.template → analysis/{name}_join.Rmd ----
-    join_tag     = f"{name}_join"
-    join_int_dir = str(proj_dir / f"output/{join_tag}")
-    join_mkr_dir = str(proj_dir / f"output/{name}_marker_genes")
-    template_f   = sc_dir / "resources/rmd_templates/join.Rmd.template"
-    rmd_txt      = template_f.read_text()
-    for placeholder, value in [
-      ('@@your_name@@',   your_name),
-      ('@@affiliation@@', affiliation),
-      ('@@date_stamp@@',  date_stamp),
-      ('@@join_name@@',   name),
-      ('@@join_tag@@',    join_tag),
-      ('@@scprocess_dir@@', str(sc_dir)),
-      ('@@join_int_dir@@',  join_int_dir),
-      ('@@join_mkr_dir@@',  join_mkr_dir),
-      ('@@mkr_sel_res@@',   '0.2'),
-      ('@@ref_txome@@',     ref_txome),
-      ('@@int_res_ls@@',    '0.1 0.2 0.5 1 2'),
-    ]:
-      rmd_txt = rmd_txt.replace(placeholder, value)
-    rmd_f = proj_dir / 'analysis' / f"{join_tag}.Rmd"
-    rmd_f.write_text(rmd_txt)
-
     print(f"Created join project : {proj_dir}")
-    print(f"Edit join config     : {join_yaml_f}")
-    print(f"Run pipeline         : scprocess join {join_yaml_f}")
-    print(f"Render evaluation    : workflowr::wflow_build('{rmd_f.relative_to(proj_dir)}')")
+
+    if create_config:
+      # ---- best-effort: read setup config for user info ----
+      from datetime import date
+      today      = date.today()
+      date_stamp = today.strftime('%Y-%m-%d')
+      your_name  = ''
+      affiliation = ''
+      scdata_dir = os.getenv('SCPROCESS_DATA_DIR', '')
+      if scdata_dir:
+        setup_f = Path(scdata_dir) / 'scprocess_setup.yaml'
+        if setup_f.exists():
+          try:
+            with open(setup_f) as _f:
+              _setup = yaml.safe_load(_f)
+            your_name   = _setup.get('user', {}).get('your_name',   '')
+            affiliation = _setup.get('user', {}).get('affiliation', '')
+          except Exception:
+            pass
+
+      # ---- parse -p project configs ----
+      project_entries = {}  # full_tag -> abs config path
+      ref_txome = ''
+      for cfg_path in (project_configs or []):
+        cfg_path = Path(cfg_path).resolve()
+        with open(cfg_path) as _f:
+          proj_cfg = yaml.safe_load(_f)
+        full_tag  = proj_cfg['project']['full_tag']
+        proj_ref  = proj_cfg['project'].get('ref_txome', '')
+        if full_tag in project_entries:
+          raise ValueError(
+            f"Two project configs share the same full_tag '{full_tag}'. "
+            f"Each project must have a unique full_tag.")
+        if ref_txome == '':
+          ref_txome = proj_ref
+        elif proj_ref and proj_ref != ref_txome:
+          print(f"Warning: project '{full_tag}' has ref_txome='{proj_ref}', "
+                f"but first project has ref_txome='{ref_txome}'. "
+                f"Using '{ref_txome}' in join.yaml — edit if needed.")
+        project_entries[full_tag] = str(cfg_path)
+
+      if project_entries:
+        projects_block = '\n'.join(
+          f'  {pid}:\n    config: {cfg}'
+          for pid, cfg in project_entries.items()
+        )
+      else:
+        projects_block = (
+          '  project_a:\n    config: /path/to/config-a.yaml\n'
+          '  project_b:\n    config: /path/to/config-b.yaml'
+        )
+
+      # ---- write join-{name}.yaml ----
+      join_yaml_txt = (
+        f"join:\n"
+        f"  name: {name}\n"
+        f"  proj_dir: {proj_dir}\n"
+        f'  date_stamp: "{date_stamp}"\n'
+        f"  ref_txome: {ref_txome}\n"
+        f"  your_name: {your_name}\n"
+        f"  affiliation: {affiliation}\n"
+        f"projects:\n"
+        f"{projects_block}\n"
+      )
+      join_yaml_f = proj_dir / "configs" / f"join-{name}.yaml"
+      join_yaml_f.parent.mkdir(exist_ok=True)
+      join_yaml_f.write_text(join_yaml_txt)
+
+      print(f"Edit join config     : {join_yaml_f}")
+      print(f"Run pipeline         : scprocess join {join_yaml_f}")
 
   except Exception as e:
     if proj_dir.exists():
@@ -1074,8 +1041,10 @@ if __name__ == '__main__':
   newjoin_prsr.add_argument('name', type=str, help="Name of the join")
   newjoin_prsr.add_argument('-w', '--where', type=str, default=os.getcwd(),
     help="Where to create the join project (default: current directory)")
+  newjoin_prsr.add_argument('-c', '--config', action='store_true',
+    help="Generate a template join config YAML file")
   newjoin_prsr.add_argument('-p', '--projects', type=str, nargs='*', default=[],
-    help="Paths to existing project config files to pre-populate the projects: block")
+    help="Paths to existing project config files to pre-populate the projects: block (requires -c)")
 
   # subparser for the 'run' subcommand
   run_prsr    = subparsers.add_parser('run', help="run scprocess")
@@ -1192,7 +1161,7 @@ if __name__ == '__main__':
 
   elif args.subcommand == "newjoin":
     where_abs = os.path.abspath(args.where)
-    new_join(sc_dir, args.name, where_abs, args.projects or [])
+    new_join(sc_dir, args.name, where_abs, args.config, args.projects or [])
 
   # run scprocess
   elif args.subcommand == "run":

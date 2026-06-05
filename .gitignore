@@ -10,6 +10,7 @@ __pycache__
 *.sublime-*
 *.code-workspace
 logs/
+resources/design/
 .vscode/
 scprocess.code-workspace
 lsf.yaml
