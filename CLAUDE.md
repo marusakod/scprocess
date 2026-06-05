@@ -6,6 +6,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - When you have finished working on some functionality, you MUST check that the docs (in resources/mkdocs) are up-to-date.
 
+## Development Process
+
+When implementing new functionality:
+1. ALWAYS search for how the same kind of task is handled elsewhere in the codebase BEFORE writing code.
+2. If the task is non-trivial, use plan mode — this forces exploration before implementation.
+3. Do not introduce new patterns when existing ones apply. If you can't find an existing pattern, ask before inventing one.
+
+## Code Patterns — Follow, Don't Invent
+
+Before writing new code, find the existing pattern for the same task in the codebase:
+- Validation/checks → `check_*` functions in `scprocess_utils.py`, never inline in `.smk` files
+- Resource allocation → `get_resources()` with schema defaults in `gb_*` / `mins_*` format
+- R script invocation → `Rscript -e "source(...); function_name(...)"` from shell blocks
+- Config access → via `config` dict populated by schema defaults in `check_*` functions
+- Conda envs → one env per functional group; fully pinned for stability in production envs
+- Output file paths → defined as variables in the constants section of `.smk` files
+- Per-rule parameters → `LIB_PARAMS` for library-level, `RUN_PARAMS` for run-level, `BATCH_PARAMS` for batch-level
+
 ## Project Overview
 
 **scprocess** is a Snakemake pipeline for automated processing of single-cell and single-nuclei RNA-seq data from 10x Genomics technology. It orchestrates a series of bioinformatics steps from raw reads through QC, ambient RNA removal, dimensionality reduction, batch correction, and marker gene detection.
