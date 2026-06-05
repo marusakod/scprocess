@@ -297,19 +297,15 @@ rule join_select_hvgs:
 
 
 rule join_build_matrix:
-  """Assemble joint count matrix and coldata from per-project h5ads."""
+  """Assemble joint HVG count matrix from per-project h5ads."""
   input:
     joint_hvgs_f  = joint_hvgs_f,
     h5ads_yaml_fs = H5ADS_YAML_FS,
-    integrated_fs = INTEGRATED_FS,
-    sample_meta_fs = SAMPLE_META_FS
+    integrated_fs = INTEGRATED_FS
   output:
-    joint_counts_f      = joint_counts_f,
-    joint_coldata_f     = joint_coldata_f,
-    joint_sample_meta_f = joint_sample_meta_f
+    joint_counts_f = joint_counts_f
   params:
-    project_ids   = " ".join(JOIN_PROJECT_IDS),
-    metadata_vars = METADATA_VARS_STR
+    project_ids   = " ".join(JOIN_PROJECT_IDS)
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_matrix', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_matrix', 'time', attempt)
@@ -326,9 +322,37 @@ rule join_build_matrix:
       --h5ads_yaml_fs       {input.h5ads_yaml_fs} \
       --project_ids         {params.project_ids} \
       --integrated_dt_fs    {input.integrated_fs} \
+      --out_h5_f            {output.joint_counts_f}
+    """
+
+
+rule join_build_coldata:
+  """Build joint coldata and sample metadata from matrix barcodes."""
+  input:
+    joint_counts_f = joint_counts_f,
+    integrated_fs  = INTEGRATED_FS,
+    sample_meta_fs = SAMPLE_META_FS
+  output:
+    joint_coldata_f     = joint_coldata_f,
+    joint_sample_meta_f = joint_sample_meta_f
+  params:
+    project_ids = " ".join(JOIN_PROJECT_IDS)
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_coldata', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_coldata', 'time', attempt)
+  log:
+    f"{logs_dir}/join_build_coldata_{JOIN_TAG}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_build_coldata_{JOIN_TAG}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/hvgs.yaml'
+  shell: """
+    exec &>> {log}
+    python3 scripts/join.py build_joint_coldata \
+      --h5_f                {input.joint_counts_f} \
+      --project_ids         {params.project_ids} \
+      --integrated_dt_fs    {input.integrated_fs} \
       --sample_meta_fs      {input.sample_meta_fs} \
-      --metadata_vars       "{params.metadata_vars}" \
-      --out_h5_f            {output.joint_counts_f} \
       --out_coldata_f       {output.joint_coldata_f} \
       --out_sample_meta_f   {output.joint_sample_meta_f}
     """
@@ -338,8 +362,7 @@ if INT_PCA_METHOD == 'bpcells':
   rule join_pca:
     """Compute PCA on joint matrix using BPCells disk-backed streaming SVD."""
     input:
-      counts_h5_f = joint_counts_f,
-      coldata_f   = joint_coldata_f
+      counts_h5_f = joint_counts_f
     output:
       pca_f = joint_pca_f
     params:
@@ -367,7 +390,6 @@ if INT_PCA_METHOD == 'bpcells':
 
       Rscript -e "source('scripts/join_pca.R'); run_join_pca(
         counts_h5_f = '$LOCAL_H5',
-        coldata_f   = '{input.coldata_f}',
         n_dims      =  {params.n_dims},
         out_pca_f   = '{output.pca_f}')"
       """

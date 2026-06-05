@@ -196,61 +196,67 @@ def _build_project_coldata(int_dt, pid, smeta_dt, metadata_vars):
   return proj_cells
 
 
-def _load_project_data(pid, h5ads_yaml_f, int_f, smeta_f, hvg_list, metadata_vars):
+
+
+def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_fs,
+                       out_h5_f):
   """
-  Load one project: iterate batches, filter to clean cells, build the per-project
-  count matrix (n_hvgs x n_cells), coldata, and sample metadata.
+  Assemble a joint HVG count matrix from per-project h5ads.
 
-  Returns (proj_mat, proj_barcodes, coldata_df, smeta_df).
+  Parameters
+  ----------
+  joint_hvgs_f        : str   Path to joint HVGs CSV.gz (ensembl_id column).
+  h5ads_yaml_fs       : list  Per-project h5ads_clean_paths_*.yaml files.
+  project_ids         : list  Project IDs (parallel to h5ads_yaml_fs).
+  integrated_dt_fs    : list  Per-project integrated_dt_*.csv.gz (for non-doublet filter).
+  out_h5_f            : str   Output joint HVG count matrix (H5, CSC format).
   """
-  from scipy.sparse import hstack
-
-  print(f"  processing project: {pid}")
-
-  with open(h5ads_yaml_f) as fh:
-    h5ad_paths = yaml.safe_load(fh)
-
-  int_dt   = pl.read_csv(int_f)
-  ok_cells = set(
-    int_dt.filter(_ok_cells_filter(int_dt))['cell_id'].to_list()
-  )
-  print(f"    clean cells: {len(ok_cells)}")
-
-  smeta_dt      = pl.read_csv(smeta_f)
-  proj_mats     = []
-  proj_barcodes = []
-  for batch_key, h5ad_entry in h5ad_paths.items():
-    h5ad_path = h5ad_entry if isinstance(h5ad_entry, str) else h5ad_entry['path']
-    result = _load_batch_hvg_matrix(h5ad_path, ok_cells, hvg_list, pid, batch_key)
-    if result is None:
-      continue
-    csc_sub, kept_bcs = result
-    proj_mats.append(csc_sub)
-    proj_barcodes.extend(kept_bcs)
-
-  if len(proj_mats) == 0:
-    raise ValueError(f"No cells loaded for project {pid}")
-
-  proj_mat = hstack(proj_mats, format='csc') if len(proj_mats) > 1 else proj_mats[0]
-
-  coldata_df = _build_project_coldata(int_dt, pid, smeta_dt, metadata_vars)
-
-  smeta_df = smeta_dt.with_columns([
-    pl.col('sample_id').map_elements(lambda x: f"{pid}_{x}", return_dtype=pl.Utf8),
-    pl.lit(pid).alias('project_id')
-  ])
-  if 'bad_sample_id' not in smeta_df.columns:
-    smeta_df = smeta_df.with_columns(pl.lit(False).alias('bad_sample_id'))
-
-  return proj_mat, proj_barcodes, coldata_df, smeta_df
-
-
-def _save_joint_outputs(joint_csc, hvg_list, all_barcodes, all_coldata_dfs,
-                        cell_totals, all_smeta_dfs, out_h5_f, out_coldata_f,
-                        out_sample_meta_f):
-  """Write joint count matrix (HDF5), coldata (CSV.gz), and sample metadata (CSV)."""
   import numpy as np
   import h5py
+  from scipy.sparse import hstack
+
+  print("building joint count matrix")
+
+  hvg_df   = pl.read_csv(joint_hvgs_f)
+  hvg_list = hvg_df['gene_id'].to_list()
+  print(f"  joint HVGs: {len(hvg_list)}")
+
+  _check_sample_id_uniqueness(project_ids, integrated_dt_fs)
+
+  all_mats     = []
+  all_barcodes = []
+
+  for pid, h5ads_yaml_f, int_f in zip(project_ids, h5ads_yaml_fs, integrated_dt_fs):
+    print(f"  processing project: {pid}")
+    with open(h5ads_yaml_f) as fh:
+      h5ad_paths = yaml.safe_load(fh)
+    int_dt   = pl.read_csv(int_f)
+    ok_cells = set(int_dt.filter(_ok_cells_filter(int_dt))['cell_id'].to_list())
+    print(f"    clean cells: {len(ok_cells)}")
+
+    for batch_key, h5ad_entry in h5ad_paths.items():
+      h5ad_path = h5ad_entry if isinstance(h5ad_entry, str) else h5ad_entry['path']
+      result = _load_batch_hvg_matrix(h5ad_path, ok_cells, hvg_list, pid, batch_key)
+      if result is None:
+        continue
+      csc_sub, kept_bcs = result
+      all_mats.append(csc_sub)
+      all_barcodes.extend(kept_bcs)
+
+  if len(all_mats) == 0:
+    raise ValueError("No cells loaded from any project")
+
+  print("  concatenating matrices")
+  joint_csc = hstack(all_mats, format='csc').tocsc() if len(all_mats) > 1 else all_mats[0]
+  print(f"  joint matrix shape: {joint_csc.shape} (genes x cells)")
+
+  if joint_csc.shape[1] != len(all_barcodes):
+    raise ValueError(
+      f"Matrix has {joint_csc.shape[1]} columns but {len(all_barcodes)} barcodes")
+
+  if len(all_barcodes) != len(set(all_barcodes)):
+    dups = [bc for bc in all_barcodes if all_barcodes.count(bc) > 1]
+    raise ValueError(f"Duplicate cell IDs: {dups[:10]}")
 
   print(f"  saving matrix to {out_h5_f}")
   pathlib.Path(out_h5_f).parent.mkdir(parents=True, exist_ok=True)
@@ -263,16 +269,65 @@ def _save_joint_outputs(joint_csc, hvg_list, all_barcodes, all_coldata_dfs,
     f.create_dataset('matrix/features/id',   data=np.array(hvg_list, dtype='S'))
     f.create_dataset('matrix/barcodes',      data=np.array(all_barcodes, dtype='S'))
 
-  print("  saving coldata")
+  print("done!")
+
+
+def build_joint_coldata(h5_f, project_ids, integrated_dt_fs, sample_meta_fs,
+                        out_coldata_f, out_sample_meta_f):
+  """
+  Build joint coldata and sample metadata from the matrix barcodes and
+  per-project integration outputs. Reads cell IDs from the HDF5 matrix to
+  guarantee alignment.
+
+  Parameters
+  ----------
+  h5_f                : str   Joint HVG count matrix HDF5 (for barcodes).
+  project_ids         : list  Project IDs.
+  integrated_dt_fs    : list  Per-project integrated_dt_*.csv.gz files.
+  sample_meta_fs      : list  Per-project sample_metadata CSV files.
+  out_coldata_f       : str   Output joint coldata CSV.gz.
+  out_sample_meta_f   : str   Output joint sample metadata CSV.
+  """
+  import numpy as np
+  import h5py
+
+  print("building joint coldata")
+
+  # read barcodes from HDF5 to define cell order
+  with h5py.File(h5_f, 'r') as f:
+    all_barcodes = [b.decode('utf-8') for b in f['matrix/barcodes'][:]]
+  print(f"  {len(all_barcodes)} cells in matrix")
+
+  # build per-project coldata and sample metadata
+  all_coldata_dfs = []
+  all_smeta_dfs   = []
+
+  for pid, int_f, smeta_f in zip(project_ids, integrated_dt_fs, sample_meta_fs):
+    print(f"  processing project: {pid}")
+    int_dt   = pl.read_csv(int_f)
+    smeta_dt = pl.read_csv(smeta_f)
+
+    coldata_df = _build_project_coldata(int_dt, pid, smeta_dt, metadata_vars=[])
+    all_coldata_dfs.append(coldata_df)
+
+    smeta_df = smeta_dt.with_columns([
+      pl.col('sample_id').map_elements(lambda x: f"{pid}_{x}", return_dtype=pl.Utf8),
+      pl.lit(pid).alias('project_id')
+    ])
+    if 'bad_sample_id' not in smeta_df.columns:
+      smeta_df = smeta_df.with_columns(pl.lit(False).alias('bad_sample_id'))
+    all_smeta_dfs.append(smeta_df)
+
+  # concatenate and reorder to match matrix barcodes
+  print("  assembling coldata")
   coldata_df = pl.concat(all_coldata_dfs, how='diagonal')
   fixed_cols = ['cell_id', 'sample_id', 'project_id']
   other_cols = [c for c in coldata_df.columns if c not in fixed_cols]
   coldata_df = coldata_df.select(fixed_cols + other_cols)
-  # reorder rows to match matrix barcodes and attach per-cell library size
+
   bc_order_df = pl.DataFrame({
     'cell_id': all_barcodes,
     '_order':  range(len(all_barcodes)),
-    'total':   cell_totals,
   })
   coldata_df = coldata_df.join(bc_order_df, on='cell_id').sort('_order').drop('_order')
   with gzip.open(out_coldata_f, 'wb') as fh:
@@ -281,75 +336,6 @@ def _save_joint_outputs(joint_csc, hvg_list, all_barcodes, all_coldata_dfs,
   print("  saving sample metadata")
   smeta_df = _smart_concat(all_smeta_dfs)
   smeta_df.write_csv(out_sample_meta_f)
-
-
-def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_fs,
-                       sample_meta_fs, metadata_vars_str, out_h5_f, out_coldata_f,
-                       out_sample_meta_f):
-  """
-  Assemble a joint HVG count matrix from per-project h5ads.
-
-  Parameters
-  ----------
-  joint_hvgs_f        : str   Path to joint HVGs CSV.gz (ensembl_id column).
-  h5ads_yaml_fs       : list  Per-project h5ads_clean_paths_*.yaml files.
-  project_ids         : list  Project IDs (parallel to h5ads_yaml_fs).
-  integrated_dt_fs    : list  Per-project integrated_dt_*.csv.gz (for non-doublet filter).
-  sample_meta_fs      : list  Per-project sample_metadata CSV files.
-  metadata_vars_str   : str   Space-separated list of metadata variable names to carry through.
-  out_h5_f            : str   Output joint HVG count matrix (H5, CSC format).
-  out_coldata_f       : str   Output joint coldata CSV.gz.
-  out_sample_meta_f   : str   Output joint sample metadata CSV.
-  """
-  import numpy as np
-  from scipy.sparse import hstack
-
-  print("building joint count matrix")
-
-  metadata_vars = metadata_vars_str.split() if metadata_vars_str.strip() else []
-
-  hvg_df   = pl.read_csv(joint_hvgs_f)
-  hvg_list = hvg_df['gene_id'].to_list()
-  print(f"  joint HVGs: {len(hvg_list)}")
-
-  _check_sample_id_uniqueness(project_ids, integrated_dt_fs)
-
-  all_mats        = []
-  all_barcodes    = []
-  all_coldata_dfs = []
-  all_smeta_dfs   = []
-
-  for pid, h5ads_yaml_f, int_f, smeta_f in zip(
-      project_ids, h5ads_yaml_fs, integrated_dt_fs, sample_meta_fs):
-    proj_mat, proj_barcodes, coldata_df, smeta_df = _load_project_data(
-      pid, h5ads_yaml_f, int_f, smeta_f, hvg_list, metadata_vars
-    )
-    all_mats.append(proj_mat)
-    all_barcodes.extend(proj_barcodes)
-    all_coldata_dfs.append(coldata_df)
-    all_smeta_dfs.append(smeta_df)
-
-  print("  concatenating matrices")
-  joint_mat = hstack(all_mats, format='csc') if len(all_mats) > 1 else all_mats[0]
-  joint_csc = joint_mat.tocsc()
-  print(f"  joint matrix shape: {joint_csc.shape} (genes x cells)")
-
-  if joint_csc.shape[1] != len(all_barcodes):
-    raise ValueError(
-      f"Matrix has {joint_csc.shape[1]} columns but {len(all_barcodes)} barcodes"
-    )
-
-  if len(all_barcodes) != len(set(all_barcodes)):
-    dups = [bc for bc in all_barcodes if all_barcodes.count(bc) > 1]
-    raise ValueError(f"Duplicate cell IDs after prefixing: {dups[:10]}")
-
-  # per-cell library size; used by _normalize_hvg_mat in integration.py
-  cell_totals = np.asarray(joint_csc.sum(axis=0)).flatten()
-
-  _save_joint_outputs(
-    joint_csc, hvg_list, all_barcodes, all_coldata_dfs,
-    cell_totals, all_smeta_dfs, out_h5_f, out_coldata_f, out_sample_meta_f
-  )
 
   print("done!")
 
@@ -477,13 +463,19 @@ def _parse_args():
   p2.add_argument('--project_ids',      nargs='+', required=True)
   p2.add_argument('--integrated_dt_fs', nargs='+', required=True,
     help='Per-project integrated_dt CSV.gz files')
-  p2.add_argument('--sample_meta_fs',   nargs='+', required=True,
-    help='Per-project sample metadata CSV files')
-  p2.add_argument('--metadata_vars',    default='',
-    help='Space-separated metadata variable names')
   p2.add_argument('--out_h5_f',         required=True)
-  p2.add_argument('--out_coldata_f',    required=True)
-  p2.add_argument('--out_sample_meta_f', required=True)
+
+  # --- build_joint_coldata ---
+  p2b = sub.add_parser('build_joint_coldata')
+  p2b.add_argument('--h5_f',             required=True,
+    help='Joint HVG count matrix HDF5 (for barcodes)')
+  p2b.add_argument('--project_ids',      nargs='+', required=True)
+  p2b.add_argument('--integrated_dt_fs', nargs='+', required=True,
+    help='Per-project integrated_dt CSV.gz files')
+  p2b.add_argument('--sample_meta_fs',   nargs='+', required=True,
+    help='Per-project sample metadata CSV files')
+  p2b.add_argument('--out_coldata_f',    required=True)
+  p2b.add_argument('--out_sample_meta_f', required=True)
 
   # --- build_join_h5ads_yaml ---
   p3 = sub.add_parser('build_join_h5ads_yaml')
@@ -512,9 +504,15 @@ if __name__ == '__main__':
       h5ads_yaml_fs      = args.h5ads_yaml_fs,
       project_ids        = args.project_ids,
       integrated_dt_fs   = args.integrated_dt_fs,
+      out_h5_f           = args.out_h5_f
+    )
+
+  elif args.cmd == 'build_joint_coldata':
+    build_joint_coldata(
+      h5_f               = args.h5_f,
+      project_ids        = args.project_ids,
+      integrated_dt_fs   = args.integrated_dt_fs,
       sample_meta_fs     = args.sample_meta_fs,
-      metadata_vars_str  = args.metadata_vars,
-      out_h5_f           = args.out_h5_f,
       out_coldata_f      = args.out_coldata_f,
       out_sample_meta_f  = args.out_sample_meta_f
     )

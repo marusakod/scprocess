@@ -1963,6 +1963,7 @@ def check_join_config(config, join_schema_f):
           f"join ref_txome={join_ref!r}")
 
   # check h5ads YAML files exist (integration must be complete)
+  # h5ads are always in the integration directory, even when using zoom outputs
   for pid, proj_entry in config.get('projects', {}).items():
     cfg_f = proj_entry.get('config')
     if cfg_f and os.path.isfile(cfg_f):
@@ -1972,12 +1973,8 @@ def check_join_config(config, join_schema_f):
       short_tag = proj_cfg['project']['short_tag']
       full_tag  = proj_cfg['project']['full_tag']
       date_stamp = proj_cfg['project']['date_stamp']
-      zoom_name = proj_entry.get('zoom_name')
-      if zoom_name:
-        int_dir  = proj_dir / f"output/{short_tag}_zoom" / zoom_name
-      else:
-        int_dir  = proj_dir / f"output/{short_tag}_integration"
-      h5ads_f  = int_dir / f"h5ads_clean_paths_{full_tag}_{date_stamp}.yaml"
+      int_dir   = proj_dir / f"output/{short_tag}_integration"
+      h5ads_f   = int_dir / f"h5ads_clean_paths_{full_tag}_{date_stamp}.yaml"
       if not h5ads_f.is_file():
         raise FileNotFoundError(
           f"h5ads YAML not found for project '{pid}': {h5ads_f}\n"

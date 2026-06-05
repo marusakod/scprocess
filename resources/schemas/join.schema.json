@@ -146,6 +146,7 @@
       "properties": {
         "gb_join_select_hvgs":        { "type": "integer", "default": 4 },
         "gb_join_build_matrix":       { "type": "integer", "default": 16 },
+        "gb_join_build_coldata":      { "type": "integer", "default": 4 },
         "gb_join_pca":                { "type": "integer", "default": 16 },
         "gb_join_integration":        { "type": "integer", "default": 16 },
         "gb_join_build_h5ads_yaml":   { "type": "integer", "default": 4 },
@@ -157,6 +158,7 @@
         "gb_join_render_html":        { "type": "integer", "default": 16 },
         "mins_join_select_hvgs":        { "type": "integer", "default": 10 },
         "mins_join_build_matrix":       { "type": "integer", "default": 30 },
+        "mins_join_build_coldata":      { "type": "integer", "default": 5 },
         "mins_join_pca":                { "type": "integer", "default": 60 },
         "mins_join_integration":        { "type": "integer", "default": 60 },
         "mins_join_build_h5ads_yaml":   { "type": "integer", "default": 5 },

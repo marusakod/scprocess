@@ -24,10 +24,9 @@ suppressPackageStartupMessages({
 #' Compute PCA on a joint count matrix using BPCells disk-backed streaming.
 #'
 #' @param counts_h5_f  Path to joint counts HDF5 (10x-format CSC matrix)
-#' @param coldata_f    Path to joint coldata CSV.gz (must contain cell_id, total)
 #' @param n_dims       Number of PCA dimensions to compute
 #' @param out_pca_f    Output path for PCA embeddings (CSV.gz)
-run_join_pca <- function(counts_h5_f, coldata_f, n_dims, out_pca_f) {
+run_join_pca <- function(counts_h5_f, n_dims, out_pca_f) {
   n_dims <- as.integer(n_dims)
 
   message("Loading count matrix from HDF5 (disk-backed)")
@@ -35,20 +34,8 @@ run_join_pca <- function(counts_h5_f, coldata_f, n_dims, out_pca_f) {
   mat <- open_matrix_10x_hdf5(counts_h5_f)
   message(sprintf("  Matrix dimensions: %d genes x %d cells", nrow(mat), ncol(mat)))
 
-  message("Reading coldata for library sizes")
-  coldata <- fread(coldata_f)
-  stopifnot("cell_id" %in% names(coldata))
-  stopifnot("total" %in% names(coldata))
-
-  # Ensure matrix column order matches coldata row order
-  mat_cells <- colnames(mat)
-  stopifnot(setequal(mat_cells, coldata$cell_id))
-  if (!identical(mat_cells, coldata$cell_id)) {
-    mat <- mat[, coldata$cell_id]
-  }
-
   message("Normalizing: library size -> scale 1e4 -> log1p")
-  lib_sizes <- coldata$total
+  lib_sizes <- BPCells::colSums(mat)
   mat_norm <- multiply_cols(mat, 1e4 / lib_sizes) %>% log1p()
 
   # Transpose to cells x genes for PCA (irlba center/scale apply to columns)
@@ -72,7 +59,7 @@ run_join_pca <- function(counts_h5_f, coldata_f, n_dims, out_pca_f) {
 
   message("Writing PCA embeddings to CSV.gz")
   pca_colnames <- sprintf("pca_%d", seq_len(n_dims))
-  pca_dt <- data.table(cell_id = coldata$cell_id)
+  pca_dt <- data.table(cell_id = colnames(mat))
   pca_dt[, (pca_colnames) := as.data.table(pc_scores)]
 
   dir.create(dirname(out_pca_f), recursive = TRUE, showWarnings = FALSE)
