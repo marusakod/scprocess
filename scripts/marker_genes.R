@@ -103,9 +103,17 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
   # make pbs for each batch
   bpparam     = MulticoreParam(workers = n_cores, tasks = length(batches))
   if (zoom) {
-    pb_ls       = bplapply(batches, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam,
-      h5ad_paths = h5ad_paths, int_dt = int_dt, batch_var = batch_var, cl_var = cl_var,
-      keep_cls = keep_cls, agg_fn = agg_fn)
+    pb_ls       = tryCatch(
+      bplapply(batches, FUN = .make_one_zoom_pseudobulk, BPPARAM = bpparam,
+        h5ad_paths = h5ad_paths, int_dt = int_dt, batch_var = batch_var, cl_var = cl_var,
+        keep_cls = keep_cls, agg_fn = agg_fn),
+      error = function(e) {
+        message("parallel bplapply failed (", conditionMessage(e), "); retrying serially to surface real error")
+        lapply(batches, .make_one_zoom_pseudobulk,
+          h5ad_paths = h5ad_paths, int_dt = int_dt, batch_var = batch_var, cl_var = cl_var,
+          keep_cls = keep_cls, agg_fn = agg_fn)
+      }
+    )
   } else {
     pb_ls       = tryCatch(
       bplapply(batches, FUN = .make_one_pseudobulk, BPPARAM = bpparam,
@@ -411,15 +419,10 @@ aggregateData_datatable <- function(sce, by_vars = c("cluster", "sample_id"),
 }
 
 make_logcpms_all <- function(pb, batch_var, lib_size_method = c("edger", "raw", "pearson",
-  "vst", "rlog"), exc_regex = NULL, min_cells = 10, n_cores = 4) {  
+  "vst", "rlog"), exc_regex = NULL, min_cells = 10, n_cores = 4) {
   # check inputs
   lib_size_method   = match.arg(lib_size_method)
-
-  # set up cluster
   cl_ls       = assayNames(pb)
-  bpparam     = MulticoreParam(workers = n_cores, tasks = length(cl_ls))
-  register(bpparam)
-  on.exit(bpstop(bpparam))
 
   # exclude genes if requested
   if (!is.null(exc_regex)) {
@@ -429,19 +432,23 @@ make_logcpms_all <- function(pb, batch_var, lib_size_method = c("edger", "raw", 
     pb          = pb[ !exc_idx, ]
   }
 
-  # calculate logcpms
-  logcpms_all = bplapply(cl_ls, function(sel_cl) {
+  # pre-extract per-cluster data to avoid forking the full SCE
+  n_cells_mat = muscat_n_cells(pb)
+  assay_ls    = lapply(cl_ls, function(cl) assay(pb, cl)) %>% setNames(cl_ls)
+  ncells_ls   = lapply(cl_ls, function(cl) n_cells_mat[cl, ]) %>% setNames(cl_ls)
+
+  # calculate logcpms (parallel over lightweight per-cluster matrices)
+  logcpms_all = parallel::mclapply(cl_ls, function(sel_cl) {
     message(sel_cl, " ", appendLF = FALSE)
-    # message(sel_cl)
-    tmp_dt    = .get_logcpm_dt_one_cl(pb, batch_var, cl = sel_cl,
-      min_cells = min_cells, lib_size_method = lib_size_method)
+    tmp_dt    = .get_logcpm_dt_one_cl_light(assay_ls[[sel_cl]], ncells_ls[[sel_cl]],
+      batch_var, min_cells = min_cells, lib_size_method = lib_size_method)
     if (!is.null(tmp_dt))
       tmp_dt   = tmp_dt[, cluster := sel_cl ]
     return(tmp_dt)
-  }, BPPARAM = bpparam) %>% rbindlist
+  }, mc.cores = n_cores) %>% rbindlist
 
   # add # cells
-  ncells_dt   = muscat_n_cells(pb) %>%
+  ncells_dt   = n_cells_mat %>%
     as.data.table %>% set_colnames(c("cluster", batch_var, "n_cells"))
   logcpms_all = merge( logcpms_all, ncells_dt, by = c("cluster", batch_var) )
   assert_that( nrow(logcpms_all) > 0 )
@@ -484,6 +491,62 @@ make_logcpms_all_rmd <- function(pb, batch_var, lib_size_method = c("edger", "ra
   
   return(logcpms_all)
 }
+
+.get_logcpm_dt_one_cl_light <- function(x, n_cells_vec, batch_var, min_cells = 10,
+  pseudo_count = 10, lib_size_method = c("raw", "edger", "pearson", "vst", "rlog")) {
+
+  lib_size_method   = match.arg(lib_size_method)
+
+  use_idx     = n_cells_vec >= min_cells
+  if (sum(use_idx) == 0) {
+    message("no samples with sufficient cells; skipping")
+    return(NULL)
+  }
+  x           = x[, use_idx, drop = FALSE]
+
+  # exclude tiny samples
+  ls          = colSums(x)
+  out_idx     = scater::isOutlier(ls, log = TRUE, type = "lower", nmads = 3)
+  x           = x[, !out_idx, drop = FALSE]
+
+  # do DESeq2 options
+  if (lib_size_method %in% c("rlog", "vst")) {
+    dds   = DESeq2::DESeqDataSetFromMatrix(countData = x,
+      colData = data.frame(dummy = rep(1, ncol(x))), design = ~ 1)
+    if (lib_size_method == "vst") {
+      mat   = assay(DESeq2::vst(dds, blind = TRUE))
+    } else if (lib_size_method == "rlog") {
+      mat   = assay(DESeq2::rlog(dds, blind = TRUE))
+    }
+    logcpm_dt   = mat %>%
+      as.data.table(keep.rownames = "gene_id") %>%
+      melt.data.table(id = "gene_id", value.name = "logcpm", variable.name = batch_var)
+    return(logcpm_dt)
+  }
+
+  # calculate library sizes
+  if (lib_size_method %in% c("edger")) {
+    suppressMessages({
+      dge_obj     = DGEList(x, remove.zeros = TRUE) %>% normLibSizes
+    })
+    lib_sizes   = getNormLibSizes(dge_obj)
+  } else if (lib_size_method == "raw") {
+    lib_sizes   = colSums(x)
+  }
+
+  libsizes_dt = data.table( batch_var = colnames(x), lib_size = lib_sizes ) %>%
+    setnames("batch_var", batch_var)
+
+  logcpm_dt   = as.matrix(x) %>%
+    as.data.table(keep.rownames = "gene_id") %>%
+    melt.data.table(id = "gene_id", value.name = "count", variable.name = batch_var) %>%
+    merge(libsizes_dt, by = batch_var) %>%
+    .[, logcpm  := log(count / lib_size * 1e6 + pseudo_count) ] %>%
+    .[, symbol  := str_extract(gene_id, "^[^_]+") ]
+
+  return(logcpm_dt)
+}
+
 
 .get_logcpm_dt_one_cl <- function(pb, batch_var, cl, min_cells = 10, pseudo_count = 10,
   lib_size_method = c("raw", "edger", "pearson", "vst", "rlog")) {

@@ -94,32 +94,30 @@ cl_ord        = NULL
 ```{r load_integration, include=FALSE}
 int_all = fread(integration_f)
 int_dt  = int_all[ !is.na(UMAP1) ] %>%
-  .[, c("sample_id", "cell_id", "embedding", "UMAP1", "UMAP2",
+  .[, c("sample_id", "project_id", "cell_id", "embedding", "UMAP1", "UMAP2",
     str_subset(names(int_all), "RNA_snn_res")), with = FALSE]
 ```
 
 
 ```{r load_metadata, include=FALSE}
 meta_dt   = fread(sample_meta_f)
-
-# join project_id (and any other metadata) from sample meta into int_dt
-# project_id may not be in integrated_dt if batch_var was only sample_id
-meta_key  = meta_dt[, .(sample_id, project_id)] %>% unique
-int_dt    = merge(int_dt, meta_key, by = "sample_id")
 ```
 
 
 ```{r setup_sel_res, include=FALSE}
-sel_cl_int_dt = copy(int_dt) %>%
-  .[, cluster := get(paste0("RNA_snn_res.", sel_res)) %>% fct_infreq ] %>%
-  .[, .(sample_id, project_id, cell_id, UMAP1, UMAP2, cluster)] %>%
-  merge(meta_dt, by = "sample_id", suffixes = c("", ".y")) %>%
-  .[, grep("\\.y$", names(.), value = TRUE) := NULL]
-
 cfg_metadata_vars = "${metadata_vars}" %>% str_split(" ") %>% unlist() %>% trimws()
 cfg_metadata_vars = cfg_metadata_vars[cfg_metadata_vars != ""]
 metadata_vars = intersect(cfg_metadata_vars, names(meta_dt))
 composition_vars = unique(c('project_id', metadata_vars))
+
+sel_cl_int_dt = copy(int_dt) %>%
+  .[, cluster := get(paste0("RNA_snn_res.", sel_res)) %>% fct_infreq ] %>%
+  .[, .(sample_id, project_id, cell_id, UMAP1, UMAP2, cluster)]
+if (length(metadata_vars) > 0) {
+  meta_cols = intersect(c("sample_id", metadata_vars), names(meta_dt))
+  sel_cl_int_dt = merge(sel_cl_int_dt, unique(meta_dt[, meta_cols, with = FALSE]),
+    by = "sample_id", all.x = TRUE)
+}
 ```
 
 
