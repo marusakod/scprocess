@@ -409,60 +409,24 @@ def new_join(sc_dir, name, where_path, project_configs):
       )
 
     # ---- write join-{name}.yaml ----
-    # Build without textwrap.dedent: projects_block has its own indentation
-    # (2-space project_id keys, 4-space config values) which would confuse dedent.
     join_yaml_txt = (
       f"join:\n"
       f"  name: {name}\n"
       f"  proj_dir: {proj_dir}\n"
       f'  date_stamp: "{date_stamp}"\n'
       f"  ref_txome: {ref_txome}\n"
+      f"  your_name: {your_name}\n"
+      f"  affiliation: {affiliation}\n"
       f"projects:\n"
       f"{projects_block}\n"
-      f"hvg:\n"
-      f"  hvg_n_hvgs: 2000\n"
-      f"integration:\n"
-      f"  int_embedding: harmony\n"
-      f"  int_batch_var: sample_id\n"
-      f"  int_theta: 0.1\n"
-      f"  int_n_dims: 50\n"
-      f"  int_use_paga: true\n"
-      f"  int_paga_cl_res: 0.2\n"
-      f"  int_res_ls: [0.1, 0.2, 0.5, 1, 2]\n"
-      f"marker_genes:\n"
-      f"  mkr_sel_res: 0.2\n"
-      f"  mkr_do_gsea: true\n"
     )
-    join_yaml_f = proj_dir / f"join-{name}.yaml"
+    join_yaml_f = proj_dir / "configs" / f"join-{name}.yaml"
+    join_yaml_f.parent.mkdir(exist_ok=True)
     join_yaml_f.write_text(join_yaml_txt)
-
-    # ---- substitute join.Rmd.template → analysis/{name}_join.Rmd ----
-    join_tag     = f"{name}_join"
-    join_int_dir = str(proj_dir / f"output/{join_tag}")
-    join_mkr_dir = str(proj_dir / f"output/{name}_marker_genes")
-    template_f   = sc_dir / "resources/rmd_templates/join.Rmd.template"
-    rmd_txt      = template_f.read_text()
-    for placeholder, value in [
-      ('@@your_name@@',   your_name),
-      ('@@affiliation@@', affiliation),
-      ('@@date_stamp@@',  date_stamp),
-      ('@@join_name@@',   name),
-      ('@@join_tag@@',    join_tag),
-      ('@@scprocess_dir@@', str(sc_dir)),
-      ('@@join_int_dir@@',  join_int_dir),
-      ('@@join_mkr_dir@@',  join_mkr_dir),
-      ('@@mkr_sel_res@@',   '0.2'),
-      ('@@ref_txome@@',     ref_txome),
-      ('@@int_res_ls@@',    '0.1 0.2 0.5 1 2'),
-    ]:
-      rmd_txt = rmd_txt.replace(placeholder, value)
-    rmd_f = proj_dir / 'analysis' / f"{join_tag}.Rmd"
-    rmd_f.write_text(rmd_txt)
 
     print(f"Created join project : {proj_dir}")
     print(f"Edit join config     : {join_yaml_f}")
     print(f"Run pipeline         : scprocess join {join_yaml_f}")
-    print(f"Render evaluation    : workflowr::wflow_build('{rmd_f.relative_to(proj_dir)}')")
 
   except Exception as e:
     if proj_dir.exists():
@@ -1074,8 +1038,10 @@ if __name__ == '__main__':
   newjoin_prsr.add_argument('name', type=str, help="Name of the join")
   newjoin_prsr.add_argument('-w', '--where', type=str, default=os.getcwd(),
     help="Where to create the join project (default: current directory)")
+  newjoin_prsr.add_argument('-c', '--config', action='store_true',
+    help="Generate a template join config YAML file")
   newjoin_prsr.add_argument('-p', '--projects', type=str, nargs='*', default=[],
-    help="Paths to existing project config files to pre-populate the projects: block")
+    help="Paths to existing project config files to pre-populate the projects: block (requires -c)")
 
   # subparser for the 'run' subcommand
   run_prsr    = subparsers.add_parser('run', help="run scprocess")
