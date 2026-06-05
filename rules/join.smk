@@ -40,11 +40,6 @@ for _pid in JOIN_PROJECT_IDS:
   _cfg_f = config['projects'][_pid]['config']
   with open(_cfg_f) as _f:
     _project_cfgs[_pid] = yaml.safe_load(_f)
-  _pref = _project_cfgs[_pid]['project']['ref_txome']
-  if _pref != config['join']['ref_txome']:
-    raise ValueError(
-      f"Project '{_pid}' ref_txome={_pref!r} does not match join ref_txome={config['join']['ref_txome']!r}"
-    )
 
 def _proj_dir(pid):
   return pathlib.Path(_project_cfgs[pid]['project']['proj_dir'])
@@ -92,16 +87,10 @@ H5ADS_YAML_FS  = [str(_proj_h5ads_yaml_f(pid)) for pid in JOIN_PROJECT_IDS]
 INTEGRATED_FS  = [str(_proj_integrated_dt_f(pid)) for pid in JOIN_PROJECT_IDS]
 SAMPLE_META_FS = [str(_proj_sample_meta_f(pid)) for pid in JOIN_PROJECT_IDS]
 
-# Pre-compute joint batch keys from per-project h5ads YAMLs (these files must
-# already exist — they are produced by scprocess integration, which must be
-# completed for every project listed under 'projects:' before running join).
+# Pre-compute joint batch keys from per-project h5ads YAMLs (existence
+# already validated by check_join_config in scprocess_utils.py).
 _JOIN_BATCH_KEYS = []
 for _pid, _h5yaml in zip(JOIN_PROJECT_IDS, H5ADS_YAML_FS):
-  if not pathlib.Path(_h5yaml).is_file():
-    raise FileNotFoundError(
-      f"h5ads YAML not found for project '{_pid}': {_h5yaml}\n"
-      f"  scprocess integration must be completed for this project before running join."
-    )
   with open(_h5yaml) as _fh:
     _h5paths = yaml.safe_load(_fh)
   for _bk in _h5paths:
@@ -200,40 +189,10 @@ _idx_params   = pl.read_csv(_idx_params_f)
 GTF_DT_F = _idx_params.filter(pl.col('ref_txome') == REF_TXOME)['gtf_txt_f'][0]
 GSEA_DIR = str(scdata_dir / 'gmt_pathways')
 
-# label_celltypes (optional)
+# label_celltypes (optional; validated and defaults applied by check_join_config)
 _lbl_cfg = config.get('label_celltypes', [])
 DO_LABEL = len(_lbl_cfg) > 0
 if DO_LABEL:
-  # apply schema defaults
-  import json
-  with open(join_schema_f) as _f:
-    _join_schema = json.load(_f)
-  _lbl_schema_props = _join_schema['properties']['label_celltypes']['items']['properties']
-  for entry in _lbl_cfg:
-    for key, prop in _lbl_schema_props.items():
-      if key not in entry and 'default' in prop:
-        entry[key] = prop['default']
-
-  # validate models and resolve paths
-  _typist_ls_f  = scdata_dir / 'celltypist/celltypist_models.csv'
-  _mdls_typist  = pl.read_csv(_typist_ls_f)['model'].to_list() if _typist_ls_f.is_file() else []
-  _mdls_scproc  = ['human_cns']
-  for entry in _lbl_cfg:
-    if entry['labeller'] == 'celltypist':
-      if entry['model'] not in _mdls_typist:
-        raise ValueError(f"CellTypist model '{entry['model']}' not found. Valid: {', '.join(_mdls_typist)}")
-    elif entry['labeller'] == 'scprocess':
-      if entry['model'] not in _mdls_scproc:
-        raise ValueError(f"scprocess model '{entry['model']}' not found. Valid: {', '.join(_mdls_scproc)}")
-      _xgb_dir = scdata_dir / 'xgboost'
-      if entry['model'] == 'human_cns':
-        entry['xgb_f']     = str(_xgb_dir / 'Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds')
-        entry['xgb_cls_f'] = str(_xgb_dir / 'Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv')
-      if not pathlib.Path(entry['xgb_f']).is_file():
-        raise FileNotFoundError(f"XGBoost model file not found: {entry['xgb_f']}")
-      if not pathlib.Path(entry['xgb_cls_f']).is_file():
-        raise FileNotFoundError(f"XGBoost classes file not found: {entry['xgb_cls_f']}")
-
   LABELLER_PARAMS = _lbl_cfg
 
 # ---------------------------------------------------------------------------
