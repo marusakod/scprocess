@@ -481,48 +481,47 @@ rule join_marker_genes:
     """
 
 
-if DO_GSEA:
-  rule join_fgsea:
-    """GSEA on join marker genes (runs only for supported transcriptomes)."""
-    input:
-      mkrs_f = mkrs_f
-    output:
-      fgsea_go_bp_f = fgsea_bp_f,
-      fgsea_go_cc_f = fgsea_cc_f,
-      fgsea_go_mf_f = fgsea_mf_f
-    params:
-      ref_txome   = REF_TXOME,
-      gsea_dir    = GSEA_DIR,
-      min_cpm_go  = MKR_MIN_CPM_GO,
-      max_zero_p  = MKR_MAX_ZERO_P,
-      gsea_cut    = MKR_GSEA_CUT,
-      not_ok_re   = MKR_NOT_OK_RE,
-      gsea_var    = MKR_GSEA_VAR
-    threads: 8
-    resources:
-      mem_mb      = 16 * 1024
-    log:
-      f"{logs_dir}/join_fgsea_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
-    benchmark:
-      f"{benchmark_dir}/join_fgsea_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.benchmark.txt"
-    conda:
-      '../envs/rlibs.yaml'
-    shell: """
-      exec &>> {log}
-      Rscript -e "source('scripts/utils.R'); source('scripts/fgsea.R'); run_fgsea(
-        mkrs_f        = '{input.mkrs_f}',
-        fgsea_go_bp_f = '{output.fgsea_go_bp_f}',
-        fgsea_go_cc_f = '{output.fgsea_go_cc_f}',
-        fgsea_go_mf_f = '{output.fgsea_go_mf_f}',
-        ref_txome     = '{params.ref_txome}',
-        gsea_dir      = '{params.gsea_dir}',
-        min_cpm_go    = {params.min_cpm_go},
-        max_zero_p    = {params.max_zero_p},
-        gsea_cut      = {params.gsea_cut},
-        not_ok_re     = '{params.not_ok_re}',
-        gsea_var      = '{params.gsea_var}',
-        n_cores       =  {threads})"
-      """
+rule join_fgsea:
+  """GSEA on join marker genes (runs only for supported transcriptomes)."""
+  input:
+    mkrs_f = mkrs_f
+  output:
+    fgsea_go_bp_f = fgsea_bp_f,
+    fgsea_go_cc_f = fgsea_cc_f,
+    fgsea_go_mf_f = fgsea_mf_f
+  params:
+    ref_txome   = REF_TXOME,
+    gsea_dir    = GSEA_DIR,
+    min_cpm_go  = MKR_MIN_CPM_GO,
+    max_zero_p  = MKR_MAX_ZERO_P,
+    gsea_cut    = MKR_GSEA_CUT,
+    not_ok_re   = MKR_NOT_OK_RE,
+    gsea_var    = MKR_GSEA_VAR
+  threads: 8
+  resources:
+    mem_mb      = 16 * 1024
+  log:
+    f"{logs_dir}/join_fgsea_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_fgsea_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/rlibs.yaml'
+  shell: """
+    exec &>> {log}
+    Rscript -e "source('scripts/utils.R'); source('scripts/fgsea.R'); run_fgsea(
+      mkrs_f        = '{input.mkrs_f}',
+      fgsea_go_bp_f = '{output.fgsea_go_bp_f}',
+      fgsea_go_cc_f = '{output.fgsea_go_cc_f}',
+      fgsea_go_mf_f = '{output.fgsea_go_mf_f}',
+      ref_txome     = '{params.ref_txome}',
+      gsea_dir      = '{params.gsea_dir}',
+      min_cpm_go    = {params.min_cpm_go},
+      max_zero_p    = {params.max_zero_p},
+      gsea_cut      = {params.gsea_cut},
+      not_ok_re     = '{params.not_ok_re}',
+      gsea_var      = '{params.gsea_var}',
+      n_cores       =  {threads})"
+    """
 
 
 if DO_LABEL:
