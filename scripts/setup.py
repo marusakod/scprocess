@@ -65,6 +65,9 @@ URLS_10X_PROBE_BCS = {
   'flexv2': "https://cf.10xgenomics.com/supp/cell-exp/probeset/flex-v2-384.txt"
 }
 
+URLS_XGBOOSTS = {
+  'Siletti_Macnair-2025-07-23': 'https://github.com/marusakod/scprocessData/releases/download/v0.2.0/Siletti_Macnair-2025-07-23.tar.gz',
+}
 
 COMPLEMENT = str.maketrans('ACGT', 'TGCA')
 
@@ -91,7 +94,7 @@ def get_scprocess_data(scdata_dir, ranger_url, whitelists_lu_f, ranger_version_f
   os.remove('scprocess_data_archive.tar.gz')
   
   # check if all necessary directories are there
-  dirs_ls = [ "gmt_pathways", "marker_genes", "xgboost"]
+  dirs_ls = [ "gmt_pathways", "marker_genes"]
   for dir in dirs_ls:
     assert os.path.isdir(dir), \
       f"{dir} directory doesn't exist"
@@ -406,10 +409,6 @@ def _safe_boolean(val):
 
 # function that makes simpleaf index
 def set_up_txome_index(scdata_dir, txome_name, fasta_f, gtf_f, index_dir, mito_str, is_prebuilt, is_tenx, has_decoy, has_rrna, n_cores):
-  if is_prebuilt:
-    print(f"'is_prebuilt' is True, value is {is_prebuilt}")
-  else:
-    print(f"'is_prebuilt' is False, value is {is_prebuilt}")
 
   # create output directories
   ref_dir   = os.path.join(scdata_dir, 'reference_transcriptomes', txome_name)
@@ -808,6 +807,112 @@ def _make_index_params_yaml(yaml_f, ref_txome, fasta_f, index_dir, gtf_f, gtf_tx
   return
 
 
+def get_xgboost_parameters(config):
+  xgboost_ls = config.get('xgboost', [])
+  SETUP_LS   = []
+
+  # always include prebuilt classifiers
+  for name in URLS_XGBOOSTS:
+    SETUP_LS.append({'name': name, 'is_prebuilt': True})
+
+  # add user-trained classifiers from config
+  for spec in xgboost_ls:
+    name, ref_tag, src_dir = _resolve_xgboost_spec(spec)
+    if name in URLS_XGBOOSTS:
+      raise ValueError(f"xgboost name '{name}' conflicts with a prebuilt classifier name")
+    if not os.path.isdir(src_dir):
+      raise FileNotFoundError(f"xgboost classifier source directory does not exist: {src_dir}")
+    required = [f'{ref_tag}_xgboost_model.json', f'{ref_tag}_allowed_cls.csv', f'{ref_tag}_selected_genes.txt']
+    for fname in required:
+      if not os.path.isfile(os.path.join(src_dir, fname)):
+        raise FileNotFoundError(f"Required xgboost file not found: {os.path.join(src_dir, fname)}")
+    has_label_map = os.path.isfile(os.path.join(src_dir, f'{ref_tag}_label_map.csv'))
+    SETUP_LS.append({'name': name, 'ref_tag': ref_tag, 'src_dir': src_dir,
+                     'is_prebuilt': False, 'has_label_map': has_label_map})
+
+  setup_names = [s['name'] for s in SETUP_LS]
+  if len(setup_names) != len(set(setup_names)):
+    raise KeyError("Duplicated xgboost classifier names are not allowed!")
+
+  SETUP_LS = dict(zip(setup_names, SETUP_LS))
+  return SETUP_LS
+
+
+def _resolve_xgboost_spec(spec):
+  if 'src_dir' in spec:
+    name = spec['name']
+    return name, name, spec['src_dir']
+
+  config_f = spec['config']
+  if not os.path.isfile(config_f):
+    raise FileNotFoundError(f"config file {config_f} does not exist")
+
+  with open(config_f, 'r') as f:
+    proj_config = yaml.safe_load(f)
+
+  if 'train_xgboost' not in proj_config:
+    raise ValueError(f"Config file {config_f} does not contain a 'train_xgboost' section")
+
+  ref_tag   = proj_config['train_xgboost']['ref_tag']
+  proj_dir  = proj_config['project']['proj_dir']
+  short_tag = proj_config['project']['short_tag']
+  src_dir   = os.path.join(proj_dir, 'output', f'{short_tag}_train_xgboost')
+  name      = spec.get('name', ref_tag)
+
+  return name, ref_tag, src_dir
+
+
+def add_xgboost_classifier(scdata_dir, name, ref_tag, src_dir, is_prebuilt):
+  dest_dir = os.path.join(scdata_dir, 'xgboost', name)
+  os.makedirs(dest_dir, exist_ok=True)
+
+  if is_prebuilt:
+    _download_prebuilt_xgboost(name, dest_dir)
+  else:
+    file_pairs = [
+      (f'{ref_tag}_xgboost_model.json', f'{name}_xgboost_model.json'),
+      (f'{ref_tag}_allowed_cls.csv', f'{name}_allowed_cls.csv'),
+      (f'{ref_tag}_selected_genes.txt', f'{name}_selected_genes.txt'),
+    ]
+    for src_name, dst_name in file_pairs:
+      shutil.copy2(os.path.join(src_dir, src_name), os.path.join(dest_dir, dst_name))
+
+    label_map_src = os.path.join(src_dir, f'{ref_tag}_label_map.csv')
+    if os.path.isfile(label_map_src):
+      shutil.copy2(label_map_src, os.path.join(dest_dir, f'{name}_label_map.csv'))
+
+  print(f"Installed xgboost classifier '{name}' to {dest_dir}")
+
+
+def _download_prebuilt_xgboost(name, dest_dir):
+  url = URLS_XGBOOSTS[name]
+  tar_path = os.path.join(dest_dir, f'{name}.tar.gz')
+  print(f"Downloading prebuilt xgboost classifier '{name}'")
+  subprocess.run(['wget', '-O', tar_path, url], check=True)
+  subprocess.run(['tar', '-xzf', tar_path, '-C', dest_dir, '--strip-components=1'], check=True)
+  os.remove(tar_path)
+
+
+def save_available_xgboost_csv(csv_f, scdata_dir, names):
+  rows = []
+  for name in names:
+    xgb_dir = os.path.join(scdata_dir, 'xgboost', name)
+    model_f = os.path.join(xgb_dir, f'{name}_xgboost_model.json')
+    cls_f   = os.path.join(xgb_dir, f'{name}_allowed_cls.csv')
+    genes_f = os.path.join(xgb_dir, f'{name}_selected_genes.txt')
+    label_map_f = os.path.join(xgb_dir, f'{name}_label_map.csv')
+    rows.append({
+      'model':       name,
+      'model_f':     model_f,
+      'cls_f':       cls_f,
+      'genes_f':     genes_f,
+      'label_map_f': label_map_f if os.path.isfile(label_map_f) else '',
+    })
+  df = pl.from_dicts(rows)
+  df.write_csv(csv_f)
+  print(f"Saved available classifiers CSV with {len(names)} entries to {csv_f}")
+
+
 def save_index_params_csv(csv_f, yaml_fs):
   # check yamls exist
   assert all([ os.path.isfile(f) for f in yaml_fs]), "not all yaml files exist"
@@ -871,18 +976,37 @@ if __name__ == "__main__":
   get_ps.add_argument('probe_set_name', type = str, help = 'probe set name (e.g. human_v1)')
   get_ps.add_argument('cores', type = int)
 
+  # parser for add_xgboost_classifier
+  add_xgb = subparsers.add_parser('add_xgboost_classifier')
+  add_xgb.add_argument('scdata_dir', type=str)
+  add_xgb.add_argument('name', type=str)
+  add_xgb.add_argument('ref_tag', type=str)
+  add_xgb.add_argument('src_dir', type=str)
+  add_xgb.add_argument('is_prebuilt', type=str)
+
+  # parser for save_available_xgboost_csv
+  save_xgb_csv = subparsers.add_parser('save_available_xgboost_csv')
+  save_xgb_csv.add_argument('csv_f', type=str)
+  save_xgb_csv.add_argument('scdata_dir', type=str)
+  save_xgb_csv.add_argument('names', type=str, nargs='+')
+
   # decide which function
   args = parser.parse_args()
   if args.function_name == 'get_scprocess_data':
     get_scprocess_data(args.scdata_dir, args.cr_url, args.wl_lu_f, args.cr_version_f)
   elif args.function_name == 'set_up_txome_index':
-    set_up_txome_index(args.scdata_dir, args.genome, args.fasta_f, args.gtf_f, args.index_dir, args.mito_str, 
-      _safe_boolean(args.is_prebuilt), _safe_boolean(args.is_tenx), 
+    set_up_txome_index(args.scdata_dir, args.genome, args.fasta_f, args.gtf_f, args.index_dir, args.mito_str,
+      _safe_boolean(args.is_prebuilt), _safe_boolean(args.is_tenx),
       _safe_boolean(args.has_decoy), _safe_boolean(args.has_rrna), args.cores)
   elif args.function_name == 'save_index_params_csv':
     save_index_params_csv(args.csv_f, args.yaml_fs)
   elif args.function_name == 'set_up_probe_set_index':
     set_up_probe_set_index(args.scdata_dir, args.probe_set_name, args.cores)
+  elif args.function_name == 'add_xgboost_classifier':
+    add_xgboost_classifier(args.scdata_dir, args.name, args.ref_tag, args.src_dir,
+      _safe_boolean(args.is_prebuilt))
+  elif args.function_name == 'save_available_xgboost_csv':
+    save_available_xgboost_csv(args.csv_f, args.scdata_dir, args.names)
   else:
     parser.print_help()
 

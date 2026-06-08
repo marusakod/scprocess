@@ -8,7 +8,7 @@ import sys
 import warnings
 
 sys.path.append('./scripts')
-from setup import get_txome_index_parameters, get_probe_set_parameters
+from setup import get_txome_index_parameters, get_probe_set_parameters, get_xgboost_parameters
 
 # get parameters
 SCDATA_DIR       = os.getenv('SCPROCESS_DATA_DIR')
@@ -17,6 +17,8 @@ PROBE_SET_LS     = get_probe_set_parameters(config)
 RANGER_URL       = config['cellranger_url']
 REF_TXOMES       = list(IDX_PARAMS_LS.keys())
 PROBE_SET_NAMES  = list(PROBE_SET_LS.keys())
+XGB_PARAMS_LS    = get_xgboost_parameters(config)
+XGB_NAMES        = list(XGB_PARAMS_LS.keys())
 logs_dir         = f'{SCDATA_DIR}/.log/setup'
 
 # define simpleaf index files for standard txome indices
@@ -49,7 +51,7 @@ PROBE_SET_INDEX_FS = [
 ]
 
 # define tiny rule
-localrules: save_index_parameters_csv
+localrules: save_index_parameters_csv, add_xgboost, save_available_xgboost_csv
 
 # define top level rule
 rule all:
@@ -96,9 +98,12 @@ rule all:
     f'{SCDATA_DIR}/gmt_pathways/m5.go.cc.v2023.1.Mm.symbols.gmt',
     f'{SCDATA_DIR}/gmt_pathways/m5.go.mf.v2023.1.Mm.symbols.gmt',
     f'{SCDATA_DIR}/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt',
-    f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv',
-    f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds',
-    f'{SCDATA_DIR}/alevin_fry_home/chemistries.json', 
+    # xgboost classifiers (prebuilt + user-trained)
+    expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_xgboost_model.json', xgb_name=XGB_NAMES),
+    expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_allowed_cls.csv', xgb_name=XGB_NAMES),
+    expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_selected_genes.txt', xgb_name=XGB_NAMES),
+    f'{SCDATA_DIR}/xgboost/available_classifiers.csv',
+    f'{SCDATA_DIR}/alevin_fry_home/chemistries.json',
     # rule download_or_build_txome_indices
     expand([ f'{SCDATA_DIR}/alevin_fry_home/ref_txomes/{{ref_txome}}/{file}' for file in TXOME_INDEX_FS], ref_txome=REF_TXOMES),
     expand(f'{SCDATA_DIR}/alevin_fry_home/ref_txomes/{{ref_txome}}/{{ref_txome}}_index_params.yaml', ref_txome=REF_TXOMES),
@@ -153,9 +158,7 @@ rule download_scprocess_files:
     gmt_f_17         = f'{SCDATA_DIR}/gmt_pathways/m5.go.bp.v2023.1.Mm.symbols.gmt',
     gmt_f_18         = f'{SCDATA_DIR}/gmt_pathways/m5.go.cc.v2023.1.Mm.symbols.gmt',
     gmt_f_19         = f'{SCDATA_DIR}/gmt_pathways/m5.go.mf.v2023.1.Mm.symbols.gmt',
-    gmt_f_20         = f'{SCDATA_DIR}/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt',
-    xgb_csv_f        = f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv',
-    xgb_rds_f        = f'{SCDATA_DIR}/xgboost/Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds'
+    gmt_f_20         = f'{SCDATA_DIR}/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt'
   params: 
     ranger_version   = config['cellranger_version']
   conda:
@@ -267,7 +270,43 @@ rule download_celltypist_models:
     f'{logs_dir}/download_celltypist_models.log'
   shell:"""
     exec &>> {log}
-    
+
     # download celltypist models
     python3 scripts/label_celltypes.py download_models {output.models_f}
+    """
+
+
+rule add_xgboost:
+  output:
+    model_f = f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_xgboost_model.json',
+    cls_f   = f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_allowed_cls.csv',
+    genes_f = f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_selected_genes.txt',
+  params:
+    ref_tag     = lambda wildcards: XGB_PARAMS_LS[wildcards.xgb_name].get('ref_tag', wildcards.xgb_name),
+    src_dir     = lambda wildcards: XGB_PARAMS_LS[wildcards.xgb_name].get('src_dir', None),
+    is_prebuilt = lambda wildcards: XGB_PARAMS_LS[wildcards.xgb_name].get('is_prebuilt', False),
+  threads: 1
+  log:
+    f'{logs_dir}/add_xgboost_{{xgb_name}}.log'
+  shell: """
+    exec &>> {log}
+
+    python3 scripts/setup.py add_xgboost_classifier {SCDATA_DIR} {wildcards.xgb_name} {params.ref_tag} {params.src_dir} {params.is_prebuilt}
+    """
+
+
+rule save_available_xgboost_csv:
+  input:
+    expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_xgboost_model.json', xgb_name=XGB_NAMES),
+  output:
+    csv_f = f'{SCDATA_DIR}/xgboost/available_classifiers.csv',
+  params:
+    xgb_names = ' '.join(XGB_NAMES),
+  threads: 1
+  log:
+    f'{logs_dir}/save_available_xgboost_csv.log'
+  shell: """
+    exec &>> {log}
+
+    python3 scripts/setup.py save_available_xgboost_csv {output.csv_f} {SCDATA_DIR} {params.xgb_names}
     """

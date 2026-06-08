@@ -43,6 +43,22 @@
       },
       "additionalProperties": false
     },
+    "xgboost": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name":     { "type": "string", "pattern": "^[a-zA-Z0-9_-]+$" },
+          "src_dir":  { "type": "string" },
+          "config":   { "type": "string" }
+        },
+        "oneOf": [
+          { "required": ["name", "src_dir"] },
+          { "required": ["config"] }
+        ]
+      }
+    },
     "ref_txomes": {
       "type": "object",
       "anyOf": [

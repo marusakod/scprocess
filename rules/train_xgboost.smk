@@ -84,10 +84,13 @@ if TRAIN_XGB_PARAMS is not None:
 
   rule render_html_train_xgboost:
     input:
-      preds_f       = rules.train_xgboost_train.output.preds_f,
-      imp_f         = rules.train_xgboost_train.output.imp_f,
-      pb_f          = rules.train_xgboost_train.output.pb_f,
+      r_mkr_f       = f"{code_dir}/marker_genes.R",
+      r_utils_f     = f"{code_dir}/utils.R",
+      preds_f       = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_predictions.csv.gz'
+      imp_f         = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_gene_importance.csv',
+      pb_f          = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_pseudobulk.h5ad'
     output:
+      r_train_f     = f"{code_dir}/train_xgboost.R",
       rmd_f         = f"{rmd_dir}/{SHORT_TAG}_train_xgboost.Rmd",
       html_f        = f"{docs_dir}/{SHORT_TAG}_train_xgboost.html"
     params:
@@ -114,17 +117,15 @@ if TRAIN_XGB_PARAMS is not None:
       '../envs/rlibs.yaml'
     shell: """
       exec &>> {log}
-      # copy R scripts to xgboost output directory
-      cp {scprocess_dir}/scripts/utils.R {params.output_dir}/utils.R
-      cp {scprocess_dir}/scripts/train_xgboost.R {params.output_dir}/train_xgboost.R
-      cp {scprocess_dir}/scripts/marker_genes.R {params.output_dir}/marker_genes.R
+      # copy R scripts to code directory
+      cp scripts/train_xgboost.R {output.r_train_f}
 
       # define template
-      template_f=$(realpath {scprocess_dir}/resources/rmd_templates/train_xgboost.Rmd.template)
+      template_f=$(realpath resources/rmd_templates/train_xgboost.Rmd.template)
       rule="train_xgboost"
 
       # render html
-      Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \\
+      Rscript --vanilla -e "source('scripts/render_htmls.R'); \\
         render_html(
           rule_name       = '$rule',
           proj_dir        = '{params.proj_dir}',
