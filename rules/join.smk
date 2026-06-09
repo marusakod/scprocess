@@ -217,7 +217,7 @@ if DO_LABEL:
   # validate models and resolve paths
   _typist_ls_f  = scdata_dir / 'celltypist/celltypist_models.csv'
   _mdls_typist  = pl.read_csv(_typist_ls_f)['model'].to_list() if _typist_ls_f.is_file() else []
-  _xgb_csv_f    = scdata_dir / 'xgboost' / 'available_classifiers.csv'
+  _xgb_csv_f    = scdata_dir / 'xgboost' / 'xgboost_models.csv'
   _xgb_df       = pl.read_csv(_xgb_csv_f) if _xgb_csv_f.is_file() else pl.DataFrame()
   _mdls_scproc  = _xgb_df['model'].to_list() if len(_xgb_df) > 0 else []
 

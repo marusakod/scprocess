@@ -102,7 +102,7 @@ rule all:
     expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_xgboost_model.json', xgb_name=XGB_NAMES),
     expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_allowed_cls.csv', xgb_name=XGB_NAMES),
     expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_selected_genes.txt', xgb_name=XGB_NAMES),
-    f'{SCDATA_DIR}/xgboost/available_classifiers.csv',
+    f'{SCDATA_DIR}/xgboost/xgboost_models.csv',
     f'{SCDATA_DIR}/alevin_fry_home/chemistries.json',
     # rule download_or_build_txome_indices
     expand([ f'{SCDATA_DIR}/alevin_fry_home/ref_txomes/{{ref_txome}}/{file}' for file in TXOME_INDEX_FS], ref_txome=REF_TXOMES),
@@ -299,7 +299,7 @@ rule save_available_xgboost_csv:
   input:
     expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_xgboost_model.json', xgb_name=XGB_NAMES),
   output:
-    csv_f = f'{SCDATA_DIR}/xgboost/available_classifiers.csv',
+    csv_f = f'{SCDATA_DIR}/xgboost/xgboost_models.csv',
   params:
     xgb_names = ' '.join(XGB_NAMES),
   threads: 1

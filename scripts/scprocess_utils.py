@@ -1621,7 +1621,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
 
   # get things we need for checks
   typist_ls_f     = scdata_dir / 'celltypist/celltypist_models.csv'
-  xgboost_ls_f    = scdata_dir / 'xgboost/available_classifiers.csv'
+  xgboost_ls_f    = scdata_dir / 'xgboost/xgboost_models.csv'
   mdls_typist     = pl.read_csv(typist_ls_f)['model'].to_list()
   xgboost_df    = pl.read_csv(xgboost_ls_f)
   mdls_xgboost    = xgboost_df['model'].to_list()
