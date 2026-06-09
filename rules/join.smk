@@ -16,7 +16,7 @@ import yaml
 import polars as pl
 
 sys.path.append('scripts')
-from scprocess_utils import check_join_config, get_resources, _load_schema_file, _get_default_config_from_schema
+from scprocess_utils import check_join_config, get_resources, prep_resource_params
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -30,20 +30,8 @@ join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
 config = check_join_config(config, join_schema_f)
 
 # resource parameters (no ML model for join — uses schema defaults + user overrides)
-_join_schema    = _load_schema_file(join_schema_f)
-_join_defaults  = _get_default_config_from_schema(_join_schema).get('resources', {})
-_join_user_res  = config.get('resources', {}).copy()
-for _n in list(_join_user_res):
-  if _n in _join_defaults and _join_defaults[_n] == _join_user_res[_n]:
-    del _join_user_res[_n]
-lm_f          = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
-RESOURCE_PARAMS = {
-  "defaults":   _join_defaults,
-  "user_vals":  _join_user_res,
-  "lm_df":      pl.read_csv(lm_f),
-  "R1_sizes":   {},
-  "n_batches":  0
-}
+lm_f            = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
+RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, lm_f)
 
 # ---------------------------------------------------------------------------
 # Project config loading

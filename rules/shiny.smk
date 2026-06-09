@@ -42,7 +42,8 @@ if _is_join:
 
   _shiny_cfg      = config.get('shiny', {})
   _sample_meta_f  = str(PROJ_DIR / f"output/{JOIN_TAG}/joint_sample_meta_{JOIN_TAG}_{DATE_STAMP}.csv")
-  _metadata_vars  = ','.join(config['join'].get('metadata_vars', []))
+  _metadata_vars_ls = _shiny_cfg.get('metadata_vars', config['join'].get('metadata_vars', []))
+  _metadata_vars  = ','.join(_metadata_vars_ls)
 
   ZOOM_PARAMS = {}
   ZOOMS       = []
@@ -53,6 +54,8 @@ if _is_join:
 else:
   # --- validate and unpack normal project config ---
   config = check_config(config, schema_f, scdata_dir, scprocess_dir)
+  lm_f   = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
+  RESOURCE_PARAMS = prep_resource_params(config, schema_f, lm_f)
 
   PROJ_DIR   = config['project']['proj_dir']
   FULL_TAG   = config['project']['full_tag']
@@ -69,7 +72,8 @@ else:
 
   _shiny_cfg     = config.get('shiny', {})
   _sample_meta_f = config['project']['sample_metadata']
-  _metadata_vars = ','.join(config['project'].get('metadata_vars', []))
+  _metadata_vars_ls = _shiny_cfg.get('metadata_vars', config['project'].get('metadata_vars', []))
+  _metadata_vars = ','.join(_metadata_vars_ls)
 
   ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
   ZOOMS       = list(ZOOM_PARAMS.keys())
@@ -92,6 +96,15 @@ def _resolve_optional_path(val, proj_dir):
   if not p.is_absolute():
     p = pathlib.Path(proj_dir) / p
   return str(p)
+
+def _resolve_var_names(metadata_vars_ls, shiny_cfg):
+  """Build display names list from metadata_labels (dict) or var_names (legacy array)."""
+  labels = shiny_cfg.get('metadata_labels', {})
+  if labels:
+    return [labels.get(v, v) for v in metadata_vars_ls]
+  if 'var_names' in shiny_cfg:
+    return shiny_cfg['var_names']
+  return list(metadata_vars_ls)
 
 _home_md_f        = _resolve_optional_path(_shiny_cfg.get('home_md'),        PROJ_DIR)
 _annotation_csv_f = _resolve_optional_path(_shiny_cfg.get('annotation_csv'), PROJ_DIR)
@@ -159,10 +172,8 @@ rule build_shiny_app:
     keyword       = _shiny_cfg.get('keyword', 'cells'),
     default_gene  = _shiny_cfg.get('default_gene', ''),
     n_keep        = int(_shiny_cfg.get('n_keep', 30000)),
-    var_names     = ','.join(_shiny_cfg.get('var_names',
-                      (config['project'].get('metadata_vars', []) if not _is_join
-                       else config['join'].get('metadata_vars', [])))),
-    var_combns        = json.dumps(_shiny_cfg.get('var_combns', [])).replace('"', '\\"'),
+    var_names     = ','.join(_resolve_var_names(_metadata_vars_ls, _shiny_cfg)),
+    metadata_combns        = json.dumps(_shiny_cfg.get('metadata_combns', [])).replace('"', '\\"'),
     home_md_f         = _home_md_f,
     annotation_csv_f  = _annotation_csv_f,
     cluster_palette   = _shiny_cfg.get('cluster_palette', ''),
@@ -172,8 +183,8 @@ rule build_shiny_app:
     fgsea_go_mf_f     = lambda wildcards, input: getattr(input, 'fgsea_go_mf_f', ''),
   threads: 4
   resources:
-    mem_mb  = 64 * MB_PER_GB,
-    runtime = 30
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_shiny_app', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_shiny_app', 'time', attempt)
   conda: '../envs/shiny.yaml'
   log:   f'{logs_dir}/shiny/build_shiny_app_{DATE_STAMP}.log'
   shell: """
@@ -205,7 +216,7 @@ rule build_shiny_app:
         default_gene  = '{params.default_gene}',
         n_keep        = {params.n_keep},
         var_names     = '{params.var_names}',
-        var_combns        = '{params.var_combns}',
+        metadata_combns        = '{params.metadata_combns}',
         home_md_f         = '{params.home_md_f}',
         annotation_csv_f  = '{params.annotation_csv_f}',
         cluster_palette   = '{params.cluster_palette}',
@@ -244,11 +255,10 @@ rule build_zoom_shiny_app:
     default_gene     = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('default_gene', ''),
     n_keep           = lambda wc: int(ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('n_keep', 30000)),
     var_names        = lambda wc: ','.join(
-                         ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('var_names',
-                         (config['project'].get('metadata_vars', []) if not _is_join
-                          else config['join'].get('metadata_vars', [])))),
-    var_combns       = lambda wc: json.dumps(
-                         ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('var_combns', [])).replace('"', '\\"'),
+                         _resolve_var_names(_metadata_vars_ls,
+                           ZOOM_PARAMS[wc.zoom_name].get('shiny', {}))),
+    metadata_combns       = lambda wc: json.dumps(
+                         ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('metadata_combns', [])).replace('"', '\\"'),
     home_md_f        = lambda wc: _zoom_optional_path(wc.zoom_name, 'home_md'),
     annotation_csv_f = lambda wc: _zoom_optional_path(wc.zoom_name, 'annotation_csv'),
     cluster_palette  = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('cluster_palette', ''),
@@ -259,8 +269,8 @@ rule build_zoom_shiny_app:
     fgsea_go_mf_f    = lambda wildcards, input: getattr(input, 'fgsea_go_mf_f', ''),
   threads: 4
   resources:
-    mem_mb  = 64 * MB_PER_GB,
-    runtime = 30
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_zoom_shiny_app', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_zoom_shiny_app', 'time', attempt)
   conda: '../envs/shiny.yaml'
   log:   f'{logs_dir}/shiny/build_zoom_shiny_app_{{zoom_name}}_{DATE_STAMP}.log'
   shell: """
@@ -292,7 +302,7 @@ rule build_zoom_shiny_app:
         default_gene  = '{params.default_gene}',
         n_keep        = {params.n_keep},
         var_names     = '{params.var_names}',
-        var_combns        = '{params.var_combns}',
+        metadata_combns        = '{params.metadata_combns}',
         home_md_f         = '{params.home_md_f}',
         annotation_csv_f  = '{params.annotation_csv_f}',
         cluster_palette   = '{params.cluster_palette}',

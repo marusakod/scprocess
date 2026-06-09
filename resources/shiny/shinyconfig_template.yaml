@@ -42,5 +42,5 @@ app:
 metadata:
   vars: ["Diagnosis", "Tissue_broad", "study_id"] # variables that will be featured in explore metadata tab; can only be character variables
   var_names: ["Diagnosis", "Brain region", "Study"] # this is how metadata_vars will be displayed in dropdown menus; first element will be set as default values
-  var_combns: [['Diagnosis', 'Tissue_broad']] # combinations of variables from vars
+  metadata_combns: [['Diagnosis', 'Tissue_broad']] # combinations of variables from vars
 

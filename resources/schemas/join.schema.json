@@ -113,8 +113,10 @@
         "keyword":        { "type": "string",  "default": "cells" },
         "default_gene":   { "type": "string",  "default": "" },
         "n_keep":         { "type": "integer", "exclusiveMinimum": 0, "default": 30000 },
+        "metadata_vars":  { "type": "array",  "items": { "type": "string" } },
+        "metadata_labels": { "type": "object", "additionalProperties": { "type": "string" } },
         "var_names":      { "type": "array",   "items": { "type": "string" } },
-        "var_combns": {
+        "metadata_combns": {
           "type": "array",
           "items": { "type": "array", "items": { "type": "string" } }
         },

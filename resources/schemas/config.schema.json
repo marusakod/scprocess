@@ -414,7 +414,12 @@
         "mins_zoom_run_fgsea":                           { "type": "integer", "default": 60 },
         "mins_zoom_make_subsets":                        { "type": "integer", "default": 15 },
         "mins_render_html_zoom":                         { "type": "integer", "default": 20 },
-      
+
+        "gb_build_shiny_app":                            { "type": "integer", "default": 16 },
+        "mins_build_shiny_app":                          { "type": "integer", "default": 30 },
+        "gb_build_zoom_shiny_app":                       { "type": "integer", "default": 16 },
+        "mins_build_zoom_shiny_app":                     { "type": "integer", "default": 30 },
+
         "retries":                       { "type": "integer", "default": 0 }
       }
     },
@@ -428,8 +433,10 @@
         "keyword":      { "type": "string",  "description": "Short noun used in plot descriptions (e.g. 'cells')", "default": "cells" },
         "default_gene": { "type": "string",  "description": "Gene symbol pre-filled in the Explore Genes tab" },
         "n_keep":       { "type": "integer", "description": "Number of cells in the downsampled UMAP display", "default": 30000, "exclusiveMinimum": 0 },
-        "var_names":      { "type": "array",  "description": "Display names for metadata_vars (must match length)", "items": { "type": "string" } },
-        "var_combns":     { "type": "array",  "description": "Pairs of metadata_vars to cross-tabulate", "items": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 2 } },
+        "metadata_vars":  { "type": "array",  "description": "Metadata variables to show in the app (overrides project-level metadata_vars if set)", "items": { "type": "string" } },
+        "metadata_labels": { "type": "object", "description": "Display labels for metadata variables (keys are column names, values are display labels)", "additionalProperties": { "type": "string" } },
+        "var_names":      { "type": "array",  "description": "Deprecated: use metadata_labels instead. Display names for metadata_vars (must match length)", "items": { "type": "string" } },
+        "metadata_combns":     { "type": "array",  "description": "Pairs of metadata_vars to cross-tabulate", "items": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 2 } },
         "home_md":          { "type": "string", "description": "Path to a Markdown file used as the app landing page (relative to project dir or absolute)" },
         "annotation_csv":   { "type": "string", "description": "Path to a CSV with columns cluster, cluster_name, and optional colour, defining display names and order for clusters (relative to project dir or absolute)" },
         "cluster_palette":  { "type": "string", "description": "Named palette applied to cluster colours when no annotation_csv is provided (nice_cols, MetBrewer, RColorBrewer, or ggsci palette name)" },

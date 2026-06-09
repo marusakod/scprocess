@@ -354,7 +354,7 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       default_gene`: APOE
       n_keep`: 3000
       var_names`: ["Variable 1", "Variable 2", "Variable 3"]
-      var_combns`:
+      metadata_combns`:
         - ["Variable 1", "Variable 2"]
       home_md: /path/to/home.md
       annotation_csv`: /path/to/annotation.csv
@@ -537,8 +537,16 @@ sample_id:
 * `keyword`: short word used in plot axis labels and descriptions (e.g. `"cells"`, `"nuclei"`). Default is `"cells"`.
 * `default_gene`: gene symbol displayed by default in the "Explore Genes" tab.
 * `n_keep`: number of cells retained in the subsampled UMAP shown in the app. Default is 3000.
-* `var_names`: display names for `metadata_vars` columns (same order). Defaults to `metadata_vars` values.
-* `var_combns`: list of metadata variable pairs to display as combined groupings. Each element should be a two-element list of variable names from `metadata_vars`.
+* `metadata_vars`: metadata variables to show in the app. If not specified, uses the project-level `metadata_vars`. Use this to show a different set of variables in the Shiny app than in the main pipeline.
+* `metadata_labels`: display labels for metadata variables. Keys are column names, values are display labels. Variables not listed keep their column name as the label. Example:
+    ```yaml
+    shiny:
+      metadata_labels:
+        brainregion: "brain region"
+        condition: "treatment group"
+    ```
+* `var_names`: _(deprecated, use `metadata_labels` instead)_ display names for `metadata_vars` columns (same order). Defaults to `metadata_vars` values.
+* `metadata_combns`: list of metadata variable pairs to display as combined groupings. Each element should be a two-element list of variable names from `metadata_vars` (use column names, not display labels).
 * `home_md`: path to a Markdown file used as the landing page content. Shoule be absolute or relative to `proj_dir`.
 * `annotation_csv`: path to a CSV file with columns `cluster`, `cluster_name`, and optionally `colour`, defining display names, order, and colours for clusters. Absolute or relative to `proj_dir`.
 * `cluster_palette`: name of colour palette applied to clusters when `annotation_csv` is not provided. Accepts any name from the Supported colour palletes list.

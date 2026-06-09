@@ -714,13 +714,13 @@ def _check_shiny_parameters(config):
         f"metadata_vars has {len(metadata_vars)}; they must be the same length"
       )
 
-  # check var_combns values are in metadata_vars
-  if shiny_cfg.get('var_combns'):
-    for pair in shiny_cfg['var_combns']:
+  # check metadata_combns values are in metadata_vars
+  if shiny_cfg.get('metadata_combns'):
+    for pair in shiny_cfg['metadata_combns']:
       for v in pair:
         if v not in metadata_vars:
           raise ValueError(
-            f"shiny.var_combns references '{v}' which is not in metadata_vars: "
+            f"shiny.metadata_combns references '{v}' which is not in metadata_vars: "
             f"{metadata_vars}"
           )
 
@@ -1671,27 +1671,27 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
   return LABELLER_PARAMS
 
 
-def prep_resource_params(config, schema_f, lm_f, LIB_PARAMS, BATCHES):
+def prep_resource_params(config, schema_f, lm_f, LIB_PARAMS=None, BATCHES=None):
   # add default resource values
   schema      = _load_schema_file(schema_f)
   defaults    = _get_default_config_from_schema(schema)
-  defaults    = defaults['resources']
+  defaults    = defaults.get('resources', {})
 
   # get user resource values
-  user_vals   = config['resources'].copy()
+  user_vals   = config.get('resources', {}).copy()
 
   # if same as default, remove from user vals
   for n in list(user_vals):
     if n in defaults:
       if defaults[n] == user_vals[n]:
         del user_vals[n]
-  
+
   # add lm values
   lm_df       = pl.read_csv(lm_f)
 
-  # get sizes, n-batches
-  R1_sizes    = { lib: vals["mapping_af"]["R1_fs_size_gb"] for lib, vals in LIB_PARAMS.items() }
-  n_batches   = len(BATCHES)
+  # get sizes, n-batches (optional — not available for shiny/join standalone workflows)
+  R1_sizes    = { lib: vals["mapping_af"]["R1_fs_size_gb"] for lib, vals in LIB_PARAMS.items() } if LIB_PARAMS else {}
+  n_batches   = len(BATCHES) if BATCHES else 0
 
   # make full dict of useful things
   RESOURCE_PARAMS = {}

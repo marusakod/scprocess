@@ -66,7 +66,7 @@ sample_col    = yaml_data$build$sample_col
 
 metadata_vars        = unlist(yaml_data$metadata$vars)
 names(metadata_vars) = unlist(yaml_data$metadata$var_names)
-metadata_var_combns  = yaml_data$metadata$var_combns
+metadata_metadata_combns  = yaml_data$metadata$metadata_combns
 subset_vars          = c('cluster', metadata_vars)
 names(subset_vars)   = c('cluster', names(metadata_vars))
 
@@ -119,11 +119,11 @@ for (v in metadata_vars) {
 }
 
 # add variable combination columns
-if (!is.null(metadata_var_combns)) {
-  for (vars in metadata_var_combns) {
-    cluster_meta = add_metadata_var_combns(cluster_meta, vars, vars_lvls[vars])
-    sample_meta  = add_metadata_var_combns(sample_meta,  vars, vars_lvls[vars])
-    cell_meta    = add_metadata_var_combns(cell_meta,    vars, vars_lvls[vars])
+if (!is.null(metadata_metadata_combns)) {
+  for (vars in metadata_metadata_combns) {
+    cluster_meta = add_metadata_metadata_combns(cluster_meta, vars, vars_lvls[vars])
+    sample_meta  = add_metadata_metadata_combns(sample_meta,  vars, vars_lvls[vars])
+    cell_meta    = add_metadata_metadata_combns(cell_meta,    vars, vars_lvls[vars])
 
     combn_vars = c(paste(vars, collapse = '.'), paste(rev(vars), collapse = '.')) %>%
       setNames(c(
