@@ -7,6 +7,11 @@ import celltypist
 import gzip
 import pathlib
 import requests
+import xgboost as xgb
+import scipy.sparse as sp
+import numpy as np
+import anndata
+from train_xgboost import normalize_counts
 
 
 def download_celltypist_models(models_f):
@@ -85,6 +90,57 @@ def run_celltypist(sel_batch, batch_var, model_name, adata_f):
   return pred_df
 
 
+def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes_f):
+ 
+  model = xgb.Booster()
+  model.load_model(model_f)
+
+  class_names = pl.read_csv(cls_f)['cluster'].to_list()
+
+  with open(genes_f, 'r') as f:
+    selected_genes = [line.strip() for line in f if line.strip()]
+
+  adata = anndata.read_h5ad(adata_f)
+  cell_ids = adata.obs_names.tolist()
+  gene_symbols = adata.var['symbol'].tolist()
+
+  gene_to_idx = {g: i for i, g in enumerate(gene_symbols)}
+  present_mask = [g in gene_to_idx for g in selected_genes]
+
+  X_raw = adata.X
+  if not sp.issparse(X_raw):
+    X_raw = sp.csr_matrix(X_raw)
+
+  X_full = normalize_counts(X_raw)
+
+  n_cells = X_full.shape[0]
+  n_genes = len(selected_genes)
+  X_aligned = sp.lil_matrix((n_cells, n_genes), dtype=np.float64)
+  for j, (gene, is_present) in enumerate(zip(selected_genes, present_mask)):
+    if is_present:
+      col_idx = gene_to_idx[gene]
+      X_aligned[:, j] = X_full[:, col_idx]
+  X_aligned = X_aligned.tocsr()
+
+  feat_names = [f"g{i}" for i in range(n_genes)]
+  dmat = xgb.DMatrix(X_aligned, feature_names=feat_names)
+  probs = model.predict(dmat)
+  all_pred_labels = [class_names[idx] for idx in probs.argmax(axis=1)]
+  all_pred_probs = probs.max(axis=1).tolist()
+
+  pred_df = pl.DataFrame({
+    'cell_id': cell_ids,
+    'predicted_label': all_pred_labels,
+    'probability': all_pred_probs,
+  }).with_columns(
+    pl.lit("scprocess").alias("labeller"),
+    pl.lit(sel_batch).alias(batch_var),
+    pl.lit(model_name).alias("model"),
+  )
+
+  return pred_df
+
+
 def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var):
   # load integration, check cluster column is there
   int_df      = pl.read_csv(int_f)
@@ -137,6 +193,7 @@ if __name__ == "__main__":
   subparsers  = parser.add_subparsers(dest='subcommand', required=True)
   downloader_prsr = subparsers.add_parser('download_models')
   typist_prsr     = subparsers.add_parser('celltypist_one_batch')
+  xgb_prsr        = subparsers.add_parser('xgboost_one_batch')
   agg_prsr        = subparsers.add_parser('aggregate_predictions')
 
   # get arguments
@@ -148,6 +205,16 @@ if __name__ == "__main__":
   typist_prsr.add_argument(  "model",     type=str)
   typist_prsr.add_argument("--adata_f",  type=str)
   typist_prsr.add_argument("--pred_f",    type=str)
+
+  # get arguments for xgboost
+  xgb_prsr.add_argument(  "batch",     type=str)
+  xgb_prsr.add_argument(  "batch_var", type=str)
+  xgb_prsr.add_argument(  "model",     type=str)
+  xgb_prsr.add_argument("--adata_f",   type=str)
+  xgb_prsr.add_argument("--model_f",   type=str)
+  xgb_prsr.add_argument("--cls_f",     type=str)
+  xgb_prsr.add_argument("--genes_f",   type=str)
+  xgb_prsr.add_argument("--pred_f",    type=str)
 
   # get arguments
   agg_prsr.add_argument(  "pred_fs",      type=str, nargs="+")
@@ -174,6 +241,17 @@ if __name__ == "__main__":
 
     # save
     with gzip.open(args.pred_f, 'wb') as f: 
+      pred_df.write_csv(f)
+
+  elif args.subcommand == "xgboost_one_batch":
+    adata_f = pathlib.Path(args.adata_f)
+    if not adata_f.is_file():
+      raise FileNotFoundError(f"adata_f is not a valid file:\n  {adata_f}")
+
+    pred_df = run_xgboost(args.batch, args.batch_var, args.model, args.adata_f,
+      args.model_f, args.cls_f, args.genes_f)
+
+    with gzip.open(args.pred_f, 'wb') as f:
       pred_df.write_csv(f)
 
   elif args.subcommand == "aggregate_predictions":

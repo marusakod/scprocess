@@ -46,7 +46,7 @@ if TRAIN_XGB_PARAMS is not None:
     log: f'{logs_dir}/train_xgboost/train_xgboost_{TRAIN_XGB_PARAMS["ref_tag"]}_{DATE_STAMP}.log'
     benchmark: f'{benchmark_dir}/train_xgboost/train_xgboost_{TRAIN_XGB_PARAMS["ref_tag"]}_{DATE_STAMP}.benchmark.txt'
     conda:
-      '../envs/train_xgboost.yaml'
+      '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
       python3 {scprocess_dir}/scripts/train_xgboost.py \

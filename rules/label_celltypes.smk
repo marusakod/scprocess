@@ -7,6 +7,14 @@ import glob
 from snakemake.utils import validate, min_version
 
 
+def _get_labeller_entry(labeller, model):
+  matches = [ entry for entry in LABELLER_PARAMS
+    if ((entry['labeller'] == labeller) and (entry['model'] == model)) ]
+  if len(matches) != 1:
+    raise ValueError(f"Expected exactly one labeller entry for {labeller}/{model}, got {len(matches)}")
+  return matches[0]
+
+
 # do labelling with celltypist
 rule run_celltypist:
   input:
@@ -25,10 +33,10 @@ rule run_celltypist:
   log:
     f'{logs_dir}/label_celltypes/run_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.log'
   conda: 
-    '../envs/celltypist.yaml'
+    '../envs/label_celltypes.yaml'
   shell:"""
     exec &>> {log}
-    
+
     python3 scripts/label_celltypes.py celltypist_one_batch \
       {wildcards.batch} {params.batch_var} {wildcards.model} \
       --adata_f   {input.adata_f} \
@@ -43,10 +51,9 @@ rule run_scprocess_labeller:
   output:
     pred_f    = temp(f'{lbl_dir}/tmp_labels_scprocess_model_{{model}}_{FULL_TAG}_{DATE_STAMP}_{{batch}}.csv.gz')
   params:
-    xgb_f     = lambda wildcards: [ entry['xgb_f'] for entry in LABELLER_PARAMS 
-      if (entry['labeller'] == "scprocess") and (entry['model'] == wildcards.model) ],
-    xgb_cls_f = lambda wildcards: [ entry['xgb_cls_f'] for entry in LABELLER_PARAMS 
-      if (entry['labeller'] == "scprocess") and (entry['model'] == wildcards.model) ], 
+    model_f   = lambda wildcards: _get_labeller_entry("scprocess", wildcards.model)['model_f'],
+    cls_f     = lambda wildcards: _get_labeller_entry("scprocess", wildcards.model)['cls_f'],
+    genes_f   = lambda wildcards: _get_labeller_entry("scprocess", wildcards.model)['genes_f'],
     batch_var = BATCH_VAR
   threads: 1
   retries: config['resources']['retries']
@@ -57,38 +64,23 @@ rule run_scprocess_labeller:
     f'{benchmark_dir}/label_celltypes/run_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
   log:
     f'{logs_dir}/label_celltypes/run_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.log'
-  conda: 
-    '../envs/rlibs.yaml'
+  conda:
+    '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
 
-    # save sce object
-    Rscript -e "source('scripts/label_celltypes.R'); source('scripts/integration.R'); \
-    label_with_xgboost_one_batch(
-      sel_batch   = '{wildcards.batch}', 
-      batch_var   = '{params.batch_var}',
-      model_name  = '{wildcards.model}', 
-      xgb_f       = '{params.xgb_f}', 
-      xgb_cls_f   = '{params.xgb_cls_f}', 
-      adata_f     = '{input.adata_f}',
-      pred_f      = '{output.pred_f}'
-    )"
+    python3 scripts/label_celltypes.py xgboost_one_batch \
+      {wildcards.batch} {params.batch_var} {wildcards.model} \
+      --adata_f   {input.adata_f} \
+      --model_f   {params.model_f} \
+      --cls_f     {params.cls_f} \
+      --genes_f   {params.genes_f} \
+      --pred_f    {output.pred_f}
     """
 
 # only do this bit if other parts are finished
 qc_stats_f  = pathlib.Path(f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv')
 if ('label_celltypes' in config) & qc_stats_f.is_file():
-
-  def parse_merge_labels_parameters(LABELLER_PARAMS, labeller, model):
-    # get the one that matches
-    this_entry  = [ entry for entry in LABELLER_PARAMS 
-      if ((entry['labeller'] == labeller) and (entry['model'] == model)) ]
-
-    # check exactly one match
-    if len(this_entry) != 1:
-      raise ValueError("only one entry should match this")
-
-    return this_entry[0]
 
   # load up qc outputs
   bad_var     = 'bad_' + BATCH_VAR
@@ -104,8 +96,8 @@ if ('label_celltypes' in config) & qc_stats_f.is_file():
       pred_out_f    = f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'
     params:
       pred_fs_ls    = input.pred_fs,
-      hi_res_cl     = lambda wildcards: parse_merge_labels_parameters(LABELLER_PARAMS, wildcards.labeller, wildcards.model)["hi_res_cl"],
-      min_cl_prop   = lambda wildcards: parse_merge_labels_parameters(LABELLER_PARAMS, wildcards.labeller, wildcards.model)["min_cl_prop"],
+      hi_res_cl     = lambda wildcards: _get_labeller_entry(wildcards.labeller, wildcards.model)["hi_res_cl"],
+      min_cl_prop   = lambda wildcards: _get_labeller_entry(wildcards.labeller, wildcards.model)["min_cl_prop"],
       batch_var     = BATCH_VAR
     threads: 4
     retries: config['resources']['retries']
@@ -117,7 +109,7 @@ if ('label_celltypes' in config) & qc_stats_f.is_file():
     log: 
       f'{logs_dir}/label_celltypes/merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.log'
     conda: 
-      '../envs/celltypist.yaml'
+      '../envs/label_celltypes.yaml'
     shell:"""
       exec &>> {log}
 

@@ -1621,8 +1621,10 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
 
   # get things we need for checks
   typist_ls_f     = scdata_dir / 'celltypist/celltypist_models.csv'
+  xgboost_ls_f    = scdata_dir / 'xgboost/available_classifiers.csv'
   mdls_typist     = pl.read_csv(typist_ls_f)['model'].to_list()
-  mdls_scprocess  = ['human_cns']
+  xgboost_df    = pl.read_csv(xgboost_ls_f)
+  mdls_xgboost    = xgboost_df['model'].to_list()
 
   # check that selected models are valid
   def _check_one_label_celltypes_parameters(entry):
@@ -1636,27 +1638,20 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
 
     # check that parameters for scprocess are ok
     elif entry['labeller'] == 'scprocess':
-      if not entry['model'] in mdls_scprocess:
+      if not entry['model']  in mdls_xgboost:
         raise KeyError(
-          f"the value {entry['model']} specified in label_celltypes is not a valid scprocess model"
-          f"These models are currently available: {', '.join(mdls_scprocess)}"
-          )
-    
-      # pick labeller
-      xgb_dir  = os.path.join(scdata_dir, 'xgboost')
-      if not pathlib.Path(xgb_dir).is_dir():
-       raise FileNotFoundError(f"xgboost directory '{xgb_dir}' not found")
-    
-      # get relevant values for labeller
-      if entry['model'] == 'human_cns':
-        entry['xgb_f']      = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds")
-        entry['xgb_cls_f']  = os.path.join(xgb_dir, "Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv")
+          f"the value {entry['model']} specified in label_celltypes is not a valid scprocess model. "
+          f"These models are currently available: {', '.join(mdls_xgboost)}"
+        )
 
-      # check these are ok
-      if not pathlib.Path(entry['xgb_f']).is_file():
-        raise FileNotFoundError(f"file {entry['xgb_f']} doesn't exist; consider (re)runnning scprocess setup")
-      if not pathlib.Path(entry['xgb_cls_f']).is_file():
-        raise FileNotFoundError(f"file {entry['xgb_cls_f']} doesn't exist; consider (re)runnning scprocess setup")
+      row = xgboost_df.filter(pl.col('model') == entry['model']).row(0, named=True)
+      entry['model_f'] = row['model_f']
+      entry['cls_f']   = row['cls_f']
+      entry['genes_f'] = row['genes_f']
+
+      for key in ['model_f', 'cls_f', 'genes_f']:
+        if not pathlib.Path(entry[key]).is_file():
+          raise FileNotFoundError(f"file {entry[key]} doesn't exist; consider (re)running scprocess setup")
 
     # check that parameters for scprocess are ok
     elif entry['labeller'] == 'custom':

@@ -217,7 +217,10 @@ if DO_LABEL:
   # validate models and resolve paths
   _typist_ls_f  = scdata_dir / 'celltypist/celltypist_models.csv'
   _mdls_typist  = pl.read_csv(_typist_ls_f)['model'].to_list() if _typist_ls_f.is_file() else []
-  _mdls_scproc  = ['human_cns']
+  _xgb_csv_f    = scdata_dir / 'xgboost' / 'available_classifiers.csv'
+  _xgb_df       = pl.read_csv(_xgb_csv_f) if _xgb_csv_f.is_file() else pl.DataFrame()
+  _mdls_scproc  = _xgb_df['model'].to_list() if len(_xgb_df) > 0 else []
+
   for entry in _lbl_cfg:
     if entry['labeller'] == 'celltypist':
       if entry['model'] not in _mdls_typist:
@@ -225,14 +228,13 @@ if DO_LABEL:
     elif entry['labeller'] == 'scprocess':
       if entry['model'] not in _mdls_scproc:
         raise ValueError(f"scprocess model '{entry['model']}' not found. Valid: {', '.join(_mdls_scproc)}")
-      _xgb_dir = scdata_dir / 'xgboost'
-      if entry['model'] == 'human_cns':
-        entry['xgb_f']     = str(_xgb_dir / 'Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds')
-        entry['xgb_cls_f'] = str(_xgb_dir / 'Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv')
-      if not pathlib.Path(entry['xgb_f']).is_file():
-        raise FileNotFoundError(f"XGBoost model file not found: {entry['xgb_f']}")
-      if not pathlib.Path(entry['xgb_cls_f']).is_file():
-        raise FileNotFoundError(f"XGBoost classes file not found: {entry['xgb_cls_f']}")
+      row = _xgb_df.filter(pl.col('model') == entry['model']).row(0, named=True)
+      entry['model_f'] = row['model_f']
+      entry['cls_f']   = row['cls_f']
+      entry['genes_f'] = row['genes_f']
+      for key in ['model_f', 'cls_f', 'genes_f']:
+        if not pathlib.Path(entry[key]).is_file():
+          raise FileNotFoundError(f"file {entry[key]} doesn't exist; consider (re)running scprocess setup")
 
   LABELLER_PARAMS = _lbl_cfg
 
@@ -537,11 +539,11 @@ if DO_GSEA:
 
 
 if DO_LABEL:
-  def _parse_join_label_params(labeller, model):
+  def _get_labeller_entry(labeller, model):
     matches = [e for e in LABELLER_PARAMS
       if e['labeller'] == labeller and e['model'] == model]
     if len(matches) != 1:
-      raise ValueError(f"Expected 1 match for {labeller}/{model}, got {len(matches)}")
+      raise ValueError(f"Expected exactly one labeller entry for {labeller}/{model}, got {len(matches)}")
     return matches[0]
 
   rule join_celltypist:
@@ -558,7 +560,7 @@ if DO_LABEL:
     benchmark:
       f"{benchmark_dir}/join_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt"
     conda:
-      '../envs/celltypist.yaml'
+      '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
       python3 scripts/label_celltypes.py celltypist_one_batch \
@@ -574,8 +576,9 @@ if DO_LABEL:
     output:
       pred_f  = temp(f"{join_lbl_dir}/tmp_labels_scprocess_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz")
     params:
-      xgb_f     = lambda wildcards: _parse_join_label_params('scprocess', wildcards.model)['xgb_f'],
-      xgb_cls_f = lambda wildcards: _parse_join_label_params('scprocess', wildcards.model)['xgb_cls_f']
+      model_f = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['model_f'],
+      cls_f   = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['cls_f'],
+      genes_f = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['genes_f']
     threads: 1
     resources:
       mem_mb = 16 * 1024
@@ -584,19 +587,16 @@ if DO_LABEL:
     benchmark:
       f"{benchmark_dir}/join_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt"
     conda:
-      '../envs/rlibs.yaml'
+      '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
-      Rscript -e "source('scripts/label_celltypes.R'); source('scripts/integration.R'); \\
-      label_with_xgboost_one_batch(
-        sel_batch   = '{wildcards.batch}',
-        batch_var   = 'sample_id',
-        model_name  = '{wildcards.model}',
-        xgb_f       = '{params.xgb_f}',
-        xgb_cls_f   = '{params.xgb_cls_f}',
-        adata_f     = '{input.adata_f}',
-        pred_f      = '{output.pred_f}'
-      )"
+      python3 scripts/label_celltypes.py xgboost_one_batch \
+        {wildcards.batch} sample_id {wildcards.model} \
+        --adata_f   {input.adata_f} \
+        --model_f   {params.model_f} \
+        --cls_f     {params.cls_f} \
+        --genes_f   {params.genes_f} \
+        --pred_f    {output.pred_f}
       """
 
 
@@ -610,8 +610,8 @@ if DO_LABEL:
     output:
       pred_out_f    = f"{join_lbl_dir}/labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
     params:
-      hi_res_cl   = lambda wildcards: _parse_join_label_params(wildcards.labeller, wildcards.model)['hi_res_cl'],
-      min_cl_prop = lambda wildcards: _parse_join_label_params(wildcards.labeller, wildcards.model)['min_cl_prop']
+      hi_res_cl   = lambda wildcards: _get_labeller_entry(wildcards.labeller, wildcards.model)['hi_res_cl'],
+      min_cl_prop = lambda wildcards: _get_labeller_entry(wildcards.labeller, wildcards.model)['min_cl_prop']
     threads: 4
     resources:
       mem_mb = 16 * 1024
@@ -620,7 +620,7 @@ if DO_LABEL:
     benchmark:
       f"{benchmark_dir}/join_merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.benchmark.txt"
     conda:
-      '../envs/celltypist.yaml'
+      '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
       python3 scripts/label_celltypes.py aggregate_predictions \
@@ -797,7 +797,7 @@ if DO_TRAIN_XGB:
     benchmark:
       f"{benchmark_dir}/join_train_xgboost_{_join_xgb_ref_tag}_{DATE_STAMP}.benchmark.txt"
     conda:
-      '../envs/train_xgboost.yaml'
+      '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
       python3 scripts/train_xgboost.py \

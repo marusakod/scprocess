@@ -1,0 +1,19 @@
+name: label_celltypes
+channels:
+  - bioconda
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python>=3.11
+  - celltypist>=1.6
+  - xgboost>=2.0,<2.1
+  - scanpy>=1.9
+  - anndata>=0.10
+  - polars>=1.0
+  - scipy>=1.10
+  - numpy>=1.24
+  - h5py>=3.9
+  - matplotlib>=3.7
+  - pyyaml>=6.0
+  - requests>=2.28
+  - scikit-learn>=1.2

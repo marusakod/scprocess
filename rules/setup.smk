@@ -264,7 +264,7 @@ rule download_celltypist_models:
   output:
     models_f  = f'{SCDATA_DIR}/celltypist/celltypist_models.csv'
   conda:
-    '../envs/celltypist.yaml'
+    '../envs/label_celltypes.yaml'
   threads: 1
   log:
     f'{logs_dir}/download_celltypist_models.log'
