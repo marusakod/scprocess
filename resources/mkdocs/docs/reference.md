@@ -766,6 +766,8 @@ Additional parameters include:
 
 * `configfile` (positional): path to the configuration file used in [{{scrun}}](#scprocess-run) or [{{scjoin}}](#scprocess-join).
 * `--zoom` (optional): name of the cell subset to create the Shiny app for e.g `scprocess shiny config-my_project.yaml --zoom oligos_opcs`. Pass `all` to build apps for every zoom defined in the config e.g. `scprocess shiny config-my_project.yaml --zoom all`.
+* `--annotate PATH` (optional): generate a draft `annotation.csv` from `label_celltypes` outputs and exit without building the app. Example: `scprocess shiny config.yaml --annotate output/annotation.csv --model celltypist/AIFI_L3`.
+* `--model LABELLER/MODEL` (optional): which `label_celltypes` entry to use for `--annotate`, in the format `labeller/model` (e.g. `celltypist/AIFI_L3` or `scprocess/human_cns`). Required when the config has multiple `label_celltypes` entries; inferred automatically when there is only one.
 * `-n`/`--dry-run` (optional): perform a trial run which lists all steps that {{scshiny}} would do and does not create any new files. Helpful for checking input files and parameters.
 * `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli).
 * `--unlock` (optional): unlock the directory if a previous run was interrupted.

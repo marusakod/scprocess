@@ -35,7 +35,7 @@ if _is_join:
   MKR_SEL_RES = config.get('marker_genes', {}).get('mkr_sel_res', 0.2)
 
   int_dir   = str(PROJ_DIR / f"output/{JOIN_TAG}")
-  mkr_dir   = str(PROJ_DIR / f"output/{JOIN_NAME}_marker_genes")
+  mkr_dir   = str(PROJ_DIR / f"output/{JOIN_TAG}")
   zoom_dir  = ''   # not used for join
   logs_dir  = str(PROJ_DIR / ".log")
   docs_dir  = str(PROJ_DIR / "public")

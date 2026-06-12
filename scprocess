@@ -630,6 +630,131 @@ def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
   return
 
 
+def generate_annotation(configfile, sc_dir, output_path, model_arg):
+  """Generate a draft annotation CSV from label_celltypes outputs."""
+  config_path   = pathlib.Path(configfile).resolve()
+  scprocess_dir = pathlib.Path(sc_dir)
+
+  with open(config_path, "r") as f:
+    config = yaml.safe_load(f)
+
+  _is_join = 'join' in config
+
+  if _is_join:
+    join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
+    config = scprocess_utils.check_join_config(config, join_schema_f)
+    proj_dir    = config['join']['proj_dir']
+    date_stamp  = config['join']['date_stamp']
+    join_name   = config['join']['name']
+    join_tag    = f"{join_name}_join"
+    lbl_dir     = f"{proj_dir}/output/{join_tag}"
+    full_tag    = join_tag
+  else:
+    scdata_dir, _, _ = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, [])
+    schema_f = scprocess_dir / "resources/schemas/config.schema.json"
+    config = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
+    proj_dir    = config['project']['proj_dir']
+    date_stamp  = config['project']['date_stamp']
+    short_tag   = config['project']['short_tag']
+    full_tag    = config['project']['full_tag']
+    lbl_dir     = f"{proj_dir}/output/{short_tag}_label_celltypes"
+
+  # resolve which labeller/model to use
+  label_entries = config.get('label_celltypes', [])
+  if not label_entries:
+    raise ValueError("No label_celltypes section found in config.")
+
+  if model_arg is None:
+    if len(label_entries) == 1:
+      labeller = label_entries[0]['labeller']
+      model    = label_entries[0]['model']
+      print(f"Using label_celltypes entry: {labeller}/{model}")
+    else:
+      available = [f"{e['labeller']}/{e['model']}" for e in label_entries]
+      raise ValueError(
+        f"Multiple label_celltypes entries found; specify one with --model.\n"
+        f"Available: {', '.join(available)}")
+  else:
+    parts = model_arg.split('/', 1)
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+      raise ValueError(f"--model must be in format labeller/model (e.g. celltypist/AIFI_L3), got: {model_arg}")
+    labeller, model = parts
+    matches = [e for e in label_entries if e['labeller'] == labeller and e['model'] == model]
+    if not matches:
+      available = [f"{e['labeller']}/{e['model']}" for e in label_entries]
+      raise ValueError(
+        f"No label_celltypes entry matches '{model_arg}'.\n"
+        f"Available: {', '.join(available)}")
+
+  # resolve mkr_sel_res and cluster column
+  mkr_sel_res = config.get('marker_genes', {}).get('mkr_sel_res', 0.2)
+  cluster_col = f"RNA_snn_res.{mkr_sel_res}"
+
+  # construct path to aggregated labels file and integration file
+  labels_f = f"{lbl_dir}/labels_{labeller}_model_{model}_{full_tag}_{date_stamp}.csv.gz"
+  if not os.path.isfile(labels_f):
+    raise FileNotFoundError(
+      f"Labels file not found:\n  {labels_f}\n"
+      f"Run the label_celltypes step first.")
+
+  if _is_join:
+    int_dir = f"{proj_dir}/output/{join_tag}"
+  else:
+    int_dir = f"{proj_dir}/output/{config['project']['short_tag']}_integration"
+  integration_f = f"{int_dir}/integrated_dt_{full_tag}_{date_stamp}.csv.gz"
+  if not os.path.isfile(integration_f):
+    raise FileNotFoundError(
+      f"Integration file not found:\n  {integration_f}\n"
+      f"Run the integration step first.")
+
+  # read labels and integration, re-aggregate at mkr_sel_res resolution
+  labels_df = pl.read_csv(labels_f)
+  int_df = pl.read_csv(integration_f, columns=["cell_id", cluster_col])
+  int_df = int_df.filter(pl.col(cluster_col).is_not_null())
+
+  merged_df = labels_df.join(int_df, on="cell_id")
+
+  # majority vote: top predicted label per cluster
+  counts_df = (
+    merged_df
+    .group_by(cluster_col, "predicted_label_naive")
+    .agg(pl.len().alias("N"))
+    .with_columns(
+      (pl.col("N") / pl.col("N").sum().over(cluster_col)).alias("prop")
+    )
+    .sort(cluster_col, "prop", descending=[False, True])
+  )
+  top_df = counts_df.group_by(cluster_col).first().select(
+    pl.col(cluster_col).alias("cluster"),
+    pl.col("predicted_label_naive").alias("cluster_name"),
+  )
+
+  # make cluster_name unique by appending numbers for duplicates
+  annotation_df = top_df.sort("cluster")
+  names = annotation_df["cluster_name"].to_list()
+  seen = {}
+  unique_names = []
+  for name in names:
+    seen[name] = seen.get(name, 0) + 1
+  counts = {}
+  for name in names:
+    if seen[name] > 1:
+      counts[name] = counts.get(name, 0) + 1
+      unique_names.append(f"{name} {counts[name]}")
+    else:
+      unique_names.append(name)
+  annotation_df = annotation_df.with_columns(
+    pl.Series("cluster_name", unique_names)
+  )
+
+  # write output
+  output_path = pathlib.Path(output_path)
+  os.makedirs(output_path.parent, exist_ok=True)
+  annotation_df.write_csv(output_path)
+  print(f"Annotation CSV written to: {output_path}")
+  print(f"  {len(annotation_df)} clusters, based on {labeller}/{model}")
+
+
 def run_join(configfile, sc_dir, extraargs, dryrun):
   """Run the scprocess join workflow from a join.yaml config."""
   import json
@@ -1106,6 +1231,11 @@ if __name__ == '__main__':
     help = "Unlock the Snakemake directory if a previous run was interrupted.")
   shiny_prsr.add_argument("-E", "--extraargs", action = "store", nargs = 1, type = str,
     help = "Extra Snakemake arguments (quoted, using = syntax, e.g. -E=\"--quiet\").")
+  shiny_prsr.add_argument("--annotate", type = str, default = None, metavar = "PATH",
+    help = "Generate a draft annotation CSV from label_celltypes outputs and exit.")
+  shiny_prsr.add_argument("--model", type = str, default = None, metavar = "LABELLER/MODEL",
+    help = "Which label_celltypes entry to use (e.g. celltypist/AIFI_L3). "
+           "Required when config has multiple label_celltypes entries; inferred automatically when there is only one.")
 
   # subparser for the 'join' subcommand
   join_prsr   = subparsers.add_parser('join', help="integrate outputs across multiple scprocess projects")
@@ -1201,12 +1331,15 @@ if __name__ == '__main__':
 
   # build shiny app
   elif args.subcommand == 'shiny':
-    extraargs = []
-    if args.unlock:
-      extraargs.append("--unlock")
-    elif args.extraargs:
-      extraargs.extend(shlex.split(args.extraargs[0]))
-    run_shiny(args.configfile, sc_dir, extraargs, args.dry_run, zoom_name=args.zoom)
+    if args.annotate:
+      generate_annotation(args.configfile, sc_dir, args.annotate, args.model)
+    else:
+      extraargs = []
+      if args.unlock:
+        extraargs.append("--unlock")
+      elif args.extraargs:
+        extraargs.extend(shlex.split(args.extraargs[0]))
+      run_shiny(args.configfile, sc_dir, extraargs, args.dry_run, zoom_name=args.zoom)
 
   # run join workflow
   elif args.subcommand == 'join':

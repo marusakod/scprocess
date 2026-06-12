@@ -327,14 +327,15 @@ guesses_ls = lapply(label_f_ls, fread) %>% setNames(model_ls)
 ```
 
 
-## Cell type labelling{.tabset}
-
-```{r label_section_intro, eval=do_labels, include=do_labels, results="asis"}
+```{r label_section_header, eval=do_labels, include=do_labels, results="asis"}
+cat("## Cell type labelling{.tabset}\n\n")
 cat("Cell type labels were predicted using CellTypist. Per-cell predictions are\n",
     "aggregated at the level of high-resolution clusters via majority voting.\n")
 ```
 
-### Clusters vs predicted cell types{.tabset}
+```{r label_heatmap_header, eval=do_labels, include=do_labels, results="asis"}
+cat("### Clusters vs predicted cell types{.tabset}\n\n")
+```
 
 ```{r plot_labels_heatmap, eval=do_labels, include=do_labels, fig.height=12, fig.width=13, results="asis"}
 for (ii in seq_along(label_f_ls)) {
@@ -356,7 +357,9 @@ for (ii in seq_along(label_f_ls)) {
 }
 ```
 
-### Predicted cell types over UMAP{.tabset}
+```{r label_umap_header, eval=do_labels, include=do_labels, results="asis"}
+cat("### Predicted cell types over UMAP{.tabset}\n\n")
+```
 
 ```{r plot_labels_umap, eval=do_labels, include=do_labels, fig.height=5, fig.width=12, results="asis"}
 for (ii in seq_along(label_f_ls)) {
@@ -380,7 +383,9 @@ for (ii in seq_along(label_f_ls)) {
 }
 ```
 
-### Totals for each predicted cell type{.tabset}
+```{r label_table_header, eval=do_labels, include=do_labels, results="asis"}
+cat("### Totals for each predicted cell type{.tabset}\n\n")
+```
 
 ```{r tbl_labels, eval=do_labels, include=do_labels, results="asis"}
 library(kableExtra)
