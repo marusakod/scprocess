@@ -200,6 +200,32 @@ DO_LABEL = len(_lbl_cfg) > 0
 if DO_LABEL:
   LABELLER_PARAMS = _lbl_cfg
 
+  def _proj_labels_f(pid, labeller, model):
+    """Return path to source project's aggregated labels file, or None if not available."""
+    pcfg = _project_cfgs[pid]
+    if 'label_celltypes' not in pcfg:
+      return None
+    matches = [e for e in pcfg['label_celltypes']
+      if e.get('labeller') == labeller and e.get('model') == model]
+    if not matches:
+      return None
+    lbl_dir = _proj_dir(pid) / f"output/{_proj_short_tag(pid)}_label_celltypes"
+    f = lbl_dir / f"labels_{labeller}_model_{model}_{_proj_full_tag(pid)}_{_proj_date(pid)}.csv.gz"
+    return str(f) if f.is_file() else None
+
+  def _get_batch_sources(labeller, model):
+    """Split batch keys into those with reusable labels and those needing fresh runs."""
+    reuse_label_fs = []
+    fresh_batches = []
+    for pid in JOIN_PROJECT_IDS:
+      proj_label_f = _proj_labels_f(pid, labeller, model)
+      pid_batches = [bk for bk in _JOIN_BATCH_KEYS if bk.startswith(f"{pid}_")]
+      if proj_label_f:
+        reuse_label_fs.append(proj_label_f)
+      else:
+        fresh_batches.extend(pid_batches)
+    return fresh_batches, reuse_label_fs
+
 # ---------------------------------------------------------------------------
 # Output file paths
 # ---------------------------------------------------------------------------
@@ -225,6 +251,11 @@ if DO_LABEL:
   label_fs = [
     f"{join_lbl_dir}/labels_{e['labeller']}_model_{e['model']}_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
     for e in LABELLER_PARAMS
+  ]
+  _names_entries = [e for e in LABELLER_PARAMS if e.get('save_cluster_names_file', False)]
+  label_fs += [
+    f"{join_lbl_dir}/cluster_names_for_shiny_{e['labeller']}_{e['model']}_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv"
+    for e in _names_entries
   ]
 else:
   label_fs = []
@@ -570,6 +601,9 @@ rule join_fgsea:
 
 
 if DO_LABEL:
+  wildcard_constraints:
+    labeller = "celltypist|scprocess|custom"
+
   def _parse_join_label_params(labeller, model):
     matches = [e for e in LABELLER_PARAMS
       if e['labeller'] == labeller and e['model'] == model]
@@ -635,12 +669,39 @@ if DO_LABEL:
       """
 
 
-  rule join_merge_labels:
-    """Aggregate per-batch CellTypist predictions by majority voting."""
+  rule join_extract_labels:
+    """Extract naive predictions from source project labels for cells in the join."""
     input:
-      pred_fs       = lambda wildcards: expand(
-        f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz",
-        batch=_JOIN_BATCH_KEYS, allow_missing=True),
+      source_labels_fs = lambda wildcards: _get_batch_sources(wildcards.labeller, wildcards.model)[1],
+      integration_f    = joint_integration_f
+    output:
+      pred_f = temp(f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_reused.csv.gz")
+    log:
+      f"{logs_dir}/join_extract_labels_{{labeller}}_{{model}}_{DATE_STAMP}.log"
+    conda:
+      '../envs/scprocess_local.yaml'
+    shell: """
+      exec &>> {log}
+      python3 scripts/label_celltypes.py extract_naive_predictions \
+        {input.source_labels_fs} \
+        --int_f     {input.integration_f} \
+        --model     {wildcards.model} \
+        --pred_f    {output.pred_f}
+      """
+
+  def _join_merge_labels_inputs(wildcards):
+    fresh_batches, reuse_label_fs = _get_batch_sources(wildcards.labeller, wildcards.model)
+    pred_fs = expand(
+      f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz",
+      batch=fresh_batches, allow_missing=True)
+    if reuse_label_fs:
+      pred_fs.append(f"{join_lbl_dir}/tmp_labels_{wildcards.labeller}_model_{wildcards.model}_{JOIN_TAG}_{DATE_STAMP}_reused.csv.gz")
+    return pred_fs
+
+  rule join_merge_labels:
+    """Aggregate per-batch predictions by majority voting."""
+    input:
+      pred_fs       = _join_merge_labels_inputs,
       integration_f = joint_integration_f
     output:
       pred_out_f    = f"{join_lbl_dir}/labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
@@ -667,6 +728,29 @@ if DO_LABEL:
         --batch_var       sample_id \
         --agg_f           {output.pred_out_f}
       """
+
+  if _names_entries:
+    rule join_save_cluster_names:
+      """Generate cluster_name CSV from aggregated labels at the marker gene resolution."""
+      input:
+        labels_f      = f"{join_lbl_dir}/labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}.csv.gz",
+        integration_f = joint_integration_f
+      output:
+        names_f       = f"{join_lbl_dir}/cluster_names_for_shiny_{{labeller}}_{{model}}_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv"
+      params:
+        mkr_sel_res   = MKR_SEL_RES
+      log:
+        f"{logs_dir}/join_save_cluster_names_{{labeller}}_{{model}}_{DATE_STAMP}.log"
+      conda:
+        '../envs/scprocess_local.yaml'
+      shell: """
+        exec &>> {log}
+        python3 scripts/label_celltypes.py save_cluster_names \
+          --labels_f      {input.labels_f} \
+          --integration_f {input.integration_f} \
+          --mkr_sel_res   {params.mkr_sel_res} \
+          --output_f      {output.names_f}
+        """
 
 
 rule join_render_html:

@@ -182,7 +182,8 @@
           "labeller":     { "type": "string", "enum": ["celltypist", "scprocess"] },
           "model":        { "type": "string" },
           "hi_res_cl":    { "type": "string", "default": "RNA_snn_res.2" },
-          "min_cl_prop":  { "type": "number", "default": 0.5 }
+          "min_cl_prop":  { "type": "number", "default": 0.5 },
+          "save_cluster_names_file": { "type": "boolean", "default": false }
         }
       }
     }

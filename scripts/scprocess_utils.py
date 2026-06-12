@@ -694,6 +694,7 @@ def _check_palette_name(name, context, valid_names):
 
 # check parameters for shiny app build
 def _check_shiny_parameters(config):
+  
   if 'shiny' not in config:
     return config
 
@@ -1666,12 +1667,62 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
       if not v in entry:
         entry[v] = label_defaults[v]
 
+    # validate save_cluster_names_file
+    if entry.get('save_cluster_names_file', False) and 'marker_genes' not in config:
+      warnings.warn(
+        f"save_cluster_names_file is true for {entry['labeller']}/{entry['model']} "
+        f"but no marker_genes block is configured; skipping cluster names file.")
+      entry['save_cluster_names_file'] = False
+
     return entry
 
   # apply this to each specified model
   LABELLER_PARAMS = [ _check_one_label_celltypes_parameters(entry) for entry in config['label_celltypes'] ]
 
   return LABELLER_PARAMS
+
+
+def get_shiny_targets(config, scprocess_dir, scdata_dir, dryrun, zoom_name=None):
+  """Determine shiny build targets and create output directories.
+
+  Returns (targets, proj_dir) where targets is a list of Snakemake target
+  rule names or file paths.
+  """
+  _is_join = 'join' in config
+  proj_cfg = config['join'] if _is_join else config['project']
+  proj_dir = pathlib.Path(proj_cfg['proj_dir'])
+  date_stamp = proj_cfg['date_stamp']
+  docs_dir = proj_dir / "public"
+
+  if _is_join and zoom_name is not None:
+    raise ValueError("--zoom is not supported for join configs.")
+
+  if zoom_name is None:
+    if not dryrun:
+      os.makedirs(docs_dir / "shiny", exist_ok=True)
+    return ["build_shiny_app"], proj_dir
+
+  if zoom_name == "all":
+    zoom_schema_f = pathlib.Path(scprocess_dir) / "resources/schemas/zoom.schema.json"
+    ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
+    zoom_names = list(ZOOM_PARAMS.keys())
+    if not zoom_names:
+      raise ValueError("No zoom specs found in config. Add a 'zoom:' section to your config file.")
+    if not dryrun:
+      for zn in zoom_names:
+        os.makedirs(docs_dir / f"shiny_zoom_{zn}", exist_ok=True)
+    return ["build_all_zoom_shiny_apps"], proj_dir
+
+  zoom_schema_f = pathlib.Path(scprocess_dir) / "resources/schemas/zoom.schema.json"
+  ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
+  zoom_names = list(ZOOM_PARAMS.keys())
+  if zoom_name not in zoom_names:
+    raise ValueError(
+      f"Zoom '{zoom_name}' not found in config. "
+      f"Available zooms: {', '.join(zoom_names) if zoom_names else '(none)'}")
+  if not dryrun:
+    os.makedirs(docs_dir / f"shiny_zoom_{zoom_name}", exist_ok=True)
+  return [str(docs_dir / f"shiny_zoom_{zoom_name}" / f".shiny_built_{date_stamp}")], proj_dir
 
 
 def prep_resource_params(config, schema_f, lm_f, LIB_PARAMS=None, BATCHES=None):

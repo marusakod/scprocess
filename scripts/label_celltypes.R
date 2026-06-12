@@ -122,9 +122,9 @@ label_with_xgboost_one_batch <- function(sel_batch, batch_var, model_name, xgb_f
 
   # make data.table with predictions
   pred_dt     = data.table(
-    cell_id         = rownames(probs_mat),
-    predicted_label = colnames(probs_mat)[ apply(probs_mat, 1, which.max) ],
-    probability     = apply(probs_mat, 1, max)
+    cell_id                = rownames(probs_mat),
+    predicted_label_naive  = colnames(probs_mat)[ apply(probs_mat, 1, which.max) ],
+    probability_naive      = apply(probs_mat, 1, max)
   )
 
   return(pred_dt)

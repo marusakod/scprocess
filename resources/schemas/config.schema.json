@@ -236,7 +236,8 @@
           "model":        { "type": "string" },
           "hi_res_cl":    { "type": "string", "default": "RNA_snn_res.2" },
           "min_cl_prop":  { "type": "number", "default": 0.5 },
-          "min_cl_size":  { "type": "integer", "default": 100 }
+          "min_cl_size":  { "type": "integer", "default": 100 },
+          "save_cluster_names_file": { "type": "boolean", "default": false }
         },
         "allOf": [
           {

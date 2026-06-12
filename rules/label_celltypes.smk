@@ -7,6 +7,9 @@ import glob
 from snakemake.utils import validate, min_version
 
 
+wildcard_constraints:
+  labeller = "celltypist|scprocess|custom"
+
 # do labelling with celltypist
 rule run_celltypist:
   input:
@@ -129,4 +132,29 @@ if ('label_celltypes' in config) & qc_stats_f.is_file():
         --batch_var       {params.batch_var} \
         --agg_f           {output.pred_out_f}
       """
+
+  _names_entries = [e for e in LABELLER_PARAMS if e.get('save_cluster_names_file', False)]
+  if _names_entries:
+    _names_mkr_sel_res = config['marker_genes']['mkr_sel_res']
+
+    rule save_cluster_names:
+      input:
+        labels_f      = f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+        integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+      output:
+        names_f       = f'{lbl_dir}/cluster_names_for_shiny_{{labeller}}_{{model}}_{FULL_TAG}_{_names_mkr_sel_res}_{DATE_STAMP}.csv'
+      params:
+        mkr_sel_res   = _names_mkr_sel_res
+      log:
+        f'{logs_dir}/label_celltypes/save_cluster_names_{{labeller}}_{{model}}_{DATE_STAMP}.log'
+      conda:
+        '../envs/scprocess_local.yaml'
+      shell: """
+        exec &>> {log}
+        python3 scripts/label_celltypes.py save_cluster_names \
+          --labels_f      {input.labels_f} \
+          --integration_f {input.integration_f} \
+          --mkr_sel_res   {params.mkr_sel_res} \
+          --output_f      {output.names_f}
+        """
 

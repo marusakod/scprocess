@@ -25,7 +25,7 @@ import scprocess_utils
 
 def _clean_conda_env():
   """Return a copy of os.environ without few conda related variables
-  to minimize conda related clashes. 
+  to minimize conda related clashes.
   """
   env = os.environ.copy()
   env.pop("CONDA_EXE", None)
@@ -34,7 +34,11 @@ def _clean_conda_env():
   for key in list(env.keys()):
     if key.startswith("BASH_FUNC_conda"):
       del env[key]
-  
+
+  # Prevent conda R from falling back to system site-library via %S/%U expansion
+  env["R_LIBS_SITE"] = ""
+  env["R_LIBS_USER"] = ""
+
   return env
 
 
@@ -529,233 +533,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   return
 
 
-def run_shiny(configfile, sc_dir, extraargs, dryrun, zoom_name=None):
-  print('doing some checks on inputs')
-
-  config_path   = pathlib.Path(configfile).resolve()
-  scprocess_dir = pathlib.Path(__file__).parent
-  os.chdir(scprocess_dir)
-
-  scdata_dir, extraargs, setup_cfg = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
-
-  # load config and detect type
-  with open(config_path, "r") as f:
-    config = yaml.safe_load(f)
-
-  _is_join      = 'join' in config
-  join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
-
-  if _is_join:
-    config   = scprocess_utils.check_join_config(config, join_schema_f)
-    proj_cfg = config['join']
-    if zoom_name is not None:
-      raise ValueError("--zoom is not supported for join configs. "
-                       "Use 'scprocess shiny join.yaml' without --zoom.")
-  else:
-    schema_f = scprocess_dir / "resources/schemas/config.schema.json"
-    if not schema_f.is_file():
-      raise FileNotFoundError("schema file not found")
-    config   = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
-    proj_cfg = config['project']
-
-
-  if dryrun:
-    extraargs.append("-np")
-
-  # get directories
-  proj_dir  = Path(proj_cfg['proj_dir'])
-  log_dir   = proj_dir / ".log/scprocess"
-  log_f, log_header = _get_main_log(config_path, log_dir, dryrun)
-  with open(log_f, "a") as f:
-    f.write(log_header)
-
-  # change cluster logs directory if executor is slurm
-  if 'profile_dir' in setup_cfg['user']:
-    profile_f = setup_cfg['user']['profile_dir'] / 'config.yaml'
-    with open(profile_f, "r") as f:
-      profile = yaml.safe_load(f)
-    if profile.get('executor') == 'slurm':
-      cluster_log_dir = proj_dir / '.log/cluster'
-      extraargs.append('--slurm-logdir')
-      extraargs.append(str(cluster_log_dir))
-
-  # determine target(s)
-  date_stamp  = proj_cfg['date_stamp']
-  docs_dir    = proj_dir / "public"
-  if zoom_name is None:
-    # build main app
-    if not dryrun:
-      os.makedirs(docs_dir / "shiny", exist_ok=True)
-    targets = ["build_shiny_app"]
-  elif zoom_name == "all":
-    # build all zoom apps
-    zoom_names = _get_zoom_names(config, scprocess_dir, scdata_dir)
-    if not zoom_names:
-      raise ValueError("No zoom specs found in config. Add a 'zoom:' section to your config file.")
-    if not dryrun:
-      for zn in zoom_names:
-        os.makedirs(docs_dir / f"shiny_zoom_{zn}", exist_ok=True)
-    targets = ["build_all_zoom_shiny_apps"]
-  else:
-    # build one specific zoom app
-    zoom_names = _get_zoom_names(config, scprocess_dir, scdata_dir)
-    if zoom_name not in zoom_names:
-      raise ValueError(
-        f"Zoom '{zoom_name}' not found in config. "
-        f"Available zooms: {', '.join(zoom_names) if zoom_names else '(none)'}"
-      )
-    if not dryrun:
-      os.makedirs(docs_dir / f"shiny_zoom_{zoom_name}", exist_ok=True)
-    targets = [str(docs_dir / f"shiny_zoom_{zoom_name}" / f".shiny_built_{date_stamp}")]
-
-  snakefile = scprocess_dir / "rules/shiny.smk"
-  cmd_list  = ["snakemake",
-    "--snakefile", str(snakefile),
-    "--configfile", str(config_path),
-    "--config", f"scprocess_dir={str(scprocess_dir)}",
-    "--rerun-triggers", "mtime", "params", "--rerun-incomplete",
-    "--show-failed-logs", "--printshellcmds",
-    "--software-deployment-method", "conda",
-    "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{proj_dir}",
-    *extraargs,
-    *targets]
-
-  cmd_str     = " ".join(map(shlex.quote, map(str, cmd_list)))
-  strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
-  final_cmd   = f"script -q -e -c {shlex.quote(cmd_str)} /dev/null | tee /dev/stderr | {strip_colors} >> {log_f}"
-
-  print(f"snakemake command:\n{cmd_str}")
-  print(f"Logging progress to: {log_f}")
-  subprocess.run(final_cmd, check=True, shell=True, env=_clean_conda_env())
-  return
-
-
-def generate_annotation(configfile, sc_dir, output_path, model_arg):
-  """Generate a draft annotation CSV from label_celltypes outputs."""
-  config_path   = pathlib.Path(configfile).resolve()
-  scprocess_dir = pathlib.Path(sc_dir)
-
-  with open(config_path, "r") as f:
-    config = yaml.safe_load(f)
-
-  _is_join = 'join' in config
-
-  if _is_join:
-    join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
-    config = scprocess_utils.check_join_config(config, join_schema_f)
-    proj_dir    = config['join']['proj_dir']
-    date_stamp  = config['join']['date_stamp']
-    join_name   = config['join']['name']
-    join_tag    = f"{join_name}_join"
-    lbl_dir     = f"{proj_dir}/output/{join_tag}"
-    full_tag    = join_tag
-  else:
-    scdata_dir, _, _ = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, [])
-    schema_f = scprocess_dir / "resources/schemas/config.schema.json"
-    config = scprocess_utils.check_config(config, schema_f, scdata_dir, scprocess_dir)
-    proj_dir    = config['project']['proj_dir']
-    date_stamp  = config['project']['date_stamp']
-    short_tag   = config['project']['short_tag']
-    full_tag    = config['project']['full_tag']
-    lbl_dir     = f"{proj_dir}/output/{short_tag}_label_celltypes"
-
-  # resolve which labeller/model to use
-  label_entries = config.get('label_celltypes', [])
-  if not label_entries:
-    raise ValueError("No label_celltypes section found in config.")
-
-  if model_arg is None:
-    if len(label_entries) == 1:
-      labeller = label_entries[0]['labeller']
-      model    = label_entries[0]['model']
-      print(f"Using label_celltypes entry: {labeller}/{model}")
-    else:
-      available = [f"{e['labeller']}/{e['model']}" for e in label_entries]
-      raise ValueError(
-        f"Multiple label_celltypes entries found; specify one with --model.\n"
-        f"Available: {', '.join(available)}")
-  else:
-    parts = model_arg.split('/', 1)
-    if len(parts) != 2 or not parts[0] or not parts[1]:
-      raise ValueError(f"--model must be in format labeller/model (e.g. celltypist/AIFI_L3), got: {model_arg}")
-    labeller, model = parts
-    matches = [e for e in label_entries if e['labeller'] == labeller and e['model'] == model]
-    if not matches:
-      available = [f"{e['labeller']}/{e['model']}" for e in label_entries]
-      raise ValueError(
-        f"No label_celltypes entry matches '{model_arg}'.\n"
-        f"Available: {', '.join(available)}")
-
-  # resolve mkr_sel_res and cluster column
-  mkr_sel_res = config.get('marker_genes', {}).get('mkr_sel_res', 0.2)
-  cluster_col = f"RNA_snn_res.{mkr_sel_res}"
-
-  # construct path to aggregated labels file and integration file
-  labels_f = f"{lbl_dir}/labels_{labeller}_model_{model}_{full_tag}_{date_stamp}.csv.gz"
-  if not os.path.isfile(labels_f):
-    raise FileNotFoundError(
-      f"Labels file not found:\n  {labels_f}\n"
-      f"Run the label_celltypes step first.")
-
-  if _is_join:
-    int_dir = f"{proj_dir}/output/{join_tag}"
-  else:
-    int_dir = f"{proj_dir}/output/{config['project']['short_tag']}_integration"
-  integration_f = f"{int_dir}/integrated_dt_{full_tag}_{date_stamp}.csv.gz"
-  if not os.path.isfile(integration_f):
-    raise FileNotFoundError(
-      f"Integration file not found:\n  {integration_f}\n"
-      f"Run the integration step first.")
-
-  # read labels and integration, re-aggregate at mkr_sel_res resolution
-  labels_df = pl.read_csv(labels_f)
-  int_df = pl.read_csv(integration_f, columns=["cell_id", cluster_col])
-  int_df = int_df.filter(pl.col(cluster_col).is_not_null())
-
-  merged_df = labels_df.join(int_df, on="cell_id")
-
-  # majority vote: top predicted label per cluster
-  counts_df = (
-    merged_df
-    .group_by(cluster_col, "predicted_label_naive")
-    .agg(pl.len().alias("N"))
-    .with_columns(
-      (pl.col("N") / pl.col("N").sum().over(cluster_col)).alias("prop")
-    )
-    .sort(cluster_col, "prop", descending=[False, True])
-  )
-  top_df = counts_df.group_by(cluster_col).first().select(
-    pl.col(cluster_col).alias("cluster"),
-    pl.col("predicted_label_naive").alias("cluster_name"),
-  )
-
-  # make cluster_name unique by appending numbers for duplicates
-  annotation_df = top_df.sort("cluster")
-  names = annotation_df["cluster_name"].to_list()
-  seen = {}
-  unique_names = []
-  for name in names:
-    seen[name] = seen.get(name, 0) + 1
-  counts = {}
-  for name in names:
-    if seen[name] > 1:
-      counts[name] = counts.get(name, 0) + 1
-      unique_names.append(f"{name} {counts[name]}")
-    else:
-      unique_names.append(name)
-  annotation_df = annotation_df.with_columns(
-    pl.Series("cluster_name", unique_names)
-  )
-
-  # write output
-  output_path = pathlib.Path(output_path)
-  os.makedirs(output_path.parent, exist_ok=True)
-  annotation_df.write_csv(output_path)
-  print(f"Annotation CSV written to: {output_path}")
-  print(f"  {len(annotation_df)} clusters, based on {labeller}/{model}")
-
-
-def run_join(configfile, sc_dir, extraargs, dryrun):
+def run_join(configfile, sc_dir, extraargs, dryrun, rule="all"):
   """Run the scprocess join workflow from a join.yaml config."""
   import json
   import jsonschema
@@ -800,7 +578,10 @@ def run_join(configfile, sc_dir, extraargs, dryrun):
   if dryrun:
     extraargs.append('-np')
 
-  snakefile = scprocess_dir / "rules/join.smk"
+  if rule != "all":
+    snakefile = scprocess_dir / "rules/shiny.smk"
+  else:
+    snakefile = scprocess_dir / "rules/join.smk"
   cmd_list  = ["snakemake",
     "--snakefile",  str(snakefile),
     "--configfile", str(config_path),
@@ -809,7 +590,7 @@ def run_join(configfile, sc_dir, extraargs, dryrun):
     "--show-failed-logs", "--printshellcmds",
     "--software-deployment-method", "conda",
     *extraargs,
-    "all"]
+    rule]
 
   cmd_str      = " ".join(map(shlex.quote, map(str, cmd_list)))
   strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
@@ -1179,11 +960,14 @@ if __name__ == '__main__':
     help = "Required. YAML file specifying what you want to run, and any non-default parameters")
   run_prsr.add_argument("-r", "--rule", type = str, default = "all",
     choices = [
-        "all", "mapping", "ambient", "demux", "qc", "hvg", "integration", "marker_genes", "label_celltypes", "zoom"
+        "all", "mapping", "ambient", "demux", "qc", "hvg", "integration", "marker_genes", "label_celltypes", "zoom", "shiny"
         ],
     help = '''
       Leave empty to run the whole workflow, or alternatively select the rule you want to run.
       ''')
+  run_prsr.add_argument("--zoom", type = str, default = None, metavar = "ZOOM_NAME",
+    help = ("Only used with -r shiny. Build a Shiny app for a zoom (subclustering) output. "
+            "Pass a zoom name (e.g. --zoom immune_cells) or 'all' to build apps for every zoom."))
   run_prsr.add_argument("-n", "--dry-run", action="store_true", 
     help = '''
       "Dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.
@@ -1217,30 +1001,13 @@ if __name__ == '__main__':
   group.add_argument("-k", "--kneefile", type = str, default = None,
     help = "Path to knee file")
 
-  # subparser for the 'shiny' subcommand
-  shiny_prsr  = subparsers.add_parser('shiny', help="build Shiny app from scprocess outputs into public/shiny/")
-  shiny_prsr.add_argument("configfile", type = str,
-    help = "Project or join config YAML.")
-  shiny_prsr.add_argument("--zoom", type = str, default = None, metavar = "ZOOM_NAME",
-    help = ("Build a Shiny app for a zoom (subclustering) output instead of the main analysis. "
-            "Pass a zoom name (e.g. --zoom immune_cells) or 'all' to build apps for every zoom "
-            "defined in the config (deployed to public/shiny_zoom_<name>/)."))
-  shiny_prsr.add_argument("-n", "--dry-run", action = "store_true",
-    help = '"Dry run": show what Snakemake would do without executing.')
-  shiny_prsr.add_argument("--unlock", action = "store_true",
-    help = "Unlock the Snakemake directory if a previous run was interrupted.")
-  shiny_prsr.add_argument("-E", "--extraargs", action = "store", nargs = 1, type = str,
-    help = "Extra Snakemake arguments (quoted, using = syntax, e.g. -E=\"--quiet\").")
-  shiny_prsr.add_argument("--annotate", type = str, default = None, metavar = "PATH",
-    help = "Generate a draft annotation CSV from label_celltypes outputs and exit.")
-  shiny_prsr.add_argument("--model", type = str, default = None, metavar = "LABELLER/MODEL",
-    help = "Which label_celltypes entry to use (e.g. celltypist/AIFI_L3). "
-           "Required when config has multiple label_celltypes entries; inferred automatically when there is only one.")
-
   # subparser for the 'join' subcommand
   join_prsr   = subparsers.add_parser('join', help="integrate outputs across multiple scprocess projects")
   join_prsr.add_argument("configfile", type = str,
     help = "Join config YAML (join.yaml) specifying projects to integrate.")
+  join_prsr.add_argument("-r", "--rule", type = str, default = "all",
+    choices = ["all", "shiny"],
+    help = "Leave empty to run the whole workflow, or select 'shiny' to build the Shiny app.")
   join_prsr.add_argument("-n", "--dry-run", action = "store_true",
     help = '"Dry run": show what Snakemake would do without executing.')
   join_prsr.add_argument("--unlock", action = "store_true",
@@ -1300,10 +1067,12 @@ if __name__ == '__main__':
       rule    = "all"
     else:
       rule    = args.rule
-    
+
     # select snakefile corresponding to workflow
     if rule == "zoom":
       snakefile = sc_dir / "rules/zoom.smk"
+    elif rule == "shiny":
+      snakefile = sc_dir / "rules/shiny.smk"
     else:
       snakefile = sc_dir / "rules/scprocess.smk"
 
@@ -1320,26 +1089,23 @@ if __name__ == '__main__':
         extraargs.extend(shlex.split(args.extraargs[0]))
       if args.dry_run:
         extraargs.append("-np")
-    
+
+    # for shiny, resolve targets via helper
+    if rule == "shiny":
+      config_path = pathlib.Path(args.configfile).resolve()
+      with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+      scdata_dir, extraargs, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs)
+      targets, _ = scprocess_utils.get_shiny_targets(config, sc_dir, scdata_dir, args.dry_run, zoom_name=args.zoom)
+      rule = targets[0]
+
     # call bsub thing
     run_scprocess(args.configfile, snakefile, rule, extraargs, doindex, args.dry_run)
-  
+
   # plot knee for selected sample
   elif args.subcommand == 'plotknee':
     # call function
     plot_interactive_knee(args.configfile, args.kneefile, args.sample)
-
-  # build shiny app
-  elif args.subcommand == 'shiny':
-    if args.annotate:
-      generate_annotation(args.configfile, sc_dir, args.annotate, args.model)
-    else:
-      extraargs = []
-      if args.unlock:
-        extraargs.append("--unlock")
-      elif args.extraargs:
-        extraargs.extend(shlex.split(args.extraargs[0]))
-      run_shiny(args.configfile, sc_dir, extraargs, args.dry_run, zoom_name=args.zoom)
 
   # run join workflow
   elif args.subcommand == 'join':
@@ -1348,7 +1114,16 @@ if __name__ == '__main__':
       extraargs.append("--unlock")
     elif args.extraargs:
       extraargs.extend(shlex.split(args.extraargs[0]))
-    run_join(args.configfile, sc_dir, extraargs, args.dry_run)
+
+    if args.rule == "shiny":
+      config_path = pathlib.Path(args.configfile).resolve()
+      with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+      scdata_dir, extraargs, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs)
+      targets, _ = scprocess_utils.get_shiny_targets(config, sc_dir, scdata_dir, args.dry_run)
+      run_join(args.configfile, sc_dir, extraargs, args.dry_run, rule=targets[0])
+    else:
+      run_join(args.configfile, sc_dir, extraargs, args.dry_run)
 
   else:
     # if no arguments are provided at all, print the help message

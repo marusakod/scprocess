@@ -132,7 +132,7 @@ scprocess newjoin <name> [-w <where>] [-p <config>...]
 * `--create-envs` (optional): only create the conda environments needed for the workflow, without running any rules.
 * `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for a detailed explanation of available command-line options.
 * `-r`/`--rule` (optional): Specifies which rule {{sc}} should run. The options are:
-    + `all`: default; includes all [Core pipeline steps](introduction.md#core-pipeline-steps)
+    + `all`: default; includes all [Core pipeline steps](introduction.md#core-pipeline-steps) plus `label_celltypes` (if configured).
     + `mapping`: read alignment and quantification.
     + `ambient`: ambient RNA removal (optional) and cell calling.
     + `demux`: sample demultiplexing.
@@ -142,6 +142,8 @@ scprocess newjoin <name> [-w <where>] [-p <config>...]
     + `marker_genes`: marker gene identification and optional gene set enrichment analysis.
     + `label_celltypes`: cell type annotation using a pre-trained classifier.
     + `zoom`: subclustering.
+    + `shiny`: build an interactive Shiny app from pipeline outputs.
+* `--zoom` (optional): only used with `-r shiny`. Build the Shiny app for a zoom (subclustering) output. Pass a zoom name (e.g. `--zoom immune_cells`) or `all` to build apps for every zoom defined in the config.
 
 
 ### configuration file
@@ -529,6 +531,7 @@ sample_id:
 * `hi_res_cl`: name of a column containing high-resolution clustering results. It must follow the pattern `"RNA_snn_res.n"` where `n` should be replaced with one of the values in `int_sel_res`. Default is `"RNA_snn_res.2"`.
 * `min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.
 * `min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled.
+* `save_cluster_names_file`: if `true`, generate a `cluster_names_for_shiny_*.csv` file mapping clusters (at the `marker_genes:mkr_sel_res` resolution) to predicted cell type names. This file can be used as the `annotation_csv` in the shiny config. Requires a `marker_genes` block to be configured. Default is `false`.
 
 ##### shiny
 
@@ -758,20 +761,6 @@ Additional parameters include:
 
 
 
-## {{scshiny}} { #scprocess-shiny }
-
-**Description**: Create an interactive Shiny app from {{sc}} outputs.
-
-**Parameters**:
-
-* `configfile` (positional): path to the configuration file used in [{{scrun}}](#scprocess-run) or [{{scjoin}}](#scprocess-join).
-* `--zoom` (optional): name of the cell subset to create the Shiny app for e.g `scprocess shiny config-my_project.yaml --zoom oligos_opcs`. Pass `all` to build apps for every zoom defined in the config e.g. `scprocess shiny config-my_project.yaml --zoom all`.
-* `--annotate PATH` (optional): generate a draft `annotation.csv` from `label_celltypes` outputs and exit without building the app. Example: `scprocess shiny config.yaml --annotate output/annotation.csv --model celltypist/AIFI_L3`.
-* `--model LABELLER/MODEL` (optional): which `label_celltypes` entry to use for `--annotate`, in the format `labeller/model` (e.g. `celltypist/AIFI_L3` or `scprocess/human_cns`). Required when the config has multiple `label_celltypes` entries; inferred automatically when there is only one.
-* `-n`/`--dry-run` (optional): perform a trial run which lists all steps that {{scshiny}} would do and does not create any new files. Helpful for checking input files and parameters.
-* `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli).
-* `--unlock` (optional): unlock the directory if a previous run was interrupted.
-
 ## {{scjoin}} { #scprocess-join }
 
 **Description**: Integrate multiple completed {{sc}} projects.
@@ -779,6 +768,7 @@ Additional parameters include:
 **Parameters**:
 
 * `configfile` (positional): path to a configuration YAML file.
+* `-r`/`--rule` (optional): `all` (default) or `shiny` (build the Shiny app from join outputs).
 * `-n`/`--dry-run` (optional): perform a trial run which lists all steps that {{scjoin}} would do and does not create any new files. Helpful for checking input files and parameters.
 * `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli).
 * `--unlock` (optional): unlock the directory if a previous run was interrupted.

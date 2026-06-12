@@ -156,6 +156,23 @@ hvgs_html_outs = [
   f'{docs_dir}/{SHORT_TAG}_hvgs.html',
 ] if CAN_CALC_AMBIENT_GENES else []
 
+# label_celltypes outputs — included when label_celltypes block is present
+_names_entries = [e for e in LABELLER_PARAMS if e.get('save_cluster_names_file', False)]
+_names_mkr_sel_res = config['marker_genes']['mkr_sel_res'] if _names_entries else None
+label_celltypes_outs = [
+  *expand(f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    zip,
+    labeller = [e['labeller'] for e in LABELLER_PARAMS],
+    model    = [e['model']    for e in LABELLER_PARAMS]),
+  *expand(f'{lbl_dir}/cluster_names_for_shiny_{{labeller}}_{{model}}_{FULL_TAG}_{_names_mkr_sel_res}_{DATE_STAMP}.csv',
+    zip,
+    labeller = [e['labeller'] for e in _names_entries],
+    model    = [e['model']    for e in _names_entries]),
+  code_dir + '/label_celltypes.R',
+  f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd',
+  f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
+] if LABELLER_PARAMS else []
+
 # one rule to rule them all
 rule all:
   input:
@@ -219,7 +236,9 @@ rule all:
     hvgs_html_outs,
     f'{docs_dir}/{SHORT_TAG}_integration.html',
     f'{docs_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.html',
-    hto_html_f 
+    hto_html_f,
+    # label_celltypes
+    label_celltypes_outs
 
 
 rule mapping:
