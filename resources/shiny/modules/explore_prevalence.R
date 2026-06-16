@@ -182,14 +182,6 @@ prevalenceServer <- function(id, shared) {
             n_cols    = input$meta_comp_ncols
           )
 
-          n_panels = length(unique(shared$cell_meta[[ comp_col_var ]]))
-          if (n_panels > 15) {
-            g = g + guides(fill = guide_legend(
-              nrow = ceiling(n_panels / 5), byrow = TRUE,
-              override.aes = list(size = 5), title.position = 'top'))
-          } else {
-            g = g + guides(fill = guide_legend(override.aes = list(size = 5)))
-          }
           g
         })
 
@@ -235,7 +227,14 @@ prevalenceServer <- function(id, shared) {
         if (!is.null(subset_vals))
           facet_vals = intersect(facet_vals, subset_vals)
         n_rows = ceiling(length(facet_vals) / input$meta_comp_ncols)
-        sprintf('%spx', 150 + 200 * n_rows)
+
+        # extra height for long x-axis labels (rotated ~45 degrees)
+        x_var = if (!is.null(input$meta_comp_x_var) && nchar(input$meta_comp_x_var) > 0)
+          input$meta_comp_x_var else shared$metadata_vars[[1]]
+        max_label_len = max(nchar(as.character(shared$cell_meta[[ x_var ]])), na.rm = TRUE)
+        label_px = max(0, max_label_len - 5) * 5
+
+        sprintf('%spx', 50 + label_px + 200 * n_rows)
       })
     })
 
