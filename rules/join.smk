@@ -253,12 +253,13 @@ if DO_LABEL:
     for e in LABELLER_PARAMS
   ]
   _names_entries = [e for e in LABELLER_PARAMS if e.get('save_cluster_names_file', False)]
-  label_fs += [
+  cluster_names_fs = [
     f"{join_lbl_dir}/cluster_names_for_shiny_{e['labeller']}_{e['model']}_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv"
     for e in _names_entries
   ]
 else:
   label_fs = []
+  cluster_names_fs = []
 
 docs_dir  = str(JOIN_DIR / "public")
 rmd_dir   = str(JOIN_DIR / "analysis")
@@ -283,6 +284,7 @@ rule all:
     pb_hvgs_f,
     *([fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else []),
     *label_fs,
+    *cluster_names_fs,
     html_f
 
 
@@ -761,7 +763,8 @@ rule join_render_html:
     pb_hvgs_f     = pb_hvgs_f,
     pb_f          = pb_f,
     fgsea_files   = [fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else [],
-    label_files   = label_fs
+    label_files   = label_fs,
+    cluster_names = cluster_names_fs
   output:
     r_utils_f     = f"{code_dir}/utils.R",
     r_int_f       = f"{code_dir}/integration.R",

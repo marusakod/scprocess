@@ -329,7 +329,10 @@ def _check_path_exists_in_project(path_to_check, config, what):
 
   # if not an absolute path, add project directory to it
   if not path_to_check.is_absolute():
-    path_to_check = config["project"]["proj_dir"] / path_to_check
+    if "join" in config:
+      path_to_check = pathlib.Path(config["join"]["proj_dir"]) / path_to_check
+    else:
+      path_to_check = config["project"]["proj_dir"] / path_to_check
 
   # check if directory or file
   if what == "dir":
@@ -732,6 +735,30 @@ def _check_shiny_parameters(config):
   if shiny_cfg.get('cluster_palette'):
     _check_palette_name(shiny_cfg['cluster_palette'], 'shiny.cluster_palette', valid_palette_names)
 
+  # load sample metadata for palette value validation
+  meta_df = None
+  if 'project' in config:
+    meta_f = config['project'].get('sample_metadata')
+    if meta_f and pathlib.Path(meta_f).is_file():
+      meta_df = pl.read_csv(meta_f)
+  elif 'join' in config and 'projects' in config:
+    meta_dfs = []
+    for pid, pcfg in config['projects'].items():
+      pcfg_f = pcfg.get('config')
+      if pcfg_f and pathlib.Path(pcfg_f).is_file():
+        with open(pcfg_f) as f:
+          proj_cfg = yaml.safe_load(f)
+        proj_meta_f = proj_cfg.get('project', {}).get('sample_metadata')
+        if proj_meta_f:
+          proj_dir = pathlib.Path(proj_cfg['project']['proj_dir'])
+          proj_meta_path = pathlib.Path(proj_meta_f)
+          if not proj_meta_path.is_absolute():
+            proj_meta_path = proj_dir / proj_meta_path
+          if proj_meta_path.is_file():
+            meta_dfs.append(pl.read_csv(proj_meta_path))
+    if meta_dfs:
+      meta_df = pl.concat(meta_dfs, how="diagonal")
+
   # check metadata_palettes palette name strings; warn if keys are not in metadata_vars
   if shiny_cfg.get('metadata_palettes'):
     for var, spec in shiny_cfg['metadata_palettes'].items():
@@ -741,8 +768,20 @@ def _check_shiny_parameters(config):
         )
       if isinstance(spec, str):
         _check_palette_name(spec, f'shiny.metadata_palettes.{var}', valid_palette_names)
-      elif isinstance(spec, dict) and spec.get('palette'):
-        _check_palette_name(spec['palette'], f'shiny.metadata_palettes.{var}.palette', valid_palette_names)
+      elif isinstance(spec, list):
+        pass
+      elif isinstance(spec, dict):
+        if spec.get('palette'):
+          _check_palette_name(spec['palette'], f'shiny.metadata_palettes.{var}.palette', valid_palette_names)
+        if spec.get('values') and meta_df is not None and var in meta_df.columns:
+          actual_values = set(meta_df[var].drop_nulls().unique().to_list())
+          specified_values = set(spec['values'])
+          missing = actual_values - specified_values
+          if missing:
+            raise ValueError(
+              f"shiny.metadata_palettes.{var}.values is missing values found in sample metadata: "
+              f"{sorted(missing)}"
+            )
 
   # check home_md if specified
   if shiny_cfg.get('home_md'):

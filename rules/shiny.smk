@@ -24,6 +24,8 @@ _GSEA_TXOMES = {'human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'}
 if _is_join:
   # --- validate and unpack join config ---
   config = check_join_config(config, join_schema_f)
+  lm_f   = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
+  RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, lm_f)
 
   JOIN_NAME  = config['join']['name']
   PROJ_DIR   = pathlib.Path(config['join']['proj_dir'])
