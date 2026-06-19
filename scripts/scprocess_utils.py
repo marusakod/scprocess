@@ -695,6 +695,54 @@ def _check_palette_name(name, context, valid_names):
     )
 
 
+def _load_sample_metadata(config):
+  """Load sample metadata from project config or all source projects in a join config."""
+  if 'project' in config:
+    meta_f = config['project'].get('sample_metadata')
+    if meta_f and pathlib.Path(meta_f).is_file():
+      return pl.read_csv(meta_f)
+  elif 'join' in config and 'projects' in config:
+    meta_dfs = []
+    for pid, pcfg in config['projects'].items():
+      pcfg_f = pcfg.get('config')
+      if pcfg_f and pathlib.Path(pcfg_f).is_file():
+        with open(pcfg_f) as f:
+          proj_cfg = yaml.safe_load(f)
+        proj_meta_f = proj_cfg.get('project', {}).get('sample_metadata')
+        if proj_meta_f:
+          proj_dir = pathlib.Path(proj_cfg['project']['proj_dir'])
+          proj_meta_path = pathlib.Path(proj_meta_f)
+          if not proj_meta_path.is_absolute():
+            proj_meta_path = proj_dir / proj_meta_path
+          if proj_meta_path.is_file():
+            meta_dfs.append(pl.read_csv(proj_meta_path))
+    if meta_dfs:
+      return pl.concat(meta_dfs, how="diagonal")
+  return None
+
+
+def _check_metadata_palette_values(shiny_cfg, config, metadata_vars, valid_palette_names):
+  meta_df = _load_sample_metadata(config)
+
+  for var, spec in shiny_cfg['metadata_palettes'].items():
+    if metadata_vars and var not in metadata_vars:
+      warnings.warn(
+        f"shiny.metadata_palettes key '{var}' is not in metadata_vars; it will be ignored")
+    if isinstance(spec, str):
+      _check_palette_name(spec, f'shiny.metadata_palettes.{var}', valid_palette_names)
+    elif isinstance(spec, dict):
+      if spec.get('palette'):
+        _check_palette_name(spec['palette'], f'shiny.metadata_palettes.{var}.palette', valid_palette_names)
+      if spec.get('values') and meta_df is not None and var in meta_df.columns:
+        actual_values = set(meta_df[var].drop_nulls().unique().to_list())
+        specified_values = set(spec['values'])
+        missing = actual_values - specified_values
+        if missing:
+          raise ValueError(
+            f"shiny.metadata_palettes.{var}.values is missing values found in sample metadata: "
+            f"{sorted(missing)}")
+
+
 # check parameters for shiny app build
 def _check_shiny_parameters(config):
   
@@ -735,53 +783,9 @@ def _check_shiny_parameters(config):
   if shiny_cfg.get('cluster_palette'):
     _check_palette_name(shiny_cfg['cluster_palette'], 'shiny.cluster_palette', valid_palette_names)
 
-  # load sample metadata for palette value validation
-  meta_df = None
-  if 'project' in config:
-    meta_f = config['project'].get('sample_metadata')
-    if meta_f and pathlib.Path(meta_f).is_file():
-      meta_df = pl.read_csv(meta_f)
-  elif 'join' in config and 'projects' in config:
-    meta_dfs = []
-    for pid, pcfg in config['projects'].items():
-      pcfg_f = pcfg.get('config')
-      if pcfg_f and pathlib.Path(pcfg_f).is_file():
-        with open(pcfg_f) as f:
-          proj_cfg = yaml.safe_load(f)
-        proj_meta_f = proj_cfg.get('project', {}).get('sample_metadata')
-        if proj_meta_f:
-          proj_dir = pathlib.Path(proj_cfg['project']['proj_dir'])
-          proj_meta_path = pathlib.Path(proj_meta_f)
-          if not proj_meta_path.is_absolute():
-            proj_meta_path = proj_dir / proj_meta_path
-          if proj_meta_path.is_file():
-            meta_dfs.append(pl.read_csv(proj_meta_path))
-    if meta_dfs:
-      meta_df = pl.concat(meta_dfs, how="diagonal")
-
-  # check metadata_palettes palette name strings; warn if keys are not in metadata_vars
+  # check metadata_palettes
   if shiny_cfg.get('metadata_palettes'):
-    for var, spec in shiny_cfg['metadata_palettes'].items():
-      if metadata_vars and var not in metadata_vars:
-        warnings.warn(
-          f"shiny.metadata_palettes key '{var}' is not in metadata_vars; it will be ignored"
-        )
-      if isinstance(spec, str):
-        _check_palette_name(spec, f'shiny.metadata_palettes.{var}', valid_palette_names)
-      elif isinstance(spec, list):
-        pass
-      elif isinstance(spec, dict):
-        if spec.get('palette'):
-          _check_palette_name(spec['palette'], f'shiny.metadata_palettes.{var}.palette', valid_palette_names)
-        if spec.get('values') and meta_df is not None and var in meta_df.columns:
-          actual_values = set(meta_df[var].drop_nulls().unique().to_list())
-          specified_values = set(spec['values'])
-          missing = actual_values - specified_values
-          if missing:
-            raise ValueError(
-              f"shiny.metadata_palettes.{var}.values is missing values found in sample metadata: "
-              f"{sorted(missing)}"
-            )
+    _check_metadata_palette_values(shiny_cfg, config, metadata_vars, valid_palette_names)
 
   # check home_md if specified
   if shiny_cfg.get('home_md'):
@@ -1719,6 +1723,212 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
   LABELLER_PARAMS = [ _check_one_label_celltypes_parameters(entry) for entry in config['label_celltypes'] ]
 
   return LABELLER_PARAMS
+
+
+# --- join parameter helpers ---
+
+def get_join_project_parameters(config):
+  """Load source project configs and derive per-project paths and batch keys."""
+  project_ids = list(config['projects'].keys())
+  project_cfgs = {}
+
+  for pid in project_ids:
+    cfg_f = config['projects'][pid]['config']
+    with open(cfg_f) as f:
+      project_cfgs[pid] = yaml.safe_load(f)
+
+  def _dir(pid):
+    return pathlib.Path(project_cfgs[pid]['project']['proj_dir'])
+
+  def _short_tag(pid):
+    return project_cfgs[pid]['project']['short_tag']
+
+  def _full_tag(pid):
+    return project_cfgs[pid]['project']['full_tag']
+
+  def _date(pid):
+    return project_cfgs[pid]['project']['date_stamp']
+
+  def _var_stats_f(pid):
+    zoom_name = config['projects'][pid].get('zoom_name')
+    if zoom_name:
+      zoom_dir = _dir(pid) / f"output/{_short_tag(pid)}_zoom"
+      return zoom_dir / zoom_name / f"standardized_variance_stats_{_full_tag(pid)}_{zoom_name}_{_date(pid)}.csv.gz"
+    return _dir(pid) / f"output/{_short_tag(pid)}_hvg" / f"standardized_variance_stats_{_full_tag(pid)}_{_date(pid)}.csv.gz"
+
+  def _h5ads_yaml_f(pid):
+    return _dir(pid) / f"output/{_short_tag(pid)}_integration" / f"h5ads_clean_paths_{_full_tag(pid)}_{_date(pid)}.yaml"
+
+  def _integrated_dt_f(pid):
+    zoom_name = config['projects'][pid].get('zoom_name')
+    if zoom_name:
+      zoom_dir = _dir(pid) / f"output/{_short_tag(pid)}_zoom"
+      return zoom_dir / zoom_name / f"integrated_dt_{_full_tag(pid)}_{zoom_name}_{_date(pid)}.csv.gz"
+    return _dir(pid) / f"output/{_short_tag(pid)}_integration" / f"integrated_dt_{_full_tag(pid)}_{_date(pid)}.csv.gz"
+
+  def _sample_meta_f(pid):
+    meta_f = pathlib.Path(project_cfgs[pid]['project']['sample_metadata'])
+    if not meta_f.is_absolute():
+      meta_f = _dir(pid) / meta_f
+    return meta_f
+
+  # build batch keys from per-project h5ads YAMLs
+  h5ads_yaml_fs = [str(_h5ads_yaml_f(pid)) for pid in project_ids]
+  batch_keys = []
+  for pid, h5yaml in zip(project_ids, h5ads_yaml_fs):
+    with open(h5yaml) as fh:
+      h5paths = yaml.safe_load(fh)
+    for bk in h5paths:
+      batch_keys.append(f"{pid}_{bk}")
+
+  return {
+    'project_ids':    project_ids,
+    'project_cfgs':   project_cfgs,
+    'var_stats_fs':   [str(_var_stats_f(pid)) for pid in project_ids],
+    'h5ads_yaml_fs':  h5ads_yaml_fs,
+    'integrated_fs':  [str(_integrated_dt_f(pid)) for pid in project_ids],
+    'sample_meta_fs': [str(_sample_meta_f(pid)) for pid in project_ids],
+    'batch_keys':     batch_keys,
+  }
+
+
+def get_join_derived_parameters(config, scdata_dir):
+  """Derive integration, marker gene, GSEA, and other parameters from join config."""
+  join_name  = config['join']['name']
+  join_dir   = pathlib.Path(config['join']['proj_dir'])
+  date_stamp = config['join']['date_stamp']
+  ref_txome  = config['join']['ref_txome']
+  join_tag   = f"{join_name}_join"
+
+  join_int_dir  = str(join_dir / f"output/{join_tag}")
+  join_mkr_dir  = join_int_dir
+  logs_dir      = str(join_dir / ".log/join")
+  benchmark_dir = str(join_dir / ".resources")
+
+  # integration
+  int_cfg = config.get('integration', {})
+  int_batch_var = int_cfg.get('int_batch_var', 'sample_id')
+  int_theta_raw = int_cfg.get('int_theta', 0.1)
+  int_res_ls    = int_cfg.get('int_res_ls', [0.1, 0.2, 0.5, 1, 2])
+
+  if isinstance(int_batch_var, list):
+    int_batch_var_concat = " ".join(int_batch_var)
+  else:
+    int_batch_var_concat = int_batch_var
+
+  if isinstance(int_theta_raw, list):
+    int_theta_concat = " ".join(str(t) for t in int_theta_raw)
+  else:
+    int_theta_concat = str(int_theta_raw)
+
+  # marker genes
+  mkr_cfg = config.get('marker_genes', {})
+
+  # custom marker gene sets
+  def _custom_mkr_strings(genesets):
+    if not genesets:
+      return '', ''
+    names, paths = [], []
+    for g in genesets:
+      names.append(g['name'])
+      if 'file' in g:
+        p = pathlib.Path(g['file'])
+        if not p.is_absolute():
+          p = join_dir / p
+      else:
+        p = pathlib.Path(scdata_dir) / 'marker_genes' / f"{g['name']}.csv"
+      paths.append(str(p))
+    return ','.join(names), ','.join(paths)
+
+  mkr_custom_names, mkr_custom_paths = _custom_mkr_strings(
+    mkr_cfg.get('mkr_custom_genesets', []))
+
+  # GSEA
+  gsea_txomes = ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']
+  do_gsea = mkr_cfg.get('mkr_do_gsea', True) and (ref_txome in gsea_txomes)
+
+  # GTF file
+  idx_params_f = pathlib.Path(scdata_dir) / 'index_parameters.csv'
+  idx_params   = pl.read_csv(idx_params_f)
+  gtf_dt_f = idx_params.filter(pl.col('reference') == ref_txome)['gene_info_f'][0]
+
+  return {
+    'join_name':     join_name,
+    'join_dir':      join_dir,
+    'join_tag':      join_tag,
+    'date_stamp':    date_stamp,
+    'ref_txome':     ref_txome,
+    'join_int_dir':  join_int_dir,
+    'join_mkr_dir':  join_mkr_dir,
+    'logs_dir':      logs_dir,
+    'benchmark_dir': benchmark_dir,
+    # integration
+    'int_embedding':       int_cfg.get('int_embedding', 'harmony'),
+    'int_batch_var':       int_batch_var,
+    'int_batch_var_concat': int_batch_var_concat,
+    'int_theta_concat':    int_theta_concat,
+    'int_n_dims':          int_cfg.get('int_n_dims', 50),
+    'int_cl_method':       int_cfg.get('int_cl_method', 'leiden'),
+    'int_use_paga':        int_cfg.get('int_use_paga', True),
+    'int_paga_cl_res':     int_cfg.get('int_paga_cl_res', 0.2),
+    'int_res_ls':          int_res_ls,
+    'int_res_ls_str':      ' '.join(str(r) for r in int_res_ls),
+    'int_use_gpu':         int_cfg.get('int_use_gpu', True),
+    'int_pca_method':      int_cfg.get('int_pca_method', 'bpcells'),
+    # marker genes
+    'mkr_sel_res':     mkr_cfg.get('mkr_sel_res', 0.2),
+    'mkr_min_cl_size': mkr_cfg.get('mkr_min_cl_size', 100),
+    'mkr_min_cells':   mkr_cfg.get('mkr_min_cells', 10),
+    'mkr_not_ok_re':   mkr_cfg.get('mkr_not_ok_re', '(lincRNA|lncRNA|pseudogene|antisense)'),
+    'mkr_min_cpm_mkr': mkr_cfg.get('mkr_min_cpm_mkr', 50),
+    'mkr_min_cpm_go':  mkr_cfg.get('mkr_min_cpm_go', 1),
+    'mkr_max_zero_p':  mkr_cfg.get('mkr_max_zero_p', 0.5),
+    'mkr_gsea_cut':    mkr_cfg.get('mkr_gsea_cut', 0.1),
+    'mkr_gsea_var':    mkr_cfg.get('mkr_gsea_var', 'z_score'),
+    'mkr_custom_names': mkr_custom_names,
+    'mkr_custom_paths': mkr_custom_paths,
+    # gsea
+    'do_gsea':  do_gsea,
+    'gsea_dir': str(pathlib.Path(scdata_dir) / 'gmt_pathways'),
+    # other
+    'n_hvgs':           config.get('hvg', {}).get('hvg_n_hvgs', 2000),
+    'metadata_vars_str': " ".join(config['join'].get('metadata_vars', [])),
+    'gtf_dt_f':         gtf_dt_f,
+    'your_name':        config['join']['your_name'],
+    'affiliation':      config['join']['affiliation'],
+  }
+
+
+def get_join_source_labels_f(project_cfgs, pid, labeller, model):
+  """Return path to a source project's aggregated labels file, or None if unavailable."""
+  pcfg = project_cfgs[pid]
+  if 'label_celltypes' not in pcfg:
+    return None
+  matches = [e for e in pcfg['label_celltypes']
+    if e.get('labeller') == labeller and e.get('model') == model]
+  if not matches:
+    return None
+  proj_dir  = pathlib.Path(pcfg['project']['proj_dir'])
+  short_tag = pcfg['project']['short_tag']
+  full_tag  = pcfg['project']['full_tag']
+  date      = pcfg['project']['date_stamp']
+  lbl_dir   = proj_dir / f"output/{short_tag}_label_celltypes"
+  f = lbl_dir / f"labels_{labeller}_model_{model}_{full_tag}_{date}.csv.gz"
+  return str(f) if f.is_file() else None
+
+
+def get_join_batch_sources(project_cfgs, project_ids, batch_keys, labeller, model):
+  """Split batch keys into those with reusable labels and those needing fresh runs."""
+  reuse_label_fs = []
+  fresh_batches = []
+  for pid in project_ids:
+    proj_label_f = get_join_source_labels_f(project_cfgs, pid, labeller, model)
+    pid_batches = [bk for bk in batch_keys if bk.startswith(f"{pid}_")]
+    if proj_label_f:
+      reuse_label_fs.append(proj_label_f)
+    else:
+      fresh_batches.extend(pid_batches)
+  return fresh_batches, reuse_label_fs
 
 
 def get_shiny_targets(config, scprocess_dir, scdata_dir, dryrun, zoom_name=None):

@@ -812,8 +812,15 @@ projects:
     int_embedding: harmony                     # harmony or pca (default: harmony)
   label_celltypes:                             # optional; run CellTypist or scprocess on the joint integration
     - labeller: celltypist
-      model: Immune_All_Low                    # any CellTypist model name                  # XGBoost classifier 
+      model: Immune_All_Low                    # any CellTypist model name
+      save_cluster_names_file: true            # generate annotation CSV for shiny
   shiny:
     app_title: My Joint Analysis # ... same options as in the project-level shiny section (see Optional parameters › shiny)
 ```
+
+**Notes on `label_celltypes` in join:**
+
+* When `label_celltypes` is configured, it runs automatically as part of `scprocess join` (no separate rule invocation needed).
+* If a source project already has label_celltypes outputs for the same `labeller`/`model`, naive predictions are reused instead of re-running the labeller — only projects without existing labels trigger fresh runs.
+* `save_cluster_names_file: true` generates a `cluster_names_for_shiny_*.csv` at the `marker_genes:mkr_sel_res` resolution. This file can be used as `annotation_csv` in the `shiny:` section.
 

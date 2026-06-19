@@ -7,6 +7,7 @@ import requests
 
 
 def download_celltypist_models(models_f):
+  # lazy import: only available in the celltypist conda env
   import celltypist
   # download
   celltypist.models.download_models()
@@ -49,6 +50,7 @@ def download_celltypist_models(models_f):
 
 
 def run_celltypist(sel_batch, batch_var, model_name, adata_f):
+  # lazy imports: only available in the celltypist conda env, not scprocess_local
   import scanpy as sc
   import celltypist
 

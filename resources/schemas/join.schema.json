@@ -170,6 +170,8 @@
         "mins_join_scprocess_labeller": { "type": "integer", "default": 30 },
         "mins_join_merge_labels":       { "type": "integer", "default": 10 },
         "mins_join_render_html":        { "type": "integer", "default": 30 },
+        "gb_join_extract_labels":       { "type": "integer", "default": 4 },
+        "mins_join_extract_labels":     { "type": "integer", "default": 10 },
         "gb_build_shiny_app":           { "type": "integer", "default": 16 },
         "mins_build_shiny_app":         { "type": "integer", "default": 30 }
       }

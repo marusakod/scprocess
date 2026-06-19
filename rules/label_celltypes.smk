@@ -145,6 +145,7 @@ if ('label_celltypes' in config) & qc_stats_f.is_file():
         names_f       = f'{lbl_dir}/cluster_names_for_shiny_{{labeller}}_{{model}}_{FULL_TAG}_{_names_mkr_sel_res}_{DATE_STAMP}.csv'
       params:
         mkr_sel_res   = _names_mkr_sel_res
+      retries: config['resources']['retries']
       log:
         f'{logs_dir}/label_celltypes/save_cluster_names_{{labeller}}_{{model}}_{DATE_STAMP}.log'
       conda:
