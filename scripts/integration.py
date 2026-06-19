@@ -72,10 +72,6 @@ def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
   exclude_mito, embedding, n_dims, cl_method, theta, res_ls_concat,
   integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None,
   precomputed_pca_f = None):
-  """
-  batch_var and theta may each be a list (join workflow) or a single value (zoom/standard).
-  precomputed_pca_f: optional path to pre-computed PCA embeddings CSV.gz (BPCells output).
-  """
   print('setting up parameters')
   exclude_mito  = str(exclude_mito).strip().lower() == 'true'
   res_ls        = res_ls_concat.split()

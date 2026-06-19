@@ -12,24 +12,7 @@ import polars as pl
 # ---------------------------------------------------------------------------
 
 def select_joint_hvgs(var_stats_fs, project_ids, n_hvgs, out_f):
-  """
-  Combine per-project standardized variance stats into a joint HVG list.
-
-  Within each project genes are ranked by variances_norm (descending).
-  Genes absent from a project receive rank = n_genes_in_project + 1.
-  The mean rank across projects is computed; the top n_hvgs genes are kept.
-
-  Parameters
-  ----------
-  var_stats_fs : list of str
-      Paths to standardized_variance_stats_*.csv.gz, one per project.
-  project_ids  : list of str
-      Project IDs (parallel to var_stats_fs).
-  n_hvgs       : int
-      Number of HVGs to select.
-  out_f        : str
-      Output CSV.gz path (columns: gene_id, mean_rank, n_projects).
-  """
+  """Select top HVGs by mean rank across projects."""
   print(f"selecting joint HVGs (n={n_hvgs}) across {len(project_ids)} projects")
 
   proj_hvg_dfs = {}
@@ -114,9 +97,8 @@ def _check_sample_id_uniqueness(project_ids, integrated_dt_fs):
     for s in samples:
       if s in seen and seen[s] != pid:
         raise ValueError(
-          f"sample_id '{s}' appears in both project '{seen[s]}' "
-          f"and '{pid}'. Use unique sample IDs across projects, or the joint "
-          f"sample_id ('{pid}_{s}') will still be unique."
+          f"sample_id '{s}' appears in both project '{seen[s]}' and '{pid}'. "
+          f"Use unique sample IDs across projects."
         )
       seen[s] = pid
 
@@ -172,45 +154,21 @@ def _load_batch_hvg_matrix(h5ad_path, ok_cells, hvg_list, pid, batch_key):
   return csc_sub, kept_bcs.tolist()
 
 
-def _build_project_coldata(int_dt, pid, smeta_dt, metadata_vars):
-  """
-  Build per-project coldata: filter to clean cells, prefix sample_id with
-  project ID for cross-project uniqueness, and optionally join metadata.
-  """
+def _build_project_coldata(int_dt, pid):
+  """Filter to clean cells and prefix sample_id with project ID."""
   proj_cells = int_dt.filter(_ok_cells_filter(int_dt)).select(
     ['cell_id', 'sample_id'] +
     [c for c in int_dt.columns if c not in ['cell_id', 'sample_id', 'project_id']])
   proj_cells = proj_cells.with_columns([
-    pl.col('sample_id').cast(pl.Utf8).map_elements(lambda x: f"{pid}_{x}", return_dtype=pl.Utf8),
+    pl.concat_str([pl.lit(f"{pid}_"), pl.col('sample_id').cast(pl.Utf8)]).alias('sample_id'),
     pl.lit(pid).alias('project_id')
   ])
-  if metadata_vars:
-    meta_cols = ['sample_id'] + [v for v in metadata_vars if v in smeta_dt.columns]
-    meta_cols = [c for c in meta_cols if c in smeta_dt.columns]
-    if len(meta_cols) > 1:
-      orig_smeta = smeta_dt.select(meta_cols).unique()
-      orig_smeta = orig_smeta.with_columns(
-        pl.col('sample_id').cast(pl.Utf8).map_elements(lambda x: f"{pid}_{x}", return_dtype=pl.Utf8)
-      )
-      proj_cells = proj_cells.join(orig_smeta, on='sample_id', how='left')
   return proj_cells
-
-
 
 
 def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_fs,
                        out_h5_f):
-  """
-  Assemble a joint HVG count matrix from per-project h5ads.
-
-  Parameters
-  ----------
-  joint_hvgs_f        : str   Path to joint HVGs CSV.gz (ensembl_id column).
-  h5ads_yaml_fs       : list  Per-project h5ads_clean_paths_*.yaml files.
-  project_ids         : list  Project IDs (parallel to h5ads_yaml_fs).
-  integrated_dt_fs    : list  Per-project integrated_dt_*.csv.gz (for non-doublet filter).
-  out_h5_f            : str   Output joint HVG count matrix (H5, CSC format).
-  """
+  """Assemble a joint HVG count matrix from per-project h5ads."""
   import numpy as np
   import h5py
   from scipy.sparse import hstack
@@ -255,7 +213,9 @@ def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_f
       f"Matrix has {joint_csc.shape[1]} columns but {len(all_barcodes)} barcodes")
 
   if len(all_barcodes) != len(set(all_barcodes)):
-    dups = [bc for bc in all_barcodes if all_barcodes.count(bc) > 1]
+    from collections import Counter
+    counts = Counter(all_barcodes)
+    dups = [bc for bc, n in counts.items() if n > 1]
     raise ValueError(f"Duplicate cell IDs: {dups[:10]}")
 
   print(f"  saving matrix to {out_h5_f}")
@@ -274,20 +234,7 @@ def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_f
 
 def build_joint_coldata(h5_f, project_ids, integrated_dt_fs, sample_meta_fs,
                         out_coldata_f, out_sample_meta_f):
-  """
-  Build joint coldata and sample metadata from the matrix barcodes and
-  per-project integration outputs. Reads cell IDs from the HDF5 matrix to
-  guarantee alignment.
-
-  Parameters
-  ----------
-  h5_f                : str   Joint HVG count matrix HDF5 (for barcodes).
-  project_ids         : list  Project IDs.
-  integrated_dt_fs    : list  Per-project integrated_dt_*.csv.gz files.
-  sample_meta_fs      : list  Per-project sample_metadata CSV files.
-  out_coldata_f       : str   Output joint coldata CSV.gz.
-  out_sample_meta_f   : str   Output joint sample metadata CSV.
-  """
+  """Build joint coldata and sample metadata from matrix barcodes."""
   import numpy as np
   import h5py
 
@@ -307,11 +254,11 @@ def build_joint_coldata(h5_f, project_ids, integrated_dt_fs, sample_meta_fs,
     int_dt   = pl.read_csv(int_f)
     smeta_dt = pl.read_csv(smeta_f)
 
-    coldata_df = _build_project_coldata(int_dt, pid, smeta_dt, metadata_vars=[])
+    coldata_df = _build_project_coldata(int_dt, pid)
     all_coldata_dfs.append(coldata_df)
 
     smeta_df = smeta_dt.with_columns([
-      pl.col('sample_id').map_elements(lambda x: f"{pid}_{x}", return_dtype=pl.Utf8),
+      pl.concat_str([pl.lit(f"{pid}_"), pl.col('sample_id').cast(pl.Utf8)]).alias('sample_id'),
       pl.lit(pid).alias('project_id')
     ])
     if 'bad_sample_id' not in smeta_df.columns:
@@ -341,7 +288,7 @@ def build_joint_coldata(h5_f, project_ids, integrated_dt_fs, sample_meta_fs,
 
 
 def _smart_concat(dfs):
-  # 1. Generate "Truth" schemas (only columns with at least one non-null value)
+  """Concat DataFrames with mixed schemas, promoting Int to Float on conflict."""
   truth_schemas = []
   for i, df in enumerate(dfs):
     # We find columns where null_count is less than the total number of rows
@@ -392,21 +339,7 @@ def _smart_concat(dfs):
 # ---------------------------------------------------------------------------
 
 def build_join_h5ads_yaml(h5ads_yaml_fs, project_ids, h5ads_dir, out_yaml_f):
-  """
-  Create symlinks and a joint h5ads YAML manifest.
-
-  The output YAML uses the extended format:
-    {project_id}_{batch_key}:
-      path: {h5ads_dir}/{project_id}_{batch_key}.h5ad   # symlink
-      project_id: {project_id}
-
-  Parameters
-  ----------
-  h5ads_yaml_fs : list  Per-project h5ads_clean_paths_*.yaml files.
-  project_ids   : list  Project IDs (parallel).
-  h5ads_dir     : str   Directory for symlinks.
-  out_yaml_f    : str   Output joint h5ads YAML.
-  """
+  """Create symlinks and a joint h5ads YAML manifest."""
   print("building join h5ads YAML")
   pathlib.Path(h5ads_dir).mkdir(parents=True, exist_ok=True)
 
