@@ -47,7 +47,7 @@ rule build_hto_index:
 rule run_mapping_hto:
   input: 
     hto_idx_dir   = f'{af_dir}/hto_index', 
-    chem_stats_f  = f'{af_dir}/af_{{run}}/rna/chemistry_statistics.yaml'
+    chem_stats_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml'
   output:
     fry_dir       = directory(f'{af_dir}/af_{{run}}/hto/af_quant/'),
     rad_f         = temp(f'{af_dir}/af_{{run}}/hto/af_map/map.rad'),
@@ -90,7 +90,7 @@ rule run_mapping_hto:
     WHITELIST_F=$(grep "selected_hto_whitelist:" {input.chem_stats_f} | sed 's/selected_hto_whitelist: //')
 
     # run mapping
-    python3 scripts/mapping.py {wildcards.run} \
+    python3 scripts/mapping.py map_fastqs_to_counts {wildcards.run} \
       --af_dir          "{af_dir}" \
       --demux_type      "{params.demux_type}" \
       --what            "hto" \
@@ -102,7 +102,7 @@ rule run_mapping_hto:
       --af_index_dir    "{input.hto_idx_dir}" \
       --wl_lu_f         "{params.wl_lu_f}" \
       $ARV_ARG \
-      --tenx_chemistry  $AF_CHEMISTRY \
+      --af_chemistry    $AF_CHEMISTRY \
       --exp_ori         $EXP_ORI \
       --whitelist_f     $WHITELIST_F
     """
@@ -146,7 +146,7 @@ rule make_hto_sce_objects:
     smpl_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     amb_yaml_f   = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
     hto_h5_f     = f'{af_dir}/af_{{run}}/hto/af_hto_counts_mat.h5', 
-    chem_stats_f = f'{af_dir}/af_{{run}}/rna/chemistry_statistics.yaml'
+    chem_stats_f = f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml'
   params:
     ambient_method    = config['ambient']['ambient_method'],
     seurat_quantile   = config['multiplexing']['seurat_quantile'],

@@ -39,8 +39,9 @@ CAN_CALC_AMBIENT_GENES = not (
   config['multiplexing']['demux_type'] in ['hto', 'custom'] and len(RUNS) < 2
 )
 
-# subdirectory prefix used by ambient/pb_empties rules to locate per-run outputs
-af_rna_dir          = 'flex/' if IS_FLEX else 'rna/'
+# subdirectory prefix: 'flex/' for flex, 'rna/' for HTO (coexists with hto/), '' otherwise
+IS_HTO              = config['multiplexing']['demux_type'] == "hto"
+af_rna_dir          = 'flex/' if IS_FLEX else ('rna/' if IS_HTO else '')
 # subdirectory prefix for pool/library-level outputs (when multiplexed via flex or OCM)
 lib_pool_dir        = 'pools/' if (IS_FLEX_MUXED or IS_OCM) else ''
 # unified reference label: probe_set for flex, ref_txome for polyA
@@ -128,7 +129,7 @@ fgsea_outs = [
   (not IS_FLEX and config['project'].get('ref_txome', '') in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'])
 ) and config['marker_genes']['mkr_do_gsea'] else []
 
-# mapping outputs (unified: af_rna_dir is 'flex/' or 'rna/' depending on assay)
+# mapping outputs (af_rna_dir is 'flex/' for flex, 'rna/' for HTO, '' otherwise)
 af_mapping_outs = (
   expand([
     f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/',

@@ -21,15 +21,16 @@ from queue import Queue
 import threading
 
 
-def map_fastqs_to_counts(run, af_dir, what, af_home_dir, where,
+def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
   R1_fs, R2_fs, threads, t2g_f, index_dir, wl_lu_f, arv_instance = None,
   af_chemistry = 'none', exp_ori = 'none', whitelist_f = 'none', lib_pool_dir = ''):
-  # make output directory, in subdirectory if multiplexed samples
+  # make output directory, in subdirectory if multiplexed with HTO
   out_dir   = f"{af_dir}/{lib_pool_dir}af_{run}"
-  if what == "rna":
-    out_dir = f"{out_dir}/rna"
-  elif what == "hto":
-    out_dir = f"{out_dir}/hto"
+  if demux_type == "hto":
+    if what == "rna":
+      out_dir = f"{out_dir}/rna"
+    elif what == "hto":
+      out_dir = f"{out_dir}/hto"
   os.makedirs(out_dir, exist_ok = True)
   print('made out_dir')
 
@@ -501,6 +502,7 @@ if __name__ == "__main__":
   p_map = subparsers.add_parser('map_fastqs_to_counts')
   p_map.add_argument("run", type=str)
   p_map.add_argument("--af_dir", type=str)
+  p_map.add_argument("--demux_type", type=str, default="none")
   p_map.add_argument("--what", default="rna", type=str, choices=["rna", "hto"])
   p_map.add_argument("--af_home_dir", type=str)
   p_map.add_argument("--where", type=str)
@@ -543,7 +545,7 @@ if __name__ == "__main__":
       t2g_f     = f"{args.af_index_dir}/index/t2g_3col.tsv"
       index_dir = f"{args.af_index_dir}/index"
       
-    map_fastqs_to_counts(run=args.run, af_dir=args.af_dir,
+    map_fastqs_to_counts(run=args.run, af_dir=args.af_dir, demux_type=args.demux_type,
       what=args.what, af_home_dir=args.af_home_dir, where=args.where,
       R1_fs=args.R1_fs, R2_fs=args.R2_fs, threads=args.threads, af_chemistry=args.af_chemistry,
       exp_ori=args.exp_ori, wl_lu_f=args.wl_lu_f, whitelist_f=args.whitelist_f, t2g_f=t2g_f,
