@@ -307,7 +307,9 @@ for (sel_cl in cl_ord) {
 ```
 
 
-## Gene set enrichment analysis{.tabset}
+```{r gsea_section_header, eval=do_gsea, include=do_gsea, results="asis"}
+cat("## Gene set enrichment analysis{.tabset}\n\n")
+```
 
 ```{r plot_gsea, eval=do_gsea, include=do_gsea, fig.height=12, fig.width=8, results="asis"}
 for (p in names(gsea_ls)) {
