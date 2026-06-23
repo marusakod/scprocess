@@ -108,7 +108,7 @@ def check_setup_config(setup_cfg, schema_f, scprocess_dir):
 def check_config(config, schema_f, scdata_dir, scprocess_dir):
   # start with defaults, overwrite with config values
   schema      = _load_schema_file(schema_f)
-  defaults    = _get_default_config_from_schema(schema)
+  defaults    = _get_default_config_from_schema(schema, config)
   snakemake.utils.update_config(defaults, config)
   config      = defaults
 
@@ -146,7 +146,7 @@ def _load_schema_file(schema_f):
   return schema
 
 
-def _get_default_config_from_schema(schema):
+def _get_default_config_from_schema(schema, config=None):
   # extract defaults from the schema
   default_config = {}
   for key, props in schema.get('properties', {}).items():
@@ -155,12 +155,18 @@ def _get_default_config_from_schema(schema):
       default_config[key] = props['default']
     # if the key is an object, recursively extract its property defaults
     elif props.get('type') == 'object' and 'properties' in props:
+      # skip sections absent from the user config whose required fields lack
+      # defaults — injecting partial defaults for those causes validation errors
+      if config is not None and key not in config and props.get('required'):
+        sub_props = props.get('properties', {})
+        if any('default' not in sub_props.get(r, {}) for r in props['required']):
+          continue
       # create a nested dictionary of defaults for this section
       section_defaults = {}
       for sub_key, sub_props in props['properties'].items():
         if 'default' in sub_props:
           section_defaults[sub_key] = sub_props['default']
-      
+
       if section_defaults:
         default_config[key] = section_defaults
 
@@ -1923,19 +1929,6 @@ def _check_train_xgboost_parameters(config):
       raise ValueError("label_map_f must have 'annotation' column")
     if "coarse_label" not in map_df.columns:
       raise ValueError("label_map_f must have 'coarse_label' column")
-
-  # inject derived paths from the project's own config
-  proj_dir   = config['project']['proj_dir']
-  short_tag  = config['project']['short_tag']
-  full_tag   = config['project']['full_tag']
-  date_stamp = config['project']['date_stamp']
-  int_dir    = f"{proj_dir}/output/{short_tag}_integration"
-
-  xgb['cluster_csv'] = f"{int_dir}/integrated_dt_{full_tag}_{date_stamp}.csv.gz"
-  xgb['h5ads_yaml']  = f"{int_dir}/h5ads_clean_paths_{full_tag}_{date_stamp}.yaml"
-  xgb['batch_var']   = config.get('integration', {}).get('int_batch_var', 'sample_id')
-  xgb['int_res_ls']  = config.get('integration', {}).get('int_res_ls', [0.1, 0.2, 0.5, 1, 2])
-  xgb['output_dir']  = f"{proj_dir}/output/{short_tag}_train_xgboost"
 
   return config
 

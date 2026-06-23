@@ -24,9 +24,9 @@ knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 
 
 ```{r setup_libs, cache=FALSE, include = FALSE}
-source('${scripts_dir}/utils.R')
-source('${scripts_dir}/train_xgboost.R')
-source('${scripts_dir}/marker_genes.R')
+source('code/utils.R')
+source('code/train_xgboost.R')
+source('code/marker_genes.R')
 ```
 
 

@@ -1,4 +1,4 @@
-if TRAIN_XGB_PARAMS is not None:
+if "train_xgboost" in config:
 
   rule train_xgboost_train:
     input:
@@ -81,67 +81,3 @@ if TRAIN_XGB_PARAMS is not None:
         $( [ "{params.use_gpu}" == "True" ] && echo "--use_gpu" )
       """
 
-
-  rule render_html_train_xgboost:
-    input:
-      r_mkr_f       = f"{code_dir}/marker_genes.R",
-      r_utils_f     = f"{code_dir}/utils.R",
-      preds_f       = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_predictions.csv.gz'
-      imp_f         = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_gene_importance.csv',
-      pb_f          = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_pseudobulk.h5ad'
-    output:
-      r_train_f     = f"{code_dir}/train_xgboost.R",
-      rmd_f         = f"{rmd_dir}/{SHORT_TAG}_train_xgboost.Rmd",
-      html_f        = f"{docs_dir}/{SHORT_TAG}_train_xgboost.html"
-    params:
-      your_name     = config['project'].get('your_name', ''),
-      affiliation   = config['project'].get('affiliation', ''),
-      short_tag     = SHORT_TAG,
-      ref_tag       = TRAIN_XGB_PARAMS['ref_tag'],
-      proj_dir      = PROJ_DIR,
-      output_dir    = xgb_dir,
-      predictions_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_predictions.csv.gz',
-      importance_f  = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_gene_importance.csv',
-      pseudobulk_f  = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_pseudobulk.h5ad',
-      integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-      has_coarse    = "true" if TRAIN_XGB_PARAMS.get('label_map_f') is not None else "false",
-      min_cells     = TRAIN_XGB_PARAMS.get('min_cells_expressed', 10),
-    threads: 1
-    retries: config['resources']['retries']
-    resources:
-      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_train_xgboost', 'memory', attempt),
-      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_train_xgboost', 'time', attempt)
-    log: f'{logs_dir}/train_xgboost/render_html_train_xgboost_{DATE_STAMP}.log'
-    benchmark: f'{benchmark_dir}/train_xgboost/render_html_train_xgboost_{DATE_STAMP}.benchmark.txt'
-    conda:
-      '../envs/rlibs.yaml'
-    shell: """
-      exec &>> {log}
-      # copy R scripts to code directory
-      cp scripts/train_xgboost.R {output.r_train_f}
-
-      # define template
-      template_f=$(realpath resources/rmd_templates/train_xgboost.Rmd.template)
-      rule="train_xgboost"
-
-      # render html
-      Rscript --vanilla -e "source('scripts/render_htmls.R'); \\
-        render_html(
-          rule_name       = '$rule',
-          proj_dir        = '{params.proj_dir}',
-          temp_f          = '$template_f',
-          rmd_f           = '{output.rmd_f}',
-          your_name       = '{params.your_name}',
-          affiliation     = '{params.affiliation}',
-          short_tag       = '{params.short_tag}',
-          ref_tag         = '{params.ref_tag}',
-          predictions_f   = '{params.predictions_f}',
-          importance_f    = '{params.importance_f}',
-          pseudobulk_f    = '{params.pseudobulk_f}',
-          integration_f   = '{params.integration_f}',
-          has_coarse      = '{params.has_coarse}',
-          min_cells       = '{params.min_cells}',
-          n_cores         = '{threads}',
-          scripts_dir     = '{params.output_dir}'
-        )"
-      """

@@ -890,8 +890,7 @@ if DO_TRAIN_XGB:
           integration_f   = '{params.integration_f}',
           has_coarse      = '{params.has_coarse}',
           min_cells       = '{params.min_cells}',
-          n_cores         = '{threads}',
-          scripts_dir     = '{params.output_dir}'
+          n_cores         = '{threads}'
         )"
       """
 

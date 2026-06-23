@@ -66,7 +66,7 @@ URLS_10X_PROBE_BCS = {
 }
 
 URLS_XGBOOSTS = {
-  'Siletti_Macnair-2025-07-23': 'https://github.com/marusakod/scprocessData/releases/download/v0.2.0/Siletti_Macnair-2025-07-23.tar.gz',
+  'Siletti_hippocampus-2026-06-22': 'https://github.com/marusakod/scprocessData/releases/download/v0.2.1/Siletti_hippocampus-2026-06-22.tar.gz',
 }
 
 COMPLEMENT = str.maketrans('ACGT', 'TGCA')

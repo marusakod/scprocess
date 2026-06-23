@@ -95,7 +95,7 @@ def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes
   model = xgb.Booster()
   model.load_model(model_f)
 
-  class_names = pl.read_csv(cls_f)['cluster'].to_list()
+  class_names = pl.read_csv(cls_f)['class'].to_list()
 
   with open(genes_f, 'r') as f:
     selected_genes = [line.strip() for line in f if line.strip()]

@@ -68,3 +68,4 @@ dependencies:
   - r-workflowr
   - r-xgboost
   - r-yaml
+  - r-devtools
