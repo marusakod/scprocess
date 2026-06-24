@@ -102,9 +102,9 @@ def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes
 
   adata = anndata.read_h5ad(adata_f)
   cell_ids = adata.obs_names.tolist()
-  gene_symbols = adata.var['symbol'].tolist()
+  gene_ids = adata.var_names.tolist()
 
-  gene_to_idx = {g: i for i, g in enumerate(gene_symbols)}
+  gene_to_idx = {g: i for i, g in enumerate(gene_ids)}
   present_mask = [g in gene_to_idx for g in selected_genes]
 
   X_raw = adata.X
