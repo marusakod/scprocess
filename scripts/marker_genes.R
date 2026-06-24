@@ -100,6 +100,10 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
   h5ad_paths   = yaml::read_yaml(h5ads_yaml_f)
   assert_that( all(batches %in% names(h5ad_paths)) )
 
+  # ensure basilisk env exists before parallel workers try to use it
+  proc <- basilisk::basiliskStart(zellkonverter::zellkonverterAnnDataEnv())
+  basilisk::basiliskStop(proc)
+
   # make pbs for each batch
   bpparam     = MulticoreParam(workers = n_cores, tasks = length(batches))
   if (zoom) {

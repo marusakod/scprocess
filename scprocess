@@ -23,7 +23,7 @@ sys.path.append(os.path.join(scprocess_dir, 'scripts'))
 import scprocess_utils
 
 
-def _clean_conda_env():
+def _clean_conda_env(conda_prefix=None):
   """Return a copy of os.environ without few conda related variables
   to minimize conda related clashes.
   """
@@ -39,7 +39,15 @@ def _clean_conda_env():
   env["R_LIBS_SITE"] = ""
   env["R_LIBS_USER"] = ""
 
+  # Force basilisk to use an external directory for Python envs (conda-installed
+  # R packages don't run the install hooks that populate the system directory)
+  env["BASILISK_USE_SYSTEM_DIR"] = "0"
+  if conda_prefix:
+    env["BASILISK_EXTERNAL_DIR"] = str(Path(conda_prefix) / "basilisk")
+
   return env
+
+
 
 
 # scprocess setup
@@ -521,7 +529,8 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 
   print(f"\nsnakemake command:\n{cmd_str}")
   print(f"\nlogging progress to: {log_f}")
-  result = subprocess.run(final_cmd, shell = True, env = _clean_conda_env(), executable='/bin/bash')
+  conda_prefix = scprocess_utils.get_conda_prefix(setup_cfg)
+  result = subprocess.run(final_cmd, shell = True, env = _clean_conda_env(conda_prefix), executable='/bin/bash')
 
   if result.returncode != 0:
     sys.exit(result.returncode)
@@ -598,7 +607,8 @@ def run_join(configfile, sc_dir, extraargs, dryrun, rule="all"):
 
   print(f"snakemake command:\n{cmd_str}")
   print(f"Logging progress to: {log_f}")
-  subprocess.run(final_cmd, check=True, shell=True, env=_clean_conda_env())
+  conda_prefix = scprocess_utils.get_conda_prefix(setup_cfg)
+  subprocess.run(final_cmd, check=True, shell=True, env=_clean_conda_env(conda_prefix))
 
 
 def _get_zoom_names(config, scprocess_dir, scdata_dir):
@@ -685,11 +695,12 @@ def _render_index(scprocess_dir, config, setup_cfg, config_path):
 
   # actually do it
   print(f"rendering html index")
+  conda_prefix = scprocess_utils.get_conda_prefix(setup_cfg)
   cmd = [
     "conda", "run", "--prefix", str(env_path),
     "Rscript", "--vanilla", "-e", r_code
   ]
-  result = subprocess.run(cmd, capture_output=True, text=True)
+  result = subprocess.run(cmd, capture_output=True, text=True, env=_clean_conda_env(conda_prefix))
   if result.returncode != 0:
     print(f"Warning: render_index failed (non-fatal):\n{result.stderr}", file=sys.stderr)
   return result
