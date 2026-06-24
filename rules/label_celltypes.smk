@@ -78,84 +78,85 @@ rule run_scprocess_labeller:
     )"
     """
 
-# only do this bit if other parts are finished
-qc_stats_f  = pathlib.Path(f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv')
-if ('label_celltypes' in config) & qc_stats_f.is_file():
+# --- Merge per-batch predictions into final labels ---
 
-  def parse_merge_labels_parameters(LABELLER_PARAMS, labeller, model):
-    # get the one that matches
-    this_entry  = [ entry for entry in LABELLER_PARAMS 
-      if ((entry['labeller'] == labeller) and (entry['model'] == model)) ]
+def _parse_merge_labels_parameters(LABELLER_PARAMS, labeller, model):
+  this_entry  = [ entry for entry in LABELLER_PARAMS
+    if ((entry['labeller'] == labeller) and (entry['model'] == model)) ]
+  if len(this_entry) != 1:
+    raise ValueError("only one entry should match this")
+  return this_entry[0]
 
-    # check exactly one match
-    if len(this_entry) != 1:
-      raise ValueError("only one entry should match this")
 
-    return this_entry[0]
+def _get_good_batch_labels(wildcards):
+  """Defer batch list resolution until the QC checkpoint completes."""
+  qc_stats_f = checkpoints.get_qc_sample_statistics.get().output.qc_stats_f
+  bad_var = 'bad_' + BATCH_VAR
+  good_batches = pl.read_csv(qc_stats_f).filter(pl.col(bad_var) == False)[BATCH_VAR].to_list()
+  return expand(
+    f'{lbl_dir}/tmp_labels_{wildcards.labeller}_model_{wildcards.model}_{FULL_TAG}_{DATE_STAMP}_{{batch}}.csv.gz',
+    batch = good_batches
+  )
 
-  # load up qc outputs
-  bad_var     = 'bad_' + BATCH_VAR
-  qc_stats    = pl.read_csv(qc_stats_f).filter( pl.col(bad_var) == False )
 
-  # do labelling with celltypist
-  rule merge_labels:
+rule merge_labels:
+  input:
+    pred_fs       = _get_good_batch_labels,
+    integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+  output:
+    pred_out_f    = f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+  params:
+    pred_fs_ls    = lambda wildcards, input: input.pred_fs,
+    hi_res_cl     = lambda wildcards: _parse_merge_labels_parameters(LABELLER_PARAMS, wildcards.labeller, wildcards.model)["hi_res_cl"],
+    min_cl_prop   = lambda wildcards: _parse_merge_labels_parameters(LABELLER_PARAMS, wildcards.labeller, wildcards.model)["min_cl_prop"],
+    batch_var     = BATCH_VAR
+  threads: 4
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_labels', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_labels', 'time', attempt)
+  benchmark:
+    f'{benchmark_dir}/label_celltypes/merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/label_celltypes/merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.log'
+  conda:
+    '../envs/celltypist.yaml'
+  shell:"""
+    exec &>> {log}
+
+    python3 scripts/label_celltypes.py aggregate_predictions \
+      {params.pred_fs_ls} \
+      --int_f           {input.integration_f} \
+      --hi_res_cl       {params.hi_res_cl} \
+      --min_cl_prop     {params.min_cl_prop} \
+      --batch_var       {params.batch_var} \
+      --agg_f           {output.pred_out_f}
+    """
+
+
+_names_entries = [e for e in LABELLER_PARAMS if e.get('save_cluster_names_file', False)]
+if _names_entries:
+  _names_mkr_sel_res = config['marker_genes']['mkr_sel_res']
+
+  rule save_cluster_names:
     input:
-      pred_fs       = expand(f'{lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}_{{batch}}.csv.gz', 
-        batch = qc_stats[BATCH_VAR].to_list(), allow_missing = True),
+      labels_f      = f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
       integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
     output:
-      pred_out_f    = f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+      names_f       = f'{lbl_dir}/cluster_names_for_shiny_{{labeller}}_{{model}}_{FULL_TAG}_{_names_mkr_sel_res}_{DATE_STAMP}.csv'
     params:
-      pred_fs_ls    = input.pred_fs,
-      hi_res_cl     = lambda wildcards: parse_merge_labels_parameters(LABELLER_PARAMS, wildcards.labeller, wildcards.model)["hi_res_cl"],
-      min_cl_prop   = lambda wildcards: parse_merge_labels_parameters(LABELLER_PARAMS, wildcards.labeller, wildcards.model)["min_cl_prop"],
-      batch_var     = BATCH_VAR
-    threads: 4
+      mkr_sel_res   = _names_mkr_sel_res
     retries: config['resources']['retries']
-    resources:
-      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_labels', 'memory', attempt),
-      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'merge_labels', 'time', attempt)
-    benchmark: 
-      f'{benchmark_dir}/label_celltypes/merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.benchmark.txt'
-    log: 
-      f'{logs_dir}/label_celltypes/merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.log'
-    conda: 
-      '../envs/celltypist.yaml'
-    shell:"""
+    log:
+      f'{logs_dir}/label_celltypes/save_cluster_names_{{labeller}}_{{model}}_{DATE_STAMP}.log'
+    conda:
+      '../envs/scprocess_local.yaml'
+    shell: """
       exec &>> {log}
-
-      python3 scripts/label_celltypes.py aggregate_predictions \
-        {params.pred_fs_ls} \
-        --int_f           {input.integration_f} \
-        --hi_res_cl       {params.hi_res_cl} \
-        --min_cl_prop     {params.min_cl_prop} \
-        --batch_var       {params.batch_var} \
-        --agg_f           {output.pred_out_f}
+      python3 scripts/label_celltypes.py save_cluster_names \
+        --labels_f      {input.labels_f} \
+        --integration_f {input.integration_f} \
+        --mkr_sel_res   {params.mkr_sel_res} \
+        --output_f      {output.names_f}
       """
-
-  _names_entries = [e for e in LABELLER_PARAMS if e.get('save_cluster_names_file', False)]
-  if _names_entries:
-    _names_mkr_sel_res = config['marker_genes']['mkr_sel_res']
-
-    rule save_cluster_names:
-      input:
-        labels_f      = f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-        integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
-      output:
-        names_f       = f'{lbl_dir}/cluster_names_for_shiny_{{labeller}}_{{model}}_{FULL_TAG}_{_names_mkr_sel_res}_{DATE_STAMP}.csv'
-      params:
-        mkr_sel_res   = _names_mkr_sel_res
-      retries: config['resources']['retries']
-      log:
-        f'{logs_dir}/label_celltypes/save_cluster_names_{{labeller}}_{{model}}_{DATE_STAMP}.log'
-      conda:
-        '../envs/scprocess_local.yaml'
-      shell: """
-        exec &>> {log}
-        python3 scripts/label_celltypes.py save_cluster_names \
-          --labels_f      {input.labels_f} \
-          --integration_f {input.integration_f} \
-          --mkr_sel_res   {params.mkr_sel_res} \
-          --output_f      {output.names_f}
-        """
 

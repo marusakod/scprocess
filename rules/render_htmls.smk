@@ -498,69 +498,67 @@ rule render_html_marker_genes:
     )"
     """
 
-if "label_celltypes" in config:
-  # render_html_label_celltypes
-  rule render_html_label_celltypes:
-    input:
-      r_utils_f   = f"{code_dir}/utils.R",
-      r_int_f     = f'{code_dir}/integration.R',
-      int_f       = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-      guess_f_ls  = expand(f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
-        zip, 
-          labeller  = [ entry['labeller'] for entry in LABELLER_PARAMS],
-          model     = [ entry['model']    for entry in LABELLER_PARAMS]
-        )
-    output:
-      r_lbl_f     = f'{code_dir}/label_celltypes.R',
-      rmd_f       = f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd',
-      html_f      = f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
-    params:
-      your_name       = config['project']['your_name'],
-      affiliation     = config['project']['affiliation'],
-      short_tag       = config['project']['short_tag'],
-      date_stamp      = config['project']['date_stamp'],
-      proj_dir        = config['project']['proj_dir'],
-      labeller_ls     = [ entry['labeller']     for entry in LABELLER_PARAMS],
-      model_ls        = [ entry['model']        for entry in LABELLER_PARAMS],
-      hi_res_cl_ls    = [ entry['hi_res_cl']    for entry in LABELLER_PARAMS], 
-      min_cl_prop_ls  = [ entry['min_cl_prop']  for entry in LABELLER_PARAMS]
-    threads: 1
-    retries: config['resources']['retries']
-    resources:
-      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_label_celltypes', 'memory', attempt),
-      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_label_celltypes', 'time', attempt)
-    conda:
-      '../envs/rlibs.yaml'
-    benchmark:
-      f'{benchmark_dir}/render_htmls/render_html_label_celltypes_{DATE_STAMP}.benchmark.txt'
-    log:
-      f'{logs_dir}/render_htmls/render_html_label_celltypes_{DATE_STAMP}.log'
-    shell: """
-      exec &>> {log}
-      
-      # copy R code over
-      echo "copying relevant R files over"
-      cp scripts/label_celltypes.R {output.r_lbl_f}
+rule render_html_label_celltypes:
+  input:
+    r_utils_f   = f"{code_dir}/utils.R",
+    r_int_f     = f'{code_dir}/integration.R',
+    int_f       = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    guess_f_ls  = expand(f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      zip,
+        labeller  = [ entry['labeller'] for entry in LABELLER_PARAMS],
+        model     = [ entry['model']    for entry in LABELLER_PARAMS]
+      )
+  output:
+    r_lbl_f     = f'{code_dir}/label_celltypes.R',
+    rmd_f       = f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd',
+    html_f      = f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
+  params:
+    your_name       = config['project']['your_name'],
+    affiliation     = config['project']['affiliation'],
+    short_tag       = config['project']['short_tag'],
+    date_stamp      = config['project']['date_stamp'],
+    proj_dir        = config['project']['proj_dir'],
+    labeller_ls     = [ entry['labeller']     for entry in LABELLER_PARAMS],
+    model_ls        = [ entry['model']        for entry in LABELLER_PARAMS],
+    hi_res_cl_ls    = [ entry['hi_res_cl']    for entry in LABELLER_PARAMS],
+    min_cl_prop_ls  = [ entry['min_cl_prop']  for entry in LABELLER_PARAMS]
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_label_celltypes', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'render_html_label_celltypes', 'time', attempt)
+  conda:
+    '../envs/rlibs.yaml'
+  benchmark:
+    f'{benchmark_dir}/render_htmls/render_html_label_celltypes_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/render_htmls/render_html_label_celltypes_{DATE_STAMP}.log'
+  shell: """
+    exec &>> {log}
 
-      template_f=$(realpath resources/rmd_templates/label_celltypes.Rmd.template)
-      rule="label_celltypes"
+    # copy R code over
+    echo "copying relevant R files over"
+    cp scripts/label_celltypes.R {output.r_lbl_f}
 
-      Rscript --vanilla -e "source('scripts/render_htmls.R'); \
-      render_html(
-        rule_name       = '$rule', 
-        temp_f          = '$template_f', 
-        rmd_f           = '{output.rmd_f}',
-        your_name       = '{params.your_name}',
-        affiliation     = '{params.affiliation}',
-        proj_dir        = '{params.proj_dir}',
-        short_tag       = '{params.short_tag}',
-        date_stamp      = '{params.date_stamp}',
-        threads         =  {threads},
-        int_f           = '{input.int_f}',
-        guess_f_ls      = '{input.guess_f_ls}',
-        labeller_ls     = '{params.labeller_ls}',
-        model_ls        = '{params.model_ls}',
-        hi_res_cl_ls    = '{params.hi_res_cl_ls}',
-        min_cl_prop_ls  = '{params.min_cl_prop_ls}'
-      )"
-      """
+    template_f=$(realpath resources/rmd_templates/label_celltypes.Rmd.template)
+    rule="label_celltypes"
+
+    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    render_html(
+      rule_name       = '$rule',
+      temp_f          = '$template_f',
+      rmd_f           = '{output.rmd_f}',
+      your_name       = '{params.your_name}',
+      affiliation     = '{params.affiliation}',
+      proj_dir        = '{params.proj_dir}',
+      short_tag       = '{params.short_tag}',
+      date_stamp      = '{params.date_stamp}',
+      threads         =  {threads},
+      int_f           = '{input.int_f}',
+      guess_f_ls      = '{input.guess_f_ls}',
+      labeller_ls     = '{params.labeller_ls}',
+      model_ls        = '{params.model_ls}',
+      hi_res_cl_ls    = '{params.hi_res_cl_ls}',
+      min_cl_prop_ls  = '{params.min_cl_prop_ls}'
+    )"
+    """
