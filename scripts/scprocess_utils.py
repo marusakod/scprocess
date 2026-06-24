@@ -1660,10 +1660,22 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
         if not pathlib.Path(entry[key]).is_file():
           raise FileNotFoundError(f"file {entry[key]} doesn't exist; consider (re)running scprocess setup")
 
-    # check that parameters for scprocess are ok
-    elif entry['labeller'] == 'custom':
-      entry['custom_f']   = _check_path_exists_in_project(entry['custom_f'], config, what = "file")
-  
+    # resolve label_map_f
+    if 'label_map' in entry:
+      lm_path = _check_path_exists_in_project(entry['label_map'], config, what = "file")
+      entry['label_map_f'] = str(lm_path)
+    elif entry['labeller'] == 'celltypist':
+      default_lm = scdata_dir / 'celltypist' / f"{entry['model']}_label_map.csv"
+      entry['label_map_f'] = str(default_lm) if default_lm.is_file() else ''
+
+    if 'label_map_f' not in entry:
+      entry['label_map_f'] = ''
+
+    if entry['label_map_f'] != '':
+      lm_df = pl.read_csv(entry['label_map_f'], n_rows=5)
+      if 'fine_label' not in lm_df.columns or 'coarse_label' not in lm_df.columns:
+        raise ValueError(f"label_map file must have 'fine_label' and 'coarse_label' columns: {entry['label_map_f']}")
+
     # add defaults
     for v in label_defaults:
       if not v in entry:
