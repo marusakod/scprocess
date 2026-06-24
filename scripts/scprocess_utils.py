@@ -79,6 +79,18 @@ def _get_cluster_profile_dir(scprocess_dir, setup_cfg):
   return profile_dir
 
 
+def get_conda_prefix(setup_cfg):
+  """Get conda-prefix from the Snakemake profile, if configured."""
+  if 'profile_dir' not in setup_cfg.get('user', {}):
+    return None
+  profile_f = setup_cfg['user']['profile_dir'] / 'config.yaml'
+  if not profile_f.is_file():
+    return None
+  with open(profile_f) as f:
+    profile = yaml.safe_load(f)
+  return profile.get('conda-prefix')
+
+
 ### much checking
 
 # wrapper for checking setup
@@ -222,7 +234,7 @@ def _check_project_parameters(config, scdata_dir, scprocess_dir):
 
   # do some checks if fastq_dir is specified
   if has_fastq and not has_arv_uuids:
-    config["project"]["fastq_dir"] = _check_path_exists_in_project(config["project"]["fastq_dir"], config, what = "dir")
+    config["project"]["fastq_dir"] = _check_fastq_dir_or_cache(config["project"]["fastq_dir"], config, cache_glob="fastq_metadata_*.yaml")
 
   # check if selected ref_txome or probe_set is valid
   index_params_f    = scdata_dir / 'index_parameters.csv'
@@ -272,6 +284,7 @@ def _check_project_parameters(config, scdata_dir, scprocess_dir):
 
   return config
 
+
 def _check_arvados_parameters(config, scdata_dir):
   # read setup cfg to get arvados_setup (do not write it into project config)
   scdata_setup_f  = scdata_dir / 'scprocess_setup.yaml'
@@ -303,6 +316,7 @@ def _check_arvados_parameters(config, scdata_dir):
     }
 
   return config
+
 
 # check proj dir is wflowr
 def _check_proj_dir_is_wflowr(config):
@@ -345,6 +359,21 @@ def _check_path_exists_in_project(path_to_check, config, what):
     raise ValueError()
 
   return path_to_check
+
+
+def _check_fastq_dir_or_cache(fastq_dir_raw, config, cache_glob):
+  """Check that a FASTQ directory exists, falling back to cached metadata from a prior mapping run."""
+  try:
+    return _check_path_exists_in_project(fastq_dir_raw, config, what = "dir")
+  except FileNotFoundError:
+    af_dir = pathlib.Path(config["project"]["proj_dir"]) / "output" / f"{config['project']['short_tag']}_mapping"
+    if af_dir.is_dir() and any(af_dir.glob(cache_glob)):
+      fastq_path = pathlib.Path(fastq_dir_raw)
+      if not fastq_path.is_absolute():
+        fastq_path = config["project"]["proj_dir"] / fastq_path
+      warnings.warn(f"FASTQ directory {fastq_path} does not exist, but cached FASTQ metadata found.")
+      return fastq_path
+    raise
 
 
 def _check_samples_df(samples_df, config):
@@ -449,7 +478,6 @@ def _check_lib_ids(lib_ids, lib_var):
   return
 
 
-
 # check parameters for multiplexing
 def _check_multiplexing_parameters(config):
   # load up samples
@@ -471,7 +499,7 @@ def _check_multiplexing_parameters(config):
 
     # do some checks if fastq_dir is specified
     if has_fastq and not has_arv_uuids:
-      config["multiplexing"]["fastq_dir"] = _check_path_exists_in_project(config["multiplexing"]["fastq_dir"], config, what = "dir")
+      config["multiplexing"]["fastq_dir"] = _check_fastq_dir_or_cache(config["multiplexing"]["fastq_dir"], config, cache_glob="fastq_metadata_hto_*.yaml")
 
     # check for columns in feature ref
     feat_ref_df   = pl.read_csv(config["multiplexing"]["feature_ref"])
@@ -686,6 +714,7 @@ def _load_valid_palette_names():
   with open(_VALID_PALETTES_FILE) as f:
     groups = json.load(f)
   return {name for key, names in groups.items() if not key.startswith('_') for name in names}
+
 
 def _check_palette_name(name, context, valid_names):
   if name not in valid_names:
@@ -1199,26 +1228,64 @@ def _get_fastqs(config, RUNS, is_hto = False):
   else:
     tmp_ls        = config['project']
 
-  if "fastq_dir" in tmp_ls:
-    fastq_dir     = tmp_ls['fastq_dir']
-    arv_uuids     = None
-  else:
-    fastq_dir     = None
+  # arvados path — no caching needed
+  if "fastq_dir" not in tmp_ls:
     arv_uuids     = tmp_ls['arv_uuids']
     arv_instance  = tmp_ls['arv_instance']
-
-  # get 
-  if fastq_dir is not None:
-    fastq_dict    = _list_fastq_files_dir(fastq_dir)
-  elif arv_uuids is not None:
     fastq_dict    = _list_fastq_files_arvados(arv_uuids, arv_instance)
+    return _match_fastqs_to_runs(fastq_dict, RUNS, is_hto)
 
-  # get fastq files for each sample
+  fastq_dir       = tmp_ls['fastq_dir']
+
+  # compute cache directory
+  af_dir          = pathlib.Path(config['project']['proj_dir']) / "output" / f"{config['project']['short_tag']}_mapping"
+  cache_prefix    = "fastq_metadata_hto" if is_hto else "fastq_metadata"
+
+  # try loading all runs from cache
+  cached_fastqs   = {}
+  uncached_runs   = []
+  for run in RUNS:
+    cache_f       = af_dir / f"{cache_prefix}_{run}.yaml"
+    if cache_f.exists():
+      cached_fastqs[run] = _read_fastq_metadata_cache(cache_f)
+    else:
+      uncached_runs.append(run)
+
+  if not uncached_runs:
+    return cached_fastqs
+
+  # need to scan filesystem for uncached runs
+  try:
+    fastq_dict    = _list_fastq_files_dir(fastq_dir)
+  except (FileNotFoundError, OSError) as e:
+    if cached_fastqs:
+      warnings.warn(
+        f"FASTQ directory {fastq_dir} is not accessible ({e}), but cached metadata "
+        f"exists for {len(cached_fastqs)}/{len(RUNS)} libraries. Missing caches for: "
+        f"{uncached_runs}"
+      )
+    raise FileNotFoundError(
+      f"FASTQ files are not accessible at {fastq_dir} and no cached metadata exists "
+      f"for: {uncached_runs}. If the FASTQs were deleted after mapping, re-download "
+      f"them and re-run: scprocess run <config> -r mapping"
+    ) from e
+
+  scanned_fastqs  = _match_fastqs_to_runs(fastq_dict, RUNS, is_hto)
+
+  # write cache for all successfully resolved runs
+  af_dir.mkdir(parents=True, exist_ok=True)
+  for run, data in scanned_fastqs.items():
+    cache_f       = af_dir / f"{cache_prefix}_{run}.yaml"
+    _write_fastq_metadata_cache(cache_f, run, data)
+
+  return scanned_fastqs
+
+
+def _match_fastqs_to_runs(fastq_dict, RUNS, is_hto):
   wheres        = fastq_dict["wheres"]
   fastq_fs      = fastq_dict["fastqs"]
   fq_sizes_gb   = fastq_dict["fastq_sizes"]
 
-  # loop through samples
   fastqs        = {}
   for run in RUNS:
     # get R1 and R2 files matching each run
@@ -1236,8 +1303,9 @@ def _get_fastqs(config, RUNS, is_hto = False):
     if len(this_where) > 1:
       raise ValueError(f"FASTQ files for run {run} seem to be found in more than location")
 
-    # get R1 filesize
+    # get file sizes
     R1_fs_size_gb = [ fq_sizes_gb[i] for i,f in enumerate(fastq_fs) if re.match(R1_regex, f) ]
+    R2_fs_size_gb = [ fq_sizes_gb[i] for i,f in enumerate(fastq_fs) if re.match(R2_regex, f) ]
 
     # check have full set of files
     check_R1      = [re.sub(r'(?<=(_|\.))R1', 'R0', f) for f in R1_fs]
@@ -1248,13 +1316,39 @@ def _get_fastqs(config, RUNS, is_hto = False):
       print(f"  WARNING: {'hto ' if is_hto else ''}fastq files found for run {run} but R1 and R2 don't match; excluded.")
     else:
       fastqs[run] = {
-        "where":          this_where[0], 
-        "R1_fs":          R1_fs, 
-        "R2_fs":          R2_fs, 
-        "R1_fs_size_gb":  round(sum(R1_fs_size_gb), 1)
+        "where":          this_where[0],
+        "R1_fs":          R1_fs,
+        "R2_fs":          R2_fs,
+        "R1_fs_size_gb":  round(sum(R1_fs_size_gb), 1),
+        "R2_fs_size_gb":  round(sum(R2_fs_size_gb), 1)
       }
 
   return fastqs
+
+
+def _write_fastq_metadata_cache(cache_f, run, data):
+  cache_data = {
+    "lib":            run,
+    "where":          str(data["where"]),
+    "R1_fs":          data["R1_fs"],
+    "R2_fs":          data["R2_fs"],
+    "R1_fs_size_gb":  data["R1_fs_size_gb"],
+    "R2_fs_size_gb":  data["R2_fs_size_gb"]
+  }
+  with open(cache_f, 'w') as f:
+    yaml.dump(cache_data, f, default_flow_style=False)
+
+
+def _read_fastq_metadata_cache(cache_f):
+  with open(cache_f, 'r') as f:
+    cache_data = yaml.safe_load(f)
+  return {
+    "where":          pathlib.Path(cache_data["where"]),
+    "R1_fs":          cache_data["R1_fs"],
+    "R2_fs":          cache_data["R2_fs"],
+    "R1_fs_size_gb":  cache_data["R1_fs_size_gb"],
+    "R2_fs_size_gb":  cache_data.get("R2_fs_size_gb", 0.0)
+  }
 
 
 # get all fastq files in directory
@@ -1461,7 +1555,6 @@ def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
   }
 
   return out_dc
-
 
 
 # get parameters for one run
@@ -2113,7 +2206,6 @@ def _estimate_resource_parameter(filt_lm_df, RESOURCE_PARAMS, input, rule, run):
 BYTES_PER_GB  = 1024**3
 MB_PER_GB     = 1024
 
-
 # nice boolean values from yaml inputs
 def _safe_boolean(val):
   if type(val) is bool:
@@ -2154,7 +2246,6 @@ def check_ranger_url(ranger_url):
   return ranger_version
   
 
-
 # HVGs function: make df with list of chunked counts files
 def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_RUNS, 
   DEMUX_TYPE, FULL_TAG, DATE_STAMP, hvg_dir):
@@ -2190,7 +2281,6 @@ def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_
   )
 
   return hvg_df_full
-
 
 # ---------------------------------------------------------------------------
 # Join config validation

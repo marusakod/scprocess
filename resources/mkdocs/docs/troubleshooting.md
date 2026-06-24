@@ -17,6 +17,14 @@
     ```
     For more information please see the [Reference](reference.md#resources) section.
 
+??? question "Can I delete FASTQ files after mapping completes?"
+
+    Yes. After the mapping rule finishes successfully, {{sc}} caches FASTQ metadata (file names and sizes) in the mapping output directory (`output/<tag>_mapping/fastq_metadata_<lib>.yaml`). Subsequent pipeline steps (QC, integration, marker genes, zoom, etc.) use this cache instead of accessing the original files.
+
+    This means you can safely delete or move the FASTQ files after mapping without affecting downstream rules. The cache is written automatically whenever {{sc}} finds and successfully resolves FASTQ files.
+
+    If you need to re-run mapping (e.g. with different parameters), the FASTQ files must be accessible again. If they are not, you will see an error message explaining which files are missing.
+
 ## Bug reporting
 
 If you encounter any problems when running {{sc}} please consider opening an issue on our [GitHub](https://github.com/marusakod/scprocess).
