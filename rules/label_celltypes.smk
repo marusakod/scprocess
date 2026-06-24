@@ -98,6 +98,7 @@ if ('label_celltypes' in config) & qc_stats_f.is_file():
       pred_fs_ls    = input.pred_fs,
       hi_res_cl     = lambda wildcards: _get_labeller_entry(wildcards.labeller, wildcards.model)["hi_res_cl"],
       min_cl_prop   = lambda wildcards: _get_labeller_entry(wildcards.labeller, wildcards.model)["min_cl_prop"],
+      label_map_f   = lambda wildcards: _get_labeller_entry(wildcards.labeller, wildcards.model).get("label_map_f", ""),
       batch_var     = BATCH_VAR
     threads: 4
     retries: config['resources']['retries']
@@ -119,6 +120,7 @@ if ('label_celltypes' in config) & qc_stats_f.is_file():
         --hi_res_cl       {params.hi_res_cl} \
         --min_cl_prop     {params.min_cl_prop} \
         --batch_var       {params.batch_var} \
-        --agg_f           {output.pred_out_f}
+        --agg_f           {output.pred_out_f} \
+        $( [ "{params.label_map_f}" != "" ] && echo "--label_map_f {params.label_map_f}" )
       """
 

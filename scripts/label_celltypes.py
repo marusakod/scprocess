@@ -141,7 +141,7 @@ def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes
   return pred_df
 
 
-def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var):
+def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var, label_map_f=None):
   # load integration, check cluster column is there
   int_df      = pl.read_csv(int_f)
   if not hi_res_cl in int_df:
@@ -174,13 +174,21 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var):
     prop_hi_res_cl      = pl.col("prop")
   )
 
-  # join to 
+  # join to
   agg_df      = data_df.join(hi_res_lu, on = "hi_res_cl", how = "left").select(
-    'model', batch_var, 'cell_id', 'hi_res_cl', 'predicted_label_agg', 
+    'model', batch_var, 'cell_id', 'hi_res_cl', 'predicted_label_agg',
     'prop_hi_res_cl',
     predicted_label_naive = pl.col('predicted_label'),
     probability_naive = pl.col('probability'),
   )
+
+  if label_map_f and pathlib.Path(label_map_f).is_file():
+    map_df = pl.read_csv(label_map_f)
+    label_map = dict(zip(map_df['fine_label'].to_list(), map_df['coarse_label'].to_list()))
+    agg_df = agg_df.with_columns(
+      pl.col('predicted_label_naive').replace(label_map).alias('coarse_predicted_label_naive'),
+      pl.col('predicted_label_agg').replace(label_map).alias('coarse_predicted_label_agg'),
+    )
 
   return agg_df
 
@@ -222,6 +230,7 @@ if __name__ == "__main__":
   agg_prsr.add_argument("--hi_res_cl",    type=str)
   agg_prsr.add_argument("--min_cl_prop",  type=float)
   agg_prsr.add_argument("--batch_var",    type=str)
+  agg_prsr.add_argument("--label_map_f",  type=str, default=None)
   agg_prsr.add_argument("--agg_f",        type=str)
 
   # Parse the arguments
@@ -269,7 +278,7 @@ if __name__ == "__main__":
       raise ValueError("min_cl_prop must be greater than or equal to 0 and strictly less than 1")
 
     # run
-    agg_df    = aggregate_predictions(pred_fs, int_f, args.hi_res_cl, args.min_cl_prop, args.batch_var)
+    agg_df    = aggregate_predictions(pred_fs, int_f, args.hi_res_cl, args.min_cl_prop, args.batch_var, label_map_f=args.label_map_f)
 
     # save
     with gzip.open(args.agg_f, 'wb') as f:

@@ -69,16 +69,26 @@ for (ii in seq_along(guess_f_ls)) {
   this_labeller   = labeller_ls[[ ii ]]
   this_model      = model_ls[[ ii ]]
   this_hi_res_cl  = hi_res_cl_ls[[ ii ]]
+  has_coarse      = "coarse_predicted_label_naive" %in% colnames(guesses_ls[[ ii ]])
 
-  # make confusion matrix
-  guesses_sel = guesses_ls[[ ii ]] %>% 
-    .[, .(cell_id, prediction = predicted_label_naive %>% factor)]
   int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2, hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
-  confuse_dt  = calc_confuse_dt(guesses_sel, int_tmp, "prediction", "hi_res_cl", min_cl2_p = min_cl2_p)
 
-  # plot heatmap
   cat('### ', this_labeller, ', ', this_model, '\n', sep = '')
-  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", this_hi_res_cl, 
+
+  if (has_coarse) {
+    cat('**Coarse labels**\n\n')
+    guesses_sel = guesses_ls[[ ii ]] %>% .[, .(cell_id, prediction = coarse_predicted_label_naive %>% factor)]
+    confuse_dt  = calc_confuse_dt(guesses_sel, int_tmp, "prediction", "hi_res_cl", min_cl2_p = min_cl2_p)
+    draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", this_hi_res_cl,
+      plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
+    cat('\n\n')
+
+    cat('**Fine labels**\n\n')
+  }
+
+  guesses_sel = guesses_ls[[ ii ]] %>% .[, .(cell_id, prediction = predicted_label_naive %>% factor)]
+  confuse_dt  = calc_confuse_dt(guesses_sel, int_tmp, "prediction", "hi_res_cl", min_cl2_p = min_cl2_p)
+  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", this_hi_res_cl,
     plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
   cat('\n\n')
 }
@@ -94,22 +104,29 @@ for (ii in seq_along(guess_f_ls)) {
   this_labeller   = labeller_ls[[ ii ]]
   this_model      = model_ls[[ ii ]]
   this_hi_res_cl  = hi_res_cl_ls[[ ii ]]
+  has_coarse      = "coarse_predicted_label_agg" %in% colnames(guesses_ls[[ ii ]])
 
-  # get data
-  guesses_sel = guesses_ls[[ ii ]] %>% 
-    .[, .(cell_id, prediction = predicted_label_agg %>% factor)]
   int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2, hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
-
-  # plots
-  g_cl        = plot_umap_labels(int_dt, 
+  g_cl        = plot_umap_labels(int_dt,
     int_tmp[, .(cell_id, cluster = hi_res_cl)], "high resolution\nharmony\ncluster")
-  g_pred      = plot_umap_labels(int_dt, 
-    guesses_sel[, .(cell_id, cluster = prediction)], "prediction\n(aggregated)")
-  g = g_cl + g_pred
 
-  # plot umaps
   cat('### ', this_labeller, ', ', this_model, '\n', sep = '')
-  print(g)
+
+  if (has_coarse) {
+    cat('**Coarse labels**\n\n')
+    guesses_sel = guesses_ls[[ ii ]] %>% .[, .(cell_id, prediction = coarse_predicted_label_agg %>% factor)]
+    g_pred      = plot_umap_labels(int_dt,
+      guesses_sel[, .(cell_id, cluster = prediction)], "prediction\n(coarse, aggregated)")
+    print(g_cl + g_pred)
+    cat('\n\n')
+
+    cat('**Fine labels**\n\n')
+  }
+
+  guesses_sel = guesses_ls[[ ii ]] %>% .[, .(cell_id, prediction = predicted_label_agg %>% factor)]
+  g_pred      = plot_umap_labels(int_dt,
+    guesses_sel[, .(cell_id, cluster = prediction)], "prediction\n(aggregated)")
+  print(g_cl + g_pred)
   cat('\n\n')
 }
 ```
@@ -124,9 +141,23 @@ for (ii in seq_along(guess_f_ls)) {
   # unpack
   this_labeller   = labeller_ls[[ ii ]]
   this_model      = model_ls[[ ii ]]
+  has_coarse      = "coarse_predicted_label_agg" %in% colnames(guesses_ls[[ ii ]])
 
-  # print table
   cat('### ', this_labeller, ', ', this_model, '\n', sep = '')
+
+  if (has_coarse) {
+    cat('**Coarse labels**\n\n')
+    coarse_dt = copy(guesses_ls[[ ii ]])
+    setnames(coarse_dt, "coarse_predicted_label_agg", "predicted_label_agg", skip_absent = TRUE)
+    setnames(coarse_dt, "coarse_predicted_label_naive", "predicted_label_naive", skip_absent = TRUE)
+    coarse_dt %>% calc_labels_table %>% kbl("html") %>% row_spec(row = 0, bold = TRUE) %>%
+      kable_styling(bootstrap_options = "striped", full_width = FALSE, font_size = 12, position = "center") %>%
+      scroll_box(width = "60%", height = "500px") %>% print
+    cat('\n\n')
+
+    cat('**Fine labels**\n\n')
+  }
+
   guesses_ls[[ ii ]] %>% calc_labels_table %>% kbl("html") %>% row_spec(row = 0, bold = TRUE) %>%
     kable_styling(bootstrap_options = "striped", full_width = FALSE, font_size = 12, position = "center") %>%
     scroll_box(width = "60%", height = "500px") %>% print

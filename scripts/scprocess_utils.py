@@ -1651,9 +1651,10 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
         )
 
       row = xgboost_df.filter(pl.col('model') == entry['model']).row(0, named=True)
-      entry['model_f'] = row['model_f']
-      entry['cls_f']   = row['cls_f']
-      entry['genes_f'] = row['genes_f']
+      entry['model_f']     = row['model_f']
+      entry['cls_f']       = row['cls_f']
+      entry['genes_f']     = row['genes_f']
+      entry['label_map_f'] = row.get('label_map_f', '')
 
       for key in ['model_f', 'cls_f', 'genes_f']:
         if not pathlib.Path(entry[key]).is_file():
