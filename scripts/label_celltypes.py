@@ -48,9 +48,23 @@ def download_celltypist_models(models_f):
   # record their names
   models_ls   = [ f.replace(".pkl", "") for f in os.listdir(models_dir) if f.endswith(".pkl") ]
 
+  # save per-model allowed_cls.csv
+  cls_dir = pathlib.Path(models_f).parent / "allowed_cls"
+  os.makedirs(cls_dir, exist_ok=True)
+  
+  for model_name in models_ls:
+    try:
+      m = celltypist.models.Model.load(model=model_name + ".pkl")
+      cls_path = cls_dir / f"{model_name}_allowed_cls.csv"
+      pl.DataFrame({"class": sorted(m.cell_types.tolist())}).write_csv(str(cls_path))
+      print(f"  Saved classes: {cls_path}")
+    except Exception as e:
+      print(f"  Failed to extract classes for {model_name}: {e}")
+
   # make dataframe, save
   models_df   = pl.DataFrame({ "model": models_ls }).sort("model")
   models_df.write_csv(models_f)
+
 
   return
 
