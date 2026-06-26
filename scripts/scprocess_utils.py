@@ -2342,18 +2342,44 @@ def check_join_config(config, join_schema_f):
 
   config = _check_shiny_parameters(config)
 
-  # check ref_txome matches across all projects
+  # check ref_txome / probe_set consistency across all projects
   join_ref = config['join']['ref_txome']
+  proj_refs = {}
+  proj_probe_sets = {}
   for pid, proj_entry in config.get('projects', {}).items():
     cfg_f = proj_entry.get('config')
     if cfg_f and os.path.isfile(cfg_f):
       with open(cfg_f) as f:
         proj_cfg = yaml.safe_load(f)
-      proj_ref = proj_cfg['project'].get('ref_txome', '')
-      if proj_ref and proj_ref != join_ref:
-        raise ValueError(
-          f"Project '{pid}' ref_txome={proj_ref!r} does not match "
-          f"join ref_txome={join_ref!r}")
+      proj_ref = proj_cfg['project'].get('ref_txome')
+      proj_ps  = proj_cfg['project'].get('probe_set')
+      if proj_ref:
+        proj_refs[pid] = proj_ref
+      if proj_ps:
+        proj_probe_sets[pid] = proj_ps
+
+  if proj_refs and proj_probe_sets:
+    ref_pids = ', '.join(f"'{p}'" for p in proj_refs)
+    ps_pids  = ', '.join(f"'{p}'" for p in proj_probe_sets)
+    raise ValueError(
+      f"Cannot join projects with different reference types: "
+      f"projects {ref_pids} use ref_txome, "
+      f"projects {ps_pids} use probe_set")
+
+  for pid, ref in proj_refs.items():
+    if ref != join_ref:
+      raise ValueError(
+        f"Project '{pid}' ref_txome={ref!r} does not match "
+        f"join ref_txome={join_ref!r}")
+
+  if proj_probe_sets:
+    probe_set_vals = set(proj_probe_sets.values())
+    if len(probe_set_vals) > 1:
+      mismatches = ', '.join(
+        f"'{pid}'={ps!r}" for pid, ps in proj_probe_sets.items())
+      raise ValueError(
+        f"Projects have different probe_set values: {mismatches}. "
+        f"Only projects with the same probe_set can be joined")
 
   # check h5ads YAML files exist (integration must be complete)
   # h5ads are always in the integration directory, even when using zoom outputs
