@@ -39,6 +39,9 @@ def _clean_conda_env(conda_prefix=None):
   env["R_LIBS_SITE"] = ""
   env["R_LIBS_USER"] = ""
 
+  # Suppress conda warning about implicit 'defaults' channel
+  env["CONDA_NO_DEFAULT_CHANNELS"] = "true"
+
   # Force basilisk to use an external directory for Python envs (conda-installed
   # R packages don't run the install hooks that populate the system directory)
   env["BASILISK_USE_SYSTEM_DIR"] = "0"
