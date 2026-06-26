@@ -997,6 +997,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
   zoom_config   = _check_hvg_parameters(zoom_config)
   zoom_config   = _check_integration_parameters(zoom_config)
   zoom_config   = _check_shiny_parameters(zoom_config)
+  zoom_config   = _check_train_xgboost_parameters(zoom_config)
 
   # get useful things
   SHORT_TAG     = config['project']['short_tag']

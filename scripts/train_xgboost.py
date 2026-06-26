@@ -1,19 +1,10 @@
-"""Train an XGBoost classifier to predict cell type labels from scRNA-seq data.
-
-Workflow:
-  1. Plan training cells from cluster CSV + annotations (no H5AD loaded)
-  2. Load expression data one H5AD at a time, subset to selected cells
-  3. XGBoost pass 1: broad exploration with all genes
-  4. Feature selection via cumulative gain
-  5. XGBoost pass 2: final model on selected genes
-  6. Evaluate and save model
-"""
+# Train an XGBoost classifier to predict cell type labels from scRNA-seq data.
 
 import argparse
 import pathlib
 import re
 import sys
-from typing import Optional
+import pandas as pd
 import anndata as ad
 import numpy as np
 import polars as pl
@@ -22,20 +13,15 @@ import xgboost as xgb
 import yaml
 
 
-def make_classifier(
-  annots_f: str, cluster_csv: str, h5ads_yaml: str,
-  ref_tag: str, output_dir: str, batch_var: str, int_res_ls: str,
-  label_map_f: Optional[str],
-  refine_labels: bool, purity_threshold: float,
-  n_cells_per_type: int, min_cells_per_type: int,
-  min_cells_expressed: int, gene_exclude_re: Optional[str],
-  seed: int, n_cores: int, use_gpu: bool,
-  pass1_subsample: float, pass1_colsample_bytree: float,
-  pass1_learning_rate: float, pass1_nrounds: int, pass1_early_stopping: int,
-  pass2_colsample_bytree: float, pass2_learning_rate: float,
-  pass2_nrounds: int, pass2_early_stopping: int,
-  gain_threshold: float, min_genes: int, max_genes: int,
-) -> None:
+def make_classifier(annots_f, cluster_csv, h5ads_yaml,
+  ref_tag, output_dir, batch_var, int_res_ls, label_map_f,
+  refine_labels, purity_threshold, n_cells_per_type, min_cells_per_type,
+  min_cells_expressed, gene_exclude_re,
+  seed, n_cores, use_gpu, pass1_subsample, pass1_colsample_bytree,
+  pass1_learning_rate, pass1_nrounds, pass1_early_stopping,
+  pass2_colsample_bytree, pass2_learning_rate, pass2_nrounds, pass2_early_stopping,
+  gain_threshold, min_genes, max_genes,
+):
 
   print("=" * 60)
   print("XGBoost cell type classifier training")
@@ -144,13 +130,8 @@ def make_classifier(
   print("\nDone.")
 
 
-# planning phase (CSV only)
-
-def plan_training_cells(
-  annots_f: str, cluster_csv: str, batch_var: str, hi_res_col: str,
-  refine_labels: bool, purity_threshold: float,
-  min_cells_per_type: int, n_cells_per_type: int, seed: int,
-) -> pl.DataFrame:
+def plan_training_cells(annots_f, cluster_csv, batch_var, hi_res_col,
+  refine_labels, purity_threshold, min_cells_per_type, n_cells_per_type, seed):
 
   cols_to_read = ["cell_id", batch_var, hi_res_col]
   cluster_df = pl.read_csv(cluster_csv, columns=cols_to_read)
@@ -207,12 +188,9 @@ def plan_training_cells(
   return df.select(["cell_id", "sample_id", "label", "split", "batch"])
 
 
-def refine_labels_by_cluster(
-  df: pl.DataFrame, hi_res_col: str, purity_threshold: float,
-) -> pl.DataFrame:
+def refine_labels_by_cluster(df, hi_res_col, purity_threshold):
 
   min_cluster_size = 10
-
   annotated = df.filter(pl.col("annotation").is_not_null())
 
   cluster_annot_counts = (
@@ -251,7 +229,7 @@ def refine_labels_by_cluster(
   return df
 
 
-def load_label_mapping(label_map_f: Optional[str]) -> Optional[dict[str, str]]:
+def load_label_mapping(label_map_f):
 
   if label_map_f is None:
     return None
@@ -266,9 +244,7 @@ def load_label_mapping(label_map_f: Optional[str]) -> Optional[dict[str, str]]:
   ))
 
 
-def downsample_per_type(
-  df: pl.DataFrame, n_cells_per_type: int, seed: int,
-) -> pl.DataFrame:
+def downsample_per_type(df, n_cells_per_type, seed):
   sampled = (
     df
     .with_columns(pl.lit(1).alias("_dummy"))
@@ -285,7 +261,7 @@ def downsample_per_type(
   return sampled
 
 
-def assign_train_val_split(df: pl.DataFrame, seed: int) -> pl.DataFrame:
+def assign_train_val_split(df, seed):
 
   rng = np.random.default_rng(seed)
   samples = df["sample_id"].drop_nulls().unique().to_list()
@@ -321,10 +297,7 @@ def assign_train_val_split(df: pl.DataFrame, seed: int) -> pl.DataFrame:
   return df
 
 
-# data loading
-
-def normalize_counts(X: sp.spmatrix, scale_factor: int = 10000) -> sp.csr_matrix:
-  """Total-count normalize to scale_factor, then log1p. Matches label_celltypes.R."""
+def normalize_counts(X, scale_factor=10000):
   X_csr = X.tocsr().astype(np.float64)
   lib_sizes = np.array(X_csr.sum(axis=1)).flatten()
   lib_sizes[lib_sizes == 0] = 1.0
@@ -335,12 +308,8 @@ def normalize_counts(X: sp.spmatrix, scale_factor: int = 10000) -> sp.csr_matrix
   return X_norm
 
 
-def filter_genes_by_type(
-  X_norm: sp.csr_matrix, X_raw: sp.csr_matrix,
-  gene_names: list[str], gene_types: list[str],
-  gene_exclude_re: Optional[str],
-) -> tuple[sp.csr_matrix, sp.csr_matrix, list[str], list[str]]:
-  """Remove genes whose gene_type matches the exclusion regex."""
+def filter_genes_by_type(X_norm, X_raw, gene_names, gene_types,gene_exclude_re):
+  # remove genes whose gene_type matches the exclusion regex.
   if gene_exclude_re is None or gene_exclude_re == "":
     return X_norm, X_raw, gene_names, gene_types
 
@@ -360,11 +329,8 @@ def filter_genes_by_type(
   return X_norm_filtered, X_raw_filtered, gene_names_filtered, gene_types_filtered
 
 
-def filter_uninformative_genes(
-  X_norm: sp.csr_matrix, X_raw: sp.csr_matrix,
-  gene_names: list[str], min_cells: int = 10,
-) -> tuple[sp.csr_matrix, sp.csr_matrix, list[str]]:
-  """Remove genes expressed in fewer than min_cells cells."""
+def filter_uninformative_genes(X_norm, X_raw, gene_names, min_cells=10):
+  # remove genes expressed in fewer than min_cells cells.
   cells_per_gene = np.array(X_raw.getnnz(axis=0)).flatten()
   keep_mask = cells_per_gene >= min_cells
   n_before = len(gene_names)
@@ -380,10 +346,8 @@ def filter_uninformative_genes(
   return X_norm_filtered, X_raw_filtered, gene_names_filtered
 
 
-def load_expression_matrix(
-  cells_df: pl.DataFrame, h5ad_dict: dict,
-) -> tuple[sp.csr_matrix, sp.csr_matrix, list[str], list[str], list[str]]:
-  """Load expression data, returning both raw and normalized matrices plus gene metadata."""
+def load_expression_matrix(cells_df, h5ad_dict):
+  # load expression data, returning both raw and normalized matrices + gene metadata
   batches_needed = cells_df["batch"].drop_nulls().unique().to_list()
 
   matrices_raw = []
@@ -439,20 +403,8 @@ def load_expression_matrix(
   return X_raw, X_norm, gene_names, gene_types, cell_ids_ordered
 
 
-# pseudobulk
-
-def compute_pseudobulk(
-  X_raw: sp.csr_matrix, cells_df: pl.DataFrame,
-  gene_names: list[str], sel_indices: np.ndarray,
-) -> ad.AnnData:
-  """Compute pseudobulk raw counts per (label, sample_id) for selected genes.
-
-  Returns an AnnData:
-    - obs (rows) = samples
-    - var (columns) = selected genes
-    - layers: one per cell type label, each a samples × genes matrix of raw summed counts
-  """
-  import pandas as pd
+def compute_pseudobulk(X_raw, cells_df, gene_names, sel_indices):
+  # get pseudobulk counts per (label, sample_id) 
 
   X_sel = X_raw[:, sel_indices]
   sel_gene_names = [gene_names[i] for i in sel_indices]
@@ -513,11 +465,7 @@ def compute_pseudobulk(
 
 
 # xgboost training and feature selection
-
-def _build_xgb_params(
-  n_cores: int, seed: int, use_gpu: bool, num_class: int, **overrides,
-) -> dict:
-  """Build XGBoost parameter dict. Adds GPU params if use_gpu=True."""
+def _build_xgb_params(n_cores, seed, use_gpu, num_class, **overrides):
   params = {
     "objective": "multi:softprob",
     "num_class": num_class,
@@ -532,13 +480,9 @@ def _build_xgb_params(
   return params
 
 
-def run_xgboost_pass1(
-  X_train: sp.csr_matrix, y_train: np.ndarray,
-  X_val: sp.csr_matrix, y_val: np.ndarray,
-  n_cores: int, seed: int, use_gpu: bool,
-  subsample: float, colsample_bytree: float, learning_rate: float,
-  nrounds: int, early_stopping: int,
-) -> xgb.Booster:
+def run_xgboost_pass1(X_train, y_train, X_val, y_val,
+  n_cores, seed, use_gpu, subsample, colsample_bytree, learning_rate,
+  nrounds, early_stopping):
   num_class = int(y_train.max()) + 1
 
   params = _build_xgb_params(n_cores, seed, use_gpu, num_class,
@@ -562,10 +506,8 @@ def run_xgboost_pass1(
   return model
 
 
-def select_features_by_gain(
-  model: xgb.Booster, gene_names: list[str],
-  gain_threshold: float, min_genes: int, max_genes: int,
-) -> tuple[np.ndarray, list[str], pl.DataFrame]:
+def select_features_by_gain(model, gene_names,
+  gain_threshold, min_genes, max_genes):
 
   importance = model.get_score(importance_type="gain")
 
@@ -604,13 +546,8 @@ def select_features_by_gain(
   return sel_indices, sel_gene_names, gene_importance
 
 
-def run_xgboost_pass2(
-  X_train: sp.csr_matrix, y_train: np.ndarray,
-  X_val: sp.csr_matrix, y_val: np.ndarray,
-  n_cores: int, seed: int, use_gpu: bool,
-  subsample: float, colsample_bytree: float, learning_rate: float,
-  nrounds: int, early_stopping: int,
-) -> xgb.Booster:
+def run_xgboost_pass2(X_train, y_train, X_val, y_val, n_cores, seed, use_gpu,
+  subsample, colsample_bytree, learning_rate, nrounds, early_stopping):
 
   num_class = int(y_train.max()) + 1
 
@@ -637,11 +574,8 @@ def run_xgboost_pass2(
 
 
 # model evaluation
-
-def evaluate_model(
-  model: xgb.Booster, X_val: sp.csr_matrix,
-  y_val: np.ndarray, class_names: list[str],
-) -> None:
+def evaluate_model(model, X_val, y_val, class_names):
+  
   feat_names = [f"g{i}" for i in range(X_val.shape[1])]
   dval = xgb.DMatrix(X_val, feature_names=feat_names)
   probs = model.predict(dval)
@@ -696,17 +630,14 @@ def evaluate_model(
     print(f"  {true_name:<20} {pred_name:<20} {count:>5} {pct:>5.1f}%")
 
 
-def evaluate_model_coarse(
-  model: xgb.Booster, X_val: sp.csr_matrix, y_val: np.ndarray,
-  class_names: list[str], label_map: dict[str, str],
-) -> None:
+def evaluate_model_coarse(model, X_val, y_val, class_names, label_map):
 
   feat_names = [f"g{i}" for i in range(X_val.shape[1])]
   dval = xgb.DMatrix(X_val, feature_names=feat_names)
   probs = model.predict(dval)
   y_pred_fine = probs.argmax(axis=1)
 
-  def to_coarse(fine_idx: int) -> str:
+  def to_coarse(fine_idx):
     return label_map.get(class_names[fine_idx], class_names[fine_idx])
 
   y_true_coarse = np.array([to_coarse(i) for i in y_val])
@@ -741,17 +672,11 @@ def evaluate_model_coarse(
 
 
 # save outputs
+def save_outputs(model, class_names, selected_genes, gene_importance,
+  output_dir, ref_tag, cells_df, label_map=None, X_train=None, y_train=None,
+  X_val=None, y_val=None, pseudobulk_adata=None):
 
-def save_outputs(
-  model: xgb.Booster, class_names: list[str], selected_genes: list[str],
-  gene_importance: pl.DataFrame,
-  output_dir: str, ref_tag: str, cells_df: pl.DataFrame,
-  label_map: Optional[dict[str, str]] = None,
-  X_train: sp.csr_matrix = None, y_train: np.ndarray = None,
-  X_val: sp.csr_matrix = None, y_val: np.ndarray = None,
-  pseudobulk_adata: ad.AnnData = None,
-) -> None:
-  """Save model, gene list, classes, importance, predictions, and pseudobulk."""
+  # save model, gene list, classes, importance, predictions, and pseudobulk
   out_dir = pathlib.Path(output_dir)
 
   model_path = out_dir / f"{ref_tag}_xgboost_model.json"
@@ -779,7 +704,7 @@ def save_outputs(
     }).write_csv(str(map_path))
     print(f"  Label map: {map_path}")
 
-  # Save predictions for all cells (train + validation) — consumed by Rmd report
+  # save predictions for all cells (train + validation)
   if X_val is not None and X_train is not None:
     preds_path = out_dir / f"{ref_tag}_predictions.csv.gz"
     preds_df = _make_predictions_df(
@@ -794,14 +719,8 @@ def save_outputs(
     print(f"  Pseudobulk: {pb_path}")
 
 
-def _make_predictions_df(
-  model: xgb.Booster,
-  X_train: sp.csr_matrix, y_train: np.ndarray,
-  X_val: sp.csr_matrix, y_val: np.ndarray,
-  cells_df: pl.DataFrame, class_names: list[str],
-  label_map: Optional[dict[str, str]] = None,
-) -> pl.DataFrame:
-  """Generate predictions for all cells and return as a DataFrame."""
+def _make_predictions_df(model, X_train, y_train, X_val, y_val, cells_df, class_names, label_map=None):
+  # genertae predictions for all cells
   feat_names = [f"g{i}" for i in range(X_val.shape[1])]
 
   # Predict on validation set
