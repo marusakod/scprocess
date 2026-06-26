@@ -38,150 +38,25 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
   os.environ["ALEVIN_FRY_HOME"] = af_home_dir
   subprocess.run(["simpleaf", "set-paths"])
 
-  # if arvados, download to temp files
-  on_arvados  = not os.path.exists(where)
-  if on_arvados:
-    # set up tmp directory
-    tmp_dir     = f"{af_dir}/{lib_pool_dir}.tmp_fastqs_{run}_{what}"
-    prefix      = f"{run}_{what}"
-    os.makedirs(tmp_dir, exist_ok = True)
+  # resolve FASTQ paths (download from Arvados if needed)
+  R1_fs, R2_fs, on_arvados, tmp_dir = _resolve_fastq_paths(
+    where, R1_fs, R2_fs, arv_instance, af_dir, lib_pool_dir, run, what, threads)
 
-    # download files from Arvados
-    print('downloading files from arvados')
-    arv_uuid    = where
-    R1_fs       = [ _download_arvados_file_as_tempfile(arv_uuid, arv_instance, f, tmp_dir, prefix, i, "R1", threads) for i, f in enumerate(R1_fs) ]
-    R2_fs       = [ _download_arvados_file_as_tempfile(arv_uuid, arv_instance, f, tmp_dir, prefix, i, "R2", threads) for i, f in enumerate(R2_fs) ]
-  else:
-    R1_fs       = [ os.path.join(where, f) for f in R1_fs]
-    R2_fs       = [ os.path.join(where, f) for f in R2_fs]
-
-  # get whitelist lookup file
+  # resolve chemistry, orientation, and whitelist
   wl_lu_dt = pl.read_csv(wl_lu_f)
+  chem = _resolve_chemistry(
+    R1_fs, R2_fs, af_chemistry, exp_ori, whitelist_f, wl_lu_f, wl_lu_dt,
+    index_dir, t2g_f, threads, out_dir, what)
 
-  if af_chemistry == 'none':
-    print(' checking overlap of barcodes with different whitelists')
-    wl_overlap_dt = _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt)
-    # check for which barcode whitelist the overlap is the highest
-    max_overlap = max(wl_overlap_dt['overlap'])
-    if max_overlap < 0.7:
-      warnings.warn(f'Maximum overlap ob barcodes is {max_overlap:.1%}, 10x chemistry guess might be incorrect')
-
-    sel_wl_dt = wl_overlap_dt.filter(pl.col('overlap') == max_overlap)
-    whitelist_f = sel_wl_dt['gex_barcodes_f_full'][0]
-
-    # check R1 read length to determine correct alevin chemistry
-    r1_length = _get_r1_read_length(R1_fs)
-    print(f' R1 read length: {r1_length}bp')
-
-    if sel_wl_dt.height == 1:
-      sample_tenx_chemistry = sel_wl_dt['chemistry'][0]
-      af_chemistry = '10xv3'
-      exp_ori = 'rc' if sample_tenx_chemistry == '5v3' else 'fw'
-
-      cell_counts_fw = ""
-      cell_counts_rc = ""
-    else: # if selected whitelist corresponds to multiple chemistries with different orrientation, do mapping on downsampled data
-      print(' guessing orientation by mapping downsampled FASTQ files')
-
-      # make directory for temporary output files
-      tmp_out_dir = f'{out_dir}/tmp_mapping'
-      os.makedirs(tmp_out_dir, exist_ok=True)
-
-      sub_R1_f, sub_R2_f = _subset_fastqs(tmp_out_dir, R1_fs, R2_fs)
-      chem_opts = set(sel_wl_dt['chemistry'])
-      af_chemistry = '10xv2' if chem_opts == set(['3v2', '5v1', '5v2']) else '10xv3'
-
-      # map downsampled fastqs 2x
-      for ori in ['fw', 'rc']:
-        _run_simpleaf_quant(f'{tmp_out_dir}/{ori}_mapping', [sub_R1_f], [sub_R2_f], threads, index_dir,
-          af_chemistry, ori , t2g_f, whitelist_f)
-
-      # infer read orientation
-      exp_ori, cell_counts_fw, cell_counts_rc = _infer_read_orientation(tmp_out_dir)
-
-      # determine sample chemistry from inferred orientation
-      if chem_opts == set(['3v2', '5v1', '5v2']):
-        sample_tenx_chemistry = '3v2' if exp_ori == 'fw' else '5v1/5v2'
-      else:
-        sample_tenx_chemistry = '3v3' if exp_ori == 'fw' else '5v3'
-
-      # remove temporary mapping results and downsampled fastqs
-      shutil.rmtree(tmp_out_dir)
-
-    # override to 10xv2 if R1 is too short for 10xv3
-    if af_chemistry == '10xv3' and r1_length < 28:
-      warnings.warn(f'R1 read length is {r1_length}bp (< 28bp); using 10xv2 chemistry with v3 whitelist')
-      af_chemistry = '10xv2'
-
-      # get sample chemisty
-      sample_tenx_chemistry = '3v2' if exp_ori == 'fw' else '5v1/5v2'
-
-  else:
-    cell_counts_fw = ""
-    cell_counts_rc = ""
-    max_overlap    = ""
-    f_prefix       = 'gex' if what == 'rna' else 'hto'
-    # get sample chemistry based on barcode whitelist and exp_ori
-    chem_opts = (wl_lu_dt
-      .filter(pl.col(f'{f_prefix}_barcodes_f') == os.path.basename(whitelist_f))
-      .get_column('chemistry').to_list())
-    if set(chem_opts) == set(['3v2', '5v1', '5v2']):
-      sample_tenx_chemistry = '3v2' if exp_ori == "fw" else '5v1/5v2'
-    else:
-      sample_tenx_chemistry = chem_opts[0]
-
-    # check R1 read length is compatible with specified chemistry
-    r1_length = _get_r1_read_length(R1_fs)
-    print(f' R1 read length: {r1_length}bp')
-    if af_chemistry == '10xv3' and r1_length < 28:
-      raise ValueError(
-        f"R1 read length is {r1_length}bp but chemistry '10xv3' requires >= 28bp. "
-        f"Set tenx_chemistry to '3v2' in your config or custom_sample_params to use "
-        f"10xv2 chemistry with shorter reads."
-      )
- 
-
-  # do quantification
-  extra = ["--no-piscem"] if what == "hto" else []
-  _run_simpleaf_quant(out_dir, R1_fs, R2_fs, threads, index_dir,
-    af_chemistry, exp_ori, t2g_f, whitelist_f, extra_args=extra
+  # do quantification; HTO index has a subdirectory structure from simpleaf index
+  quant_index_dir = os.path.join(index_dir, "index") if what == "hto" else index_dir
+  _run_simpleaf_quant(out_dir, R1_fs, R2_fs, threads, quant_index_dir,
+    chem["af_chemistry"], chem["exp_ori"], t2g_f, chem["whitelist_f"]
   )
-  
-  # save yaml with chemistry stats only if what is rna
-  if what == 'rna':
-    chem_stats_f = os.path.join(out_dir, 'chemistry_statistics.yaml')
-    # get translation file and hto whitelist file
-    trans_fs        = (wl_lu_dt
-      .filter(pl.col("gex_barcodes_f") == os.path.basename(whitelist_f))
-      .get_column("translation_f").to_list())
-    
-    hto_whitelist_fs = (wl_lu_dt
-      .filter(pl.col("gex_barcodes_f") == os.path.basename(whitelist_f))
-      .get_column("hto_barcodes_f").to_list())
-    
-    if trans_fs[0] is None:
-      trans_f         = ""
-      hto_whitelist_f = ""
-    else:
-      trans_f         =  f'{os.path.dirname(whitelist_f)}/{trans_fs[0]}'
-      hto_whitelist_f =  f'{os.path.dirname(whitelist_f)}/{hto_whitelist_fs[0]}'
 
-    chem_stats = {
-     "run": run,
-     "r1_read_length": r1_length,
-     "selected_gex_whitelist": whitelist_f,
-     "selected_hto_whitelist": hto_whitelist_f,
-     "selected_translation_f": trans_f,
-     "selected_whitelist_overlap": max_overlap,
-     "selected_ori": exp_ori,
-     "n_cells_fw": cell_counts_fw,
-     "n_cells_rc": cell_counts_rc,
-     "selected_tenx_chemistry": sample_tenx_chemistry,
-     "selected_af_chemistry": af_chemistry
-    }
-  
-    with open(chem_stats_f, "w") as f:
-      yaml.safe_dump(chem_stats, f)
+  # save chemistry stats YAML (RNA only)
+  if what == 'rna':
+    _write_chemistry_stats(out_dir, run, chem, wl_lu_dt)
 
   # tidy up any temp fastq files
   if on_arvados:
@@ -190,6 +65,165 @@ def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
     for f in R2_fs:
       os.unlink(f)
     os.rmdir(tmp_dir)
+
+
+def _resolve_fastq_paths(where, R1_fs, R2_fs, arv_instance, af_dir, lib_pool_dir, run, what, threads):
+  """Resolve FASTQ file paths, downloading from Arvados if necessary."""
+  on_arvados = not os.path.exists(where)
+  tmp_dir = None
+  if on_arvados:
+    tmp_dir   = f"{af_dir}/{lib_pool_dir}.tmp_fastqs_{run}_{what}"
+    prefix    = f"{run}_{what}"
+    os.makedirs(tmp_dir, exist_ok = True)
+    print('downloading files from arvados')
+    arv_uuid  = where
+    R1_fs     = [ _download_arvados_file_as_tempfile(arv_uuid, arv_instance, f, tmp_dir, prefix, i, "R1", threads) for i, f in enumerate(R1_fs) ]
+    R2_fs     = [ _download_arvados_file_as_tempfile(arv_uuid, arv_instance, f, tmp_dir, prefix, i, "R2", threads) for i, f in enumerate(R2_fs) ]
+  else:
+    R1_fs     = [ os.path.join(where, f) for f in R1_fs ]
+    R2_fs     = [ os.path.join(where, f) for f in R2_fs ]
+  return R1_fs, R2_fs, on_arvados, tmp_dir
+
+
+def _resolve_chemistry(R1_fs, R2_fs, af_chemistry, exp_ori, whitelist_f, wl_lu_f, wl_lu_dt,
+  index_dir, t2g_f, threads, out_dir, what):
+  """Detect or validate 10x chemistry, orientation, and whitelist.
+
+  When af_chemistry is 'none', auto-detects via barcode overlap and optional
+  orientation inference. Otherwise validates the specified chemistry against
+  the R1 read length.
+
+  Returns a dict with: af_chemistry, exp_ori, whitelist_f, sample_tenx_chemistry,
+  r1_length, max_overlap, cell_counts_fw, cell_counts_rc.
+  """
+  if af_chemistry == 'none':
+    return _autodetect_chemistry(R1_fs, R2_fs, wl_lu_f, wl_lu_dt, index_dir,
+      t2g_f, threads, out_dir)
+  else:
+    return _validate_chemistry(R1_fs, af_chemistry, exp_ori, whitelist_f,
+      wl_lu_dt, what)
+
+
+def _autodetect_chemistry(R1_fs, R2_fs, wl_lu_f, wl_lu_dt, index_dir, t2g_f, threads, out_dir):
+  """Auto-detect chemistry via barcode overlap, read length, and orientation inference."""
+
+  # step 1: sample barcodes from R1 and find the best-matching whitelist
+  print(' checking overlap of barcodes with different whitelists')
+  sel_wl_dt, whitelist_f, max_overlap = _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt)
+
+  # step 2: check R1 read length (10xv3 requires >= 28bp; shorter falls back to 10xv2)
+  r1_length = _get_r1_read_length(R1_fs)
+  print(f' R1 read length: {r1_length}bp')
+
+  # step 3: determine chemistry and orientation from the matched whitelist
+  if sel_wl_dt.height == 1:
+    # only one chemistry uses this whitelist — unambiguous
+    sample_tenx_chemistry = sel_wl_dt['chemistry'][0]
+    af_chemistry          = '10xv3'
+    exp_ori               = 'rc' if sample_tenx_chemistry == '5v3' else 'fw'
+    cell_counts_fw        = ""
+    cell_counts_rc        = ""
+  else:
+    # multiple chemistries share this whitelist (e.g. 3v2/5v1/5v2 all use 737K)
+    # — need to infer orientation by mapping downsampled FASTQs in both directions
+    print(' guessing orientation by mapping downsampled FASTQ files')
+    tmp_out_dir = f'{out_dir}/tmp_mapping'
+    os.makedirs(tmp_out_dir, exist_ok=True)
+
+    sub_R1_f, sub_R2_f    = _subset_fastqs(tmp_out_dir, R1_fs, R2_fs)
+    chem_opts             = set(sel_wl_dt['chemistry'])
+    af_chemistry          = '10xv2' if chem_opts == set(['3v2', '5v1', '5v2']) else '10xv3'
+
+    # map downsampled FASTQs twice (forward and reverse complement)
+    for ori in ['fw', 'rc']:
+      _run_simpleaf_quant(f'{tmp_out_dir}/{ori}_mapping', [sub_R1_f], [sub_R2_f], threads, index_dir,
+        af_chemistry, ori, t2g_f, whitelist_f)
+
+    # pick the orientation that yielded more quantified cells
+    exp_ori, cell_counts_fw, cell_counts_rc = _infer_read_orientation(tmp_out_dir)
+
+    # derive the specific 10x chemistry from the inferred orientation
+    if chem_opts == set(['3v2', '5v1', '5v2']):
+      sample_tenx_chemistry = '3v2' if exp_ori == 'fw' else '5v1/5v2'
+    else:
+      sample_tenx_chemistry = '3v3' if exp_ori == 'fw' else '5v3'
+
+    shutil.rmtree(tmp_out_dir)
+
+  # override to 10xv2 if R1 is too short for 10xv3
+  if af_chemistry == '10xv3' and r1_length < 28:
+    warnings.warn(f'R1 read length is {r1_length}bp (< 28bp); using 10xv2 chemistry with v3 whitelist')
+    af_chemistry          = '10xv2'
+    sample_tenx_chemistry = '3v2' if exp_ori == 'fw' else '5v1/5v2'
+
+  return {
+    "af_chemistry": af_chemistry, "exp_ori": exp_ori, "whitelist_f": whitelist_f,
+    "sample_tenx_chemistry": sample_tenx_chemistry, "r1_length": r1_length,
+    "max_overlap": max_overlap, "cell_counts_fw": cell_counts_fw, "cell_counts_rc": cell_counts_rc
+  }
+
+
+def _validate_chemistry(R1_fs, af_chemistry, exp_ori, whitelist_f, wl_lu_dt, what):
+  """Validate a user-specified chemistry against the R1 read length."""
+  f_prefix = 'gex' if what == 'rna' else 'hto'
+  chem_opts = (wl_lu_dt
+    .filter(pl.col(f'{f_prefix}_barcodes_f') == os.path.basename(whitelist_f))
+    .get_column('chemistry').to_list())
+  if set(chem_opts) == set(['3v2', '5v1', '5v2']):
+    sample_tenx_chemistry = '3v2' if exp_ori == "fw" else '5v1/5v2'
+  else:
+    sample_tenx_chemistry = chem_opts[0]
+
+  r1_length = _get_r1_read_length(R1_fs)
+  print(f' R1 read length: {r1_length}bp')
+  if af_chemistry == '10xv3' and r1_length < 28:
+    warnings.warn(f'R1 read length is {r1_length}bp (< 28bp); using 10xv2 chemistry with v3 whitelist')
+    af_chemistry = '10xv2'
+    sample_tenx_chemistry = '3v2' if exp_ori == 'fw' else '5v1/5v2'
+
+  return {
+    "af_chemistry": af_chemistry, "exp_ori": exp_ori, "whitelist_f": whitelist_f,
+    "sample_tenx_chemistry": sample_tenx_chemistry, "r1_length": r1_length,
+    "max_overlap": "", "cell_counts_fw": "", "cell_counts_rc": ""
+  }
+
+
+def _write_chemistry_stats(out_dir, run, chem, wl_lu_dt):
+  """Write chemistry_statistics.yaml with detection/validation results."""
+  chem_stats_f = os.path.join(out_dir, 'chemistry_statistics.yaml')
+
+  # look up translation file and HTO whitelist from the GEX whitelist
+  trans_fs = (wl_lu_dt
+    .filter(pl.col("gex_barcodes_f") == os.path.basename(chem["whitelist_f"]))
+    .get_column("translation_f").to_list())
+  hto_whitelist_fs = (wl_lu_dt
+    .filter(pl.col("gex_barcodes_f") == os.path.basename(chem["whitelist_f"]))
+    .get_column("hto_barcodes_f").to_list())
+
+  if trans_fs[0] is None:
+    trans_f         = ""
+    hto_whitelist_f = ""
+  else:
+    wl_dir          = os.path.dirname(chem["whitelist_f"])
+    trans_f         = f'{wl_dir}/{trans_fs[0]}'
+    hto_whitelist_f = f'{wl_dir}/{hto_whitelist_fs[0]}'
+
+  chem_stats = {
+    "run": run,
+    "r1_read_length": chem["r1_length"],
+    "selected_gex_whitelist": chem["whitelist_f"],
+    "selected_hto_whitelist": hto_whitelist_f,
+    "selected_translation_f": trans_f,
+    "selected_whitelist_overlap": chem["max_overlap"],
+    "selected_ori": chem["exp_ori"],
+    "n_cells_fw": chem["cell_counts_fw"],
+    "n_cells_rc": chem["cell_counts_rc"],
+    "selected_tenx_chemistry": chem["sample_tenx_chemistry"],
+    "selected_af_chemistry": chem["af_chemistry"]
+  }
+
+  with open(chem_stats_f, "w") as f:
+    yaml.safe_dump(chem_stats, f)
 
 
 def map_flex_fastqs_to_counts(run, af_dir, af_home_dir, where,
@@ -432,63 +466,82 @@ def _infer_read_orientation(af_res_dir):
 
 
 def _get_whitelist_overlap(R1_fs, wl_lu_f, wl_lu_dt, sample_size = 100000):
+  """Sample barcodes from R1 reads and find the best-matching whitelist.
+
+  Returns (sel_wl_dt, whitelist_f, max_overlap): the filtered rows for the
+  best whitelist (may have multiple rows if several chemistries share it),
+  the full path to the whitelist file, and the overlap fraction.
+  """
   # randomly pick one R1 file to extract barcodes from
   random.seed(1234)
-  sel_R1_f = random.sample(R1_fs, 1)[0]
-    
+  sel_R1_f  = random.sample(R1_fs, 1)[0]
+
   # get all barcode whitelist files
-  wl_dt  = wl_lu_dt.select(['chemistry', 'gex_barcodes_f'])
-  wl_fs  = wl_dt['gex_barcodes_f'].unique().to_list()
+  wl_dt     = wl_lu_dt.select(['chemistry', 'gex_barcodes_f'])
+  wl_fs     = wl_dt['gex_barcodes_f'].unique().to_list()
 
   # get directory where whitelist files are stored
-  wl_dir = os.path.abspath(os.path.dirname(wl_lu_f)) 
-    
-  # calculate overlap of barcodes in sel_R1_f with each whitelist 
+  wl_dir    = os.path.abspath(os.path.dirname(wl_lu_f))
+
+  # sample barcodes (first 16bp of R1) and compute overlap with each whitelist
   print(f'Extracting barcodes from {sel_R1_f}')
   spell     = f"seqkit head -n {sample_size} {sel_R1_f} | seqkit subseq -r 1:16"
   spell_res = subprocess.run(spell, shell=True, capture_output=True, text=True)
   barcodes  = set(_extract_raw_seqs_from_fq(spell_res.stdout))
   n_bcs     = len(barcodes)
+  if n_bcs == 0:
+    raise RuntimeError(f"No barcodes extracted from {sel_R1_f}. The file may be empty or corrupted.")
   print(f'Number of unique barcodes: {n_bcs}')
-  
+
+  # compute fraction of sampled barcodes found in each whitelist
   overlap_res = []
   for wl_f in wl_fs:
     wl_f_full = f'{wl_dir}/{wl_f}'
-    with open(wl_f_full, 'r') as f: 
-      wl_set = {line.strip() for line in f}
-      matches = sum(1 for bc in barcodes if bc in wl_set)
-      overlap_pct = matches/n_bcs if n_bcs > 0 else 0
+    with open(wl_f_full, 'r') as f:
+      wl_set      = {line.strip() for line in f}
+      matches     = sum(1 for bc in barcodes if bc in wl_set)
+      overlap_pct = matches/n_bcs
       overlap_res.append({"gex_barcodes_f": wl_f, "gex_barcodes_f_full": wl_f_full, "overlap": overlap_pct})
-  
-  # merge overlaps with chemistries
-  overlap_dt = pl.DataFrame(overlap_res)
-  full_dt    = wl_dt.join(overlap_dt, on = 'gex_barcodes_f', coalesce=True, how = 'full')
 
-  return full_dt
+  # merge overlaps with chemistries and pick the best match
+  overlap_dt  = pl.DataFrame(overlap_res)
+  full_dt     = wl_dt.join(overlap_dt, on = 'gex_barcodes_f', coalesce=True, how = 'full')
+  max_overlap = max(full_dt['overlap'])
+  if max_overlap < 0.7:
+    warnings.warn(f'Maximum overlap of barcodes is {max_overlap:.1%}, 10x chemistry guess might be incorrect')
+  sel_wl_dt   = full_dt.filter(pl.col('overlap') == max_overlap)
+  whitelist_f = sel_wl_dt['gex_barcodes_f_full'][0]
+
+  return sel_wl_dt, whitelist_f, max_overlap
     
 
-# A FASTQ file contains sequences and their associated quality scores. Each entry is structured as
-#@SEQ_ID - identifier for the sequencing read
-#SEQUENCE - DNA sequence
-#+ - separator line (empty or SEQ_ID)
-#QUALITY - quality score string for the sequence
-# this function extracts DNA sequences from each entry of a FASTQ file
 def _extract_raw_seqs_from_fq(fastq_all):
+  """Extract DNA sequences from FASTQ-formatted text.
+
+  Each FASTQ entry has four lines:
+    @SEQ_ID  - identifier for the sequencing read
+    SEQUENCE - DNA sequence
+    +        - separator line
+    QUALITY  - quality score string
+
+  This function splits on record boundaries and returns the SEQUENCE line
+  from each entry.
+  """
   entries = fastq_all.strip().split('\n@')[0:]
   seqs = []
   for e in entries:
     ls = e.split('\n')
     if len(ls) > 1:
       seqs.append(ls[1])
-  return seqs     
+  return seqs
 
 
 def _get_r1_read_length(R1_fs):
   random.seed(1234)
-  sel_R1_f = random.sample(R1_fs, 1)[0]
-  spell = f"seqkit head -n 1 {sel_R1_f} | seqkit seq -s"
+  sel_R1_f  = random.sample(R1_fs, 1)[0]
+  spell     = f"seqkit head -n 1 {sel_R1_f} | seqkit seq -s"
   spell_res = subprocess.run(spell, shell=True, capture_output=True, text=True)
-  seq = spell_res.stdout.strip()
+  seq       = spell_res.stdout.strip()
   if not seq:
     raise RuntimeError(f"Could not read R1 sequence from {sel_R1_f}")
   return len(seq)

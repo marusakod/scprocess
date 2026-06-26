@@ -87,9 +87,9 @@ if config['multiplexing']['demux_type'] == "hto":
 
 # alevin hto index outputs (optional)
 hto_index_outs = [
-  f'{af_dir}/hto.tsv',
+  f'{af_dir}/hto.fa',
   f'{af_dir}/t2g_hto.tsv',
-  f'{af_dir}/hto_index/ref_indexing.log'
+  f'{af_dir}/hto_index'
   ] if config['multiplexing']['demux_type'] == "hto" else []
 
 # alevin hto quantification outputs (optional)

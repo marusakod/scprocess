@@ -1228,15 +1228,6 @@ def _get_fastqs(config, RUNS, is_hto = False):
   else:
     tmp_ls        = config['project']
 
-  # arvados path — no caching needed
-  if "fastq_dir" not in tmp_ls:
-    arv_uuids     = tmp_ls['arv_uuids']
-    arv_instance  = tmp_ls['arv_instance']
-    fastq_dict    = _list_fastq_files_arvados(arv_uuids, arv_instance)
-    return _match_fastqs_to_runs(fastq_dict, RUNS, is_hto)
-
-  fastq_dir       = tmp_ls['fastq_dir']
-
   # compute cache directory
   af_dir          = pathlib.Path(config['project']['proj_dir']) / "output" / f"{config['project']['short_tag']}_mapping"
   cache_prefix    = "fastq_metadata_hto" if is_hto else "fastq_metadata"
@@ -1254,21 +1245,27 @@ def _get_fastqs(config, RUNS, is_hto = False):
   if not uncached_runs:
     return cached_fastqs
 
-  # need to scan filesystem for uncached runs
-  try:
-    fastq_dict    = _list_fastq_files_dir(fastq_dir)
-  except (FileNotFoundError, OSError) as e:
-    if cached_fastqs:
-      warnings.warn(
-        f"FASTQ directory {fastq_dir} is not accessible ({e}), but cached metadata "
-        f"exists for {len(cached_fastqs)}/{len(RUNS)} libraries. Missing caches for: "
-        f"{uncached_runs}"
-      )
-    raise FileNotFoundError(
-      f"FASTQ files are not accessible at {fastq_dir} and no cached metadata exists "
-      f"for: {uncached_runs}. If the FASTQs were deleted after mapping, re-download "
-      f"them and re-run: scprocess run <config> -r mapping"
-    ) from e
+  # scan for uncached runs
+  if "fastq_dir" in tmp_ls:
+    fastq_dir     = tmp_ls['fastq_dir']
+    try:
+      fastq_dict  = _list_fastq_files_dir(fastq_dir)
+    except (FileNotFoundError, OSError) as e:
+      if cached_fastqs:
+        warnings.warn(
+          f"FASTQ directory {fastq_dir} is not accessible ({e}), but cached metadata "
+          f"exists for {len(cached_fastqs)}/{len(RUNS)} libraries. Missing caches for: "
+          f"{uncached_runs}"
+        )
+      raise FileNotFoundError(
+        f"FASTQ files are not accessible at {fastq_dir} and no cached metadata exists "
+        f"for: {uncached_runs}. If the FASTQs were deleted after mapping, re-download "
+        f"them and re-run: scprocess run <config> -r mapping"
+      ) from e
+  else:
+    arv_uuids     = tmp_ls['arv_uuids']
+    arv_instance  = tmp_ls['arv_instance']
+    fastq_dict    = _list_fastq_files_arvados(arv_uuids, arv_instance)
 
   scanned_fastqs  = _match_fastqs_to_runs(fastq_dict, RUNS, is_hto)
 
@@ -1482,10 +1479,11 @@ def _do_exclusions(LIST, config, var):
 
 # get parameters for one library
 def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, custom_lib_params):
-  
+  # get file with valid whitelists
   wl_df_f         = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
   wl_df           = pl.read_csv(wl_df_f)
   
+  # set up chemistry etc for flex
   if config['mapping_af']['is_flex']:
     # chemistry and whitelist are determined by the probe set
     flex_version    = config['mapping_af']['tenx_chemistry']
@@ -1495,35 +1493,37 @@ def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
     gex_whitelist_f = scdata_dir / 'cellranger_ref' / wl_row['gex_barcodes_f'].item()
 
   else:
+    # allow per-library chemistry override via custom_sample_params
     tenx_chemistry = config['mapping_af']['tenx_chemistry']
     if lib_name in custom_lib_params:
       if 'project' in custom_lib_params[lib_name] and 'tenx_chemistry' in custom_lib_params[lib_name]['project']:
         tenx_chemistry = custom_lib_params[lib_name]['project']['tenx_chemistry']
 
+    # map 10x kit name to simpleaf --chemistry flag (10xv2 uses 16bp barcodes, 10xv3 uses 18bp); default is "none" then auto-detect at mapping time
+    af_chemistry = 'none'
     if tenx_chemistry in ['3v2', '5v1', '5v2']:
       af_chemistry = '10xv2'
-    elif tenx_chemistry in ['5v3', '3LT', '3v3', '3v4', 'multiome']:
+    elif tenx_chemistry in ['3LT', '3v3', '3v4', '5v3', 'multiome']:
       af_chemistry = '10xv3'
-    else:
-      af_chemistry = 'none'
 
+    # 3' chemistries read forward, 5' chemistries read reverse complement; default is "none" then auto-detect at mapping time
+    expected_ori = 'none'
     if tenx_chemistry in ['5v1', '5v2', '5v3']:
       expected_ori = 'rc'
     elif tenx_chemistry in ['3LT', '3v2', '3v3', '3v4', 'multiome']:
       expected_ori = 'fw'
-    else:
-      expected_ori = 'none'
 
+    # look up barcode whitelist files; 'none' defers to auto-detection at mapping time
     if tenx_chemistry == 'none':
       gex_whitelist_f = 'none'
       hto_whitelist_f = 'none'
     else:
-      wl_gex_f    = wl_df.filter(pl.col('chemistry') == tenx_chemistry)['gex_barcodes_f'].item()
-      wl_hto_f    = wl_df.filter(pl.col('chemistry') == tenx_chemistry)['hto_barcodes_f'].item()
+      wl_gex_f        = wl_df.filter(pl.col('chemistry') == tenx_chemistry)['gex_barcodes_f'].item()
+      wl_hto_f        = wl_df.filter(pl.col('chemistry') == tenx_chemistry)['hto_barcodes_f'].item()
       gex_whitelist_f = scdata_dir / 'cellranger_ref' / wl_gex_f
       hto_whitelist_f = scdata_dir / 'cellranger_ref' / wl_hto_f
 
-  # make dictionary for mapping
+  # make dictionary for RNA mapping
   mapping_dc  = {
     "where":              RNA_FQS[lib_name]["where"],
     "R1_fs":              RNA_FQS[lib_name]["R1_fs"],
@@ -1535,7 +1535,7 @@ def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
     "geometry":           config['mapping_af'].get('geometry', ''),
   }
 
-  # make dictionary for mapping
+  # make dictionary for HTO mapping
   if config['multiplexing']['demux_type'] == "hto":
     multiplexing_dc  = {
       "where":              HTO_FQS[lib_name]["where"],
