@@ -606,12 +606,14 @@ def run_join(configfile, sc_dir, extraargs, dryrun, rule="all"):
 
   cmd_str      = " ".join(map(shlex.quote, map(str, cmd_list)))
   strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
-  final_cmd    = f"script -q -e -c {shlex.quote(cmd_str)} /dev/null | tee /dev/stderr | {strip_colors} >> {log_f}"
+  final_cmd    = f"set -o pipefail; script -q -e -c {shlex.quote(cmd_str)} /dev/null | tee /dev/stderr | {strip_colors} >> {log_f}"
 
   print(f"snakemake command:\n{cmd_str}")
   print(f"Logging progress to: {log_f}")
   conda_prefix = scprocess_utils.get_conda_prefix(setup_cfg)
-  subprocess.run(final_cmd, check=True, shell=True, env=_clean_conda_env(conda_prefix))
+  result = subprocess.run(final_cmd, shell=True, env=_clean_conda_env(conda_prefix), executable='/bin/bash')
+  if result.returncode != 0:
+    sys.exit(result.returncode)
 
 
 def _get_zoom_names(config, scprocess_dir, scdata_dir):

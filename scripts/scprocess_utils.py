@@ -782,11 +782,12 @@ def _check_shiny_parameters(config):
 
   # resolve metadata_vars from whichever config level is present
   if 'project' in config:
-    metadata_vars = config['project'].get('metadata_vars', [])
+    base_metadata_vars = config['project'].get('metadata_vars', [])
   elif 'join' in config:
-    metadata_vars = config['join'].get('metadata_vars', [])
+    base_metadata_vars = config['join'].get('metadata_vars', [])
   else:
-    metadata_vars = []
+    base_metadata_vars = []
+  metadata_vars = shiny_cfg.get('metadata_vars', base_metadata_vars)
 
   valid_palette_names = _load_valid_palette_names()
 
