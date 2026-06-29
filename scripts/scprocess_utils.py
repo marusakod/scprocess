@@ -774,7 +774,7 @@ def _check_metadata_palette_values(shiny_cfg, config, metadata_vars, valid_palet
 
 # check parameters for shiny app build
 def _check_shiny_parameters(config):
-  
+
   if 'shiny' not in config:
     return config
 

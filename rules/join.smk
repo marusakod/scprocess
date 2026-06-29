@@ -452,13 +452,13 @@ def _parse_join_label_params(labeller, model):
   return matches[0]
 
 def _join_merge_labels_inputs(wildcards):
-  fresh_batches, reuse_label_fs    get_join_batch_sources(
-    PROJECT_CFGS,     JN_PROJECT_IDS, JOIN_BATCH_KEYS, wildcards.labeller, wildcards.model)
+  fresh_batches, reuse_label_fs = get_join_batch_sources(
+    PROJECT_CFGS, JOIN_PROJECT_IDS, JOIN_BATCH_KEYS, wildcards.labeller, wildcards.model)
   pred_fs = expand(
     f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz",
     batch=fresh_batches, allow_missing=True)
   if reuse_label_fs:
-    pred_fs.append(f" {join_lbl_dir}/tmp_labels_{wildcards.labeller}_model_{wildcards.model}_{JOIN_TAG}_{DATE_STAMP}_reused.csv.gz")
+    pred_fs.append(f"{join_lbl_dir}/tmp_labels_{wildcards.labeller}_model_{wildcards.model}_{JOIN_TAG}_{DATE_STAMP}_reused.csv.gz")
   return pred_fs
 
 
@@ -524,13 +524,13 @@ rule join_scprocess_labeller:
 rule join_extract_labels:
   """Extract naive predictions from source project labels for cells in the join."""
   input:
-    source_labels_fs   lambda wildcards: get_join_batch_sources(PROJECT_CFGS, JN_PROJECT_IDS, JOIN_BATCH_KEYS, wildcards.labeller, wildcards.model)[1],
-        integration_f    = joint_integration_f
+    source_labels_fs = lambda wildcards: get_join_batch_sources(PROJECT_CFGS, JOIN_PROJECT_IDS, JOIN_BATCH_KEYS, wildcards.labeller, wildcards.model)[1],
+    integration_f    = joint_integration_f
   output:
     pred_f = temp(f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_reused.csv.gz")
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_extract_labels', 'memory', attempt),
-    run time = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_extract_labels', 'time', attempt)
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_extract_labels', 'time', attempt)
   log:
     f"{logs_dir}/join_extract_labels_{{labeller}}_{{model}}_{DATE_STAMP}.log"
   conda:
