@@ -1,0 +1,14 @@
+name: bpcells_pca
+channels:
+  - bioconda
+  - conda-forge
+  - nodefaults
+dependencies:
+  - r-base=4.4.3
+  - r-bpcells
+  - r-matrix
+  - r-hdf5r
+  - r-irlba
+  - r-data.table
+  - r-r.utils
+  - r-yaml

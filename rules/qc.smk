@@ -288,7 +288,7 @@ rule merge_rowdata:
         raise ValueError("error: rowdata for all sce objects not identical.")
 
 
-rule get_qc_sample_statistics:
+checkpoint get_qc_sample_statistics:
   input:
     run_stats_f   = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     qc_merged_f   = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',

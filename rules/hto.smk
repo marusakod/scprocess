@@ -3,27 +3,30 @@
 rule build_hto_index:
   input:
     feature_ref_f = config["multiplexing"]["feature_ref"]
+  output:
+    hto_f       = f'{af_dir}/hto.fa',
+    t2g_f       = f'{af_dir}/t2g_hto.tsv',
+    hto_idx_dir = directory(f'{af_dir}/hto_index')
+  params:
+    af_home_dir = config['mapping_af']['alevin_fry_home']
   threads: 8
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_hto_index', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_hto_index', 'time', attempt)
-  benchmark:
-    f'{benchmark_dir}/hto/build_hto_index_{DATE_STAMP}.benchmark.txt'
   log:
     f'{logs_dir}/hto/build_hto_index_{DATE_STAMP}.log'
-  output: 
-    hto_f       = f'{af_dir}/hto.tsv',
-    t2g_f       = f'{af_dir}/t2g_hto.tsv',
-    idx_log_f   = f'{af_dir}/hto_index/ref_indexing.log',
-    hto_idx_dir = directory(f'{af_dir}/hto_index')
+  benchmark:
+    f'{benchmark_dir}/hto/build_hto_index_{DATE_STAMP}.benchmark.txt'
   conda:
     '../envs/alevin_fry.yaml'
   shell: """
     exec &>> {log}
 
+    export ALEVIN_FRY_HOME="{params.af_home_dir}"
     cd {af_dir}
-    # create a tsv file from feature ref file
+
+    # create FASTA from feature ref CSV
     awk -F "," '
       NR == 1 {{
         for (i = 1; i <= NF; i++) {{
@@ -32,22 +35,28 @@ rule build_hto_index:
         }}
       }}
       NR > 1 {{
-        print $hto_id_col "\t" $seq_col
+        print ">" $hto_id_col "\\n" $seq_col
       }}' {input.feature_ref_f} > {output.hto_f}
 
-    # 
-    salmon index -t {output.hto_f} -i hto_index --features -k7
-    
-    # Make gene-to-transcript mapping file
-    awk '{{print $1"\t"$1;}}' {output.hto_f} > {output.t2g_f}
+    # build piscem index via simpleaf
+    simpleaf index \
+      --ref-seq {output.hto_f} \
+      --output  hto_index \
+      --threads {threads} \
+      --kmer-length 7 \
+      --minimizer-length 6 \
+      --overwrite
+
+    # make gene-to-transcript mapping file
+    grep "^>" {output.hto_f} | sed 's/>//' | awk '{{print $1"\\t"$1;}}' > {output.t2g_f}
     """
 
 
 # run mapping for HTO files
 rule run_mapping_hto:
   input: 
-    hto_idx_dir   = f'{af_dir}/hto_index', 
-    chem_stats_f  = f'{af_dir}/af_{{run}}/rna/chemistry_statistics.yaml'
+    hto_idx_dir   = f'{af_dir}/hto_index',
+    chem_stats_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml'
   output:
     fry_dir       = directory(f'{af_dir}/af_{{run}}/hto/af_quant/'),
     rad_f         = temp(f'{af_dir}/af_{{run}}/hto/af_map/map.rad'),
@@ -60,10 +69,10 @@ rule run_mapping_hto:
     demux_type    = config['multiplexing']['demux_type'],
     af_home_dir   = config['mapping_af']['alevin_fry_home'],
     wl_lu_f       = config['mapping_af']['wl_lu_f'],
-    where         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["where"],
-    R1_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R1_fs"],
-    R2_fs         = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["R2_fs"],
-    af_chemistry  = lambda wildcards: RUN_PARAMS[wildcards.run]["multiplexing"]["af_chemistry"],
+    where         = lambda wildcards: LIB_PARAMS[wildcards.run]["multiplexing"]["where"],
+    R1_fs         = lambda wildcards: LIB_PARAMS[wildcards.run]["multiplexing"]["R1_fs"],
+    R2_fs         = lambda wildcards: LIB_PARAMS[wildcards.run]["multiplexing"]["R2_fs"],
+    af_chemistry  = lambda wildcards: LIB_PARAMS[wildcards.run]["multiplexing"]["af_chemistry"],
     expected_ori  = "fw"
   conda:
     '../envs/alevin_fry.yaml'
@@ -90,7 +99,7 @@ rule run_mapping_hto:
     WHITELIST_F=$(grep "selected_hto_whitelist:" {input.chem_stats_f} | sed 's/selected_hto_whitelist: //')
 
     # run mapping
-    python3 scripts/mapping.py {wildcards.run} \
+    python3 scripts/mapping.py map_fastqs_to_counts {wildcards.run} \
       --af_dir          "{af_dir}" \
       --demux_type      "{params.demux_type}" \
       --what            "hto" \
@@ -102,7 +111,7 @@ rule run_mapping_hto:
       --af_index_dir    "{input.hto_idx_dir}" \
       --wl_lu_f         "{params.wl_lu_f}" \
       $ARV_ARG \
-      --tenx_chemistry  $AF_CHEMISTRY \
+      --af_chemistry    $AF_CHEMISTRY \
       --exp_ori         $EXP_ORI \
       --whitelist_f     $WHITELIST_F
     """
@@ -146,7 +155,7 @@ rule make_hto_sce_objects:
     smpl_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     amb_yaml_f   = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
     hto_h5_f     = f'{af_dir}/af_{{run}}/hto/af_hto_counts_mat.h5', 
-    chem_stats_f = f'{af_dir}/af_{{run}}/rna/chemistry_statistics.yaml'
+    chem_stats_f = f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml'
   params:
     ambient_method    = config['ambient']['ambient_method'],
     seurat_quantile   = config['multiplexing']['seurat_quantile'],

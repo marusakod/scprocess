@@ -94,34 +94,30 @@ cl_ord        = NULL
 ```{r load_integration, include=FALSE}
 int_all = fread(integration_f)
 int_dt  = int_all[ !is.na(UMAP1) ] %>%
-  .[, c("sample_id", "cell_id", "embedding", "UMAP1", "UMAP2",
+  .[, c("sample_id", "project_id", "cell_id", "embedding", "UMAP1", "UMAP2",
     str_subset(names(int_all), "RNA_snn_res")), with = FALSE]
 ```
 
 
 ```{r load_metadata, include=FALSE}
 meta_dt   = fread(sample_meta_f)
-
-# join project_id (and any other metadata) from sample meta into int_dt
-# project_id may not be in integrated_dt if batch_var was only sample_id
-meta_key  = meta_dt[, .(sample_id, project_id)] %>% unique
-int_dt    = merge(int_dt, meta_key, by = "sample_id")
 ```
 
 
 ```{r setup_sel_res, include=FALSE}
+cfg_metadata_vars = "${metadata_vars}" %>% str_split(" ") %>% unlist() %>% trimws()
+cfg_metadata_vars = cfg_metadata_vars[cfg_metadata_vars != ""]
+metadata_vars = intersect(cfg_metadata_vars, names(meta_dt))
+composition_vars = unique(c('project_id', metadata_vars))
+
 sel_cl_int_dt = copy(int_dt) %>%
   .[, cluster := get(paste0("RNA_snn_res.", sel_res)) %>% fct_infreq ] %>%
-  .[, .(sample_id, project_id, cell_id, UMAP1, UMAP2, cluster)] %>%
-  merge(meta_dt, by = "sample_id", suffixes = c("", ".y")) %>%
-  .[, grep("\\.y$", names(.), value = TRUE) := NULL]
-
-metadata_vars = setdiff(names(meta_dt), c("sample_id", "project_id", "bad_sample_id"))
-cfg_metadata_vars = "${metadata_vars}" %>% str_split(" ") %>% unlist() %>% trimws()
-if (!all(cfg_metadata_vars == ""))
-  metadata_vars = intersect(cfg_metadata_vars, metadata_vars)
-do_metadata   = length(metadata_vars) > 0
-composition_vars = c('project_id', metadata_vars)
+  .[, .(sample_id, project_id, cell_id, UMAP1, UMAP2, cluster)]
+if (length(metadata_vars) > 0) {
+  meta_cols = intersect(c("sample_id", metadata_vars), names(meta_dt))
+  sel_cl_int_dt = merge(sel_cl_int_dt, unique(meta_dt[, meta_cols, with = FALSE]),
+    by = "sample_id", all.x = TRUE)
+}
 ```
 
 
@@ -129,7 +125,7 @@ composition_vars = c('project_id', metadata_vars)
 sel_ref_txome = ref_txome
 idx_params  = Sys.getenv('SCPROCESS_DATA_DIR') %>%
   file.path('index_parameters.csv') %>% fread
-gtf_dt_f    = idx_params[ref_txome == sel_ref_txome, gtf_txt_f][1]
+gtf_dt_f    = idx_params[reference == sel_ref_txome, gene_info_f][1]
 biotypes_dt = load_gene_biotypes(gtf_dt_f)
 ```
 
@@ -311,7 +307,9 @@ for (sel_cl in cl_ord) {
 ```
 
 
-## Gene set enrichment analysis{.tabset}
+```{r gsea_section_header, eval=do_gsea, include=do_gsea, results="asis"}
+cat("## Gene set enrichment analysis{.tabset}\n\n")
+```
 
 ```{r plot_gsea, eval=do_gsea, include=do_gsea, fig.height=12, fig.width=8, results="asis"}
 for (p in names(gsea_ls)) {
@@ -331,14 +329,15 @@ guesses_ls = lapply(label_f_ls, fread) %>% setNames(model_ls)
 ```
 
 
-## Cell type labelling{.tabset}
-
-```{r label_section_intro, eval=do_labels, include=do_labels, results="asis"}
+```{r label_section_header, eval=do_labels, include=do_labels, results="asis"}
+cat("## Cell type labelling{.tabset}\n\n")
 cat("Cell type labels were predicted using CellTypist. Per-cell predictions are\n",
     "aggregated at the level of high-resolution clusters via majority voting.\n")
 ```
 
-### Clusters vs predicted cell types{.tabset}
+```{r label_heatmap_header, eval=do_labels, include=do_labels, results="asis"}
+cat("### Clusters vs predicted cell types{.tabset}\n\n")
+```
 
 ```{r plot_labels_heatmap, eval=do_labels, include=do_labels, fig.height=12, fig.width=13, results="asis"}
 for (ii in seq_along(label_f_ls)) {
@@ -360,7 +359,9 @@ for (ii in seq_along(label_f_ls)) {
 }
 ```
 
-### Predicted cell types over UMAP{.tabset}
+```{r label_umap_header, eval=do_labels, include=do_labels, results="asis"}
+cat("### Predicted cell types over UMAP{.tabset}\n\n")
+```
 
 ```{r plot_labels_umap, eval=do_labels, include=do_labels, fig.height=5, fig.width=12, results="asis"}
 for (ii in seq_along(label_f_ls)) {
@@ -384,7 +385,9 @@ for (ii in seq_along(label_f_ls)) {
 }
 ```
 
-### Totals for each predicted cell type{.tabset}
+```{r label_table_header, eval=do_labels, include=do_labels, results="asis"}
+cat("### Totals for each predicted cell type{.tabset}\n\n")
+```
 
 ```{r tbl_labels, eval=do_labels, include=do_labels, results="asis"}
 library(kableExtra)

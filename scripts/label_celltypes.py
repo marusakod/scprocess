@@ -2,14 +2,13 @@ import os
 import argparse
 import pathlib
 import polars as pl
-import scanpy as sc
-import celltypist
 import gzip
-import pathlib
 import requests
 
 
 def download_celltypist_models(models_f):
+  # lazy import: only available in the celltypist conda env
+  import celltypist
   # download
   celltypist.models.download_models()
   models_dir  = pathlib.Path(celltypist.models.models_path)
@@ -51,8 +50,11 @@ def download_celltypist_models(models_f):
 
 
 def run_celltypist(sel_batch, batch_var, model_name, adata_f):
- 
-  # read anndata 
+  # lazy imports: only available in the celltypist conda env, not scprocess_local
+  import scanpy as sc
+  import celltypist
+
+  # read anndata
   adata = sc.read_h5ad(adata_f)
   adata.obs_names = adata.obs_names.to_list()
   adata.var_names = adata.var['symbol'].to_list()
@@ -65,13 +67,13 @@ def run_celltypist(sel_batch, batch_var, model_name, adata_f):
   predictions = celltypist.annotate(adata, model = model_name + ".pkl", majority_voting = False)
 
   # turn into nice output
-  pred_df     = pl.from_pandas( predictions.predicted_labels.reset_index(names = "cell_id") ).rename({"predicted_labels": "predicted_label"})
+  pred_df     = pl.from_pandas( predictions.predicted_labels.reset_index(names = "cell_id") ).rename({"predicted_labels": "predicted_label_naive"})
   all_probs   = pl.from_pandas( predictions.probability_matrix.reset_index(names = "cell_id") )
   probs_df    = all_probs.select([
     pl.col('cell_id'),
     pl.max_horizontal(
         pl.exclude('cell_id')
-    ).alias('probability')
+    ).alias('probability_naive')
   ])
   
   # join together
@@ -93,7 +95,11 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var):
   
   # restrict to just cells that are not doublets
   int_df      = int_df.filter( pl.col(hi_res_cl).is_not_null() )
-  int_df      = int_df.select( pl.col("cell_id"), pl.col(hi_res_cl).alias("hi_res_cl") )
+  int_cols    = ["cell_id", hi_res_cl]
+  if batch_var in int_df.columns:
+    int_cols.append(batch_var)
+  int_df      = int_df.select(int_cols)
+  int_df      = int_df.rename({hi_res_cl: "hi_res_cl"})
 
 
   # get all prediction files
@@ -101,7 +107,7 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var):
   data_df     = preds_df.join(int_df, on = "cell_id")
 
   # join to int_df
-  counts_df   = data_df.group_by("hi_res_cl", "predicted_label").agg(
+  counts_df   = data_df.group_by("hi_res_cl", "predicted_label_naive").agg(
     pl.len().alias("N")
   )
   counts_df   = counts_df.with_columns(
@@ -114,19 +120,87 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var):
     "hi_res_cl",
     predicted_label_agg = pl.when(pl.col("prop") < min_cl_prop)
       .then(pl.lit("ambiguous"))
-      .otherwise(pl.col("predicted_label")),
+      .otherwise(pl.col("predicted_label_naive")),
     prop_hi_res_cl      = pl.col("prop")
   )
 
-  # join to 
-  agg_df      = data_df.join(hi_res_lu, on = "hi_res_cl", how = "left").select(
-    'model', batch_var, 'cell_id', 'hi_res_cl', 'predicted_label_agg', 
-    'prop_hi_res_cl',
-    predicted_label_naive = pl.col('predicted_label'),
-    probability_naive = pl.col('probability'),
-  )
+  # join to
+  out_cols = ['model', 'cell_id', 'hi_res_cl', 'predicted_label_agg',
+    'prop_hi_res_cl', 'predicted_label_naive', 'probability_naive']
+  if batch_var in data_df.columns:
+    out_cols.insert(1, batch_var)
+  agg_df      = data_df.join(hi_res_lu, on = "hi_res_cl", how = "left").select(out_cols)
 
   return agg_df
+
+
+def save_cluster_names(labels_f, integration_f, mkr_sel_res, output_f):
+  """Generate a cluster_name CSV from aggregated labels at the marker gene resolution."""
+  cluster_col = f"RNA_snn_res.{mkr_sel_res}"
+
+  labels_df = pl.read_csv(labels_f)
+  int_df = pl.read_csv(integration_f, columns=["cell_id", cluster_col])
+  int_df = int_df.filter(pl.col(cluster_col).is_not_null())
+
+  merged_df = labels_df.join(int_df, on="cell_id")
+
+  # majority vote per cluster
+  counts_df = (
+    merged_df
+    .group_by(cluster_col, "predicted_label_naive")
+    .agg(pl.len().alias("N"))
+    .with_columns(
+      (pl.col("N") / pl.col("N").sum().over(cluster_col)).alias("prop")
+    )
+    .sort(cluster_col, "prop", descending=[False, True])
+  )
+  top_df = (
+    counts_df
+    .group_by(cluster_col).first()
+    .select(
+      pl.col(cluster_col).alias("cluster"),
+      pl.col("predicted_label_naive").alias("cluster_name"),
+    )
+    .sort("cluster")
+  )
+
+  # make cluster_name unique by appending numbers for duplicates
+  names = top_df["cluster_name"].to_list()
+  name_counts = {}
+  for name in names:
+    name_counts[name] = name_counts.get(name, 0) + 1
+  seen = {}
+  unique_names = []
+  for name in names:
+    if name_counts[name] > 1:
+      seen[name] = seen.get(name, 0) + 1
+      unique_names.append(f"{name} {seen[name]}")
+    else:
+      unique_names.append(name)
+
+  annotation_df = top_df.with_columns(pl.Series("cluster_name", unique_names))
+  annotation_df.write_csv(output_f)
+
+
+def extract_naive_predictions(source_labels_fs, int_f, model_name, pred_f):
+  """Extract naive predictions from source project labels for cells in the join integration."""
+  int_df = pl.read_csv(int_f, columns=["cell_id"])
+  valid_cells = set(int_df["cell_id"].to_list())
+
+  dfs = []
+  for f in source_labels_fs:
+    df = pl.read_csv(f)
+    df = df.filter(pl.col("cell_id").is_in(valid_cells)).select(
+      pl.lit(model_name).alias("model"),
+      "cell_id",
+      "predicted_label_naive",
+      "probability_naive",
+    )
+    dfs.append(df)
+
+  result = pl.concat(dfs)
+  with gzip.open(pred_f, 'wb') as fh:
+    result.write_csv(fh)
 
 
 if __name__ == "__main__":
@@ -138,6 +212,8 @@ if __name__ == "__main__":
   downloader_prsr = subparsers.add_parser('download_models')
   typist_prsr     = subparsers.add_parser('celltypist_one_batch')
   agg_prsr        = subparsers.add_parser('aggregate_predictions')
+  names_prsr      = subparsers.add_parser('save_cluster_names')
+  extract_prsr    = subparsers.add_parser('extract_naive_predictions')
 
   # get arguments
   downloader_prsr.add_argument("models_f",type = str)  
@@ -156,6 +232,18 @@ if __name__ == "__main__":
   agg_prsr.add_argument("--min_cl_prop",  type=float)
   agg_prsr.add_argument("--batch_var",    type=str)
   agg_prsr.add_argument("--agg_f",        type=str)
+
+  # save_cluster_names arguments
+  names_prsr.add_argument("--labels_f",      type=str, required=True)
+  names_prsr.add_argument("--integration_f", type=str, required=True)
+  names_prsr.add_argument("--mkr_sel_res",   type=str, required=True)
+  names_prsr.add_argument("--output_f",      type=str, required=True)
+
+  # extract_naive_predictions arguments
+  extract_prsr.add_argument(  "source_labels_fs", type=str, nargs="+")
+  extract_prsr.add_argument("--int_f",        type=str, required=True)
+  extract_prsr.add_argument("--model",        type=str, required=True)
+  extract_prsr.add_argument("--pred_f",       type=str, required=True)
 
   # Parse the arguments
   args      = parser.parse_args()
@@ -197,6 +285,13 @@ if __name__ == "__main__":
     with gzip.open(args.agg_f, 'wb') as f:
       agg_df.write_csv(f)
   
+  elif args.subcommand == "save_cluster_names":
+    save_cluster_names(args.labels_f, args.integration_f, args.mkr_sel_res, args.output_f)
+
+  elif args.subcommand == "extract_naive_predictions":
+    extract_naive_predictions(
+      args.source_labels_fs, args.int_f, args.model, args.pred_f)
+
   elif args.subcommand == "download_models":
     download_celltypist_models(args.models_f)
 

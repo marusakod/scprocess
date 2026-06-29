@@ -16,7 +16,8 @@ import yaml
 import polars as pl
 
 sys.path.append('scripts')
-from scprocess_utils import check_join_config
+from scprocess_utils import (check_join_config, get_resources, prep_resource_params,
+  get_join_project_parameters, get_join_source_labels_f, get_join_batch_sources)
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -27,182 +28,62 @@ scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
 
 # validate config, apply defaults, and check shiny parameters
-config = check_join_config(config, join_schema_f)
+config = check_join_config(config, join_schema_f, scdata_dir)
+
+# resource parameters (no ML model for join — uses schema defaults + user overrides)
+lm_f            = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
+RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, lm_f)
 
 # ---------------------------------------------------------------------------
-# Project config loading
+# Project and derived parameters
 # ---------------------------------------------------------------------------
 
-JOIN_PROJECT_IDS = list(config['projects'].keys())
-_project_cfgs    = {}
+JOIN_PROJ = get_join_project_parameters(config)
 
-for _pid in JOIN_PROJECT_IDS:
-  _cfg_f = config['projects'][_pid]['config']
-  with open(_cfg_f) as _f:
-    _project_cfgs[_pid] = yaml.safe_load(_f)
+# unpack project parameters
+JOIN_PROJECT_IDS  = JOIN_PROJ['project_ids']
+PROJECT_CFGS      = JOIN_PROJ['project_cfgs']
+VAR_STATS_FS      = JOIN_PROJ['var_stats_fs']
+H5ADS_YAML_FS     = JOIN_PROJ['h5ads_yaml_fs']
+INTEGRATED_FS     = JOIN_PROJ['integrated_fs']
+SAMPLE_META_FS    = JOIN_PROJ['sample_meta_fs']
+JOIN_BATCH_KEYS   = JOIN_PROJ['batch_keys']
 
-def _proj_dir(pid):
-  return pathlib.Path(_project_cfgs[pid]['project']['proj_dir'])
-
-def _proj_short_tag(pid):
-  return _project_cfgs[pid]['project']['short_tag']
-
-def _proj_full_tag(pid):
-  return _project_cfgs[pid]['project']['full_tag']
-
-def _proj_date(pid):
-  return _project_cfgs[pid]['project']['date_stamp']
-
-def _proj_hvg_dir(pid):
-  return _proj_dir(pid) / f"output/{_proj_short_tag(pid)}_hvg"
-
-def _proj_int_dir(pid):
-  return _proj_dir(pid) / f"output/{_proj_short_tag(pid)}_integration"
-
-def _proj_var_stats_f(pid):
-  zoom_name = config['projects'][pid].get('zoom_name')
-  if zoom_name:
-    zoom_dir = _proj_dir(pid) / f"output/{_proj_short_tag(pid)}_zoom"
-    return zoom_dir / zoom_name / f"standardized_variance_stats_{_proj_full_tag(pid)}_{zoom_name}_{_proj_date(pid)}.csv.gz"
-  return _proj_hvg_dir(pid) / f"standardized_variance_stats_{_proj_full_tag(pid)}_{_proj_date(pid)}.csv.gz"
-
-def _proj_h5ads_yaml_f(pid):
-  return _proj_int_dir(pid) / f"h5ads_clean_paths_{_proj_full_tag(pid)}_{_proj_date(pid)}.yaml"
-
-def _proj_integrated_dt_f(pid):
-  zoom_name = config['projects'][pid].get('zoom_name')
-  if zoom_name:
-    zoom_dir = _proj_dir(pid) / f"output/{_proj_short_tag(pid)}_zoom"
-    return zoom_dir / zoom_name / f"integrated_dt_{_proj_full_tag(pid)}_{zoom_name}_{_proj_date(pid)}.csv.gz"
-  return _proj_int_dir(pid) / f"integrated_dt_{_proj_full_tag(pid)}_{_proj_date(pid)}.csv.gz"
-
-def _proj_sample_meta_f(pid):
-  meta_f = pathlib.Path(_project_cfgs[pid]['project']['sample_metadata'])
-  if not meta_f.is_absolute():
-    meta_f = _proj_dir(pid) / meta_f
-  return meta_f
-
-VAR_STATS_FS   = [str(_proj_var_stats_f(pid)) for pid in JOIN_PROJECT_IDS]
-H5ADS_YAML_FS  = [str(_proj_h5ads_yaml_f(pid)) for pid in JOIN_PROJECT_IDS]
-INTEGRATED_FS  = [str(_proj_integrated_dt_f(pid)) for pid in JOIN_PROJECT_IDS]
-SAMPLE_META_FS = [str(_proj_sample_meta_f(pid)) for pid in JOIN_PROJECT_IDS]
-
-# Pre-compute joint batch keys from per-project h5ads YAMLs (existence
-# already validated by check_join_config in scprocess_utils.py).
-_JOIN_BATCH_KEYS = []
-for _pid, _h5yaml in zip(JOIN_PROJECT_IDS, H5ADS_YAML_FS):
-  with open(_h5yaml) as _fh:
-    _h5paths = yaml.safe_load(_fh)
-  for _bk in _h5paths:
-    _JOIN_BATCH_KEYS.append(f"{_pid}_{_bk}")
-
-# ---------------------------------------------------------------------------
-# Derived constants
-# ---------------------------------------------------------------------------
-
-JOIN_NAME  = config['join']['name']
-JOIN_DIR   = pathlib.Path(config['join']['proj_dir'])
-DATE_STAMP = config['join']['date_stamp']
-REF_TXOME  = config['join']['ref_txome']
-
-JOIN_TAG = f"{JOIN_NAME}_join"
-MKRS_TAG = f"{JOIN_NAME}_marker_genes"
-
+# join metadata and paths
+JOIN_NAME     = config['join']['name']
+JOIN_DIR      = pathlib.Path(config['join']['proj_dir'])
+JOIN_TAG      = f"{JOIN_NAME}_join"
+DATE_STAMP    = config['join']['date_stamp']
+REF_TXOME     = config['join']['ref_txome']
 join_int_dir  = str(JOIN_DIR / f"output/{JOIN_TAG}")
-join_mkr_dir  = str(JOIN_DIR / f"output/{MKRS_TAG}")
-logs_dir      = str(JOIN_DIR / ".log")
+join_mkr_dir  = join_int_dir
+logs_dir      = str(JOIN_DIR / ".log/join")
 benchmark_dir = str(JOIN_DIR / ".resources")
 
 # integration
-_int_cfg        = config.get('integration', {})
-INT_EMBEDDING   = _int_cfg.get('int_embedding', 'harmony')
-INT_BATCH_VAR   = _int_cfg.get('int_batch_var', 'sample_id')
-INT_THETA_RAW   = _int_cfg.get('int_theta', 0.1)
-INT_N_DIMS      = _int_cfg.get('int_n_dims', 50)
-INT_CL_METHOD   = _int_cfg.get('int_cl_method', 'leiden')
-INT_USE_PAGA    = _int_cfg.get('int_use_paga', True)
-INT_PAGA_CL_RES = _int_cfg.get('int_paga_cl_res', 0.2)
-INT_RES_LS      = _int_cfg.get('int_res_ls', [0.1, 0.2, 0.5, 1, 2])
-INT_USE_GPU     = _int_cfg.get('int_use_gpu', True)
-
-INT_RES_LS_CONCAT = " ".join(str(r) for r in INT_RES_LS)
-
-# build concat strings for potentially-list batch_var and theta
-if isinstance(INT_BATCH_VAR, list):
-  INT_BATCH_VAR_CONCAT = " ".join(INT_BATCH_VAR)
-  INT_BATCH_IS_LIST    = True
-else:
-  INT_BATCH_VAR_CONCAT = INT_BATCH_VAR
-  INT_BATCH_IS_LIST    = False
-
-if isinstance(INT_THETA_RAW, list):
-  INT_THETA_CONCAT  = " ".join(str(t) for t in INT_THETA_RAW)
-  INT_THETA_IS_LIST = True
-else:
-  INT_THETA_CONCAT  = str(INT_THETA_RAW)
-  INT_THETA_IS_LIST = False
+INT_N_DIMS     = config['integration']['int_n_dims']
+INT_RES_LS     = config['integration']['int_res_ls']
+INT_PCA_METHOD = config['integration']['int_pca_method']
 
 # marker genes
-_mkr_cfg        = config.get('marker_genes', {})
-MKR_SEL_RES     = _mkr_cfg.get('mkr_sel_res',    0.2)
-MKR_MIN_CL_SIZE = _mkr_cfg.get('mkr_min_cl_size', 100)
-MKR_MIN_CELLS   = _mkr_cfg.get('mkr_min_cells',   10)
-MKR_NOT_OK_RE   = _mkr_cfg.get('mkr_not_ok_re',   '(lincRNA|lncRNA|pseudogene|antisense)')
-MKR_MIN_CPM_MKR = _mkr_cfg.get('mkr_min_cpm_mkr', 50)
-MKR_MIN_CPM_GO  = _mkr_cfg.get('mkr_min_cpm_go',  1)
-MKR_MAX_ZERO_P  = _mkr_cfg.get('mkr_max_zero_p',  0.5)
-MKR_DO_GSEA     = _mkr_cfg.get('mkr_do_gsea',     True)
-MKR_GSEA_CUT    = _mkr_cfg.get('mkr_gsea_cut',    0.1)
-MKR_GSEA_VAR    = _mkr_cfg.get('mkr_gsea_var',    'z_score')
-
-def _get_custom_mkr_strings(genesets, proj_dir, data_dir):
-  """Convert mkr_custom_genesets list to comma-separated name/path strings."""
-  if not genesets:
-    return '', ''
-  names, paths = [], []
-  for g in genesets:
-    names.append(g['name'])
-    if 'file' in g:
-      p = pathlib.Path(g['file'])
-      if not p.is_absolute():
-        p = proj_dir / p
-    else:
-      p = data_dir / 'marker_genes' / f"{g['name']}.csv"
-    paths.append(str(p))
-  return ','.join(names), ','.join(paths)
-
-MKR_CUSTOM_NAMES, MKR_CUSTOM_PATHS = _get_custom_mkr_strings(
-  _mkr_cfg.get('mkr_custom_genesets', []), JOIN_DIR, scdata_dir)
-
+MKR_SEL_RES = config['marker_genes']['mkr_sel_res']
+N_HVGS      = config['hvg']['hvg_n_hvgs']
 GSEA_TXOMES = ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']
-DO_GSEA     = MKR_DO_GSEA and (REF_TXOME in GSEA_TXOMES)
+DO_GSEA     = config['marker_genes']['mkr_do_gsea'] and (REF_TXOME in GSEA_TXOMES)
 
-# HVG
-N_HVGS = config.get('hvg', {}).get('hvg_n_hvgs', 2000)
-
-# metadata vars (space-separated string for join.py)
-METADATA_VARS_STR = " ".join(config['join'].get('metadata_vars', []))
-
-# GTF file from index_parameters.csv (needed for marker genes)
-_idx_params_f = scdata_dir / 'index_parameters.csv'
-_idx_params   = pl.read_csv(_idx_params_f)
-GTF_DT_F = _idx_params.filter(pl.col('ref_txome') == REF_TXOME)['gtf_txt_f'][0]
-GSEA_DIR = str(scdata_dir / 'gmt_pathways')
-
-# label_celltypes (optional; validated and defaults applied by check_join_config)
-_lbl_cfg = config.get('label_celltypes', [])
-DO_LABEL = len(_lbl_cfg) > 0
-if DO_LABEL:
-  LABELLER_PARAMS = _lbl_cfg
+# label_celltypes (optional)
+LABELLER_PARAMS = config.get('label_celltypes', [])
+DO_LABEL = len(LABELLER_PARAMS) > 0
 
 # ---------------------------------------------------------------------------
 # Output file paths
 # ---------------------------------------------------------------------------
 
 joint_hvgs_f        = f"{join_int_dir}/joint_hvgs_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
-joint_counts_f      = f"{join_int_dir}/joint_counts_{JOIN_TAG}_{DATE_STAMP}.h5"
+joint_counts_f      = f"{join_int_dir}/joint_counts_hvgs_{JOIN_TAG}_{DATE_STAMP}.h5"
 joint_coldata_f     = f"{join_int_dir}/joint_coldata_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
 joint_sample_meta_f = f"{join_int_dir}/joint_sample_meta_{JOIN_TAG}_{DATE_STAMP}.csv"
+joint_pca_f         = f"{join_int_dir}/joint_pca_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
 joint_integration_f = f"{join_int_dir}/integrated_dt_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
 joint_h5ads_yaml_f  = f"{join_int_dir}/h5ads_clean_paths_{JOIN_TAG}_{DATE_STAMP}.yaml"
 h5ads_dir           = f"{join_int_dir}/h5ads"
@@ -214,25 +95,22 @@ fgsea_bp_f  = f"{join_mkr_dir}/fgsea_{JOIN_TAG}_{MKR_SEL_RES}_go_bp_{DATE_STAMP}
 fgsea_cc_f  = f"{join_mkr_dir}/fgsea_{JOIN_TAG}_{MKR_SEL_RES}_go_cc_{DATE_STAMP}.csv.gz"
 fgsea_mf_f  = f"{join_mkr_dir}/fgsea_{JOIN_TAG}_{MKR_SEL_RES}_go_mf_{DATE_STAMP}.csv.gz"
 
-join_lbl_dir = str(JOIN_DIR / f"output/{JOIN_NAME}_label_celltypes")
-if DO_LABEL:
-  label_fs = [
-    f"{join_lbl_dir}/labels_{e['labeller']}_model_{e['model']}_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
-    for e in LABELLER_PARAMS
-  ]
-else:
-  label_fs = []
+join_lbl_dir = join_int_dir
+label_fs = [
+  f"{join_lbl_dir}/labels_{e['labeller']}_model_{e['model']}_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
+  for e in LABELLER_PARAMS
+]
+_names_entries = [e for e in LABELLER_PARAMS if e.get('save_cluster_names_file', False)]
+cluster_names_fs = [
+  f"{join_lbl_dir}/cluster_names_for_shiny_{e['labeller']}_{e['model']}_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv"
+  for e in _names_entries
+]
 
 docs_dir  = str(JOIN_DIR / "public")
 rmd_dir   = str(JOIN_DIR / "analysis")
 code_dir  = str(JOIN_DIR / "code")
 html_f    = f"{docs_dir}/{JOIN_TAG}.html"
 rmd_f     = f"{rmd_dir}/{JOIN_TAG}.Rmd"
-
-YOUR_NAME   = config['join']['your_name']
-AFFILIATION = config['join']['affiliation']
-
-INT_RES_LS_STR = ' '.join(str(r) for r in INT_RES_LS)
 
 # ---------------------------------------------------------------------------
 # Rules
@@ -246,6 +124,7 @@ rule all:
     pb_hvgs_f,
     *([fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else []),
     *label_fs,
+    *cluster_names_fs,
     html_f
 
 
@@ -258,12 +137,15 @@ rule join_select_hvgs:
   params:
     project_ids  = " ".join(JOIN_PROJECT_IDS),
     n_hvgs       = N_HVGS
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_select_hvgs', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_select_hvgs', 'time', attempt)
   log:
     f"{logs_dir}/join_select_hvgs_{JOIN_TAG}_{DATE_STAMP}.log"
   benchmark:
     f"{benchmark_dir}/join_select_hvgs_{JOIN_TAG}_{DATE_STAMP}.benchmark.txt"
   conda:
-    '../envs/scprocess_local.yaml'
+    '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
     mkdir -p {join_int_dir}
@@ -276,19 +158,18 @@ rule join_select_hvgs:
 
 
 rule join_build_matrix:
-  """Assemble joint count matrix and coldata from per-project h5ads."""
+  """Assemble joint HVG count matrix from per-project h5ads."""
   input:
     joint_hvgs_f  = joint_hvgs_f,
     h5ads_yaml_fs = H5ADS_YAML_FS,
-    integrated_fs = INTEGRATED_FS,
-    sample_meta_fs = SAMPLE_META_FS
+    integrated_fs = INTEGRATED_FS
   output:
-    joint_counts_f      = joint_counts_f,
-    joint_coldata_f     = joint_coldata_f,
-    joint_sample_meta_f = joint_sample_meta_f
+    joint_counts_f = joint_counts_f
   params:
-    project_ids   = " ".join(JOIN_PROJECT_IDS),
-    metadata_vars = METADATA_VARS_STR
+    project_ids   = " ".join(JOIN_PROJECT_IDS)
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_matrix', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_matrix', 'time', attempt)
   log:
     f"{logs_dir}/join_build_matrix_{JOIN_TAG}_{DATE_STAMP}.log"
   benchmark:
@@ -302,11 +183,75 @@ rule join_build_matrix:
       --h5ads_yaml_fs       {input.h5ads_yaml_fs} \
       --project_ids         {params.project_ids} \
       --integrated_dt_fs    {input.integrated_fs} \
+      --out_h5_f            {output.joint_counts_f}
+    """
+
+
+rule join_build_coldata:
+  """Build joint coldata and sample metadata from matrix barcodes."""
+  input:
+    joint_counts_f = joint_counts_f,
+    integrated_fs  = INTEGRATED_FS,
+    sample_meta_fs = SAMPLE_META_FS
+  output:
+    joint_coldata_f     = joint_coldata_f,
+    joint_sample_meta_f = joint_sample_meta_f
+  params:
+    project_ids = " ".join(JOIN_PROJECT_IDS)
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_coldata', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_coldata', 'time', attempt)
+  log:
+    f"{logs_dir}/join_build_coldata_{JOIN_TAG}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_build_coldata_{JOIN_TAG}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/hvgs.yaml'
+  shell: """
+    exec &>> {log}
+    python3 scripts/join.py build_joint_coldata \
+      --h5_f                {input.joint_counts_f} \
+      --project_ids         {params.project_ids} \
+      --integrated_dt_fs    {input.integrated_fs} \
       --sample_meta_fs      {input.sample_meta_fs} \
-      --metadata_vars       "{params.metadata_vars}" \
-      --out_h5_f            {output.joint_counts_f} \
       --out_coldata_f       {output.joint_coldata_f} \
       --out_sample_meta_f   {output.joint_sample_meta_f}
+    """
+
+
+rule join_pca:
+  """Compute PCA on joint matrix using BPCells disk-backed streaming SVD."""
+  input:
+    counts_h5_f = joint_counts_f
+  output:
+    pca_f = joint_pca_f
+  params:
+    n_dims = INT_N_DIMS
+  threads: 8
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_pca', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_pca', 'time', attempt)
+  log:
+    f"{logs_dir}/join_pca_{JOIN_TAG}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_pca_{JOIN_TAG}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/bpcells_pca.yaml'
+  shell: """
+    exec &>> {log}
+    export OPENBLAS_NUM_THREADS={threads}
+    export MKL_NUM_THREADS={threads}
+    export OMP_NUM_THREADS={threads}
+
+    # Copy HDF5 to local disk for fast repeated reads during SVD
+    LOCAL_H5=$(mktemp /tmp/join_pca_XXXXXX.h5)
+    trap "rm -f $LOCAL_H5" EXIT
+    cp {input.counts_h5_f} $LOCAL_H5
+
+    Rscript -e "source('scripts/join_pca.R'); run_join_pca(
+      counts_h5_f = '$LOCAL_H5',
+      n_dims      =  {params.n_dims},
+      out_pca_f   = '{output.pca_f}')"
     """
 
 
@@ -315,21 +260,24 @@ rule join_integration:
   input:
     hvg_mat_f    = joint_counts_f,
     coldata_f    = joint_coldata_f,
-    sample_qc_f  = joint_sample_meta_f
+    sample_qc_f  = joint_sample_meta_f,
+    pca_f        = joint_pca_f if INT_PCA_METHOD == 'bpcells' else []
   output:
     integration_f = joint_integration_f
   params:
-    embedding         = INT_EMBEDDING,
+    embedding         = config['integration']['int_embedding'],
     n_dims            = INT_N_DIMS,
-    cl_method         = INT_CL_METHOD,
-    theta_concat      = INT_THETA_CONCAT,
-    batch_var_concat  = INT_BATCH_VAR_CONCAT,
-    res_ls_concat     = INT_RES_LS_CONCAT,
-    use_paga          = INT_USE_PAGA,
-    paga_cl_res       = INT_PAGA_CL_RES,
-    int_use_gpu       = INT_USE_GPU
+    cl_method         = config['integration']['int_cl_method'],
+    theta_concat      = config['integration']['int_theta'],
+    batch_var_concat  = config['integration']['int_batch_var'],
+    res_ls_concat     = config['integration']['int_res_ls'],
+    use_paga          = config['integration']['int_use_paga'],
+    paga_cl_res       = config['integration']['int_paga_cl_res'],
+    int_use_gpu       = config['integration']['int_use_gpu'],
+    pca_method        = INT_PCA_METHOD
   resources:
-    mem_mb      = 64 * 1024
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_integration', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_integration', 'time', attempt)
   log:
     f"{logs_dir}/join_integration_{JOIN_TAG}_{DATE_STAMP}.log"
   benchmark:
@@ -348,10 +296,13 @@ rule join_integration:
       else
         echo "GPU requested but no GPU available, running on CPU"
       fi
-    else
-      echo "running on CPU"
     fi
     set -u
+
+    PCA_FLAG=""
+    if [ "{params.pca_method}" == "bpcells" ]; then
+      PCA_FLAG="--precomputed_pca_f {input.pca_f}"
+    fi
 
     python3 scripts/integration.py run_zoom_integration \
       --hvg_mat_f        {input.hvg_mat_f} \
@@ -368,7 +319,8 @@ rule join_integration:
       --integration_f    {output.integration_f} \
       $(if [ "{params.use_paga}" == "True" ]; then echo "--use-paga"; fi) \
       $(if [ "{params.use_paga}" == "True" ]; then echo "--paga-cl-res {params.paga_cl_res}"; fi) \
-      $USE_GPU_FLAG
+      $USE_GPU_FLAG \
+      $PCA_FLAG
     """
 
 
@@ -378,16 +330,19 @@ rule join_build_h5ads_yaml:
     h5ads_yaml_fs = H5ADS_YAML_FS
   output:
     joint_h5ads_yaml_f = joint_h5ads_yaml_f,
-    h5ad_symlinks = [f"{h5ads_dir}/{bk}.h5ad" for bk in _JOIN_BATCH_KEYS]
+    h5ad_symlinks = [f"{h5ads_dir}/{bk}.h5ad" for bk in JOIN_BATCH_KEYS]
   params:
     project_ids = " ".join(JOIN_PROJECT_IDS),
     h5ads_dir   = h5ads_dir
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_h5ads_yaml', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_h5ads_yaml', 'time', attempt)
   log:
     f"{logs_dir}/join_build_h5ads_yaml_{JOIN_TAG}_{DATE_STAMP}.log"
   benchmark:
     f"{benchmark_dir}/join_build_h5ads_yaml_{JOIN_TAG}_{DATE_STAMP}.benchmark.txt"
   conda:
-    '../envs/scprocess_local.yaml'
+    '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
     python3 scripts/join.py build_join_h5ads_yaml \
@@ -408,20 +363,21 @@ rule join_marker_genes:
     mkrs_f    = mkrs_f,
     pb_hvgs_f = pb_hvgs_f
   params:
-    gtf_dt_f    = GTF_DT_F,
+    gene_info_f = config['marker_genes']['gene_info_f'],
     sel_res     = MKR_SEL_RES,
-    min_cl_size = MKR_MIN_CL_SIZE,
-    min_cells   = MKR_MIN_CELLS,
+    min_cl_size = config['marker_genes']['mkr_min_cl_size'],
+    min_cells   = config['marker_genes']['mkr_min_cells'],
     batch_var   = "sample_id"
   threads: 8
   resources:
-    mem_mb      = 64 * 1024
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_marker_genes', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_marker_genes', 'time', attempt)
   log:
     f"{logs_dir}/join_marker_genes_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
   benchmark:
     f"{benchmark_dir}/join_marker_genes_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.benchmark.txt"
   conda:
-    '../envs/rlibs.yaml'
+    '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
     Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); calculate_marker_genes(
@@ -430,13 +386,14 @@ rule join_marker_genes:
       pb_f          = '{output.pb_f}',
       mkrs_f        = '{output.mkrs_f}',
       pb_hvgs_f     = '{output.pb_hvgs_f}',
-      gtf_dt_f      = '{params.gtf_dt_f}',
+      gtf_dt_f      = '{params.gene_info_f}',
       sel_res       = '{params.sel_res}',
       min_cl_size   =  {params.min_cl_size},
       min_cells     =  {params.min_cells},
       zoom          = 'True',
       batch_var     = '{params.batch_var}',
-      n_cores       =  {threads})"
+      n_cores       =  {threads},
+      use_bpcells   = 'True')"
     """
 
 
@@ -450,15 +407,16 @@ rule join_fgsea:
     fgsea_go_mf_f = fgsea_mf_f
   params:
     ref_txome   = REF_TXOME,
-    gsea_dir    = GSEA_DIR,
-    min_cpm_go  = MKR_MIN_CPM_GO,
-    max_zero_p  = MKR_MAX_ZERO_P,
-    gsea_cut    = MKR_GSEA_CUT,
-    not_ok_re   = MKR_NOT_OK_RE,
-    gsea_var    = MKR_GSEA_VAR
+    gsea_dir    = config['marker_genes']['mkr_gsea_dir'],
+    min_cpm_go  = config['marker_genes']['mkr_min_cpm_go'],
+    max_zero_p  = config['marker_genes']['mkr_max_zero_p'],
+    gsea_cut    = config['marker_genes']['mkr_gsea_cut'],
+    not_ok_re   = config['marker_genes']['mkr_not_ok_re'],
+    gsea_var    = config['marker_genes']['mkr_gsea_var']
   threads: 8
   resources:
-    mem_mb      = 16 * 1024
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_fgsea', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_fgsea', 'time', attempt)
   log:
     f"{logs_dir}/join_fgsea_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
   benchmark:
@@ -472,7 +430,7 @@ rule join_fgsea:
       fgsea_go_bp_f = '{output.fgsea_go_bp_f}',
       fgsea_go_cc_f = '{output.fgsea_go_cc_f}',
       fgsea_go_mf_f = '{output.fgsea_go_mf_f}',
-      ref_txome     = '{params.ref_txome}',
+      genome_ref    = '{params.ref_txome}',
       gsea_dir      = '{params.gsea_dir}',
       min_cpm_go    = {params.min_cpm_go},
       max_zero_p    = {params.max_zero_p},
@@ -483,101 +441,163 @@ rule join_fgsea:
     """
 
 
-if DO_LABEL:
-  def _parse_join_label_params(labeller, model):
-    matches = [e for e in LABELLER_PARAMS
-      if e['labeller'] == labeller and e['model'] == model]
-    if len(matches) != 1:
-      raise ValueError(f"Expected 1 match for {labeller}/{model}, got {len(matches)}")
-    return matches[0]
+wildcard_constraints:
+  labeller = "celltypist|scprocess|custom"
 
-  rule join_celltypist:
-    """Run CellTypist on each batch h5ad for the join integration."""
-    input:
-      adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad"
-    output:
-      pred_f  = temp(f"{join_lbl_dir}/tmp_labels_celltypist_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz")
-    threads: 4
-    resources:
-      mem_mb = 16 * 1024
-    log:
-      f"{logs_dir}/join_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.log"
-    benchmark:
-      f"{benchmark_dir}/join_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt"
-    conda:
-      '../envs/celltypist.yaml'
-    shell: """
-      exec &>> {log}
-      python3 scripts/label_celltypes.py celltypist_one_batch \
-        {wildcards.batch} sample_id {wildcards.model} \
-        --adata_f   {input.adata_f} \
-        --pred_f    {output.pred_f}
-      """
+def _parse_join_label_params(labeller, model):
+  matches = [e for e in LABELLER_PARAMS
+    if e['labeller'] == labeller and e['model'] == model]
+  if len(matches) != 1:
+    raise ValueError(f"Expected 1 match for {labeller}/{model}, got {len(matches)}")
+  return matches[0]
 
-  rule join_scprocess_labeller:
-    """Run scprocess XGBoost labeller on each batch h5ad."""
-    input:
-      adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad"
-    output:
-      pred_f  = temp(f"{join_lbl_dir}/tmp_labels_scprocess_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz")
-    params:
-      xgb_f     = lambda wildcards: _parse_join_label_params('scprocess', wildcards.model)['xgb_f'],
-      xgb_cls_f = lambda wildcards: _parse_join_label_params('scprocess', wildcards.model)['xgb_cls_f']
-    threads: 1
-    resources:
-      mem_mb = 16 * 1024
-    log:
-      f"{logs_dir}/join_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.log"
-    benchmark:
-      f"{benchmark_dir}/join_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt"
-    conda:
-      '../envs/rlibs.yaml'
-    shell: """
-      exec &>> {log}
-      Rscript -e "source('scripts/label_celltypes.R'); source('scripts/integration.R'); \\
-      label_with_xgboost_one_batch(
-        sel_batch   = '{wildcards.batch}',
-        batch_var   = 'sample_id',
-        model_name  = '{wildcards.model}',
-        xgb_f       = '{params.xgb_f}',
-        xgb_cls_f   = '{params.xgb_cls_f}',
-        adata_f     = '{input.adata_f}',
-        pred_f      = '{output.pred_f}'
-      )"
-      """
+def _join_merge_labels_inputs(wildcards):
+  fresh_batches, reuse_label_fs = get_join_batch_sources(
+    PROJECT_CFGS, JOIN_PROJECT_IDS, JOIN_BATCH_KEYS, wildcards.labeller, wildcards.model)
+  pred_fs = expand(
+    f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz",
+    batch=fresh_batches, allow_missing=True)
+  if reuse_label_fs:
+    pred_fs.append(f"{join_lbl_dir}/tmp_labels_{wildcards.labeller}_model_{wildcards.model}_{JOIN_TAG}_{DATE_STAMP}_reused.csv.gz")
+  return pred_fs
 
 
-  rule join_merge_labels:
-    """Aggregate per-batch CellTypist predictions by majority voting."""
-    input:
-      pred_fs       = lambda wildcards: expand(
-        f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz",
-        batch=_JOIN_BATCH_KEYS, allow_missing=True),
-      integration_f = joint_integration_f
-    output:
-      pred_out_f    = f"{join_lbl_dir}/labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
-    params:
-      hi_res_cl   = lambda wildcards: _parse_join_label_params(wildcards.labeller, wildcards.model)['hi_res_cl'],
-      min_cl_prop = lambda wildcards: _parse_join_label_params(wildcards.labeller, wildcards.model)['min_cl_prop']
-    threads: 4
-    resources:
-      mem_mb = 16 * 1024
-    log:
-      f"{logs_dir}/join_merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.log"
-    benchmark:
-      f"{benchmark_dir}/join_merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.benchmark.txt"
-    conda:
-      '../envs/celltypist.yaml'
-    shell: """
-      exec &>> {log}
-      python3 scripts/label_celltypes.py aggregate_predictions \
-        {input.pred_fs} \
-        --int_f           {input.integration_f} \
-        --hi_res_cl       {params.hi_res_cl} \
-        --min_cl_prop     {params.min_cl_prop} \
-        --batch_var       sample_id \
-        --agg_f           {output.pred_out_f}
-      """
+rule join_celltypist:
+  """Run CellTypist on each batch h5ad for the join integration."""
+  input:
+    adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad"
+  output:
+    pred_f  = temp(f"{join_lbl_dir}/tmp_labels_celltypist_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz")
+  threads: 4
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_celltypist', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_celltypist', 'time', attempt)
+  log:
+    f"{logs_dir}/join_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/celltypist.yaml'
+  shell: """
+    exec &>> {log}
+    python3 scripts/label_celltypes.py celltypist_one_batch \
+      {wildcards.batch} sample_id {wildcards.model} \
+      --adata_f   {input.adata_f} \
+      --pred_f    {output.pred_f}
+    """
+
+
+rule join_scprocess_labeller:
+  """Run scprocess XGBoost labeller on each batch h5ad."""
+  input:
+    adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad"
+  output:
+    pred_f  = temp(f"{join_lbl_dir}/tmp_labels_scprocess_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz")
+  params:
+    xgb_f     = lambda wildcards: _parse_join_label_params('scprocess', wildcards.model)['xgb_f'],
+    xgb_cls_f = lambda wildcards: _parse_join_label_params('scprocess', wildcards.model)['xgb_cls_f']
+  threads: 1
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_scprocess_labeller', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_scprocess_labeller', 'time', attempt)
+  log:
+    f"{logs_dir}/join_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/rlibs.yaml'
+  shell: """
+    exec &>> {log}
+    Rscript -e "source('scripts/label_celltypes.R'); source('scripts/integration.R'); \\
+    label_with_xgboost_one_batch(
+      sel_batch   = '{wildcards.batch}',
+      batch_var   = 'sample_id',
+      model_name  = '{wildcards.model}',
+      xgb_f       = '{params.xgb_f}',
+      xgb_cls_f   = '{params.xgb_cls_f}',
+      adata_f     = '{input.adata_f}',
+      pred_f      = '{output.pred_f}'
+    )"
+    """
+
+
+rule join_extract_labels:
+  """Extract naive predictions from source project labels for cells in the join."""
+  input:
+    source_labels_fs = lambda wildcards: get_join_batch_sources(PROJECT_CFGS, JOIN_PROJECT_IDS, JOIN_BATCH_KEYS, wildcards.labeller, wildcards.model)[1],
+    integration_f    = joint_integration_f
+  output:
+    pred_f = temp(f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_reused.csv.gz")
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_extract_labels', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_extract_labels', 'time', attempt)
+  log:
+    f"{logs_dir}/join_extract_labels_{{labeller}}_{{model}}_{DATE_STAMP}.log"
+  conda:
+    '../envs/scprocess_local.yaml'
+  shell: """
+    exec &>> {log}
+    python3 scripts/label_celltypes.py extract_naive_predictions \
+      {input.source_labels_fs} \
+      --int_f     {input.integration_f} \
+      --model     {wildcards.model} \
+      --pred_f    {output.pred_f}
+    """
+
+
+rule join_merge_labels:
+  """Aggregate per-batch predictions by majority voting."""
+  input:
+    pred_fs       = _join_merge_labels_inputs,
+    integration_f = joint_integration_f
+  output:
+    pred_out_f    = f"{join_lbl_dir}/labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
+  params:
+    hi_res_cl   = lambda wildcards: _parse_join_label_params(wildcards.labeller, wildcards.model)['hi_res_cl'],
+    min_cl_prop = lambda wildcards: _parse_join_label_params(wildcards.labeller, wildcards.model)['min_cl_prop']
+  threads: 4
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_merge_labels', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_merge_labels', 'time', attempt)
+  log:
+    f"{logs_dir}/join_merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_merge_labels_{{labeller}}_{{model}}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/celltypist.yaml'
+  shell: """
+    exec &>> {log}
+    python3 scripts/label_celltypes.py aggregate_predictions \
+      {input.pred_fs} \
+      --int_f           {input.integration_f} \
+      --hi_res_cl       {params.hi_res_cl} \
+      --min_cl_prop     {params.min_cl_prop} \
+      --batch_var       sample_id \
+      --agg_f           {output.pred_out_f}
+    """
+
+
+rule join_save_cluster_names:
+  """Generate cluster_name CSV from aggregated labels at the marker gene resolution."""
+  input:
+    labels_f      = f"{join_lbl_dir}/labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}.csv.gz",
+    integration_f = joint_integration_f
+  output:
+    names_f       = f"{join_lbl_dir}/cluster_names_for_shiny_{{labeller}}_{{model}}_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv"
+  params:
+    mkr_sel_res   = MKR_SEL_RES
+  log:
+    f"{logs_dir}/join_save_cluster_names_{{labeller}}_{{model}}_{DATE_STAMP}.log"
+  conda:
+    '../envs/scprocess_local.yaml'
+  shell: """
+    exec &>> {log}
+    python3 scripts/label_celltypes.py save_cluster_names \
+      --labels_f      {input.labels_f} \
+      --integration_f {input.integration_f} \
+      --mkr_sel_res   {params.mkr_sel_res} \
+      --output_f      {output.names_f}
+    """
 
 
 rule join_render_html:
@@ -588,7 +608,8 @@ rule join_render_html:
     pb_hvgs_f     = pb_hvgs_f,
     pb_f          = pb_f,
     fgsea_files   = [fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else [],
-    label_files   = label_fs
+    label_files   = label_fs,
+    cluster_names = cluster_names_fs
   output:
     r_utils_f     = f"{code_dir}/utils.R",
     r_int_f       = f"{code_dir}/integration.R",
@@ -598,26 +619,26 @@ rule join_render_html:
     rmd_f         = rmd_f,
     html_f        = html_f
   params:
-    your_name     = YOUR_NAME,
-    affiliation   = AFFILIATION,
+    your_name     = config['join']['your_name'],
+    affiliation   = config['join']['affiliation'],
     join_name     = JOIN_NAME,
     join_tag      = JOIN_TAG,
     join_int_dir  = join_int_dir,
     join_mkr_dir  = join_mkr_dir,
     ref_txome     = REF_TXOME,
     mkr_sel_res   = MKR_SEL_RES,
-    int_res_ls    = INT_RES_LS_STR,
-    metadata_vars    = METADATA_VARS_STR,
-    custom_mkr_names = MKR_CUSTOM_NAMES,
-    custom_mkr_paths = MKR_CUSTOM_PATHS,
+    int_res_ls    = config['integration']['int_res_ls'],
+    metadata_vars    = " ".join(config['join'].get('metadata_vars', [])),
+    custom_mkr_names = config['marker_genes']['custom_mkr_names'],
+    custom_mkr_paths = config['marker_genes']['custom_mkr_paths'],
     label_f_ls       = ' '.join(label_fs),
-    labeller_ls      = ' '.join(e['labeller']  for e in _lbl_cfg) if DO_LABEL else '',
-    model_ls         = ' '.join(e['model']     for e in _lbl_cfg) if DO_LABEL else '',
-    hi_res_cl_ls     = ' '.join(e['hi_res_cl'] for e in _lbl_cfg) if DO_LABEL else '',
-    min_cl_prop_ls   = ' '.join(str(e['min_cl_prop']) for e in _lbl_cfg) if DO_LABEL else '',
-    mkr_min_cpm_mkr  = MKR_MIN_CPM_MKR,
-    mkr_min_cells    = MKR_MIN_CELLS,
-    mkr_gsea_cut     = MKR_GSEA_CUT,
+    labeller_ls      = ' '.join(e['labeller']  for e in LABELLER_PARAMS) if DO_LABEL else '',
+    model_ls         = ' '.join(e['model']     for e in LABELLER_PARAMS) if DO_LABEL else '',
+    hi_res_cl_ls     = ' '.join(e['hi_res_cl'] for e in LABELLER_PARAMS) if DO_LABEL else '',
+    min_cl_prop_ls   = ' '.join(str(e['min_cl_prop']) for e in LABELLER_PARAMS) if DO_LABEL else '',
+    mkr_min_cpm_mkr  = config['marker_genes']['mkr_min_cpm_mkr'],
+    mkr_min_cells    = config['marker_genes']['mkr_min_cells'],
+    mkr_gsea_cut     = config['marker_genes']['mkr_gsea_cut'],
     integration_f    = joint_integration_f,
     sample_meta_f    = joint_sample_meta_f,
     mkrs_f           = mkrs_f,
@@ -631,7 +652,8 @@ rule join_render_html:
     date_stamp       = DATE_STAMP
   threads: 1
   resources:
-    mem_mb = 16 * 1024
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_render_html', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_render_html', 'time', attempt)
   log:
     f"{logs_dir}/join_render_html_{JOIN_TAG}_{DATE_STAMP}.log"
   benchmark:

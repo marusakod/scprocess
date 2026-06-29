@@ -90,13 +90,13 @@ else:
       R2_fs         = lambda wildcards: LIB_PARAMS[wildcards.lib]["mapping_af"]["R2_fs"],
       lib_pool_dir  = lib_pool_dir
     output:
-      rad_f         = temp(f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/af_map/map.rad'),
-      collate_rad_f = temp(f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/af_quant/map.collated.rad'),
-      fry_dir       = directory(f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/af_quant/'),
-      mtx_f         = f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/af_quant/alevin/quants_mat.mtx',
-      cols_f        = f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/af_quant/alevin/quants_mat_cols.txt',
-      rows_f        = f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/af_quant/alevin/quants_mat_rows.txt',
-      chem_stats_f  = f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/chemistry_statistics.yaml'
+      rad_f         = temp(f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_map/map.rad'),
+      collate_rad_f = temp(f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/map.collated.rad'),
+      fry_dir       = directory(f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/'),
+      mtx_f         = f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/alevin/quants_mat.mtx',
+      cols_f        = f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/alevin/quants_mat_cols.txt',
+      rows_f        = f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/alevin/quants_mat_rows.txt',
+      chem_stats_f  = f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}chemistry_statistics.yaml'
     benchmark:
       f'{benchmark_dir}/mapping/run_mapping_{{lib}}_{DATE_STAMP}.benchmark.txt'
     log:
@@ -126,6 +126,7 @@ else:
       # run mapping
       python3 scripts/mapping.py map_fastqs_to_counts {wildcards.lib} \
         --af_dir          "{af_dir}" \
+        --demux_type      "{params.demux_type}" \
         --lib_pool_dir    "{params.lib_pool_dir}" \
         --what            "rna" \
         --af_home_dir     "{params.af_home_dir}" \
@@ -201,7 +202,7 @@ rule save_alevin_to_h5:
 if not IS_FLEX:
   rule collect_chemistry_stats:
     input:
-      chem_stats_fs  = expand(f'{af_dir}/{lib_pool_dir}af_{{lib}}/rna/chemistry_statistics.yaml', lib = LIBS)
+      chem_stats_fs  = expand(f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}chemistry_statistics.yaml', lib = LIBS)
     output:
       chem_stats_merged_f = f'{af_dir}/chemistry_statistics_all_runs_{DATE_STAMP}.csv'
     log:

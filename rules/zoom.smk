@@ -148,6 +148,9 @@ rule get_zoom_sample_statistics:
     batches         = BATCHES,
     zoom_min_n_smpl = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc']['qc_min_cells'],
     ambient_method  = config['ambient']['ambient_method']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_zoom_sample_statistics', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_zoom_sample_statistics', 'time', attempt)
   log:
     f'{logs_dir}/zoom/get_zoom_sample_statistics_{{zoom_name}}_{DATE_STAMP}.log'
   run:
