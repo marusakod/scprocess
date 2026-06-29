@@ -120,6 +120,12 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
       - name: mouse_v1
     ```
 
+    To register custom XGBoost classifiers trained with the `train_xgboost` step, add an `xgboost` section pointing to the project config file that was used for training (see the [Reference](reference.md#setup-xgboost) section for more details):
+
+    ```yaml
+    xgboost:
+      - config: /path/to/config-training_project.yaml
+    ```
 
 4. Finish setting up the {{sc}} data directory:
 

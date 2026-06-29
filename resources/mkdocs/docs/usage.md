@@ -77,7 +77,7 @@ scprocess run /path/to/config-my_project.yaml --create-envs
 
 By default {{scrun}} will run rule `all` which includes all [core steps](introduction.md#core-pipeline-steps). The [optional steps](introduction.md#optional-steps) (with the exception of gene set enrichment analysis) can run only after rule `all` is completed and have to be specifically requested.
 
-Additionally, you can run individual rules that generate HTML outputs (`mapping`, `ambient`, `demux`, `qc`, `hvg`, `integration`, `marker_genes`). This is useful if you want to inspect the HTML outputs for the intermediate steps first and then continue with the analysis. To run each rule separately you have to specify the rule using the `-r` or `--rule` flag e.g.
+Additionally, you can run individual rules that generate HTML outputs (`mapping`, `ambient`, `demux`, `qc`, `hvg`, `integration`, `marker_genes`). This is useful if you want to inspect the HTML outputs for the intermediate steps first and then continue with the analysis. Optional steps such as `label_celltypes`, `train_xgboost`, and `zoom` must be requested explicitly. To run each rule separately you have to specify the rule using the `-r` or `--rule` flag e.g.
 
 ```bash
 scprocess run /path/to/config.yaml -r qc

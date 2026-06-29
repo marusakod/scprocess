@@ -34,6 +34,10 @@ ref_txomes:
 probe_sets:
   tenx:
   - name:       human_v1
+xgboost:
+  - config:     /path/to/config-training_project.yaml
+  - name:       my_classifier
+    src_dir:    /path/to/classifier/directory
 ```
 
 ##### user
@@ -78,6 +82,46 @@ Optional paramater for `tenx` references is:
 ##### probe_sets
 
 Probe set indices for 10x Flex data are prepared with {{scsetup}} by adding a `probe_sets` section to the `scprocess_setup.yaml` file. Each entry under `tenx` specifies a named probe set to download and index. Valid values for `name` are `human_v1`, `human_v2`, `mouse_v1`, and `mouse_v2`.
+
+
+##### xgboost { #setup-xgboost }
+
+Custom XGBoost classifiers trained with {{sc}} (using the `train_xgboost` step) can be registered with {{scsetup}} so they are available for cell type annotation in any project via the `label_celltypes` step. {{scsetup}} also automatically downloads any prebuilt classifiers shipped with {{sc}}.
+
+To register a user-trained classifier, add an `xgboost` section to the `scprocess_setup.yaml` file. Each entry specifies a classifier to install. There are two ways to reference a trained classifier:
+
+**Option 1: Point to the project config file** that was used to train the classifier. {{sc}} will automatically locate the training outputs (in `output/{short_tag}_train_xgboost/`) and use `ref_tag` from the `train_xgboost` section as the classifier name:
+
+```yaml
+xgboost:
+  - config: /path/to/config-training_project.yaml
+```
+
+An optional `name` parameter can be used to register the classifier under a different name:
+
+```yaml
+xgboost:
+  - config: /path/to/config-training_project.yaml
+    name: my_brain_classifier
+```
+
+**Option 2: Point directly to the directory** containing the trained classifier files (`name` is required):
+
+```yaml
+xgboost:
+  - name: my_classifier
+    src_dir: /path/to/directory/with/classifier/files
+```
+
+The source directory must contain the following files (where `{ref_tag}` or `{name}` is the classifier identifier): `{ref_tag}_xgboost_model.json`, `{ref_tag}_allowed_cls.csv`, and `{ref_tag}_selected_genes.txt`. An optional `{ref_tag}_label_map.csv` will also be copied if present.
+
+After adding entries to `scprocess_setup.yaml`, run {{scsetup}} to install the classifiers:
+
+```bash
+scprocess setup
+```
+
+This copies the classifier files into `$SCPROCESS_DATA_DIR/xgboost/{name}/` and updates `$SCPROCESS_DATA_DIR/xgboost/xgboost_models.csv`, which is the registry that `label_celltypes` reads from at runtime. Multiple classifiers can be registered at the same time.
 
 
 ## {{scnew}}
@@ -141,6 +185,7 @@ scprocess newjoin <name> [-w <where>] [-p <config>...]
     + `integration`: dimentionality reduction with PCA, optional batch correction with `Harmony`, UMAP and clustering.
     + `marker_genes`: marker gene identification and optional gene set enrichment analysis.
     + `label_celltypes`: cell type annotation using a pre-trained classifier.
+    + `train_xgboost`: train a custom XGBoost classifier from annotated data.
     + `zoom`: subclustering.
 
 
@@ -241,6 +286,30 @@ This is an example `configfile` for {{sc}} with all parameters and their default
         hi_res_cl: "RNA_snn_res.2"
         min_cl_prop: 0.5
         min_cl_size: 100
+    train_xgboost:
+      annots_f:
+      ref_tag:
+      label_map_f:
+      refine_labels: true
+      purity_threshold: 0.65
+      n_cells_per_type: 1000
+      min_cells_per_type: 20
+      min_cells_expressed: 10
+      gene_exclude_re: "(lincRNA|lncRNA|pseudogene|antisense)"
+      seed: 42
+      use_gpu: false
+      pass1_subsample: 0.632
+      pass1_colsample_bytree: 0.1
+      pass1_learning_rate: 0.1
+      pass1_nrounds: 300
+      pass1_early_stopping: 10
+      pass2_colsample_bytree: 0.5
+      pass2_learning_rate: 0.05
+      pass2_nrounds: 500
+      pass2_early_stopping: 10
+      gain_threshold: 0.9
+      min_genes: 100
+      max_genes: 3000
     zoom:
     shiny:
     resources:
@@ -343,6 +412,30 @@ This is an example `configfile` for {{sc}} with all parameters and their default
         hi_res_cl: "RNA_snn_res.2"
         min_cl_prop: 0.5
         min_cl_size: 100
+    train_xgboost:
+      annots_f: /path/to/annotations.csv
+      ref_tag: my_classifier
+      label_map_f: /path/to/label_map.csv
+      refine_labels: true
+      purity_threshold: 0.65
+      n_cells_per_type: 1000
+      min_cells_per_type: 20
+      min_cells_expressed: 10
+      gene_exclude_re: "(lincRNA|lncRNA|pseudogene|antisense)"
+      seed: 42
+      use_gpu: false
+      pass1_subsample: 0.632
+      pass1_colsample_bytree: 0.1
+      pass1_learning_rate: 0.1
+      pass1_nrounds: 300
+      pass1_early_stopping: 10
+      pass2_colsample_bytree: 0.5
+      pass2_learning_rate: 0.05
+      pass2_nrounds: 500
+      pass2_early_stopping: 10
+      gain_threshold: 0.9
+      min_genes: 100
+      max_genes: 3000
     zoom:
       - /path/to/cell_subset_1_zoom_params.yaml
       - /path/to/cell_subset_2_zoom_params.yaml
@@ -525,10 +618,54 @@ sample_id:
 * `labeller`: specifies the method to annotate cell types; options include:
     + `celltypist` uses one of the models available in [`CellTypist`](https://www.celltypist.org/models) for annotation.
     + `scprocess`: use an `XGBoost` classifier for cell type annotation.
-* `model`: determines the model to be used based on the selected `labeller`. For list of all available `CellTypist` models see `$SCPROCESS_DATA_DIR/celltypist/celltypist_models.csv`). If `labeller` is set to `scprocess` the value should be `human_cns`. 
-* `hi_res_cl`: name of a column containing high-resolution clustering results. It must follow the pattern `"RNA_snn_res.n"` where `n` should be replaced with one of the values in `int_sel_res`. Default is `"RNA_snn_res.2"`.
+* `model`: determines the model to be used based on the selected `labeller`. For list of all available `CellTypist` models see `$SCPROCESS_DATA_DIR/celltypist/celltypist_models.csv`. If `labeller` is set to `scprocess` the value should match the name of a classifier registered with {{scsetup}} (see `$SCPROCESS_DATA_DIR/xgboost/xgboost_models.csv` for a list of available classifiers).
+* `hi_res_cl`: name of a column containing high-resolution clustering results. It must follow the pattern `"RNA_snn_res.n"` where `n` should be replaced with one of the values in `int_res_ls`. Default is `"RNA_snn_res.2"`.
 * `min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.
 * `min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled.
+* `label_map`: path to a CSV file mapping fine-grained labels to coarse labels. Must contain columns `fine_label` and `coarse_label`. Should be absolute or relative to `proj_dir`. If not specified, {{sc}} will use the default label map included with the classifier (if available).
+
+
+##### train_xgboost
+
+This section configures the training of a custom XGBoost classifier from annotated data. It requires completed `integration` outputs (clustering results and H5AD files). The training step can be run with `scprocess run config.yaml -r train_xgboost`.
+
+* `annots_f` (required): path to a CSV file containing cell annotations. Must have columns `cell_id` and `annotation`. Should be absolute or relative to `proj_dir`.
+* `ref_tag` (required): a unique identifier for the classifier (alphanumeric characters, dashes and underscores only). This tag is used in output file names and as the classifier name when registering with {{scsetup}}.
+* `label_map_f`: path to a CSV file mapping fine-grained annotations to coarse labels. Must have columns `annotation` and `coarse_label`. If provided, the trained classifier will also be evaluated on coarse labels and a label map file will be included in the classifier outputs. Should be absolute or relative to `proj_dir`.
+* `refine_labels`: if `true` (default), labels are refined by cluster majority voting — clusters where the majority of cells share the same annotation are assigned that label, which helps correct noisy annotations.
+* `purity_threshold`: minimum proportion of cells in a cluster that must share the same annotation for the cluster to be assigned that label during label refinement. Default is `0.65`.
+* `n_cells_per_type`: target number of cells per cell type after downsampling to balance the training set. Default is `1000`.
+* `min_cells_per_type`: minimum number of cells required to retain a cell type in the training set. Cell types with fewer cells are excluded. Default is `20`.
+* `min_cells_expressed`: minimum number of cells in which a gene must be detected (non-zero counts) for the gene to be included as a feature. Default is `10`.
+* `gene_exclude_re`: regular expression pattern for gene biotypes to exclude from classifier features. Default is `"(lincRNA|lncRNA|pseudogene|antisense)"`. Set to `null` to disable.
+* `seed`: random seed for reproducibility. Default is `42`.
+* `use_gpu`: whether to use GPU acceleration for XGBoost training. Default is `false`.
+
+??? note "XGBoost training parameters"
+
+    The classifier is trained in two passes. The first pass trains on all genes to compute feature importance scores. Genes are then selected based on cumulative gain, and the second pass trains the final model on the selected gene set.
+
+    **Pass 1 parameters** (broad feature exploration):
+
+    * `pass1_subsample`: fraction of training rows sampled per boosting round. Default is `0.632`.
+    * `pass1_colsample_bytree`: fraction of features (genes) sampled per tree. Default is `0.1`.
+    * `pass1_learning_rate`: learning rate (step size shrinkage). Default is `0.1`.
+    * `pass1_nrounds`: maximum number of boosting rounds. Default is `300`.
+    * `pass1_early_stopping`: stop training if validation performance does not improve for this many rounds. Default is `10`.
+
+    **Feature selection parameters**:
+
+    * `gain_threshold`: cumulative gain fraction at which to stop selecting genes. Default is `0.9` (top 90% of total gain).
+    * `min_genes`: minimum number of genes to select, regardless of gain threshold. Default is `100`.
+    * `max_genes`: maximum number of genes to select. Default is `3000`.
+
+    **Pass 2 parameters** (refined training on selected genes):
+
+    * `pass2_colsample_bytree`: fraction of selected genes sampled per tree. Default is `0.5`.
+    * `pass2_learning_rate`: learning rate. Default is `0.05`.
+    * `pass2_nrounds`: maximum number of boosting rounds. Default is `500`.
+    * `pass2_early_stopping`: early stopping patience. Default is `10`.
+
 
 ##### shiny
 
@@ -662,6 +799,8 @@ Additional parameters include:
     * `gb_run_celltypist`: maximum memory required (in GB) for rule `run_celltypist`.
     * `gb_run_scprocess_labeller`: maximum memory required (in GB) for rule `run_scprocess_labeller`.
     * `gb_merge_labels`: maximum memory required (in GB) for rule `merge_labels`.
+    * `gb_train_xgboost_train`: maximum memory required (in GB) for rule `train_xgboost_train`.
+    * `gb_render_html_train_xgboost`: maximum memory required (in GB) for rule `render_html_train_xgboost`.
     * `gb_get_zoom_sample_statistics`: maximum memory required (in GB) for rule `get_zoom_sample_statistics`.
     * `gb_zoom_make_one_pb_cells`: maximum memory required (in GB) for rule `zoom_make_one_pb_cells`.
     * `gb_zoom_calculate_ambient_genes`: maximum memory required (in GB) for rule `zoom_calculate_ambient_genes`.
@@ -727,6 +866,8 @@ Additional parameters include:
     * `mins_run_celltypist`: maximum runtime required (in minutes) for rule `run_celltypist`.
     * `mins_run_scprocess_labeller`: maximum runtime required (in minutes) for rule `run_scprocess_labeller`.
     * `mins_merge_labels`: maximum runtime required (in minutes) for rule `merge_labels`.
+    * `mins_train_xgboost_train`: maximum runtime required (in minutes) for rule `train_xgboost_train`.
+    * `mins_render_html_train_xgboost`: maximum runtime required (in minutes) for rule `render_html_train_xgboost`.
     * `mins_get_zoom_sample_statistics`: maximum runtime required (in minutes) for rule `get_zoom_sample_statistics`.
     * `mins_zoom_make_one_pb_cells`: maximum runtime required (in minutes) for rule `zoom_make_one_pb_cells`.
     * `mins_zoom_calculate_ambient_genes`: maximum runtime required (in minutes) for rule `zoom_calculate_ambient_genes`.
