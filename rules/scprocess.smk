@@ -353,14 +353,7 @@ rule marker_genes:
 
 rule label_celltypes:
   input:
-    expand(f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
-      zip, 
-        labeller  = [ entry['labeller'] for entry in LABELLER_PARAMS],
-        model     = [ entry['model']    for entry in LABELLER_PARAMS]
-      ),
-    code_dir  + '/label_celltypes.R',
-    f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd', 
-    f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
+    label_celltypes_outs
 
 # define rules that are needed
 include: "mapping.smk"

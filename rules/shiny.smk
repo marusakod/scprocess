@@ -142,6 +142,10 @@ def _zoom_optional_path(zoom_name, key):
   return _resolve_optional_path(val, PROJ_DIR)
 
 
+def _zoom_metadata_vars_ls(zoom_name):
+  return ZOOM_PARAMS[zoom_name].get('shiny', {}).get('metadata_vars', _metadata_vars_ls)
+
+
 # ---- aggregate rule: build all zoom shiny apps ----------------------------
 rule build_all_zoom_shiny_apps:
   input:
@@ -249,15 +253,15 @@ rule build_zoom_shiny_app:
     app_tag          = lambda wc: f'{SHORT_TAG}_{wc.zoom_name}',
     mkr_sel_res      = lambda wc: ZOOM_PARAMS[wc.zoom_name]['marker_genes']['mkr_sel_res'],
     ref_txome        = REF_TXOME,
-    metadata_vars    = _metadata_vars,
     app_title        = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('app_title',
                          f'{SHORT_TAG} — {wc.zoom_name}'),
     email            = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('email', ''),
     keyword          = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('keyword', 'cells'),
     default_gene     = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('default_gene', ''),
     n_keep           = lambda wc: int(ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('n_keep', 30000)),
+    metadata_vars    = lambda wc: ','.join(_zoom_metadata_vars_ls(wc.zoom_name)),
     var_names        = lambda wc: ','.join(
-                         _resolve_var_names(_metadata_vars_ls,
+                         _resolve_var_names(_zoom_metadata_vars_ls(wc.zoom_name),
                            ZOOM_PARAMS[wc.zoom_name].get('shiny', {}))),
     metadata_combns       = lambda wc: json.dumps(
                          ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('metadata_combns', [])).replace('"', '\\"'),

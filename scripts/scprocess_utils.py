@@ -1056,7 +1056,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
 
   # start with defaults, overwrite with config values
   defaults      = config.copy()
-  del defaults['hvg']
+  defaults.pop('hvg', None)
   snakemake.utils.update_config(defaults, zoom_config)
   zoom_config   = defaults
 
@@ -1922,7 +1922,15 @@ def get_shiny_targets(config, scprocess_dir, scdata_dir, dryrun, zoom_name=None)
   Returns (targets, proj_dir) where targets is a list of Snakemake target
   rule names or file paths.
   """
+  scprocess_dir = pathlib.Path(scprocess_dir)
   _is_join = 'join' in config
+  if _is_join:
+    join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
+    config = check_join_config(config, join_schema_f, scdata_dir)
+  else:
+    schema_f = scprocess_dir / "resources/schemas/config.schema.json"
+    config = check_config(config, schema_f, scdata_dir, scprocess_dir)
+
   proj_cfg = config['join'] if _is_join else config['project']
   proj_dir = pathlib.Path(proj_cfg['proj_dir'])
   date_stamp = proj_cfg['date_stamp']

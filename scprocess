@@ -1111,7 +1111,7 @@ if __name__ == '__main__':
       config_path = pathlib.Path(args.configfile).resolve()
       with open(config_path, "r") as f:
         config = yaml.safe_load(f)
-      scdata_dir, extraargs, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs)
+      scdata_dir, _, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs.copy())
       targets, _ = scprocess_utils.get_shiny_targets(config, sc_dir, scdata_dir, args.dry_run, zoom_name=args.zoom)
       rule = targets[0]
 
@@ -1135,7 +1135,7 @@ if __name__ == '__main__':
       config_path = pathlib.Path(args.configfile).resolve()
       with open(config_path, "r") as f:
         config = yaml.safe_load(f)
-      scdata_dir, extraargs, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs)
+      scdata_dir, _, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs.copy())
       targets, _ = scprocess_utils.get_shiny_targets(config, sc_dir, scdata_dir, args.dry_run)
       run_join(args.configfile, sc_dir, extraargs, args.dry_run, rule=targets[0])
     else:
