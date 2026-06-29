@@ -775,11 +775,14 @@ Additional parameters include:
 
 ### configuration file
 
-Some parameters in the {{scjoin}} configuratio file inherit their definitions from the {{sc}} configuration file, including [**list here all parameters that inherit definitions from scprocess run***] and all [shiny app parameters](#shiny) (`app_title` defaults to `name`).
+Some parameters in the {{scjoin}} configuration file inherit their definitions from the {{sc}} configuration file, including [**list here all parameters that inherit definitions from scprocess run***] and all [shiny app parameters](#shiny) (`app_title` defaults to `name`).
 
 Additional parameters include:
-[**Add parameter definitions here (take definitions from comments in the yaml**]
-**Which metadata variables can be listed in `metadata_vars`**?
+* `metadata_vars` (optional): list of column names from the source projects' `sample_metadata` CSV files to carry through into the joint integration. Each variable must exist in at least one project's metadata file, but does not need to be present in all projects (e.g. when projects have different experimental designs). Missing values are filled with `NA`.
+
+##### requirements
+
+All source projects must use the same genome reference. Projects that set `ref_txome` cannot be joined with projects that set `probe_set` (Flex). Within each type, the values must match across all projects — e.g. all projects must use `human_2024`, not a mix of `human_2024` and `mouse_2024`. The join config's `ref_txome` field is validated against the source projects at startup.
 
 ##### join-specific integration parameters
 

@@ -17,8 +17,7 @@ import polars as pl
 
 sys.path.append('scripts')
 from scprocess_utils import (check_join_config, get_resources, prep_resource_params,
-  get_join_project_parameters, get_join_derived_parameters,
-  get_join_source_labels_f, get_join_batch_sources)
+  get_join_project_parameters, get_join_source_labels_f, get_join_batch_sources)
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -29,7 +28,7 @@ scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
 
 # validate config, apply defaults, and check shiny parameters
-config = check_join_config(config, join_schema_f)
+config = check_join_config(config, join_schema_f, scdata_dir)
 
 # resource parameters (no ML model for join — uses schema defaults + user overrides)
 lm_f            = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
@@ -39,8 +38,7 @@ RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, lm_f)
 # Project and derived parameters
 # ---------------------------------------------------------------------------
 
-JOIN_PROJ       = get_join_project_parameters(config)
-JOIN_PARAMS     = get_join_derived_parameters(config, scdata_dir)
+JOIN_PROJ = get_join_project_parameters(config)
 
 # unpack project parameters
 JOIN_PROJECT_IDS  = JOIN_PROJ['project_ids']
@@ -51,26 +49,27 @@ INTEGRATED_FS     = JOIN_PROJ['integrated_fs']
 SAMPLE_META_FS    = JOIN_PROJ['sample_meta_fs']
 JOIN_BATCH_KEYS   = JOIN_PROJ['batch_keys']
 
-# unpack derived parameters
-JOIN_NAME     = JOIN_PARAMS['join_name']
-JOIN_DIR      = JOIN_PARAMS['join_dir']
-JOIN_TAG      = JOIN_PARAMS['join_tag']
-DATE_STAMP    = JOIN_PARAMS['date_stamp']
-REF_TXOME     = JOIN_PARAMS['ref_txome']
-join_int_dir  = JOIN_PARAMS['join_int_dir']
-join_mkr_dir  = JOIN_PARAMS['join_mkr_dir']
-logs_dir      = JOIN_PARAMS['logs_dir']
-benchmark_dir = JOIN_PARAMS['benchmark_dir']
+# join metadata and paths
+JOIN_NAME     = config['join']['name']
+JOIN_DIR      = pathlib.Path(config['join']['proj_dir'])
+JOIN_TAG      = f"{JOIN_NAME}_join"
+DATE_STAMP    = config['join']['date_stamp']
+REF_TXOME     = config['join']['ref_txome']
+join_int_dir  = str(JOIN_DIR / f"output/{JOIN_TAG}")
+join_mkr_dir  = join_int_dir
+logs_dir      = str(JOIN_DIR / ".log/join")
+benchmark_dir = str(JOIN_DIR / ".resources")
 
 # integration
-INT_N_DIMS    = JOIN_PARAMS['int_n_dims']
-INT_RES_LS    = JOIN_PARAMS['int_res_ls']
-INT_PCA_METHOD = JOIN_PARAMS['int_pca_method']
+INT_N_DIMS     = config['integration']['int_n_dims']
+INT_RES_LS     = config['integration']['int_res_ls']
+INT_PCA_METHOD = config['integration']['int_pca_method']
 
 # marker genes
-MKR_SEL_RES   = JOIN_PARAMS['mkr_sel_res']
-DO_GSEA       = JOIN_PARAMS['do_gsea']
-N_HVGS        = JOIN_PARAMS['n_hvgs']
+MKR_SEL_RES = config['marker_genes']['mkr_sel_res']
+N_HVGS      = config['hvg']['hvg_n_hvgs']
+GSEA_TXOMES = ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']
+DO_GSEA     = config['marker_genes']['mkr_do_gsea'] and (REF_TXOME in GSEA_TXOMES)
 
 # label_celltypes (optional)
 LABELLER_PARAMS = config.get('label_celltypes', [])
@@ -266,15 +265,15 @@ rule join_integration:
   output:
     integration_f = joint_integration_f
   params:
-    embedding         = JOIN_PARAMS['int_embedding'],
+    embedding         = config['integration']['int_embedding'],
     n_dims            = INT_N_DIMS,
-    cl_method         = JOIN_PARAMS['int_cl_method'],
-    theta_concat      = JOIN_PARAMS['int_theta_concat'],
-    batch_var_concat  = JOIN_PARAMS['int_batch_var_concat'],
-    res_ls_concat     = JOIN_PARAMS['int_res_ls_str'],
-    use_paga          = JOIN_PARAMS['int_use_paga'],
-    paga_cl_res       = JOIN_PARAMS['int_paga_cl_res'],
-    int_use_gpu       = JOIN_PARAMS['int_use_gpu'],
+    cl_method         = config['integration']['int_cl_method'],
+    theta_concat      = config['integration']['int_theta'],
+    batch_var_concat  = config['integration']['int_batch_var'],
+    res_ls_concat     = config['integration']['int_res_ls'],
+    use_paga          = config['integration']['int_use_paga'],
+    paga_cl_res       = config['integration']['int_paga_cl_res'],
+    int_use_gpu       = config['integration']['int_use_gpu'],
     pca_method        = INT_PCA_METHOD
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_integration', 'memory', attempt),
@@ -364,10 +363,10 @@ rule join_marker_genes:
     mkrs_f    = mkrs_f,
     pb_hvgs_f = pb_hvgs_f
   params:
-    gtf_dt_f    = JOIN_PARAMS['gtf_dt_f'],
+    gene_info_f = config['marker_genes']['gene_info_f'],
     sel_res     = MKR_SEL_RES,
-    min_cl_size = JOIN_PARAMS['mkr_min_cl_size'],
-    min_cells   = JOIN_PARAMS['mkr_min_cells'],
+    min_cl_size = config['marker_genes']['mkr_min_cl_size'],
+    min_cells   = config['marker_genes']['mkr_min_cells'],
     batch_var   = "sample_id"
   threads: 8
   resources:
@@ -387,7 +386,7 @@ rule join_marker_genes:
       pb_f          = '{output.pb_f}',
       mkrs_f        = '{output.mkrs_f}',
       pb_hvgs_f     = '{output.pb_hvgs_f}',
-      gtf_dt_f      = '{params.gtf_dt_f}',
+      gtf_dt_f      = '{params.gene_info_f}',
       sel_res       = '{params.sel_res}',
       min_cl_size   =  {params.min_cl_size},
       min_cells     =  {params.min_cells},
@@ -408,12 +407,12 @@ rule join_fgsea:
     fgsea_go_mf_f = fgsea_mf_f
   params:
     ref_txome   = REF_TXOME,
-    gsea_dir    = JOIN_PARAMS['gsea_dir'],
-    min_cpm_go  = JOIN_PARAMS['mkr_min_cpm_go'],
-    max_zero_p  = JOIN_PARAMS['mkr_max_zero_p'],
-    gsea_cut    = JOIN_PARAMS['mkr_gsea_cut'],
-    not_ok_re   = JOIN_PARAMS['mkr_not_ok_re'],
-    gsea_var    = JOIN_PARAMS['mkr_gsea_var']
+    gsea_dir    = config['marker_genes']['mkr_gsea_dir'],
+    min_cpm_go  = config['marker_genes']['mkr_min_cpm_go'],
+    max_zero_p  = config['marker_genes']['mkr_max_zero_p'],
+    gsea_cut    = config['marker_genes']['mkr_gsea_cut'],
+    not_ok_re   = config['marker_genes']['mkr_not_ok_re'],
+    gsea_var    = config['marker_genes']['mkr_gsea_var']
   threads: 8
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_fgsea', 'memory', attempt),
@@ -620,26 +619,26 @@ rule join_render_html:
     rmd_f         = rmd_f,
     html_f        = html_f
   params:
-    your_name     = JOIN_PARAMS['your_name'],
-    affiliation   = JOIN_PARAMS['affiliation'],
+    your_name     = config['join']['your_name'],
+    affiliation   = config['join']['affiliation'],
     join_name     = JOIN_NAME,
     join_tag      = JOIN_TAG,
     join_int_dir  = join_int_dir,
     join_mkr_dir  = join_mkr_dir,
     ref_txome     = REF_TXOME,
     mkr_sel_res   = MKR_SEL_RES,
-    int_res_ls    = JOIN_PARAMS['int_res_ls_str'],
-    metadata_vars    = JOIN_PARAMS['metadata_vars_str'],
-    custom_mkr_names = JOIN_PARAMS['mkr_custom_names'],
-    custom_mkr_paths = JOIN_PARAMS['mkr_custom_paths'],
+    int_res_ls    = config['integration']['int_res_ls'],
+    metadata_vars    = " ".join(config['join'].get('metadata_vars', [])),
+    custom_mkr_names = config['marker_genes']['custom_mkr_names'],
+    custom_mkr_paths = config['marker_genes']['custom_mkr_paths'],
     label_f_ls       = ' '.join(label_fs),
     labeller_ls      = ' '.join(e['labeller']  for e in LABELLER_PARAMS) if DO_LABEL else '',
     model_ls         = ' '.join(e['model']     for e in LABELLER_PARAMS) if DO_LABEL else '',
     hi_res_cl_ls     = ' '.join(e['hi_res_cl'] for e in LABELLER_PARAMS) if DO_LABEL else '',
     min_cl_prop_ls   = ' '.join(str(e['min_cl_prop']) for e in LABELLER_PARAMS) if DO_LABEL else '',
-    mkr_min_cpm_mkr  = JOIN_PARAMS['mkr_min_cpm_mkr'],
-    mkr_min_cells    = JOIN_PARAMS['mkr_min_cells'],
-    mkr_gsea_cut     = JOIN_PARAMS['mkr_gsea_cut'],
+    mkr_min_cpm_mkr  = config['marker_genes']['mkr_min_cpm_mkr'],
+    mkr_min_cells    = config['marker_genes']['mkr_min_cells'],
+    mkr_gsea_cut     = config['marker_genes']['mkr_gsea_cut'],
     integration_f    = joint_integration_f,
     sample_meta_f    = joint_sample_meta_f,
     mkrs_f           = mkrs_f,

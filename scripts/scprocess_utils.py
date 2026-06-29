@@ -964,7 +964,9 @@ def _check_marker_genes_parameters(config, scdata_dir):
   config['marker_genes']['mkr_gsea_dir'] = scdata_dir / 'gmt_pathways'
 
   # get custom marker files
-  custom_mkr_names, custom_mkr_paths = _get_custom_marker_genes_specs(config, scdata_dir)
+  proj_dir = config['project']['proj_dir']
+  custom_mkr_names, custom_mkr_paths = _get_custom_marker_genes_specs(
+    config, scdata_dir, proj_dir)
   config['marker_genes']['custom_mkr_names'] = custom_mkr_names
   config['marker_genes']['custom_mkr_paths'] = custom_mkr_paths
 
@@ -972,24 +974,19 @@ def _check_marker_genes_parameters(config, scdata_dir):
 
 
 # check specified custom marker genes
-def _get_custom_marker_genes_specs(config, scdata_dir):
-  # set defaults
+def _get_custom_marker_genes_specs(config, scdata_dir, proj_dir):
   custom_mkr_names = ""
   custom_mkr_paths = ""
 
-  # populate with custom sets
   if 'mkr_custom_genesets' in config["marker_genes"]:
     mkr_names = []
     mkr_paths = []
     for i, gene_set in enumerate(config["marker_genes"]["mkr_custom_genesets"]):
-      # get name and file
       name      = gene_set["name"]
-      # second argument is default in case file is missing
       file_path = pathlib.Path(gene_set.get("file", scdata_dir / 'marker_genes' / f"{name}.csv"))
 
-      # check whether it exists
       if not file_path.is_absolute():
-        file_path = config['project']['proj_dir'] / file_path
+        file_path = proj_dir / file_path
       if not file_path.is_file():
         raise FileNotFoundError(f"File not found for marker set '{name}'")
       if not file_path.suffix == ".csv":
@@ -1885,112 +1882,6 @@ def get_join_project_parameters(config):
   }
 
 
-def get_join_derived_parameters(config, scdata_dir):
-  """Derive integration, marker gene, GSEA, and other parameters from join config."""
-  join_name  = config['join']['name']
-  join_dir   = pathlib.Path(config['join']['proj_dir'])
-  date_stamp = config['join']['date_stamp']
-  ref_txome  = config['join']['ref_txome']
-  join_tag   = f"{join_name}_join"
-
-  join_int_dir  = str(join_dir / f"output/{join_tag}")
-  join_mkr_dir  = join_int_dir
-  logs_dir      = str(join_dir / ".log/join")
-  benchmark_dir = str(join_dir / ".resources")
-
-  # integration
-  int_cfg = config.get('integration', {})
-  int_batch_var = int_cfg.get('int_batch_var', 'sample_id')
-  int_theta_raw = int_cfg.get('int_theta', 0.1)
-  int_res_ls    = int_cfg.get('int_res_ls', [0.1, 0.2, 0.5, 1, 2])
-
-  if isinstance(int_batch_var, list):
-    int_batch_var_concat = " ".join(int_batch_var)
-  else:
-    int_batch_var_concat = int_batch_var
-
-  if isinstance(int_theta_raw, list):
-    int_theta_concat = " ".join(str(t) for t in int_theta_raw)
-  else:
-    int_theta_concat = str(int_theta_raw)
-
-  # marker genes
-  mkr_cfg = config.get('marker_genes', {})
-
-  # custom marker gene sets
-  def _custom_mkr_strings(genesets):
-    if not genesets:
-      return '', ''
-    names, paths = [], []
-    for g in genesets:
-      names.append(g['name'])
-      if 'file' in g:
-        p = pathlib.Path(g['file'])
-        if not p.is_absolute():
-          p = join_dir / p
-      else:
-        p = pathlib.Path(scdata_dir) / 'marker_genes' / f"{g['name']}.csv"
-      paths.append(str(p))
-    return ','.join(names), ','.join(paths)
-
-  mkr_custom_names, mkr_custom_paths = _custom_mkr_strings(
-    mkr_cfg.get('mkr_custom_genesets', []))
-
-  # GSEA
-  gsea_txomes = ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']
-  do_gsea = mkr_cfg.get('mkr_do_gsea', True) and (ref_txome in gsea_txomes)
-
-  # GTF file
-  idx_params_f = pathlib.Path(scdata_dir) / 'index_parameters.csv'
-  idx_params   = pl.read_csv(idx_params_f)
-  gtf_dt_f = idx_params.filter(pl.col('reference') == ref_txome)['gene_info_f'][0]
-
-  return {
-    'join_name':     join_name,
-    'join_dir':      join_dir,
-    'join_tag':      join_tag,
-    'date_stamp':    date_stamp,
-    'ref_txome':     ref_txome,
-    'join_int_dir':  join_int_dir,
-    'join_mkr_dir':  join_mkr_dir,
-    'logs_dir':      logs_dir,
-    'benchmark_dir': benchmark_dir,
-    # integration
-    'int_embedding':       int_cfg.get('int_embedding', 'harmony'),
-    'int_batch_var':       int_batch_var,
-    'int_batch_var_concat': int_batch_var_concat,
-    'int_theta_concat':    int_theta_concat,
-    'int_n_dims':          int_cfg.get('int_n_dims', 50),
-    'int_cl_method':       int_cfg.get('int_cl_method', 'leiden'),
-    'int_use_paga':        int_cfg.get('int_use_paga', True),
-    'int_paga_cl_res':     int_cfg.get('int_paga_cl_res', 0.2),
-    'int_res_ls':          int_res_ls,
-    'int_res_ls_str':      ' '.join(str(r) for r in int_res_ls),
-    'int_use_gpu':         int_cfg.get('int_use_gpu', True),
-    'int_pca_method':      int_cfg.get('int_pca_method', 'bpcells'),
-    # marker genes
-    'mkr_sel_res':     mkr_cfg.get('mkr_sel_res', 0.2),
-    'mkr_min_cl_size': mkr_cfg.get('mkr_min_cl_size', 100),
-    'mkr_min_cells':   mkr_cfg.get('mkr_min_cells', 10),
-    'mkr_not_ok_re':   mkr_cfg.get('mkr_not_ok_re', '(lincRNA|lncRNA|pseudogene|antisense)'),
-    'mkr_min_cpm_mkr': mkr_cfg.get('mkr_min_cpm_mkr', 50),
-    'mkr_min_cpm_go':  mkr_cfg.get('mkr_min_cpm_go', 1),
-    'mkr_max_zero_p':  mkr_cfg.get('mkr_max_zero_p', 0.5),
-    'mkr_gsea_cut':    mkr_cfg.get('mkr_gsea_cut', 0.1),
-    'mkr_gsea_var':    mkr_cfg.get('mkr_gsea_var', 'z_score'),
-    'mkr_custom_names': mkr_custom_names,
-    'mkr_custom_paths': mkr_custom_paths,
-    # gsea
-    'do_gsea':  do_gsea,
-    'gsea_dir': str(pathlib.Path(scdata_dir) / 'gmt_pathways'),
-    # other
-    'n_hvgs':           config.get('hvg', {}).get('hvg_n_hvgs', 2000),
-    'metadata_vars_str': " ".join(config['join'].get('metadata_vars', [])),
-    'gtf_dt_f':         gtf_dt_f,
-    'your_name':        config['join']['your_name'],
-    'affiliation':      config['join']['affiliation'],
-  }
-
 
 def get_join_source_labels_f(project_cfgs, pid, labeller, model):
   """Return path to a source project's aggregated labels file, or None if unavailable."""
@@ -2295,7 +2186,7 @@ def _apply_join_defaults(cfg, schema_props):
       _apply_join_defaults(cfg[key], prop['properties'])
 
 
-def check_join_config(config, join_schema_f):
+def check_join_config(config, join_schema_f, scdata_dir):
   """Validate and augment a join.yaml config dict.
 
   Mirrors check_config() for project configs:
@@ -2317,17 +2208,17 @@ def check_join_config(config, join_schema_f):
   # validate each referenced project config against the project schema
   proj_schema_f = pathlib.Path(join_schema_f).parent / "config.schema.json"
   if proj_schema_f.is_file():
-    proj_schema = _load_schema_file(proj_schema_f)
+    proj_schema   = _load_schema_file(proj_schema_f)
     proj_defaults = _get_default_config_from_schema(proj_schema)
     for pid, proj_entry in config.get('projects', {}).items():
-      cfg_f = proj_entry.get('config')
+      cfg_f         = proj_entry.get('config')
       if cfg_f and os.path.isfile(cfg_f):
         with open(cfg_f) as f:
-          proj_cfg = yaml.safe_load(f)
+          proj_cfg      = yaml.safe_load(f)
         defaults_copy = copy.deepcopy(proj_defaults)
         snakemake.utils.update_config(defaults_copy, proj_cfg)
-        proj_cfg = defaults_copy
-        proj_errors = sorted(
+        proj_cfg      = defaults_copy
+        proj_errors   = sorted(
           jsonschema.Draft202012Validator(proj_schema).iter_errors(proj_cfg),
           key=lambda e: e.path)
         if proj_errors:
@@ -2341,6 +2232,22 @@ def check_join_config(config, join_schema_f):
       join_schema['properties'].get(section, {}).get('properties', {}))
 
   config = _check_shiny_parameters(config)
+
+  # derive marker gene paths (mirrors _check_marker_genes_parameters for non-join)
+  scdata_dir = pathlib.Path(scdata_dir)
+  config['marker_genes']['mkr_gsea_dir'] = str(scdata_dir / 'gmt_pathways')
+  join_dir = pathlib.Path(config['join']['proj_dir'])
+  custom_mkr_names, custom_mkr_paths = _get_custom_marker_genes_specs(
+    config, scdata_dir, join_dir)
+  config['marker_genes']['custom_mkr_names'] = custom_mkr_names
+  config['marker_genes']['custom_mkr_paths'] = custom_mkr_paths
+
+  # look up gene_info_f from index_parameters.csv
+  ref_txome = config['join']['ref_txome']
+  idx_params_f = scdata_dir / 'index_parameters.csv'
+  idx_params = pl.read_csv(idx_params_f)
+  config['marker_genes']['gene_info_f'] = idx_params.filter(
+    pl.col('reference') == ref_txome)['gene_info_f'][0]
 
   # check ref_txome / probe_set consistency across all projects
   join_ref = config['join']['ref_txome']
@@ -2388,20 +2295,19 @@ def check_join_config(config, join_schema_f):
     if cfg_f and os.path.isfile(cfg_f):
       with open(cfg_f) as f:
         proj_cfg = yaml.safe_load(f)
-      proj_dir  = pathlib.Path(proj_cfg['project']['proj_dir'])
-      short_tag = proj_cfg['project']['short_tag']
-      full_tag  = proj_cfg['project']['full_tag']
-      date_stamp = proj_cfg['project']['date_stamp']
-      int_dir   = proj_dir / f"output/{short_tag}_integration"
-      h5ads_f   = int_dir / f"h5ads_clean_paths_{full_tag}_{date_stamp}.yaml"
+      proj_dir    = pathlib.Path(proj_cfg['project']['proj_dir'])
+      short_tag   = proj_cfg['project']['short_tag']
+      full_tag    = proj_cfg['project']['full_tag']
+      date_stamp  = proj_cfg['project']['date_stamp']
+      int_dir     = proj_dir / f"output/{short_tag}_integration"
+      h5ads_f     = int_dir / f"h5ads_clean_paths_{full_tag}_{date_stamp}.yaml"
       if not h5ads_f.is_file():
         raise FileNotFoundError(
           f"h5ads YAML not found for project '{pid}': {h5ads_f}\n"
           f"  scprocess integration must be completed for this project before running join.")
 
   # validate label_celltypes models and resolve paths
-  scdata_dir = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR', ''))
-  lbl_cfg = config.get('label_celltypes', [])
+  lbl_cfg     = config.get('label_celltypes', [])
   if lbl_cfg:
     lbl_schema_props = join_schema['properties']['label_celltypes']['items']['properties']
     for entry in lbl_cfg:
