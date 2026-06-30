@@ -716,6 +716,8 @@ Additional parameters include:
 * `save_subset_anndata`: whether to create H5AD files containing cells that have been assigned one of the values in `sel_labels`; defaults is `true`.
 * `custom_labels_f`: required if `labels_source` is set to `custom`; path to CSV file with columns `sample_id`, `cell_id` and `label`.
 
+The zoom configuration file also supports an optional `train_xgboost` section with the same parameters as the [project-level `train_xgboost`](#train_xgboost). When included, the XGBoost classifier results are shown in the zoom HTML report.
+
 Example zoom configuration file:
 
 ```yaml
@@ -948,7 +950,10 @@ projects:
     int_embedding: harmony                     # harmony or pca (default: harmony)
   label_celltypes:                             # optional; run CellTypist or scprocess on the joint integration
     - labeller: celltypist
-      model: Immune_All_Low                    # any CellTypist model name                  # XGBoost classifier 
+      model: Immune_All_Low                    # any CellTypist model name
+  train_xgboost:                               # optional; train XGBoost classifier on joint integration
+    annots_f: /path/to/annotations.csv.gz      # annotation file (required)
+    ref_tag: my_classifier                     # reference tag for the model (required)
   shiny:
     app_title: My Joint Analysis # ... same options as in the project-level shiny section (see Optional parameters › shiny)
 ```

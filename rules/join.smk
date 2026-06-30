@@ -288,8 +288,6 @@ if DO_TRAIN_XGB:
   join_xgb_dir  = str(JOIN_DIR / f"output/{JOIN_NAME}_train_xgboost")
   _join_xgb_ref_tag = _join_xgb_cfg['ref_tag']
   _join_xgb_model_f = f"{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json"
-  _join_xgb_html_f  = f"{docs_dir}/{JOIN_TAG}_train_xgboost.html"
-  _join_xgb_rmd_f   = f"{rmd_dir}/{JOIN_TAG}_train_xgboost.Rmd"
 
 rule all:
   input:
@@ -299,7 +297,7 @@ rule all:
     pb_hvgs_f,
     *([fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else []),
     *label_fs,
-    *([_join_xgb_model_f, _join_xgb_html_f] if DO_TRAIN_XGB else []),
+    *([_join_xgb_model_f] if DO_TRAIN_XGB else []),
     html_f
 
 
@@ -641,7 +639,10 @@ rule join_render_html:
     pb_hvgs_f     = pb_hvgs_f,
     pb_f          = pb_f,
     fgsea_files   = [fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else [],
-    label_files   = label_fs
+    label_files   = label_fs,
+    xgb_files     = [f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
+                     f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv',
+                     f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad'] if DO_TRAIN_XGB else []
   output:
     r_utils_f     = f"{code_dir}/utils.R",
     r_int_f       = f"{code_dir}/integration.R",
@@ -681,7 +682,13 @@ rule join_render_html:
     fgsea_go_mf_f    = fgsea_mf_f if DO_GSEA else '',
     proj_dir         = str(JOIN_DIR),
     scprocess_dir    = str(scprocess_dir),
-    date_stamp       = DATE_STAMP
+    date_stamp       = DATE_STAMP,
+    do_xgboost       = DO_TRAIN_XGB,
+    xgb_predictions_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz' if DO_TRAIN_XGB else '',
+    xgb_importance_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv' if DO_TRAIN_XGB else '',
+    xgb_pseudobulk_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad' if DO_TRAIN_XGB else '',
+    xgb_has_coarse    = ("true" if _join_xgb_cfg.get('label_map_f') else "false") if DO_TRAIN_XGB else 'false',
+    xgb_min_cells     = _join_xgb_cfg.get('min_cells_expressed', 10) if DO_TRAIN_XGB else 10
   threads: 1
   resources:
     mem_mb = 16 * 1024
@@ -742,13 +749,18 @@ rule join_render_html:
       fgsea_go_cc_f    = '{params.fgsea_go_cc_f}',
       fgsea_go_mf_f    = '{params.fgsea_go_mf_f}',
       scprocess_dir    = '{params.scprocess_dir}',
-      date_stamp       = '{params.date_stamp}'
+      date_stamp       = '{params.date_stamp}',
+      do_xgboost       = '{params.do_xgboost}',
+      xgb_predictions_f = '{params.xgb_predictions_f}',
+      xgb_importance_f  = '{params.xgb_importance_f}',
+      xgb_pseudobulk_f  = '{params.xgb_pseudobulk_f}',
+      xgb_has_coarse    = '{params.xgb_has_coarse}',
+      xgb_min_cells     = '{params.xgb_min_cells}'
     )"
     """
 
 
 if DO_TRAIN_XGB:
-  _join_xgb_has_coarse = "true" if _join_xgb_cfg.get('label_map_f') else "false"
 
   rule join_train_xgboost:
     input:
@@ -767,7 +779,7 @@ if DO_TRAIN_XGB:
       output_dir           = join_xgb_dir,
       batch_var            = INT_BATCH_VAR if not isinstance(INT_BATCH_VAR, list) else INT_BATCH_VAR[0],
       int_res_ls           = INT_RES_LS,
-      label_map_f          = _join_xgb_cfg.get('label_map_f', ''),
+      label_map_f          = _join_xgb_cfg.get('label_map_f') or '',
       refine_labels        = _join_xgb_cfg.get('refine_labels', True),
       purity_threshold     = _join_xgb_cfg.get('purity_threshold', 0.65),
       n_cells_per_type     = _join_xgb_cfg.get('n_cells_per_type', 1000),
@@ -832,70 +844,6 @@ if DO_TRAIN_XGB:
         $( [ "{params.use_gpu}" == "True" ] && echo "--use_gpu" )
       """
 
-  rule join_render_html_train_xgboost:
-    input:
-      preds_f = rules.join_train_xgboost.output.preds_f,
-      imp_f   = rules.join_train_xgboost.output.imp_f,
-      pb_f    = rules.join_train_xgboost.output.pb_f,
-    output:
-      rmd_f  = _join_xgb_rmd_f,
-      html_f = _join_xgb_html_f
-    params:
-      your_name     = YOUR_NAME,
-      affiliation   = AFFILIATION,
-      short_tag     = JOIN_TAG,
-      ref_tag       = _join_xgb_ref_tag,
-      proj_dir      = str(JOIN_DIR),
-      output_dir    = join_xgb_dir,
-      predictions_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
-      importance_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv',
-      pseudobulk_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad',
-      integration_f = joint_integration_f,
-      has_coarse    = _join_xgb_has_coarse,
-      min_cells     = _join_xgb_cfg.get('min_cells_expressed', 10),
-    threads: 1
-    resources:
-      mem_mb = 16 * 1024
-    log:
-      f"{logs_dir}/join_render_html_train_xgboost_{DATE_STAMP}.log"
-    benchmark:
-      f"{benchmark_dir}/join_render_html_train_xgboost_{DATE_STAMP}.benchmark.txt"
-    conda:
-      '../envs/rlibs.yaml'
-    shell: """
-      exec &>> {log}
-
-      # copy R scripts
-      cp scripts/utils.R {params.output_dir}/utils.R
-      cp scripts/train_xgboost.R {params.output_dir}/train_xgboost.R
-      cp scripts/marker_genes.R {params.output_dir}/marker_genes.R
-
-      # render
-      template_f=$(realpath resources/rmd_templates/train_xgboost.Rmd.template)
-      rule="train_xgboost"
-
-      Rscript --vanilla -e "source('scripts/render_htmls.R'); \\
-        render_html(
-          rule_name       = '$rule',
-          proj_dir        = '{params.proj_dir}',
-          temp_f          = '$template_f',
-          rmd_f           = '{output.rmd_f}',
-          your_name       = '{params.your_name}',
-          affiliation     = '{params.affiliation}',
-          short_tag       = '{params.short_tag}',
-          ref_tag         = '{params.ref_tag}',
-          predictions_f   = '{params.predictions_f}',
-          importance_f    = '{params.importance_f}',
-          pseudobulk_f    = '{params.pseudobulk_f}',
-          integration_f   = '{params.integration_f}',
-          has_coarse      = '{params.has_coarse}',
-          min_cells       = '{params.min_cells}',
-          n_cores         = '{threads}'
-        )"
-      """
-
   rule train_xgboost:
     input:
-      _join_xgb_model_f,
-      _join_xgb_rmd_f,
-      _join_xgb_html_f
+      _join_xgb_model_f
