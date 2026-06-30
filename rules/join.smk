@@ -14,6 +14,7 @@ import sys
 import pathlib
 import yaml
 import polars as pl
+import json
 
 sys.path.append('scripts')
 from scprocess_utils import check_join_config
@@ -40,11 +41,6 @@ for _pid in JOIN_PROJECT_IDS:
   _cfg_f = config['projects'][_pid]['config']
   with open(_cfg_f) as _f:
     _project_cfgs[_pid] = yaml.safe_load(_f)
-  _pref = _project_cfgs[_pid]['project']['ref_txome']
-  if _pref != config['join']['ref_txome']:
-    raise ValueError(
-      f"Project '{_pid}' ref_txome={_pref!r} does not match join ref_txome={config['join']['ref_txome']!r}"
-    )
 
 def _proj_dir(pid):
   return pathlib.Path(_project_cfgs[pid]['project']['proj_dir'])
@@ -92,16 +88,10 @@ H5ADS_YAML_FS  = [str(_proj_h5ads_yaml_f(pid)) for pid in JOIN_PROJECT_IDS]
 INTEGRATED_FS  = [str(_proj_integrated_dt_f(pid)) for pid in JOIN_PROJECT_IDS]
 SAMPLE_META_FS = [str(_proj_sample_meta_f(pid)) for pid in JOIN_PROJECT_IDS]
 
-# Pre-compute joint batch keys from per-project h5ads YAMLs (these files must
-# already exist — they are produced by scprocess integration, which must be
-# completed for every project listed under 'projects:' before running join).
+# Pre-compute joint batch keys from per-project h5ads YAMLs (existence
+# already validated by check_join_config in scprocess_utils.py).
 _JOIN_BATCH_KEYS = []
 for _pid, _h5yaml in zip(JOIN_PROJECT_IDS, H5ADS_YAML_FS):
-  if not pathlib.Path(_h5yaml).is_file():
-    raise FileNotFoundError(
-      f"h5ads YAML not found for project '{_pid}': {_h5yaml}\n"
-      f"  scprocess integration must be completed for this project before running join."
-    )
   with open(_h5yaml) as _fh:
     _h5paths = yaml.safe_load(_fh)
   for _bk in _h5paths:
@@ -200,12 +190,11 @@ _idx_params   = pl.read_csv(_idx_params_f)
 GTF_DT_F = _idx_params.filter(pl.col('ref_txome') == REF_TXOME)['gtf_txt_f'][0]
 GSEA_DIR = str(scdata_dir / 'gmt_pathways')
 
-# label_celltypes (optional)
+# label_celltypes (optional; validated and defaults applied by check_join_config)
 _lbl_cfg = config.get('label_celltypes', [])
 DO_LABEL = len(_lbl_cfg) > 0
 if DO_LABEL:
   # apply schema defaults
-  import json
   with open(join_schema_f) as _f:
     _join_schema = json.load(_f)
   _lbl_schema_props = _join_schema['properties']['label_celltypes']['items']['properties']
@@ -492,48 +481,47 @@ rule join_marker_genes:
     """
 
 
-if DO_GSEA:
-  rule join_fgsea:
-    """GSEA on join marker genes (runs only for supported transcriptomes)."""
-    input:
-      mkrs_f = mkrs_f
-    output:
-      fgsea_go_bp_f = fgsea_bp_f,
-      fgsea_go_cc_f = fgsea_cc_f,
-      fgsea_go_mf_f = fgsea_mf_f
-    params:
-      ref_txome   = REF_TXOME,
-      gsea_dir    = GSEA_DIR,
-      min_cpm_go  = MKR_MIN_CPM_GO,
-      max_zero_p  = MKR_MAX_ZERO_P,
-      gsea_cut    = MKR_GSEA_CUT,
-      not_ok_re   = MKR_NOT_OK_RE,
-      gsea_var    = MKR_GSEA_VAR
-    threads: 8
-    resources:
-      mem_mb      = 16 * 1024
-    log:
-      f"{logs_dir}/join_fgsea_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
-    benchmark:
-      f"{benchmark_dir}/join_fgsea_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.benchmark.txt"
-    conda:
-      '../envs/rlibs.yaml'
-    shell: """
-      exec &>> {log}
-      Rscript -e "source('scripts/utils.R'); source('scripts/fgsea.R'); run_fgsea(
-        mkrs_f        = '{input.mkrs_f}',
-        fgsea_go_bp_f = '{output.fgsea_go_bp_f}',
-        fgsea_go_cc_f = '{output.fgsea_go_cc_f}',
-        fgsea_go_mf_f = '{output.fgsea_go_mf_f}',
-        ref_txome     = '{params.ref_txome}',
-        gsea_dir      = '{params.gsea_dir}',
-        min_cpm_go    = {params.min_cpm_go},
-        max_zero_p    = {params.max_zero_p},
-        gsea_cut      = {params.gsea_cut},
-        not_ok_re     = '{params.not_ok_re}',
-        gsea_var      = '{params.gsea_var}',
-        n_cores       =  {threads})"
-      """
+rule join_fgsea:
+  """GSEA on join marker genes (runs only for supported transcriptomes)."""
+  input:
+    mkrs_f = mkrs_f
+  output:
+    fgsea_go_bp_f = fgsea_bp_f,
+    fgsea_go_cc_f = fgsea_cc_f,
+    fgsea_go_mf_f = fgsea_mf_f
+  params:
+    ref_txome   = REF_TXOME,
+    gsea_dir    = GSEA_DIR,
+    min_cpm_go  = MKR_MIN_CPM_GO,
+    max_zero_p  = MKR_MAX_ZERO_P,
+    gsea_cut    = MKR_GSEA_CUT,
+    not_ok_re   = MKR_NOT_OK_RE,
+    gsea_var    = MKR_GSEA_VAR
+  threads: 8
+  resources:
+    mem_mb      = 16 * 1024
+  log:
+    f"{logs_dir}/join_fgsea_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_fgsea_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/rlibs.yaml'
+  shell: """
+    exec &>> {log}
+    Rscript -e "source('scripts/utils.R'); source('scripts/fgsea.R'); run_fgsea(
+      mkrs_f        = '{input.mkrs_f}',
+      fgsea_go_bp_f = '{output.fgsea_go_bp_f}',
+      fgsea_go_cc_f = '{output.fgsea_go_cc_f}',
+      fgsea_go_mf_f = '{output.fgsea_go_mf_f}',
+      ref_txome     = '{params.ref_txome}',
+      gsea_dir      = '{params.gsea_dir}',
+      min_cpm_go    = {params.min_cpm_go},
+      max_zero_p    = {params.max_zero_p},
+      gsea_cut      = {params.gsea_cut},
+      not_ok_re     = '{params.not_ok_re}',
+      gsea_var      = '{params.gsea_var}',
+      n_cores       =  {threads})"
+    """
 
 
 if DO_LABEL:

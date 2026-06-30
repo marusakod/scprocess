@@ -2012,7 +2012,7 @@ def check_join_config(config, join_schema_f):
           raise ValueError(f"Validation errors in project '{pid}' config ({cfg_f}):\n" +
             "\n".join(f"  {list(e.path)}: {e.message}" for e in proj_errors))
 
-  for section in ['hvg', 'integration', 'marker_genes', 'shiny']:
+  for section in ['hvg', 'integration', 'marker_genes', 'shiny', 'resources']:
     if section not in config:
       config[section] = {}
     _apply_join_defaults(config[section],
@@ -2051,6 +2051,68 @@ def check_join_config(config, join_schema_f):
     join_dir = pathlib.Path(config['join']['proj_dir'])
     join_name = config['join']['name']
     xgb['output_dir'] = str(join_dir / f"output/{join_name}_train_xgboost")
+  # check ref_txome matches across all projects
+  join_ref = config['join']['ref_txome']
+  for pid, proj_entry in config.get('projects', {}).items():
+    cfg_f = proj_entry.get('config')
+    if cfg_f and os.path.isfile(cfg_f):
+      with open(cfg_f) as f:
+        proj_cfg = yaml.safe_load(f)
+      proj_ref = proj_cfg['project'].get('ref_txome', '')
+      if proj_ref and proj_ref != join_ref:
+        raise ValueError(
+          f"Project '{pid}' ref_txome={proj_ref!r} does not match "
+          f"join ref_txome={join_ref!r}")
+
+  # check h5ads YAML files exist (integration must be complete)
+  for pid, proj_entry in config.get('projects', {}).items():
+    cfg_f = proj_entry.get('config')
+    if cfg_f and os.path.isfile(cfg_f):
+      with open(cfg_f) as f:
+        proj_cfg = yaml.safe_load(f)
+      proj_dir  = pathlib.Path(proj_cfg['project']['proj_dir'])
+      short_tag = proj_cfg['project']['short_tag']
+      full_tag  = proj_cfg['project']['full_tag']
+      date_stamp = proj_cfg['project']['date_stamp']
+      zoom_name = proj_entry.get('zoom_name')
+      if zoom_name:
+        int_dir  = proj_dir / f"output/{short_tag}_zoom" / zoom_name
+      else:
+        int_dir  = proj_dir / f"output/{short_tag}_integration"
+      h5ads_f  = int_dir / f"h5ads_clean_paths_{full_tag}_{date_stamp}.yaml"
+      if not h5ads_f.is_file():
+        raise FileNotFoundError(
+          f"h5ads YAML not found for project '{pid}': {h5ads_f}\n"
+          f"  scprocess integration must be completed for this project before running join.")
+
+  # validate label_celltypes models and resolve paths
+  scdata_dir = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR', ''))
+  lbl_cfg = config.get('label_celltypes', [])
+  if lbl_cfg:
+    lbl_schema_props = join_schema['properties']['label_celltypes']['items']['properties']
+    for entry in lbl_cfg:
+      for key, prop in lbl_schema_props.items():
+        if key not in entry and 'default' in prop:
+          entry[key] = prop['default']
+
+    typist_ls_f = scdata_dir / 'celltypist/celltypist_models.csv'
+    mdls_typist = pl.read_csv(typist_ls_f)['model'].to_list() if typist_ls_f.is_file() else []
+    mdls_scproc = ['human_cns']
+    for entry in lbl_cfg:
+      if entry['labeller'] == 'celltypist':
+        if entry['model'] not in mdls_typist:
+          raise ValueError(f"CellTypist model '{entry['model']}' not found. Valid: {', '.join(mdls_typist)}")
+      elif entry['labeller'] == 'scprocess':
+        if entry['model'] not in mdls_scproc:
+          raise ValueError(f"scprocess model '{entry['model']}' not found. Valid: {', '.join(mdls_scproc)}")
+        xgb_dir = scdata_dir / 'xgboost'
+        if entry['model'] == 'human_cns':
+          entry['xgb_f']     = str(xgb_dir / 'Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds')
+          entry['xgb_cls_f'] = str(xgb_dir / 'Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv')
+        if not pathlib.Path(entry['xgb_f']).is_file():
+          raise FileNotFoundError(f"XGBoost model file not found: {entry['xgb_f']}")
+        if not pathlib.Path(entry['xgb_cls_f']).is_file():
+          raise FileNotFoundError(f"XGBoost classes file not found: {entry['xgb_cls_f']}")
 
   return config
 
