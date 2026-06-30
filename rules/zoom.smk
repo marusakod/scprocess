@@ -99,11 +99,21 @@ for zoom_name in ZOOMS:
       ZOOM_OUT_MAP[zoom_name][b]["adata"] = f"{zoom_dir}/{zoom_name}/anndata_objects/anndata_cells_clean_{b}_{FULL_TAG}_{zoom_name}_{DATE_STAMP}.h5ad"
 
 zoom_all_subset_fs = [
-  path 
-  for name_dict in ZOOM_OUT_MAP.values() 
-  for b_dict in name_dict.values() 
+  path
+  for name_dict in ZOOM_OUT_MAP.values()
+  for b_dict in name_dict.values()
   for path in b_dict.values()
 ]
+
+zoom_xgb_outs = []
+for zoom_name in ZOOMS:
+  if 'train_xgboost' in ZOOM_PARAMS[zoom_name]:
+    _zxgb = ZOOM_PARAMS[zoom_name]['train_xgboost']
+    _zxgb_ref_tag = _zxgb['ref_tag']
+    zoom_xgb_outs.extend([
+      f'{zoom_dir}/{zoom_name}/{_zxgb_ref_tag}_xgboost_model.json',
+      f'{zoom_dir}/{zoom_name}/{_zxgb_ref_tag}_predictions.csv.gz',
+    ])
 
 rule zoom:
   input:
@@ -130,10 +140,21 @@ rule zoom:
     # zoom marker genes, fgsea and html report
     zoom_mkr_report_outs, 
     # zoom sce and anndata subsets (optional)
-    zoom_all_subset_fs
+    zoom_all_subset_fs,
+    # zoom train_xgboost (optional)
+    zoom_xgb_outs
 
 
-localrules: zoom_make_tmp_pb_cells_df, zoom_make_hvg_df, zoom_merge_group_mean_var, zoom_merge_group_std_var_stats, zoom_merge_stats_for_std_variance
+localrules: zoom_make_tmp_pb_cells_df, zoom_make_hvg_df, zoom_merge_group_mean_var, zoom_merge_group_std_var_stats, zoom_merge_stats_for_std_variance, zoom_copy_train_xgboost_r
+
+
+rule zoom_copy_train_xgboost_r:
+  input:
+    src = scprocess_dir / "scripts" / "train_xgboost.R"
+  output:
+    dst = f"{code_dir}/train_xgboost.R"
+  shell: "cp {input.src} {output.dst}"
+
 
 rule get_zoom_sample_statistics:
   input:
@@ -900,22 +921,110 @@ rule zoom_make_subsets:
     )"
     """
 
+
+rule zoom_train_xgboost:
+  input:
+    annots_f    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['annots_f'],
+    cluster_csv = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
+    h5ads_yaml  = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
+  output:
+    model_f  = f'{zoom_dir}/{{zoom_name}}/{{ref_tag}}_xgboost_model.json',
+    cls_f    = f'{zoom_dir}/{{zoom_name}}/{{ref_tag}}_allowed_cls.csv',
+    genes_f  = f'{zoom_dir}/{{zoom_name}}/{{ref_tag}}_selected_genes.txt',
+    imp_f    = f'{zoom_dir}/{{zoom_name}}/{{ref_tag}}_gene_importance.csv',
+    preds_f  = f'{zoom_dir}/{{zoom_name}}/{{ref_tag}}_predictions.csv.gz',
+    pb_f     = f'{zoom_dir}/{{zoom_name}}/{{ref_tag}}_pseudobulk.h5ad',
+  params:
+    output_dir           = lambda wildcards: f'{zoom_dir}/{wildcards.zoom_name}',
+    batch_var            = BATCH_VAR,
+    int_res_ls           = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
+    label_map_f          = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') or '',
+    refine_labels        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('refine_labels', True),
+    purity_threshold     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('purity_threshold', 0.65),
+    n_cells_per_type     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('n_cells_per_type', 1000),
+    min_cells_per_type   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('min_cells_per_type', 20),
+    min_cells_expressed  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('min_cells_expressed', 10),
+    gene_exclude_re      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('gene_exclude_re', '(lincRNA|lncRNA|pseudogene|antisense)'),
+    seed                 = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('seed', 42),
+    use_gpu              = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('use_gpu', False),
+    pass1_subsample      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass1_subsample', 0.632),
+    pass1_colsample_bytree = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass1_colsample_bytree', 0.1),
+    pass1_learning_rate  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass1_learning_rate', 0.1),
+    pass1_nrounds        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass1_nrounds', 300),
+    pass1_early_stopping = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass1_early_stopping', 10),
+    pass2_colsample_bytree = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass2_colsample_bytree', 0.5),
+    pass2_learning_rate  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass2_learning_rate', 0.05),
+    pass2_nrounds        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass2_nrounds', 500),
+    pass2_early_stopping = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass2_early_stopping', 10),
+    gain_threshold       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('gain_threshold', 0.9),
+    min_genes            = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('min_genes', 100),
+    max_genes            = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('max_genes', 3000),
+  threads: 8
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_train_xgboost', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_train_xgboost', 'time', attempt)
+  log:
+    f'{logs_dir}/zoom/zoom_train_xgboost_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.log'
+  benchmark:
+    f'{benchmark_dir}/zoom/zoom_train_xgboost_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.benchmark.txt'
+  conda:
+    '../envs/label_celltypes.yaml'
+  shell: """
+    exec &>> {log}
+    python3 scripts/train_xgboost.py \
+      --annots_f          {input.annots_f} \
+      --cluster_csv       {input.cluster_csv} \
+      --h5ads_yaml        {input.h5ads_yaml} \
+      --ref_tag           {wildcards.ref_tag} \
+      --output_dir        {params.output_dir} \
+      --batch_var         {params.batch_var} \
+      --int_res_ls        "{params.int_res_ls}" \
+      --refine_labels     {params.refine_labels} \
+      --purity_threshold  {params.purity_threshold} \
+      --n_cells_per_type  {params.n_cells_per_type} \
+      --min_cells_per_type {params.min_cells_per_type} \
+      --min_cells_expressed {params.min_cells_expressed} \
+      --gene_exclude_re  "{params.gene_exclude_re}" \
+      --seed              {params.seed} \
+      --n_cores           {threads} \
+      --pass1_subsample      {params.pass1_subsample} \
+      --pass1_colsample_bytree {params.pass1_colsample_bytree} \
+      --pass1_learning_rate  {params.pass1_learning_rate} \
+      --pass1_nrounds        {params.pass1_nrounds} \
+      --pass1_early_stopping {params.pass1_early_stopping} \
+      --pass2_colsample_bytree {params.pass2_colsample_bytree} \
+      --pass2_learning_rate  {params.pass2_learning_rate} \
+      --pass2_nrounds        {params.pass2_nrounds} \
+      --pass2_early_stopping {params.pass2_early_stopping} \
+      --gain_threshold    {params.gain_threshold} \
+      --min_genes         {params.min_genes} \
+      --max_genes         {params.max_genes} \
+      $( [ "{params.label_map_f}" != "" ] && echo "--label_map_f {params.label_map_f}" ) \
+      $( [ "{params.use_gpu}" == "True" ] && echo "--use_gpu" )
+    """
+
+
 # render_html_zoom
 rule render_html_zoom:
   input:
     unpack(lambda wildcards: get_zoom_conditional_fgsea_files(GENOME_REF, zoom_dir,
         FULL_TAG, DATE_STAMP, ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea'])),
+    unpack(lambda wildcards: get_zoom_conditional_xgboost_files(
+        ZOOM_PARAMS[wildcards.zoom_name], zoom_dir, wildcards.zoom_name, code_dir)),
     r_utils_f             = f'{code_dir}/utils.R',
-    r_hvgs_f              = f'{code_dir}/hvgs.R', 
+    r_hvgs_f              = f'{code_dir}/hvgs.R',
     r_int_f               = f'{code_dir}/integration.R',
     r_mkr_f               = f'{code_dir}/marker_genes.R',
     qc_f                  = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    pb_empty_f            = f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds', 
-    zoom_cell_hvgs_f      = f'{zoom_dir}/{{zoom_name}}/hvg_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz', 
+    pb_empty_f            = f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds',
+    zoom_cell_hvgs_f      = f'{zoom_dir}/{{zoom_name}}/hvg_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
     zoom_int_f            = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
     zoom_pb_f             = f'{zoom_dir}/{{zoom_name}}/pb_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.rds',
     zoom_pb_hvgs_f        = f'{zoom_dir}/{{zoom_name}}/pb_hvgs_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
-    zoom_mkrs_f           = f'{zoom_dir}/{{zoom_name}}/pb_marker_genes_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz', 
+    zoom_mkrs_f           = f'{zoom_dir}/{{zoom_name}}/pb_marker_genes_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
     zoom_empty_gs_f       = f'{zoom_dir}/{{zoom_name}}/edger_empty_genes_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
   output:
     rmd_f                 = f'{rmd_dir}/{SHORT_TAG}_zoom_{{zoom_name}}_{{mkr_sel_res}}.Rmd',
@@ -927,34 +1036,42 @@ rule render_html_zoom:
     date_stamp            = config['project']['date_stamp'],
     proj_dir              = config['project']['proj_dir'],
     genome_ref            = GENOME_REF,
-    metadata_f            = config['project']['sample_metadata'], 
+    metadata_f            = config['project']['sample_metadata'],
     zoom_dir              = zoom_dir,
     batch_var             = BATCH_VAR,
-    meta_vars             = ','.join(config['project']['metadata_vars']), 
+    meta_vars             = ','.join(config['project']['metadata_vars']),
     fgsea_args            = lambda wildcards, input: ", ".join([
       f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}'",
       f"fgsea_go_cc_f = '{input.get('fgsea_go_cc_f', '')}'",
       f"fgsea_go_mf_f = '{input.get('fgsea_go_mf_f', '')}'"
-    ]), 
+    ]),
     af_gtf_dt_f           = config['mapping_af']['gene_info_f'],
-    zoom_int_res_ls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'], 
+    zoom_int_res_ls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
     zoom_mkr_sel_res      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_sel_res'],
-    zoom_mkr_min_cpm_mkr  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cpm_mkr'], 
-    zoom_mkr_min_cells    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cells'],  
-    zoom_mkr_not_ok_re    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_not_ok_re'], 
-    zoom_mkr_do_gsea      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea'], 
+    zoom_mkr_min_cpm_mkr  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cpm_mkr'],
+    zoom_mkr_min_cells    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cells'],
+    zoom_mkr_not_ok_re    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_not_ok_re'],
+    zoom_mkr_do_gsea      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea'],
     zoom_mkr_gsea_var     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_var'],
-    zoom_mkr_gsea_cut     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_cut'], 
-    zoom_custom_mkr_names = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_names'], 
-    zoom_custom_mkr_paths = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_paths']
+    zoom_mkr_gsea_cut     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_cut'],
+    zoom_custom_mkr_names = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_names'],
+    zoom_custom_mkr_paths = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_paths'],
+    do_xgboost            = lambda wildcards: 'train_xgboost' in ZOOM_PARAMS[wildcards.zoom_name],
+    xgb_args              = lambda wildcards, input: ", ".join([
+      f"xgb_predictions_f = '{input.get('xgb_preds_f', '')}'",
+      f"xgb_importance_f  = '{input.get('xgb_imp_f', '')}'",
+      f"xgb_pseudobulk_f  = '{input.get('xgb_pb_f', '')}'",
+      f"xgb_has_coarse    = '{'true' if ZOOM_PARAMS[wildcards.zoom_name].get('train_xgboost', {}).get('label_map_f') else 'false'}'",
+      f"xgb_min_cells     = '{ZOOM_PARAMS[wildcards.zoom_name].get('train_xgboost', {}).get('min_cells_expressed', 10)}'"
+    ])
   threads: 1
   retries: config['resources']['retries']
-  conda: 
+  conda:
     '../envs/rlibs.yaml'
   resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
       'render_html_zoom', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
       'render_html_zoom', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/zoom/render_html_zoom_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.benchmark.txt'
@@ -962,47 +1079,49 @@ rule render_html_zoom:
     f'{logs_dir}/zoom/render_html_zoom_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.log'
   shell: """
     exec &>> {log}
-    
+
     template_f=$(realpath resources/rmd_templates/zoom.Rmd.template)
     rule="zoom"
 
     Rscript --vanilla -e "source('scripts/render_htmls.R'); \
     render_html(
-      rule_name         = '$rule', 
-      proj_dir          = '{PROJ_DIR}', 
-      temp_f            =  '$template_f', 
-      rmd_f             = '{output.rmd_f}', 
-      your_name         = '{params.your_name}', 
-      affiliation       = '{params.affiliation}', 
-      short_tag         = '{params.short_tag}', 
-      date_stamp        = '{params.date_stamp}', 
+      rule_name         = '$rule',
+      proj_dir          = '{PROJ_DIR}',
+      temp_f            =  '$template_f',
+      rmd_f             = '{output.rmd_f}',
+      your_name         = '{params.your_name}',
+      affiliation       = '{params.affiliation}',
+      short_tag         = '{params.short_tag}',
+      date_stamp        = '{params.date_stamp}',
       threads           =  {threads},
-      zoom_dir          = '{params.zoom_dir}', 
-      zoom_name         = '{wildcards.zoom_name}', 
-      metadata_f        = '{params.metadata_f}', 
-      meta_vars_ls      = '{params.meta_vars}', 
-      gtf_dt_f          = '{params.af_gtf_dt_f}', 
-      qc_f              = '{input.qc_f}', 
+      zoom_dir          = '{params.zoom_dir}',
+      zoom_name         = '{wildcards.zoom_name}',
+      metadata_f        = '{params.metadata_f}',
+      meta_vars_ls      = '{params.meta_vars}',
+      gtf_dt_f          = '{params.af_gtf_dt_f}',
+      qc_f              = '{input.qc_f}',
       cell_hvgs_f       = '{input.zoom_cell_hvgs_f}',
-      int_f             = '{input.zoom_int_f}', 
-      pb_f              = '{input.zoom_pb_f}', 
-      mkrs_f            = '{input.zoom_mkrs_f}', 
+      int_f             = '{input.zoom_int_f}',
+      pb_f              = '{input.zoom_pb_f}',
+      mkrs_f            = '{input.zoom_mkrs_f}',
       pb_hvgs_f         = '{input.zoom_pb_hvgs_f}',
-      empty_gs_f        = '{input.zoom_empty_gs_f}', 
-      pb_empty_f        = '{input.pb_empty_f}', 
+      empty_gs_f        = '{input.zoom_empty_gs_f}',
+      pb_empty_f        = '{input.pb_empty_f}',
       {params.fgsea_args},
-      int_res_ls        = '{params.zoom_int_res_ls}', 
+      int_res_ls        = '{params.zoom_int_res_ls}',
       custom_mkr_names  = '{params.zoom_custom_mkr_names}',
       custom_mkr_paths  = '{params.zoom_custom_mkr_paths}',
-      mkr_sel_res       = '{params.zoom_mkr_sel_res}', 
-      mkr_not_ok_re     = '{params.zoom_mkr_not_ok_re}', 
-      mkr_min_cpm_mkr   =  {params.zoom_mkr_min_cpm_mkr}, 
-      mkr_min_cells     =  {params.zoom_mkr_min_cells}, 
+      mkr_sel_res       = '{params.zoom_mkr_sel_res}',
+      mkr_not_ok_re     = '{params.zoom_mkr_not_ok_re}',
+      mkr_min_cpm_mkr   =  {params.zoom_mkr_min_cpm_mkr},
+      mkr_min_cells     =  {params.zoom_mkr_min_cells},
       mkr_gsea_var      = '{params.zoom_mkr_gsea_var}',
-      mkr_gsea_cut      =  {params.zoom_mkr_gsea_cut}, 
+      mkr_gsea_cut      =  {params.zoom_mkr_gsea_cut},
       ref_txome         = '{params.genome_ref}',
       batch_var         = '{params.batch_var}',
-      do_gsea           = '{params.zoom_mkr_do_gsea}'
+      do_gsea           = '{params.zoom_mkr_do_gsea}',
+      do_xgboost        = '{params.do_xgboost}',
+      {params.xgb_args}
     )"
     """
 

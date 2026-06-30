@@ -980,7 +980,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
 
   # update with zoom defaults if not specified
   zoom_schema   = _load_schema_file(zoom_schema_f)
-  zoom_defaults = _get_default_config_from_schema(zoom_schema)
+  zoom_defaults = _get_default_config_from_schema(zoom_schema, zoom_config)
   snakemake.utils.update_config(zoom_defaults, zoom_config)
   zoom_config   = zoom_defaults
 

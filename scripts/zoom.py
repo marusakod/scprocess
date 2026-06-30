@@ -83,3 +83,16 @@ def get_zoom_conditional_fgsea_files(ref_txome, zoom_dir, FULL_TAG, DATE_STAMP, 
   else:
     return {}
 
+
+def get_zoom_conditional_xgboost_files(zoom_params, zoom_dir, zoom_name, code_dir):
+  if 'train_xgboost' in zoom_params:
+    ref_tag = zoom_params['train_xgboost']['ref_tag']
+    return {
+      'xgb_preds_f':   f'{zoom_dir}/{zoom_name}/{ref_tag}_predictions.csv.gz',
+      'xgb_imp_f':     f'{zoom_dir}/{zoom_name}/{ref_tag}_gene_importance.csv',
+      'xgb_pb_f':      f'{zoom_dir}/{zoom_name}/{ref_tag}_pseudobulk.h5ad',
+      'xgb_r_train_f': f'{code_dir}/train_xgboost.R',
+    }
+  else:
+    return {}
+

@@ -193,13 +193,15 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     # params_ls = c(params_ls, train_data_str = train_data_str)
 
   } else if (sel_rule == 'zoom') {
-    req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp', 
+    req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp',
       'threads', 'zoom_dir', 'zoom_name', 'metadata_f', 'meta_vars_ls',
-      'gtf_dt_f', 'qc_f', 'cell_hvgs_f', 'int_f', 'pb_f', 'pb_hvgs_f', 'mkrs_f', 'empty_gs_f', 'pb_empty_f', 
+      'gtf_dt_f', 'qc_f', 'cell_hvgs_f', 'int_f', 'pb_f', 'pb_hvgs_f', 'mkrs_f', 'empty_gs_f', 'pb_empty_f',
       'fgsea_go_bp_f','fgsea_go_cc_f', 'fgsea_go_mf_f', 'int_res_ls',
       'custom_mkr_names', 'custom_mkr_paths', 'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_sel_res',
-      'mkr_min_cells', 'mkr_gsea_var', 'mkr_gsea_cut', 'ref_txome', 'batch_var', 'do_gsea')
-    
+      'mkr_min_cells', 'mkr_gsea_var', 'mkr_gsea_cut', 'ref_txome', 'batch_var', 'do_gsea',
+      'do_xgboost', 'xgb_predictions_f', 'xgb_importance_f', 'xgb_pseudobulk_f',
+      'xgb_has_coarse', 'xgb_min_cells')
+
     assert_that(all(req_names %in% add_args_names))
 
     metadata_vars = add_args[['meta_vars_ls']] %>% 
@@ -222,21 +224,28 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     do_gsea = as.logical(add_args[['do_gsea']])
     if((add_args[['ref_txome']] %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')) & do_gsea){
       fgsea_title = "### GSEA characterisation of clusters{.tabset}"
-      fgsea_txt   = paste0("Gene Set Enrichment Analysis (GSEA) was performed on marker genes for each cluster, using log fold change as the ranking variable.", 
+      fgsea_txt   = paste0("Gene Set Enrichment Analysis (GSEA) was performed on marker genes for each cluster, using log fold change as the ranking variable.",
       " The top 10 pathways, grouped into five categories and selected based on a significance threshold of 0.05, are displayed for each cluster.")
     }else{
       fgsea_title = ""
       fgsea_txt   = ""
     }
 
+    if (as.logical(add_args[['do_xgboost']])) {
+      xgboost_title = "## XGBoost classifier"
+    } else {
+      xgboost_title = ""
+    }
+
     params_ls = c(
       add_args[req_names],
-      list(meta_bars_title = meta_bars_title, 
-           meta_bars_txt   = meta_bars_txt, 
-           meta_umap_title = meta_umap_title, 
-           meta_umap_txt   = meta_umap_txt, 
+      list(meta_bars_title = meta_bars_title,
+           meta_bars_txt   = meta_bars_txt,
+           meta_umap_title = meta_umap_title,
+           meta_umap_txt   = meta_umap_txt,
            fgsea_title     = fgsea_title,
-           fgsea_txt       = fgsea_txt))
+           fgsea_txt       = fgsea_txt,
+           xgboost_title   = xgboost_title))
 
   } else if (sel_rule == 'join') {
     req_names = c('your_name', 'affiliation', 'join_name', 'join_tag',
