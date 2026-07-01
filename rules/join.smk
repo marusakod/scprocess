@@ -19,10 +19,7 @@ import json
 sys.path.append('scripts')
 from scprocess_utils import check_join_config
 
-# ---------------------------------------------------------------------------
-# Setup
-# ---------------------------------------------------------------------------
-
+# setup
 scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
@@ -30,10 +27,7 @@ join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
 # validate config, apply defaults, and check shiny parameters
 config = check_join_config(config, join_schema_f)
 
-# ---------------------------------------------------------------------------
 # Project config loading
-# ---------------------------------------------------------------------------
-
 JOIN_PROJECT_IDS = list(config['projects'].keys())
 _project_cfgs    = {}
 
@@ -97,10 +91,8 @@ for _pid, _h5yaml in zip(JOIN_PROJECT_IDS, H5ADS_YAML_FS):
   for _bk in _h5paths:
     _JOIN_BATCH_KEYS.append(f"{_pid}_{_bk}")
 
-# ---------------------------------------------------------------------------
-# Derived constants
-# ---------------------------------------------------------------------------
 
+# constants
 JOIN_NAME  = config['join']['name']
 JOIN_DIR   = pathlib.Path(config['join']['proj_dir'])
 DATE_STAMP = config['join']['date_stamp']
@@ -228,10 +220,7 @@ if DO_LABEL:
 
   LABELLER_PARAMS = _lbl_cfg
 
-# ---------------------------------------------------------------------------
-# Output file paths
-# ---------------------------------------------------------------------------
-
+# output paths
 joint_hvgs_f        = f"{join_int_dir}/joint_hvgs_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
 joint_counts_f      = f"{join_int_dir}/joint_counts_{JOIN_TAG}_{DATE_STAMP}.h5"
 joint_coldata_f     = f"{join_int_dir}/joint_coldata_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
@@ -267,10 +256,6 @@ AFFILIATION = config['join']['affiliation']
 
 INT_RES_LS_STR = ' '.join(str(r) for r in INT_RES_LS)
 
-# ---------------------------------------------------------------------------
-# Rules
-# ---------------------------------------------------------------------------
-
 # train_xgboost (optional)
 DO_TRAIN_XGB = 'train_xgboost' in config
 if DO_TRAIN_XGB:
@@ -292,7 +277,6 @@ rule all:
 
 
 rule join_select_hvgs:
-  """Select joint HVGs using mean-rank aggregation across projects."""
   input:
     var_stats_fs = VAR_STATS_FS
   output:
@@ -305,7 +289,7 @@ rule join_select_hvgs:
   benchmark:
     f"{benchmark_dir}/join_select_hvgs_{JOIN_TAG}_{DATE_STAMP}.benchmark.txt"
   conda:
-    '../envs/scprocess_local.yaml'
+    '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
     mkdir -p {join_int_dir}
@@ -318,7 +302,6 @@ rule join_select_hvgs:
 
 
 rule join_build_matrix:
-  """Assemble joint count matrix and coldata from per-project h5ads."""
   input:
     joint_hvgs_f  = joint_hvgs_f,
     h5ads_yaml_fs = H5ADS_YAML_FS,
@@ -353,7 +336,6 @@ rule join_build_matrix:
 
 
 rule join_integration:
-  """Run Harmony integration on the joint HVG matrix."""
   input:
     hvg_mat_f    = joint_counts_f,
     coldata_f    = joint_coldata_f,
@@ -415,7 +397,6 @@ rule join_integration:
 
 
 rule join_build_h5ads_yaml:
-  """Create symlinks and the joint h5ads YAML manifest."""
   input:
     h5ads_yaml_fs = H5ADS_YAML_FS
   output:
@@ -429,7 +410,7 @@ rule join_build_h5ads_yaml:
   benchmark:
     f"{benchmark_dir}/join_build_h5ads_yaml_{JOIN_TAG}_{DATE_STAMP}.benchmark.txt"
   conda:
-    '../envs/scprocess_local.yaml'
+    '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
     python3 scripts/join.py build_join_h5ads_yaml \
@@ -441,7 +422,6 @@ rule join_build_h5ads_yaml:
 
 
 rule join_marker_genes:
-  """Pseudobulk marker gene detection on the joint integration."""
   input:
     h5ads_yaml_f  = joint_h5ads_yaml_f,
     integration_f = joint_integration_f
@@ -483,7 +463,6 @@ rule join_marker_genes:
 
 
 rule join_fgsea:
-  """GSEA on join marker genes (runs only for supported transcriptomes)."""
   input:
     mkrs_f = mkrs_f
   output:
@@ -557,7 +536,6 @@ if DO_LABEL:
       """
 
   rule join_scprocess_labeller:
-    """Run scprocess XGBoost labeller on each batch h5ad."""
     input:
       adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad"
     output:
@@ -588,7 +566,6 @@ if DO_LABEL:
 
 
   rule join_merge_labels:
-    """Aggregate per-batch CellTypist predictions by majority voting."""
     input:
       pred_fs       = lambda wildcards: expand(
         f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz",
@@ -621,7 +598,6 @@ if DO_LABEL:
 
 
 rule join_render_html:
-  """Render Rmd report and HTML for the join integration."""
   input:
     integration_f = joint_integration_f,
     mkrs_f        = mkrs_f,
