@@ -36,8 +36,7 @@ probe_sets:
   - name:       human_v1
 xgboost:
   - config:     /path/to/config-training_project.yaml
-  - name:       my_classifier
-    src_dir:    /path/to/classifier/directory
+    name:       my_classifier
 ```
 
 ##### user
@@ -86,43 +85,10 @@ Probe set indices for 10x Flex data are prepared with {{scsetup}} by adding a `p
 
 ##### xgboost { #setup-xgboost }
 
-Custom XGBoost classifiers trained with {{sc}} (using the `train_xgboost` step) can be registered with {{scsetup}} so they are available for cell type annotation in any project via the `label_celltypes` step. {{scsetup}} also automatically downloads any prebuilt classifiers shipped with {{sc}}.
+Custom XGBoost classifiers trained with {{sc}} (using the `train_xgboost` functionality) can be registered with {{scsetup}} so they are available for cell type annotation in any project. To register a user-trained classifier, add an `xgboost` section to the `scprocess_setup.yaml` file. Each entry specifies a classifier to install. There are two ways to reference a trained classifier:
 
-To register a user-trained classifier, add an `xgboost` section to the `scprocess_setup.yaml` file. Each entry specifies a classifier to install. There are two ways to reference a trained classifier:
-
-**Option 1: Point to the project config file** that was used to train the classifier. {{sc}} will automatically locate the training outputs (in `output/{short_tag}_train_xgboost/`) and use `ref_tag` from the `train_xgboost` section as the classifier name:
-
-```yaml
-xgboost:
-  - config: /path/to/config-training_project.yaml
-```
-
-An optional `name` parameter can be used to register the classifier under a different name:
-
-```yaml
-xgboost:
-  - config: /path/to/config-training_project.yaml
-    name: my_brain_classifier
-```
-
-**Option 2: Point directly to the directory** containing the trained classifier files (`name` is required):
-
-```yaml
-xgboost:
-  - name: my_classifier
-    src_dir: /path/to/directory/with/classifier/files
-```
-
-The source directory must contain the following files (where `{ref_tag}` or `{name}` is the classifier identifier): `{ref_tag}_xgboost_model.json`, `{ref_tag}_allowed_cls.csv`, and `{ref_tag}_selected_genes.txt`. An optional `{ref_tag}_label_map.csv` will also be copied if present.
-
-After adding entries to `scprocess_setup.yaml`, run {{scsetup}} to install the classifiers:
-
-```bash
-scprocess setup
-```
-
-This copies the classifier files into `$SCPROCESS_DATA_DIR/xgboost/{name}/` and updates `$SCPROCESS_DATA_DIR/xgboost/xgboost_models.csv`, which is the registry that `label_celltypes` reads from at runtime. Multiple classifiers can be registered at the same time.
-
+ * use the `config` parameter to point to the project configuration file that was used to train the classifier. {{sc}} will automatically locate the training outputs.
+ * use the `scr_dir` parameter to point directly to the directory containing the trained classifier. Required the `name` parameter (unique identifier for the classifier) to be specified.
 
 ## {{scnew}}
 
@@ -288,7 +254,7 @@ This is an example `configfile` for {{sc}} with all parameters and their default
         min_cl_size: 100
     train_xgboost:
       annots_f:
-      ref_tag:
+      ref_tag:                            # optional; defaults to xgboost_{full_tag}
       label_map_f:
       refine_labels: true
       purity_threshold: 0.65
@@ -414,7 +380,7 @@ This is an example `configfile` for {{sc}} with all parameters and their default
         min_cl_size: 100
     train_xgboost:
       annots_f: /path/to/annotations.csv
-      ref_tag: my_classifier
+      ref_tag: my_classifier                      # optional; defaults to xgboost_{full_tag}
       label_map_f: /path/to/label_map.csv
       refine_labels: true
       purity_threshold: 0.65
@@ -627,19 +593,20 @@ sample_id:
 
 ##### train_xgboost
 
-This section configures the training of a custom XGBoost classifier from annotated data. It requires completed `integration` outputs (clustering results and H5AD files). The training step can be run with `scprocess run config.yaml -r train_xgboost`.
-
 * `annots_f` (required): path to a CSV file containing cell annotations. Must have columns `cell_id` and `annotation`. Should be absolute or relative to `proj_dir`.
-* `ref_tag` (required): a unique identifier for the classifier (alphanumeric characters, dashes and underscores only). This tag is used in output file names and as the classifier name when registering with {{scsetup}}.
+* `ref_tag` (optional): a unique identifier for the classifier.
 * `label_map_f`: path to a CSV file mapping fine-grained annotations to coarse labels. Must have columns `annotation` and `coarse_label`. If provided, the trained classifier will also be evaluated on coarse labels and a label map file will be included in the classifier outputs. Should be absolute or relative to `proj_dir`.
 * `refine_labels`: if `true` (default), labels are refined by cluster majority voting — clusters where the majority of cells share the same annotation are assigned that label, which helps correct noisy annotations.
 * `purity_threshold`: minimum proportion of cells in a cluster that must share the same annotation for the cluster to be assigned that label during label refinement. Default is `0.65`.
 * `n_cells_per_type`: target number of cells per cell type after downsampling to balance the training set. Default is `1000`.
 * `min_cells_per_type`: minimum number of cells required to retain a cell type in the training set. Cell types with fewer cells are excluded. Default is `20`.
 * `min_cells_expressed`: minimum number of cells in which a gene must be detected (non-zero counts) for the gene to be included as a feature. Default is `10`.
-* `gene_exclude_re`: regular expression pattern for gene biotypes to exclude from classifier features. Default is `"(lincRNA|lncRNA|pseudogene|antisense)"`. Set to `null` to disable.
+* `gene_exclude_re`: regular expression pattern to exclude specific gene types from training. Default is `"(lincRNA|lncRNA|pseudogene|antisense)"`.
 * `seed`: random seed for reproducibility. Default is `42`.
 * `use_gpu`: whether to use GPU acceleration for XGBoost training. Default is `false`.
+* `gain_threshold`: cumulative gain fraction at which to stop selecting genes. Default is `0.9` (top 90% of total gain).
+* `min_genes`: minimum number of genes to select, regardless of gain threshold. Default is `100`.
+* `max_genes`: maximum number of genes to select. Default is `3000`.
 
 ??? note "XGBoost training parameters"
 
@@ -653,18 +620,12 @@ This section configures the training of a custom XGBoost classifier from annotat
     * `pass1_nrounds`: maximum number of boosting rounds. Default is `300`.
     * `pass1_early_stopping`: stop training if validation performance does not improve for this many rounds. Default is `10`.
 
-    **Feature selection parameters**:
-
-    * `gain_threshold`: cumulative gain fraction at which to stop selecting genes. Default is `0.9` (top 90% of total gain).
-    * `min_genes`: minimum number of genes to select, regardless of gain threshold. Default is `100`.
-    * `max_genes`: maximum number of genes to select. Default is `3000`.
-
     **Pass 2 parameters** (refined training on selected genes):
 
     * `pass2_colsample_bytree`: fraction of selected genes sampled per tree. Default is `0.5`.
     * `pass2_learning_rate`: learning rate. Default is `0.05`.
     * `pass2_nrounds`: maximum number of boosting rounds. Default is `500`.
-    * `pass2_early_stopping`: early stopping patience. Default is `10`.
+    * `pass2_early_stopping`: stop training if validation performance does not improve for this many rounds. Default is `10`.
 
 
 ##### shiny
@@ -699,7 +660,7 @@ This section configures the training of a custom XGBoost classifier from annotat
 
 ##### zoom
 
-In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets` and all [shiny app parameters](#shiny) (`app_title` defaults to `name`)
+In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets`, all [shiny app parameters](#shiny) (`app_title` defaults to `name`), and all [XGBoost training paramaters](#train_xgboost)
 
 Additional parameters include:
 
@@ -715,10 +676,6 @@ Additional parameters include:
 * `save_subset_sces`: whether to create `SingleCellExperiment` objects containing cells that have been assigned one of the values in `sel_labels`; default is `false`.
 * `save_subset_anndata`: whether to create H5AD files containing cells that have been assigned one of the values in `sel_labels`; defaults is `true`.
 * `custom_labels_f`: required if `labels_source` is set to `custom`; path to CSV file with columns `sample_id`, `cell_id` and `label`.
-
-The zoom configuration file also supports an optional `train_xgboost` section with the same parameters as the [project-level `train_xgboost`](#train_xgboost). When included, the XGBoost classifier results are shown in the zoom HTML report.
-
-Example zoom configuration file:
 
 ```yaml
 zoom:
@@ -953,7 +910,7 @@ projects:
       model: Immune_All_Low                    # any CellTypist model name
   train_xgboost:                               # optional; train XGBoost classifier on joint integration
     annots_f: /path/to/annotations.csv.gz      # annotation file (required)
-    ref_tag: my_classifier                     # reference tag for the model (required)
+    ref_tag: my_classifier                     # optional; defaults to xgboost_{join_name}
   shiny:
     app_title: My Joint Analysis # ... same options as in the project-level shiny section (see Optional parameters › shiny)
 ```

@@ -143,7 +143,7 @@
     "train_xgboost": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["annots_f", "ref_tag"],
+      "required": ["annots_f"],
       "properties": {
         "annots_f":              { "type": "string" },
         "ref_tag":               { "type": "string", "pattern": "^[a-zA-Z0-9_-]+$" },

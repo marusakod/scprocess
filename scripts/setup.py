@@ -853,7 +853,9 @@ def _resolve_xgboost_spec(spec):
   if 'train_xgboost' not in proj_config:
     raise ValueError(f"Config file {config_f} does not contain a 'train_xgboost' section")
 
-  ref_tag   = proj_config['train_xgboost']['ref_tag']
+  full_tag  = proj_config['project']['full_tag']
+  raw_tag   = proj_config['train_xgboost'].get('ref_tag')
+  ref_tag   = f"xgboost_{raw_tag}" if raw_tag else f"xgboost_{full_tag}"
   proj_dir  = proj_config['project']['proj_dir']
   short_tag = proj_config['project']['short_tag']
   src_dir   = os.path.join(proj_dir, 'output', f'{short_tag}_train_xgboost')

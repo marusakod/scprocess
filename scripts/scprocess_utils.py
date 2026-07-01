@@ -999,6 +999,13 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
   zoom_config   = _check_shiny_parameters(zoom_config)
   zoom_config   = _check_train_xgboost_parameters(zoom_config)
 
+  if 'train_xgboost' in zoom_config:
+    _zxgb = zoom_config['train_xgboost']
+    if 'ref_tag' not in _zxgb:
+      _zxgb['ref_tag'] = f"xgboost_{config['project']['full_tag']}_zoom_{zoom_config['zoom']['name']}"
+    else:
+      _zxgb['ref_tag'] = f"xgboost_{_zxgb['ref_tag']}"
+
   # get useful things
   SHORT_TAG     = config['project']['short_tag']
   FULL_TAG      = config['project']['full_tag']
@@ -1961,6 +1968,11 @@ def get_train_xgboost_parameters(config, schema_f):
     if v not in xgb:
       xgb[v] = xgb_defaults[v]
 
+  if 'ref_tag' not in xgb:
+    xgb['ref_tag'] = f"xgboost_{config['project']['full_tag']}"
+  else:
+    xgb['ref_tag'] = f"xgboost_{xgb['ref_tag']}"
+
   return xgb
 
 
@@ -2025,6 +2037,12 @@ def check_join_config(config, join_schema_f):
     xgb = config['train_xgboost']
     _apply_join_defaults(xgb,
       join_schema['properties'].get('train_xgboost', {}).get('properties', {}))
+
+    join_name = config['join']['name']
+    if 'ref_tag' not in xgb:
+      xgb['ref_tag'] = f"xgboost_{join_name}"
+    else:
+      xgb['ref_tag'] = f"xgboost_{xgb['ref_tag']}"
 
     # resolve annots_f
     annots_f = pathlib.Path(xgb['annots_f'])

@@ -67,11 +67,7 @@
 
 * #### Cell type labelling
 
-    {{sc}} provides automated cell type annotation of human brain datasets using an `XGBoost` classifier trained on the adult human whole-brain dataset[@Siletti2023-rb]. In addition, {{sc}} supports cell type annotation using pre-trained models available through `CellTypist`[@Xu2023-al],[@Dominguez_Conde2022_kd].
-
-* #### Training a custom XGBoost classifier
-
-    {{sc}} enables users to train custom `XGBoost` classifiers from their own annotated datasets. The trained classifier can then be registered with {{scsetup}} and reused for cell type annotation in other projects via the `label_celltypes` step. Training uses a two-pass approach: a first pass on all genes to identify informative features via gain-based feature selection, followed by a second pass on the selected gene set for the final model. The training step also produces per-cell predictions, gene importance scores, and pseudobulk expression profiles for quality assessment.
+    {{sc}} provides automated cell type annotation of human brain datasets using an `XGBoost` classifier trained on the adult human whole-brain dataset[@Siletti2023-rb]. In addition, {{sc}} enables users to train custom `XGBoost` classifiers from their own annotated datasets. The trained classifier can then be reused for annotating other datasets processed with {{sc}}. {{sc}} alo supports cell type annotation using pre-trained models available through `CellTypist`[@Xu2023-al],[@Dominguez_Conde2022_kd].
 
 * #### Subclustering
 
