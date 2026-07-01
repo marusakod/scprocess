@@ -47,12 +47,12 @@
           ]
         },
         {
-          "if":   { "properties": { "tenx_assay_type": { "const": "flex" } } },
+          "if":   { "properties": { "tenx_assay_type": { "const": "flex" } }, "required": ["tenx_assay_type"] },
           "then": { "required": ["probe_set"],  "not": { "required": ["ref_txome"] } },
           "else": { "required": ["ref_txome"],  "not": { "required": ["probe_set"] } }
         },
         {
-          "if":   { "properties": { "tenx_assay_type": { "const": "flex" } } },
+          "if":   { "properties": { "tenx_assay_type": { "const": "flex" } }, "required": ["tenx_assay_type"] },
           "then": { "properties": { "tenx_chemistry": { "enum": ["none", "flexv1", "flexv2"] } } },
           "else": { "properties": { "tenx_chemistry": { "enum": ["none", "3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"] } } }
         }

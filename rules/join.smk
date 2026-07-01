@@ -104,7 +104,7 @@ for _pid, _h5yaml in zip(JOIN_PROJECT_IDS, H5ADS_YAML_FS):
 JOIN_NAME  = config['join']['name']
 JOIN_DIR   = pathlib.Path(config['join']['proj_dir'])
 DATE_STAMP = config['join']['date_stamp']
-REF_TXOME  = config['join']['ref_txome']
+GENOME_REF = config['join'].get('probe_set', config['join'].get('ref_txome', ''))
 
 JOIN_TAG = f"{JOIN_NAME}_join"
 MKRS_TAG = f"{JOIN_NAME}_marker_genes"
@@ -175,8 +175,9 @@ def _get_custom_mkr_strings(genesets, proj_dir, data_dir):
 MKR_CUSTOM_NAMES, MKR_CUSTOM_PATHS = _get_custom_mkr_strings(
   _mkr_cfg.get('mkr_custom_genesets', []), JOIN_DIR, scdata_dir)
 
-GSEA_TXOMES = ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020']
-DO_GSEA     = MKR_DO_GSEA and (REF_TXOME in GSEA_TXOMES)
+GSEA_REFS   = ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020',
+               'human_v1', 'human_v2', 'mouse_v1', 'mouse_v2']
+DO_GSEA     = MKR_DO_GSEA and (GENOME_REF in GSEA_REFS)
 
 # HVG
 N_HVGS = config.get('hvg', {}).get('hvg_n_hvgs', 2000)
@@ -187,7 +188,7 @@ METADATA_VARS_STR = " ".join(config['join'].get('metadata_vars', []))
 # GTF file from index_parameters.csv (needed for marker genes)
 _idx_params_f = scdata_dir / 'index_parameters.csv'
 _idx_params   = pl.read_csv(_idx_params_f)
-GTF_DT_F = _idx_params.filter(pl.col('ref_txome') == REF_TXOME)['gtf_txt_f'][0]
+GENE_INFO_F = _idx_params.filter(pl.col('reference') == GENOME_REF)['gene_info_f'][0]
 GSEA_DIR = str(scdata_dir / 'gmt_pathways')
 
 # label_celltypes (optional; validated and defaults applied by check_join_config)
@@ -449,7 +450,7 @@ rule join_marker_genes:
     mkrs_f    = mkrs_f,
     pb_hvgs_f = pb_hvgs_f
   params:
-    gtf_dt_f    = GTF_DT_F,
+    gtf_dt_f    = GENE_INFO_F,
     sel_res     = MKR_SEL_RES,
     min_cl_size = MKR_MIN_CL_SIZE,
     min_cells   = MKR_MIN_CELLS,
@@ -490,7 +491,7 @@ rule join_fgsea:
     fgsea_go_cc_f = fgsea_cc_f,
     fgsea_go_mf_f = fgsea_mf_f
   params:
-    ref_txome   = REF_TXOME,
+    genome_ref  = GENOME_REF,
     gsea_dir    = GSEA_DIR,
     min_cpm_go  = MKR_MIN_CPM_GO,
     max_zero_p  = MKR_MAX_ZERO_P,
@@ -513,7 +514,7 @@ rule join_fgsea:
       fgsea_go_bp_f = '{output.fgsea_go_bp_f}',
       fgsea_go_cc_f = '{output.fgsea_go_cc_f}',
       fgsea_go_mf_f = '{output.fgsea_go_mf_f}',
-      ref_txome     = '{params.ref_txome}',
+      genome_ref    = '{params.genome_ref}',
       gsea_dir      = '{params.gsea_dir}',
       min_cpm_go    = {params.min_cpm_go},
       max_zero_p    = {params.max_zero_p},
@@ -646,7 +647,7 @@ rule join_render_html:
     join_tag      = JOIN_TAG,
     join_int_dir  = join_int_dir,
     join_mkr_dir  = join_mkr_dir,
-    ref_txome     = REF_TXOME,
+    ref_txome     = GENOME_REF,
     mkr_sel_res   = MKR_SEL_RES,
     int_res_ls    = INT_RES_LS_STR,
     metadata_vars    = METADATA_VARS_STR,

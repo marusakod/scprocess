@@ -888,7 +888,9 @@ join:
   name: my_join           # short name; output directories are {name}_join and {name}_marker_genes
   proj_dir: /path/to/join_output   # will be created if absent
   date_stamp: "2025-01-15"
-  ref_txome: human_2024   # must match all projects (validated at startup)
+  ref_txome: human_2024            # required for poly_a projects (must match all projects)
+  # probe_set: human_v1           # use instead of ref_txome for flex projects
+  # tenx_assay_type: flex          # set to 'flex' when joining flex projects (default: poly_a)
   your_name: Testy McUser
   affiliation: where you work
   metadata_vars: [Condition, Sex, Region]  # union of metadata variables to carry through

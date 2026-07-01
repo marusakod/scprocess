@@ -7,16 +7,25 @@
     "join": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "proj_dir", "date_stamp", "ref_txome", "your_name", "affiliation"],
+      "required": ["name", "proj_dir", "date_stamp", "your_name", "affiliation"],
       "properties": {
-        "name":           { "type": "string" },
-        "proj_dir":       { "type": "string" },
-        "date_stamp":     { "type": "string", "format": "date" },
-        "ref_txome":      { "type": "string" },
-        "your_name":      { "type": "string" },
-        "affiliation":    { "type": "string" },
-        "metadata_vars":  { "type": "array", "items": { "type": "string" } }
-      }
+        "name":             { "type": "string" },
+        "proj_dir":         { "type": "string" },
+        "date_stamp":       { "type": "string", "format": "date" },
+        "ref_txome":        { "type": "string" },
+        "probe_set":        { "type": "string" },
+        "tenx_assay_type":  { "type": "string", "enum": ["flex", "poly_a"], "default": "poly_a" },
+        "your_name":        { "type": "string" },
+        "affiliation":      { "type": "string" },
+        "metadata_vars":    { "type": "array", "items": { "type": "string" } }
+      },
+      "allOf": [
+        {
+          "if":   { "properties": { "tenx_assay_type": { "const": "flex" } }, "required": ["tenx_assay_type"] },
+          "then": { "required": ["probe_set"],  "not": { "required": ["ref_txome"] } },
+          "else": { "required": ["ref_txome"],  "not": { "required": ["probe_set"] } }
+        }
+      ]
     },
     "projects": {
       "type": "object",

@@ -1996,27 +1996,25 @@ def check_join_config(config, join_schema_f):
 
   Returns the (possibly modified) config dict.
   """
-  with open(join_schema_f) as f:
-    join_schema = json.load(f)
-  errors = sorted(jsonschema.Draft202012Validator(join_schema).iter_errors(config),
-                  key=lambda e: e.path)
-  if errors:
-    raise ValueError("join.yaml validation errors:\n" +
-      "\n".join(f"  {list(e.path)}: {e.message}" for e in errors))
+  join_schema = _load_schema_file(join_schema_f)
+  defaults    = _get_default_config_from_schema(join_schema, config)
+  snakemake.utils.update_config(defaults, config)
+  config      = defaults
+
+  _validate_object_against_schema(config, join_schema_f, "join config")
 
   # validate each referenced project config against the project schema
   proj_schema_f = pathlib.Path(join_schema_f).parent / "config.schema.json"
   if proj_schema_f.is_file():
     proj_schema = _load_schema_file(proj_schema_f)
-    proj_defaults = _get_default_config_from_schema(proj_schema)
     for pid, proj_entry in config.get('projects', {}).items():
       cfg_f = proj_entry.get('config')
       if cfg_f and os.path.isfile(cfg_f):
         with open(cfg_f) as f:
           proj_cfg = yaml.safe_load(f)
-        defaults_copy = copy.deepcopy(proj_defaults)
-        snakemake.utils.update_config(defaults_copy, proj_cfg)
-        proj_cfg = defaults_copy
+        proj_defaults = _get_default_config_from_schema(proj_schema, proj_cfg)
+        snakemake.utils.update_config(proj_defaults, proj_cfg)
+        proj_cfg = proj_defaults
         proj_errors = sorted(
           jsonschema.Draft202012Validator(proj_schema).iter_errors(proj_cfg),
           key=lambda e: e.path)
@@ -2069,18 +2067,20 @@ def check_join_config(config, join_schema_f):
     join_dir = pathlib.Path(config['join']['proj_dir'])
     join_name = config['join']['name']
     xgb['output_dir'] = str(join_dir / f"output/{join_name}_train_xgboost")
-  # check ref_txome matches across all projects
-  join_ref = config['join']['ref_txome']
+  # check genome reference matches across all projects
+  is_flex   = config['join'].get('tenx_assay_type', 'poly_a') == 'flex'
+  ref_field = 'probe_set' if is_flex else 'ref_txome'
+  join_ref  = config['join'].get(ref_field)
   for pid, proj_entry in config.get('projects', {}).items():
     cfg_f = proj_entry.get('config')
     if cfg_f and os.path.isfile(cfg_f):
       with open(cfg_f) as f:
         proj_cfg = yaml.safe_load(f)
-      proj_ref = proj_cfg['project'].get('ref_txome', '')
+      proj_ref = proj_cfg['project'].get(ref_field, '')
       if proj_ref and proj_ref != join_ref:
         raise ValueError(
-          f"Project '{pid}' ref_txome={proj_ref!r} does not match "
-          f"join ref_txome={join_ref!r}")
+          f"Project '{pid}' {ref_field}={proj_ref!r} does not match "
+          f"join {ref_field}={join_ref!r}")
 
   # check h5ads YAML files exist (integration must be complete)
   for pid, proj_entry in config.get('projects', {}).items():
