@@ -867,67 +867,62 @@ Additional parameters include:
 **Parameters**:
 
 * `configfile` (positional): path to a configuration YAML file.
-* `-r`/`--rule` (optional): `all` (default) or `shiny` (build the Shiny app from join outputs).
+* `-r`/`--rule` (optional): `all` (default), `shiny` (build the Shiny app from join outputs) or `train_xgboost`(train an XGBoost classifier from join outputs)
 * `-n`/`--dry-run` (optional): perform a trial run which lists all steps that {{scjoin}} would do and does not create any new files. Helpful for checking input files and parameters.
 * `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli).
 * `--unlock` (optional): unlock the directory if a previous run was interrupted.
 
 ### configuration file
 
-Some parameters in the {{scjoin}} configuration file inherit their definitions from the {{sc}} configuration file, including [**list here all parameters that inherit definitions from scprocess run***] and all [shiny app parameters](#shiny) (`app_title` defaults to `name`).
+Some parameters in the {{scjoin}} configuration file inherit their definitions from the {{sc}} configuration file, including [**list here all parameters that inherit definitions from scprocess run***], all [shiny app parameters](#shiny) (`app_title` defaults to `name`) and all [XGBoost training paramaters](#train_xgboost). Note that user must specify `ref_txome` or `probe_set` (for Flex data) that matches the value of the same parameter in configs of all projects that need to be joined i.e. only projects with same `ref_txome`/`probe_set` can be joined`
 
 Additional parameters include:
-* `metadata_vars` (optional): list of column names from the source projects' `sample_metadata` CSV files to carry through into the joint integration. Each variable must exist in at least one project's metadata file, but does not need to be present in all projects (e.g. when projects have different experimental designs). Missing values are filled with `NA`.
-
-##### requirements
-
-All source projects must use the same genome reference. Projects that set `ref_txome` cannot be joined with projects that set `probe_set` (Flex). Within each type, the values must match across all projects — e.g. all projects must use `human_2024`, not a mix of `human_2024` and `mouse_2024`. The join config's `ref_txome` field is validated against the source projects at startup.
-
-##### join-specific integration parameters
-
+* `name`: short name; output directories are {name}_join and {name}_marker_genes
+* `metadata_vars` (optional): list of column names from the source projects' `sample_metadata` CSV files to carry through into the joint integration. Each variable must exist in at least one project's metadata file, but does not need to be present in all projects (e.g. when projects have different experimental designs). Missing values are filled with `NA`. **Isn't that the same as the project-level metadata vars**?
+* `projects`: 
 * `int_pca_method`: PCA computation method. Options: `bpcells` (default) uses disk-backed SVD via BPCells (R), suitable for very large datasets (>1M cells) without GPU memory limits; `scanpy` uses the standard in-memory PCA on GPU/CPU (original behaviour).
 
 Example {{scjoin}} configuration file:
 
 ```yaml
 join:
-  name: my_join           # short name; output directories are {name}_join and {name}_marker_genes
-  proj_dir: /path/to/join_output   # will be created if absent
+  name: my_join  
+  proj_dir: /path/to/join_output
   date_stamp: "2025-01-15"
-  ref_txome: human_2024            # required for poly_a projects (must match all projects)
+  ref_txome: human_2024           
   # probe_set: human_v1           # use instead of ref_txome for flex projects
-  # tenx_assay_type: flex          # set to 'flex' when joining flex projects (default: poly_a)
+  # tenx_assay_type: flex         # set to 'flex' when joining flex projects
   your_name: Testy McUser
   affiliation: where you work
-  metadata_vars: [Condition, Sex, Region]  # union of metadata variables to carry through
+  metadata_vars: [Condition, Sex, Region]  
 projects:
   project_a:
     config: /path/to/config_a.yaml
-    zoom_name: T_cells          # use T_cells zoom outputs from this project
+    zoom_name: T_cells         
   project_b:
     config: /path/to/config_b.yaml
-    zoom_name: T_cells          # use T_cells zoom outputs from this project
+    zoom_name: T_cells          
   project_c:
-    config: /path/to/config_c.yaml  # no zoom_name: use full-project outputs
+    config: /path/to/config_c.yaml
   hvg:
-    hvg_n_hvgs: 2000                           # number of joint HVGs (default: 2000)
+    hvg_n_hvgs: 2000 0)
   integration:
-    int_pca_method: bpcells                    # bpcells (default) or scanpy; bpcells uses disk-backed SVD for large datasets
-    int_embedding: harmony                     # harmony or pca (default: harmony)
-  label_celltypes:                             # optional; run CellTypist or scprocess on the joint integration
+    int_pca_method: bpcells                    
+    int_embedding: harmony                    
+  label_celltypes:                             
     - labeller: celltypist
-      model: Immune_All_Low                    # any CellTypist model name
-      save_cluster_names_file: true            # generate annotation CSV for shiny
-  train_xgboost:                               # optional; train `XGBoost` classifier on joint integration
-    annots_f: /path/to/annotations.csv.gz      # annotation file (required)
-    ref_tag: my_classifier                     # optional; defaults to xgboost_{join_name}
+      model: Immune_All_Low                    
+      save_cluster_names_file: true            
+  train_xgboost:                               
+    annots_f: /path/to/annotations.csv.gz      
+    ref_tag: my_classifier                     
   shiny:
-    app_title: My Joint Analysis # ... same options as in the project-level shiny section (see Optional parameters › shiny)
+    app_title: My Joint Analysis
 ```
 
 **Notes on `label_celltypes` in join:**
 
-* When `label_celltypes` is configured, it runs automatically as part of `scprocess join` (no separate rule invocation needed).
+* When `label_celltypes` is configured, it runs automatically as part of `scprocess join` (no separate rule invocation needed). **And that's not true at the project level?**
 * If a source project already has label_celltypes outputs for the same `labeller`/`model`, naive predictions are reused instead of re-running the labeller — only projects without existing labels trigger fresh runs.
-* `save_cluster_names_file: true` generates a `cluster_names_for_shiny_*.csv` at the `marker_genes:mkr_sel_res` resolution. This file can be used as `annotation_csv` in the `shiny:` section.
+* `save_cluster_names_file: true` generates a `cluster_names_for_shiny_*.csv` at the `marker_genes:mkr_sel_res` resolution. This file can be used as `annotation_csv` in the `shiny:` section. **This definition is already under label_celltypes right?**
 
