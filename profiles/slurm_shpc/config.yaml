@@ -33,4 +33,7 @@ set-resources:
     slurm_partition: "batch_gpu"
     slurm_extra: "'--gpus=1'"
     qos: '3h'
-
+  join_train_xgboost_train:
+    slurm_partition: "batch_gpu"
+    slurm_extra: "'--gpus=1'"
+    qos: '3h'
