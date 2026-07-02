@@ -574,7 +574,7 @@ rule join_extract_labels:
   log:
     f"{logs_dir}/join_extract_labels_{{labeller}}_{{model}}_{DATE_STAMP}.log"
   conda:
-    '../envs/scprocess_local.yaml'
+    '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
     python3 scripts/label_celltypes.py extract_naive_predictions \
@@ -629,7 +629,7 @@ rule join_save_cluster_names:
   log:
     f"{logs_dir}/join_save_cluster_names_{{labeller}}_{{model}}_{DATE_STAMP}.log"
   conda:
-    '../envs/scprocess_local.yaml'
+    '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
     python3 scripts/label_celltypes.py save_cluster_names \
