@@ -5,7 +5,6 @@ suppressPackageStartupMessages({
   library("DESeq2")
   library("scater")
   library("BiocParallel")
-  library("anndataR")
   RhpcBLASctl::omp_set_num_threads(1L)
 })
 
@@ -234,6 +233,8 @@ make_pseudobulk_object_bpcells <- function(pb_f, integration_f, h5ads_yaml_f, se
 
 
 .make_one_pseudobulk <- function(sel_b, h5ad_paths, batch_var, cl_var, keep_cls, agg_fn) {
+  library("anndataR")
+
   message(sel_b)
   h5ad_f     = h5ad_paths[[sel_b]]
   tmp_sce    = read_h5ad(h5ad_f, as = 'SingleCellExperiment')
@@ -266,6 +267,8 @@ make_pseudobulk_object_bpcells <- function(pb_f, integration_f, h5ads_yaml_f, se
 }
 
 .make_one_zoom_pseudobulk <- function(sel_b, h5ad_paths, int_dt, batch_var, cl_var, keep_cls, agg_fn) {
+  library("anndataR")
+
   message(sel_b)
 
   h5ad_entry  = h5ad_paths[[sel_b]]
