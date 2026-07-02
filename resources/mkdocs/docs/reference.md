@@ -85,7 +85,7 @@ Probe set indices for 10x Flex data are prepared with {{scsetup}} by adding a `p
 
 ##### xgboost { #setup-xgboost }
 
-Custom XGBoost classifiers trained with {{sc}} (using the `train_xgboost` functionality) can be registered with {{scsetup}} so they are available for cell type annotation in any project. To register a user-trained classifier, add an `xgboost` section to the `scprocess_setup.yaml` file. Each entry specifies a classifier to install. There are two ways to reference a trained classifier:
+Custom `XGBoost` classifiers trained with {{sc}} (using the `train_xgboost` functionality) can be registered with {{scsetup}} so they are available for cell type annotation in any project. To register a user-trained classifier, add an `xgboost` section to the `scprocess_setup.yaml` file. Each entry specifies a classifier to install. There are two ways to reference a trained classifier:
 
  * use the `config` parameter to point to the project configuration file that was used to train the classifier. {{sc}} will automatically locate the training outputs.
  * use the `scr_dir` parameter to point directly to the directory containing the trained classifier. Required the `name` parameter (unique identifier for the classifier) to be specified.
@@ -142,7 +142,7 @@ scprocess newjoin <name> [-w <where>] [-p <config>...]
 * `--create-envs` (optional): only create the conda environments needed for the workflow, without running any rules.
 * `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for a detailed explanation of available command-line options.
 * `-r`/`--rule` (optional): Specifies which rule {{sc}} should run. The options are:
-    + `all`: default; includes all [Core pipeline steps](introduction.md#core-pipeline-steps)
+    + `all`: default; includes all [Core pipeline steps](introduction.md#core-pipeline-steps) plus `label_celltypes` (if configured).
     + `mapping`: read alignment and quantification.
     + `ambient`: ambient RNA removal (optional) and cell calling.
     + `demux`: sample demultiplexing.
@@ -151,8 +151,10 @@ scprocess newjoin <name> [-w <where>] [-p <config>...]
     + `integration`: dimentionality reduction with PCA, optional batch correction with `Harmony`, UMAP and clustering.
     + `marker_genes`: marker gene identification and optional gene set enrichment analysis.
     + `label_celltypes`: cell type annotation using a pre-trained classifier.
-    + `train_xgboost`: train a custom XGBoost classifier from annotated data.
+    + `train_xgboost`: train a custom `XGBoost` classifier from annotated data.
     + `zoom`: subclustering.
+    + `shiny`: build an interactive Shiny app from pipeline outputs.
+* `--zoom` (optional): only used with `-r shiny`. Build the Shiny app for a zoom (subclustering) output. Pass a zoom name (e.g. `--zoom immune_cells`) or `all` to build apps for every zoom defined in the config.
 
 
 ### configuration file
@@ -413,7 +415,7 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       default_gene`: APOE
       n_keep`: 3000
       var_names`: ["Variable 1", "Variable 2", "Variable 3"]
-      var_combns`:
+      metadata_combns`:
         - ["Variable 1", "Variable 2"]
       home_md: /path/to/home.md
       annotation_csv`: /path/to/annotation.csv
@@ -589,6 +591,7 @@ sample_id:
 * `min_cl_prop`: minimum proportion of cells in a cluster that need to be labeled for that cluster to be labeled.
 * `min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled.
 * `label_map`: path to a CSV file mapping fine-grained labels to coarse labels. Must contain columns `fine_label` and `coarse_label`. Should be absolute or relative to `proj_dir`. If not specified, {{sc}} will use the default label map included with the classifier (if available).
+* `save_cluster_names_file`: if `true`, generate a `cluster_names_for_shiny_*.csv` file mapping clusters (at the `marker_genes:mkr_sel_res` resolution) to predicted cell type names. This file can be used as the `annotation_csv` in the shiny config. Requires a `marker_genes` block to be configured. Default is `false`.
 
 
 ##### train_xgboost
@@ -601,9 +604,9 @@ sample_id:
 * `n_cells_per_type`: target number of cells per cell type after downsampling to balance the training set. Default is `1000`.
 * `min_cells_per_type`: minimum number of cells required to retain a cell type in the training set. Cell types with fewer cells are excluded. Default is `20`.
 * `min_cells_expressed`: minimum number of cells in which a gene must be detected (non-zero counts) for the gene to be included as a feature. Default is `10`.
-* `gene_exclude_re`: regular expression pattern to exclude specific gene types from training. Default is `"(lincRNA|lncRNA|pseudogene|antisense)"`.
+* `gene_exclude_re`: regular expression pattern to exclude specific gene types from training. Default is `"(lincRNA|lncRNA|pseudogene|antisense)"`; this default allows the classifier to be used on probe-based Flex data as well as reverse-transcription-based data.
 * `seed`: random seed for reproducibility. Default is `42`.
-* `use_gpu`: whether to use GPU acceleration for XGBoost training. Default is `false`.
+* `use_gpu`: whether to use GPU acceleration for `XGBoost` training. Default is `false`.
 * `gain_threshold`: cumulative gain fraction at which to stop selecting genes. Default is `0.9` (top 90% of total gain).
 * `min_genes`: minimum number of genes to select, regardless of gain threshold. Default is `100`.
 * `max_genes`: maximum number of genes to select. Default is `3000`.
@@ -627,7 +630,6 @@ sample_id:
     * `pass2_nrounds`: maximum number of boosting rounds. Default is `500`.
     * `pass2_early_stopping`: stop training if validation performance does not improve for this many rounds. Default is `10`.
 
-
 ##### shiny
 
 * `app_title`: title displayed in the Shiny app header. Defaults to `short_tag`.
@@ -635,8 +637,16 @@ sample_id:
 * `keyword`: short word used in plot axis labels and descriptions (e.g. `"cells"`, `"nuclei"`). Default is `"cells"`.
 * `default_gene`: gene symbol displayed by default in the "Explore Genes" tab.
 * `n_keep`: number of cells retained in the subsampled UMAP shown in the app. Default is 3000.
-* `var_names`: display names for `metadata_vars` columns (same order). Defaults to `metadata_vars` values.
-* `var_combns`: list of metadata variable pairs to display as combined groupings. Each element should be a two-element list of variable names from `metadata_vars`.
+* `metadata_vars`: metadata variables to show in the app. If not specified, uses the project-level `metadata_vars`. Use this to show a different set of variables in the Shiny app than in the main pipeline.
+* `metadata_labels`: display labels for metadata variables. Keys are column names, values are display labels. Variables not listed keep their column name as the label. Example:
+    ```yaml
+    shiny:
+      metadata_labels:
+        brainregion: "brain region"
+        condition: "treatment group"
+    ```
+* `var_names`: _(deprecated, use `metadata_labels` instead)_ display names for `metadata_vars` columns (same order). Defaults to `metadata_vars` values.
+* `metadata_combns`: list of metadata variable pairs to display as combined groupings. Each element should be a two-element list of variable names from `metadata_vars` (use column names, not display labels).
 * `home_md`: path to a Markdown file used as the landing page content. Shoule be absolute or relative to `proj_dir`.
 * `annotation_csv`: path to a CSV file with columns `cluster`, `cluster_name`, and optionally `colour`, defining display names, order, and colours for clusters. Absolute or relative to `proj_dir`.
 * `cluster_palette`: name of colour palette applied to clusters when `annotation_csv` is not provided. Accepts any name from the Supported colour palletes list.
@@ -850,18 +860,6 @@ Additional parameters include:
 
 
 
-## {{scshiny}} { #scprocess-shiny }
-
-**Description**: Create an interactive Shiny app from {{sc}} outputs.
-
-**Parameters**:
-
-* `configfile` (positional): path to the configuration file used in [{{scrun}}](#scprocess-run) or [{{scjoin}}](#scprocess-join).
-* `--zoom` (optional): name of the cell subset to create the Shiny app for e.g `scprocess shiny config-my_project.yaml --zoom oligos_opcs`. Pass `all` to build apps for every zoom defined in the config e.g. `scprocess shiny config-my_project.yaml --zoom all`.
-* `-n`/`--dry-run` (optional): perform a trial run which lists all steps that {{scshiny}} would do and does not create any new files. Helpful for checking input files and parameters.
-* `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli).
-* `--unlock` (optional): unlock the directory if a previous run was interrupted.
-
 ## {{scjoin}} { #scprocess-join }
 
 **Description**: Integrate multiple completed {{sc}} projects.
@@ -869,17 +867,25 @@ Additional parameters include:
 **Parameters**:
 
 * `configfile` (positional): path to a configuration YAML file.
+* `-r`/`--rule` (optional): `all` (default) or `shiny` (build the Shiny app from join outputs).
 * `-n`/`--dry-run` (optional): perform a trial run which lists all steps that {{scjoin}} would do and does not create any new files. Helpful for checking input files and parameters.
 * `-E`/`--extraagrs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli).
 * `--unlock` (optional): unlock the directory if a previous run was interrupted.
 
 ### configuration file
 
-Some parameters in the {{scjoin}} configuratio file inherit their definitions from the {{sc}} configuration file, including [**list here all parameters that inherit definitions from scprocess run***] and all [shiny app parameters](#shiny) (`app_title` defaults to `name`).
+Some parameters in the {{scjoin}} configuration file inherit their definitions from the {{sc}} configuration file, including [**list here all parameters that inherit definitions from scprocess run***] and all [shiny app parameters](#shiny) (`app_title` defaults to `name`).
 
 Additional parameters include:
-[**Add parameter definitions here (take definitions from comments in the yaml**]
-**Which metadata variables can be listed in `metadata_vars`**?
+* `metadata_vars` (optional): list of column names from the source projects' `sample_metadata` CSV files to carry through into the joint integration. Each variable must exist in at least one project's metadata file, but does not need to be present in all projects (e.g. when projects have different experimental designs). Missing values are filled with `NA`.
+
+##### requirements
+
+All source projects must use the same genome reference. Projects that set `ref_txome` cannot be joined with projects that set `probe_set` (Flex). Within each type, the values must match across all projects — e.g. all projects must use `human_2024`, not a mix of `human_2024` and `mouse_2024`. The join config's `ref_txome` field is validated against the source projects at startup.
+
+##### join-specific integration parameters
+
+* `int_pca_method`: PCA computation method. Options: `bpcells` (default) uses disk-backed SVD via BPCells (R), suitable for very large datasets (>1M cells) without GPU memory limits; `scanpy` uses the standard in-memory PCA on GPU/CPU (original behaviour).
 
 Example {{scjoin}} configuration file:
 
@@ -906,14 +912,22 @@ projects:
   hvg:
     hvg_n_hvgs: 2000                           # number of joint HVGs (default: 2000)
   integration:
+    int_pca_method: bpcells                    # bpcells (default) or scanpy; bpcells uses disk-backed SVD for large datasets
     int_embedding: harmony                     # harmony or pca (default: harmony)
   label_celltypes:                             # optional; run CellTypist or scprocess on the joint integration
     - labeller: celltypist
       model: Immune_All_Low                    # any CellTypist model name
-  train_xgboost:                               # optional; train XGBoost classifier on joint integration
+      save_cluster_names_file: true            # generate annotation CSV for shiny
+  train_xgboost:                               # optional; train `XGBoost` classifier on joint integration
     annots_f: /path/to/annotations.csv.gz      # annotation file (required)
     ref_tag: my_classifier                     # optional; defaults to xgboost_{join_name}
   shiny:
     app_title: My Joint Analysis # ... same options as in the project-level shiny section (see Optional parameters › shiny)
 ```
+
+**Notes on `label_celltypes` in join:**
+
+* When `label_celltypes` is configured, it runs automatically as part of `scprocess join` (no separate rule invocation needed).
+* If a source project already has label_celltypes outputs for the same `labeller`/`model`, naive predictions are reused instead of re-running the labeller — only projects without existing labels trigger fresh runs.
+* `save_cluster_names_file: true` generates a `cluster_names_for_shiny_*.csv` at the `marker_genes:mkr_sel_res` resolution. This file can be used as `annotation_csv` in the `shiny:` section.
 

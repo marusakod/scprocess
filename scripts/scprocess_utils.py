@@ -13,7 +13,10 @@ import glob
 import gzip
 import datetime
 import subprocess
-import snakemake
+try:
+  import snakemake
+except ImportError:
+  snakemake = None
 import json
 import jsonschema
 from jsonschema.exceptions import best_match
@@ -74,6 +77,18 @@ def _get_cluster_profile_dir(scprocess_dir, setup_cfg):
     raise FileNotFoundError(f"cluster configuration file {profile_f} does not exist")
 
   return profile_dir
+
+
+def get_conda_prefix(setup_cfg):
+  """Get conda-prefix from the Snakemake profile, if configured."""
+  if 'profile_dir' not in setup_cfg.get('user', {}):
+    return None
+  profile_f = setup_cfg['user']['profile_dir'] / 'config.yaml'
+  if not profile_f.is_file():
+    return None
+  with open(profile_f) as f:
+    profile = yaml.safe_load(f)
+  return profile.get('conda-prefix')
 
 
 ### much checking
@@ -226,7 +241,7 @@ def _check_project_parameters(config, scdata_dir, scprocess_dir):
 
   # do some checks if fastq_dir is specified
   if has_fastq and not has_arv_uuids:
-    config["project"]["fastq_dir"] = _check_path_exists_in_project(config["project"]["fastq_dir"], config, what = "dir")
+    config["project"]["fastq_dir"] = _check_fastq_dir_or_cache(config["project"]["fastq_dir"], config, cache_glob="fastq_metadata_*.yaml")
 
   # check if selected ref_txome or probe_set is valid
   index_params_f    = scdata_dir / 'index_parameters.csv'
@@ -276,6 +291,7 @@ def _check_project_parameters(config, scdata_dir, scprocess_dir):
 
   return config
 
+
 def _check_arvados_parameters(config, scdata_dir):
   # read setup cfg to get arvados_setup (do not write it into project config)
   scdata_setup_f  = scdata_dir / 'scprocess_setup.yaml'
@@ -308,6 +324,7 @@ def _check_arvados_parameters(config, scdata_dir):
 
   return config
 
+
 # check proj dir is wflowr
 def _check_proj_dir_is_wflowr(config):
   # check that proj_dir is a workflowr directory 
@@ -333,7 +350,10 @@ def _check_path_exists_in_project(path_to_check, config, what):
 
   # if not an absolute path, add project directory to it
   if not path_to_check.is_absolute():
-    path_to_check = config["project"]["proj_dir"] / path_to_check
+    if "join" in config:
+      path_to_check = pathlib.Path(config["join"]["proj_dir"]) / path_to_check
+    else:
+      path_to_check = config["project"]["proj_dir"] / path_to_check
 
   # check if directory or file
   if what == "dir":
@@ -346,6 +366,21 @@ def _check_path_exists_in_project(path_to_check, config, what):
     raise ValueError()
 
   return path_to_check
+
+
+def _check_fastq_dir_or_cache(fastq_dir_raw, config, cache_glob):
+  """Check that a FASTQ directory exists, falling back to cached metadata from a prior mapping run."""
+  try:
+    return _check_path_exists_in_project(fastq_dir_raw, config, what = "dir")
+  except FileNotFoundError:
+    af_dir = pathlib.Path(config["project"]["proj_dir"]) / "output" / f"{config['project']['short_tag']}_mapping"
+    if af_dir.is_dir() and any(af_dir.glob(cache_glob)):
+      fastq_path = pathlib.Path(fastq_dir_raw)
+      if not fastq_path.is_absolute():
+        fastq_path = config["project"]["proj_dir"] / fastq_path
+      warnings.warn(f"FASTQ directory {fastq_path} does not exist, but cached FASTQ metadata found.")
+      return fastq_path
+    raise
 
 
 def _check_samples_df(samples_df, config):
@@ -450,7 +485,6 @@ def _check_lib_ids(lib_ids, lib_var):
   return
 
 
-
 # check parameters for multiplexing
 def _check_multiplexing_parameters(config):
   # load up samples
@@ -472,7 +506,7 @@ def _check_multiplexing_parameters(config):
 
     # do some checks if fastq_dir is specified
     if has_fastq and not has_arv_uuids:
-      config["multiplexing"]["fastq_dir"] = _check_path_exists_in_project(config["multiplexing"]["fastq_dir"], config, what = "dir")
+      config["multiplexing"]["fastq_dir"] = _check_fastq_dir_or_cache(config["multiplexing"]["fastq_dir"], config, cache_glob="fastq_metadata_hto_*.yaml")
 
     # check for columns in feature ref
     feat_ref_df   = pl.read_csv(config["multiplexing"]["feature_ref"])
@@ -688,6 +722,7 @@ def _load_valid_palette_names():
     groups = json.load(f)
   return {name for key, names in groups.items() if not key.startswith('_') for name in names}
 
+
 def _check_palette_name(name, context, valid_names):
   if name not in valid_names:
     raise ValueError(
@@ -696,8 +731,57 @@ def _check_palette_name(name, context, valid_names):
     )
 
 
+def _load_sample_metadata(config):
+  """Load sample metadata from project config or all source projects in a join config."""
+  if 'project' in config:
+    meta_f = config['project'].get('sample_metadata')
+    if meta_f and pathlib.Path(meta_f).is_file():
+      return pl.read_csv(meta_f)
+  elif 'join' in config and 'projects' in config:
+    meta_dfs = []
+    for pid, pcfg in config['projects'].items():
+      pcfg_f = pcfg.get('config')
+      if pcfg_f and pathlib.Path(pcfg_f).is_file():
+        with open(pcfg_f) as f:
+          proj_cfg = yaml.safe_load(f)
+        proj_meta_f = proj_cfg.get('project', {}).get('sample_metadata')
+        if proj_meta_f:
+          proj_dir = pathlib.Path(proj_cfg['project']['proj_dir'])
+          proj_meta_path = pathlib.Path(proj_meta_f)
+          if not proj_meta_path.is_absolute():
+            proj_meta_path = proj_dir / proj_meta_path
+          if proj_meta_path.is_file():
+            meta_dfs.append(pl.read_csv(proj_meta_path))
+    if meta_dfs:
+      return pl.concat(meta_dfs, how="diagonal")
+  return None
+
+
+def _check_metadata_palette_values(shiny_cfg, config, metadata_vars, valid_palette_names):
+  meta_df = _load_sample_metadata(config)
+
+  for var, spec in shiny_cfg['metadata_palettes'].items():
+    if metadata_vars and var not in metadata_vars:
+      warnings.warn(
+        f"shiny.metadata_palettes key '{var}' is not in metadata_vars; it will be ignored")
+    if isinstance(spec, str):
+      _check_palette_name(spec, f'shiny.metadata_palettes.{var}', valid_palette_names)
+    elif isinstance(spec, dict):
+      if spec.get('palette'):
+        _check_palette_name(spec['palette'], f'shiny.metadata_palettes.{var}.palette', valid_palette_names)
+      if spec.get('values') and meta_df is not None and var in meta_df.columns:
+        actual_values = set(meta_df[var].drop_nulls().unique().to_list())
+        specified_values = set(spec['values'])
+        missing = actual_values - specified_values
+        if missing:
+          raise ValueError(
+            f"shiny.metadata_palettes.{var}.values is missing values found in sample metadata: "
+            f"{sorted(missing)}")
+
+
 # check parameters for shiny app build
 def _check_shiny_parameters(config):
+
   if 'shiny' not in config:
     return config
 
@@ -705,11 +789,12 @@ def _check_shiny_parameters(config):
 
   # resolve metadata_vars from whichever config level is present
   if 'project' in config:
-    metadata_vars = config['project'].get('metadata_vars', [])
+    base_metadata_vars = config['project'].get('metadata_vars', [])
   elif 'join' in config:
-    metadata_vars = config['join'].get('metadata_vars', [])
+    base_metadata_vars = config['join'].get('metadata_vars', [])
   else:
-    metadata_vars = []
+    base_metadata_vars = []
+  metadata_vars = shiny_cfg.get('metadata_vars', base_metadata_vars)
 
   valid_palette_names = _load_valid_palette_names()
 
@@ -721,13 +806,13 @@ def _check_shiny_parameters(config):
         f"metadata_vars has {len(metadata_vars)}; they must be the same length"
       )
 
-  # check var_combns values are in metadata_vars
-  if shiny_cfg.get('var_combns'):
-    for pair in shiny_cfg['var_combns']:
+  # check metadata_combns values are in metadata_vars
+  if shiny_cfg.get('metadata_combns'):
+    for pair in shiny_cfg['metadata_combns']:
       for v in pair:
         if v not in metadata_vars:
           raise ValueError(
-            f"shiny.var_combns references '{v}' which is not in metadata_vars: "
+            f"shiny.metadata_combns references '{v}' which is not in metadata_vars: "
             f"{metadata_vars}"
           )
 
@@ -735,17 +820,9 @@ def _check_shiny_parameters(config):
   if shiny_cfg.get('cluster_palette'):
     _check_palette_name(shiny_cfg['cluster_palette'], 'shiny.cluster_palette', valid_palette_names)
 
-  # check metadata_palettes palette name strings; warn if keys are not in metadata_vars
+  # check metadata_palettes
   if shiny_cfg.get('metadata_palettes'):
-    for var, spec in shiny_cfg['metadata_palettes'].items():
-      if metadata_vars and var not in metadata_vars:
-        warnings.warn(
-          f"shiny.metadata_palettes key '{var}' is not in metadata_vars; it will be ignored"
-        )
-      if isinstance(spec, str):
-        _check_palette_name(spec, f'shiny.metadata_palettes.{var}', valid_palette_names)
-      elif isinstance(spec, dict) and spec.get('palette'):
-        _check_palette_name(spec['palette'], f'shiny.metadata_palettes.{var}.palette', valid_palette_names)
+    _check_metadata_palette_values(shiny_cfg, config, metadata_vars, valid_palette_names)
 
   # check home_md if specified
   if shiny_cfg.get('home_md'):
@@ -895,7 +972,9 @@ def _check_marker_genes_parameters(config, scdata_dir):
   config['marker_genes']['mkr_gsea_dir'] = scdata_dir / 'gmt_pathways'
 
   # get custom marker files
-  custom_mkr_names, custom_mkr_paths = _get_custom_marker_genes_specs(config, scdata_dir)
+  proj_dir = config['project']['proj_dir']
+  custom_mkr_names, custom_mkr_paths = _get_custom_marker_genes_specs(
+    config, scdata_dir, proj_dir)
   config['marker_genes']['custom_mkr_names'] = custom_mkr_names
   config['marker_genes']['custom_mkr_paths'] = custom_mkr_paths
 
@@ -903,24 +982,19 @@ def _check_marker_genes_parameters(config, scdata_dir):
 
 
 # check specified custom marker genes
-def _get_custom_marker_genes_specs(config, scdata_dir):
-  # set defaults
+def _get_custom_marker_genes_specs(config, scdata_dir, proj_dir):
   custom_mkr_names = ""
   custom_mkr_paths = ""
 
-  # populate with custom sets
   if 'mkr_custom_genesets' in config["marker_genes"]:
     mkr_names = []
     mkr_paths = []
     for i, gene_set in enumerate(config["marker_genes"]["mkr_custom_genesets"]):
-      # get name and file
       name      = gene_set["name"]
-      # second argument is default in case file is missing
       file_path = pathlib.Path(gene_set.get("file", scdata_dir / 'marker_genes' / f"{name}.csv"))
 
-      # check whether it exists
       if not file_path.is_absolute():
-        file_path = config['project']['proj_dir'] / file_path
+        file_path = proj_dir / file_path
       if not file_path.is_file():
         raise FileNotFoundError(f"File not found for marker set '{name}'")
       if not file_path.suffix == ".csv":
@@ -989,7 +1063,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
 
   # start with defaults, overwrite with config values
   defaults      = config.copy()
-  del defaults['hvg']
+  defaults.pop('hvg', None)
   snakemake.utils.update_config(defaults, zoom_config)
   zoom_config   = defaults
 
@@ -1170,26 +1244,61 @@ def _get_fastqs(config, RUNS, is_hto = False):
   else:
     tmp_ls        = config['project']
 
+  # compute cache directory
+  af_dir          = pathlib.Path(config['project']['proj_dir']) / "output" / f"{config['project']['short_tag']}_mapping"
+  cache_prefix    = "fastq_metadata_hto" if is_hto else "fastq_metadata"
+
+  # try loading all runs from cache
+  cached_fastqs   = {}
+  uncached_runs   = []
+  for run in RUNS:
+    cache_f       = af_dir / f"{cache_prefix}_{run}.yaml"
+    if cache_f.exists():
+      cached_fastqs[run] = _read_fastq_metadata_cache(cache_f)
+    else:
+      uncached_runs.append(run)
+
+  if not uncached_runs:
+    return cached_fastqs
+
+  # scan for uncached runs
   if "fastq_dir" in tmp_ls:
     fastq_dir     = tmp_ls['fastq_dir']
-    arv_uuids     = None
+    try:
+      fastq_dict  = _list_fastq_files_dir(fastq_dir)
+    except (FileNotFoundError, OSError) as e:
+      if cached_fastqs:
+        warnings.warn(
+          f"FASTQ directory {fastq_dir} is not accessible ({e}), but cached metadata "
+          f"exists for {len(cached_fastqs)}/{len(RUNS)} libraries. Missing caches for: "
+          f"{uncached_runs}"
+        )
+      raise FileNotFoundError(
+        f"FASTQ files are not accessible at {fastq_dir} and no cached metadata exists "
+        f"for: {uncached_runs}. If the FASTQs were deleted after mapping, re-download "
+        f"them and re-run: scprocess run <config> -r mapping"
+      ) from e
   else:
-    fastq_dir     = None
     arv_uuids     = tmp_ls['arv_uuids']
     arv_instance  = tmp_ls['arv_instance']
-
-  # get 
-  if fastq_dir is not None:
-    fastq_dict    = _list_fastq_files_dir(fastq_dir)
-  elif arv_uuids is not None:
     fastq_dict    = _list_fastq_files_arvados(arv_uuids, arv_instance)
 
-  # get fastq files for each sample
+  scanned_fastqs  = _match_fastqs_to_runs(fastq_dict, RUNS, is_hto)
+
+  # write cache for all successfully resolved runs
+  af_dir.mkdir(parents=True, exist_ok=True)
+  for run, data in scanned_fastqs.items():
+    cache_f       = af_dir / f"{cache_prefix}_{run}.yaml"
+    _write_fastq_metadata_cache(cache_f, run, data)
+
+  return scanned_fastqs
+
+
+def _match_fastqs_to_runs(fastq_dict, RUNS, is_hto):
   wheres        = fastq_dict["wheres"]
   fastq_fs      = fastq_dict["fastqs"]
   fq_sizes_gb   = fastq_dict["fastq_sizes"]
 
-  # loop through samples
   fastqs        = {}
   for run in RUNS:
     # get R1 and R2 files matching each run
@@ -1207,8 +1316,9 @@ def _get_fastqs(config, RUNS, is_hto = False):
     if len(this_where) > 1:
       raise ValueError(f"FASTQ files for run {run} seem to be found in more than location")
 
-    # get R1 filesize
+    # get file sizes
     R1_fs_size_gb = [ fq_sizes_gb[i] for i,f in enumerate(fastq_fs) if re.match(R1_regex, f) ]
+    R2_fs_size_gb = [ fq_sizes_gb[i] for i,f in enumerate(fastq_fs) if re.match(R2_regex, f) ]
 
     # check have full set of files
     check_R1      = [re.sub(r'(?<=(_|\.))R1', 'R0', f) for f in R1_fs]
@@ -1219,13 +1329,39 @@ def _get_fastqs(config, RUNS, is_hto = False):
       print(f"  WARNING: {'hto ' if is_hto else ''}fastq files found for run {run} but R1 and R2 don't match; excluded.")
     else:
       fastqs[run] = {
-        "where":          this_where[0], 
-        "R1_fs":          R1_fs, 
-        "R2_fs":          R2_fs, 
-        "R1_fs_size_gb":  round(sum(R1_fs_size_gb), 1)
+        "where":          this_where[0],
+        "R1_fs":          R1_fs,
+        "R2_fs":          R2_fs,
+        "R1_fs_size_gb":  round(sum(R1_fs_size_gb), 1),
+        "R2_fs_size_gb":  round(sum(R2_fs_size_gb), 1)
       }
 
   return fastqs
+
+
+def _write_fastq_metadata_cache(cache_f, run, data):
+  cache_data = {
+    "lib":            run,
+    "where":          str(data["where"]),
+    "R1_fs":          data["R1_fs"],
+    "R2_fs":          data["R2_fs"],
+    "R1_fs_size_gb":  data["R1_fs_size_gb"],
+    "R2_fs_size_gb":  data["R2_fs_size_gb"]
+  }
+  with open(cache_f, 'w') as f:
+    yaml.dump(cache_data, f, default_flow_style=False)
+
+
+def _read_fastq_metadata_cache(cache_f):
+  with open(cache_f, 'r') as f:
+    cache_data = yaml.safe_load(f)
+  return {
+    "where":          pathlib.Path(cache_data["where"]),
+    "R1_fs":          cache_data["R1_fs"],
+    "R2_fs":          cache_data["R2_fs"],
+    "R1_fs_size_gb":  cache_data["R1_fs_size_gb"],
+    "R2_fs_size_gb":  cache_data.get("R2_fs_size_gb", 0.0)
+  }
 
 
 # get all fastq files in directory
@@ -1359,10 +1495,11 @@ def _do_exclusions(LIST, config, var):
 
 # get parameters for one library
 def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, custom_lib_params):
-  
+  # get file with valid whitelists
   wl_df_f         = scdata_dir / 'cellranger_ref/cellranger_whitelists.csv'
   wl_df           = pl.read_csv(wl_df_f)
   
+  # set up chemistry etc for flex
   if config['mapping_af']['is_flex']:
     # chemistry and whitelist are determined by the probe set
     flex_version    = config['mapping_af']['tenx_chemistry']
@@ -1372,35 +1509,37 @@ def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
     gex_whitelist_f = scdata_dir / 'cellranger_ref' / wl_row['gex_barcodes_f'].item()
 
   else:
+    # allow per-library chemistry override via custom_sample_params
     tenx_chemistry = config['mapping_af']['tenx_chemistry']
     if lib_name in custom_lib_params:
       if 'project' in custom_lib_params[lib_name] and 'tenx_chemistry' in custom_lib_params[lib_name]['project']:
         tenx_chemistry = custom_lib_params[lib_name]['project']['tenx_chemistry']
 
+    # map 10x kit name to simpleaf --chemistry flag (10xv2 uses 16bp barcodes, 10xv3 uses 18bp); default is "none" then auto-detect at mapping time
+    af_chemistry = 'none'
     if tenx_chemistry in ['3v2', '5v1', '5v2']:
       af_chemistry = '10xv2'
-    elif tenx_chemistry in ['5v3', '3LT', '3v3', '3v4', 'multiome']:
+    elif tenx_chemistry in ['3LT', '3v3', '3v4', '5v3', 'multiome']:
       af_chemistry = '10xv3'
-    else:
-      af_chemistry = 'none'
 
+    # 3' chemistries read forward, 5' chemistries read reverse complement; default is "none" then auto-detect at mapping time
+    expected_ori = 'none'
     if tenx_chemistry in ['5v1', '5v2', '5v3']:
       expected_ori = 'rc'
     elif tenx_chemistry in ['3LT', '3v2', '3v3', '3v4', 'multiome']:
       expected_ori = 'fw'
-    else:
-      expected_ori = 'none'
 
+    # look up barcode whitelist files; 'none' defers to auto-detection at mapping time
     if tenx_chemistry == 'none':
       gex_whitelist_f = 'none'
       hto_whitelist_f = 'none'
     else:
-      wl_gex_f    = wl_df.filter(pl.col('chemistry') == tenx_chemistry)['gex_barcodes_f'].item()
-      wl_hto_f    = wl_df.filter(pl.col('chemistry') == tenx_chemistry)['hto_barcodes_f'].item()
+      wl_gex_f        = wl_df.filter(pl.col('chemistry') == tenx_chemistry)['gex_barcodes_f'].item()
+      wl_hto_f        = wl_df.filter(pl.col('chemistry') == tenx_chemistry)['hto_barcodes_f'].item()
       gex_whitelist_f = scdata_dir / 'cellranger_ref' / wl_gex_f
       hto_whitelist_f = scdata_dir / 'cellranger_ref' / wl_hto_f
 
-  # make dictionary for mapping
+  # make dictionary for RNA mapping
   mapping_dc  = {
     "where":              RNA_FQS[lib_name]["where"],
     "R1_fs":              RNA_FQS[lib_name]["R1_fs"],
@@ -1412,7 +1551,7 @@ def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
     "geometry":           config['mapping_af'].get('geometry', ''),
   }
 
-  # make dictionary for mapping
+  # make dictionary for HTO mapping
   if config['multiplexing']['demux_type'] == "hto":
     multiplexing_dc  = {
       "where":              HTO_FQS[lib_name]["where"],
@@ -1432,7 +1571,6 @@ def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
   }
 
   return out_dc
-
 
 
 # get parameters for one run
@@ -1637,7 +1775,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
   typist_ls_f     = scdata_dir / 'celltypist/celltypist_models.csv'
   xgboost_ls_f    = scdata_dir / 'xgboost/xgboost_models.csv'
   mdls_typist     = pl.read_csv(typist_ls_f)['model'].to_list()
-  xgboost_df    = pl.read_csv(xgboost_ls_f)
+  xgboost_df      = pl.read_csv(xgboost_ls_f)
   mdls_xgboost    = xgboost_df['model'].to_list()
 
   # check that selected models are valid
@@ -1689,6 +1827,13 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
       if not v in entry:
         entry[v] = label_defaults[v]
 
+    # validate save_cluster_names_file
+    if entry.get('save_cluster_names_file', False) and 'marker_genes' not in config:
+      warnings.warn(
+        f"save_cluster_names_file is true for {entry['labeller']}/{entry['model']} "
+        f"but no marker_genes block is configured; skipping cluster names file.")
+      entry['save_cluster_names_file'] = False
+
     return entry
 
   # apply this to each specified model
@@ -1697,27 +1842,178 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
   return LABELLER_PARAMS
 
 
-def prep_resource_params(config, schema_f, lm_f, LIB_PARAMS, BATCHES):
+# --- join parameter helpers ---
+
+def get_join_project_parameters(config):
+  """Load source project configs and derive per-project paths and batch keys."""
+  project_ids = list(config['projects'].keys())
+  project_cfgs = {}
+
+  for pid in project_ids:
+    cfg_f = config['projects'][pid]['config']
+    with open(cfg_f) as f:
+      project_cfgs[pid] = yaml.safe_load(f)
+
+  def _dir(pid):
+    return pathlib.Path(project_cfgs[pid]['project']['proj_dir'])
+
+  def _short_tag(pid):
+    return project_cfgs[pid]['project']['short_tag']
+
+  def _full_tag(pid):
+    return project_cfgs[pid]['project']['full_tag']
+
+  def _date(pid):
+    return project_cfgs[pid]['project']['date_stamp']
+
+  def _var_stats_f(pid):
+    zoom_name = config['projects'][pid].get('zoom_name')
+    if zoom_name:
+      zoom_dir = _dir(pid) / f"output/{_short_tag(pid)}_zoom"
+      return zoom_dir / zoom_name / f"standardized_variance_stats_{_full_tag(pid)}_{zoom_name}_{_date(pid)}.csv.gz"
+    return _dir(pid) / f"output/{_short_tag(pid)}_hvg" / f"standardized_variance_stats_{_full_tag(pid)}_{_date(pid)}.csv.gz"
+
+  def _h5ads_yaml_f(pid):
+    return _dir(pid) / f"output/{_short_tag(pid)}_integration" / f"h5ads_clean_paths_{_full_tag(pid)}_{_date(pid)}.yaml"
+
+  def _integrated_dt_f(pid):
+    zoom_name = config['projects'][pid].get('zoom_name')
+    if zoom_name:
+      zoom_dir = _dir(pid) / f"output/{_short_tag(pid)}_zoom"
+      return zoom_dir / zoom_name / f"integrated_dt_{_full_tag(pid)}_{zoom_name}_{_date(pid)}.csv.gz"
+    return _dir(pid) / f"output/{_short_tag(pid)}_integration" / f"integrated_dt_{_full_tag(pid)}_{_date(pid)}.csv.gz"
+
+  def _sample_meta_f(pid):
+    meta_f = pathlib.Path(project_cfgs[pid]['project']['sample_metadata'])
+    if not meta_f.is_absolute():
+      meta_f = _dir(pid) / meta_f
+    return meta_f
+
+  # build batch keys from per-project h5ads YAMLs
+  h5ads_yaml_fs = [str(_h5ads_yaml_f(pid)) for pid in project_ids]
+  batch_keys = []
+  for pid, h5yaml in zip(project_ids, h5ads_yaml_fs):
+    with open(h5yaml) as fh:
+      h5paths = yaml.safe_load(fh)
+    for bk in h5paths:
+      batch_keys.append(f"{pid}_{bk}")
+
+  return {
+    'project_ids':    project_ids,
+    'project_cfgs':   project_cfgs,
+    'var_stats_fs':   [str(_var_stats_f(pid)) for pid in project_ids],
+    'h5ads_yaml_fs':  h5ads_yaml_fs,
+    'integrated_fs':  [str(_integrated_dt_f(pid)) for pid in project_ids],
+    'sample_meta_fs': [str(_sample_meta_f(pid)) for pid in project_ids],
+    'batch_keys':     batch_keys,
+  }
+
+
+
+def get_join_source_labels_f(project_cfgs, pid, labeller, model):
+  """Return path to a source project's aggregated labels file, or None if unavailable."""
+  pcfg = project_cfgs[pid]
+  if 'label_celltypes' not in pcfg:
+    return None
+  matches = [e for e in pcfg['label_celltypes']
+    if e.get('labeller') == labeller and e.get('model') == model]
+  if not matches:
+    return None
+  proj_dir  = pathlib.Path(pcfg['project']['proj_dir'])
+  short_tag = pcfg['project']['short_tag']
+  full_tag  = pcfg['project']['full_tag']
+  date      = pcfg['project']['date_stamp']
+  lbl_dir   = proj_dir / f"output/{short_tag}_label_celltypes"
+  f = lbl_dir / f"labels_{labeller}_model_{model}_{full_tag}_{date}.csv.gz"
+  return str(f) if f.is_file() else None
+
+
+def get_join_batch_sources(project_cfgs, project_ids, batch_keys, labeller, model):
+  """Split batch keys into those with reusable labels and those needing fresh runs."""
+  reuse_label_fs = []
+  fresh_batches = []
+  for pid in project_ids:
+    proj_label_f = get_join_source_labels_f(project_cfgs, pid, labeller, model)
+    pid_batches = [bk for bk in batch_keys if bk.startswith(f"{pid}_")]
+    if proj_label_f:
+      reuse_label_fs.append(proj_label_f)
+    else:
+      fresh_batches.extend(pid_batches)
+  return fresh_batches, reuse_label_fs
+
+
+def get_shiny_targets(config, scprocess_dir, scdata_dir, dryrun, zoom_name=None):
+  """Determine shiny build targets and create output directories.
+
+  Returns (targets, proj_dir) where targets is a list of Snakemake target
+  rule names or file paths.
+  """
+  scprocess_dir = pathlib.Path(scprocess_dir)
+  _is_join = 'join' in config
+  if _is_join:
+    join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
+    config = check_join_config(config, join_schema_f, scdata_dir)
+  else:
+    schema_f = scprocess_dir / "resources/schemas/config.schema.json"
+    config = check_config(config, schema_f, scdata_dir, scprocess_dir)
+
+  proj_cfg = config['join'] if _is_join else config['project']
+  proj_dir = pathlib.Path(proj_cfg['proj_dir'])
+  date_stamp = proj_cfg['date_stamp']
+  docs_dir = proj_dir / "public"
+
+  if _is_join and zoom_name is not None:
+    raise ValueError("--zoom is not supported for join configs.")
+
+  if zoom_name is None:
+    if not dryrun:
+      os.makedirs(docs_dir / "shiny", exist_ok=True)
+    return ["build_shiny_app"], proj_dir
+
+  if zoom_name == "all":
+    zoom_schema_f = pathlib.Path(scprocess_dir) / "resources/schemas/zoom.schema.json"
+    ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
+    zoom_names = list(ZOOM_PARAMS.keys())
+    if not zoom_names:
+      raise ValueError("No zoom specs found in config. Add a 'zoom:' section to your config file.")
+    if not dryrun:
+      for zn in zoom_names:
+        os.makedirs(docs_dir / f"shiny_zoom_{zn}", exist_ok=True)
+    return ["build_all_zoom_shiny_apps"], proj_dir
+
+  zoom_schema_f = pathlib.Path(scprocess_dir) / "resources/schemas/zoom.schema.json"
+  ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
+  zoom_names = list(ZOOM_PARAMS.keys())
+  if zoom_name not in zoom_names:
+    raise ValueError(
+      f"Zoom '{zoom_name}' not found in config. "
+      f"Available zooms: {', '.join(zoom_names) if zoom_names else '(none)'}")
+  if not dryrun:
+    os.makedirs(docs_dir / f"shiny_zoom_{zoom_name}", exist_ok=True)
+  return [str(docs_dir / f"shiny_zoom_{zoom_name}" / f".shiny_built_{date_stamp}")], proj_dir
+
+
+def prep_resource_params(config, schema_f, lm_f, LIB_PARAMS=None, BATCHES=None):
   # add default resource values
   schema      = _load_schema_file(schema_f)
   defaults    = _get_default_config_from_schema(schema)
-  defaults    = defaults['resources']
+  defaults    = defaults.get('resources', {})
 
   # get user resource values
-  user_vals   = config['resources'].copy()
+  user_vals   = config.get('resources', {}).copy()
 
   # if same as default, remove from user vals
   for n in list(user_vals):
     if n in defaults:
       if defaults[n] == user_vals[n]:
         del user_vals[n]
-  
+
   # add lm values
   lm_df       = pl.read_csv(lm_f)
 
-  # get sizes, n-batches
-  R1_sizes    = { lib: vals["mapping_af"]["R1_fs_size_gb"] for lib, vals in LIB_PARAMS.items() }
-  n_batches   = len(BATCHES)
+  # get sizes, n-batches (optional — not available for shiny/join standalone workflows)
+  R1_sizes    = { lib: vals["mapping_af"]["R1_fs_size_gb"] for lib, vals in LIB_PARAMS.items() } if LIB_PARAMS else {}
+  n_batches   = len(BATCHES) if BATCHES else 0
 
   # make full dict of useful things
   RESOURCE_PARAMS = {}
@@ -1836,7 +2132,6 @@ def _estimate_resource_parameter(filt_lm_df, RESOURCE_PARAMS, input, rule, run):
 BYTES_PER_GB  = 1024**3
 MB_PER_GB     = 1024
 
-
 # nice boolean values from yaml inputs
 def _safe_boolean(val):
   if type(val) is bool:
@@ -1876,7 +2171,6 @@ def check_ranger_url(ranger_url):
 
   return ranger_version
   
-
 
 # HVGs function: make df with list of chunked counts files
 def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_RUNS, 
@@ -1976,6 +2270,10 @@ def get_train_xgboost_parameters(config, schema_f):
   return xgb
 
 
+# ---------------------------------------------------------------------------
+# Join config validation
+# ---------------------------------------------------------------------------
+
 def _apply_join_defaults(cfg, schema_props):
   """Recursively apply JSON Schema defaults to cfg in-place."""
   for key, prop in schema_props.items():
@@ -1985,7 +2283,7 @@ def _apply_join_defaults(cfg, schema_props):
       _apply_join_defaults(cfg[key], prop['properties'])
 
 
-def check_join_config(config, join_schema_f):
+def check_join_config(config, join_schema_f, scdata_dir):
   """Validate and augment a join.yaml config dict.
 
   Mirrors check_config() for project configs:
@@ -2006,16 +2304,17 @@ def check_join_config(config, join_schema_f):
   # validate each referenced project config against the project schema
   proj_schema_f = pathlib.Path(join_schema_f).parent / "config.schema.json"
   if proj_schema_f.is_file():
-    proj_schema = _load_schema_file(proj_schema_f)
+    proj_schema   = _load_schema_file(proj_schema_f)
     for pid, proj_entry in config.get('projects', {}).items():
-      cfg_f = proj_entry.get('config')
+      cfg_f         = proj_entry.get('config')
       if cfg_f and os.path.isfile(cfg_f):
         with open(cfg_f) as f:
-          proj_cfg = yaml.safe_load(f)
+          proj_cfg      = yaml.safe_load(f)
         proj_defaults = _get_default_config_from_schema(proj_schema, proj_cfg)
-        snakemake.utils.update_config(proj_defaults, proj_cfg)
-        proj_cfg = proj_defaults
-        proj_errors = sorted(
+        defaults_copy = copy.deepcopy(proj_defaults)
+        snakemake.utils.update_config(defaults_copy, proj_cfg)
+        proj_cfg      = defaults_copy
+        proj_errors   = sorted(
           jsonschema.Draft202012Validator(proj_schema).iter_errors(proj_cfg),
           key=lambda e: e.path)
         if proj_errors:
@@ -2043,7 +2342,11 @@ def check_join_config(config, join_schema_f):
       xgb['ref_tag'] = f"xgboost_{xgb['ref_tag']}"
 
     # resolve annots_f
+    join_dir = pathlib.Path(config['join']['proj_dir'])
     annots_f = pathlib.Path(xgb['annots_f'])
+    if not annots_f.is_absolute():
+      annots_f = join_dir / annots_f
+    xgb['annots_f'] = str(annots_f)
     if not annots_f.is_file():
       raise FileNotFoundError(f"Annotations file not found: {annots_f}")
     annots_df = pl.read_csv(str(annots_f), n_rows=5)
@@ -2055,6 +2358,9 @@ def check_join_config(config, join_schema_f):
     # check label_map_f if provided
     if xgb.get("label_map_f") is not None:
       label_map_f = pathlib.Path(xgb["label_map_f"])
+      if not label_map_f.is_absolute():
+        label_map_f = join_dir / label_map_f
+      xgb['label_map_f'] = str(label_map_f)
       if not label_map_f.is_file():
         raise FileNotFoundError(f"Label map file not found: {label_map_f}")
       map_df = pl.read_csv(str(label_map_f), n_rows=5)
@@ -2064,48 +2370,65 @@ def check_join_config(config, join_schema_f):
         raise ValueError("label_map_f must have 'coarse_label' column")
 
     # inject output_dir
-    join_dir = pathlib.Path(config['join']['proj_dir'])
     join_name = config['join']['name']
     xgb['output_dir'] = str(join_dir / f"output/{join_name}_train_xgboost")
-  # check genome reference matches across all projects
+
+  # derive marker gene paths (mirrors _check_marker_genes_parameters for non-join)
+  scdata_dir = pathlib.Path(scdata_dir)
+  config['marker_genes']['mkr_gsea_dir'] = str(scdata_dir / 'gmt_pathways')
+  join_dir = pathlib.Path(config['join']['proj_dir'])
+  custom_mkr_names, custom_mkr_paths = _get_custom_marker_genes_specs(
+    config, scdata_dir, join_dir)
+  config['marker_genes']['custom_mkr_names'] = custom_mkr_names
+  config['marker_genes']['custom_mkr_paths'] = custom_mkr_paths
+
+  # look up gene_info_f from index_parameters.csv
   is_flex   = config['join'].get('tenx_assay_type', 'poly_a') == 'flex'
   ref_field = 'probe_set' if is_flex else 'ref_txome'
   join_ref  = config['join'].get(ref_field)
+  idx_params_f = scdata_dir / 'index_parameters.csv'
+  idx_params = pl.read_csv(idx_params_f)
+  config['marker_genes']['gene_info_f'] = idx_params.filter(
+    pl.col('reference') == join_ref)['gene_info_f'][0]
+
+  # check ref_txome / probe_set consistency across all projects
   for pid, proj_entry in config.get('projects', {}).items():
     cfg_f = proj_entry.get('config')
     if cfg_f and os.path.isfile(cfg_f):
       with open(cfg_f) as f:
         proj_cfg = yaml.safe_load(f)
-      proj_ref = proj_cfg['project'].get(ref_field, '')
+      proj_is_flex = proj_cfg['project'].get('tenx_assay_type', 'poly_a') == 'flex'
+      proj_field   = 'probe_set' if proj_is_flex else 'ref_txome'
+      if proj_field != ref_field:
+        raise ValueError(
+          f"Cannot join projects with different reference types: "
+          f"join uses {ref_field}, but project '{pid}' uses {proj_field}")
+      proj_ref = proj_cfg['project'].get(ref_field)
       if proj_ref and proj_ref != join_ref:
         raise ValueError(
           f"Project '{pid}' {ref_field}={proj_ref!r} does not match "
           f"join {ref_field}={join_ref!r}")
 
   # check h5ads YAML files exist (integration must be complete)
+  # h5ads are always in the integration directory, even when using zoom outputs
   for pid, proj_entry in config.get('projects', {}).items():
     cfg_f = proj_entry.get('config')
     if cfg_f and os.path.isfile(cfg_f):
       with open(cfg_f) as f:
         proj_cfg = yaml.safe_load(f)
-      proj_dir  = pathlib.Path(proj_cfg['project']['proj_dir'])
-      short_tag = proj_cfg['project']['short_tag']
-      full_tag  = proj_cfg['project']['full_tag']
-      date_stamp = proj_cfg['project']['date_stamp']
-      zoom_name = proj_entry.get('zoom_name')
-      if zoom_name:
-        int_dir  = proj_dir / f"output/{short_tag}_zoom" / zoom_name
-      else:
-        int_dir  = proj_dir / f"output/{short_tag}_integration"
-      h5ads_f  = int_dir / f"h5ads_clean_paths_{full_tag}_{date_stamp}.yaml"
+      proj_dir    = pathlib.Path(proj_cfg['project']['proj_dir'])
+      short_tag   = proj_cfg['project']['short_tag']
+      full_tag    = proj_cfg['project']['full_tag']
+      date_stamp  = proj_cfg['project']['date_stamp']
+      int_dir     = proj_dir / f"output/{short_tag}_integration"
+      h5ads_f     = int_dir / f"h5ads_clean_paths_{full_tag}_{date_stamp}.yaml"
       if not h5ads_f.is_file():
         raise FileNotFoundError(
           f"h5ads YAML not found for project '{pid}': {h5ads_f}\n"
           f"  scprocess integration must be completed for this project before running join.")
 
   # validate label_celltypes models and resolve paths
-  scdata_dir = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR', ''))
-  lbl_cfg = config.get('label_celltypes', [])
+  lbl_cfg     = config.get('label_celltypes', [])
   if lbl_cfg:
     lbl_schema_props = join_schema['properties']['label_celltypes']['items']['properties']
     for entry in lbl_cfg:
@@ -2132,5 +2455,34 @@ def check_join_config(config, join_schema_f):
         if not pathlib.Path(entry['xgb_cls_f']).is_file():
           raise FileNotFoundError(f"XGBoost classes file not found: {entry['xgb_cls_f']}")
 
-  return config
+  # check that each metadata_var is present in at least one project's sample
+  # metadata file. Unlike the standard pipeline (which requires all vars in a
+  # single file), join allows vars to be present in only a subset of projects
+  # (e.g. when projects have different experimental designs).
+  metadata_vars = config['join'].get('metadata_vars', [])
+  if metadata_vars:
+    for var in metadata_vars:
+      found = False
+      for pid, proj_entry in config.get('projects', {}).items():
+        cfg_f = proj_entry.get('config')
+        if cfg_f and os.path.isfile(cfg_f):
+          with open(cfg_f) as f:
+            proj_cfg = yaml.safe_load(f)
+          # resolve sample metadata path (may be relative to project dir)
+          meta_f = proj_cfg['project'].get('sample_metadata', '')
+          if meta_f:
+            proj_dir = pathlib.Path(proj_cfg['project']['proj_dir'])
+            meta_p   = pathlib.Path(meta_f)
+            if not meta_p.is_absolute():
+              meta_p = proj_dir / meta_p
+            # read header only to check column names
+            if meta_p.is_file():
+              samples_df = pl.read_csv(meta_p, n_rows=0)
+              if var in samples_df.columns:
+                found = True
+                break
+      if not found:
+        raise KeyError(
+          f"metadata_var '{var}' not found in any project's sample metadata file")
 
+  return config

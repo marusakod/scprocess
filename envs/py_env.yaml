@@ -5,6 +5,8 @@ channels:
   - nodefaults
 dependencies:
   - polars
+  - snakemake
+  - jsonschema
   - _libgcc_mutex=0.1
   - _openmp_mutex=4.5
   - bzip2=1.0.8

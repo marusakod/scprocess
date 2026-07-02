@@ -18,47 +18,53 @@ join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
 # detect config type: project (normal) or join
 _is_join = 'join' in config
 
-# reference transcriptomes that support GSEA (used below in helper functions)
-_GSEA_TXOMES = {'human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'}
+# references that support GSEA (ref_txome for poly-A, probe_set for Flex)
+_GSEA_REFS = {'human_2024', 'human_2020', 'mouse_2024', 'mouse_2020',
+  'human_v1', 'human_v2', 'mouse_v1', 'mouse_v2'}
 
 if _is_join:
   # --- validate and unpack join config ---
-  config = check_join_config(config, join_schema_f)
+  config = check_join_config(config, join_schema_f, scdata_dir)
+  lm_f   = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
+  RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, lm_f)
 
   JOIN_NAME  = config['join']['name']
   PROJ_DIR   = pathlib.Path(config['join']['proj_dir'])
   DATE_STAMP = config['join']['date_stamp']
-  REF_TXOME  = config['join']['ref_txome']
+  GENOME_REF = config['join'].get('probe_set', config['join'].get('ref_txome', ''))
   JOIN_TAG   = f"{JOIN_NAME}_join"
   FULL_TAG   = JOIN_TAG
   SHORT_TAG  = JOIN_NAME
   MKR_SEL_RES = config.get('marker_genes', {}).get('mkr_sel_res', 0.2)
 
   int_dir   = str(PROJ_DIR / f"output/{JOIN_TAG}")
-  mkr_dir   = str(PROJ_DIR / f"output/{JOIN_NAME}_marker_genes")
+  mkr_dir   = str(PROJ_DIR / f"output/{JOIN_TAG}")
   zoom_dir  = ''   # not used for join
   logs_dir  = str(PROJ_DIR / ".log")
   docs_dir  = str(PROJ_DIR / "public")
 
   _shiny_cfg      = config.get('shiny', {})
   _sample_meta_f  = str(PROJ_DIR / f"output/{JOIN_TAG}/joint_sample_meta_{JOIN_TAG}_{DATE_STAMP}.csv")
-  _metadata_vars  = ','.join(config['join'].get('metadata_vars', []))
+  _metadata_vars_ls = _shiny_cfg.get('metadata_vars', config['join'].get('metadata_vars', []))
+  _metadata_vars  = ','.join(_metadata_vars_ls)
 
   ZOOM_PARAMS = {}
   ZOOMS       = []
 
   def _gsea_supported():
-    return REF_TXOME in _GSEA_TXOMES
+    return GENOME_REF in _GSEA_REFS
 
 else:
   # --- validate and unpack normal project config ---
   config = check_config(config, schema_f, scdata_dir, scprocess_dir)
+  lm_f   = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
+  RESOURCE_PARAMS = prep_resource_params(config, schema_f, lm_f)
 
   PROJ_DIR   = config['project']['proj_dir']
   FULL_TAG   = config['project']['full_tag']
   SHORT_TAG  = config['project']['short_tag']
   DATE_STAMP = config['project']['date_stamp']
-  REF_TXOME  = config['project']['ref_txome']
+  GENOME_REF = config['project'].get('probe_set', config['project'].get('ref_txome', ''))
   MKR_SEL_RES = config['marker_genes']['mkr_sel_res']
 
   int_dir   = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
@@ -69,13 +75,14 @@ else:
 
   _shiny_cfg     = config.get('shiny', {})
   _sample_meta_f = config['project']['sample_metadata']
-  _metadata_vars = ','.join(config['project'].get('metadata_vars', []))
+  _metadata_vars_ls = _shiny_cfg.get('metadata_vars', config['project'].get('metadata_vars', []))
+  _metadata_vars = ','.join(_metadata_vars_ls)
 
   ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
   ZOOMS       = list(ZOOM_PARAMS.keys())
 
   def _gsea_supported():
-    return config['project']['ref_txome'] in _GSEA_TXOMES
+    return GENOME_REF in _GSEA_REFS
 
 def _main_has_gsea():
   return config.get('marker_genes', {}).get('mkr_do_gsea', True) and _gsea_supported()
@@ -92,6 +99,15 @@ def _resolve_optional_path(val, proj_dir):
   if not p.is_absolute():
     p = pathlib.Path(proj_dir) / p
   return str(p)
+
+def _resolve_var_names(metadata_vars_ls, shiny_cfg):
+  """Build display names list from metadata_labels (dict) or var_names (legacy array)."""
+  labels = shiny_cfg.get('metadata_labels', {})
+  if labels:
+    return [labels.get(v, v) for v in metadata_vars_ls]
+  if 'var_names' in shiny_cfg:
+    return shiny_cfg['var_names']
+  return list(metadata_vars_ls)
 
 _home_md_f        = _resolve_optional_path(_shiny_cfg.get('home_md'),        PROJ_DIR)
 _annotation_csv_f = _resolve_optional_path(_shiny_cfg.get('annotation_csv'), PROJ_DIR)
@@ -127,6 +143,10 @@ def _zoom_optional_path(zoom_name, key):
   return _resolve_optional_path(val, PROJ_DIR)
 
 
+def _zoom_metadata_vars_ls(zoom_name):
+  return ZOOM_PARAMS[zoom_name].get('shiny', {}).get('metadata_vars', _metadata_vars_ls)
+
+
 # ---- aggregate rule: build all zoom shiny apps ----------------------------
 rule build_all_zoom_shiny_apps:
   input:
@@ -152,17 +172,15 @@ rule build_shiny_app:
     date_stamp    = DATE_STAMP,
     app_tag       = SHORT_TAG,
     mkr_sel_res   = MKR_SEL_RES,
-    ref_txome     = REF_TXOME,
+    ref_txome     = GENOME_REF,
     metadata_vars = _metadata_vars,
     app_title     = _shiny_cfg.get('app_title', SHORT_TAG),
     email         = _shiny_cfg.get('email', ''),
     keyword       = _shiny_cfg.get('keyword', 'cells'),
     default_gene  = _shiny_cfg.get('default_gene', ''),
     n_keep        = int(_shiny_cfg.get('n_keep', 30000)),
-    var_names     = ','.join(_shiny_cfg.get('var_names',
-                      (config['project'].get('metadata_vars', []) if not _is_join
-                       else config['join'].get('metadata_vars', [])))),
-    var_combns        = json.dumps(_shiny_cfg.get('var_combns', [])).replace('"', '\\"'),
+    var_names     = ','.join(_resolve_var_names(_metadata_vars_ls, _shiny_cfg)),
+    metadata_combns        = json.dumps(_shiny_cfg.get('metadata_combns', [])).replace('"', '\\"'),
     home_md_f         = _home_md_f,
     annotation_csv_f  = _annotation_csv_f,
     cluster_palette   = _shiny_cfg.get('cluster_palette', ''),
@@ -172,8 +190,8 @@ rule build_shiny_app:
     fgsea_go_mf_f     = lambda wildcards, input: getattr(input, 'fgsea_go_mf_f', ''),
   threads: 4
   resources:
-    mem_mb  = 64 * MB_PER_GB,
-    runtime = 30
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_shiny_app', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_shiny_app', 'time', attempt)
   conda: '../envs/shiny.yaml'
   log:   f'{logs_dir}/shiny/build_shiny_app_{DATE_STAMP}.log'
   shell: """
@@ -205,7 +223,7 @@ rule build_shiny_app:
         default_gene  = '{params.default_gene}',
         n_keep        = {params.n_keep},
         var_names     = '{params.var_names}',
-        var_combns        = '{params.var_combns}',
+        metadata_combns        = '{params.metadata_combns}',
         home_md_f         = '{params.home_md_f}',
         annotation_csv_f  = '{params.annotation_csv_f}',
         cluster_palette   = '{params.cluster_palette}',
@@ -235,20 +253,19 @@ rule build_zoom_shiny_app:
     date_stamp       = DATE_STAMP,
     app_tag          = lambda wc: f'{SHORT_TAG}_{wc.zoom_name}',
     mkr_sel_res      = lambda wc: ZOOM_PARAMS[wc.zoom_name]['marker_genes']['mkr_sel_res'],
-    ref_txome        = REF_TXOME,
-    metadata_vars    = _metadata_vars,
+    ref_txome        = GENOME_REF,
     app_title        = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('app_title',
                          f'{SHORT_TAG} — {wc.zoom_name}'),
     email            = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('email', ''),
     keyword          = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('keyword', 'cells'),
     default_gene     = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('default_gene', ''),
     n_keep           = lambda wc: int(ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('n_keep', 30000)),
+    metadata_vars    = lambda wc: ','.join(_zoom_metadata_vars_ls(wc.zoom_name)),
     var_names        = lambda wc: ','.join(
-                         ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('var_names',
-                         (config['project'].get('metadata_vars', []) if not _is_join
-                          else config['join'].get('metadata_vars', [])))),
-    var_combns       = lambda wc: json.dumps(
-                         ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('var_combns', [])).replace('"', '\\"'),
+                         _resolve_var_names(_zoom_metadata_vars_ls(wc.zoom_name),
+                           ZOOM_PARAMS[wc.zoom_name].get('shiny', {}))),
+    metadata_combns       = lambda wc: json.dumps(
+                         ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('metadata_combns', [])).replace('"', '\\"'),
     home_md_f        = lambda wc: _zoom_optional_path(wc.zoom_name, 'home_md'),
     annotation_csv_f = lambda wc: _zoom_optional_path(wc.zoom_name, 'annotation_csv'),
     cluster_palette  = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('cluster_palette', ''),
@@ -259,8 +276,8 @@ rule build_zoom_shiny_app:
     fgsea_go_mf_f    = lambda wildcards, input: getattr(input, 'fgsea_go_mf_f', ''),
   threads: 4
   resources:
-    mem_mb  = 64 * MB_PER_GB,
-    runtime = 30
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_zoom_shiny_app', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_zoom_shiny_app', 'time', attempt)
   conda: '../envs/shiny.yaml'
   log:   f'{logs_dir}/shiny/build_zoom_shiny_app_{{zoom_name}}_{DATE_STAMP}.log'
   shell: """
@@ -292,7 +309,7 @@ rule build_zoom_shiny_app:
         default_gene  = '{params.default_gene}',
         n_keep        = {params.n_keep},
         var_names     = '{params.var_names}',
-        var_combns        = '{params.var_combns}',
+        metadata_combns        = '{params.metadata_combns}',
         home_md_f         = '{params.home_md_f}',
         annotation_csv_f  = '{params.annotation_csv_f}',
         cluster_palette   = '{params.cluster_palette}',

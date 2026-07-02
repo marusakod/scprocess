@@ -20,7 +20,7 @@ def make_clean_h5ad(sel_b, sel_run, integration_f, h5_paths_f,
   ok_batches = int_dt[batch_var].unique().to_list()
   if sel_b not in ok_batches:
     print(f'excluded {sel_b}; creating empty file.')
-    open(clean_h5ad_f, 'a').close()
+    open(clean_h5ad_f, 'w').close()
     return None
     
   print(f'creating clean h5ad file for {sel_b}')

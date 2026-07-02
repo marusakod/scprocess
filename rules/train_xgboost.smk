@@ -1,4 +1,4 @@
-if "train_xgboost" in config:
+if TRAIN_XGB_PARAMS is not None:
 
   rule train_xgboost_train:
     input:
@@ -80,4 +80,3 @@ if "train_xgboost" in config:
         $( [ "{params.label_map_f}" != "" ] && echo "--label_map_f {params.label_map_f}" ) \
         $( [ "{params.use_gpu}" == "True" ] && echo "--use_gpu" )
       """
-

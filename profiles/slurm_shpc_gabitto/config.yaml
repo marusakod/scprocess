@@ -1,4 +1,5 @@
 # General configurations
+conda-prefix: /scratch/site/u/macnairw/scprocess_envs
 executor: slurm
 latency-wait: 10
 show-failed-logs: True

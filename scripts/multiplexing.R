@@ -25,46 +25,46 @@ suppressPackageStartupMessages({
 get_one_hto_sce <- function(sel_pool, sample_stats_f, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, ambient_method, seurat_quantile, sample_metadata_f) {
   # if ambient method is cellbender exclude bad samples
   smpl_status = FALSE
-  
+
   if(ambient_method == 'cellbender') {
     # loading file with bad bender samples
     message(' loading cellbender sample stats file')
     sample_stats_df = fread(sample_stats_f)
     smpl_status     = unique(sample_stats_df[ pool_id == sel_pool, bad_run])
-    
+
     if(smpl_status) {
       message('  sample ', sel_pool, ' has been excluded. Saving empty results file')
       file.create(hto_sce_f)
       message('done!')
-      
+
       return(NULL)
     }
   }
-  
+
   # get file with all barcodes called as cells
   yaml_data       = yaml::read_yaml(amb_yaml_f)
   bcs_f = yaml_data$bcs_f
-  
+
   # get file for barcode translation
   bc_dict = trans_f %>% fread(header = FALSE) %>%
     set_colnames(c("bc_hto", "bc_rna"))
-  
+
   # get all barcodes called as cells
   cell_bcs = bcs_f %>% fread(header = FALSE) %>%
     set_colnames("cell_bc")
-  
+
   # get hto counts
   hto_counts = .get_h5_mx(hto_mat_f, sel_s = '')
-  
+
   # translate hto bcs to match rna barcodes
   hto_true_bcs = bc_dict[bc_hto %chin% colnames(hto_counts)] %>%
     .[order(match(bc_hto, colnames(hto_counts))), bc_rna]
   colnames(hto_counts) = hto_true_bcs
-  
+
   # keep only cell barcodes
   keep_bcs = cell_bcs %>%
     .[cell_bc %chin% colnames(hto_counts), cell_bc]
-  
+
   hto_counts = hto_counts[, keep_bcs]
   colnames(hto_counts) = paste(sel_pool, colnames(hto_counts), sep = ':')
 
@@ -93,7 +93,7 @@ get_one_hto_sce <- function(sel_pool, sample_stats_f, amb_yaml_f, hto_mat_f, tra
   # create a seurat object
   hto_seu   = CreateSeuratObject(counts = hto_counts, assay = 'HTO')
   hto_seu   = NormalizeData(hto_seu, assay = "HTO", normalization.method = "CLR")
-  
+
   message("  demultiplexing sample ", sel_pool)
   hto_seu   = HTODemux(hto_seu, assay = "HTO", positive.quantile = seurat_quantile)
   

@@ -140,7 +140,7 @@ plot_metadata_dotplot <- function(props_dt, leg_title, x_var, facet_by, col_var,
     scale_x_discrete(breaks = ord) +
     scale_y_continuous(breaks = PCT_BRKS, labels = PCT_LABS) +
     scale_fill_manual(values = col_pal,
-      guide = guide_legend(override.aes = list(size = 5, alpha = 1), nrow = 5)) +
+      guide = guide_legend(override.aes = list(size = 5, alpha = 1), ncol = 1)) +
     facet_wrap(~ get(facet_by), scales = "free_y", ncol = n_cols) +
     theme_classic(base_size = base_size) +
     theme(
@@ -150,9 +150,9 @@ plot_metadata_dotplot <- function(props_dt, leg_title, x_var, facet_by, col_var,
       axis.text.y    = element_text(size = FONT_TEXT),
       legend.text    = element_text(size = FONT_TEXT),
       legend.title   = element_text(size = FONT_AXIS),
-      plot.margin    = margin(0, 5, 0, 0.5, "cm"),
-      legend.position  = 'bottom',
-      legend.direction = 'horizontal'
+      plot.margin    = margin(0, 0.5, 0, 0.5, "cm"),
+      legend.position  = 'right',
+      legend.direction = 'vertical'
     ) +
     labs(y = "pct. of sample", x = NULL, fill = leg_title)
 }

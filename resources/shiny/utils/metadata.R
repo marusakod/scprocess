@@ -3,7 +3,7 @@
 # Create cross-product combination columns in a metadata data.table.
 # vars: character(2) of column names to combine.
 # vars_lvls: named list of factor levels for each var (names must match vars).
-add_metadata_var_combns <- function(meta_dt, vars, vars_lvls) {
+add_metadata_combns <- function(meta_dt, vars, vars_lvls) {
   assert_that( all(vars %in% colnames(meta_dt)) )
   assert_that( length(vars) == 2 )
   assert_that( all(vars == names(vars_lvls)) )

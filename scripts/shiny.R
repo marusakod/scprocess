@@ -33,7 +33,7 @@ suppressPackageStartupMessages({
 #' @param default_gene   Default gene symbol shown in Explore Genes tab
 #' @param n_keep         Number of cells to retain in the downsampled UMAP (default 30000)
 #' @param var_names      Comma-separated display names for metadata_vars (defaults to metadata_vars)
-#' @param var_combns     JSON-encoded list of variable combination pairs (default "[]")
+#' @param metadata_combns     JSON-encoded list of variable combination pairs (default "[]")
 #' @param home_md_f      Optional path to a Markdown file used as the landing page (overrides placeholder)
 #' @param annotation_csv_f Optional path to a CSV with columns cluster, cluster_name, colour defining
 #'                        display names, colour, and order for clusters
@@ -55,7 +55,7 @@ make_shiny_app_scprocess <- function(
   default_gene = "",
   n_keep    = 30000L,
   var_names = metadata_vars,
-  var_combns = "[]",
+  metadata_combns = "[]",
   home_md_f = "",
   annotation_csv_f = "",
   cluster_palette = "",
@@ -80,9 +80,9 @@ make_shiny_app_scprocess <- function(
   # ---- Parse comma-separated args ----------------------------------------
   metadata_vars <- strsplit(metadata_vars, ",")[[1]] %>% trimws()
   var_names     <- strsplit(var_names, ",")[[1]] %>% trimws()
-  var_combns    <- jsonlite::fromJSON(var_combns)
-  if (is.matrix(var_combns))
-    var_combns  <- lapply(seq_len(nrow(var_combns)), function(i) var_combns[i, ])
+  metadata_combns    <- jsonlite::fromJSON(metadata_combns)
+  if (is.matrix(metadata_combns))
+    metadata_combns  <- lapply(seq_len(nrow(metadata_combns)), function(i) metadata_combns[i, ])
 
   assert_that(length(metadata_vars) == length(var_names),
     msg = "metadata_vars and var_names must have the same length")
@@ -249,16 +249,19 @@ make_shiny_app_scprocess <- function(
   .load_one_h5ad_for_shiny <- function(h5ad_entry) {
     if (is.character(h5ad_entry)) {
       h5ad_f  <- h5ad_entry
-      message(" reading ", basename(h5ad_f))
     } else {
       h5ad_f  <- h5ad_entry[["path"]]
-      proj_id <- h5ad_entry[["project_id"]]
-      message(" reading ", basename(h5ad_f), " (project: ", proj_id, ")")
     }
+    # skip empty files (excluded batches produce zero-byte h5ad placeholders)
+    if (file.size(h5ad_f) == 0) {
+      message(" skipping empty ", basename(h5ad_f))
+      return(NULL)
+    }
+    message(" reading ", basename(h5ad_f))
     BPCells::open_matrix_anndata_hdf5(h5ad_f)
   }
 
-  mat_list   <- lapply(h5ad_paths, .load_one_h5ad_for_shiny)
+  mat_list   <- Filter(Negate(is.null), lapply(h5ad_paths, .load_one_h5ad_for_shiny))
   counts_mat <- do.call(cbind, mat_list)
   rm(mat_list)
 
@@ -489,7 +492,7 @@ make_shiny_app_scprocess <- function(
   meta_section <- list(
     vars      = as.list(metadata_vars),
     var_names = as.list(var_names),
-    var_combns = if (length(var_combns) > 0) var_combns else NULL
+    metadata_combns = if (length(metadata_combns) > 0) metadata_combns else NULL
   )
   if (nchar(cluster_palette) > 0)
     meta_section$cluster_palette <- cluster_palette
@@ -526,16 +529,16 @@ make_shiny_app_scprocess <- function(
     out_count_h5_f        = paste0(app_tag, "-shiny_norm_count-",     date_stamp),
     out_sample_pb_h5_f    = paste0(app_tag, "-shiny_sample_pb_count-", date_stamp),
     out_cluster_pb_h5_f   = paste0(app_tag, "-shiny_cluster_pb_count-", date_stamp),
-    out_row_indices_f     = paste0(app_tag, "-shiny_row_indices-",     date_stamp, ".txt.gz"),
-    out_cluster_markers_f = paste0(app_tag, "-shiny_markers-",         date_stamp, ".txt.gz"),
-    out_pb_hvgs_f         = paste0(app_tag, "-shiny_pb_hvgs-",         date_stamp, ".txt.gz"),
-    out_fgsea_f           = paste0(app_tag, "-shiny_fgsea_res-",       date_stamp, ".txt.gz"),
-    out_go_terms_f        = paste0(app_tag, "-shiny_go_terms-",        date_stamp, ".txt.gz"),
-    out_sample_meta_f     = paste0(app_tag, "-shiny_sample_meta-",     date_stamp, ".txt.gz"),
-    out_cluster_meta_f    = paste0(app_tag, "-shiny_cluster_meta-",    date_stamp, ".txt.gz"),
-    out_cell_meta_f       = paste0(app_tag, "-shiny_cell_meta-",       date_stamp, ".txt.gz"),
-    out_centroids_f       = paste0(app_tag, "-shiny_centroids-",       date_stamp, ".txt.gz"),
-    out_repel_pos_f       = paste0(app_tag, "-shiny_repel_pos-",       date_stamp, ".txt.gz")
+    out_row_indices_f     = paste0(app_tag, "-shiny_row_indices-",     date_stamp, ".csv.gz"),
+    out_cluster_markers_f = paste0(app_tag, "-shiny_markers-",         date_stamp, ".csv.gz"),
+    out_pb_hvgs_f         = paste0(app_tag, "-shiny_pb_hvgs-",         date_stamp, ".csv.gz"),
+    out_fgsea_f           = paste0(app_tag, "-shiny_fgsea_res-",       date_stamp, ".csv.gz"),
+    out_go_terms_f        = paste0(app_tag, "-shiny_go_terms-",        date_stamp, ".csv.gz"),
+    out_sample_meta_f     = paste0(app_tag, "-shiny_sample_meta-",     date_stamp, ".csv.gz"),
+    out_cluster_meta_f    = paste0(app_tag, "-shiny_cluster_meta-",    date_stamp, ".csv.gz"),
+    out_cell_meta_f       = paste0(app_tag, "-shiny_cell_meta-",       date_stamp, ".csv.gz"),
+    out_centroids_f       = paste0(app_tag, "-shiny_centroids-",       date_stamp, ".csv.gz"),
+    out_repel_pos_f       = paste0(app_tag, "-shiny_repel_pos-",       date_stamp, ".csv.gz")
   )
   data_dir <- gsub("/$", "", data_dir)
   sapply(fs, function(f) file.path(data_dir, f))

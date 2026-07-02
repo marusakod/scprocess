@@ -40,8 +40,9 @@ CAN_CALC_AMBIENT_GENES = not (
   config['multiplexing']['demux_type'] in ['hto', 'custom'] and len(RUNS) < 2
 )
 
-# subdirectory prefix used by ambient/pb_empties rules to locate per-run outputs
-af_rna_dir          = 'flex/' if IS_FLEX else 'rna/'
+# subdirectory prefix: 'flex/' for flex, 'rna/' for HTO (coexists with hto/), '' otherwise
+IS_HTO              = config['multiplexing']['demux_type'] == "hto"
+af_rna_dir          = 'flex/' if IS_FLEX else ('rna/' if IS_HTO else '')
 # subdirectory prefix for pool/library-level outputs (when multiplexed via flex or OCM)
 lib_pool_dir        = 'pools/' if (IS_FLEX_MUXED or IS_OCM) else ''
 # unified reference label: probe_set for flex, ref_txome for polyA
@@ -88,9 +89,9 @@ if config['multiplexing']['demux_type'] == "hto":
 
 # alevin hto index outputs (optional)
 hto_index_outs = [
-  f'{af_dir}/hto.tsv',
+  f'{af_dir}/hto.fa',
   f'{af_dir}/t2g_hto.tsv',
-  f'{af_dir}/hto_index/ref_indexing.log'
+  f'{af_dir}/hto_index'
   ] if config['multiplexing']['demux_type'] == "hto" else []
 
 # alevin hto quantification outputs (optional)
@@ -130,7 +131,7 @@ fgsea_outs = [
   (not IS_FLEX and config['project'].get('ref_txome', '') in ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020'])
 ) and config['marker_genes']['mkr_do_gsea'] else []
 
-# mapping outputs (unified: af_rna_dir is 'flex/' or 'rna/' depending on assay)
+# mapping outputs (af_rna_dir is 'flex/' for flex, 'rna/' for HTO, '' otherwise)
 af_mapping_outs = (
   expand([
     f'{af_dir}/{lib_pool_dir}af_{{lib}}/{af_rna_dir}af_quant/',
@@ -157,6 +158,23 @@ hvgs_html_outs = [
   f'{rmd_dir}/{SHORT_TAG}_hvgs.Rmd',
   f'{docs_dir}/{SHORT_TAG}_hvgs.html',
 ] if CAN_CALC_AMBIENT_GENES else []
+
+# label_celltypes outputs — included when label_celltypes block is present
+_names_entries = [e for e in LABELLER_PARAMS if e.get('save_cluster_names_file', False)]
+_names_mkr_sel_res = config['marker_genes']['mkr_sel_res'] if _names_entries else None
+label_celltypes_outs = [
+  *expand(f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    zip,
+    labeller = [e['labeller'] for e in LABELLER_PARAMS],
+    model    = [e['model']    for e in LABELLER_PARAMS]),
+  *expand(f'{lbl_dir}/cluster_names_for_shiny_{{labeller}}_{{model}}_{FULL_TAG}_{_names_mkr_sel_res}_{DATE_STAMP}.csv',
+    zip,
+    labeller = [e['labeller'] for e in _names_entries],
+    model    = [e['model']    for e in _names_entries]),
+  code_dir + '/label_celltypes.R',
+  f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd',
+  f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
+] if LABELLER_PARAMS else []
 
 # one rule to rule them all
 rule all:
@@ -221,7 +239,9 @@ rule all:
     hvgs_html_outs,
     f'{docs_dir}/{SHORT_TAG}_integration.html',
     f'{docs_dir}/{SHORT_TAG}_marker_genes_{config['marker_genes']['mkr_sel_res']}.html',
-    hto_html_f 
+    hto_html_f,
+    # label_celltypes
+    label_celltypes_outs
 
 
 rule mapping:
@@ -335,14 +355,7 @@ rule marker_genes:
 
 rule label_celltypes:
   input:
-    expand(f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-      zip,
-        labeller  = [ entry['labeller'] for entry in LABELLER_PARAMS],
-        model     = [ entry['model']    for entry in LABELLER_PARAMS]
-      ),
-    code_dir  + '/label_celltypes.R',
-    f'{rmd_dir}/{SHORT_TAG}_label_celltypes.Rmd',
-    f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
+    label_celltypes_outs
 
 
 if TRAIN_XGB_PARAMS is not None:

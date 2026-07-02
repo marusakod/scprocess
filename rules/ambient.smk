@@ -296,7 +296,7 @@ if config['ambient']['ambient_method'] in ['decontx_background', 'decontx_cluste
 if config['ambient']['ambient_method'] == 'none':
   rule run_cell_calling:
     input:
-      h5_f        = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
+      af_h5_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
       amb_yaml_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}ambient_params_{{run}}_{DATE_STAMP}.yaml',
       knee_data_f = f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz'
     output:
