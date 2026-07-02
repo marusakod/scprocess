@@ -1,3 +1,7 @@
+suppressPackageStartupMessages({
+  library("anndataR")
+})
+
 plot_train_test_split <- function(xgboost_dt){
 
   ggplot(xgboost_dt) + aes(x = UMAP1, y = UMAP2) +
@@ -40,7 +44,6 @@ plot_pred_true_umap <- function(val_dt, coarse = FALSE){
     guides(color = guide_legend(override.aes = list(size = 3)))
 
 }
-
 
 get_metrics_dt <- function(val_dt){
   metrics_dt = val_dt[, .(
