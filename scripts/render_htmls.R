@@ -46,7 +46,7 @@ make_rmd_from_temp <- function(rule_name, temp_f, temp_ls, rmd_f) {
 }
 
 get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'integration',
-  'markers', 'label_celltypes', 'zoom', 'index', 'train_xgboost'), proj_dir, ...) {
+  'markers', 'label_celltypes', 'zoom', 'index', 'train_xgboost', 'join'), proj_dir, ...) {
   # get arguments
   sel_rule = match.arg(rule)
   add_args = list(...)
