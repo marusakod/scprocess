@@ -4,7 +4,7 @@ channels:
   - conda-forge
   - nodefaults
 dependencies:
-  - r-base=4.4.3
+  - r-base
   - r-bpcells
   - r-data.table
   - r-matrix
@@ -35,5 +35,4 @@ dependencies:
   - bioconductor-biocparallel
   - bioconductor-rhdf5
   - bioconductor-fgsea
-  - bioconductor-zellkonverter
   - r-rhpcblasctl
