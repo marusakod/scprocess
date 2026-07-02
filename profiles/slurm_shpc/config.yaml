@@ -29,3 +29,8 @@ set-resources:
     slurm_partition: "batch_gpu"
     slurm_extra: "'--gpus=1'"
     qos: '3h'
+  join_integration:
+    slurm_partition: "batch_gpu"
+    slurm_extra: "'--gpus=1'"
+    qos: '3h'
+
