@@ -142,6 +142,15 @@ make_shiny_app_scprocess <- function(
   dir.create(data_dir, showWarnings = FALSE)
   dir.create(file.path(deploy_dir, "www"), showWarnings = FALSE)
 
+  # Remove stale shiny data files from prior builds (e.g. .txt.gz from older
+  # versions) so they don't confuse the runtime file-matching in get_all_input_fs
+  stale <- list.files(data_dir, pattern = paste0(app_tag, "-shiny_"),
+                      full.names = TRUE)
+  if (length(stale) > 0L) {
+    unlink(stale, recursive = TRUE)
+    message("Removed ", length(stale), " stale data files from prior build")
+  }
+
   # ---- Copy app files from resources/shiny/ --------------------------------
   message("Copying app files")
   app_src <- file.path(scprocess_dir, "resources/shiny")
