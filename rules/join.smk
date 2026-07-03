@@ -180,7 +180,8 @@ rule all:
 if DO_TRAIN_XGB:
   rule train_xgboost:
     input:
-      _join_xgb_model_f
+      _join_xgb_model_f,
+      html_f
 
 
 rule join_select_hvgs:

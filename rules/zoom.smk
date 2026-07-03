@@ -110,9 +110,11 @@ for zoom_name in ZOOMS:
   if 'train_xgboost' in ZOOM_PARAMS[zoom_name]:
     _zxgb = ZOOM_PARAMS[zoom_name]['train_xgboost']
     _zxgb_ref_tag = _zxgb['ref_tag']
+    _zxgb_mkr_sel_res = ZOOM_PARAMS[zoom_name]['marker_genes']['mkr_sel_res']
     zoom_xgb_outs.extend([
       f'{zoom_dir}/{zoom_name}/{_zxgb_ref_tag}_xgboost_model.json',
       f'{zoom_dir}/{zoom_name}/{_zxgb_ref_tag}_predictions.csv.gz',
+      f'{docs_dir}/{SHORT_TAG}_zoom_{zoom_name}_{_zxgb_mkr_sel_res}.html',
     ])
 
 rule zoom:
@@ -141,8 +143,13 @@ rule zoom:
     zoom_mkr_report_outs, 
     # zoom sce and anndata subsets (optional)
     zoom_all_subset_fs,
-    # zoom train_xgboost (optional)
-    zoom_xgb_outs
+
+
+if zoom_xgb_outs:
+  rule zoom_train_xgboost_all:
+    input:
+      zoom_xgb_outs
+
 
 
 localrules: zoom_make_tmp_pb_cells_df, zoom_make_hvg_df, zoom_merge_group_mean_var, zoom_merge_group_std_var_stats, zoom_merge_stats_for_std_variance, zoom_copy_train_xgboost_r

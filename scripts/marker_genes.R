@@ -475,8 +475,13 @@ make_logcpms_all_rmd <- function(pb, batch_var, lib_size_method = c("edger", "ra
     pb          = pb[ !exc_idx, ]
   }
 
+  if (!is.null(int_colData(pb)$n_cells)) {
+    n_cells_mat = muscat_n_cells(pb)
+  } else {
+    n_cells_mat = reducedDim(pb) %>% t() %>% as.table()
+  }
+
   # pre-extract per-cluster data so pb can be gc'd
-  n_cells_mat = muscat_n_cells(pb)
   assay_ls    = lapply(cl_ls, function(cl) assay(pb, cl)) %>% setNames(cl_ls)
   ncells_ls   = lapply(cl_ls, function(cl) n_cells_mat[cl, ]) %>% setNames(cl_ls)
   rm(pb); gc()

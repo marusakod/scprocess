@@ -1993,6 +1993,44 @@ def get_shiny_targets(config, scprocess_dir, scdata_dir, dryrun, zoom_name=None)
   return [str(docs_dir / f"shiny_zoom_{zoom_name}" / f".shiny_built_{date_stamp}")], proj_dir
 
 
+def get_train_xgboost_targets(config, scprocess_dir, scdata_dir, zoom_name=None):
+  """Determine train_xgboost targets, optionally for a specific zoom."""
+  scprocess_dir = pathlib.Path(scprocess_dir)
+
+  schema_f = scprocess_dir / "resources/schemas/config.schema.json"
+  config = check_config(config, schema_f, scdata_dir, scprocess_dir)
+  proj_dir = pathlib.Path(config['project']['proj_dir'])
+
+  if zoom_name is None:
+    return ["train_xgboost"], proj_dir
+
+  zoom_schema_f = scprocess_dir / "resources/schemas/zoom.schema.json"
+  ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
+  zoom_names = list(ZOOM_PARAMS.keys())
+
+  if zoom_name == "all":
+    if not zoom_names:
+      raise ValueError("No zoom specs found in config.")
+    zooms_with_xgb = [zn for zn in zoom_names if 'train_xgboost' in ZOOM_PARAMS[zn]]
+    if not zooms_with_xgb:
+      raise ValueError("No zooms have a train_xgboost section.")
+    return ["zoom_train_xgboost_all"], proj_dir
+
+  if zoom_name not in zoom_names:
+    raise ValueError(
+      f"Zoom '{zoom_name}' not found in config. "
+      f"Available zooms: {', '.join(zoom_names) if zoom_names else '(none)'}")
+  if 'train_xgboost' not in ZOOM_PARAMS[zoom_name]:
+    raise ValueError(f"Zoom '{zoom_name}' does not have a train_xgboost section.")
+
+  ref_tag = ZOOM_PARAMS[zoom_name]['train_xgboost']['ref_tag']
+  short_tag = config['project']['short_tag']
+  mkr_sel_res = ZOOM_PARAMS[zoom_name]['marker_genes']['mkr_sel_res']
+  model_f = str(proj_dir / f"output/{short_tag}_zoom/{zoom_name}/{ref_tag}_xgboost_model.json")
+  html_f = str(proj_dir / f"public/{short_tag}_zoom_{zoom_name}_{mkr_sel_res}.html")
+  return [model_f, html_f], proj_dir
+
+
 def prep_resource_params(config, schema_f, lm_f, LIB_PARAMS=None, BATCHES=None):
   # add default resource values
   schema      = _load_schema_file(schema_f)

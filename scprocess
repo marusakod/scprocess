@@ -525,8 +525,8 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
     "--software-deployment-method", "conda",
     "--use-apptainer", "--apptainer-args", f"--cleanenv --nv --bind /tmp,{config['project']['proj_dir']}",
     *extraargs,
-    rule]
-  
+    *(rule if isinstance(rule, list) else [rule])]
+
   cmd_str      = " ".join(map(shlex.quote, map(str, cmd_list)))
   strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
   final_cmd    = f"set -o pipefail; script -q -e -c {shlex.quote(cmd_str)} /dev/null | tee /dev/stderr | {strip_colors} >> {log_f}"
@@ -983,8 +983,8 @@ if __name__ == '__main__':
       Leave empty to run the whole workflow, or alternatively select the rule you want to run.
       ''')
   run_prsr.add_argument("--zoom", type = str, default = None, metavar = "ZOOM_NAME",
-    help = ("Only used with -r shiny. Build a Shiny app for a zoom (subclustering) output. "
-            "Pass a zoom name (e.g. --zoom immune_cells) or 'all' to build apps for every zoom."))
+    help = ("Used with -r shiny or -r train_xgboost. Target a zoom (subclustering) output. "
+            "Pass a zoom name (e.g. --zoom immune_cells) or 'all' to target every zoom."))
   run_prsr.add_argument("-n", "--dry-run", action="store_true", 
     help = '''
       "Dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.
@@ -1086,7 +1086,7 @@ if __name__ == '__main__':
       rule    = args.rule
 
     # select snakefile corresponding to workflow
-    if rule == "zoom":
+    if rule == "zoom" or (rule == "train_xgboost" and args.zoom is not None):
       snakefile = sc_dir / "rules/zoom.smk"
     elif rule == "shiny":
       snakefile = sc_dir / "rules/shiny.smk"
@@ -1115,6 +1115,15 @@ if __name__ == '__main__':
       scdata_dir, _, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs.copy())
       targets, _ = scprocess_utils.get_shiny_targets(config, sc_dir, scdata_dir, args.dry_run, zoom_name=args.zoom)
       rule = targets[0]
+
+    # for train_xgboost with --zoom, resolve targets via helper
+    if rule == "train_xgboost" and args.zoom is not None:
+      config_path = pathlib.Path(args.configfile).resolve()
+      with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+      scdata_dir, _, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs.copy())
+      targets, _ = scprocess_utils.get_train_xgboost_targets(config, sc_dir, scdata_dir, zoom_name=args.zoom)
+      rule = targets
 
     # call bsub thing
     run_scprocess(args.configfile, snakefile, rule, extraargs, doindex, args.dry_run)
