@@ -30,6 +30,13 @@ get_all_input_fs <- function(data_dir, date_stamp, paga = 0) {
     )
   }
 
+  # keep only files/dirs that match the current date_stamp AND are either
+  # .csv.gz (tabular data) or directories (BPCells matrices)
+  is_dated = grepl(date_stamp, basename(f_ls))
+  is_csv   = grepl('\\.csv\\.gz$', f_ls)
+  is_dir   = dir.exists(f_ls)
+  f_ls     = f_ls[is_dated & (is_csv | is_dir)]
+
   f_matches = sapply(all_fs, function(f) any(grepl(f, f_ls)))
   if (!all(f_matches)) {
     missing = all_fs[f_matches == FALSE]
@@ -37,7 +44,14 @@ get_all_input_fs <- function(data_dir, date_stamp, paga = 0) {
          '; Shiny app cannot be made:(')
   }
 
-  f_ls  = f_ls[ sapply(all_fs, function(f) grep(f, f_ls)) %>% unlist() ]
+  matched = sapply(all_fs, function(f) {
+    idx = grep(f, f_ls)
+    if (length(idx) > 1L)
+      warning("Multiple files match '", f, "': ", paste(basename(f_ls[idx]), collapse = ", "),
+              ". Using first match.")
+    idx[1L]
+  })
+  f_ls  = f_ls[matched]
   names(f_ls) = names(all_fs)
 
   non_h5_fs = f_ls[!grepl('h5', names(f_ls))]
