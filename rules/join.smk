@@ -174,8 +174,13 @@ rule all:
     *([fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else []),
     *label_fs,
     *cluster_names_fs,
-    *([_join_xgb_model_f] if DO_TRAIN_XGB else []),
     html_f
+
+
+if DO_TRAIN_XGB:
+  rule train_xgboost:
+    input:
+      _join_xgb_model_f
 
 
 rule join_select_hvgs:
@@ -649,9 +654,7 @@ rule join_render_html:
     fgsea_files   = [fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else [],
     label_files   = label_fs,
     cluster_names = cluster_names_fs,
-    xgb_files     = [f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
-                     f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv',
-                     f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad'] if DO_TRAIN_XGB else []
+    xgb_files     = []
   output:
     r_utils_f     = f"{code_dir}/utils.R",
     r_int_f       = f"{code_dir}/integration.R",
@@ -772,7 +775,7 @@ rule join_render_html:
 
 if DO_TRAIN_XGB:
 
-  rule join_train_xgboost:
+  rule join_train_xgboost_train:
     input:
       annots_f    = _join_xgb_cfg['annots_f'],
       cluster_csv = joint_integration_f,
@@ -854,6 +857,6 @@ if DO_TRAIN_XGB:
         $( [ "{params.use_gpu}" == "True" ] && echo "--use_gpu" )
       """
 
-  rule train_xgboost:
+  rule join_train_xgboost:
     input:
       _join_xgb_model_f

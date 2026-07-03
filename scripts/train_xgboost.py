@@ -362,7 +362,8 @@ def load_expression_matrix(cells_df, h5ad_dict):
       print(f"  WARNING: batch '{batch}' not found in h5ad_dict, skipping")
       continue
 
-    h5ad_path = h5ad_dict[batch]
+    entry = h5ad_dict[batch]
+    h5ad_path = entry["path"] if isinstance(entry, dict) else entry
     batch_cell_ids = (
       cells_df
       .filter(pl.col("batch") == batch)
