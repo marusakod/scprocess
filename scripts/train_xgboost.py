@@ -30,7 +30,6 @@ def make_classifier(annots_f, cluster_csv, h5ads_yaml,
 
   out_dir = pathlib.Path(output_dir)
   out_dir.mkdir(parents=True, exist_ok=True)
-  (out_dir / "plots").mkdir(exist_ok=True)
 
   with open(h5ads_yaml) as f:
     h5ad_dict = yaml.safe_load(f)

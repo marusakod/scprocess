@@ -48,15 +48,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
+        "required": ["config"],
         "properties": {
-          "name":     { "type": "string", "pattern": "^[a-zA-Z0-9_-]+$" },
-          "src_dir":  { "type": "string" },
-          "config":   { "type": "string" }
-        },
-        "oneOf": [
-          { "required": ["name", "src_dir"] },
-          { "required": ["config"] }
-        ]
+          "config":    { "type": "string" },
+          "zoom_name": { "type": "string" }
+        }
       }
     },
     "ref_txomes": {

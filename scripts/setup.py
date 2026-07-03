@@ -839,29 +839,72 @@ def get_xgboost_parameters(config):
 
 
 def _resolve_xgboost_spec(spec):
-  if 'src_dir' in spec:
-    name = spec['name']
-    return name, name, spec['src_dir']
+  import pathlib
 
   config_f = spec['config']
   if not os.path.isfile(config_f):
     raise FileNotFoundError(f"config file {config_f} does not exist")
 
   with open(config_f, 'r') as f:
-    proj_config = yaml.safe_load(f)
+    cfg = yaml.safe_load(f)
 
-  if 'train_xgboost' not in proj_config:
-    raise ValueError(f"Config file {config_f} does not contain a 'train_xgboost' section")
+  zoom_name = spec.get('zoom_name')
+  is_join = 'join' in cfg
 
-  full_tag  = proj_config['project']['full_tag']
-  raw_tag   = proj_config['train_xgboost'].get('ref_tag')
-  ref_tag   = f"xgboost_{raw_tag}" if raw_tag else f"xgboost_{full_tag}"
-  proj_dir  = proj_config['project']['proj_dir']
-  short_tag = proj_config['project']['short_tag']
-  src_dir   = os.path.join(proj_dir, 'output', f'{short_tag}_train_xgboost')
-  name      = spec.get('name', ref_tag)
+  if is_join:
+    if zoom_name is not None:
+      raise ValueError("zoom_name is not supported for join configs")
+    if 'train_xgboost' not in cfg:
+      raise ValueError(f"Config file {config_f} does not contain a 'train_xgboost' section")
+    join_name = cfg['join']['name']
+    join_dir  = cfg['join']['proj_dir']
+    raw_tag   = cfg['train_xgboost'].get('ref_tag')
+    ref_tag   = f"xgboost_{raw_tag}" if raw_tag else f"xgboost_{join_name}"
+    src_dir   = os.path.join(join_dir, 'output', f'{join_name}_train_xgboost')
+  elif zoom_name is not None:
+    if 'zoom' not in cfg:
+      raise ValueError(f"Config file {config_f} does not contain a 'zoom' section")
+    zoom_yamls = cfg['zoom']
+    zoom_ref_tag = _resolve_zoom_xgboost_ref_tag(zoom_yamls, zoom_name, cfg)
+    ref_tag   = zoom_ref_tag
+    proj_dir  = cfg['project']['proj_dir']
+    short_tag = cfg['project']['short_tag']
+    src_dir   = os.path.join(proj_dir, 'output', f'{short_tag}_zoom', zoom_name, 'train_xgboost')
+  else:
+    if 'train_xgboost' not in cfg:
+      raise ValueError(f"Config file {config_f} does not contain a 'train_xgboost' section")
+    full_tag  = cfg['project']['full_tag']
+    raw_tag   = cfg['train_xgboost'].get('ref_tag')
+    ref_tag   = f"xgboost_{raw_tag}" if raw_tag else f"xgboost_{full_tag}"
+    proj_dir  = cfg['project']['proj_dir']
+    short_tag = cfg['project']['short_tag']
+    src_dir   = os.path.join(proj_dir, 'output', f'{short_tag}_train_xgboost')
 
-  return name, ref_tag, src_dir
+  return ref_tag, ref_tag, src_dir
+
+
+def _resolve_zoom_xgboost_ref_tag(zoom_yamls, zoom_name, project_config):
+  import pathlib
+  proj_dir = pathlib.Path(project_config['project']['proj_dir'])
+  for zoom_yaml_f in zoom_yamls:
+    zoom_yaml_path = pathlib.Path(zoom_yaml_f)
+    if not zoom_yaml_path.is_absolute():
+      zoom_yaml_path = proj_dir / zoom_yaml_path
+    if not zoom_yaml_path.is_file():
+      continue
+    with open(zoom_yaml_path) as f:
+      zoom_cfg = yaml.safe_load(f)
+    if zoom_cfg.get('zoom', {}).get('name') != zoom_name:
+      continue
+    if 'train_xgboost' not in zoom_cfg:
+      raise ValueError(f"Zoom '{zoom_name}' does not have a train_xgboost section")
+    raw_tag = zoom_cfg['train_xgboost'].get('ref_tag')
+    if raw_tag:
+      return f"xgboost_{raw_tag}"
+    full_tag = project_config['project']['full_tag']
+    return f"xgboost_{full_tag}_zoom_{zoom_name}"
+  raise ValueError(
+    f"Zoom '{zoom_name}' not found in config zoom YAMLs: {zoom_yamls}")
 
 
 def add_xgboost_classifier(scdata_dir, name, ref_tag, src_dir, is_prebuilt):

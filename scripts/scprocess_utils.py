@@ -2026,7 +2026,7 @@ def get_train_xgboost_targets(config, scprocess_dir, scdata_dir, zoom_name=None)
   ref_tag = ZOOM_PARAMS[zoom_name]['train_xgboost']['ref_tag']
   short_tag = config['project']['short_tag']
   mkr_sel_res = ZOOM_PARAMS[zoom_name]['marker_genes']['mkr_sel_res']
-  model_f = str(proj_dir / f"output/{short_tag}_zoom/{zoom_name}/{ref_tag}_xgboost_model.json")
+  model_f = str(proj_dir / f"output/{short_tag}_zoom/{zoom_name}/train_xgboost/{ref_tag}_xgboost_model.json")
   html_f = str(proj_dir / f"public/{short_tag}_zoom_{zoom_name}_{mkr_sel_res}.html")
   return [model_f, html_f], proj_dir
 
