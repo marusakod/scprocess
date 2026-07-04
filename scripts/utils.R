@@ -245,10 +245,10 @@ calc_confuse_dt <- function(cl1_dt, cl2_dt, cl1, cl2, min_cl2_p = NULL) {
     .[ is.na(N), N := 0 ] %>%
     .[, N0        := N + 1 ] %>%
     .[, log_N     := log(N0) ] %>%
-    .[, p_cl1     := N0 / sum(N0), by = cl1 ] %>%
-    .[, log_p_cl1 := log(p_cl1) ] %>%
-    .[, p_cl2     := N0 / sum(N0), by = cl2 ] %>%
-    .[, log_p_cl2 := log(p_cl2) ]
+    .[, p_cl1     := N / sum(N), by = cl1 ] %>%
+    .[, log_p_cl1 := log(N0 / sum(N0)), by = cl1 ] %>%
+    .[, p_cl2     := N / sum(N), by = cl2 ] %>%
+    .[, log_p_cl2 := log(N0 / sum(N0)), by = cl2 ]
 
   return(confuse_dt)
 }

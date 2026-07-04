@@ -24,14 +24,18 @@ plot_pred_true_umap <- function(val_dt, coarse = FALSE){
   }
 
   # keep only validation data for plotting
+  lbl_levels = levels(val_dt[[true_lbl_var]])
   val_dt_long = val_dt %>%
     .[ , c("cell_id", true_lbl_var, pred_lbl_var, "UMAP1", "UMAP2"), with = FALSE] %>%
     melt(id.vars = c('cell_id', 'UMAP1', 'UMAP2'), variable.name = 'label_type', value.name = 'label') %>%
     .[, label_type := fcase(label_type == true_lbl_var, 'True labels', default = 'Predicted labels')] %>%
     .[, label_type := factor(label_type, levels = c('True labels', 'Predicted labels'))]
+  if (!is.null(lbl_levels)) {
+    val_dt_long[, label := factor(label, levels = lbl_levels)]
+  }
 
-  # get label colors
-  lbls       = val_dt_long[, label] %>% unique() %>% sort()
+  lbls       = levels(val_dt_long$label)
+  if (is.null(lbls)) lbls = val_dt_long[, label] %>% unique() %>% sort()
   lbl_cols   = nice_cols[ seq_along(lbls) ] %>% setNames(lbls)
 
   p = ggplot(val_dt_long) +
@@ -46,22 +50,39 @@ plot_pred_true_umap <- function(val_dt, coarse = FALSE){
 }
 
 get_metrics_dt <- function(val_dt){
-  metrics_dt = val_dt[, .(
-  N         = .N,
-  Precision = {
-    tp = sum(predicted_label == label)
-    fp = nrow(val_dt[ predicted_label == .BY$label & label != .BY$label ])
-    tp / max(tp + fp, 1)
-  },
-  Recall    = mean(label == predicted_label),
-  F1        = {
-    prec = sum(predicted_label == label) / max(sum(val_dt$predicted_label == .BY$label), 1)
-    rec  = mean(label == predicted_label)
-    2 * prec * rec / max(prec + rec, 1e-10)
-  }
-  ), by = .(Class = label)] %>% .[ order(-F1) ]
+  true_labels = as.character(val_dt$label)
+  pred_labels = as.character(val_dt$predicted_label)
+  classes     = unique(true_labels)
+  metrics_dt  = rbindlist(lapply(classes, function(cls) {
+    tp   = sum(pred_labels == cls & true_labels == cls)
+    fp   = sum(pred_labels == cls & true_labels != cls)
+    fn   = sum(pred_labels != cls & true_labels == cls)
+    prec = tp / max(tp + fp, 1)
+    rec  = tp / max(tp + fn, 1)
+    f1   = 2 * prec * rec / max(prec + rec, 1e-10)
+    data.table(Class = cls, N = sum(true_labels == cls),
+      Precision = prec, Recall = rec, F1 = f1)
+  }))
 
   return(metrics_dt)
+}
+
+
+plot_precision_recall <- function(metrics_dt) {
+  lbl_cols = nice_cols[ seq_len(nrow(metrics_dt)) ] %>% setNames(metrics_dt$Class)
+  ggplot(metrics_dt) +
+    aes(x = Recall, y = Precision, colour = Class, size = N) +
+    geom_hline(yintercept = 1, colour = "grey70", linetype = "dashed") +
+    geom_vline(xintercept = 1, colour = "grey70", linetype = "dashed") +
+    geom_point() +
+    geom_label_repel(aes(label = Class), size = 3, max.overlaps = Inf, show.legend = FALSE) +
+    scale_x_continuous(breaks = scales::pretty_breaks()) +
+    scale_y_continuous(breaks = scales::pretty_breaks()) +
+    scale_color_manual(values = lbl_cols, guide = "none") +
+    scale_size(range = c(1, 8)) +
+    expand_limits(x = c(0, 1), y = c(0, 1)) +
+    theme_classic() +
+    labs(size = "N cells")
 }
 
 
@@ -83,19 +104,26 @@ plot_gain_curve <- function(gain_dt){
 }
 
 
-plot_top_xgboost_genes <- function(sel_dt, cpms_dt, pseudo_count = 10,
-  ncol = 2, nrow = NULL) {
+plot_top_xgboost_genes <- function(sel_dt, cpms_dt, label_order = NULL,
+  pseudo_count = 10, ncol = 2, nrow = NULL) {
 
   # infer number of rows
   if (is.null(nrow)) {
     nrow    = max(5, ceiling( nrow(sel_dt) / 2 ))
   }
-  # get data
+  # get data; preserve gain order for facets
   plot_dt   = cpms_dt %>% merge( sel_dt, by = 'gene_id' ) %>%
-   .[, symbol_lab := sprintf("%s (gain = %.1f%%)", symbol, cumulative_gain_frac * 100) ]
+   .[, symbol_lab := sprintf("%s (gain = %s)", symbol, signif(gain, 3)) ]
+  lab_order = plot_dt[, .(gain = gain[1]), by = symbol_lab][order(-gain)]$symbol_lab
+  plot_dt[, symbol_lab := factor(symbol_lab, levels = lab_order)]
 
-  # get nice colours
-  cl_ls     = plot_dt$cluster %>% unique %>% sort()
+  # order x-axis labels by frequency
+  if (!is.null(label_order)) {
+    cl_ls   = intersect(label_order, unique(plot_dt$cluster))
+  } else {
+    cl_ls   = plot_dt$cluster %>% unique %>% sort()
+  }
+  plot_dt[, cluster := factor(cluster, levels = cl_ls)]
   cl_cols   = nice_cols[ seq_along(cl_ls) ] %>% setNames(cl_ls)
 
   # plot!

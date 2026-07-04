@@ -31,10 +31,12 @@ source('code/marker_genes.R')
 
 
 ```{r setup_input, include = FALSE}
-predictions_f   = "${predictions_f}"
-gain_f          = "${importance_f}"
-pb_f            = "${pseudobulk_f}"
-integration_f   = "${integration_f}"
+predictions_f          = "${predictions_f}"
+gain_f                 = "${importance_f}"
+pb_f                   = "${pseudobulk_f}"
+label_counts_f         = "${label_counts_f}"
+fulldata_predictions_f = "${fulldata_predictions_f}"
+integration_f          = "${integration_f}"
 has_coarse      = as.logical("${has_coarse}")
 min_cells       = as.integer("${min_cells}")
 n_cores         = as.integer("${n_cores}")
@@ -47,8 +49,18 @@ int_dt      = fread(integration_f)[, .(cell_id, UMAP1, UMAP2)]
 ```
 
 ```{r make_xgboost_dt, include = FALSE}
+# label order from pre-subsample frequencies
+label_order = fread(label_counts_f)[order(-len)]$label
+
 xgboost_dt = merge(preds_dt, int_dt, by = "cell_id", all.x = TRUE) %>%
   .[ !is.na(UMAP1) ]
+xgboost_dt[, label := factor(label, levels = label_order)]
+xgboost_dt[, predicted_label := factor(predicted_label, levels = label_order)]
+if (has_coarse) {
+  coarse_order = xgboost_dt[, .N, by = coarse_true][order(-N)]$coarse_true
+  xgboost_dt[, coarse_true := factor(coarse_true, levels = coarse_order)]
+  xgboost_dt[, coarse_predicted := factor(coarse_predicted, levels = coarse_order)]
+}
 # keep only validation data for plotting
 val_dt     = xgboost_dt[ split == "validation" ]
 ```
@@ -58,7 +70,8 @@ pb     = read_h5ad(pb_f, as = 'SingleCellExperiment')
 if('X' %in% assayNames(pb)){
   assays(pb)[['X']] = NULL
 }
-cpms_dt =  pb %>% make_logcpms_all_rmd("sample_id", lib_size_method = "edger",
+batch_col = intersect(c("batch", "sample_id"), colnames(colData(pb)))[1]
+cpms_dt =  pb %>% make_logcpms_all_rmd(batch_col, lib_size_method = "edger",
   min_cells = min_cells, n_cores = n_cores)
 ```
 
@@ -66,7 +79,7 @@ cpms_dt =  pb %>% make_logcpms_all_rmd("sample_id", lib_size_method = "edger",
 
 Plot showing the split into validation and training sets. The validation set should be well distributed across the UMAP space, indicating that it contains a representative sample of all cell types and states.
 
-```{r plot_train_test_split, fig.height = 6, fig.width = 8}
+```{r plot_train_test_split, fig.height = 5, fig.width = 11}
 plot_train_test_split(xgboost_dt)
 ```
 
@@ -75,7 +88,7 @@ plot_train_test_split(xgboost_dt)
 
 UMAPs showing the true (training) labels alongside model predictions on the validation set.
 
-```{r plot_pred_true_umap, fig.height = 7, fig.width = 14, results = 'asis'}
+```{r plot_pred_true_umap, fig.height = 5, fig.width = 12, results = 'asis'}
 lbl_type_vec = 'Training labels'
 if (has_coarse) {
   lbl_type_vec = c('Coarse labels', 'Training labels')
@@ -93,18 +106,21 @@ for (lbl in lbl_type_vec) {
 ```
 
 
-## Confusion matrix (validation set)
+## Confusion matrix (validation set) {.tabset}
 
 Heatmap showing the proportion of cells with each true label (rows) that are predicted as each class (columns).
 
-```{r confusion_matrix, fig.height = 10, fig.width = 12}
-# prepare inputs for plot_cluster_comparison_heatmap
-cl1_dt = val_dt[, .(cell_id, true_label = label %>% factor)]
-cl2_dt = val_dt[, .(cell_id, pred_label = predicted_label %>% factor)]
+```{r confusion_matrix, fig.height = 10, fig.width = 12, results = 'asis'}
+cl1_dt = val_dt[, .(cell_id, true_label = factor(label, levels = label_order))]
+cl2_dt = val_dt[, .(cell_id, pred_label = factor(predicted_label, levels = label_order))]
 
 confuse_dt = calc_confuse_dt(cl1_dt, cl2_dt, "true_label", "pred_label")
-plot_cluster_comparison_heatmap(confuse_dt, "true_label", "pred_label",
-  plot_var = "p_cl1", do_sort = "hclust")
+for (pv in c("p_cl1", "log_p_cl1")) {
+  cat('###', pv, '\n')
+  print(plot_cluster_comparison_heatmap(confuse_dt, "true_label", "pred_label",
+    plot_var = pv, do_sort = "hclust"))
+  cat('\n\n')
+}
 ```
 
 
@@ -119,7 +135,12 @@ To asses the model performance the following metrics are calculated for each ind
 
 ```{r metrics_table}
 metrics_dt = get_metrics_dt(val_dt)
-metrics_dt %>% knitr::kable(digits = 3)
+metrics_dt[, Class := factor(Class, levels = label_order)]
+metrics_dt[order(Class)] %>% knitr::kable(digits = 3)
+```
+
+```{r pr_plot_validation, fig.height = 5, fig.width = 6}
+plot_precision_recall(metrics_dt)
 ```
 
 ### Cumulative gain curve
@@ -133,17 +154,108 @@ print(plot_gain_curve(gain_dt))
 
 ### Top XGBoost genes: {.tabset}
 
-Pseudobulk logCPM expression of the top 20 most important XGBoost genes, shown per cell type label. Each dot represents one sample; dot size indicates the number of cells contributing to that pseudobulk value.
+Pseudobulk logCPM expression of the top XGBoost genes ranked by descending gain, shown per cell type label. Each dot represents one batch; dot size indicates the number of cells contributing to that pseudobulk value.
 
 ```{r plot_top_genes, fig.height = 8, fig.width = 8, results = "asis"}
-top_genes_dt = gain_dt[1:min(100, .N)]
+top_genes_dt = gain_dt[order(-gain)][1:min(100, .N)]
 n_pages = 10
 per_p   = 10
 p       = 1
 for (i in seq(1, n_pages * per_p, by = per_p)) {
   cat('#### page', p, '\n'); p = p + 1
   sel_gs  = top_genes_dt[ i:(i + 9) ]
-  print(plot_top_xgboost_genes(sel_gs, cpms_dt))
+  print(plot_top_xgboost_genes(sel_gs, cpms_dt, label_order = label_order))
+  cat('\n\n')
+}
+```
+
+
+## Full-data evaluation
+
+Predictions on all cells in the integration (not just the downsampled training subset). Cells are categorized as:
+
+* **train**: used for model training
+* **validation**: held-out batches used for early stopping and hyperparameter evaluation
+* **holdout**: annotated cells not selected during downsampling
+* **unlabeled**: cells without annotations
+
+```{r fulldata_setup, include = FALSE}
+fulldata_dt = fread(fulldata_predictions_f)
+fulldata_dt = merge(fulldata_dt, int_dt, by = "cell_id", all.x = TRUE) %>%
+  .[ !is.na(UMAP1) ]
+fulldata_dt[, label := factor(label, levels = label_order)]
+fulldata_dt[, predicted_label := factor(predicted_label, levels = label_order)]
+if (has_coarse) {
+  coarse_order = xgboost_dt[, .N, by = coarse_true][order(-N)]$coarse_true
+  fulldata_dt[, coarse_true := factor(coarse_true, levels = coarse_order)]
+  fulldata_dt[, coarse_predicted := factor(coarse_predicted, levels = coarse_order)]
+}
+```
+
+### Split summary
+
+```{r fulldata_split_summary}
+fulldata_dt[, .N, by = split][order(-N)] %>% knitr::kable()
+```
+
+### Holdout metrics
+
+Per-class evaluation metrics for holdout cells (annotated cells not used in training or validation).
+
+```{r fulldata_holdout_metrics}
+holdout_dt = fulldata_dt[ split == "holdout" ]
+if (nrow(holdout_dt) > 0) {
+  holdout_metrics_dt = get_metrics_dt(holdout_dt)
+  holdout_metrics_dt[, Class := factor(Class, levels = label_order)]
+  holdout_metrics_dt[order(Class)] %>% knitr::kable(digits = 3)
+}
+```
+
+```{r pr_plot_holdout, fig.height = 5, fig.width = 6}
+if (nrow(holdout_dt) > 0) {
+  plot_precision_recall(holdout_metrics_dt)
+}
+```
+
+
+### Holdout confusion matrix {.tabset}
+
+```{r fulldata_holdout_confusion, fig.height = 10, fig.width = 12, results = 'asis'}
+if (nrow(holdout_dt) > 0) {
+  cl1_dt = holdout_dt[, .(cell_id, true_label = factor(label, levels = label_order))]
+  cl2_dt = holdout_dt[, .(cell_id, pred_label = factor(predicted_label, levels = label_order))]
+  confuse_dt = calc_confuse_dt(cl1_dt, cl2_dt, "true_label", "pred_label")
+  for (pv in c("p_cl1", "log_p_cl1")) {
+    cat('####', pv, '\n')
+    print(plot_cluster_comparison_heatmap(confuse_dt, "true_label", "pred_label",
+      plot_var = pv, do_sort = "hclust"))
+    cat('\n\n')
+  }
+}
+```
+
+
+### Full-data predicted labels UMAP {.tabset}
+
+UMAPs showing predicted labels for all cells, split by category.
+
+```{r fulldata_umap, fig.height = 6, fig.width = 8, results = 'asis'}
+for (sp in c("holdout", "unlabeled")) {
+  sp_dt = fulldata_dt[ split == sp ]
+  if (nrow(sp_dt) == 0) next
+  cat('####', sp, sprintf('(%s cells)', format(nrow(sp_dt), big.mark = ',')), '\n')
+  lbls = levels(fulldata_dt$predicted_label)
+  if (is.null(lbls)) lbls = fulldata_dt[, predicted_label] %>% unique() %>% sort()
+  lbl_cols = nice_cols[ seq_along(lbls) ] %>% setNames(lbls)
+  p = ggplot(sp_dt) +
+    aes(x = UMAP1, y = UMAP2, colour = predicted_label) +
+    geom_point(size = 0.3) +
+    coord_fixed() +
+    theme_classic() +
+    scale_color_manual(values = lbl_cols) +
+    theme(axis.text = element_blank(), axis.ticks = element_blank()) +
+    guides(color = guide_legend(override.aes = list(size = 3)))
+  print(p)
   cat('\n\n')
 }
 ```
