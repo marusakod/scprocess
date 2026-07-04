@@ -112,8 +112,8 @@ for zoom_name in ZOOMS:
     _zxgb_ref_tag = _zxgb['ref_tag']
     _zxgb_mkr_sel_res = ZOOM_PARAMS[zoom_name]['marker_genes']['mkr_sel_res']
     zoom_xgb_outs.extend([
-      f'{zoom_dir}/{zoom_name}/{_zxgb_ref_tag}_xgboost_model.json',
-      f'{zoom_dir}/{zoom_name}/{_zxgb_ref_tag}_predictions.csv.gz',
+      f'{zoom_dir}/{zoom_name}/train_xgboost/{_zxgb_ref_tag}_xgboost_model.json',
+      f'{zoom_dir}/{zoom_name}/train_xgboost/{_zxgb_ref_tag}_predictions.csv.gz',
       f'{docs_dir}/{SHORT_TAG}_zoom_{zoom_name}_{_zxgb_mkr_sel_res}.html',
     ])
 
@@ -938,14 +938,14 @@ rule zoom_train_xgboost:
     cluster_csv = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
     h5ads_yaml  = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
   output:
-    model_f  = f'{zoom_dir}/{{zoom_name}}/{{ref_tag}}_xgboost_model.json',
-    cls_f    = f'{zoom_dir}/{{zoom_name}}/{{ref_tag}}_allowed_cls.csv',
-    genes_f  = f'{zoom_dir}/{{zoom_name}}/{{ref_tag}}_selected_genes.txt',
-    imp_f    = f'{zoom_dir}/{{zoom_name}}/{{ref_tag}}_gene_importance.csv',
-    preds_f  = f'{zoom_dir}/{{zoom_name}}/{{ref_tag}}_predictions.csv.gz',
-    pb_f     = f'{zoom_dir}/{{zoom_name}}/{{ref_tag}}_pseudobulk.h5ad',
+    model_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_xgboost_model.json',
+    cls_f    = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_allowed_cls.csv',
+    genes_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_selected_genes.txt',
+    imp_f    = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_gene_importance.csv',
+    preds_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_predictions.csv.gz',
+    pb_f     = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_pseudobulk.h5ad',
   params:
-    output_dir           = lambda wildcards: f'{zoom_dir}/{wildcards.zoom_name}',
+    output_dir           = lambda wildcards: f'{zoom_dir}/{wildcards.zoom_name}/train_xgboost',
     batch_var            = BATCH_VAR,
     int_res_ls           = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
     label_map_f          = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') or '',
