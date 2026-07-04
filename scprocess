@@ -588,6 +588,9 @@ def run_join(configfile, sc_dir, extraargs, dryrun, rule="all"):
       extraargs.append('--slurm-logdir')
       extraargs.append(str(cluster_log_dir))
 
+  # check config is ok for the rule we want to run
+  scprocess_utils.check_config_ok_for_rule(config, rule)
+
   if dryrun:
     extraargs.append('-np')
 
@@ -1038,119 +1041,124 @@ if __name__ == '__main__':
   # Parse the arguments
   args      = parser.parse_args()
 
-  # If no subcommand provided, show version and HPC info
-  if args.subcommand is None:
-    show_version_and_hpc_info(sc_dir)
-  
-  # create new project folder
-  elif args.subcommand == "setup":
-    # select snakefile corresponding to workflow
-    snakefile   = sc_dir / "rules/setup.smk"
+  try:
+    # If no subcommand provided, show version and HPC info
+    if args.subcommand is None:
+      show_version_and_hpc_info(sc_dir)
 
-    # sort out extra arguments
-    extraargs   = []
-    if args.extraargs:
-      extraargs.extend(shlex.split(args.extraargs[0]))
-    if args.dry_run:
-      extraargs.append("-np")
-    
-    # call bsub thing
-    run_setup(sc_dir, snakefile, args.rangerurl, args.dry_run, extraargs)
+    # create new project folder
+    elif args.subcommand == "setup":
+      # select snakefile corresponding to workflow
+      snakefile   = sc_dir / "rules/setup.smk"
 
-  elif args.subcommand == "newproj":
-    # make new project directory
-    if not args.config is None:
-       # check for presence of sc or sn
-      has_sc = "sc" in args.config
-      has_sn = "sn" in args.config
-        
-      if not (has_sc or has_sn):
-        raise ValueError("Error: When using --config/-c, you must specify either 'sc' (single cell) or 'sn' (single nucleus).")
-        
-      if has_sc and has_sn:
-        raise ValueError("Error: Please choose either 'sc' or 'sn', not both.")
-    
-    where_abs = os.path.abspath(args.where)
-    new_proj(sc_dir, args.name, where_abs, args.sub, args.config)
-
-  elif args.subcommand == "newjoin":
-    where_abs = os.path.abspath(args.where)
-    new_join(sc_dir, args.name, where_abs, args.config, args.projects or [])
-
-  # run scprocess
-  elif args.subcommand == "run":
-    # set default rule to all
-    if args.rule == "":
-      rule    = "all"
-    else:
-      rule    = args.rule
-
-    # select snakefile corresponding to workflow
-    if rule == "zoom" or (rule == "train_xgboost" and args.zoom is not None):
-      snakefile = sc_dir / "rules/zoom.smk"
-    elif rule == "shiny":
-      snakefile = sc_dir / "rules/shiny.smk"
-    else:
-      snakefile = sc_dir / "rules/scprocess.smk"
-
-    # sort out extra arguments
-    extraargs   = []
-    noindex     = args.noindex
-    doindex     = (not noindex) and (not args.dry_run) and (not args.unlock) and (not args.create_envs)
-    if args.unlock:
-      extraargs.append("--unlock")
-    else:
-      if args.create_envs:
-        extraargs.append("--conda-create-envs-only")
+      # sort out extra arguments
+      extraargs   = []
       if args.extraargs:
         extraargs.extend(shlex.split(args.extraargs[0]))
       if args.dry_run:
         extraargs.append("-np")
 
-    # for shiny, resolve targets via helper
-    if rule == "shiny":
-      config_path = pathlib.Path(args.configfile).resolve()
-      with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-      scdata_dir, _, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs.copy())
-      targets, _ = scprocess_utils.get_shiny_targets(config, sc_dir, scdata_dir, args.dry_run, zoom_name=args.zoom)
-      rule = targets[0]
+      # call bsub thing
+      run_setup(sc_dir, snakefile, args.rangerurl, args.dry_run, extraargs)
 
-    # for train_xgboost with --zoom, resolve targets via helper
-    if rule == "train_xgboost" and args.zoom is not None:
-      config_path = pathlib.Path(args.configfile).resolve()
-      with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-      scdata_dir, _, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs.copy())
-      targets, _ = scprocess_utils.get_train_xgboost_targets(config, sc_dir, scdata_dir, zoom_name=args.zoom)
-      rule = targets
+    elif args.subcommand == "newproj":
+      # make new project directory
+      if not args.config is None:
+         # check for presence of sc or sn
+        has_sc = "sc" in args.config
+        has_sn = "sn" in args.config
 
-    # call bsub thing
-    run_scprocess(args.configfile, snakefile, rule, extraargs, doindex, args.dry_run)
+        if not (has_sc or has_sn):
+          raise ValueError("Error: When using --config/-c, you must specify either 'sc' (single cell) or 'sn' (single nucleus).")
 
-  # plot knee for selected sample
-  elif args.subcommand == 'plotknee':
-    # call function
-    plot_interactive_knee(args.configfile, args.kneefile, args.sample)
+        if has_sc and has_sn:
+          raise ValueError("Error: Please choose either 'sc' or 'sn', not both.")
 
-  # run join workflow
-  elif args.subcommand == 'join':
-    extraargs = []
-    if args.unlock:
-      extraargs.append("--unlock")
-    elif args.extraargs:
-      extraargs.extend(shlex.split(args.extraargs[0]))
+      where_abs = os.path.abspath(args.where)
+      new_proj(sc_dir, args.name, where_abs, args.sub, args.config)
 
-    if args.rule == "shiny":
-      config_path = pathlib.Path(args.configfile).resolve()
-      with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-      scdata_dir, _, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs.copy())
-      targets, _ = scprocess_utils.get_shiny_targets(config, sc_dir, scdata_dir, args.dry_run)
-      run_join(args.configfile, sc_dir, extraargs, args.dry_run, rule=targets[0])
+    elif args.subcommand == "newjoin":
+      where_abs = os.path.abspath(args.where)
+      new_join(sc_dir, args.name, where_abs, args.config, args.projects or [])
+
+    # run scprocess
+    elif args.subcommand == "run":
+      # set default rule to all
+      if args.rule == "":
+        rule    = "all"
+      else:
+        rule    = args.rule
+
+      # select snakefile corresponding to workflow
+      if rule == "zoom" or (rule == "train_xgboost" and args.zoom is not None):
+        snakefile = sc_dir / "rules/zoom.smk"
+      elif rule == "shiny":
+        snakefile = sc_dir / "rules/shiny.smk"
+      else:
+        snakefile = sc_dir / "rules/scprocess.smk"
+
+      # sort out extra arguments
+      extraargs   = []
+      noindex     = args.noindex
+      doindex     = (not noindex) and (not args.dry_run) and (not args.unlock) and (not args.create_envs)
+      if args.unlock:
+        extraargs.append("--unlock")
+      else:
+        if args.create_envs:
+          extraargs.append("--conda-create-envs-only")
+        if args.extraargs:
+          extraargs.extend(shlex.split(args.extraargs[0]))
+        if args.dry_run:
+          extraargs.append("-np")
+
+      # for shiny, resolve targets via helper
+      if rule == "shiny":
+        config_path = pathlib.Path(args.configfile).resolve()
+        with open(config_path, "r") as f:
+          config = yaml.safe_load(f)
+        scdata_dir, _, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs.copy())
+        targets, _ = scprocess_utils.get_shiny_targets(config, sc_dir, scdata_dir, args.dry_run, zoom_name=args.zoom)
+        rule = targets[0]
+
+      # for train_xgboost with --zoom, resolve targets via helper
+      if rule == "train_xgboost" and args.zoom is not None:
+        config_path = pathlib.Path(args.configfile).resolve()
+        with open(config_path, "r") as f:
+          config = yaml.safe_load(f)
+        scdata_dir, _, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs.copy())
+        targets, _ = scprocess_utils.get_train_xgboost_targets(config, sc_dir, scdata_dir, zoom_name=args.zoom)
+        rule = targets
+
+      # call bsub thing
+      run_scprocess(args.configfile, snakefile, rule, extraargs, doindex, args.dry_run)
+
+    # plot knee for selected sample
+    elif args.subcommand == 'plotknee':
+      # call function
+      plot_interactive_knee(args.configfile, args.kneefile, args.sample)
+
+    # run join workflow
+    elif args.subcommand == 'join':
+      extraargs = []
+      if args.unlock:
+        extraargs.append("--unlock")
+      elif args.extraargs:
+        extraargs.extend(shlex.split(args.extraargs[0]))
+
+      if args.rule == "shiny":
+        config_path = pathlib.Path(args.configfile).resolve()
+        with open(config_path, "r") as f:
+          config = yaml.safe_load(f)
+        scdata_dir, _, _ = scprocess_utils.check_setup_before_running_scprocess(sc_dir, extraargs.copy())
+        targets, _ = scprocess_utils.get_shiny_targets(config, sc_dir, scdata_dir, args.dry_run)
+        run_join(args.configfile, sc_dir, extraargs, args.dry_run, rule=targets[0])
+      else:
+        run_join(args.configfile, sc_dir, extraargs, args.dry_run, rule=args.rule)
+
     else:
-      run_join(args.configfile, sc_dir, extraargs, args.dry_run, rule=args.rule)
+      # if no arguments are provided at all, print the help message
+      parser.print_help()
 
-  else:
-    # if no arguments are provided at all, print the help message
-    parser.print_help()
+  except (KeyError, ValueError, FileNotFoundError) as e:
+    print(f"Error: {e}", file=sys.stderr)
+    sys.exit(1)
