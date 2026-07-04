@@ -984,7 +984,7 @@ rule zoom_train_xgboost:
     '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
-    python3 scripts/train_xgboost.py \
+    python3 scripts/train_xgboost.py train \
       --annots_f          {input.annots_f} \
       --cluster_csv       {input.cluster_csv} \
       --h5ads_yaml        {input.h5ads_yaml} \
