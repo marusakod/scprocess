@@ -116,7 +116,7 @@ else:
 
 # output paths
 joint_hvgs_f        = f"{join_int_dir}/joint_hvgs_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
-joint_counts_f      = f"{join_int_dir}/joint_counts_hvgs_{JOIN_TAG}_{DATE_STAMP}.h5"
+joint_label_counts_f      = f"{join_int_dir}/joint_counts_hvgs_{JOIN_TAG}_{DATE_STAMP}.h5"
 joint_coldata_f     = f"{join_int_dir}/joint_coldata_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
 joint_sample_meta_f = f"{join_int_dir}/joint_sample_meta_{JOIN_TAG}_{DATE_STAMP}.csv"
 joint_pca_f         = f"{join_int_dir}/joint_pca_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
@@ -159,7 +159,8 @@ if DO_TRAIN_XGB:
   _join_xgb_cfg = config['train_xgboost']
   join_xgb_dir  = str(JOIN_DIR / f"output/{JOIN_NAME}_train_xgboost")
   _join_xgb_ref_tag = _join_xgb_cfg['ref_tag']
-  _join_xgb_model_f = f"{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json"
+  _join_xgb_model_f    = f"{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json"
+  _join_xgb_fulldata_f = f"{join_xgb_dir}/{_join_xgb_ref_tag}_fulldata_predictions.csv.gz"
 
 # ---------------------------------------------------------------------------
 # Rules
@@ -181,7 +182,9 @@ if DO_TRAIN_XGB:
   rule train_xgboost:
     input:
       _join_xgb_model_f,
-      html_f
+      _join_xgb_fulldata_f,
+      f"{rmd_dir}/{JOIN_TAG}_train_xgboost.Rmd",
+      f"{docs_dir}/{JOIN_TAG}_train_xgboost.html"
 
 
 rule join_select_hvgs:
@@ -219,7 +222,7 @@ rule join_build_matrix:
     h5ads_yaml_fs = H5ADS_YAML_FS,
     integrated_fs = INTEGRATED_FS
   output:
-    joint_counts_f = joint_counts_f
+    joint_label_counts_f = joint_label_counts_f
   params:
     project_ids   = " ".join(JOIN_PROJECT_IDS)
   resources:
@@ -238,14 +241,14 @@ rule join_build_matrix:
       --h5ads_yaml_fs       {input.h5ads_yaml_fs} \
       --project_ids         {params.project_ids} \
       --integrated_dt_fs    {input.integrated_fs} \
-      --out_h5_f            {output.joint_counts_f}
+      --out_h5_f            {output.joint_label_counts_f}
     """
 
 
 rule join_build_coldata:
   """Build joint coldata and sample metadata from matrix barcodes."""
   input:
-    joint_counts_f = joint_counts_f,
+    joint_label_counts_f = joint_label_counts_f,
     integrated_fs  = INTEGRATED_FS,
     sample_meta_fs = SAMPLE_META_FS
   output:
@@ -265,7 +268,7 @@ rule join_build_coldata:
   shell: """
     exec &>> {log}
     python3 scripts/join.py build_joint_coldata \
-      --h5_f                {input.joint_counts_f} \
+      --h5_f                {input.joint_label_counts_f} \
       --project_ids         {params.project_ids} \
       --integrated_dt_fs    {input.integrated_fs} \
       --sample_meta_fs      {input.sample_meta_fs} \
@@ -277,7 +280,7 @@ rule join_build_coldata:
 rule join_pca:
   """Compute PCA on joint matrix using BPCells disk-backed streaming SVD."""
   input:
-    counts_h5_f = joint_counts_f
+    counts_h5_f = joint_label_counts_f
   output:
     pca_f = joint_pca_f
   params:
@@ -312,7 +315,7 @@ rule join_pca:
 
 rule join_integration:
   input:
-    hvg_mat_f    = joint_counts_f,
+    hvg_mat_f    = joint_label_counts_f,
     coldata_f    = joint_coldata_f,
     sample_qc_f  = joint_sample_meta_f,
     pca_f        = joint_pca_f if INT_PCA_METHOD == 'bpcells' else []
@@ -782,12 +785,13 @@ if DO_TRAIN_XGB:
       cluster_csv = joint_integration_f,
       h5ads_yaml  = joint_h5ads_yaml_f,
     output:
-      model_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json',
-      cls_f    = f'{join_xgb_dir}/{_join_xgb_ref_tag}_allowed_cls.csv',
-      genes_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_selected_genes.txt',
-      imp_f    = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv',
-      preds_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
-      pb_f     = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad',
+      model_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json',
+      cls_f     = f'{join_xgb_dir}/{_join_xgb_ref_tag}_allowed_cls.csv',
+      genes_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_selected_genes.txt',
+      imp_f     = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv',
+      preds_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
+      pb_f      = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad',
+      label_counts_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_counts.csv',
     params:
       ref_tag              = _join_xgb_ref_tag,
       output_dir           = join_xgb_dir,
@@ -816,8 +820,8 @@ if DO_TRAIN_XGB:
       max_genes            = _join_xgb_cfg.get('max_genes', 3000),
     threads: 8
     resources:
-      mem_mb  = 32 * 1024,
-      runtime = 180
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_train', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_train', 'time', attempt)
     log:
       f"{logs_dir}/join_train_xgboost_{_join_xgb_ref_tag}_{DATE_STAMP}.log"
     benchmark:
@@ -826,7 +830,7 @@ if DO_TRAIN_XGB:
       '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
-      python3 scripts/train_xgboost.py \
+      python3 scripts/train_xgboost.py train \
         --annots_f          {input.annots_f} \
         --cluster_csv       {input.cluster_csv} \
         --h5ads_yaml        {input.h5ads_yaml} \
@@ -858,6 +862,134 @@ if DO_TRAIN_XGB:
         $( [ "{params.use_gpu}" == "True" ] && echo "--use_gpu" )
       """
 
-  rule join_train_xgboost:
+  rule join_train_xgboost_predict:
     input:
-      _join_xgb_model_f
+      adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad",
+      model_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json',
+      cls_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_allowed_cls.csv',
+      genes_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_selected_genes.txt',
+    output:
+      pred_f  = temp(f"{join_xgb_dir}/tmp_fulldata_predict_{_join_xgb_ref_tag}_{{batch}}.csv.gz")
+    params:
+      ref_tag = _join_xgb_ref_tag
+    threads: 1
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_predict', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_predict', 'time', attempt)
+    log:
+      f"{logs_dir}/join_train_xgboost_predict_{_join_xgb_ref_tag}_{{batch}}_{DATE_STAMP}.log"
+    benchmark:
+      f"{benchmark_dir}/join_train_xgboost_predict_{_join_xgb_ref_tag}_{{batch}}_{DATE_STAMP}.benchmark.txt"
+    conda:
+      '../envs/label_celltypes.yaml'
+    shell: """
+      exec &>> {log}
+      python3 scripts/label_celltypes.py xgboost_one_batch \
+        {wildcards.batch} batch {params.ref_tag} \
+        --adata_f   {input.adata_f} \
+        --model_f   {input.model_f} \
+        --cls_f     {input.cls_f} \
+        --genes_f   {input.genes_f} \
+        --pred_f    {output.pred_f}
+      """
+
+
+  rule join_train_xgboost_aggregate:
+    input:
+      pred_fs          = expand(
+        f"{join_xgb_dir}/tmp_fulldata_predict_{_join_xgb_ref_tag}_{{batch}}.csv.gz",
+        batch=JOIN_BATCH_KEYS),
+      subsample_preds_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
+      annots_f          = _join_xgb_cfg['annots_f'],
+    output:
+      fulldata_f = _join_xgb_fulldata_f
+    params:
+      ref_tag      = _join_xgb_ref_tag,
+      label_map_f  = _join_xgb_cfg.get('label_map_f') or '',
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_aggregate', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_aggregate', 'time', attempt)
+    log:
+      f"{logs_dir}/join_train_xgboost_aggregate_{_join_xgb_ref_tag}_{DATE_STAMP}.log"
+    benchmark:
+      f"{benchmark_dir}/join_train_xgboost_aggregate_{_join_xgb_ref_tag}_{DATE_STAMP}.benchmark.txt"
+    conda:
+      '../envs/label_celltypes.yaml'
+    shell: """
+      exec &>> {log}
+      python3 scripts/train_xgboost.py aggregate_fulldata \
+        {input.pred_fs} \
+        --annots_f          {input.annots_f} \
+        --subsample_preds_f {input.subsample_preds_f} \
+        --output_f          {output.fulldata_f} \
+        $( [ "{params.label_map_f}" != "" ] && echo "--label_map_f {params.label_map_f}" )
+      """
+
+
+  rule join_render_html_train_xgboost:
+    input:
+      preds_f              = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
+      imp_f                = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv',
+      pb_f                 = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad',
+      label_counts_f       = f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_counts.csv',
+      fulldata_preds_f     = _join_xgb_fulldata_f
+    output:
+      rmd_f         = f"{rmd_dir}/{JOIN_TAG}_train_xgboost.Rmd",
+      html_f        = f"{docs_dir}/{JOIN_TAG}_train_xgboost.html"
+    params:
+      your_name            = config['join'].get('your_name', ''),
+      affiliation          = config['join'].get('affiliation', ''),
+      short_tag            = JOIN_TAG,
+      ref_tag              = _join_xgb_ref_tag,
+      proj_dir             = str(JOIN_DIR),
+      output_dir           = join_xgb_dir,
+      predictions_f        = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
+      importance_f         = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv',
+      pseudobulk_f         = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad',
+      label_counts_f       = f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_counts.csv',
+      fulldata_predictions_f = _join_xgb_fulldata_f,
+      integration_f        = joint_integration_f,
+      has_coarse           = "true" if _join_xgb_cfg.get('label_map_f') else "false",
+      min_cells            = _join_xgb_cfg.get('min_cells_expressed', 10),
+    threads: 1
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_render_html_train_xgboost', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_render_html_train_xgboost', 'time', attempt)
+    log:
+      f"{logs_dir}/join_render_html_train_xgboost_{_join_xgb_ref_tag}_{DATE_STAMP}.log"
+    benchmark:
+      f"{benchmark_dir}/join_render_html_train_xgboost_{_join_xgb_ref_tag}_{DATE_STAMP}.benchmark.txt"
+    conda:
+      '../envs/rlibs.yaml'
+    shell: """
+      exec &>> {log}
+      cp scripts/utils.R          {params.proj_dir}/code/utils.R
+      cp scripts/marker_genes.R   {params.proj_dir}/code/marker_genes.R
+      cp scripts/train_xgboost.R  {params.proj_dir}/code/train_xgboost.R
+
+      template_f=$(realpath resources/rmd_templates/train_xgboost.Rmd.template)
+      rule="train_xgboost"
+
+      Rscript --vanilla -e "source('scripts/render_htmls.R'); \\
+        render_html(
+          rule_name       = '$rule',
+          proj_dir        = '{params.proj_dir}',
+          temp_f          = '$template_f',
+          rmd_f           = '{output.rmd_f}',
+          your_name       = '{params.your_name}',
+          affiliation     = '{params.affiliation}',
+          short_tag       = '{params.short_tag}',
+          ref_tag         = '{params.ref_tag}',
+          predictions_f   = '{params.predictions_f}',
+          importance_f    = '{params.importance_f}',
+          pseudobulk_f    = '{params.pseudobulk_f}',
+          label_counts_f         = '{params.label_counts_f}',
+          fulldata_predictions_f = '{params.fulldata_predictions_f}',
+          integration_f          = '{params.integration_f}',
+          has_coarse             = '{params.has_coarse}',
+          min_cells              = '{params.min_cells}',
+          n_cores                = '{threads}'
+        )"
+      """
+
+

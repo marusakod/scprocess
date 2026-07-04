@@ -6,12 +6,13 @@ if TRAIN_XGB_PARAMS is not None:
       cluster_csv = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
       h5ads_yaml  = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
     output:
-      model_f  = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_xgboost_model.json',
-      cls_f    = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_allowed_cls.csv',
-      genes_f  = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_selected_genes.txt',
-      imp_f    = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_gene_importance.csv',
-      preds_f  = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_predictions.csv.gz',
-      pb_f     = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_pseudobulk.h5ad',
+      model_f   = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_xgboost_model.json',
+      cls_f     = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_allowed_cls.csv',
+      genes_f   = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_selected_genes.txt',
+      imp_f     = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_gene_importance.csv',
+      preds_f   = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_predictions.csv.gz',
+      pb_f      = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_pseudobulk.h5ad',
+      label_counts_f  = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_label_counts.csv',
     params:
       ref_tag              = TRAIN_XGB_PARAMS['ref_tag'],
       output_dir           = xgb_dir,
@@ -49,7 +50,7 @@ if TRAIN_XGB_PARAMS is not None:
       '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
-      python3 {scprocess_dir}/scripts/train_xgboost.py \
+      python3 {scprocess_dir}/scripts/train_xgboost.py train \
         --annots_f          {input.annots_f} \
         --cluster_csv       {input.cluster_csv} \
         --h5ads_yaml        {input.h5ads_yaml} \
@@ -79,4 +80,66 @@ if TRAIN_XGB_PARAMS is not None:
         --max_genes         {params.max_genes} \
         $( [ "{params.label_map_f}" != "" ] && echo "--label_map_f {params.label_map_f}" ) \
         $( [ "{params.use_gpu}" == "True" ] && echo "--use_gpu" )
+      """
+
+
+  rule train_xgboost_predict:
+    input:
+      adata_f = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad',
+      model_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_xgboost_model.json',
+      cls_f   = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_allowed_cls.csv',
+      genes_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_selected_genes.txt',
+    output:
+      pred_f  = temp(f'{xgb_dir}/tmp_fulldata_predict_{TRAIN_XGB_PARAMS["ref_tag"]}_{{batch}}.csv.gz')
+    params:
+      ref_tag   = TRAIN_XGB_PARAMS['ref_tag'],
+      batch_var = TRAIN_XGB_PARAMS.get('batch_var', BATCH_VAR)
+    threads: 1
+    retries: config['resources']['retries']
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'train_xgboost_predict', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'train_xgboost_predict', 'time', attempt)
+    log: f'{logs_dir}/train_xgboost/train_xgboost_predict_{TRAIN_XGB_PARAMS["ref_tag"]}_{{batch}}_{DATE_STAMP}.log'
+    benchmark: f'{benchmark_dir}/train_xgboost/train_xgboost_predict_{TRAIN_XGB_PARAMS["ref_tag"]}_{{batch}}_{DATE_STAMP}.benchmark.txt'
+    conda:
+      '../envs/label_celltypes.yaml'
+    shell: """
+      exec &>> {log}
+      python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_one_batch \
+        {wildcards.batch} {params.batch_var} {params.ref_tag} \
+        --adata_f   {input.adata_f} \
+        --model_f   {input.model_f} \
+        --cls_f     {input.cls_f} \
+        --genes_f   {input.genes_f} \
+        --pred_f    {output.pred_f}
+      """
+
+
+  rule train_xgboost_aggregate:
+    input:
+      pred_fs           = expand(
+        f'{xgb_dir}/tmp_fulldata_predict_{TRAIN_XGB_PARAMS["ref_tag"]}_{{batch}}.csv.gz',
+        batch=BATCHES),
+      subsample_preds_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_predictions.csv.gz',
+      annots_f          = TRAIN_XGB_PARAMS['annots_f'],
+    output:
+      fulldata_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_fulldata_predictions.csv.gz'
+    params:
+      label_map_f = TRAIN_XGB_PARAMS.get('label_map_f', ''),
+    retries: config['resources']['retries']
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'train_xgboost_aggregate', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'train_xgboost_aggregate', 'time', attempt)
+    log: f'{logs_dir}/train_xgboost/train_xgboost_aggregate_{TRAIN_XGB_PARAMS["ref_tag"]}_{DATE_STAMP}.log'
+    benchmark: f'{benchmark_dir}/train_xgboost/train_xgboost_aggregate_{TRAIN_XGB_PARAMS["ref_tag"]}_{DATE_STAMP}.benchmark.txt'
+    conda:
+      '../envs/label_celltypes.yaml'
+    shell: """
+      exec &>> {log}
+      python3 {scprocess_dir}/scripts/train_xgboost.py aggregate_fulldata \
+        {input.pred_fs} \
+        --annots_f          {input.annots_f} \
+        --subsample_preds_f {input.subsample_preds_f} \
+        --output_f          {output.fulldata_f} \
+        $( [ "{params.label_map_f}" != "" ] && echo "--label_map_f {params.label_map_f}" )
       """

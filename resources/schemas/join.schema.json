@@ -181,6 +181,14 @@
         "mins_join_render_html":        { "type": "integer", "default": 30 },
         "gb_join_extract_labels":       { "type": "integer", "default": 4 },
         "mins_join_extract_labels":     { "type": "integer", "default": 10 },
+        "gb_join_train_xgboost_train":       { "type": "integer", "default": 32 },
+        "gb_join_train_xgboost_predict":     { "type": "integer", "default": 8 },
+        "gb_join_train_xgboost_aggregate":   { "type": "integer", "default": 8 },
+        "gb_join_render_html_train_xgboost": { "type": "integer", "default": 8 },
+        "mins_join_train_xgboost_train":       { "type": "integer", "default": 180 },
+        "mins_join_train_xgboost_predict":     { "type": "integer", "default": 30 },
+        "mins_join_train_xgboost_aggregate":   { "type": "integer", "default": 30 },
+        "mins_join_render_html_train_xgboost": { "type": "integer", "default": 15 },
         "gb_build_shiny_app":           { "type": "integer", "default": 16 },
         "mins_build_shiny_app":         { "type": "integer", "default": 30 }
       }

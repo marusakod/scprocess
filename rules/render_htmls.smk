@@ -568,26 +568,30 @@ if TRAIN_XGB_PARAMS is not None:
     input:
       r_mkr_f       = f"{code_dir}/marker_genes.R",
       r_utils_f     = f"{code_dir}/utils.R",
-      preds_f       = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_predictions.csv.gz',
-      imp_f         = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_gene_importance.csv',
-      pb_f          = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_pseudobulk.h5ad'
+      preds_f              = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_predictions.csv.gz',
+      imp_f                = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_gene_importance.csv',
+      pb_f                 = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_pseudobulk.h5ad',
+      label_counts_f       = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_label_counts.csv',
+      fulldata_preds_f     = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_fulldata_predictions.csv.gz'
     output:
       r_train_f     = f"{code_dir}/train_xgboost.R",
       rmd_f         = f"{rmd_dir}/{SHORT_TAG}_train_xgboost.Rmd",
       html_f        = f"{docs_dir}/{SHORT_TAG}_train_xgboost.html"
     params:
-      your_name     = config['project'].get('your_name', ''),
-      affiliation   = config['project'].get('affiliation', ''),
-      short_tag     = SHORT_TAG,
-      ref_tag       = TRAIN_XGB_PARAMS['ref_tag'],
-      proj_dir      = PROJ_DIR,
-      output_dir    = xgb_dir,
-      predictions_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_predictions.csv.gz',
-      importance_f  = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_gene_importance.csv',
-      pseudobulk_f  = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_pseudobulk.h5ad',
-      integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-      has_coarse    = "true" if TRAIN_XGB_PARAMS.get('label_map_f') is not None else "false",
-      min_cells     = TRAIN_XGB_PARAMS.get('min_cells_expressed', 10),
+      your_name              = config['project'].get('your_name', ''),
+      affiliation            = config['project'].get('affiliation', ''),
+      short_tag              = SHORT_TAG,
+      ref_tag                = TRAIN_XGB_PARAMS['ref_tag'],
+      proj_dir               = PROJ_DIR,
+      output_dir             = xgb_dir,
+      predictions_f          = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_predictions.csv.gz',
+      importance_f           = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_gene_importance.csv',
+      pseudobulk_f           = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_pseudobulk.h5ad',
+      label_counts_f         = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_label_counts.csv',
+      fulldata_predictions_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_fulldata_predictions.csv.gz',
+      integration_f          = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      has_coarse             = "true" if TRAIN_XGB_PARAMS.get('label_map_f') is not None else "false",
+      min_cells              = TRAIN_XGB_PARAMS.get('min_cells_expressed', 10),
     threads: 1
     retries: config['resources']['retries']
     resources:
@@ -620,9 +624,11 @@ if TRAIN_XGB_PARAMS is not None:
           predictions_f   = '{params.predictions_f}',
           importance_f    = '{params.importance_f}',
           pseudobulk_f    = '{params.pseudobulk_f}',
-          integration_f   = '{params.integration_f}',
-          has_coarse      = '{params.has_coarse}',
-          min_cells       = '{params.min_cells}',
-          n_cores         = '{threads}'
+          label_counts_f         = '{params.label_counts_f}',
+          fulldata_predictions_f = '{params.fulldata_predictions_f}',
+          integration_f          = '{params.integration_f}',
+          has_coarse             = '{params.has_coarse}',
+          min_cells              = '{params.min_cells}',
+          n_cores                = '{threads}'
         )"
       """
