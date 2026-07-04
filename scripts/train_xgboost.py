@@ -40,6 +40,16 @@ def make_classifier(annots_f, cluster_csv, h5ads_yaml,
   max_res_str = str(int(max_res)) if max_res == int(max_res) else str(max_res)
   hi_res_col = f"RNA_snn_res.{max_res_str}"
 
+  csv_cols = pl.read_csv(cluster_csv, n_rows=0).columns
+  required = ["cell_id", batch_var, hi_res_col]
+  if batch_var != "sample_id":
+    required.append("project_id")
+  missing_cols = [c for c in required if c not in csv_cols]
+  if missing_cols:
+    raise ValueError(
+      f"columns {missing_cols} not found in cluster CSV. "
+      f"Available: {csv_cols}")
+
   label_map = load_label_mapping(label_map_f)
   if label_map is not None:
     print(f"  Label mapping loaded: {len(label_map)} fine→coarse entries")
@@ -47,11 +57,15 @@ def make_classifier(annots_f, cluster_csv, h5ads_yaml,
 
   # Phase 1: plan which cells to use (CSV only, no H5AD)
   print("\n--- Planning training cells ---")
-  cells_df = plan_training_cells(
+  cells_df, label_counts = plan_training_cells(
     annots_f, cluster_csv, batch_var, hi_res_col,
     refine_labels, purity_threshold,
     min_cells_per_type, n_cells_per_type, seed,
   )
+
+  label_counts_f = pathlib.Path(output_dir) / f"{ref_tag}_label_counts.csv"
+  label_counts.write_csv(label_counts_f)
+  print(f"  Saved label counts to {label_counts_f}")
 
   # Phase 2: load expression data one H5AD at a time
   print("\n--- Loading expression data ---")
@@ -135,6 +149,8 @@ def plan_training_cells(annots_f, cluster_csv, batch_var, hi_res_col,
   refine_labels, purity_threshold, min_cells_per_type, n_cells_per_type, seed):
 
   cols_to_read = ["cell_id", batch_var, hi_res_col]
+  if batch_var != "sample_id":
+    cols_to_read.append("project_id")
   cluster_df = pl.read_csv(cluster_csv, columns=cols_to_read)
   print(f"  Loaded cluster CSV: {cluster_df.shape[0]} cells")
 
@@ -170,23 +186,26 @@ def plan_training_cells(annots_f, cluster_csv, batch_var, hi_res_col,
       print(f"    {row['label']}: {row['len']} cells")
   df = df.filter(pl.col("label").is_in(keep_types))
 
+  label_counts = df.group_by("label").len().sort("len", descending=True)
+
   print("  Downsampling...")
   df = downsample_per_type(df, n_cells_per_type, seed)
 
   print("  Assigning train/val split...")
-  df = assign_train_val_split(df, seed)
+  df = assign_train_val_split(df, batch_var, seed)
 
-  # Batch column determines which H5AD file contains each cell
+  # Batch column: h5ad lookup key. In join context keys are {project_id}_{batch_var}.
   if batch_var == "sample_id":
     df = df.with_columns(pl.col("sample_id").alias("batch"))
   else:
-    df = df.with_columns(pl.col(batch_var).alias("batch"))
+    df = df.with_columns(
+      pl.concat_str([pl.col("project_id"), pl.lit("_"), pl.col(batch_var)]).alias("batch"))
 
   split_summary = df.group_by("split").len()
   for row in split_summary.iter_rows(named=True):
     print(f"    {row['split']}: {row['len']} cells")
 
-  return df.select(["cell_id", "sample_id", "label", "split", "batch"])
+  return df.select(["cell_id", "label", "split", "batch"]), label_counts
 
 
 def refine_labels_by_cluster(df, hi_res_col, purity_threshold):
@@ -262,26 +281,26 @@ def downsample_per_type(df, n_cells_per_type, seed):
   return sampled
 
 
-def assign_train_val_split(df, seed):
+def assign_train_val_split(df, batch_var, seed):
 
   rng = np.random.default_rng(seed)
-  samples = df["sample_id"].drop_nulls().unique().to_list()
-  n_samples = len(samples)
+  batches = df[batch_var].drop_nulls().unique().to_list()
+  n_batches = len(batches)
 
-  if n_samples > 4:
-    samples = sorted(samples)
-    n_val = max(1, len(samples) // 5)
-    val_samples = rng.choice(samples, size=n_val, replace=False).tolist()
-    print(f"    Sample-level holdout: {n_val} validation samples of {len(samples)}")
-    print(f"    Validation samples: {val_samples}")
+  if n_batches > 4:
+    batches = sorted(batches)
+    n_val = max(1, len(batches) // 5)
+    val_batches = rng.choice(batches, size=n_val, replace=False).tolist()
+    print(f"    Batch-level holdout: {n_val} validation batches of {len(batches)}")
+    print(f"    Validation batches: {val_batches}")
 
     df = df.with_columns(
-      pl.when(pl.col("sample_id").is_in(val_samples))
+      pl.when(pl.col(batch_var).is_in(val_batches))
       .then(pl.lit("validation")).otherwise(pl.lit("train"))
       .alias("split")
     )
   else:
-    print(f"    Cell-level stratified split (<=4 samples)")
+    print(f"    Cell-level stratified split (<=4 batches)")
 
     labels = df["label"].to_list()
     assignments = ["train"] * len(labels)
@@ -406,61 +425,57 @@ def load_expression_matrix(cells_df, h5ad_dict):
 
 
 def compute_pseudobulk(X_raw, cells_df, gene_names, sel_indices):
-  # get pseudobulk counts per (label, sample_id) 
 
   X_sel = X_raw[:, sel_indices]
   sel_gene_names = [gene_names[i] for i in sel_indices]
 
   labels = cells_df["label"].to_list()
-  sample_ids = cells_df["sample_id"].to_list()
+  batches = cells_df["batch"].to_list()
 
   unique_labels = sorted(set(labels))
-  unique_samples = sorted(set(sample_ids))
-  n_samples = len(unique_samples)
+  unique_batches = sorted(set(batches))
+  n_batches = len(unique_batches)
   n_genes = len(sel_gene_names)
-  sample_to_idx = {s: i for i, s in enumerate(unique_samples)}
+  batch_to_idx = {s: i for i, s in enumerate(unique_batches)}
 
-  # Group cell indices by (label, sample_id)
   groups: dict[tuple[str, str], list[int]] = {}
-  for i, (lbl, sid) in enumerate(zip(labels, sample_ids)):
-    key = (lbl, sid)
+  for i, (lbl, bid) in enumerate(zip(labels, batches)):
+    key = (lbl, bid)
     if key not in groups:
       groups[key] = []
     groups[key].append(i)
 
-  # Build one layer per label: samples × genes (logCPM values)
   layers = {}
   n_cells_dict: dict[str, list[int]] = {}
   for lbl in unique_labels:
-    count_mat = np.zeros((n_samples, n_genes), dtype=np.float64)
-    n_cells_per_sample = [0] * n_samples
-    for sid in unique_samples:
-      key = (lbl, sid)
+    count_mat = np.zeros((n_batches, n_genes), dtype=np.float64)
+    n_cells_per_batch = [0] * n_batches
+    for bid in unique_batches:
+      key = (lbl, bid)
       if key in groups:
         indices = groups[key]
-        count_mat[sample_to_idx[sid], :] = np.array(
+        count_mat[batch_to_idx[bid], :] = np.array(
           X_sel[indices, :].sum(axis=0)).flatten()
-        n_cells_per_sample[sample_to_idx[sid]] = len(indices)
+        n_cells_per_batch[batch_to_idx[bid]] = len(indices)
 
     layers[lbl] = count_mat
-    n_cells_dict[lbl] = n_cells_per_sample
+    n_cells_dict[lbl] = n_cells_per_batch
 
-  obs_df = pd.DataFrame({"sample_id": unique_samples}, index=unique_samples)
+  obs_df = pd.DataFrame({"batch": unique_batches}, index=unique_batches)
   var_df = pd.DataFrame({"gene_id": sel_gene_names}, index=sel_gene_names)
 
   pb_adata = ad.AnnData(
-    X=np.zeros((n_samples, n_genes)),
+    X=np.zeros((n_batches, n_genes)),
     obs=obs_df,
     var=var_df,
     layers=layers,
   )
 
-  # Store n_cells per label as obsm (samples × labels matrix)
   n_cells_mat = np.column_stack([n_cells_dict[lbl] for lbl in unique_labels])
   pb_adata.obsm["n_cells"] = pd.DataFrame(
-    n_cells_mat, index=unique_samples, columns=unique_labels)
+    n_cells_mat, index=unique_batches, columns=unique_labels)
 
-  print(f"  Pseudobulk raw counts: {n_samples} samples, {n_genes} genes, "
+  print(f"  Pseudobulk raw counts: {n_batches} batches, {n_genes} genes, "
         f"{len(unique_labels)} labels (stored as layers)")
 
   return pb_adata
@@ -748,7 +763,7 @@ def _make_predictions_df(model, X_train, y_train, X_val, y_val, cells_df, class_
 
   pred_labels = [class_names[i] for i in all_pred]
 
-  result = cells_df.select(["cell_id", "sample_id", "label", "split"]).with_columns([
+  result = cells_df.select(["cell_id", "batch", "label", "split"]).with_columns([
     pl.Series("predicted_label", pred_labels),
     pl.Series("probability", all_pmax),
   ])
@@ -763,70 +778,140 @@ def _make_predictions_df(model, X_train, y_train, X_val, y_val, cells_df, class_
   return result
 
 
+def aggregate_fulldata_predictions(pred_fs, annots_f, subsample_preds_f,
+  label_map_f, output_f):
+
+  print("=" * 60)
+  print("Aggregating full-data predictions")
+  print("=" * 60)
+
+  all_preds = pl.concat([pl.read_csv(f) for f in pred_fs])
+  print(f"  Total cells predicted: {all_preds.shape[0]}")
+
+  all_preds = all_preds.select([
+    "cell_id",
+    pl.col("predicted_label_naive").alias("predicted_label"),
+    pl.col("probability_naive").alias("probability"),
+  ])
+
+  annots_df = pl.read_csv(annots_f)
+  assert "cell_id" in annots_df.columns, "annots_f must have 'cell_id' column"
+  assert "annotation" in annots_df.columns, "annots_f must have 'annotation' column"
+  annots_df = annots_df.select(["cell_id", pl.col("annotation").alias("label")])
+
+  subsample_df = pl.read_csv(subsample_preds_f).select(["cell_id", "split"])
+
+  result = all_preds.join(annots_df, on="cell_id", how="left")
+  result = result.join(subsample_df, on="cell_id", how="left")
+
+  result = result.with_columns(
+    pl.when(pl.col("split").is_not_null())
+      .then(pl.col("split"))
+      .when(pl.col("label").is_not_null())
+      .then(pl.lit("holdout"))
+      .otherwise(pl.lit("unlabeled"))
+      .alias("split")
+  )
+
+  label_map = load_label_mapping(label_map_f)
+  if label_map is not None:
+    result = result.with_columns([
+      pl.col("label").replace(label_map).alias("coarse_true"),
+      pl.col("predicted_label").replace(label_map).alias("coarse_predicted"),
+    ])
+
+  split_summary = result.group_by("split").len().sort("split")
+  for row in split_summary.iter_rows(named=True):
+    print(f"  {row['split']}: {row['len']} cells")
+
+  result.write_csv(output_f, compression="gzip")
+  print(f"  Saved to {output_f}")
+
+
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(
     description="Train XGBoost cell type classifier from scprocess output"
   )
-  parser.add_argument("--annots_f",          type=str, required=True)
-  parser.add_argument("--cluster_csv",       type=str, required=True)
-  parser.add_argument("--h5ads_yaml",        type=str, required=True)
-  parser.add_argument("--ref_tag",           type=str, required=True)
-  parser.add_argument("--output_dir",        type=str, required=True)
-  parser.add_argument("--batch_var",         type=str, required=True)
-  parser.add_argument("--int_res_ls",        type=str, required=True)
-  parser.add_argument("--label_map_f",       type=str, default=None)
-  parser.add_argument("--refine_labels",     type=str, required=True)
-  parser.add_argument("--purity_threshold",  type=float, required=True)
-  parser.add_argument("--n_cells_per_type",  type=int, required=True)
-  parser.add_argument("--min_cells_per_type", type=int, required=True)
-  parser.add_argument("--min_cells_expressed", type=int, required=True)
-  parser.add_argument("--gene_exclude_re",   type=str, default=None)
-  parser.add_argument("--seed",             type=int, required=True)
-  parser.add_argument("--n_cores",          type=int, required=True)
-  parser.add_argument("--use_gpu",          action="store_true")
-  parser.add_argument("--pass1_subsample",      type=float, required=True)
-  parser.add_argument("--pass1_colsample_bytree", type=float, required=True)
-  parser.add_argument("--pass1_learning_rate",  type=float, required=True)
-  parser.add_argument("--pass1_nrounds",        type=int, required=True)
-  parser.add_argument("--pass1_early_stopping", type=int, required=True)
-  parser.add_argument("--pass2_colsample_bytree", type=float, required=True)
-  parser.add_argument("--pass2_learning_rate",  type=float, required=True)
-  parser.add_argument("--pass2_nrounds",        type=int, required=True)
-  parser.add_argument("--pass2_early_stopping", type=int, required=True)
-  parser.add_argument("--gain_threshold",   type=float, required=True)
-  parser.add_argument("--min_genes",        type=int, required=True)
-  parser.add_argument("--max_genes",        type=int, required=True)
+  subparsers = parser.add_subparsers(dest="subcommand")
+
+  train_prsr = subparsers.add_parser("train")
+  train_prsr.add_argument("--annots_f",          type=str, required=True)
+  train_prsr.add_argument("--cluster_csv",       type=str, required=True)
+  train_prsr.add_argument("--h5ads_yaml",        type=str, required=True)
+  train_prsr.add_argument("--ref_tag",           type=str, required=True)
+  train_prsr.add_argument("--output_dir",        type=str, required=True)
+  train_prsr.add_argument("--batch_var",         type=str, required=True)
+  train_prsr.add_argument("--int_res_ls",        type=str, required=True)
+  train_prsr.add_argument("--label_map_f",       type=str, default=None)
+  train_prsr.add_argument("--refine_labels",     type=str, required=True)
+  train_prsr.add_argument("--purity_threshold",  type=float, required=True)
+  train_prsr.add_argument("--n_cells_per_type",  type=int, required=True)
+  train_prsr.add_argument("--min_cells_per_type", type=int, required=True)
+  train_prsr.add_argument("--min_cells_expressed", type=int, required=True)
+  train_prsr.add_argument("--gene_exclude_re",   type=str, default=None)
+  train_prsr.add_argument("--seed",             type=int, required=True)
+  train_prsr.add_argument("--n_cores",          type=int, required=True)
+  train_prsr.add_argument("--use_gpu",          action="store_true")
+  train_prsr.add_argument("--pass1_subsample",      type=float, required=True)
+  train_prsr.add_argument("--pass1_colsample_bytree", type=float, required=True)
+  train_prsr.add_argument("--pass1_learning_rate",  type=float, required=True)
+  train_prsr.add_argument("--pass1_nrounds",        type=int, required=True)
+  train_prsr.add_argument("--pass1_early_stopping", type=int, required=True)
+  train_prsr.add_argument("--pass2_colsample_bytree", type=float, required=True)
+  train_prsr.add_argument("--pass2_learning_rate",  type=float, required=True)
+  train_prsr.add_argument("--pass2_nrounds",        type=int, required=True)
+  train_prsr.add_argument("--pass2_early_stopping", type=int, required=True)
+  train_prsr.add_argument("--gain_threshold",   type=float, required=True)
+  train_prsr.add_argument("--min_genes",        type=int, required=True)
+  train_prsr.add_argument("--max_genes",        type=int, required=True)
+
+  agg_prsr = subparsers.add_parser("aggregate_fulldata")
+  agg_prsr.add_argument("pred_fs",                type=str, nargs="+")
+  agg_prsr.add_argument("--annots_f",             type=str, required=True)
+  agg_prsr.add_argument("--subsample_preds_f",    type=str, required=True)
+  agg_prsr.add_argument("--label_map_f",          type=str, default=None)
+  agg_prsr.add_argument("--output_f",             type=str, required=True)
 
   args = parser.parse_args()
 
-  make_classifier(
-    annots_f=args.annots_f,
-    cluster_csv=args.cluster_csv,
-    h5ads_yaml=args.h5ads_yaml,
-    ref_tag=args.ref_tag,
-    output_dir=args.output_dir,
-    batch_var=args.batch_var,
-    int_res_ls=args.int_res_ls,
-    label_map_f=args.label_map_f,
-    refine_labels=args.refine_labels.lower() == "true",
-    purity_threshold=args.purity_threshold,
-    n_cells_per_type=args.n_cells_per_type,
-    min_cells_per_type=args.min_cells_per_type,
-    min_cells_expressed=args.min_cells_expressed,
-    gene_exclude_re=args.gene_exclude_re,
-    seed=args.seed,
-    n_cores=args.n_cores,
-    use_gpu=args.use_gpu,
-    pass1_subsample=args.pass1_subsample,
-    pass1_colsample_bytree=args.pass1_colsample_bytree,
-    pass1_learning_rate=args.pass1_learning_rate,
-    pass1_nrounds=args.pass1_nrounds,
-    pass1_early_stopping=args.pass1_early_stopping,
-    pass2_colsample_bytree=args.pass2_colsample_bytree,
-    pass2_learning_rate=args.pass2_learning_rate,
-    pass2_nrounds=args.pass2_nrounds,
-    pass2_early_stopping=args.pass2_early_stopping,
-    gain_threshold=args.gain_threshold,
-    min_genes=args.min_genes,
-    max_genes=args.max_genes,
-  )
+  if args.subcommand == "train" or args.subcommand is None:
+    make_classifier(
+      annots_f=args.annots_f,
+      cluster_csv=args.cluster_csv,
+      h5ads_yaml=args.h5ads_yaml,
+      ref_tag=args.ref_tag,
+      output_dir=args.output_dir,
+      batch_var=args.batch_var,
+      int_res_ls=args.int_res_ls,
+      label_map_f=args.label_map_f,
+      refine_labels=args.refine_labels.lower() == "true",
+      purity_threshold=args.purity_threshold,
+      n_cells_per_type=args.n_cells_per_type,
+      min_cells_per_type=args.min_cells_per_type,
+      min_cells_expressed=args.min_cells_expressed,
+      gene_exclude_re=args.gene_exclude_re,
+      seed=args.seed,
+      n_cores=args.n_cores,
+      use_gpu=args.use_gpu,
+      pass1_subsample=args.pass1_subsample,
+      pass1_colsample_bytree=args.pass1_colsample_bytree,
+      pass1_learning_rate=args.pass1_learning_rate,
+      pass1_nrounds=args.pass1_nrounds,
+      pass1_early_stopping=args.pass1_early_stopping,
+      pass2_colsample_bytree=args.pass2_colsample_bytree,
+      pass2_learning_rate=args.pass2_learning_rate,
+      pass2_nrounds=args.pass2_nrounds,
+      pass2_early_stopping=args.pass2_early_stopping,
+      gain_threshold=args.gain_threshold,
+      min_genes=args.min_genes,
+      max_genes=args.max_genes,
+    )
+
+  elif args.subcommand == "aggregate_fulldata":
+    aggregate_fulldata_predictions(
+      pred_fs=args.pred_fs,
+      annots_f=args.annots_f,
+      subsample_preds_f=args.subsample_preds_f,
+      label_map_f=args.label_map_f,
+      output_f=args.output_f,
+    )
