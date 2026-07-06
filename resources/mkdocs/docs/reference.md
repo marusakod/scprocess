@@ -769,6 +769,8 @@ Additional parameters include:
     * `gb_run_scprocess_labeller`: maximum memory required (in GB) for rule `run_scprocess_labeller`.
     * `gb_merge_labels`: maximum memory required (in GB) for rule `merge_labels`.
     * `gb_train_xgboost_train`: maximum memory required (in GB) for rule `train_xgboost_train`.
+    * `gb_train_xgboost_predict`: maximum memory required (in GB) for rule `train_xgboost_predict`.
+    * `gb_train_xgboost_aggregate`: maximum memory required (in GB) for rule `train_xgboost_aggregate`.
     * `gb_render_html_train_xgboost`: maximum memory required (in GB) for rule `render_html_train_xgboost`.
     * `gb_get_zoom_sample_statistics`: maximum memory required (in GB) for rule `get_zoom_sample_statistics`.
     * `gb_zoom_make_one_pb_cells`: maximum memory required (in GB) for rule `zoom_make_one_pb_cells`.
@@ -836,6 +838,8 @@ Additional parameters include:
     * `mins_run_scprocess_labeller`: maximum runtime required (in minutes) for rule `run_scprocess_labeller`.
     * `mins_merge_labels`: maximum runtime required (in minutes) for rule `merge_labels`.
     * `mins_train_xgboost_train`: maximum runtime required (in minutes) for rule `train_xgboost_train`.
+    * `mins_train_xgboost_predict`: maximum runtime required (in minutes) for rule `train_xgboost_predict`.
+    * `mins_train_xgboost_aggregate`: maximum runtime required (in minutes) for rule `train_xgboost_aggregate`.
     * `mins_render_html_train_xgboost`: maximum runtime required (in minutes) for rule `render_html_train_xgboost`.
     * `mins_get_zoom_sample_statistics`: maximum runtime required (in minutes) for rule `get_zoom_sample_statistics`.
     * `mins_zoom_make_one_pb_cells`: maximum runtime required (in minutes) for rule `zoom_make_one_pb_cells`.
