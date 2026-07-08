@@ -153,6 +153,48 @@ if zoom_xgb_outs:
 localrules: zoom_make_tmp_pb_cells_df, zoom_make_hvg_df, zoom_merge_group_mean_var, zoom_merge_group_std_var_stats, zoom_merge_stats_for_std_variance, zoom_copy_train_xgboost_r
 
 
+rule zoom_filter_cells_qc:
+  input:
+    labels_f    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['_original_labels_f'],
+    qc_all_f    = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+  output:
+    filtered_f  = f'{zoom_dir}/{{zoom_name}}/filtered_labels_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
+  params:
+    labels_col    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
+    sel_labels    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'],
+    qc_min_counts = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_counts'),
+    qc_min_feats  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_feats'),
+    qc_min_mito   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_mito'),
+    qc_max_mito   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_max_mito'),
+    qc_min_splice = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_splice'),
+    qc_max_splice = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_max_splice')
+  threads: 1
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_filter_cells_qc', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_filter_cells_qc', 'time', attempt)
+  log:
+    f'{logs_dir}/zoom/zoom_filter_cells_qc_{{zoom_name}}_{DATE_STAMP}.log'
+  run:
+    import sys
+    with open(str(log), "a") as f:
+      sys.stdout = f
+      sys.stderr = f
+
+      filter_zoom_labels_by_qc(
+        labels_f      = str(input.labels_f),
+        qc_all_f      = input.qc_all_f,
+        output_f      = output.filtered_f,
+        labels_col    = params.labels_col,
+        sel_labels    = params.sel_labels,
+        qc_min_counts = params.qc_min_counts,
+        qc_min_feats  = params.qc_min_feats,
+        qc_min_mito   = params.qc_min_mito,
+        qc_max_mito   = params.qc_max_mito,
+        qc_min_splice = params.qc_min_splice,
+        qc_max_splice = params.qc_max_splice
+      )
+
+
 rule zoom_copy_train_xgboost_r:
   input:
     src = scprocess_dir / "scripts" / "train_xgboost.R"
@@ -163,12 +205,12 @@ rule zoom_copy_train_xgboost_r:
 
 rule get_zoom_sample_statistics:
   input:
-    qc_stats_f      = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
+    qc_stats_f      = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+    zoom_lbls_f     = f'{zoom_dir}/{{zoom_name}}/filtered_labels_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
   output:
     zoom_stats_f    = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv'
   params:
-    zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
-    zoom_lbls_col   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'], 
+    zoom_lbls_col   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
     zoom_lbls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'],
     batch_var       = BATCH_VAR,
     batches         = BATCHES,
@@ -186,8 +228,8 @@ rule get_zoom_sample_statistics:
       sys.stdout = f
       sys.stderr = f
 
-      zoom_stats_df   = extract_zoom_sample_statistics(input.qc_stats_f, params.zoom_lbls_f, 
-        params.zoom_lbls_col, params.zoom_lbls, params.batches, params.batch_var, 
+      zoom_stats_df   = extract_zoom_sample_statistics(input.qc_stats_f, input.zoom_lbls_f,
+        params.zoom_lbls_col, params.zoom_lbls, params.batches, params.batch_var,
         params.zoom_min_n_smpl, params.ambient_method)
       zoom_stats_df.write_csv(output.zoom_stats_f)
 
@@ -198,13 +240,13 @@ rule zoom_make_one_pb_cells:
     batch_lu_f    = f'{pb_dir}/runs_to_batches_{FULL_TAG}_{DATE_STAMP}.csv',
     h5_paths_f    = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
     coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    qc_stats_f    = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv'
+    qc_stats_f    = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv',
+    zoom_lbls_f   = f'{zoom_dir}/{{zoom_name}}/filtered_labels_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
   output:
     pb_cells_f    = temp(f'{zoom_dir}/{{zoom_name}}/tmp_pb_cells_{{zoom_name}}_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds')
   params:
     run_var       = RUN_VAR,
-    batch_var     = BATCH_VAR, 
-    zoom_lbls_f   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
+    batch_var     = BATCH_VAR,
     zoom_lbls_col = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
     zoom_lbls     = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'])
   threads: 1
@@ -232,9 +274,9 @@ rule zoom_make_one_pb_cells:
       coldata_f   = '{input.coldata_f}',
       run_var     = '{params.run_var}',
       batch_var   = '{params.batch_var}',
-      subset_f    = '{params.zoom_lbls_f}',
+      subset_f    = '{input.zoom_lbls_f}',
       subset_col  = '{params.zoom_lbls_col}',
-      subset_str  = '{params.zoom_lbls}', 
+      subset_str  = '{params.zoom_lbls}',
       pb_cells_f  = '{output.pb_cells_f}'
     )"
     """
@@ -377,16 +419,16 @@ rule zoom_make_hvg_df:
 rule zoom_make_tmp_csr_matrix:
   input:
     rowdata_f       = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    hvg_paths_f     = f'{zoom_dir}/{{zoom_name}}/hvg_paths_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv', 
-    smpl_stats_f    = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv'
+    hvg_paths_f     = f'{zoom_dir}/{{zoom_name}}/hvg_paths_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv',
+    smpl_stats_f    = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv',
+    zoom_lbls_f     = f'{zoom_dir}/{{zoom_name}}/filtered_labels_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
   output:
     clean_h5_f      = temp(expand([
       f'{zoom_dir}/{{zoom_name}}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5'
       ], batch = BATCHES, allow_missing = True))
-  params: 
-    zoom_lbls_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
+  params:
     zoom_lbls_col   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
-    zoom_lbls       = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels']), 
+    zoom_lbls       = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels']),
     run_var         = RUN_VAR,
     batch_var       = BATCH_VAR,
     demux_type      = config['multiplexing']['demux_type'],
@@ -409,7 +451,7 @@ rule zoom_make_tmp_csr_matrix:
 
     python3 scripts/hvgs.py get_csr_counts \
       {input.hvg_paths_f} \
-      {params.zoom_lbls_f} \
+      {input.zoom_lbls_f} \
       "{params.zoom_lbls_col}" \
       "{input.smpl_stats_f}" \
       {input.rowdata_f} \
@@ -888,12 +930,12 @@ rule zoom_make_subsets:
   input:
     h5ads_yaml_f  = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
     integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
-    smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv'
+    smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv',
+    zoom_lbls_f   = f'{zoom_dir}/{{zoom_name}}/filtered_labels_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
   output:
     f"{zoom_dir}/{{zoom_name}}/{{prefix}}_objects/{{prefix}}_cells_clean_{{batch}}_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.{{ext}}"
   params:
     batch_var     = BATCH_VAR,
-    zoom_lbls_f   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_f'],
     zoom_lbls_col = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
     zoom_lbls     = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels']),
     save_sce      = lambda wildcards: "TRUE" if wildcards.zoom_name in zooms_to_save_sce else "FALSE",
@@ -918,7 +960,7 @@ rule zoom_make_subsets:
       batch_var     = '{params.batch_var}',
       smpl_stats_f  = '{input.smpl_stats_f}',
       h5ads_yaml_f  = '{input.h5ads_yaml_f}',
-      subset_f      = '{params.zoom_lbls_f}',
+      subset_f      = '{input.zoom_lbls_f}',
       subset_col    = '{params.zoom_lbls_col}',
       subset_str    = '{params.zoom_lbls}',
       integration_f = '{input.integration_f}',

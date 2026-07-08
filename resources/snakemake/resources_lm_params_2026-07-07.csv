@@ -103,6 +103,8 @@ memory,raw_data_size,6885.076,327.776,save_alevin_to_h5,3v4,2048
 time,"",,,save_alevin_to_h5,3v4,600
 memory,"",,,zoom_calculate_ambient_genes,"",2048
 time,"",,,zoom_calculate_ambient_genes,"",600
+memory,"",,,zoom_filter_cells_qc,"",2048
+time,"",,,zoom_filter_cells_qc,"",600
 memory,"",,,zoom_create_hvg_matrix,"",2048
 time,"",,,zoom_create_hvg_matrix,"",600
 memory,"",,,zoom_get_estimated_variances,"",2048

@@ -670,7 +670,7 @@ sample_id:
 
 ##### zoom
 
-In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets`, all [shiny app parameters](#shiny) (`app_title` defaults to `name`), and all [XGBoost training paramaters](#train_xgboost)
+In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `qc_min_counts`, `qc_min_feats`, `qc_min_mito`, `qc_max_mito`, `qc_min_splice`, `qc_max_splice`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets`, all [shiny app parameters](#shiny) (`app_title` defaults to `name`), and all [XGBoost training paramaters](#train_xgboost)
 
 Additional parameters include:
 
@@ -687,6 +687,15 @@ Additional parameters include:
 * `save_subset_anndata`: whether to create H5AD files containing cells that have been assigned one of the values in `sel_labels`; defaults is `true`.
 * `custom_labels_f`: required if `labels_source` is set to `custom`; path to CSV file with columns `sample_id`, `cell_id` and `label`.
 
+Zoom configs also support optional cell-level QC thresholds to apply stricter filtering to cells that already passed the main pipeline's QC. When set, cells in the zoom subset that do not meet these thresholds are removed before HVG detection and integration. All thresholds default to `null` (no additional filtering):
+
+* `qc_min_counts`: minimum UMI counts per cell. Only effective if stricter than the main pipeline threshold. Default: not set.
+* `qc_min_feats`: minimum detected genes per cell. Default: not set.
+* `qc_max_mito`: maximum mitochondrial proportion (0-1). Default: not set.
+* `qc_min_mito`: minimum mitochondrial proportion (0-1). Default: not set.
+* `qc_max_splice`: maximum spliced proportion (0-1). Default: not set.
+* `qc_min_splice`: minimum spliced proportion (0-1). Default: not set.
+
 ```yaml
 zoom:
   name: oligos_opcs
@@ -698,6 +707,8 @@ zoom:
   save_subset_anndata: true
 qc:
   qc_min_cells: 100
+  qc_max_mito: 0.05
+  qc_min_counts: 1000
 hvg:
   hvg_method: all
 shiny:

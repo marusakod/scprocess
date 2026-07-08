@@ -70,6 +70,59 @@ def extract_zoom_sample_statistics(qc_stats_f, labels_f, labels_col, sel_labels,
   return batches_df
 
 
+def filter_zoom_labels_by_qc(labels_f, qc_all_f, output_f, labels_col, sel_labels,
+    qc_min_counts=None, qc_min_feats=None, qc_min_mito=None, qc_max_mito=None,
+    qc_min_splice=None, qc_max_splice=None):
+  import math
+  import gzip
+
+  thresholds = {
+    'qc_min_counts': qc_min_counts, 'qc_min_feats': qc_min_feats,
+    'qc_min_mito': qc_min_mito, 'qc_max_mito': qc_max_mito,
+    'qc_min_splice': qc_min_splice, 'qc_max_splice': qc_max_splice
+  }
+  has_thresholds = any(v is not None for v in thresholds.values())
+
+  lbls_df = pl.read_csv(labels_f)
+
+  if not has_thresholds:
+    with gzip.open(output_f, 'wb') as f:
+      lbls_df.write_csv(f)
+    print(f"No zoom QC thresholds specified. Wrote {lbls_df.shape[0]} rows unchanged.")
+    return
+
+  # get cell_ids matching selected labels
+  sel_cell_ids = lbls_df.filter(pl.col(labels_col).cast(pl.Utf8).is_in(sel_labels))['cell_id'].to_list()
+
+  # load qc_all (has log_counts, log_feats, logit_mito, logit_spliced, keep, cell_id)
+  qc_df = pl.read_csv(qc_all_f)
+  qc_df = qc_df.filter(pl.col('keep') & pl.col('cell_id').is_in(sel_cell_ids))
+
+  # apply thresholds using pre-computed transformed columns (same as main QC)
+  if qc_min_counts is not None:
+    qc_df = qc_df.filter(pl.col('log_counts') >= math.log10(qc_min_counts))
+  if qc_min_feats is not None:
+    qc_df = qc_df.filter(pl.col('log_feats') >= math.log10(qc_min_feats))
+  if qc_max_mito is not None and qc_max_mito < 1:
+    qc_df = qc_df.filter(pl.col('logit_mito') < math.log(qc_max_mito / (1 - qc_max_mito)))
+  if qc_min_mito is not None and qc_min_mito > 0:
+    qc_df = qc_df.filter(pl.col('logit_mito') > math.log(qc_min_mito / (1 - qc_min_mito)))
+  if qc_max_splice is not None and qc_max_splice < 1:
+    qc_df = qc_df.filter(pl.col('logit_spliced') < math.log(qc_max_splice / (1 - qc_max_splice)))
+  if qc_min_splice is not None and qc_min_splice > 0:
+    qc_df = qc_df.filter(pl.col('logit_spliced') > math.log(qc_min_splice / (1 - qc_min_splice)))
+
+  surviving_ids = set(qc_df['cell_id'].to_list())
+  failed_ids = set(sel_cell_ids) - surviving_ids
+  n_removed = len(failed_ids)
+  print(f"Zoom QC filtering: {n_removed} / {len(sel_cell_ids)} cells removed ({len(surviving_ids)} remaining)")
+
+  filtered_lbls_df = lbls_df.filter(~pl.col('cell_id').is_in(list(failed_ids)))
+  with gzip.open(output_f, 'wb') as f:
+    filtered_lbls_df.write_csv(f)
+  print(f"Wrote filtered labels file with {filtered_lbls_df.shape[0]} rows to {output_f}")
+
+
 # zoom function: specify some optional outputs for zoom (at the moment only FGSEA outputs)
 def get_zoom_conditional_fgsea_files(ref_txome, zoom_dir, FULL_TAG, DATE_STAMP, do_gsea):
   valid_refs = ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020',

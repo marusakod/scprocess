@@ -1043,6 +1043,28 @@ def get_zoom_parameters(config, zoom_schema_f, scdata_dir):
   return ZOOM_PARAMS
 
 
+def _warn_zoom_qc_thresholds(zoom_qc, main_qc, zoom_name):
+  checks = [
+    ('qc_min_counts', 'higher'), ('qc_min_feats', 'higher'),
+    ('qc_max_mito', 'lower'), ('qc_min_mito', 'higher'),
+    ('qc_max_splice', 'lower'), ('qc_min_splice', 'higher'),
+  ]
+  for key, direction in checks:
+    zoom_val = zoom_qc.get(key)
+    main_val = main_qc.get(key)
+    if zoom_val is None or main_val is None:
+      continue
+    is_less_strict = (
+      (direction == 'higher' and zoom_val < main_val) or
+      (direction == 'lower' and zoom_val > main_val)
+    )
+    if is_less_strict:
+      warnings.warn(
+        f"zoom '{zoom_name}': {key}={zoom_val} is less strict than main config ({main_val}). "
+        f"This will have no effect since cells already passed main QC."
+      )
+
+
 # get parameters for one zoom specification
 def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
   # check file exists
@@ -1105,9 +1127,17 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
   # get list of all clusters to check if cluster names are valid
   sel_labels    = _check_zoom_clusters_in_file(labels_f, zoom_config)
 
-  # add this file to params list
-  zoom_config['zoom']['labels_f']   = labels_f
+  # store original labels path for the filtering rule's input
+  zoom_config['zoom']['_original_labels_f'] = labels_f
   zoom_config['zoom']['sel_labels'] = sel_labels
+
+  # point labels_f to the filtered labels output (produced by zoom_filter_cells_qc rule)
+  zoom_name = zoom_config['zoom']['name']
+  zoom_config['zoom']['labels_f'] = config['project']['proj_dir'] / \
+    f"output/{SHORT_TAG}_zoom/{zoom_name}/filtered_labels_{FULL_TAG}_{zoom_name}_{DATE_STAMP}.csv.gz"
+
+  # warn if any zoom QC thresholds are less strict than main config (they'd be no-ops)
+  _warn_zoom_qc_thresholds(zoom_config.get('qc', {}), config.get('qc', {}), zoom_name)
 
   return zoom_config
 
