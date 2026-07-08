@@ -2177,6 +2177,18 @@ def _predict_from_csv(filt_df, RESOURCE_PARAMS, input, rule, param, run):
   return mem_mb, time_min
 
 
+def _resolve_input_attr(input, attr):
+  aliases = {
+    'af_h5_f': ['clean_h5_f', 'filt_counts_f'],
+  }
+  if hasattr(input, attr):
+    return getattr(input, attr)
+  for alias in aliases.get(attr, []):
+    if hasattr(input, alias):
+      return getattr(input, alias)
+  return None
+
+
 def _estimate_resource_parameter(filt_lm_df, RESOURCE_PARAMS, input, rule, run):
   x_rq      = filt_lm_df['model_var'].item()
   intercept = filt_lm_df['rq_intercept'].item()
@@ -2184,8 +2196,9 @@ def _estimate_resource_parameter(filt_lm_df, RESOURCE_PARAMS, input, rule, run):
 
   if x_rq.startswith('input.'):
     input_attr  = x_rq.replace("input.", "")
-    if hasattr(input, input_attr):
-      x_val     = os.path.getsize(getattr(input, input_attr)) / BYTES_PER_GB
+    resolved    = _resolve_input_attr(input, input_attr)
+    if resolved is not None:
+      x_val     = os.path.getsize(resolved) / BYTES_PER_GB
     else:
       raise ValueError(f"'{input_attr}' is not a valid input attribute for rule '{rule}'.")
 
@@ -2238,7 +2251,7 @@ def _get_chemistry_group(tenx_chemistry):
 # some useful global variables
 BYTES_PER_GB  = 1024**3
 MB_PER_GB     = 1024
-LM_PARAMS_FILENAME = "resources_lm_params_2026-07-06.csv"
+LM_PARAMS_FILENAME = "resources_lm_params_2026-07-07.csv"
 
 # nice boolean values from yaml inputs
 def _safe_boolean(val):
