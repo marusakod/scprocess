@@ -465,7 +465,6 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 
   # do some checks
   scdata_dir, extraargs, setup_cfg = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
-  lm_f          = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
 
   # get validated config
   with open(config_path, "r") as f:
@@ -502,7 +501,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   RUNS                = list(RUN_PARAMS.keys())
   BATCH_PARAMS, BATCH_VAR, SAMPLES = scprocess_utils.get_batch_parameters(config, RUNS, scdata_dir)
   BATCHES             = list(BATCH_PARAMS.keys())
-  _                   = scprocess_utils.prep_resource_params(config, schema_f, lm_f, LIB_PARAMS, BATCHES)
+  _                   = scprocess_utils.prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS, BATCHES)
   _, _, _             = scprocess_utils.get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
   _                   = scprocess_utils.get_labeller_parameters(config, schema_f, scdata_dir)
   _                   = scprocess_utils.get_train_xgboost_parameters(config, schema_f)

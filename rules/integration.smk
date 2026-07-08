@@ -75,13 +75,14 @@ def int_get_filt_counts_f(run):
     return f'{amb_dir}/ambient_{run}/uncorrected_{run}_{DATE_STAMP}_filtered.h5'
 
 # rule to create sce objects without any doublets (and delete temporary sce objects in the qc directory)
-rule make_clean_h5ads: 
+rule make_clean_h5ads:
   input:
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     h5_paths_f    = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
     h5_filt_fs    = [int_get_filt_counts_f(run) for run in RUNS],
     coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     rowdata_f     = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    af_h5_f       = lambda wildcards: f'{af_dir}/af_{get_run_for_one_batch(wildcards.batch, RUNS_TO_BATCHES)[0]}/{af_rna_dir}af_counts_mat.h5',
   output:
     clean_h5ad_f  = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad'
   params:
@@ -91,8 +92,8 @@ rule make_clean_h5ads:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_clean_h5ads', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_clean_h5ads', 'time', attempt)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_clean_h5ads', 'memory', attempt, get_run_for_one_batch(wildcards.batch, RUNS_TO_BATCHES)[0]),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'make_clean_h5ads', 'time', attempt, get_run_for_one_batch(wildcards.batch, RUNS_TO_BATCHES)[0])
   benchmark:
     f'{benchmark_dir}/integration/make_clean_h5ads_{{batch}}_{DATE_STAMP}.benchmark.txt'
   log:

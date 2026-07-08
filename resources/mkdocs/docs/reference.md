@@ -713,6 +713,10 @@ This section allows users to adjust the resource requirements for specific `Snak
 * `gb_[rule_name]`: specifies the maximum memory (in GB) requested for running a specific rule. `rule_name` should be replaced with an {{sc}} rule name. This value applies for the entire job, not per thread.
 * `mins_[rule_name]`: specifies the maximum runtime (in minutes) requested for running a specific rule. `rule_name` should be replace with an {{sc}} rule name.
 
+By default, {{sc}} predicts resource requirements using linear models fitted on benchmark data from ~96 projects. The prediction formula is `max(floor, intercept + slope × x)`, where `x` is a rule-specific predictor such as input file size or number of batches. Five per-sample rules have separate model parameters for 10x v3 vs v4 chemistry; for auto-detected chemistry, the resolved chemistry is read from the mapping output.
+
+User-specified values always override the model predictions. If a rule has no fitted model and no user override, it falls back to a schema default.
+
 Additional parameters include:
 
 * `retries`: number of times to retry running a specific rule in {{sc}} if it fails. For each attempt the initial memory requested for the rule is multiplied by `1.5**(attempt - 1)`. Useful for when {{sc}} is ran on a [cluster](setup.md#cluster-setup).
@@ -764,7 +768,6 @@ Additional parameters include:
     * `gb_render_html_integration`: maximum memory required (in GB) for rule `render_html_integration`.
     * `gb_render_html_marker_genes`: maximum memory required (in GB) for rule `render_html_marker_genes`.
     * `gb_render_html_label_celltypes`: maximum memory required (in GB) for rule `render_html_label_celltypes`.
-    * `gb_make_tmp_mtx_file`: maximum memory required (in GB) for rule `make_tmp_mtx_file`.
     * `gb_run_celltypist`: maximum memory required (in GB) for rule `run_celltypist`.
     * `gb_run_scprocess_labeller`: maximum memory required (in GB) for rule `run_scprocess_labeller`.
     * `gb_merge_labels`: maximum memory required (in GB) for rule `merge_labels`.
@@ -833,7 +836,6 @@ Additional parameters include:
     * `mins_render_html_integration`: maximum runtime required (in minutes) for rule `render_html_integration`.
     * `mins_render_html_marker_genes`: maximum runtime required (in minutes) for rule `render_html_marker_genes`.
     * `mins_render_html_label_celltypes`: maximum runtime required (in minutes) for rule `render_html_label_celltypes`.
-    * `mins_make_tmp_mtx_file`: maximum runtime required (in minutes) for rule `make_tmp_mtx_file`.
     * `mins_run_celltypist`: maximum runtime required (in minutes) for rule `run_celltypist`.
     * `mins_run_scprocess_labeller`: maximum runtime required (in minutes) for rule `run_scprocess_labeller`.
     * `mins_merge_labels`: maximum runtime required (in minutes) for rule `merge_labels`.

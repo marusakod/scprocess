@@ -20,8 +20,6 @@ scprocess_dir   = pathlib.Path(config.pop('scprocess_dir'))
 proj_schema_f   = scprocess_dir / "resources/schemas/config.schema.json"
 zoom_schema_f   = scprocess_dir / "resources/schemas/zoom.schema.json"
 scdata_dir      = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
-lm_f            = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
-
 # check config
 config          = check_config(config, proj_schema_f, scdata_dir, scprocess_dir)
 
@@ -33,7 +31,7 @@ RUNS                = list(RUN_PARAMS.keys())
 BATCH_PARAMS, BATCH_VAR, SAMPLES = get_batch_parameters(config, RUNS, scdata_dir)
 BATCHES             = list(BATCH_PARAMS.keys())
 RUNS_TO_BATCHES, RUNS_TO_SAMPLES, _ = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
-RESOURCE_PARAMS     = prep_resource_params(config, proj_schema_f, lm_f, LIB_PARAMS, BATCHES)
+RESOURCE_PARAMS     = prep_resource_params(config, proj_schema_f, scprocess_dir, LIB_PARAMS, BATCHES)
 
 # get zoom parameters
 ZOOM_PARAMS         = get_zoom_parameters(config, zoom_schema_f, scdata_dir)

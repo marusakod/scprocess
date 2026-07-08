@@ -399,11 +399,9 @@
         "mins_render_html_marker_genes":  { "type": ["integer", "null"] },
         "mins_render_html_label_celltypes": { "type": "integer", "default": 5 },
 
-        "gb_make_tmp_mtx_file" :         { "type": "integer", "default": 8 },
         "gb_run_celltypist":             { "type": "integer", "default": 8 },
         "gb_run_scprocess_labeller":     { "type": "integer", "default": 8 }, 
         "gb_merge_labels":               { "type": "integer", "default": 8 }, 
-        "mins_make_tmp_mtx_file":         { "type": "integer", "default": 8 }, 
         "mins_run_celltypist":            { "type": "integer", "default": 8 }, 
         "mins_run_scprocess_labeller":    { "type": "integer", "default": 8 }, 
         "mins_merge_labels":              { "type": "integer", "default": 8 }, 

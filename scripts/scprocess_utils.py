@@ -1508,6 +1508,7 @@ def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
   if config['mapping_af']['is_flex']:
     # chemistry and whitelist are determined by the probe set
     flex_version    = config['mapping_af']['tenx_chemistry']
+    tenx_chemistry  = flex_version
     af_chemistry    = '10x-flexv1-gex-3p' if flex_version == 'flexv1' else '10x-flexv2-gex-3p'
     expected_ori    = 'fw'  # flex is always forward orientation
     wl_row          = wl_df.filter(pl.col('chemistry') == flex_version)
@@ -1550,6 +1551,7 @@ def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
     "R1_fs":              RNA_FQS[lib_name]["R1_fs"],
     "R2_fs":              RNA_FQS[lib_name]["R2_fs"],
     "R1_fs_size_gb":      RNA_FQS[lib_name]["R1_fs_size_gb"],
+    "tenx_chemistry":     tenx_chemistry,
     "af_chemistry":       af_chemistry,
     "expected_ori":       expected_ori,
     "gex_whitelist_f":    gex_whitelist_f,
@@ -2036,7 +2038,8 @@ def get_train_xgboost_targets(config, scprocess_dir, scdata_dir, zoom_name=None)
   return [model_f, html_f], proj_dir
 
 
-def prep_resource_params(config, schema_f, lm_f, LIB_PARAMS=None, BATCHES=None):
+def prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS=None, BATCHES=None,
+                         RUNS_TO_LIBS=None, chem_stats_paths=None):
   # add default resource values
   schema      = _load_schema_file(schema_f)
   defaults    = _get_default_config_from_schema(schema)
@@ -2051,122 +2054,183 @@ def prep_resource_params(config, schema_f, lm_f, LIB_PARAMS=None, BATCHES=None):
       if defaults[n] == user_vals[n]:
         del user_vals[n]
 
-  # add lm values
+  # load resource model CSV
+  lm_f        = scprocess_dir / "resources/snakemake" / LM_PARAMS_FILENAME
   lm_df       = pl.read_csv(lm_f)
 
   # get sizes, n-batches (optional — not available for shiny/join standalone workflows)
   R1_sizes    = { lib: vals["mapping_af"]["R1_fs_size_gb"] for lib, vals in LIB_PARAMS.items() } if LIB_PARAMS else {}
   n_batches   = len(BATCHES) if BATCHES else 0
 
+  # build per-run chemistry lookup from LIB_PARAMS
+  run_chemistries = {}
+  if RUNS_TO_LIBS and LIB_PARAMS:
+    for run, lib in RUNS_TO_LIBS.items():
+      run_chemistries[run] = LIB_PARAMS[lib]["mapping_af"].get("tenx_chemistry", "none")
+
   # make full dict of useful things
   RESOURCE_PARAMS = {}
-  RESOURCE_PARAMS["defaults"]   = defaults
-  RESOURCE_PARAMS["user_vals"]  = user_vals
-  RESOURCE_PARAMS["lm_df"]      = lm_df
-  RESOURCE_PARAMS["R1_sizes"]   = R1_sizes
-  RESOURCE_PARAMS["n_batches"]  = n_batches
+  RESOURCE_PARAMS["defaults"]               = defaults
+  RESOURCE_PARAMS["user_vals"]              = user_vals
+  RESOURCE_PARAMS["lm_df"]                  = lm_df
+  RESOURCE_PARAMS["R1_sizes"]               = R1_sizes
+  RESOURCE_PARAMS["n_batches"]              = n_batches
+  RESOURCE_PARAMS["n_run_mapping"]          = config.get('resources', {}).get('n_run_mapping', 8)
+  RESOURCE_PARAMS["run_chemistries"]        = run_chemistries
+  RESOURCE_PARAMS["RUNS_TO_LIBS"]           = RUNS_TO_LIBS or {}
+  RESOURCE_PARAMS["chem_stats_paths"]       = chem_stats_paths or {}
+  RESOURCE_PARAMS["_resolved_chemistries"]  = {}
 
   return RESOURCE_PARAMS
 
 
 def get_resources(RESOURCE_PARAMS, rules, input, rule, param, attempt, run = None):
-  # definitions and checks
   attempt_exp = 1.5
   if not hasattr(rules, rule):
     raise ValueError(f'rule {rule} is not defined.')
-  if param == 'time':
-    param_name  = f'mins_{rule}'
-  else: 
-    param_name  = f'gb_{rule}'
-  
-  # unpack
+  param_name  = f'mins_{rule}' if param == 'time' else f'gb_{rule}'
+
   defaults    = RESOURCE_PARAMS['defaults']
   user_vals   = RESOURCE_PARAMS['user_vals']
-  filt_lm_df  = RESOURCE_PARAMS['lm_df'].filter((pl.col("param") == param) & (pl.col("rule") == rule))
-  if filt_lm_df.shape[0] > 1:
-    raise ValueError("filt_lm_df should have at most one row")
 
-  # define some logical values
-  is_user     = param_name in user_vals
-  has_model   = not filt_lm_df["rq_slope"].is_null().all()
-  in_defaults = param_name in defaults
-  if has_model and in_defaults:
-    raise ValueError(f'Default value for {param_name} should not be specified in JSON schema.')
-  if (not has_model) and (not in_defaults):
-    raise ValueError(f'Default value for {param_name} is missing from JSON schema.')
-
-  # if user has specified value, use that
-  if is_user:
-    # get user specified value
+  # 1. user override takes priority
+  if param_name in user_vals:
     if param == 'memory':
-      mem_gb      = user_vals[param_name]
-      mem_mb      = mem_gb * MB_PER_GB
-    elif param == 'time':
-      time_min    = user_vals[param_name]
+      mem_mb    = user_vals[param_name] * MB_PER_GB
+    else:
+      time_min  = user_vals[param_name]
 
-  # if lm params are defined
-  elif has_model:
-    param_est   = _estimate_resource_parameter(filt_lm_df, RESOURCE_PARAMS, input, rule, run)
-    if param == "memory":
-      mem_mb      = param_est
-    elif param == 'time':
-      time_s      = param_est
-      time_min    = time_s / 60
+  # 2. resource model CSV
+  elif _rule_in_csv(RESOURCE_PARAMS, rule, param):
+    filt_df   = _get_csv_row(RESOURCE_PARAMS, rule, param, run)
+    mem_mb, time_min = _predict_from_csv(filt_df, RESOURCE_PARAMS, input, rule, param, run)
 
-    # if no lm params are defined, use values from defaults
-  elif in_defaults:
+  # 3. schema default fallback (for rules not in CSV)
+  elif param_name in defaults:
     if param == 'memory':
-      mem_gb      = defaults.get(param_name, None)
-      mem_mb      = mem_gb * MB_PER_GB
-    elif param == 'time':
-      time_min    = defaults.get(param_name, None)
+      mem_mb    = defaults[param_name] * MB_PER_GB
+    else:
+      time_min  = defaults[param_name]
 
   else:
-    raise KeyError("should never end up here!!")
+    raise KeyError(f'No resource model or schema default for {param_name}.')
 
-  # get what we need for end
   if param == 'memory':
-    mem_mb      *= attempt_exp**(attempt - 1)
+    mem_mb     *= attempt_exp**(attempt - 1)
     param_val   = mem_mb
-  elif param == 'time':
+  else:
     param_val   = time_min
   param_val   = pl.Series("dummy", [param_val]).ceil().cast(pl.Int32).item()
 
   return param_val
 
 
-def _estimate_resource_parameter(filt_lm_df, RESOURCE_PARAMS, input, rule, run):
-  # get rq params
-  x_rq      = filt_lm_df['model_var'].item()
-  intercept = filt_lm_df['rq_intercept'].item() 
-  slope     = filt_lm_df['rq_slope'].item()
-  buffer    = filt_lm_df['buffer'].item()
+def _rule_in_csv(RESOURCE_PARAMS, rule, param):
+  lm_df = RESOURCE_PARAMS['lm_df']
+  return lm_df.filter((pl.col("param") == param) & (pl.col("rule") == rule)).shape[0] > 0
 
-  # get the name of x var
+
+def _get_csv_row(RESOURCE_PARAMS, rule, param, run):
+  lm_df     = RESOURCE_PARAMS['lm_df']
+  rule_rows = lm_df.filter((pl.col("param") == param) & (pl.col("rule") == rule))
+  has_chem  = (rule_rows["chemistry"] != "").any()
+
+  if has_chem and run is not None:
+    chemistry     = _resolve_run_chemistry(run, RESOURCE_PARAMS)
+    chem_group    = _get_chemistry_group(chemistry)
+    chem_row      = rule_rows.filter(pl.col("chemistry") == chem_group)
+    if chem_row.shape[0] == 1:
+      return chem_row
+    generic_row   = rule_rows.filter(pl.col("chemistry") == "")
+    if generic_row.shape[0] == 1:
+      return generic_row
+    raise ValueError(f"No matching chemistry row for rule '{rule}', param '{param}', chemistry '{chem_group}'.")
+
+  generic_row = rule_rows.filter(pl.col("chemistry") == "")
+  if generic_row.shape[0] == 1:
+    return generic_row
+  if rule_rows.shape[0] == 1:
+    return rule_rows
+  raise ValueError(f"Ambiguous CSV rows for rule '{rule}', param '{param}'.")
+
+
+def _predict_from_csv(filt_df, RESOURCE_PARAMS, input, rule, param, run):
+  has_model = not filt_df["rq_slope"].is_null().all()
+  floor_val = filt_df["floor"].item()
+  mem_mb    = None
+  time_min  = None
+
+  if has_model:
+    param_est = _estimate_resource_parameter(filt_df, RESOURCE_PARAMS, input, rule, run)
+    param_est = max(floor_val, param_est)
+    if param == "memory":
+      mem_mb    = param_est
+    else:
+      time_s    = param_est
+      time_min  = time_s / 60
+  else:
+    if param == "memory":
+      mem_mb    = floor_val
+    else:
+      time_min  = floor_val / 60
+
+  return mem_mb, time_min
+
+
+def _estimate_resource_parameter(filt_lm_df, RESOURCE_PARAMS, input, rule, run):
+  x_rq      = filt_lm_df['model_var'].item()
+  intercept = filt_lm_df['rq_intercept'].item()
+  slope     = filt_lm_df['rq_slope'].item()
+
   if x_rq.startswith('input.'):
     input_attr  = x_rq.replace("input.", "")
     if hasattr(input, input_attr):
-      x_val     = os.path.getsize(getattr(input, input_attr)) // (MB_PER_GB**2)
+      x_val     = os.path.getsize(getattr(input, input_attr)) / BYTES_PER_GB
     else:
       raise ValueError(f"'{input_attr}' is not a valid input attribute for rule '{rule}'.")
 
   elif x_rq == 'raw_data_size':
-    # use raw data size
     if run is None:
       raise ValueError(f'run argument should be defined')
     x_val       = RESOURCE_PARAMS['R1_sizes'][run]
 
   elif x_rq == 'n_smpls_pre_qc':
-    # use the number of samples
     x_val       = RESOURCE_PARAMS['n_batches']
+
+  elif x_rq == 'n_run_mapping':
+    x_val       = RESOURCE_PARAMS['n_run_mapping']
 
   else:
     raise ValueError(f"Unknown variable '{x_rq}' for scaling resources.")
 
-  # do estimate
-  param_est   = intercept + (slope * x_val) + buffer
+  return intercept + (slope * x_val)
 
-  return param_est
+
+def _resolve_run_chemistry(run, RESOURCE_PARAMS):
+  chemistry = RESOURCE_PARAMS['run_chemistries'].get(run)
+  if chemistry is not None and chemistry != "none":
+    return chemistry
+
+  lib = RESOURCE_PARAMS['RUNS_TO_LIBS'].get(run, run)
+  cache = RESOURCE_PARAMS['_resolved_chemistries']
+  if lib not in cache:
+    chem_stats_f = RESOURCE_PARAMS['chem_stats_paths'].get(lib)
+    if chem_stats_f:
+      try:
+        with open(chem_stats_f) as f:
+          stats = yaml.safe_load(f)
+        cache[lib] = stats['selected_tenx_chemistry']
+      except (FileNotFoundError, KeyError, TypeError):
+        cache[lib] = "3v3"
+    else:
+      cache[lib] = "3v3"
+  return cache[lib]
+
+
+def _get_chemistry_group(tenx_chemistry):
+  if tenx_chemistry == "3v4":
+    return "3v4"
+  return "3v3"
 
 
 ### helpers
@@ -2174,6 +2238,7 @@ def _estimate_resource_parameter(filt_lm_df, RESOURCE_PARAMS, input, rule, run):
 # some useful global variables
 BYTES_PER_GB  = 1024**3
 MB_PER_GB     = 1024
+LM_PARAMS_FILENAME = "resources_lm_params_2026-07-06.csv"
 
 # nice boolean values from yaml inputs
 def _safe_boolean(val):

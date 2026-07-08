@@ -15,8 +15,6 @@ from scprocess_utils import *
 scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 schema_f      = scprocess_dir / "resources/schemas/config.schema.json"
-lm_f          = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
-
 # check config
 config        = check_config(config, schema_f, scdata_dir, scprocess_dir)
 
@@ -28,7 +26,6 @@ RUNS                = list(RUN_PARAMS.keys())
 BATCH_PARAMS, BATCH_VAR, SAMPLES = get_batch_parameters(config, RUNS, scdata_dir)
 BATCHES             = list(BATCH_PARAMS.keys())
 RUNS_TO_BATCHES, RUNS_TO_SAMPLES, RUNS_TO_LIBS = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
-RESOURCE_PARAMS     = prep_resource_params(config, schema_f, lm_f, LIB_PARAMS, BATCHES)
 LABELLER_PARAMS     = get_labeller_parameters(config, schema_f, scdata_dir)
 TRAIN_XGB_PARAMS    = get_train_xgboost_parameters(config, schema_f)
 IS_FLEX             = config['project']['is_flex']
@@ -73,6 +70,14 @@ pb_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_pseudobulk"
 empty_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_empties"
 rmd_dir       = f"{PROJ_DIR}/analysis"
 docs_dir      = f"{PROJ_DIR}/public"
+
+# resource model (chemistry-specific models read chemistry_statistics.yaml for auto-detect runs)
+chem_stats_paths = {
+  lib: f'{af_dir}/{lib_pool_dir}af_{lib}/{af_rna_dir}chemistry_statistics.yaml'
+  for lib in LIBS
+}
+RESOURCE_PARAMS = prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS, BATCHES,
+                                       RUNS_TO_LIBS, chem_stats_paths)
 
 # scripts
 r_scripts = [

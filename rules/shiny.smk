@@ -25,8 +25,7 @@ _GSEA_REFS = {'human_2024', 'human_2020', 'mouse_2024', 'mouse_2020',
 if _is_join:
   # --- validate and unpack join config ---
   config = check_join_config(config, join_schema_f, scdata_dir)
-  lm_f   = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
-  RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, lm_f)
+  RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, scprocess_dir)
 
   JOIN_NAME  = config['join']['name']
   PROJ_DIR   = pathlib.Path(config['join']['proj_dir'])
@@ -57,8 +56,7 @@ if _is_join:
 else:
   # --- validate and unpack normal project config ---
   config = check_config(config, schema_f, scdata_dir, scprocess_dir)
-  lm_f   = scprocess_dir / "resources/snakemake/resources_lm_params_2025-12-16.csv"
-  RESOURCE_PARAMS = prep_resource_params(config, schema_f, lm_f)
+  RESOURCE_PARAMS = prep_resource_params(config, schema_f, scprocess_dir)
 
   PROJ_DIR   = config['project']['proj_dir']
   FULL_TAG   = config['project']['full_tag']
