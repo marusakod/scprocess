@@ -2114,26 +2114,27 @@ def prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS=None, BATCH
   return RESOURCE_PARAMS
 
 
-def get_resources(RESOURCE_PARAMS, rules, input, rule, param, attempt, run = None):
+def get_resources(RESOURCE_PARAMS, rules, input, rule, param, attempt, run = None, csv_rule = None):
   attempt_exp = 1.5
   if not hasattr(rules, rule):
     raise ValueError(f'rule {rule} is not defined.')
   param_name  = f'mins_{rule}' if param == 'time' else f'gb_{rule}'
+  lookup_rule = csv_rule if csv_rule is not None else rule
 
   defaults    = RESOURCE_PARAMS['defaults']
   user_vals   = RESOURCE_PARAMS['user_vals']
 
-  # 1. user override takes priority
+  # 1. user override takes priority (keyed by actual rule name)
   if param_name in user_vals:
     if param == 'memory':
       mem_mb    = user_vals[param_name] * MB_PER_GB
     else:
       time_min  = user_vals[param_name]
 
-  # 2. resource model CSV
-  elif _rule_in_csv(RESOURCE_PARAMS, rule, param):
-    filt_df   = _get_csv_row(RESOURCE_PARAMS, rule, param, run)
-    mem_mb, time_min = _predict_from_csv(filt_df, RESOURCE_PARAMS, input, rule, param, run)
+  # 2. resource model CSV (keyed by lookup_rule to allow model reuse)
+  elif _rule_in_csv(RESOURCE_PARAMS, lookup_rule, param):
+    filt_df   = _get_csv_row(RESOURCE_PARAMS, lookup_rule, param, run)
+    mem_mb, time_min = _predict_from_csv(filt_df, RESOURCE_PARAMS, input, lookup_rule, param, run)
 
   # 3. schema default fallback (for rules not in CSV)
   elif param_name in defaults:
