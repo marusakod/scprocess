@@ -132,7 +132,6 @@ def extract_cellranger_resources(output_dir, whitelists_lu_f, ranger_url, ranger
     "3v3": "3M-february-2018_TRU.txt.gz",          
     "3v4": "3M-3pgex-may-2023_TRU.txt.gz",         
     "5v3": "3M-5pgex-jan-2023.txt.gz",          
-    "3LT": "9K-LT-march-2021.txt.gz",         
     "multiome": "737K-arc-v1.txt.gz",
     "flexv1": "737K-fixed-rna-profiling.txt.gz", 
     "flexv2": "737K-flex-v2.txt.gz"            
@@ -143,7 +142,6 @@ def extract_cellranger_resources(output_dir, whitelists_lu_f, ranger_url, ranger
     "3v3": "cellranger_gex_barcode_whitelist_3v3.txt", 
     "3v4": "cellranger_gex_barcode_whitelist_3v4.txt", 
     "5v3": "cellranger_gex_barcode_whitelist_5v3.txt", 
-    "3LT": "cellranger_gex_barcode_whitelist_3LT.txt", 
     "multiome": "cellranger_gex_barcode_whitelist_multiome_gex.txt",
     "flexv1": "cellranger_gex_barcode_whitelist_flexv1.txt",
     "flexv2": "cellranger_gex_barcode_whitelist_flexv2.txt"
@@ -152,19 +150,16 @@ def extract_cellranger_resources(output_dir, whitelists_lu_f, ranger_url, ranger
   translation_cr_wl_dict = {
     "3v3": "3M-february-2018_NXT.txt.gz",          
     "3v4": "3M-3pgex-may-2023_NXT.txt.gz",         
-    "3LT": "9K-LT-march-2021.txt.gz"           
   }
-  
+
   translation_sc_wl_dict = {
-    "3v3": "cellranger_whitelist_translation_3v3.txt", 
-    "3v4": "cellranger_whitelist_translation_3v4.txt", 
-    "3LT": "cellranger_whitelist_translation_3LT.txt"
+    "3v3": "cellranger_whitelist_translation_3v3.txt",
+    "3v4": "cellranger_whitelist_translation_3v4.txt",
   }
 
   sc_hto_wl_dict = {
-    "3v3": "cellranger_hto_barcode_whitelist_3v3.txt", 
-    "3v4": "cellranger_hto_barcode_whitelist_3v4.txt", 
-    "3LT": "cellranger_hto_barcode_whitelist_3LT.txt",
+    "3v3": "cellranger_hto_barcode_whitelist_3v3.txt",
+    "3v4": "cellranger_hto_barcode_whitelist_3v4.txt",
   }
   
 
@@ -186,7 +181,6 @@ def extract_cellranger_resources(output_dir, whitelists_lu_f, ranger_url, ranger
 
   # create a lookup table for all whitelists
   chem_lu_dict = {
-    "3LT": ["3LT"],
     "3v2_5v1_5v2": ["3v2", "5v1", "5v2"],
     "3v3": ["3v3"],
     "3v4": ["3v4"],
@@ -196,7 +190,7 @@ def extract_cellranger_resources(output_dir, whitelists_lu_f, ranger_url, ranger
     "flexv2": ["flexv2"]
     }
 
-  chem_ord = ["3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome", "flexv1", "flexv2"]
+  chem_ord = ["3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome", "flexv1", "flexv2"]
     
   chem_rows = []
   reverse_map = {label: dict_key for dict_key, labels in chem_lu_dict.items() for label in labels}

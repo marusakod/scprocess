@@ -24,7 +24,7 @@
               "tenx_chemistry": {
                 "description": "The 10x Genomics chemistry version used.",
                 "type": "string",
-                "enum": ["3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"]
+                "enum": ["3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"]
               }
             }
           },
@@ -112,7 +112,7 @@
               "tenx_chemistry": {
                 "description": "The 10x Genomics chemistry version used.",
                 "type": "string",
-                "enum": ["3LT", "3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"]
+                "enum": ["3v2", "3v3", "3v4", "5v1", "5v2", "5v3", "multiome"]
               }
             }
           },

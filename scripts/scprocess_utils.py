@@ -1525,14 +1525,14 @@ def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
     af_chemistry = 'none'
     if tenx_chemistry in ['3v2', '5v1', '5v2']:
       af_chemistry = '10xv2'
-    elif tenx_chemistry in ['3LT', '3v3', '3v4', '5v3', 'multiome']:
+    elif tenx_chemistry in ['3v3', '3v4', '5v3', 'multiome']:
       af_chemistry = '10xv3'
 
     # 3' chemistries read forward, 5' chemistries read reverse complement; default is "none" then auto-detect at mapping time
     expected_ori = 'none'
     if tenx_chemistry in ['5v1', '5v2', '5v3']:
       expected_ori = 'rc'
-    elif tenx_chemistry in ['3LT', '3v2', '3v3', '3v4', 'multiome']:
+    elif tenx_chemistry in ['3v2', '3v3', '3v4', 'multiome']:
       expected_ori = 'fw'
 
     # look up barcode whitelist files; 'none' defers to auto-detection at mapping time
