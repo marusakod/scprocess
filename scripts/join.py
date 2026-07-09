@@ -116,7 +116,18 @@ def _load_batch_hvg_matrix(h5ad_path, ok_cells, hvg_list, pid, batch_key):
 
   print(f"    loading {batch_key}")
 
-  with h5py.File(h5ad_path, 'r') as f:
+  if os.path.getsize(h5ad_path) == 0:
+    print(f"    skipping {batch_key}: empty h5ad file (all cells excluded upstream)")
+    return None
+
+  try:
+    f = h5py.File(h5ad_path, 'r')
+  except OSError as e:
+    import warnings
+    warnings.warn(f"cannot open h5ad for {batch_key} in {pid} ({h5ad_path}): {e} — skipping")
+    return None
+
+  with f:
     obs_idx_col = f['obs'].attrs.get('_index', 'cell_id')
     barcodes    = f['obs'][obs_idx_col][:].astype(str)
     var_idx_col = f['var'].attrs.get('_index', 'gene_ids')
