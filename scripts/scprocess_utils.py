@@ -13,6 +13,7 @@ import glob
 import gzip
 import datetime
 import subprocess
+import shutil
 try:
   import snakemake
 except ImportError:
@@ -49,14 +50,15 @@ def check_setup_before_running_scprocess(scprocess_dir, extraargs):
   if not os.path.exists(setup_configfile):
     raise FileNotFoundError(f"scprocess_setup.yaml does not exist in {scdata_dir}")
 
-  # load setup config file
+  # load and validate setup config file
   with open(setup_configfile, "r") as stream:
     setup_cfg     = yaml.safe_load(stream)
+  setup_schema_f  = scprocess_dir / "resources/schemas/setup.schema.json"
+  setup_cfg       = check_setup_config(setup_cfg, setup_schema_f, scprocess_dir)
 
   # add profile or local_cores to snakemake call
-  if 'profile' in setup_cfg['user']: 
-    profile_dir = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
-    setup_cfg['user']['profile_dir'] = profile_dir
+  if _uses_cluster_profile(setup_cfg):
+    profile_dir = get_cluster_profile_dir(scprocess_dir, scdata_dir, setup_cfg)
     extraargs.append('--workflow-profile'),
     extraargs.append(str(profile_dir))
 
@@ -67,16 +69,88 @@ def check_setup_before_running_scprocess(scprocess_dir, extraargs):
   return scdata_dir, extraargs, setup_cfg
 
 
-def _get_cluster_profile_dir(scprocess_dir, setup_cfg):
+def _is_plain_profile_name(profile_name):
+  path = pathlib.PurePath(profile_name)
+  return profile_name not in ["", ".", ".."] and path.name == profile_name
 
-  # check if profile exists
-  profile       = setup_cfg['user']['profile']
-  profile_dir   = scprocess_dir / 'profiles' / profile
-  profile_f     = profile_dir / 'config.yaml'
+
+def _normalise_profile_config(setup_cfg):
+  user = setup_cfg.get('user', {})
+  if 'profile_template' in user:
+    profile_template = user['profile_template']
+    profile_name     = user.get('profile_name', profile_template)
+  elif 'profile' in user:
+    profile_template = user['profile']
+    profile_name     = user.get('profile_name', profile_template)
+  else:
+    return setup_cfg
+
+  for key, value in {
+      'profile_template': profile_template,
+      'profile_name': profile_name,
+  }.items():
+    if not _is_plain_profile_name(value):
+      raise ValueError(f"user.{key} must be a profile directory name, not a path: {value}")
+
+  user['profile_template'] = profile_template
+  user['profile_name']     = profile_name
+  return setup_cfg
+
+
+def _uses_cluster_profile(setup_cfg):
+  user = setup_cfg.get('user', {})
+  return any(key in user for key in ['profile', 'profile_template'])
+
+
+def get_cluster_profile_dir(scprocess_dir, scdata_dir, setup_cfg):
+  setup_cfg   = _normalise_profile_config(setup_cfg)
+  profile     = setup_cfg['user']['profile_name']
+  profile_dir = scdata_dir / 'profiles' / profile
+  profile_f   = profile_dir / 'config.yaml'
   if not profile_f.is_file():
-    raise FileNotFoundError(f"cluster configuration file {profile_f} does not exist")
+    raise FileNotFoundError(
+      f"cluster configuration file {profile_f} does not exist. "
+      "Run `scprocess setup` to copy the profile template into SCPROCESS_DATA_DIR, "
+      "then edit the local profile if needed."
+    )
+
+  setup_cfg['user']['profile_dir'] = profile_dir
 
   return profile_dir
+
+
+def initialise_cluster_profile(scprocess_dir, scdata_dir, setup_cfg, dryrun=False):
+  setup_cfg = _normalise_profile_config(setup_cfg)
+  if not _uses_cluster_profile(setup_cfg):
+    return False
+
+  template_name = setup_cfg['user']['profile_template']
+  profile_name  = setup_cfg['user']['profile_name']
+  template_dir  = scprocess_dir / 'profiles' / template_name
+  template_f    = template_dir / 'config.yaml'
+  profile_dir   = scdata_dir / 'profiles' / profile_name
+  profile_f     = profile_dir / 'config.yaml'
+
+  if profile_f.is_file():
+    setup_cfg['user']['profile_dir'] = profile_dir
+    return False
+  if profile_dir.exists():
+    raise FileNotFoundError(
+      f"local profile directory {profile_dir} exists but does not contain config.yaml"
+    )
+  if not template_f.is_file():
+    raise FileNotFoundError(f"profile template {template_f} does not exist")
+
+  if dryrun:
+    print(f"Would create profile template copy at {profile_dir}")
+    return True
+
+  profile_dir.parent.mkdir(parents=True, exist_ok=True)
+  shutil.copytree(template_dir, profile_dir)
+  setup_cfg['user']['profile_dir'] = profile_dir
+  print(f"Created profile template copy at {profile_dir}")
+  print(f"Edit {profile_f} if needed, then rerun `scprocess setup`.")
+  return True
 
 
 def get_conda_prefix(setup_cfg):
@@ -89,6 +163,16 @@ def get_conda_prefix(setup_cfg):
   with open(profile_f) as f:
     profile = yaml.safe_load(f)
   return profile.get('conda-prefix')
+
+
+def get_filtered_counts_file(run, ambient_method, amb_dir, date_stamp):
+  if ambient_method == "cellbender":
+    return f'{amb_dir}/ambient_{run}/bender_{run}_{date_stamp}_filtered.h5'
+  if ambient_method in ["decontx_background", "decontx_cluster"]:
+    return f'{amb_dir}/ambient_{run}/decontx_{run}_{date_stamp}_filtered.h5'
+  if ambient_method == "none":
+    return f'{amb_dir}/ambient_{run}/uncorrected_{run}_{date_stamp}_filtered.h5'
+  raise ValueError(f"Unknown ambient_method '{ambient_method}' for filtered counts file.")
 
 
 ### much checking
@@ -104,10 +188,7 @@ def check_setup_config(setup_cfg, schema_f, scprocess_dir):
   # check file is ok
   _validate_object_against_schema(setup_cfg, schema_f, "setup config")
 
-  if 'profile' in setup_cfg['user']:
-    # check if profile file exists and add profile_dir to conifg
-    profile_dir   = _get_cluster_profile_dir(scprocess_dir, setup_cfg)
-    setup_cfg['user']['profile_dir'] = profile_dir
+  setup_cfg = _normalise_profile_config(setup_cfg)
 
   # check that all genome names are unique
   if ('ref_txomes' in setup_cfg) and ('custom' in setup_cfg['ref_txomes']):
@@ -1123,9 +1204,9 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
   
   # check file exists
   labels_f      = _check_path_exists_in_project(labels_f, config, what = "file")
-  
-  # get list of all clusters to check if cluster names are valid
-  sel_labels    = _check_zoom_clusters_in_file(labels_f, zoom_config)
+
+  # get selected labels from config (cluster validation deferred to check rule)
+  sel_labels    = zoom_config['zoom']['sel_labels']
 
   # store original labels path for the filtering rule's input
   zoom_config['zoom']['_original_labels_f'] = labels_f
@@ -1140,24 +1221,6 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
   _warn_zoom_qc_thresholds(zoom_config.get('qc', {}), config.get('qc', {}), zoom_name)
 
   return zoom_config
-
-
-# get list of clusters to check zoom specification
-def _check_zoom_clusters_in_file(labels_f, zoom_config):
-  # get list of clusters
-  labels_var  = zoom_config['zoom']['labels_col']
-  lbl_dt      = pl.read_csv(labels_f)
-  labels      = lbl_dt[ labels_var ].unique().to_list()
-  labels      = [cl for cl in labels if cl is not None]
-  # labels      = sorted(labels)
-
-  # check that the zoom clusters match these
-  sel_labels  = zoom_config['zoom']['sel_labels']
-  missing_cls = set(sel_labels) - set(labels)
-  if len(missing_cls) > 0:
-    raise ValueError(f"the following labels were specified in the zoom params yaml but are not present in the file:\n  {', '.join(missing_cls)}")
-
-  return sel_labels
 
 
 def check_config_ok_for_rule(config, rule):

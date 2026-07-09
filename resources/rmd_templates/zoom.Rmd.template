@@ -25,6 +25,7 @@ knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 
 ```{r setup_helpers, cache=FALSE, include = FALSE}
 source('code/utils.R')
+source('code/qc.R')
 source('code/integration.R')
 source('code/marker_genes.R')
 source('code/hvgs.R')
@@ -48,6 +49,16 @@ batch_var     = "${batch_var}"
 metadata_f    = "${metadata_f}"
 gtf_dt_f      = "${gtf_dt_f}"
 qc_f          = "${qc_f}"
+zoom_lbls_f           = "${zoom_lbls_f}"
+zoom_original_lbls_f  = "${zoom_original_lbls_f}"
+zoom_lbls_col         = "${zoom_lbls_col}"
+zoom_sel_labels       = "${zoom_sel_labels}"
+zoom_qc_min_counts    = "${zoom_qc_min_counts}"
+zoom_qc_min_feats     = "${zoom_qc_min_feats}"
+zoom_qc_min_mito      = "${zoom_qc_min_mito}"
+zoom_qc_max_mito      = "${zoom_qc_max_mito}"
+zoom_qc_min_splice    = "${zoom_qc_min_splice}"
+zoom_qc_max_splice    = "${zoom_qc_max_splice}"
 cell_hvgs_f   = "${cell_hvgs_f}"
 int_f         = "${int_f}"
 pb_f          = "${pb_f}"
@@ -118,6 +129,82 @@ meta_dt       = metadata_f %>% fread
 if(!is.null(metadata_vars)){
   assert_that( all(metadata_vars %in% names(meta_dt)) )
 }
+```
+
+```{r setup_zoom_qc, include = FALSE}
+# parse zoom QC thresholds (empty string means not set)
+.parse_zoom_thr = function(x) { x = trimws(x); if (x == "" || x == "None") NA_real_ else as.numeric(x) }
+zoom_qc = list(
+  qc_min_counts = .parse_zoom_thr(zoom_qc_min_counts),
+  qc_min_feats  = .parse_zoom_thr(zoom_qc_min_feats),
+  qc_min_mito   = .parse_zoom_thr(zoom_qc_min_mito),
+  qc_max_mito   = .parse_zoom_thr(zoom_qc_max_mito),
+  qc_min_splice = .parse_zoom_thr(zoom_qc_min_splice),
+  qc_max_splice = .parse_zoom_thr(zoom_qc_max_splice)
+)
+has_zoom_qc = any(!is.na(unlist(zoom_qc)))
+
+if (has_zoom_qc) {
+  # load pre-filter labels to identify cells before zoom QC
+  sel_labels_vec  = str_split(zoom_sel_labels, ",")[[1]]
+  pre_lbls_df     = fread(zoom_original_lbls_f)
+  pre_cell_ids    = pre_lbls_df[ get(zoom_lbls_col) %chin% sel_labels_vec ]$cell_id
+
+  # load post-filter labels
+  post_lbls_df    = fread(zoom_lbls_f)
+  post_cell_ids   = post_lbls_df[ get(zoom_lbls_col) %chin% sel_labels_vec ]$cell_id
+
+  # load qc_all and subset to pre-filter zoom cells
+  qc_all_dt       = fread(qc_f) %>% .[ keep == TRUE ]
+  pre_qc_dt       = qc_all_dt[ cell_id %chin% pre_cell_ids ] %>% setnames(batch_var, "batch_var")
+  post_qc_dt      = qc_all_dt[ cell_id %chin% post_cell_ids ] %>% setnames(batch_var, "batch_var")
+
+  # build batch levels from metadata
+  zoom_b_lvls     = meta_dt[[batch_var]] %>% intersect(unique(pre_qc_dt$batch_var))
+  zoom_n_batches  = length(zoom_b_lvls)
+
+  # build cuts_dt from zoom QC thresholds (same thresholds for all batches)
+  zoom_cuts_rows = list()
+  if (!is.na(zoom_qc$qc_min_counts))
+    zoom_cuts_rows = c(zoom_cuts_rows, lapply(zoom_b_lvls, function(b)
+      data.table(batch_var = b, qc_var = "log_counts", min = log10(zoom_qc$qc_min_counts), max = Inf)))
+  if (!is.na(zoom_qc$qc_min_feats))
+    zoom_cuts_rows = c(zoom_cuts_rows, lapply(zoom_b_lvls, function(b)
+      data.table(batch_var = b, qc_var = "log_feats", min = log10(zoom_qc$qc_min_feats), max = Inf)))
+  if (!is.na(zoom_qc$qc_min_mito) || !is.na(zoom_qc$qc_max_mito)) {
+    mito_min = if (!is.na(zoom_qc$qc_min_mito)) qlogis(zoom_qc$qc_min_mito) else -Inf
+    mito_max = if (!is.na(zoom_qc$qc_max_mito)) qlogis(zoom_qc$qc_max_mito) else Inf
+    zoom_cuts_rows = c(zoom_cuts_rows, lapply(zoom_b_lvls, function(b)
+      data.table(batch_var = b, qc_var = "logit_mito", min = mito_min, max = mito_max)))
+  }
+  if (!is.na(zoom_qc$qc_min_splice) || !is.na(zoom_qc$qc_max_splice)) {
+    splice_min = if (!is.na(zoom_qc$qc_min_splice)) qlogis(zoom_qc$qc_min_splice) else -Inf
+    splice_max = if (!is.na(zoom_qc$qc_max_splice)) qlogis(zoom_qc$qc_max_splice) else Inf
+    zoom_cuts_rows = c(zoom_cuts_rows, lapply(zoom_b_lvls, function(b)
+      data.table(batch_var = b, qc_var = "logit_spliced", min = splice_min, max = splice_max)))
+  }
+  zoom_cuts_dt = rbindlist(zoom_cuts_rows)
+
+  zoom_violin_h = 0.4
+  zoom_marg_h   = min((zoom_n_batches + 1) * zoom_violin_h, 12)
+}
+```
+
+```{r zoom_qc_section, eval = has_zoom_qc, fig.height = zoom_marg_h, fig.width = 8, results = 'asis'}
+cat("## Zoom QC filtering{.tabset}\n\n")
+cat("Additional QC thresholds applied to the zoom subset before HVG detection and integration.\n\n")
+n_pre  = nrow(pre_qc_dt)
+n_post = nrow(post_qc_dt)
+cat(sprintf("**%d / %d cells removed** (%d remaining).\n\n", n_pre - n_post, n_pre, n_post))
+
+suppressWarnings({
+  cat("### Before zoom QC\n")
+  print(plot_qc_ranges_marginals(pre_qc_dt, zoom_b_lvls, qc_names, qc_lu, zoom_cuts_dt, batch_var))
+  cat("\n\n")
+  cat("### After zoom QC\n")
+  print(plot_qc_ranges_marginals(post_qc_dt, zoom_b_lvls, qc_names, qc_lu, zoom_cuts_dt, batch_var))
+  cat("\n\n")
+})
 ```
 
 ```{r load_hvg_data, include = FALSE}

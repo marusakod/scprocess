@@ -7,15 +7,43 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "profile":          { "type": "string" },
+        "profile":          { "type": "string", "pattern": "^[^/\\\\]+$" },
+        "profile_template": { "type": "string", "pattern": "^[^/\\\\]+$" },
+        "profile_name":     { "type": "string", "pattern": "^[^/\\\\]+$" },
         "local_cores":      { "type": "integer", "exclusiveMinimum": 0},
         "your_name":        { "type": "string" },
         "affiliation":      { "type": "string" },
         "int_use_gpu":      { "type": "boolean", "default": true }
       },
       "oneOf": [
-        { "required": ["profile"] },
-        { "required": ["local_cores"] }
+        {
+          "required": ["profile_template"],
+          "not": {
+            "anyOf": [
+              { "required": ["profile"] },
+              { "required": ["local_cores"] }
+            ]
+          }
+        },
+        {
+          "required": ["profile"],
+          "not": {
+            "anyOf": [
+              { "required": ["profile_template"] },
+              { "required": ["local_cores"] }
+            ]
+          }
+        },
+        {
+          "required": ["local_cores"],
+          "not": {
+            "anyOf": [
+              { "required": ["profile"] },
+              { "required": ["profile_template"] },
+              { "required": ["profile_name"] }
+            ]
+          }
+        }
       ]
     },
     "arvados": {

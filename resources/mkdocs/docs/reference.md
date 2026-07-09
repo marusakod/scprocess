@@ -14,7 +14,8 @@ The command requires a configuration file named `scprocess_setup.yaml` located i
 
 ```yaml
 user:
-  profile:        slurm_default # define local_cores instead if running locally
+  profile_template: slurm_default # define local_cores instead if running locally
+  profile_name:     slurm_my_cluster # optional, defaults to profile_template
   your_name:      Testy McUser
   affiliation:    Unemployed
   int_use_gpu:    false
@@ -41,8 +42,10 @@ xgboost:
 
 ##### user
 
-* `profile`: the name of the HPC profile to be used by `Snakemake`. Must correspond to the name of one of the subfolders in the _profiles_ folder. This subfolder must contain a file called `config.yaml`. Exactly one of `profile` and `local_cores` should be specified.
-* `local_cores`: number of CPU cores available for local execution (see [Snakemake documentation](https://snakemake.readthedocs.io/en/v9.8.0/executing/cli.html) for more details). Exactly one of `profile` and `local_cores` should be specified.
+* `profile_template`: the name of the bundled HPC profile template to copy from the {{sc}} _profiles_ directory into `$SCPROCESS_DATA_DIR/profiles`. Exactly one of `profile_template` and `local_cores` should be specified.
+* `profile_name` (optional): name of the active profile directory under `$SCPROCESS_DATA_DIR/profiles`. Defaults to the value of `profile_template`.
+* `profile` (deprecated): accepted as an alias for `profile_template` for existing setup files.
+* `local_cores`: number of CPU cores available for local execution (see [Snakemake documentation](https://snakemake.readthedocs.io/en/v9.8.0/executing/cli.html) for more details). Exactly one of `profile_template` and `local_cores` should be specified.
 * `your_name` (optional): author's name. If specified it will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
 * `affiliation` (optional): author's affiliation. If specified it will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
 * `int_use_gpu` (optional): whether to use GPU acceleration (`RAPIDS-singlecell`) for integration and clustering steps. If `false` the value will be used in the configuration file for new projects created with the `scprocess newproj -c` command.
@@ -786,7 +789,7 @@ Additional parameters include:
     * `gb_train_xgboost_predict`: maximum memory required (in GB) for rule `train_xgboost_predict`.
     * `gb_train_xgboost_aggregate`: maximum memory required (in GB) for rule `train_xgboost_aggregate`.
     * `gb_render_html_train_xgboost`: maximum memory required (in GB) for rule `render_html_train_xgboost`.
-    * `gb_get_zoom_sample_statistics`: maximum memory required (in GB) for rule `get_zoom_sample_statistics`.
+    * `gb_zoom_get_sample_statistics`: maximum memory required (in GB) for rule `zoom_get_sample_statistics`.
     * `gb_zoom_make_one_pb_cells`: maximum memory required (in GB) for rule `zoom_make_one_pb_cells`.
     * `gb_zoom_calculate_ambient_genes`: maximum memory required (in GB) for rule `zoom_calculate_ambient_genes`.
     * `gb_zoom_make_hvg_df`: maximum memory required (in GB) for rule `zoom_make_hvg_df`.
@@ -854,7 +857,7 @@ Additional parameters include:
     * `mins_train_xgboost_predict`: maximum runtime required (in minutes) for rule `train_xgboost_predict`.
     * `mins_train_xgboost_aggregate`: maximum runtime required (in minutes) for rule `train_xgboost_aggregate`.
     * `mins_render_html_train_xgboost`: maximum runtime required (in minutes) for rule `render_html_train_xgboost`.
-    * `mins_get_zoom_sample_statistics`: maximum runtime required (in minutes) for rule `get_zoom_sample_statistics`.
+    * `mins_zoom_get_sample_statistics`: maximum runtime required (in minutes) for rule `zoom_get_sample_statistics`.
     * `mins_zoom_make_one_pb_cells`: maximum runtime required (in minutes) for rule `zoom_make_one_pb_cells`.
     * `mins_zoom_calculate_ambient_genes`: maximum runtime required (in minutes) for rule `zoom_calculate_ambient_genes`.
     * `mins_zoom_make_hvg_df`: maximum runtime required (in minutes) for rule `zoom_make_hvg_df`.
@@ -942,4 +945,3 @@ projects:
 * When `label_celltypes` is configured, it runs automatically as part of `scprocess join` (no separate rule invocation needed). **And that's not true at the project level?**
 * If a source project already has label_celltypes outputs for the same `labeller`/`model`, naive predictions are reused instead of re-running the labeller — only projects without existing labels trigger fresh runs.
 * `save_cluster_names_file: true` generates a `cluster_names_for_shiny_*.csv` at the `marker_genes:mkr_sel_res` resolution. This file can be used as `annotation_csv` in the `shiny:` section. **This definition is already under label_celltypes right?**
-
