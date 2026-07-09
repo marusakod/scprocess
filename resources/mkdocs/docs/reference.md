@@ -14,8 +14,8 @@ The command requires a configuration file named `scprocess_setup.yaml` located i
 
 ```yaml
 user:
-  profile_template: slurm_default # define local_cores instead if running locally
-  profile_name:     slurm_my_cluster # optional, defaults to profile_template
+  profile_template: slurm_default 
+  profile_name:     slurm_my_cluster
   your_name:      Testy McUser
   affiliation:    Unemployed
   int_use_gpu:    false
