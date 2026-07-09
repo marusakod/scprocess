@@ -141,25 +141,28 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
 
 ## Cluster setup
 
-{{sc}} is intended to be used on a cluster with a job scheduler such as `SLURM` or `LSF` (although it will also work without a job scheduler). To set up a job scheduler in `Snakemake`, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{sc}} comes with two predefined configuration profiles stored in the _profiles_ directory: _profiles/slurm_default_ and _profiles/lsf_default_ for `SLURM` and `LSF` respectively. 
+{{sc}} is intended to be used on a cluster with a job scheduler such as `SLURM` or `LSF` (although it will also work without a job scheduler). To set up a job scheduler in `Snakemake`, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{sc}} comes with predefined configuration profile templates stored in the package _profiles_ directory, including _profiles/slurm_default_ and _profiles/lsf_default_ for `SLURM` and `LSF` respectively. During setup, {{sc}} copies the selected template into `$SCPROCESS_DATA_DIR/profiles`, where it can be edited for your cluster.
 
-To use {{sc}} with a job scheduler, you need to add a `profile` parameter to your _scprocess_setup.yaml_ file:
+To use {{sc}} with a job scheduler, add a `profile_template` parameter to your _scprocess_setup.yaml_ file:
 
 === "SLURM"
     ```yaml
     user:
-      profile: slurm_default
+      profile_template: slurm_default
     ```
 === "LSF"
     ```yaml
     user:
-      profile: lsf_default
+      profile_template: lsf_default
     ```
 
-If you want to make a profile that is specific to your cluster, we recommend that you make a copy one of the default profile folders, e.g. to _profiles/slurm_my_cluster_, then edit the corresponding _config.yaml_ file. Once you are happy with it, edit the _scprocess_setup.yaml_ file to point to this profile like before, e.g. 
+The first `scprocess setup` run with a new profile copies the template and exits before running Snakemake. Edit the copied `config.yaml`, then rerun `scprocess setup`.
+
+If you want the local profile to have a different name from the template, specify `profile_name`:
 
 ```yaml
 user:
-  profile: slurm_my_cluster
+  profile_template: slurm_default
+  profile_name: slurm_my_cluster
 ```
-{{scsetup}} and {{scrun}} will then run in cluster mode with the specifications in this profile.
+{{scsetup}} and {{scrun}} will then run in cluster mode with the active profile in `$SCPROCESS_DATA_DIR/profiles/slurm_my_cluster`.

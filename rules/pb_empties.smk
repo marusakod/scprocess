@@ -174,13 +174,7 @@ rule make_runs_to_batches_df:
 
 
 def get_filt_counts_f(wildcards):
-  ambient_method = config['ambient']['ambient_method']
-  if ambient_method == "cellbender":
-    return f'{amb_dir}/ambient_{wildcards.run}/bender_{wildcards.run}_{DATE_STAMP}_filtered.h5'
-  elif ambient_method in ["decontx_background", "decontx_cluster"]:
-    return f'{amb_dir}/ambient_{wildcards.run}/decontx_{wildcards.run}_{DATE_STAMP}_filtered.h5'
-  elif ambient_method == "none":
-    return f'{amb_dir}/ambient_{wildcards.run}/uncorrected_{wildcards.run}_{DATE_STAMP}_filtered.h5'
+  return get_filtered_counts_file(wildcards.run, config['ambient']['ambient_method'], amb_dir, DATE_STAMP)
 
 
 rule make_one_pb_cells:

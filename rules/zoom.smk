@@ -153,9 +153,35 @@ if zoom_xgb_outs:
 localrules: zoom_make_tmp_pb_cells_df, zoom_make_hvg_df, zoom_merge_group_mean_var, zoom_merge_group_std_var_stats, zoom_merge_stats_for_std_variance, zoom_copy_train_xgboost_r
 
 
+rule zoom_check_clusters:
+  input:
+    labels_f    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['_original_labels_f']
+  output:
+    check_f     = f'{zoom_dir}/{{zoom_name}}/zoom_clusters_check_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.ok'
+  params:
+    labels_col  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
+    sel_labels  = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels'])
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_check_clusters', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_check_clusters', 'time', attempt)
+  log:
+    f'{logs_dir}/zoom/zoom_check_clusters_{{zoom_name}}_{DATE_STAMP}.log'
+  conda:
+    '../envs/scprocess_local.yaml'
+  shell: """
+    exec &>> {log}
+
+    PYTHONPATH=scripts python3 -c "from zoom import zoom_check_clusters; \
+      zoom_check_clusters('{input.labels_f}', '{params.labels_col}', '{params.sel_labels}', '{output.check_f}')"
+    """
+
+
 rule zoom_filter_cells_qc:
   input:
     labels_f    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['_original_labels_f'],
+    check_f     = f'{zoom_dir}/{{zoom_name}}/zoom_clusters_check_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.ok',
     qc_all_f    = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
     filtered_f  = f'{zoom_dir}/{{zoom_name}}/filtered_labels_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
@@ -169,6 +195,7 @@ rule zoom_filter_cells_qc:
     qc_min_splice = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_splice'),
     qc_max_splice = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_max_splice')
   threads: 1
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_filter_cells_qc', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_filter_cells_qc', 'time', attempt)
@@ -203,7 +230,7 @@ rule zoom_copy_train_xgboost_r:
   shell: "cp {input.src} {output.dst}"
 
 
-rule get_zoom_sample_statistics:
+rule zoom_get_sample_statistics:
   input:
     qc_stats_f      = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     zoom_lbls_f     = f'{zoom_dir}/{{zoom_name}}/filtered_labels_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
@@ -217,10 +244,10 @@ rule get_zoom_sample_statistics:
     zoom_min_n_smpl = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc']['qc_min_cells'],
     ambient_method  = config['ambient']['ambient_method']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_zoom_sample_statistics', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'get_zoom_sample_statistics', 'time', attempt)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_get_sample_statistics', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_get_sample_statistics', 'time', attempt)
   log:
-    f'{logs_dir}/zoom/get_zoom_sample_statistics_{{zoom_name}}_{DATE_STAMP}.log'
+    f'{logs_dir}/zoom/zoom_get_sample_statistics_{{zoom_name}}_{DATE_STAMP}.log'
   run:
     import sys
     with open(str(log), "a") as f:
@@ -238,6 +265,7 @@ rule get_zoom_sample_statistics:
 rule zoom_make_one_pb_cells:
   input:
     batch_lu_f    = f'{pb_dir}/runs_to_batches_{FULL_TAG}_{DATE_STAMP}.csv',
+    filt_counts_f = lambda wildcards: get_filtered_counts_file(wildcards.run, config['ambient']['ambient_method'], amb_dir, DATE_STAMP),
     h5_paths_f    = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
     coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     qc_stats_f    = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv',
@@ -1069,6 +1097,7 @@ rule render_html_zoom:
     r_int_f               = f'{code_dir}/integration.R',
     r_mkr_f               = f'{code_dir}/marker_genes.R',
     qc_f                  = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    zoom_lbls_f           = f'{zoom_dir}/{{zoom_name}}/filtered_labels_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
     pb_empty_f            = f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds',
     zoom_cell_hvgs_f      = f'{zoom_dir}/{{zoom_name}}/hvg_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
     zoom_int_f            = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
@@ -1089,6 +1118,15 @@ rule render_html_zoom:
     metadata_f            = config['project']['sample_metadata'],
     zoom_dir              = zoom_dir,
     batch_var             = BATCH_VAR,
+    zoom_original_lbls_f  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['_original_labels_f'],
+    zoom_lbls_col         = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
+    zoom_sel_labels        = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels']),
+    zoom_qc_min_counts    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_counts', ''),
+    zoom_qc_min_feats     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_feats', ''),
+    zoom_qc_min_mito      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_mito', ''),
+    zoom_qc_max_mito      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_max_mito', ''),
+    zoom_qc_min_splice    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_splice', ''),
+    zoom_qc_max_splice    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_max_splice', ''),
     meta_vars             = ','.join(config['project']['metadata_vars']),
     fgsea_args            = lambda wildcards, input: ", ".join([
       f"fgsea_go_bp_f = '{input.get('fgsea_go_bp_f', '')}'",
@@ -1130,6 +1168,8 @@ rule render_html_zoom:
   shell: """
     exec &>> {log}
 
+    cp scripts/SampleQC.R $(dirname {input.r_utils_f})/qc.R
+
     template_f=$(realpath resources/rmd_templates/zoom.Rmd.template)
     rule="zoom"
 
@@ -1150,6 +1190,16 @@ rule render_html_zoom:
       meta_vars_ls      = '{params.meta_vars}',
       gtf_dt_f          = '{params.af_gtf_dt_f}',
       qc_f              = '{input.qc_f}',
+      zoom_lbls_f       = '{input.zoom_lbls_f}',
+      zoom_original_lbls_f = '{params.zoom_original_lbls_f}',
+      zoom_lbls_col     = '{params.zoom_lbls_col}',
+      zoom_sel_labels   = '{params.zoom_sel_labels}',
+      zoom_qc_min_counts = '{params.zoom_qc_min_counts}',
+      zoom_qc_min_feats  = '{params.zoom_qc_min_feats}',
+      zoom_qc_min_mito   = '{params.zoom_qc_min_mito}',
+      zoom_qc_max_mito   = '{params.zoom_qc_max_mito}',
+      zoom_qc_min_splice = '{params.zoom_qc_min_splice}',
+      zoom_qc_max_splice = '{params.zoom_qc_max_splice}',
       cell_hvgs_f       = '{input.zoom_cell_hvgs_f}',
       int_f             = '{input.zoom_int_f}',
       pb_f              = '{input.zoom_pb_f}',
@@ -1174,4 +1224,3 @@ rule render_html_zoom:
       {params.xgb_args}
     )"
     """
-

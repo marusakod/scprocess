@@ -32,6 +32,20 @@ def get_zoom_std_var_stats_files(zoom_name, zoom_dir, ZOOM_PARAMS, FULL_TAG, DAT
     ]
 
 
+def zoom_check_clusters(labels_f, labels_col, sel_labels_str, check_f):
+  lbls_df     = pl.read_csv(labels_f)
+  labels      = lbls_df[labels_col].unique().to_list()
+  labels      = [cl for cl in labels if cl is not None]
+  sel_labels  = sel_labels_str.split(',')
+  missing_cls = set(sel_labels) - set(labels)
+  if len(missing_cls) > 0:
+    raise ValueError(
+      f"the following labels were specified in the zoom params yaml but are not present in the file:\n"
+      f"  {', '.join(missing_cls)}")
+  with open(check_f, 'w') as f:
+    f.write('ok\n')
+
+
 # zoom function: make df with good / bad sample labels for a specific zoom
 def extract_zoom_sample_statistics(qc_stats_f, labels_f, labels_col, sel_labels, batches, batch_var, min_n_sample, ambient_method):
   # load inputs

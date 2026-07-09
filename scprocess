@@ -80,6 +80,9 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
   if not schema_f.is_file():
     raise FileNotFoundError("setup schema file not found")
   setup_cfg   = scprocess_utils.check_setup_config(setup_cfg, schema_f, scprocess_dir)
+
+  if scprocess_utils.initialise_cluster_profile(scprocess_dir, scdata_dir, setup_cfg, dryrun):
+    return
    
   # change scprocess directory
   os.chdir(scprocess_dir)
@@ -743,11 +746,15 @@ def _get_main_log(config_path, log_dir, dryrun):
 
 def _find_env_path_from_yaml(scprocess_dir, setup_cfg, source_yaml):
   # conda_dir   = scprocess_dir / ".snakemake" / "conda"
-  profile_name = "default"
-  profile_dir = setup_cfg['user'].get('profile_dir', [])
-  if profile_dir:
-    profile_name = profile_dir.name
-  conda_dir = _get_conda_prefix(profile_name)
+  conda_prefix = scprocess_utils.get_conda_prefix(setup_cfg)
+  if conda_prefix:
+    conda_dir = Path(conda_prefix)
+  else:
+    profile_name = "default"
+    profile_dir = setup_cfg['user'].get('profile_dir', [])
+    if profile_dir:
+      profile_name = profile_dir.name
+    conda_dir = _get_conda_prefix(profile_name)
   source_yaml = source_yaml.resolve()
 
   if not os.path.exists(conda_dir):
@@ -773,7 +780,6 @@ def _get_conda_prefix(profile_name="default"):
   search_paths = [
     Path.home() / ".config/snakemake" / profile_name / "config.yaml",
     Path("/etc/snakemake") / profile_name / "config.yaml",
-    Path.cwd() / "profiles" / profile_name / "config.yaml" # Local project profile
   ]
 
   for p in search_paths:
@@ -890,12 +896,14 @@ def show_version_and_hpc_info(sc_dir):
       if user_info.get('affiliation'):
         print(f"  Affiliation: {user_info['affiliation']}")
   
-      if user_info.get('profile'):
+      profile_template = user_info.get('profile_template', user_info.get('profile'))
+      if profile_template:
         print("\nHPC Configuration:")
-        profile_name = user_info['profile']
+        profile_name = user_info.get('profile_name', profile_template)
         print(f"  Profile: {profile_name}")
+        print(f"  Template: {profile_template}")
         # Try to display profile config details
-        profile_f = sc_dir / 'profiles' / profile_name / 'config.yaml'
+        profile_f = pathlib.Path(scdata_dir) / 'profiles' / profile_name / 'config.yaml'
         if profile_f.exists():
           with open(profile_f, "r") as f:
             profile_cfg = yaml.safe_load(f)
@@ -903,6 +911,8 @@ def show_version_and_hpc_info(sc_dir):
             print(f"  Location: {profile_f}")
             if profile_cfg.get('executor'):
               print(f"  Executor: {profile_cfg['executor']}")
+        else:
+          print(f"  Location: {profile_f} (not initialized)")
       
     else:
       print("  No user information configured")
