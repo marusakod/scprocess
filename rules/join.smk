@@ -3,11 +3,7 @@
 # Integrates outputs from multiple completed scprocess projects into a single
 # joint analysis (HVG ranking → matrix assembly → integration → marker genes →
 # optional GSEA). Called via `scprocess join join.yaml`.
-#
-# Usage:
-#   scprocess join join.yaml
-#   scprocess join join.yaml -n            # dry run
-#   scprocess join join.yaml --unlock
+
 
 import os
 import sys
@@ -194,6 +190,7 @@ rule join_select_hvgs:
   params:
     project_ids  = " ".join(JOIN_PROJECT_IDS),
     n_hvgs       = N_HVGS
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_select_hvgs', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_select_hvgs', 'time', attempt)
@@ -224,6 +221,7 @@ rule join_build_matrix:
     joint_label_counts_f = joint_label_counts_f
   params:
     project_ids   = " ".join(JOIN_PROJECT_IDS)
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_matrix', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_matrix', 'time', attempt)
@@ -255,6 +253,7 @@ rule join_build_coldata:
     joint_sample_meta_f = joint_sample_meta_f
   params:
     project_ids = " ".join(JOIN_PROJECT_IDS)
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_coldata', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_coldata', 'time', attempt)
@@ -285,6 +284,7 @@ rule join_pca:
   params:
     n_dims = INT_N_DIMS
   threads: 8
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_pca', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_pca', 'time', attempt)
@@ -331,6 +331,7 @@ rule join_integration:
     paga_cl_res       = config['integration']['int_paga_cl_res'],
     int_use_gpu       = config['integration']['int_use_gpu'],
     pca_method        = INT_PCA_METHOD
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_integration', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_integration', 'time', attempt)
@@ -389,6 +390,7 @@ rule join_build_h5ads_yaml:
   params:
     project_ids = " ".join(JOIN_PROJECT_IDS),
     h5ads_dir   = h5ads_dir
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_h5ads_yaml', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_h5ads_yaml', 'time', attempt)
@@ -423,6 +425,7 @@ rule join_marker_genes:
     min_cells   = config['marker_genes']['mkr_min_cells'],
     batch_var   = "sample_id"
   threads: 8
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_marker_genes', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_marker_genes', 'time', attempt)
@@ -467,6 +470,7 @@ rule join_fgsea:
     not_ok_re   = _mkr_cfg['mkr_not_ok_re'],
     gsea_var    = _mkr_cfg['mkr_gsea_var']
   threads: 8
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_fgsea', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_fgsea', 'time', attempt)
@@ -519,6 +523,7 @@ rule join_celltypist:
   output:
     pred_f  = temp(f"{join_lbl_dir}/tmp_labels_celltypist_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz")
   threads: 4
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_celltypist', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_celltypist', 'time', attempt)
@@ -548,6 +553,7 @@ rule join_scprocess_labeller:
     cls_f   = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['cls_f'],
     genes_f = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['genes_f']
   threads: 1
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_scprocess_labeller', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_scprocess_labeller', 'time', attempt)
@@ -576,6 +582,7 @@ rule join_extract_labels:
     integration_f    = joint_integration_f
   output:
     pred_f = temp(f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_reused.csv.gz")
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_extract_labels', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_extract_labels', 'time', attempt)
@@ -604,6 +611,7 @@ rule join_merge_labels:
     hi_res_cl   = lambda wildcards: _get_labeller_entry(wildcards.labeller, wildcards.model)['hi_res_cl'],
     min_cl_prop = lambda wildcards: _get_labeller_entry(wildcards.labeller, wildcards.model)['min_cl_prop']
   threads: 4
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_merge_labels', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_merge_labels', 'time', attempt)
@@ -706,6 +714,7 @@ rule join_render_html:
     xgb_has_coarse    = ("true" if _join_xgb_cfg.get('label_map_f') else "false") if DO_TRAIN_XGB else 'false',
     xgb_min_cells     = _join_xgb_cfg.get('min_cells_expressed', 10) if DO_TRAIN_XGB else 10
   threads: 1
+  retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_render_html', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_render_html', 'time', attempt)
@@ -819,6 +828,7 @@ if DO_TRAIN_XGB:
       min_genes            = _join_xgb_cfg.get('min_genes', 100),
       max_genes            = _join_xgb_cfg.get('max_genes', 3000),
     threads: 8
+    retries: config['resources']['retries']
     resources:
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_train', 'memory', attempt),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_train', 'time', attempt)
@@ -873,6 +883,7 @@ if DO_TRAIN_XGB:
     params:
       ref_tag = _join_xgb_ref_tag
     threads: 1
+    retries: config['resources']['retries']
     resources:
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_predict', 'memory', attempt),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_predict', 'time', attempt)
@@ -906,6 +917,7 @@ if DO_TRAIN_XGB:
     params:
       ref_tag      = _join_xgb_ref_tag,
       label_map_f  = _join_xgb_cfg.get('label_map_f') or '',
+    retries: config['resources']['retries']
     resources:
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_aggregate', 'memory', attempt),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_aggregate', 'time', attempt)
@@ -952,6 +964,7 @@ if DO_TRAIN_XGB:
       has_coarse           = "true" if _join_xgb_cfg.get('label_map_f') else "false",
       min_cells            = _join_xgb_cfg.get('min_cells_expressed', 10),
     threads: 1
+    retries: config['resources']['retries']
     resources:
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_render_html_train_xgboost', 'memory', attempt),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_render_html_train_xgboost', 'time', attempt)

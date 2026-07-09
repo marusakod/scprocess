@@ -190,7 +190,8 @@
         "mins_join_train_xgboost_aggregate":   { "type": "integer", "default": 30 },
         "mins_join_render_html_train_xgboost": { "type": "integer", "default": 15 },
         "gb_build_shiny_app":           { "type": "integer", "default": 16 },
-        "mins_build_shiny_app":         { "type": "integer", "default": 30 }
+        "mins_build_shiny_app":         { "type": "integer", "default": 30 },
+        "retries":                      { "type": "integer", "default": 0 }
       }
     },
     "label_celltypes": {
