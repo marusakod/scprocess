@@ -150,7 +150,7 @@ if zoom_xgb_outs:
 
 
 
-localrules: zoom_make_tmp_pb_cells_df, zoom_make_hvg_df, zoom_merge_group_mean_var, zoom_merge_group_std_var_stats, zoom_merge_stats_for_std_variance, zoom_copy_train_xgboost_r
+localrules: zoom_make_tmp_pb_cells_df, zoom_make_hvg_df, zoom_merge_group_mean_var, zoom_merge_stats_for_std_variance, zoom_copy_train_xgboost_r
 
 
 rule zoom_check_clusters:
@@ -1092,6 +1092,7 @@ rule render_html_zoom:
         FULL_TAG, DATE_STAMP, ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea'])),
     unpack(lambda wildcards: get_zoom_conditional_xgboost_files(
         ZOOM_PARAMS[wildcards.zoom_name], zoom_dir, wildcards.zoom_name, code_dir)),
+    rmd_template_f        = "resources/rmd_templates/zoom.Rmd.template",
     r_utils_f             = f'{code_dir}/utils.R',
     r_hvgs_f              = f'{code_dir}/hvgs.R',
     r_int_f               = f'{code_dir}/integration.R',
@@ -1170,7 +1171,7 @@ rule render_html_zoom:
 
     cp scripts/SampleQC.R $(dirname {input.r_utils_f})/qc.R
 
-    template_f=$(realpath resources/rmd_templates/zoom.Rmd.template)
+    template_f=$(realpath {input.rmd_template_f})
     rule="zoom"
 
     Rscript --vanilla -e "source('scripts/render_htmls.R'); \

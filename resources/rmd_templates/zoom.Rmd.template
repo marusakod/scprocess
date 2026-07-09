@@ -559,15 +559,15 @@ xgb_cpms_dt = xgb_pb %>% make_logcpms_all_rmd("sample_id",
   lib_size_method = "edger", min_cells = xgb_min_cells, n_cores = n_cores)
 ```
 
-### Train / validation split
+${xgb_train_validation_title}
 
 ```{r xgb_train_test_split, eval = do_xgboost, include = do_xgboost, fig.height = 6, fig.width = 8}
 plot_train_test_split(xgb_dt)
 ```
 
-### Predicted vs true labels UMAP {.tabset}
+${xgb_pred_true_title}
 
-UMAPs showing the true (training) labels alongside model predictions on the validation set.
+${xgb_pred_true_txt}
 
 ```{r xgb_pred_true_umap, eval = do_xgboost, include = do_xgboost, fig.height = 7, fig.width = 14, results = 'asis'}
 lbl_type_vec = 'Training labels'
@@ -586,7 +586,7 @@ for (lbl in lbl_type_vec) {
 }
 ```
 
-### Confusion matrix (validation set)
+${xgb_confusion_title}
 
 ```{r xgb_confusion_matrix, eval = do_xgboost, include = do_xgboost, fig.height = 10, fig.width = 12}
 xgb_cl1_dt = xgb_val_dt[, .(cell_id, true_label = label %>% factor)]
@@ -596,22 +596,22 @@ plot_cluster_comparison_heatmap(xgb_confuse_dt, "true_label", "pred_label",
   plot_var = "p_cl1", do_sort = "hclust")
 ```
 
-### Per-class evaluation metrics (validation set)
+${xgb_metrics_title}
 
 ```{r xgb_metrics_table, eval = do_xgboost, include = do_xgboost}
 xgb_metrics_dt = get_metrics_dt(xgb_val_dt)
 xgb_metrics_dt %>% knitr::kable(digits = 3)
 ```
 
-### Cumulative gain curve
+${xgb_gain_title}
 
 ```{r xgb_gain_curve, eval = do_xgboost, include = do_xgboost, fig.height = 5, fig.width = 8}
 print(plot_gain_curve(xgb_gain_dt))
 ```
 
-### Top XGBoost genes {.tabset}
+${xgb_top_genes_title}
 
-Pseudobulk logCPM expression of the top 20 most important XGBoost genes, shown per cell type label.
+${xgb_top_genes_txt}
 
 ```{r xgb_top_genes, eval = do_xgboost, include = do_xgboost, fig.height = 8, fig.width = 8, results = "asis"}
 xgb_top_genes_dt = xgb_gain_dt[1:min(100, .N)]

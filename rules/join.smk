@@ -657,7 +657,8 @@ rule join_render_html:
     fgsea_files   = [fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else [],
     label_files   = label_fs,
     cluster_names = cluster_names_fs,
-    xgb_files     = []
+    xgb_files     = [],
+    rmd_template_f = "resources/rmd_templates/join.Rmd.template"
   output:
     r_utils_f     = f"{code_dir}/utils.R",
     r_int_f       = f"{code_dir}/integration.R",
@@ -726,7 +727,7 @@ rule join_render_html:
     cp scripts/label_celltypes.R {output.r_lbl_f}
 
     # define rule and template
-    template_f=$(realpath resources/rmd_templates/join.Rmd.template)
+    template_f=$(realpath {input.rmd_template_f})
     rule="join"
 
     # rendering html
@@ -990,5 +991,4 @@ if DO_TRAIN_XGB:
           n_cores                = '{threads}'
         )"
       """
-
 

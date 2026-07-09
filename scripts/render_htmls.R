@@ -30,7 +30,10 @@ render_html <- function(rule_name, proj_dir, temp_f, rmd_f, ...) {
 }
 
 make_rmd_from_temp <- function(rule_name, temp_f, temp_ls, rmd_f) {
-  if (!file.exists(rmd_f) | rule_name == 'index') {
+  rmd_exists = file.exists(rmd_f)
+  template_is_newer = rmd_exists && file.info(temp_f)$mtime > file.info(rmd_f)$mtime
+
+  if (!rmd_exists | rule_name == 'index' | template_is_newer) {
     # read remplate file
     temp_str = readLines(temp_f, warn = FALSE)
 
@@ -43,6 +46,35 @@ make_rmd_from_temp <- function(rule_name, temp_f, temp_ls, rmd_f) {
     # write to rmd file
     writeLines(rmd_str, rmd_f)
   }
+}
+
+get_xgboost_report_text <- function(do_xgboost) {
+  do_xgboost = isTRUE(as.logical(do_xgboost))
+
+  empty_ls = list(
+    xgboost_title = "",
+    xgb_train_validation_title = "",
+    xgb_pred_true_title = "",
+    xgb_pred_true_txt = "",
+    xgb_confusion_title = "",
+    xgb_metrics_title = "",
+    xgb_gain_title = "",
+    xgb_top_genes_title = "",
+    xgb_top_genes_txt = "")
+
+  if (!do_xgboost)
+    return(empty_ls)
+
+  list(
+    xgboost_title = "## XGBoost classifier",
+    xgb_train_validation_title = "### Train / validation split",
+    xgb_pred_true_title = "### Predicted vs true labels UMAP {.tabset}",
+    xgb_pred_true_txt = "UMAPs showing the true (training) labels alongside model predictions on the validation set.",
+    xgb_confusion_title = "### Confusion matrix (validation set)",
+    xgb_metrics_title = "### Per-class evaluation metrics (validation set)",
+    xgb_gain_title = "### Cumulative gain curve",
+    xgb_top_genes_title = "### Top XGBoost genes {.tabset}",
+    xgb_top_genes_txt = "Pseudobulk logCPM expression of the top 20 most important XGBoost genes, shown per cell type label.")
 }
 
 get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'integration',
@@ -234,11 +266,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       fgsea_txt   = ""
     }
 
-    if (as.logical(add_args[['do_xgboost']])) {
-      xgboost_title = "## XGBoost classifier"
-    } else {
-      xgboost_title = ""
-    }
+    xgboost_txt_ls = get_xgboost_report_text(add_args[['do_xgboost']])
 
     params_ls = c(
       add_args[req_names],
@@ -247,8 +275,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
            meta_umap_title = meta_umap_title,
            meta_umap_txt   = meta_umap_txt,
            fgsea_title     = fgsea_title,
-           fgsea_txt       = fgsea_txt,
-           xgboost_title   = xgboost_title))
+           fgsea_txt       = fgsea_txt),
+      xgboost_txt_ls)
 
   } else if (sel_rule == 'join') {
     req_names = c('your_name', 'affiliation', 'join_name', 'join_tag',
@@ -264,14 +292,10 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
     assert_that(all(req_names %in% add_args_names))
 
-    if (as.logical(add_args[['do_xgboost']])) {
-      xgboost_title = "## XGBoost classifier"
-    } else {
-      xgboost_title = ""
-    }
+    xgboost_txt_ls = get_xgboost_report_text(add_args[['do_xgboost']])
 
     params_ls = c(add_args[req_names],
-      list(xgboost_title = xgboost_title))
+      xgboost_txt_ls)
 
   } else if (sel_rule == 'index') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'docs_dir', 'full_tag', 'date_stamp', 'mkr_sel_res', 'config_f', 'show_arv_uuids')
