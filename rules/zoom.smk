@@ -828,21 +828,6 @@ rule zoom_run_integration:
   shell: """
     exec &>> {log}
 
-    set +u
-    # set use_gpu flag based on config and on whether available
-    USE_GPU_FLAG=""
-    if [ "{params.zoom_int_use_gpu}" == "True" ]; then
-      if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
-        echo "running on GPU"
-        USE_GPU_FLAG="--use-gpu"
-      else
-        echo "GPU usage requested but no GPU available, running on CPU"
-      fi
-    else
-      echo "running on CPU"
-    fi
-    set -u
-    
     python3 scripts/integration.py run_zoom_integration \
       --hvg_mat_f     {input.hvg_mat_f} \
       --sample_qc_f   {input.sample_qc_f} \
@@ -856,9 +841,9 @@ rule zoom_run_integration:
       --res_ls_concat "{params.zoom_int_res_ls}" \
       --integration_f {output.integration_f} \
       --batch_var     {params.batch_var} \
-      $(if [ "{params.zoom_int_use_paga}" == "True" ]; then echo "--use-paga"; fi) \
-      $(if [ "{params.zoom_int_use_paga}" == "True" ]; then echo "--paga-cl-res {params.zoom_int_paga_cl_res}"; fi) \
-      $USE_GPU_FLAG
+      $( [ "{params.zoom_int_use_paga}" == "True" ] && echo "--use-paga" ) \
+      $( [ "{params.zoom_int_use_paga}" == "True" ] && echo "--paga-cl-res {params.zoom_int_paga_cl_res}" ) \
+      $( [ "{params.zoom_int_use_gpu}" == "True" ] && echo "--use-gpu" )
     """
 
 

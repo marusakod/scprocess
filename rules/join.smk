@@ -344,23 +344,6 @@ rule join_integration:
   shell: """
     exec &>> {log}
 
-    set +u
-    USE_GPU_FLAG=""
-    if [ "{params.int_use_gpu}" == "True" ]; then
-      if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
-        echo "running on GPU"
-        USE_GPU_FLAG="--use-gpu"
-      else
-        echo "GPU requested but no GPU available, running on CPU"
-      fi
-    fi
-    set -u
-
-    PCA_FLAG=""
-    if [ "{params.pca_method}" == "bpcells" ]; then
-      PCA_FLAG="--precomputed_pca_f {input.pca_f}"
-    fi
-
     python3 scripts/integration.py run_zoom_integration \
       --hvg_mat_f        {input.hvg_mat_f} \
       --sample_qc_f      {input.sample_qc_f} \
@@ -374,10 +357,10 @@ rule join_integration:
       --batch_var_concat "{params.batch_var_concat}" \
       --res_ls_concat    "{params.res_ls_concat}" \
       --integration_f    {output.integration_f} \
-      $(if [ "{params.use_paga}" == "True" ]; then echo "--use-paga"; fi) \
-      $(if [ "{params.use_paga}" == "True" ]; then echo "--paga-cl-res {params.paga_cl_res}"; fi) \
-      $USE_GPU_FLAG \
-      $PCA_FLAG
+      $( [ "{params.use_paga}" == "True" ] && echo "--use-paga" ) \
+      $( [ "{params.use_paga}" == "True" ] && echo "--paga-cl-res {params.paga_cl_res}" ) \
+      $( [ "{params.int_use_gpu}" == "True" ] && echo "--use-gpu" ) \
+      $( [ "{params.pca_method}" == "bpcells" ] && echo "--precomputed_pca_f {input.pca_f}" )
     """
 
 

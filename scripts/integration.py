@@ -510,7 +510,7 @@ if __name__ == "__main__":
       import cupy as cp
       gpu_count = cp.cuda.runtime.getDeviceCount() # this gives an error if gpu is not found
             
-      if gpu_count == 0: # Some drivers might still return 0 without erroring
+      if gpu_count == 0: # some drivers might still return 0 without erroring
         print("GPU usage requested but no GPU available, running on CPU")
         use_gpu = False
 
