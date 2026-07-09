@@ -141,7 +141,7 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
 
 ## Cluster setup
 
-{{sc}} is intended to be used on a cluster with a job scheduler such as `SLURM` or `LSF` (although it will also work without a job scheduler). To set up a job scheduler in `Snakemake`, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{sc}} comes with predefined configuration profile templates stored in the package _profiles_ directory, including _profiles/slurm_default_ and _profiles/lsf_default_ for `SLURM` and `LSF` respectively. During setup, {{sc}} copies the selected template into `$SCPROCESS_DATA_DIR/profiles`, where it can be edited for your cluster.
+{{sc}} is intended to be used on a cluster with a job scheduler such as `SLURM` or `LSF` (although it will also work without a job scheduler). To set up a job scheduler in `Snakemake`, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{sc}} comes with predefined configuration profile templates stored in the package _profiles_ directory, including _profiles/slurm_default_, _profiles/lsf_default_, _profiles/pbs_default_, _profiles/sge_default_, and _profiles/htcondor_default_. During setup, {{sc}} copies the selected template into `$SCPROCESS_DATA_DIR/profiles`, where it can be edited for your cluster.
 
 To use {{sc}} with a job scheduler, add a `profile_template` parameter to your _scprocess_setup.yaml_ file:
 
@@ -155,8 +155,25 @@ To use {{sc}} with a job scheduler, add a `profile_template` parameter to your _
     user:
       profile_template: lsf_default
     ```
+=== "PBS"
+    ```yaml
+    user:
+      profile_template: pbs_default
+    ```
+=== "SGE"
+    ```yaml
+    user:
+      profile_template: sge_default
+    ```
+=== "HTCondor"
+    ```yaml
+    user:
+      profile_template: htcondor_default
+    ```
 
 The first `scprocess setup` run with a new profile copies the template and exits before running Snakemake. Edit the copied `config.yaml`, then rerun `scprocess setup`.
+
+The active Python environment that launches {{sc}} must include the Snakemake executor plugin for the selected profile. The PBS template uses the `cluster-generic` executor plugin, while the SGE and HTCondor templates use the `sge` and `htcondor` executor plugins respectively.
 
 If you want the local profile to have a different name from the template, specify `profile_name`:
 

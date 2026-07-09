@@ -25,7 +25,7 @@ set-resources:
     # qos: '3h'
     qos: '1d'
     # runtime: 360
-  train_xgboost:
+  train_xgboost_train:
     slurm_partition: "batch_gpu"
     slurm_extra: "'--gpus=1'"
     qos: '3h'

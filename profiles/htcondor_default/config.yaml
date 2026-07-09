@@ -1,0 +1,32 @@
+# HTCondor template.
+# Requires snakemake-executor-plugin-htcondor in the environment that launches
+# scprocess. If only some paths are shared between submit and execute nodes,
+# configure htcondor-shared-fs-prefixes for your site.
+executor: htcondor
+latency-wait: 10
+show-failed-logs: True
+keep-going: True
+scheduler: greedy
+printshellcmds: True
+jobs: 20
+default-resources:
+  runtime: 3h
+  mem_mb: 4096
+htcondor-jobdir: .snakemake/htcondor
+
+# Optional GPU examples. Uncomment and edit for your HTCondor site.
+# HTCondor GPU requests are commonly expressed in the submit description as:
+#   request_gpus = 1
+# The Snakemake HTCondor plugin has fewer documented profile-level knobs than
+# scheduler-specific plugins, so sites may need to add this through local
+# HTCondor submit transforms, a patched submit template, or wrapper policy.
+#
+# GPU candidate rules:
+#   run_integration
+#   zoom_run_integration
+#   join_integration
+#   run_cellbender
+#   train_xgboost_train
+#   zoom_train_xgboost
+#   join_train_xgboost_train
+

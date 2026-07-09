@@ -1,0 +1,38 @@
+# Sun Grid Engine / Univa Grid Engine / Open Grid Scheduler template.
+# Requires snakemake-executor-plugin-sge in the environment that launches
+# scprocess. Set sge-queue, sge-project, or sge-pe if your cluster requires
+# them.
+executor: sge
+latency-wait: 10
+show-failed-logs: True
+sge-keep-successful-logs: True
+keep-going: True
+scheduler: greedy
+printshellcmds: True
+jobs: 20
+default-resources:
+  runtime: 3h
+  mem_mb: 4096
+sge-logdir: .snakemake/sge_logs
+
+# Optional GPU examples. Uncomment and edit for your SGE/UGE/OGS site.
+# GPU syntax is site-specific. Common patterns include a GPU queue:
+#   sge-queue: gpu.q
+# If your site instead requires complex requests such as `-l gpu=1`, you may
+# need a site-specific submit wrapper or a cluster-generic profile.
+#
+# set-resources:
+#   run_integration:
+#     sge_queue: gpu.q
+#   zoom_run_integration:
+#     sge_queue: gpu.q
+#   join_integration:
+#     sge_queue: gpu.q
+#   run_cellbender:
+#     sge_queue: gpu.q
+#   train_xgboost_train:
+#     sge_queue: gpu.q
+#   zoom_train_xgboost:
+#     sge_queue: gpu.q
+#   join_train_xgboost_train:
+#     sge_queue: gpu.q

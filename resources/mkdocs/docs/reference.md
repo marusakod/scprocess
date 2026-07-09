@@ -42,7 +42,7 @@ xgboost:
 
 ##### user
 
-* `profile_template`: the name of the bundled HPC profile template to copy from the {{sc}} _profiles_ directory into `$SCPROCESS_DATA_DIR/profiles`. Exactly one of `profile_template` and `local_cores` should be specified.
+* `profile_template`: the name of the bundled HPC profile template to copy from the {{sc}} _profiles_ directory into `$SCPROCESS_DATA_DIR/profiles`. Bundled templates include `slurm_default`, `lsf_default`, `pbs_default`, `sge_default`, and `htcondor_default`. Exactly one of `profile_template` and `local_cores` should be specified.
 * `profile_name` (optional): name of the active profile directory under `$SCPROCESS_DATA_DIR/profiles`. Defaults to the value of `profile_template`.
 * `profile` (deprecated): accepted as an alias for `profile_template` for existing setup files.
 * `local_cores`: number of CPU cores available for local execution (see [Snakemake documentation](https://snakemake.readthedocs.io/en/v9.8.0/executing/cli.html) for more details). Exactly one of `profile_template` and `local_cores` should be specified.

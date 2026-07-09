@@ -6,10 +6,28 @@ scheduler: greedy
 printshellcmds: True
 jobs: 20
 default-resources:
-  runtime: 3h  # change this with queue
-  mem_mb: 4096 #change this
-set-resources:
-  run_harmony:
-    runtime: 12h # change this with queue
-  run_ambient:
-    slurm_extra: "'--gpus=1'" # change this
+  runtime: 3h
+  mem_mb: 4096
+
+# Optional GPU examples. Uncomment and edit for your LSF site.
+# Common LSF GPU syntax uses bsub options such as:
+#   -gpu "num=1"
+# Some sites also require a GPU queue or resource string, e.g.:
+#   lsf_queue: gpu
+#   lsf_extra: "-gpu 'num=1' -R 'select[gpu]'"
+#
+# set-resources:
+#   run_integration:
+#     lsf_extra: "-gpu 'num=1'"
+#   zoom_run_integration:
+#     lsf_extra: "-gpu 'num=1'"
+#   join_integration:
+#     lsf_extra: "-gpu 'num=1'"
+#   run_cellbender:
+#     lsf_extra: "-gpu 'num=1'"
+#   train_xgboost_train:
+#     lsf_extra: "-gpu 'num=1'"
+#   zoom_train_xgboost:
+#     lsf_extra: "-gpu 'num=1'"
+#   join_train_xgboost_train:
+#     lsf_extra: "-gpu 'num=1'"

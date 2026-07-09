@@ -1,0 +1,38 @@
+# PBS/OpenPBS template using Snakemake's cluster-generic executor plugin.
+# Requires snakemake-executor-plugin-cluster-generic in the environment that
+# launches scprocess. Edit cluster-generic-submit-cmd for your site's qsub
+# resource syntax before using this profile.
+executor: cluster-generic
+latency-wait: 10
+show-failed-logs: True
+keep-going: True
+scheduler: greedy
+printshellcmds: True
+jobs: 20
+default-resources:
+  runtime: 3h
+  mem_mb: 4096
+cluster-generic-submit-cmd: "qsub -N smk-{rule} -l select=1:ncpus={threads}:mem={resources.mem_mb}mb"
+cluster-generic-cancel-cmd: qdel
+
+# Optional GPU examples. Uncomment and edit for your PBS/OpenPBS site.
+# PBS GPU syntax varies substantially. Common forms include:
+#   -l select=1:ncpus={threads}:mem={resources.mem_mb}mb:ngpus=1
+#   -l nodes=1:ppn={threads}:gpus=1,mem={resources.mem_mb}mb
+#
+# With cluster-generic, GPU requests usually need to be encoded directly in
+# cluster-generic-submit-cmd. For example, to send every job to a GPU-capable
+# node you might start from:
+#
+# cluster-generic-submit-cmd: "qsub -N smk-{rule} -l select=1:ncpus={threads}:mem={resources.mem_mb}mb:ngpus=1"
+#
+# If only some rules should request GPUs, make a site-specific submit wrapper
+# that switches on {rule}, then set cluster-generic-submit-cmd to that wrapper.
+# GPU candidate rules:
+#   run_integration
+#   zoom_run_integration
+#   join_integration
+#   run_cellbender
+#   train_xgboost_train
+#   zoom_train_xgboost
+#   join_train_xgboost_train
