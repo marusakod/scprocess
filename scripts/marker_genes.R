@@ -179,15 +179,25 @@ make_pseudobulk_object_bpcells <- function(pb_f, integration_f, h5ads_yaml_f, se
     h5ad_path = if (is.character(entry)) entry else entry[["path"]]
     message("      ", batch_name)
 
-    mat       = BPCells::open_matrix_anndata_hdf5(h5ad_path)
-    ok_cells  = intersect(colnames(mat), int_dt$cell_id)
-    if (length(ok_cells) == 0) return(NULL)
-    mat       = mat[, ok_cells]
+    if (file.size(h5ad_path) == 0) {
+      message("      skipping ", batch_name, ": empty h5ad file (all cells excluded upstream)")
+      return(NULL)
+    }
 
-    batch_int = int_dt[ok_cells]
-    group_vec = paste(batch_int[[cl_var]], batch_int[[batch_var]], sep = ".")
-    pb_one    = BPCells::pseudobulk_matrix(mat, group_vec, method = "sum")
-    as.matrix(pb_one)
+    tryCatch({
+      mat       = BPCells::open_matrix_anndata_hdf5(h5ad_path)
+      ok_cells  = intersect(colnames(mat), int_dt$cell_id)
+      if (length(ok_cells) == 0) return(NULL)
+      mat       = mat[, ok_cells]
+
+      batch_int = int_dt[ok_cells]
+      group_vec = paste(batch_int[[cl_var]], batch_int[[batch_var]], sep = ".")
+      pb_one    = BPCells::pseudobulk_matrix(mat, group_vec, method = "sum")
+      as.matrix(pb_one)
+    }, error = function(e) {
+      warning("cannot open h5ad for ", batch_name, " (", h5ad_path, "): ", e$message, " -- skipping")
+      NULL
+    })
   }, mc.cores = n_cores)
   pb_mats     = Filter(Negate(is.null), pb_mats)
 
@@ -608,31 +618,7 @@ calc_hvgs_pseudobulk <- function(pb_hvgs_f, cpms_dt, batch_var, n_cores = 8) {
   # remove outliers
   message('calculating highly variable genes')
   cl_ls     = cpms_dt$cluster %>% unique
-  # message('  start cluster')
-  # bpparam   = MulticoreParam(workers = n_cores, tasks = length(cl_ls))
-  # register(bpparam)
-  # on.exit(bpstop(bpparam))
-
-  # message('  remove outlier samples')
-  # x_ls      = cl_ls %>% bplapply(function(cl) {
-  #   # make matrix
-  #   this_x    = cpms_dt[ cluster == cl ] %>%
-  #     .[, col_lab := sprintf("%s-%s", cluster, get(batch_var)) ] %>%
-  #     dcast.data.table( gene_id ~ col_lab, value.var = 'count' ) %>%
-  #     as.matrix(rownames = 'gene_id')
-
-  #   # remove samples with outlier library sizes
-  #   ls_dt     = cpms_dt[ cluster == cl ] %>% 
-  #     .[, c("cluster", batch_var, "lib_size"), with = FALSE ] %>%
-  #     unique %>% .[, col_lab := sprintf("%s-%s", cluster, get(batch_var)) ] %>%
-  #     .[ order(col_lab) ]
-  #   ls        = ls_dt$lib_size
-  #   ol        = scater::isOutlier(ls, log = TRUE, type = "lower", nmads = 3)
-  #   this_x    = this_x[, !ol, drop = FALSE]
-
-  #   return(this_x)
-  # }, BPPARAM = bpparam) %>% setNames(cl_ls)
-
+  
   # make big matrix
   message('  make big matrix')
   # bulk_mat  = do.call(cbind, x_ls)
