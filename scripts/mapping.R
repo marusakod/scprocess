@@ -224,7 +224,8 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
     mean() %>%
     (function(x) 10^x)() 
 
-  empty_end = copy(knee_df)[total == knee2, unique(rank)]  
+  knee2_idx = which.min(abs(knee_df$total - knee2))[1]
+  empty_end = knee_df[knee2_idx, rank]
 
   knee_df[, in_empty_plateau := fifelse(rank %between% c(empty_start, empty_end), TRUE, FALSE)]
 
