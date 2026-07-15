@@ -16,6 +16,11 @@ sys.path.append('scripts')
 from scprocess_utils import (check_join_config, get_resources, prep_resource_params,
   get_join_project_parameters, get_join_source_labels_f, get_join_batch_sources)
 
+# Prevent underscore-containing model names from being partially captured as the
+# labeller in join label, log, benchmark, and cluster-name file patterns.
+wildcard_constraints:
+  labeller = "celltypist|scprocess"
+
 # setup
 scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
@@ -572,7 +577,7 @@ rule join_extract_labels:
   log:
     f"{logs_dir}/join_extract_labels_{{labeller}}_{{model}}_{DATE_STAMP}.log"
   conda:
-    '../envs/hvgs.yaml'
+    '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
     python3 scripts/label_celltypes.py extract_naive_predictions \
@@ -628,7 +633,7 @@ rule join_save_cluster_names:
   log:
     f"{logs_dir}/join_save_cluster_names_{{labeller}}_{{model}}_{DATE_STAMP}.log"
   conda:
-    '../envs/hvgs.yaml'
+    '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
     python3 scripts/label_celltypes.py save_cluster_names \
@@ -987,4 +992,3 @@ if DO_TRAIN_XGB:
           n_cores                = '{threads}'
         )"
       """
-
