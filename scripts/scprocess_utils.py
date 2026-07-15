@@ -1989,6 +1989,12 @@ def get_join_project_parameters(config):
       meta_f = _dir(pid) / meta_f
     return meta_f
 
+  def _qc_all_f(pid):
+    return (
+      _dir(pid) / f"output/{_short_tag(pid)}_qc" /
+      f"qc_all_samples_{_full_tag(pid)}_{_date(pid)}.csv.gz"
+    )
+
   # build batch keys from per-project h5ads YAMLs
   h5ads_yaml_fs = [str(_h5ads_yaml_f(pid)) for pid in project_ids]
   batch_keys = []
@@ -2005,6 +2011,7 @@ def get_join_project_parameters(config):
     'h5ads_yaml_fs':  h5ads_yaml_fs,
     'integrated_fs':  [str(_integrated_dt_f(pid)) for pid in project_ids],
     'sample_meta_fs': [str(_sample_meta_f(pid)) for pid in project_ids],
+    'qc_all_fs':      [str(_qc_all_f(pid)) for pid in project_ids],
     'batch_keys':     batch_keys,
   }
 

@@ -906,6 +906,11 @@ Additional parameters include:
 * `projects`: mapping containing at least two source projects. Each entry requires `config`, the path to a completed project config, and may specify `zoom_name` to join a completed zoom instead of the full project.
 * `int_pca_method`: PCA computation method. Options: `bpcells` (default) uses disk-backed SVD via BPCells (R), suitable for very large datasets (>1M cells) without GPU memory limits; `scanpy` uses the standard in-memory PCA on GPU/CPU (original behaviour).
 
+The join HTML report includes distributions of post-filter cell-level QC metrics
+(UMI count, detected genes, mitochondrial proportion, and spliced proportion) for
+clusters at the `marker_genes:mkr_sel_res` resolution. QC values are collected from
+the source projects and restricted to the cells included in the joint analysis.
+
 Example {{scjoin}} configuration file:
 
 ```yaml

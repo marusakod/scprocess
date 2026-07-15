@@ -298,6 +298,57 @@ def build_joint_coldata(h5_f, project_ids, integrated_dt_fs, sample_meta_fs,
   print("done!")
 
 
+def build_joint_qc(qc_fs, project_ids, coldata_f, out_f):
+  """Combine source QC metrics for the cells included in the joint analysis."""
+  if len(qc_fs) != len(project_ids):
+    raise ValueError(
+      f"Expected one QC file per project, got {len(qc_fs)} files for "
+      f"{len(project_ids)} projects")
+
+  qc_metrics = ['log_counts', 'log_feats', 'logit_mito', 'logit_spliced']
+  qc_dfs = []
+  for pid, qc_f in zip(project_ids, qc_fs):
+    print(f"  loading QC metrics for {pid}")
+    qc_df = pl.read_csv(qc_f)
+    if 'cell_id' not in qc_df.columns:
+      raise KeyError(f"Source QC file has no cell_id column: {qc_f}")
+    if qc_df['cell_id'].n_unique() != qc_df.height:
+      raise ValueError(f"Source QC file contains duplicate cell IDs: {qc_f}")
+    present_metrics = [c for c in qc_metrics if c in qc_df.columns]
+    if not present_metrics:
+      raise KeyError(f"Source QC file has no supported QC metrics: {qc_f}")
+    qc_dfs.append(
+      qc_df.select(['cell_id'] + present_metrics).with_columns(
+        pl.lit(pid).alias('project_id'),
+        pl.lit(True).alias('_qc_present')
+      )
+    )
+
+  qc_df = pl.concat(qc_dfs, how='diagonal_relaxed')
+  coldata_df = (
+    pl.read_csv(coldata_f, columns=['cell_id', 'sample_id', 'project_id'])
+    .with_row_index('_order')
+  )
+  joint_qc_df = (
+    coldata_df
+    .join(qc_df, on=['cell_id', 'project_id'], how='left')
+    .sort('_order')
+  )
+
+  missing_df = joint_qc_df.filter(pl.col('_qc_present').is_null())
+  if missing_df.height > 0:
+    examples = missing_df.select(['project_id', 'cell_id']).head(10).rows()
+    raise ValueError(
+      f"QC metrics were not found for {missing_df.height} joined cells; "
+      f"examples: {examples}")
+
+  joint_qc_df = joint_qc_df.drop(['_order', '_qc_present'])
+  pathlib.Path(out_f).parent.mkdir(parents=True, exist_ok=True)
+  with gzip.open(out_f, 'wb') as fh:
+    joint_qc_df.write_csv(fh)
+  print(f"  saved QC metrics for {joint_qc_df.height} joined cells to {out_f}")
+
+
 def _smart_concat(dfs):
   """Concat DataFrames with mixed schemas, promoting Int to Float on conflict."""
   truth_schemas = []
@@ -421,6 +472,15 @@ def _parse_args():
   p2b.add_argument('--out_coldata_f',    required=True)
   p2b.add_argument('--out_sample_meta_f', required=True)
 
+  # --- build_joint_qc ---
+  p2c = sub.add_parser('build_joint_qc')
+  p2c.add_argument('--qc_fs',       nargs='+', required=True,
+    help='Per-project qc_all_samples CSV.gz files')
+  p2c.add_argument('--project_ids', nargs='+', required=True)
+  p2c.add_argument('--coldata_f',   required=True,
+    help='Joint coldata CSV.gz defining the included cells')
+  p2c.add_argument('--out_f',       required=True)
+
   # --- build_join_h5ads_yaml ---
   p3 = sub.add_parser('build_join_h5ads_yaml')
   p3.add_argument('--h5ads_yaml_fs', nargs='+', required=True)
@@ -459,6 +519,14 @@ if __name__ == '__main__':
       sample_meta_fs     = args.sample_meta_fs,
       out_coldata_f      = args.out_coldata_f,
       out_sample_meta_f  = args.out_sample_meta_f
+    )
+
+  elif args.cmd == 'build_joint_qc':
+    build_joint_qc(
+      qc_fs       = args.qc_fs,
+      project_ids = args.project_ids,
+      coldata_f   = args.coldata_f,
+      out_f       = args.out_f
     )
 
   elif args.cmd == 'build_join_h5ads_yaml':

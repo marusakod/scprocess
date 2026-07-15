@@ -45,6 +45,7 @@ VAR_STATS_FS      = JOIN_PROJ['var_stats_fs']
 H5ADS_YAML_FS     = JOIN_PROJ['h5ads_yaml_fs']
 INTEGRATED_FS     = JOIN_PROJ['integrated_fs']
 SAMPLE_META_FS    = JOIN_PROJ['sample_meta_fs']
+QC_ALL_FS         = JOIN_PROJ['qc_all_fs']
 JOIN_BATCH_KEYS   = JOIN_PROJ['batch_keys']
 
 # join metadata and paths
@@ -119,6 +120,7 @@ joint_hvgs_f        = f"{join_int_dir}/joint_hvgs_{JOIN_TAG}_{DATE_STAMP}.csv.gz
 joint_label_counts_f      = f"{join_int_dir}/joint_counts_hvgs_{JOIN_TAG}_{DATE_STAMP}.h5"
 joint_coldata_f     = f"{join_int_dir}/joint_coldata_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
 joint_sample_meta_f = f"{join_int_dir}/joint_sample_meta_{JOIN_TAG}_{DATE_STAMP}.csv"
+joint_qc_f          = f"{join_int_dir}/joint_qc_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
 joint_pca_f         = f"{join_int_dir}/joint_pca_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
 joint_integration_f = f"{join_int_dir}/integrated_dt_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
 joint_h5ads_yaml_f  = f"{join_int_dir}/h5ads_clean_paths_{JOIN_TAG}_{DATE_STAMP}.yaml"
@@ -277,6 +279,35 @@ rule join_build_coldata:
       --sample_meta_fs      {input.sample_meta_fs} \
       --out_coldata_f       {output.joint_coldata_f} \
       --out_sample_meta_f   {output.joint_sample_meta_f}
+    """
+
+
+rule join_build_qc:
+  """Combine source QC metrics for cells included in the joint analysis."""
+  input:
+    qc_fs     = QC_ALL_FS,
+    coldata_f = joint_coldata_f
+  output:
+    qc_f = joint_qc_f
+  params:
+    project_ids = " ".join(JOIN_PROJECT_IDS)
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_qc', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_qc', 'time', attempt)
+  log:
+    f"{logs_dir}/join_build_qc_{JOIN_TAG}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_build_qc_{JOIN_TAG}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/hvgs.yaml'
+  shell: """
+    exec &>> {log}
+    python3 scripts/join.py build_joint_qc \
+      --qc_fs       {input.qc_fs} \
+      --project_ids {params.project_ids} \
+      --coldata_f   {input.coldata_f} \
+      --out_f       {output.qc_f}
     """
 
 
@@ -647,6 +678,7 @@ rule join_save_cluster_names:
 rule join_render_html:
   input:
     integration_f = joint_integration_f,
+    qc_f            = joint_qc_f,
     mkrs_f        = mkrs_f,
     pb_hvgs_f     = pb_hvgs_f,
     pb_f          = pb_f,
@@ -685,6 +717,7 @@ rule join_render_html:
     mkr_min_cells    = config['marker_genes']['mkr_min_cells'],
     mkr_gsea_cut     = config['marker_genes']['mkr_gsea_cut'],
     integration_f    = joint_integration_f,
+    qc_f             = joint_qc_f,
     sample_meta_f    = joint_sample_meta_f,
     mkrs_f           = mkrs_f,
     pb_hvgs_f        = pb_hvgs_f,
@@ -755,6 +788,7 @@ rule join_render_html:
       mkr_min_cells    =  {params.mkr_min_cells},
       mkr_gsea_cut     =  {params.mkr_gsea_cut},
       integration_f    = '{params.integration_f}',
+      qc_f             = '{params.qc_f}',
       sample_meta_f    = '{params.sample_meta_f}',
       mkrs_f           = '{params.mkrs_f}',
       pb_hvgs_f        = '{params.pb_hvgs_f}',
