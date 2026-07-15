@@ -673,7 +673,7 @@ sample_id:
 
 ##### zoom
 
-In this section, users can provide multiple YAML files, each specifying parameters for repeating certain stept of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `qc_min_counts`, `qc_min_feats`, `qc_min_mito`, `qc_max_mito`, `qc_min_splice`, `qc_max_splice`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets`, all [shiny app parameters](#shiny) (`app_title` defaults to `name`), and all [XGBoost training paramaters](#train_xgboost)
+In this section, users can provide multiple YAML files, each specifying parameters for repeating certain steps of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `qc_min_counts`, `qc_min_feats`, `qc_min_mito`, `qc_max_mito`, `qc_min_splice`, `qc_max_splice`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets`, all [shiny app parameters](#shiny) (`app_title` defaults to `name`), and all [XGBoost training parameters](#train_xgboost).
 
 Additional parameters include:
 
@@ -690,7 +690,11 @@ Additional parameters include:
 * `save_subset_anndata`: whether to create H5AD files containing cells that have been assigned one of the values in `sel_labels`; defaults is `true`.
 * `custom_labels_f`: required if `labels_source` is set to `custom`; path to CSV file with columns `sample_id`, `cell_id` and `label`.
 
+If a value in `sel_labels` is absent from the selected labels column, {{sc}} reports a warning and continues with the labels that are present. At least one selected label must be present, and the retained subset must contain enough cells for downstream QC, HVG detection, and integration.
+
 Zoom configs also support optional cell-level QC thresholds to apply stricter filtering to cells that already passed the main pipeline's QC. When set, cells in the zoom subset that do not meet these thresholds are removed before HVG detection and integration. All thresholds default to `null` (no additional filtering):
+
+The zoom report always shows QC distributions. Without zoom-specific thresholds it contains one distributions view; when thresholds are configured it also shows the before/after filtering views.
 
 * `qc_min_counts`: minimum UMI counts per cell. Only effective if stricter than the main pipeline threshold. Default: not set.
 * `qc_min_feats`: minimum detected genes per cell. Default: not set.
@@ -894,12 +898,12 @@ Additional parameters include:
 
 ### configuration file
 
-Some parameters in the {{scjoin}} configuration file inherit their definitions from the {{sc}} configuration file, including [**list here all parameters that inherit definitions from scprocess run***], all [shiny app parameters](#shiny) (`app_title` defaults to `name`) and all [XGBoost training paramaters](#train_xgboost). Note that user must specify `ref_txome` or `probe_set` (for Flex data) that matches the value of the same parameter in configs of all projects that need to be joined i.e. only projects with same `ref_txome`/`probe_set` can be joined`
+The join configuration reuses the `hvg`, `integration`, `marker_genes`, `label_celltypes`, `train_xgboost`, `shiny`, and `resources` sections from a project configuration where supported by the join schema. Use the current generated template and schema for exact fields and defaults. The join must specify a `ref_txome`, or a `probe_set` for Flex data, that matches every source project; only compatible projects can be joined.
 
 Additional parameters include:
 * `name`: short name; output directories are {name}_join and {name}_marker_genes
-* `metadata_vars` (optional): list of column names from the source projects' `sample_metadata` CSV files to carry through into the joint integration. Each variable must exist in at least one project's metadata file, but does not need to be present in all projects (e.g. when projects have different experimental designs). Missing values are filled with `NA`. **Isn't that the same as the project-level metadata vars**?
-* `projects`: 
+* `metadata_vars` (optional): list of column names from the source projects' `sample_metadata` CSV files to carry through into the joint integration. Each variable must exist in at least one project's metadata file, but does not need to be present in all projects. Missing values are filled with `NA`.
+* `projects`: mapping containing at least two source projects. Each entry requires `config`, the path to a completed project config, and may specify `zoom_name` to join a completed zoom instead of the full project.
 * `int_pca_method`: PCA computation method. Options: `bpcells` (default) uses disk-backed SVD via BPCells (R), suitable for very large datasets (>1M cells) without GPU memory limits; `scanpy` uses the standard in-memory PCA on GPU/CPU (original behaviour).
 
 Example {{scjoin}} configuration file:
@@ -924,24 +928,24 @@ projects:
     zoom_name: T_cells          
   project_c:
     config: /path/to/config_c.yaml
-  hvg:
-    hvg_n_hvgs: 2000 0)
-  integration:
-    int_pca_method: bpcells                    
-    int_embedding: harmony                    
-  label_celltypes:                             
-    - labeller: celltypist
-      model: Immune_All_Low                    
-      save_cluster_names_file: true            
-  train_xgboost:                               
-    annots_f: /path/to/annotations.csv.gz      
-    ref_tag: my_classifier                     
-  shiny:
-    app_title: My Joint Analysis
+hvg:
+  hvg_n_hvgs: 2000
+integration:
+  int_pca_method: bpcells
+  int_embedding: harmony
+label_celltypes:
+  - labeller: celltypist
+    model: Immune_All_Low
+    save_cluster_names_file: true
+train_xgboost:
+  annots_f: /path/to/annotations.csv.gz
+  ref_tag: my_classifier
+shiny:
+  app_title: My Joint Analysis
 ```
 
 **Notes on `label_celltypes` in join:**
 
-* When `label_celltypes` is configured, it runs automatically as part of `scprocess join` (no separate rule invocation needed). **And that's not true at the project level?**
+* When `label_celltypes` is configured, it runs as part of the default `scprocess join` target.
 * If a source project already has label_celltypes outputs for the same `labeller`/`model`, naive predictions are reused instead of re-running the labeller — only projects without existing labels trigger fresh runs.
-* `save_cluster_names_file: true` generates a `cluster_names_for_shiny_*.csv` at the `marker_genes:mkr_sel_res` resolution. This file can be used as `annotation_csv` in the `shiny:` section. **This definition is already under label_celltypes right?**
+* `save_cluster_names_file: true` generates a `cluster_names_for_shiny_*.csv` at the `marker_genes:mkr_sel_res` resolution. This file can be used as `annotation_csv` in the `shiny:` section.
