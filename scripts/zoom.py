@@ -1,4 +1,5 @@
 import polars as pl
+import warnings
 
 # zoom function: get list of all mean var files for zooms
 def get_zoom_raw_mean_var_files(zoom_name, zoom_dir, ZOOM_PARAMS, FULL_TAG, DATE_STAMP):
@@ -39,9 +40,11 @@ def zoom_check_clusters(labels_f, labels_col, sel_labels_str, check_f):
   sel_labels  = sel_labels_str.split(',')
   missing_cls = set(sel_labels) - set(labels)
   if len(missing_cls) > 0:
-    raise ValueError(
+    warnings.warn(
       f"the following labels were specified in the zoom params yaml but are not present in the file:\n"
-      f"  {', '.join(missing_cls)}")
+      f"  {', '.join(sorted(missing_cls))}",
+      UserWarning,
+      stacklevel=2)
   with open(check_f, 'w') as f:
     f.write('ok\n')
 
@@ -162,4 +165,3 @@ def get_zoom_conditional_xgboost_files(zoom_params, zoom_dir, zoom_name, code_di
     }
   else:
     return {}
-
