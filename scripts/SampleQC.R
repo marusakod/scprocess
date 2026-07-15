@@ -642,14 +642,17 @@ plot_qc_ranges_marginals <- function(qc_input, b_lvls, qc_names, qc_lu, cuts_dt,
     .[, batch_var := factor(batch_var, levels = rev(b_lvls)) ]
 
   # make plot of n_cells by sample
-  g_n = ggplot() +
-    geom_rect( data = hlines_dt[ qc_var == "n_cells" ],
+  n_hlines_dt = hlines_dt[ qc_var == "n_cells" ]
+  g_n = ggplot()
+  if (nrow(n_hlines_dt) > 0) {
+    g_n = g_n + geom_rect( data = n_hlines_dt,
       aes(
         xmin = as.integer(batch_var) - 0.4, xmax = as.integer(batch_var) + 0.4, 
         ymin = min, ymax = max
       ),
-      fill = 'grey80', colour = NA, alpha = 0.2 ) +
-    geom_point( data = n_dt, aes( y = value, x = as.integer(batch_var) ),
+      fill = 'grey80', colour = NA, alpha = 0.2 )
+  }
+  g_n = g_n + geom_point( data = n_dt, aes( y = value, x = as.integer(batch_var) ),
       size = 4, shape = 21, fill = 'grey40') +
     scale_x_continuous( breaks = seq.int(length(b_lvls)), labels = rev(b_lvls) ) +
     facet_grid( . ~ var, scales = 'free', space = 'free_y' ) +
@@ -664,14 +667,17 @@ plot_qc_ranges_marginals <- function(qc_input, b_lvls, qc_names, qc_lu, cuts_dt,
     labs( y = NULL, x = batch_var )
 
   # make plots of qc metrics by sample
-  g_violin = ggplot() +
-    geom_rect( data = hlines_dt[ qc_var != "n_cells" ], 
+  qc_hlines_dt = hlines_dt[ qc_var != "n_cells" ]
+  g_violin = ggplot()
+  if (nrow(qc_hlines_dt) > 0) {
+    g_violin = g_violin + geom_rect( data = qc_hlines_dt,
       aes(
         xmin = as.integer(batch_var) - 0.4, xmax = as.integer(batch_var) + 0.4, 
         ymin = min, ymax = max
       ),
-      fill = 'grey80', colour = NA, alpha = 0.2 ) +
-    geom_violin( data = qc_melt[ !is.na(qc_val) ],
+      fill = 'grey80', colour = NA, alpha = 0.2 )
+  }
+  g_violin = g_violin + geom_violin( data = qc_melt[ !is.na(qc_val) ],
       aes( x = batch_var, y = qc_val ), colour = NA, fill = 'grey40',
       kernel = 'rectangular', adjust = 0.1, scale = 'width', width = 0.8) +
     # geom_hline( data = hlines_dt, aes( yintercept = cut_point ),
