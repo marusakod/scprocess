@@ -79,6 +79,7 @@ if config['multiplexing']['demux_type'] == "hto":
   rule render_html_multiplexing:
     input:
       r_utils_f   = f'{code_dir}/utils.R', 
+      metadata_f  = config['project']['sample_metadata'],
       hto_knee_fs = expand(f'{af_dir}/af_{{run}}/hto/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz', run=RUNS), 
       sce_hto_fs  = expand(f'{demux_dir}/sce_cells_htos_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds', run=RUNS)
     output:
@@ -91,7 +92,6 @@ if config['multiplexing']['demux_type'] == "hto":
       short_tag       = config['project']['short_tag'],
       date_stamp      = config['project']['date_stamp'],
       proj_dir        = config['project']['proj_dir'],
-      metadata_f      = config['project']['sample_metadata'],
       ambient_method  = config['ambient']['ambient_method'],
       run_var         = RUN_VAR,
       batch_var       = BATCH_VAR,
@@ -133,7 +133,7 @@ if config['multiplexing']['demux_type'] == "hto":
           date_stamp      = '{params.date_stamp}', 
           threads         =  {threads},
           runs_str        = '{params.runs_str}', 
-          metadata_f      = '{params.metadata_f}', 
+          metadata_f      = '{input.metadata_f}',
           ambient_method  = '{params.ambient_method}', 
           run_var         = '{params.run_var}', 
           batch_var       = '{params.batch_var}',
@@ -212,10 +212,10 @@ rule render_html_ambient:
 rule render_html_qc:
   input:
     r_utils_f   = f"{code_dir}/utils.R",
+    metadata_f  = config['project']['sample_metadata'],
     qc_dt_f     = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv'
   params:
-    metadata_f          = config['project']['sample_metadata'],
     your_name           = config['project']['your_name'],
     affiliation         = config['project']['affiliation'],
     short_tag           = config['project']['short_tag'],
@@ -264,7 +264,7 @@ rule render_html_qc:
       short_tag           = '{params.short_tag}', 
       date_stamp          = '{params.date_stamp}', 
       threads             =  {threads}, 
-      metadata_f          = '{params.metadata_f}',
+      metadata_f          = '{input.metadata_f}',
       qc_dt_f             = '{input.qc_dt_f}',
       cuts_f              = '{input.cuts_f}',
       batch_var           = '{params.batch_var}',
@@ -404,6 +404,7 @@ rule render_html_marker_genes:
   input:
     r_utils_f     = f"{code_dir}/utils.R",
     r_int_f       = f'{code_dir}/integration.R',
+    metadata_f    = config['project']['sample_metadata'],
     pb_f          = f'{mkr_dir}/pb_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.rds',
     mkrs_f        = f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
@@ -423,7 +424,6 @@ rule render_html_marker_genes:
     short_tag         = config['project']['short_tag'],
     date_stamp        = config['project']['date_stamp'],
     proj_dir          = config['project']['proj_dir'],
-    metadata_f        = config['project']['sample_metadata'],
     genome_ref        = GENOME_REF,
     meta_vars         = ','.join(config['project']['metadata_vars']),
     af_gtf_dt_f       = config['mapping_af']['gene_info_f'],
@@ -476,7 +476,7 @@ rule render_html_marker_genes:
       short_tag         = '{params.short_tag}',
       date_stamp        = '{params.date_stamp}',
       threads           =  {threads},
-      metadata_f        = '{params.metadata_f}',
+      metadata_f        = '{input.metadata_f}',
       meta_vars_ls      = '{params.meta_vars}',
       gtf_dt_f          = '{params.af_gtf_dt_f}',
       ambient_f         = '{params.ambient_f}',

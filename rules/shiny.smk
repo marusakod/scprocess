@@ -109,6 +109,8 @@ def _resolve_var_names(metadata_vars_ls, shiny_cfg):
 
 _home_md_f        = _resolve_optional_path(_shiny_cfg.get('home_md'),        PROJ_DIR)
 _annotation_csv_f = _resolve_optional_path(_shiny_cfg.get('annotation_csv'), PROJ_DIR)
+_main_app_tag     = get_shiny_app_tag(config)
+_main_shiny_dir   = f'{docs_dir}/shiny_{_main_app_tag}'
 
 
 # ---- helper: fgsea inputs for main rule (conditional) --------------------
@@ -158,17 +160,17 @@ rule build_shiny_app:
     **({'home_md_f':        _home_md_f}        if _home_md_f        else {}),
     **({'annotation_csv_f': _annotation_csv_f} if _annotation_csv_f else {}),
     h5ads_yaml_f  = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
+    sample_meta_f = _sample_meta_f,
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     mkrs_f        = f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv.gz',
     pb_hvgs_f     = f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv.gz',
   output:
-    sentinel_f    = f'{docs_dir}/shiny/.shiny_built_{DATE_STAMP}'
+    sentinel_f    = f'{_main_shiny_dir}/.shiny_built_{DATE_STAMP}'
   params:
     scprocess_dir = str(scprocess_dir),
-    deploy_dir    = f'{docs_dir}/shiny',
-    sample_meta_f = _sample_meta_f,
+    deploy_dir    = _main_shiny_dir,
     date_stamp    = DATE_STAMP,
-    app_tag       = SHORT_TAG,
+    app_tag       = _main_app_tag,
     mkr_sel_res   = MKR_SEL_RES,
     ref_txome     = GENOME_REF,
     metadata_vars = _metadata_vars,
@@ -191,7 +193,7 @@ rule build_shiny_app:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_shiny_app', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_shiny_app', 'time', attempt)
   conda: '../envs/shiny.yaml'
-  log:   f'{logs_dir}/shiny/build_shiny_app_{DATE_STAMP}.log'
+  log:   f'{logs_dir}/shiny/build_shiny_app_{_main_app_tag}_{DATE_STAMP}.log'
   shell: """
     exec &>> {log}
     mkdir -p {params.deploy_dir}
@@ -202,7 +204,7 @@ rule build_shiny_app:
       make_shiny_app_scprocess(
         integration_f = '{input.integration_f}',
         h5ads_yaml_f  = '{input.h5ads_yaml_f}',
-        sample_meta_f = '{params.sample_meta_f}',
+        sample_meta_f = '{input.sample_meta_f}',
         mkrs_f        = '{input.mkrs_f}',
         pb_hvgs_f     = '{input.pb_hvgs_f}',
         fgsea_bp_f    = '{params.fgsea_go_bp_f}',
@@ -237,6 +239,7 @@ rule build_zoom_shiny_app:
   input:
     unpack(_zoom_fgsea_inputs),
     h5ads_yaml_f  = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
+    sample_meta_f = _sample_meta_f,
     integration_f = lambda wc: f'{zoom_dir}/{wc.zoom_name}/integrated_dt_{FULL_TAG}_{wc.zoom_name}_{DATE_STAMP}.csv.gz',
     mkrs_f        = lambda wc: (f'{zoom_dir}/{wc.zoom_name}/pb_marker_genes_{FULL_TAG}_{wc.zoom_name}'
                                 f'_{ZOOM_PARAMS[wc.zoom_name]["marker_genes"]["mkr_sel_res"]}_{DATE_STAMP}.csv.gz'),
@@ -247,7 +250,6 @@ rule build_zoom_shiny_app:
   params:
     scprocess_dir    = str(scprocess_dir),
     deploy_dir       = lambda wc: f'{docs_dir}/shiny_zoom_{wc.zoom_name}',
-    sample_meta_f    = _sample_meta_f,
     date_stamp       = DATE_STAMP,
     app_tag          = lambda wc: f'{SHORT_TAG}_{wc.zoom_name}',
     mkr_sel_res      = lambda wc: ZOOM_PARAMS[wc.zoom_name]['marker_genes']['mkr_sel_res'],
@@ -288,7 +290,7 @@ rule build_zoom_shiny_app:
       make_shiny_app_scprocess(
         integration_f = '{input.integration_f}',
         h5ads_yaml_f  = '{input.h5ads_yaml_f}',
-        sample_meta_f = '{params.sample_meta_f}',
+        sample_meta_f = '{input.sample_meta_f}',
         mkrs_f        = '{input.mkrs_f}',
         pb_hvgs_f     = '{input.pb_hvgs_f}',
         fgsea_bp_f    = '{params.fgsea_go_bp_f}',

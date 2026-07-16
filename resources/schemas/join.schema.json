@@ -117,6 +117,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "app_tag":        { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$", "description": "Machine-safe app identifier used in the deployment directory and generated filenames; defaults to join.name" },
         "app_title":      { "type": "string" },
         "email":          { "type": "string" },
         "keyword":        { "type": "string",  "default": "cells" },
@@ -158,6 +159,7 @@
         "gb_join_select_hvgs":        { "type": "integer", "default": 4 },
         "gb_join_build_matrix":       { "type": "integer", "default": 16 },
         "gb_join_build_coldata":      { "type": "integer", "default": 4 },
+        "gb_join_build_sample_metadata": { "type": "integer", "default": 2 },
         "gb_join_build_qc":           { "type": "integer", "default": 4 },
         "gb_join_pca":                { "type": "integer", "default": 16 },
         "gb_join_integration":        { "type": "integer", "default": 16 },
@@ -171,6 +173,7 @@
         "mins_join_select_hvgs":        { "type": "integer", "default": 10 },
         "mins_join_build_matrix":       { "type": "integer", "default": 30 },
         "mins_join_build_coldata":      { "type": "integer", "default": 5 },
+        "mins_join_build_sample_metadata": { "type": "integer", "default": 5 },
         "mins_join_build_qc":           { "type": "integer", "default": 5 },
         "mins_join_pca":                { "type": "integer", "default": 60 },
         "mins_join_integration":        { "type": "integer", "default": 60 },

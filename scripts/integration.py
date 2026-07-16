@@ -172,23 +172,16 @@ def _get_hvg_mat(hvg_mat_f, dbl_hvg_mat_f = None):
 
 def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoom = False, bcs_dbl = []):
   # load files
-  sample_qc   = pl.read_csv(sample_qc_f)
   all_coldata = pl.read_csv(coldata_f, ignore_errors = True)
 
   # batch_var may be a list (join workflow) or a single string (standard workflow)
   batch_vars  = batch_var if isinstance(batch_var, list) else [batch_var]
-  primary_bv  = batch_vars[0]   # used for bad_* filter and ok_batches
+  primary_bv  = batch_vars[0]
 
-  # checks
+  # cell metadata always needs the integration batch variables
   for bv in batch_vars:
     if bv not in all_coldata.columns:
       raise KeyError(f"column {bv} is missing from coldata file")
-    if bv not in sample_qc.columns:
-      raise KeyError(f"column {bv} is missing from sample QC file")
-
-  # get ok samples (use primary batch variable for filtering)
-  bad_var     = "bad_" + primary_bv
-  ok_batches  = sample_qc.filter( pl.col(bad_var) == False )[primary_bv].to_list()
 
   # subset to doublets
   if zoom:
@@ -196,6 +189,13 @@ def _get_cells_df(sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var, zoo
       raise ValueError("Not all column names in hvg_mat are present in cell metadata.")
     cells_df    = all_coldata.filter( pl.col("cell_id").is_in(bcs_passed) )
   else:
+    if sample_qc_f is None:
+      raise ValueError("sample_qc_f is required for non-zoom integration")
+    sample_qc = pl.read_csv(sample_qc_f)
+    for bv in batch_vars:
+      if bv not in sample_qc.columns:
+        raise KeyError(f"column {bv} is missing from sample QC file")
+
     # get ok cells
     passed_idx  = all_coldata['keep']
     if not set(bcs_passed).issubset(set(all_coldata.filter(passed_idx)['cell_id'])):

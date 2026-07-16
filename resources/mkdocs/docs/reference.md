@@ -639,6 +639,7 @@ The VST uses standard DESeq2 size factors when possible and falls back to the
 
 ##### shiny
 
+* `app_tag`: machine-safe identifier used for the deployment directory, generated data-file prefixes, sentinel, and build log. It may contain letters, numbers, `.`, `_`, and `-`. Defaults to `project.short_tag` for a standard project and `join.name` for a join. Main apps are written to `public/shiny_{app_tag}`.
 * `app_title`: title displayed in the Shiny app header. Defaults to `short_tag`.
 * `email`: contact email shown in the app footer.
 * `keyword`: short word used in plot axis labels and descriptions (e.g. `"cells"`, `"nuclei"`). Default is `"cells"`.
@@ -648,6 +649,7 @@ The VST uses standard DESeq2 size factors when possible and falls back to the
 * `metadata_labels`: display labels for metadata variables. Keys are column names, values are display labels. Variables not listed keep their column name as the label. Example:
     ```yaml
     shiny:
+      app_tag: test_project
       metadata_labels:
         brainregion: "brain region"
         condition: "treatment group"
@@ -661,6 +663,11 @@ The VST uses standard DESeq2 size factors when possible and falls back to the
     - a palette name (string)
     - an explicit colour list (array)
     - an object with optional `palette`, `colours`, and `values` keys (the `values` list controls level ordering; defaults to frequency order)
+
+The sample metadata CSV is an explicit input to the main and zoom Shiny apps. Editing
+descriptive values therefore marks an existing app for rebuilding. For a join, first
+run the normal join target so its joint sample metadata snapshot is refreshed, then
+run `scprocess join CONFIG -r shiny` to rebuild the app.
 
 
 ??? info "Supported colour palettes"
@@ -906,14 +913,26 @@ The join configuration reuses the `hvg`, `integration`, `marker_genes`, `label_c
 
 Additional parameters include:
 * `name`: short name; output directories are {name}_join and {name}_marker_genes
-* `metadata_vars` (optional): list of column names from the source projects' `sample_metadata` CSV files to carry through into the joint integration. Each variable must exist in at least one project's metadata file, but does not need to be present in all projects. Missing values are filled with `NA`.
+* `metadata_vars` (optional): list of column names from the source projects' `sample_metadata` CSV files to carry through into the joint sample metadata and presentation outputs. Each variable must exist in at least one project's metadata file, but does not need to be present in all projects. Missing values are filled with `NA`.
 * `projects`: mapping containing at least two source projects. Each entry requires `config`, the path to a completed project config, and may specify `zoom_name` to join a completed zoom instead of the full project.
 * `int_pca_method`: PCA computation method. Options: `bpcells` (default) uses disk-backed SVD via BPCells (R), suitable for very large datasets (>1M cells) without GPU memory limits; `scanpy` uses the standard in-memory PCA on GPU/CPU (original behaviour).
+
+When a metadata column is numeric in one source project and text in another, the
+joint column is stored as text. This supports identifier columns such as
+`patient_id` that use numeric IDs in one study and prefixed IDs in another.
 
 The join HTML report includes distributions of post-filter cell-level QC metrics
 (UMI count, detected genes, mitochondrial proportion, and spliced proportion) for
 clusters at the `marker_genes:mkr_sel_res` resolution. QC values are collected from
 the source projects and restricted to the cells included in the joint analysis.
+
+Source sample metadata is combined by a separate lightweight join rule. If only
+descriptive columns such as diagnosis, tissue, or therapy change, rerunning the join
+refreshes the joint sample metadata and HTML report without rerunning the joint count
+matrix, PCA, integration, clustering, marker genes, or cell-type labels. This does
+not apply when changing identifiers or variables used analytically (for example a
+batch variable or `hvg_metadata_split_var`); those changes require the affected
+analysis steps to be rerun.
 
 Example {{scjoin}} configuration file:
 
@@ -950,6 +969,7 @@ train_xgboost:
   annots_f: /path/to/annotations.csv.gz
   ref_tag: my_classifier
 shiny:
+  app_tag: my_join
   app_title: My Joint Analysis
 ```
 

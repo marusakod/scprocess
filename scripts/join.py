@@ -243,11 +243,14 @@ def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_f
   print("done!")
 
 
-def build_joint_coldata(h5_f, project_ids, integrated_dt_fs, sample_meta_fs,
-                        out_coldata_f, out_sample_meta_f):
-  """Build joint coldata and sample metadata from matrix barcodes."""
-  import numpy as np
+def build_joint_coldata(h5_f, project_ids, integrated_dt_fs, out_coldata_f):
+  """Build cell-level joint coldata in matrix-barcode order."""
   import h5py
+
+  if len(integrated_dt_fs) != len(project_ids):
+    raise ValueError(
+      f"Expected one integration file per project, got {len(integrated_dt_fs)} "
+      f"files for {len(project_ids)} projects")
 
   print("building joint coldata")
 
@@ -256,25 +259,15 @@ def build_joint_coldata(h5_f, project_ids, integrated_dt_fs, sample_meta_fs,
     all_barcodes = [b.decode('utf-8') for b in f['matrix/barcodes'][:]]
   print(f"  {len(all_barcodes)} cells in matrix")
 
-  # build per-project coldata and sample metadata
+  # build per-project cell coldata
   all_coldata_dfs = []
-  all_smeta_dfs   = []
 
-  for pid, int_f, smeta_f in zip(project_ids, integrated_dt_fs, sample_meta_fs):
+  for pid, int_f in zip(project_ids, integrated_dt_fs):
     print(f"  processing project: {pid}")
-    int_dt   = pl.read_csv(int_f)
-    smeta_dt = pl.read_csv(smeta_f)
+    int_dt = pl.read_csv(int_f)
 
     coldata_df = _build_project_coldata(int_dt, pid)
     all_coldata_dfs.append(coldata_df)
-
-    smeta_df = smeta_dt.with_columns([
-      pl.concat_str([pl.lit(f"{pid}_"), pl.col('sample_id').cast(pl.Utf8)]).alias('sample_id'),
-      pl.lit(pid).alias('project_id')
-    ])
-    if 'bad_sample_id' not in smeta_df.columns:
-      smeta_df = smeta_df.with_columns(pl.lit(False).alias('bad_sample_id'))
-    all_smeta_dfs.append(smeta_df)
 
   # concatenate and reorder to match matrix barcodes
   print("  assembling coldata")
@@ -291,8 +284,30 @@ def build_joint_coldata(h5_f, project_ids, integrated_dt_fs, sample_meta_fs,
   with gzip.open(out_coldata_f, 'wb') as fh:
     coldata_df.write_csv(fh)
 
+  print("done!")
+
+
+def build_joint_sample_metadata(project_ids, sample_meta_fs, out_sample_meta_f):
+  """Combine descriptive sample metadata without rebuilding cell coldata."""
+  if len(sample_meta_fs) != len(project_ids):
+    raise ValueError(
+      f"Expected one sample metadata file per project, got {len(sample_meta_fs)} "
+      f"files for {len(project_ids)} projects")
+
+  all_smeta_dfs = []
+  for pid, smeta_f in zip(project_ids, sample_meta_fs):
+    print(f"  processing sample metadata for project: {pid}")
+    smeta_df = pl.read_csv(smeta_f).with_columns([
+      pl.concat_str([pl.lit(f"{pid}_"), pl.col('sample_id').cast(pl.Utf8)]).alias('sample_id'),
+      pl.lit(pid).alias('project_id')
+    ])
+    if 'bad_sample_id' not in smeta_df.columns:
+      smeta_df = smeta_df.with_columns(pl.lit(False).alias('bad_sample_id'))
+    all_smeta_dfs.append(smeta_df)
+
   print("  saving sample metadata")
   smeta_df = _smart_concat(all_smeta_dfs)
+  pathlib.Path(out_sample_meta_f).parent.mkdir(parents=True, exist_ok=True)
   smeta_df.write_csv(out_sample_meta_f)
 
   print("done!")
@@ -350,7 +365,7 @@ def build_joint_qc(qc_fs, project_ids, coldata_f, out_f):
 
 
 def _smart_concat(dfs):
-  """Concat DataFrames with mixed schemas, promoting Int to Float on conflict."""
+  """Concat mixed schemas, promoting to String or from Int to Float as needed."""
   truth_schemas = []
   for i, df in enumerate(dfs):
     # We find columns where null_count is less than the total number of rows
@@ -368,13 +383,15 @@ def _smart_concat(dfs):
       if col in master_schema:
         prev_dtype = master_schema[col]
         if prev_dtype != dtype:
-          # Resolve Int vs Float conflict: promote to Float
-          if (prev_dtype.is_integer() and dtype.is_float()):
+          # String is the common representation for mixed identifier encodings.
+          if prev_dtype == pl.String or dtype == pl.String:
+            master_schema[col] = pl.String
+          # Resolve Int vs Float conflict: promote to Float.
+          elif prev_dtype.is_integer() and dtype.is_float():
             master_schema[col] = dtype
-          elif (prev_dtype.is_float() and dtype.is_integer()):
-            continue # Keep the Float already in master_schema
+          elif prev_dtype.is_float() and dtype.is_integer():
+            continue  # Keep the Float already in master_schema.
           else:
-            # For String vs Int, etc., you might still want an error
             raise ValueError(f"Hard conflict for '{col}': {prev_dtype} vs {dtype}")
       else:
         master_schema[col] = dtype
@@ -467,10 +484,14 @@ def _parse_args():
   p2b.add_argument('--project_ids',      nargs='+', required=True)
   p2b.add_argument('--integrated_dt_fs', nargs='+', required=True,
     help='Per-project integrated_dt CSV.gz files')
-  p2b.add_argument('--sample_meta_fs',   nargs='+', required=True,
-    help='Per-project sample metadata CSV files')
   p2b.add_argument('--out_coldata_f',    required=True)
-  p2b.add_argument('--out_sample_meta_f', required=True)
+
+  # --- build_joint_sample_metadata ---
+  p2m = sub.add_parser('build_joint_sample_metadata')
+  p2m.add_argument('--project_ids',    nargs='+', required=True)
+  p2m.add_argument('--sample_meta_fs', nargs='+', required=True,
+    help='Per-project sample metadata CSV files')
+  p2m.add_argument('--out_f', required=True)
 
   # --- build_joint_qc ---
   p2c = sub.add_parser('build_joint_qc')
@@ -516,9 +537,14 @@ if __name__ == '__main__':
       h5_f               = args.h5_f,
       project_ids        = args.project_ids,
       integrated_dt_fs   = args.integrated_dt_fs,
+      out_coldata_f      = args.out_coldata_f
+    )
+
+  elif args.cmd == 'build_joint_sample_metadata':
+    build_joint_sample_metadata(
+      project_ids        = args.project_ids,
       sample_meta_fs     = args.sample_meta_fs,
-      out_coldata_f      = args.out_coldata_f,
-      out_sample_meta_f  = args.out_sample_meta_f
+      out_sample_meta_f  = args.out_f
     )
 
   elif args.cmd == 'build_joint_qc':

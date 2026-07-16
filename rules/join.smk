@@ -250,14 +250,12 @@ rule join_build_matrix:
 
 
 rule join_build_coldata:
-  """Build joint coldata and sample metadata from matrix barcodes."""
+  """Build cell-level joint coldata from matrix barcodes and integrations."""
   input:
     joint_label_counts_f = joint_label_counts_f,
-    integrated_fs  = INTEGRATED_FS,
-    sample_meta_fs = SAMPLE_META_FS
+    integrated_fs = INTEGRATED_FS
   output:
-    joint_coldata_f     = joint_coldata_f,
-    joint_sample_meta_f = joint_sample_meta_f
+    joint_coldata_f = joint_coldata_f
   params:
     project_ids = " ".join(JOIN_PROJECT_IDS)
   retries: config['resources']['retries']
@@ -276,9 +274,34 @@ rule join_build_coldata:
       --h5_f                {input.joint_label_counts_f} \
       --project_ids         {params.project_ids} \
       --integrated_dt_fs    {input.integrated_fs} \
-      --sample_meta_fs      {input.sample_meta_fs} \
-      --out_coldata_f       {output.joint_coldata_f} \
-      --out_sample_meta_f   {output.joint_sample_meta_f}
+      --out_coldata_f       {output.joint_coldata_f}
+    """
+
+
+rule join_build_sample_metadata:
+  """Combine descriptive source sample metadata for reports and apps."""
+  input:
+    sample_meta_fs = SAMPLE_META_FS
+  output:
+    sample_meta_f = joint_sample_meta_f
+  params:
+    project_ids = " ".join(JOIN_PROJECT_IDS)
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_sample_metadata', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_sample_metadata', 'time', attempt)
+  log:
+    f"{logs_dir}/join_build_sample_metadata_{JOIN_TAG}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_build_sample_metadata_{JOIN_TAG}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/hvgs.yaml'
+  shell: """
+    exec &>> {log}
+    python3 scripts/join.py build_joint_sample_metadata \
+      --project_ids    {params.project_ids} \
+      --sample_meta_fs {input.sample_meta_fs} \
+      --out_f          {output.sample_meta_f}
     """
 
 
@@ -352,7 +375,6 @@ rule join_integration:
   input:
     hvg_mat_f    = joint_label_counts_f,
     coldata_f    = joint_coldata_f,
-    sample_qc_f  = joint_sample_meta_f,
     pca_f        = joint_pca_f if INT_PCA_METHOD == 'bpcells' else []
   output:
     integration_f = joint_integration_f
@@ -382,7 +404,6 @@ rule join_integration:
 
     python3 scripts/integration.py run_zoom_integration \
       --hvg_mat_f        {input.hvg_mat_f} \
-      --sample_qc_f      {input.sample_qc_f} \
       --coldata_f        {input.coldata_f} \
       --demux_type       none \
       --exclude_mito     False \
@@ -678,7 +699,8 @@ rule join_save_cluster_names:
 rule join_render_html:
   input:
     integration_f = joint_integration_f,
-    qc_f            = joint_qc_f,
+    qc_f          = joint_qc_f,
+    sample_meta_f = joint_sample_meta_f,
     mkrs_f        = mkrs_f,
     pb_hvgs_f     = pb_hvgs_f,
     pb_f          = pb_f,
@@ -718,7 +740,6 @@ rule join_render_html:
     mkr_gsea_cut     = config['marker_genes']['mkr_gsea_cut'],
     integration_f    = joint_integration_f,
     qc_f             = joint_qc_f,
-    sample_meta_f    = joint_sample_meta_f,
     mkrs_f           = mkrs_f,
     pb_hvgs_f        = pb_hvgs_f,
     pb_f             = pb_f,
@@ -789,7 +810,7 @@ rule join_render_html:
       mkr_gsea_cut     =  {params.mkr_gsea_cut},
       integration_f    = '{params.integration_f}',
       qc_f             = '{params.qc_f}',
-      sample_meta_f    = '{params.sample_meta_f}',
+      sample_meta_f    = '{input.sample_meta_f}',
       mkrs_f           = '{params.mkrs_f}',
       pb_hvgs_f        = '{params.pb_hvgs_f}',
       pb_f             = '{params.pb_f}',

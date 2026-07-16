@@ -474,6 +474,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "app_tag":      { "type": "string",  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$", "description": "Machine-safe app identifier used in the deployment directory and generated filenames; defaults to project.short_tag" },
         "app_title":    { "type": "string",  "description": "Title displayed in the app header and Home tab" },
         "email":        { "type": "string",  "description": "Contact email shown in the app footer" },
         "keyword":      { "type": "string",  "description": "Short noun used in plot descriptions (e.g. 'cells')", "default": "cells" },

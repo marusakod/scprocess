@@ -834,7 +834,7 @@ def _load_sample_metadata(config):
           if proj_meta_path.is_file():
             meta_dfs.append(pl.read_csv(proj_meta_path))
     if meta_dfs:
-      return pl.concat(meta_dfs, how="diagonal")
+      return pl.concat(meta_dfs, how="diagonal_relaxed")
   return None
 
 
@@ -952,6 +952,18 @@ def _check_shiny_parameters(config):
     config['shiny']['annotation_csv'] = annot_f
 
   return config
+
+
+def get_shiny_app_tag(config):
+  """Return the configured main-app tag or its context-specific default."""
+  shiny_cfg = config.get('shiny', {})
+  if 'join' in config:
+    default_tag = config['join']['name']
+  elif 'project' in config:
+    default_tag = config['project']['short_tag']
+  else:
+    raise KeyError("Config must contain either a 'project' or 'join' section")
+  return shiny_cfg.get('app_tag', default_tag)
 
 
 # check parameters for hvgs
@@ -2073,8 +2085,9 @@ def get_shiny_targets(config, scprocess_dir, scdata_dir, dryrun, zoom_name=None)
     raise ValueError("--zoom is not supported for join configs.")
 
   if zoom_name is None:
+    app_tag = get_shiny_app_tag(config)
     if not dryrun:
-      os.makedirs(docs_dir / "shiny", exist_ok=True)
+      os.makedirs(docs_dir / f"shiny_{app_tag}", exist_ok=True)
     return ["build_shiny_app"], proj_dir
 
   if zoom_name == "all":
