@@ -583,6 +583,11 @@ sample_id:
     + `name`: a string representing the name of the marker gene set
     + `file`: path to CSV file containing a list of genes in the marker gene set. Must contain column `label` (marker gene category), and `symbol` and/or `ensembl_id`. If not speficied `scprocess` will look for file `$SCPROCESS_DATA_DIR/marker_genes/{name}.csv`
 
+For pseudobulk HVG ranking, cluster-sample profiles containing only one cell are
+excluded from the VST matrix; this does not exclude them from marker-gene testing.
+The VST uses standard DESeq2 size factors when possible and falls back to the
+`poscounts` estimator for sparse matrices in which every gene contains a zero.
+
 ##### label_celltypes
 
 * `labeller`: specifies the method to annotate cell types; options include:

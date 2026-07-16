@@ -614,15 +614,28 @@ make_props_dt <- function(pb_prop, batch_var, exc_regex = NULL, min_cells = 10, 
   return(props_dt)
 }
 
-calc_hvgs_pseudobulk <- function(pb_hvgs_f, cpms_dt, batch_var, n_cores = 8) {
+calc_hvgs_pseudobulk <- function(pb_hvgs_f, cpms_dt, batch_var, n_cores = 8,
+  min_hvg_cells = 2L) {
   # remove outliers
   message('calculating highly variable genes')
   cl_ls     = cpms_dt$cluster %>% unique
+
+  # One-cell pseudobulks are too sparse to contribute a stable HVG estimate.
+  # Filter only the local VST input; marker testing still receives all cpms_dt rows.
+  pb_cols       = c('cluster', batch_var)
+  n_pb_all      = uniqueN(cpms_dt, by = pb_cols)
+  vst_dt        = cpms_dt[n_cells >= min_hvg_cells]
+  n_pb_vst      = uniqueN(vst_dt, by = pb_cols)
+  n_pb_excluded = n_pb_all - n_pb_vst
+  message(sprintf(
+    '  excluded %d of %d pseudobulks with fewer than %d cells from HVG calculation',
+    n_pb_excluded, n_pb_all, min_hvg_cells))
+  assert_that(n_pb_vst >= 2)
   
   # make big matrix
   message('  make big matrix')
   # bulk_mat  = do.call(cbind, x_ls)
-  bulk_mat  = cpms_dt %>%
+  bulk_mat  = vst_dt %>%
     .[, col_lab := sprintf("%s-%s", cluster, get(batch_var)) ] %>%
     dcast.data.table( gene_id ~ col_lab, value.var = 'count' ) %>%
     as.matrix(rownames = 'gene_id')
@@ -632,6 +645,27 @@ calc_hvgs_pseudobulk <- function(pb_hvgs_f, cpms_dt, batch_var, n_cores = 8) {
     dds       = DESeqDataSetFromMatrix(countData = bulk_mat,
       colData = data.frame(dummy = rep(1, ncol(bulk_mat))), design = ~ 1)
   })
+
+  # Preserve the standard DESeq2 estimator when possible. Sparse pseudobulk
+  # matrices can lack a gene that is nonzero in every column; in that specific
+  # case, estimate geometric means from positive counts instead.
+  sf_fit = tryCatch({
+    list(
+      dds = suppressMessages(estimateSizeFactors(dds)),
+      method = 'ratio'
+    )
+  }, error = function(cond) {
+    zero_pattern = grepl(
+      'every gene contains at least one zero', conditionMessage(cond), fixed = TRUE)
+    if (!zero_pattern) stop(cond)
+    list(
+      dds = suppressMessages(estimateSizeFactors(dds, type = 'poscounts')),
+      method = 'poscounts'
+    )
+  })
+  dds = sf_fit$dds
+  message('  DESeq2 size-factor method: ', sf_fit$method)
+
   # sometimes it doesn't work
   vst_obj     = tryCatch({
     vst(dds, blind = TRUE)
