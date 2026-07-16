@@ -10,6 +10,64 @@ suppressPackageStartupMessages({
 })
 
 
+.validate_shiny_annotation <- function(annotation_csv_f, data_clusters) {
+  if (!file.exists(annotation_csv_f))
+    stop("annotation_csv does not exist: ", annotation_csv_f)
+
+  annot <- fread(annotation_csv_f)
+  required_cols <- c("cluster", "cluster_name")
+  missing_cols  <- setdiff(required_cols, colnames(annot))
+  if (length(missing_cols) > 0L)
+    stop("annotation_csv must contain columns 'cluster' and 'cluster_name'; missing: ",
+         paste(missing_cols, collapse = ", "))
+
+  annot[, cluster      := trimws(as.character(cluster))]
+  annot[, cluster_name := trimws(as.character(cluster_name))]
+
+  blank_clusters <- is.na(annot$cluster) | annot$cluster == ""
+  if (any(blank_clusters))
+    stop("annotation_csv contains missing or blank cluster values at rows: ",
+         paste(which(blank_clusters), collapse = ", "))
+
+  blank_names <- is.na(annot$cluster_name) | annot$cluster_name == ""
+  if (any(blank_names))
+    stop("annotation_csv contains missing or blank cluster_name values at rows: ",
+         paste(which(blank_names), collapse = ", "))
+
+  duplicate_clusters <- unique(annot$cluster[duplicated(annot$cluster)])
+  if (length(duplicate_clusters) > 0L)
+    stop("annotation_csv contains duplicated cluster values: ",
+         paste(duplicate_clusters, collapse = ", "))
+
+  duplicate_names <- unique(annot$cluster_name[duplicated(annot$cluster_name)])
+  if (length(duplicate_names) > 0L)
+    stop("annotation_csv contains duplicated cluster_name values: ",
+         paste(duplicate_names, collapse = ", "))
+
+  data_clusters  <- unique(trimws(as.character(data_clusters)))
+  annot_clusters <- annot$cluster
+  only_in_annot  <- sort(setdiff(annot_clusters, data_clusters))
+  only_in_data   <- sort(setdiff(data_clusters, annot_clusters))
+
+  if (length(only_in_annot) > 0L || length(only_in_data) > 0L) {
+    mismatch_details <- c(
+      if (length(only_in_annot) > 0L)
+        paste0("Present only in annotation_csv: ", paste(only_in_annot, collapse = ", ")),
+      if (length(only_in_data) > 0L)
+        paste0("Present only in analysis data: ", paste(only_in_data, collapse = ", "))
+    )
+    stop(
+      "annotation_csv does not match the clusters in the current analysis.\n",
+      paste(mismatch_details, collapse = "\n"),
+      "\nThe annotation may belong to a different clustering resolution or analysis run. ",
+      "Update shiny.annotation_csv before rebuilding the app."
+    )
+  }
+
+  annot
+}
+
+
 #' Build Shiny app from scprocess outputs
 #'
 #' @param integration_f  Path to integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz
@@ -142,15 +200,6 @@ make_shiny_app_scprocess <- function(
   dir.create(data_dir, showWarnings = FALSE)
   dir.create(file.path(deploy_dir, "www"), showWarnings = FALSE)
 
-  # Remove stale shiny data files from prior builds (e.g. .txt.gz from older
-  # versions) so they don't confuse the runtime file-matching in get_all_input_fs
-  stale <- list.files(data_dir, pattern = paste0(app_tag, "-shiny_"),
-                      full.names = TRUE)
-  if (length(stale) > 0L) {
-    unlink(stale, recursive = TRUE)
-    message("Removed ", length(stale), " stale data files from prior build")
-  }
-
   # ---- Copy app files from resources/shiny/ --------------------------------
   message("Copying app files")
   app_src <- file.path(scprocess_dir, "resources/shiny")
@@ -237,17 +286,43 @@ make_shiny_app_scprocess <- function(
   # ---- Merge all metadata into a single table -----------------------------
   all_meta <- cell_meta %>%
     merge(umaps,  by = "cell_id") %>%
-    merge(clusts, by = "cell_id") %>%
-    .[cluster %in% unique(fread(mkrs_f)$cluster), ]  # keep only clusters with markers
+    merge(clusts, by = "cell_id")
+
+  # Preserve all clusters from the integration, including rare clusters for
+  # which marker-gene testing did not produce results.
+  analysis_clusters <- sort(unique(as.character(all_meta$cluster)))
+  all_meta$cluster  <- factor(all_meta$cluster, levels = analysis_clusters)
+
+  # Validate cluster annotations against the full analysis before UMAP
+  # subsampling. Annotation row order controls display order.
+  annot <- NULL
+  if (nchar(annotation_csv_f) > 0L) {
+    annot <- .validate_shiny_annotation(
+      annotation_csv_f,
+      analysis_clusters
+    )
+  }
 
   # ---- Downsample UMAP -----------------------------------------------------
   message("Downsampling UMAP to ", n_keep, " cells")
-  keep_cells <- .subsample_umap(all_meta[, .(cell_id, UMAP_1 = umap_1, UMAP_2 = umap_2)],
-                                to_keep = n_keep)
+  keep_cells <- .subsample_umap(
+    all_meta[, .(cell_id, UMAP_1 = umap_1, UMAP_2 = umap_2, cluster)],
+    to_keep = n_keep,
+    stratify_by = "cluster"
+  )
   all_meta[, keep_cell := cell_id %in% keep_cells]
 
-  # Convert cluster to factor (sorted)
-  all_meta$cluster <- factor(all_meta$cluster, levels = sort(unique(all_meta$cluster)))
+  # Remove stale shiny data files from prior builds (e.g. .txt.gz from older
+  # versions) only after inputs, including annotations, have been validated.
+  stale <- list.files(data_dir, pattern = paste0(app_tag, "-shiny_"),
+                      full.names = TRUE)
+  if (length(stale) > 0L) {
+    unlink(stale, recursive = TRUE)
+    message("Removed ", length(stale), " stale data files from prior build")
+  }
+  annotation_dest <- file.path(data_dir, "annotation.csv")
+  if (is.null(annot) && file.exists(annotation_dest))
+    unlink(annotation_dest)
 
   # ---- Read h5ad files and combine into a single BPCells matrix -----------
   message("Reading h5ad files")
@@ -306,22 +381,8 @@ make_shiny_app_scprocess <- function(
   fwrite(repel_pos_dt, out_fs["out_repel_pos_f"])
 
   # ---- Copy annotation.csv if supplied ------------------------------------
-  if (nchar(annotation_csv_f) > 0 && file.exists(annotation_csv_f)) {
-    annot <- fread(annotation_csv_f)
-    assert_that(all(c("cluster", "cluster_name") %in% colnames(annot)),
-      msg = "annotation_csv must contain columns 'cluster' and 'cluster_name'")
-    annot[, cluster := as.character(cluster)]
-    data_clusters  <- as.character(unique(all_meta$cluster))
-    annot_clusters <- as.character(annot$cluster)
-    missing_in_annot <- setdiff(data_clusters, annot_clusters)
-    missing_in_data  <- setdiff(annot_clusters, data_clusters)
-    if (length(missing_in_annot) > 0)
-      message(" WARNING: clusters in data not in annotation_csv: ",
-              paste(missing_in_annot, collapse = ", "))
-    if (length(missing_in_data) > 0)
-      message(" WARNING: clusters in annotation_csv not in data: ",
-              paste(missing_in_data, collapse = ", "))
-    fwrite(annot, file.path(data_dir, "annotation.csv"))
+  if (!is.null(annot)) {
+    fwrite(annot, annotation_dest)
     message(" copied annotation.csv")
   }
 
@@ -554,7 +615,7 @@ make_shiny_app_scprocess <- function(
 }
 
 
-.subsample_umap <- function(umap_dt, to_keep = 5e4) {
+.subsample_umap <- function(umap_dt, to_keep = 5e4, stratify_by = NULL) {
   umap_dt <- umap_dt[, density := .get_density(UMAP_1, UMAP_2, n = 500)] %>%
     .[, inv_dens := 1 / density] %>%
     .[, p_keep   := inv_dens / sum(inv_dens)]
@@ -562,6 +623,27 @@ make_shiny_app_scprocess <- function(
   set.seed(20230308)
   if (to_keep >= nrow(umap_dt)) {
     keep_cells <- umap_dt$cell_id
+  } else if (!is.null(stratify_by)) {
+    assert_that(stratify_by %in% colnames(umap_dt),
+      msg = paste("stratify_by column not found:", stratify_by))
+    group_idx <- split(seq_len(nrow(umap_dt)), umap_dt[[stratify_by]])
+    assert_that(to_keep >= length(group_idx),
+      msg = paste0("Cannot retain every ", stratify_by, " group when to_keep (",
+                   to_keep, ") is smaller than the number of groups (",
+                   length(group_idx), ")"))
+
+    mandatory_idx <- vapply(group_idx, function(idx) {
+      idx[sample.int(length(idx), size = 1L, prob = umap_dt$p_keep[idx])]
+    }, integer(1))
+    remaining_idx <- setdiff(seq_len(nrow(umap_dt)), mandatory_idx)
+    n_remaining   <- to_keep - length(mandatory_idx)
+    sampled_idx   <- if (n_remaining > 0L) {
+      sample(remaining_idx, size = n_remaining,
+             prob = umap_dt$p_keep[remaining_idx], replace = FALSE)
+    } else {
+      integer(0)
+    }
+    keep_cells <- umap_dt$cell_id[c(mandatory_idx, sampled_idx)]
   } else {
     keep_cells <- sample(umap_dt$cell_id, prob = umap_dt$p_keep, size = to_keep, replace = FALSE)
   }

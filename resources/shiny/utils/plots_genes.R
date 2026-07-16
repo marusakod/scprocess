@@ -88,9 +88,14 @@ plot_gene_dotplot <- function(dotplot_dt, subset, x_axis, fill, fill_name, fill_
     anno_dt  = anno_dt[ cluster %in% levels(dotplot_dt$cluster) ]
     range_y  = range(log(dotplot_dt$gene_exp + 10), na.rm = TRUE)
     buff     = (range_y[2] - range_y[1]) * 0.05
-    anno_ypos           = tapply(log(dotplot_dt$gene_exp + 10), dotplot_dt$cluster, max) + buff
-    assert_that( all(names(anno_ypos) == anno_dt$cluster) )
-    anno_dt$ypos        = anno_ypos
+    anno_ypos_dt = dotplot_dt[
+      , .(ypos = max(log(gene_exp + 10), na.rm = TRUE) + buff),
+      by = cluster
+    ]
+    # Some rare clusters have pseudobulk expression but no marker-gene result.
+    # Match by cluster name so those clusters receive no FDR label rather than
+    # shifting the labels for all subsequent clusters.
+    anno_dt = merge(anno_dt, anno_ypos_dt, by = "cluster", all = FALSE, sort = FALSE)
 
     p = p + geom_text(
       data        = anno_dt,

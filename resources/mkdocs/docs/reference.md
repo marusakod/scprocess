@@ -657,7 +657,7 @@ The VST uses standard DESeq2 size factors when possible and falls back to the
 * `var_names`: _(deprecated, use `metadata_labels` instead)_ display names for `metadata_vars` columns (same order). Defaults to `metadata_vars` values.
 * `metadata_combns`: list of metadata variable pairs to display as combined groupings. Each element should be a two-element list of variable names from `metadata_vars` (use column names, not display labels).
 * `home_md`: path to a Markdown file used as the landing page content. Shoule be absolute or relative to `proj_dir`.
-* `annotation_csv`: path to a CSV file with columns `cluster`, `cluster_name`, and optionally `colour`, defining display names, order, and colours for clusters. Absolute or relative to `proj_dir`.
+* `annotation_csv`: path to a CSV file with columns `cluster`, `cluster_name`, and optionally `colour`, defining display names, order, and colours for clusters. Absolute or relative to `proj_dir`. At app build time, its cluster values must exactly match the full set of clusters in the current integration, including rare clusters without marker-gene results. Missing or extra clusters, duplicated cluster IDs or display names, and missing or blank cluster IDs or names cause the build to stop with an error; this prevents annotations from a different clustering resolution or analysis run being applied silently. UMAP subsampling retains at least one cell from every cluster.
 * `cluster_palette`: name of colour palette applied to clusters when `annotation_csv` is not provided. Accepts any name from the Supported colour palletes list.
 * `metadata_palettes`: per-variable colour palette configuration. Each key is a metadata variable name; the value can be:
     - a palette name (string)
