@@ -565,7 +565,7 @@ sample_id:
 * `int_sce_outs`: if `true` H5AD outputs will be converted to `SingleCellExperiment` objects and stored ad RDS files.
 * `int_res_ls`: list of resolution values to be used for clustering.
 * `int_use_paga`: if `true`, enable Partition-based graph abstraction (PAGA) for trajectory analysis and cell hierarchy inference. A clustering at the specified resolution will be computed for PAGA.
-* `int_paga_cl_res`: clustering resolution for PAGA analysis. Must be a value listed in `int_res_ls`. Default is 2. Only used when `int_use_paga` is `true`.
+* `int_paga_cl_res`: clustering resolution for PAGA analysis. Must be a value listed in `int_res_ls`. Default is 2 for project, zoom, and join analyses. Only used when `int_use_paga` is `true`. This is independent of `mkr_sel_res`, which defaults to 0.2.
 
 ##### marker_genes
 
@@ -582,7 +582,6 @@ sample_id:
 * `mkr_custom_genesets`: a list of custom marker gene sets, each defined by a unique name and associated file path.
     + `name`: a string representing the name of the marker gene set
     + `file`: path to CSV file containing a list of genes in the marker gene set. Must contain column `label` (marker gene category), and `symbol` and/or `ensembl_id`. If not speficied `scprocess` will look for file `$SCPROCESS_DATA_DIR/marker_genes/{name}.csv`
-
 
 ##### label_celltypes
 
