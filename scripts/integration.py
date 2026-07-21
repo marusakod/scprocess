@@ -340,9 +340,11 @@ def _get_clusts_from_adata(adata, embedding, batch_var):
   # get clustering and id vars and subset
   cl_vs     = [col for col in clusts_df.columns if re.match(r'RNA_snn_res.*', col)]
   bv_list   = batch_var if isinstance(batch_var, list) else [batch_var]
-  sample_vs = list(set([*bv_list, "sample_id"]))
+  sample_vs = list(dict.fromkeys([*bv_list, "sample_id"]))
   id_cols   = [c for c in ['project_id'] if c in clusts_df.columns]
-  all_cols  = cl_vs + ['embedding', 'cell_id', *sample_vs, *id_cols]
+  all_cols  = list(dict.fromkeys(
+    cl_vs + ['embedding', 'cell_id', *sample_vs, *id_cols]
+  ))
   clusts_df = clusts_df.select(all_cols)
 
   # get nice labels for clusters
