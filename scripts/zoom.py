@@ -88,13 +88,15 @@ def extract_zoom_sample_statistics(qc_stats_f, labels_f, labels_col, sel_labels,
 
 
 def filter_zoom_labels_by_qc(labels_f, qc_all_f, output_f, labels_col, sel_labels,
-    qc_min_counts=None, qc_min_feats=None, qc_min_mito=None, qc_max_mito=None,
+    qc_min_counts=None, qc_max_counts=None, qc_min_feats=None, qc_max_feats=None,
+    qc_min_mito=None, qc_max_mito=None,
     qc_min_splice=None, qc_max_splice=None):
   import math
   import gzip
 
   thresholds = {
-    'qc_min_counts': qc_min_counts, 'qc_min_feats': qc_min_feats,
+    'qc_min_counts': qc_min_counts, 'qc_max_counts': qc_max_counts,
+    'qc_min_feats': qc_min_feats, 'qc_max_feats': qc_max_feats,
     'qc_min_mito': qc_min_mito, 'qc_max_mito': qc_max_mito,
     'qc_min_splice': qc_min_splice, 'qc_max_splice': qc_max_splice
   }
@@ -118,8 +120,12 @@ def filter_zoom_labels_by_qc(labels_f, qc_all_f, output_f, labels_col, sel_label
   # apply thresholds using pre-computed transformed columns (same as main QC)
   if qc_min_counts is not None:
     qc_df = qc_df.filter(pl.col('log_counts') >= math.log10(qc_min_counts))
+  if qc_max_counts is not None:
+    qc_df = qc_df.filter(pl.col('log_counts') <= math.log10(qc_max_counts))
   if qc_min_feats is not None:
     qc_df = qc_df.filter(pl.col('log_feats') >= math.log10(qc_min_feats))
+  if qc_max_feats is not None:
+    qc_df = qc_df.filter(pl.col('log_feats') <= math.log10(qc_max_feats))
   if qc_max_mito is not None and qc_max_mito < 1:
     qc_df = qc_df.filter(pl.col('logit_mito') < math.log(qc_max_mito / (1 - qc_max_mito)))
   if qc_min_mito is not None and qc_min_mito > 0:

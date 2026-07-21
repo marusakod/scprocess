@@ -771,6 +771,19 @@ def _check_ambient_parameters(config):
 
 
 # check parameters for qc
+def _validate_qc_bounds(qc, context="qc"):
+  for min_key, max_key in (
+      ('qc_min_counts', 'qc_max_counts'),
+      ('qc_min_feats', 'qc_max_feats')):
+    min_val = qc.get(min_key)
+    max_val = qc.get(max_key)
+    if min_val is not None and max_val is not None and max_val < min_val:
+      raise ValueError(
+        f"{context}: {max_key} ({max_val}) must be greater than or equal to "
+        f"{min_key} ({min_val})"
+      )
+
+
 def _check_qc_parameters(config):
   # define some hard values; maybe move these to schema?
   QC_HARD_MIN_COUNTS  = 200
@@ -779,6 +792,7 @@ def _check_qc_parameters(config):
 
   # some checks
   config['qc']['exclude_mito']        = _safe_boolean(config['qc']['exclude_mito'])
+  _validate_qc_bounds(config['qc'])
 
   # make sure they're consistent
   config['qc']['qc_hard_min_counts']  = min(QC_HARD_MIN_COUNTS, config['qc']['qc_min_counts'])
@@ -1139,6 +1153,7 @@ def get_zoom_parameters(config, zoom_schema_f, scdata_dir):
 def _warn_zoom_qc_thresholds(zoom_qc, main_qc, zoom_name):
   checks = [
     ('qc_min_counts', 'higher'), ('qc_min_feats', 'higher'),
+    ('qc_max_counts', 'lower'), ('qc_max_feats', 'lower'),
     ('qc_max_mito', 'lower'), ('qc_min_mito', 'higher'),
     ('qc_max_splice', 'lower'), ('qc_min_splice', 'higher'),
   ]
@@ -1230,6 +1245,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
     f"output/{SHORT_TAG}_zoom/{zoom_name}/filtered_labels_{FULL_TAG}_{zoom_name}_{DATE_STAMP}.csv.gz"
 
   # warn if any zoom QC thresholds are less strict than main config (they'd be no-ops)
+  _validate_qc_bounds(zoom_config.get('qc', {}), f"zoom '{zoom_name}' qc")
   _warn_zoom_qc_thresholds(zoom_config.get('qc', {}), config.get('qc', {}), zoom_name)
 
   return zoom_config
@@ -1794,7 +1810,9 @@ def _get_batch_parameters_one_batch(batch_name, config, custom_batch_params):
   qc_dc   = {
     # set defaults
     "qc_min_counts":  config['qc']['qc_min_counts'],
+    "qc_max_counts":  config['qc']['qc_max_counts'],
     "qc_min_feats":   config['qc']['qc_min_feats'],
+    "qc_max_feats":   config['qc']['qc_max_feats'],
     "qc_min_mito":    config['qc']['qc_min_mito'],
     "qc_max_mito":    config['qc']['qc_max_mito'],
     "qc_min_splice":  config['qc']['qc_min_splice'],
@@ -1807,6 +1825,8 @@ def _get_batch_parameters_one_batch(batch_name, config, custom_batch_params):
       for v in qc_dc:
         if v in custom_batch_params[batch_name]['qc']:
           qc_dc[v]    = custom_batch_params[batch_name]['qc'][v]
+
+  _validate_qc_bounds(qc_dc, f"qc for {batch_name}")
 
   # make dict of dicts
   out_dc  = {

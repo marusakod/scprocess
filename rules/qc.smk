@@ -86,7 +86,9 @@ rule make_qc_thresholds_csv:
     cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv'
   params:
     qc_min_counts = config['qc']['qc_min_counts'],
+    qc_max_counts = config['qc']['qc_max_counts'],
     qc_min_feats  = config['qc']['qc_min_feats'],
+    qc_max_feats  = config['qc']['qc_max_feats'],
     qc_min_mito   = config['qc']['qc_min_mito'],
     qc_max_mito   = config['qc']['qc_max_mito'],
     qc_min_splice = config['qc']['qc_min_splice'],
@@ -103,7 +105,7 @@ rule make_qc_thresholds_csv:
       rows = []
       sys.stdout = f
       sys.stderr = f
-    
+
       # make polars dataframe from dictionary of parameters
       rows_data   = []
       for batch, param_ls in BATCH_PARAMS.items():
@@ -339,4 +341,3 @@ rule check_qc_quality:
       if num_ok < 2:
         # This will crash the job and prevent downstream rules from starting
         raise Exception(f"CRITICAL: Only {num_ok} samples passed QC. Stopping.")
-    

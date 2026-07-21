@@ -285,7 +285,9 @@ rule qc:
     hard_min_feats  = config['qc']['qc_hard_min_feats'],
     hard_max_mito   = config['qc']['qc_hard_max_mito'],
     min_counts      = config['qc']['qc_min_counts'],
+    max_counts      = config['qc']['qc_max_counts'],
     min_feats       = config['qc']['qc_min_feats'],
+    max_feats       = config['qc']['qc_max_feats'],
     min_mito        = config['qc']['qc_min_mito'],
     max_mito        = config['qc']['qc_max_mito'],
     min_splice      = config['qc']['qc_min_splice'],
@@ -384,4 +386,3 @@ include: "marker_genes.smk"
 include: "render_htmls.smk"
 include: "label_celltypes.smk"
 include: "train_xgboost.smk"
-

@@ -207,7 +207,9 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       cb_low_count_threshold:
     qc:
       qc_min_counts: 500
+      qc_max_counts:
       qc_min_feats: 300
+      qc_max_feats:
       qc_min_mito: 0
       qc_max_mito: 0.1
       qc_min_splice: 0
@@ -333,7 +335,9 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       cb_posterior_batch_size: 128
     qc:
       qc_min_counts: 500
+      qc_max_counts:
       qc_min_feats: 300
+      qc_max_feats:
       qc_min_mito: 0
       qc_max_mito: 0.1
       qc_min_splice: 0
@@ -526,7 +530,9 @@ sample_id:
 ##### qc
 
 * `qc_min_counts`: minimum number of UMIs per cell required to retain the cell.
+* `qc_max_counts`: optional maximum number of UMIs allowed per cell; `null` disables the upper limit.
 * `qc_min_feats`: minimum number of detected features per cell required to retain the cell.
+* `qc_max_feats`: optional maximum number of detected features allowed per cell; `null` disables the upper limit.
 * `qc_min_mito`: minimum proportion of mitochondrial reads required to retain the cell.
 * `qc_max_mito`: maximum proportion of mitochondrial reads allowed to retain the cell.
 * `qc_min_splice`: minimum proportion of spliced reads required to retain the cell.
@@ -534,6 +540,8 @@ sample_id:
 * `qc_min_cells`: minimum number of cells required in a sample after QC filtering to retain the sample.
 * `dbl_min_feats`: number of features required for each barcode to be included in `scDblFinder` calculations.
 * `exclude_mito`: boolean; whether to exclude mitochondrial genes or not.
+
+Configured maxima must be greater than or equal to their corresponding minima. Count and feature maxima are inclusive and are applied during final QC filtering, after `scDblFinder` has run.
 
 ##### pb_empties
 
@@ -684,7 +692,7 @@ run `scprocess join CONFIG -r shiny` to rebuild the app.
 
 ##### zoom
 
-In this section, users can provide multiple YAML files, each specifying parameters for repeating certain steps of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `qc_min_counts`, `qc_min_feats`, `qc_min_mito`, `qc_max_mito`, `qc_min_splice`, `qc_max_splice`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets`, all [shiny app parameters](#shiny) (`app_title` defaults to `name`), and all [XGBoost training parameters](#train_xgboost).
+In this section, users can provide multiple YAML files, each specifying parameters for repeating certain steps of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `qc_min_counts`, `qc_max_counts`, `qc_min_feats`, `qc_max_feats`, `qc_min_mito`, `qc_max_mito`, `qc_min_splice`, `qc_max_splice`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets`, all [shiny app parameters](#shiny) (`app_title` defaults to `name`), and all [XGBoost training parameters](#train_xgboost).
 
 Additional parameters include:
 
@@ -708,7 +716,9 @@ Zoom configs also support optional cell-level QC thresholds to apply stricter fi
 The zoom report always shows QC distributions. Without zoom-specific thresholds it contains one distributions view; when thresholds are configured it also shows the before/after filtering views.
 
 * `qc_min_counts`: minimum UMI counts per cell. Only effective if stricter than the main pipeline threshold. Default: not set.
+* `qc_max_counts`: maximum UMI counts per cell. Default: not set.
 * `qc_min_feats`: minimum detected genes per cell. Default: not set.
+* `qc_max_feats`: maximum detected genes per cell. Default: not set.
 * `qc_max_mito`: maximum mitochondrial proportion (0-1). Default: not set.
 * `qc_min_mito`: minimum mitochondrial proportion (0-1). Default: not set.
 * `qc_max_splice`: maximum spliced proportion (0-1). Default: not set.

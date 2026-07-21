@@ -502,7 +502,9 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   keep_dt     = qc_dt %>%
     merge(cuts_dt, by = batch_var) %>% 
     .[ log_counts     >= log10(min_counts)] %>%
+    .[ is.na(max_counts) | log_counts <= log10(max_counts)] %>%
     .[ log_feats      >= log10(min_feats)] %>%
+    .[ is.na(max_feats) | log_feats <= log10(max_feats)] %>%
     .[ logit_mito     > qlogis(min_mito)] %>%
     .[ logit_mito     < qlogis(max_mito)] %>%
     .[ logit_spliced  > qlogis(min_splice)] %>%
@@ -574,7 +576,9 @@ make_cuts_dt <- function(cuts_f, batch_var, b_lvls) {
     .[, .(
       batch_var         = get(batch_var), 
       log_counts_min    = log10(min_counts), 
+      log_counts_max    = log10(max_counts),
       log_feats_min     = log10(min_feats), 
+      log_feats_max     = log10(max_feats),
       logit_mito_min    = qlogis(min_mito), 
       logit_mito_max    = qlogis(max_mito), 
       logit_spliced_min = qlogis(min_splice), 

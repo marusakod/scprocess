@@ -54,7 +54,9 @@
       "properties": {
         "qc_min_cells":  { "type": "integer", "exclusiveMinimum": 0, "default": 10 },
         "qc_min_counts": { "type": ["integer", "null"], "exclusiveMinimum": 0, "default": null },
+        "qc_max_counts": { "type": ["integer", "null"], "exclusiveMinimum": 0, "default": null },
         "qc_min_feats":  { "type": ["integer", "null"], "exclusiveMinimum": 0, "default": null },
+        "qc_max_feats":  { "type": ["integer", "null"], "exclusiveMinimum": 0, "default": null },
         "qc_min_mito":   { "type": ["number", "null"],  "minimum": 0, "maximum": 1, "default": null },
         "qc_max_mito":   { "type": ["number", "null"],  "minimum": 0, "maximum": 1, "default": null },
         "qc_min_splice": { "type": ["number", "null"],  "minimum": 0, "maximum": 1, "default": null },
