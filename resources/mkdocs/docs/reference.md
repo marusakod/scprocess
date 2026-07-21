@@ -563,7 +563,7 @@ Configured maxima must be greater than or equal to their corresponding minima. C
 
 ##### integration
 
-* `int_use_gpu`: whether to use GPU acceleration (`RAPIDS-singlecell`) for integration and clustering steps. Options are `true` (default) or `false`. If GPU is not available, `Scanpy` will be used.
+* `int_use_gpu`: whether to use GPU acceleration (`RAPIDS-singlecell`) for integration and clustering steps. Options are `true` (default) or `false`. If GPU is not available, `Scanpy` will be used. For join integration with multiple `int_batch_var` values, setting this to `true` uses CPU Harmony and GPU-accelerated neighbors, Leiden, and UMAP; a warning reports this hybrid execution mode.
 * `int_embedding`: which dimensionality reduction method to use for clustering and UMAP, options: `pca` (no batch correction), `harmony` (batch correction). 
 * `int_theta`: theta parameter for `Harmony` integration, controlling batch variable mixing.
 * `int_batch_var`: variable to use for integration with `Harmony`. Default is `sample_id`; if `demux_type` is set to either `hto` or `custom`, then `pool_id` is an alternative option.

@@ -4,6 +4,7 @@ import argparse
 import re
 import gzip
 import gc
+import warnings
 import scipy.sparse as sp
 from scipy.sparse import csc_matrix, csr_matrix, hstack
 import anndata as ad
@@ -250,6 +251,30 @@ def _normalize_hvg_mat(hvg_mat, cells_df, exclude_mito, scale_f = 10000):
   return hvg_mat
 
 
+def _use_cpu_harmony(use_gpu, batch_var):
+  """Return whether multi-covariate Harmony should use the CPU backend."""
+  return use_gpu and isinstance(batch_var, list) and len(batch_var) > 1
+
+
+def _run_harmony(adata, batch_var, theta, use_gpu):
+  """Run Harmony on the selected backend, leaving its embedding in host memory."""
+  if _use_cpu_harmony(use_gpu, batch_var):
+    warnings.warn(
+      "Multiple Harmony batch variables requested with GPU acceleration. "
+      "Harmony will run on CPU; neighbors, Leiden, and UMAP will use GPU.",
+      UserWarning,
+      stacklevel=2,
+    )
+    pca = adata.obsm['X_pca']
+    adata.obsm['X_pca'] = pca.get() if hasattr(pca, 'get') else np.asarray(pca)
+    sce.pp.harmony_integrate(adata, key=batch_var, theta=theta)
+  elif use_gpu:
+    sc.pp.harmony_integrate(adata, key=batch_var, max_iter_harmony=5,
+      dtype=cp.float32, theta=theta)
+  else:
+    sce.pp.harmony_integrate(adata, key=batch_var, theta=theta)
+
+
 def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding,
   use_gpu, theta, use_paga=False, paga_cl=None, skip_pca=False):
   # batch_var and theta may each be a list (join workflow) or single value
@@ -278,11 +303,7 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding,
   sel_embed = 'X_pca'
   if this_embedding == 'harmony':
     print(' integrating with Harmony')
-    if use_gpu:
-      sc.pp.harmony_integrate(adata, key = batch_var, max_iter_harmony = 5, 
-        dtype=cp.float32, theta = theta)
-    else:
-      sce.pp.harmony_integrate(adata, key = batch_var, theta = theta)
+    _run_harmony(adata, batch_var, theta, use_gpu)
     
     # harmony embedding instead of pca has to be used for umap and clustering
     sel_embed = 'X_pca_harmony'
@@ -524,6 +545,7 @@ if __name__ == "__main__":
   if use_gpu:
     print(f"Running on GPU")
     import rapids_singlecell as sc
+    import scanpy.external as sce
     import rmm
     from rmm.allocators.cupy import rmm_cupy_allocator
 

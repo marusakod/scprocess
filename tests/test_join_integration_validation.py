@@ -27,6 +27,16 @@ class TestJoinIntegrationValidation(unittest.TestCase):
           'int_theta': theta,
         }})
 
+  def test_gpu_multiple_batch_variables_warn_about_hybrid_execution(self):
+    config = {'integration': {
+      'int_batch_var': ['project_id', 'sample_id'],
+      'int_theta': [1.0, 0.1],
+      'int_embedding': 'harmony',
+      'int_use_gpu': True,
+    }}
+    with self.assertWarnsRegex(UserWarning, 'Harmony will run on CPU'):
+      _check_join_integration_parameters(config)
+
 
 if __name__ == '__main__':
   unittest.main()

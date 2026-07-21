@@ -2548,6 +2548,15 @@ def _check_join_integration_parameters(config):
       raise ValueError(
         "integration.int_batch_var and integration.int_theta must have matching "
         f"lengths when both are arrays (got {len(batch_vars)} and {len(theta)})")
+  if (integration.get('int_use_gpu', False)
+      and integration.get('int_embedding', 'harmony') == 'harmony'
+      and isinstance(batch_vars, list) and len(batch_vars) > 1):
+    warnings.warn(
+      "Multiple Harmony batch variables requested with int_use_gpu=true. "
+      "Harmony will run on CPU; neighbors, Leiden, and UMAP will use GPU.",
+      UserWarning,
+      stacklevel=2,
+    )
 
 
 def check_join_config(config, join_schema_f, scdata_dir):
