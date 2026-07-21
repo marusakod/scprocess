@@ -6,8 +6,10 @@ import subprocess
 import numpy as np
 import sys
 import warnings
+import pathlib
 
-sys.path.append('./scripts')
+scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
+sys.path.append(str(scprocess_dir / 'scripts'))
 from setup import get_txome_index_parameters, get_probe_set_parameters, get_xgboost_parameters
 
 # get parameters
@@ -163,7 +165,7 @@ rule download_scprocess_files:
   shell: """
     exec &>> {log}
 
-    python3 scripts/setup.py get_scprocess_data \
+    python3 {scprocess_dir}/scripts/setup.py get_scprocess_data \
       "{SCDATA_DIR}" \
       "{RANGER_URL}" \
       "{output.all_wl}" \
@@ -210,7 +212,7 @@ rule set_up_one_txome_index:
   shell: """
     exec &>> {log}
 
-    python3 scripts/setup.py set_up_txome_index {SCDATA_DIR} {wildcards.ref_txome} \
+    python3 {scprocess_dir}/scripts/setup.py set_up_txome_index {SCDATA_DIR} {wildcards.ref_txome} \
       {params.fasta} {params.gtf} {params.index_dir} {params.mito_str} \
       {params.is_prebuilt} {params.is_tenx} {params.has_decoys} {params.has_rrna} {threads}
     """
@@ -230,7 +232,7 @@ rule set_up_one_probe_set_index:
   shell: """
     exec &>> {log}
 
-    python3 scripts/setup.py set_up_probe_set_index {SCDATA_DIR} {wildcards.probe_set} {threads}
+    python3 {scprocess_dir}/scripts/setup.py set_up_probe_set_index {SCDATA_DIR} {wildcards.probe_set} {threads}
     """
 
 
@@ -250,7 +252,7 @@ rule save_index_parameters_csv:
   shell: """
     exec &>> {log}
 
-    python3 scripts/setup.py save_index_params_csv {output.csv} {input.yamls}
+    python3 {scprocess_dir}/scripts/setup.py save_index_params_csv {output.csv} {input.yamls}
     """
 
 
@@ -266,7 +268,7 @@ rule download_celltypist_models:
     exec &>> {log}
 
     # download celltypist models
-    python3 scripts/label_celltypes.py download_models {output.models_f}
+    python3 {scprocess_dir}/scripts/label_celltypes.py download_models {output.models_f}
     """
 
 
@@ -285,7 +287,7 @@ rule add_xgboost:
   shell: """
     exec &>> {log}
 
-    python3 scripts/setup.py add_xgboost_classifier {SCDATA_DIR} {wildcards.xgb_name} {params.ref_tag} {params.src_dir} {params.is_prebuilt}
+    python3 {scprocess_dir}/scripts/setup.py add_xgboost_classifier {SCDATA_DIR} {wildcards.xgb_name} {params.ref_tag} {params.src_dir} {params.is_prebuilt}
     """
 
 
@@ -302,5 +304,5 @@ rule save_available_xgboost_csv:
   shell: """
     exec &>> {log}
 
-    python3 scripts/setup.py save_available_xgboost_csv {output.csv_f} {SCDATA_DIR} {params.xgb_names}
+    python3 {scprocess_dir}/scripts/setup.py save_available_xgboost_csv {output.csv_f} {SCDATA_DIR} {params.xgb_names}
     """

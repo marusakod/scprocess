@@ -8,11 +8,12 @@ import warnings
 import yaml
 import json
 import pathlib
-sys.path.append('scripts')
+
+scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
+sys.path.append(str(scprocess_dir / 'scripts'))
 from scprocess_utils import *
 
 # define some things
-scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 schema_f      = scprocess_dir / "resources/schemas/config.schema.json"
 # check config

@@ -36,7 +36,7 @@ rule run_celltypist:
   shell:"""
     exec &>> {log}
 
-    python3 scripts/label_celltypes.py celltypist_one_batch \
+    python3 {scprocess_dir}/scripts/label_celltypes.py celltypist_one_batch \
       {wildcards.batch} {params.batch_var} {wildcards.model} \
       --adata_f   {input.adata_f} \
       --pred_f    {output.pred_f}
@@ -68,7 +68,7 @@ rule run_scprocess_labeller:
   shell: """
     exec &>> {log}
 
-    python3 scripts/label_celltypes.py xgboost_one_batch \
+    python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_one_batch \
       {wildcards.batch} {params.batch_var} {wildcards.model} \
       --adata_f   {input.adata_f} \
       --model_f   {params.model_f} \
@@ -115,7 +115,7 @@ rule merge_labels:
   shell:"""
     exec &>> {log}
 
-    python3 scripts/label_celltypes.py aggregate_predictions \
+    python3 {scprocess_dir}/scripts/label_celltypes.py aggregate_predictions \
       {params.pred_fs_ls} \
       --int_f           {input.integration_f} \
       --hi_res_cl       {params.hi_res_cl} \
@@ -145,7 +145,7 @@ if _names_entries:
       '../envs/scprocess_local.yaml'
     shell: """
       exec &>> {log}
-      python3 scripts/label_celltypes.py save_cluster_names \
+      python3 {scprocess_dir}/scripts/label_celltypes.py save_cluster_names \
         --labels_f      {input.labels_f} \
         --integration_f {input.integration_f} \
         --mkr_sel_res   {params.mkr_sel_res} \

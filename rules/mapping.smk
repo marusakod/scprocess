@@ -57,7 +57,7 @@ if IS_FLEX:
         GEOM_ARG="--geometry '{params.geometry}'"
       fi
 
-      python3 scripts/mapping.py map_flex_fastqs_to_counts {wildcards.lib} \
+      python3 {scprocess_dir}/scripts/mapping.py map_flex_fastqs_to_counts {wildcards.lib} \
         --af_dir          "{af_dir}" \
         --lib_pool_dir    "{params.lib_pool_dir}" \
         --af_home_dir     "{params.af_home_dir}" \
@@ -124,7 +124,7 @@ else:
       fi
 
       # run mapping
-      python3 scripts/mapping.py map_fastqs_to_counts {wildcards.lib} \
+      python3 {scprocess_dir}/scripts/mapping.py map_fastqs_to_counts {wildcards.lib} \
         --af_dir          "{af_dir}" \
         --demux_type      "{params.demux_type}" \
         --lib_pool_dir    "{params.lib_pool_dir}" \
@@ -175,7 +175,7 @@ rule save_alevin_to_h5:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('scripts/mapping.R');
+    Rscript -e "source('{scprocess_dir}/scripts/mapping.R');
       save_alevin_h5_ambient_params(
         run           = '{wildcards.run}',
         fry_dir       = '{input.fry_dir}',

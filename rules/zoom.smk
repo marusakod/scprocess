@@ -10,13 +10,13 @@ import warnings
 from snakemake.utils import validate, min_version
 
 # import utils
-sys.path.append('scripts')
+scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
+sys.path.append(str(scprocess_dir / 'scripts'))
 from scprocess_utils import *
 from zoom import *
 
 
 # define some things
-scprocess_dir   = pathlib.Path(config.pop('scprocess_dir'))
 proj_schema_f   = scprocess_dir / "resources/schemas/config.schema.json"
 zoom_schema_f   = scprocess_dir / "resources/schemas/zoom.schema.json"
 scdata_dir      = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
@@ -297,7 +297,7 @@ rule zoom_make_one_pb_cells:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
     make_pb_cells(
       sel_run     = '{wildcards.run}',
       batch_lu_f  = '{input.batch_lu_f}',
@@ -375,7 +375,7 @@ rule zoom_merge_pb_cells:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
     merge_pbs_cells( \
       cells_paths_f = '{input.cells_paths_f}', 
       rowdata_f     = '{input.rowdata_f}',
@@ -410,7 +410,7 @@ rule zoom_calculate_ambient_genes:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('scripts/utils.R'); source('scripts/pseudobulk_and_empties.R'); \
+    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
     calc_empty_genes(
       pb_cells_f = '{input.zoom_pb_f}',
       pb_empty_f = '{input.pb_empty_f}',
@@ -481,7 +481,7 @@ rule zoom_make_tmp_csr_matrix:
   shell: """
     exec &>> {log}
 
-    python3 scripts/hvgs.py get_csr_counts \
+    python3 {scprocess_dir}/scripts/hvgs.py get_csr_counts \
       {input.hvg_paths_f} \
       {input.zoom_lbls_f} \
       "{params.zoom_lbls_col}" \
@@ -521,7 +521,7 @@ rule zoom_get_stats_for_std_variance_for_sample:
   shell: """
     exec &>> {log}
 
-    python3 scripts/hvgs.py calculate_std_var_stats_for_sample \
+    python3 {scprocess_dir}/scripts/hvgs.py calculate_std_var_stats_for_sample \
       {wildcards.batch} \
       {params.batch_var} \
       {input.smpl_stats_f} \
@@ -567,7 +567,7 @@ rule zoom_get_mean_var_for_group:
       GROUPVAR_FLAG="--groupvar {params.zoom_group_var}"
     fi
 
-    python3 scripts/hvgs.py calculate_mean_var_for_chunk \
+    python3 {scprocess_dir}/scripts/hvgs.py calculate_mean_var_for_chunk \
       {input.hvg_paths_f} \
       {input.rowdata_f} \
       {params.metadata_f} \
@@ -631,7 +631,7 @@ rule zoom_get_estimated_variances:
   shell: """
     exec &>> {log}
 
-    python3 scripts/hvgs.py calculate_estimated_vars \
+    python3 {scprocess_dir}/scripts/hvgs.py calculate_estimated_vars \
       {output.estim_vars_f} \
       {params.zoom_hvg_method} \
       {params.batch_var} \
@@ -672,7 +672,7 @@ rule zoom_get_stats_for_std_variance_for_group:
   shell: """
     exec &>> {log}
 
-    python3 scripts/hvgs.py calculate_std_var_stats_for_chunk \
+    python3 {scprocess_dir}/scripts/hvgs.py calculate_std_var_stats_for_chunk \
       {input.hvg_paths_f} \
       {input.rowdata_f} \
       {params.metadata_f} \
@@ -744,7 +744,7 @@ rule zoom_get_highly_variable_genes:
       EXC_GS_F_FLAG="--exc_gs_f {params.zoom_exc_gs_f}"
     fi
 
-    python3 scripts/hvgs.py calculate_hvgs \
+    python3 {scprocess_dir}/scripts/hvgs.py calculate_hvgs \
       {input.std_var_stats_f} \
       {output.hvg_f} \
       {params.zoom_hvg_method} \
@@ -786,7 +786,7 @@ rule zoom_create_hvg_matrix:
   shell: """
     exec &>> {log}
 
-    python3 scripts/hvgs.py create_hvg_matrix \
+    python3 {scprocess_dir}/scripts/hvgs.py create_hvg_matrix \
       {input.smpl_stats_f} \
       {input.hvg_paths_f} \
       {input.hvg_f} \
@@ -832,7 +832,7 @@ rule zoom_run_integration:
   shell: """
     exec &>> {log}
 
-    python3 scripts/integration.py run_zoom_integration \
+    python3 {scprocess_dir}/scripts/integration.py run_zoom_integration \
       --hvg_mat_f     {input.hvg_mat_f} \
       --sample_qc_f   {input.sample_qc_f} \
       --coldata_f     {input.coldata_f} \
@@ -882,7 +882,7 @@ rule zoom_run_marker_genes:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); calculate_marker_genes(
+    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/marker_genes.R'); calculate_marker_genes(
       integration_f = '{input.integration_f}', 
       h5ads_yaml_f  = '{input.h5ads_yaml_f}',
       pb_f          = '{output.pb_f}',
@@ -928,7 +928,7 @@ rule zoom_run_fgsea:
   shell:"""
     exec &>> {log}
 
-    Rscript -e "source('scripts/utils.R'); source('scripts/fgsea.R'); run_fgsea(
+    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/fgsea.R'); run_fgsea(
       mkrs_f        = '{input.mkrs_f}', 
       fgsea_go_bp_f = '{output.fgsea_go_bp_f}', 
       fgsea_go_cc_f = '{output.fgsea_go_cc_f}', 
@@ -971,7 +971,7 @@ rule zoom_make_subsets:
   shell:"""
     exec &>> {log}
 
-    Rscript -e "source('scripts/zoom.R');
+    Rscript -e "source('{scprocess_dir}/scripts/zoom.R');
     make_subset_objects(
       sel_b         = '{wildcards.batch}',
       batch_var     = '{params.batch_var}',
@@ -1041,7 +1041,7 @@ rule zoom_train_xgboost:
     '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
-    python3 scripts/train_xgboost.py train \
+    python3 {scprocess_dir}/scripts/train_xgboost.py train \
       --annots_f          {input.annots_f} \
       --cluster_csv       {input.cluster_csv} \
       --h5ads_yaml        {input.h5ads_yaml} \
@@ -1081,7 +1081,7 @@ rule render_html_zoom:
         FULL_TAG, DATE_STAMP, ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea'])),
     unpack(lambda wildcards: get_zoom_conditional_xgboost_files(
         ZOOM_PARAMS[wildcards.zoom_name], zoom_dir, wildcards.zoom_name, code_dir)),
-    rmd_template_f        = "resources/rmd_templates/zoom.Rmd.template",
+    rmd_template_f        = str(scprocess_dir / "resources/rmd_templates/zoom.Rmd.template"),
     r_utils_f             = f'{code_dir}/utils.R',
     r_hvgs_f              = f'{code_dir}/hvgs.R',
     r_int_f               = f'{code_dir}/integration.R',
@@ -1160,12 +1160,12 @@ rule render_html_zoom:
   shell: """
     exec &>> {log}
 
-    cp scripts/SampleQC.R $(dirname {input.r_utils_f})/qc.R
+    cp {scprocess_dir}/scripts/SampleQC.R $(dirname {input.r_utils_f})/qc.R
 
     template_f=$(realpath {input.rmd_template_f})
     rule="zoom"
 
-    Rscript --vanilla -e "source('scripts/render_htmls.R'); \
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \
     render_html(
       rule_name         = '$rule',
       proj_dir          = '{PROJ_DIR}',

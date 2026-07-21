@@ -5,11 +5,11 @@ import json
 import pathlib
 import yaml
 
-sys.path.append('scripts')
+scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
+sys.path.append(str(scprocess_dir / 'scripts'))
 from scprocess_utils import *
 
 # define some things
-scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 schema_f      = scprocess_dir / "resources/schemas/config.schema.json"
 zoom_schema_f = scprocess_dir / "resources/schemas/zoom.schema.json"
@@ -200,7 +200,7 @@ rule build_shiny_app:
     mkdir -p $(dirname {log})
 
     Rscript --vanilla -e "
-      source('scripts/shiny.R')
+      source('{scprocess_dir}/scripts/shiny.R')
       make_shiny_app_scprocess(
         integration_f = '{input.integration_f}',
         h5ads_yaml_f  = '{input.h5ads_yaml_f}',
@@ -286,7 +286,7 @@ rule build_zoom_shiny_app:
     mkdir -p $(dirname {log})
 
     Rscript --vanilla -e "
-      source('scripts/shiny.R')
+      source('{scprocess_dir}/scripts/shiny.R')
       make_shiny_app_scprocess(
         integration_f = '{input.integration_f}',
         h5ads_yaml_f  = '{input.h5ads_yaml_f}',

@@ -83,9 +83,6 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
 
   if scprocess_utils.initialise_cluster_profile(scprocess_dir, scdata_dir, setup_cfg, dryrun):
     return
-   
-  # change scprocess directory
-  os.chdir(scprocess_dir)
 
   log_dir=scdata_dir / ".log/scprocess"
   log_f, log_header = _get_main_log(setup_f,log_dir, dryrun)
@@ -128,6 +125,7 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
     "--snakefile", str(snakefile),
     "--configfile", str(setup_f.resolve()),
     "--config",
+    f"scprocess_dir={str(scprocess_dir)}",
     f"cellranger_url={ranger_url}",
     f"cellranger_version={ranger_version}",
     "--rerun-triggers", "mtime", "params",
@@ -145,7 +143,8 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
   print("starting scprocess setup")
   print(f"\nsnakemake command:\n{cmd_str}")
   print(f"\nlogging progress to: {log_f}")
-  subprocess.run(final_cmd, check=True, shell = True, env = _clean_conda_env())
+  subprocess.run(final_cmd, check=True, shell = True, env = _clean_conda_env(),
+    cwd=scdata_dir)
 
 # scprocess newproj
 def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
@@ -463,8 +462,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 
   # housekeeping
   config_path   = pathlib.Path(configfile).resolve()
-  scprocess_dir = pathlib.Path(__file__).parent
-  os.chdir(scprocess_dir)
+  scprocess_dir = pathlib.Path(__file__).resolve().parent
 
   # do some checks
   scdata_dir, extraargs, setup_cfg = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
@@ -536,7 +534,8 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   print(f"\nsnakemake command:\n{cmd_str}")
   print(f"\nlogging progress to: {log_f}")
   conda_prefix = scprocess_utils.get_conda_prefix(setup_cfg)
-  result = subprocess.run(final_cmd, shell = True, env = _clean_conda_env(conda_prefix), executable='/bin/bash')
+  result = subprocess.run(final_cmd, shell = True, env = _clean_conda_env(conda_prefix),
+    executable='/bin/bash', cwd=proj_dir)
 
   if result.returncode != 0:
     sys.exit(result.returncode)
@@ -551,8 +550,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 def run_join(configfile, sc_dir, extraargs, dryrun, rule="all"):
   """Run the scprocess join workflow from a join.yaml config."""
   config_path   = pathlib.Path(configfile).resolve()
-  scprocess_dir = pathlib.Path(__file__).parent
-  os.chdir(scprocess_dir)
+  scprocess_dir = pathlib.Path(__file__).resolve().parent
 
   scdata_dir, extraargs, setup_cfg = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
 
@@ -606,7 +604,8 @@ def run_join(configfile, sc_dir, extraargs, dryrun, rule="all"):
   print(f"snakemake command:\n{cmd_str}")
   print(f"Logging progress to: {log_f}")
   conda_prefix = scprocess_utils.get_conda_prefix(setup_cfg)
-  result = subprocess.run(final_cmd, shell=True, env=_clean_conda_env(conda_prefix), executable='/bin/bash')
+  result = subprocess.run(final_cmd, shell=True, env=_clean_conda_env(conda_prefix),
+    executable='/bin/bash', cwd=join_dir)
   if result.returncode != 0:
     sys.exit(result.returncode)
 

@@ -12,7 +12,8 @@ import yaml
 import polars as pl
 import json
 
-sys.path.append('scripts')
+scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
+sys.path.append(str(scprocess_dir / 'scripts'))
 from scprocess_utils import (check_join_config, get_resources, prep_resource_params,
   get_join_project_parameters, get_join_source_labels_f, get_join_batch_sources)
 
@@ -22,7 +23,6 @@ wildcard_constraints:
   labeller = "celltypist|scprocess"
 
 # setup
-scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
 
@@ -210,7 +210,7 @@ rule join_select_hvgs:
   shell: """
     exec &>> {log}
     mkdir -p {join_int_dir}
-    python3 scripts/join.py select_joint_hvgs \
+    python3 {scprocess_dir}/scripts/join.py select_joint_hvgs \
       --var_stats_fs  {input.var_stats_fs} \
       --project_ids   {params.project_ids} \
       --n_hvgs        {params.n_hvgs} \
@@ -240,7 +240,7 @@ rule join_build_matrix:
     '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
-    python3 scripts/join.py build_joint_matrix \
+    python3 {scprocess_dir}/scripts/join.py build_joint_matrix \
       --joint_hvgs_f        {input.joint_hvgs_f} \
       --h5ads_yaml_fs       {input.h5ads_yaml_fs} \
       --project_ids         {params.project_ids} \
@@ -270,7 +270,7 @@ rule join_build_coldata:
     '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
-    python3 scripts/join.py build_joint_coldata \
+    python3 {scprocess_dir}/scripts/join.py build_joint_coldata \
       --h5_f                {input.joint_label_counts_f} \
       --project_ids         {params.project_ids} \
       --integrated_dt_fs    {input.integrated_fs} \
@@ -298,7 +298,7 @@ rule join_build_sample_metadata:
     '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
-    python3 scripts/join.py build_joint_sample_metadata \
+    python3 {scprocess_dir}/scripts/join.py build_joint_sample_metadata \
       --project_ids    {params.project_ids} \
       --sample_meta_fs {input.sample_meta_fs} \
       --out_f          {output.sample_meta_f}
@@ -326,7 +326,7 @@ rule join_build_qc:
     '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
-    python3 scripts/join.py build_joint_qc \
+    python3 {scprocess_dir}/scripts/join.py build_joint_qc \
       --qc_fs       {input.qc_fs} \
       --project_ids {params.project_ids} \
       --coldata_f   {input.coldata_f} \
@@ -364,7 +364,7 @@ rule join_pca:
     trap "rm -f $LOCAL_H5" EXIT
     cp {input.counts_h5_f} $LOCAL_H5
 
-    Rscript -e "source('scripts/join_pca.R'); run_join_pca(
+    Rscript -e "source('{scprocess_dir}/scripts/join_pca.R'); run_join_pca(
       counts_h5_f = '$LOCAL_H5',
       n_dims      =  {params.n_dims},
       out_pca_f   = '{output.pca_f}')"
@@ -402,7 +402,7 @@ rule join_integration:
   shell: """
     exec &>> {log}
 
-    python3 scripts/integration.py run_zoom_integration \
+    python3 {scprocess_dir}/scripts/integration.py run_zoom_integration \
       --hvg_mat_f        {input.hvg_mat_f} \
       --coldata_f        {input.coldata_f} \
       --demux_type       none \
@@ -442,7 +442,7 @@ rule join_build_h5ads_yaml:
     '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
-    python3 scripts/join.py build_join_h5ads_yaml \
+    python3 {scprocess_dir}/scripts/join.py build_join_h5ads_yaml \
       --h5ads_yaml_fs  {input.h5ads_yaml_fs} \
       --project_ids    {params.project_ids} \
       --h5ads_dir      {params.h5ads_dir} \
@@ -477,7 +477,7 @@ rule join_marker_genes:
     '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
-    Rscript -e "source('scripts/utils.R'); source('scripts/marker_genes.R'); calculate_marker_genes(
+    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/marker_genes.R'); calculate_marker_genes(
       integration_f = '{input.integration_f}',
       h5ads_yaml_f  = '{input.h5ads_yaml_f}',
       pb_f          = '{output.pb_f}',
@@ -522,7 +522,7 @@ rule join_fgsea:
     '../envs/rlibs.yaml'
   shell: """
     exec &>> {log}
-    Rscript -e "source('scripts/utils.R'); source('scripts/fgsea.R'); run_fgsea(
+    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/fgsea.R'); run_fgsea(
       mkrs_f        = '{input.mkrs_f}',
       fgsea_go_bp_f = '{output.fgsea_go_bp_f}',
       fgsea_go_cc_f = '{output.fgsea_go_cc_f}',
@@ -575,7 +575,7 @@ rule join_celltypist:
     '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
-    python3 scripts/label_celltypes.py celltypist_one_batch \
+    python3 {scprocess_dir}/scripts/label_celltypes.py celltypist_one_batch \
       {wildcards.batch} sample_id {wildcards.model} \
       --adata_f   {input.adata_f} \
       --pred_f    {output.pred_f}
@@ -605,7 +605,7 @@ rule join_scprocess_labeller:
     '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
-    python3 scripts/label_celltypes.py xgboost_one_batch \
+    python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_one_batch \
       {wildcards.batch} sample_id {wildcards.model} \
       --adata_f   {input.adata_f} \
       --model_f   {params.model_f} \
@@ -632,7 +632,7 @@ rule join_extract_labels:
     '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
-    python3 scripts/label_celltypes.py extract_naive_predictions \
+    python3 {scprocess_dir}/scripts/label_celltypes.py extract_naive_predictions \
       {input.source_labels_fs} \
       --int_f     {input.integration_f} \
       --model     {wildcards.model} \
@@ -663,7 +663,7 @@ rule join_merge_labels:
     '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
-    python3 scripts/label_celltypes.py aggregate_predictions \
+    python3 {scprocess_dir}/scripts/label_celltypes.py aggregate_predictions \
       {input.pred_fs} \
       --int_f           {input.integration_f} \
       --hi_res_cl       {params.hi_res_cl} \
@@ -688,7 +688,7 @@ rule join_save_cluster_names:
     '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
-    python3 scripts/label_celltypes.py save_cluster_names \
+    python3 {scprocess_dir}/scripts/label_celltypes.py save_cluster_names \
       --labels_f      {input.labels_f} \
       --integration_f {input.integration_f} \
       --mkr_sel_res   {params.mkr_sel_res} \
@@ -708,7 +708,7 @@ rule join_render_html:
     label_files   = label_fs,
     cluster_names = cluster_names_fs,
     xgb_files     = [],
-    rmd_template_f = "resources/rmd_templates/join.Rmd.template"
+    rmd_template_f = str(scprocess_dir / "resources/rmd_templates/join.Rmd.template")
   output:
     r_utils_f     = f"{code_dir}/utils.R",
     r_int_f       = f"{code_dir}/integration.R",
@@ -771,18 +771,18 @@ rule join_render_html:
 
     # copy R code over
     echo "copying relevant R files over"
-    cp scripts/utils.R        {output.r_utils_f}
-    cp scripts/integration.R  {output.r_int_f}
-    cp scripts/marker_genes.R {output.r_mkr_f}
-    cp scripts/fgsea.R        {output.r_fgsea_f}
-    cp scripts/label_celltypes.R {output.r_lbl_f}
+    cp {scprocess_dir}/scripts/utils.R        {output.r_utils_f}
+    cp {scprocess_dir}/scripts/integration.R  {output.r_int_f}
+    cp {scprocess_dir}/scripts/marker_genes.R {output.r_mkr_f}
+    cp {scprocess_dir}/scripts/fgsea.R        {output.r_fgsea_f}
+    cp {scprocess_dir}/scripts/label_celltypes.R {output.r_lbl_f}
 
     # define rule and template
     template_f=$(realpath {input.rmd_template_f})
     rule="join"
 
     # rendering html
-    Rscript --vanilla -e "source('scripts/render_htmls.R'); \\
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \\
     render_html(
       rule_name     = '$rule',
       temp_f        = '$template_f',
@@ -883,7 +883,7 @@ if DO_TRAIN_XGB:
       '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
-      python3 scripts/train_xgboost.py train \
+      python3 {scprocess_dir}/scripts/train_xgboost.py train \
         --annots_f          {input.annots_f} \
         --cluster_csv       {input.cluster_csv} \
         --h5ads_yaml        {input.h5ads_yaml} \
@@ -938,7 +938,7 @@ if DO_TRAIN_XGB:
       '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
-      python3 scripts/label_celltypes.py xgboost_one_batch \
+      python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_one_batch \
         {wildcards.batch} batch {params.ref_tag} \
         --adata_f   {input.adata_f} \
         --model_f   {input.model_f} \
@@ -972,7 +972,7 @@ if DO_TRAIN_XGB:
       '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
-      python3 scripts/train_xgboost.py aggregate_fulldata \
+      python3 {scprocess_dir}/scripts/train_xgboost.py aggregate_fulldata \
         {input.pred_fs} \
         --annots_f          {input.annots_f} \
         --subsample_preds_f {input.subsample_preds_f} \
@@ -1019,14 +1019,14 @@ if DO_TRAIN_XGB:
       '../envs/rlibs.yaml'
     shell: """
       exec &>> {log}
-      cp scripts/utils.R          {params.proj_dir}/code/utils.R
-      cp scripts/marker_genes.R   {params.proj_dir}/code/marker_genes.R
-      cp scripts/train_xgboost.R  {params.proj_dir}/code/train_xgboost.R
+      cp {scprocess_dir}/scripts/utils.R          {params.proj_dir}/code/utils.R
+      cp {scprocess_dir}/scripts/marker_genes.R   {params.proj_dir}/code/marker_genes.R
+      cp {scprocess_dir}/scripts/train_xgboost.R  {params.proj_dir}/code/train_xgboost.R
 
-      template_f=$(realpath resources/rmd_templates/train_xgboost.Rmd.template)
+      template_f={scprocess_dir}/resources/rmd_templates/train_xgboost.Rmd.template
       rule="train_xgboost"
 
-      Rscript --vanilla -e "source('scripts/render_htmls.R'); \\
+      Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \\
         render_html(
           rule_name       = '$rule',
           proj_dir        = '{params.proj_dir}',

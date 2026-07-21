@@ -38,7 +38,7 @@ rule run_mapping_flex:
       ARV_ARG="--arv_instance {params.arv_instance}"
     fi
 
-    python3 scripts/mapping.py map_flex_fastqs_to_counts {wildcards.lib} \
+    python3 {scprocess_dir}/scripts/mapping.py map_flex_fastqs_to_counts {wildcards.lib} \
       --af_dir          "{af_dir}" \
       --lib_pool_dir    "{params.lib_pool_dir}" \
       --af_home_dir     "{params.af_home_dir}" \
