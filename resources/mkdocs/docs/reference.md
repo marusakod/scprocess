@@ -921,6 +921,10 @@ Additional parameters include:
 
 The join configuration reuses the `hvg`, `integration`, `marker_genes`, `label_celltypes`, `train_xgboost`, `shiny`, and `resources` sections from a project configuration where supported by the join schema. Use the current generated template and schema for exact fields and defaults. The join must specify a `ref_txome`, or a `probe_set` for Flex data, that matches every source project; only compatible projects can be joined.
 
+Join integration may use arrays for `int_batch_var` and `int_theta` to configure
+multiple Harmony covariates. When both values are arrays, they must have the same
+length so that each batch variable has a corresponding theta value.
+
 Additional parameters include:
 * `name`: short name; output directories are {name}_join and {name}_marker_genes
 * `metadata_vars` (optional): list of column names from the source projects' `sample_metadata` CSV files to carry through into the joint sample metadata and presentation outputs. Each variable must exist in at least one project's metadata file, but does not need to be present in all projects. Missing values are filled with `NA`.

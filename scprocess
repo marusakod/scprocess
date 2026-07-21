@@ -550,28 +550,17 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
 
 def run_join(configfile, sc_dir, extraargs, dryrun, rule="all"):
   """Run the scprocess join workflow from a join.yaml config."""
-  import json
-  import jsonschema
-
   config_path   = pathlib.Path(configfile).resolve()
   scprocess_dir = pathlib.Path(__file__).parent
   os.chdir(scprocess_dir)
 
   scdata_dir, extraargs, setup_cfg = scprocess_utils.check_setup_before_running_scprocess(scprocess_dir, extraargs)
 
-  # validate join config
+  # The workflow applies schema defaults and then validates the join config.
+  # Do not validate the raw YAML here as well: partial optional sections rely on
+  # those defaults (for example integration.int_paga_cl_res).
   with open(config_path) as f:
     config = yaml.safe_load(f)
-  join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
-  if not join_schema_f.is_file():
-    raise FileNotFoundError(f"join schema not found: {join_schema_f}")
-  with open(join_schema_f) as f:
-    join_schema = json.load(f)
-  errors = sorted(jsonschema.Draft202012Validator(join_schema).iter_errors(config),
-                  key=lambda e: e.path)
-  if errors:
-    raise ValueError("join.yaml validation errors:\n" +
-      "\n".join(f"  {list(e.path)}: {e.message}" for e in errors))
 
   join_dir = pathlib.Path(config['join']['proj_dir'])
   log_dir  = join_dir / ".log/scprocess"

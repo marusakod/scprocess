@@ -2538,6 +2538,18 @@ def _apply_join_defaults(cfg, schema_props):
       _apply_join_defaults(cfg[key], prop['properties'])
 
 
+def _check_join_integration_parameters(config):
+  """Validate relationships between join integration parameters."""
+  integration = config['integration']
+  batch_vars = integration['int_batch_var']
+  theta = integration['int_theta']
+  if isinstance(batch_vars, list) and isinstance(theta, list):
+    if len(batch_vars) != len(theta):
+      raise ValueError(
+        "integration.int_batch_var and integration.int_theta must have matching "
+        f"lengths when both are arrays (got {len(batch_vars)} and {len(theta)})")
+
+
 def check_join_config(config, join_schema_f, scdata_dir):
   """Validate and augment a join.yaml config dict.
 
@@ -2582,6 +2594,7 @@ def check_join_config(config, join_schema_f, scdata_dir):
     _apply_join_defaults(config[section],
       join_schema['properties'].get(section, {}).get('properties', {}))
 
+  _check_join_integration_parameters(config)
   config = _check_shiny_parameters(config)
 
   # validate train_xgboost section if present
