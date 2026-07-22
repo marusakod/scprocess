@@ -41,7 +41,7 @@ JOIN_PROJ = get_join_project_parameters(config)
 # unpack project parameters
 JOIN_PROJECT_IDS  = JOIN_PROJ['project_ids']
 PROJECT_CFGS      = JOIN_PROJ['project_cfgs']
-VAR_STATS_FS      = JOIN_PROJ['var_stats_fs']
+HVG_FS            = JOIN_PROJ['hvg_fs']
 H5ADS_YAML_FS     = JOIN_PROJ['h5ads_yaml_fs']
 INTEGRATED_FS     = JOIN_PROJ['integrated_fs']
 SAMPLE_META_FS    = JOIN_PROJ['sample_meta_fs']
@@ -191,7 +191,7 @@ if DO_TRAIN_XGB:
 
 rule join_select_hvgs:
   input:
-    var_stats_fs = VAR_STATS_FS
+    hvg_fs = HVG_FS
   output:
     joint_hvgs_f = joint_hvgs_f
   params:
@@ -211,10 +211,10 @@ rule join_select_hvgs:
     exec &>> {log}
     mkdir -p {join_int_dir}
     python3 {scprocess_dir}/scripts/join.py select_joint_hvgs \
-      --var_stats_fs  {input.var_stats_fs} \
-      --project_ids   {params.project_ids} \
-      --n_hvgs        {params.n_hvgs} \
-      --out_f         {output.joint_hvgs_f}
+      --hvg_fs       {input.hvg_fs} \
+      --project_ids  {params.project_ids} \
+      --n_hvgs       {params.n_hvgs} \
+      --out_f        {output.joint_hvgs_f}
     """
 
 

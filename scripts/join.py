@@ -8,54 +8,69 @@ import polars as pl
 
 
 # ---------------------------------------------------------------------------
-# Step 1: Select joint HVGs by mean rank across projects
+# Step 1: Select joint HVGs by consensus across projects
 # ---------------------------------------------------------------------------
 
-def select_joint_hvgs(var_stats_fs, project_ids, n_hvgs, out_f):
-  """Select top HVGs by mean rank across projects."""
+def select_joint_hvgs(hvg_fs, project_ids, n_hvgs, out_f):
+  """Select joint HVGs from the final HVG lists of the source projects."""
   print(f"selecting joint HVGs (n={n_hvgs}) across {len(project_ids)} projects")
 
-  proj_hvg_dfs = {}
-  for pid, f in zip(project_ids, var_stats_fs):
-    df = pl.read_csv(f).select(['gene_id', 'variances_norm']).unique('gene_id')
-    proj_hvg_dfs[pid] = df
+  if len(hvg_fs) != len(project_ids):
+    raise ValueError(
+      f"Expected one HVG file per project, got {len(hvg_fs)} files for "
+      f"{len(project_ids)} projects.")
 
-  # union of all gene ids
-  all_genes = pl.Series(
-    list({g for df in proj_hvg_dfs.values() for g in df['gene_id'].to_list()})
-  ).alias('gene_id')
-  base_df = pl.DataFrame({'gene_id': all_genes})
+  selected_dfs = []
+  required_cols = {
+    'gene_id', 'highly_variable', 'highly_variable_nbatches',
+    'highly_variable_rank'
+  }
+  for pid, f in zip(project_ids, hvg_fs):
+    df = pl.read_csv(f)
+    missing_cols = required_cols - set(df.columns)
+    if missing_cols:
+      raise ValueError(
+        f"HVG file for project '{pid}' is missing required columns: "
+        f"{', '.join(sorted(missing_cols))}")
+    if df['gene_id'].n_unique() != df.height:
+      raise ValueError(f"HVG file for project '{pid}' contains duplicate gene_id values")
 
-  # compute per-project ranks; missing genes get rank = n_genes + 1
-  for pid, df in proj_hvg_dfs.items():
-    n_genes = df.shape[0]
-    ranked  = df.sort('variances_norm', descending=True).with_row_index('rank').select(
-      ['gene_id', pl.col('rank').cast(pl.Float64) + 1]
+    # Reconstruct the final within-project ordering used by calculate_hvgs().
+    # gene_id makes ties deterministic without altering which genes were selected.
+    selected = (
+      df
+      .filter(pl.col('highly_variable') == True)
+      .sort(
+        ['highly_variable_nbatches', 'highly_variable_rank', 'gene_id'],
+        descending=[True, False, False], nulls_last=True)
+      .with_row_index('project_rank', offset=1)
+      .select([
+        'gene_id',
+        pl.lit(pid).alias('project_id'),
+        pl.col('project_rank').cast(pl.Float64)
+      ])
     )
-    base_df = base_df.join(ranked.rename({'rank': pid}), on='gene_id', how='left')
-    base_df = base_df.with_columns(
-      pl.col(pid).fill_null(n_genes + 1)
+    selected_dfs.append(selected)
+
+  selected_all = pl.concat(selected_dfs)
+  consensus = (
+    selected_all
+    .group_by('gene_id')
+    .agg(
+      pl.len().alias('n_projects_hvg'),
+      pl.col('project_rank').median().alias('median_project_rank')
     )
-
-  # mean rank and number of projects the gene was observed in
-  rank_cols = project_ids
-  mean_rank_expr    = pl.mean_horizontal([pl.col(c) for c in rank_cols])
-  # a gene is "present" in project c if its rank was not the penalty rank (n_genes + 1)
-  n_projects_expr   = sum(
-    (pl.col(c) < len(proj_hvg_dfs[c]) + 1).cast(pl.Int32)
-    for c in rank_cols
-  )
-  base_df = base_df.with_columns(
-    mean_rank_expr.alias('mean_rank'),
-    n_projects_expr.alias('n_projects')
   )
 
-  # select top n_hvgs
+  # Prefer genes selected by the most projects. For equal support, prefer the
+  # best median final rank among the projects that selected the gene.
   top_hvgs = (
-    base_df
-    .sort('mean_rank')
+    consensus
+    .sort(
+      ['n_projects_hvg', 'median_project_rank', 'gene_id'],
+      descending=[True, False, False])
     .head(n_hvgs)
-    .select(['gene_id', 'mean_rank', 'n_projects'])
+    .select(['gene_id', 'n_projects_hvg', 'median_project_rank'])
   )
 
   if top_hvgs.shape[0] < n_hvgs:
@@ -460,10 +475,10 @@ def _parse_args():
 
   # --- select_joint_hvgs ---
   p1 = sub.add_parser('select_joint_hvgs')
-  p1.add_argument('--var_stats_fs', nargs='+', required=True,
-    help='Per-project standardized variance stats CSV.gz files')
+  p1.add_argument('--hvg_fs', nargs='+', required=True,
+    help='Per-project final hvg_dt CSV.gz files')
   p1.add_argument('--project_ids', nargs='+', required=True,
-    help='Project IDs (parallel to --var_stats_fs)')
+    help='Project IDs (parallel to --hvg_fs)')
   p1.add_argument('--n_hvgs', type=int, required=True)
   p1.add_argument('--out_f', required=True)
 
@@ -517,10 +532,10 @@ if __name__ == '__main__':
 
   if args.cmd == 'select_joint_hvgs':
     select_joint_hvgs(
-      var_stats_fs = args.var_stats_fs,
-      project_ids  = args.project_ids,
-      n_hvgs       = args.n_hvgs,
-      out_f        = args.out_f
+      hvg_fs      = args.hvg_fs,
+      project_ids = args.project_ids,
+      n_hvgs      = args.n_hvgs,
+      out_f       = args.out_f
     )
 
   elif args.cmd == 'build_joint_matrix':

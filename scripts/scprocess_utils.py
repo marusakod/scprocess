@@ -1998,12 +1998,12 @@ def get_join_project_parameters(config):
   def _date(pid):
     return project_cfgs[pid]['project']['date_stamp']
 
-  def _var_stats_f(pid):
+  def _hvg_f(pid):
     zoom_name = config['projects'][pid].get('zoom_name')
     if zoom_name:
       zoom_dir = _dir(pid) / f"output/{_short_tag(pid)}_zoom"
-      return zoom_dir / zoom_name / f"standardized_variance_stats_{_full_tag(pid)}_{zoom_name}_{_date(pid)}.csv.gz"
-    return _dir(pid) / f"output/{_short_tag(pid)}_hvg" / f"standardized_variance_stats_{_full_tag(pid)}_{_date(pid)}.csv.gz"
+      return zoom_dir / zoom_name / f"hvg_dt_{_full_tag(pid)}_{zoom_name}_{_date(pid)}.csv.gz"
+    return _dir(pid) / f"output/{_short_tag(pid)}_hvg" / f"hvg_dt_{_full_tag(pid)}_{_date(pid)}.csv.gz"
 
   def _h5ads_yaml_f(pid):
     return _dir(pid) / f"output/{_short_tag(pid)}_integration" / f"h5ads_clean_paths_{_full_tag(pid)}_{_date(pid)}.yaml"
@@ -2039,7 +2039,7 @@ def get_join_project_parameters(config):
   return {
     'project_ids':    project_ids,
     'project_cfgs':   project_cfgs,
-    'var_stats_fs':   [str(_var_stats_f(pid)) for pid in project_ids],
+    'hvg_fs':         [str(_hvg_f(pid)) for pid in project_ids],
     'h5ads_yaml_fs':  h5ads_yaml_fs,
     'integrated_fs':  [str(_integrated_dt_f(pid)) for pid in project_ids],
     'sample_meta_fs': [str(_sample_meta_f(pid)) for pid in project_ids],

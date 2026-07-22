@@ -931,6 +931,12 @@ Additional parameters include:
 * `projects`: mapping containing at least two source projects. Each entry requires `config`, the path to a completed project config, and may specify `zoom_name` to join a completed zoom instead of the full project.
 * `int_pca_method`: PCA computation method. Options: `bpcells` (default) uses disk-backed SVD via BPCells (R), suitable for very large datasets (>1M cells) without GPU memory limits; `scanpy` uses the standard in-memory PCA on GPU/CPU (original behaviour).
 
+Joint HVGs are selected from the final HVG lists of the source projects. Genes
+are ranked first by the number of projects in which they were selected as an
+HVG, then by their median final rank among those projects. This preserves each
+source project's sample- or group-aware HVG calculation while giving every
+project equal weight.
+
 When a metadata column is numeric in one source project and text in another, the
 joint column is stored as text. This supports identifier columns such as
 `patient_id` that use numeric IDs in one study and prefixed IDs in another.
