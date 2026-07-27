@@ -43,9 +43,19 @@ calculate_marker_genes <- function(integration_f, h5ads_yaml_f, batch_var, pb_f,
   # make_pb_object
   message("  making pseudobulk object")
   use_bpcells = as.logical(use_bpcells)
+  edger_bp_counts  = NULL
+  edger_bp_coldata = NULL
   if (use_bpcells) {
-    pb        = make_pseudobulk_object_bpcells(pb_f, integration_f, h5ads_yaml_f, sel_res,
-      batch_var, min_cl_size = min_cl_size, agg_fn = "sum", n_cores = n_cores)
+    tmp_base  = Sys.getenv("TMPDIR", unset = tempdir())
+    bp_tmpdir = tempfile("scprocess-edger-bp-", tmpdir = tmp_base)
+    dir.create(bp_tmpdir, recursive = TRUE)
+    on.exit(unlink(bp_tmpdir, recursive = TRUE), add = TRUE)
+    pb_result = make_pseudobulk_object_bpcells(pb_f, integration_f, h5ads_yaml_f, sel_res,
+      batch_var, min_cl_size = min_cl_size, agg_fn = "sum", n_cores = n_cores,
+      bp_tmpdir = bp_tmpdir)
+    pb               = pb_result$pb
+    edger_bp_counts  = pb_result$counts
+    edger_bp_coldata = pb_result$coldata
   } else {
     pb        = make_pseudobulk_object(pb_f, integration_f, h5ads_yaml_f, sel_res, batch_var,
       min_cl_size = min_cl_size, agg_fn = "sum", zoom = zoom, n_cores = n_cores)
@@ -66,7 +76,8 @@ calculate_marker_genes <- function(integration_f, h5ads_yaml_f, batch_var, pb_f,
   # calculate markers
   message("  calculating markers")
   mkrs_dt     = calc_find_markers_pseudobulk(mkrs_f, cpms_dt, biotypes_dt, "sample_id",
-    n_cores = n_cores)
+    n_cores = n_cores, edger_bp_counts = edger_bp_counts,
+    edger_bp_coldata = edger_bp_coldata)
 
   message("done!")
 }
@@ -157,8 +168,10 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
 
 
 make_pseudobulk_object_bpcells <- function(pb_f, integration_f, h5ads_yaml_f, sel_res,
-  batch_var, min_cl_size, agg_fn = "sum", n_cores = 8) {
+  batch_var, min_cl_size, agg_fn = "sum", n_cores = 8, bp_tmpdir) {
   library("BPCells")
+
+  assert_that(is.character(bp_tmpdir), length(bp_tmpdir) == 1L, dir.exists(bp_tmpdir))
 
   message("    loading integration output")
   int_dt      = fread(integration_f)
@@ -170,6 +183,18 @@ make_pseudobulk_object_bpcells <- function(pb_f, integration_f, h5ads_yaml_f, se
   keep_cls    = names(cl_ns)[cl_ns >= min_cl_size]
   int_dt      = int_dt[get(cl_var) %in% keep_cls]
   setkey(int_dt, "cell_id")
+
+  group_map   = unique(int_dt[, .(
+    cluster = as.character(get(cl_var)),
+    sample = as.character(get(batch_var))
+  )])
+  setorder(group_map, cluster, sample)
+  group_map[, group_id := sprintf("pb%08d", .I)]
+  assert_that(
+    !anyDuplicated(group_map$group_id),
+    !anyNA(group_map$group_id),
+    all(nzchar(group_map$group_id))
+  )
 
   message("    pseudobulking per batch (BPCells, ", n_cores, " cores)")
   h5ad_paths  = yaml::read_yaml(h5ads_yaml_f)
@@ -191,37 +216,36 @@ make_pseudobulk_object_bpcells <- function(pb_f, integration_f, h5ads_yaml_f, se
       mat       = mat[, ok_cells]
 
       batch_int = int_dt[ok_cells]
-      group_vec = paste(batch_int[[cl_var]], batch_int[[batch_var]], sep = ".")
+      batch_groups = data.table(
+        cluster = as.character(batch_int[[cl_var]]),
+        sample = as.character(batch_int[[batch_var]])
+      )
+      group_vec = group_map[batch_groups, on = .(cluster, sample), group_id]
+      assert_that(!anyNA(group_vec))
       pb_one    = BPCells::pseudobulk_matrix(mat, group_vec, method = "sum")
-      as.matrix(pb_one)
+      Matrix::Matrix(pb_one, sparse = TRUE)
     }, error = function(e) {
       warning("cannot open h5ad for ", batch_name, " (", h5ad_path, "): ", e$message, " -- skipping")
       NULL
     })
   }, mc.cores = n_cores)
   pb_mats     = Filter(Negate(is.null), pb_mats)
+  assert_that(length(pb_mats) > 0)
 
   message("    merging per-batch pseudobulks")
-  all_genes   = unique(unlist(lapply(pb_mats, rownames)))
-  all_groups  = unique(unlist(lapply(pb_mats, colnames)))
-  merged      = matrix(0, nrow = length(all_genes), ncol = length(all_groups),
-                       dimnames = list(all_genes, all_groups))
-  for (pb_one in pb_mats) {
-    merged[rownames(pb_one), colnames(pb_one)] =
-      merged[rownames(pb_one), colnames(pb_one)] + pb_one
-  }
+  merged      = .merge_sparse_pseudobulks(pb_mats)
+  coldata     = group_map[match(colnames(merged), group_id)]
+  assert_that(!anyNA(coldata$group_id), identical(coldata$group_id, colnames(merged)))
 
   message("    assembling pseudobulk SCE")
   samples     = unique(int_dt[[batch_var]])
   mat_ls      = lapply(keep_cls, function(cl) {
-    col_prefix = paste0(cl, ".")
-    sel_cols   = colnames(merged)[startsWith(colnames(merged), col_prefix)]
-    mat        = matrix(0, nrow = length(all_genes), ncol = length(samples),
-                        dimnames = list(all_genes, samples))
-    for (col in sel_cols) {
-      smpl = sub(paste0("^\\Q", cl, "\\E\\."), "", col)
-      if (smpl %in% samples) mat[, smpl] = merged[, col]
-    }
+    group_ids  = group_map[cluster == cl][match(samples, sample), group_id]
+    sel_cols   = match(group_ids, colnames(merged))
+    mat        = Matrix::Matrix(0, nrow = nrow(merged), ncol = length(samples),
+      sparse = TRUE, dimnames = list(rownames(merged), samples))
+    present    = !is.na(sel_cols)
+    mat[, present] = merged[, sel_cols[present], drop = FALSE]
     mat
   }) %>% setNames(keep_cls)
 
@@ -232,9 +256,48 @@ make_pseudobulk_object_bpcells <- function(pb_f, integration_f, h5ads_yaml_f, se
   int_colData(pb)$n_cells = ns
   metadata(pb)$agg_pars = list(assay = "X", by = c("cluster", batch_var), fun = agg_fn)
 
+  message("    writing disk-backed pseudobulk matrix")
+  counts_col_dir = file.path(bp_tmpdir, "counts_col")
+  counts_row_dir = file.path(bp_tmpdir, "counts_row")
+  counts_col     = BPCells::write_matrix_dir(
+    BPCells::convert_matrix_type(merged, "uint32_t"),
+    dir = counts_col_dir
+  )
+  counts         = edger.bp::bp_ensure_storage_order(
+    counts_col,
+    order = "row",
+    outdir = counts_row_dir,
+    tmpdir = bp_tmpdir
+  )
+
   message("    saving outputs")
   saveRDS(pb, file = pb_f, compress = FALSE)
-  return(pb)
+  list(
+    pb = pb,
+    counts = counts,
+    coldata = as.data.frame(coldata[, .(group_id, cluster, sample)])
+  )
+}
+
+.merge_sparse_pseudobulks <- function(pb_mats) {
+  all_genes  = unique(unlist(lapply(pb_mats, rownames), use.names = FALSE))
+  all_groups = unique(unlist(lapply(pb_mats, colnames), use.names = FALSE))
+  triplets   = lapply(pb_mats, function(pb_one) {
+    sparse = summary(Matrix::Matrix(pb_one, sparse = TRUE))
+    data.table(
+      i = match(rownames(pb_one)[sparse$i], all_genes),
+      j = match(colnames(pb_one)[sparse$j], all_groups),
+      x = sparse$x
+    )
+  }) %>% rbindlist()
+
+  Matrix::sparseMatrix(
+    i = triplets$i,
+    j = triplets$j,
+    x = triplets$x,
+    dims = c(length(all_genes), length(all_groups)),
+    dimnames = list(all_genes, all_groups)
+  )
 }
 
 
@@ -689,7 +752,8 @@ calc_hvgs_pseudobulk <- function(pb_hvgs_f, cpms_dt, batch_var, n_cores = 8,
 }
 
 calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt, batch_var,
-  method = c("edger", "voom"), n_cores = 1) {
+  method = c("edger", "voom"), n_cores = 1, edger_bp_counts = NULL,
+  edger_bp_coldata = NULL) {
   method    = match.arg(method)
 
   cl_ls     = logcpms_all$cluster %>% unique
@@ -717,31 +781,52 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt, batch_
     return(this_x)
   }) %>% setNames(cl_ls)
 
-  message('  make big matrix')
-  x_full    = do.call(cbind, x_ls)
-
-  # make big matrix
-  message('  make big DGE object')
-  dge_all   = DGEList(x_full, remove.zeros = TRUE)
-
-  # make design matrix
-  message('  set up design')
-  col_ns    = colnames(dge_all)
-  des_all   = data.table(
-    cluster   = str_extract(col_ns, "^[^-]+"),
-    batch_var = str_extract(col_ns, "[^-]+$")
-  )
-
-  # filter out tiny genes
-  message('  filter genes and estimate library sizes')
-  mm_all    = model.matrix( ~ cluster, data = des_all )
-  keep_gs   = filterByExpr(dge_all, group = des_all$cluster, min.count = 1)
-  dge       = dge_all[ keep_gs, ]
-
-  # calculate library sizes
-  dge_all   = normLibSizes(dge_all, method = "TMMwsp")
-
   # run DE
+  if (method == "edger" && !is.null(edger_bp_counts)) {
+    assert_that(!is.null(edger_bp_coldata))
+    keep_pbs = unique(logcpms_all[, .(
+      cluster = as.character(cluster),
+      sample = as.character(get(batch_var))
+    )])
+    fit_cols = keep_pbs[
+      as.data.table(edger_bp_coldata),
+      on = .(cluster, sample),
+      nomatch = 0L,
+      i.group_id
+    ]
+    fit_idx = match(fit_cols, edger_bp_coldata$group_id)
+    assert_that(length(fit_idx) > 0L, !anyNA(fit_idx))
+
+    mkrs_pb_dt = fit_markers_edger_bp(
+      counts = edger_bp_counts[, fit_idx, drop = FALSE],
+      coldata = edger_bp_coldata[fit_idx, , drop = FALSE],
+      clusters = cl_ls,
+      workers = n_cores
+    ) %>%
+      as.data.table()
+  } else {
+    message('  make big matrix')
+    x_full    = do.call(cbind, x_ls)
+
+    message('  make big DGE object')
+    dge_all   = DGEList(x_full, remove.zeros = TRUE)
+
+    message('  set up design')
+    col_ns    = colnames(dge_all)
+    des_all   = data.table(
+      cluster   = str_extract(col_ns, "^[^-]+"),
+      batch_var = str_extract(col_ns, "[^-]+$")
+    )
+
+    message('  filter genes and estimate library sizes')
+    mm_all    = model.matrix( ~ cluster, data = des_all )
+    keep_gs   = filterByExpr(dge_all, group = des_all$cluster, min.count = 1)
+    dge       = dge_all[ keep_gs, ]
+
+    # Preserve the existing dense backend until the streamed join backend has
+    # been validated on representative projects.
+    dge_all   = normLibSizes(dge_all, method = "TMMwsp")
+
   if (method == "edger") {
     # calculate dispersion
     message("  estimating dispersion without design matrix")
@@ -814,6 +899,7 @@ calc_find_markers_pseudobulk <- function(mkrs_pb_f, logcpms_all, rows_dt, batch_
     mkrs_pb_dt  = mkrs_pb_dt %>%
       .[, .(gene_id, cluster, logFC, logCPM = AveExpr,
         PValue = P.Value, FDR = adj.P.Val, t)]
+  }
   }
 
   # calculate logcpms

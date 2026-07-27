@@ -477,7 +477,7 @@ rule join_marker_genes:
     '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
-    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/marker_genes.R'); calculate_marker_genes(
+    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/marker_genes_edger_bp.R'); source('{scprocess_dir}/scripts/marker_genes.R'); calculate_marker_genes(
       integration_f = '{input.integration_f}',
       h5ads_yaml_f  = '{input.h5ads_yaml_f}',
       pb_f          = '{output.pb_f}',

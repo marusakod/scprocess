@@ -930,6 +930,7 @@ Additional parameters include:
 * `metadata_vars` (optional): list of column names from the source projects' `sample_metadata` CSV files to carry through into the joint sample metadata and presentation outputs. Each variable must exist in at least one project's metadata file, but does not need to be present in all projects. Missing values are filled with `NA`.
 * `projects`: mapping containing at least two source projects. Each entry requires `config`, the path to a completed project config, and may specify `zoom_name` to join a completed zoom instead of the full project.
 * `int_pca_method`: PCA computation method. Options: `bpcells` (default) uses disk-backed SVD via BPCells (R), suitable for very large datasets (>1M cells) without GPU memory limits; `scanpy` uses the standard in-memory PCA on GPU/CPU (original behaviour).
+* Join marker-gene testing keeps the combined pseudobulk count matrix disk-backed and uses the streamed `edger.bp` edgeR Treat backend. Standard project and zoom marker-gene runs continue to use the dense edgeR backend.
 
 Joint HVGs are selected from the final HVG lists of the source projects. Genes
 are ranked first by the number of projects in which they were selected as an
