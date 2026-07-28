@@ -938,6 +938,9 @@ Additional parameters include:
   keeps the combined counts disk-backed, and uses the streamed `edger.bp` edgeR
   Treat backend. The work is split into `join_make_pseudobulks`,
   `join_prepare_pseudobulks`, `join_calc_hvgs`, and `join_marker_genes`.
+  Marker-gene models include `project_id` as an additive blocking factor, so
+  one-versus-rest cluster effects are estimated after accounting for
+  project-level technical differences.
   Preparation writes small column and gene manifests containing the retained
   pseudobulks, retained genes, and TMM library-size metadata; it does not
   duplicate or mutate the BPCells count store. Once preparation finishes, the

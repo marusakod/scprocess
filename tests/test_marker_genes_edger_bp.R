@@ -44,6 +44,7 @@ data.table::fwrite(
   data.table::data.table(
     cell_id = c("c1", "c2", "c3", "c4"),
     sample_id = c("s1", "s2", "s1", "s1"),
+    project_id = c("P1", "P2", "P1", "P1"),
     RNA_snn_res.0.5 = c("A", "A", "A", "B")
   ),
   integration_f
@@ -70,7 +71,7 @@ cache = build_pseudobulk_cache_bpcells(
   n_cores = 1L,
   bp_tmpdir = cache_tmpdir
 )
-cache_dense = as.matrix(cache$counts)
+cache_dense = .bp_as_matrix(cache$counts)
 expected_cache = cbind(
   A_s1 = batch_a[, "c1"] + batch_b[, "c3"],
   A_s2 = batch_a[, "c2"],
@@ -82,6 +83,7 @@ stopifnot(
   dir.exists(file.path(cache_dir, "counts_row")),
   isTRUE(all.equal(unname(cache_dense), unname(expected_cache))),
   identical(cache$coldata$sample, c("s1", "s2", "s1")),
+  identical(cache$coldata$project_id, c("P1", "P2", "P1")),
   identical(cache$coldata$cluster, c("A", "A", "B")),
   identical(cache$coldata$n_cells, c(2L, 1L, 1L))
 )
@@ -139,6 +141,7 @@ stopifnot(
 n_genes = 80L
 clusters = rep(c("A", "B", "C"), each = 4L)
 samples = rep(paste0("s", seq_len(4L)), times = 3L)
+projects = rep(c("P1", "P1", "P2", "P2"), times = 3L)
 group_ids = sprintf("pb%08d", seq_along(clusters))
 
 means = matrix(12, nrow = n_genes, ncol = length(clusters))
@@ -154,6 +157,7 @@ coldata = data.frame(
   group_id = group_ids,
   cluster = clusters,
   sample = samples,
+  project_id = projects,
   stringsAsFactors = FALSE
 )
 
@@ -164,7 +168,8 @@ bp_counts = write_matrix_dir(
   dir = bp_dir
 )
 group = factor(clusters, levels = unique(clusters))
-dispersion_design = model.matrix(~ group)
+project_id = factor(projects, levels = unique(projects))
+dispersion_design = model.matrix(~ project_id + group)
 prepared = edger.bp::bp_prepare_dge(
   bp_counts,
   design = dispersion_design,
@@ -195,7 +200,7 @@ dge = estimateDisp(dge, design = dispersion_design)
 
 expected = do.call(rbind, lapply(c("A", "B", "C"), function(cluster) {
   selected = group == cluster
-  design = model.matrix(~ selected)
+  design = model.matrix(~ project_id + selected)
   fit = glmQLFit(
     dge,
     design = design,

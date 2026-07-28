@@ -31,6 +31,27 @@
 }
 
 
+.without_bpcells_dense_message <- function(expr) {
+  withCallingHandlers(
+    expr,
+    message = function(m) {
+      if (grepl(
+        "Converting to a dense matrix may use excessive memory",
+        conditionMessage(m),
+        fixed = TRUE
+      )) {
+        invokeRestart("muffleMessage")
+      }
+    }
+  )
+}
+
+
+.bp_as_matrix <- function(x) {
+  .without_bpcells_dense_message(as.matrix(x))
+}
+
+
 .h5ad_path <- function(entry) {
   if (is.character(entry)) entry else entry[["path"]]
 }
@@ -60,13 +81,23 @@ build_pseudobulk_cache_bpcells <- function(pb_dir, integration_f, h5ads_yaml_f,
   message("    loading integration columns")
   int_dt = data.table::fread(
     integration_f,
-    select = c("cell_id", batch_var, cl_var)
+    select = c("cell_id", batch_var, "project_id", cl_var)
   )
   data.table::setnames(int_dt, c(batch_var, cl_var), c("sample", "cluster"))
   int_dt = int_dt[
-    !is.na(sample) & nzchar(as.character(sample)) & !is.na(cluster)
+    !is.na(sample) & nzchar(as.character(sample)) &
+      !is.na(project_id) & nzchar(as.character(project_id)) &
+      !is.na(cluster)
   ]
-  int_dt[, `:=`(sample = as.character(sample), cluster = as.character(cluster))]
+  int_dt[, `:=`(
+    sample = as.character(sample),
+    project_id = as.character(project_id),
+    cluster = as.character(cluster)
+  )]
+  sample_project_counts = int_dt[, data.table::uniqueN(project_id), by = sample]
+  if (any(sample_project_counts$V1 != 1L)) {
+    stop("Each join sample must belong to exactly one project.", call. = FALSE)
+  }
 
   message("    excluding tiny clusters")
   cl_ns = int_dt[, .N, by = cluster]
@@ -74,10 +105,10 @@ build_pseudobulk_cache_bpcells <- function(pb_dir, integration_f, h5ads_yaml_f,
   int_dt = int_dt[cluster %in% keep_cls]
   stopifnot(nrow(int_dt) > 0L, length(keep_cls) > 1L)
 
-  group_map = int_dt[, .(n_cells = .N), by = .(cluster, sample)]
-  data.table::setorder(group_map, cluster, sample)
+  group_map = int_dt[, .(n_cells = .N), by = .(cluster, sample, project_id)]
+  data.table::setorder(group_map, cluster, project_id, sample)
   group_map[, group_id := sprintf("pb%08d", .I)]
-  int_dt = group_map[int_dt, on = .(cluster, sample)]
+  int_dt = group_map[int_dt, on = .(cluster, sample, project_id)]
   data.table::setkey(int_dt, sample, cell_id)
 
   h5ad_paths = yaml::read_yaml(h5ads_yaml_f)
@@ -177,7 +208,7 @@ build_pseudobulk_cache_bpcells <- function(pb_dir, integration_f, h5ads_yaml_f,
   )
 
   data.table::fwrite(
-    coldata[, .(group_id, cluster, sample, n_cells)],
+    coldata[, .(group_id, cluster, sample, project_id, n_cells)],
     file.path(pb_dir, "coldata.csv.gz")
   )
   data.table::fwrite(
@@ -225,17 +256,22 @@ filter_pseudobulk_columns_bpcells <- function(counts, coldata, min_cells) {
 
 fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
   workers = 1L, block_size = 1000L) {
+  if (!is.data.frame(coldata) ||
+      !all(c("cluster", "sample", "project_id") %in% names(coldata))) {
+    stop("`coldata` must contain cluster, sample, and project_id.", call. = FALSE)
+  }
   clusters = as.character(clusters)
   coldata$cluster = as.character(coldata$cluster)
   coldata$sample = as.character(coldata$sample)
+  coldata$project_id = as.character(coldata$project_id)
   stopifnot(
-    is.data.frame(coldata),
     ncol(counts) == nrow(coldata),
     length(effective_lib_size) == ncol(counts),
     all(is.finite(effective_lib_size)),
     all(effective_lib_size > 0),
     identical(colnames(counts), as.character(coldata$group_id)),
-    all(c("cluster", "sample") %in% names(coldata)),
+    !anyNA(coldata$project_id),
+    all(nzchar(coldata$project_id)),
     all(clusters %in% coldata$cluster)
   )
 
@@ -249,11 +285,19 @@ fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
   )
 
   group = factor(coldata$cluster, levels = unique(coldata$cluster))
-  dispersion_design = stats::model.matrix(~ group)
+  project_id = factor(coldata$project_id, levels = unique(coldata$project_id))
+  dispersion_design = stats::model.matrix(~ project_id + group)
+  if (qr(dispersion_design)$rank < ncol(dispersion_design)) {
+    stop(
+      "The project-adjusted cluster design is not full rank; project and cluster ",
+      "are confounded in these pseudobulks.",
+      call. = FALSE
+    )
+  }
   offset = log(effective_lib_size)
 
   message("  estimating streamed dispersions")
-  dispersion_fit = edger.bp::bp_estimate_disp_stream(
+  dispersion_fit = .without_bpcells_dense_message(edger.bp::bp_estimate_disp_stream(
     counts,
     design = dispersion_design,
     group = group,
@@ -262,20 +306,20 @@ fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
     block.size = block_size,
     workers = workers,
     verbose = TRUE
-  )
+  ))
   dispersion = dispersion_fit$tagwise.dispersion
   if (is.null(dispersion)) dispersion = dispersion_fit$trended.dispersion
   if (is.null(dispersion)) dispersion = dispersion_fit$common.dispersion
 
   message("  calculating streamed average logCPM")
-  ave_fit = edger.bp::bp_glm_lrt(
+  ave_fit = .without_bpcells_dense_message(edger.bp::bp_glm_lrt(
     counts,
     design = dispersion_design,
     dispersion = dispersion_fit$common.dispersion,
     offset = offset,
     block.size = block_size,
     workers = workers
-  )
+  ))
   ave_log_cpm = ave_fit$table$logCPM
   rm(ave_fit)
 
@@ -285,8 +329,15 @@ fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
     cluster = clusters[[i]]
     message("    ", cluster)
     selected = group == cluster
-    design = stats::model.matrix(~ selected)
-    fit = edger.bp::bp_glm_treat(
+    design = stats::model.matrix(~ project_id + selected)
+    if (qr(design)$rank < ncol(design)) {
+      stop(
+        "The project-adjusted marker design is not full rank for cluster ",
+        cluster, "; this cluster cannot be compared within project.",
+        call. = FALSE
+      )
+    }
+    fit = .without_bpcells_dense_message(edger.bp::bp_glm_treat(
       counts,
       design = design,
       dispersion = dispersion,
@@ -295,7 +346,7 @@ fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
       ave.log.cpm = ave_log_cpm,
       block.size = block_size,
       workers = workers
-    )
+    ))
 
     out = fit$table
     out$FDR = stats::p.adjust(out$PValue, method = "BH")
@@ -321,7 +372,7 @@ calc_pseudobulk_variability_bpcells <- function(counts, coldata, effective_lib_s
 
   message("  calculating blockwise TMM-logCPM variability")
   block_results = .bp_lapply(blocks, workers, function(rows) {
-    block = as.matrix(y[rows, , drop = FALSE])
+    block = .bp_as_matrix(y[rows, , drop = FALSE])
     logcpm = log(sweep(block, 2L, lib_size, "/") * 1e6 + pseudo_count)
     means = rowMeans(logcpm)
     variances = if (ncol(logcpm) > 1L) {
@@ -356,7 +407,7 @@ calc_marker_context_bpcells <- function(counts, coldata, effective_lib_size,
 
   message("  calculating blockwise marker expression context")
   block_results = .bp_lapply(blocks, workers, function(rows) {
-    block = as.matrix(counts[rows, , drop = FALSE])
+    block = .bp_as_matrix(counts[rows, , drop = FALSE])
     gene_id = rownames(counts)[rows]
     data.table::rbindlist(lapply(clusters, function(cluster) {
       cols = cluster_cols[[cluster]]
@@ -413,11 +464,26 @@ prepare_join_pseudobulks_bpcells <- function(pb_dir, prepared_coldata_f,
   if (length(clusters) < 2L) {
     stop("Fewer than two clusters remain after pseudobulk filtering.", call. = FALSE)
   }
+  if (!"project_id" %in% names(coldata)) {
+    stop(
+      "The pseudobulk metadata lacks project_id; rebuild join pseudobulks ",
+      "with the current scprocess version.",
+      call. = FALSE
+    )
+  }
 
   group = factor(coldata$cluster, levels = clusters)
-  dispersion_design = stats::model.matrix(~ group)
+  project_id = factor(coldata$project_id, levels = unique(coldata$project_id))
+  dispersion_design = stats::model.matrix(~ project_id + group)
+  if (qr(dispersion_design)$rank < ncol(dispersion_design)) {
+    stop(
+      "The project-adjusted cluster design is not full rank; project and cluster ",
+      "are confounded in these pseudobulks.",
+      call. = FALSE
+    )
+  }
   message("  preparing disk-backed counts (", n_cores, " prescheduled workers)")
-  prepared = edger.bp::bp_prepare_dge(
+  prepared = .without_bpcells_dense_message(edger.bp::bp_prepare_dge(
     counts,
     design = dispersion_design,
     group = group,
@@ -426,7 +492,7 @@ prepare_join_pseudobulks_bpcells <- function(pb_dir, prepared_coldata_f,
     workers = n_cores,
     verbose = TRUE,
     min.count = 1
-  )
+  ))
 
   prepared_coldata = data.table::as.data.table(coldata)
   prepared_coldata[, `:=`(
@@ -546,7 +612,7 @@ make_report_logcpms_bpcells <- function(pb_dir, prepared_coldata_f, mkrs_f,
   gene_ids = unique(c(top_hvgs$gene_id, top_markers$gene_id))
   rows = match(gene_ids, rownames(counts))
   rows = rows[!is.na(rows)]
-  block = as.matrix(counts[rows, , drop = FALSE])
+  block = .bp_as_matrix(counts[rows, , drop = FALSE])
   logcpm = log(sweep(block, 2L, coldata$effective_lib_size, "/") * 1e6 + pseudo_count)
 
   out = data.table::as.data.table(logcpm, keep.rownames = "gene_id")

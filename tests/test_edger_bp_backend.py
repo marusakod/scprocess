@@ -23,11 +23,23 @@ class TestEdgerBpBackend(unittest.TestCase):
 
   def test_join_rule_loads_adapter(self):
     source = JOIN_RULES.read_text()
-    self.assertIn("source('{scprocess_dir}/scripts/marker_genes_edger_bp.R')", source)
+    self.assertIn(
+      'marker_edger_bp_script = str(scprocess_dir / '
+      '"scripts/marker_genes_edger_bp.R")',
+      source,
+    )
+    self.assertIn("source('{input.marker_script}')", source)
     self.assertIn('rule join_make_pseudobulks:', source)
     self.assertIn('rule join_prepare_pseudobulks:', source)
     self.assertIn('rule join_calc_hvgs:', source)
     self.assertIn('rule join_marker_genes:', source)
+
+  def test_split_rules_track_marker_adapter_as_an_input(self):
+    source = JOIN_RULES.read_text()
+    self.assertEqual(
+      source.count('= marker_edger_bp_script'),
+      4,
+    )
 
   def test_pseudobulk_counts_remain_disk_backed_for_de(self):
     marker_source = MARKER_GENES_R.read_text()
@@ -60,7 +72,7 @@ class TestEdgerBpBackend(unittest.TestCase):
     source = ADAPTER_R.read_text()
     self.assertIn('calc_pseudobulk_variability_bpcells <- function(', source)
     self.assertIn('blocks = .bp_row_blocks(nrow(y), block_size)', source)
-    self.assertIn('block = as.matrix(y[rows, , drop = FALSE])', source)
+    self.assertIn('block = .bp_as_matrix(y[rows, , drop = FALSE])', source)
     self.assertIn('logcpm_var = variances', source)
     self.assertIn('"tmm_logcpm_variance"', source)
     self.assertNotIn('DESeq2::vst(', source)
@@ -80,7 +92,19 @@ class TestEdgerBpBackend(unittest.TestCase):
     self.assertIn('edger.bp::bp_estimate_disp_stream(', source)
     self.assertIn('edger.bp::bp_glm_lrt(', source)
     self.assertIn('edger.bp::bp_glm_treat(', source)
+    self.assertIn('stats::model.matrix(~ project_id + group)', source)
+    self.assertIn('stats::model.matrix(~ project_id + selected)', source)
     self.assertIn('stats::p.adjust(out$PValue, method = "BH")', source)
+
+  def test_expected_bpcells_dense_message_is_filtered_selectively(self):
+    source = ADAPTER_R.read_text()
+    self.assertIn('.without_bpcells_dense_message <- function(expr)', source)
+    self.assertIn(
+      '"Converting to a dense matrix may use excessive memory"',
+      source,
+    )
+    self.assertIn('invokeRestart("muffleMessage")', source)
+    self.assertNotIn('suppressMessages(', source)
 
   def test_dense_equivalence_fixture_is_present(self):
     source = EQUIVALENCE_TEST.read_text()

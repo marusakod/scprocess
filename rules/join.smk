@@ -58,6 +58,7 @@ join_int_dir  = str(JOIN_DIR / f"output/{JOIN_TAG}")
 join_mkr_dir  = join_int_dir
 logs_dir      = str(JOIN_DIR / ".log/join")
 benchmark_dir = str(JOIN_DIR / ".resources")
+marker_edger_bp_script = str(scprocess_dir / "scripts/marker_genes_edger_bp.R")
 
 # integration
 INT_N_DIMS     = config['integration']['int_n_dims']
@@ -456,7 +457,8 @@ rule join_build_h5ads_yaml:
 rule join_make_pseudobulks:
   input:
     h5ads_yaml_f  = joint_h5ads_yaml_f,
-    integration_f = joint_integration_f
+    integration_f = joint_integration_f,
+    marker_script = marker_edger_bp_script
   output:
     pb_dir = directory(pb_dir)
   params:
@@ -476,7 +478,7 @@ rule join_make_pseudobulks:
     '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
-    Rscript --vanilla -e "source('{scprocess_dir}/scripts/marker_genes_edger_bp.R'); make_join_pseudobulks_bpcells(
+    Rscript --vanilla -e "source('{input.marker_script}'); make_join_pseudobulks_bpcells(
       integration_f = '{input.integration_f}',
       h5ads_yaml_f  = '{input.h5ads_yaml_f}',
       pb_dir        = '{output.pb_dir}',
@@ -489,7 +491,8 @@ rule join_make_pseudobulks:
 
 rule join_prepare_pseudobulks:
   input:
-    pb_dir = pb_dir
+    pb_dir        = pb_dir,
+    marker_script = marker_edger_bp_script
   output:
     prepared_coldata_f = pb_prepared_coldata_f,
     prepared_rowdata_f = pb_prepared_rowdata_f
@@ -508,7 +511,7 @@ rule join_prepare_pseudobulks:
     '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
-    Rscript --vanilla -e "source('{scprocess_dir}/scripts/marker_genes_edger_bp.R'); prepare_join_pseudobulks_bpcells(
+    Rscript --vanilla -e "source('{input.marker_script}'); prepare_join_pseudobulks_bpcells(
       pb_dir             = '{input.pb_dir}',
       prepared_coldata_f = '{output.prepared_coldata_f}',
       prepared_rowdata_f = '{output.prepared_rowdata_f}',
@@ -520,7 +523,8 @@ rule join_prepare_pseudobulks:
 rule join_calc_hvgs:
   input:
     pb_dir             = pb_dir,
-    prepared_coldata_f = pb_prepared_coldata_f
+    prepared_coldata_f = pb_prepared_coldata_f,
+    marker_script      = marker_edger_bp_script
   output:
     pb_hvgs_f = pb_hvgs_f
   params:
@@ -538,7 +542,7 @@ rule join_calc_hvgs:
     '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
-    Rscript --vanilla -e "source('{scprocess_dir}/scripts/marker_genes_edger_bp.R'); calculate_join_hvgs_bpcells(
+    Rscript --vanilla -e "source('{input.marker_script}'); calculate_join_hvgs_bpcells(
       pb_dir             = '{input.pb_dir}',
       prepared_coldata_f = '{input.prepared_coldata_f}',
       pb_hvgs_f          = '{output.pb_hvgs_f}',
@@ -551,7 +555,8 @@ rule join_marker_genes:
   input:
     pb_dir             = pb_dir,
     prepared_coldata_f = pb_prepared_coldata_f,
-    prepared_rowdata_f = pb_prepared_rowdata_f
+    prepared_rowdata_f = pb_prepared_rowdata_f,
+    marker_script      = marker_edger_bp_script
   output:
     mkrs_f = mkrs_f
   params:
@@ -569,7 +574,7 @@ rule join_marker_genes:
     '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
-    Rscript --vanilla -e "source('{scprocess_dir}/scripts/marker_genes_edger_bp.R'); calculate_join_marker_genes_bpcells(
+    Rscript --vanilla -e "source('{input.marker_script}'); calculate_join_marker_genes_bpcells(
       pb_dir             = '{input.pb_dir}',
       prepared_coldata_f = '{input.prepared_coldata_f}',
       prepared_rowdata_f = '{input.prepared_rowdata_f}',
