@@ -1,14 +1,14 @@
 name: rlibs_bpcells
 channels:
-  # Private channel for the audited BPCells/edger.bp R 4.5 stack.
-  - file:///pmount/projects/site/pred/neurogenomics/users/macnairw/packages/edger.bp-work/compatibility/conda-channel
+  # Public GitHub channel for the audited BPCells/edger.bp R 4.5 stack.
+  - https://raw.githubusercontent.com/wmacnair/edger.bp/conda-channel
   - conda-forge
   - bioconda
   - nodefaults
 dependencies:
   - r-base=4.5.3=h502d0c9_3
   - r-bpcells=0.3.1=r45hd5d28ae_1
-  - r-edger-bp=0.0.0.9000=r45_1
+  - r-edger-bp=0.1.0=r45_0
   - sysroot_linux-64=2.17=h0157908_18
   - r-data.table
   - r-matrix

@@ -7,9 +7,20 @@ MARKER_GENES_R = ROOT / 'scripts' / 'marker_genes.R'
 ADAPTER_R = ROOT / 'scripts' / 'marker_genes_edger_bp.R'
 JOIN_RULES = ROOT / 'rules' / 'join.smk'
 EQUIVALENCE_TEST = ROOT / 'tests' / 'test_marker_genes_edger_bp.R'
+EDGER_BP_ENV = ROOT / 'envs' / 'rlibs_bpcells.yaml'
 
 
 class TestEdgerBpBackend(unittest.TestCase):
+  def test_environment_uses_public_release_channel(self):
+    source = EDGER_BP_ENV.read_text()
+    self.assertIn(
+      'https://raw.githubusercontent.com/wmacnair/edger.bp/conda-channel',
+      source,
+    )
+    self.assertIn('r-edger-bp=0.1.0=r45_0', source)
+    self.assertNotIn('edger.bp-work', source)
+    self.assertNotIn('r-edger-bp=0.0.0.9000', source)
+
   def test_join_rule_loads_adapter(self):
     source = JOIN_RULES.read_text()
     self.assertIn("source('{scprocess_dir}/scripts/marker_genes_edger_bp.R')", source)
