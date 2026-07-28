@@ -66,6 +66,9 @@ def check_setup_before_running_scprocess(scprocess_dir, extraargs):
     extraargs.append('--cores')
     extraargs.append(str(setup_cfg['user']['local_cores']))
 
+  conda_prefix = get_conda_prefix(setup_cfg, scdata_dir)
+  extraargs.extend(['--conda-prefix', str(conda_prefix)])
+
   return scdata_dir, extraargs, setup_cfg
 
 
@@ -153,16 +156,21 @@ def initialise_cluster_profile(scprocess_dir, scdata_dir, setup_cfg, dryrun=Fals
   return True
 
 
-def get_conda_prefix(setup_cfg):
-  """Get conda-prefix from the Snakemake profile, if configured."""
-  if 'profile_dir' not in setup_cfg.get('user', {}):
+def get_conda_prefix(setup_cfg, scdata_dir=None):
+  """Get the configured Conda prefix or a shared per-user default."""
+  if 'profile_dir' in setup_cfg.get('user', {}):
+    profile_f = setup_cfg['user']['profile_dir'] / 'config.yaml'
+    if profile_f.is_file():
+      with open(profile_f) as f:
+        profile = yaml.safe_load(f)
+      if profile.get('conda-prefix'):
+        return pathlib.Path(profile['conda-prefix']).expanduser()
+
+  if scdata_dir is None:
+    scdata_dir = os.getenv('SCPROCESS_DATA_DIR')
+  if not scdata_dir:
     return None
-  profile_f = setup_cfg['user']['profile_dir'] / 'config.yaml'
-  if not profile_f.is_file():
-    return None
-  with open(profile_f) as f:
-    profile = yaml.safe_load(f)
-  return profile.get('conda-prefix')
+  return pathlib.Path(scdata_dir) / 'conda_envs'
 
 
 def get_filtered_counts_file(run, ambient_method, amb_dir, date_stamp):
