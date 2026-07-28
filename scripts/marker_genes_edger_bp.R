@@ -6,7 +6,25 @@
 
 .bp_lapply <- function(x, workers, fun) {
   if (workers > 1L && length(x) > 1L) {
-    parallel::mclapply(x, fun, mc.cores = workers, mc.preschedule = TRUE)
+    run_one = function(value) {
+      tryCatch(
+        list(ok = TRUE, value = fun(value), error = NULL),
+        error = function(e) list(ok = FALSE, value = NULL, error = conditionMessage(e))
+      )
+    }
+    results = parallel::mclapply(
+      x, run_one, mc.cores = workers, mc.preschedule = TRUE
+    )
+    ok = vapply(results, function(result) isTRUE(result$ok), logical(1))
+    values = lapply(results, `[[`, "value")
+    for (i in which(!ok)) {
+      message(
+        "    parallel processing failed for ", as.character(x[[i]]),
+        " (", results[[i]]$error, "); retrying serially"
+      )
+      values[[i]] = fun(x[[i]])
+    }
+    values
   } else {
     lapply(x, fun)
   }
@@ -79,6 +97,20 @@ build_pseudobulk_cache_bpcells <- function(pb_dir, integration_f, h5ads_yaml_f,
       warning("skipping missing or empty H5AD for ", batch_name, ": ", h5ad_path)
       return(NULL)
     }
+    root_objects = tryCatch(
+      rhdf5::h5ls(h5ad_path, recursive = FALSE)$name,
+      error = function(e) {
+        stop(
+          "Unable to inspect H5AD for ", batch_name, ": ",
+          conditionMessage(e), call. = FALSE
+        )
+      }
+    )
+    if (!"X" %in% root_objects) {
+      warning("skipping H5AD without X (no cells after QC) for ",
+        batch_name, ": ", h5ad_path)
+      return(NULL)
+    }
 
     mat = BPCells::open_matrix_anndata_hdf5(h5ad_path)
     ok_cells = intersect(colnames(mat), int_dt$cell_id)
@@ -100,6 +132,8 @@ build_pseudobulk_cache_bpcells <- function(pb_dir, integration_f, h5ads_yaml_f,
       BPCells::convert_matrix_type(pb_one, "uint32_t"),
       dir = out_dir
     )
+    rm(mat, pb_one)
+    gc(verbose = FALSE)
     out_dir
   }
 

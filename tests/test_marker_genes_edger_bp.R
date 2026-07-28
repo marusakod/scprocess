@@ -7,11 +7,19 @@ source("scripts/marker_genes_edger_bp.R")
 
 set.seed(17)
 
+parent_pid = Sys.getpid()
+parallel_retry = .bp_lapply(seq_len(8L), 2L, function(i) {
+  if (i == 3L && Sys.getpid() != parent_pid) stop("synthetic worker error")
+  i
+})
+stopifnot(identical(unlist(parallel_retry), seq_len(8L)))
+
 cache_test_dir = tempfile("scprocess-edger-bp-cache-")
 dir.create(cache_test_dir)
 on.exit(unlink(cache_test_dir, recursive = TRUE), add = TRUE)
 h5ad_a = file.path(cache_test_dir, "batch_a.h5ad")
 h5ad_b = file.path(cache_test_dir, "batch_b.h5ad")
+h5ad_empty = file.path(cache_test_dir, "batch_empty.h5ad")
 batch_a = matrix(
   c(1, 2, 3, 4, 5, 6),
   nrow = 3L,
@@ -30,6 +38,7 @@ write_matrix_anndata_hdf5(
   convert_matrix_type(Matrix(batch_b, sparse = TRUE), "uint32_t"),
   h5ad_b
 )
+rhdf5::h5createFile(h5ad_empty)
 integration_f = file.path(cache_test_dir, "integration.csv")
 data.table::fwrite(
   data.table::data.table(
@@ -43,7 +52,8 @@ h5ads_yaml_f = file.path(cache_test_dir, "h5ads.yaml")
 yaml::write_yaml(
   list(
     sequencing_batch_a = list(path = h5ad_a),
-    sequencing_batch_b = list(path = h5ad_b)
+    sequencing_batch_b = list(path = h5ad_b),
+    sequencing_batch_empty = list(path = h5ad_empty)
   ),
   h5ads_yaml_f
 )
