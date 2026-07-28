@@ -33,7 +33,7 @@ genesetsServer <- function(id, shared) {
       if (input$sel_tfs_opt == "hv_tfs") {
         shared$pb_hvgs %>%
           .[is.tf == TRUE, ] %>%
-          setorder(-vst_var) %>%
+          setorder(-variability) %>%
           .[, idx := 1:.N] %>%
           .[idx <= input$top_n_hv_tfs, symbol]
       } else {
@@ -74,7 +74,7 @@ genesetsServer <- function(id, shared) {
 
     genes_from_hvgs <- function() {
       req(input$top_n_hvgs)
-      shared$pb_hvgs %>% setorder(-vst_var) %>% .[1:input$top_n_hvgs, symbol]
+      shared$pb_hvgs %>% setorder(-variability) %>% .[1:input$top_n_hvgs, symbol]
     }
 
     genes_from_go <- function() {

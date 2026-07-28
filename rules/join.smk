@@ -126,9 +126,12 @@ joint_integration_f = f"{join_int_dir}/integrated_dt_{JOIN_TAG}_{DATE_STAMP}.csv
 joint_h5ads_yaml_f  = f"{join_int_dir}/h5ads_clean_paths_{JOIN_TAG}_{DATE_STAMP}.yaml"
 h5ads_dir           = f"{join_int_dir}/h5ads"
 
-pb_f        = f"{join_mkr_dir}/pb_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.rds"
+pb_dir      = f"{join_mkr_dir}/pb_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.bpcells"
+pb_prepared_coldata_f = f"{join_mkr_dir}/pb_prepared_coldata_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv.gz"
+pb_prepared_rowdata_f = f"{join_mkr_dir}/pb_prepared_rowdata_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv.gz"
 mkrs_f      = f"{join_mkr_dir}/pb_marker_genes_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv.gz"
 pb_hvgs_f   = f"{join_mkr_dir}/pb_hvgs_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv.gz"
+pb_plot_data_f = f"{join_mkr_dir}/pb_plot_data_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv.gz"
 fgsea_bp_f  = f"{join_mkr_dir}/fgsea_{JOIN_TAG}_{MKR_SEL_RES}_go_bp_{DATE_STAMP}.csv.gz"
 fgsea_cc_f  = f"{join_mkr_dir}/fgsea_{JOIN_TAG}_{MKR_SEL_RES}_go_cc_{DATE_STAMP}.csv.gz"
 fgsea_mf_f  = f"{join_mkr_dir}/fgsea_{JOIN_TAG}_{MKR_SEL_RES}_go_mf_{DATE_STAMP}.csv.gz"
@@ -450,20 +453,109 @@ rule join_build_h5ads_yaml:
     """
 
 
-rule join_marker_genes:
+rule join_make_pseudobulks:
   input:
     h5ads_yaml_f  = joint_h5ads_yaml_f,
     integration_f = joint_integration_f
   output:
-    pb_f      = pb_f,
-    mkrs_f    = mkrs_f,
-    pb_hvgs_f = pb_hvgs_f
+    pb_dir = directory(pb_dir)
   params:
-    gene_info_f = GENE_INFO_F,
     sel_res     = MKR_SEL_RES,
     min_cl_size = config['marker_genes']['mkr_min_cl_size'],
-    min_cells   = config['marker_genes']['mkr_min_cells'],
     batch_var   = "sample_id"
+  threads: 8
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_make_pseudobulks', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_make_pseudobulks', 'time', attempt)
+  log:
+    f"{logs_dir}/join_make_pseudobulks_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_make_pseudobulks_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/rlibs_bpcells.yaml'
+  shell: """
+    exec &>> {log}
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/marker_genes_edger_bp.R'); make_join_pseudobulks_bpcells(
+      integration_f = '{input.integration_f}',
+      h5ads_yaml_f  = '{input.h5ads_yaml_f}',
+      pb_dir        = '{output.pb_dir}',
+      sel_res       = '{params.sel_res}',
+      min_cl_size   =  {params.min_cl_size},
+      batch_var     = '{params.batch_var}',
+      n_cores       =  {threads})"
+    """
+
+
+rule join_prepare_pseudobulks:
+  input:
+    pb_dir = pb_dir
+  output:
+    prepared_coldata_f = pb_prepared_coldata_f,
+    prepared_rowdata_f = pb_prepared_rowdata_f
+  params:
+    min_cells = config['marker_genes']['mkr_min_cells']
+  threads: 8
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_prepare_pseudobulks', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_prepare_pseudobulks', 'time', attempt)
+  log:
+    f"{logs_dir}/join_prepare_pseudobulks_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_prepare_pseudobulks_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/rlibs_bpcells.yaml'
+  shell: """
+    exec &>> {log}
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/marker_genes_edger_bp.R'); prepare_join_pseudobulks_bpcells(
+      pb_dir             = '{input.pb_dir}',
+      prepared_coldata_f = '{output.prepared_coldata_f}',
+      prepared_rowdata_f = '{output.prepared_rowdata_f}',
+      min_cells          =  {params.min_cells},
+      n_cores            =  {threads})"
+    """
+
+
+rule join_calc_hvgs:
+  input:
+    pb_dir             = pb_dir,
+    prepared_coldata_f = pb_prepared_coldata_f
+  output:
+    pb_hvgs_f = pb_hvgs_f
+  params:
+    gene_info_f = GENE_INFO_F
+  threads: 4
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_calc_hvgs', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_calc_hvgs', 'time', attempt)
+  log:
+    f"{logs_dir}/join_calc_hvgs_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_calc_hvgs_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/rlibs_bpcells.yaml'
+  shell: """
+    exec &>> {log}
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/marker_genes_edger_bp.R'); calculate_join_hvgs_bpcells(
+      pb_dir             = '{input.pb_dir}',
+      prepared_coldata_f = '{input.prepared_coldata_f}',
+      pb_hvgs_f          = '{output.pb_hvgs_f}',
+      biotypes_dt        = load_gene_biotypes_bpcells('{params.gene_info_f}'),
+      n_cores            =  {threads})"
+    """
+
+
+rule join_marker_genes:
+  input:
+    pb_dir             = pb_dir,
+    prepared_coldata_f = pb_prepared_coldata_f,
+    prepared_rowdata_f = pb_prepared_rowdata_f
+  output:
+    mkrs_f = mkrs_f
+  params:
+    gene_info_f = GENE_INFO_F
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -477,20 +569,44 @@ rule join_marker_genes:
     '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
-    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/marker_genes_edger_bp.R'); source('{scprocess_dir}/scripts/marker_genes.R'); calculate_marker_genes(
-      integration_f = '{input.integration_f}',
-      h5ads_yaml_f  = '{input.h5ads_yaml_f}',
-      pb_f          = '{output.pb_f}',
-      mkrs_f        = '{output.mkrs_f}',
-      pb_hvgs_f     = '{output.pb_hvgs_f}',
-      gtf_dt_f      = '{params.gene_info_f}',
-      sel_res       = '{params.sel_res}',
-      min_cl_size   =  {params.min_cl_size},
-      min_cells     =  {params.min_cells},
-      zoom          = 'True',
-      batch_var     = '{params.batch_var}',
-      n_cores       =  {threads},
-      use_bpcells   = 'True')"
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/marker_genes_edger_bp.R'); calculate_join_marker_genes_bpcells(
+      pb_dir             = '{input.pb_dir}',
+      prepared_coldata_f = '{input.prepared_coldata_f}',
+      prepared_rowdata_f = '{input.prepared_rowdata_f}',
+      mkrs_f             = '{output.mkrs_f}',
+      biotypes_dt        = load_gene_biotypes_bpcells('{params.gene_info_f}'),
+      n_cores            =  {threads})"
+    """
+
+
+rule join_marker_plot_data:
+  input:
+    pb_dir             = pb_dir,
+    prepared_coldata_f = pb_prepared_coldata_f,
+    mkrs_f             = mkrs_f,
+    pb_hvgs_f          = pb_hvgs_f
+  output:
+    pb_plot_data_f = pb_plot_data_f
+  params:
+    min_cpm_mkr = config['marker_genes']['mkr_min_cpm_mkr']
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_marker_plot_data', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_marker_plot_data', 'time', attempt)
+  log:
+    f"{logs_dir}/join_marker_plot_data_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
+  conda:
+    '../envs/rlibs_bpcells.yaml'
+  shell: """
+    exec &>> {log}
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/marker_genes_edger_bp.R'); source('{scprocess_dir}/scripts/marker_genes.R'); make_report_logcpms_bpcells(
+      pb_dir             = '{input.pb_dir}',
+      prepared_coldata_f = '{input.prepared_coldata_f}',
+      mkrs_f             = '{input.mkrs_f}',
+      pb_hvgs_f          = '{input.pb_hvgs_f}',
+      out_f              = '{output.pb_plot_data_f}',
+      min_cpm_mkr        = {params.min_cpm_mkr})"
     """
 
 
@@ -703,7 +819,7 @@ rule join_render_html:
     sample_meta_f = joint_sample_meta_f,
     mkrs_f        = mkrs_f,
     pb_hvgs_f     = pb_hvgs_f,
-    pb_f          = pb_f,
+    pb_plot_data_f = pb_plot_data_f,
     fgsea_files   = [fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else [],
     label_files   = label_fs,
     cluster_names = cluster_names_fs,
@@ -742,7 +858,7 @@ rule join_render_html:
     qc_f             = joint_qc_f,
     mkrs_f           = mkrs_f,
     pb_hvgs_f        = pb_hvgs_f,
-    pb_f             = pb_f,
+    pb_plot_data_f   = pb_plot_data_f,
     fgsea_go_bp_f    = fgsea_bp_f if DO_GSEA else '',
     fgsea_go_cc_f    = fgsea_cc_f if DO_GSEA else '',
     fgsea_go_mf_f    = fgsea_mf_f if DO_GSEA else '',
@@ -813,7 +929,7 @@ rule join_render_html:
       sample_meta_f    = '{input.sample_meta_f}',
       mkrs_f           = '{params.mkrs_f}',
       pb_hvgs_f        = '{params.pb_hvgs_f}',
-      pb_f             = '{params.pb_f}',
+      pb_plot_data_f   = '{params.pb_plot_data_f}',
       fgsea_go_bp_f    = '{params.fgsea_go_bp_f}',
       fgsea_go_cc_f    = '{params.fgsea_go_cc_f}',
       fgsea_go_mf_f    = '{params.fgsea_go_mf_f}',

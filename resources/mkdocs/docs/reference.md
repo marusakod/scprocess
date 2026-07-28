@@ -595,6 +595,10 @@ For pseudobulk HVG ranking, cluster-sample profiles containing only one cell are
 excluded from the VST matrix; this does not exclude them from marker-gene testing.
 The VST uses standard DESeq2 size factors when possible and falls back to the
 `poscounts` estimator for sparse matrices in which every gene contains a zero.
+Join analyses instead rank variability as the blockwise variance of
+TMM-normalised log-CPM across eligible cluster-sample pseudobulks. The join
+calculation reads bounded gene blocks from the disk-backed BPCells matrix and
+does not construct a dense, whole-matrix VST.
 
 ##### label_celltypes
 
@@ -930,7 +934,19 @@ Additional parameters include:
 * `metadata_vars` (optional): list of column names from the source projects' `sample_metadata` CSV files to carry through into the joint sample metadata and presentation outputs. Each variable must exist in at least one project's metadata file, but does not need to be present in all projects. Missing values are filled with `NA`.
 * `projects`: mapping containing at least two source projects. Each entry requires `config`, the path to a completed project config, and may specify `zoom_name` to join a completed zoom instead of the full project.
 * `int_pca_method`: PCA computation method. Options: `bpcells` (default) uses disk-backed SVD via BPCells (R), suitable for very large datasets (>1M cells) without GPU memory limits; `scanpy` uses the standard in-memory PCA on GPU/CPU (original behaviour).
-* Join marker-gene testing keeps the combined pseudobulk count matrix disk-backed and uses the streamed `edger.bp` edgeR Treat backend. Standard project and zoom marker-gene runs continue to use the dense edgeR backend.
+* Join marker-gene testing stores the pseudobulk output as a BPCells directory,
+  keeps the combined counts disk-backed, and uses the streamed `edger.bp` edgeR
+  Treat backend. The work is split into `join_make_pseudobulks`,
+  `join_prepare_pseudobulks`, `join_calc_hvgs`, and `join_marker_genes`.
+  Preparation writes small column and gene manifests containing the retained
+  pseudobulks, retained genes, and TMM library-size metadata; it does not
+  duplicate or mutate the BPCells count store. Once preparation finishes, the
+  blockwise, disk-backed variability ranking and marker testing can run in
+  parallel. Their default resource requests are 8–16 GB and 30–90 minutes,
+  and can be overridden with the corresponding `gb_join_*` and
+  `mins_join_*` resource keys.
+  Standard project and zoom marker-gene runs retain their existing RDS,
+  dense-edgeR, and DESeq2 VST paths.
 
 Joint HVGs are selected from the final HVG lists of the source projects. Genes
 are ranked first by the number of projects in which they were selected as an

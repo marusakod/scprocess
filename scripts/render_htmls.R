@@ -286,7 +286,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'custom_mkr_names', 'custom_mkr_paths',
       'label_f_ls', 'labeller_ls', 'model_ls', 'hi_res_cl_ls', 'min_cl_prop_ls',
       'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_cut',
-      'integration_f', 'qc_f', 'sample_meta_f', 'mkrs_f', 'pb_hvgs_f', 'pb_f',
+      'integration_f', 'qc_f', 'sample_meta_f', 'mkrs_f', 'pb_hvgs_f',
+      'pb_plot_data_f',
       'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f',
       'do_xgboost', 'xgb_predictions_f', 'xgb_importance_f', 'xgb_pseudobulk_f',
       'xgb_has_coarse', 'xgb_min_cells')

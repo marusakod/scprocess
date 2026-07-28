@@ -473,10 +473,12 @@ make_shiny_app_scprocess <- function(
   # ---- HVGs ----------------------------------------------------------------
   message("Processing HVGs")
   pb_hvgs <- fread(pb_hvgs_f)
-  assert_that("vst_var" %in% colnames(pb_hvgs),
-    msg = "pb_hvgs file must contain 'vst_var' column")
+  variability_col <- intersect(c("logcpm_var", "vst_var"), colnames(pb_hvgs))[1]
+  assert_that(!is.na(variability_col),
+    msg = "pb_hvgs file must contain 'logcpm_var' or 'vst_var'")
   pb_hvgs[, is.tf := symbol %in% tf_symbols]
-  pb_hvgs <- pb_hvgs[, .(symbol, vst_var, is.tf)] %>% setorder(-vst_var)
+  pb_hvgs <- pb_hvgs[, .(symbol, variability = get(variability_col), is.tf)] %>%
+    setorder(-variability)
   fwrite(pb_hvgs, out_fs["out_pb_hvgs_f"])
 
   # ---- GSEA ----------------------------------------------------------------

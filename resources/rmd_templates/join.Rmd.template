@@ -58,7 +58,7 @@ qc_f          = "${qc_f}"
 sample_meta_f = "${sample_meta_f}"
 mkrs_f        = "${mkrs_f}"
 pb_hvgs_f     = "${pb_hvgs_f}"
-pb_f          = "${pb_f}"
+pb_plot_data_f = "${pb_plot_data_f}"
 fgsea_go_bp_f = "${fgsea_go_bp_f}"
 fgsea_go_cc_f = "${fgsea_go_cc_f}"
 fgsea_go_mf_f = "${fgsea_go_mf_f}"
@@ -157,17 +157,14 @@ biotypes_dt = load_gene_biotypes(gtf_dt_f)
 
 
 ```{r load_cpms, include=FALSE}
-cpms_dt = readRDS(pb_f) %>%
-  make_logcpms_all("sample_id", lib_size_method = "edger",
-    min_cells = min_cells, n_cores = 1L) %>%
-  merge(biotypes_dt[, .(gene_id, gene_type)], by = "gene_id")
+cpms_dt = fread(pb_plot_data_f)
 ```
 
 
 ```{r load_hvgs, include=FALSE}
 pb_hvgs_dt = fread(pb_hvgs_f) %>%
   .[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>%
-  .[ order(-vst_var) ]
+  .[ order(-logcpm_var) ]
 top_hvgs = pb_hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs"]
 ```
 
@@ -320,8 +317,8 @@ for (nn in names(mkrs_ls)) {
 
 ### Highly variable genes{.tabset}
 
-Normalised pseudobulk expression for the top 100 highly variable genes, in descending
-order of variance.
+TMM-normalised pseudobulk log-CPM expression for the top 100 highly variable genes,
+ranked by their variance across eligible cluster-sample pseudobulks.
 
 ```{r plot_hvgs, fig.height=8, fig.width=8, results="asis"}
 n_pages = 10; per_p = 10; p = 1
