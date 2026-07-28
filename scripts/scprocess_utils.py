@@ -68,7 +68,11 @@ def check_setup_before_running_scprocess(scprocess_dir, extraargs):
 
   conda_prefix = get_conda_prefix(setup_cfg, scprocess_dir)
   setup_cfg['_conda_prefix'] = conda_prefix
-  extraargs.extend(['--conda-prefix', str(conda_prefix)])
+  if not any(
+    arg == '--conda-prefix' or arg.startswith('--conda-prefix=')
+    for arg in extraargs
+  ):
+    extraargs.extend(['--conda-prefix', str(conda_prefix)])
 
   return scdata_dir, extraargs, setup_cfg
 

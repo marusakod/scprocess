@@ -65,6 +65,37 @@ class TestCondaPrefix(unittest.TestCase):
       )
       self.assertEqual(returned_cfg['_conda_prefix'], expected_prefix)
 
+  def test_explicit_command_line_prefix_takes_precedence(self):
+    with tempfile.TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      scprocess_dir = root / 'scprocess'
+      scdata_dir = root / 'scdata'
+      scprocess_dir.mkdir()
+      scdata_dir.mkdir()
+      for name in [
+        'cellranger_ref', 'gmt_pathways', 'marker_genes', 'xgboost',
+        'alevin_fry_home',
+      ]:
+        (scdata_dir / name).mkdir()
+      (scdata_dir / 'index_parameters.csv').touch()
+      (scdata_dir / 'scprocess_setup.yaml').write_text('user: {}\n')
+
+      setup_cfg = {'user': {'local_cores': 2}}
+      explicit = '/tmp/scprocess-test-envs'
+      with (
+        patch.dict('os.environ', {'SCPROCESS_DATA_DIR': str(scdata_dir)}),
+        patch(
+          'scripts.scprocess_utils.check_setup_config',
+          return_value=setup_cfg,
+        ),
+      ):
+        _, extraargs, _ = check_setup_before_running_scprocess(
+          scprocess_dir, ['--conda-prefix', explicit]
+        )
+
+      self.assertEqual(extraargs.count('--conda-prefix'), 1)
+      self.assertEqual(extraargs[1], explicit)
+
 
 if __name__ == '__main__':
   unittest.main()
