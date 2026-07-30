@@ -1,4 +1,5 @@
 import unittest
+import json
 from pathlib import Path
 
 
@@ -8,6 +9,7 @@ ADAPTER_R = ROOT / 'scripts' / 'marker_genes_edger_bp.R'
 JOIN_RULES = ROOT / 'rules' / 'join.smk'
 EQUIVALENCE_TEST = ROOT / 'tests' / 'test_marker_genes_edger_bp.R'
 EDGER_BP_ENV = ROOT / 'envs' / 'rlibs_bpcells.yaml'
+JOIN_SCHEMA = ROOT / 'resources' / 'schemas' / 'join.schema.json'
 
 
 class TestEdgerBpBackend(unittest.TestCase):
@@ -39,6 +41,19 @@ class TestEdgerBpBackend(unittest.TestCase):
     self.assertEqual(
       source.count('= marker_edger_bp_script'),
       4,
+    )
+
+  def test_join_marker_threads_are_configurable(self):
+    source = JOIN_RULES.read_text()
+    schema = json.loads(JOIN_SCHEMA.read_text())
+    thread_schema = schema['properties']['resources']['properties'][
+      'n_join_marker_genes'
+    ]
+    self.assertEqual(thread_schema['default'], 8)
+    self.assertEqual(thread_schema['minimum'], 1)
+    self.assertIn(
+      "threads: config['resources']['n_join_marker_genes']",
+      source,
     )
 
   def test_pseudobulk_counts_remain_disk_backed_for_de(self):

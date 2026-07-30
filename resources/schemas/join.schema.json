@@ -156,6 +156,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "n_join_marker_genes":          { "type": "integer", "minimum": 1, "default": 8 },
         "gb_join_select_hvgs":        { "type": "integer", "default": 4 },
         "gb_join_build_matrix":       { "type": "integer", "default": 16 },
         "gb_join_build_coldata":      { "type": "integer", "default": 4 },

@@ -561,7 +561,7 @@ rule join_marker_genes:
     mkrs_f = mkrs_f
   params:
     gene_info_f = GENE_INFO_F
-  threads: 8
+  threads: config['resources']['n_join_marker_genes']
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_marker_genes', 'memory', attempt),

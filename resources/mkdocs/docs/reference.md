@@ -948,6 +948,9 @@ Additional parameters include:
   parallel. Their default resource requests are 8–16 GB and 30–90 minutes,
   and can be overridden with the corresponding `gb_join_*` and
   `mins_join_*` resource keys.
+  `resources.n_join_marker_genes` controls the threads requested by
+  `join_marker_genes` and the number of streamed edgeR workers; its default is
+  `8`.
   The rule environment installs the audited BPCells and `edger.bp` R 4.5
   builds from the public
   [edger.bp GitHub Conda channel](https://github.com/wmacnair/edger.bp/tree/conda-channel);
