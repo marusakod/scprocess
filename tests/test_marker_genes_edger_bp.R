@@ -169,61 +169,72 @@ bp_counts = write_matrix_dir(
 )
 group = factor(clusters, levels = unique(clusters))
 project_id = factor(projects, levels = unique(projects))
-dispersion_design = model.matrix(~ project_id + group)
-prepared = edger.bp::bp_prepare_dge(
-  bp_counts,
-  design = dispersion_design,
-  group = group,
-  workers = 1L,
-  block.size = 20L,
-  min.count = 1
-)
-observed = fit_markers_edger_bp(
-  prepared$counts,
-  coldata = coldata,
-  clusters = c("A", "B", "C"),
-  effective_lib_size = prepared$effective.lib.size,
-  workers = 1L,
-  block_size = 20L
-)
-
-dge = DGEList(counts)
-keep = filterByExpr(
-  dge,
-  design = dispersion_design,
-  group = group,
-  min.count = 1
-)
-dge = dge[keep, , keep.lib.sizes = FALSE]
-dge = normLibSizes(dge, method = "TMM")
-dge = estimateDisp(dge, design = dispersion_design)
-
-expected = do.call(rbind, lapply(c("A", "B", "C"), function(cluster) {
-  selected = group == cluster
-  design = model.matrix(~ project_id + selected)
-  fit = glmQLFit(
-    dge,
-    design = design,
-    dispersion = dge$tagwise.dispersion,
-    legacy = FALSE
+for (adjust_project_id in c(FALSE, TRUE)) {
+  dispersion_design = if (adjust_project_id) {
+    model.matrix(~ project_id + group)
+  } else {
+    model.matrix(~ group)
+  }
+  prepared = edger.bp::bp_prepare_dge(
+    bp_counts,
+    design = dispersion_design,
+    group = group,
+    workers = 1L,
+    block.size = 20L,
+    min.count = 1
   )
-  table = glmTreat(fit, coef = "selectedTRUE")$table
-  table$FDR = p.adjust(table$PValue, method = "BH")
-  table$gene_id = rownames(table)
-  table$cluster = cluster
-  rownames(table) = NULL
-  table
-}))
+  observed = fit_markers_edger_bp(
+    prepared$counts,
+    coldata = coldata,
+    clusters = c("A", "B", "C"),
+    effective_lib_size = prepared$effective.lib.size,
+    workers = 1L,
+    block_size = 20L,
+    adjust_project_id = adjust_project_id
+  )
 
-key = paste(observed$cluster, observed$gene_id)
-expected = expected[match(key, paste(expected$cluster, expected$gene_id)), ]
-stopifnot(
-  identical(key, paste(expected$cluster, expected$gene_id)),
-  isTRUE(all.equal(observed$logFC, expected$logFC, tolerance = 1e-8)),
-  isTRUE(all.equal(observed$logCPM, expected$logCPM, tolerance = 1e-8)),
-  isTRUE(all.equal(observed$PValue, expected$PValue, tolerance = 1e-8)),
-  isTRUE(all.equal(observed$FDR, expected$FDR, tolerance = 1e-8))
-)
+  dge = DGEList(counts)
+  keep = filterByExpr(
+    dge,
+    design = dispersion_design,
+    group = group,
+    min.count = 1
+  )
+  dge = dge[keep, , keep.lib.sizes = FALSE]
+  dge = normLibSizes(dge, method = "TMM")
+  dge = estimateDisp(dge, design = dispersion_design)
+
+  expected = do.call(rbind, lapply(c("A", "B", "C"), function(cluster) {
+    selected = group == cluster
+    design = if (adjust_project_id) {
+      model.matrix(~ project_id + selected)
+    } else {
+      model.matrix(~ selected)
+    }
+    fit = glmQLFit(
+      dge,
+      design = design,
+      dispersion = dge$tagwise.dispersion,
+      legacy = FALSE
+    )
+    table = glmTreat(fit, coef = "selectedTRUE")$table
+    table$FDR = p.adjust(table$PValue, method = "BH")
+    table$gene_id = rownames(table)
+    table$cluster = cluster
+    rownames(table) = NULL
+    table
+  }))
+
+  key = paste(observed$cluster, observed$gene_id)
+  expected = expected[match(key, paste(expected$cluster, expected$gene_id)), ]
+  stopifnot(
+    identical(key, paste(expected$cluster, expected$gene_id)),
+    isTRUE(all.equal(observed$logFC, expected$logFC, tolerance = 1e-8)),
+    isTRUE(all.equal(observed$logCPM, expected$logCPM, tolerance = 1e-8)),
+    isTRUE(all.equal(observed$PValue, expected$PValue, tolerance = 1e-8)),
+    isTRUE(all.equal(observed$FDR, expected$FDR, tolerance = 1e-8))
+  )
+}
 
 variability_f = tempfile(fileext = ".csv.gz")
 on.exit(unlink(variability_f), add = TRUE)

@@ -19,7 +19,7 @@ class TestEdgerBpBackend(unittest.TestCase):
       'https://raw.githubusercontent.com/wmacnair/edger.bp/conda-channel',
       source,
     )
-    self.assertIn('r-edger-bp=0.1.0=r45_0', source)
+    self.assertIn('r-edger-bp=0.1.1=r45_0', source)
     self.assertNotIn('edger.bp-work', source)
     self.assertNotIn('r-edger-bp=0.0.0.9000', source)
 
@@ -54,6 +54,39 @@ class TestEdgerBpBackend(unittest.TestCase):
     self.assertIn(
       "threads: config['resources']['n_join_marker_genes']",
       source,
+    )
+
+  def test_project_adjustment_is_optional_and_disabled_by_default(self):
+    source = JOIN_RULES.read_text()
+    adapter_source = ADAPTER_R.read_text()
+    schema = json.loads(JOIN_SCHEMA.read_text())
+    setting = schema['properties']['marker_genes']['properties'][
+      'mkr_adjust_project_id'
+    ]
+    self.assertEqual(setting, {'type': 'boolean', 'default': False})
+    self.assertIn(
+      "config['marker_genes']['mkr_adjust_project_id']",
+      source,
+    )
+    self.assertIn('adjust_project_id = FALSE', adapter_source)
+    self.assertIn('stats::model.matrix(~ group)', adapter_source)
+    self.assertIn('stats::model.matrix(~ selected)', adapter_source)
+    self.assertIn('stats::model.matrix(~ project_id + group)', adapter_source)
+    self.assertIn('stats::model.matrix(~ project_id + selected)', adapter_source)
+
+  def test_forked_join_rules_cap_blas_threads(self):
+    source = JOIN_RULES.read_text()
+    adapter_source = ADAPTER_R.read_text()
+    self.assertEqual(source.count('export OPENBLAS_NUM_THREADS=1'), 4)
+    self.assertEqual(source.count('export MKL_NUM_THREADS=1'), 4)
+    self.assertEqual(source.count('export OMP_NUM_THREADS=1'), 4)
+    self.assertIn(
+      'RhpcBLASctl::blas_set_num_threads(1L)',
+      adapter_source,
+    )
+    self.assertIn(
+      'RhpcBLASctl::omp_set_num_threads(1L)',
+      adapter_source,
     )
 
   def test_pseudobulk_counts_remain_disk_backed_for_de(self):
@@ -107,8 +140,8 @@ class TestEdgerBpBackend(unittest.TestCase):
     self.assertIn('edger.bp::bp_estimate_disp_stream(', source)
     self.assertIn('edger.bp::bp_glm_lrt(', source)
     self.assertIn('edger.bp::bp_glm_treat(', source)
-    self.assertIn('stats::model.matrix(~ project_id + group)', source)
-    self.assertIn('stats::model.matrix(~ project_id + selected)', source)
+    self.assertIn('stats::model.matrix(~ group)', source)
+    self.assertIn('stats::model.matrix(~ selected)', source)
     self.assertIn('stats::p.adjust(out$PValue, method = "BH")', source)
 
   def test_expected_bpcells_dense_message_is_filtered_selectively(self):

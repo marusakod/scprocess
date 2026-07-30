@@ -478,6 +478,10 @@ rule join_make_pseudobulks:
     '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
+    export OPENBLAS_NUM_THREADS=1
+    export MKL_NUM_THREADS=1
+    export OMP_NUM_THREADS=1
+
     Rscript --vanilla -e "source('{input.marker_script}'); make_join_pseudobulks_bpcells(
       integration_f = '{input.integration_f}',
       h5ads_yaml_f  = '{input.h5ads_yaml_f}',
@@ -497,7 +501,8 @@ rule join_prepare_pseudobulks:
     prepared_coldata_f = pb_prepared_coldata_f,
     prepared_rowdata_f = pb_prepared_rowdata_f
   params:
-    min_cells = config['marker_genes']['mkr_min_cells']
+    min_cells        = config['marker_genes']['mkr_min_cells'],
+    adjust_project_id = str(config['marker_genes']['mkr_adjust_project_id']).upper()
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -511,11 +516,16 @@ rule join_prepare_pseudobulks:
     '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
+    export OPENBLAS_NUM_THREADS=1
+    export MKL_NUM_THREADS=1
+    export OMP_NUM_THREADS=1
+
     Rscript --vanilla -e "source('{input.marker_script}'); prepare_join_pseudobulks_bpcells(
       pb_dir             = '{input.pb_dir}',
       prepared_coldata_f = '{output.prepared_coldata_f}',
       prepared_rowdata_f = '{output.prepared_rowdata_f}',
       min_cells          =  {params.min_cells},
+      adjust_project_id  =  {params.adjust_project_id},
       n_cores            =  {threads})"
     """
 
@@ -542,6 +552,10 @@ rule join_calc_hvgs:
     '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
+    export OPENBLAS_NUM_THREADS=1
+    export MKL_NUM_THREADS=1
+    export OMP_NUM_THREADS=1
+
     Rscript --vanilla -e "source('{input.marker_script}'); calculate_join_hvgs_bpcells(
       pb_dir             = '{input.pb_dir}',
       prepared_coldata_f = '{input.prepared_coldata_f}',
@@ -560,7 +574,8 @@ rule join_marker_genes:
   output:
     mkrs_f = mkrs_f
   params:
-    gene_info_f = GENE_INFO_F
+    gene_info_f       = GENE_INFO_F,
+    adjust_project_id = str(config['marker_genes']['mkr_adjust_project_id']).upper()
   threads: config['resources']['n_join_marker_genes']
   retries: config['resources']['retries']
   resources:
@@ -574,12 +589,17 @@ rule join_marker_genes:
     '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
+    export OPENBLAS_NUM_THREADS=1
+    export MKL_NUM_THREADS=1
+    export OMP_NUM_THREADS=1
+
     Rscript --vanilla -e "source('{input.marker_script}'); calculate_join_marker_genes_bpcells(
       pb_dir             = '{input.pb_dir}',
       prepared_coldata_f = '{input.prepared_coldata_f}',
       prepared_rowdata_f = '{input.prepared_rowdata_f}',
       mkrs_f             = '{output.mkrs_f}',
       biotypes_dt        = load_gene_biotypes_bpcells('{params.gene_info_f}'),
+      adjust_project_id  =  {params.adjust_project_id},
       n_cores            =  {threads})"
     """
 

@@ -580,6 +580,11 @@ Configured maxima must be greater than or equal to their corresponding minima. C
 * `mkr_sel_res`: selected cluster resolution used for identifying marker genes.
 * `mkr_min_cl_size`: minimum number of cells required in a cluster to calculate marker genes for that cluster.
 * `mkr_min_cells`: minimum number of cells required in a pseudobulk sample to include it in marker gene calculations.
+* `mkr_adjust_project_id`: join-only boolean controlling whether marker-gene
+  dispersion and one-versus-rest Treat models include `project_id` as an
+  additive blocking factor. The default is `false`, which uses cluster-only
+  models and edgeR's faster one-way fitting path. Set it to `true` to account
+  for project-level technical differences.
 * `mkr_not_ok_re`: regular expression pattern to exclude specific gene types from plots showing marker gene expression.
 * `mkr_min_cpm_mkr`: minimum counts per million (CPM) in a cell type required for a gene to be considered a marker gene.
 * `mkr_do_gsea`: boolean specifiying whether Gene Set Enrichment Analysis (GSEA) should be performed on marker genes. 
@@ -938,9 +943,11 @@ Additional parameters include:
   keeps the combined counts disk-backed, and uses the streamed `edger.bp` edgeR
   Treat backend. The work is split into `join_make_pseudobulks`,
   `join_prepare_pseudobulks`, `join_calc_hvgs`, and `join_marker_genes`.
-  Marker-gene models include `project_id` as an additive blocking factor, so
-  one-versus-rest cluster effects are estimated after accounting for
-  project-level technical differences.
+  By default, marker-gene models use cluster alone. Set
+  `marker_genes.mkr_adjust_project_id: true` to include `project_id` as an
+  additive blocking factor in both dispersion estimation and one-versus-rest
+  Treat tests. Project adjustment accounts for project-level technical
+  differences but uses edgeR's slower general-GLM fitting path.
   Preparation writes small column and gene manifests containing the retained
   pseudobulks, retained genes, and TMM library-size metadata; it does not
   duplicate or mutate the BPCells count store. Once preparation finishes, the
@@ -950,7 +957,8 @@ Additional parameters include:
   `mins_join_*` resource keys.
   `resources.n_join_marker_genes` controls the threads requested by
   `join_marker_genes` and the number of streamed edgeR workers; its default is
-  `8`.
+  `8`. BLAS and OpenMP are restricted to one thread inside each worker to avoid
+  nested parallelism.
   The rule environment installs the audited BPCells and `edger.bp` R 4.5
   builds from the public
   [edger.bp GitHub Conda channel](https://github.com/wmacnair/edger.bp/tree/conda-channel);

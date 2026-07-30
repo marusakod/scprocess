@@ -1,3 +1,7 @@
+RhpcBLASctl::blas_set_num_threads(1L)
+RhpcBLASctl::omp_set_num_threads(1L)
+
+
 .bp_row_blocks <- function(n, block_size) {
   starts = seq.int(1L, n, by = block_size)
   lapply(starts, function(start) seq.int(start, min(start + block_size - 1L, n)))
@@ -255,7 +259,11 @@ filter_pseudobulk_columns_bpcells <- function(counts, coldata, min_cells) {
 
 
 fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
-  workers = 1L, block_size = 1000L) {
+  workers = 1L, block_size = 1000L, adjust_project_id = FALSE) {
+  if (!is.logical(adjust_project_id) || length(adjust_project_id) != 1L ||
+      is.na(adjust_project_id)) {
+    stop("`adjust_project_id` must be TRUE or FALSE.", call. = FALSE)
+  }
   if (!is.data.frame(coldata) ||
       !all(c("cluster", "sample", "project_id") %in% names(coldata))) {
     stop("`coldata` must contain cluster, sample, and project_id.", call. = FALSE)
@@ -285,15 +293,23 @@ fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
   )
 
   group = factor(coldata$cluster, levels = unique(coldata$cluster))
-  project_id = factor(coldata$project_id, levels = unique(coldata$project_id))
-  dispersion_design = stats::model.matrix(~ project_id + group)
-  if (qr(dispersion_design)$rank < ncol(dispersion_design)) {
+  if (adjust_project_id) {
+    project_id = factor(coldata$project_id, levels = unique(coldata$project_id))
+    dispersion_design = stats::model.matrix(~ project_id + group)
+  } else {
+    dispersion_design = stats::model.matrix(~ group)
+  }
+  if (adjust_project_id && qr(dispersion_design)$rank < ncol(dispersion_design)) {
     stop(
       "The project-adjusted cluster design is not full rank; project and cluster ",
       "are confounded in these pseudobulks.",
       call. = FALSE
     )
   }
+  message(
+    "  marker-gene design: ",
+    if (adjust_project_id) "cluster + project_id" else "cluster only"
+  )
   offset = log(effective_lib_size)
 
   message("  estimating streamed dispersions")
@@ -329,8 +345,12 @@ fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
     cluster = clusters[[i]]
     message("    ", cluster)
     selected = group == cluster
-    design = stats::model.matrix(~ project_id + selected)
-    if (qr(design)$rank < ncol(design)) {
+    if (adjust_project_id) {
+      design = stats::model.matrix(~ project_id + selected)
+    } else {
+      design = stats::model.matrix(~ selected)
+    }
+    if (adjust_project_id && qr(design)$rank < ncol(design)) {
       stop(
         "The project-adjusted marker design is not full rank for cluster ",
         cluster, "; this cluster cannot be compared within project.",
@@ -452,7 +472,12 @@ make_join_pseudobulks_bpcells <- function(integration_f, h5ads_yaml_f, batch_var
 
 
 prepare_join_pseudobulks_bpcells <- function(pb_dir, prepared_coldata_f,
-  prepared_rowdata_f, min_cells, n_cores = 4L, block_size = 1000L) {
+  prepared_rowdata_f, min_cells, n_cores = 4L, block_size = 1000L,
+  adjust_project_id = FALSE) {
+  if (!is.logical(adjust_project_id) || length(adjust_project_id) != 1L ||
+      is.na(adjust_project_id)) {
+    stop("`adjust_project_id` must be TRUE or FALSE.", call. = FALSE)
+  }
   cache = open_pseudobulk_cache_bpcells(pb_dir, storage_order = "row")
   column_filter = filter_pseudobulk_columns_bpcells(
     cache$counts, cache$coldata, min_cells = min_cells
@@ -473,9 +498,13 @@ prepare_join_pseudobulks_bpcells <- function(pb_dir, prepared_coldata_f,
   }
 
   group = factor(coldata$cluster, levels = clusters)
-  project_id = factor(coldata$project_id, levels = unique(coldata$project_id))
-  dispersion_design = stats::model.matrix(~ project_id + group)
-  if (qr(dispersion_design)$rank < ncol(dispersion_design)) {
+  if (adjust_project_id) {
+    project_id = factor(coldata$project_id, levels = unique(coldata$project_id))
+    dispersion_design = stats::model.matrix(~ project_id + group)
+  } else {
+    dispersion_design = stats::model.matrix(~ group)
+  }
+  if (adjust_project_id && qr(dispersion_design)$rank < ncol(dispersion_design)) {
     stop(
       "The project-adjusted cluster design is not full rank; project and cluster ",
       "are confounded in these pseudobulks.",
@@ -531,7 +560,8 @@ calculate_join_hvgs_bpcells <- function(pb_dir, prepared_coldata_f, pb_hvgs_f,
 
 
 calculate_join_marker_genes_bpcells <- function(pb_dir, prepared_coldata_f,
-  prepared_rowdata_f, mkrs_f, biotypes_dt, n_cores = 4L, block_size = 1000L) {
+  prepared_rowdata_f, mkrs_f, biotypes_dt, n_cores = 4L, block_size = 1000L,
+  adjust_project_id = FALSE) {
   cache = open_pseudobulk_cache_bpcells(pb_dir, storage_order = "row")
   coldata = data.table::fread(prepared_coldata_f)
   rowdata = data.table::fread(prepared_rowdata_f)
@@ -549,7 +579,8 @@ calculate_join_marker_genes_bpcells <- function(pb_dir, prepared_coldata_f,
   markers = fit_markers_edger_bp(
     counts, coldata, clusters,
     effective_lib_size = coldata$effective_lib_size,
-    workers = n_cores, block_size = block_size
+    workers = n_cores, block_size = block_size,
+    adjust_project_id = adjust_project_id
   )
 
   context = calc_marker_context_bpcells(
@@ -570,7 +601,7 @@ calculate_join_marker_genes_bpcells <- function(pb_dir, prepared_coldata_f,
 
 calculate_marker_genes_bpcells <- function(integration_f, h5ads_yaml_f, batch_var,
   pb_dir, mkrs_f, pb_hvgs_f, biotypes_dt, sel_res, min_cl_size, min_cells,
-  n_cores = 4L, block_size = 1000L) {
+  n_cores = 4L, block_size = 1000L, adjust_project_id = FALSE) {
   prep_dir = tempfile("scprocess-edger-bp-prepared-")
   dir.create(prep_dir)
   on.exit(unlink(prep_dir, recursive = TRUE), add = TRUE)
@@ -581,14 +612,15 @@ calculate_marker_genes_bpcells <- function(integration_f, h5ads_yaml_f, batch_va
     integration_f, h5ads_yaml_f, batch_var, pb_dir, sel_res, min_cl_size, n_cores
   )
   prepare_join_pseudobulks_bpcells(
-    pb_dir, prepared_coldata_f, prepared_rowdata_f, min_cells, n_cores, block_size
+    pb_dir, prepared_coldata_f, prepared_rowdata_f, min_cells, n_cores, block_size,
+    adjust_project_id
   )
   calculate_join_hvgs_bpcells(
     pb_dir, prepared_coldata_f, pb_hvgs_f, biotypes_dt, n_cores, block_size
   )
   calculate_join_marker_genes_bpcells(
     pb_dir, prepared_coldata_f, prepared_rowdata_f, mkrs_f, biotypes_dt,
-    n_cores, block_size
+    n_cores, block_size, adjust_project_id
   )
   invisible(NULL)
 }
