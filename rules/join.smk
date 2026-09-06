@@ -368,7 +368,7 @@ rule join_pca:
     trap "rm -f $LOCAL_H5" EXIT
     cp {input.counts_h5_f} $LOCAL_H5
 
-    Rscript -e "source('{scprocess_dir}/scripts/join_pca.R'); run_join_pca(
+    Rscript -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_join_pca(
       counts_h5_f = '$LOCAL_H5',
       n_dims      =  {params.n_dims},
       out_pca_f   = '{output.pca_f}')"

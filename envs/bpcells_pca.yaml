@@ -5,10 +5,10 @@ channels:
   - nodefaults
 dependencies:
   - r-base=4.4.3
-  - r-bpcells
+  - r-bpcells=0.3.1
   - r-matrix
   - r-hdf5r
-  - r-irlba
+  - r-irlba=2.3.5.1
   - r-data.table
   - r-r.utils
   - r-yaml

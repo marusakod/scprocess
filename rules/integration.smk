@@ -6,63 +6,256 @@ def get_run_for_one_batch(batch, RUNS_TO_BATCHES):
 
 localrules: make_clean_h5ad_paths_yaml
 
-rule run_integration:
-  input:
-    hvg_mat_f     = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5', 
-    dbl_hvg_mat_f = f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5', 
-    qc_flag_f     = f"{qc_dir}/qc_passed_{FULL_TAG}_{DATE_STAMP}.flag",
-    qc_stats_f    = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
-    coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
-  output:
-    integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
-  params:
-    demux_type      = config['multiplexing']['demux_type'],
-    exclude_mito    = config['qc']['exclude_mito'],
-    int_embedding   = config['integration']['int_embedding'],
-    int_cl_method   = config['integration']['int_cl_method'],
-    int_theta       = config['integration']['int_theta'],
-    int_batch_var   = config['integration']['int_batch_var'],
-    int_n_dims      = config['integration']['int_n_dims'],
-    int_dbl_res     = config['integration']['int_dbl_res'],
-    int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
-    int_use_paga    = config['integration']['int_use_paga'],
-    int_paga_cl_res = config['integration']['int_paga_cl_res'],
-    int_res_ls      = config['integration']['int_res_ls'],
-    use_gpu         = config['integration']['int_use_gpu']
-  threads: 1
-  retries: config['resources']['retries'] 
-  resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'time', attempt)
-  conda: 
-    '../envs/integration.yaml'
-  benchmark:
-    f'{benchmark_dir}/integration/run_integration_{DATE_STAMP}.benchmark.txt'
-  log:
-    f'{logs_dir}/integration/run_integration_{DATE_STAMP}.log'
-  shell: """
-    exec &>> {log}
-    
-    python3 {scprocess_dir}/scripts/integration.py run_integration \
-      --hvg_mat_f     {input.hvg_mat_f} \
-      --dbl_hvg_mat_f {input.dbl_hvg_mat_f} \
-      --sample_qc_f   {input.qc_stats_f} \
-      --coldata_f     {input.coldata_f} \
-      --demux_type    {params.demux_type} \
-      --exclude_mito  "{params.exclude_mito}" \
-      --embedding     {params.int_embedding} \
-      --n_dims        {params.int_n_dims} \
-      --cl_method     {params.int_cl_method} \
-      --dbl_res       {params.int_dbl_res} \
-      --dbl_cl_prop   {params.int_dbl_cl_prop} \
-      --theta         {params.int_theta} \
-      --res_ls_concat "{params.int_res_ls}" \
-      --integration_f {output.integration_f} \
-      --batch_var     {params.int_batch_var} \
-      $( [ "{params.int_use_paga}" == "True" ] && echo "--use-paga" ) \
-      $( [ "{params.int_use_paga}" == "True" ] && echo "--paga-cl-res {params.int_paga_cl_res}" ) \
-      $( [ "{params.use_gpu}" == "True" ] && echo "--use-gpu" )
-    """
+INT_PCA_METHOD = config['integration']['int_pca_method']
+PRELIM_PCA_F   = f'{int_dir}/preliminary_pca_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+DOUBLETS_F     = f'{int_dir}/integration_doublets_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+CLEAN_CELLS_F  = f'{int_dir}/clean_cells_{FULL_TAG}_{DATE_STAMP}.csv'
+FINAL_PCA_F    = f'{int_dir}/final_pca_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+
+
+if INT_PCA_METHOD == 'bpcells':
+  rule preliminary_pca:
+    input:
+      hvg_mat_f     = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5',
+      dbl_hvg_mat_f = f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5',
+      coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    output:
+      pca_f = PRELIM_PCA_F
+    params:
+      n_dims      = config['integration']['int_n_dims'],
+      exclude_mito = config['qc']['exclude_mito']
+    threads: 8
+    retries: config['resources']['retries']
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'time', attempt)
+    conda:
+      '../envs/bpcells_pca.yaml'
+    benchmark:
+      f'{benchmark_dir}/integration/preliminary_pca_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/integration/preliminary_pca_{DATE_STAMP}.log'
+    shell: """
+      exec &>> {log}
+      export OPENBLAS_NUM_THREADS={threads}
+      export MKL_NUM_THREADS={threads}
+      export OMP_NUM_THREADS={threads}
+
+      LOCAL_HVG=$(mktemp /tmp/preliminary_hvg_XXXXXX.h5)
+      LOCAL_DBL=$(mktemp /tmp/preliminary_doublets_XXXXXX.h5)
+      trap "rm -f $LOCAL_HVG $LOCAL_DBL" EXIT
+      cp {input.hvg_mat_f} $LOCAL_HVG
+      cp {input.dbl_hvg_mat_f} $LOCAL_DBL
+
+      Rscript -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
+        counts_h5_fs = c('$LOCAL_HVG', '$LOCAL_DBL'),
+        n_dims       = {params.n_dims},
+        out_pca_f    = '{output.pca_f}',
+        coldata_f    = '{input.coldata_f}',
+        exclude_mito = tolower('{params.exclude_mito}') == 'true')"
+      """
+
+
+  rule classify_additional_doublets:
+    input:
+      pca_f         = PRELIM_PCA_F,
+      hvg_mat_f     = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5',
+      dbl_hvg_mat_f = f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5',
+      qc_stats_f    = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+      coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    output:
+      doublet_f     = DOUBLETS_F,
+      clean_cells_f = CLEAN_CELLS_F
+    params:
+      demux_type      = config['multiplexing']['demux_type'],
+      int_embedding   = config['integration']['int_embedding'],
+      int_cl_method   = config['integration']['int_cl_method'],
+      int_batch_var   = config['integration']['int_batch_var'],
+      int_n_dims      = config['integration']['int_n_dims'],
+      int_dbl_res     = config['integration']['int_dbl_res'],
+      int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
+      int_use_paga    = config['integration']['int_use_paga'],
+      use_gpu         = config['integration']['int_use_gpu']
+    threads: 1
+    retries: config['resources']['retries']
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'time', attempt)
+    conda:
+      '../envs/integration.yaml'
+    benchmark:
+      f'{benchmark_dir}/integration/classify_additional_doublets_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/integration/classify_additional_doublets_{DATE_STAMP}.log'
+    shell: """
+      exec &>> {log}
+
+      python3 {scprocess_dir}/scripts/integration.py run_preliminary_integration \
+        --hvg_mat_f          {input.hvg_mat_f} \
+        --dbl_hvg_mat_f      {input.dbl_hvg_mat_f} \
+        --precomputed_pca_f  {input.pca_f} \
+        --sample_qc_f        {input.qc_stats_f} \
+        --coldata_f          {input.coldata_f} \
+        --demux_type         {params.demux_type} \
+        --embedding          {params.int_embedding} \
+        --n_dims             {params.int_n_dims} \
+        --cl_method          {params.int_cl_method} \
+        --dbl_res            {params.int_dbl_res} \
+        --dbl_cl_prop        {params.int_dbl_cl_prop} \
+        --doublet_f          {output.doublet_f} \
+        --clean_cells_f      {output.clean_cells_f} \
+        --batch_var          {params.int_batch_var} \
+        $( [ "{params.int_use_paga}" == "True" ] && echo "--use-paga" ) \
+        $( [ "{params.use_gpu}" == "True" ] && echo "--use-gpu" )
+      """
+
+
+  rule final_pca:
+    input:
+      hvg_mat_f    = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5',
+      clean_cells_f = CLEAN_CELLS_F,
+      coldata_f    = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    output:
+      pca_f = FINAL_PCA_F
+    params:
+      n_dims       = config['integration']['int_n_dims'],
+      exclude_mito = config['qc']['exclude_mito']
+    threads: 8
+    retries: config['resources']['retries']
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'time', attempt)
+    conda:
+      '../envs/bpcells_pca.yaml'
+    benchmark:
+      f'{benchmark_dir}/integration/final_pca_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/integration/final_pca_{DATE_STAMP}.log'
+    shell: """
+      exec &>> {log}
+      export OPENBLAS_NUM_THREADS={threads}
+      export MKL_NUM_THREADS={threads}
+      export OMP_NUM_THREADS={threads}
+
+      LOCAL_HVG=$(mktemp /tmp/final_hvg_XXXXXX.h5)
+      trap "rm -f $LOCAL_HVG" EXIT
+      cp {input.hvg_mat_f} $LOCAL_HVG
+
+      Rscript -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
+        counts_h5_fs = '$LOCAL_HVG',
+        n_dims       = {params.n_dims},
+        out_pca_f    = '{output.pca_f}',
+        coldata_f    = '{input.coldata_f}',
+        cells_f      = '{input.clean_cells_f}',
+        exclude_mito = tolower('{params.exclude_mito}') == 'true')"
+      """
+
+
+  rule run_integration:
+    input:
+      pca_f      = FINAL_PCA_F,
+      doublet_f  = DOUBLETS_F,
+      coldata_f  = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    output:
+      integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    params:
+      int_embedding   = config['integration']['int_embedding'],
+      int_cl_method   = config['integration']['int_cl_method'],
+      int_theta       = config['integration']['int_theta'],
+      int_batch_var   = config['integration']['int_batch_var'],
+      int_n_dims      = config['integration']['int_n_dims'],
+      int_use_paga    = config['integration']['int_use_paga'],
+      int_paga_cl_res = config['integration']['int_paga_cl_res'],
+      int_res_ls      = config['integration']['int_res_ls'],
+      use_gpu         = config['integration']['int_use_gpu']
+    threads: 1
+    retries: config['resources']['retries']
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'time', attempt)
+    conda:
+      '../envs/integration.yaml'
+    benchmark:
+      f'{benchmark_dir}/integration/run_integration_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/integration/run_integration_{DATE_STAMP}.log'
+    shell: """
+      exec &>> {log}
+
+      python3 {scprocess_dir}/scripts/integration.py run_final_integration \
+        --precomputed_pca_f {input.pca_f} \
+        --doublet_f         {input.doublet_f} \
+        --coldata_f         {input.coldata_f} \
+        --embedding         {params.int_embedding} \
+        --n_dims            {params.int_n_dims} \
+        --cl_method         {params.int_cl_method} \
+        --theta             {params.int_theta} \
+        --res_ls_concat     "{params.int_res_ls}" \
+        --integration_f     {output.integration_f} \
+        --batch_var         {params.int_batch_var} \
+        $( [ "{params.int_use_paga}" == "True" ] && echo "--use-paga" ) \
+        $( [ "{params.int_use_paga}" == "True" ] && echo "--paga-cl-res {params.int_paga_cl_res}" ) \
+        $( [ "{params.use_gpu}" == "True" ] && echo "--use-gpu" )
+      """
+
+else:
+  rule run_integration:
+    input:
+      hvg_mat_f     = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5',
+      dbl_hvg_mat_f = f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5',
+      qc_flag_f     = f"{qc_dir}/qc_passed_{FULL_TAG}_{DATE_STAMP}.flag",
+      qc_stats_f    = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
+      coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    output:
+      integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    params:
+      demux_type      = config['multiplexing']['demux_type'],
+      exclude_mito    = config['qc']['exclude_mito'],
+      int_embedding   = config['integration']['int_embedding'],
+      int_cl_method   = config['integration']['int_cl_method'],
+      int_theta       = config['integration']['int_theta'],
+      int_batch_var   = config['integration']['int_batch_var'],
+      int_n_dims      = config['integration']['int_n_dims'],
+      int_dbl_res     = config['integration']['int_dbl_res'],
+      int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
+      int_use_paga    = config['integration']['int_use_paga'],
+      int_paga_cl_res = config['integration']['int_paga_cl_res'],
+      int_res_ls      = config['integration']['int_res_ls'],
+      use_gpu         = config['integration']['int_use_gpu']
+    threads: 1
+    retries: config['resources']['retries']
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_integration', 'time', attempt)
+    conda:
+      '../envs/integration.yaml'
+    benchmark:
+      f'{benchmark_dir}/integration/run_integration_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/integration/run_integration_{DATE_STAMP}.log'
+    shell: """
+      exec &>> {log}
+
+      python3 {scprocess_dir}/scripts/integration.py run_integration \
+        --hvg_mat_f     {input.hvg_mat_f} \
+        --dbl_hvg_mat_f {input.dbl_hvg_mat_f} \
+        --sample_qc_f   {input.qc_stats_f} \
+        --coldata_f     {input.coldata_f} \
+        --demux_type    {params.demux_type} \
+        --exclude_mito  "{params.exclude_mito}" \
+        --embedding     {params.int_embedding} \
+        --n_dims        {params.int_n_dims} \
+        --cl_method     {params.int_cl_method} \
+        --dbl_res       {params.int_dbl_res} \
+        --dbl_cl_prop   {params.int_dbl_cl_prop} \
+        --theta         {params.int_theta} \
+        --res_ls_concat "{params.int_res_ls}" \
+        --integration_f {output.integration_f} \
+        --batch_var     {params.int_batch_var} \
+        $( [ "{params.int_use_paga}" == "True" ] && echo "--use-paga" ) \
+        $( [ "{params.int_use_paga}" == "True" ] && echo "--paga-cl-res {params.int_paga_cl_res}" ) \
+        $( [ "{params.use_gpu}" == "True" ] && echo "--use-gpu" )
+      """
 
 
 def int_get_filt_counts_f(run):

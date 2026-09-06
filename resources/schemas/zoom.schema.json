@@ -114,6 +114,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "int_pca_method":   { "type": "string", "enum": ["bpcells", "scanpy"], "default": "bpcells" },
         "int_use_gpu":      { "type": "boolean",  "default": true},
         "int_embedding":    { "type": "string", "enum": ["harmony", "pca"], "default": "harmony" },
         "int_theta":        { "type": "number", "default": 0.1 },

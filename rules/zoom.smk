@@ -875,11 +875,59 @@ rule zoom_create_hvg_matrix:
     """
 
 
+rule zoom_pca:
+  input:
+    hvg_mat_f = f'{zoom_dir}/{{zoom_name}}/top_hvgs_counts_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.h5',
+    coldata_f = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+  output:
+    pca_f = f'{zoom_dir}/{{zoom_name}}/pca_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
+  params:
+    n_dims = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_n_dims'],
+    exclude_mito = config['qc']['exclude_mito']
+  threads: 8
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_run_integration', 'memory', attempt, csv_rule = 'run_integration'),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_run_integration', 'time', attempt, csv_rule = 'run_integration')
+  benchmark:
+    f'{benchmark_dir}/zoom/zoom_pca_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/zoom/zoom_pca_{{zoom_name}}_{DATE_STAMP}.log'
+  conda:
+    '../envs/bpcells_pca.yaml'
+  shell: """
+    exec &>> {log}
+    export OPENBLAS_NUM_THREADS={threads}
+    export MKL_NUM_THREADS={threads}
+    export OMP_NUM_THREADS={threads}
+
+    LOCAL_HVG=$(mktemp /tmp/zoom_hvg_XXXXXX.h5)
+    trap "rm -f $LOCAL_HVG" EXIT
+    cp {input.hvg_mat_f} $LOCAL_HVG
+
+    Rscript -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
+      counts_h5_fs = '$LOCAL_HVG',
+      n_dims       = {params.n_dims},
+      out_pca_f    = '{output.pca_f}',
+      coldata_f    = '{input.coldata_f}',
+      exclude_mito = tolower('{params.exclude_mito}') == 'true')"
+    """
+
+
+def zoom_pca_input(wildcards):
+  if ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_pca_method'] == 'bpcells':
+    return f'{zoom_dir}/{wildcards.zoom_name}/pca_{FULL_TAG}_{wildcards.zoom_name}_{DATE_STAMP}.csv.gz'
+  return []
+
+
 rule zoom_run_integration:
   input:
     coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     hvg_mat_f     = f'{zoom_dir}/{{zoom_name}}/top_hvgs_counts_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.h5',
-    sample_qc_f   = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv'
+    sample_qc_f   = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv',
+    pca_f         = zoom_pca_input
   output:
     integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
   params:
@@ -893,6 +941,7 @@ rule zoom_run_integration:
     zoom_int_paga_cl_res  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_paga_cl_res'],
     zoom_int_res_ls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
     zoom_int_use_gpu      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_use_gpu'],
+    zoom_pca_method       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_pca_method'],
     batch_var             = BATCH_VAR,
   threads: 8
   retries: config['resources']['retries']
@@ -925,7 +974,8 @@ rule zoom_run_integration:
       --batch_var     {params.batch_var} \
       $( [ "{params.zoom_int_use_paga}" == "True" ] && echo "--use-paga" ) \
       $( [ "{params.zoom_int_use_paga}" == "True" ] && echo "--paga-cl-res {params.zoom_int_paga_cl_res}" ) \
-      $( [ "{params.zoom_int_use_gpu}" == "True" ] && echo "--use-gpu" )
+      $( [ "{params.zoom_int_use_gpu}" == "True" ] && echo "--use-gpu" ) \
+      $( [ "{params.zoom_pca_method}" == "bpcells" ] && echo "--precomputed_pca_f {input.pca_f}" )
     """
 
 

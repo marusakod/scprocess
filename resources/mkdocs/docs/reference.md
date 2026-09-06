@@ -228,6 +228,7 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       hvg_chunk_size: 2000
       hvg_metadata_split_var:
     integration:
+      int_pca_method: bpcells
       int_use_gpu: true
       int_embedding: harmony
       int_theta: 0.1
@@ -356,6 +357,7 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       hvg_chunk_size: 2000
       hvg_metadata_split_var: var1
     integration:
+      int_pca_method: bpcells
       int_use_gpu: true
       int_embedding: harmony
       int_theta: 0.1
@@ -563,6 +565,7 @@ Configured maxima must be greater than or equal to their corresponding minima. C
 
 ##### integration
 
+* `int_pca_method`: PCA computation method. `bpcells` (default) streams normalized and scaled expression from disk and is intended for large projects; `scanpy` retains the original in-memory CPU/GPU PCA path. For primary projects, the BPCells path persists preliminary doublet classifications and a clean-cell whitelist before fitting the final clean-cell PCA.
 * `int_use_gpu`: whether to use GPU acceleration (`RAPIDS-singlecell`) for integration and clustering steps. Options are `true` (default) or `false`. If GPU is not available, `Scanpy` will be used. For join integration with multiple `int_batch_var` values, setting this to `true` uses CPU Harmony and GPU-accelerated neighbors, Leiden, and UMAP; a warning reports this hybrid execution mode.
 * `int_embedding`: which dimensionality reduction method to use for clustering and UMAP, options: `pca` (no batch correction), `harmony` (batch correction). 
 * `int_theta`: theta parameter for `Harmony` integration, controlling batch variable mixing.
@@ -727,7 +730,7 @@ run `scprocess join CONFIG -r shiny` to rebuild the app.
 
 ##### zoom
 
-In this section, users can provide multiple YAML files, each specifying parameters for repeating certain steps of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `qc_min_counts`, `qc_max_counts`, `qc_min_feats`, `qc_max_feats`, `qc_min_mito`, `qc_max_mito`, `qc_min_splice`, `qc_max_splice`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets`, all [shiny app parameters](#shiny) (`app_title` defaults to `name`), and all [XGBoost training parameters](#train_xgboost).
+In this section, users can provide multiple YAML files, each specifying parameters for repeating certain steps of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `qc_min_counts`, `qc_max_counts`, `qc_min_feats`, `qc_max_feats`, `qc_min_mito`, `qc_max_mito`, `qc_min_splice`, `qc_max_splice`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_pca_method`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets`, all [shiny app parameters](#shiny) (`app_title` defaults to `name`), and all [XGBoost training parameters](#train_xgboost).
 
 Additional parameters include:
 

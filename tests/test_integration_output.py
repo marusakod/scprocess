@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
+import polars as pl
 
 try:
   import anndata as ad
@@ -69,6 +70,44 @@ class TestIntegrationOutput(unittest.TestCase):
       adata, key='sample_id', max_iter_harmony=5,
       dtype=np.float32, theta=0.1
     )
+
+  def test_precomputed_pca_loader_preserves_declared_order(self):
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+      pca_f = Path(tmp_dir) / 'pca.csv.gz'
+      pl.DataFrame({
+        'cell_id': ['cell_b', 'cell_a'],
+        'pca_1': [2.0, 1.0],
+        'pca_2': [4.0, 3.0],
+      }).write_csv(pca_f)
+      cells_df = pl.DataFrame({
+        'cell_id': ['cell_b', 'cell_a'],
+        'sample_id': ['sample_2', 'sample_1'],
+      })
+
+      adata = integration._adata_from_precomputed_pca(pca_f, cells_df)
+
+      self.assertEqual(adata.obs['cell_id'].tolist(), ['cell_b', 'cell_a'])
+      np.testing.assert_array_equal(
+        adata.obsm['X_pca'], np.array([[2.0, 4.0], [1.0, 3.0]], dtype=np.float32)
+      )
+
+  def test_precomputed_pca_loader_rejects_reordered_metadata(self):
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+      pca_f = Path(tmp_dir) / 'pca.csv.gz'
+      pl.DataFrame({'cell_id': ['a', 'b'], 'pca_1': [1.0, 2.0]}).write_csv(pca_f)
+      cells_df = pl.DataFrame({
+        'cell_id': ['b', 'a'],
+        'sample_id': ['sample_1', 'sample_1'],
+      })
+
+      with self.assertRaisesRegex(ValueError, 'orders do not match'):
+        integration._adata_from_precomputed_pca(pca_f, cells_df)
 
 if __name__ == '__main__':
   unittest.main()

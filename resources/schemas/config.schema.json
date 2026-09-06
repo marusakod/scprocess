@@ -171,6 +171,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "int_pca_method":   { "type": "string",   "default": "bpcells", "enum": ["bpcells", "scanpy"] },
         "int_use_gpu":      { "type": "boolean",  "default": true },
         "int_embedding":    { "type": "string",   "default": "harmony", "enum": ["harmony", "pca"] },
         "int_cl_method":    { "type": "string",   "default": "leiden", "enum": ["leiden"] },
