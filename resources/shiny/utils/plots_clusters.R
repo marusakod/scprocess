@@ -77,9 +77,11 @@ plot_cluster_umap <- function(umap_dt, col_pal, centroids,
   lgd_dark  = lgd_dt[text_color == "black"]
   lgd_light = lgd_dt[text_color == "white"]
 
-  n_cl    = nrow(lgd_dt)
-  x_label = lgd_dt$x_circle[1] + 0.15
-  x_max   = x_label + max(nchar(as.character(lgd_dt$cluster))) * 0.05
+  n_cl          = nrow(lgd_dt)
+  max_name_chars = max(nchar(as.character(lgd_dt$cluster)))
+  x_label       = lgd_dt$x_circle[1] + 0.12
+  x_max         = x_label + max_name_chars * 0.042
+  legend_width  = max(1.6, min(2.6, max_name_chars / 14))
 
   legend_p = ggplot(lgd_dt) +
     geom_point(aes(x = x_circle, y = y, color = cluster),
@@ -92,16 +94,18 @@ plot_cluster_umap <- function(umap_dt, col_pal, centroids,
               hjust = 0, size = FONT_SMALL / .pt) +
     scale_color_manual(values = col_pal, guide = 'none') +
     scale_x_continuous(limits = c(-0.05, x_max)) +
+    coord_cartesian(clip = "off") +
     # scale_y_continuous(limits = c(0.5, n_cl + 1.2)) +
     theme_void() +
     theme(
+      plot.margin = margin(5.5, 6, 5.5, 2),
       plot.title = element_text(
         face = "bold", size = 16, hjust = 0.1
       )
     ) +
     labs( title = "cluster" )
 
-  patchwork::wrap_plots(umap_p, legend_p, widths = c(5, 1))
+  patchwork::wrap_plots(umap_p, legend_p, widths = c(5, legend_width))
 }
 
 # PAGA graph: nodes sized by cell count, edges weighted by connectivity.

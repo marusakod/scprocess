@@ -583,7 +583,7 @@ def run_join(configfile, sc_dir, extraargs, dryrun, rule="all"):
   if dryrun:
     extraargs.append('-np')
 
-  if rule == "build_shiny_app":
+  if rule == "configure_shiny_app":
     snakefile = scprocess_dir / "rules/shiny.smk"
   else:
     snakefile = scprocess_dir / "rules/join.smk"

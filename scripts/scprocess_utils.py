@@ -2095,6 +2095,35 @@ def get_join_batch_sources(project_cfgs, project_ids, batch_keys, labeller, mode
   return fresh_batches, reuse_label_fs
 
 
+def get_shiny_deploy_inputs(scprocess_dir):
+  """Return files copied or read by the lightweight Shiny deploy step."""
+  scprocess_dir = pathlib.Path(scprocess_dir)
+  shiny_dir = scprocess_dir / "resources" / "shiny"
+  inputs = [
+    scprocess_dir / "scripts" / "shiny.R",
+    scprocess_dir / "resources" / "valid_palettes.json",
+    shiny_dir / "app.R",
+    shiny_dir / "constants.R",
+  ]
+  inputs.extend(sorted((shiny_dir / "utils").glob("*.R")))
+  inputs.extend(sorted((shiny_dir / "modules").glob("*.R")))
+  return [str(path) for path in inputs]
+
+
+def get_zoom_shiny_optional_inputs(zoom_params, proj_dir, zoom_name):
+  """Return configured presentation files for one zoom Shiny deployment."""
+  shiny_cfg = zoom_params[zoom_name].get('shiny', {})
+  inputs = {}
+  for key in ('home_md', 'annotation_csv'):
+    value = shiny_cfg.get(key)
+    if value:
+      path = pathlib.Path(value)
+      if not path.is_absolute():
+        path = pathlib.Path(proj_dir) / path
+      inputs[f'{key}_f'] = str(path)
+  return inputs
+
+
 def get_shiny_targets(config, scprocess_dir, scdata_dir, dryrun, zoom_name=None):
   """Determine shiny build targets and create output directories.
 
@@ -2122,7 +2151,7 @@ def get_shiny_targets(config, scprocess_dir, scdata_dir, dryrun, zoom_name=None)
     app_tag = get_shiny_app_tag(config)
     if not dryrun:
       os.makedirs(docs_dir / f"shiny_{app_tag}", exist_ok=True)
-    return ["build_shiny_app"], proj_dir
+    return ["configure_shiny_app"], proj_dir
 
   if zoom_name == "all":
     zoom_schema_f = pathlib.Path(scprocess_dir) / "resources/schemas/zoom.schema.json"

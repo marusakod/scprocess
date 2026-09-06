@@ -111,6 +111,7 @@ _home_md_f        = _resolve_optional_path(_shiny_cfg.get('home_md'),        PRO
 _annotation_csv_f = _resolve_optional_path(_shiny_cfg.get('annotation_csv'), PROJ_DIR)
 _main_app_tag     = get_shiny_app_tag(config)
 _main_shiny_dir   = f'{docs_dir}/shiny_{_main_app_tag}'
+_shiny_deploy_inputs = get_shiny_deploy_inputs(scprocess_dir)
 
 
 # ---- helper: fgsea inputs for main rule (conditional) --------------------
@@ -154,18 +155,16 @@ rule build_all_zoom_shiny_apps:
            zoom_name = ZOOMS)
 
 
-rule build_shiny_app:
+rule build_shiny_data:
   input:
     unpack(_main_fgsea_inputs),
-    **({'home_md_f':        _home_md_f}        if _home_md_f        else {}),
-    **({'annotation_csv_f': _annotation_csv_f} if _annotation_csv_f else {}),
     h5ads_yaml_f  = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
     sample_meta_f = _sample_meta_f,
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     mkrs_f        = f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv.gz',
     pb_hvgs_f     = f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.csv.gz',
   output:
-    sentinel_f    = f'{_main_shiny_dir}/.shiny_built_{DATE_STAMP}'
+    sentinel_f    = f'{_main_shiny_dir}/.shiny_data_built_{DATE_STAMP}'
   params:
     scprocess_dir = str(scprocess_dir),
     deploy_dir    = _main_shiny_dir,
@@ -174,17 +173,7 @@ rule build_shiny_app:
     mkr_sel_res   = MKR_SEL_RES,
     ref_txome     = GENOME_REF,
     metadata_vars = _metadata_vars,
-    app_title     = _shiny_cfg.get('app_title', SHORT_TAG),
-    email         = _shiny_cfg.get('email', ''),
-    keyword       = _shiny_cfg.get('keyword', 'cells'),
-    default_gene  = _shiny_cfg.get('default_gene', ''),
     n_keep        = int(_shiny_cfg.get('n_keep', 30000)),
-    var_names     = ','.join(_resolve_var_names(_metadata_vars_ls, _shiny_cfg)),
-    metadata_combns        = json.dumps(_shiny_cfg.get('metadata_combns', [])).replace('"', '\\"'),
-    home_md_f         = _home_md_f,
-    annotation_csv_f  = _annotation_csv_f,
-    cluster_palette   = _shiny_cfg.get('cluster_palette', ''),
-    metadata_palettes = json.dumps(_shiny_cfg.get('metadata_palettes', {})).replace('"', '\\"'),
     fgsea_go_bp_f     = lambda wildcards, input: getattr(input, 'fgsea_go_bp_f', ''),
     fgsea_go_cc_f     = lambda wildcards, input: getattr(input, 'fgsea_go_cc_f', ''),
     fgsea_go_mf_f     = lambda wildcards, input: getattr(input, 'fgsea_go_mf_f', ''),
@@ -192,8 +181,8 @@ rule build_shiny_app:
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_shiny_app', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_shiny_app', 'time', attempt)
+  log:   f'{logs_dir}/shiny/build_shiny_data_{_main_app_tag}_{DATE_STAMP}.log'
   conda: '../envs/shiny.yaml'
-  log:   f'{logs_dir}/shiny/build_shiny_app_{_main_app_tag}_{DATE_STAMP}.log'
   shell: """
     exec &>> {log}
     mkdir -p {params.deploy_dir}
@@ -217,17 +206,17 @@ rule build_shiny_app:
         mkr_sel_res   = '{params.mkr_sel_res}',
         ref_txome     = '{params.ref_txome}',
         metadata_vars = '{params.metadata_vars}',
-        app_title     = '{params.app_title}',
-        email         = '{params.email}',
-        keyword       = '{params.keyword}',
-        default_gene  = '{params.default_gene}',
+        app_title     = '{params.app_tag}',
+        email         = '',
+        keyword       = 'cells',
+        default_gene  = '',
         n_keep        = {params.n_keep},
-        var_names     = '{params.var_names}',
-        metadata_combns        = '{params.metadata_combns}',
-        home_md_f         = '{params.home_md_f}',
-        annotation_csv_f  = '{params.annotation_csv_f}',
-        cluster_palette   = '{params.cluster_palette}',
-        metadata_palettes = '{params.metadata_palettes}',
+        var_names     = '{params.metadata_vars}',
+        metadata_combns        = '[]',
+        home_md_f         = '',
+        annotation_csv_f  = '',
+        cluster_palette   = '',
+        metadata_palettes = '{{}}',
         n_cores           = {threads}
       )
     "
@@ -235,7 +224,66 @@ rule build_shiny_app:
   """
 
 
-rule build_zoom_shiny_app:
+rule configure_shiny_app:
+  input:
+    data_sentinel_f = f'{_main_shiny_dir}/.shiny_data_built_{DATE_STAMP}',
+    deploy_inputs   = _shiny_deploy_inputs,
+    **({'home_md_f':        _home_md_f}        if _home_md_f        else {}),
+    **({'annotation_csv_f': _annotation_csv_f} if _annotation_csv_f else {}),
+  output:
+    sentinel_f = f'{_main_shiny_dir}/.shiny_built_{DATE_STAMP}'
+  params:
+    scprocess_dir = str(scprocess_dir),
+    deploy_dir    = _main_shiny_dir,
+    date_stamp    = DATE_STAMP,
+    app_tag       = _main_app_tag,
+    metadata_vars = _metadata_vars,
+    app_title     = _shiny_cfg.get('app_title', SHORT_TAG),
+    email         = _shiny_cfg.get('email', ''),
+    keyword       = _shiny_cfg.get('keyword', 'cells'),
+    default_gene  = _shiny_cfg.get('default_gene', ''),
+    var_names     = ','.join(_resolve_var_names(_metadata_vars_ls, _shiny_cfg)),
+    metadata_combns        = json.dumps(_shiny_cfg.get('metadata_combns', [])).replace('"', '\\"'),
+    home_md_f         = _home_md_f,
+    annotation_csv_f  = _annotation_csv_f,
+    cluster_palette   = _shiny_cfg.get('cluster_palette', ''),
+    metadata_palettes = json.dumps(_shiny_cfg.get('metadata_palettes', {})).replace('"', '\\"'),
+  threads: 1
+  resources:
+    mem_mb  = 1024,
+    runtime = 5
+  log:   f'{logs_dir}/shiny/configure_shiny_app_{_main_app_tag}_{DATE_STAMP}.log'
+  conda: '../envs/shiny.yaml'
+  shell: """
+    exec &>> {log}
+    mkdir -p {params.deploy_dir}
+    mkdir -p $(dirname {log})
+
+    Rscript --vanilla -e "
+      source('{scprocess_dir}/scripts/shiny.R')
+      configure_shiny_app_scprocess(
+        deploy_dir    = '{params.deploy_dir}',
+        scprocess_dir = '{params.scprocess_dir}',
+        app_tag       = '{params.app_tag}',
+        date_stamp    = '{params.date_stamp}',
+        metadata_vars = '{params.metadata_vars}',
+        app_title     = '{params.app_title}',
+        email         = '{params.email}',
+        keyword       = '{params.keyword}',
+        default_gene  = '{params.default_gene}',
+        var_names     = '{params.var_names}',
+        metadata_combns        = '{params.metadata_combns}',
+        home_md_f         = '{params.home_md_f}',
+        annotation_csv_f  = '{params.annotation_csv_f}',
+        cluster_palette   = '{params.cluster_palette}',
+        metadata_palettes = '{params.metadata_palettes}'
+      )
+    "
+    touch {output.sentinel_f}
+  """
+
+
+rule build_zoom_shiny_data:
   input:
     unpack(_zoom_fgsea_inputs),
     h5ads_yaml_f  = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
@@ -246,7 +294,7 @@ rule build_zoom_shiny_app:
     pb_hvgs_f     = lambda wc: (f'{zoom_dir}/{wc.zoom_name}/pb_hvgs_{FULL_TAG}_{wc.zoom_name}'
                                 f'_{ZOOM_PARAMS[wc.zoom_name]["marker_genes"]["mkr_sel_res"]}_{DATE_STAMP}.csv.gz'),
   output:
-    sentinel_f    = f'{docs_dir}/shiny_zoom_{{zoom_name}}/.shiny_built_{DATE_STAMP}'
+    sentinel_f    = f'{docs_dir}/shiny_zoom_{{zoom_name}}/.shiny_data_built_{DATE_STAMP}'
   params:
     scprocess_dir    = str(scprocess_dir),
     deploy_dir       = lambda wc: f'{docs_dir}/shiny_zoom_{wc.zoom_name}',
@@ -254,23 +302,8 @@ rule build_zoom_shiny_app:
     app_tag          = lambda wc: f'{SHORT_TAG}_{wc.zoom_name}',
     mkr_sel_res      = lambda wc: ZOOM_PARAMS[wc.zoom_name]['marker_genes']['mkr_sel_res'],
     ref_txome        = GENOME_REF,
-    app_title        = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('app_title',
-                         f'{SHORT_TAG} — {wc.zoom_name}'),
-    email            = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('email', ''),
-    keyword          = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('keyword', 'cells'),
-    default_gene     = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('default_gene', ''),
     n_keep           = lambda wc: int(ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('n_keep', 30000)),
     metadata_vars    = lambda wc: ','.join(_zoom_metadata_vars_ls(wc.zoom_name)),
-    var_names        = lambda wc: ','.join(
-                         _resolve_var_names(_zoom_metadata_vars_ls(wc.zoom_name),
-                           ZOOM_PARAMS[wc.zoom_name].get('shiny', {}))),
-    metadata_combns       = lambda wc: json.dumps(
-                         ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('metadata_combns', [])).replace('"', '\\"'),
-    home_md_f        = lambda wc: _zoom_optional_path(wc.zoom_name, 'home_md'),
-    annotation_csv_f = lambda wc: _zoom_optional_path(wc.zoom_name, 'annotation_csv'),
-    cluster_palette  = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('cluster_palette', ''),
-    metadata_palettes = lambda wc: json.dumps(
-                          ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('metadata_palettes', {})).replace('"', '\\"'),
     fgsea_go_bp_f    = lambda wildcards, input: getattr(input, 'fgsea_go_bp_f', ''),
     fgsea_go_cc_f    = lambda wildcards, input: getattr(input, 'fgsea_go_cc_f', ''),
     fgsea_go_mf_f    = lambda wildcards, input: getattr(input, 'fgsea_go_mf_f', ''),
@@ -278,8 +311,8 @@ rule build_zoom_shiny_app:
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_zoom_shiny_app', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_zoom_shiny_app', 'time', attempt)
+  log:   f'{logs_dir}/shiny/build_zoom_shiny_data_{{zoom_name}}_{DATE_STAMP}.log'
   conda: '../envs/shiny.yaml'
-  log:   f'{logs_dir}/shiny/build_zoom_shiny_app_{{zoom_name}}_{DATE_STAMP}.log'
   shell: """
     exec &>> {log}
     mkdir -p {params.deploy_dir}
@@ -303,18 +336,82 @@ rule build_zoom_shiny_app:
         mkr_sel_res   = '{params.mkr_sel_res}',
         ref_txome     = '{params.ref_txome}',
         metadata_vars = '{params.metadata_vars}',
+        app_title     = '{params.app_tag}',
+        email         = '',
+        keyword       = 'cells',
+        default_gene  = '',
+        n_keep        = {params.n_keep},
+        var_names     = '{params.metadata_vars}',
+        metadata_combns        = '[]',
+        home_md_f         = '',
+        annotation_csv_f  = '',
+        cluster_palette   = '',
+        metadata_palettes = '{{}}',
+        n_cores           = {threads}
+      )
+    "
+    touch {output.sentinel_f}
+  """
+
+
+rule configure_zoom_shiny_app:
+  input:
+    unpack(lambda wildcards: get_zoom_shiny_optional_inputs(
+      ZOOM_PARAMS, PROJ_DIR, wildcards.zoom_name)),
+    data_sentinel_f = f'{docs_dir}/shiny_zoom_{{zoom_name}}/.shiny_data_built_{DATE_STAMP}',
+    deploy_inputs   = _shiny_deploy_inputs,
+  output:
+    sentinel_f = f'{docs_dir}/shiny_zoom_{{zoom_name}}/.shiny_built_{DATE_STAMP}'
+  params:
+    scprocess_dir    = str(scprocess_dir),
+    deploy_dir       = lambda wc: f'{docs_dir}/shiny_zoom_{wc.zoom_name}',
+    date_stamp       = DATE_STAMP,
+    app_tag          = lambda wc: f'{SHORT_TAG}_{wc.zoom_name}',
+    metadata_vars    = lambda wc: ','.join(_zoom_metadata_vars_ls(wc.zoom_name)),
+    app_title        = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('app_title',
+                         f'{SHORT_TAG} — {wc.zoom_name}'),
+    email            = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('email', ''),
+    keyword          = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('keyword', 'cells'),
+    default_gene     = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('default_gene', ''),
+    var_names        = lambda wc: ','.join(
+                         _resolve_var_names(_zoom_metadata_vars_ls(wc.zoom_name),
+                           ZOOM_PARAMS[wc.zoom_name].get('shiny', {}))),
+    metadata_combns       = lambda wc: json.dumps(
+                         ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('metadata_combns', [])).replace('"', '\\"'),
+    home_md_f        = lambda wc: _zoom_optional_path(wc.zoom_name, 'home_md'),
+    annotation_csv_f = lambda wc: _zoom_optional_path(wc.zoom_name, 'annotation_csv'),
+    cluster_palette  = lambda wc: ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('cluster_palette', ''),
+    metadata_palettes = lambda wc: json.dumps(
+                          ZOOM_PARAMS[wc.zoom_name].get('shiny', {}).get('metadata_palettes', {})).replace('"', '\\"'),
+  threads: 1
+  resources:
+    mem_mb  = 1024,
+    runtime = 5
+  log:   f'{logs_dir}/shiny/configure_zoom_shiny_app_{{zoom_name}}_{DATE_STAMP}.log'
+  conda: '../envs/shiny.yaml'
+  shell: """
+    exec &>> {log}
+    mkdir -p {params.deploy_dir}
+    mkdir -p $(dirname {log})
+
+    Rscript --vanilla -e "
+      source('{scprocess_dir}/scripts/shiny.R')
+      configure_shiny_app_scprocess(
+        deploy_dir    = '{params.deploy_dir}',
+        scprocess_dir = '{params.scprocess_dir}',
+        app_tag       = '{params.app_tag}',
+        date_stamp    = '{params.date_stamp}',
+        metadata_vars = '{params.metadata_vars}',
         app_title     = '{params.app_title}',
         email         = '{params.email}',
         keyword       = '{params.keyword}',
         default_gene  = '{params.default_gene}',
-        n_keep        = {params.n_keep},
         var_names     = '{params.var_names}',
         metadata_combns        = '{params.metadata_combns}',
         home_md_f         = '{params.home_md_f}',
         annotation_csv_f  = '{params.annotation_csv_f}',
         cluster_palette   = '{params.cluster_palette}',
-        metadata_palettes = '{params.metadata_palettes}',
-        n_cores           = {threads}
+        metadata_palettes = '{params.metadata_palettes}'
       )
     "
     touch {output.sentinel_f}

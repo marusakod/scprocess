@@ -74,8 +74,8 @@ genesUI <- function(id) {
     ),
     column(width = 10,
       fluidRow(
-        column(width = 6, uiOutput(ns("get_gene_umap_box"))),
-        column(width = 6, uiOutput(ns("get_cluster_overview_box"))),
+        column(width = 5, uiOutput(ns("get_gene_umap_box"))),
+        column(width = 7, uiOutput(ns("get_cluster_overview_box"))),
         column(width = 12, align = "center", uiOutput(ns("get_gene_dotplot_box")))
       )
     )

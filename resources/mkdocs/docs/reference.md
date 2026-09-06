@@ -661,7 +661,7 @@ does not construct a dense, whole-matrix VST.
 * `email`: contact email shown in the app footer.
 * `keyword`: short word used in plot axis labels and descriptions (e.g. `"cells"`, `"nuclei"`). Default is `"cells"`.
 * `default_gene`: gene symbol displayed by default in the "Explore Genes" tab.
-* `n_keep`: number of cells retained in the subsampled UMAP shown in the app. Default is 3000.
+* `n_keep`: number of cells retained in the subsampled UMAP shown in the app. Default is 30000.
 * `metadata_vars`: metadata variables to show in the app. If not specified, uses the project-level `metadata_vars`. Use this to show a different set of variables in the Shiny app than in the main pipeline.
 * `metadata_labels`: display labels for metadata variables. Keys are column names, values are display labels. Variables not listed keep their column name as the label. Example:
     ```yaml
@@ -673,16 +673,42 @@ does not construct a dense, whole-matrix VST.
     ```
 * `var_names`: _(deprecated, use `metadata_labels` instead)_ display names for `metadata_vars` columns (same order). Defaults to `metadata_vars` values.
 * `metadata_combns`: list of metadata variable pairs to display as combined groupings. Each element should be a two-element list of variable names from `metadata_vars` (use column names, not display labels).
-* `home_md`: path to a Markdown file used as the landing page content. Shoule be absolute or relative to `proj_dir`.
-* `annotation_csv`: path to a CSV file with columns `cluster`, `cluster_name`, and optionally `colour`, defining display names, order, and colours for clusters. Absolute or relative to `proj_dir`. At app build time, its cluster values must exactly match the full set of clusters in the current integration, including rare clusters without marker-gene results. Missing or extra clusters, duplicated cluster IDs or display names, and missing or blank cluster IDs or names cause the build to stop with an error; this prevents annotations from a different clustering resolution or analysis run being applied silently. UMAP subsampling retains at least one cell from every cluster.
-* `cluster_palette`: name of colour palette applied to clusters when `annotation_csv` is not provided. Accepts any name from the Supported colour palletes list.
+* `home_md`: path to a Markdown file used as the landing page content. Should be absolute or relative to `proj_dir`.
+* `annotation_csv`: path to a CSV file with columns `cluster`, `cluster_name`, and optionally `colour`, defining display names, order, and colours for clusters. Absolute or relative to `proj_dir`. During app configuration, its cluster values must exactly match the full set of clusters in the built Shiny data, including rare clusters without marker-gene results. Missing or extra clusters, duplicated cluster IDs or display names, and missing or blank cluster IDs or names cause configuration to stop with an error; this prevents annotations from a different clustering resolution or analysis run being applied silently. UMAP subsampling retains at least one cell from every cluster.
+* `cluster_palette`: name of colour palette applied to clusters when `annotation_csv` is not provided. Accepts any name from the Supported colour palettes list.
 * `metadata_palettes`: per-variable colour palette configuration. Each key is a metadata variable name; the value can be:
     - a palette name (string)
     - an explicit colour list (array)
     - an object with optional `palette`, `colours`, and `values` keys (the `values` list controls level ordering; defaults to frequency order)
 
-The sample metadata CSV is an explicit input to the main and zoom Shiny apps. Editing
-descriptive values therefore marks an existing app for rebuilding. For a join, first
+Shiny deployment has two stages. `build_shiny_data` (or
+`build_zoom_shiny_data`) performs the expensive H5AD reads, UMAP subsampling,
+BPCells writes, pseudobulking, and marker/GSEA preparation. The lightweight
+`configure_shiny_app` (or `configure_zoom_shiny_app`) copies the application
+template and writes `annotation.csv`, `home.md`, and `shinyconfig.yaml`. Running
+`scprocess ... -r shiny` targets the configuration stage and brings in the data
+stage only when its analytical inputs are stale. Changes to cluster names,
+order or colours, `app_title`, `email`, `keyword`, `default_gene`,
+`metadata_labels`, `metadata_combns`, `home_md`, `cluster_palette`, or
+`metadata_palettes` therefore do not rebuild the expression matrices.
+
+Changing `n_keep`, `metadata_vars`, clustering/marker resolution, sample
+metadata, integration outputs, H5ADs, markers, HVGs, or GSEA inputs rebuilds the
+Shiny data. The first run after upgrading an existing deployment to this split
+creates the new data-stage sentinel and may rebuild the data once.
+
+The cluster UMAPs include a **Repel cluster labels** option. Repelled label
+positions are computed from the full UMAP during the app build: labels are moved
+into low-density space, given clearance from cells, and allocated globally so
+their numbered circles do not overlap one another. Rebuild the Shiny target to
+refresh these positions after changing the integration or clustering.
+
+The adjacent cluster legend sizes itself from the longest annotation while
+favouring space for the UMAP panel; labels may extend into a small unclipped
+margin rather than reserving a large empty legend area.
+
+The sample metadata CSV is an explicit input to the Shiny data stage. Editing
+descriptive values therefore marks the generated Shiny data for rebuilding. For a join, first
 run the normal join target so its joint sample metadata snapshot is refreshed, then
 run `scprocess join CONFIG -r shiny` to rebuild the app.
 

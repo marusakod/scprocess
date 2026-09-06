@@ -37,14 +37,20 @@ class TestShinyAppTag(unittest.TestCase):
       self.assertIsNotNone(pattern.fullmatch("csf_T_NK.join-v2"))
       self.assertIsNone(pattern.fullmatch("csf T/NK"))
 
-  def test_main_rule_uses_tag_for_directory_sentinel_data_and_log(self):
+  def test_main_rules_use_tag_for_directory_sentinels_data_and_logs(self):
     source = (ROOT / "rules/shiny.smk").read_text()
     self.assertIn("_main_app_tag     = get_shiny_app_tag(config)", source)
     self.assertIn("_main_shiny_dir   = f'{docs_dir}/shiny_{_main_app_tag}'", source)
-    self.assertIn("sentinel_f    = f'{_main_shiny_dir}/.shiny_built_{DATE_STAMP}'", source)
+    self.assertIn("sentinel_f    = f'{_main_shiny_dir}/.shiny_data_built_{DATE_STAMP}'", source)
+    self.assertIn("sentinel_f = f'{_main_shiny_dir}/.shiny_built_{DATE_STAMP}'", source)
     self.assertIn("deploy_dir    = _main_shiny_dir", source)
     self.assertIn("app_tag       = _main_app_tag", source)
-    self.assertIn("build_shiny_app_{_main_app_tag}_{DATE_STAMP}.log", source)
+    self.assertIn("build_shiny_data_{_main_app_tag}_{DATE_STAMP}.log", source)
+    self.assertIn("configure_shiny_app_{_main_app_tag}_{DATE_STAMP}.log", source)
+
+  def test_cli_targets_lightweight_configure_rule(self):
+    source = (ROOT / "scripts/scprocess_utils.py").read_text()
+    self.assertIn('return ["configure_shiny_app"], proj_dir', source)
 
 
 if __name__ == "__main__":

@@ -110,8 +110,10 @@ class TestMetadataDependencyGraph(unittest.TestCase):
     self.assertIn("'{input.sample_meta_f}'", report)
 
   def test_shiny_apps_declare_sample_metadata_as_input(self):
-    main = rule_block(self.shiny, "build_shiny_app", "build_zoom_shiny_app")
-    zoom = self.shiny.split("rule build_zoom_shiny_app:", 1)[1]
+    main = rule_block(self.shiny, "build_shiny_data", "configure_shiny_app")
+    zoom = rule_block(
+      self.shiny, "build_zoom_shiny_data", "configure_zoom_shiny_app"
+    )
     for block in (main, zoom):
       self.assertIn("sample_meta_f = _sample_meta_f", block)
       self.assertIn("'{input.sample_meta_f}'", block)
