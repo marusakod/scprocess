@@ -234,6 +234,7 @@ def check_config(config, schema_f, scdata_dir, scprocess_dir):
   config      = _check_qc_parameters(config)
   config      = _check_hvg_parameters(config)
   config      = _check_integration_parameters(config)
+  config      = _check_cell_cycle_parameters(config)
   config      = _check_marker_genes_parameters(config, scdata_dir)
   config      = _check_pb_empties_parameters(config)
   config      = _check_shiny_parameters(config)
@@ -260,6 +261,9 @@ def _get_default_config_from_schema(schema, config=None):
   # extract defaults from the schema
   default_config = {}
   for key, props in schema.get('properties', {}).items():
+    if (config is not None and key not in config and
+        props.get('x-defaults-only-when-present', False)):
+      continue
     # if the key has a top-level default (uncommon for object types)
     if 'default' in props:
       default_config[key] = props['default']
@@ -1084,6 +1088,33 @@ def _check_integration_parameters(config):
     if not config['integration']['int_paga_cl_res'] in valid_res_ls:
       raise ValueError(f"leiden/louvain resolution specified for paga integration must be one of {valid_res_ls}")
 
+  return config
+
+
+def _check_cell_cycle_parameters(config):
+  if 'cell_cycle' not in config:
+    return config
+
+  cell_cycle = config['cell_cycle']
+  if 'species' not in cell_cycle:
+    reference = config['project'].get('probe_set', config['project'].get('ref_txome', ''))
+    reference_lower = reference.lower()
+    if any(token in reference_lower for token in ('mouse', 'grcm', 'mm10', 'mm39')):
+      cell_cycle['species'] = 'mouse'
+    elif any(token in reference_lower for token in ('human', 'grch', 'hg19', 'hg38')):
+      cell_cycle['species'] = 'human'
+    else:
+      raise ValueError(
+        "Cannot infer cell_cycle species from the configured reference. "
+        "Set cell_cycle.species to 'human' or 'mouse'."
+      )
+
+  if 'regression' in cell_cycle:
+    cell_cycle['regression'].setdefault('harmonics', 2)
+    cell_cycle['regression'].setdefault('ridge_lambda', 0.1)
+
+  if 'regression' in cell_cycle and config['integration']['int_pca_method'] != 'bpcells':
+    raise ValueError("cell-cycle regression requires integration.int_pca_method: bpcells")
   return config
 
 

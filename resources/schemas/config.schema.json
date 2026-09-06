@@ -201,6 +201,27 @@
         }
       ]
     },
+    "cell_cycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-defaults-only-when-present": true,
+      "properties": {
+        "species":              { "type": "string", "enum": ["human", "mouse"] },
+        "origin_method":        { "type": "string", "const": "kde_density_equalized", "default": "kde_density_equalized" },
+        "bandwidth_multiplier": { "type": "number", "exclusiveMinimum": 0, "default": 1.0 },
+        "kde_grid_size":        { "type": "integer", "minimum": 20, "default": 500 },
+        "target_cells":         { "type": "integer", "minimum": 1, "default": 5000 },
+        "seed":                 { "type": "integer", "default": 20230308 },
+        "regression": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "harmonics":    { "type": "integer", "enum": [1, 2], "default": 2 },
+            "ridge_lambda": { "type": "number", "minimum": 0, "default": 0.1 }
+          }
+        }
+      }
+    },
     "marker_genes": {
       "type": "object",
       "additionalProperties": false,

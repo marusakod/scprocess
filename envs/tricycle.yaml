@@ -1,0 +1,11 @@
+name: tricycle
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - r-base=4.5
+  - bioconductor-tricycle=1.18.0
+  - r-bpcells=0.3.1
+  - r-data.table
+  - r-matrix

@@ -63,7 +63,8 @@ def _ordered_coldata(coldata_f, cell_ids, batch_var):
 
 def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
-  integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None):
+  integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None,
+  tricycle_f = None):
   print('setting up parameters')
   exclude_mito  = str(exclude_mito).strip().lower() == 'true'
   res_ls        = res_ls_concat.split()
@@ -109,6 +110,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
 
   print('join results')
   int_df        = int_ok.join(dbl_data, on="cell_id", coalesce=True, how = 'full')
+  int_df        = _add_tricycle_scores(int_df, tricycle_f)
 
   print('save results')
   with gzip.open(integration_f, 'wb') as f:
@@ -158,7 +160,7 @@ def run_preliminary_integration(
 def run_final_integration(
   precomputed_pca_f, doublet_f, coldata_f, embedding, n_dims, cl_method,
   theta, res_ls_concat, integration_f, batch_var, use_gpu=False,
-  use_paga=False, paga_cl_res=None
+  use_paga=False, paga_cl_res=None, tricycle_f=None
 ):
   """Run final integration from PCA trained only on the persisted clean cells."""
   pca_df = pl.read_csv(precomputed_pca_f)
@@ -174,9 +176,24 @@ def run_final_integration(
   )
   dbl_data = pl.read_csv(doublet_f)
   int_df = int_ok.join(dbl_data, on='cell_id', coalesce=True, how='full')
+  int_df = _add_tricycle_scores(int_df, tricycle_f)
   with gzip.open(integration_f, 'wb') as f:
     int_df.write_csv(f)
   return int_df
+
+
+def _add_tricycle_scores(integration_df, tricycle_f):
+  if tricycle_f is None:
+    return integration_df
+  scores = pl.read_csv(tricycle_f).select(
+    'cell_id', 'tricycle_pc1', 'tricycle_pc2', 'tricycle_theta'
+  )
+  if scores['cell_id'].n_unique() != scores.height:
+    raise ValueError('tricycle score table contains duplicate cell IDs')
+  missing = set(integration_df['cell_id'].to_list()) - set(scores['cell_id'].to_list())
+  if missing:
+    raise ValueError('some integrated cells lack tricycle scores')
+  return integration_df.join(scores, on='cell_id', how='left')
 
 
 def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
@@ -593,6 +610,7 @@ if __name__ == "__main__":
   parser_run_integration.add_argument('--res_ls_concat',  type = str)
   parser_run_integration.add_argument('--integration_f',  type = str)
   parser_run_integration.add_argument('--batch_var',      type = str)
+  parser_run_integration.add_argument('--tricycle_f',     type = str)
   parser_run_integration.add_argument("-g", "--use-gpu",  action='store_true',
     help='Use GPU-accelerated libraries if available.'  
   )
@@ -632,6 +650,7 @@ if __name__ == "__main__":
   parser_final.add_argument('--res_ls_concat', type=str, required=True)
   parser_final.add_argument('--integration_f', type=str, required=True)
   parser_final.add_argument('--batch_var', type=str, required=True)
+  parser_final.add_argument('--tricycle_f', type=str)
   parser_final.add_argument('-g', '--use-gpu', action='store_true')
   parser_final.add_argument('-p', '--use-paga', action='store_true')
   parser_final.add_argument('--paga-cl-res', type=str)
@@ -710,7 +729,7 @@ if __name__ == "__main__":
       args.hvg_mat_f, args.dbl_hvg_mat_f, args.sample_qc_f, args.coldata_f,
       args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
       args.dbl_res, args.dbl_cl_prop, args.theta, args.res_ls_concat, args.integration_f,
-      args.batch_var, use_gpu, args.use_paga, args.paga_cl_res
+      args.batch_var, use_gpu, args.use_paga, args.paga_cl_res, args.tricycle_f
     )
   elif args.function_name == 'run_preliminary_integration':
     run_preliminary_integration(
@@ -725,7 +744,7 @@ if __name__ == "__main__":
       args.precomputed_pca_f, args.doublet_f, args.coldata_f,
       args.embedding, args.n_dims, args.cl_method, args.theta,
       args.res_ls_concat, args.integration_f, args.batch_var, use_gpu,
-      args.use_paga, args.paga_cl_res
+      args.use_paga, args.paga_cl_res, args.tricycle_f
     )
   elif args.function_name == 'run_zoom_integration':
     # support list batch_var / theta for join workflow via _concat args

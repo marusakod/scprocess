@@ -578,6 +578,43 @@ Configured maxima must be greater than or equal to their corresponding minima. C
 * `int_use_paga`: if `true`, enable Partition-based graph abstraction (PAGA) for trajectory analysis and cell hierarchy inference. A clustering at the specified resolution will be computed for PAGA.
 * `int_paga_cl_res`: clustering resolution for PAGA analysis. Must be a value listed in `int_res_ls`. Default is 2 for project, zoom, and join analyses. Only used when `int_use_paga` is `true`. This is independent of `mkr_sel_res`, which defaults to 0.2.
 
+##### cell_cycle
+
+The presence of the optional `cell_cycle` block enables fixed-reference
+tricycle projection. If the block is absent, no tricycle files or fields are
+created. An empty block (`cell_cycle: {}`) uses the defaults and produces three
+cell-level values:
+
+```yaml
+cell_cycle: {}
+```
+
+* `tricycle_pc1`: first fixed-reference tricycle projection coordinate after
+  tricycle mean-centres expression within the biological sample;
+* `tricycle_pc2`: second coordinate with the same per-sample centring; and
+* `tricycle_theta`: phase angle in radians in `[0, 2*pi)`, recalculated around
+  one density-equalized origin estimated from QC-passed cells across the
+  project.
+
+The projection coordinates are not integration PCs, and both the per-sample
+centring and pooled origin make these values dependent on project composition.
+For HTO/custom demultiplexing, doublets without a biological sample assignment
+are projected using a clearly recorded run-centred fallback so they can enter
+the preliminary doublet pass; they are excluded from origin estimation.
+
+Add the optional `regression` subsection to remove shared cyclic effects from
+normalized, scaled HVG expression before both preliminary and final PCA. An
+empty subsection (`regression: {}`) uses two harmonics and ridge penalty 0.1.
+Regression requires `integration.int_pca_method: bpcells`. `harmonics` is `1`
+or `2`, and `ridge_lambda` controls shrinkage of the shared sine/cosine
+coefficients. The cyclic columns are centred within sample and scaled globally;
+sample-specific slopes are not offered.
+
+```yaml
+cell_cycle:
+  regression: {}
+```
+
 ##### marker_genes
 
 * `mkr_sel_res`: selected cluster resolution used for identifying marker genes.

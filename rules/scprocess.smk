@@ -182,6 +182,12 @@ label_celltypes_outs = [
   f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
 ] if LABELLER_PARAMS else []
 
+cell_cycle_outs = [
+  f'{int_dir}/tricycle_scores_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+  f'{int_dir}/tricycle_origin_{FULL_TAG}_{DATE_STAMP}.csv',
+  f'{int_dir}/tricycle_origin_diagnostics_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+] if 'cell_cycle' in config else []
+
 # one rule to rule them all
 rule all:
   input:
@@ -220,6 +226,7 @@ rule all:
     f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5',
     # integration
     f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    cell_cycle_outs,
     expand(f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad', batch = BATCHES),
     clean_sce_fs,
     f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml', 
@@ -382,6 +389,7 @@ include: "ambient.smk"
 include: "qc.smk"
 include: "pb_empties.smk"
 include: "hvgs.smk"
+include: "tricycle.smk"
 include: "integration.smk"
 include: "marker_genes.smk"
 include: "render_htmls.smk"

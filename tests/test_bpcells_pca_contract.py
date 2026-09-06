@@ -17,7 +17,8 @@ def test_bpcells_pca_uses_lazy_scaled_matrix():
   script = (ROOT / 'scripts' / 'bpcells_pca.R').read_text()
   assert 'write_matrix_dir(mat_norm' in script
   assert 'mat_scaled <- (mat_norm - gene_means) / gene_sds' in script
-  assert 'irlba(t(mat_scaled)' in script
+  assert 'pca_matrix <- t(mat_scaled)' in script
+  assert 'irlba(pca_matrix' in script
   assert 'as.matrix(mat_scaled)' not in script
 
 

@@ -11,6 +11,24 @@ PRELIM_PCA_F   = f'{int_dir}/preliminary_pca_{FULL_TAG}_{DATE_STAMP}.csv.gz'
 DOUBLETS_F     = f'{int_dir}/integration_doublets_{FULL_TAG}_{DATE_STAMP}.csv.gz'
 CLEAN_CELLS_F  = f'{int_dir}/clean_cells_{FULL_TAG}_{DATE_STAMP}.csv'
 FINAL_PCA_F    = f'{int_dir}/final_pca_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+CELL_CYCLE_REGRESSION = (
+  CELL_CYCLE_ENABLED and 'regression' in config['cell_cycle']
+)
+PRELIM_REGRESSION_F = f'{int_dir}/preliminary_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'
+FINAL_REGRESSION_F = f'{int_dir}/final_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'
+PRELIM_REGRESSION_GENES_F = f'{int_dir}/preliminary_cell_cycle_regression_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+FINAL_REGRESSION_GENES_F = f'{int_dir}/final_cell_cycle_regression_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+
+
+def _cell_cycle_regression_args(out_f, genes_f):
+  if not CELL_CYCLE_REGRESSION:
+    return ''
+  regression = config['cell_cycle']['regression']
+  return (
+    f", tricycle_f = '{TRICYCLE_SCORES_F}', harmonics = {regression['harmonics']}, "
+    f"ridge_lambda = {regression['ridge_lambda']}, out_regression_f = '{out_f}', "
+    f"out_regression_genes_f = '{genes_f}'"
+  )
 
 
 if INT_PCA_METHOD == 'bpcells':
@@ -18,12 +36,16 @@ if INT_PCA_METHOD == 'bpcells':
     input:
       hvg_mat_f     = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5',
       dbl_hvg_mat_f = f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5',
-      coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+      coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      tricycle_f    = TRICYCLE_SCORES_F if CELL_CYCLE_REGRESSION else []
     output:
-      pca_f = PRELIM_PCA_F
+      pca_f = PRELIM_PCA_F,
+      regression_f = PRELIM_REGRESSION_F if CELL_CYCLE_REGRESSION else [],
+      regression_genes_f = PRELIM_REGRESSION_GENES_F if CELL_CYCLE_REGRESSION else []
     params:
       n_dims      = config['integration']['int_n_dims'],
-      exclude_mito = config['qc']['exclude_mito']
+      exclude_mito = config['qc']['exclude_mito'],
+      regression_args = _cell_cycle_regression_args(PRELIM_REGRESSION_F, PRELIM_REGRESSION_GENES_F)
     threads: 8
     retries: config['resources']['retries']
     resources:
@@ -52,7 +74,7 @@ if INT_PCA_METHOD == 'bpcells':
         n_dims       = {params.n_dims},
         out_pca_f    = '{output.pca_f}',
         coldata_f    = '{input.coldata_f}',
-        exclude_mito = tolower('{params.exclude_mito}') == 'true')"
+        exclude_mito = tolower('{params.exclude_mito}') == 'true'{params.regression_args})"
       """
 
 
@@ -114,12 +136,16 @@ if INT_PCA_METHOD == 'bpcells':
     input:
       hvg_mat_f    = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5',
       clean_cells_f = CLEAN_CELLS_F,
-      coldata_f    = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+      coldata_f    = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      tricycle_f   = TRICYCLE_SCORES_F if CELL_CYCLE_REGRESSION else []
     output:
-      pca_f = FINAL_PCA_F
+      pca_f = FINAL_PCA_F,
+      regression_f = FINAL_REGRESSION_F if CELL_CYCLE_REGRESSION else [],
+      regression_genes_f = FINAL_REGRESSION_GENES_F if CELL_CYCLE_REGRESSION else []
     params:
       n_dims       = config['integration']['int_n_dims'],
-      exclude_mito = config['qc']['exclude_mito']
+      exclude_mito = config['qc']['exclude_mito'],
+      regression_args = _cell_cycle_regression_args(FINAL_REGRESSION_F, FINAL_REGRESSION_GENES_F)
     threads: 8
     retries: config['resources']['retries']
     resources:
@@ -147,7 +173,7 @@ if INT_PCA_METHOD == 'bpcells':
         out_pca_f    = '{output.pca_f}',
         coldata_f    = '{input.coldata_f}',
         cells_f      = '{input.clean_cells_f}',
-        exclude_mito = tolower('{params.exclude_mito}') == 'true')"
+        exclude_mito = tolower('{params.exclude_mito}') == 'true'{params.regression_args})"
       """
 
 
@@ -155,7 +181,8 @@ if INT_PCA_METHOD == 'bpcells':
     input:
       pca_f      = FINAL_PCA_F,
       doublet_f  = DOUBLETS_F,
-      coldata_f  = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+      coldata_f  = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      tricycle_f = TRICYCLE_SCORES_F if CELL_CYCLE_ENABLED else []
     output:
       integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
     params:
@@ -167,7 +194,8 @@ if INT_PCA_METHOD == 'bpcells':
       int_use_paga    = config['integration']['int_use_paga'],
       int_paga_cl_res = config['integration']['int_paga_cl_res'],
       int_res_ls      = config['integration']['int_res_ls'],
-      use_gpu         = config['integration']['int_use_gpu']
+      use_gpu         = config['integration']['int_use_gpu'],
+      tricycle_arg    = f'--tricycle_f {TRICYCLE_SCORES_F}' if CELL_CYCLE_ENABLED else ''
     threads: 1
     retries: config['resources']['retries']
     resources:
@@ -193,6 +221,7 @@ if INT_PCA_METHOD == 'bpcells':
         --res_ls_concat     "{params.int_res_ls}" \
         --integration_f     {output.integration_f} \
         --batch_var         {params.int_batch_var} \
+        {params.tricycle_arg} \
         $( [ "{params.int_use_paga}" == "True" ] && echo "--use-paga" ) \
         $( [ "{params.int_use_paga}" == "True" ] && echo "--paga-cl-res {params.int_paga_cl_res}" ) \
         $( [ "{params.use_gpu}" == "True" ] && echo "--use-gpu" )
@@ -205,7 +234,8 @@ else:
       dbl_hvg_mat_f = f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5',
       qc_flag_f     = f"{qc_dir}/qc_passed_{FULL_TAG}_{DATE_STAMP}.flag",
       qc_stats_f    = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
-      coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+      coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      tricycle_f    = TRICYCLE_SCORES_F if CELL_CYCLE_ENABLED else []
     output:
       integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
     params:
@@ -221,7 +251,8 @@ else:
       int_use_paga    = config['integration']['int_use_paga'],
       int_paga_cl_res = config['integration']['int_paga_cl_res'],
       int_res_ls      = config['integration']['int_res_ls'],
-      use_gpu         = config['integration']['int_use_gpu']
+      use_gpu         = config['integration']['int_use_gpu'],
+      tricycle_arg    = f'--tricycle_f {TRICYCLE_SCORES_F}' if CELL_CYCLE_ENABLED else ''
     threads: 1
     retries: config['resources']['retries']
     resources:
@@ -252,6 +283,7 @@ else:
         --res_ls_concat "{params.int_res_ls}" \
         --integration_f {output.integration_f} \
         --batch_var     {params.int_batch_var} \
+        {params.tricycle_arg} \
         $( [ "{params.int_use_paga}" == "True" ] && echo "--use-paga" ) \
         $( [ "{params.int_use_paga}" == "True" ] && echo "--paga-cl-res {params.int_paga_cl_res}" ) \
         $( [ "{params.use_gpu}" == "True" ] && echo "--use-gpu" )
@@ -275,13 +307,19 @@ rule make_clean_h5ads:
     h5_filt_fs    = [int_get_filt_counts_f(run) for run in RUNS],
     coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     rowdata_f     = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    cell_cycle_origin_f = TRICYCLE_ORIGIN_F if CELL_CYCLE_ENABLED else [],
+    cell_cycle_regression_f = FINAL_REGRESSION_F if CELL_CYCLE_REGRESSION else [],
     af_h5_f       = lambda wildcards: f'{af_dir}/af_{get_run_for_one_batch(wildcards.batch, RUNS_TO_BATCHES)[0]}/{af_rna_dir}af_counts_mat.h5',
   output:
     clean_h5ad_f  = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad'
   params:
     sel_run       = lambda wildcards: get_run_for_one_batch(wildcards.batch, RUNS_TO_BATCHES),
     run_var       = RUN_VAR,
-    batch_var     = BATCH_VAR
+    batch_var     = BATCH_VAR,
+    cell_cycle_args = (
+      f'--cell_cycle_origin_f {TRICYCLE_ORIGIN_F} ' +
+      (f'--cell_cycle_regression_f {FINAL_REGRESSION_F}' if CELL_CYCLE_REGRESSION else '')
+    ) if CELL_CYCLE_ENABLED else ''
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -305,7 +343,8 @@ rule make_clean_h5ads:
       {input.rowdata_f} \
       {params.run_var} \
       {params.batch_var} \
-      {output.clean_h5ad_f}
+      {output.clean_h5ad_f} \
+      {params.cell_cycle_args}
     """
 
 

@@ -10,7 +10,8 @@ import numpy as np
 
 
 def make_clean_h5ad(sel_b, sel_run, integration_f, h5_paths_f, 
-  coldata_f, rowdata_f, run_var, batch_var, clean_h5ad_f):
+  coldata_f, rowdata_f, run_var, batch_var, clean_h5ad_f,
+  cell_cycle_origin_f=None, cell_cycle_regression_f=None):
   
   # load, exclude doublets
   int_dt = pl.read_csv(integration_f)
@@ -41,6 +42,12 @@ def make_clean_h5ad(sel_b, sel_run, integration_f, h5_paths_f,
   # add integration outputs
   print('  adding integration variables')
   adata = _add_int_variables(adata, batch_int)
+  if cell_cycle_origin_f is not None:
+    origin = pl.read_csv(cell_cycle_origin_f).to_dicts()[0]
+    adata.uns['cell_cycle'] = {'origin': origin}
+    if cell_cycle_regression_f is not None:
+      regression = pl.read_csv(cell_cycle_regression_f).to_dicts()[0]
+      adata.uns['cell_cycle']['regression'] = regression
   
   # save
   print('  saving h5ad')
@@ -114,7 +121,11 @@ def _add_int_variables(adata, batch_int):
   batch_int_pd = batch_int_pd.reindex(adata.obs_names)
 
   # find umap and clustering cols
-  int_vs = ["UMAP1", "UMAP2"] + [col for col in batch_int_pd.columns if "RNA_snn_res" in col]
+  int_vs = [
+    col for col in [
+      "UMAP1", "UMAP2", "tricycle_pc1", "tricycle_pc2", "tricycle_theta"
+    ] if col in batch_int_pd.columns
+  ] + [col for col in batch_int_pd.columns if "RNA_snn_res" in col]
     
   for v in int_vs:
     if "RNA_snn_res" in v:
@@ -162,10 +173,13 @@ if __name__ == "__main__":
   parser.add_argument("run_var", type = str)
   parser.add_argument("batch_var", type=str)
   parser.add_argument("clean_h5ad_f", type = str)
+  parser.add_argument("--cell_cycle_origin_f", type=str)
+  parser.add_argument("--cell_cycle_regression_f", type=str)
 
   # set up some locations
   args    = parser.parse_args()
 
   # run
   make_clean_h5ad(args.sel_batch, args.sel_run, args.integration_f, args.h5_paths_f, 
-    args.coldata_f, args.rowdata_f, args.run_var, args.batch_var, args.clean_h5ad_f)
+    args.coldata_f, args.rowdata_f, args.run_var, args.batch_var, args.clean_h5ad_f,
+    args.cell_cycle_origin_f, args.cell_cycle_regression_f)
