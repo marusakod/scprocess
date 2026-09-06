@@ -198,7 +198,8 @@ print_sel_gene <- function(mkrs_dt, sel_ls) {
 }
 
 
-calc_confuse_dt <- function(cl1_dt, cl2_dt, cl1, cl2, min_cl2_p = NULL) {
+calc_confuse_dt <- function(cl1_dt, cl2_dt, cl1, cl2, min_cl2_p = NULL,
+  other_cl1_label = NULL) {
   assert_that( cl1 %in% names(cl1_dt) )
   assert_that( cl2 %in% names(cl2_dt) )
   assert_that( !is.null(levels(cl1_dt[[ cl1 ]])) )
@@ -215,14 +216,34 @@ calc_confuse_dt <- function(cl1_dt, cl2_dt, cl1, cl2, min_cl2_p = NULL) {
     by = "cell_id") %>%
     .[, .N, by = .(cl1, cl2) ]
 
-  # aggregate if requested
+  # Preserve cl2 denominators before optionally filtering cl1 levels.
+  cl2_totals = confuse_dt[, .(total_cl2 = sum(N)), by = cl2]
+  n_cl2 = nlevels(confuse_dt$cl2)
+
+  # Filter small cl1 levels, or combine them into an explicit Other level.
   if (!is.null(min_cl2_p)) {
     cl1_max_ps  = copy(confuse_dt) %>% .[, p_cl2 := N / sum(N), by = cl2 ] %>%
       .[, .(max_p = max(p_cl2)), by = cl1]
     cl1_to_exc  = cl1_max_ps[ max_p < min_cl2_p ]$cl1 %>% as.character
-    confuse_dt  = confuse_dt %>%
-      .[ !(cl1 %in% cl1_to_exc) ] %>% .[, cl1 := cl1 %>% fct_drop ]
+    if (is.null(other_cl1_label)) {
+      confuse_dt  = confuse_dt %>%
+        .[ !(cl1 %in% cl1_to_exc) ] %>% .[, cl1 := cl1 %>% fct_drop ]
+    } else if (length(cl1_to_exc) > 0) {
+      assert_that(
+        length(other_cl1_label) == 1,
+        !(other_cl1_label %in% levels(confuse_dt$cl1))
+      )
+      kept_cl1 = setdiff(levels(confuse_dt$cl1), cl1_to_exc)
+      confuse_dt = confuse_dt %>%
+        .[, cl1 := as.character(cl1)] %>%
+        .[cl1 %in% cl1_to_exc, cl1 := other_cl1_label] %>%
+        .[, .(N = sum(N)), by = .(cl1, cl2)] %>%
+        .[, cl1 := factor(cl1, levels = c(kept_cl1, other_cl1_label))]
+    }
   }
+
+  cl1_totals = confuse_dt[, .(total_cl1 = sum(N)), by = cl1]
+  n_cl1 = nlevels(confuse_dt$cl1)
 
   # sort factor levels
   lvls_cl1    = confuse_dt$cl1 %>% levels
@@ -245,10 +266,12 @@ calc_confuse_dt <- function(cl1_dt, cl2_dt, cl1, cl2, min_cl2_p = NULL) {
     .[ is.na(N), N := 0 ] %>%
     .[, N0        := N + 1 ] %>%
     .[, log_N     := log(N0) ] %>%
-    .[, p_cl1     := N / sum(N), by = cl1 ] %>%
-    .[, log_p_cl1 := log(N0 / sum(N0)), by = cl1 ] %>%
-    .[, p_cl2     := N / sum(N), by = cl2 ] %>%
-    .[, log_p_cl2 := log(N0 / sum(N0)), by = cl2 ]
+    merge(cl1_totals, by = "cl1", all.x = TRUE) %>%
+    merge(cl2_totals, by = "cl2", all.x = TRUE) %>%
+    .[, p_cl1     := N / total_cl1 ] %>%
+    .[, log_p_cl1 := log(N0 / (total_cl1 + n_cl2)) ] %>%
+    .[, p_cl2     := N / total_cl2 ] %>%
+    .[, log_p_cl2 := log(N0 / (total_cl2 + n_cl1)) ]
 
   return(confuse_dt)
 }

@@ -4,11 +4,6 @@ import pathlib
 import polars as pl
 import gzip
 import requests
-import xgboost as xgb
-import scipy.sparse as sp
-import numpy as np
-import anndata
-from train_xgboost import normalize_counts
 
 
 def download_celltypist_models(models_f):
@@ -107,7 +102,13 @@ def run_celltypist(sel_batch, batch_var, model_name, adata_f):
 
 
 def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes_f):
- 
+  # lazy imports: only available in the XGBoost labelling environment
+  import anndata
+  import numpy as np
+  import scipy.sparse as sp
+  import xgboost as xgb
+  from train_xgboost import normalize_counts
+
   model = xgb.Booster()
   model.load_model(model_f)
 
@@ -174,6 +175,14 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var, lab
 
   # get all prediction files
   preds_df    = pl.concat([ pl.read_csv(f) for f in pred_fs ], how = "vertical")
+  # Keep only cell-level prediction columns. This also allows an already
+  # aggregated labels file to be re-aggregated against a different integration
+  # (for example, the high-resolution clusters from a zoom analysis) without
+  # retaining its previous hi_res_cl/predicted_label_agg columns.
+  pred_cols   = ['model', batch_var, 'cell_id', 'predicted_label_naive',
+    'probability_naive']
+  pred_cols   = [col for col in pred_cols if col in preds_df.columns]
+  preds_df    = preds_df.select(pred_cols)
   data_df     = preds_df.join(int_df, on = "cell_id")
 
   # join to int_df
@@ -395,4 +404,3 @@ if __name__ == "__main__":
 
   elif args.subcommand == "download_models":
     download_celltypist_models(args.models_f)
-

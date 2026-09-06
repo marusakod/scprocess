@@ -2176,6 +2176,29 @@ def get_shiny_targets(config, scprocess_dir, scdata_dir, dryrun, zoom_name=None)
   return [str(docs_dir / f"shiny_zoom_{zoom_name}" / f".shiny_built_{date_stamp}")], proj_dir
 
 
+def get_zoom_labeller_entry(zoom_params, labeller_params, zoom_name):
+  """Return the parent labeller entry used to define a label-based zoom."""
+  zoom_cfg = zoom_params[zoom_name]['zoom']
+  labeller = zoom_cfg['labels_source']
+  model = zoom_cfg.get('model')
+  matches = [entry for entry in labeller_params
+    if entry['labeller'] == labeller and entry.get('model') == model]
+  if len(matches) != 1:
+    raise ValueError(
+      f"Expected exactly one label_celltypes entry for zoom '{zoom_name}' "
+      f"({labeller}/{model}), got {len(matches)}")
+  return matches[0]
+
+
+def get_zoom_report_labels_f(zoom_params, zoom_dir, full_tag, date_stamp,
+                             zoom_name):
+  """Return the retained or zoom-aggregated labels used by a zoom report."""
+  source = zoom_params[zoom_name]['zoom']['labels_source']
+  prefix = 'aggregated' if source in ['celltypist', 'scprocess'] else 'filtered'
+  return str(pathlib.Path(zoom_dir) / zoom_name /
+    f'{prefix}_labels_{full_tag}_{zoom_name}_{date_stamp}.csv.gz')
+
+
 def get_train_xgboost_targets(config, scprocess_dir, scdata_dir, zoom_name=None):
   """Determine train_xgboost targets, optionally for a specific zoom."""
   scprocess_dir = pathlib.Path(scprocess_dir)

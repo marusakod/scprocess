@@ -742,6 +742,7 @@ Additional parameters include:
 + `labels_col`: name of column that contains cell type/cluster labels.
 * `save_subset_sces`: whether to create `SingleCellExperiment` objects containing cells that have been assigned one of the values in `sel_labels`; default is `false`.
 * `save_subset_anndata`: whether to create H5AD files containing cells that have been assigned one of the values in `sel_labels`; defaults is `true`.
+* `save_cluster_names_file`: whether to generate a resolution-specific `cluster_names_for_shiny_*.csv` for the zoom clusters. Names are assigned by majority vote from the retained cells' `predicted_label_naive` values and made unique when the same predicted subtype is assigned to multiple clusters. This requires a `celltypist` or `scprocess` labels source and can be supplied as `shiny.annotation_csv`. Default is `false`.
 * `custom_labels_f`: required if `labels_source` is set to `custom`; path to CSV file with columns `sample_id`, `cell_id` and `label`.
 
 If a value in `sel_labels` is absent from the selected labels column, {{sc}} reports a warning and continues with the labels that are present. At least one selected label must be present, and the retained subset must contain enough cells for downstream QC, HVG detection, and integration.
@@ -749,6 +750,8 @@ If a value in `sel_labels` is absent from the selected labels column, {{sc}} rep
 Zoom configs also support optional cell-level QC thresholds to apply stricter filtering to cells that already passed the main pipeline's QC. When set, cells in the zoom subset that do not meet these thresholds are removed before HVG detection and integration. All thresholds default to `null` (no additional filtering):
 
 The zoom report always shows QC distributions. Without zoom-specific thresholds it contains one distributions view; when thresholds are configured it also shows the before/after filtering views.
+
+When a zoom is defined from `celltypist` or `scprocess` labels, the zoom report also reuses the retained cells' naive `label_celltypes` predictions. It re-aggregates those predictions by majority vote against the zoom analysis high-resolution clusters, using the matching parent `label_celltypes` entry's `hi_res_cl` (default `RNA_snn_res.2`) and `min_cl_prop`. The report shows naive predicted labels against those high-resolution zoom clusters, zoom-aggregated labels over the zoom UMAP, and naive-versus-aggregated label totals. Coarse-label panels are included when the source label output contains coarse predictions. The zoom workflow does not rerun the classifier.
 
 * `qc_min_counts`: minimum UMI counts per cell. Only effective if stricter than the main pipeline threshold. Default: not set.
 * `qc_max_counts`: maximum UMI counts per cell. Default: not set.
@@ -768,6 +771,7 @@ zoom:
   labels_col: predicted_label_agg
   save_subset_sces: true
   save_subset_anndata: true
+  save_cluster_names_file: true
 qc:
   qc_min_cells: 100
   qc_max_mito: 0.05

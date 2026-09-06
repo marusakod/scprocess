@@ -30,7 +30,9 @@ source('code/integration.R')
 source('code/marker_genes.R')
 source('code/hvgs.R')
 source('code/fgsea.R')
+source('${r_label_celltypes_f}')
 library(stringi)
+library(kableExtra)
 n_cores = ${threads}
 setDTthreads(n_cores)
 do_xgboost = as.logical("${do_xgboost}")
@@ -50,8 +52,10 @@ metadata_f    = "${metadata_f}"
 gtf_dt_f      = "${gtf_dt_f}"
 qc_f          = "${qc_f}"
 zoom_lbls_f           = "${zoom_lbls_f}"
+zoom_report_lbls_f    = "${zoom_report_lbls_f}"
 zoom_original_lbls_f  = "${zoom_original_lbls_f}"
 zoom_lbls_col         = "${zoom_lbls_col}"
+zoom_label_hi_res_cl  = "${zoom_label_hi_res_cl}"
 zoom_sel_labels       = "${zoom_sel_labels}"
 zoom_qc_min_counts    = "${zoom_qc_min_counts}"
 zoom_qc_max_counts    = "${zoom_qc_max_counts}"
@@ -94,7 +98,7 @@ if (custom_mkr_names_str != "") {
 
 # define QC lookups
 qc_names    = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
-qc_lu       = c('no. of UMIs', 'no. of genes', 'mito pct.', 'spliced pct.') %>% 
+qc_lu       = c('no. of UMIs', 'no. of genes', 'mito. pct.', 'spliced pct.') %>%
   setNames(qc_names)
 
 # integration/clustering parameters
@@ -156,6 +160,9 @@ pre_cell_ids    = pre_lbls_df[ get(zoom_lbls_col) %chin% sel_labels_vec ]$cell_i
 # load post-filter labels
 post_lbls_df    = fread(zoom_lbls_f)
 post_cell_ids   = post_lbls_df[ get(zoom_lbls_col) %chin% sel_labels_vec ]$cell_id
+report_lbls_df  = fread(zoom_report_lbls_f)
+do_label_celltypes = nzchar(zoom_label_hi_res_cl) &&
+  all(c('predicted_label_naive', 'predicted_label_agg') %in% names(report_lbls_df))
 
 # load qc_all and subset to the zoom cells
 qc_all_dt       = fread(qc_f) %>% .[ keep == TRUE ]
@@ -429,6 +436,110 @@ for (res in res_ls) {
   print(g)
   cat('\n\n')
 }
+```
+
+```{r plot_zoom_labels_vs_clusters, eval = do_label_celltypes, include = do_label_celltypes, fig.height = 12, fig.width = 13, results = 'asis'}
+cat("### Input cell-type labels{.tabset}\n\n")
+cat("These diagnostics reuse the parent `label_celltypes` cell-level predictions for cells retained in the zoom analysis. Predictions are re-aggregated by majority vote using the zoom analysis high-resolution clusters (`", zoom_label_hi_res_cl, "`). No new cell-type prediction is performed.\n\n", sep = "")
+cat("Labels that do not reach 20% in any zoom cluster are combined into `Other`; percentages still use all cells in each zoom cluster as the denominator.\n\n")
+cat("#### Zoom clusters versus predicted cell types\n\n")
+
+zoom_cluster_col = zoom_label_hi_res_cl
+zoom_cluster_dt = int_dt[, .(
+  cell_id,
+  zoom_cluster = get(zoom_cluster_col) %>% fct_infreq
+)]
+zoom_label_dt = report_lbls_df[cell_id %chin% int_dt$cell_id]
+has_coarse_labels = all(c('coarse_predicted_label_naive', 'coarse_predicted_label_agg') %in% names(zoom_label_dt))
+
+if (has_coarse_labels) {
+  cat("##### Coarse labels\n\n")
+  coarse_dt = zoom_label_dt[, .(
+    cell_id,
+    prediction = coarse_predicted_label_naive %>% factor
+  )]
+  coarse_confuse_dt = calc_confuse_dt(
+    coarse_dt, zoom_cluster_dt, 'prediction', 'zoom_cluster',
+    min_cl2_p = 0.2, other_cl1_label = 'Other'
+  )
+  draw(plot_cluster_comparison_heatmap(
+    coarse_confuse_dt, 'prediction', zoom_cluster_col,
+    plot_var = 'log_p_cl2', do_sort = 'hclust'
+  ), merge_legend = TRUE)
+  cat("\n\n")
+}
+
+cat("##### Fine labels\n\n")
+fine_dt = zoom_label_dt[, .(
+  cell_id,
+  prediction = predicted_label_naive %>% factor
+)]
+fine_confuse_dt = calc_confuse_dt(
+  fine_dt, zoom_cluster_dt, 'prediction', 'zoom_cluster',
+  min_cl2_p = 0.2, other_cl1_label = 'Other'
+)
+draw(plot_cluster_comparison_heatmap(
+  fine_confuse_dt, 'prediction', zoom_cluster_col,
+  plot_var = 'log_p_cl2', do_sort = 'hclust'
+), merge_legend = TRUE)
+cat("\n\n")
+```
+
+```{r plot_zoom_labels_over_umap, eval = do_label_celltypes, include = do_label_celltypes, fig.height = 5, fig.width = 12, results = 'asis'}
+cat("#### Predicted cell types over zoom UMAP{.tabset}\n\n")
+
+g_cluster = plot_umap_labels(
+  int_dt,
+  zoom_cluster_dt[, .(cell_id, cluster = zoom_cluster)],
+  paste0('zoom cluster\n(', zoom_label_hi_res_cl, ')')
+)
+
+if (has_coarse_labels) {
+  cat("##### Coarse labels\n\n")
+  coarse_agg_dt = zoom_label_dt[, .(
+    cell_id,
+    cluster = coarse_predicted_label_agg %>% factor
+  )]
+  g_coarse = plot_umap_labels(int_dt, coarse_agg_dt, 'prediction\n(coarse, aggregated)')
+  print(g_cluster + g_coarse)
+  cat("\n\n")
+}
+
+cat("##### Fine labels\n\n")
+fine_agg_dt = zoom_label_dt[, .(
+  cell_id,
+  cluster = predicted_label_agg %>% factor
+)]
+g_fine = plot_umap_labels(int_dt, fine_agg_dt, 'prediction\n(aggregated)')
+print(g_cluster + g_fine)
+cat("\n\n")
+```
+
+```{r table_zoom_label_totals, eval = do_label_celltypes, include = do_label_celltypes, results = 'asis'}
+cat("#### Totals for each predicted cell type{.tabset}\n\n")
+
+if (has_coarse_labels) {
+  cat("##### Coarse labels\n\n")
+  coarse_counts_dt = zoom_label_dt[, .(
+    cell_id,
+    predicted_label_agg = coarse_predicted_label_agg,
+    predicted_label_naive = coarse_predicted_label_naive
+  )]
+  coarse_counts_dt %>% calc_labels_table %>% kbl('html') %>%
+    row_spec(row = 0, bold = TRUE) %>%
+    kable_styling(bootstrap_options = 'striped', full_width = FALSE,
+      font_size = 12, position = 'center') %>%
+    scroll_box(width = '60%', height = '500px') %>% print
+  cat("\n\n")
+}
+
+cat("##### Fine labels\n\n")
+zoom_label_dt %>% calc_labels_table %>% kbl('html') %>%
+  row_spec(row = 0, bold = TRUE) %>%
+  kable_styling(bootstrap_options = 'striped', full_width = FALSE,
+    font_size = 12, position = 'center') %>%
+  scroll_box(width = '60%', height = '500px') %>% print
+cat("\n\n")
 ```
 
 ### Evaluating cluster distribution across samples{.tabset}

@@ -32,6 +32,7 @@ BATCH_PARAMS, BATCH_VAR, SAMPLES = get_batch_parameters(config, RUNS, scdata_dir
 BATCHES             = list(BATCH_PARAMS.keys())
 RUNS_TO_BATCHES, RUNS_TO_SAMPLES, _ = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
 RESOURCE_PARAMS     = prep_resource_params(config, proj_schema_f, scprocess_dir, LIB_PARAMS, BATCHES)
+LABELLER_PARAMS     = get_labeller_parameters(config, proj_schema_f, scdata_dir)
 
 # get zoom parameters
 ZOOM_PARAMS         = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
@@ -103,6 +104,12 @@ zoom_all_subset_fs = [
   for path in b_dict.values()
 ]
 
+zoom_cluster_names_fs = [
+  f'{zoom_dir}/{zoom_name}/cluster_names_for_shiny_{FULL_TAG}_{zoom_name}_{ZOOM_PARAMS[zoom_name]["marker_genes"]["mkr_sel_res"]}_{DATE_STAMP}.csv'
+  for zoom_name in ZOOMS
+  if ZOOM_PARAMS[zoom_name]['zoom']['save_cluster_names_file']
+]
+
 zoom_xgb_outs = []
 for zoom_name in ZOOMS:
   if 'train_xgboost' in ZOOM_PARAMS[zoom_name]:
@@ -141,6 +148,8 @@ rule zoom:
     zoom_mkr_report_outs, 
     # zoom sce and anndata subsets (optional)
     zoom_all_subset_fs,
+    # suggested cluster names for Shiny (optional)
+    zoom_cluster_names_fs,
 
 
 if zoom_xgb_outs:
@@ -173,8 +182,30 @@ rule zoom_check_clusters:
   shell: """
     exec &>> {log}
 
-    PYTHONPATH=scripts python3 -c "from zoom import zoom_check_clusters; \
+    PYTHONPATH='{scprocess_dir}/scripts' python3 -c "from zoom import zoom_check_clusters; \
       zoom_check_clusters('{input.labels_f}', '{params.labels_col}', '{params.sel_labels}', '{output.check_f}')"
+    """
+
+
+rule zoom_save_cluster_names:
+  """Generate zoom cluster names from the retained parent cell-type predictions."""
+  input:
+    labels_f      = f'{zoom_dir}/{{zoom_name}}/filtered_labels_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
+    integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
+  output:
+    names_f       = f'{zoom_dir}/{{zoom_name}}/cluster_names_for_shiny_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv'
+  retries: config['resources']['retries']
+  log:
+    f'{logs_dir}/zoom/zoom_save_cluster_names_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.log'
+  conda:
+    '../envs/scprocess_local.yaml'
+  shell: """
+    exec &>> {log}
+    python3 {scprocess_dir}/scripts/label_celltypes.py save_cluster_names \
+      --labels_f      {input.labels_f} \
+      --integration_f {input.integration_f} \
+      --mkr_sel_res   {wildcards.mkr_sel_res} \
+      --output_f      {output.names_f}
     """
 
 
@@ -224,6 +255,48 @@ rule zoom_filter_cells_qc:
         qc_min_splice = params.qc_min_splice,
         qc_max_splice = params.qc_max_splice
       )
+
+
+rule zoom_aggregate_labels:
+  """Re-aggregate retained naive predictions using the zoom's high-resolution clusters."""
+  input:
+    labels_f      = f'{zoom_dir}/{{zoom_name}}/filtered_labels_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
+    integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
+  output:
+    labels_f      = f'{zoom_dir}/{{zoom_name}}/aggregated_labels_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
+  params:
+    hi_res_cl     = lambda wildcards: get_zoom_labeller_entry(
+      ZOOM_PARAMS, LABELLER_PARAMS, wildcards.zoom_name)['hi_res_cl'],
+    min_cl_prop   = lambda wildcards: get_zoom_labeller_entry(
+      ZOOM_PARAMS, LABELLER_PARAMS, wildcards.zoom_name)['min_cl_prop'],
+    label_map_f   = lambda wildcards: get_zoom_labeller_entry(
+      ZOOM_PARAMS, LABELLER_PARAMS, wildcards.zoom_name).get('label_map_f', ''),
+    batch_var     = BATCH_VAR
+  threads: 4
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_aggregate_labels', 'memory', attempt, csv_rule = 'merge_labels'),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_aggregate_labels', 'time', attempt, csv_rule = 'merge_labels')
+  log:
+    f'{logs_dir}/zoom/zoom_aggregate_labels_{{zoom_name}}_{DATE_STAMP}.log'
+  benchmark:
+    f'{benchmark_dir}/zoom/zoom_aggregate_labels_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
+  conda:
+    '../envs/label_celltypes.yaml'
+  shell: """
+    exec &>> {log}
+
+    python3 {scprocess_dir}/scripts/label_celltypes.py aggregate_predictions \
+      {input.labels_f} \
+      --int_f           {input.integration_f} \
+      --hi_res_cl       {params.hi_res_cl} \
+      --min_cl_prop     {params.min_cl_prop} \
+      --batch_var       {params.batch_var} \
+      --agg_f           {output.labels_f} \
+      $( [ "{params.label_map_f}" != "" ] && echo "--label_map_f {params.label_map_f}" )
+    """
 
 
 rule zoom_copy_train_xgboost_r:
@@ -1086,9 +1159,12 @@ rule render_html_zoom:
     r_hvgs_f              = f'{code_dir}/hvgs.R',
     r_int_f               = f'{code_dir}/integration.R',
     r_mkr_f               = f'{code_dir}/marker_genes.R',
+    r_label_celltypes_f   = str(scprocess_dir / "scripts/label_celltypes.R"),
     metadata_f            = config['project']['sample_metadata'],
     qc_f                  = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     zoom_lbls_f           = f'{zoom_dir}/{{zoom_name}}/filtered_labels_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
+    zoom_report_lbls_f    = lambda wildcards: get_zoom_report_labels_f(
+      ZOOM_PARAMS, zoom_dir, FULL_TAG, DATE_STAMP, wildcards.zoom_name),
     pb_empty_f            = f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds',
     zoom_cell_hvgs_f      = f'{zoom_dir}/{{zoom_name}}/hvg_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
     zoom_int_f            = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
@@ -1110,6 +1186,11 @@ rule render_html_zoom:
     batch_var             = BATCH_VAR,
     zoom_original_lbls_f  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['_original_labels_f'],
     zoom_lbls_col         = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_col'],
+    zoom_label_hi_res_cl  = lambda wildcards: (
+      get_zoom_labeller_entry(
+        ZOOM_PARAMS, LABELLER_PARAMS, wildcards.zoom_name)['hi_res_cl']
+      if ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_source'] in ['celltypist', 'scprocess']
+      else ''),
     zoom_sel_labels        = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels']),
     zoom_qc_min_counts    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_counts', ''),
     zoom_qc_max_counts    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_max_counts', ''),
@@ -1160,6 +1241,7 @@ rule render_html_zoom:
   shell: """
     exec &>> {log}
 
+    cp {scprocess_dir}/scripts/utils.R {input.r_utils_f}
     cp {scprocess_dir}/scripts/SampleQC.R $(dirname {input.r_utils_f})/qc.R
 
     template_f=$(realpath {input.rmd_template_f})
@@ -1182,9 +1264,12 @@ rule render_html_zoom:
       meta_vars_ls      = '{params.meta_vars}',
       gtf_dt_f          = '{params.af_gtf_dt_f}',
       qc_f              = '{input.qc_f}',
+      r_label_celltypes_f = '{input.r_label_celltypes_f}',
       zoom_lbls_f       = '{input.zoom_lbls_f}',
+      zoom_report_lbls_f = '{input.zoom_report_lbls_f}',
       zoom_original_lbls_f = '{params.zoom_original_lbls_f}',
       zoom_lbls_col     = '{params.zoom_lbls_col}',
+      zoom_label_hi_res_cl = '{params.zoom_label_hi_res_cl}',
       zoom_sel_labels   = '{params.zoom_sel_labels}',
       zoom_qc_min_counts = '{params.zoom_qc_min_counts}',
       zoom_qc_max_counts = '{params.zoom_qc_max_counts}',

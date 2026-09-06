@@ -227,7 +227,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
   } else if (sel_rule == 'zoom') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp',
       'threads', 'zoom_dir', 'zoom_name', 'metadata_f', 'meta_vars_ls',
-      'gtf_dt_f', 'qc_f', 'zoom_lbls_f', 'zoom_original_lbls_f', 'zoom_lbls_col', 'zoom_sel_labels',
+      'gtf_dt_f', 'qc_f', 'r_label_celltypes_f', 'zoom_lbls_f', 'zoom_report_lbls_f',
+      'zoom_original_lbls_f', 'zoom_lbls_col', 'zoom_label_hi_res_cl', 'zoom_sel_labels',
       'zoom_qc_min_counts', 'zoom_qc_max_counts', 'zoom_qc_min_feats', 'zoom_qc_max_feats',
       'zoom_qc_min_mito', 'zoom_qc_max_mito',
       'zoom_qc_min_splice', 'zoom_qc_max_splice',
