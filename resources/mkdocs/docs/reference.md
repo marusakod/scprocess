@@ -744,6 +744,7 @@ Additional parameters include:
 * `save_subset_anndata`: whether to create H5AD files containing cells that have been assigned one of the values in `sel_labels`; defaults is `true`.
 * `save_cluster_names_file`: whether to generate a resolution-specific `cluster_names_for_shiny_*.csv` for the zoom clusters. Names are assigned by majority vote from the retained cells' `predicted_label_naive` values and made unique when the same predicted subtype is assigned to multiple clusters. This requires a `celltypist` or `scprocess` labels source and can be supplied as `shiny.annotation_csv`. Default is `false`.
 * `custom_labels_f`: required if `labels_source` is set to `custom`; path to CSV file with columns `sample_id`, `cell_id` and `label`.
+* `exclude`: optionally excludes batches from this zoom only. Use `sample_id` or `pool_id` to match the project's batch variable, for example `exclude: {sample_id: [sample_a, sample_b]}`. This does not exclude the batches from the standard analysis or other zooms.
 
 If a value in `sel_labels` is absent from the selected labels column, {{sc}} reports a warning and continues with the labels that are present. At least one selected label must be present, and the retained subset must contain enough cells for downstream QC, HVG detection, and integration.
 

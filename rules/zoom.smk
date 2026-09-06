@@ -3,6 +3,7 @@ import os
 import sys
 import re
 import glob
+import pathlib
 import pandas as pd
 import polars as pl
 import yaml
@@ -226,7 +227,9 @@ rule zoom_filter_cells_qc:
     qc_min_mito   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_mito'),
     qc_max_mito   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_max_mito'),
     qc_min_splice = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_splice'),
-    qc_max_splice = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_max_splice')
+    qc_max_splice = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_max_splice'),
+    batch_var     = BATCH_VAR,
+    exclude_batches = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom'].get('exclude', {}).get(BATCH_VAR, [])
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -253,7 +256,9 @@ rule zoom_filter_cells_qc:
         qc_min_mito   = params.qc_min_mito,
         qc_max_mito   = params.qc_max_mito,
         qc_min_splice = params.qc_min_splice,
-        qc_max_splice = params.qc_max_splice
+        qc_max_splice = params.qc_max_splice,
+        batch_var     = params.batch_var,
+        exclude_batches = params.exclude_batches
       )
 
 

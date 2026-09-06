@@ -90,7 +90,8 @@ def extract_zoom_sample_statistics(qc_stats_f, labels_f, labels_col, sel_labels,
 def filter_zoom_labels_by_qc(labels_f, qc_all_f, output_f, labels_col, sel_labels,
     qc_min_counts=None, qc_max_counts=None, qc_min_feats=None, qc_max_feats=None,
     qc_min_mito=None, qc_max_mito=None,
-    qc_min_splice=None, qc_max_splice=None):
+    qc_min_splice=None, qc_max_splice=None,
+    batch_var='sample_id', exclude_batches=None):
   import math
   import gzip
 
@@ -103,6 +104,24 @@ def filter_zoom_labels_by_qc(labels_f, qc_all_f, output_f, labels_col, sel_label
   has_thresholds = any(v is not None for v in thresholds.values())
 
   lbls_df = pl.read_csv(labels_f)
+  exclude_batches = exclude_batches or []
+  if exclude_batches:
+    if batch_var not in lbls_df.columns:
+      raise ValueError(f"Cannot apply zoom exclusions: labels file has no '{batch_var}' column")
+    present_batches = set(lbls_df[batch_var].unique().to_list())
+    missing_batches = set(exclude_batches) - present_batches
+    if missing_batches:
+      warnings.warn(
+        f"the following {batch_var} values were specified in the zoom exclusion but are not present in the labels file:\n"
+        f"  {', '.join(sorted(missing_batches))}",
+        UserWarning,
+        stacklevel=2)
+    n_before = lbls_df.shape[0]
+    lbls_df = lbls_df.filter(~pl.col(batch_var).is_in(exclude_batches))
+    print(
+      f"Zoom sample exclusion: {n_before - lbls_df.shape[0]} cells removed "
+      f"from {len(exclude_batches)} {batch_var} value(s)"
+    )
 
   if not has_thresholds:
     with gzip.open(output_f, 'wb') as f:

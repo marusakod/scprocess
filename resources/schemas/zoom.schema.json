@@ -15,6 +15,14 @@
         "sel_labels":       { "type": "array", "items": { "type": "string" } },
         "labels_col":       { "type": "string" },
         "custom_labels_f":  { "type": "string" },
+        "exclude": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sample_id": { "type": "array", "items": { "type": "string" } },
+            "pool_id":   { "type": "array", "items": { "type": "string" } }
+          }
+        },
         "save_subset_sces":        { "type": "boolean", "default": false },
         "save_subset_anndata":     { "type": "boolean", "default": true },
         "save_cluster_names_file": { "type": "boolean", "default": false }
