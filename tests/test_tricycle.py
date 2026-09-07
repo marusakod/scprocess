@@ -163,9 +163,22 @@ def test_cell_cycle_outputs_use_dedicated_directory():
 
 def test_tricycle_r_expression_preserves_named_vector_quotes():
   rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
-  assert "Rscript -e 'source(\"{scprocess_dir}/scripts/tricycle.R\")" in rules
+  assert "Rscript --vanilla -e 'source(\"{scprocess_dir}/scripts/tricycle.R\")" in rules
   assert 'counts_h5_fs = {params.counts_r}' in rules
   assert 'Rscript -e "source(' not in rules
+
+
+def test_tricycle_reports_incremental_progress():
+  script = (ROOT / 'scripts' / 'tricycle.R').read_text()
+  assert '.tricycle_log <- function' in script
+  assert 'Materializing ' in script
+  assert 'Projecting cells into the tricycle reference' in script
+  assert 'Finished ' in script
+
+
+def test_tricycle_sample_jobs_have_dedicated_runtime():
+  rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
+  assert rules.count('runtime = 60') == 2
 
 
 def test_invalid_regression_backend_is_rejected():

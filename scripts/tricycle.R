@@ -5,6 +5,13 @@ suppressPackageStartupMessages({
 })
 
 
+.tricycle_log <- function(...) {
+  message(sprintf("[%s] %s", format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z"),
+                  paste0(..., collapse = "")))
+  flush.console()
+}
+
+
 .open_and_combine_10x <- function(paths) {
   if (!length(paths)) stop("At least one counts HDF5 is required")
   if (is.null(names(paths)) || any(!nzchar(names(paths)))) {
@@ -74,6 +81,7 @@ suppressPackageStartupMessages({
 
 .project_selected_cells <- function(
     mat, selected, species, rowdata_f, min_reference_genes) {
+  .tricycle_log("Calculating library sizes for ", length(selected), " cells")
   cell_idx <- match(selected, colnames(mat))
   if (anyNA(cell_idx)) stop("Some selected cells are absent from the tricycle matrices")
   lib_size <- BPCells::colSums(mat[, cell_idx])
@@ -81,6 +89,7 @@ suppressPackageStartupMessages({
     stop("Tricycle input contains a non-positive library size")
   }
 
+  .tricycle_log("Matching count features to the tricycle reference")
   feature_info <- .feature_keys(rownames(mat), species, rowdata_f)
   rotation <- .reference_rotation(species, feature_info$type)
   n_reference_total <- nrow(rotation)
@@ -95,6 +104,10 @@ suppressPackageStartupMessages({
   }
 
   # Materialize only the small fixed-reference subset, then sum S/U/A rows.
+  .tricycle_log(
+    "Materializing ", length(matched_rows), " matched count rows (",
+    length(unique_keys), " unique reference genes)"
+  )
   reference_counts <- as(mat[matched_rows, cell_idx], "dgCMatrix")
   collapse <- sparseMatrix(
     i = match(matched_keys, unique_keys),
@@ -106,12 +119,14 @@ suppressPackageStartupMessages({
   rownames(reference_counts) <- unique_keys
   colnames(reference_counts) <- selected
 
+  .tricycle_log("Normalizing reference-gene counts")
   normalized <- reference_counts %*% Diagonal(x = 1e4 / lib_size)
   normalized@x <- log1p(normalized@x)
   rotation <- rotation[rownames(normalized), , drop = FALSE]
 
   # Algebraically identical to tricycle's documented fixed-reference formula:
   # scale(t(log-expression), center=TRUE, scale=FALSE) %*% rotation.
+  .tricycle_log("Projecting cells into the tricycle reference")
   gene_means <- Matrix::rowMeans(normalized)
   offset <- as.numeric(gene_means %*% rotation)
   embedding <- as.matrix(crossprod(normalized, rotation))
@@ -137,6 +152,7 @@ estimate_tricycle_group <- function(
     counts_h5_fs, coldata_f, rowdata_f, group_column, group_value, species,
     out_scores_f, out_summary_f, output_unassigned_only = FALSE,
     min_reference_genes = 100L) {
+  .tricycle_log("Reading cell metadata for ", group_column, " ", group_value)
   coldata <- fread(coldata_f)
   required <- c("cell_id", "sample_id", "keep", "scdbl_class", group_column)
   missing <- setdiff(required, names(coldata))
@@ -154,9 +170,11 @@ estimate_tricycle_group <- function(
   selected <- coldata[eligible & in_group, cell_id]
   if (!length(selected)) stop("No eligible cells found for ", group_column, " ", group_value)
 
+  .tricycle_log("Opening ", length(counts_h5_fs), " count matrix file(s)")
   mat <- .open_and_combine_10x(counts_h5_fs)
   selected <- selected[selected %in% colnames(mat)]
   if (!length(selected)) stop("No eligible cells were present in the supplied matrices")
+  .tricycle_log("Selected ", length(selected), " eligible cells present in the count matrix")
   projection <- .project_selected_cells(
     mat, selected, species, rowdata_f, min_reference_genes
   )
@@ -176,6 +194,7 @@ estimate_tricycle_group <- function(
   if (output_unassigned_only) {
     scores <- scores[is.na(sample_id) | sample_id == ""]
   }
+  .tricycle_log("Writing ", nrow(scores), " cell scores")
   dir.create(dirname(out_scores_f), recursive = TRUE, showWarnings = FALSE)
   fwrite(scores, out_scores_f)
 
@@ -196,6 +215,7 @@ estimate_tricycle_group <- function(
     tricycle_version = as.character(packageVersion("tricycle"))
   )
   fwrite(summary, out_summary_f)
+  .tricycle_log("Finished ", group_column, " ", group_value)
   invisible(scores)
 }
 

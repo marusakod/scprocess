@@ -42,8 +42,7 @@ if CELL_CYCLE_ENABLED:
     resources:
       mem_mb = lambda wildcards, attempt, input: get_resources(
         RESOURCE_PARAMS, rules, input, 'run_integration', 'memory', attempt),
-      runtime = lambda wildcards, attempt, input: get_resources(
-        RESOURCE_PARAMS, rules, input, 'run_integration', 'time', attempt)
+      runtime = 60
     conda:
       '../envs/tricycle.yaml'
     benchmark:
@@ -52,7 +51,7 @@ if CELL_CYCLE_ENABLED:
       f'{logs_dir}/cell_cycle/tricycle_sample_{{sample}}_{DATE_STAMP}.log'
     shell: """
       exec &>> {log}
-      Rscript -e 'source("{scprocess_dir}/scripts/tricycle.R"); estimate_sample_tricycle(
+      Rscript --vanilla -e 'source("{scprocess_dir}/scripts/tricycle.R"); estimate_sample_tricycle(
         counts_h5_fs = {params.counts_r},
         coldata_f = "{input.coldata_f}", rowdata_f = "{input.rowdata_f}",
         sample_id = "{wildcards.sample}",
@@ -79,8 +78,7 @@ if CELL_CYCLE_ENABLED:
       resources:
         mem_mb = lambda wildcards, attempt, input: get_resources(
           RESOURCE_PARAMS, rules, input, 'run_integration', 'memory', attempt),
-        runtime = lambda wildcards, attempt, input: get_resources(
-          RESOURCE_PARAMS, rules, input, 'run_integration', 'time', attempt)
+        runtime = 60
       conda:
         '../envs/tricycle.yaml'
       benchmark:
@@ -89,7 +87,7 @@ if CELL_CYCLE_ENABLED:
         f'{logs_dir}/cell_cycle/tricycle_unassigned_{{run}}_{DATE_STAMP}.log'
       shell: """
         exec &>> {log}
-        Rscript -e 'source("{scprocess_dir}/scripts/tricycle.R"); estimate_tricycle_group(
+        Rscript --vanilla -e 'source("{scprocess_dir}/scripts/tricycle.R"); estimate_tricycle_group(
           counts_h5_fs = {params.counts_r}, coldata_f = "{input.coldata_f}",
           rowdata_f = "{input.rowdata_f}",
           group_column = "{params.run_var}", group_value = "{wildcards.run}",
