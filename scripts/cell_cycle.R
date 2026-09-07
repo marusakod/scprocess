@@ -10,7 +10,11 @@ suppressPackageStartupMessages({
 # materialized as a dense matrix.
 read_cell_cycle_marker_expression <- function(
     counts_h5_f, scores_f, coldata_f, rowdata_f,
-    marker_genes = c("TOP2A", "SMC2", "MKI67", "PCNA", "MCM5", "CCNB1", "UBE2C", "TYMS")) {
+    marker_genes = c(
+      "CDKN1A",
+      "PCNA", "MCM4", "MCM5", "TYMS",
+      "TOP2A", "CCNB1", "CDK1", "TPX2", "SMC2", "MKI67", "UBE2C"
+    )) {
   features <- as.character(h5read(counts_h5_f, "matrix/features/name"))
   base_ids <- sub("_[SUA]$", "", sub("\\.[0-9]+$", "", features))
 
@@ -36,7 +40,13 @@ read_cell_cycle_marker_expression <- function(
     Dimnames = list(features, barcodes)
   )
 
-  scores <- fread(scores_f, select = c("cell_id", "sample_id", "tricycle_theta"))
+  scores <- fread(
+    scores_f,
+    select = c(
+      "cell_id", "sample_id", "tricycle_pc1", "tricycle_pc2",
+      "tricycle_theta"
+    )
+  )
   coldata <- fread(coldata_f, select = c("cell_id", "keep", "sum"))
   cells <- merge(scores, coldata[keep == TRUE], by = "cell_id")
   cell_idx <- match(cells$cell_id, colnames(mat))
@@ -66,7 +76,26 @@ read_cell_cycle_marker_expression <- function(
     expression, id.vars = "cell_id", variable.name = "gene",
     value.name = "log_normalized_expression"
   )
-  merge(expression, cells[, .(cell_id, sample_id, tricycle_theta)], by = "cell_id")
+  merge(
+    expression,
+    cells[, .(cell_id, sample_id, tricycle_pc1, tricycle_pc2, tricycle_theta)],
+    by = "cell_id"
+  )
+}
+
+
+cell_cycle_marker_annotation <- function() {
+  data.table(
+    gene = c(
+      "CDKN1A",
+      "PCNA", "MCM4", "MCM5", "TYMS",
+      "TOP2A", "CCNB1", "CDK1", "TPX2", "SMC2", "MKI67", "UBE2C"
+    ),
+    marker_phase = factor(
+      rep(c("checkpoint", "S", "G2/M"), c(1L, 4L, 7L)),
+      levels = c("checkpoint", "S", "G2/M")
+    )
+  )
 }
 
 
@@ -79,25 +108,70 @@ assign_approximate_cell_cycle_phase <- function(theta) {
 
 
 smooth_periodic_expression <- function(expression_dt, n_bins = 72L, span = 0.25) {
-  if (!nrow(expression_dt)) return(data.table())
+  if (!nrow(expression_dt)) {
+    return(list(sample_fits = data.table(), curves = data.table()))
+  }
   binned <- copy(expression_dt)[
     , theta_bin := pmin(n_bins - 1L, floor(tricycle_theta / (2 * pi) * n_bins))
   ][
     , .(expression = mean(log_normalized_expression), n_cells = .N),
-    by = .(gene, theta_bin)
+    by = .(sample_id, gene, theta_bin)
   ][
     , theta := (theta_bin + 0.5) * 2 * pi / n_bins
   ]
-  fits <- binned[, {
+  sample_fits <- binned[, {
     augmented <- rbindlist(list(
       .SD[, .(theta = theta - 2 * pi, expression, n_cells)],
       .SD[, .(theta, expression, n_cells)],
       .SD[, .(theta = theta + 2 * pi, expression, n_cells)]
     ))
     grid <- seq(0, 2 * pi, length.out = 241L)
-    model <- loess(expression ~ theta, data = augmented, weights = n_cells,
-                   span = span, degree = 2, surface = "direct")
-    .(theta = grid, fitted_expression = as.numeric(predict(model, grid)))
-  }, by = gene]
-  list(binned = binned, fits = fits)
+    if (uniqueN(.SD$theta) < 4L) {
+      fitted <- rep(NA_real_, length(grid))
+    } else {
+      model <- tryCatch(
+        loess(
+          expression ~ theta, data = augmented, weights = n_cells,
+          span = span, degree = 2, surface = "direct"
+        ),
+        error = function(e) NULL
+      )
+      fitted <- if (is.null(model)) {
+        rep(NA_real_, length(grid))
+      } else {
+        as.numeric(predict(model, grid))
+      }
+    }
+    .(theta = grid, fitted_expression = fitted)
+  }, by = .(sample_id, gene)]
+
+  curves <- sample_fits[
+    is.finite(fitted_expression),
+    .(
+      mean_expression = mean(fitted_expression),
+      sd_expression = sd(fitted_expression),
+      n_samples = .N
+    ),
+    by = .(gene, theta)
+  ][
+    , `:=`(
+      se_expression = fifelse(
+        n_samples > 1L, sd_expression / sqrt(n_samples), 0
+      ),
+      peak_expression = max(mean_expression, na.rm = TRUE)
+    ),
+    by = gene
+  ][
+    , `:=`(
+      mean_scaled = fifelse(
+        peak_expression > 0, mean_expression / peak_expression, 0
+      ),
+      ci95_scaled = fifelse(
+        peak_expression > 0,
+        1.96 * se_expression / peak_expression,
+        0
+      )
+    )
+  ]
+  list(sample_fits = sample_fits, curves = curves)
 }

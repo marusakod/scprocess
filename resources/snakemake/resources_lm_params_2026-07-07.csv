@@ -9,6 +9,8 @@ memory,n_smpls_pre_qc,5434.922,108.732,create_doublets_hvg_matrix,"",2048
 time,"",,,create_doublets_hvg_matrix,"",600
 memory,n_smpls_pre_qc,2678.516,98.661,create_hvg_matrix,"",2048
 time,"",,,create_hvg_matrix,"",600
+memory,input.counts_h5_f,300,24576,estimate_run_tricycle,"",2048
+time,"",,,estimate_run_tricycle,"",600
 memory,input.af_h5_f,865.818,46159.847,get_barcode_qc_metrics,3v3,2048
 time,"",,,get_barcode_qc_metrics,3v3,600
 memory,input.af_h5_f,389.354,46386.675,get_barcode_qc_metrics,3v4,2048

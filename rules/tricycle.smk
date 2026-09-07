@@ -3,6 +3,7 @@
 CELL_CYCLE_ENABLED = 'cell_cycle' in config
 TRICYCLE_SCORES_F = f'{cell_cycle_dir}/tricycle_scores_{FULL_TAG}_{DATE_STAMP}.csv.gz'
 TRICYCLE_ORIGIN_F = f'{cell_cycle_dir}/tricycle_origin_{FULL_TAG}_{DATE_STAMP}.csv'
+TRICYCLE_ORIGIN_SENSITIVITY_F = f'{cell_cycle_dir}/tricycle_origin_sensitivity_{FULL_TAG}_{DATE_STAMP}.csv'
 TRICYCLE_DIAGNOSTICS_F = f'{cell_cycle_dir}/tricycle_origin_diagnostics_{FULL_TAG}_{DATE_STAMP}.csv.gz'
 
 
@@ -17,14 +18,15 @@ if CELL_CYCLE_ENABLED:
       scores_f = f'{cell_cycle_dir}/run_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
       summary_f = f'{cell_cycle_dir}/run_{{run}}_summary_{FULL_TAG}_{DATE_STAMP}.csv'
     params:
-      species = config['cell_cycle']['species'],
+      species = config['cell_cycle']['_species'],
       run_var = RUN_VAR
     threads: 1
     retries: config['resources']['retries']
     resources:
       mem_mb = lambda wildcards, attempt, input: get_resources(
-        RESOURCE_PARAMS, rules, input, 'run_integration', 'memory', attempt),
-      runtime = 60
+        RESOURCE_PARAMS, rules, input, 'estimate_run_tricycle', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(
+        RESOURCE_PARAMS, rules, input, 'estimate_run_tricycle', 'time', attempt)
     conda:
       '../envs/tricycle.yaml'
     benchmark:
@@ -54,14 +56,18 @@ if CELL_CYCLE_ENABLED:
     output:
       scores_f = TRICYCLE_SCORES_F,
       origin_f = TRICYCLE_ORIGIN_F,
+      sensitivity_f = TRICYCLE_ORIGIN_SENSITIVITY_F,
       diagnostics_f = TRICYCLE_DIAGNOSTICS_F
     params:
       score_args = lambda wildcards, input: ' '.join(f'--score_f {path}' for path in input.score_fs),
       summary_args = lambda wildcards, input: ' '.join(f'--summary_f {path}' for path in input.summary_fs),
-      bandwidth_multiplier = config['cell_cycle']['bandwidth_multiplier'],
-      kde_grid_size = config['cell_cycle']['kde_grid_size'],
-      target_cells = config['cell_cycle']['target_cells'],
-      seed = config['cell_cycle']['seed']
+      bandwidth_multiplier = config['cell_cycle']['cyc_bandwidth_multiplier'],
+      kde_grid_size = config['cell_cycle']['cyc_kde_grid_size'],
+      target_cells = config['cell_cycle']['cyc_target_cells'],
+      target_cells_grid_args = ' '.join(
+        f"--target_cells_grid {value}"
+        for value in config['cell_cycle']['cyc_target_cells_grid']),
+      seed = config['cell_cycle']['cyc_seed']
     threads: 1
     retries: config['resources']['retries']
     resources:
@@ -84,8 +90,10 @@ if CELL_CYCLE_ENABLED:
         --bandwidth_multiplier {params.bandwidth_multiplier} \
         --kde_grid_size {params.kde_grid_size} \
         --target_cells {params.target_cells} \
+        {params.target_cells_grid_args} \
         --seed {params.seed} \
         --out_scores_f {output.scores_f} \
         --out_origin_f {output.origin_f} \
+        --out_sensitivity_f {output.sensitivity_f} \
         --out_diagnostics_f {output.diagnostics_f}
       """

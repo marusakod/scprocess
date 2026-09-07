@@ -1092,29 +1092,44 @@ def _check_integration_parameters(config):
 
 
 def _check_cell_cycle_parameters(config):
+  integration = config.get('integration', {})
+  regression_key = 'int_cell_cycle_regression'
+  tuning_keys = ('int_cell_cycle_harmonics', 'int_cell_cycle_ridge_lambda')
+  regression_enabled = regression_key in integration
+
+  if any(key in integration for key in tuning_keys) and not regression_enabled:
+    raise ValueError(
+      "integration.int_cell_cycle_harmonics and "
+      "integration.int_cell_cycle_ridge_lambda require "
+      "integration.int_cell_cycle_regression: shared"
+    )
+  if regression_enabled and 'cell_cycle' not in config:
+    raise ValueError(
+      "integration.int_cell_cycle_regression requires a cell_cycle block"
+    )
+  if regression_enabled and integration['int_pca_method'] != 'bpcells':
+    raise ValueError(
+      "cell-cycle regression requires integration.int_pca_method: bpcells"
+    )
+  if regression_enabled:
+    integration.setdefault('int_cell_cycle_harmonics', 2)
+    integration.setdefault('int_cell_cycle_ridge_lambda', 0.1)
+
   if 'cell_cycle' not in config:
     return config
 
   cell_cycle = config['cell_cycle']
-  if 'species' not in cell_cycle:
-    reference = config['project'].get('probe_set', config['project'].get('ref_txome', ''))
-    reference_lower = reference.lower()
-    if any(token in reference_lower for token in ('mouse', 'grcm', 'mm10', 'mm39')):
-      cell_cycle['species'] = 'mouse'
-    elif any(token in reference_lower for token in ('human', 'grch', 'hg19', 'hg38')):
-      cell_cycle['species'] = 'human'
-    else:
-      raise ValueError(
-        "Cannot infer cell_cycle species from the configured reference. "
-        "Set cell_cycle.species to 'human' or 'mouse'."
-      )
-
-  if 'regression' in cell_cycle:
-    cell_cycle['regression'].setdefault('harmonics', 2)
-    cell_cycle['regression'].setdefault('ridge_lambda', 0.1)
-
-  if 'regression' in cell_cycle and config['integration']['int_pca_method'] != 'bpcells':
-    raise ValueError("cell-cycle regression requires integration.int_pca_method: bpcells")
+  reference = config['project'].get('probe_set', config['project'].get('ref_txome', ''))
+  reference_lower = reference.lower()
+  if any(token in reference_lower for token in ('mouse', 'grcm', 'mm10', 'mm39')):
+    cell_cycle['_species'] = 'mouse'
+  elif any(token in reference_lower for token in ('human', 'grch', 'hg19', 'hg38')):
+    cell_cycle['_species'] = 'human'
+  else:
+    raise ValueError(
+      "Cannot infer cell-cycle species from project.ref_txome or "
+      "project.probe_set; its name must identify human or mouse."
+    )
   return config
 
 
@@ -1245,6 +1260,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
   # check hvgs option
   zoom_config   = _check_hvg_parameters(zoom_config)
   zoom_config   = _check_integration_parameters(zoom_config)
+  zoom_config   = _check_cell_cycle_parameters(zoom_config)
   zoom_config   = _check_shiny_parameters(zoom_config)
   zoom_config   = _check_train_xgboost_parameters(zoom_config)
 

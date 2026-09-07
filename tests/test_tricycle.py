@@ -24,17 +24,24 @@ def test_cell_cycle_is_optional_and_not_materialized_by_defaults():
   assert 'cell_cycle' not in defaults
   cell_cycle_schema = schema['properties']['cell_cycle']
   assert 'enabled' not in cell_cycle_schema['properties']
-  assert 'enabled' not in cell_cycle_schema['properties']['regression']['properties']
+  assert set(cell_cycle_schema['properties']) == {
+    'cyc_bandwidth_multiplier', 'cyc_kde_grid_size',
+    'cyc_target_cells', 'cyc_target_cells_grid', 'cyc_seed',
+  }
 
 
-def test_present_cell_cycle_and_regression_blocks_receive_defaults():
+def test_present_cell_cycle_block_receives_prefixed_defaults():
   from scripts.scprocess_utils import _get_default_config_from_schema
 
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
-  defaults = _get_default_config_from_schema(
-    schema, {'cell_cycle': {'regression': {}}}
-  )
-  assert defaults['cell_cycle']['origin_method'] == 'kde_density_equalized'
+  defaults = _get_default_config_from_schema(schema, {'cell_cycle': {}})
+  assert defaults['cell_cycle'] == {
+    'cyc_bandwidth_multiplier': 1.0,
+    'cyc_kde_grid_size': 500,
+    'cyc_target_cells': 5000,
+    'cyc_target_cells_grid': [100, 200, 500, 1000, 2000, 5000, 10000],
+    'cyc_seed': 20230308,
+  }
 
 
 def test_density_equalization_is_capped_and_has_requested_expectation():
@@ -94,6 +101,7 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
   coldata_f = tmp_path / 'coldata.csv'
   out_scores_f = tmp_path / 'all_scores.csv.gz'
   out_origin_f = tmp_path / 'origin.csv'
+  out_sensitivity_f = tmp_path / 'origin_sensitivity.csv'
   out_diagnostics_f = tmp_path / 'diagnostics.csv.gz'
   pl_scores = pl.DataFrame({
     'cell_id': ['a', 'b', 'c', 'known_doublet'],
@@ -115,9 +123,9 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
     'keep': [True, True, True, False],
   }).write_csv(coldata_f)
 
-  scores, origin, diagnostics = aggregate_tricycle(
-    [score_f], [summary_f], coldata_f, [], 1.0, 500, 5000, 7,
-    out_scores_f, out_origin_f, out_diagnostics_f,
+  scores, origin, sensitivity, diagnostics = aggregate_tricycle(
+    [score_f], [summary_f], coldata_f, [], 1.0, 500, 2, [1, 2, 10], 7,
+    out_scores_f, out_origin_f, out_sensitivity_f, out_diagnostics_f,
   )
 
   assert scores.height == 4
@@ -126,6 +134,11 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
   assert origin['n_projection_center_cells'][0] == 4
   assert origin['reference_genes_matched_min'][0] == 450
   assert origin['projection_centring_method'][0] == 'pooled_project_mean'
+  assert 'inclusion_probability' in diagnostics.columns
+  assert diagnostics['inclusion_probability'].max() <= 1
+  assert sensitivity['target_cells'].to_list() == [1, 2, 3]
+  assert sensitivity['selected'].to_list() == [False, True, False]
+  assert out_sensitivity_f.exists()
   np.testing.assert_allclose(
     scores.select('tricycle_pc1', 'tricycle_pc2').mean().to_numpy(), 0,
     atol=1e-14,
@@ -214,6 +227,7 @@ def test_cell_cycle_outputs_use_dedicated_directory():
   integration_rules = (ROOT / 'rules' / 'integration.smk').read_text()
   assert 'cell_cycle_dir = f"{PROJ_DIR}/output/{SHORT_TAG}_cell_cycle"' in main_rules
   assert "f'{cell_cycle_dir}/tricycle_scores_" in tricycle_rules
+  assert "f'{cell_cycle_dir}/tricycle_origin_sensitivity_" in tricycle_rules
   assert "f'{cell_cycle_dir}/run_{{run}}_" in tricycle_rules
   assert "{cell_cycle_dir}/tricycle/" not in tricycle_rules
   assert "f'{cell_cycle_dir}/final_cell_cycle_regression_" in integration_rules
@@ -227,6 +241,8 @@ def test_cell_cycle_has_standalone_diagnostics_report():
   template = (ROOT / 'resources/rmd_templates/cell_cycle.Rmd.template').read_text()
   helper = (ROOT / 'scripts/cell_cycle.R').read_text()
   assert 'rule render_html_cell_cycle:' in report_rules
+  assert 'source_cell_cycle_f = f"{scprocess_dir}/scripts/cell_cycle.R"' in report_rules
+  assert 'template_f   = f"{scprocess_dir}/resources/rmd_templates/cell_cycle.Rmd.template"' in report_rules
   assert 'rule cell_cycle:' in main_rules
   assert '"hvg", "cell_cycle", "integration"' in cli
   assert "rule_name='cell_cycle'" in report_rules
@@ -237,11 +253,51 @@ def test_cell_cycle_has_standalone_diagnostics_report():
   integration_target = main_rules.split('rule integration:', 1)[1].split('rule marker_genes:', 1)[0]
   assert 'cell_cycle_outs' not in integration_target
   assert 'Pooled projection and estimated origin' in template
-  assert 'Observed expression around theta' in template
+  assert 'Spatial marker expression' in template
+  assert 'Sample-balanced expression around theta' in template
+  theta_density = template.split('```{r theta_density', 1)[1].split('```', 1)[0]
+  assert 'scale_y_log10()' in theta_density
+  assert 'g_theta_projection + g_expression_curves' in template
   assert 'Sample-level diagnostics' in template
-  assert 'Approximate phase proportions by sample' in template
+  assert 'size=inclusion_probability' in template
+  assert "scale_size_continuous(range=c(0.2, 2), limits=c(0, 1)" in template
+  assert 'Approximate phase percentages by sample' in template
+  assert 'percent_cells := 100 * n_cells / sum(n_cells)' in template
+  assert "phase_dt[approximate_phase != 'G1/G0']" in template
+  assert 'not renormalized' in template
+  assert 'aes(percent_cells, sample_id, fill=approximate_phase)' in template
+  assert 'geom_quasirandom(' in template
+  assert "shape=21, size=3, width=0.25, orientation='y'" in template
+  assert 'scale_y_discrete(limits=rev)' in template
+  assert 'scale_x_log10(' in template
+  assert 'geom_hex' in template
+  assert 'fill=after_scale(colour)' in template
+  assert 'scale_colour_viridis_c(' in template
+  assert 'scale_fill_discrete(' in template
+  assert 'palette=function(n) grey.colors' in template
+  assert "plot_layout(guides='collect')" in template
+  assert "theme(legend.position='bottom')" in template
+  assert "stroke=1.5, colour='black'" in template
+  assert "caption=sprintf('Selected target cells: %s'" in template
+  assert "colour='#1F4E79'" in template
+  assert 'diagnostic_retained == TRUE' in template
+  for marker in (
+    'CDKN1A', 'PCNA', 'MCM4', 'MCM5', 'TYMS', 'TOP2A',
+    'CCNB1', 'CDK1', 'TPX2', 'SMC2', 'MKI67', 'UBE2C',
+  ):
+    assert marker in helper
+  assert 'facet_wrap(~gene, ncol=4' in template
+  assert "strip.background=element_rect(fill='white'" in template
+  assert 'rep(c("checkpoint", "S", "G2/M")' in helper
+  assert "'CDKN1A'='#636363'" in template
+  assert 'add_phase_boundaries <- function()' in template
+  assert "theta=c(0.25, 0.5, 1, 1.75) * pi" in template
+  assert template.count('add_phase_boundaries() +') == 5
+  assert "geom_vline(xintercept=c(0.25, 0.5, 1, 1.75)" in template
   assert 'read_cell_cycle_marker_expression <- function' in helper
+  assert 'cell_cycle_marker_annotation <- function' in helper
   assert 'smooth_periodic_expression <- function' in helper
+  assert 'by = .(sample_id, gene)' in helper
 
 
 def test_cell_cycle_target_requires_config_block():
@@ -282,9 +338,25 @@ def test_tricycle_reports_incremental_progress():
   assert 'Finished ' in script
 
 
-def test_tricycle_run_jobs_have_dedicated_runtime():
+def test_tricycle_run_jobs_use_dedicated_resource_model():
   rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
-  assert rules.count('runtime = 60') == 1
+  assert rules.count("'estimate_run_tricycle', 'memory', attempt") == 1
+  assert rules.count("'estimate_run_tricycle', 'time', attempt") == 1
+  assert 'runtime = 60' not in rules
+
+
+def test_zoom_pca_supports_shared_cell_cycle_regression():
+  schema = json.loads((ROOT / 'resources/schemas/zoom.schema.json').read_text())
+  integration_properties = schema['properties']['integration']['properties']
+  assert integration_properties['int_cell_cycle_regression']['const'] == 'shared'
+  assert integration_properties['int_cell_cycle_harmonics']['enum'] == [1, 2]
+  assert integration_properties['int_cell_cycle_ridge_lambda']['minimum'] == 0
+
+  rules = (ROOT / 'rules' / 'zoom.smk').read_text()
+  assert 'tricycle_f = zoom_tricycle_input' in rules
+  assert 'regression_args = zoom_cell_cycle_regression_args' in rules
+  assert "harmonics = {integration['int_cell_cycle_harmonics']}" in rules
+  assert "ridge_lambda = {integration['int_cell_cycle_ridge_lambda']}" in rules
 
 
 def test_projection_is_centered_once_at_project_level():
@@ -301,8 +373,11 @@ def test_invalid_regression_backend_is_rejected():
 
   config = {
     'project': {'ref_txome': 'mouse_2024'},
-    'integration': {'int_pca_method': 'scanpy'},
-    'cell_cycle': {'regression': {}},
+    'integration': {
+      'int_pca_method': 'scanpy',
+      'int_cell_cycle_regression': 'shared',
+    },
+    'cell_cycle': {},
   }
   with pytest.raises(ValueError, match='requires integration.int_pca_method: bpcells'):
     _check_cell_cycle_parameters(config)
@@ -317,19 +392,49 @@ def test_species_is_inferred_from_standard_reference():
     'cell_cycle': {},
   }
   checked = _check_cell_cycle_parameters(config)
-  assert checked['cell_cycle']['species'] == 'human'
+  assert checked['cell_cycle']['_species'] == 'human'
 
 
-def test_present_regression_block_receives_defaults():
+def test_shared_regression_receives_integration_defaults():
   from scripts.scprocess_utils import _check_cell_cycle_parameters
 
   config = {
     'project': {'ref_txome': 'mouse_2024'},
-    'integration': {'int_pca_method': 'bpcells'},
-    'cell_cycle': {'regression': {}},
+    'integration': {
+      'int_pca_method': 'bpcells',
+      'int_cell_cycle_regression': 'shared',
+    },
+    'cell_cycle': {},
   }
   checked = _check_cell_cycle_parameters(config)
-  assert checked['cell_cycle']['regression'] == {
-    'harmonics': 2,
-    'ridge_lambda': 0.1,
+  assert checked['integration']['int_cell_cycle_harmonics'] == 2
+  assert checked['integration']['int_cell_cycle_ridge_lambda'] == 0.1
+
+
+def test_regression_requires_cell_cycle_block():
+  from scripts.scprocess_utils import _check_cell_cycle_parameters
+
+  config = {
+    'project': {'ref_txome': 'mouse_2024'},
+    'integration': {
+      'int_pca_method': 'bpcells',
+      'int_cell_cycle_regression': 'shared',
+    },
   }
+  with pytest.raises(ValueError, match='requires a cell_cycle block'):
+    _check_cell_cycle_parameters(config)
+
+
+def test_regression_tuning_requires_shared_regression():
+  from scripts.scprocess_utils import _check_cell_cycle_parameters
+
+  config = {
+    'project': {'ref_txome': 'mouse_2024'},
+    'integration': {
+      'int_pca_method': 'bpcells',
+      'int_cell_cycle_harmonics': 1,
+    },
+    'cell_cycle': {},
+  }
+  with pytest.raises(ValueError, match='int_cell_cycle_regression: shared'):
+    _check_cell_cycle_parameters(config)

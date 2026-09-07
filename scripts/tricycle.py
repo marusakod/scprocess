@@ -102,7 +102,8 @@ def _density_equalized_probabilities(density, target_cells):
 
 def aggregate_tricycle(
   score_fs, summary_fs, coldata_f, required_h5_fs, bandwidth_multiplier, kde_grid_size,
-  target_cells, seed, out_scores_f, out_origin_f, out_diagnostics_f
+  target_cells, target_cells_grid, seed, out_scores_f, out_origin_f,
+  out_sensitivity_f, out_diagnostics_f
 ):
   score_tables = [pl.read_csv(path) for path in score_fs]
   if not score_tables:
@@ -157,8 +158,29 @@ def aggregate_tricycle(
   density, bandwidth, n_bins = _binned_kde_density(
     points, bandwidth_multiplier, kde_grid_size
   )
-  probabilities = _density_equalized_probabilities(density, target_cells)
-  center = np.average(points, axis=0, weights=probabilities)
+  selected_target = min(int(target_cells), candidate_scores.height)
+  sensitivity_targets = sorted({
+    min(int(value), candidate_scores.height)
+    for value in [target_cells, *target_cells_grid]
+  })
+  sensitivity_rows = []
+  selected_probabilities = None
+  center = None
+  for sensitivity_target in sensitivity_targets:
+    probabilities = _density_equalized_probabilities(density, sensitivity_target)
+    candidate_center = np.average(points, axis=0, weights=probabilities)
+    sensitivity_rows.append({
+      "target_cells": sensitivity_target,
+      "expected_retained_cells": float(probabilities.sum()),
+      "tricycle_pc1_origin": candidate_center[0],
+      "tricycle_pc2_origin": candidate_center[1],
+      "selected": sensitivity_target == selected_target,
+    })
+    if sensitivity_target == selected_target:
+      selected_probabilities = probabilities
+      center = candidate_center
+  sensitivity = pl.DataFrame(sensitivity_rows)
+  probabilities = selected_probabilities
 
   all_points = scores.select("tricycle_pc1", "tricycle_pc2").to_numpy()
   theta = np.mod(np.arctan2(all_points[:, 1] - center[1],
@@ -180,7 +202,7 @@ def aggregate_tricycle(
     "tricycle_pc1_origin": [center[0]],
     "tricycle_pc2_origin": [center[1]],
     "n_candidate_cells": [candidate_scores.height],
-    "target_cells": [min(int(target_cells), candidate_scores.height)],
+    "target_cells": [selected_target],
     "expected_retained_cells": [float(probabilities.sum())],
     "bandwidth_pc1": [bandwidth[0]],
     "bandwidth_pc2": [bandwidth[1]],
@@ -196,14 +218,15 @@ def aggregate_tricycle(
     "duplicate_feature_mappings_total": [summaries["n_duplicate_feature_mappings"].sum()]
   })
 
-  for path in (out_scores_f, out_origin_f, out_diagnostics_f):
+  for path in (out_scores_f, out_origin_f, out_sensitivity_f, out_diagnostics_f):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
   with gzip.open(out_scores_f, "wb") as handle:
     scores.write_csv(handle)
   origin.write_csv(out_origin_f)
+  sensitivity.write_csv(out_sensitivity_f)
   with gzip.open(out_diagnostics_f, "wb") as handle:
     diagnostics.write_csv(handle)
-  return scores, origin, diagnostics
+  return scores, origin, sensitivity, diagnostics
 
 
 def main():
@@ -215,15 +238,18 @@ def main():
   parser.add_argument("--bandwidth_multiplier", type=float, default=1.0)
   parser.add_argument("--kde_grid_size", type=int, default=500)
   parser.add_argument("--target_cells", type=int, default=5000)
+  parser.add_argument("--target_cells_grid", action="append", type=int, default=[])
   parser.add_argument("--seed", type=int, default=20230308)
   parser.add_argument("--out_scores_f", required=True)
   parser.add_argument("--out_origin_f", required=True)
+  parser.add_argument("--out_sensitivity_f", required=True)
   parser.add_argument("--out_diagnostics_f", required=True)
   args = parser.parse_args()
   aggregate_tricycle(
     args.score_f, args.summary_f, args.coldata_f, args.required_h5_f,
-    args.bandwidth_multiplier, args.kde_grid_size, args.target_cells, args.seed,
-    args.out_scores_f, args.out_origin_f, args.out_diagnostics_f
+    args.bandwidth_multiplier, args.kde_grid_size, args.target_cells,
+    args.target_cells_grid, args.seed, args.out_scores_f, args.out_origin_f,
+    args.out_sensitivity_f, args.out_diagnostics_f
   )
 
 

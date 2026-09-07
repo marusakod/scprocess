@@ -29,13 +29,73 @@ setDTthreads(${threads})
 ```{r load_inputs, include=FALSE}
 scores <- fread("${scores_f}")
 origin <- fread("${origin_f}")
+origin_sensitivity <- fread("${sensitivity_f}")
 diagnostics <- fread("${diagnostics_f}")
 coldata <- fread("${coldata_f}", select=c('cell_id', 'keep', 'sum'))
 scores_qc <- merge(scores, coldata[keep == TRUE], by='cell_id')
+scores_qc <- merge(
+  scores_qc,
+  diagnostics[, .(cell_id, kde_density, inclusion_probability)],
+  by='cell_id')
 scores_qc[, approximate_phase := assign_approximate_cell_cycle_phase(tricycle_theta)]
 marker_expression <- read_cell_cycle_marker_expression(
   "${hvg_mat_f}", "${scores_f}", "${coldata_f}", "${rowdata_f}")
+marker_annotation <- cell_cycle_marker_annotation()
+if (nrow(marker_expression)) {
+  marker_expression <- merge(marker_expression, marker_annotation, by='gene')
+  marker_expression[, gene := factor(gene, levels=marker_annotation[['gene']])]
+}
 expression_smooth <- smooth_periodic_expression(marker_expression)
+
+pc_x_limits <- range(c(diagnostics[['tricycle_pc1']], origin[['tricycle_pc1_origin']]),
+                     finite=TRUE)
+pc_y_limits <- range(c(diagnostics[['tricycle_pc2']], origin[['tricycle_pc2_origin']]),
+                     finite=TRUE)
+pc_x_limits <- pc_x_limits + c(-1, 1) * max(diff(pc_x_limits) * 0.025, 1e-6)
+pc_y_limits <- pc_y_limits + c(-1, 1) * max(diff(pc_y_limits) * 0.025, 1e-6)
+origin_x <- origin[['tricycle_pc1_origin']][1]
+origin_y <- origin[['tricycle_pc2_origin']][1]
+pc_corners <- CJ(x=pc_x_limits, y=pc_y_limits)
+phase_ray_radius <- max(sqrt(
+  (pc_corners[['x']] - origin_x)^2 + (pc_corners[['y']] - origin_y)^2))
+phase_boundaries <- data.table(theta=c(0.25, 0.5, 1, 1.75) * pi)
+phase_boundaries[, `:=`(
+  x=origin_x,
+  y=origin_y,
+  xend=origin_x + phase_ray_radius * cos(theta),
+  yend=origin_y + phase_ray_radius * sin(theta))]
+theta_breaks <- seq(0, 2, 0.5)
+theta_labels <- c('0', expression(pi/2), expression(pi),
+                  expression(3*pi/2), expression(2*pi))
+cyclic_colours <- hsv(seq(0, 1, length.out=13), s=0.7, v=0.8)
+phase_colours <- c(
+  'G1/G0'='#6A3D9A', 'G1/S'='#1F78B4', 'S'='#33A02C', 'G2/M'='#E31A1C')
+gene_colours <- c(
+  'CDKN1A'='#636363',
+  'PCNA'='#A1D99B', 'MCM4'='#74C476', 'MCM5'='#31A354', 'TYMS'='#006D2C',
+  'TOP2A'='#FEE6CE', 'CCNB1'='#FDD0A2', 'CDK1'='#FDAE6B',
+  'TPX2'='#FD8D3C', 'SMC2'='#F16913', 'MKI67'='#D94801', 'UBE2C'='#8C2D04')
+gene_legend_labels <- setNames(
+  sprintf('%s · %s', marker_annotation[['marker_phase']], marker_annotation[['gene']]),
+  marker_annotation[['gene']])
+target_cell_levels <- as.character(sort(unique(origin_sensitivity[['target_cells']])))
+
+add_origin <- function() {
+  geom_point(
+    data=origin, aes(tricycle_pc1_origin, tricycle_pc2_origin),
+    inherit.aes=FALSE, shape=4, size=4.5, stroke=1.5, colour='black')
+}
+
+add_phase_boundaries <- function() {
+  geom_segment(
+    data=phase_boundaries, aes(x, y, xend=xend, yend=yend),
+    inherit.aes=FALSE, linewidth=0.5, linetype='dotted', colour='grey30')
+}
+
+evenly_spaced_rows <- function(dt, maximum) {
+  if (nrow(dt) <= maximum) return(dt)
+  dt[unique(round(seq(1, nrow(dt), length.out=maximum)))]
+}
 ```
 
 `tricycle_pc1` and `tricycle_pc2` are fixed-reference projection coordinates,
@@ -46,100 +106,238 @@ density-equalized downsampling.
 
 ## Pooled projection and estimated origin
 
-Point colour shows the KDE density calculated from all QC-passed cells during
-origin estimation. Up to 50,000 points are displayed to keep this interactive
-report tractable; the density values and origin nevertheless use the complete
-QC-passed dataset. The red cross marks the pooled origin used to calculate
-theta.
+The left panel is a log-count hexbin view of every QC-passed cell. Its grey
+path shows how the estimated origin changes across the configured target-cell
+grid, with target size encoded by fill and reported in the legend. The right
+panel shows the density-equalized subset for the selected
+target. The black cross is the selected pooled origin used to calculate theta;
+it is identical in all projection panels. Grey radial lines mark tricycle's
+approximate phase boundaries: G1/G0 wraps from $1.75\pi$ through zero to
+$0.25\pi$, G1/S spans $0.25\pi$-$0.5\pi$, S spans $0.5\pi$-$\pi$, and G2/M
+spans $\pi$-$1.75\pi$.
 
-```{r pooled_projection, fig.height=6, fig.width=7}
-projection_plot_dt <- diagnostics[
-  seq_len(.N) %% max(1L, ceiling(.N / 50000L)) == 0L]
-ggplot(projection_plot_dt, aes(tricycle_pc1, tricycle_pc2,
-                               colour=log10(kde_density))) +
-  geom_point(size=0.25, alpha=0.55) +
-  scale_colour_viridis_c(option='C', name=expression(log[10]*' KDE density')) +
-  geom_point(data=origin, aes(tricycle_pc1_origin, tricycle_pc2_origin),
-             inherit.aes=FALSE, shape=4, size=4, stroke=1.3, colour='red3') +
-  coord_equal() + theme_bw() +
-  labs(x='tricycle PC1', y='tricycle PC2')
+```{r pooled_projection, fig.height=5.5, fig.width=11}
+g_pooled <- ggplot(diagnostics, aes(tricycle_pc1, tricycle_pc2)) +
+  geom_hex(
+    aes(colour=after_stat(count), fill=after_scale(colour)),
+    bins=180, linewidth=0) +
+  geom_path(
+    data=origin_sensitivity[order(target_cells)],
+    aes(tricycle_pc1_origin, tricycle_pc2_origin), inherit.aes=FALSE,
+    linewidth=1.3, colour='white') +
+  geom_path(
+    data=origin_sensitivity[order(target_cells)],
+    aes(tricycle_pc1_origin, tricycle_pc2_origin), inherit.aes=FALSE,
+    linewidth=0.55, colour='grey50') +
+  geom_point(
+    data=origin_sensitivity[selected == FALSE],
+    aes(
+      tricycle_pc1_origin, tricycle_pc2_origin,
+      fill=factor(target_cells, levels=target_cell_levels)),
+    inherit.aes=FALSE, shape=21, size=2.5, stroke=0.5, colour='grey20') +
+  add_phase_boundaries() +
+  add_origin() +
+  scale_colour_viridis_c(
+    trans='log10', name='cell count',
+    guide=guide_colourbar(order=1, direction='horizontal')) +
+  scale_fill_discrete(
+    palette=function(n) grey.colors(n, start=0.88, end=0.28),
+    name='target cells', limits=target_cell_levels, drop=FALSE,
+    labels=function(x) comma(as.numeric(x)),
+    guide=guide_legend(order=2, direction='horizontal', nrow=1)) +
+  coord_equal(xlim=pc_x_limits, ylim=pc_y_limits, expand=FALSE) +
+  theme_bw() +
+  labs(
+    title='All QC-passed cells', x='tricycle PC1', y='tricycle PC2',
+    caption=sprintf('Selected target cells: %s',
+                    scales::comma(origin[['target_cells']][1])))
+
+g_retained <- ggplot(
+    diagnostics[diagnostic_retained == TRUE],
+    aes(tricycle_pc1, tricycle_pc2)) +
+  geom_point(size=0.5, alpha=0.7, colour='#1F4E79') +
+  add_phase_boundaries() +
+  add_origin() +
+  coord_equal(xlim=pc_x_limits, ylim=pc_y_limits, expand=FALSE) +
+  theme_bw() +
+  labs(
+    title=sprintf(
+      'Density-equalized cells (%s of %s)',
+      scales::comma(sum(diagnostics[['diagnostic_retained']])),
+      scales::comma(nrow(diagnostics))),
+    x='tricycle PC1', y='tricycle PC2')
+
+g_pooled + g_retained + plot_layout(guides='collect') &
+  theme(legend.position='bottom')
 ```
 
 ## Cell-cycle position
 
 ```{r theta_density, fig.height=4, fig.width=8}
-ggplot(scores_qc, aes(tricycle_theta)) +
+ggplot(scores_qc, aes(tricycle_theta / pi)) +
   geom_density(fill='steelblue', alpha=0.35, colour='steelblue4') +
-  scale_x_continuous(breaks=seq(0, 2*pi, pi/2),
-    labels=c('0', expression(pi/2), expression(pi), expression(3*pi/2), expression(2*pi)),
-    limits=c(0, 2*pi)) +
-  theme_bw() + labs(x='tricycle theta (radians)', y='density')
+  scale_x_continuous(breaks=theta_breaks, labels=theta_labels, limits=c(0, 2)) +
+  scale_y_log10() +
+  theme_bw() + labs(x=expression('tricycle theta / '*pi), y='density (log scale)')
 ```
 
-## Observed expression around theta
+## Spatial marker expression
 
 Observed counts for canonical cycling genes present among the selected HVGs
-were library-size normalized to 10,000 and log-transformed. Points are angular
-bin means; curves are periodic LOESS fits. Tricycle recommends inspecting
-TOP2A and SMC2, and TOP2A should peak near $\pi$ when the orientation is
-biologically plausible.
+were library-size normalized to 10,000 and log-transformed. Each gene is
+coloured relative to its own 98th percentile among expressing cells, so colour
+intensity is comparable spatially within a gene but not between genes. Cells
+with the highest expression are drawn last. The facet title reports the number
+of cells with expression above zero.
 
-```{r expression_curves, fig.height=7, fig.width=10}
+```{r spatial_expression, fig.height=8, fig.width=10}
 if (nrow(marker_expression)) {
-  ggplot() +
-    geom_point(data=expression_smooth$binned,
-      aes(theta, expression, size=n_cells), alpha=0.4, colour='grey35') +
-    geom_line(data=expression_smooth$fits,
-      aes(theta, fitted_expression), linewidth=0.8, colour='firebrick') +
-    facet_wrap(~gene, scales='free_y') +
-    scale_x_continuous(breaks=seq(0, 2*pi, pi/2),
-      labels=c('0', expression(pi/2), expression(pi), expression(3*pi/2), expression(2*pi)),
-      limits=c(0, 2*pi)) +
-    scale_size_continuous(guide='none') + theme_bw() +
-    labs(x='tricycle theta (radians)', y='log-normalized expression')
+  marker_expression[, expression_q98 := {
+    positive <- log_normalized_expression[log_normalized_expression > 0]
+    cap <- if (length(positive)) as.numeric(quantile(positive, 0.98)) else 1
+    pmin(log_normalized_expression / max(cap, 1e-12), 1)
+  }, by=gene]
+  gene_summaries <- marker_expression[, .(
+    label=sprintf('%s (%s > 0)', gene[1], scales::comma(sum(log_normalized_expression > 0)))
+  ), by=gene]
+  gene_labels <- setNames(gene_summaries[['label']], as.character(gene_summaries[['gene']]))
+  setorder(marker_expression, gene, expression_q98)
+
+  ggplot(marker_expression,
+         aes(tricycle_pc1, tricycle_pc2, colour=expression_q98)) +
+    geom_point(size=0.18, alpha=0.8) +
+    add_phase_boundaries() +
+    add_origin() +
+    facet_wrap(~gene, ncol=4, labeller=as_labeller(gene_labels)) +
+    scale_colour_viridis_c(option='magma', limits=c(0, 1),
+                           name='expression /\ngene q98') +
+    coord_equal(xlim=pc_x_limits, ylim=pc_y_limits, expand=FALSE) +
+    theme_bw() +
+    theme(
+      panel.grid=element_blank(),
+      strip.background=element_rect(fill='white', colour='grey50')) +
+    labs(x='tricycle PC1', y='tricycle PC2')
 } else {
   cat('None of the canonical cycling genes were present in the selected HVG matrix.')
 }
 ```
 
+## Sample-balanced expression around theta
+
+Expression is averaged in angular bins separately within each biological
+sample, followed by a circular LOESS smooth for each sample. The lines are the
+equal-weight mean of those sample-level curves; ribbons are 95% confidence
+intervals across samples. Each gene is scaled so the maximum of its mean curve
+is one. This prevents samples with more cells from dominating the displayed
+relationship. Colours group the canonical markers by their expected cell-cycle
+phase; CDKN1A is shown neutrally as a checkpoint diagnostic.
+The left panel provides the corresponding pooled tricycle projection coloured
+by theta.
+
+```{r expression_curves, fig.height=6, fig.width=14}
+if (nrow(expression_smooth[['curves']])) {
+  curve_dt <- merge(expression_smooth[['curves']], marker_annotation, by='gene')
+  curve_dt[, gene := factor(gene, levels=marker_annotation[['gene']])]
+  curve_dt[, theta_over_pi := theta / pi]
+  theta_projection_dt <- evenly_spaced_rows(scores_qc, 50000L)
+  g_theta_projection <- ggplot(
+      theta_projection_dt,
+      aes(tricycle_pc1, tricycle_pc2, colour=tricycle_theta)) +
+    geom_point(size=0.25, alpha=0.6) +
+    add_phase_boundaries() +
+    scale_colour_gradientn(
+      colours=cyclic_colours, limits=c(0, 2*pi),
+      breaks=seq(0, 2*pi, pi/2), labels=theta_labels, name='theta') +
+    add_origin() +
+    coord_equal(xlim=pc_x_limits, ylim=pc_y_limits, expand=FALSE) +
+    theme_bw() +
+    labs(x='tricycle PC1', y='tricycle PC2')
+
+  g_expression_curves <- ggplot(
+      curve_dt,
+      aes(theta_over_pi, mean_scaled, colour=gene, fill=gene)) +
+    geom_ribbon(
+      aes(ymin=pmax(0, mean_scaled - ci95_scaled),
+          ymax=mean_scaled + ci95_scaled),
+      alpha=0.10, colour=NA) +
+    geom_line(linewidth=0.9) +
+    geom_vline(xintercept=c(0.25, 0.5, 1, 1.75),
+               linewidth=0.25, linetype='dotted', colour='grey50') +
+    scale_colour_manual(values=gene_colours, labels=gene_legend_labels) +
+    scale_fill_manual(values=gene_colours, labels=gene_legend_labels) +
+    scale_x_continuous(breaks=theta_breaks, labels=theta_labels,
+                       limits=c(0, 2), expand=c(0, 0)) +
+    theme_bw() +
+    labs(x=expression('tricycle theta / '*pi),
+         y='sample-balanced expression (gene maximum = 1)',
+         colour='marker', fill='marker')
+  g_theta_projection + g_expression_curves +
+    plot_layout(widths=c(0.9, 1.7))
+} else {
+  cat('No marker-expression curves could be estimated.')
+}
+```
+
 ## Sample-level diagnostics {.tabset}
+
+Point size represents the capped inverse-density inclusion probability used by
+the origin estimator. Cells outside the dense non-cycling blob generally reach
+the maximum size of 2, while cells in the blob are drawn smaller. Theta remains
+encoded by colour.
 
 ```{r sample_diagnostics, fig.height=5, fig.width=10, results='asis'}
 for (sample in sort(unique(scores_qc$sample_id))) {
   cat('### ', sample, '\n\n')
   sample_dt <- scores_qc[sample_id == sample]
-  stride <- max(1L, ceiling(nrow(sample_dt) / 20000L))
-  sample_plot_dt <- sample_dt[seq_len(.N) %% stride == 0L]
+  sample_plot_dt <- evenly_spaced_rows(sample_dt, 20000L)
   g_projection <- ggplot(sample_plot_dt,
-    aes(tricycle_pc1, tricycle_pc2, colour=tricycle_theta)) +
-    geom_point(size=0.25, alpha=0.55) + scale_colour_viridis_c(option='H') +
-    coord_equal() + theme_bw() + labs(colour='theta')
-  g_theta <- ggplot(sample_dt, aes(tricycle_theta)) +
+    aes(
+      tricycle_pc1, tricycle_pc2, colour=tricycle_theta,
+      size=inclusion_probability)) +
+    geom_point(alpha=0.55) +
+    add_phase_boundaries() +
+    scale_colour_gradientn(
+      colours=cyclic_colours, limits=c(0, 2*pi),
+      breaks=seq(0, 2*pi, pi/2), labels=theta_labels, name='theta') +
+    scale_size_continuous(range=c(0.2, 2), limits=c(0, 1), guide='none') +
+    add_origin() +
+    coord_equal(xlim=pc_x_limits, ylim=pc_y_limits, expand=FALSE) +
+    theme_bw() + labs(x='tricycle PC1', y='tricycle PC2')
+  g_theta <- ggplot(sample_dt, aes(tricycle_theta / pi)) +
     geom_density(fill='steelblue', alpha=0.35) +
-    scale_x_continuous(limits=c(0, 2*pi)) + theme_bw() +
-    labs(x='tricycle theta (radians)', y='density')
-  print(g_projection + g_theta)
+    scale_x_continuous(breaks=theta_breaks, labels=theta_labels, limits=c(0, 2)) +
+    theme_bw() + labs(x=expression('tricycle theta / '*pi), y='density')
+  print(g_projection + g_theta + plot_layout(widths=c(1.5, 1)))
   cat('\n\n')
 }
 ```
 
-## Approximate phase proportions by sample
+## Approximate phase percentages by sample
 
 Tricycle is designed to represent cell cycle continuously. For an approximate
-summary only, the sectors below use the package vignette's interpretation:
-G1/G0 wraps from $1.75\pi$ through zero to $0.25\pi$, G1/S spans
-$0.25\pi$-$0.5\pi$, S spans $0.5\pi$-$\pi$, and G2/M spans
-$\pi$-$1.75\pi$.
+summary only, the plot uses the angular sectors introduced with the pooled
+projection above. G1/G0 is omitted because it dominates the percentages in
+predominantly non-cycling samples. The remaining values are still percentages
+of all QC-passed cells and are not renormalized.
 
-```{r phase_proportions, fig.height=5, fig.width=10}
+```{r phase_proportions, fig.height=5, fig.width=6}
 phase_dt <- scores_qc[, .(n_cells=.N), by=.(sample_id, approximate_phase)]
-phase_dt[, proportion := n_cells / sum(n_cells), by=sample_id]
-ggplot(phase_dt, aes(sample_id, proportion, fill=approximate_phase)) +
-  geom_col() + scale_y_continuous(labels=percent) + theme_bw() +
-  theme(axis.text.x=element_text(angle=45, hjust=1)) +
-  labs(x='sample', y='proportion of QC-passed cells', fill='approximate phase')
-knitr::kable(dcast(phase_dt, sample_id ~ approximate_phase, value.var='proportion', fill=0),
-             digits=3, caption='Approximate phase proportions')
+phase_dt[, percent_cells := 100 * n_cells / sum(n_cells), by=sample_id]
+cycling_phase_dt <- phase_dt[approximate_phase != 'G1/G0']
+cycling_phase_dt[, approximate_phase := droplevels(approximate_phase)]
+ggplot(cycling_phase_dt, aes(percent_cells, sample_id, fill=approximate_phase)) +
+  geom_quasirandom(
+    shape=21, size=3, width=0.25, orientation='y', colour='grey20') +
+  scale_y_discrete(limits=rev) +
+  scale_x_log10(
+    breaks=c(0.1, 0.3, 1, 3, 10, 30, 100),
+    labels=label_number(suffix='%')) +
+  scale_fill_manual(values=phase_colours) + theme_bw() +
+  labs(x='percent of QC-passed cells (log scale)', y='sample',
+       fill='approximate phase')
+knitr::kable(dcast(cycling_phase_dt, sample_id ~ approximate_phase,
+                   value.var='percent_cells', fill=0),
+             digits=1, caption='Approximate non-G1/G0 phase percentages')
 ```
 
 ## Estimation summary

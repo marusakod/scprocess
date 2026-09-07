@@ -12,7 +12,8 @@ DOUBLETS_F     = f'{int_dir}/integration_doublets_{FULL_TAG}_{DATE_STAMP}.csv.gz
 CLEAN_CELLS_F  = f'{int_dir}/clean_cells_{FULL_TAG}_{DATE_STAMP}.csv'
 FINAL_PCA_F    = f'{int_dir}/final_pca_{FULL_TAG}_{DATE_STAMP}.csv.gz'
 CELL_CYCLE_REGRESSION = (
-  CELL_CYCLE_ENABLED and 'regression' in config['cell_cycle']
+  CELL_CYCLE_ENABLED and
+  config['integration'].get('int_cell_cycle_regression') == 'shared'
 )
 PRELIM_REGRESSION_F = f'{cell_cycle_dir}/preliminary_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'
 FINAL_REGRESSION_F = f'{cell_cycle_dir}/final_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'
@@ -23,10 +24,12 @@ FINAL_REGRESSION_GENES_F = f'{cell_cycle_dir}/final_cell_cycle_regression_genes_
 def _cell_cycle_regression_args(out_f, genes_f):
   if not CELL_CYCLE_REGRESSION:
     return ''
-  regression = config['cell_cycle']['regression']
+  integration = config['integration']
   return (
-    f", tricycle_f = '{TRICYCLE_SCORES_F}', harmonics = {regression['harmonics']}, "
-    f"ridge_lambda = {regression['ridge_lambda']}, out_regression_f = '{out_f}', "
+    f", tricycle_f = '{TRICYCLE_SCORES_F}', "
+    f"harmonics = {integration['int_cell_cycle_harmonics']}, "
+    f"ridge_lambda = {integration['int_cell_cycle_ridge_lambda']}, "
+    f"out_regression_f = '{out_f}', "
     f"out_regression_genes_f = '{genes_f}'"
   )
 

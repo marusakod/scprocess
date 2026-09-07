@@ -55,9 +55,11 @@ qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
 int_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
 pb_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_pseudobulk"
 hvg_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_hvg"
+cell_cycle_dir = f"{PROJ_DIR}/output/{SHORT_TAG}_cell_cycle"
 rmd_dir       = f"{PROJ_DIR}/analysis"
 docs_dir      = f"{PROJ_DIR}/public"
 zoom_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_zoom"
+TRICYCLE_SCORES_F = f'{cell_cycle_dir}/tricycle_scores_{FULL_TAG}_{DATE_STAMP}.csv.gz'
 
 # define zoom marker outputs
 zoom_mkr_report_outs = [
@@ -875,15 +877,40 @@ rule zoom_create_hvg_matrix:
     """
 
 
+def zoom_cell_cycle_regression_enabled(wildcards):
+  return (
+    'cell_cycle' in config and
+    ZOOM_PARAMS[wildcards.zoom_name]['integration'].get(
+      'int_cell_cycle_regression') == 'shared'
+  )
+
+
+def zoom_tricycle_input(wildcards):
+  return TRICYCLE_SCORES_F if zoom_cell_cycle_regression_enabled(wildcards) else []
+
+
+def zoom_cell_cycle_regression_args(wildcards):
+  if not zoom_cell_cycle_regression_enabled(wildcards):
+    return ''
+  integration = ZOOM_PARAMS[wildcards.zoom_name]['integration']
+  return (
+    f", tricycle_f = '{TRICYCLE_SCORES_F}', "
+    f"harmonics = {integration['int_cell_cycle_harmonics']}, "
+    f"ridge_lambda = {integration['int_cell_cycle_ridge_lambda']}"
+  )
+
+
 rule zoom_pca:
   input:
     hvg_mat_f = f'{zoom_dir}/{{zoom_name}}/top_hvgs_counts_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.h5',
-    coldata_f = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    coldata_f = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    tricycle_f = zoom_tricycle_input
   output:
     pca_f = f'{zoom_dir}/{{zoom_name}}/pca_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
   params:
     n_dims = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_n_dims'],
-    exclude_mito = config['qc']['exclude_mito']
+    exclude_mito = config['qc']['exclude_mito'],
+    regression_args = zoom_cell_cycle_regression_args
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -912,7 +939,7 @@ rule zoom_pca:
       n_dims       = {params.n_dims},
       out_pca_f    = '{output.pca_f}',
       coldata_f    = '{input.coldata_f}',
-      exclude_mito = tolower('{params.exclude_mito}') == 'true')"
+      exclude_mito = tolower('{params.exclude_mito}') == 'true'{params.regression_args})"
     """
 
 

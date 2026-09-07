@@ -186,6 +186,7 @@ label_celltypes_outs = [
 cell_cycle_outs = [
   f'{cell_cycle_dir}/tricycle_scores_{FULL_TAG}_{DATE_STAMP}.csv.gz',
   f'{cell_cycle_dir}/tricycle_origin_{FULL_TAG}_{DATE_STAMP}.csv',
+  f'{cell_cycle_dir}/tricycle_origin_sensitivity_{FULL_TAG}_{DATE_STAMP}.csv',
   f'{cell_cycle_dir}/tricycle_origin_diagnostics_{FULL_TAG}_{DATE_STAMP}.csv.gz',
   code_dir + '/cell_cycle.R',
   f'{rmd_dir}/{SHORT_TAG}_cell_cycle.Rmd',

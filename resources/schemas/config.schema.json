@@ -183,6 +183,9 @@
         "int_sce_outs":     { "type": "boolean",  "default": false},
         "int_use_paga":     { "type": "boolean",  "default": true},
         "int_paga_cl_res":  { "type": "number",   "default": 2, "exclusiveMinimum": 0},
+        "int_cell_cycle_regression":   { "type": "string", "const": "shared" },
+        "int_cell_cycle_harmonics":    { "type": "integer", "enum": [1, 2] },
+        "int_cell_cycle_ridge_lambda": { "type": "number", "minimum": 0 },
         "int_res_ls": {
           "type":     "array",
           "items":    { "type": "number" },
@@ -206,20 +209,11 @@
       "additionalProperties": false,
       "x-defaults-only-when-present": true,
       "properties": {
-        "species":              { "type": "string", "enum": ["human", "mouse"] },
-        "origin_method":        { "type": "string", "const": "kde_density_equalized", "default": "kde_density_equalized" },
-        "bandwidth_multiplier": { "type": "number", "exclusiveMinimum": 0, "default": 1.0 },
-        "kde_grid_size":        { "type": "integer", "minimum": 20, "default": 500 },
-        "target_cells":         { "type": "integer", "minimum": 1, "default": 5000 },
-        "seed":                 { "type": "integer", "default": 20230308 },
-        "regression": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "harmonics":    { "type": "integer", "enum": [1, 2], "default": 2 },
-            "ridge_lambda": { "type": "number", "minimum": 0, "default": 0.1 }
-          }
-        }
+        "cyc_bandwidth_multiplier": { "type": "number", "exclusiveMinimum": 0, "default": 1.0 },
+        "cyc_kde_grid_size":        { "type": "integer", "minimum": 20, "default": 500 },
+        "cyc_target_cells":         { "type": "integer", "minimum": 1, "default": 5000 },
+        "cyc_target_cells_grid":    { "type": "array", "items": { "type": "integer", "minimum": 1 }, "uniqueItems": true, "default": [100, 200, 500, 1000, 2000, 5000, 10000] },
+        "cyc_seed":                 { "type": "integer", "default": 20230308 }
       }
     },
     "marker_genes": {
@@ -393,6 +387,9 @@
         "mins_get_highly_variable_genes": { "type": ["integer", "null"] },
         "mins_create_hvg_matrix":         { "type": ["integer", "null"] },
         "mins_create_doublets_hvg_matrix": { "type": ["integer", "null"] },
+
+        "gb_estimate_run_tricycle":       { "type": ["integer", "null"] },
+        "mins_estimate_run_tricycle":     { "type": ["integer", "null"] },
 
         "gb_run_integration":             { "type": "integer", "default": 32 },
         "gb_make_clean_h5ads":            { "type": "integer", "default": 8 },

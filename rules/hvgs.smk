@@ -362,6 +362,7 @@ rule get_highly_variable_genes:
 
 rule create_hvg_matrix:
   input: 
+    script_f    = f'{scprocess_dir}/scripts/hvgs.py',
     clean_h5_f  = expand(f'{hvg_dir}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5', batch = BATCHES),
     qc_stats_f  = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     hvg_paths_f = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv', 
@@ -385,7 +386,7 @@ rule create_hvg_matrix:
   shell: """
     exec &>> {log}
 
-    python3 {scprocess_dir}/scripts/hvgs.py create_hvg_matrix \
+    python3 {input.script_f} create_hvg_matrix \
       {input.qc_stats_f} \
       {input.hvg_paths_f} \
       {input.hvg_f} \
@@ -398,6 +399,7 @@ rule create_hvg_matrix:
 
 rule create_doublets_hvg_matrix:
   input: 
+    script_f      = f'{scprocess_dir}/scripts/hvgs.py',
     hvg_paths_f   = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv', 
     hvg_f         = f'{hvg_dir}/hvg_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz', 
     qc_f          = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
@@ -422,7 +424,7 @@ rule create_doublets_hvg_matrix:
   shell: """
     exec &>> {log}
     
-    python3 {scprocess_dir}/scripts/hvgs.py create_doublets_matrix \
+    python3 {input.script_f} create_doublets_matrix \
       {input.hvg_paths_f} \
       {input.hvg_f} \
       {input.qc_f} \
@@ -433,4 +435,3 @@ rule create_doublets_hvg_matrix:
       {params.batch_var} \
       --ncores {threads}
     """
-

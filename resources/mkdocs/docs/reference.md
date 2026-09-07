@@ -589,15 +589,46 @@ cell-level values:
 cell_cycle: {}
 ```
 
+The cell-cycle options use the `cyc_` prefix:
+
+* `cyc_bandwidth_multiplier`: multiplier applied to the data-derived KDE
+  bandwidth used for density equalization; default `1.0`;
+* `cyc_kde_grid_size`: number of bins per axis used for the binned KDE;
+  default `500`;
+* `cyc_target_cells`: expected number of density-equalized cells retained for
+  pooled-origin estimation, capped at the number of candidate cells; default
+  `5000`;
+* `cyc_target_cells_grid`: target values used for origin-sensitivity
+  diagnostics; default `[100, 200, 500, 1000, 2000, 5000, 10000]`. The selected
+  `cyc_target_cells` value is always included, and values above the number of
+  candidate cells are capped and deduplicated; and
+* `cyc_seed`: random seed for density-equalized retention; default `20230308`.
+
+The KDE is calculated once. Candidate centres for the target-cell grid are
+then calculated deterministically as inverse-density probability-weighted
+means and written to `tricycle_origin_sensitivity_*.csv`. The pooled projection
+plot labels the resulting path of candidate centres. Only `cyc_target_cells`
+defines `tricycle_theta`; the sensitivity grid is diagnostic. `cyc_seed`
+affects which cells appear in the retained-cell diagnostic panel, not the
+estimated centres.
+
+Species is inferred from `project.ref_txome` or `project.probe_set`; it is not
+specified again inside `cell_cycle`. The only currently supported origin
+estimator is density-equalized KDE, so there is no origin-method setting.
+
 Tricycle projections, the pooled origin, diagnostics, and any regression
 coefficients are stored directly in `output/{short_tag}_cell_cycle/`. A
 standalone diagnostics report is written to
 `public/{short_tag}_cell_cycle.html`, with its editable source at
-`analysis/{short_tag}_cell_cycle.Rmd`. It shows the pooled projection and
-inferred origin, overall and sample-level theta distributions, periodic
-smoothed expression for canonical cycling genes present among the HVGs, and
-approximate phase proportions by sample. The phase categories are descriptive
-angular sectors; `tricycle_theta` remains the primary continuous result. Use
+`analysis/{short_tag}_cell_cycle.Rmd`. It shows the pooled projection, the
+density-equalized cells used to infer the origin, spatial expression of a
+canonical cell-cycle marker panel, sample-balanced periodic expression curves,
+sample-level projections and theta distributions, and approximate phase
+percentages by sample. Projection panels mark the approximate phase boundaries
+with radial guides; sample-level point sizes use the capped inverse-density
+inclusion probability so sparse cycling regions remain visible. The phase
+categories are descriptive angular sectors;
+`tricycle_theta` remains the primary continuous result. Use
 `scprocess run CONFIG -r cell_cycle` to generate these outputs and the report;
 the `integration` target does not render the cell-cycle report.
 Projection
@@ -622,25 +653,35 @@ from QC-passed candidate singlets. Known doublets receive coordinates and theta
 but are excluded from origin estimation. Project-wide centring and the pooled
 origin make all three values dependent on project composition.
 
-Add the optional `regression` subsection to remove shared cyclic effects from
-normalized, scaled HVG expression before both preliminary and final PCA. An
-empty subsection (`regression: {}`) uses two harmonics and ridge penalty 0.1.
-Regression requires `integration.int_pca_method: bpcells`. `harmonics` is `1`
-or `2`, and `ridge_lambda` controls shrinkage of the shared sine/cosine
-coefficients. The cyclic columns are centred within sample and scaled globally;
-sample-specific slopes are not offered. Within-sample-centred harmonics are
-used only to estimate the shared coefficients, protecting that estimate from
-sample-level expression offsets. The fitted coefficients are applied to the
-original harmonics after one project-wide centring step. Consequently,
-regression preserves each gene's overall project mean but can change an
-individual sample's mean when its phase composition differs from the project.
-These operations do not change `tricycle_theta` or its unit-circle geometry.
-For HTO/custom cells without a biological sample assignment, the physical run
-is used only as the coefficient-fitting fallback group.
+Set `integration.int_cell_cycle_regression: shared` to remove shared cyclic
+effects from normalized, scaled HVG expression before both preliminary and
+final PCA. Its absence disables regression while still allowing cell-cycle
+estimation and diagnostics. Regression requires a `cell_cycle` block and
+`integration.int_pca_method: bpcells`.
+
+`int_cell_cycle_harmonics` is `1` or `2` and defaults to `2` when regression
+is enabled. `int_cell_cycle_ridge_lambda` controls shrinkage of the shared
+sine/cosine coefficients and defaults to `0.1`. These tuning parameters are
+invalid unless `int_cell_cycle_regression` is present. The cyclic columns are
+centred within sample and scaled globally; sample-specific slopes are not
+offered. Within-sample-centred harmonics are used only to estimate the shared
+coefficients, protecting that estimate from sample-level expression offsets.
+The fitted coefficients are applied to the original harmonics after one
+project-wide centring step. Consequently, regression preserves each gene's
+overall project mean but can change an individual sample's mean when its phase
+composition differs from the project. These operations do not change
+`tricycle_theta` or its unit-circle geometry. For HTO/custom cells without a
+biological sample assignment, the physical run is used only as the
+coefficient-fitting fallback group.
 
 ```yaml
 cell_cycle:
-  regression: {}
+  cyc_target_cells: 5000
+
+integration:
+  int_cell_cycle_regression: shared
+  int_cell_cycle_harmonics: 2
+  int_cell_cycle_ridge_lambda: 0.1
 ```
 
 ##### marker_genes
