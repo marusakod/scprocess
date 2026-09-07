@@ -10,7 +10,8 @@ from scipy.ndimage import gaussian_filter
 
 
 TRICYCLE_COLUMNS = [
-  "cell_id", "sample_id", "tricycle_center_group", "tricycle_pc1", "tricycle_pc2"
+  "cell_id", "sample_id", "tricycle_projection_group",
+  "tricycle_raw_pc1", "tricycle_raw_pc2",
 ]
 
 
@@ -139,6 +140,15 @@ def aggregate_tricycle(
   if coldata["cell_id"].n_unique() != coldata.height:
     raise ValueError("coldata contains duplicate cell IDs")
 
+  raw_points = scores.select("tricycle_raw_pc1", "tricycle_raw_pc2").to_numpy()
+  if not np.isfinite(raw_points).all():
+    raise ValueError("tricycle raw projections contain non-finite coordinates")
+  projection_center = raw_points.mean(axis=0)
+  scores = scores.with_columns(
+    (pl.col("tricycle_raw_pc1") - projection_center[0]).alias("tricycle_pc1"),
+    (pl.col("tricycle_raw_pc2") - projection_center[1]).alias("tricycle_pc2"),
+  ).drop("tricycle_raw_pc1", "tricycle_raw_pc2")
+
   candidates = coldata.filter(pl.col("keep") == True).select("cell_id")
   candidate_scores = candidates.join(scores, on="cell_id", how="inner")
   if candidate_scores.height != candidates.height:
@@ -163,6 +173,10 @@ def aggregate_tricycle(
   )
   origin = pl.DataFrame({
     "origin_method": ["kde_density_equalized"],
+    "projection_centring_method": ["pooled_project_mean"],
+    "tricycle_raw_pc1_project_mean": [projection_center[0]],
+    "tricycle_raw_pc2_project_mean": [projection_center[1]],
+    "n_projection_center_cells": [scores.height],
     "tricycle_pc1_origin": [center[0]],
     "tricycle_pc2_origin": [center[1]],
     "n_candidate_cells": [candidate_scores.height],

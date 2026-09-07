@@ -1,7 +1,7 @@
 suppressPackageStartupMessages({
-  library(BPCells)
   library(data.table)
   library(Matrix)
+  library(rhdf5)
 })
 
 
@@ -12,27 +12,38 @@ suppressPackageStartupMessages({
 }
 
 
-.open_and_combine_10x <- function(paths) {
-  if (!length(paths)) stop("At least one counts HDF5 is required")
-  if (is.null(names(paths)) || any(!nzchar(names(paths)))) {
-    stop("counts_h5_fs must be named with the corresponding run IDs")
+.read_10x_csc <- function(path, run) {
+  # The current DropletUtils 10x writer stores each sparse array in one large
+  # compressed HDF5 chunk. Incremental BPCells reads repeatedly decompress that
+  # chunk, so read each array exactly once and construct the in-memory CSC matrix.
+  .tricycle_log("Reading CSC arrays from ", path)
+  data <- h5read(path, "matrix/data")
+  indices <- h5read(path, "matrix/indices")
+  indptr <- h5read(path, "matrix/indptr")
+  shape <- h5read(path, "matrix/shape")
+  barcodes <- as.character(h5read(path, "matrix/barcodes"))
+  features <- as.character(h5read(path, "matrix/features/name"))
+  if (length(shape) != 2L || length(indptr) != shape[2L] + 1L ||
+      length(data) != length(indices)) {
+    stop("Invalid 10x CSC matrix structure in ", path)
   }
-  mats <- Map(function(path, run) {
-    mat <- open_matrix_10x_hdf5(path)
-    prefix <- paste0(run, ":")
-    if (!all(startsWith(colnames(mat), prefix))) {
-      colnames(mat) <- paste(run, colnames(mat), sep = ":")
-    }
-    mat
-  }, paths, names(paths))
-  features <- rownames(mats[[1L]])
-  for (i in seq_along(mats)[-1L]) {
-    if (!identical(features, rownames(mats[[i]]))) {
-      stop("All tricycle input matrices must have identical features in identical order")
-    }
+  prefix <- paste0(run, ":")
+  if (!all(startsWith(barcodes, prefix))) {
+    barcodes <- paste(run, barcodes, sep = ":")
   }
-  mat <- if (length(mats) == 1L) mats[[1L]] else do.call(cbind, mats)
-  if (anyDuplicated(colnames(mat))) stop("Input matrices contain duplicate cell IDs")
+  mat <- new(
+    "dgCMatrix",
+    i = as.integer(indices),
+    p = as.integer(indptr),
+    x = as.numeric(data),
+    Dim = as.integer(shape),
+    Dimnames = list(features, barcodes)
+  )
+  if (anyDuplicated(colnames(mat))) stop("Input matrix contains duplicate cell IDs")
+  .tricycle_log(
+    "Loaded ", nrow(mat), " features x ", ncol(mat), " cells with ",
+    length(mat@x), " non-zero entries"
+  )
   mat
 }
 
@@ -84,7 +95,9 @@ suppressPackageStartupMessages({
   .tricycle_log("Calculating library sizes for ", length(selected), " cells")
   cell_idx <- match(selected, colnames(mat))
   if (anyNA(cell_idx)) stop("Some selected cells are absent from the tricycle matrices")
-  lib_size <- BPCells::colSums(mat[, cell_idx])
+  # Matrix::colSums traverses the in-memory CSC arrays once. Calculate all
+  # columns before indexing to avoid copying most of a run-sized sparse matrix.
+  lib_size <- Matrix::colSums(mat)[cell_idx]
   if (any(!is.finite(lib_size)) || any(lib_size <= 0)) {
     stop("Tricycle input contains a non-positive library size")
   }
@@ -124,13 +137,11 @@ suppressPackageStartupMessages({
   normalized@x <- log1p(normalized@x)
   rotation <- rotation[rownames(normalized), , drop = FALSE]
 
-  # Algebraically identical to tricycle's documented fixed-reference formula:
-  # scale(t(log-expression), center=TRUE, scale=FALSE) %*% rotation.
-  .tricycle_log("Projecting cells into the tricycle reference")
-  gene_means <- Matrix::rowMeans(normalized)
-  offset <- as.numeric(gene_means %*% rotation)
+  # Do not centre within this run. The aggregation rule subtracts one common
+  # project mean from these raw coordinates. By linearity, that is equivalent
+  # to centring the pooled normalized expression before applying the rotation.
+  .tricycle_log("Calculating uncentred tricycle reference projection")
   embedding <- as.matrix(crossprod(normalized, rotation))
-  embedding <- sweep(embedding, 2L, offset, "-")
   rownames(embedding) <- selected
   colnames(embedding) <- c("PC1", "PC2")
   if (any(!is.finite(embedding))) stop("tricycle returned non-finite coordinates")
@@ -143,18 +154,14 @@ suppressPackageStartupMessages({
 }
 
 
-#' Estimate fixed-reference tricycle coordinates for a metadata group.
-#'
-#' Biological samples use group_column="sample_id". The optional unassigned
-#' mode exists only for known HTO/custom doublets that lack a sample assignment;
-#' these are centred with eligible cells from their run and clearly recorded.
-estimate_tricycle_group <- function(
-    counts_h5_fs, coldata_f, rowdata_f, group_column, group_value, species,
-    out_scores_f, out_summary_f, output_unassigned_only = FALSE,
+#' Estimate uncentred fixed-reference tricycle coordinates for one physical run.
+estimate_run_tricycle <- function(
+    counts_h5_f, coldata_f, rowdata_f, run_column, run_value, species,
+    out_scores_f, out_summary_f,
     min_reference_genes = 100L) {
-  .tricycle_log("Reading cell metadata for ", group_column, " ", group_value)
+  .tricycle_log("Reading cell metadata for ", run_column, " ", run_value)
   coldata <- fread(coldata_f)
-  required <- c("cell_id", "sample_id", "keep", "scdbl_class", group_column)
+  required <- c("cell_id", "sample_id", "keep", "scdbl_class", run_column)
   missing <- setdiff(required, names(coldata))
   if (length(missing)) stop("coldata is missing: ", paste(missing, collapse = ", "))
   if (anyDuplicated(coldata$cell_id)) stop("coldata contains duplicate cell IDs")
@@ -166,12 +173,12 @@ estimate_tricycle_group <- function(
   known_doublet[is.na(known_doublet)] <- FALSE
   eligible <- coldata$keep == TRUE | known_doublet
   eligible[is.na(eligible)] <- FALSE
-  in_group <- !is.na(coldata[[group_column]]) & coldata[[group_column]] == group_value
+  in_group <- !is.na(coldata[[run_column]]) & coldata[[run_column]] == run_value
   selected <- coldata[eligible & in_group, cell_id]
-  if (!length(selected)) stop("No eligible cells found for ", group_column, " ", group_value)
+  if (!length(selected)) stop("No eligible cells found for ", run_column, " ", run_value)
 
-  .tricycle_log("Opening ", length(counts_h5_fs), " count matrix file(s)")
-  mat <- .open_and_combine_10x(counts_h5_fs)
+  .tricycle_log("Loading one run-level count matrix")
+  mat <- .read_10x_csc(counts_h5_f, run_value)
   selected <- selected[selected %in% colnames(mat)]
   if (!length(selected)) stop("No eligible cells were present in the supplied matrices")
   .tricycle_log("Selected ", length(selected), " eligible cells present in the count matrix")
@@ -183,26 +190,18 @@ estimate_tricycle_group <- function(
   scores <- data.table(
     cell_id = rownames(embedding),
     sample_id = coldata$sample_id[match(rownames(embedding), coldata$cell_id)],
-    tricycle_center_group = if (output_unassigned_only) {
-      paste0("run:", group_value)
-    } else {
-      paste0("sample:", group_value)
-    },
-    tricycle_pc1 = embedding[, 1L],
-    tricycle_pc2 = embedding[, 2L]
+    tricycle_projection_group = paste0("run:", run_value),
+    tricycle_raw_pc1 = embedding[, 1L],
+    tricycle_raw_pc2 = embedding[, 2L]
   )
-  if (output_unassigned_only) {
-    scores <- scores[is.na(sample_id) | sample_id == ""]
-  }
-  .tricycle_log("Writing ", nrow(scores), " cell scores")
+  .tricycle_log("Writing ", nrow(scores), " uncentred cell projections")
   dir.create(dirname(out_scores_f), recursive = TRUE, showWarnings = FALSE)
   fwrite(scores, out_scores_f)
 
   summary <- data.table(
-    projection_group = group_value,
-    projection_group_column = group_column,
-    centring_scope = if (output_unassigned_only) "run_fallback" else "biological_sample",
-    output_unassigned_only = output_unassigned_only,
+    projection_group = run_value,
+    projection_group_column = run_column,
+    centring_scope = "project_aggregation",
     species = species,
     gene_id_type = projection$gene_id_type,
     n_cells = nrow(embedding),
@@ -215,25 +214,6 @@ estimate_tricycle_group <- function(
     tricycle_version = as.character(packageVersion("tricycle"))
   )
   fwrite(summary, out_summary_f)
-  .tricycle_log("Finished ", group_column, " ", group_value)
+  .tricycle_log("Finished ", run_column, " ", run_value)
   invisible(scores)
-}
-
-
-#' Estimate fixed-reference tricycle coordinates for one biological sample.
-estimate_sample_tricycle <- function(
-    counts_h5_fs, coldata_f, rowdata_f, sample_id, species,
-    out_scores_f, out_summary_f,
-    min_reference_genes = 100L) {
-  estimate_tricycle_group(
-    counts_h5_fs = counts_h5_fs,
-    coldata_f = coldata_f,
-    rowdata_f = rowdata_f,
-    group_column = "sample_id",
-    group_value = sample_id,
-    species = species,
-    out_scores_f = out_scores_f,
-    out_summary_f = out_summary_f,
-    min_reference_genes = min_reference_genes
-  )
 }

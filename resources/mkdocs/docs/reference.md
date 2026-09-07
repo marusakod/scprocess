@@ -590,21 +590,27 @@ cell_cycle: {}
 ```
 
 Tricycle projections, the pooled origin, diagnostics, and any regression
-coefficients are stored in `output/{short_tag}_cell_cycle/`. Per-sample
-projection intermediates are stored in its `tricycle/` subdirectory.
+coefficients are stored directly in `output/{short_tag}_cell_cycle/`. Projection
+is executed once per physical run: `sample_id` identifies a run for
+non-multiplexed, Flex and OCM data, while `pool_id` identifies a run for HTO and
+custom demultiplexing.
 
 * `tricycle_pc1`: first fixed-reference tricycle projection coordinate after
-  tricycle mean-centres expression within the biological sample;
-* `tricycle_pc2`: second coordinate with the same per-sample centring; and
+  applying one common project-wide centring translation;
+* `tricycle_pc2`: second coordinate with the same project-wide centring; and
 * `tricycle_theta`: phase angle in radians in `[0, 2*pi)`, recalculated around
   one density-equalized origin estimated from QC-passed cells across the
   project.
 
-The projection coordinates are not integration PCs, and both the per-sample
-centring and pooled origin make these values dependent on project composition.
-For HTO/custom demultiplexing, doublets without a biological sample assignment
-are projected using a clearly recorded run-centred fallback so they can enter
-the preliminary doublet pass; they are excluded from origin estimation.
+The projection coordinates are not integration PCs. Each run independently
+normalizes cells and calculates uncentred coordinates using the same fixed
+tricycle rotation. The run tables are then combined and one pooled project mean
+is subtracted. By linearity, this is equivalent to centring the pooled project
+expression and projecting all cells together; runs are an execution boundary,
+not a centring boundary. The density-equalized origin is subsequently estimated
+from QC-passed candidate singlets. Known doublets receive coordinates and theta
+but are excluded from origin estimation. Project-wide centring and the pooled
+origin make all three values dependent on project composition.
 
 Add the optional `regression` subsection to remove shared cyclic effects from
 normalized, scaled HVG expression before both preliminary and final PCA. An
@@ -612,7 +618,10 @@ empty subsection (`regression: {}`) uses two harmonics and ridge penalty 0.1.
 Regression requires `integration.int_pca_method: bpcells`. `harmonics` is `1`
 or `2`, and `ridge_lambda` controls shrinkage of the shared sine/cosine
 coefficients. The cyclic columns are centred within sample and scaled globally;
-sample-specific slopes are not offered.
+sample-specific slopes are not offered. This within-sample regression-design
+centring is separate from the project-wide centring of the projection
+coordinates. For HTO/custom cells without a biological sample assignment, the
+physical run is used only as the regression-design fallback group.
 
 ```yaml
 cell_cycle:

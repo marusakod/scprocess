@@ -77,6 +77,17 @@ def test_theta_convention_wraps_to_zero_two_pi():
   np.testing.assert_allclose(theta, [0, np.pi / 2, np.pi, 3 * np.pi / 2])
 
 
+def test_partitioned_projection_matches_one_pooled_projection():
+  rng = np.random.default_rng(11)
+  expression = rng.normal(size=(37, 19))
+  rotation = rng.normal(size=(19, 2))
+  run_projections = [block @ rotation for block in np.array_split(expression, 4)]
+  combined = np.vstack(run_projections)
+  combined -= combined.mean(axis=0)
+  pooled = (expression - expression.mean(axis=0)) @ rotation
+  np.testing.assert_allclose(combined, pooled, rtol=1e-13, atol=1e-13)
+
+
 def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tmp_path):
   score_f = tmp_path / 'scores.csv'
   summary_f = tmp_path / 'summary.csv'
@@ -87,9 +98,9 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
   pl_scores = pl.DataFrame({
     'cell_id': ['a', 'b', 'c', 'known_doublet'],
     'sample_id': ['s1', 's1', 's1', 's1'],
-    'tricycle_center_group': ['sample:s1'] * 4,
-    'tricycle_pc1': [-1.0, 1.0, 0.0, 100.0],
-    'tricycle_pc2': [0.0, 0.0, 1.0, 100.0],
+    'tricycle_projection_group': ['run:s1'] * 4,
+    'tricycle_raw_pc1': [-1.0, 1.0, 0.0, 100.0],
+    'tricycle_raw_pc2': [0.0, 0.0, 1.0, 100.0],
   })
   pl_scores.write_csv(score_f)
   pl.DataFrame({
@@ -112,7 +123,13 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
   assert scores.height == 4
   assert diagnostics.height == 3
   assert origin['n_candidate_cells'][0] == 3
+  assert origin['n_projection_center_cells'][0] == 4
   assert origin['reference_genes_matched_min'][0] == 450
+  assert origin['projection_centring_method'][0] == 'pooled_project_mean'
+  np.testing.assert_allclose(
+    scores.select('tricycle_pc1', 'tricycle_pc2').mean().to_numpy(), 0,
+    atol=1e-14,
+  )
   assert np.all((scores['tricycle_theta'].to_numpy() >= 0) &
                 (scores['tricycle_theta'].to_numpy() < 2 * np.pi))
 
@@ -148,6 +165,8 @@ def test_human_identifier_mapping_uses_declared_rowdata_not_annotation_downloads
   assert 'org.Hs.eg.db' not in script
   assert 'bioconductor-org.hs.eg.db' not in environment
   assert 'bioconductor-org.mm.eg.db' not in environment
+  assert 'library(rhdf5)' in script
+  assert 'bioconductor-rhdf5' in environment
   assert 'r-r.utils' in environment
 
 
@@ -157,28 +176,43 @@ def test_cell_cycle_outputs_use_dedicated_directory():
   integration_rules = (ROOT / 'rules' / 'integration.smk').read_text()
   assert 'cell_cycle_dir = f"{PROJ_DIR}/output/{SHORT_TAG}_cell_cycle"' in main_rules
   assert "f'{cell_cycle_dir}/tricycle_scores_" in tricycle_rules
-  assert "f'{cell_cycle_dir}/tricycle/sample_" in tricycle_rules
+  assert "f'{cell_cycle_dir}/run_{{run}}_" in tricycle_rules
+  assert "{cell_cycle_dir}/tricycle/" not in tricycle_rules
   assert "f'{cell_cycle_dir}/final_cell_cycle_regression_" in integration_rules
 
 
-def test_tricycle_r_expression_preserves_named_vector_quotes():
+def test_tricycle_rule_runs_once_per_physical_run():
   rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
   assert "Rscript --vanilla -e 'source(\"{scprocess_dir}/scripts/tricycle.R\")" in rules
-  assert 'counts_h5_fs = {params.counts_r}' in rules
+  assert 'rule estimate_run_tricycle:' in rules
+  assert 'run_column = "{params.run_var}"' in rules
+  assert 'run_value = "{wildcards.run}"' in rules
+  assert 'estimate_sample_tricycle' not in rules
+  assert 'estimate_unassigned_doublet_tricycle' not in rules
   assert 'Rscript -e "source(' not in rules
 
 
 def test_tricycle_reports_incremental_progress():
   script = (ROOT / 'scripts' / 'tricycle.R').read_text()
   assert '.tricycle_log <- function' in script
+  assert 'Reading CSC arrays from ' in script
   assert 'Materializing ' in script
-  assert 'Projecting cells into the tricycle reference' in script
+  assert 'Calculating uncentred tricycle reference projection' in script
   assert 'Finished ' in script
 
 
-def test_tricycle_sample_jobs_have_dedicated_runtime():
+def test_tricycle_run_jobs_have_dedicated_runtime():
   rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
-  assert rules.count('runtime = 60') == 2
+  assert rules.count('runtime = 60') == 1
+
+
+def test_projection_is_centered_once_at_project_level():
+  r_script = (ROOT / 'scripts' / 'tricycle.R').read_text()
+  py_script = (ROOT / 'scripts' / 'tricycle.py').read_text()
+  assert 'gene_means <- Matrix::rowMeans(normalized)' not in r_script
+  assert 'tricycle_raw_pc1' in r_script
+  assert 'projection_center = raw_points.mean(axis=0)' in py_script
+  assert 'pooled_project_mean' in py_script
 
 
 def test_invalid_regression_backend_is_rejected():

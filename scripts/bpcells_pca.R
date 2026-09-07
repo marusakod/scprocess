@@ -37,11 +37,13 @@ setMethod("%*%", signature(x = "numeric", y = "RidgeResidualMatrix"),
   idx <- match(cell_ids, scores$cell_id)
   if (anyNA(idx)) stop("Some PCA cells are missing tricycle scores")
   scores <- scores[idx]
-  if ("tricycle_center_group" %in% names(scores)) {
-    center_groups <- scores$tricycle_center_group
-  } else {
-    center_groups <- scores$sample_id
-    center_groups[is.na(center_groups) | center_groups == ""] <- "__unassigned__"
+  center_groups <- paste0("sample:", scores$sample_id)
+  unassigned <- is.na(scores$sample_id) | scores$sample_id == ""
+  if (any(unassigned)) {
+    if (!"tricycle_projection_group" %in% names(scores)) {
+      stop("Unassigned tricycle cells require tricycle_projection_group")
+    }
+    center_groups[unassigned] <- scores$tricycle_projection_group[unassigned]
   }
   if (anyNA(center_groups) || any(center_groups == "")) {
     stop("tricycle centring groups contain missing values")
