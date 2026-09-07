@@ -148,6 +148,7 @@ def test_human_identifier_mapping_uses_declared_rowdata_not_annotation_downloads
   assert 'org.Hs.eg.db' not in script
   assert 'bioconductor-org.hs.eg.db' not in environment
   assert 'bioconductor-org.mm.eg.db' not in environment
+  assert 'r-r.utils' in environment
 
 
 def test_cell_cycle_outputs_use_dedicated_directory():
