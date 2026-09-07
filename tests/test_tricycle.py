@@ -134,19 +134,54 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
                 (scores['tricycle_theta'].to_numpy() < 2 * np.pi))
 
 
-def test_ridge_formula_matches_gene_chunking():
+def test_hybrid_ridge_formula_matches_gene_chunking_and_preserves_project_mean():
   rng = np.random.default_rng(7)
   y = rng.normal(size=(80, 23))
-  x = rng.normal(size=(80, 4))
-  gram = x.T @ x
-  effective_lambda = 0.1 * np.trace(gram) / x.shape[1]
-  inverse = np.linalg.solve(gram + effective_lambda * np.eye(x.shape[1]), np.eye(x.shape[1]))
-  corrected = y - x @ inverse @ (x.T @ y)
+  theta = rng.uniform(0, 2 * np.pi, size=80)
+  raw = np.column_stack((np.sin(theta), np.cos(theta)))
+  groups = np.repeat(np.arange(4), 20)
+  fit = raw.copy()
+  for group in np.unique(groups):
+    rows = groups == group
+    fit[rows] -= fit[rows].mean(axis=0)
+  rms = np.sqrt(np.mean(fit**2, axis=0))
+  fit /= rms
+  correction = (raw - raw.mean(axis=0)) / rms
+  gram = fit.T @ fit
+  effective_lambda = 0.1 * np.trace(gram) / fit.shape[1]
+  inverse = np.linalg.solve(
+    gram + effective_lambda * np.eye(fit.shape[1]), np.eye(fit.shape[1])
+  )
+  corrected = y - correction @ inverse @ (fit.T @ y)
   chunked = np.column_stack([
-    block - x @ inverse @ (x.T @ block)
+    block - correction @ inverse @ (fit.T @ block)
     for block in np.array_split(y, 5, axis=1)
   ])
   np.testing.assert_allclose(chunked, corrected, rtol=1e-13, atol=1e-13)
+  np.testing.assert_allclose(corrected.mean(axis=0), y.mean(axis=0), atol=1e-14)
+  coefficients = inverse @ (fit.T @ y)
+  observed_group_changes = []
+  for group in np.unique(groups):
+    rows = groups == group
+    np.testing.assert_allclose(fit[rows].mean(axis=0), 0, atol=1e-14)
+    change = corrected[rows].mean(axis=0) - y[rows].mean(axis=0)
+    expected_change = -correction[rows].mean(axis=0) @ coefficients
+    np.testing.assert_allclose(change, expected_change, atol=1e-14)
+    observed_group_changes.append(change)
+  assert np.max(np.abs(observed_group_changes)) > 1e-6
+
+
+def test_within_sample_fit_does_not_attribute_sample_offset_to_cycle():
+  x = np.array([1, 1, 1, -1, -1, -1, -1, 1], dtype=float)
+  y = np.array([0, 0, 0, 0, 4, 4, 4, 4], dtype=float)
+  groups = np.repeat([0, 1], 4)
+  global_slope = np.dot(x - x.mean(), y - y.mean()) / np.sum((x - x.mean())**2)
+  fit_x = x.copy()
+  for group in np.unique(groups):
+    fit_x[groups == group] -= fit_x[groups == group].mean()
+  within_sample_slope = np.dot(fit_x, y) / np.dot(fit_x, fit_x)
+  assert global_slope == pytest.approx(-1)
+  assert within_sample_slope == pytest.approx(0)
 
 
 def test_bpcells_uses_public_custom_operator_not_deprecated_mult():
@@ -154,6 +189,9 @@ def test_bpcells_uses_public_custom_operator_not_deprecated_mult():
   assert 'setClass(\n  "RidgeResidualMatrix"' in script
   assert 'signature(x = "RidgeResidualMatrix", y = "numeric")' in script
   assert 'signature(x = "numeric", y = "RidgeResidualMatrix")' in script
+  assert 'fit_design = "matrix"' in script
+  assert 'correction_design = "matrix"' in script
+  assert 'crossprod(x@fit_design, base_product)' in script
   assert 'mult =' not in script
 
 

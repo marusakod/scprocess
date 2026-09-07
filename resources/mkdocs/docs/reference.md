@@ -618,10 +618,15 @@ empty subsection (`regression: {}`) uses two harmonics and ridge penalty 0.1.
 Regression requires `integration.int_pca_method: bpcells`. `harmonics` is `1`
 or `2`, and `ridge_lambda` controls shrinkage of the shared sine/cosine
 coefficients. The cyclic columns are centred within sample and scaled globally;
-sample-specific slopes are not offered. This within-sample regression-design
-centring is separate from the project-wide centring of the projection
-coordinates. For HTO/custom cells without a biological sample assignment, the
-physical run is used only as the regression-design fallback group.
+sample-specific slopes are not offered. Within-sample-centred harmonics are
+used only to estimate the shared coefficients, protecting that estimate from
+sample-level expression offsets. The fitted coefficients are applied to the
+original harmonics after one project-wide centring step. Consequently,
+regression preserves each gene's overall project mean but can change an
+individual sample's mean when its phase composition differs from the project.
+These operations do not change `tricycle_theta` or its unit-circle geometry.
+For HTO/custom cells without a biological sample assignment, the physical run
+is used only as the coefficient-fitting fallback group.
 
 ```yaml
 cell_cycle:

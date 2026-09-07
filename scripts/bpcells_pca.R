@@ -6,25 +6,33 @@ suppressPackageStartupMessages({
 })
 
 
-# A cells-by-genes low-rank ridge residual operator. The underlying expression
-# matrix remains a BPCells IterableMatrix; only X and crossprod(X, Y) are held
-# in memory. These methods are the public custom-matrix interface used by irlba.
+# A cells-by-genes low-rank ridge residual operator. Coefficients are estimated
+# with a within-sample design, then applied with a globally centred design. The
+# underlying expression matrix remains a BPCells IterableMatrix; only the small
+# designs and crossprod(X_fit, Y) are held in memory.
 setClass(
   "RidgeResidualMatrix",
   contains = "IterableMatrix",
-  slots = c(base = "IterableMatrix", design = "matrix", inverse = "matrix", xty = "matrix")
+  slots = c(
+    base = "IterableMatrix",
+    fit_design = "matrix",
+    correction_design = "matrix",
+    inverse = "matrix",
+    xty = "matrix"
+  )
 )
 
 setMethod("%*%", signature(x = "RidgeResidualMatrix", y = "numeric"),
   function(x, y) {
     base_product <- x@base %*% y
-    base_product - x@design %*% x@inverse %*% crossprod(x@design, base_product)
+    base_product - x@correction_design %*% x@inverse %*%
+      crossprod(x@fit_design, base_product)
   })
 
 setMethod("%*%", signature(x = "numeric", y = "RidgeResidualMatrix"),
   function(x, y) {
     base_product <- x %*% y@base
-    base_product - (x %*% y@design) %*% y@inverse %*% y@xty
+    base_product - (x %*% y@correction_design) %*% y@inverse %*% y@xty
   })
 
 
@@ -54,41 +62,64 @@ setMethod("%*%", signature(x = "numeric", y = "RidgeResidualMatrix"),
   columns <- unlist(lapply(seq_len(harmonics), function(h) {
     list(sin(h * scores$tricycle_theta), cos(h * scores$tricycle_theta))
   }), recursive = FALSE)
-  design <- do.call(cbind, columns)
-  colnames(design) <- unlist(lapply(seq_len(harmonics), function(h) {
+  raw_design <- do.call(cbind, columns)
+  colnames(raw_design) <- unlist(lapply(seq_len(harmonics), function(h) {
     c(sprintf("sin_%dtheta", h), sprintf("cos_%dtheta", h))
   }))
+
+  # Estimate shared slopes only from within-sample associations. This is the
+  # fixed-effect fit without materializing a sample-indicator matrix.
+  fit_design <- raw_design
   groups <- split(seq_len(nrow(scores)), center_groups)
   for (rows in groups) {
-    design[rows, ] <- sweep(design[rows, , drop = FALSE], 2L,
-                            colMeans(design[rows, , drop = FALSE]), "-")
+    fit_design[rows, ] <- sweep(
+      fit_design[rows, , drop = FALSE], 2L,
+      colMeans(fit_design[rows, , drop = FALSE]), "-"
+    )
   }
-  rms <- sqrt(colMeans(design^2))
+  rms <- sqrt(colMeans(fit_design^2))
   if (any(!is.finite(rms)) || any(rms < sqrt(.Machine$double.eps))) {
     stop("Cyclic design is degenerate after within-sample centring")
   }
-  design <- sweep(design, 2L, rms, "/")
+  fit_design <- sweep(fit_design, 2L, rms, "/")
+
+  # Apply the fitted slopes to the original harmonic coordinates after one
+  # global translation. This removes phase-composition effects on sample means
+  # while preserving the project-wide mean of every corrected gene.
+  correction_design <- sweep(raw_design, 2L, colMeans(raw_design), "-")
+  correction_design <- sweep(correction_design, 2L, rms, "/")
   max_sample_mean <- max(abs(unlist(lapply(groups, function(rows) {
-    colMeans(design[rows, , drop = FALSE])
+    colMeans(fit_design[rows, , drop = FALSE])
   }))))
-  list(matrix = design, rms = rms, max_sample_mean = max_sample_mean)
+  group_correction_means <- do.call(rbind, lapply(groups, function(rows) {
+    colMeans(correction_design[rows, , drop = FALSE])
+  }))
+  list(
+    fit = fit_design,
+    correction = correction_design,
+    rms = rms,
+    max_sample_mean = max_sample_mean,
+    max_global_correction_mean = max(abs(colMeans(correction_design))),
+    group_correction_means = group_correction_means
+  )
 }
 
 
-.make_ridge_operator <- function(base, design, ridge_lambda) {
-  gram <- crossprod(design)
-  lambda_effective <- as.numeric(ridge_lambda) * sum(diag(gram)) / ncol(design)
+.make_ridge_operator <- function(base, fit_design, correction_design, ridge_lambda) {
+  gram <- crossprod(fit_design)
+  lambda_effective <- as.numeric(ridge_lambda) * sum(diag(gram)) / ncol(fit_design)
   if (lambda_effective == 0 && qr(gram)$rank < ncol(gram)) {
     stop("The cyclic design is rank deficient; use a positive ridge_lambda")
   }
-  inverse <- solve(gram + diag(lambda_effective, ncol(design)))
-  xty <- do.call(rbind, lapply(seq_len(ncol(design)), function(j) {
-    as.numeric(design[, j] %*% base)
+  inverse <- solve(gram + diag(lambda_effective, ncol(fit_design)))
+  xty <- do.call(rbind, lapply(seq_len(ncol(fit_design)), function(j) {
+    as.numeric(fit_design[, j] %*% base)
   }))
   operator <- new(
     "RidgeResidualMatrix",
     base = base,
-    design = design,
+    fit_design = fit_design,
+    correction_design = correction_design,
     inverse = inverse,
     xty = xty,
     dim = dim(base),
@@ -98,6 +129,7 @@ setMethod("%*%", signature(x = "numeric", y = "RidgeResidualMatrix"),
   list(
     matrix = operator,
     gram = gram,
+    correction_gram = crossprod(correction_design),
     lambda_effective = lambda_effective,
     xty = xty,
     coefficients = inverse %*% xty
@@ -252,9 +284,11 @@ run_bpcells_pca <- function(
   ridge <- NULL
   design_info <- NULL
   if (!is.null(tricycle_f) && nzchar(tricycle_f)) {
-    message("Building within-sample cyclic design and lazy ridge operator")
+    message("Building within-sample fit and globally centred correction designs")
     design_info <- .cyclic_design(tricycle_f, colnames(mat), harmonics)
-    ridge <- .make_ridge_operator(pca_matrix, design_info$matrix, ridge_lambda)
+    ridge <- .make_ridge_operator(
+      pca_matrix, design_info$fit, design_info$correction, ridge_lambda
+    )
     pca_matrix <- ridge$matrix
   }
 
@@ -275,18 +309,25 @@ run_bpcells_pca <- function(
   if (!is.null(out_regression_f) && nzchar(out_regression_f)) {
     if (is.null(ridge)) stop("out_regression_f requires tricycle regression")
     component_variance <- colSums(
-      ridge$coefficients * (ridge$gram %*% ridge$coefficients)
-    ) / max(1, nrow(design_info$matrix) - 1L)
+      ridge$coefficients * (ridge$correction_gram %*% ridge$coefficients)
+    ) / max(1, nrow(design_info$fit) - 1L)
+    group_mean_changes <- design_info$group_correction_means %*% ridge$coefficients
     provenance <- data.table(
-      n_cells = nrow(design_info$matrix),
+      n_cells = nrow(design_info$fit),
       cell_set_md5 = .cell_set_fingerprint(colnames(mat)),
       harmonics = as.integer(harmonics),
       ridge_lambda = as.numeric(ridge_lambda),
       ridge_lambda_effective = ridge$lambda_effective,
+      coefficient_fit_centring = "within_sample",
+      correction_design_centring = "project_global",
       design_condition_number = kappa(ridge$gram),
       max_abs_within_sample_design_mean = design_info$max_sample_mean,
+      max_abs_global_correction_design_mean = design_info$max_global_correction_mean,
       design_rms = paste(signif(design_info$rms, 8L), collapse = ";"),
       coefficient_rms = sqrt(mean(ridge$coefficients^2)),
+      n_regression_groups = nrow(design_info$group_correction_means),
+      predicted_regression_group_mean_change_rms = sqrt(mean(group_mean_changes^2)),
+      predicted_regression_group_mean_change_max = max(abs(group_mean_changes)),
       cyclic_component_variance_mean = mean(component_variance),
       cyclic_component_variance_median = median(component_variance),
       cyclic_component_variance_max = max(component_variance)
