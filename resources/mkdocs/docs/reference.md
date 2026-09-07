@@ -590,7 +590,17 @@ cell_cycle: {}
 ```
 
 Tricycle projections, the pooled origin, diagnostics, and any regression
-coefficients are stored directly in `output/{short_tag}_cell_cycle/`. Projection
+coefficients are stored directly in `output/{short_tag}_cell_cycle/`. A
+standalone diagnostics report is written to
+`public/{short_tag}_cell_cycle.html`, with its editable source at
+`analysis/{short_tag}_cell_cycle.Rmd`. It shows the pooled projection and
+inferred origin, overall and sample-level theta distributions, periodic
+smoothed expression for canonical cycling genes present among the HVGs, and
+approximate phase proportions by sample. The phase categories are descriptive
+angular sectors; `tricycle_theta` remains the primary continuous result. Use
+`scprocess run CONFIG -r cell_cycle` to generate these outputs and the report;
+the `integration` target does not render the cell-cycle report.
+Projection
 is executed once per physical run: `sample_id` identifies a run for
 non-multiplexed, Flex and OCM data, while `pool_id` identifies a run for HTO and
 custom demultiplexing.

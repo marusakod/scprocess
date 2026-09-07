@@ -186,7 +186,10 @@ label_celltypes_outs = [
 cell_cycle_outs = [
   f'{cell_cycle_dir}/tricycle_scores_{FULL_TAG}_{DATE_STAMP}.csv.gz',
   f'{cell_cycle_dir}/tricycle_origin_{FULL_TAG}_{DATE_STAMP}.csv',
-  f'{cell_cycle_dir}/tricycle_origin_diagnostics_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+  f'{cell_cycle_dir}/tricycle_origin_diagnostics_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+  code_dir + '/cell_cycle.R',
+  f'{rmd_dir}/{SHORT_TAG}_cell_cycle.Rmd',
+  f'{docs_dir}/{SHORT_TAG}_cell_cycle.html'
 ] if 'cell_cycle' in config else []
 
 # one rule to rule them all
@@ -339,6 +342,12 @@ rule hvg:
     f'{rmd_dir}/{SHORT_TAG}_qc.Rmd',
     f'{docs_dir}/{SHORT_TAG}_qc.html',
     hvgs_html_outs
+
+
+if 'cell_cycle' in config:
+  rule cell_cycle:
+    input:
+      cell_cycle_outs
 
 
 rule integration:

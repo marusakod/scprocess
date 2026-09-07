@@ -1,0 +1,149 @@
+---
+title: "Cell-cycle diagnostics"
+author:
+- name: ${your_name}
+  affiliation:
+  - ${affiliation}
+date: '`r format(as.Date("${date_stamp}"), "%B %d, %Y")`'
+output:
+  rmdformats::downcute:
+    highlight: textmate
+    code_folding: hide
+    toc_depth: 3
+    css: custom.css
+---
+
+```{r setup_knitr, include=FALSE}
+library('BiocStyle')
+knitr::opts_chunk$set(autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png',
+fig.path = "figure/${short_tag}_cell_cycle.Rmd/", message=FALSE, warning=FALSE)
+knitr::opts_knit$set(root.dir='..', base.dir='../public/', base.url='')
+```
+
+```{r setup_helpers, cache=FALSE, include=FALSE}
+source('code/utils.R')
+source('code/cell_cycle.R')
+setDTthreads(${threads})
+```
+
+```{r load_inputs, include=FALSE}
+scores <- fread("${scores_f}")
+origin <- fread("${origin_f}")
+diagnostics <- fread("${diagnostics_f}")
+coldata <- fread("${coldata_f}", select=c('cell_id', 'keep', 'sum'))
+scores_qc <- merge(scores, coldata[keep == TRUE], by='cell_id')
+scores_qc[, approximate_phase := assign_approximate_cell_cycle_phase(tricycle_theta)]
+marker_expression <- read_cell_cycle_marker_expression(
+  "${hvg_mat_f}", "${scores_f}", "${coldata_f}", "${rowdata_f}")
+expression_smooth <- smooth_periodic_expression(marker_expression)
+```
+
+`tricycle_pc1` and `tricycle_pc2` are fixed-reference projection coordinates,
+centred once across the project. `tricycle_theta` is the continuous cell-cycle
+position in radians, measured around the pooled origin and wrapped to
+$[0, 2\pi)$. The origin was estimated from QC-passed cells after
+density-equalized downsampling.
+
+## Pooled projection and estimated origin
+
+Point colour shows the KDE density calculated from all QC-passed cells during
+origin estimation. Up to 50,000 points are displayed to keep this interactive
+report tractable; the density values and origin nevertheless use the complete
+QC-passed dataset. The red cross marks the pooled origin used to calculate
+theta.
+
+```{r pooled_projection, fig.height=6, fig.width=7}
+projection_plot_dt <- diagnostics[
+  seq_len(.N) %% max(1L, ceiling(.N / 50000L)) == 0L]
+ggplot(projection_plot_dt, aes(tricycle_pc1, tricycle_pc2,
+                               colour=log10(kde_density))) +
+  geom_point(size=0.25, alpha=0.55) +
+  scale_colour_viridis_c(option='C', name=expression(log[10]*' KDE density')) +
+  geom_point(data=origin, aes(tricycle_pc1_origin, tricycle_pc2_origin),
+             inherit.aes=FALSE, shape=4, size=4, stroke=1.3, colour='red3') +
+  coord_equal() + theme_bw() +
+  labs(x='tricycle PC1', y='tricycle PC2')
+```
+
+## Cell-cycle position
+
+```{r theta_density, fig.height=4, fig.width=8}
+ggplot(scores_qc, aes(tricycle_theta)) +
+  geom_density(fill='steelblue', alpha=0.35, colour='steelblue4') +
+  scale_x_continuous(breaks=seq(0, 2*pi, pi/2),
+    labels=c('0', expression(pi/2), expression(pi), expression(3*pi/2), expression(2*pi)),
+    limits=c(0, 2*pi)) +
+  theme_bw() + labs(x='tricycle theta (radians)', y='density')
+```
+
+## Observed expression around theta
+
+Observed counts for canonical cycling genes present among the selected HVGs
+were library-size normalized to 10,000 and log-transformed. Points are angular
+bin means; curves are periodic LOESS fits. Tricycle recommends inspecting
+TOP2A and SMC2, and TOP2A should peak near $\pi$ when the orientation is
+biologically plausible.
+
+```{r expression_curves, fig.height=7, fig.width=10}
+if (nrow(marker_expression)) {
+  ggplot() +
+    geom_point(data=expression_smooth$binned,
+      aes(theta, expression, size=n_cells), alpha=0.4, colour='grey35') +
+    geom_line(data=expression_smooth$fits,
+      aes(theta, fitted_expression), linewidth=0.8, colour='firebrick') +
+    facet_wrap(~gene, scales='free_y') +
+    scale_x_continuous(breaks=seq(0, 2*pi, pi/2),
+      labels=c('0', expression(pi/2), expression(pi), expression(3*pi/2), expression(2*pi)),
+      limits=c(0, 2*pi)) +
+    scale_size_continuous(guide='none') + theme_bw() +
+    labs(x='tricycle theta (radians)', y='log-normalized expression')
+} else {
+  cat('None of the canonical cycling genes were present in the selected HVG matrix.')
+}
+```
+
+## Sample-level diagnostics {.tabset}
+
+```{r sample_diagnostics, fig.height=5, fig.width=10, results='asis'}
+for (sample in sort(unique(scores_qc$sample_id))) {
+  cat('### ', sample, '\n\n')
+  sample_dt <- scores_qc[sample_id == sample]
+  stride <- max(1L, ceiling(nrow(sample_dt) / 20000L))
+  sample_plot_dt <- sample_dt[seq_len(.N) %% stride == 0L]
+  g_projection <- ggplot(sample_plot_dt,
+    aes(tricycle_pc1, tricycle_pc2, colour=tricycle_theta)) +
+    geom_point(size=0.25, alpha=0.55) + scale_colour_viridis_c(option='H') +
+    coord_equal() + theme_bw() + labs(colour='theta')
+  g_theta <- ggplot(sample_dt, aes(tricycle_theta)) +
+    geom_density(fill='steelblue', alpha=0.35) +
+    scale_x_continuous(limits=c(0, 2*pi)) + theme_bw() +
+    labs(x='tricycle theta (radians)', y='density')
+  print(g_projection + g_theta)
+  cat('\n\n')
+}
+```
+
+## Approximate phase proportions by sample
+
+Tricycle is designed to represent cell cycle continuously. For an approximate
+summary only, the sectors below use the package vignette's interpretation:
+G1/G0 wraps from $1.75\pi$ through zero to $0.25\pi$, G1/S spans
+$0.25\pi$-$0.5\pi$, S spans $0.5\pi$-$\pi$, and G2/M spans
+$\pi$-$1.75\pi$.
+
+```{r phase_proportions, fig.height=5, fig.width=10}
+phase_dt <- scores_qc[, .(n_cells=.N), by=.(sample_id, approximate_phase)]
+phase_dt[, proportion := n_cells / sum(n_cells), by=sample_id]
+ggplot(phase_dt, aes(sample_id, proportion, fill=approximate_phase)) +
+  geom_col() + scale_y_continuous(labels=percent) + theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  labs(x='sample', y='proportion of QC-passed cells', fill='approximate phase')
+knitr::kable(dcast(phase_dt, sample_id ~ approximate_phase, value.var='proportion', fill=0),
+             digits=3, caption='Approximate phase proportions')
+```
+
+## Estimation summary
+
+```{r estimation_summary}
+knitr::kable(t(origin), col.names='value')
+```

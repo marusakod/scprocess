@@ -77,7 +77,7 @@ get_xgboost_report_text <- function(do_xgboost) {
     xgb_top_genes_txt = "Pseudobulk logCPM expression of the top 20 most important XGBoost genes, shown per cell type label.")
 }
 
-get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'integration',
+get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'cell_cycle', 'integration',
   'markers', 'label_celltypes', 'zoom', 'index', 'train_xgboost', 'join'), proj_dir, ...) {
   # get arguments
   sel_rule = match.arg(rule)
@@ -159,6 +159,13 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     assert_that(all(req_names %in% add_args_names))
 
     params_ls = add_args
+
+  } else if (sel_rule == 'cell_cycle') {
+    req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp', 'threads',
+      'scores_f', 'origin_f', 'diagnostics_f', 'coldata_f', 'rowdata_f', 'hvg_mat_f')
+
+    assert_that(all(req_names %in% add_args_names))
+    params_ls = add_args[req_names]
 
   } else if (sel_rule == 'integration') {
     req_names = c('your_name', 'affiliation', 'short_tag', 
@@ -315,6 +322,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     ambient_link         = ""
     qc_link              = ""
     hvgs_link            = ""
+    cell_cycle_link      = ""
     integration_link     = ""
     marker_genes_link    = ""
     lbls_title           = ""
@@ -342,6 +350,10 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
     if(paste0(short_tag, '_hvgs.html') %in% htmls){
       hvgs_link = sprintf("- Highly variable genes ([link](%s_hvgs.html))", short_tag)
+    }
+
+    if(paste0(short_tag, '_cell_cycle.html') %in% htmls){
+      cell_cycle_link = sprintf("- Cell cycle ([link](%s_cell_cycle.html))", short_tag)
     }
 
     if(paste0(short_tag, '_integration.html') %in% htmls){
@@ -462,6 +474,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
         ambient_link        = ambient_link,
         qc_link             = qc_link, 
         hvgs_link           = hvgs_link, 
+        cell_cycle_link     = cell_cycle_link,
         integration_link    = integration_link, 
         marker_genes_link   = marker_genes_link,
         lbls_title          = lbls_title,

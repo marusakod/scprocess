@@ -219,6 +219,49 @@ def test_cell_cycle_outputs_use_dedicated_directory():
   assert "f'{cell_cycle_dir}/final_cell_cycle_regression_" in integration_rules
 
 
+def test_cell_cycle_has_standalone_diagnostics_report():
+  cli = (ROOT / 'scprocess').read_text()
+  main_rules = (ROOT / 'rules' / 'scprocess.smk').read_text()
+  report_rules = (ROOT / 'rules' / 'render_htmls.smk').read_text()
+  renderer = (ROOT / 'scripts' / 'render_htmls.R').read_text()
+  template = (ROOT / 'resources/rmd_templates/cell_cycle.Rmd.template').read_text()
+  helper = (ROOT / 'scripts/cell_cycle.R').read_text()
+  assert 'rule render_html_cell_cycle:' in report_rules
+  assert 'rule cell_cycle:' in main_rules
+  assert '"hvg", "cell_cycle", "integration"' in cli
+  assert "rule_name='cell_cycle'" in report_rules
+  assert "f'{docs_dir}/{SHORT_TAG}_cell_cycle.html'" in main_rules
+  assert "'cell_cycle', 'integration'" in renderer
+  assert 'cell_cycle_link' in renderer
+  assert '${cell_cycle_link}' in (ROOT / 'resources/rmd_templates/index.Rmd.template').read_text()
+  integration_target = main_rules.split('rule integration:', 1)[1].split('rule marker_genes:', 1)[0]
+  assert 'cell_cycle_outs' not in integration_target
+  assert 'Pooled projection and estimated origin' in template
+  assert 'Observed expression around theta' in template
+  assert 'Sample-level diagnostics' in template
+  assert 'Approximate phase proportions by sample' in template
+  assert 'read_cell_cycle_marker_expression <- function' in helper
+  assert 'smooth_periodic_expression <- function' in helper
+
+
+def test_cell_cycle_target_requires_config_block():
+  from scripts.scprocess_utils import check_config_ok_for_rule
+
+  with pytest.raises(KeyError, match="no 'cell_cycle' section"):
+    check_config_ok_for_rule({}, 'cell_cycle')
+  check_config_ok_for_rule({'cell_cycle': {}}, 'cell_cycle')
+
+
+def test_bonus_doublet_rule_is_gpu_routed_on_shpc():
+  profile = (ROOT / 'profiles/slurm_shpc/config.yaml').read_text()
+  assert (
+    '  classify_additional_doublets:\n'
+    '    slurm_partition: "batch_gpu"\n'
+    '    slurm_extra: "\'--gpus=1\'"\n'
+    "    qos: '3h'"
+  ) in profile
+
+
 def test_tricycle_rule_runs_once_per_physical_run():
   rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
   assert "Rscript --vanilla -e 'source(\"{scprocess_dir}/scripts/tricycle.R\")" in rules

@@ -1297,6 +1297,11 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
 
 
 def check_config_ok_for_rule(config, rule):
+  if rule == 'cell_cycle':
+    if 'cell_cycle' not in config:
+      raise KeyError(
+        "no 'cell_cycle' section found in config file. "
+        "Add a 'cell_cycle' block to your config to use -r cell_cycle.")
   if rule == 'label_celltypes':
     if 'label_celltypes' not in config:
       raise KeyError(

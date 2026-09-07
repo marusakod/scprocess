@@ -25,6 +25,7 @@ ${demultiplexing_link}
 ${ambient_link}
 ${qc_link}
 ${hvgs_link}
+${cell_cycle_link}
 ${integration_link}
 ${marker_genes_link}
 
