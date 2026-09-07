@@ -1,9 +1,9 @@
 """Rules for fixed-reference tricycle projection and pooled phase estimation."""
 
 CELL_CYCLE_ENABLED = 'cell_cycle' in config
-TRICYCLE_SCORES_F = f'{int_dir}/tricycle_scores_{FULL_TAG}_{DATE_STAMP}.csv.gz'
-TRICYCLE_ORIGIN_F = f'{int_dir}/tricycle_origin_{FULL_TAG}_{DATE_STAMP}.csv'
-TRICYCLE_DIAGNOSTICS_F = f'{int_dir}/tricycle_origin_diagnostics_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+TRICYCLE_SCORES_F = f'{cell_cycle_dir}/tricycle_scores_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+TRICYCLE_ORIGIN_F = f'{cell_cycle_dir}/tricycle_origin_{FULL_TAG}_{DATE_STAMP}.csv'
+TRICYCLE_DIAGNOSTICS_F = f'{cell_cycle_dir}/tricycle_origin_diagnostics_{FULL_TAG}_{DATE_STAMP}.csv.gz'
 
 
 def _tricycle_runs_for_sample(sample):
@@ -32,8 +32,8 @@ if CELL_CYCLE_ENABLED:
       coldata_f = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
       rowdata_f = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
     output:
-      scores_f = f'{int_dir}/tricycle/sample_{{sample}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-      summary_f = f'{int_dir}/tricycle/sample_{{sample}}_summary_{FULL_TAG}_{DATE_STAMP}.csv'
+      scores_f = f'{cell_cycle_dir}/tricycle/sample_{{sample}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      summary_f = f'{cell_cycle_dir}/tricycle/sample_{{sample}}_summary_{FULL_TAG}_{DATE_STAMP}.csv'
     params:
       counts_r = lambda wildcards: _tricycle_named_r_vector(_tricycle_runs_for_sample(wildcards.sample)),
       species = config['cell_cycle']['species']
@@ -47,17 +47,17 @@ if CELL_CYCLE_ENABLED:
     conda:
       '../envs/tricycle.yaml'
     benchmark:
-      f'{benchmark_dir}/integration/tricycle_sample_{{sample}}_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/cell_cycle/tricycle_sample_{{sample}}_{DATE_STAMP}.benchmark.txt'
     log:
-      f'{logs_dir}/integration/tricycle_sample_{{sample}}_{DATE_STAMP}.log'
+      f'{logs_dir}/cell_cycle/tricycle_sample_{{sample}}_{DATE_STAMP}.log'
     shell: """
       exec &>> {log}
-      Rscript -e "source('{scprocess_dir}/scripts/tricycle.R'); estimate_sample_tricycle(
+      Rscript -e 'source("{scprocess_dir}/scripts/tricycle.R"); estimate_sample_tricycle(
         counts_h5_fs = {params.counts_r},
-        coldata_f = '{input.coldata_f}', rowdata_f = '{input.rowdata_f}',
-        sample_id = '{wildcards.sample}',
-        species = '{params.species}', out_scores_f = '{output.scores_f}',
-        out_summary_f = '{output.summary_f}')"
+        coldata_f = "{input.coldata_f}", rowdata_f = "{input.rowdata_f}",
+        sample_id = "{wildcards.sample}",
+        species = "{params.species}", out_scores_f = "{output.scores_f}",
+        out_summary_f = "{output.summary_f}")'
       """
 
 
@@ -68,8 +68,8 @@ if CELL_CYCLE_ENABLED:
         coldata_f = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
         rowdata_f = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
       output:
-        scores_f = f'{int_dir}/tricycle/unassigned_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-        summary_f = f'{int_dir}/tricycle/unassigned_{{run}}_summary_{FULL_TAG}_{DATE_STAMP}.csv'
+        scores_f = f'{cell_cycle_dir}/tricycle/unassigned_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+        summary_f = f'{cell_cycle_dir}/tricycle/unassigned_{{run}}_summary_{FULL_TAG}_{DATE_STAMP}.csv'
       params:
         counts_r = lambda wildcards: _tricycle_named_r_vector([wildcards.run]),
         species = config['cell_cycle']['species'],
@@ -84,29 +84,29 @@ if CELL_CYCLE_ENABLED:
       conda:
         '../envs/tricycle.yaml'
       benchmark:
-        f'{benchmark_dir}/integration/tricycle_unassigned_{{run}}_{DATE_STAMP}.benchmark.txt'
+        f'{benchmark_dir}/cell_cycle/tricycle_unassigned_{{run}}_{DATE_STAMP}.benchmark.txt'
       log:
-        f'{logs_dir}/integration/tricycle_unassigned_{{run}}_{DATE_STAMP}.log'
+        f'{logs_dir}/cell_cycle/tricycle_unassigned_{{run}}_{DATE_STAMP}.log'
       shell: """
         exec &>> {log}
-        Rscript -e "source('{scprocess_dir}/scripts/tricycle.R'); estimate_tricycle_group(
-          counts_h5_fs = {params.counts_r}, coldata_f = '{input.coldata_f}',
-          rowdata_f = '{input.rowdata_f}',
-          group_column = '{params.run_var}', group_value = '{wildcards.run}',
-          species = '{params.species}', out_scores_f = '{output.scores_f}',
-          out_summary_f = '{output.summary_f}', output_unassigned_only = TRUE)"
+        Rscript -e 'source("{scprocess_dir}/scripts/tricycle.R"); estimate_tricycle_group(
+          counts_h5_fs = {params.counts_r}, coldata_f = "{input.coldata_f}",
+          rowdata_f = "{input.rowdata_f}",
+          group_column = "{params.run_var}", group_value = "{wildcards.run}",
+          species = "{params.species}", out_scores_f = "{output.scores_f}",
+          out_summary_f = "{output.summary_f}", output_unassigned_only = TRUE)'
         """
 
 
   rule aggregate_tricycle:
     input:
       score_fs = (
-        expand(f'{int_dir}/tricycle/sample_{{sample}}_{FULL_TAG}_{DATE_STAMP}.csv.gz', sample=SAMPLES) +
-        expand(f'{int_dir}/tricycle/unassigned_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz', run=TRICYCLE_FALLBACK_RUNS)
+        expand(f'{cell_cycle_dir}/tricycle/sample_{{sample}}_{FULL_TAG}_{DATE_STAMP}.csv.gz', sample=SAMPLES) +
+        expand(f'{cell_cycle_dir}/tricycle/unassigned_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz', run=TRICYCLE_FALLBACK_RUNS)
       ),
       summary_fs = (
-        expand(f'{int_dir}/tricycle/sample_{{sample}}_summary_{FULL_TAG}_{DATE_STAMP}.csv', sample=SAMPLES) +
-        expand(f'{int_dir}/tricycle/unassigned_{{run}}_summary_{FULL_TAG}_{DATE_STAMP}.csv', run=TRICYCLE_FALLBACK_RUNS)
+        expand(f'{cell_cycle_dir}/tricycle/sample_{{sample}}_summary_{FULL_TAG}_{DATE_STAMP}.csv', sample=SAMPLES) +
+        expand(f'{cell_cycle_dir}/tricycle/unassigned_{{run}}_summary_{FULL_TAG}_{DATE_STAMP}.csv', run=TRICYCLE_FALLBACK_RUNS)
       ),
       coldata_f = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
       hvg_mat_f = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5',
@@ -130,9 +130,9 @@ if CELL_CYCLE_ENABLED:
     conda:
       '../envs/hvgs.yaml'
     benchmark:
-      f'{benchmark_dir}/integration/tricycle_aggregate_{DATE_STAMP}.benchmark.txt'
+      f'{benchmark_dir}/cell_cycle/tricycle_aggregate_{DATE_STAMP}.benchmark.txt'
     log:
-      f'{logs_dir}/integration/tricycle_aggregate_{DATE_STAMP}.log'
+      f'{logs_dir}/cell_cycle/tricycle_aggregate_{DATE_STAMP}.log'
     shell: """
       exec &>> {log}
       python3 {scprocess_dir}/scripts/tricycle.py \

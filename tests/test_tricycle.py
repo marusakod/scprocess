@@ -150,6 +150,23 @@ def test_human_identifier_mapping_uses_declared_rowdata_not_annotation_downloads
   assert 'bioconductor-org.mm.eg.db' not in environment
 
 
+def test_cell_cycle_outputs_use_dedicated_directory():
+  main_rules = (ROOT / 'rules' / 'scprocess.smk').read_text()
+  tricycle_rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
+  integration_rules = (ROOT / 'rules' / 'integration.smk').read_text()
+  assert 'cell_cycle_dir = f"{PROJ_DIR}/output/{SHORT_TAG}_cell_cycle"' in main_rules
+  assert "f'{cell_cycle_dir}/tricycle_scores_" in tricycle_rules
+  assert "f'{cell_cycle_dir}/tricycle/sample_" in tricycle_rules
+  assert "f'{cell_cycle_dir}/final_cell_cycle_regression_" in integration_rules
+
+
+def test_tricycle_r_expression_preserves_named_vector_quotes():
+  rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
+  assert "Rscript -e 'source(\"{scprocess_dir}/scripts/tricycle.R\")" in rules
+  assert 'counts_h5_fs = {params.counts_r}' in rules
+  assert 'Rscript -e "source(' not in rules
+
+
 def test_invalid_regression_backend_is_rejected():
   from scripts.scprocess_utils import _check_cell_cycle_parameters
 

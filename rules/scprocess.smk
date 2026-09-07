@@ -62,6 +62,7 @@ demux_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
 dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
 qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
 hvg_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_hvg"
+cell_cycle_dir = f"{PROJ_DIR}/output/{SHORT_TAG}_cell_cycle"
 int_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
 mkr_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_marker_genes"
 lbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
@@ -183,9 +184,9 @@ label_celltypes_outs = [
 ] if LABELLER_PARAMS else []
 
 cell_cycle_outs = [
-  f'{int_dir}/tricycle_scores_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-  f'{int_dir}/tricycle_origin_{FULL_TAG}_{DATE_STAMP}.csv',
-  f'{int_dir}/tricycle_origin_diagnostics_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+  f'{cell_cycle_dir}/tricycle_scores_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+  f'{cell_cycle_dir}/tricycle_origin_{FULL_TAG}_{DATE_STAMP}.csv',
+  f'{cell_cycle_dir}/tricycle_origin_diagnostics_{FULL_TAG}_{DATE_STAMP}.csv.gz'
 ] if 'cell_cycle' in config else []
 
 # one rule to rule them all

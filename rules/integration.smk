@@ -14,10 +14,10 @@ FINAL_PCA_F    = f'{int_dir}/final_pca_{FULL_TAG}_{DATE_STAMP}.csv.gz'
 CELL_CYCLE_REGRESSION = (
   CELL_CYCLE_ENABLED and 'regression' in config['cell_cycle']
 )
-PRELIM_REGRESSION_F = f'{int_dir}/preliminary_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'
-FINAL_REGRESSION_F = f'{int_dir}/final_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'
-PRELIM_REGRESSION_GENES_F = f'{int_dir}/preliminary_cell_cycle_regression_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz'
-FINAL_REGRESSION_GENES_F = f'{int_dir}/final_cell_cycle_regression_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+PRELIM_REGRESSION_F = f'{cell_cycle_dir}/preliminary_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'
+FINAL_REGRESSION_F = f'{cell_cycle_dir}/final_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'
+PRELIM_REGRESSION_GENES_F = f'{cell_cycle_dir}/preliminary_cell_cycle_regression_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+FINAL_REGRESSION_GENES_F = f'{cell_cycle_dir}/final_cell_cycle_regression_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz'
 
 
 def _cell_cycle_regression_args(out_f, genes_f):

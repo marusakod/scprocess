@@ -589,6 +589,10 @@ cell-level values:
 cell_cycle: {}
 ```
 
+Tricycle projections, the pooled origin, diagnostics, and any regression
+coefficients are stored in `output/{short_tag}_cell_cycle/`. Per-sample
+projection intermediates are stored in its `tricycle/` subdirectory.
+
 * `tricycle_pc1`: first fixed-reference tricycle projection coordinate after
   tricycle mean-centres expression within the biological sample;
 * `tricycle_pc2`: second coordinate with the same per-sample centring; and
