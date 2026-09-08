@@ -341,12 +341,11 @@ if CELL_CYCLE_ENABLED:
       source_cell_cycle_f = f"{scprocess_dir}/scripts/cell_cycle.R",
       template_f   = f"{scprocess_dir}/resources/rmd_templates/cell_cycle.Rmd.template",
       scores_f     = TRICYCLE_SCORES_F,
+      marker_expression_f = TRICYCLE_MARKER_EXPRESSION_F,
       origin_f     = TRICYCLE_ORIGIN_F,
       sensitivity_f = TRICYCLE_ORIGIN_SENSITIVITY_F,
       diagnostics_f = TRICYCLE_DIAGNOSTICS_F,
-      coldata_f    = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-      rowdata_f    = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-      hvg_mat_f    = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5'
+      coldata_f    = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
     output:
       r_cell_cycle_f = f"{code_dir}/cell_cycle.R",
       rmd_f          = f"{rmd_dir}/{SHORT_TAG}_cell_cycle.Rmd",
@@ -379,10 +378,10 @@ if CELL_CYCLE_ENABLED:
           your_name='{params.your_name}', affiliation='{params.affiliation}',
           short_tag='{params.short_tag}', date_stamp='{params.date_stamp}',
           threads={threads}, scores_f='{input.scores_f}',
+          marker_expression_f='{input.marker_expression_f}',
           origin_f='{input.origin_f}', sensitivity_f='{input.sensitivity_f}',
           diagnostics_f='{input.diagnostics_f}',
-          coldata_f='{input.coldata_f}', rowdata_f='{input.rowdata_f}',
-          hvg_mat_f='{input.hvg_mat_f}')"
+          coldata_f='{input.coldata_f}')"
       """
 
 

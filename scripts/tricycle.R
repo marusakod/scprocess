@@ -5,6 +5,13 @@ suppressPackageStartupMessages({
 })
 
 
+.CELL_CYCLE_MARKER_GENES <- c(
+  "CDKN1A",
+  "PCNA", "MCM4", "MCM5", "TYMS",
+  "TOP2A", "CCNB1", "CDK1", "TPX2", "SMC2", "MKI67", "UBE2C"
+)
+
+
 .tricycle_log <- function(...) {
   message(sprintf("[%s] %s", format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z"),
                   paste0(..., collapse = "")))
@@ -90,6 +97,52 @@ suppressPackageStartupMessages({
 }
 
 
+.feature_symbols <- function(features, rowdata_f) {
+  base_ids <- sub("_[SUA]$", "", features)
+  base_ids <- sub("\\.[0-9]+$", "", base_ids)
+  rowdata <- fread(rowdata_f, select = c("ensembl_id", "symbol"))
+  rowdata[, ensembl_id := sub("\\.[0-9]+$", "", ensembl_id)]
+  rowdata <- rowdata[
+    !is.na(ensembl_id) & !is.na(symbol) & nzchar(symbol) & !duplicated(ensembl_id)
+  ]
+  symbols <- rowdata$symbol[match(base_ids, rowdata$ensembl_id)]
+  symbols[is.na(symbols) | !nzchar(symbols)] <-
+    base_ids[is.na(symbols) | !nzchar(symbols)]
+  toupper(symbols)
+}
+
+
+.extract_marker_expression <- function(mat, cell_idx, selected, lib_size, rowdata_f) {
+  feature_symbols <- .feature_symbols(rownames(mat), rowdata_f)
+  selected_rows <- which(feature_symbols %in% .CELL_CYCLE_MARKER_GENES)
+  marker_expression <- matrix(
+    0, nrow = length(.CELL_CYCLE_MARKER_GENES), ncol = length(selected),
+    dimnames = list(.CELL_CYCLE_MARKER_GENES, selected)
+  )
+  if (length(selected_rows)) {
+    selected_symbols <- feature_symbols[selected_rows]
+    observed_symbols <- unique(selected_symbols)
+    marker_counts <- as(mat[selected_rows, cell_idx, drop = FALSE], "dgCMatrix")
+    collapse <- sparseMatrix(
+      i = match(selected_symbols, observed_symbols),
+      j = seq_along(selected_symbols), x = 1,
+      dims = c(length(observed_symbols), length(selected_rows))
+    )
+    marker_counts <- collapse %*% marker_counts
+    normalized <- marker_counts %*% Diagonal(x = 1e4 / lib_size)
+    normalized@x <- log1p(normalized@x)
+    marker_expression[observed_symbols, ] <- as.matrix(normalized)
+  }
+  marker_dt <- as.data.table(t(marker_expression))
+  marker_dt[, cell_id := selected]
+  setcolorder(marker_dt, c("cell_id", .CELL_CYCLE_MARKER_GENES))
+  list(
+    values = marker_dt,
+    genes_found = intersect(.CELL_CYCLE_MARKER_GENES, feature_symbols)
+  )
+}
+
+
 .project_selected_cells <- function(
     mat, selected, species, rowdata_f, min_reference_genes) {
   .tricycle_log("Calculating library sizes for ", length(selected), " cells")
@@ -146,7 +199,14 @@ suppressPackageStartupMessages({
   colnames(embedding) <- c("PC1", "PC2")
   if (any(!is.finite(embedding))) stop("tricycle returned non-finite coordinates")
 
+  .tricycle_log("Extracting canonical cell-cycle marker expression")
+  marker_expression <- .extract_marker_expression(
+    mat, cell_idx, selected, lib_size, rowdata_f
+  )
+
   list(embedding = embedding, gene_id_type = feature_info$type,
+       marker_expression = marker_expression$values,
+       marker_genes_found = marker_expression$genes_found,
        n_reference_genes = length(unique_keys),
        n_reference_total = n_reference_total,
        n_reference_missing = n_reference_total - length(unique_keys),
@@ -157,7 +217,7 @@ suppressPackageStartupMessages({
 #' Estimate uncentred fixed-reference tricycle coordinates for one physical run.
 estimate_run_tricycle <- function(
     counts_h5_f, coldata_f, rowdata_f, run_column, run_value, species,
-    out_scores_f, out_summary_f,
+    out_scores_f, out_marker_expression_f, out_summary_f,
     min_reference_genes = 100L) {
   .tricycle_log("Reading cell metadata for ", run_column, " ", run_value)
   coldata <- fread(coldata_f)
@@ -197,6 +257,11 @@ estimate_run_tricycle <- function(
   .tricycle_log("Writing ", nrow(scores), " uncentred cell projections")
   dir.create(dirname(out_scores_f), recursive = TRUE, showWarnings = FALSE)
   fwrite(scores, out_scores_f)
+  .tricycle_log(
+    "Writing expression for ", length(.CELL_CYCLE_MARKER_GENES),
+    " canonical cell-cycle markers"
+  )
+  fwrite(projection$marker_expression, out_marker_expression_f)
 
   summary <- data.table(
     projection_group = run_value,
@@ -206,6 +271,12 @@ estimate_run_tricycle <- function(
     gene_id_type = projection$gene_id_type,
     n_cells = nrow(embedding),
     n_output_cells = nrow(scores),
+    n_marker_genes_requested = length(.CELL_CYCLE_MARKER_GENES),
+    n_marker_genes_found = length(projection$marker_genes_found),
+    marker_genes_missing = paste(
+      setdiff(.CELL_CYCLE_MARKER_GENES, projection$marker_genes_found),
+      collapse = ";"
+    ),
     n_reference_genes = projection$n_reference_genes,
     n_reference_total = projection$n_reference_total,
     n_reference_missing = projection$n_reference_missing,

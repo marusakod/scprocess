@@ -213,6 +213,7 @@
         "cyc_kde_grid_size":        { "type": "integer", "minimum": 20, "default": 500 },
         "cyc_target_cells":         { "type": "integer", "minimum": 1, "default": 5000 },
         "cyc_target_cells_grid":    { "type": "array", "items": { "type": "integer", "minimum": 1 }, "uniqueItems": true, "default": [100, 200, 500, 1000, 2000, 5000, 10000] },
+        "cyc_origin":               { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
         "cyc_seed":                 { "type": "integer", "default": 20230308 }
       }
     },

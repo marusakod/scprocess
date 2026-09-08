@@ -1,11 +1,13 @@
 import json
 from pathlib import Path
 
+import jsonschema
 import numpy as np
 import polars as pl
 import pytest
 
 from scripts.tricycle import (
+  CELL_CYCLE_MARKER_GENES,
   aggregate_tricycle,
   _bandwidth_nrd,
   _binned_kde_density,
@@ -26,7 +28,7 @@ def test_cell_cycle_is_optional_and_not_materialized_by_defaults():
   assert 'enabled' not in cell_cycle_schema['properties']
   assert set(cell_cycle_schema['properties']) == {
     'cyc_bandwidth_multiplier', 'cyc_kde_grid_size',
-    'cyc_target_cells', 'cyc_target_cells_grid', 'cyc_seed',
+    'cyc_target_cells', 'cyc_target_cells_grid', 'cyc_origin', 'cyc_seed',
   }
 
 
@@ -42,6 +44,16 @@ def test_present_cell_cycle_block_receives_prefixed_defaults():
     'cyc_target_cells_grid': [100, 200, 500, 1000, 2000, 5000, 10000],
     'cyc_seed': 20230308,
   }
+
+
+def test_manual_origin_schema_requires_exactly_two_numbers():
+  schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
+  cell_cycle_schema = schema['properties']['cell_cycle']
+
+  jsonschema.validate({'cyc_origin': [-3, 1]}, cell_cycle_schema)
+  for invalid_origin in ([-3], [-3, 1, 2], ['-3', 1]):
+    with pytest.raises(jsonschema.ValidationError):
+      jsonschema.validate({'cyc_origin': invalid_origin}, cell_cycle_schema)
 
 
 def test_density_equalization_is_capped_and_has_requested_expectation():
@@ -97,9 +109,11 @@ def test_partitioned_projection_matches_one_pooled_projection():
 
 def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tmp_path):
   score_f = tmp_path / 'scores.csv'
+  marker_expression_f = tmp_path / 'marker_expression.csv'
   summary_f = tmp_path / 'summary.csv'
   coldata_f = tmp_path / 'coldata.csv'
   out_scores_f = tmp_path / 'all_scores.csv.gz'
+  out_marker_expression_f = tmp_path / 'all_marker_expression.csv.gz'
   out_origin_f = tmp_path / 'origin.csv'
   out_sensitivity_f = tmp_path / 'origin_sensitivity.csv'
   out_diagnostics_f = tmp_path / 'diagnostics.csv.gz'
@@ -112,6 +126,13 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
   })
   pl_scores.write_csv(score_f)
   pl.DataFrame({
+    'cell_id': ['a', 'b', 'c', 'known_doublet'],
+    **{
+      gene: [float(index), 0.0, 1.0, 2.0]
+      for index, gene in enumerate(CELL_CYCLE_MARKER_GENES)
+    },
+  }).write_csv(marker_expression_f)
+  pl.DataFrame({
     'reference': ['tricycle::neuroRef'],
     'tricycle_version': ['1.18.0'],
     'species': ['mouse'],
@@ -123,12 +144,16 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
     'keep': [True, True, True, False],
   }).write_csv(coldata_f)
 
-  scores, origin, sensitivity, diagnostics = aggregate_tricycle(
-    [score_f], [summary_f], coldata_f, [], 1.0, 500, 2, [1, 2, 10], 7,
-    out_scores_f, out_origin_f, out_sensitivity_f, out_diagnostics_f,
+  scores, marker_expression, origin, sensitivity, diagnostics = aggregate_tricycle(
+    [score_f], [marker_expression_f], [summary_f], coldata_f, [], 1.0, 500,
+    2, [1, 2, 10], 7, out_scores_f, out_marker_expression_f, out_origin_f,
+    out_sensitivity_f, out_diagnostics_f,
   )
 
   assert scores.height == 4
+  assert marker_expression.columns == ['cell_id', *CELL_CYCLE_MARKER_GENES]
+  assert marker_expression.height == 4
+  assert out_marker_expression_f.exists()
   assert diagnostics.height == 3
   assert origin['n_candidate_cells'][0] == 3
   assert origin['n_projection_center_cells'][0] == 4
@@ -145,6 +170,81 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
   )
   assert np.all((scores['tricycle_theta'].to_numpy() >= 0) &
                 (scores['tricycle_theta'].to_numpy() < 2 * np.pi))
+
+  manual_outputs = [tmp_path / f'manual_{path.name}' for path in (
+    out_scores_f, out_marker_expression_f, out_origin_f, out_sensitivity_f,
+    out_diagnostics_f,
+  )]
+  manual_scores, _, manual_origin, _, _ = aggregate_tricycle(
+    [score_f], [marker_expression_f], [summary_f], coldata_f, [], 1.0, 500,
+    2, [1, 2, 10], 7, *manual_outputs, manual_origin=[-3, 1],
+  )
+  assert manual_origin['origin_method'][0] == 'manual'
+  assert manual_origin['tricycle_pc1_origin'][0] == -3
+  assert manual_origin['tricycle_pc2_origin'][0] == 1
+  assert manual_origin['target_cells_used_for_origin'][0] is False
+  assert manual_origin['selected_kde_tricycle_pc1_origin'][0] == pytest.approx(
+    origin['tricycle_pc1_origin'][0]
+  )
+  assert manual_origin['selected_kde_tricycle_pc2_origin'][0] == pytest.approx(
+    origin['tricycle_pc2_origin'][0]
+  )
+  manual_points = manual_scores.select('tricycle_pc1', 'tricycle_pc2').to_numpy()
+  expected_theta = np.mod(
+    np.arctan2(manual_points[:, 1] - 1, manual_points[:, 0] + 3),
+    2 * np.pi,
+  )
+  np.testing.assert_allclose(
+    manual_scores['tricycle_theta'].to_numpy(), expected_theta
+  )
+
+
+def test_aggregate_reads_sparse_marker_columns_as_floats(tmp_path):
+  n_cells = 150
+  cell_ids = [f'cell_{index}' for index in range(n_cells)]
+  score_f = tmp_path / 'scores.csv'
+  marker_expression_f = tmp_path / 'marker_expression.csv'
+  summary_f = tmp_path / 'summary.csv'
+  coldata_f = tmp_path / 'coldata.csv'
+
+  pl.DataFrame({
+    'cell_id': cell_ids,
+    'sample_id': ['s1'] * n_cells,
+    'tricycle_projection_group': ['run:s1'] * n_cells,
+    'tricycle_raw_pc1': np.linspace(-1, 1, n_cells),
+    'tricycle_raw_pc2': np.sin(np.linspace(0, 2 * np.pi, n_cells)),
+  }).write_csv(score_f)
+  marker_values = {
+    gene: np.zeros(n_cells) for gene in CELL_CYCLE_MARKER_GENES
+  }
+  marker_values['CCNB1'][120] = 3.17713429005327
+  pl.DataFrame({'cell_id': cell_ids, **marker_values}).write_csv(
+    marker_expression_f
+  )
+  pl.DataFrame({
+    'reference': ['tricycle::neuroRef'],
+    'tricycle_version': ['1.18.0'],
+    'species': ['human'],
+    'n_reference_genes': [450],
+    'n_duplicate_feature_mappings': [12],
+  }).write_csv(summary_f)
+  pl.DataFrame({'cell_id': cell_ids, 'keep': [True] * n_cells}).write_csv(
+    coldata_f
+  )
+
+  outputs = [tmp_path / name for name in (
+    'scores.csv.gz', 'markers.csv.gz', 'origin.csv', 'sensitivity.csv',
+    'diagnostics.csv.gz',
+  )]
+  _, marker_expression, _, _, _ = aggregate_tricycle(
+    [score_f], [marker_expression_f], [summary_f], coldata_f, [], 1.0, 500,
+    50, [50], 7, *outputs,
+  )
+
+  assert marker_expression.schema['CCNB1'] == pl.Float64
+  assert marker_expression.filter(pl.col('cell_id') == 'cell_120')[
+    'CCNB1'
+  ][0] == pytest.approx(3.17713429005327)
 
 
 def test_hybrid_ridge_formula_matches_gene_chunking_and_preserves_project_mean():
@@ -227,6 +327,7 @@ def test_cell_cycle_outputs_use_dedicated_directory():
   integration_rules = (ROOT / 'rules' / 'integration.smk').read_text()
   assert 'cell_cycle_dir = f"{PROJ_DIR}/output/{SHORT_TAG}_cell_cycle"' in main_rules
   assert "f'{cell_cycle_dir}/tricycle_scores_" in tricycle_rules
+  assert "f'{cell_cycle_dir}/tricycle_marker_expression_" in tricycle_rules
   assert "f'{cell_cycle_dir}/tricycle_origin_sensitivity_" in tricycle_rules
   assert "f'{cell_cycle_dir}/run_{{run}}_" in tricycle_rules
   assert "{cell_cycle_dir}/tricycle/" not in tricycle_rules
@@ -254,10 +355,19 @@ def test_cell_cycle_has_standalone_diagnostics_report():
   assert 'cell_cycle_outs' not in integration_target
   assert 'Pooled projection and estimated origin' in template
   assert 'Spatial marker expression' in template
-  assert 'Sample-balanced expression around theta' in template
-  theta_density = template.split('```{r theta_density', 1)[1].split('```', 1)[0]
-  assert 'scale_y_log10()' in theta_density
+  assert 'Expression around theta' in template
+  assert 'Cell-cycle position' not in template
+  assert '```{r theta_density' not in template
+  assert template.index('Expression around theta') < template.index(
+    'Pooled projection and estimated origin'
+  ) < template.index('Spatial marker expression')
+  assert '${marker_expression_f}' in template
+  assert '${hvg_mat_f}' not in template
+  assert '${rowdata_f}' not in template
   assert 'g_theta_projection + g_expression_curves' in template
+  assert 'plot_layout(widths=c(1, 1.4))' in template
+  assert 'scale_y_continuous(breaks=pretty_breaks())' in template
+  assert 'coord_cartesian(ylim=c(0, 1.05))' in template
   assert 'Sample-level diagnostics' in template
   assert 'size=inclusion_probability' in template
   assert "scale_size_continuous(range=c(0.2, 2), limits=c(0, 1)" in template
@@ -270,6 +380,7 @@ def test_cell_cycle_has_standalone_diagnostics_report():
   assert "shape=21, size=3, width=0.25, orientation='y'" in template
   assert 'scale_y_discrete(limits=rev)' in template
   assert 'scale_x_log10(' in template
+  assert 'breaks=c(0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100)' in template
   assert 'geom_hex' in template
   assert 'fill=after_scale(colour)' in template
   assert 'scale_colour_viridis_c(' in template
@@ -278,7 +389,9 @@ def test_cell_cycle_has_standalone_diagnostics_report():
   assert "plot_layout(guides='collect')" in template
   assert "theme(legend.position='bottom')" in template
   assert "stroke=1.5, colour='black'" in template
-  assert "caption=sprintf('Selected target cells: %s'" in template
+  assert "'Manual origin: (%g, %g); KDE diagnostic target cells: %s'" in template
+  assert 'data=origin_sensitivity_points' in template
+  assert 'caption=origin_caption' in template
   assert "colour='#1F4E79'" in template
   assert 'diagnostic_retained == TRUE' in template
   for marker in (
@@ -288,6 +401,8 @@ def test_cell_cycle_has_standalone_diagnostics_report():
     assert marker in helper
   assert 'facet_wrap(~gene, ncol=4' in template
   assert "strip.background=element_rect(fill='white'" in template
+  assert 'marker_expression <- marker_expression[sample.int(.N)]' in template
+  assert 'setorder(marker_expression, gene, expression_q98)' not in template
   assert 'rep(c("checkpoint", "S", "G2/M")' in helper
   assert "'CDKN1A'='#636363'" in template
   assert 'add_phase_boundaries <- function()' in template
@@ -297,7 +412,19 @@ def test_cell_cycle_has_standalone_diagnostics_report():
   assert 'read_cell_cycle_marker_expression <- function' in helper
   assert 'cell_cycle_marker_annotation <- function' in helper
   assert 'smooth_periodic_expression <- function' in helper
-  assert 'by = .(sample_id, gene)' in helper
+  assert 'by = .(gene, theta_bin)' in helper
+  assert 'list(binned = binned, curves = curves)' in helper
+  assert 'curve_peak := max(mean_expression' in helper
+  assert 'mean_expression / curve_peak' in helper
+  assert 'data=bin_dt' not in template
+  assert "name='cells per bin'" not in template
+  assert "y='pooled mean expression (curve maximum = 1)'" in template
+  assert 'geom_ribbon(' not in template
+  assert 'ci95_scaled' not in helper
+  assert 'span = 0.5' in helper
+  assert 'span = span / 3' in helper
+  assert 'degree = 1' in helper
+  assert 'pmax(0, as.numeric(predict(model, grid)))' in helper
 
 
 def test_cell_cycle_target_requires_config_block():
@@ -327,6 +454,30 @@ def test_tricycle_rule_runs_once_per_physical_run():
   assert 'estimate_sample_tricycle' not in rules
   assert 'estimate_unassigned_doublet_tricycle' not in rules
   assert 'Rscript -e "source(' not in rules
+
+
+def test_tricycle_rule_records_all_marker_genes_from_full_run_matrix():
+  rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
+  r_script = (ROOT / 'scripts' / 'tricycle.R').read_text()
+  report_rules = (ROOT / 'rules' / 'render_htmls.smk').read_text()
+  renderer = (ROOT / 'scripts' / 'render_htmls.R').read_text()
+  assert 'out_marker_expression_f = "{output.marker_expression_f}"' in rules
+  assert '--marker_expression_f {path}' in rules
+  assert '--out_marker_expression_f {output.marker_expression_f}' in rules
+  assert 'marker_expression_f = TRICYCLE_MARKER_EXPRESSION_F' in report_rules
+  assert "'marker_expression_f'" in renderer
+  assert '.extract_marker_expression <- function' in r_script
+  for marker in CELL_CYCLE_MARKER_GENES:
+    assert f'"{marker}"' in r_script
+
+
+def test_tricycle_rule_passes_optional_manual_origin_to_aggregation():
+  rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
+  script = (ROOT / 'scripts' / 'tricycle.py').read_text()
+  assert "if 'cyc_origin' in config['cell_cycle'] else ''" in rules
+  assert '{params.origin_args}' in rules
+  assert 'parser.add_argument("--origin", nargs=2, type=float)' in script
+  assert 'manual_origin=args.origin' in script
 
 
 def test_tricycle_reports_incremental_progress():

@@ -601,33 +601,39 @@ The cell-cycle options use the `cyc_` prefix:
 * `cyc_target_cells_grid`: target values used for origin-sensitivity
   diagnostics; default `[100, 200, 500, 1000, 2000, 5000, 10000]`. The selected
   `cyc_target_cells` value is always included, and values above the number of
-  candidate cells are capped and deduplicated; and
+  candidate cells are capped and deduplicated;
+* `cyc_origin`: optional manual origin as `[tricycle_pc1, tricycle_pc2]`, using
+  the project-centred coordinate system shown in the diagnostics report. When
+  supplied, it defines `tricycle_theta`; KDE-derived candidate centres and the
+  density-equalized subset are still produced for comparison but do not define
+  theta; and
 * `cyc_seed`: random seed for density-equalized retention; default `20230308`.
 
 The KDE is calculated once. Candidate centres for the target-cell grid are
 then calculated deterministically as inverse-density probability-weighted
 means and written to `tricycle_origin_sensitivity_*.csv`. The pooled projection
 plot labels the resulting path of candidate centres. Only `cyc_target_cells`
-defines `tricycle_theta`; the sensitivity grid is diagnostic. `cyc_seed`
-affects which cells appear in the retained-cell diagnostic panel, not the
-estimated centres.
+defines `tricycle_theta` when `cyc_origin` is absent; otherwise the supplied
+coordinates define theta and all KDE results are diagnostic. `cyc_seed` affects
+which cells appear in the retained-cell diagnostic panel, not the estimated
+centres.
 
 Species is inferred from `project.ref_txome` or `project.probe_set`; it is not
-specified again inside `cell_cycle`. The only currently supported origin
-estimator is density-equalized KDE, so there is no origin-method setting.
+specified again inside `cell_cycle`.
 
 Tricycle projections, the pooled origin, diagnostics, and any regression
 coefficients are stored directly in `output/{short_tag}_cell_cycle/`. A
 standalone diagnostics report is written to
 `public/{short_tag}_cell_cycle.html`, with its editable source at
-`analysis/{short_tag}_cell_cycle.Rmd`. It shows the pooled projection, the
-density-equalized cells used to infer the origin, spatial expression of a
-canonical cell-cycle marker panel, sample-balanced periodic expression curves,
-sample-level projections and theta distributions, and approximate phase
-percentages by sample. Projection panels mark the approximate phase boundaries
-with radial guides; sample-level point sizes use the capped inverse-density
-inclusion probability so sparse cycling regions remain visible. The phase
-categories are descriptive angular sectors;
+`analysis/{short_tag}_cell_cycle.Rmd`. It shows pooled periodic
+expression curves, the pooled projection and density-equalized origin, spatial
+expression of a canonical cell-cycle marker panel, sample-level projections,
+and approximate phase percentages by sample. Projection panels mark the
+approximate phase boundaries with radial guides; sample-level point sizes use
+the capped inverse-density inclusion probability so sparse cycling regions
+remain visible. Phase-percentage plots omit G1/G0 so that the less abundant
+cycling phases remain legible. The phase categories are descriptive angular
+sectors;
 `tricycle_theta` remains the primary continuous result. Use
 `scprocess run CONFIG -r cell_cycle` to generate these outputs and the report;
 the `integration` target does not render the cell-cycle report.
@@ -636,12 +642,21 @@ is executed once per physical run: `sample_id` identifies a run for
 non-multiplexed, Flex and OCM data, while `pool_id` identifies a run for HTO and
 custom demultiplexing.
 
+Each run-level projection also records log-normalized expression for the 12
+canonical genes used by the diagnostics report. These values are extracted
+directly from the full run count matrix and aggregated into
+`output/{short_tag}_cell_cycle/tricycle_marker_expression_*.csv.gz`; they do
+not depend on whether a gene was selected as an HVG. Counts from spliced,
+unspliced and ambiguous features mapping to the same symbol are summed before
+normalization. Missing marker genes are retained as zero-valued columns and
+listed in the corresponding run summary.
+
 * `tricycle_pc1`: first fixed-reference tricycle projection coordinate after
   applying one common project-wide centring translation;
 * `tricycle_pc2`: second coordinate with the same project-wide centring; and
 * `tricycle_theta`: phase angle in radians in `[0, 2*pi)`, recalculated around
-  one density-equalized origin estimated from QC-passed cells across the
-  project.
+  either the configured `cyc_origin` or one density-equalized origin estimated
+  from QC-passed cells across the project.
 
 The projection coordinates are not integration PCs. Each run independently
 normalizes cells and calculates uncentred coordinates using the same fixed
@@ -677,6 +692,8 @@ coefficient-fitting fallback group.
 ```yaml
 cell_cycle:
   cyc_target_cells: 5000
+  # Optional override in project-centred tricycle-PC coordinates:
+  # cyc_origin: [-3, 1]
 
 integration:
   int_cell_cycle_regression: shared

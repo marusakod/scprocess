@@ -13,6 +13,12 @@ TRICYCLE_COLUMNS = [
   "cell_id", "sample_id", "tricycle_projection_group",
   "tricycle_raw_pc1", "tricycle_raw_pc2",
 ]
+CELL_CYCLE_MARKER_GENES = [
+  "CDKN1A",
+  "PCNA", "MCM4", "MCM5", "TYMS",
+  "TOP2A", "CCNB1", "CDK1", "TPX2", "SMC2", "MKI67", "UBE2C",
+]
+MARKER_EXPRESSION_COLUMNS = ["cell_id", *CELL_CYCLE_MARKER_GENES]
 
 
 def _read_barcodes(path):
@@ -101,9 +107,10 @@ def _density_equalized_probabilities(density, target_cells):
 
 
 def aggregate_tricycle(
-  score_fs, summary_fs, coldata_f, required_h5_fs, bandwidth_multiplier, kde_grid_size,
-  target_cells, target_cells_grid, seed, out_scores_f, out_origin_f,
-  out_sensitivity_f, out_diagnostics_f
+  score_fs, marker_expression_fs, summary_fs, coldata_f, required_h5_fs,
+  bandwidth_multiplier, kde_grid_size, target_cells, target_cells_grid, seed,
+  out_scores_f, out_marker_expression_f, out_origin_f, out_sensitivity_f,
+  out_diagnostics_f, manual_origin=None
 ):
   score_tables = [pl.read_csv(path) for path in score_fs]
   if not score_tables:
@@ -117,6 +124,30 @@ def aggregate_tricycle(
     raise ValueError("tricycle score tables contain duplicate cell IDs")
   if scores.height == 0:
     raise ValueError("tricycle score tables are empty")
+
+  # Sparse marker columns can contain only integer-looking zeros throughout
+  # Polars' schema-inference window and non-zero floating-point values later.
+  # Their type is known, so declare it rather than relying on sampled values.
+  marker_schema = {gene: pl.Float64 for gene in CELL_CYCLE_MARKER_GENES}
+  marker_tables = [
+    pl.read_csv(path, schema_overrides=marker_schema)
+    for path in marker_expression_fs
+  ]
+  if len(marker_tables) != len(score_tables):
+    raise ValueError("Each tricycle score table requires one marker-expression table")
+  for table in marker_tables:
+    missing = set(MARKER_EXPRESSION_COLUMNS) - set(table.columns)
+    if missing:
+      raise KeyError(
+        f"tricycle marker-expression table is missing: {', '.join(sorted(missing))}"
+      )
+  marker_expression = pl.concat([
+    table.select(MARKER_EXPRESSION_COLUMNS) for table in marker_tables
+  ])
+  if marker_expression["cell_id"].n_unique() != marker_expression.height:
+    raise ValueError("tricycle marker-expression tables contain duplicate cell IDs")
+  if set(marker_expression["cell_id"].to_list()) != set(scores["cell_id"].to_list()):
+    raise ValueError("tricycle scores and marker expression contain different cell IDs")
 
   summaries = pl.concat([pl.read_csv(path) for path in summary_fs])
   if summaries.height != len(summary_fs) or summaries.height == 0:
@@ -181,6 +212,13 @@ def aggregate_tricycle(
       center = candidate_center
   sensitivity = pl.DataFrame(sensitivity_rows)
   probabilities = selected_probabilities
+  automatic_center = center.copy()
+  if manual_origin is not None:
+    manual_origin = np.asarray(manual_origin, dtype=float)
+    if manual_origin.shape != (2,) or not np.isfinite(manual_origin).all():
+      raise ValueError("manual tricycle origin must contain two finite coordinates")
+    center = manual_origin
+  origin_method = "manual" if manual_origin is not None else "kde_density_equalized"
 
   all_points = scores.select("tricycle_pc1", "tricycle_pc2").to_numpy()
   theta = np.mod(np.arctan2(all_points[:, 1] - center[1],
@@ -194,13 +232,16 @@ def aggregate_tricycle(
     pl.Series("diagnostic_retained", rng.random(probabilities.size) < probabilities)
   )
   origin = pl.DataFrame({
-    "origin_method": ["kde_density_equalized"],
+    "origin_method": [origin_method],
     "projection_centring_method": ["pooled_project_mean"],
     "tricycle_raw_pc1_project_mean": [projection_center[0]],
     "tricycle_raw_pc2_project_mean": [projection_center[1]],
     "n_projection_center_cells": [scores.height],
     "tricycle_pc1_origin": [center[0]],
     "tricycle_pc2_origin": [center[1]],
+    "selected_kde_tricycle_pc1_origin": [automatic_center[0]],
+    "selected_kde_tricycle_pc2_origin": [automatic_center[1]],
+    "target_cells_used_for_origin": [manual_origin is None],
     "n_candidate_cells": [candidate_scores.height],
     "target_cells": [selected_target],
     "expected_retained_cells": [float(probabilities.sum())],
@@ -218,20 +259,26 @@ def aggregate_tricycle(
     "duplicate_feature_mappings_total": [summaries["n_duplicate_feature_mappings"].sum()]
   })
 
-  for path in (out_scores_f, out_origin_f, out_sensitivity_f, out_diagnostics_f):
+  for path in (
+    out_scores_f, out_marker_expression_f, out_origin_f, out_sensitivity_f,
+    out_diagnostics_f,
+  ):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
   with gzip.open(out_scores_f, "wb") as handle:
     scores.write_csv(handle)
+  with gzip.open(out_marker_expression_f, "wb") as handle:
+    marker_expression.write_csv(handle)
   origin.write_csv(out_origin_f)
   sensitivity.write_csv(out_sensitivity_f)
   with gzip.open(out_diagnostics_f, "wb") as handle:
     diagnostics.write_csv(handle)
-  return scores, origin, sensitivity, diagnostics
+  return scores, marker_expression, origin, sensitivity, diagnostics
 
 
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("--score_f", action="append", required=True)
+  parser.add_argument("--marker_expression_f", action="append", required=True)
   parser.add_argument("--summary_f", action="append", required=True)
   parser.add_argument("--coldata_f", required=True)
   parser.add_argument("--required_h5_f", action="append", default=[])
@@ -239,17 +286,20 @@ def main():
   parser.add_argument("--kde_grid_size", type=int, default=500)
   parser.add_argument("--target_cells", type=int, default=5000)
   parser.add_argument("--target_cells_grid", action="append", type=int, default=[])
+  parser.add_argument("--origin", nargs=2, type=float)
   parser.add_argument("--seed", type=int, default=20230308)
   parser.add_argument("--out_scores_f", required=True)
+  parser.add_argument("--out_marker_expression_f", required=True)
   parser.add_argument("--out_origin_f", required=True)
   parser.add_argument("--out_sensitivity_f", required=True)
   parser.add_argument("--out_diagnostics_f", required=True)
   args = parser.parse_args()
   aggregate_tricycle(
-    args.score_f, args.summary_f, args.coldata_f, args.required_h5_f,
-    args.bandwidth_multiplier, args.kde_grid_size, args.target_cells,
-    args.target_cells_grid, args.seed, args.out_scores_f, args.out_origin_f,
-    args.out_sensitivity_f, args.out_diagnostics_f
+    args.score_f, args.marker_expression_f, args.summary_f, args.coldata_f,
+    args.required_h5_f, args.bandwidth_multiplier, args.kde_grid_size,
+    args.target_cells, args.target_cells_grid, args.seed, args.out_scores_f,
+    args.out_marker_expression_f, args.out_origin_f, args.out_sensitivity_f,
+    args.out_diagnostics_f, manual_origin=args.origin
   )
 
 

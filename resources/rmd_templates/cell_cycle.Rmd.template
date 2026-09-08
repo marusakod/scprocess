@@ -31,7 +31,7 @@ scores <- fread("${scores_f}")
 origin <- fread("${origin_f}")
 origin_sensitivity <- fread("${sensitivity_f}")
 diagnostics <- fread("${diagnostics_f}")
-coldata <- fread("${coldata_f}", select=c('cell_id', 'keep', 'sum'))
+coldata <- fread("${coldata_f}", select=c('cell_id', 'keep'))
 scores_qc <- merge(scores, coldata[keep == TRUE], by='cell_id')
 scores_qc <- merge(
   scores_qc,
@@ -39,7 +39,7 @@ scores_qc <- merge(
   by='cell_id')
 scores_qc[, approximate_phase := assign_approximate_cell_cycle_phase(tricycle_theta)]
 marker_expression <- read_cell_cycle_marker_expression(
-  "${hvg_mat_f}", "${scores_f}", "${coldata_f}", "${rowdata_f}")
+  "${marker_expression_f}", scores_qc)
 marker_annotation <- cell_cycle_marker_annotation()
 if (nrow(marker_expression)) {
   marker_expression <- merge(marker_expression, marker_annotation, by='gene')
@@ -79,6 +79,23 @@ gene_legend_labels <- setNames(
   sprintf('%s · %s', marker_annotation[['marker_phase']], marker_annotation[['gene']]),
   marker_annotation[['gene']])
 target_cell_levels <- as.character(sort(unique(origin_sensitivity[['target_cells']])))
+origin_is_manual <- identical(origin[['origin_method']][1], 'manual')
+origin_sensitivity_points <- if (origin_is_manual) {
+  origin_sensitivity
+} else {
+  origin_sensitivity[selected == FALSE]
+}
+origin_caption <- if (origin_is_manual) {
+  sprintf(
+    'Manual origin: (%g, %g); KDE diagnostic target cells: %s',
+    origin[['tricycle_pc1_origin']][1],
+    origin[['tricycle_pc2_origin']][1],
+    scales::comma(origin[['target_cells']][1]))
+} else {
+  sprintf(
+    'Selected target cells: %s',
+    scales::comma(origin[['target_cells']][1]))
+}
 
 add_origin <- function() {
   geom_point(
@@ -101,138 +118,27 @@ evenly_spaced_rows <- function(dt, maximum) {
 `tricycle_pc1` and `tricycle_pc2` are fixed-reference projection coordinates,
 centred once across the project. `tricycle_theta` is the continuous cell-cycle
 position in radians, measured around the pooled origin and wrapped to
-$[0, 2\pi)$. The origin was estimated from QC-passed cells after
-density-equalized downsampling.
+$[0, 2\pi)$. The origin is either supplied explicitly in these coordinates or
+estimated from QC-passed cells after density-equalized downsampling.
 
-## Pooled projection and estimated origin
+## Expression around theta
 
-The left panel is a log-count hexbin view of every QC-passed cell. Its grey
-path shows how the estimated origin changes across the configured target-cell
-grid, with target size encoded by fill and reported in the legend. The right
-panel shows the density-equalized subset for the selected
-target. The black cross is the selected pooled origin used to calculate theta;
-it is identical in all projection panels. Grey radial lines mark tricycle's
-approximate phase boundaries: G1/G0 wraps from $1.75\pi$ through zero to
-$0.25\pi$, G1/S spans $0.25\pi$-$0.5\pi$, S spans $0.5\pi$-$\pi$, and G2/M
-spans $\pi$-$1.75\pi$.
+Expression was captured from the full run-level count matrices during
+tricycle projection, so all canonical markers are represented independently
+of HVG selection. Counts were library-size normalized to 10,000 and
+log-transformed. Expression is averaged in angular bins separately within each
+gene across all QC-passed cells. The lines are circular LOESS smooths of these
+bin means, weighted by their cell counts. Each nonzero smoothed gene curve is
+scaled so its fitted maximum is one. Colours group the canonical markers by
+their expected cell-cycle phase; CDKN1A is shown neutrally as a checkpoint
+diagnostic.
 
-```{r pooled_projection, fig.height=5.5, fig.width=11}
-g_pooled <- ggplot(diagnostics, aes(tricycle_pc1, tricycle_pc2)) +
-  geom_hex(
-    aes(colour=after_stat(count), fill=after_scale(colour)),
-    bins=180, linewidth=0) +
-  geom_path(
-    data=origin_sensitivity[order(target_cells)],
-    aes(tricycle_pc1_origin, tricycle_pc2_origin), inherit.aes=FALSE,
-    linewidth=1.3, colour='white') +
-  geom_path(
-    data=origin_sensitivity[order(target_cells)],
-    aes(tricycle_pc1_origin, tricycle_pc2_origin), inherit.aes=FALSE,
-    linewidth=0.55, colour='grey50') +
-  geom_point(
-    data=origin_sensitivity[selected == FALSE],
-    aes(
-      tricycle_pc1_origin, tricycle_pc2_origin,
-      fill=factor(target_cells, levels=target_cell_levels)),
-    inherit.aes=FALSE, shape=21, size=2.5, stroke=0.5, colour='grey20') +
-  add_phase_boundaries() +
-  add_origin() +
-  scale_colour_viridis_c(
-    trans='log10', name='cell count',
-    guide=guide_colourbar(order=1, direction='horizontal')) +
-  scale_fill_discrete(
-    palette=function(n) grey.colors(n, start=0.88, end=0.28),
-    name='target cells', limits=target_cell_levels, drop=FALSE,
-    labels=function(x) comma(as.numeric(x)),
-    guide=guide_legend(order=2, direction='horizontal', nrow=1)) +
-  coord_equal(xlim=pc_x_limits, ylim=pc_y_limits, expand=FALSE) +
-  theme_bw() +
-  labs(
-    title='All QC-passed cells', x='tricycle PC1', y='tricycle PC2',
-    caption=sprintf('Selected target cells: %s',
-                    scales::comma(origin[['target_cells']][1])))
-
-g_retained <- ggplot(
-    diagnostics[diagnostic_retained == TRUE],
-    aes(tricycle_pc1, tricycle_pc2)) +
-  geom_point(size=0.5, alpha=0.7, colour='#1F4E79') +
-  add_phase_boundaries() +
-  add_origin() +
-  coord_equal(xlim=pc_x_limits, ylim=pc_y_limits, expand=FALSE) +
-  theme_bw() +
-  labs(
-    title=sprintf(
-      'Density-equalized cells (%s of %s)',
-      scales::comma(sum(diagnostics[['diagnostic_retained']])),
-      scales::comma(nrow(diagnostics))),
-    x='tricycle PC1', y='tricycle PC2')
-
-g_pooled + g_retained + plot_layout(guides='collect') &
-  theme(legend.position='bottom')
-```
-
-## Cell-cycle position
-
-```{r theta_density, fig.height=4, fig.width=8}
-ggplot(scores_qc, aes(tricycle_theta / pi)) +
-  geom_density(fill='steelblue', alpha=0.35, colour='steelblue4') +
-  scale_x_continuous(breaks=theta_breaks, labels=theta_labels, limits=c(0, 2)) +
-  scale_y_log10() +
-  theme_bw() + labs(x=expression('tricycle theta / '*pi), y='density (log scale)')
-```
-
-## Spatial marker expression
-
-Observed counts for canonical cycling genes present among the selected HVGs
-were library-size normalized to 10,000 and log-transformed. Each gene is
-coloured relative to its own 98th percentile among expressing cells, so colour
-intensity is comparable spatially within a gene but not between genes. Cells
-with the highest expression are drawn last. The facet title reports the number
-of cells with expression above zero.
-
-```{r spatial_expression, fig.height=8, fig.width=10}
-if (nrow(marker_expression)) {
-  marker_expression[, expression_q98 := {
-    positive <- log_normalized_expression[log_normalized_expression > 0]
-    cap <- if (length(positive)) as.numeric(quantile(positive, 0.98)) else 1
-    pmin(log_normalized_expression / max(cap, 1e-12), 1)
-  }, by=gene]
-  gene_summaries <- marker_expression[, .(
-    label=sprintf('%s (%s > 0)', gene[1], scales::comma(sum(log_normalized_expression > 0)))
-  ), by=gene]
-  gene_labels <- setNames(gene_summaries[['label']], as.character(gene_summaries[['gene']]))
-  setorder(marker_expression, gene, expression_q98)
-
-  ggplot(marker_expression,
-         aes(tricycle_pc1, tricycle_pc2, colour=expression_q98)) +
-    geom_point(size=0.18, alpha=0.8) +
-    add_phase_boundaries() +
-    add_origin() +
-    facet_wrap(~gene, ncol=4, labeller=as_labeller(gene_labels)) +
-    scale_colour_viridis_c(option='magma', limits=c(0, 1),
-                           name='expression /\ngene q98') +
-    coord_equal(xlim=pc_x_limits, ylim=pc_y_limits, expand=FALSE) +
-    theme_bw() +
-    theme(
-      panel.grid=element_blank(),
-      strip.background=element_rect(fill='white', colour='grey50')) +
-    labs(x='tricycle PC1', y='tricycle PC2')
-} else {
-  cat('None of the canonical cycling genes were present in the selected HVG matrix.')
-}
-```
-
-## Sample-balanced expression around theta
-
-Expression is averaged in angular bins separately within each biological
-sample, followed by a circular LOESS smooth for each sample. The lines are the
-equal-weight mean of those sample-level curves; ribbons are 95% confidence
-intervals across samples. Each gene is scaled so the maximum of its mean curve
-is one. This prevents samples with more cells from dominating the displayed
-relationship. Colours group the canonical markers by their expected cell-cycle
-phase; CDKN1A is shown neutrally as a checkpoint diagnostic.
 The left panel provides the corresponding pooled tricycle projection coloured
-by theta.
+by theta. Grey radial lines mark tricycle's approximate phase boundaries:
+G1/G0 wraps from $1.75\pi$ through zero to $0.25\pi$, G1/S spans
+$0.25\pi$-$0.5\pi$, S spans $0.5\pi$-$\pi$, and G2/M spans
+$\pi$-$1.75\pi$. The grey vertical lines mark the same boundaries on the
+expression plot.
 
 ```{r expression_curves, fig.height=6, fig.width=14}
 if (nrow(expression_smooth[['curves']])) {
@@ -253,28 +159,134 @@ if (nrow(expression_smooth[['curves']])) {
     theme_bw() +
     labs(x='tricycle PC1', y='tricycle PC2')
 
-  g_expression_curves <- ggplot(
-      curve_dt,
-      aes(theta_over_pi, mean_scaled, colour=gene, fill=gene)) +
-    geom_ribbon(
-      aes(ymin=pmax(0, mean_scaled - ci95_scaled),
-          ymax=mean_scaled + ci95_scaled),
-      alpha=0.10, colour=NA) +
-    geom_line(linewidth=0.9) +
+  g_expression_curves <- ggplot() +
+    geom_line(
+      data=curve_dt,
+      aes(theta_over_pi, mean_scaled, colour=gene), linewidth=0.9) +
     geom_vline(xintercept=c(0.25, 0.5, 1, 1.75),
                linewidth=0.25, linetype='dotted', colour='grey50') +
     scale_colour_manual(values=gene_colours, labels=gene_legend_labels) +
-    scale_fill_manual(values=gene_colours, labels=gene_legend_labels) +
     scale_x_continuous(breaks=theta_breaks, labels=theta_labels,
                        limits=c(0, 2), expand=c(0, 0)) +
+    scale_y_continuous(breaks=pretty_breaks()) +
+    coord_cartesian(ylim=c(0, 1.05)) +
     theme_bw() +
     labs(x=expression('tricycle theta / '*pi),
-         y='sample-balanced expression (gene maximum = 1)',
-         colour='marker', fill='marker')
+         y='pooled mean expression (curve maximum = 1)',
+         colour='marker')
   g_theta_projection + g_expression_curves +
-    plot_layout(widths=c(0.9, 1.7))
+    plot_layout(widths=c(1, 1.4))
 } else {
   cat('No marker-expression curves could be estimated.')
+}
+```
+
+## Pooled projection and estimated origin
+
+The left panel is a log-count hexbin view of every QC-passed cell. Its grey
+path shows how the estimated origin changes across the configured target-cell
+grid, with target size encoded by fill and reported in the legend. The right
+panel shows the density-equalized subset for the selected
+target. The black cross is the selected pooled origin used to calculate theta;
+it is identical in all projection panels. When a manual origin is configured,
+all KDE-derived candidate centres remain visible for comparison and the
+density-equalized subset is diagnostic only. Grey radial lines mark the phase
+boundaries described above.
+
+```{r pooled_projection, fig.height=5.5, fig.width=11}
+g_pooled <- ggplot(diagnostics, aes(tricycle_pc1, tricycle_pc2)) +
+  geom_hex(
+    aes(colour=after_stat(count), fill=after_scale(colour)),
+    bins=180, linewidth=0) +
+  geom_path(
+    data=origin_sensitivity[order(target_cells)],
+    aes(tricycle_pc1_origin, tricycle_pc2_origin), inherit.aes=FALSE,
+    linewidth=1.3, colour='white') +
+  geom_path(
+    data=origin_sensitivity[order(target_cells)],
+    aes(tricycle_pc1_origin, tricycle_pc2_origin), inherit.aes=FALSE,
+    linewidth=0.55, colour='grey50') +
+  geom_point(
+    data=origin_sensitivity_points,
+    aes(
+      tricycle_pc1_origin, tricycle_pc2_origin,
+      fill=factor(target_cells, levels=target_cell_levels)),
+    inherit.aes=FALSE, shape=21, size=2.5, stroke=0.5, colour='grey20') +
+  add_phase_boundaries() +
+  add_origin() +
+  scale_colour_viridis_c(
+    trans='log10', name='cell count',
+    guide=guide_colourbar(order=1, direction='horizontal')) +
+  scale_fill_discrete(
+    palette=function(n) grey.colors(n, start=0.88, end=0.28),
+    name='target cells', limits=target_cell_levels, drop=FALSE,
+    labels=function(x) comma(as.numeric(x)),
+    guide=guide_legend(order=2, direction='horizontal', nrow=1)) +
+  coord_equal(xlim=pc_x_limits, ylim=pc_y_limits, expand=FALSE) +
+  theme_bw() +
+  labs(
+    title='All QC-passed cells', x='tricycle PC1', y='tricycle PC2',
+    caption=origin_caption)
+
+g_retained <- ggplot(
+    diagnostics[diagnostic_retained == TRUE],
+    aes(tricycle_pc1, tricycle_pc2)) +
+  geom_point(size=0.5, alpha=0.7, colour='#1F4E79') +
+  add_phase_boundaries() +
+  add_origin() +
+  coord_equal(xlim=pc_x_limits, ylim=pc_y_limits, expand=FALSE) +
+  theme_bw() +
+  labs(
+    title=sprintf(
+      'Density-equalized cells (%s of %s)',
+      scales::comma(sum(diagnostics[['diagnostic_retained']])),
+      scales::comma(nrow(diagnostics))),
+    x='tricycle PC1', y='tricycle PC2')
+
+g_pooled + g_retained + plot_layout(guides='collect') &
+  theme(legend.position='bottom')
+```
+
+## Spatial marker expression
+
+Observed counts for the canonical cycling genes were captured from the full
+run-level matrices, library-size normalized to 10,000, and log-transformed.
+Each gene is
+coloured relative to its own 98th percentile among expressing cells, so colour
+intensity is comparable spatially within a gene but not between genes. Cells
+are drawn in a reproducibly randomized order. The facet title reports the
+number of cells with expression above zero.
+
+```{r spatial_expression, fig.height=8, fig.width=10}
+if (nrow(marker_expression)) {
+  marker_expression[, expression_q98 := {
+    positive <- log_normalized_expression[log_normalized_expression > 0]
+    cap <- if (length(positive)) as.numeric(quantile(positive, 0.98)) else 1
+    pmin(log_normalized_expression / max(cap, 1e-12), 1)
+  }, by=gene]
+  gene_summaries <- marker_expression[, .(
+    label=sprintf('%s (%s > 0)', gene[1], scales::comma(sum(log_normalized_expression > 0)))
+  ), by=gene]
+  gene_labels <- setNames(gene_summaries[['label']], as.character(gene_summaries[['gene']]))
+  set.seed(20230308)
+  marker_expression <- marker_expression[sample.int(.N)]
+
+  ggplot(marker_expression,
+         aes(tricycle_pc1, tricycle_pc2, colour=expression_q98)) +
+    geom_point(size=0.18, alpha=0.8) +
+    add_phase_boundaries() +
+    add_origin() +
+    facet_wrap(~gene, ncol=4, labeller=as_labeller(gene_labels)) +
+    scale_colour_viridis_c(option='magma', limits=c(0, 1),
+                           name='expression /\ngene q98') +
+    coord_equal(xlim=pc_x_limits, ylim=pc_y_limits, expand=FALSE) +
+    theme_bw() +
+    theme(
+      panel.grid=element_blank(),
+      strip.background=element_rect(fill='white', colour='grey50')) +
+    labs(x='tricycle PC1', y='tricycle PC2')
+} else {
+  cat('No canonical marker-expression values were available for plotting.')
 }
 ```
 
@@ -330,7 +342,7 @@ ggplot(cycling_phase_dt, aes(percent_cells, sample_id, fill=approximate_phase)) 
     shape=21, size=3, width=0.25, orientation='y', colour='grey20') +
   scale_y_discrete(limits=rev) +
   scale_x_log10(
-    breaks=c(0.1, 0.3, 1, 3, 10, 30, 100),
+    breaks=c(0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100),
     labels=label_number(suffix='%')) +
   scale_fill_manual(values=phase_colours) + theme_bw() +
   labs(x='percent of QC-passed cells (log scale)', y='sample',
