@@ -373,11 +373,12 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     if(any(grepl(paste0(short_tag, '_zoom.*.html'), htmls))){
       zoom_htmls  = htmls[grepl(paste0(short_tag, '_zoom.*.html'), htmls)]
       # extract zoom params
-      pattern     = ".*?_zoom_(.+_\\d+(\\.\\d+)?)\\.html"
+      pattern     = ".*?_zoom_(.+_\\d+(?:\\.\\d+)?)\\.html$"
       params_mat  = str_match(zoom_htmls, pattern)
 
-      # check for no NAs
-      if (any(is.na(params_mat))) {
+      # Only the complete match indicates whether parsing succeeded. Optional
+      # capture groups are NA for valid integer resolutions such as "1".
+      if (any(is.na(params_mat[, 1]))) {
         stop("Error: Zoom html files must be named in the format '{short_tag}_zoom_{zoomname}_{resolution}.html'")
       }
       
