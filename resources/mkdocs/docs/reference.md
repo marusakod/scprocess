@@ -612,11 +612,11 @@ The cell-cycle options use the `cyc_` prefix:
 The KDE is calculated once. Candidate centres for the target-cell grid are
 then calculated deterministically as inverse-density probability-weighted
 means and written to `tricycle_origin_sensitivity_*.csv`. The pooled projection
-plot labels the resulting path of candidate centres. Only `cyc_target_cells`
-defines `tricycle_theta` when `cyc_origin` is absent; otherwise the supplied
-coordinates define theta and all KDE results are diagnostic. `cyc_seed` affects
-which cells appear in the retained-cell diagnostic panel, not the estimated
-centres.
+plot shows the resulting path of candidate centres and identifies their target
+sizes in the legend. Only `cyc_target_cells` defines `tricycle_theta` when
+`cyc_origin` is absent; otherwise the supplied coordinates define theta and all
+KDE results are diagnostic. `cyc_seed` affects which cells appear in the
+retained-cell diagnostic panel, not the estimated centres.
 
 Species is inferred from `project.ref_txome` or `project.probe_set`; it is not
 specified again inside `cell_cycle`.

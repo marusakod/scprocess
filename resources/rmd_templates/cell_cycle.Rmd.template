@@ -119,7 +119,7 @@ evenly_spaced_rows <- function(dt, maximum) {
 centred once across the project. `tricycle_theta` is the continuous cell-cycle
 position in radians, measured around the pooled origin and wrapped to
 $[0, 2\pi)$. The origin is either supplied explicitly in these coordinates or
-estimated from QC-passed cells after density-equalized downsampling.
+estimated from QC-passed cells using density-equalized weighting.
 
 ## Expression around theta
 

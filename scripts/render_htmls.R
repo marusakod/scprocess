@@ -326,7 +326,6 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     cell_cycle_link      = ""
     integration_link     = ""
     marker_genes_link    = ""
-    lbls_title           = ""
     label_celltypes_link = ""
     zoom_title           = ""
     zoom_links           = ""
@@ -367,7 +366,6 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
     if(paste0(short_tag, '_label_celltypes.html') %in% htmls){
       label_celltypes_link = sprintf("- Celltype labelling ([link](%s_label_celltypes.html))", short_tag)
-      lbls_title = "## Cell type annotation"
     }
     
     if(any(grepl(paste0(short_tag, '_zoom.*.html'), htmls))){
@@ -479,7 +477,6 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
         cell_cycle_link     = cell_cycle_link,
         integration_link    = integration_link, 
         marker_genes_link   = marker_genes_link,
-        lbls_title          = lbls_title,
         label_celltypes_link= label_celltypes_link,
         zoom_title          = zoom_title, 
         zoom_links          = zoom_links,
