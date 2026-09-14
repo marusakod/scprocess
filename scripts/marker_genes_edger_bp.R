@@ -268,7 +268,7 @@ fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
       !all(c("cluster", "sample", "project_id") %in% names(coldata))) {
     stop("`coldata` must contain cluster, sample, and project_id.", call. = FALSE)
   }
-  clusters = as.character(clusters)
+  clusters = sort(unique(as.character(clusters)))
   coldata$cluster = as.character(coldata$cluster)
   coldata$sample = as.character(coldata$sample)
   coldata$project_id = as.character(coldata$project_id)

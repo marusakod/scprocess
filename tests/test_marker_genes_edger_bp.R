@@ -186,7 +186,7 @@ for (adjust_project_id in c(FALSE, TRUE)) {
   observed = fit_markers_edger_bp(
     prepared$counts,
     coldata = coldata,
-    clusters = c("A", "B", "C"),
+    clusters = c("C", "A", "B"),
     effective_lib_size = prepared$effective.lib.size,
     workers = 1L,
     block_size = 20L,
@@ -228,6 +228,7 @@ for (adjust_project_id in c(FALSE, TRUE)) {
   key = paste(observed$cluster, observed$gene_id)
   expected = expected[match(key, paste(expected$cluster, expected$gene_id)), ]
   stopifnot(
+    identical(unique(observed$cluster), c("A", "B", "C")),
     identical(key, paste(expected$cluster, expected$gene_id)),
     isTRUE(all.equal(observed$logFC, expected$logFC, tolerance = 1e-8)),
     isTRUE(all.equal(observed$logCPM, expected$logCPM, tolerance = 1e-8)),
