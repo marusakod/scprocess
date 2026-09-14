@@ -8,7 +8,6 @@ dependencies:
   - r-bpcells
   - r-matrix
   - r-hdf5r
-  - r-irlba
   - r-data.table
   - r-r.utils
   - r-yaml

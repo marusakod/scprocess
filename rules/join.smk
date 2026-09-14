@@ -119,6 +119,7 @@ else:
 # output paths
 joint_hvgs_f        = f"{join_int_dir}/joint_hvgs_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
 joint_label_counts_f      = f"{join_int_dir}/joint_counts_hvgs_{JOIN_TAG}_{DATE_STAMP}.h5"
+joint_bpcells_counts_dir  = f"{join_int_dir}/joint_counts_hvgs_{JOIN_TAG}_{DATE_STAMP}.bpcells"
 joint_coldata_f     = f"{join_int_dir}/joint_coldata_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
 joint_sample_meta_f = f"{join_int_dir}/joint_sample_meta_{JOIN_TAG}_{DATE_STAMP}.csv"
 joint_qc_f          = f"{join_int_dir}/joint_qc_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
@@ -338,10 +339,39 @@ rule join_build_qc:
     """
 
 
-rule join_pca:
-  """Compute PCA on joint matrix using BPCells disk-backed streaming SVD."""
+rule join_build_bpcells_matrix:
+  """Convert joint HDF5 counts to persistent native BPCells storage."""
   input:
     counts_h5_f = joint_label_counts_f
+  output:
+    counts_bp_dir = directory(joint_bpcells_counts_dir)
+  threads: 8
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_bpcells_matrix', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_bpcells_matrix', 'time', attempt)
+  log:
+    f"{logs_dir}/join_build_bpcells_matrix_{JOIN_TAG}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/join_build_bpcells_matrix_{JOIN_TAG}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/bpcells_pca.yaml'
+  shell: """
+    exec &>> {log}
+    export OPENBLAS_NUM_THREADS={threads}
+    export MKL_NUM_THREADS={threads}
+    export OMP_NUM_THREADS={threads}
+
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/join_pca.R'); write_join_bpcells_matrix(
+      counts_h5_f = '{input.counts_h5_f}',
+      out_dir     = '{output.counts_bp_dir}')"
+    """
+
+
+rule join_pca:
+  """Compute centered and scaled PCA from native BPCells storage."""
+  input:
+    counts_bp_dir = joint_bpcells_counts_dir
   output:
     pca_f = joint_pca_f
   params:
@@ -363,15 +393,16 @@ rule join_pca:
     export MKL_NUM_THREADS={threads}
     export OMP_NUM_THREADS={threads}
 
-    # Copy HDF5 to local disk for fast repeated reads during SVD
-    LOCAL_H5=$(mktemp /tmp/join_pca_XXXXXX.h5)
-    trap "rm -f $LOCAL_H5" EXIT
-    cp {input.counts_h5_f} $LOCAL_H5
+    # Copy compact native BPCells storage to local disk for repeated SVD reads.
+    LOCAL_BP=$(mktemp -d /tmp/scprocess_join_pca_XXXXXX)
+    trap 'rm -rf -- "$LOCAL_BP"' EXIT
+    cp -a {input.counts_bp_dir}/. "$LOCAL_BP"/
 
-    Rscript -e "source('{scprocess_dir}/scripts/join_pca.R'); run_join_pca(
-      counts_h5_f = '$LOCAL_H5',
-      n_dims      =  {params.n_dims},
-      out_pca_f   = '{output.pca_f}')"
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/join_pca.R'); run_join_pca(
+      counts_bp_dir = '$LOCAL_BP',
+      n_dims        =  {params.n_dims},
+      n_threads     =  {threads},
+      out_pca_f     = '{output.pca_f}')"
     """
 
 

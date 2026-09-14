@@ -969,7 +969,7 @@ Additional parameters include:
 * `name`: short name; output directories are {name}_join and {name}_marker_genes
 * `metadata_vars` (optional): list of column names from the source projects' `sample_metadata` CSV files to carry through into the joint sample metadata and presentation outputs. Each variable must exist in at least one project's metadata file, but does not need to be present in all projects. Missing values are filled with `NA`.
 * `projects`: mapping containing at least two source projects. Each entry requires `config`, the path to a completed project config, and may specify `zoom_name` to join a completed zoom instead of the full project.
-* `int_pca_method`: PCA computation method. Options: `bpcells` (default) uses disk-backed SVD via BPCells (R), suitable for very large datasets (>1M cells) without GPU memory limits; `scanpy` uses the standard in-memory PCA on GPU/CPU (original behaviour).
+* `int_pca_method`: PCA computation method. Options: `bpcells` (default) first converts the joint HDF5 counts to a persistent, compressed `uint32` native BPCells matrix. Per-gene centering and scaling are queued as delayed BPCells operations before the threaded C++ `BPCells::svds()` calculation. The compact matrix is copied to node-local storage for repeated SVD passes and is suitable for very large datasets (>1M cells) without GPU memory limits. `scanpy` uses the standard in-memory PCA on GPU/CPU (original behaviour).
 * Join marker-gene testing stores the pseudobulk output as a BPCells directory,
   keeps the combined counts disk-backed, and uses the streamed `edger.bp` edgeR
   Treat backend. The work is split into `join_make_pseudobulks`,
