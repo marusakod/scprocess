@@ -142,17 +142,24 @@ def _load_batch_hvg_matrix(h5ad_path, ok_cells, hvg_list, pid, batch_key):
     warnings.warn(f"cannot open h5ad for {batch_key} in {pid} ({h5ad_path}): {e} — skipping")
     return None
 
-  with f:
-    obs_idx_col = f['obs'].attrs.get('_index', 'cell_id')
-    barcodes    = f['obs'][obs_idx_col][:].astype(str)
-    var_idx_col = f['var'].attrs.get('_index', 'gene_ids')
-    features    = f['var'][var_idx_col][:].astype(str)
-    data     = f['X/data'][:]
-    indices  = f['X/indices'][:]
-    indptr   = f['X/indptr'][:]
-    n_cells  = len(barcodes)
-    n_genes  = len(features)
-    enc_type = f['X'].attrs.get('encoding-type', 'csr_matrix')
+  try:
+    with f:
+      obs_idx_col = f['obs'].attrs.get('_index', 'cell_id')
+      barcodes    = f['obs'][obs_idx_col][:].astype(str)
+      var_idx_col = f['var'].attrs.get('_index', 'gene_ids')
+      features    = f['var'][var_idx_col][:].astype(str)
+      data     = f['X/data'][:]
+      indices  = f['X/indices'][:]
+      indptr   = f['X/indptr'][:]
+      n_cells  = len(barcodes)
+      n_genes  = len(features)
+      enc_type = f['X'].attrs.get('encoding-type', 'csr_matrix')
+  except (KeyError, OSError, ValueError) as e:
+    import warnings
+    warnings.warn(
+      f"cannot read valid AnnData structure for {batch_key} in {pid} "
+      f"({h5ad_path}): {e} — skipping")
+    return None
 
   # AnnData X is (n_cells, n_genes); convert to (n_genes, n_cells) CSC
   if enc_type == 'csc_matrix':
