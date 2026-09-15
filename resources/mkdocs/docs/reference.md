@@ -228,6 +228,7 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       hvg_chunk_size: 2000
       hvg_metadata_split_var:
     integration:
+      int_pca_method: bpcells
       int_use_gpu: true
       int_embedding: harmony
       int_theta: 0.1
@@ -357,6 +358,7 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       hvg_chunk_size: 2000
       hvg_metadata_split_var: var1
     integration:
+      int_pca_method: bpcells
       int_use_gpu: true
       int_embedding: harmony
       int_theta: 0.1
@@ -565,6 +567,7 @@ Configured maxima must be greater than or equal to their corresponding minima. C
 
 ##### integration
 
+* `int_pca_method`: PCA computation method. `bpcells` (default) streams normalized and scaled expression from disk and is intended for large projects; `scanpy` retains the original in-memory CPU/GPU PCA path. For primary projects, the BPCells path persists preliminary doublet classifications and a clean-cell whitelist before fitting the final clean-cell PCA.
 * `int_use_gpu`: whether to use GPU acceleration (`RAPIDS-singlecell`) for integration and clustering steps. Options are `true` (default) or `false`. If GPU is not available, `Scanpy` will be used. For join integration with multiple `int_batch_var` values, setting this to `true` uses CPU Harmony and GPU-accelerated neighbors, Leiden, and UMAP; a warning reports this hybrid execution mode.
 * `int_embedding`: which dimensionality reduction method to use for clustering and UMAP, options: `pca` (no batch correction), `harmony` (batch correction). 
 * `int_theta`: theta parameter for `Harmony` integration, controlling batch variable mixing.
@@ -577,6 +580,169 @@ Configured maxima must be greater than or equal to their corresponding minima. C
 * `int_res_ls`: list of resolution values to be used for clustering.
 * `int_use_paga`: if `true`, enable Partition-based graph abstraction (PAGA) for trajectory analysis and cell hierarchy inference. A clustering at the specified resolution will be computed for PAGA.
 * `int_paga_cl_res`: clustering resolution for PAGA analysis. Must be a value listed in `int_res_ls`. Default is 2 for project, zoom, and join analyses. Only used when `int_use_paga` is `true`. This is independent of `mkr_sel_res`, which defaults to 0.2.
+
+##### cell_cycle
+
+The presence of the optional `cell_cycle` block enables fixed-reference
+tricycle projection. If the block is absent, no tricycle files or fields are
+created. An empty block (`cell_cycle: {}`) uses the defaults and produces three
+cell-level values:
+
+```yaml
+cell_cycle: {}
+```
+
+The cell-cycle options use the `cyc_` prefix:
+
+* `cyc_bandwidth_multiplier`: multiplier applied to the data-derived KDE
+  bandwidth used for density equalization; default `1.0`;
+* `cyc_kde_grid_size`: number of bins per axis used for the binned KDE;
+  default `500`;
+* `cyc_target_cells`: expected number of density-equalized cells retained for
+  pooled-origin estimation, capped at the number of candidate cells; default
+  `5000`;
+* `cyc_target_cells_grid`: target values used for origin-sensitivity
+  diagnostics; default `[100, 200, 500, 1000, 2000, 5000, 10000]`. The selected
+  `cyc_target_cells` value is always included, and values above the number of
+  candidate cells are capped and deduplicated;
+* `cyc_origin`: optional manual origin as `[tricycle_pc1, tricycle_pc2]`, using
+  the project-centred coordinate system shown in the diagnostics report. When
+  supplied, it defines `tricycle_theta`; KDE-derived candidate centres and the
+  density-equalized subset are still produced for comparison but do not define
+  theta; and
+* `cyc_seed`: random seed for density-equalized retention; default `20230308`.
+
+The KDE is calculated once. Candidate centres for the target-cell grid are
+then calculated deterministically as inverse-density probability-weighted
+means and written to `tricycle_origin_sensitivity_*.csv`. The pooled projection
+plot shows the resulting path of candidate centres and identifies their target
+sizes in the legend. Only `cyc_target_cells` defines `tricycle_theta` when
+`cyc_origin` is absent; otherwise the supplied coordinates define theta and all
+KDE results are diagnostic. `cyc_seed` affects which cells appear in the
+retained-cell diagnostic panel, not the estimated centres.
+
+Species is inferred from `project.ref_txome` or `project.probe_set`; it is not
+specified again inside `cell_cycle`.
+
+Tricycle projections, the pooled origin, diagnostics, and any regression
+coefficients are stored directly in `output/{short_tag}_cell_cycle/`. A
+standalone diagnostics report is written to
+`public/{short_tag}_cell_cycle.html`, with its editable source at
+`analysis/{short_tag}_cell_cycle.Rmd`. It shows pooled periodic
+expression curves, the pooled projection and density-equalized origin, spatial
+expression of a canonical cell-cycle marker panel, sample-level projections,
+and approximate phase percentages by sample. Projection panels mark the
+approximate phase boundaries with radial guides; sample-level point sizes use
+the capped inverse-density inclusion probability so sparse cycling regions
+remain visible. Phase-percentage plots omit G1/G0 so that the less abundant
+cycling phases remain legible. The phase categories are descriptive angular
+sectors;
+`tricycle_theta` remains the primary continuous result. Use
+`scprocess run CONFIG -r cell_cycle` to generate these outputs and the report;
+the `integration` target does not render the cell-cycle report.
+Projection
+is executed once per physical run: `sample_id` identifies a run for
+non-multiplexed, Flex and OCM data, while `pool_id` identifies a run for HTO and
+custom demultiplexing.
+
+Each run-level projection also records log-normalized expression for the 12
+canonical genes used by the diagnostics report. These values are extracted
+directly from the full run count matrix and aggregated into
+`output/{short_tag}_cell_cycle/tricycle_marker_expression_*.csv.gz`; they do
+not depend on whether a gene was selected as an HVG. Counts from spliced,
+unspliced and ambiguous features mapping to the same symbol are summed before
+normalization. Missing marker genes are retained as zero-valued columns and
+listed in the corresponding run summary.
+
+* `tricycle_pc1`: first fixed-reference tricycle projection coordinate after
+  applying one common project-wide centring translation;
+* `tricycle_pc2`: second coordinate with the same project-wide centring; and
+* `tricycle_theta`: phase angle in radians in `[0, 2*pi)`, recalculated around
+  either the configured `cyc_origin` or one density-equalized origin estimated
+  from QC-passed cells across the project.
+
+The projection coordinates are not integration PCs. Each run independently
+normalizes cells and calculates uncentred coordinates using the same fixed
+tricycle rotation. The run tables are then combined and one pooled project mean
+is subtracted. By linearity, this is equivalent to centring the pooled project
+expression and projecting all cells together; runs are an execution boundary,
+not a centring boundary. The density-equalized origin is subsequently estimated
+from QC-passed candidate singlets. Known doublets receive coordinates and theta
+but are excluded from origin estimation. Project-wide centring and the pooled
+origin make all three values dependent on project composition.
+
+Set `integration.int_cell_cycle_regression: shared` to remove shared cyclic
+effects from normalized, scaled HVG expression before both preliminary and
+final PCA. Its absence disables regression while still allowing cell-cycle
+estimation and diagnostics. Regression requires a `cell_cycle` block and
+`integration.int_pca_method: bpcells`.
+
+`int_cell_cycle_harmonics` is `1` or `2` and defaults to `2` when regression
+is enabled. `int_cell_cycle_ridge_lambda` controls shrinkage of the shared
+sine/cosine coefficients and defaults to `0.1`. Larger penalties reduce the
+amount of correction. The coefficients are shared across samples, but fitted
+using variation within each sample: a sample with both higher technical
+expression levels and more S-phase cells should not, for that reason alone,
+produce a stronger estimated cell-cycle effect. This assumes that the cyclic
+expression relationship is sufficiently similar across the samples being
+analysed; it does not protect against other biological states that correlate
+with phase within a sample.
+
+`int_cell_cycle_correction` chooses how the fitted effect is removed:
+
+* `within_sample` (default): removes phase-associated variation within samples
+  while preserving each sample's mean of each gene on the normalized, scaled
+  expression used for PCA. This is a useful starting point before Harmony on
+  `sample_id`: cell-cycle regression reduces within-sample cyclic structure,
+  while Harmony handles remaining sample differences. Mean shifts caused by
+  different phase proportions are retained at this step, alongside technical
+  and biological sample differences.
+* `global`: also removes the predicted expression shifts between samples due
+  to different phase proportions, while preserving the overall mean. Consider
+  this when those shifts dominate the leading PCs and displace other useful
+  biological variation before Harmony. It does not simply equalize sample
+  means or remove all batch effects.
+
+Both options use the same within-sample-centred fit and globally scaled
+harmonic predictors. They differ only in sample-level shifts before PCA;
+nevertheless, the retained PCs and resulting clusters can differ. Harmony
+cannot recover biological information already discarded by PCA, and does not
+guarantee identical results for the two choices.
+
+When comparing settings, inspect PCs and UMAPs coloured by sample, cell-cycle
+phase, known cell identity and experimental condition. Check that unwanted
+phase gradients are reduced without merging biologically distinct populations
+or losing expected markers. Better sample mixing alone is not evidence of a
+better analysis. If proliferation is itself a biological outcome of interest,
+retain an uncorrected comparison rather than assuming it should be removed.
+
+These settings affect the PCs used for integration, clustering and UMAP, not
+the count matrices used for pseudobulk differential expression. However,
+changed clusters can change which cells enter a pseudobulk. Phase composition
+can be included separately in a differential-expression model when it is a
+nuisance for the specific biological comparison, using corresponding mean
+sine and cosine terms rather than mean sine alone.
+
+The correction choice is available in project and zoom integration settings;
+like harmonics and ridge penalty, it requires `int_cell_cycle_regression:
+shared`. It does not change `tricycle_theta`. For HTO/custom cells without a
+sample assignment, the physical run is the fallback group for centring.
+PCA remains disk-backed and uses the fast threaded BPCells solver for either
+choice. Regression diagnostic tables record the correction mode and predicted
+sample-mean changes, which should be approximately zero for `within_sample`.
+
+```yaml
+cell_cycle:
+  cyc_target_cells: 5000
+  # Optional override in project-centred tricycle-PC coordinates:
+  # cyc_origin: [-3, 1]
+
+integration:
+  int_cell_cycle_regression: shared
+  int_cell_cycle_harmonics: 2
+  int_cell_cycle_ridge_lambda: 0.1
+  int_cell_cycle_correction: within_sample  # alternative: global
+```
 
 ##### marker_genes
 
@@ -730,7 +896,7 @@ run `scprocess join CONFIG -r shiny` to rebuild the app.
 
 ##### zoom
 
-In this section, users can provide multiple YAML files, each specifying parameters for repeating certain steps of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `qc_min_counts`, `qc_max_counts`, `qc_min_feats`, `qc_max_feats`, `qc_min_mito`, `qc_max_mito`, `qc_min_splice`, `qc_max_splice`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets`, all [shiny app parameters](#shiny) (`app_title` defaults to `name`), and all [XGBoost training parameters](#train_xgboost).
+In this section, users can provide multiple YAML files, each specifying parameters for repeating certain steps of {{sc}} on a subset of cells. Some parameters in the YAML file inherit their definitions from the primary {{sc}} configuration file, including `qc_min_cells`, `qc_min_counts`, `qc_max_counts`, `qc_min_feats`, `qc_max_feats`, `qc_min_mito`, `qc_max_mito`, `qc_min_splice`, `qc_max_splice`, `hvg_method`, `hvg_metadata_split_var`, `hvg_n_hvgs`, `hvg_chunk_size`, `hvg_exclude_ambient_genes`, `hvg_exclude_from_file`, `ambient_genes_logfc_thr`, `ambient_genes_fdr_thr`, `int_pca_method`, `int_use_gpu`, `int_embedding`, `int_n_dims`, `int_theta`, `int_res_ls`, `int_use_paga`, `int_paga_cl_res`, `mkr_sel_res`, `mkr_min_cl_size`, `mkr_min_cells`, `mkr_not_ok_re`, `mkr_min_cpm_mkr`, `mkr_min_cpm_go`, `mkr_max_zero_p`, `mkr_do_gsea`, `mkr_gsea_cut`, `mkr_gsea_var`,`mkr_custom_genesets`, all [shiny app parameters](#shiny) (`app_title` defaults to `name`), and all [XGBoost training parameters](#train_xgboost).
 
 Additional parameters include:
 

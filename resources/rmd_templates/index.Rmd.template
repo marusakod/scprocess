@@ -18,17 +18,16 @@ This page serves as a starting point for exploring the results of `scprocess`. T
 
 Use this page to navigate through the full set of visualizations and outputs for your project.
 
-## Core steps
+## Whole dataset processing
 
 ${mapping_link}
 ${demultiplexing_link}
 ${ambient_link}
 ${qc_link}
 ${hvgs_link}
+${cell_cycle_link}
 ${integration_link}
 ${marker_genes_link}
-
-${lbls_title}
 ${label_celltypes_link}
 
 ${zoom_title}

@@ -85,6 +85,7 @@ int_dbl       = int_all %>%
 ```{r extract_normal_integration, include = FALSE}
 int_dt        = int_all[ !is.na(UMAP1) ] %>% 
   .[, c(batch_var, "cell_id", "embedding", "UMAP1", "UMAP2", 
+    intersect(c("tricycle_pc1", "tricycle_pc2", "tricycle_theta"), names(int_all)),
     str_subset(names(int_all), "RNA_snn_res")), with = FALSE]
 ```
 
@@ -135,6 +136,20 @@ for (res in res_ls) {
   print(g)
   cat('\n\n')
 }
+```
+
+```{r tricycle_diagnostics, eval = "tricycle_theta" %in% names(int_dt), fig.height = 5, fig.width = 11}
+g_projection = ggplot(int_dt, aes(tricycle_pc1, tricycle_pc2, colour = tricycle_theta)) +
+  geom_point(size = 0.25, alpha = 0.5) +
+  scale_colour_viridis_c(option = "H") +
+  coord_equal() +
+  theme_bw() +
+  labs(title = "Fixed-reference tricycle projection", colour = "theta")
+g_theta = ggplot(int_dt, aes(tricycle_theta, colour = get(batch_var))) +
+  geom_density() +
+  theme_bw() +
+  labs(title = "Cell-cycle phase by integration batch", x = "theta (radians)", colour = batch_var)
+g_projection + g_theta
 ```
 
 ## Evaluating cluster distribution across samples{.tabset}

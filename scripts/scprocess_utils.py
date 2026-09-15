@@ -234,6 +234,7 @@ def check_config(config, schema_f, scdata_dir, scprocess_dir):
   config      = _check_qc_parameters(config)
   config      = _check_hvg_parameters(config)
   config      = _check_integration_parameters(config)
+  config      = _check_cell_cycle_parameters(config)
   config      = _check_marker_genes_parameters(config, scdata_dir)
   config      = _check_pb_empties_parameters(config)
   config      = _check_shiny_parameters(config)
@@ -260,6 +261,9 @@ def _get_default_config_from_schema(schema, config=None):
   # extract defaults from the schema
   default_config = {}
   for key, props in schema.get('properties', {}).items():
+    if (config is not None and key not in config and
+        props.get('x-defaults-only-when-present', False)):
+      continue
     # if the key has a top-level default (uncommon for object types)
     if 'default' in props:
       default_config[key] = props['default']
@@ -1087,6 +1091,52 @@ def _check_integration_parameters(config):
   return config
 
 
+def _check_cell_cycle_parameters(config):
+  integration = config.get('integration', {})
+  regression_key = 'int_cell_cycle_regression'
+  tuning_keys = ('int_cell_cycle_harmonics', 'int_cell_cycle_ridge_lambda',
+                 'int_cell_cycle_correction')
+  regression_enabled = regression_key in integration
+
+  if any(key in integration for key in tuning_keys) and not regression_enabled:
+    raise ValueError(
+      "integration.int_cell_cycle_harmonics and "
+      "integration.int_cell_cycle_ridge_lambda and int_cell_cycle_correction require "
+      "integration.int_cell_cycle_regression: shared"
+    )
+  if regression_enabled and 'cell_cycle' not in config:
+    raise ValueError(
+      "integration.int_cell_cycle_regression requires a cell_cycle block"
+    )
+  if regression_enabled and integration['int_pca_method'] != 'bpcells':
+    raise ValueError(
+      "cell-cycle regression requires integration.int_pca_method: bpcells"
+    )
+  if regression_enabled:
+    integration.setdefault('int_cell_cycle_harmonics', 2)
+    integration.setdefault('int_cell_cycle_ridge_lambda', 0.1)
+    integration.setdefault('int_cell_cycle_correction', 'within_sample')
+    if integration['int_cell_cycle_correction'] not in ('within_sample', 'global'):
+      raise ValueError("integration.int_cell_cycle_correction must be within_sample or global")
+
+  if 'cell_cycle' not in config:
+    return config
+
+  cell_cycle = config['cell_cycle']
+  reference = config['project'].get('probe_set', config['project'].get('ref_txome', ''))
+  reference_lower = reference.lower()
+  if any(token in reference_lower for token in ('mouse', 'grcm', 'mm10', 'mm39')):
+    cell_cycle['_species'] = 'mouse'
+  elif any(token in reference_lower for token in ('human', 'grch', 'hg19', 'hg38')):
+    cell_cycle['_species'] = 'human'
+  else:
+    raise ValueError(
+      "Cannot infer cell-cycle species from project.ref_txome or "
+      "project.probe_set; its name must identify human or mouse."
+    )
+  return config
+
+
 # check parameters for marker genes
 def _check_marker_genes_parameters(config, scdata_dir):
   # set some more default values
@@ -1214,6 +1264,7 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
   # check hvgs option
   zoom_config   = _check_hvg_parameters(zoom_config)
   zoom_config   = _check_integration_parameters(zoom_config)
+  zoom_config   = _check_cell_cycle_parameters(zoom_config)
   zoom_config   = _check_shiny_parameters(zoom_config)
   zoom_config   = _check_train_xgboost_parameters(zoom_config)
 
@@ -1266,6 +1317,11 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
 
 
 def check_config_ok_for_rule(config, rule):
+  if rule == 'cell_cycle':
+    if 'cell_cycle' not in config:
+      raise KeyError(
+        "no 'cell_cycle' section found in config file. "
+        "Add a 'cell_cycle' block to your config to use -r cell_cycle.")
   if rule == 'label_celltypes':
     if 'label_celltypes' not in config:
       raise KeyError(

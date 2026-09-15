@@ -333,6 +333,58 @@ if CAN_CALC_AMBIENT_GENES:
       )"
       """
 
+# render_html_cell_cycle
+if CELL_CYCLE_ENABLED:
+  rule render_html_cell_cycle:
+    input:
+      r_utils_f    = f"{code_dir}/utils.R",
+      source_cell_cycle_f = f"{scprocess_dir}/scripts/cell_cycle.R",
+      template_f   = f"{scprocess_dir}/resources/rmd_templates/cell_cycle.Rmd.template",
+      scores_f     = TRICYCLE_SCORES_F,
+      marker_expression_f = TRICYCLE_MARKER_EXPRESSION_F,
+      origin_f     = TRICYCLE_ORIGIN_F,
+      sensitivity_f = TRICYCLE_ORIGIN_SENSITIVITY_F,
+      diagnostics_f = TRICYCLE_DIAGNOSTICS_F,
+      coldata_f    = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    output:
+      r_cell_cycle_f = f"{code_dir}/cell_cycle.R",
+      rmd_f          = f"{rmd_dir}/{SHORT_TAG}_cell_cycle.Rmd",
+      html_f         = f"{docs_dir}/{SHORT_TAG}_cell_cycle.html"
+    params:
+      your_name   = config['project']['your_name'],
+      affiliation = config['project']['affiliation'],
+      short_tag   = config['project']['short_tag'],
+      date_stamp  = config['project']['date_stamp'],
+      proj_dir    = config['project']['proj_dir']
+    threads: 1
+    retries: config['resources']['retries']
+    conda:
+      '../envs/rlibs.yaml'
+    resources:
+      mem_mb = 4096,
+      runtime = 30
+    benchmark:
+      f'{benchmark_dir}/render_htmls/render_html_cell_cycle_{DATE_STAMP}.benchmark.txt'
+    log:
+      f'{logs_dir}/render_htmls/render_html_cell_cycle_{DATE_STAMP}.log'
+    shell: """
+      exec &>> {log}
+      cp {input.source_cell_cycle_f} {output.r_cell_cycle_f}
+      template_f={input.template_f}
+      Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \
+        render_html(
+          rule_name='cell_cycle', proj_dir='{params.proj_dir}',
+          temp_f='$template_f', rmd_f='{output.rmd_f}',
+          your_name='{params.your_name}', affiliation='{params.affiliation}',
+          short_tag='{params.short_tag}', date_stamp='{params.date_stamp}',
+          threads={threads}, scores_f='{input.scores_f}',
+          marker_expression_f='{input.marker_expression_f}',
+          origin_f='{input.origin_f}', sensitivity_f='{input.sensitivity_f}',
+          diagnostics_f='{input.diagnostics_f}',
+          coldata_f='{input.coldata_f}')"
+      """
+
+
 # render_html_integration
 rule render_html_integration:
   input:

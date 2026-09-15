@@ -1,0 +1,624 @@
+import json
+from pathlib import Path
+
+import jsonschema
+import numpy as np
+import polars as pl
+import pytest
+
+from scripts.tricycle import (
+  CELL_CYCLE_MARKER_GENES,
+  aggregate_tricycle,
+  _bandwidth_nrd,
+  _binned_kde_density,
+  _density_equalized_probabilities,
+)
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_cell_cycle_is_optional_and_not_materialized_by_defaults():
+  from scripts.scprocess_utils import _get_default_config_from_schema
+
+  schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
+  defaults = _get_default_config_from_schema(schema, {})
+  assert 'cell_cycle' not in defaults
+  cell_cycle_schema = schema['properties']['cell_cycle']
+  assert 'enabled' not in cell_cycle_schema['properties']
+  assert set(cell_cycle_schema['properties']) == {
+    'cyc_bandwidth_multiplier', 'cyc_kde_grid_size',
+    'cyc_target_cells', 'cyc_target_cells_grid', 'cyc_origin', 'cyc_seed',
+  }
+
+
+def test_present_cell_cycle_block_receives_prefixed_defaults():
+  from scripts.scprocess_utils import _get_default_config_from_schema
+
+  schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
+  defaults = _get_default_config_from_schema(schema, {'cell_cycle': {}})
+  assert defaults['cell_cycle'] == {
+    'cyc_bandwidth_multiplier': 1.0,
+    'cyc_kde_grid_size': 500,
+    'cyc_target_cells': 5000,
+    'cyc_target_cells_grid': [100, 200, 500, 1000, 2000, 5000, 10000],
+    'cyc_seed': 20230308,
+  }
+
+
+def test_manual_origin_schema_requires_exactly_two_numbers():
+  schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
+  cell_cycle_schema = schema['properties']['cell_cycle']
+
+  jsonschema.validate({'cyc_origin': [-3, 1]}, cell_cycle_schema)
+  for invalid_origin in ([-3], [-3, 1, 2], ['-3', 1]):
+    with pytest.raises(jsonschema.ValidationError):
+      jsonschema.validate({'cyc_origin': invalid_origin}, cell_cycle_schema)
+
+
+def test_density_equalization_is_capped_and_has_requested_expectation():
+  density = np.array([0.1, 0.2, 1.0, 2.0, 10.0])
+  probabilities = _density_equalized_probabilities(density, 3)
+  assert np.all((probabilities > 0) & (probabilities <= 1))
+  assert probabilities.sum() == pytest.approx(3)
+  assert probabilities[0] == 1
+  assert probabilities[-1] < probabilities[-2]
+
+
+def test_binned_kde_is_deterministic_and_positive():
+  rng = np.random.default_rng(42)
+  points = np.vstack([
+    rng.normal((-2, 0), (0.2, 0.5), size=(500, 2)),
+    rng.normal((2, 0), (0.5, 0.2), size=(500, 2)),
+  ])
+  density_1, bandwidth_1, bins_1 = _binned_kde_density(points, 1.25)
+  density_2, bandwidth_2, bins_2 = _binned_kde_density(points, 1.25)
+  np.testing.assert_array_equal(density_1, density_2)
+  np.testing.assert_array_equal(bandwidth_1, bandwidth_2)
+  assert bins_1 == bins_2
+  assert np.all(density_1 > 0)
+
+
+def test_normal_reference_bandwidth_matches_definition():
+  values = np.arange(1, 101, dtype=float)
+  robust_scale = min(
+    np.std(values, ddof=1),
+    (np.quantile(values, 0.75) - np.quantile(values, 0.25)) / 1.34,
+  )
+  assert _bandwidth_nrd(values) == pytest.approx(
+    1.06 * robust_scale * values.size ** (-0.2)
+  )
+
+
+def test_theta_convention_wraps_to_zero_two_pi():
+  points = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]], dtype=float)
+  theta = np.mod(np.arctan2(points[:, 1], points[:, 0]), 2 * np.pi)
+  np.testing.assert_allclose(theta, [0, np.pi / 2, np.pi, 3 * np.pi / 2])
+
+
+def test_partitioned_projection_matches_one_pooled_projection():
+  rng = np.random.default_rng(11)
+  expression = rng.normal(size=(37, 19))
+  rotation = rng.normal(size=(19, 2))
+  run_projections = [block @ rotation for block in np.array_split(expression, 4)]
+  combined = np.vstack(run_projections)
+  combined -= combined.mean(axis=0)
+  pooled = (expression - expression.mean(axis=0)) @ rotation
+  np.testing.assert_allclose(combined, pooled, rtol=1e-13, atol=1e-13)
+
+
+def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tmp_path):
+  score_f = tmp_path / 'scores.csv'
+  marker_expression_f = tmp_path / 'marker_expression.csv'
+  summary_f = tmp_path / 'summary.csv'
+  coldata_f = tmp_path / 'coldata.csv'
+  out_scores_f = tmp_path / 'all_scores.csv.gz'
+  out_marker_expression_f = tmp_path / 'all_marker_expression.csv.gz'
+  out_origin_f = tmp_path / 'origin.csv'
+  out_sensitivity_f = tmp_path / 'origin_sensitivity.csv'
+  out_diagnostics_f = tmp_path / 'diagnostics.csv.gz'
+  pl_scores = pl.DataFrame({
+    'cell_id': ['a', 'b', 'c', 'known_doublet'],
+    'sample_id': ['s1', 's1', 's1', 's1'],
+    'tricycle_projection_group': ['run:s1'] * 4,
+    'tricycle_raw_pc1': [-1.0, 1.0, 0.0, 100.0],
+    'tricycle_raw_pc2': [0.0, 0.0, 1.0, 100.0],
+  })
+  pl_scores.write_csv(score_f)
+  pl.DataFrame({
+    'cell_id': ['a', 'b', 'c', 'known_doublet'],
+    **{
+      gene: [float(index), 0.0, 1.0, 2.0]
+      for index, gene in enumerate(CELL_CYCLE_MARKER_GENES)
+    },
+  }).write_csv(marker_expression_f)
+  pl.DataFrame({
+    'reference': ['tricycle::neuroRef'],
+    'tricycle_version': ['1.18.0'],
+    'species': ['mouse'],
+    'n_reference_genes': [450],
+    'n_duplicate_feature_mappings': [12],
+  }).write_csv(summary_f)
+  pl.DataFrame({
+    'cell_id': ['a', 'b', 'c', 'known_doublet'],
+    'keep': [True, True, True, False],
+  }).write_csv(coldata_f)
+
+  scores, marker_expression, origin, sensitivity, diagnostics = aggregate_tricycle(
+    [score_f], [marker_expression_f], [summary_f], coldata_f, [], 1.0, 500,
+    2, [1, 2, 10], 7, out_scores_f, out_marker_expression_f, out_origin_f,
+    out_sensitivity_f, out_diagnostics_f,
+  )
+
+  assert scores.height == 4
+  assert marker_expression.columns == ['cell_id', *CELL_CYCLE_MARKER_GENES]
+  assert marker_expression.height == 4
+  assert out_marker_expression_f.exists()
+  assert diagnostics.height == 3
+  assert origin['n_candidate_cells'][0] == 3
+  assert origin['n_projection_center_cells'][0] == 4
+  assert origin['reference_genes_matched_min'][0] == 450
+  assert origin['projection_centring_method'][0] == 'pooled_project_mean'
+  assert 'inclusion_probability' in diagnostics.columns
+  assert diagnostics['inclusion_probability'].max() <= 1
+  assert sensitivity['target_cells'].to_list() == [1, 2, 3]
+  assert sensitivity['selected'].to_list() == [False, True, False]
+  assert out_sensitivity_f.exists()
+  np.testing.assert_allclose(
+    scores.select('tricycle_pc1', 'tricycle_pc2').mean().to_numpy(), 0,
+    atol=1e-14,
+  )
+  assert np.all((scores['tricycle_theta'].to_numpy() >= 0) &
+                (scores['tricycle_theta'].to_numpy() < 2 * np.pi))
+
+  manual_outputs = [tmp_path / f'manual_{path.name}' for path in (
+    out_scores_f, out_marker_expression_f, out_origin_f, out_sensitivity_f,
+    out_diagnostics_f,
+  )]
+  manual_scores, _, manual_origin, _, _ = aggregate_tricycle(
+    [score_f], [marker_expression_f], [summary_f], coldata_f, [], 1.0, 500,
+    2, [1, 2, 10], 7, *manual_outputs, manual_origin=[-3, 1],
+  )
+  assert manual_origin['origin_method'][0] == 'manual'
+  assert manual_origin['tricycle_pc1_origin'][0] == -3
+  assert manual_origin['tricycle_pc2_origin'][0] == 1
+  assert manual_origin['target_cells_used_for_origin'][0] is False
+  assert manual_origin['selected_kde_tricycle_pc1_origin'][0] == pytest.approx(
+    origin['tricycle_pc1_origin'][0]
+  )
+  assert manual_origin['selected_kde_tricycle_pc2_origin'][0] == pytest.approx(
+    origin['tricycle_pc2_origin'][0]
+  )
+  manual_points = manual_scores.select('tricycle_pc1', 'tricycle_pc2').to_numpy()
+  expected_theta = np.mod(
+    np.arctan2(manual_points[:, 1] - 1, manual_points[:, 0] + 3),
+    2 * np.pi,
+  )
+  np.testing.assert_allclose(
+    manual_scores['tricycle_theta'].to_numpy(), expected_theta
+  )
+
+
+def test_aggregate_reads_sparse_marker_columns_as_floats(tmp_path):
+  n_cells = 150
+  cell_ids = [f'cell_{index}' for index in range(n_cells)]
+  score_f = tmp_path / 'scores.csv'
+  marker_expression_f = tmp_path / 'marker_expression.csv'
+  summary_f = tmp_path / 'summary.csv'
+  coldata_f = tmp_path / 'coldata.csv'
+
+  pl.DataFrame({
+    'cell_id': cell_ids,
+    'sample_id': ['s1'] * n_cells,
+    'tricycle_projection_group': ['run:s1'] * n_cells,
+    'tricycle_raw_pc1': np.linspace(-1, 1, n_cells),
+    'tricycle_raw_pc2': np.sin(np.linspace(0, 2 * np.pi, n_cells)),
+  }).write_csv(score_f)
+  marker_values = {
+    gene: np.zeros(n_cells) for gene in CELL_CYCLE_MARKER_GENES
+  }
+  marker_values['CCNB1'][120] = 3.17713429005327
+  pl.DataFrame({'cell_id': cell_ids, **marker_values}).write_csv(
+    marker_expression_f
+  )
+  pl.DataFrame({
+    'reference': ['tricycle::neuroRef'],
+    'tricycle_version': ['1.18.0'],
+    'species': ['human'],
+    'n_reference_genes': [450],
+    'n_duplicate_feature_mappings': [12],
+  }).write_csv(summary_f)
+  pl.DataFrame({'cell_id': cell_ids, 'keep': [True] * n_cells}).write_csv(
+    coldata_f
+  )
+
+  outputs = [tmp_path / name for name in (
+    'scores.csv.gz', 'markers.csv.gz', 'origin.csv', 'sensitivity.csv',
+    'diagnostics.csv.gz',
+  )]
+  _, marker_expression, _, _, _ = aggregate_tricycle(
+    [score_f], [marker_expression_f], [summary_f], coldata_f, [], 1.0, 500,
+    50, [50], 7, *outputs,
+  )
+
+  assert marker_expression.schema['CCNB1'] == pl.Float64
+  assert marker_expression.filter(pl.col('cell_id') == 'cell_120')[
+    'CCNB1'
+  ][0] == pytest.approx(3.17713429005327)
+
+
+def test_hybrid_ridge_formula_matches_gene_chunking_and_preserves_project_mean():
+  rng = np.random.default_rng(7)
+  y = rng.normal(size=(80, 23))
+  theta = rng.uniform(0, 2 * np.pi, size=80)
+  raw = np.column_stack((np.sin(theta), np.cos(theta)))
+  groups = np.repeat(np.arange(4), 20)
+  fit = raw.copy()
+  for group in np.unique(groups):
+    rows = groups == group
+    fit[rows] -= fit[rows].mean(axis=0)
+  rms = np.sqrt(np.mean(fit**2, axis=0))
+  fit /= rms
+  correction = (raw - raw.mean(axis=0)) / rms
+  gram = fit.T @ fit
+  effective_lambda = 0.1 * np.trace(gram) / fit.shape[1]
+  inverse = np.linalg.solve(
+    gram + effective_lambda * np.eye(fit.shape[1]), np.eye(fit.shape[1])
+  )
+  corrected = y - correction @ inverse @ (fit.T @ y)
+  chunked = np.column_stack([
+    block - correction @ inverse @ (fit.T @ block)
+    for block in np.array_split(y, 5, axis=1)
+  ])
+  np.testing.assert_allclose(chunked, corrected, rtol=1e-13, atol=1e-13)
+  np.testing.assert_allclose(corrected.mean(axis=0), y.mean(axis=0), atol=1e-14)
+  coefficients = inverse @ (fit.T @ y)
+  observed_group_changes = []
+  for group in np.unique(groups):
+    rows = groups == group
+    np.testing.assert_allclose(fit[rows].mean(axis=0), 0, atol=1e-14)
+    change = corrected[rows].mean(axis=0) - y[rows].mean(axis=0)
+    expected_change = -correction[rows].mean(axis=0) @ coefficients
+    np.testing.assert_allclose(change, expected_change, atol=1e-14)
+    observed_group_changes.append(change)
+  assert np.max(np.abs(observed_group_changes)) > 1e-6
+
+
+def test_within_sample_fit_does_not_attribute_sample_offset_to_cycle():
+  x = np.array([1, 1, 1, -1, -1, -1, -1, 1], dtype=float)
+  y = np.array([0, 0, 0, 0, 4, 4, 4, 4], dtype=float)
+  groups = np.repeat([0, 1], 4)
+  global_slope = np.dot(x - x.mean(), y - y.mean()) / np.sum((x - x.mean())**2)
+  fit_x = x.copy()
+  for group in np.unique(groups):
+    fit_x[groups == group] -= fit_x[groups == group].mean()
+  within_sample_slope = np.dot(fit_x, y) / np.dot(fit_x, fit_x)
+  assert global_slope == pytest.approx(-1)
+  assert within_sample_slope == pytest.approx(0)
+
+
+def test_bpcells_uses_guarded_native_ridge_residual_operator():
+  script = (ROOT / 'scripts/bpcells_pca.R').read_text()
+  assert 'BPCells:::wrapMatrix(' in script
+  assert '"TransformLinearResidual"' in script
+  assert '.check_bpcells_residual_api()' in script
+  assert 'as.character(version) != "0.3.1"' in script
+  assert 'row_params <- t(correction_design)' in script
+  assert 'coefficients <- inverse %*% xty' in script
+  assert 'storage_order(base) == "row"' in script
+  assert 'RidgeResidualMatrix' not in script
+  assert 'mult =' not in script
+
+
+def test_human_identifier_mapping_uses_declared_rowdata_not_annotation_downloads():
+  script = (ROOT / 'scripts' / 'tricycle.R').read_text()
+  environment = (ROOT / 'envs' / 'tricycle.yaml').read_text()
+  assert 'rowdata_f' in script
+  assert 'ensembl_id' in script
+  assert 'org.Hs.eg.db' not in script
+  assert 'bioconductor-org.hs.eg.db' not in environment
+  assert 'bioconductor-org.mm.eg.db' not in environment
+  assert 'library(rhdf5)' in script
+  assert 'bioconductor-rhdf5' in environment
+  assert 'r-r.utils' in environment
+
+
+def test_cell_cycle_outputs_use_dedicated_directory():
+  main_rules = (ROOT / 'rules' / 'scprocess.smk').read_text()
+  tricycle_rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
+  integration_rules = (ROOT / 'rules' / 'integration.smk').read_text()
+  assert 'cell_cycle_dir = f"{PROJ_DIR}/output/{SHORT_TAG}_cell_cycle"' in main_rules
+  assert "f'{cell_cycle_dir}/tricycle_scores_" in tricycle_rules
+  assert "f'{cell_cycle_dir}/tricycle_marker_expression_" in tricycle_rules
+  assert "f'{cell_cycle_dir}/tricycle_origin_sensitivity_" in tricycle_rules
+  assert "f'{cell_cycle_dir}/run_{{run}}_" in tricycle_rules
+  assert "{cell_cycle_dir}/tricycle/" not in tricycle_rules
+  assert "f'{cell_cycle_dir}/final_cell_cycle_regression_" in integration_rules
+
+
+def test_cell_cycle_has_standalone_diagnostics_report():
+  cli = (ROOT / 'scprocess').read_text()
+  main_rules = (ROOT / 'rules' / 'scprocess.smk').read_text()
+  report_rules = (ROOT / 'rules' / 'render_htmls.smk').read_text()
+  renderer = (ROOT / 'scripts' / 'render_htmls.R').read_text()
+  template = (ROOT / 'resources/rmd_templates/cell_cycle.Rmd.template').read_text()
+  helper = (ROOT / 'scripts/cell_cycle.R').read_text()
+  assert 'rule render_html_cell_cycle:' in report_rules
+  assert 'source_cell_cycle_f = f"{scprocess_dir}/scripts/cell_cycle.R"' in report_rules
+  assert 'template_f   = f"{scprocess_dir}/resources/rmd_templates/cell_cycle.Rmd.template"' in report_rules
+  assert 'rule cell_cycle:' in main_rules
+  assert '"hvg", "cell_cycle", "integration"' in cli
+  assert "rule_name='cell_cycle'" in report_rules
+  assert "f'{docs_dir}/{SHORT_TAG}_cell_cycle.html'" in main_rules
+  assert "'cell_cycle', 'integration'" in renderer
+  assert 'cell_cycle_link' in renderer
+  assert '${cell_cycle_link}' in (ROOT / 'resources/rmd_templates/index.Rmd.template').read_text()
+  integration_target = main_rules.split('rule integration:', 1)[1].split('rule marker_genes:', 1)[0]
+  assert 'cell_cycle_outs' not in integration_target
+  assert 'Pooled projection and estimated origin' in template
+  assert 'Spatial marker expression' in template
+  assert 'Expression around theta' in template
+  assert 'Cell-cycle position' not in template
+  assert '```{r theta_density' not in template
+  assert template.index('Expression around theta') < template.index(
+    'Pooled projection and estimated origin'
+  ) < template.index('Spatial marker expression')
+  assert '${marker_expression_f}' in template
+  assert '${hvg_mat_f}' not in template
+  assert '${rowdata_f}' not in template
+  assert 'g_theta_projection + g_expression_curves' in template
+  assert 'plot_layout(widths=c(1, 1.4))' in template
+  assert 'scale_y_continuous(breaks=pretty_breaks())' in template
+  assert 'coord_cartesian(ylim=c(0, 1.05))' in template
+  assert 'Sample-level diagnostics' in template
+  assert 'size=inclusion_probability' in template
+  assert "scale_size_continuous(range=c(0.2, 2), limits=c(0, 1)" in template
+  assert 'Approximate phase percentages by sample' in template
+  assert 'percent_cells := 100 * n_cells / sum(n_cells)' in template
+  assert "phase_dt[approximate_phase != 'G1/G0']" in template
+  assert 'not renormalized' in template
+  assert 'aes(percent_cells, sample_id, fill=approximate_phase)' in template
+  assert 'geom_quasirandom(' in template
+  assert "shape=21, size=3, width=0.25, orientation='y'" in template
+  assert 'scale_y_discrete(limits=rev)' in template
+  assert 'scale_x_log10(' in template
+  assert 'breaks=c(0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100)' in template
+  assert 'geom_hex' in template
+  assert 'fill=after_scale(colour)' in template
+  assert 'scale_colour_viridis_c(' in template
+  assert 'scale_fill_discrete(' in template
+  assert 'palette=function(n) grey.colors' in template
+  assert "plot_layout(guides='collect')" in template
+  assert "theme(legend.position='bottom')" in template
+  assert "stroke=1.5, colour='black'" in template
+  assert "'Manual origin: (%g, %g); KDE diagnostic target cells: %s'" in template
+  assert 'data=origin_sensitivity_points' in template
+  assert 'caption=origin_caption' in template
+  assert "colour='#1F4E79'" in template
+  assert 'diagnostic_retained == TRUE' in template
+  for marker in (
+    'CDKN1A', 'PCNA', 'MCM4', 'MCM5', 'TYMS', 'TOP2A',
+    'CCNB1', 'CDK1', 'TPX2', 'SMC2', 'MKI67', 'UBE2C',
+  ):
+    assert marker in helper
+  assert 'facet_wrap(~gene, ncol=4' in template
+  assert "strip.background=element_rect(fill='white'" in template
+  assert 'marker_expression <- marker_expression[sample.int(.N)]' in template
+  assert 'setorder(marker_expression, gene, expression_q98)' not in template
+  assert 'rep(c("checkpoint", "S", "G2/M")' in helper
+  assert "'CDKN1A'='#636363'" in template
+  assert 'add_phase_boundaries <- function()' in template
+  assert "theta=c(0.25, 0.5, 1, 1.75) * pi" in template
+  assert template.count('add_phase_boundaries() +') == 5
+  assert "geom_vline(xintercept=c(0.25, 0.5, 1, 1.75)" in template
+  assert 'read_cell_cycle_marker_expression <- function' in helper
+  assert 'cell_cycle_marker_annotation <- function' in helper
+  assert 'smooth_periodic_expression <- function' in helper
+  assert 'by = .(gene, theta_bin)' in helper
+  assert 'list(binned = binned, curves = curves)' in helper
+  assert 'curve_peak := max(mean_expression' in helper
+  assert 'mean_expression / curve_peak' in helper
+  assert 'data=bin_dt' not in template
+  assert "name='cells per bin'" not in template
+  assert "y='pooled mean expression (curve maximum = 1)'" in template
+  assert 'geom_ribbon(' not in template
+  assert 'ci95_scaled' not in helper
+  assert 'span = 0.5' in helper
+  assert 'span = span / 3' in helper
+  assert 'degree = 1' in helper
+  assert 'pmax(0, as.numeric(predict(model, grid)))' in helper
+
+
+def test_cell_cycle_target_requires_config_block():
+  from scripts.scprocess_utils import check_config_ok_for_rule
+
+  with pytest.raises(KeyError, match="no 'cell_cycle' section"):
+    check_config_ok_for_rule({}, 'cell_cycle')
+  check_config_ok_for_rule({'cell_cycle': {}}, 'cell_cycle')
+
+
+def test_bonus_doublet_rule_is_gpu_routed_on_shpc():
+  profile = (ROOT / 'profiles/slurm_shpc/config.yaml').read_text()
+  assert (
+    '  classify_additional_doublets:\n'
+    '    slurm_partition: "batch_gpu"\n'
+    '    slurm_extra: "\'--gpus=1\'"\n'
+    "    qos: '3h'"
+  ) in profile
+
+
+def test_tricycle_rule_runs_once_per_physical_run():
+  rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
+  assert "Rscript --vanilla -e 'source(\"{scprocess_dir}/scripts/tricycle.R\")" in rules
+  assert 'rule estimate_run_tricycle:' in rules
+  assert 'run_column = "{params.run_var}"' in rules
+  assert 'run_value = "{wildcards.run}"' in rules
+  assert 'estimate_sample_tricycle' not in rules
+  assert 'estimate_unassigned_doublet_tricycle' not in rules
+  assert 'Rscript -e "source(' not in rules
+
+
+def test_tricycle_rule_records_all_marker_genes_from_full_run_matrix():
+  rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
+  r_script = (ROOT / 'scripts' / 'tricycle.R').read_text()
+  report_rules = (ROOT / 'rules' / 'render_htmls.smk').read_text()
+  renderer = (ROOT / 'scripts' / 'render_htmls.R').read_text()
+  assert 'out_marker_expression_f = "{output.marker_expression_f}"' in rules
+  assert '--marker_expression_f {path}' in rules
+  assert '--out_marker_expression_f {output.marker_expression_f}' in rules
+  assert 'marker_expression_f = TRICYCLE_MARKER_EXPRESSION_F' in report_rules
+  assert "'marker_expression_f'" in renderer
+  assert '.extract_marker_expression <- function' in r_script
+  for marker in CELL_CYCLE_MARKER_GENES:
+    assert f'"{marker}"' in r_script
+
+
+def test_tricycle_rule_passes_optional_manual_origin_to_aggregation():
+  rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
+  script = (ROOT / 'scripts' / 'tricycle.py').read_text()
+  assert "if 'cyc_origin' in config['cell_cycle'] else ''" in rules
+  assert '{params.origin_args}' in rules
+  assert 'parser.add_argument("--origin", nargs=2, type=float)' in script
+  assert 'manual_origin=args.origin' in script
+
+
+def test_tricycle_reports_incremental_progress():
+  script = (ROOT / 'scripts' / 'tricycle.R').read_text()
+  assert '.tricycle_log <- function' in script
+  assert 'Reading CSC arrays from ' in script
+  assert 'Materializing ' in script
+  assert 'Calculating uncentred tricycle reference projection' in script
+  assert 'Finished ' in script
+
+
+def test_tricycle_run_jobs_use_dedicated_resource_model():
+  rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
+  assert rules.count("'estimate_run_tricycle', 'memory', attempt") == 1
+  assert rules.count("'estimate_run_tricycle', 'time', attempt") == 1
+  assert 'runtime = 60' not in rules
+
+
+def test_zoom_pca_supports_shared_cell_cycle_regression():
+  schema = json.loads((ROOT / 'resources/schemas/zoom.schema.json').read_text())
+  integration_properties = schema['properties']['integration']['properties']
+  assert integration_properties['int_cell_cycle_regression']['const'] == 'shared'
+  assert integration_properties['int_cell_cycle_harmonics']['enum'] == [1, 2]
+  assert integration_properties['int_cell_cycle_ridge_lambda']['minimum'] == 0
+
+  rules = (ROOT / 'rules' / 'zoom.smk').read_text()
+  assert 'tricycle_f = zoom_tricycle_input' in rules
+  assert 'regression_args = zoom_cell_cycle_regression_args' in rules
+  assert "harmonics = {integration['int_cell_cycle_harmonics']}" in rules
+  assert "ridge_lambda = {integration['int_cell_cycle_ridge_lambda']}" in rules
+
+
+def test_projection_is_centered_once_at_project_level():
+  r_script = (ROOT / 'scripts' / 'tricycle.R').read_text()
+  py_script = (ROOT / 'scripts' / 'tricycle.py').read_text()
+  assert 'gene_means <- Matrix::rowMeans(normalized)' not in r_script
+  assert 'tricycle_raw_pc1' in r_script
+  assert 'projection_center = raw_points.mean(axis=0)' in py_script
+  assert 'pooled_project_mean' in py_script
+
+
+def test_invalid_regression_backend_is_rejected():
+  from scripts.scprocess_utils import _check_cell_cycle_parameters
+
+  config = {
+    'project': {'ref_txome': 'mouse_2024'},
+    'integration': {
+      'int_pca_method': 'scanpy',
+      'int_cell_cycle_regression': 'shared',
+    },
+    'cell_cycle': {},
+  }
+  with pytest.raises(ValueError, match='requires integration.int_pca_method: bpcells'):
+    _check_cell_cycle_parameters(config)
+
+
+def test_species_is_inferred_from_standard_reference():
+  from scripts.scprocess_utils import _check_cell_cycle_parameters
+
+  config = {
+    'project': {'ref_txome': 'human_2024'},
+    'integration': {'int_pca_method': 'bpcells'},
+    'cell_cycle': {},
+  }
+  checked = _check_cell_cycle_parameters(config)
+  assert checked['cell_cycle']['_species'] == 'human'
+
+
+def test_shared_regression_receives_integration_defaults():
+  from scripts.scprocess_utils import _check_cell_cycle_parameters
+
+  config = {
+    'project': {'ref_txome': 'mouse_2024'},
+    'integration': {
+      'int_pca_method': 'bpcells',
+      'int_cell_cycle_regression': 'shared',
+    },
+    'cell_cycle': {},
+  }
+  checked = _check_cell_cycle_parameters(config)
+  assert checked['integration']['int_cell_cycle_harmonics'] == 2
+  assert checked['integration']['int_cell_cycle_ridge_lambda'] == 0.1
+  assert checked['integration']['int_cell_cycle_correction'] == 'within_sample'
+
+
+def test_regression_requires_cell_cycle_block():
+  from scripts.scprocess_utils import _check_cell_cycle_parameters
+
+  config = {
+    'project': {'ref_txome': 'mouse_2024'},
+    'integration': {
+      'int_pca_method': 'bpcells',
+      'int_cell_cycle_regression': 'shared',
+    },
+  }
+  with pytest.raises(ValueError, match='requires a cell_cycle block'):
+    _check_cell_cycle_parameters(config)
+
+
+def test_regression_tuning_requires_shared_regression():
+  from scripts.scprocess_utils import _check_cell_cycle_parameters
+
+  config = {
+    'project': {'ref_txome': 'mouse_2024'},
+    'integration': {
+      'int_pca_method': 'bpcells',
+      'int_cell_cycle_harmonics': 1,
+    },
+    'cell_cycle': {},
+  }
+  with pytest.raises(ValueError, match='int_cell_cycle_regression: shared'):
+    _check_cell_cycle_parameters(config)
+
+
+@pytest.mark.parametrize('mode', ['within_sample', 'global'])
+def test_cell_cycle_correction_choice(mode):
+  from scripts.scprocess_utils import _check_cell_cycle_parameters
+  config = {
+    'project': {'ref_txome': 'mouse_2024'}, 'cell_cycle': {},
+    'integration': {'int_pca_method': 'bpcells',
+                    'int_cell_cycle_regression': 'shared',
+                    'int_cell_cycle_correction': mode},
+  }
+  assert _check_cell_cycle_parameters(config)['integration']['int_cell_cycle_correction'] == mode
+  for name in ('config', 'zoom'):
+    schema = json.loads((ROOT / f'resources/schemas/{name}.schema.json').read_text())
+    field = schema['properties']['integration']['properties']['int_cell_cycle_correction']
+    jsonschema.validate(mode, field)
+    with pytest.raises(jsonschema.ValidationError):
+      jsonschema.validate('per_sample_slopes', field)
+
+
+def test_correction_mode_requires_regression():
+  from scripts.scprocess_utils import _check_cell_cycle_parameters
+  with pytest.raises(ValueError, match='int_cell_cycle_regression: shared'):
+    _check_cell_cycle_parameters({'integration': {'int_cell_cycle_correction': 'global'}})
+
+
+def test_project_and_zoom_forward_correction_mode():
+  for name in ('integration', 'zoom'):
+    rules = (ROOT / f'rules/{name}.smk').read_text()
+    assert "correction_centering = '{integration['int_cell_cycle_correction']}'" in rules

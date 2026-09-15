@@ -77,7 +77,7 @@ get_xgboost_report_text <- function(do_xgboost) {
     xgb_top_genes_txt = "Pseudobulk logCPM expression of the top 20 most important XGBoost genes, shown per cell type label.")
 }
 
-get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'integration',
+get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'cell_cycle', 'integration',
   'markers', 'label_celltypes', 'zoom', 'index', 'train_xgboost', 'join'), proj_dir, ...) {
   # get arguments
   sel_rule = match.arg(rule)
@@ -159,6 +159,14 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     assert_that(all(req_names %in% add_args_names))
 
     params_ls = add_args
+
+  } else if (sel_rule == 'cell_cycle') {
+    req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp', 'threads',
+      'scores_f', 'marker_expression_f', 'origin_f', 'sensitivity_f',
+      'diagnostics_f', 'coldata_f')
+
+    assert_that(all(req_names %in% add_args_names))
+    params_ls = add_args[req_names]
 
   } else if (sel_rule == 'integration') {
     req_names = c('your_name', 'affiliation', 'short_tag', 
@@ -315,9 +323,9 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     ambient_link         = ""
     qc_link              = ""
     hvgs_link            = ""
+    cell_cycle_link      = ""
     integration_link     = ""
     marker_genes_link    = ""
-    lbls_title           = ""
     label_celltypes_link = ""
     zoom_title           = ""
     zoom_links           = ""
@@ -344,6 +352,10 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       hvgs_link = sprintf("- Highly variable genes ([link](%s_hvgs.html))", short_tag)
     }
 
+    if(paste0(short_tag, '_cell_cycle.html') %in% htmls){
+      cell_cycle_link = sprintf("- Cell cycle ([link](%s_cell_cycle.html))", short_tag)
+    }
+
     if(paste0(short_tag, '_integration.html') %in% htmls){
       integration_link = sprintf("- Integration ([link](%s_integration.html))", short_tag)
     }
@@ -354,17 +366,17 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
     if(paste0(short_tag, '_label_celltypes.html') %in% htmls){
       label_celltypes_link = sprintf("- Celltype labelling ([link](%s_label_celltypes.html))", short_tag)
-      lbls_title = "## Cell type annotation"
     }
     
     if(any(grepl(paste0(short_tag, '_zoom.*.html'), htmls))){
       zoom_htmls  = htmls[grepl(paste0(short_tag, '_zoom.*.html'), htmls)]
       # extract zoom params
-      pattern     = ".*?_zoom_(.+_\\d+(\\.\\d+)?)\\.html"
+      pattern     = ".*?_zoom_(.+_\\d+(?:\\.\\d+)?)\\.html$"
       params_mat  = str_match(zoom_htmls, pattern)
 
-      # check for no NAs
-      if (any(is.na(params_mat))) {
+      # Only the complete match indicates whether parsing succeeded. Optional
+      # capture groups are NA for valid integer resolutions such as "1".
+      if (any(is.na(params_mat[, 1]))) {
         stop("Error: Zoom html files must be named in the format '{short_tag}_zoom_{zoomname}_{resolution}.html'")
       }
       
@@ -462,9 +474,9 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
         ambient_link        = ambient_link,
         qc_link             = qc_link, 
         hvgs_link           = hvgs_link, 
+        cell_cycle_link     = cell_cycle_link,
         integration_link    = integration_link, 
         marker_genes_link   = marker_genes_link,
-        lbls_title          = lbls_title,
         label_celltypes_link= label_celltypes_link,
         zoom_title          = zoom_title, 
         zoom_links          = zoom_links,

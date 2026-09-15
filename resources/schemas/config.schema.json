@@ -171,6 +171,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "int_pca_method":   { "type": "string",   "default": "bpcells", "enum": ["bpcells", "scanpy"] },
         "int_use_gpu":      { "type": "boolean",  "default": true },
         "int_embedding":    { "type": "string",   "default": "harmony", "enum": ["harmony", "pca"] },
         "int_cl_method":    { "type": "string",   "default": "leiden", "enum": ["leiden"] },
@@ -183,6 +184,10 @@
         "int_sce_outs":     { "type": "boolean",  "default": false},
         "int_use_paga":     { "type": "boolean",  "default": true},
         "int_paga_cl_res":  { "type": "number",   "default": 2, "exclusiveMinimum": 0},
+        "int_cell_cycle_regression":   { "type": "string", "const": "shared" },
+        "int_cell_cycle_harmonics":    { "type": "integer", "enum": [1, 2] },
+        "int_cell_cycle_ridge_lambda": { "type": "number", "minimum": 0 },
+        "int_cell_cycle_correction": { "type": "string", "enum": ["within_sample", "global"] },
         "int_res_ls": {
           "type":     "array",
           "items":    { "type": "number" },
@@ -200,6 +205,19 @@
           }
         }
       ]
+    },
+    "cell_cycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-defaults-only-when-present": true,
+      "properties": {
+        "cyc_bandwidth_multiplier": { "type": "number", "exclusiveMinimum": 0, "default": 1.0 },
+        "cyc_kde_grid_size":        { "type": "integer", "minimum": 20, "default": 500 },
+        "cyc_target_cells":         { "type": "integer", "minimum": 1, "default": 5000 },
+        "cyc_target_cells_grid":    { "type": "array", "items": { "type": "integer", "minimum": 1 }, "uniqueItems": true, "default": [100, 200, 500, 1000, 2000, 5000, 10000] },
+        "cyc_origin":               { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+        "cyc_seed":                 { "type": "integer", "default": 20230308 }
+      }
     },
     "marker_genes": {
       "type": "object",
@@ -372,6 +390,9 @@
         "mins_get_highly_variable_genes": { "type": ["integer", "null"] },
         "mins_create_hvg_matrix":         { "type": ["integer", "null"] },
         "mins_create_doublets_hvg_matrix": { "type": ["integer", "null"] },
+
+        "gb_estimate_run_tricycle":       { "type": ["integer", "null"] },
+        "mins_estimate_run_tricycle":     { "type": ["integer", "null"] },
 
         "gb_run_integration":             { "type": "integer", "default": 32 },
         "gb_make_clean_h5ads":            { "type": "integer", "default": 8 },

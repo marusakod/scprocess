@@ -2,6 +2,7 @@
 import argparse
 import ast
 import json
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -50,14 +51,30 @@ def test_schema_defaults_and_validation(workflow):
             jsonschema.validate(value, field)
 
 
-@pytest.mark.parametrize('command', ['run_integration', 'run_zoom_integration'])
+@pytest.mark.parametrize('command', [
+    'run_integration', 'run_zoom_integration',
+    'run_preliminary_integration', 'run_final_integration'])
 @pytest.mark.parametrize('value', [None, '3500', '0', '-1', '2.5'])
 def test_cli_default_override_and_rejection(integration, command, value):
     namespace = integration
-    namespace.update(run_integration=Mock(), run_zoom_integration=Mock())
+    namespace.update({name: Mock() for name in (
+        'run_integration', 'run_zoom_integration',
+        'run_preliminary_integration', 'run_final_integration')})
     main = next(n for n in TREE.body if isinstance(n, ast.If))
     body = ast.Module(body=main.body, type_ignores=[])
     argv = ['integration.py', command]
+    # The split BPCells integration entry points require explicit input flags.
+    required = {
+        'run_preliminary_integration': (
+            'hvg_mat_f dbl_hvg_mat_f precomputed_pca_f sample_qc_f coldata_f '
+            'demux_type embedding n_dims cl_method dbl_res dbl_cl_prop '
+            'doublet_f clean_cells_f batch_var'),
+        'run_final_integration': (
+            'precomputed_pca_f doublet_f coldata_f embedding n_dims cl_method '
+            'theta res_ls_concat integration_f batch_var'),
+    }
+    for name in required.get(command, '').split():
+        argv += ['--' + name, '2' if name in ('n_dims', 'dbl_res', 'dbl_cl_prop', 'theta') else 'unused']
     if value is not None:
         argv += ['--umap_n_iter', value]
     scanpy = MagicMock()
@@ -128,12 +145,40 @@ def test_entry_points_forward_iterations(integration, workflow):
 
 @pytest.mark.parametrize('filename,rule', [
     ('integration.smk', 'run_integration'),
+    ('integration.smk', 'classify_additional_doublets'),
     ('zoom.smk', 'zoom_run_integration'),
     ('join.smk', 'join_integration')])
 def test_rules_track_and_forward_config(filename, rule):
     text = (ROOT / 'rules' / filename).read_text()
-    block = text.split(f'rule {rule}:', 1)[1].split('\nrule ', 1)[0]
-    assert "['integration']['int_umap_n_iter']" in block
-    assert '--umap_n_iter {params.umap_n_iter}' in block
+    blocks = text.split(f'rule {rule}:')[1:]
+    for block in blocks:
+        block = re.split(r'\n\s*(?:rule |else:)', block, maxsplit=1)[0]
+        assert "['integration']['int_umap_n_iter']" in block
+        assert re.search(r'--umap_n_iter\s+\{params.umap_n_iter\}', block)
     if filename == 'zoom.smk':
         assert "ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_umap_n_iter']" in block
+
+
+@pytest.mark.parametrize('stage', ['preliminary', 'final'])
+def test_split_bpcells_integration_forwards_umap_setting(integration, stage):
+    result = MagicMock()
+    result.filter.return_value.select.return_value.height = 2
+    integration.update(
+        _get_h5_barcodes=Mock(return_value=['c1', 'c2']),
+        _get_cells_df=Mock(), _ordered_coldata=Mock(),
+        _adata_from_precomputed_pca=Mock(), _do_one_integration=Mock(return_value=result),
+        _calc_dbl_data=Mock(return_value=result), pl=MagicMock(), gzip=MagicMock())
+    shared = dict(precomputed_pca_f='pca.csv', coldata_f='coldata.csv',
+                  embedding='pca', n_dims=2, cl_method='leiden',
+                  doublet_f='doublets.csv', batch_var='sample_id', umap_n_iter=3500)
+    if stage == 'preliminary':
+        integration['run_preliminary_integration'](
+            **shared, hvg_mat_f='hvg.h5', dbl_hvg_mat_f='dbl.h5',
+            sample_qc_f='qc.csv', demux_type='none', dbl_res=4,
+            dbl_cl_prop=0.5, clean_cells_f='clean.csv')
+    else:
+        integration['run_final_integration'](
+            **shared, theta=0.1, res_ls_concat='0.2', integration_f='out.csv')
+    call = integration['_do_one_integration'].call_args
+    assert call.kwargs['umap_n_iter'] == 3500
+    assert call.kwargs['skip_pca'] is True

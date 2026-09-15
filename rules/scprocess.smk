@@ -62,6 +62,7 @@ demux_dir     = f"{PROJ_DIR}/output/{SHORT_TAG}_demultiplexing"
 dbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_doublet_id"
 qc_dir        = f"{PROJ_DIR}/output/{SHORT_TAG}_qc"
 hvg_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_hvg"
+cell_cycle_dir = f"{PROJ_DIR}/output/{SHORT_TAG}_cell_cycle"
 int_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_integration"
 mkr_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_marker_genes"
 lbl_dir       = f"{PROJ_DIR}/output/{SHORT_TAG}_label_celltypes"
@@ -182,6 +183,17 @@ label_celltypes_outs = [
   f'{docs_dir}/{SHORT_TAG}_label_celltypes.html'
 ] if LABELLER_PARAMS else []
 
+cell_cycle_outs = [
+  f'{cell_cycle_dir}/tricycle_scores_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+  f'{cell_cycle_dir}/tricycle_marker_expression_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+  f'{cell_cycle_dir}/tricycle_origin_{FULL_TAG}_{DATE_STAMP}.csv',
+  f'{cell_cycle_dir}/tricycle_origin_sensitivity_{FULL_TAG}_{DATE_STAMP}.csv',
+  f'{cell_cycle_dir}/tricycle_origin_diagnostics_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+  code_dir + '/cell_cycle.R',
+  f'{rmd_dir}/{SHORT_TAG}_cell_cycle.Rmd',
+  f'{docs_dir}/{SHORT_TAG}_cell_cycle.html'
+] if 'cell_cycle' in config else []
+
 # one rule to rule them all
 rule all:
   input:
@@ -220,6 +232,7 @@ rule all:
     f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5',
     # integration
     f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    cell_cycle_outs,
     expand(f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad', batch = BATCHES),
     clean_sce_fs,
     f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml', 
@@ -333,6 +346,12 @@ rule hvg:
     hvgs_html_outs
 
 
+if 'cell_cycle' in config:
+  rule cell_cycle:
+    input:
+      cell_cycle_outs
+
+
 rule integration:
   input:
     expand(f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad', batch = BATCHES),
@@ -382,6 +401,7 @@ include: "ambient.smk"
 include: "qc.smk"
 include: "pb_empties.smk"
 include: "hvgs.smk"
+include: "tricycle.smk"
 include: "integration.smk"
 include: "marker_genes.smk"
 include: "render_htmls.smk"

@@ -17,6 +17,26 @@ import numba
 import warnings
 
 
+def _indices_in_requested_feature_order(features, requested_features):
+  """Return row indices ordered exactly like the output feature labels."""
+  features = np.asarray(features, dtype=str)
+  requested_features = np.asarray(requested_features, dtype=str)
+  if np.unique(features).size != features.size:
+    raise ValueError("input matrix contains duplicate feature names")
+  if np.unique(requested_features).size != requested_features.size:
+    raise ValueError("requested HVGs contain duplicate feature names")
+  feature_to_index = {feature: index for index, feature in enumerate(features)}
+  missing = [feature for feature in requested_features if feature not in feature_to_index]
+  if missing:
+    preview = ", ".join(missing[:20])
+    raise ValueError(f"{len(missing)} requested HVGs are absent from the input matrix: {preview}")
+  return np.fromiter(
+    (feature_to_index[feature] for feature in requested_features),
+    dtype=np.int64,
+    count=requested_features.size,
+  )
+
+
 def sum_SUA(sua_mat, row_names):
   # define some objects
   row_names = row_names.astype(str)
@@ -642,7 +662,7 @@ def _process_single_hvg_file(f, b, p, bad_batches, hvg_ensembl):
   sample_csr, features, barcodes = read_full_csr(f)
 
   features    = np.array(features, dtype=str)
-  hvg_indices = [i for i, feature in enumerate(features) if feature in hvg_ensembl]
+  hvg_indices = _indices_in_requested_feature_order(features, hvg_ensembl)
   csr_chunk   = sample_csr[hvg_indices, :]
 
   barcodes    = barcodes.astype('<U21')
@@ -753,8 +773,7 @@ def _process_single_doublet_run(run, hvg_paths_df, dbl_df, hvg_ensembl, RUN_VAR)
   csc, uniq_features = sum_SUA(sua_csc_dbl, features)
 
   # get indices of highly variable genes
-  features    = features.astype('<U21')
-  hvg_indices = [i for i, feature in enumerate(uniq_features) if feature in hvg_ensembl]
+  hvg_indices = _indices_in_requested_feature_order(uniq_features, hvg_ensembl)
   csc         = csc[hvg_indices, :]
 
   return csc, filt_bcs

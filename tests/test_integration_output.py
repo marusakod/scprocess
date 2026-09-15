@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
+import polars as pl
 
 try:
   import anndata as ad
@@ -69,6 +70,83 @@ class TestIntegrationOutput(unittest.TestCase):
       adata, key='sample_id', max_iter_harmony=5,
       dtype=np.float32, theta=0.1
     )
+
+  def test_precomputed_pca_loader_preserves_declared_order(self):
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+      pca_f = Path(tmp_dir) / 'pca.csv.gz'
+      pl.DataFrame({
+        'cell_id': ['cell_b', 'cell_a'],
+        'pca_1': [2.0, 1.0],
+        'pca_2': [4.0, 3.0],
+      }).write_csv(pca_f)
+      cells_df = pl.DataFrame({
+        'cell_id': ['cell_b', 'cell_a'],
+        'sample_id': ['sample_2', 'sample_1'],
+      })
+
+      adata = integration._adata_from_precomputed_pca(pca_f, cells_df)
+
+      self.assertEqual(adata.obs['cell_id'].tolist(), ['cell_b', 'cell_a'])
+      np.testing.assert_array_equal(
+        adata.obsm['X_pca'], np.array([[2.0, 4.0], [1.0, 3.0]], dtype=np.float32)
+      )
+
+  def test_precomputed_pca_loader_rejects_reordered_metadata(self):
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+      pca_f = Path(tmp_dir) / 'pca.csv.gz'
+      pl.DataFrame({'cell_id': ['a', 'b'], 'pca_1': [1.0, 2.0]}).write_csv(pca_f)
+      cells_df = pl.DataFrame({
+        'cell_id': ['b', 'a'],
+        'sample_id': ['sample_1', 'sample_1'],
+      })
+
+      with self.assertRaisesRegex(ValueError, 'orders do not match'):
+        integration._adata_from_precomputed_pca(pca_f, cells_df)
+
+  def test_tricycle_scores_are_joined_by_cell_id(self):
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+      score_f = Path(tmp_dir) / 'tricycle.csv.gz'
+      pl.DataFrame({
+        'cell_id': ['cell_b', 'cell_a'],
+        'tricycle_pc1': [2.0, 1.0],
+        'tricycle_pc2': [4.0, 3.0],
+        'tricycle_theta': [0.2, 0.1],
+      }).write_csv(score_f)
+      integrated = pl.DataFrame({
+        'cell_id': ['cell_a', 'cell_b'],
+        'UMAP1': [1.0, 2.0],
+      })
+
+      result = integration._add_tricycle_scores(integrated, score_f)
+
+      self.assertEqual(result['cell_id'].to_list(), ['cell_a', 'cell_b'])
+      self.assertEqual(result['tricycle_pc1'].to_list(), [1.0, 2.0])
+
+  def test_tricycle_scores_require_complete_cell_coverage(self):
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+      score_f = Path(tmp_dir) / 'tricycle.csv'
+      pl.DataFrame({
+        'cell_id': ['cell_a'],
+        'tricycle_pc1': [1.0],
+        'tricycle_pc2': [3.0],
+        'tricycle_theta': [0.1],
+      }).write_csv(score_f)
+      integrated = pl.DataFrame({'cell_id': ['cell_a', 'cell_b']})
+
+      with self.assertRaisesRegex(ValueError, 'lack tricycle scores'):
+        integration._add_tricycle_scores(integrated, score_f)
 
 if __name__ == '__main__':
   unittest.main()

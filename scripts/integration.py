@@ -11,10 +11,60 @@ import anndata as ad
 import polars as pl
 
 
+def _get_h5_barcodes(h5_f):
+  """Read only the ordered barcode vector from a 10x HDF5 matrix."""
+  with h5py.File(h5_f, 'r') as f:
+    return [b.decode('utf-8') for b in f['matrix/barcodes'][:]]
+
+
+def _adata_from_precomputed_pca(precomputed_pca_f, cells_df):
+  """Create a minimal AnnData while enforcing the declared PCA cell order."""
+  pca_df = pl.read_csv(precomputed_pca_f)
+  if 'cell_id' not in pca_df.columns:
+    raise KeyError("precomputed PCA file has no cell_id column")
+  pca_cols = [c for c in pca_df.columns if c.startswith('pca_')]
+  if not pca_cols:
+    raise ValueError("precomputed PCA file has no pca_* columns")
+  if pca_df['cell_id'].n_unique() != pca_df.height:
+    raise ValueError("precomputed PCA file contains duplicate cell IDs")
+
+  pca_cells = pca_df['cell_id'].to_list()
+  metadata_cells = cells_df['cell_id'].to_list()
+  if pca_cells != metadata_cells:
+    raise ValueError("precomputed PCA and cell metadata orders do not match")
+
+  adata = ad.AnnData(
+    X=np.zeros((len(pca_cells), 1), dtype=np.float32),
+    obs=cells_df.to_pandas()
+  )
+  adata.obsm['X_pca'] = pca_df.select(pca_cols).to_numpy().astype(np.float32)
+  return adata
+
+
+def _ordered_coldata(coldata_f, cell_ids, batch_var):
+  """Select metadata for an ordered cell vector without silently dropping IDs."""
+  coldata_df = pl.read_csv(coldata_f, ignore_errors=True)
+  if coldata_df['cell_id'].n_unique() != coldata_df.height:
+    raise ValueError("coldata contains duplicate cell IDs")
+  batch_vars = batch_var if isinstance(batch_var, list) else [batch_var]
+  required = ['cell_id', 'sample_id', *batch_vars]
+  missing = [c for c in required if c not in coldata_df.columns]
+  if missing:
+    raise KeyError(f"columns missing from coldata file: {', '.join(missing)}")
+  keep_cols = list(dict.fromkeys(['cell_id', 'sample_id', 'project_id', *batch_vars]))
+  keep_cols = [c for c in keep_cols if c in coldata_df.columns]
+  missing_ids = set(cell_ids) - set(coldata_df['cell_id'].to_list())
+  if missing_ids:
+    raise ValueError("some precomputed PCA cells are absent from coldata")
+  order_df = pl.DataFrame({'cell_id': cell_ids, '_order': range(len(cell_ids))})
+  cells_df = order_df.join(coldata_df.select(keep_cols), on='cell_id', how='left').sort('_order')
+  return cells_df.drop('_order')
+
+
 def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
   integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None,
-  umap_n_iter = 2000):
+  tricycle_f = None, umap_n_iter = 2000):
   print('setting up parameters')
   exclude_mito  = str(exclude_mito).strip().lower() == 'true'
   res_ls        = res_ls_concat.split()
@@ -62,6 +112,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
 
   print('join results')
   int_df        = int_ok.join(dbl_data, on="cell_id", coalesce=True, how = 'full')
+  int_df        = _add_tricycle_scores(int_df, tricycle_f)
 
   print('save results')
   with gzip.open(integration_f, 'wb') as f:
@@ -70,6 +121,82 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   print('done!')
 
   return int_df
+
+
+def run_preliminary_integration(
+  hvg_mat_f, dbl_hvg_mat_f, precomputed_pca_f, sample_qc_f, coldata_f,
+  demux_type, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop,
+  doublet_f, clean_cells_f, batch_var, use_gpu=False, use_paga=False,
+  umap_n_iter=2000
+):
+  """Run the bonus doublet pass and persist its clean-cell boundary."""
+  bcs_passed = _get_h5_barcodes(hvg_mat_f)
+  bcs_dbl = _get_h5_barcodes(dbl_hvg_mat_f)
+  cells_df = _get_cells_df(
+    sample_qc_f, coldata_f, bcs_passed, demux_type, batch_var,
+    bcs_dbl=bcs_dbl
+  )
+
+  print(f'loading precomputed preliminary PCA from {precomputed_pca_f}')
+  adata = _adata_from_precomputed_pca(precomputed_pca_f, cells_df)
+  dbl_batch_var = 'sample_id' if demux_type in ('none', 'flex', 'ocm') else 'pool_id'
+  int_dbl = _do_one_integration(
+    adata, dbl_batch_var, cl_method, n_dims, dbl_res, embedding, use_gpu,
+    theta=0, use_paga=use_paga, paga_cl=f"RNA_snn_res.{dbl_res}",
+    skip_pca=True, umap_n_iter=umap_n_iter
+  )
+  dbl_data = _calc_dbl_data(
+    int_dbl, cells_df, dbl_res, dbl_cl_prop, demux_type, batch_var
+  )
+  clean_cells = dbl_data.filter(
+    (~pl.col('is_dbl')) & (~pl.col('in_dbl_cl'))
+  ).select('cell_id')
+  if clean_cells.height == 0:
+    raise ValueError("preliminary integration removed every cell")
+
+  with gzip.open(doublet_f, 'wb') as f:
+    dbl_data.write_csv(f)
+  clean_cells.write_csv(clean_cells_f)
+  return dbl_data, clean_cells
+
+
+def run_final_integration(
+  precomputed_pca_f, doublet_f, coldata_f, embedding, n_dims, cl_method,
+  theta, res_ls_concat, integration_f, batch_var, use_gpu=False,
+  use_paga=False, paga_cl_res=None, tricycle_f=None, umap_n_iter=2000
+):
+  """Run final integration from PCA trained only on the persisted clean cells."""
+  pca_df = pl.read_csv(precomputed_pca_f)
+  pca_cells = pca_df['cell_id'].to_list()
+  cells_df = _ordered_coldata(coldata_f, pca_cells, batch_var)
+  adata = _adata_from_precomputed_pca(precomputed_pca_f, cells_df)
+  res_ls = res_ls_concat.split()
+
+  int_ok = _do_one_integration(
+    adata, batch_var, cl_method, n_dims, res_ls, embedding, use_gpu,
+    theta=theta, use_paga=use_paga, paga_cl=f"RNA_snn_res.{paga_cl_res}",
+    skip_pca=True, umap_n_iter=umap_n_iter
+  )
+  dbl_data = pl.read_csv(doublet_f)
+  int_df = int_ok.join(dbl_data, on='cell_id', coalesce=True, how='full')
+  int_df = _add_tricycle_scores(int_df, tricycle_f)
+  with gzip.open(integration_f, 'wb') as f:
+    int_df.write_csv(f)
+  return int_df
+
+
+def _add_tricycle_scores(integration_df, tricycle_f):
+  if tricycle_f is None:
+    return integration_df
+  scores = pl.read_csv(tricycle_f).select(
+    'cell_id', 'tricycle_pc1', 'tricycle_pc2', 'tricycle_theta'
+  )
+  if scores['cell_id'].n_unique() != scores.height:
+    raise ValueError('tricycle score table contains duplicate cell IDs')
+  missing = set(integration_df['cell_id'].to_list()) - set(scores['cell_id'].to_list())
+  if missing:
+    raise ValueError('some integrated cells lack tricycle scores')
+  return integration_df.join(scores, on='cell_id', how='left')
 
 
 def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
@@ -496,6 +623,7 @@ if __name__ == "__main__":
   parser_run_integration.add_argument('--res_ls_concat',  type = str)
   parser_run_integration.add_argument('--integration_f',  type = str)
   parser_run_integration.add_argument('--batch_var',      type = str)
+  parser_run_integration.add_argument('--tricycle_f',     type = str)
   parser_run_integration.add_argument("-g", "--use-gpu",  action='store_true',
     help='Use GPU-accelerated libraries if available.'  
   )
@@ -505,6 +633,44 @@ if __name__ == "__main__":
   parser_run_integration.add_argument("--paga-cl-res",  type = str,
     help='The resolution of the PAGA cluster to use for initialization of UMAP.'
   )
+
+  parser_preliminary = subparsers.add_parser('run_preliminary_integration')
+  parser_preliminary.add_argument('--hvg_mat_f', type=str, required=True)
+  parser_preliminary.add_argument('--dbl_hvg_mat_f', type=str, required=True)
+  parser_preliminary.add_argument('--precomputed_pca_f', type=str, required=True)
+  parser_preliminary.add_argument('--sample_qc_f', type=str, required=True)
+  parser_preliminary.add_argument('--coldata_f', type=str, required=True)
+  parser_preliminary.add_argument('--demux_type', type=str, required=True)
+  parser_preliminary.add_argument('--embedding', type=str, required=True)
+  parser_preliminary.add_argument('--n_dims', type=int, required=True)
+  parser_preliminary.add_argument('--umap_n_iter', type=_positive_int, default=2000,
+    help='Number of UMAP optimization iterations (default: 2000).')
+  parser_preliminary.add_argument('--cl_method', type=str, required=True)
+  parser_preliminary.add_argument('--dbl_res', type=float, required=True)
+  parser_preliminary.add_argument('--dbl_cl_prop', type=float, required=True)
+  parser_preliminary.add_argument('--doublet_f', type=str, required=True)
+  parser_preliminary.add_argument('--clean_cells_f', type=str, required=True)
+  parser_preliminary.add_argument('--batch_var', type=str, required=True)
+  parser_preliminary.add_argument('-g', '--use-gpu', action='store_true')
+  parser_preliminary.add_argument('-p', '--use-paga', action='store_true')
+
+  parser_final = subparsers.add_parser('run_final_integration')
+  parser_final.add_argument('--precomputed_pca_f', type=str, required=True)
+  parser_final.add_argument('--doublet_f', type=str, required=True)
+  parser_final.add_argument('--coldata_f', type=str, required=True)
+  parser_final.add_argument('--embedding', type=str, required=True)
+  parser_final.add_argument('--n_dims', type=int, required=True)
+  parser_final.add_argument('--umap_n_iter', type=_positive_int, default=2000,
+    help='Number of UMAP optimization iterations (default: 2000).')
+  parser_final.add_argument('--cl_method', type=str, required=True)
+  parser_final.add_argument('--theta', type=float, required=True)
+  parser_final.add_argument('--res_ls_concat', type=str, required=True)
+  parser_final.add_argument('--integration_f', type=str, required=True)
+  parser_final.add_argument('--batch_var', type=str, required=True)
+  parser_final.add_argument('--tricycle_f', type=str)
+  parser_final.add_argument('-g', '--use-gpu', action='store_true')
+  parser_final.add_argument('-p', '--use-paga', action='store_true')
+  parser_final.add_argument('--paga-cl-res', type=str)
 
   # parser for run_zoom_integration
   parser_run_zoom_integration = subparsers.add_parser('run_zoom_integration')
@@ -582,8 +748,23 @@ if __name__ == "__main__":
       args.hvg_mat_f, args.dbl_hvg_mat_f, args.sample_qc_f, args.coldata_f,
       args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
       args.dbl_res, args.dbl_cl_prop, args.theta, args.res_ls_concat, args.integration_f,
-      args.batch_var, use_gpu, args.use_paga, args.paga_cl_res,
+      args.batch_var, use_gpu, args.use_paga, args.paga_cl_res, args.tricycle_f,
       umap_n_iter = args.umap_n_iter
+    )
+  elif args.function_name == 'run_preliminary_integration':
+    run_preliminary_integration(
+      args.hvg_mat_f, args.dbl_hvg_mat_f, args.precomputed_pca_f,
+      args.sample_qc_f, args.coldata_f, args.demux_type, args.embedding,
+      args.n_dims, args.cl_method, args.dbl_res, args.dbl_cl_prop,
+      args.doublet_f, args.clean_cells_f, args.batch_var, use_gpu,
+      args.use_paga, umap_n_iter=args.umap_n_iter
+    )
+  elif args.function_name == 'run_final_integration':
+    run_final_integration(
+      args.precomputed_pca_f, args.doublet_f, args.coldata_f,
+      args.embedding, args.n_dims, args.cl_method, args.theta,
+      args.res_ls_concat, args.integration_f, args.batch_var, use_gpu,
+      args.use_paga, args.paga_cl_res, args.tricycle_f, umap_n_iter=args.umap_n_iter
     )
   elif args.function_name == 'run_zoom_integration':
     # support list batch_var / theta for join workflow via _concat args

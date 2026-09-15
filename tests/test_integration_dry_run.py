@@ -1,0 +1,86 @@
+"""Plan the real integration rules using isolated placeholder inputs only."""
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+import jsonschema
+import pytest
+
+from scripts.scprocess_utils import (
+    _check_cell_cycle_parameters, _get_default_config_from_schema,
+)
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.parametrize('backend,correction', [
+    ('bpcells', 'within_sample'), ('bpcells', 'global'),
+    ('bpcells', None), ('scanpy', None),
+])
+def test_integration_dag_and_effective_arguments(tmp_path, backend, correction):
+    schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
+    config = _get_default_config_from_schema(schema, {})
+    config['project'] = {'ref_txome': 'mouse_2024'}
+    config['multiplexing']['demux_type'] = 'none'
+    config['ambient']['ambient_method'] = 'none'
+    config['resources']['retries'] = 0
+    config['integration'].update(int_pca_method=backend, int_umap_n_iter=1234,
+                                 int_use_gpu=False)
+    if correction:
+        config['cell_cycle'] = {}
+        config['integration']['int_cell_cycle_regression'] = 'shared'
+        if correction == 'global':
+            config['integration']['int_cell_cycle_correction'] = correction
+    config = _check_cell_cycle_parameters(config)
+    jsonschema.validate(config['integration'], schema['properties']['integration'])
+
+    for name in (
+        'hvg/top_hvgs_counts_test_date.h5',
+        'hvg/top_hvgs_doublet_counts_test_date.h5',
+        'qc/coldata_dt_all_cells_test_date.csv.gz',
+        'qc/qc_sample_id_statistics_test_date.csv',
+        'qc/qc_passed_test_date.flag', 'cycle/scores.csv.gz',
+    ):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+
+    snakefile = tmp_path / 'Snakefile'
+    snakefile.write_text(f'''
+config = {config!r}
+scprocess_dir = {str(ROOT)!r}
+FULL_TAG, DATE_STAMP = "test", "date"
+int_dir, hvg_dir, qc_dir = "integration", "hvg", "qc"
+cell_cycle_dir, logs_dir, benchmark_dir = "cycle", "logs", "benchmarks"
+amb_dir, af_dir, af_rna_dir = "ambient", "af", ""
+BATCH_VAR, RUN_VAR = "sample_id", "sample_id"
+RUNS, BATCHES, RUNS_TO_BATCHES = ["s1"], ["s1"], {{"s1": ["s1"]}}
+CELL_CYCLE_ENABLED = {bool(correction)!r}
+TRICYCLE_SCORES_F, TRICYCLE_ORIGIN_F = "cycle/scores.csv.gz", "cycle/origin.csv"
+RESOURCE_PARAMS = {{}}
+def get_resources(*args, **kwargs):
+    return 1000
+include: {str(ROOT / 'rules/integration.smk')!r}
+''')
+    env = {k: v for k, v in os.environ.items() if not k.startswith('SNAKEMAKE_')}
+    env['XDG_CACHE_HOME'] = str(tmp_path / 'cache')
+    result = subprocess.run([
+        sys.executable, '-m', 'snakemake', '--snakefile', str(snakefile),
+        '--directory', str(tmp_path), '--dry-run', '--printshellcmds',
+        '--cores', '2', '--executor', 'local', '--profile', 'none',
+        '--workflow-profile', 'none', '--nolock',
+        'integration/integrated_dt_test_date.csv.gz',
+    ], text=True, capture_output=True, timeout=45, env=env)
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, output
+    commands = re.findall(r'--umap_n_iter\s+(\d+)', output)
+    assert commands == ['1234'] * (2 if backend == 'bpcells' else 1), output
+    if correction:
+        assert output.count(f"correction_centering = '{correction}'") == 2, output
+        assert 'preliminary_pca' in output and 'final_pca' in output
+    else:
+        assert 'correction_centering =' not in output
