@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 
@@ -18,8 +19,24 @@ def test_bpcells_pca_uses_lazy_scaled_matrix():
   assert 'write_matrix_dir(mat_norm' in script
   assert 'mat_scaled <- (mat_norm - gene_means) / gene_sds' in script
   assert 'pca_matrix <- t(mat_scaled)' in script
-  assert 'irlba(pca_matrix' in script
+  assert 'svd_result <- BPCells::svds(' in script
+  assert 'threads = n_threads' in script
+  assert '.check_svd_convergence(svd_result, n_dims)' in script
+  assert 'sweep(svd_result$u, 2L, svd_result$d' in script
+  assert 'irlba(' not in script
   assert 'as.matrix(mat_scaled)' not in script
+
+
+def test_all_pca_rules_forward_allocated_threads():
+  for filename, count in [('integration.smk', 2), ('zoom.smk', 1), ('join.smk', 1)]:
+    rules = (ROOT / 'rules' / filename).read_text()
+    assert len(re.findall(r'n_threads\s*=\s*\{threads\}', rules)) == count
+
+
+def test_pca_environment_pins_native_residual_api_without_irlba():
+  environment = (ROOT / 'envs/bpcells_pca.yaml').read_text()
+  assert 'r-bpcells=0.3.1' in environment
+  assert 'r-irlba' not in environment
 
 
 def test_primary_integration_has_persisted_clean_cell_boundary():

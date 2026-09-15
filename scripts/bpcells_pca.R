@@ -1,42 +1,33 @@
 suppressPackageStartupMessages({
   library("BPCells")
   library("Matrix")
-  library("irlba")
   library("data.table")
 })
 
 
-# A cells-by-genes low-rank ridge residual operator. Coefficients are estimated
-# with a within-sample design, then applied with a globally centred design. The
-# underlying expression matrix remains a BPCells IterableMatrix; only the small
-# designs and crossprod(X_fit, Y) are held in memory.
-setClass(
-  "RidgeResidualMatrix",
-  contains = "IterableMatrix",
-  slots = c(
-    base = "IterableMatrix",
-    fit_design = "matrix",
-    correction_design = "matrix",
-    inverse = "matrix",
-    xty = "matrix"
-  )
-)
-
-setMethod("%*%", signature(x = "RidgeResidualMatrix", y = "numeric"),
-  function(x, y) {
-    base_product <- x@base %*% y
-    base_product - x@correction_design %*% x@inverse %*%
-      crossprod(x@fit_design, base_product)
-  })
-
-setMethod("%*%", signature(x = "numeric", y = "RidgeResidualMatrix"),
-  function(x, y) {
-    base_product <- x %*% y@base
-    base_product - (x %*% y@correction_design) %*% y@inverse %*% y@xty
-  })
+# TransformLinearResidual is the native low-rank subtraction used by regress_out.
+# Its constructor is internal: keep the environment pinned and fail explicitly
+# on unvalidated versions rather than silently changing the correction model.
+.check_bpcells_residual_api <- function(version = utils::packageVersion("BPCells")) {
+  if (as.character(version) != "0.3.1") {
+    stop("Cell-cycle ridge correction requires the validated BPCells 0.3.1 ",
+         "residual API; use envs/bpcells_pca.yaml (found ", version, ").")
+  }
+}
 
 
-.cyclic_design <- function(tricycle_f, cell_ids, harmonics) {
+.check_svd_convergence <- function(result, n_dims) {
+  if (length(result$nconv) != 1L || !is.finite(result$nconv) ||
+      result$nconv != n_dims || length(result$d) != n_dims ||
+      any(!is.finite(result$d))) {
+    stop("BPCells::svds did not converge to all ", n_dims, " requested PCs.")
+  }
+}
+
+
+.cyclic_design <- function(tricycle_f, cell_ids, harmonics,
+                           correction_centering = "within_sample") {
+  correction_centering <- match.arg(correction_centering, c("within_sample", "global"))
   scores <- fread(tricycle_f)
   required <- c("cell_id", "sample_id", "tricycle_theta")
   missing <- setdiff(required, names(scores))
@@ -83,11 +74,14 @@ setMethod("%*%", signature(x = "numeric", y = "RidgeResidualMatrix"),
   }
   fit_design <- sweep(fit_design, 2L, rms, "/")
 
-  # Apply the fitted slopes to the original harmonic coordinates after one
-  # global translation. This removes phase-composition effects on sample means
-  # while preserving the project-wide mean of every corrected gene.
-  correction_design <- sweep(raw_design, 2L, colMeans(raw_design), "-")
-  correction_design <- sweep(correction_design, 2L, rms, "/")
+  # By default preserve each sample mean and leave between-sample shifts to
+  # integration. Global correction also subtracts predicted phase-composition
+  # shifts between samples. Coefficient fitting is identical in both modes.
+  correction_design <- fit_design
+  if (correction_centering == "global") {
+    correction_design <- sweep(raw_design, 2L, colMeans(raw_design), "-")
+    correction_design <- sweep(correction_design, 2L, rms, "/")
+  }
   max_sample_mean <- max(abs(unlist(lapply(groups, function(rows) {
     colMeans(fit_design[rows, , drop = FALSE])
   }))))
@@ -96,6 +90,7 @@ setMethod("%*%", signature(x = "numeric", y = "RidgeResidualMatrix"),
   }))
   list(
     fit = fit_design,
+    correction_centering = correction_centering,
     correction = correction_design,
     rms = rms,
     max_sample_mean = max_sample_mean,
@@ -106,6 +101,16 @@ setMethod("%*%", signature(x = "numeric", y = "RidgeResidualMatrix"),
 
 
 .make_ridge_operator <- function(base, fit_design, correction_design, ridge_lambda) {
+  .check_bpcells_residual_api()
+  if (!is(fit_design, "matrix") || !is(correction_design, "matrix") ||
+      !identical(dim(fit_design), dim(correction_design)) ||
+      nrow(fit_design) != nrow(base) || ncol(fit_design) < 1L ||
+      any(!is.finite(fit_design)) || any(!is.finite(correction_design))) {
+    stop("Ridge designs must be finite matrices with matching cells and harmonics.")
+  }
+  if (length(ridge_lambda) != 1L || !is.finite(ridge_lambda) || ridge_lambda < 0) {
+    stop("ridge_lambda must be finite and non-negative")
+  }
   gram <- crossprod(fit_design)
   lambda_effective <- as.numeric(ridge_lambda) * sum(diag(gram)) / ncol(fit_design)
   if (lambda_effective == 0 && qr(gram)$rank < ncol(gram)) {
@@ -115,16 +120,21 @@ setMethod("%*%", signature(x = "numeric", y = "RidgeResidualMatrix"),
   xty <- do.call(rbind, lapply(seq_len(ncol(fit_design)), function(j) {
     as.numeric(fit_design[, j] %*% base)
   }))
-  operator <- new(
-    "RidgeResidualMatrix",
-    base = base,
-    fit_design = fit_design,
-    correction_design = correction_design,
-    inverse = inverse,
-    xty = xty,
-    dim = dim(base),
-    transpose = FALSE,
-    dimnames = dimnames(base)
+  coefficients <- inverse %*% xty
+  # For cells x genes, subtract correction_design %*% coefficients lazily.
+  # Parameters follow physical storage order, not the logical transpose flag.
+  row_params <- t(correction_design)
+  col_params <- coefficients
+  if (storage_order(base) == "row") {
+    row_params <- coefficients
+    col_params <- t(correction_design)
+  }
+  operator <- BPCells:::wrapMatrix(
+    "TransformLinearResidual", convert_matrix_type(base, "double"),
+    row_params = row_params,
+    col_params = col_params,
+    global_params = numeric(),
+    vars_to_regress = if (is.null(colnames(fit_design))) character() else colnames(fit_design)
   )
   list(
     matrix = operator,
@@ -132,7 +142,7 @@ setMethod("%*%", signature(x = "numeric", y = "RidgeResidualMatrix"),
     correction_gram = crossprod(correction_design),
     lambda_effective = lambda_effective,
     xty = xty,
-    coefficients = inverse %*% xty
+    coefficients = coefficients
   )
 }
 
@@ -242,11 +252,19 @@ setMethod("%*%", signature(x = "numeric", y = "RidgeResidualMatrix"),
 #' @param exclude_mito Subtract subsets_mito_sum from total library size.
 #' @param scale_factor Library-size normalization target.
 #' @param max_value Upper cap applied after gene scaling.
+#' @param n_threads Threads for native BPCells SVD matrix-vector products.
 run_bpcells_pca <- function(
     counts_h5_fs, n_dims, out_pca_f, coldata_f = NULL, cells_f = NULL,
     exclude_mito = FALSE, scale_factor = 1e4, max_value = 10,
     tricycle_f = NULL, harmonics = 2L, ridge_lambda = 0.1,
-    out_regression_f = NULL, out_regression_genes_f = NULL) {
+    out_regression_f = NULL, out_regression_genes_f = NULL, n_threads = 1L,
+    correction_centering = "within_sample") {
+  correction_centering <- match.arg(correction_centering, c("within_sample", "global"))
+  if (length(n_threads) != 1L || !is.finite(n_threads) ||
+      n_threads < 1 || n_threads != floor(n_threads)) {
+    stop("n_threads must be a positive integer")
+  }
+  n_threads <- as.integer(n_threads)
   n_dims <- as.integer(n_dims)
   exclude_mito <- as.logical(exclude_mito)
 
@@ -254,8 +272,9 @@ run_bpcells_pca <- function(
   mat <- .open_and_combine_10x(counts_h5_fs)
   mat <- .select_and_order_cells(mat, cells_f)
   message(sprintf("  Matrix dimensions: %d genes x %d cells", nrow(mat), ncol(mat)))
-  if (n_dims < 1L || n_dims >= min(dim(mat))) {
-    stop("n_dims must be positive and smaller than both matrix dimensions")
+  if (min(dim(mat)) < 3L || n_dims < 1L || n_dims >= min(dim(mat))) {
+    stop("PCA requires at least 3 cells and genes, and n_dims must be positive ",
+         "and smaller than both matrix dimensions")
   }
 
   message("Normalizing: library size -> scale 1e4 -> log1p")
@@ -284,18 +303,21 @@ run_bpcells_pca <- function(
   ridge <- NULL
   design_info <- NULL
   if (!is.null(tricycle_f) && nzchar(tricycle_f)) {
-    message("Building within-sample fit and globally centred correction designs")
-    design_info <- .cyclic_design(tricycle_f, colnames(mat), harmonics)
+    message("Building within-sample fit; correction centring: ", correction_centering)
+    design_info <- .cyclic_design(tricycle_f, colnames(mat), harmonics, correction_centering)
     ridge <- .make_ridge_operator(
       pca_matrix, design_info$fit, design_info$correction, ridge_lambda
     )
     pca_matrix <- ridge$matrix
   }
 
-  message(sprintf("Running truncated SVD (n_dims = %d)", n_dims))
+  message(sprintf("Running threaded BPCells SVD (n_dims = %d, threads = %d)",
+                  n_dims, n_threads))
   set.seed(20230308L)
-  svd_result <- irlba(pca_matrix, nv = n_dims, nu = n_dims)
-  if (svd_result$iter <= 0L) stop("irlba did not perform any iterations")
+  svd_result <- BPCells::svds(
+    pca_matrix, k = n_dims, threads = n_threads, opts = list(tol = 1e-5)
+  )
+  .check_svd_convergence(svd_result, n_dims)
 
   message("Writing PC scores")
   pc_scores <- sweep(svd_result$u, 2L, svd_result$d, "*")
@@ -319,7 +341,7 @@ run_bpcells_pca <- function(
       ridge_lambda = as.numeric(ridge_lambda),
       ridge_lambda_effective = ridge$lambda_effective,
       coefficient_fit_centring = "within_sample",
-      correction_design_centring = "project_global",
+      correction_design_centring = design_info$correction_centering,
       design_condition_number = kappa(ridge$gram),
       max_abs_within_sample_design_mean = design_info$max_sample_mean,
       max_abs_global_correction_design_mean = design_info$max_global_correction_mean,
@@ -348,7 +370,7 @@ run_bpcells_pca <- function(
 
 
 # Compatibility wrapper for the existing join rule.
-run_join_pca <- function(counts_h5_f, n_dims, out_pca_f) {
+run_join_pca <- function(counts_h5_f, n_dims, out_pca_f, n_threads = 1L) {
   # Preserve the established join behavior, which did not cap scaled values.
-  run_bpcells_pca(counts_h5_f, n_dims, out_pca_f, max_value = NULL)
+  run_bpcells_pca(counts_h5_f, n_dims, out_pca_f, max_value = NULL, n_threads = n_threads)
 }

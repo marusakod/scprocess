@@ -29,6 +29,7 @@ def _cell_cycle_regression_args(out_f, genes_f):
     f", tricycle_f = '{TRICYCLE_SCORES_F}', "
     f"harmonics = {integration['int_cell_cycle_harmonics']}, "
     f"ridge_lambda = {integration['int_cell_cycle_ridge_lambda']}, "
+    f"correction_centering = '{integration['int_cell_cycle_correction']}', "
     f"out_regression_f = '{out_f}', "
     f"out_regression_genes_f = '{genes_f}'"
   )
@@ -74,6 +75,7 @@ if INT_PCA_METHOD == 'bpcells':
 
       Rscript -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
         counts_h5_fs = c('$LOCAL_HVG', '$LOCAL_DBL'),
+        n_threads    = {threads},
         n_dims       = {params.n_dims},
         out_pca_f    = '{output.pca_f}',
         coldata_f    = '{input.coldata_f}',
@@ -172,6 +174,7 @@ if INT_PCA_METHOD == 'bpcells':
 
       Rscript -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
         counts_h5_fs = '$LOCAL_HVG',
+        n_threads    = {threads},
         n_dims       = {params.n_dims},
         out_pca_f    = '{output.pca_f}',
         coldata_f    = '{input.coldata_f}',

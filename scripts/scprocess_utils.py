@@ -1094,13 +1094,14 @@ def _check_integration_parameters(config):
 def _check_cell_cycle_parameters(config):
   integration = config.get('integration', {})
   regression_key = 'int_cell_cycle_regression'
-  tuning_keys = ('int_cell_cycle_harmonics', 'int_cell_cycle_ridge_lambda')
+  tuning_keys = ('int_cell_cycle_harmonics', 'int_cell_cycle_ridge_lambda',
+                 'int_cell_cycle_correction')
   regression_enabled = regression_key in integration
 
   if any(key in integration for key in tuning_keys) and not regression_enabled:
     raise ValueError(
       "integration.int_cell_cycle_harmonics and "
-      "integration.int_cell_cycle_ridge_lambda require "
+      "integration.int_cell_cycle_ridge_lambda and int_cell_cycle_correction require "
       "integration.int_cell_cycle_regression: shared"
     )
   if regression_enabled and 'cell_cycle' not in config:
@@ -1114,6 +1115,9 @@ def _check_cell_cycle_parameters(config):
   if regression_enabled:
     integration.setdefault('int_cell_cycle_harmonics', 2)
     integration.setdefault('int_cell_cycle_ridge_lambda', 0.1)
+    integration.setdefault('int_cell_cycle_correction', 'within_sample')
+    if integration['int_cell_cycle_correction'] not in ('within_sample', 'global'):
+      raise ValueError("integration.int_cell_cycle_correction must be within_sample or global")
 
   if 'cell_cycle' not in config:
     return config

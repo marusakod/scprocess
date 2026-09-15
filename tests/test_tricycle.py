@@ -297,14 +297,16 @@ def test_within_sample_fit_does_not_attribute_sample_offset_to_cycle():
   assert within_sample_slope == pytest.approx(0)
 
 
-def test_bpcells_uses_public_custom_operator_not_deprecated_mult():
+def test_bpcells_uses_guarded_native_ridge_residual_operator():
   script = (ROOT / 'scripts/bpcells_pca.R').read_text()
-  assert 'setClass(\n  "RidgeResidualMatrix"' in script
-  assert 'signature(x = "RidgeResidualMatrix", y = "numeric")' in script
-  assert 'signature(x = "numeric", y = "RidgeResidualMatrix")' in script
-  assert 'fit_design = "matrix"' in script
-  assert 'correction_design = "matrix"' in script
-  assert 'crossprod(x@fit_design, base_product)' in script
+  assert 'BPCells:::wrapMatrix(' in script
+  assert '"TransformLinearResidual"' in script
+  assert '.check_bpcells_residual_api()' in script
+  assert 'as.character(version) != "0.3.1"' in script
+  assert 'row_params <- t(correction_design)' in script
+  assert 'coefficients <- inverse %*% xty' in script
+  assert 'storage_order(base) == "row"' in script
+  assert 'RidgeResidualMatrix' not in script
   assert 'mult =' not in script
 
 
@@ -560,6 +562,7 @@ def test_shared_regression_receives_integration_defaults():
   checked = _check_cell_cycle_parameters(config)
   assert checked['integration']['int_cell_cycle_harmonics'] == 2
   assert checked['integration']['int_cell_cycle_ridge_lambda'] == 0.1
+  assert checked['integration']['int_cell_cycle_correction'] == 'within_sample'
 
 
 def test_regression_requires_cell_cycle_block():
@@ -589,3 +592,33 @@ def test_regression_tuning_requires_shared_regression():
   }
   with pytest.raises(ValueError, match='int_cell_cycle_regression: shared'):
     _check_cell_cycle_parameters(config)
+
+
+@pytest.mark.parametrize('mode', ['within_sample', 'global'])
+def test_cell_cycle_correction_choice(mode):
+  from scripts.scprocess_utils import _check_cell_cycle_parameters
+  config = {
+    'project': {'ref_txome': 'mouse_2024'}, 'cell_cycle': {},
+    'integration': {'int_pca_method': 'bpcells',
+                    'int_cell_cycle_regression': 'shared',
+                    'int_cell_cycle_correction': mode},
+  }
+  assert _check_cell_cycle_parameters(config)['integration']['int_cell_cycle_correction'] == mode
+  for name in ('config', 'zoom'):
+    schema = json.loads((ROOT / f'resources/schemas/{name}.schema.json').read_text())
+    field = schema['properties']['integration']['properties']['int_cell_cycle_correction']
+    jsonschema.validate(mode, field)
+    with pytest.raises(jsonschema.ValidationError):
+      jsonschema.validate('per_sample_slopes', field)
+
+
+def test_correction_mode_requires_regression():
+  from scripts.scprocess_utils import _check_cell_cycle_parameters
+  with pytest.raises(ValueError, match='int_cell_cycle_regression: shared'):
+    _check_cell_cycle_parameters({'integration': {'int_cell_cycle_correction': 'global'}})
+
+
+def test_project_and_zoom_forward_correction_mode():
+  for name in ('integration', 'zoom'):
+    rules = (ROOT / f'rules/{name}.smk').read_text()
+    assert "correction_centering = '{integration['int_cell_cycle_correction']}'" in rules

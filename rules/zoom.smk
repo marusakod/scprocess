@@ -896,7 +896,8 @@ def zoom_cell_cycle_regression_args(wildcards):
   return (
     f", tricycle_f = '{TRICYCLE_SCORES_F}', "
     f"harmonics = {integration['int_cell_cycle_harmonics']}, "
-    f"ridge_lambda = {integration['int_cell_cycle_ridge_lambda']}"
+    f"ridge_lambda = {integration['int_cell_cycle_ridge_lambda']}, "
+    f"correction_centering = '{integration['int_cell_cycle_correction']}'"
   )
 
 
@@ -935,6 +936,7 @@ rule zoom_pca:
     cp {input.hvg_mat_f} $LOCAL_HVG
 
     Rscript -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
+      n_threads    = {threads},
       counts_h5_fs = '$LOCAL_HVG',
       n_dims       = {params.n_dims},
       out_pca_f    = '{output.pca_f}',

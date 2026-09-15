@@ -676,18 +676,57 @@ estimation and diagnostics. Regression requires a `cell_cycle` block and
 
 `int_cell_cycle_harmonics` is `1` or `2` and defaults to `2` when regression
 is enabled. `int_cell_cycle_ridge_lambda` controls shrinkage of the shared
-sine/cosine coefficients and defaults to `0.1`. These tuning parameters are
-invalid unless `int_cell_cycle_regression` is present. The cyclic columns are
-centred within sample and scaled globally; sample-specific slopes are not
-offered. Within-sample-centred harmonics are used only to estimate the shared
-coefficients, protecting that estimate from sample-level expression offsets.
-The fitted coefficients are applied to the original harmonics after one
-project-wide centring step. Consequently, regression preserves each gene's
-overall project mean but can change an individual sample's mean when its phase
-composition differs from the project. These operations do not change
-`tricycle_theta` or its unit-circle geometry. For HTO/custom cells without a
-biological sample assignment, the physical run is used only as the
-coefficient-fitting fallback group.
+sine/cosine coefficients and defaults to `0.1`. Larger penalties reduce the
+amount of correction. The coefficients are shared across samples, but fitted
+using variation within each sample: a sample with both higher technical
+expression levels and more S-phase cells should not, for that reason alone,
+produce a stronger estimated cell-cycle effect. This assumes that the cyclic
+expression relationship is sufficiently similar across the samples being
+analysed; it does not protect against other biological states that correlate
+with phase within a sample.
+
+`int_cell_cycle_correction` chooses how the fitted effect is removed:
+
+* `within_sample` (default): removes phase-associated variation within samples
+  while preserving each sample's mean of each gene on the normalized, scaled
+  expression used for PCA. This is a useful starting point before Harmony on
+  `sample_id`: cell-cycle regression reduces within-sample cyclic structure,
+  while Harmony handles remaining sample differences. Mean shifts caused by
+  different phase proportions are retained at this step, alongside technical
+  and biological sample differences.
+* `global`: also removes the predicted expression shifts between samples due
+  to different phase proportions, while preserving the overall mean. Consider
+  this when those shifts dominate the leading PCs and displace other useful
+  biological variation before Harmony. It does not simply equalize sample
+  means or remove all batch effects.
+
+Both options use the same within-sample-centred fit and globally scaled
+harmonic predictors. They differ only in sample-level shifts before PCA;
+nevertheless, the retained PCs and resulting clusters can differ. Harmony
+cannot recover biological information already discarded by PCA, and does not
+guarantee identical results for the two choices.
+
+When comparing settings, inspect PCs and UMAPs coloured by sample, cell-cycle
+phase, known cell identity and experimental condition. Check that unwanted
+phase gradients are reduced without merging biologically distinct populations
+or losing expected markers. Better sample mixing alone is not evidence of a
+better analysis. If proliferation is itself a biological outcome of interest,
+retain an uncorrected comparison rather than assuming it should be removed.
+
+These settings affect the PCs used for integration, clustering and UMAP, not
+the count matrices used for pseudobulk differential expression. However,
+changed clusters can change which cells enter a pseudobulk. Phase composition
+can be included separately in a differential-expression model when it is a
+nuisance for the specific biological comparison, using corresponding mean
+sine and cosine terms rather than mean sine alone.
+
+The correction choice is available in project and zoom integration settings;
+like harmonics and ridge penalty, it requires `int_cell_cycle_regression:
+shared`. It does not change `tricycle_theta`. For HTO/custom cells without a
+sample assignment, the physical run is the fallback group for centring.
+PCA remains disk-backed and uses the fast threaded BPCells solver for either
+choice. Regression diagnostic tables record the correction mode and predicted
+sample-mean changes, which should be approximately zero for `within_sample`.
 
 ```yaml
 cell_cycle:
@@ -699,6 +738,7 @@ integration:
   int_cell_cycle_regression: shared
   int_cell_cycle_harmonics: 2
   int_cell_cycle_ridge_lambda: 0.1
+  int_cell_cycle_correction: within_sample  # alternative: global
 ```
 
 ##### marker_genes
