@@ -233,6 +233,7 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       int_theta: 0.1
       int_batch_var: sample_id
       int_n_dims: 50
+      int_umap_n_iter: 2000
       int_dbl_res: 4
       int_dbl_cl_prop: 0.5
       int_sce_outs: false
@@ -361,6 +362,7 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       int_theta: 0.1
       int_batch_var: sample_id
       int_n_dims: 50
+      int_umap_n_iter: 2000
       int_dbl_res: 4
       int_dbl_cl_prop: 0.5
       int_sce_outs: false
@@ -568,6 +570,7 @@ Configured maxima must be greater than or equal to their corresponding minima. C
 * `int_theta`: theta parameter for `Harmony` integration, controlling batch variable mixing.
 * `int_batch_var`: variable to use for integration with `Harmony`. Default is `sample_id`; if `demux_type` is set to either `hto` or `custom`, then `pool_id` is an alternative option.
 * `int_n_dims`: number of principal components to use for data integration.
+* `int_umap_n_iter`: positive integer specifying the number of UMAP optimization iterations (default: `2000`, previously fixed at `750`). Available independently in the `integration` block of project, zoom, and join YAML files. Applies to both CPU (Scanpy) and GPU (RAPIDS-singlecell), with either PAGA or spectral initialization. For standard projects, it controls both the doublet-screening and final UMAPs; for joins, it applies with either PCA backend. Existing configs that omit it receive the new default. Changing it reruns the integration rule when parameter-based rerun triggers are enabled, and may cause downstream rules to rerun; it does not itself change PCA, Harmony, or clustering settings.
 * `int_dbl_res`: clustering resolution for identification of additional doublets.
 * `int_dbl_cl_prop`: threshold for the proportion of doublets within a cluster. Clusters where the proportion of doublets exceeds this value will be excluded.
 * `int_sce_outs`: if `true` H5AD outputs will be converted to `SingleCellExperiment` objects and stored ad RDS files.

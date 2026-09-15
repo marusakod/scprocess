@@ -23,6 +23,7 @@ rule run_integration:
     int_theta       = config['integration']['int_theta'],
     int_batch_var   = config['integration']['int_batch_var'],
     int_n_dims      = config['integration']['int_n_dims'],
+    umap_n_iter = config['integration']['int_umap_n_iter'],
     int_dbl_res     = config['integration']['int_dbl_res'],
     int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
     int_use_paga    = config['integration']['int_use_paga'],
@@ -52,6 +53,7 @@ rule run_integration:
       --exclude_mito  "{params.exclude_mito}" \
       --embedding     {params.int_embedding} \
       --n_dims        {params.int_n_dims} \
+      --umap_n_iter {params.umap_n_iter} \
       --cl_method     {params.int_cl_method} \
       --dbl_res       {params.int_dbl_res} \
       --dbl_cl_prop   {params.int_dbl_cl_prop} \

@@ -887,6 +887,7 @@ rule zoom_run_integration:
     exclude_mito          = config['qc']['exclude_mito'],
     zoom_int_embedding    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_embedding'],
     zoom_int_n_dims       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_n_dims'],
+    umap_n_iter     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_umap_n_iter'],
     zoom_int_cl_method    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_cl_method'],
     zoom_int_theta        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_theta'],
     zoom_int_use_paga     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_use_paga'],
@@ -918,6 +919,7 @@ rule zoom_run_integration:
       --exclude_mito  "{params.exclude_mito}" \
       --embedding     {params.zoom_int_embedding} \
       --n_dims        {params.zoom_int_n_dims} \
+      --umap_n_iter {params.umap_n_iter} \
       --cl_method     {params.zoom_int_cl_method} \
       --theta         {params.zoom_int_theta} \
       --res_ls_concat "{params.zoom_int_res_ls}" \

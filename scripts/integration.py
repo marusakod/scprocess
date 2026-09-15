@@ -13,7 +13,8 @@ import polars as pl
 
 def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type, 
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
-  integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None):
+  integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None,
+  umap_n_iter = 2000):
   print('setting up parameters')
   exclude_mito  = str(exclude_mito).strip().lower() == 'true'
   res_ls        = res_ls_concat.split()
@@ -39,7 +40,8 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
 
   print('running integration to find more doublets')
   int_dbl       = _do_one_integration(adata_dbl, dbl_batch_var, cl_method, n_dims,
-    dbl_res, embedding, use_gpu, theta = dbl_theta, use_paga = use_paga, paga_cl = f"RNA_snn_res.{dbl_res}")
+    dbl_res, embedding, use_gpu, theta = dbl_theta, use_paga = use_paga, paga_cl = f"RNA_snn_res.{dbl_res}",
+    umap_n_iter = umap_n_iter)
   
   del adata_dbl
   gc.collect()
@@ -55,7 +57,8 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
 
   print('running integration on clean data')
   int_ok        = _do_one_integration(adata, batch_var, cl_method, n_dims,
-    res_ls, embedding, use_gpu, theta = theta, use_paga = use_paga, paga_cl = f"RNA_snn_res.{paga_cl_res}")
+    res_ls, embedding, use_gpu, theta = theta, use_paga = use_paga, paga_cl = f"RNA_snn_res.{paga_cl_res}",
+    umap_n_iter = umap_n_iter)
 
   print('join results')
   int_df        = int_ok.join(dbl_data, on="cell_id", coalesce=True, how = 'full')
@@ -72,7 +75,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
 def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
   exclude_mito, embedding, n_dims, cl_method, theta, res_ls_concat,
   integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None,
-  precomputed_pca_f = None):
+  precomputed_pca_f = None, umap_n_iter = 2000):
   print('setting up parameters')
   exclude_mito  = str(exclude_mito).strip().lower() == 'true'
   res_ls        = res_ls_concat.split()
@@ -122,7 +125,7 @@ def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
   print('running integration')
   int_df        = _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls,
     embedding, use_gpu, theta, use_paga = use_paga, paga_cl = f"RNA_snn_res.{paga_cl_res}",
-    skip_pca = skip_pca)
+    skip_pca = skip_pca, umap_n_iter = umap_n_iter)
 
   print('save results')
   with gzip.open(integration_f, 'wb') as f:
@@ -276,7 +279,8 @@ def _run_harmony(adata, batch_var, theta, use_gpu):
 
 
 def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding,
-  use_gpu, theta, use_paga=False, paga_cl=None, skip_pca=False):
+  use_gpu, theta, use_paga=False, paga_cl=None, skip_pca=False,
+  umap_n_iter=2000):
   # batch_var and theta may each be a list (join workflow) or single value
   # check whether we have variation in the batch variable(s)
   if isinstance(batch_var, list):
@@ -335,8 +339,8 @@ def _do_one_integration(adata, batch_var, cl_method, n_dims, res_ls, embedding,
     scanpy.pl.paga(adata, plot = False)
 
   # run UMAP
-  print(' running UMAP')
-  sc.tl.umap(adata, maxiter = 750, init_pos = init_pos)
+  print(f' running UMAP ({umap_n_iter} iterations)')
+  sc.tl.umap(adata, maxiter = umap_n_iter, init_pos = init_pos)
 
   if use_gpu:
     sc.get.anndata_to_CPU(adata)
@@ -461,6 +465,13 @@ def _adata_filter_out_doublets(all_hvg_mat, cells_df, dbl_data):
   return adata
 
 
+def _positive_int(value):
+  value = int(value)
+  if value < 1:
+    raise argparse.ArgumentTypeError('must be a positive integer')
+  return value
+
+
 if __name__ == "__main__":
   # get inputs
   parser = argparse.ArgumentParser()
@@ -476,6 +487,8 @@ if __name__ == "__main__":
   parser_run_integration.add_argument('--exclude_mito',   type = str)
   parser_run_integration.add_argument('--embedding',      type = str)
   parser_run_integration.add_argument('--n_dims',         type = int)
+  parser_run_integration.add_argument('--umap_n_iter', type = _positive_int, default = 2000,
+    help='Number of UMAP optimization iterations (default: 2000).')
   parser_run_integration.add_argument('--cl_method',      type = str)
   parser_run_integration.add_argument('--dbl_res',        type = float)
   parser_run_integration.add_argument('--dbl_cl_prop',    type = float)
@@ -502,6 +515,8 @@ if __name__ == "__main__":
   parser_run_zoom_integration.add_argument('--exclude_mito',   type = str)
   parser_run_zoom_integration.add_argument('--embedding',      type = str)
   parser_run_zoom_integration.add_argument('--n_dims',         type = int)
+  parser_run_zoom_integration.add_argument('--umap_n_iter', type = _positive_int, default = 2000,
+    help='Number of UMAP optimization iterations (default: 2000).')
   parser_run_zoom_integration.add_argument('--cl_method',      type = str)
   parser_run_zoom_integration.add_argument('--theta',          type = float,
     help='Harmony theta (single value). Use --theta_concat for multiple batch vars.')
@@ -567,7 +582,8 @@ if __name__ == "__main__":
       args.hvg_mat_f, args.dbl_hvg_mat_f, args.sample_qc_f, args.coldata_f,
       args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
       args.dbl_res, args.dbl_cl_prop, args.theta, args.res_ls_concat, args.integration_f,
-      args.batch_var, use_gpu, args.use_paga, args.paga_cl_res
+      args.batch_var, use_gpu, args.use_paga, args.paga_cl_res,
+      umap_n_iter = args.umap_n_iter
     )
   elif args.function_name == 'run_zoom_integration':
     # support list batch_var / theta for join workflow via _concat args
@@ -585,7 +601,8 @@ if __name__ == "__main__":
       args.demux_type, args.exclude_mito, args.embedding, args.n_dims, args.cl_method,
       zoom_theta, args.res_ls_concat, args.integration_f,
       zoom_batch_var, use_gpu, args.use_paga, args.paga_cl_res,
-      precomputed_pca_f = args.precomputed_pca_f
+      precomputed_pca_f = args.precomputed_pca_f,
+      umap_n_iter = args.umap_n_iter
     )
   else:
     parser.print_help()

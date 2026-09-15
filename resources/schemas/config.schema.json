@@ -177,6 +177,7 @@
         "int_theta":        { "type": "number",   "default": 0.1 },
         "int_batch_var":    { "type": "string",   "default": "sample_id", "enum": ["pool_id", "sample_id"] },
         "int_n_dims":       { "type": "integer",  "default": 50 },
+        "int_umap_n_iter": { "type": "integer", "minimum": 1, "default": 2000 },
         "int_dbl_res":      { "type": "number",   "default": 4 },
         "int_dbl_cl_prop":  { "type": "number",   "default": 0.5 },
         "int_sce_outs":     { "type": "boolean",  "default": false},

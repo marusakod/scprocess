@@ -416,6 +416,7 @@ rule join_integration:
   params:
     embedding         = config['integration']['int_embedding'],
     n_dims            = INT_N_DIMS,
+    umap_n_iter = config['integration']['int_umap_n_iter'],
     cl_method         = config['integration']['int_cl_method'],
     theta_concat      = config['integration']['int_theta'],
     batch_var_concat  = config['integration']['int_batch_var'],
@@ -444,6 +445,7 @@ rule join_integration:
       --exclude_mito     False \
       --embedding        {params.embedding} \
       --n_dims           {params.n_dims} \
+      --umap_n_iter {params.umap_n_iter} \
       --cl_method        {params.cl_method} \
       --theta_concat     "{params.theta_concat}" \
       --batch_var_concat "{params.batch_var_concat}" \
