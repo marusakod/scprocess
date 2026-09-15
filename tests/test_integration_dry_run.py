@@ -17,11 +17,12 @@ from scripts.scprocess_utils import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize('backend,correction', [
-    ('bpcells', 'within_sample'), ('bpcells', 'global'),
-    ('bpcells', None), ('scanpy', None),
+@pytest.mark.parametrize('backend,correction,estimate_phase', [
+    ('bpcells', 'within_sample', True), ('bpcells', 'global', True),
+    ('bpcells', None, True), ('scanpy', None, True),
+    ('bpcells', None, False), ('scanpy', None, False),
 ])
-def test_integration_dag_and_effective_arguments(tmp_path, backend, correction):
+def test_integration_dag_and_effective_arguments(tmp_path, backend, correction, estimate_phase):
     schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
     config = _get_default_config_from_schema(schema, {})
     config['project'] = {'ref_txome': 'mouse_2024'}
@@ -30,11 +31,10 @@ def test_integration_dag_and_effective_arguments(tmp_path, backend, correction):
     config['resources']['retries'] = 0
     config['integration'].update(int_pca_method=backend, int_umap_n_iter=1234,
                                  int_use_gpu=False)
+    if estimate_phase:
+        config['cell_cycle'] = {'cyc_target_cells': 5000}
     if correction:
-        config['cell_cycle'] = {}
-        config['integration']['int_cell_cycle_regression'] = 'shared'
-        if correction == 'global':
-            config['integration']['int_cell_cycle_correction'] = correction
+        config['integration']['int_cell_cycle_correction'] = correction
     config = _check_cell_cycle_parameters(config)
     jsonschema.validate(config['integration'], schema['properties']['integration'])
 
@@ -59,7 +59,7 @@ cell_cycle_dir, logs_dir, benchmark_dir = "cycle", "logs", "benchmarks"
 amb_dir, af_dir, af_rna_dir = "ambient", "af", ""
 BATCH_VAR, RUN_VAR = "sample_id", "sample_id"
 RUNS, BATCHES, RUNS_TO_BATCHES = ["s1"], ["s1"], {{"s1": ["s1"]}}
-CELL_CYCLE_ENABLED = {bool(correction)!r}
+CELL_CYCLE_ENABLED = {estimate_phase!r}
 TRICYCLE_SCORES_F, TRICYCLE_ORIGIN_F = "cycle/scores.csv.gz", "cycle/origin.csv"
 RESOURCE_PARAMS = {{}}
 def get_resources(*args, **kwargs):
@@ -84,3 +84,4 @@ include: {str(ROOT / 'rules/integration.smk')!r}
         assert 'preliminary_pca' in output and 'final_pca' in output
     else:
         assert 'correction_centering =' not in output
+    assert ('--tricycle_f' in output) == estimate_phase

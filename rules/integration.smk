@@ -13,7 +13,7 @@ CLEAN_CELLS_F  = f'{int_dir}/clean_cells_{FULL_TAG}_{DATE_STAMP}.csv'
 FINAL_PCA_F    = f'{int_dir}/final_pca_{FULL_TAG}_{DATE_STAMP}.csv.gz'
 CELL_CYCLE_REGRESSION = (
   CELL_CYCLE_ENABLED and
-  config['integration'].get('int_cell_cycle_regression') == 'shared'
+  'int_cell_cycle_correction' in config['integration']
 )
 PRELIM_REGRESSION_F = f'{cell_cycle_dir}/preliminary_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'
 FINAL_REGRESSION_F = f'{cell_cycle_dir}/final_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'

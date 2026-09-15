@@ -36,11 +36,10 @@ def test_present_cell_cycle_block_receives_prefixed_defaults():
   from scripts.scprocess_utils import _get_default_config_from_schema
 
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
-  defaults = _get_default_config_from_schema(schema, {'cell_cycle': {}})
+  defaults = _get_default_config_from_schema(schema, {'cell_cycle': {'cyc_target_cells': 5000}})
   assert defaults['cell_cycle'] == {
     'cyc_bandwidth_multiplier': 1.0,
     'cyc_kde_grid_size': 500,
-    'cyc_target_cells': 5000,
     'cyc_target_cells_grid': [100, 200, 500, 1000, 2000, 5000, 10000],
     'cyc_seed': 20230308,
   }
@@ -50,10 +49,10 @@ def test_manual_origin_schema_requires_exactly_two_numbers():
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
   cell_cycle_schema = schema['properties']['cell_cycle']
 
-  jsonschema.validate({'cyc_origin': [-3, 1]}, cell_cycle_schema)
+  jsonschema.validate({'cyc_target_cells': 5000, 'cyc_origin': [-3, 1]}, cell_cycle_schema)
   for invalid_origin in ([-3], [-3, 1, 2], ['-3', 1]):
     with pytest.raises(jsonschema.ValidationError):
-      jsonschema.validate({'cyc_origin': invalid_origin}, cell_cycle_schema)
+      jsonschema.validate({'cyc_target_cells': 5000, 'cyc_origin': invalid_origin}, cell_cycle_schema)
 
 
 def test_density_equalization_is_capped_and_has_requested_expectation():
@@ -434,7 +433,7 @@ def test_cell_cycle_target_requires_config_block():
 
   with pytest.raises(KeyError, match="no 'cell_cycle' section"):
     check_config_ok_for_rule({}, 'cell_cycle')
-  check_config_ok_for_rule({'cell_cycle': {}}, 'cell_cycle')
+  check_config_ok_for_rule({'cell_cycle': {'cyc_target_cells': 5000}}, 'cell_cycle')
 
 
 def test_bonus_doublet_rule_is_gpu_routed_on_shpc():
@@ -501,7 +500,8 @@ def test_tricycle_run_jobs_use_dedicated_resource_model():
 def test_zoom_pca_supports_shared_cell_cycle_regression():
   schema = json.loads((ROOT / 'resources/schemas/zoom.schema.json').read_text())
   integration_properties = schema['properties']['integration']['properties']
-  assert integration_properties['int_cell_cycle_regression']['const'] == 'shared'
+  assert 'int_cell_cycle_regression' not in integration_properties
+  assert integration_properties['int_cell_cycle_correction']['enum'] == ['within_sample', 'global']
   assert integration_properties['int_cell_cycle_harmonics']['enum'] == [1, 2]
   assert integration_properties['int_cell_cycle_ridge_lambda']['minimum'] == 0
 
@@ -528,9 +528,9 @@ def test_invalid_regression_backend_is_rejected():
     'project': {'ref_txome': 'mouse_2024'},
     'integration': {
       'int_pca_method': 'scanpy',
-      'int_cell_cycle_regression': 'shared',
+      'int_cell_cycle_correction': 'within_sample',
     },
-    'cell_cycle': {},
+    'cell_cycle': {'cyc_target_cells': 5000},
   }
   with pytest.raises(ValueError, match='requires integration.int_pca_method: bpcells'):
     _check_cell_cycle_parameters(config)
@@ -542,7 +542,7 @@ def test_species_is_inferred_from_standard_reference():
   config = {
     'project': {'ref_txome': 'human_2024'},
     'integration': {'int_pca_method': 'bpcells'},
-    'cell_cycle': {},
+    'cell_cycle': {'cyc_target_cells': 5000},
   }
   checked = _check_cell_cycle_parameters(config)
   assert checked['cell_cycle']['_species'] == 'human'
@@ -555,9 +555,9 @@ def test_shared_regression_receives_integration_defaults():
     'project': {'ref_txome': 'mouse_2024'},
     'integration': {
       'int_pca_method': 'bpcells',
-      'int_cell_cycle_regression': 'shared',
+      'int_cell_cycle_correction': 'within_sample',
     },
-    'cell_cycle': {},
+    'cell_cycle': {'cyc_target_cells': 5000},
   }
   checked = _check_cell_cycle_parameters(config)
   assert checked['integration']['int_cell_cycle_harmonics'] == 2
@@ -572,7 +572,7 @@ def test_regression_requires_cell_cycle_block():
     'project': {'ref_txome': 'mouse_2024'},
     'integration': {
       'int_pca_method': 'bpcells',
-      'int_cell_cycle_regression': 'shared',
+      'int_cell_cycle_correction': 'within_sample',
     },
   }
   with pytest.raises(ValueError, match='requires a cell_cycle block'):
@@ -588,9 +588,9 @@ def test_regression_tuning_requires_shared_regression():
       'int_pca_method': 'bpcells',
       'int_cell_cycle_harmonics': 1,
     },
-    'cell_cycle': {},
+    'cell_cycle': {'cyc_target_cells': 5000},
   }
-  with pytest.raises(ValueError, match='int_cell_cycle_regression: shared'):
+  with pytest.raises(ValueError, match='int_cell_cycle_correction'):
     _check_cell_cycle_parameters(config)
 
 
@@ -598,9 +598,8 @@ def test_regression_tuning_requires_shared_regression():
 def test_cell_cycle_correction_choice(mode):
   from scripts.scprocess_utils import _check_cell_cycle_parameters
   config = {
-    'project': {'ref_txome': 'mouse_2024'}, 'cell_cycle': {},
+    'project': {'ref_txome': 'mouse_2024'}, 'cell_cycle': {'cyc_target_cells': 5000},
     'integration': {'int_pca_method': 'bpcells',
-                    'int_cell_cycle_regression': 'shared',
                     'int_cell_cycle_correction': mode},
   }
   assert _check_cell_cycle_parameters(config)['integration']['int_cell_cycle_correction'] == mode
@@ -612,9 +611,9 @@ def test_cell_cycle_correction_choice(mode):
       jsonschema.validate('per_sample_slopes', field)
 
 
-def test_correction_mode_requires_regression():
+def test_correction_mode_requires_cell_cycle_block():
   from scripts.scprocess_utils import _check_cell_cycle_parameters
-  with pytest.raises(ValueError, match='int_cell_cycle_regression: shared'):
+  with pytest.raises(ValueError, match='requires a cell_cycle block'):
     _check_cell_cycle_parameters({'integration': {'int_cell_cycle_correction': 'global'}})
 
 
@@ -622,3 +621,40 @@ def test_project_and_zoom_forward_correction_mode():
   for name in ('integration', 'zoom'):
     rules = (ROOT / f'rules/{name}.smk').read_text()
     assert "correction_centering = '{integration['int_cell_cycle_correction']}'" in rules
+
+
+def test_empty_cell_cycle_block_remains_invalid_after_defaults():
+  from scripts.scprocess_utils import _get_default_config_from_schema, _check_cell_cycle_parameters
+  schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
+  defaults = _get_default_config_from_schema(schema, {'cell_cycle': {}})
+  assert 'cyc_target_cells' not in defaults['cell_cycle']
+  with pytest.raises(jsonschema.ValidationError, match='cyc_target_cells'):
+    jsonschema.validate(defaults['cell_cycle'], schema['properties']['cell_cycle'])
+  with pytest.raises(ValueError, match='cyc_target_cells is required'):
+    _check_cell_cycle_parameters({'cell_cycle': {}})
+  for value in (0, -1, 2.5, True, None):
+    with pytest.raises(jsonschema.ValidationError):
+      jsonschema.validate({'cyc_target_cells': value}, schema['properties']['cell_cycle'])
+  for value in (1000, 5000):
+    jsonschema.validate({'cyc_target_cells': value}, schema['properties']['cell_cycle'])
+
+
+@pytest.mark.parametrize('backend', ['bpcells', 'scanpy'])
+def test_phase_estimation_does_not_enable_correction(backend):
+  from scripts.scprocess_utils import _check_cell_cycle_parameters, _get_default_config_from_schema
+  schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
+  config = _get_default_config_from_schema(schema, {'cell_cycle': {'cyc_target_cells': 5000}})
+  config['project'] = {'ref_txome': 'mouse_2024'}
+  config['cell_cycle']['cyc_target_cells'] = 5000
+  config['integration']['int_pca_method'] = backend
+  checked = _check_cell_cycle_parameters(config)
+  assert checked['cell_cycle']['_species'] == 'mouse'
+  assert not any(k.startswith('int_cell_cycle_') for k in checked['integration'])
+
+
+def test_old_regression_switch_is_not_accepted_by_schemas():
+  for name in ('config', 'zoom'):
+    schema = json.loads((ROOT / f'resources/schemas/{name}.schema.json').read_text())
+    with pytest.raises(jsonschema.ValidationError, match='int_cell_cycle_regression'):
+      jsonschema.validate({'int_use_paga': False, 'int_cell_cycle_regression': 'shared'},
+                          schema['properties']['integration'])

@@ -880,8 +880,7 @@ rule zoom_create_hvg_matrix:
 def zoom_cell_cycle_regression_enabled(wildcards):
   return (
     'cell_cycle' in config and
-    ZOOM_PARAMS[wildcards.zoom_name]['integration'].get(
-      'int_cell_cycle_regression') == 'shared'
+    'int_cell_cycle_correction' in ZOOM_PARAMS[wildcards.zoom_name]['integration']
   )
 
 

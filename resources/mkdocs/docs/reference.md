@@ -585,11 +585,13 @@ Configured maxima must be greater than or equal to their corresponding minima. C
 
 The presence of the optional `cell_cycle` block enables fixed-reference
 tricycle projection. If the block is absent, no tricycle files or fields are
-created. An empty block (`cell_cycle: {}`) uses the defaults and produces three
-cell-level values:
+created. Specify the required `cyc_target_cells` parameter to enable estimation
+and diagnostics; the other settings are optional. This does not enable
+cell-cycle correction during integration:
 
 ```yaml
-cell_cycle: {}
+cell_cycle:
+  cyc_target_cells: 5000
 ```
 
 The cell-cycle options use the `cyc_` prefix:
@@ -598,9 +600,10 @@ The cell-cycle options use the `cyc_` prefix:
   bandwidth used for density equalization; default `1.0`;
 * `cyc_kde_grid_size`: number of bins per axis used for the binned KDE;
   default `500`;
-* `cyc_target_cells`: expected number of density-equalized cells retained for
-  pooled-origin estimation, capped at the number of candidate cells; default
-  `5000`;
+* `cyc_target_cells` (required): expected number of density-equalized cells
+  retained for pooled-origin estimation, capped at the number of candidate
+  cells. A suggested starting value is `5000`; it is not filled in automatically.
+  It does not limit the number of cells assigned a cell-cycle phase;
 * `cyc_target_cells_grid`: target values used for origin-sensitivity
   diagnostics; default `[100, 200, 500, 1000, 2000, 5000, 10000]`. The selected
   `cyc_target_cells` value is always included, and values above the number of
@@ -671,11 +674,20 @@ from QC-passed candidate singlets. Known doublets receive coordinates and theta
 but are excluded from origin estimation. Project-wide centring and the pooled
 origin make all three values dependent on project composition.
 
-Set `integration.int_cell_cycle_regression: shared` to remove shared cyclic
-effects from normalized, scaled HVG expression before both preliminary and
-final PCA. Its absence disables regression while still allowing cell-cycle
-estimation and diagnostics. Regression requires a `cell_cycle` block and
-`integration.int_pca_method: bpcells`.
+Set `integration.int_cell_cycle_correction: within_sample` (or `global`) to
+remove shared cyclic effects from normalized, scaled HVG expression before
+PCA. In standard projects, correction is applied both before the preliminary
+PCA, which includes cells and simulated doublets for additional doublet
+identification, and before the final PCA, which is fitted only on cells retained
+after doublet filtering. Zooms apply it before their subset PCA.
+
+Omitting `int_cell_cycle_correction` leaves integration uncorrected, even when
+a `cell_cycle` block is present: phase estimation and diagnostics can be used
+without removing cell-cycle variation. Correction requires a `cell_cycle`
+block and `integration.int_pca_method: bpcells`. `int_cell_cycle_harmonics` and
+`int_cell_cycle_ridge_lambda` are optional tuning parameters, valid only when
+`int_cell_cycle_correction` is specified. There is no separate regression
+enable/disable parameter.
 
 `int_cell_cycle_harmonics` is `1` or `2` and defaults to `2` when regression
 is enabled. `int_cell_cycle_ridge_lambda` controls shrinkage of the shared
@@ -690,7 +702,7 @@ with phase within a sample.
 
 `int_cell_cycle_correction` chooses how the fitted effect is removed:
 
-* `within_sample` (default): removes phase-associated variation within samples
+* `within_sample` (recommended starting point): removes phase-associated variation within samples
   while preserving each sample's mean of each gene on the normalized, scaled
   expression used for PCA. This is a useful starting point before Harmony on
   `sample_id`: cell-cycle regression reduces within-sample cyclic structure,
@@ -723,9 +735,8 @@ can be included separately in a differential-expression model when it is a
 nuisance for the specific biological comparison, using corresponding mean
 sine and cosine terms rather than mean sine alone.
 
-The correction choice is available in project and zoom integration settings;
-like harmonics and ridge penalty, it requires `int_cell_cycle_regression:
-shared`. It does not change `tricycle_theta`. For HTO/custom cells without a
+The correction choice is available in project and zoom integration settings.
+It does not change `tricycle_theta`. For HTO/custom cells without a
 sample assignment, the physical run is the fallback group for centring.
 PCA remains disk-backed and uses the fast threaded BPCells solver for either
 choice. Regression diagnostic tables record the correction mode and predicted
@@ -738,10 +749,9 @@ cell_cycle:
   # cyc_origin: [-3, 1]
 
 integration:
-  int_cell_cycle_regression: shared
+  int_cell_cycle_correction: within_sample  # alternative: global; omit to disable
   int_cell_cycle_harmonics: 2
   int_cell_cycle_ridge_lambda: 0.1
-  int_cell_cycle_correction: within_sample  # alternative: global
 ```
 
 ##### marker_genes

@@ -1093,20 +1093,19 @@ def _check_integration_parameters(config):
 
 def _check_cell_cycle_parameters(config):
   integration = config.get('integration', {})
-  regression_key = 'int_cell_cycle_regression'
-  tuning_keys = ('int_cell_cycle_harmonics', 'int_cell_cycle_ridge_lambda',
-                 'int_cell_cycle_correction')
+  regression_key = 'int_cell_cycle_correction'
+  tuning_keys = ('int_cell_cycle_harmonics', 'int_cell_cycle_ridge_lambda')
   regression_enabled = regression_key in integration
 
   if any(key in integration for key in tuning_keys) and not regression_enabled:
     raise ValueError(
       "integration.int_cell_cycle_harmonics and "
-      "integration.int_cell_cycle_ridge_lambda and int_cell_cycle_correction require "
-      "integration.int_cell_cycle_regression: shared"
+      "integration.int_cell_cycle_ridge_lambda require "
+      "integration.int_cell_cycle_correction: within_sample or global"
     )
   if regression_enabled and 'cell_cycle' not in config:
     raise ValueError(
-      "integration.int_cell_cycle_regression requires a cell_cycle block"
+      "integration.int_cell_cycle_correction requires a cell_cycle block"
     )
   if regression_enabled and integration['int_pca_method'] != 'bpcells':
     raise ValueError(
@@ -1115,7 +1114,6 @@ def _check_cell_cycle_parameters(config):
   if regression_enabled:
     integration.setdefault('int_cell_cycle_harmonics', 2)
     integration.setdefault('int_cell_cycle_ridge_lambda', 0.1)
-    integration.setdefault('int_cell_cycle_correction', 'within_sample')
     if integration['int_cell_cycle_correction'] not in ('within_sample', 'global'):
       raise ValueError("integration.int_cell_cycle_correction must be within_sample or global")
 
@@ -1123,6 +1121,8 @@ def _check_cell_cycle_parameters(config):
     return config
 
   cell_cycle = config['cell_cycle']
+  if 'cyc_target_cells' not in cell_cycle:
+    raise ValueError("cell_cycle.cyc_target_cells is required; a suggested starting value is 5000")
   reference = config['project'].get('probe_set', config['project'].get('ref_txome', ''))
   reference_lower = reference.lower()
   if any(token in reference_lower for token in ('mouse', 'grcm', 'mm10', 'mm39')):
