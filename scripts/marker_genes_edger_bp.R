@@ -416,7 +416,7 @@ calc_pseudobulk_variability_bpcells <- function(counts, coldata, effective_lib_s
 
 
 calc_marker_context_bpcells <- function(counts, coldata, effective_lib_size,
-  block_size = 1000L, workers = 1L, pseudo_count = 10) {
+  block_size = 1000L, workers = 1L, pseudo_count = 10, block_apply = .bp_lapply) {
   stopifnot(
     ncol(counts) == nrow(coldata),
     length(effective_lib_size) == ncol(counts)
@@ -426,7 +426,7 @@ calc_marker_context_bpcells <- function(counts, coldata, effective_lib_size,
   blocks = .bp_row_blocks(nrow(counts), block_size)
 
   message("  calculating blockwise marker expression context")
-  block_results = .bp_lapply(blocks, workers, function(rows) {
+  block_results = block_apply(blocks, workers, function(rows) {
     block = .bp_as_matrix(counts[rows, , drop = FALSE])
     gene_id = rownames(counts)[rows]
     data.table::rbindlist(lapply(clusters, function(cluster) {
@@ -573,23 +573,29 @@ calculate_join_marker_genes_bpcells <- function(pb_dir, prepared_coldata_f,
   if (anyNA(rows)) {
     stop("Prepared genes are absent from the BPCells store.", call. = FALSE)
   }
-  counts = cache$counts[rows, cols, drop = FALSE]
+  pool = edger.bp::bp_start_psock_pool(
+    file.path(pb_dir, "counts_row"), rows = rows, cols = cols,
+    workers = n_cores, verbose = TRUE
+  )
+  on.exit(edger.bp::bp_stop_psock_pool(pool), add = TRUE)
+  counts = pool$counts
   clusters = unique(coldata$cluster)
 
-  markers = fit_markers_edger_bp(
+  markers = edger.bp::bp_with_psock_pool(pool, fit_markers_edger_bp(
     counts, coldata, clusters,
     effective_lib_size = coldata$effective_lib_size,
     workers = n_cores, block_size = block_size,
     adjust_project_id = adjust_project_id
-  )
+  ))
 
-  context = calc_marker_context_bpcells(
+  context = edger.bp::bp_with_psock_pool(pool, calc_marker_context_bpcells(
     counts,
     coldata,
     coldata$effective_lib_size,
     block_size = block_size,
-    workers = n_cores
-  )
+    workers = n_cores,
+    block_apply = edger.bp::bp_block_lapply
+  ))
   markers = data.table::as.data.table(markers)
   markers = merge(markers, context, by = c("gene_id", "cluster"))
   markers = merge(markers, biotypes_dt, by = "gene_id", all.x = TRUE)

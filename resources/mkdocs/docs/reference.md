@@ -1167,8 +1167,17 @@ Additional parameters include:
   `mins_join_*` resource keys.
   `resources.n_join_marker_genes` controls the threads requested by
   `join_marker_genes` and the number of streamed edgeR workers; its default is
-  `8`. BLAS and OpenMP are restricted to one thread inside each worker to avoid
-  nested parallelism.
+  `8`. Marker fitting now reuses one PSOCK worker pool for dispersion estimation,
+  all cluster comparisons and expression summaries. Each independent R worker
+  opens the disk-backed counts itself; the full matrix is not copied into memory
+  for every worker. This avoids repeatedly forking the parent R process during
+  long marker runs. BLAS and OpenMP are restricted to one thread per worker.
+  Logs identify the worker PIDs and report each completed pass and worker thread
+  counts. Increase `n_join_marker_genes` to process gene blocks concurrently,
+  while allowing enough memory for the independent R sessions and count blocks.
+  More workers do not bypass the cluster's process/thread limits.
+  This backend requires an `edger.bp` build exporting `bp_start_psock_pool`;
+  update that package before using this version of the join marker rule.
   The rule environment installs the audited BPCells and `edger.bp` R 4.5
   builds from the public
   [edger.bp GitHub Conda channel](https://github.com/wmacnair/edger.bp/tree/conda-channel);
