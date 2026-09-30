@@ -1151,8 +1151,11 @@ Additional parameters include:
 * `int_pca_method`: PCA computation method. Options: `bpcells` (default) first converts the joint HDF5 counts to a persistent, compressed `uint32` native BPCells matrix. Per-gene centering and scaling are queued as delayed BPCells operations before the threaded C++ `BPCells::svds()` calculation. The compact matrix is copied to node-local storage for repeated SVD passes and is suitable for very large datasets (>1M cells) without GPU memory limits. `scanpy` uses the standard in-memory PCA on GPU/CPU (original behaviour).
 * Join marker-gene testing stores the pseudobulk output as a BPCells directory,
   keeps the combined counts disk-backed, and uses the streamed `edger.bp` edgeR
-  Treat backend. The work is split into `join_make_pseudobulks`,
-  `join_prepare_pseudobulks`, `join_calc_hvgs`, and `join_marker_genes`.
+  Treat backend. `join_make_pseudobulks` aggregates raw counts by sample and
+  cluster; `join_marker_genes_prep` filters pseudobulks and genes and calculates
+  TMM normalization factors; `join_marker_genes_calc` estimates dispersions and
+  tests each cluster against the rest. `join_calc_hvgs` ranks variable genes
+  separately after preparation.
   By default, marker-gene models use cluster alone. Set
   `marker_genes.mkr_adjust_project_id: true` to include `project_id` as an
   additive blocking factor in both dispersion estimation and one-versus-rest
@@ -1165,19 +1168,16 @@ Additional parameters include:
   parallel. Their default resource requests are 8–16 GB and 30–90 minutes,
   and can be overridden with the corresponding `gb_join_*` and
   `mins_join_*` resource keys.
-  `resources.n_join_marker_genes` controls the threads requested by
-  `join_marker_genes` and the number of streamed edgeR workers; its default is
-  `8`. Marker fitting now reuses one PSOCK worker pool for dispersion estimation,
-  all cluster comparisons and expression summaries. Each independent R worker
-  opens the disk-backed counts itself; the full matrix is not copied into memory
-  for every worker. This avoids repeatedly forking the parent R process during
-  long marker runs. BLAS and OpenMP are restricted to one thread per worker.
-  Logs identify the worker PIDs and report each completed pass and worker thread
-  counts. Increase `n_join_marker_genes` to process gene blocks concurrently,
-  while allowing enough memory for the independent R sessions and count blocks.
-  More workers do not bypass the cluster's process/thread limits.
-  This backend requires an `edger.bp` build exporting `bp_start_psock_pool`;
-  update that package before using this version of the join marker rule.
+  `resources.n_join_marker_genes_calc` controls the threads requested by
+  `join_marker_genes_calc` and the number of streamed edgeR workers; its default is
+  `8`. Marker fitting reuses one PSOCK worker pool across dispersion estimation,
+  cluster comparisons and expression summaries. Each independent R session
+  opens the disk-backed counts once; the full matrix is not copied to each
+  worker. This avoids repeated forks during long marker runs. BLAS and OpenMP
+  are restricted to one thread per worker. Pass logs report worker identities
+  and thread counts. More workers require additional memory and remain subject
+  to cluster process/thread limits. This requires an `edger.bp` build exporting
+  `bp_start_psock_pool`; update that package before running this marker rule.
   The rule environment installs the audited BPCells and `edger.bp` R 4.5
   builds from the public
   [edger.bp GitHub Conda channel](https://github.com/wmacnair/edger.bp/tree/conda-channel);
@@ -1185,6 +1185,17 @@ Additional parameters include:
   `raw.githubusercontent.com`.
   Standard project and zoom marker-gene runs retain their existing RDS,
   dense-edgeR, and DESeq2 VST paths.
+
+  For existing join configs, rename `gb_join_prepare_pseudobulks` and
+  `mins_join_prepare_pseudobulks` to `gb_join_marker_genes_prep` and
+  `mins_join_marker_genes_prep`. Likewise, rename `n_join_marker_genes`,
+  `gb_join_marker_genes`, and `mins_join_marker_genes` to their
+  `*_join_marker_genes_calc` equivalents. Slurm profile overrides should use
+  `join_marker_genes_prep` and `join_marker_genes_calc` as the rule names.
+  Analysis output filenames are unchanged. New logs and benchmarks use the new
+  rule names. Check a dry run after updating configs: Snakemake still checks
+  input timestamps and parameter changes, including changes to a zoom config,
+  when deciding whether existing results can be reused.
 
 Joint HVGs are selected from the final HVG lists of the source projects. Genes
 are ranked first by the number of projects in which they were selected as an

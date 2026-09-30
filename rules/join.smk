@@ -526,7 +526,7 @@ rule join_make_pseudobulks:
     """
 
 
-rule join_prepare_pseudobulks:
+rule join_marker_genes_prep:
   input:
     pb_dir        = pb_dir,
     marker_script = marker_edger_bp_script
@@ -539,12 +539,12 @@ rule join_prepare_pseudobulks:
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_prepare_pseudobulks', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_prepare_pseudobulks', 'time', attempt)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_marker_genes_prep', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_marker_genes_prep', 'time', attempt)
   log:
-    f"{logs_dir}/join_prepare_pseudobulks_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
+    f"{logs_dir}/join_marker_genes_prep_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
   benchmark:
-    f"{benchmark_dir}/join_prepare_pseudobulks_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.benchmark.txt"
+    f"{benchmark_dir}/join_marker_genes_prep_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.benchmark.txt"
   conda:
     '../envs/rlibs_bpcells.yaml'
   shell: """
@@ -598,7 +598,7 @@ rule join_calc_hvgs:
     """
 
 
-rule join_marker_genes:
+rule join_marker_genes_calc:
   input:
     pb_dir             = pb_dir,
     prepared_coldata_f = pb_prepared_coldata_f,
@@ -609,15 +609,15 @@ rule join_marker_genes:
   params:
     gene_info_f       = GENE_INFO_F,
     adjust_project_id = str(config['marker_genes']['mkr_adjust_project_id']).upper()
-  threads: config['resources']['n_join_marker_genes']
+  threads: config['resources']['n_join_marker_genes_calc']
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_marker_genes', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_marker_genes', 'time', attempt)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_marker_genes_calc', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_marker_genes_calc', 'time', attempt)
   log:
-    f"{logs_dir}/join_marker_genes_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
+    f"{logs_dir}/join_marker_genes_calc_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.log"
   benchmark:
-    f"{benchmark_dir}/join_marker_genes_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.benchmark.txt"
+    f"{benchmark_dir}/join_marker_genes_calc_{JOIN_TAG}_{MKR_SEL_RES}_{DATE_STAMP}.benchmark.txt"
   conda:
     '../envs/rlibs_bpcells.yaml'
   shell: """

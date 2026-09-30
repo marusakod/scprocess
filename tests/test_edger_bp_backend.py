@@ -32,9 +32,31 @@ class TestEdgerBpBackend(unittest.TestCase):
     )
     self.assertIn("source('{input.marker_script}')", source)
     self.assertIn('rule join_make_pseudobulks:', source)
-    self.assertIn('rule join_prepare_pseudobulks:', source)
+    self.assertIn('rule join_marker_genes_prep:', source)
     self.assertIn('rule join_calc_hvgs:', source)
-    self.assertIn('rule join_marker_genes:', source)
+    self.assertIn('rule join_marker_genes_calc:', source)
+    self.assertNotIn('rule join_prepare_pseudobulks:', source)
+    self.assertNotIn('rule join_marker_genes:', source)
+
+  def test_renamed_marker_resource_overrides(self):
+    from types import SimpleNamespace
+    from scripts.scprocess_utils import prep_resource_params, get_resources
+
+    schema = json.loads(JOIN_SCHEMA.read_text())['properties']['resources']['properties']
+    for old in ('n_join_marker_genes', 'gb_join_marker_genes', 'mins_join_marker_genes',
+                'gb_join_prepare_pseudobulks', 'mins_join_prepare_pseudobulks'):
+      self.assertNotIn(old, schema)
+    config = {'resources': {
+      'gb_join_marker_genes_prep': 24, 'mins_join_marker_genes_prep': 120,
+      'n_join_marker_genes_calc': 32, 'gb_join_marker_genes_calc': 64,
+      'mins_join_marker_genes_calc': 720,
+    }}
+    params = prep_resource_params(config, JOIN_SCHEMA, ROOT)
+    rules = SimpleNamespace(join_marker_genes_prep=object(), join_marker_genes_calc=object())
+    for rule, memory, minutes in [('join_marker_genes_prep', 24, 120),
+                                  ('join_marker_genes_calc', 64, 720)]:
+      self.assertEqual(get_resources(params, rules, [], rule, 'memory', 1), memory * 1024)
+      self.assertEqual(get_resources(params, rules, [], rule, 'time', 1), minutes)
 
   def test_split_rules_track_marker_adapter_as_an_input(self):
     source = JOIN_RULES.read_text()
@@ -47,12 +69,12 @@ class TestEdgerBpBackend(unittest.TestCase):
     source = JOIN_RULES.read_text()
     schema = json.loads(JOIN_SCHEMA.read_text())
     thread_schema = schema['properties']['resources']['properties'][
-      'n_join_marker_genes'
+      'n_join_marker_genes_calc'
     ]
     self.assertEqual(thread_schema['default'], 8)
     self.assertEqual(thread_schema['minimum'], 1)
     self.assertIn(
-      "threads: config['resources']['n_join_marker_genes']",
+      "threads: config['resources']['n_join_marker_genes_calc']",
       source,
     )
 
