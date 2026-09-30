@@ -15,7 +15,8 @@ import json
 scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 sys.path.append(str(scprocess_dir / 'scripts'))
 from scprocess_utils import (check_join_config, get_resources, prep_resource_params,
-  get_join_project_parameters, get_join_source_labels_f, get_join_batch_sources)
+  get_join_project_parameters, get_join_source_labels_f, get_join_batch_sources,
+  get_paga_resolution)
 
 # Prevent underscore-containing model names from being partially captured as the
 # labeller in join label, log, benchmark, and cluster-name file patterns.
@@ -430,7 +431,7 @@ rule join_integration:
     batch_var_concat  = config['integration']['int_batch_var'],
     res_ls_concat     = config['integration']['int_res_ls'],
     use_paga          = config['integration']['int_use_paga'],
-    paga_cl_res       = config['integration'].get('int_paga_cl_res', 2),
+    paga_cl_res       = get_paga_resolution(config['integration']),
     int_use_gpu       = config['integration']['int_use_gpu'],
     pca_method        = INT_PCA_METHOD,
     **({'retain_metadata': JOIN_RETAIN_METADATA} if JOIN_ZOOM_CONTEXT else {})

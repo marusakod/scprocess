@@ -17,13 +17,14 @@ from scripts.scprocess_utils import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize('paga', [True, False])
+@pytest.mark.parametrize('paga_resolution', [None, 2, 0.5])
 @pytest.mark.parametrize('backend,correction,estimate_phase', [
     ('bpcells', 'within_sample', True), ('bpcells', 'global', True),
     ('bpcells', None, True), ('scanpy', None, True),
     ('bpcells', None, False), ('scanpy', None, False),
 ])
-def test_integration_dag_and_effective_arguments(tmp_path, backend, correction, estimate_phase, paga):
+def test_integration_dag_and_effective_arguments(tmp_path, backend, correction, estimate_phase, paga_resolution):
+    paga = paga_resolution is not None
     schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
     config = _get_default_config_from_schema(schema, {})
     config['project'] = {'ref_txome': 'mouse_2024'}
@@ -34,6 +35,8 @@ def test_integration_dag_and_effective_arguments(tmp_path, backend, correction, 
                                  int_use_gpu=False, int_use_paga=paga)
     if not paga:
         config['integration'].pop('int_paga_cl_res')
+    else:
+        config['integration']['int_paga_cl_res'] = paga_resolution
     if estimate_phase:
         config['cell_cycle'] = {'cyc_target_cells': 5000}
     if correction:
@@ -55,6 +58,9 @@ def test_integration_dag_and_effective_arguments(tmp_path, backend, correction, 
     snakefile = tmp_path / 'Snakefile'
     snakefile.write_text(f'''
 config = {config!r}
+import sys
+sys.path.insert(0, {str(ROOT / 'scripts')!r})
+from scprocess_utils import get_paga_resolution
 scprocess_dir = {str(ROOT)!r}
 FULL_TAG, DATE_STAMP = "test", "date"
 int_dir, hvg_dir, qc_dir = "integration", "hvg", "qc"
@@ -82,6 +88,12 @@ include: {str(ROOT / 'rules/integration.smk')!r}
     assert result.returncode == 0, output
     commands = re.findall(r'--umap_n_iter\s+(\d+)', output)
     assert commands == ['1234'] * (2 if backend == 'bpcells' else 1), output
+    # Evaluate only the optional shell fragment, never the analysis command.
+    # This checks that disabled PAGA does not forward a None/empty resolution.
+    fragment = re.findall(r'\$\( \[ "(?:True|False)" == "True" \] && echo "--paga-cl-res [^"]+" \)', output)
+    assert len(fragment) == 1, output
+    effective = subprocess.check_output(['bash', '-c', 'printf "%s" ' + fragment[0]], text=True)
+    assert effective == (f'--paga-cl-res{paga_resolution}' if paga else '')
     if correction:
         assert output.count(f"correction_centering = '{correction}'") == 2, output
         assert 'preliminary_pca' in output and 'final_pca' in output

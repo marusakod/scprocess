@@ -306,10 +306,14 @@ def test_real_join_zoom_dag(parent_fixture, tmp_path, gpu, backend):
 
 
 @pytest.mark.parametrize('zoom', [False, True])
-def test_zoom_only_params_do_not_invalidate_standard_joins(parent_fixture, tmp_path, zoom):
+@pytest.mark.parametrize('paga_resolution', [None, 2, 0.5])
+def test_zoom_only_params_do_not_invalidate_standard_joins(parent_fixture, tmp_path, zoom, paga_resolution):
     """Check actual parsed rule parameters, including absence of no-op values."""
     parent, _, scdata, config_f, *_ = parent_fixture
     parent['shiny'].pop('annotation_csv')
+    parent['integration']['int_use_paga'] = paga_resolution is not None
+    if paga_resolution is not None:
+        parent['integration']['int_paga_cl_res'] = paga_resolution
     config_f.write_text(yaml.safe_dump(parent))
     workflow = ROOT / 'rules' / ('join_zoom.smk' if zoom else 'join.smk')
     wrapper = tmp_path / 'inspect_params.smk'
@@ -334,6 +338,7 @@ def test_zoom_only_params_do_not_invalidate_standard_joins(parent_fixture, tmp_p
                              if line.startswith('JOIN_PARAMS=')))
     matrix = params['join_build_matrix']
     integration = params['join_integration']
+    assert integration['paga_cl_res'] == paga_resolution
     if zoom:
         assert matrix.pop('require_all_cells') == '--require-all-cells'
         assert integration.pop('retain_metadata') == '--retain-metadata'

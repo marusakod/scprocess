@@ -967,7 +967,7 @@ rule zoom_run_integration:
     zoom_int_cl_method    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_cl_method'],
     zoom_int_theta        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_theta'],
     zoom_int_use_paga     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_use_paga'],
-    zoom_int_paga_cl_res  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration'].get('int_paga_cl_res', 2),
+    zoom_int_paga_cl_res  = lambda wildcards: get_paga_resolution(ZOOM_PARAMS[wildcards.zoom_name]['integration']),
     zoom_int_res_ls       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
     zoom_int_use_gpu      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_use_gpu'],
     zoom_pca_method       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_pca_method'],

@@ -1087,6 +1087,13 @@ def _check_hvg_parameters(config):
   return config
 
 
+def get_paga_resolution(integration):
+  """Read the validated resolution only when PAGA is enabled; supply no default."""
+  if integration['int_use_paga']:
+    return integration['int_paga_cl_res']
+  return None
+
+
 # check parameters for integration
 def _check_integration_parameters(config):
   # if paga is specified, check that the specified leiden resolution is in the list of valid values

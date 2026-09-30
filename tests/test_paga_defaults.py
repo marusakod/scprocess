@@ -4,7 +4,7 @@ from pathlib import Path
 
 import jsonschema
 
-from scripts.scprocess_utils import _get_default_config_from_schema
+from scripts.scprocess_utils import _get_default_config_from_schema, get_paga_resolution
 
 
 SCHEMA_DIR = Path(__file__).parents[1] / 'resources' / 'schemas'
@@ -29,6 +29,20 @@ class TestPagaDefaults(unittest.TestCase):
       with self.subTest(schema=name):
         defaults = _get_default_config_from_schema(schema)
         self.assertEqual(defaults['marker_genes']['mkr_sel_res'], 0.2)
+
+  def test_rule_resolution_uses_schema_or_explicit_value(self):
+    for schema in self.schemas.values():
+      integration = _get_default_config_from_schema(schema)['integration']
+      self.assertEqual(get_paga_resolution(integration), integration['int_paga_cl_res'])
+      integration['int_paga_cl_res'] = 0.5
+      self.assertEqual(get_paga_resolution(integration), 0.5)
+
+  def test_rule_resolution_is_absent_when_paga_is_disabled(self):
+    self.assertIsNone(get_paga_resolution({'int_use_paga': False}))
+
+  def test_rule_resolution_does_not_supply_a_missing_default(self):
+    with self.assertRaises(KeyError):
+      get_paga_resolution({'int_use_paga': True})
 
   def test_disabled_paga_does_not_inject_forbidden_resolution(self):
     for name, schema in self.schemas.items():
