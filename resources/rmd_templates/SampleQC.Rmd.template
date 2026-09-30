@@ -1,5 +1,5 @@
 ---
-title: "Cell-level QC"
+title: "Doublet identification and cell-level QC"
 author:
 - name: ${your_name}
   affiliation: 
@@ -26,6 +26,7 @@ knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 ```{r setup_helpers, cache=FALSE, include = FALSE}
 source('code/utils.R')
 source('code/qc.R')
+source('code/doublet_id.R')
 n_cores     = ${threads}
 setDTthreads(n_cores)
 ```
@@ -37,6 +38,12 @@ qc_f        = "${qc_dt_f}"
 cuts_f      = "${cuts_f}"
 batch_var   = "${batch_var}"
 
+# define doublet diagnostic files
+doublet_real_f       = "${doublet_real_f}"
+doublet_artificial_f = "${doublet_artificial_f}"
+doublet_summary_f    = "${doublet_summary_f}"
+run_var              = "${run_var}"
+
 # set default values
 hard_min_counts = ${qc_hard_min_counts}
 hard_min_feats  = ${qc_hard_min_feats}
@@ -46,6 +53,12 @@ hard_max_mito   = ${qc_hard_max_mito}
 qc_names    = c('n_cells', 'log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
 qc_lu       = c('no. of cells', 'no. of UMIs', 'no. of genes', 'mito. pct.', 'spliced pct.') %>% 
   setNames(qc_names)
+```
+
+```{r load_doublet_values, include = FALSE}
+doublets     = load_doublet_id_data(
+  doublet_real_f, doublet_artificial_f, doublet_summary_f, run_var)
+run_pages    = split_doublet_runs(doublets, page_size = 20L)
 ```
 
 ```{r load_qc_values, include = FALSE}
@@ -73,6 +86,80 @@ cuts_dt     = make_cuts_dt(cuts_f, batch_var, b_lvls)
 violin_h    = 0.4
 max_marg_h  = 12
 marg_h      = min((n_batches + 1) * violin_h, max_marg_h)
+```
+
+## Doublet identification
+
+Doublets were identified independently within each `${run_var}` using
+`scDblFinder`. Barcodes with fewer than **${dbl_min_feats} detected genes**
+were excluded before doublet identification. The settings that affect the
+artificial-doublet model and calling threshold were:
+
+* `dbr.sd`: **${dbl_dbr_sd_label}**
+
+* cluster-based artificial doublets: **${dbl_clusters_label}**
+
+When a setting is reported as `scDblFinder default`, scprocess omitted that
+argument and allowed the installed scDblFinder version to choose its default.
+Artificial doublets are simulated training observations, not biological cells.
+
+### Across-${run_var} overview{.tabset}
+
+#### Doublet calls
+
+```{r doublet_overview, fig.width = 6, fig.height = 4}
+plot_doublet_overview(doublets)
+```
+
+#### Calls versus calling threshold
+
+```{r doublet_thresholds, fig.width = 6, fig.height = 4}
+plot_doublet_thresholds(doublets)
+```
+
+#### Numeric summary
+
+```{r doublet_summary_table}
+knitr::kable(doublet_summary_table(doublets), digits = 3)
+```
+
+### Real-cell score histograms{.tabset}
+
+Samples are ordered by the percentage of cells called as doublets. Dashed red
+lines show the threshold reported by scDblFinder.
+
+```{r score_histogram_pages, fig.width = 14, fig.height = 10, results = 'asis'}
+for (i in seq_along(run_pages)) {
+  cat('\n#### Linear counts, page ', i, '\n\n', sep = '')
+  print(plot_doublet_histograms(doublets, run_pages[[i]], log_y = FALSE))
+  cat('\n\n#### Log counts, page ', i, '\n\n', sep = '')
+  print(plot_doublet_histograms(doublets, run_pages[[i]], log_y = TRUE))
+  cat('\n\n')
+}
+```
+
+### Real and artificial score distributions{.tabset}
+
+These panels compare observed cells called as singlets or doublets with the
+artificial doublets used to train the classifier. Every curve uses a fixed
+score-scale bandwidth of 0.01. The pseudo-log density axis retains zero while
+making low-density regions visible. Dashed grey lines show the calling
+threshold for each sample. Sample strips give the percentage of real cells
+called as doublets.
+
+```{r score_density_pages, fig.width = 14, fig.height = 10, results = 'asis'}
+for (i in seq_along(run_pages)) {
+  cat('\n#### Samples, page ', i, '\n\n', sep = '')
+  print(plot_doublet_densities(doublets, run_pages[[i]]))
+  cat('\n\n')
+}
+```
+
+### Doublet-identification provenance
+
+```{r doublet_provenance}
+knitr::kable(unique(doublets$summary[, .(
+  scDblFinder_version, dbl_dbr_sd, dbl_clusters)]))
 ```
 
 ## Sample QC metrics{.tabset}

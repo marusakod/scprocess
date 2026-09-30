@@ -48,6 +48,7 @@ dependencies:
   - r-metbrewer
   - r-patchwork
   - r-purrr
+  - r-quantreg
   - r-rcolorbrewer
   - r-readxl
   - r-rfast

@@ -137,7 +137,7 @@ rule save_alevin_hto_to_h5:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('{scprocess_dir}/scripts/mapping.R');
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/mapping.R');
       save_alevin_h5_knee_params_df(
         run         = '{wildcards.run}', 
         fry_dir     = '{input.fry_dir}', 
@@ -180,7 +180,7 @@ rule make_hto_sce_objects:
   WHITELIST_TRANS_F=$(grep "selected_translation_f:" {input.chem_stats_f} | sed 's/selected_translation_f: //')
   
   # save hto sce with demultiplexing info
-  Rscript -e "source('{scprocess_dir}/scripts/multiplexing.R'); source('{scprocess_dir}/scripts/utils.R');
+  Rscript --vanilla -e "source('{scprocess_dir}/scripts/multiplexing.R'); source('{scprocess_dir}/scripts/utils.R');
     get_one_hto_sce(
       sel_pool          = '{wildcards.run}',
       sample_stats_f    = '{input.smpl_stats_f}',

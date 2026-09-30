@@ -87,7 +87,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
   # check if all extra args for a specific rule are present
   if (sel_rule == 'ambient') {
     req_names = c('your_name','affiliation', 'short_tag', 'run_stats_f',
-      'threads','run_var', 'ambient_method', 'demux_type', 'af_rna_dir', 'date_stamp', 'runs_str', 'cb_prop_max_kept')
+      'threads','run_var', 'ambient_method', 'demux_type', 'af_rna_dir',
+      'date_stamp', 'runs_str', 'cb_prop_max_kept')
 
     assert_that(all(req_names %in% add_args_names))
     
@@ -146,7 +147,9 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
   } else if (sel_rule == 'qc') {
     req_names = c('your_name', 'affiliation', 'short_tag', 
       'date_stamp', 'threads', 'metadata_f', 'qc_dt_f', 'cuts_f', 'batch_var',
-      'min_cells', 'qc_hard_min_counts', 'qc_hard_min_feats', 'qc_hard_max_mito')
+      'doublet_real_f', 'doublet_artificial_f', 'doublet_summary_f', 'run_var',
+      'min_cells', 'qc_hard_min_counts', 'qc_hard_min_feats', 'qc_hard_max_mito',
+      'dbl_min_feats', 'dbl_dbr_sd_label', 'dbl_clusters_label')
     setdiff(req_names, add_args_names)
     assert_that(all(req_names %in% add_args_names))
 
@@ -345,7 +348,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     }
     
     if(paste0(short_tag, '_qc.html') %in% htmls){
-      qc_link = sprintf("- QC ([link](%s_qc.html))", short_tag)
+      qc_link = sprintf("- Doublet identification and QC ([link](%s_qc.html))", short_tag)
     }
 
     if(paste0(short_tag, '_hvgs.html') %in% htmls){

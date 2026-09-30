@@ -23,3 +23,13 @@ def test_index_groups_celltype_labelling_with_whole_dataset_processing():
   assert 'lbls_title' not in renderer
   assert template.index('${marker_genes_link}') < template.index('${label_celltypes_link}')
   assert template.index('${label_celltypes_link}') < template.index('${zoom_title}')
+
+
+def test_index_uses_combined_qc_report():
+  template = (ROOT / 'resources' / 'rmd_templates' / 'index.Rmd.template').read_text()
+  renderer = (ROOT / 'scripts' / 'render_htmls.R').read_text()
+
+  assert '${doublet_id_link}' not in template
+  assert 'doublet_id_link' not in renderer
+  assert '${qc_link}' in template
+  assert 'Doublet identification and QC' in renderer

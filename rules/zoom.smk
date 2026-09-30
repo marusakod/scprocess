@@ -377,7 +377,7 @@ rule zoom_make_one_pb_cells:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
     make_pb_cells(
       sel_run     = '{wildcards.run}',
       batch_lu_f  = '{input.batch_lu_f}',
@@ -455,7 +455,7 @@ rule zoom_merge_pb_cells:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
     merge_pbs_cells( \
       cells_paths_f = '{input.cells_paths_f}', 
       rowdata_f     = '{input.rowdata_f}',
@@ -490,7 +490,7 @@ rule zoom_calculate_ambient_genes:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/pseudobulk_and_empties.R'); \
     calc_empty_genes(
       pb_cells_f = '{input.zoom_pb_f}',
       pb_empty_f = '{input.pb_empty_f}',
@@ -934,7 +934,7 @@ rule zoom_pca:
     trap "rm -f $LOCAL_HVG" EXIT
     cp {input.hvg_mat_f} $LOCAL_HVG
 
-    Rscript -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
       n_threads    = {threads},
       counts_h5_fs = '$LOCAL_HVG',
       n_dims       = {params.n_dims},
@@ -1040,7 +1040,7 @@ rule zoom_run_marker_genes:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/marker_genes.R'); calculate_marker_genes(
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/marker_genes.R'); calculate_marker_genes(
       integration_f = '{input.integration_f}', 
       h5ads_yaml_f  = '{input.h5ads_yaml_f}',
       pb_f          = '{output.pb_f}',
@@ -1086,7 +1086,7 @@ rule zoom_run_fgsea:
   shell:"""
     exec &>> {log}
 
-    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/fgsea.R'); run_fgsea(
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/fgsea.R'); run_fgsea(
       mkrs_f        = '{input.mkrs_f}', 
       fgsea_go_bp_f = '{output.fgsea_go_bp_f}', 
       fgsea_go_cc_f = '{output.fgsea_go_cc_f}', 
@@ -1129,7 +1129,7 @@ rule zoom_make_subsets:
   shell:"""
     exec &>> {log}
 
-    Rscript -e "source('{scprocess_dir}/scripts/zoom.R');
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/zoom.R');
     make_subset_objects(
       sel_b         = '{wildcards.batch}',
       batch_var     = '{params.batch_var}',
