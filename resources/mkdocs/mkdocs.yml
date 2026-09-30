@@ -11,6 +11,8 @@ nav:
     - Reference: reference.md
     - Troubleshooting: troubleshooting.md
     - Citations: citation.md
+    - Developer notes:
+        - Joined zooms: development/join_zoom.md
 theme:
   font:
     text: Helvetica Neue

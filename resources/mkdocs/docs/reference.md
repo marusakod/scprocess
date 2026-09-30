@@ -1139,11 +1139,10 @@ Additional parameters include:
 
 ### Zooming a completed join { #join-zoom }
 
-A joined zoom selects cells from a completed join and recalculates HVGs, PCA,
-Harmony, clustering, UMAP and marker genes within that population. This can reveal
-subtypes whose variation was overshadowed by differences between broad cell types
-in the full atlas. It does not repeat ambient correction, cell QC or doublet
-detection, and cannot restore cells excluded from the parent analysis.
+A joined zoom reanalyses a selected population from a completed join to reveal
+subtypes that may be obscured in the full atlas. It recalculates HVGs, PCA,
+Harmony, clusters, UMAP and marker genes. Ambient correction and doublet detection
+are not repeated; cells excluded from the parent analysis cannot be restored.
 
 Add a list of zoom YAML files to the parent join configuration:
 
@@ -1173,7 +1172,7 @@ marker_genes:
   mkr_sel_res: 0.5
 ```
 
-Validate first, then run from your usual scprocess compute environment:
+Check the dry run, then run the analysis from your usual compute environment:
 
 ```bash
 scprocess join configs/join-atlas.yaml -r zoom --zoom neurons -n
@@ -1182,105 +1181,65 @@ scprocess join configs/join-atlas.yaml -r shiny --zoom neurons -n
 scprocess join configs/join-atlas.yaml -r shiny --zoom neurons
 ```
 
-Running the parent join normally does not run its zooms. Adding a zoom to a
-completed join does not itself require recalculating the parent analysis;
-existing parent outputs are reused when their inputs and analysis settings
-are unchanged. When several zooms are
-requested, they run sequentially; each zoom's independent batch jobs can run in
-parallel under the existing profile. Shiny is built separately after the zoom
-analysis completes.
+Omit `--zoom neurons` to run all listed zooms sequentially. Running the parent
+join does not run its zooms. Each zoom has separate outputs and a separate Shiny
+app; adding one does not itself require rerunning the parent analysis.
 
-**Selecting cells and preserving biological context**
+**Selecting cells**
 
-* The required selection fields are `zoom.name`, `labels_source`, `labels_col`
-  and `sel_labels`. Names must start with a letter or digit and otherwise use
-  letters, digits, `.`, `_` or `-`.
-* `labels_source: clusters` reads the parent join's clustering. `celltypist` or
-  `scprocess` selects from a completed parent label file and requires `model`.
-  `custom` requires `custom_labels_f`: a CSV/CSV.gz with unique `cell_id` values
-  and the requested labels column. Cell IDs must match the joined output exactly.
-  Custom annotations can cover only part of the parent; cells outside the parent
-  are never included. Missing requested labels and ambiguous cell IDs are errors.
-* `zoom.exclude.sample_id` can remove samples using their exact **joined** IDs,
-  including the project prefix. Pool exclusions are not supported in this first
-  version. A selection may retain cells from just one source project.
-* Optional `qc` thresholds can further restrict UMIs, detected genes, mitochondrial
-  fraction and spliced fraction using the parent QC metrics. `qc_min_cells`
-  defaults to 10 selected cells per sample. Samples with fewer than two cells are
-  always excluded because sample-level variance cannot be estimated from one cell.
-  Check `selection_summary.csv` for disproportionate loss of biological samples.
-* Sample/project identifiers and descriptive metadata are retained. Parent
-  clusters and coordinates have a `parent_` prefix; `parent_label` records the
-  selection label, making comparisons with the new clusters possible.
+* Supply the four selection fields shown above. Use a unique `zoom.name` starting
+  with a letter or digit, followed by letters, digits, `.`, `_` or `-`.
+* Select parent clusters with `labels_source: clusters`, or existing `celltypist`
+  or `scprocess` labels with the corresponding `model`. For custom annotations,
+  use `labels_source: custom` and `custom_labels_f`: a CSV/CSV.gz containing unique
+  `cell_id` values and the chosen labels column. A file of cell IDs alone is not
+  sufficient. Partial annotations are allowed, but requested labels must exist.
+* `zoom.exclude.sample_id` excludes exact joined sample IDs, including their
+  project prefixes. A zoom may retain cells from only one source project.
+* Optional `qc` thresholds further filter cells using the parent QC metrics.
+  `qc_min_cells` defaults to 10 selected cells per sample; at least two are always
+  required for variance estimation. Check `selection_summary.csv` for loss of
+  samples that could affect biological comparisons.
 
 **Choosing analysis parameters**
 
-* Integration, marker, resource and presentation settings inherit from the parent
-  unless overridden. `int_batch_var` can name a fully populated column available
-  in the parent's cell or sample metadata. Choose a variable representing the
-  technical effects you want Harmony to remove, not the biological distinction
-  you want to resolve. For multiple variables, use the same array syntax as join.
-* HVGs are recalculated from the selected cells' full-gene clean counts, using
-  sample-aware Seurat-style variance ranking (`hvg_method: sample`). Samples split
-  across H5AD files are combined before variance estimation. Genes entering PCA
-  must be shared across retained samples. `hvg_n_hvgs` inherits from the parent;
-  `hvg_chunk_size` defaults to 2000 cells per read for row-oriented files; for
-  column-oriented files, comparably sized gene blocks are read instead to keep
-  memory use bounded. `hvg_exclude_from_file` optionally
-  names a CSV whose first column contains gene IDs to exclude. Supply an explicit
-  exclusion list if needed; ambient-gene detection is not rerun or inherited
-  automatically.
-* The default BPCells PCA retains the join's normalization, log transformation,
-  centering and scaling. Harmony and UMAP are newly calculated, not cropped from
-  the parent. `int_umap_n_iter` defaults to 2000 unless changed in the parent.
-  Use fewer PCs for very small populations, and ensure `int_paga_cl_res` and
-  `mkr_sel_res` occur in `int_res_ls`.
-* Marker pseudobulks use the newly selected cells and clusters, with sample-level
-  replication and the existing disk-backed `edger.bp` workflow. Project adjustment
-  follows `mkr_adjust_project_id`; if only one project remains after filtering,
-  the constant project effect is omitted with a message.
+Settings inherit from the parent unless overridden. In particular:
+
+* HVGs are ranked within samples using the selected cells' clean counts
+  (`hvg_method: sample`). `hvg_n_hvgs` sets how many enter PCA. To exclude genes,
+  set `hvg_exclude_from_file` to a CSV with gene IDs in its first column; ambient
+  gene exclusions are not automatically inherited.
+* Choose `int_batch_var` for the technical variation Harmony should remove.
+  It must be populated for every selected cell in the parent's cell or sample
+  metadata. Avoid adjusting away the biological distinction you want to study.
+* Consider fewer PCs (`int_n_dims`) for small populations. UMAP uses 2000
+  iterations unless changed in the parent or zoom. Choose `mkr_sel_res`, and
+  `int_paga_cl_res` when PAGA is enabled, from the calculated `int_res_ls` values.
+* Markers use raw-count pseudobulks from the new clusters. Project adjustment
+  follows `mkr_adjust_project_id` and is omitted if only one project remains.
 
 **Outputs and scope**
 
-Analysis files are isolated under
-`output/{join.name}_join_zoom/{zoom.name}/`, including `selected_cells.csv.gz`,
-`selection_summary.csv`, and `effective_config.yaml`. Rule logs and benchmarks
-are under `.log/join_zoom/{zoom.name}/` and `.resources/join_zoom/{zoom.name}/`.
-Changing `marker_genes.mkr_sel_res` to another resolution already present in
-`integration.int_res_ls` reuses the selected cells, HVGs, PCA and integration;
-only the affected marker calculations and downstream outputs need updating.
-Changing the selected parent clusters or QC filters does require recalculating
-the subset. Changes to the source data also remain tracked.
-The full zoom run records requested settings in `effective_config.yaml` separately
-from cell preparation, so updating marker or resource settings does not itself
-reselect cells. This configuration record is not a workflow-completion flag.
-Joined marker pseudobulking and native PCA matrix conversion keep their HDF5
-inputs open read-only, preserving input timestamps as well as counts. A change
-to a real input still invalidates dependent results; timestamps are not ignored.
-Existing runs made with older dependency tracking may still request a one-time
-rerun. Always inspect the dry run before resuming; do not delete results or
-reset their timestamps simply to suppress it.
+Results are under `output/{join.name}_join_zoom/{zoom.name}/`. The cell list,
+selection summary and requested settings are saved as `selected_cells.csv.gz`,
+`selection_summary.csv` and `effective_config.yaml`. Metadata and parent labels
+are retained for comparison: the new Harmony PCs use `hmny_pca_*`, while parent
+PCs use `parent_hmny_pca_*`. Other parent clusters and coordinates also have a
+`parent_` prefix; `parent_label` records the selection label.
 
-The HTML report is named `{join.name}_join_zoom_{zoom.name}.html` in `public/`.
-The Shiny app defaults to `public/shiny_{join.name}_join_zoom_{zoom.name}`. Parent
-app identifiers and cluster annotations are not inherited; provide a new
-`shiny.annotation_csv` for the new clusters when ready. If overriding `app_tag`,
-choose a name distinct from the parent and other zooms.
+The report is `public/{join.name}_join_zoom_{zoom.name}.html`; the app defaults
+to `public/shiny_{join.name}_join_zoom_{zoom.name}`. Cluster annotations must be
+reviewed for the new clusters: provide a new `shiny.annotation_csv` when ready.
+Any custom `shiny.app_tag` must differ from the parent and other zooms.
 
-The existing `join_pca`, `join_integration` and `join_marker_genes_calc` resource/profile
-settings also govern joined zooms. The new preparation and HVG rules have their
-own `gb_join_zoom_*` and `mins_join_zoom_*` resource settings. GPU allocation remains
-controlled by the Slurm profile, separately from `int_use_gpu`.
+Switching marker resolution to another already calculated resolution reuses
+selection, HVGs, PCA and integration. Changing selected cells or QC filters
+requires recalculating the subset. Check the dry run when resuming an older run.
 
-This first version does not support recursive zooms, XGBoost training, joined
-cell-cycle correction, fresh cell-type labelling, or exporting per-batch subset
-H5AD/SCE files. Such configuration options are rejected rather than ignored.
-Original clean H5ADs are reused read-only; downstream calculations explicitly
-filter them to the zoom's cells. The zoom's H5AD manifest and `h5ads/` links
-include only batches containing retained cells; batches with no selected cells
-are not required for marker testing. The link directory is regenerated when
-the selection changes, without modifying the original H5ADs.
-Ordinary project zooms are unchanged.
+Joined zooms currently do not support recursive zooms, pool exclusions,
+cell-cycle correction, XGBoost training, fresh cell-type labelling or per-batch
+subset H5AD/SCE exports. See the [implementation notes](development/join_zoom.md)
+for workflow dependencies, resource settings and input handling.
 
 ### configuration file
 
