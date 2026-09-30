@@ -202,3 +202,26 @@ doublet_run_labels <- function(x, runs) {
 split_doublet_runs <- function(x, page_size = 20L) {
   split(x$run_levels, ceiling(seq_along(x$run_levels) / page_size))
 }
+
+doublet_page_height <- function(runs) {
+  1.2 + 2.2 * ceiling(length(runs) / 5)
+}
+
+render_doublet_pages <- function(x, pages, plot_fun, chunk_prefix,
+                                heading_level = 4L, ...) {
+  # Child chunks give each page its own device height, including a short last page.
+  for (i in seq_along(pages)) {
+    runs = pages[[i]]
+    cat('\n', strrep('#', heading_level), ' Page ', i, '\n\n', sep = '')
+    page_plot = plot_fun(x, runs, ...)
+    child = c(
+      sprintf(
+        '```{r %s_%d, fig.width=14, fig.height=%s, echo=FALSE, cache=FALSE}',
+        chunk_prefix, i, doublet_page_height(runs)),
+      'print(page_plot)',
+      '```')
+    cat(knitr::knit_child(text = child, envir = environment(), quiet = TRUE),
+      sep = '\n')
+    cat('\n\n')
+  }
+}

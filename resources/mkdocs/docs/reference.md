@@ -553,8 +553,9 @@ sample_id:
 
 Configured maxima must be greater than or equal to their corresponding minima. Count and feature maxima are inclusive and are applied during final QC filtering, after `scDblFinder` has run.
 
-The doublet-identification report compares observed-cell score distributions,
-calling thresholds, and simulated artificial doublets across samples. Because
+The doublet-identification section of the QC report compares observed-cell score
+distributions, calling thresholds, and simulated artificial doublets across samples.
+Histogram tabs offer linear or log counts, with up to 20 samples per page. Because
 changing doublet calls changes which cells enter HVG selection and integration,
 review the integration report as well as the doublet-identification report
 before adopting non-default settings.

@@ -95,6 +95,11 @@ def test_qc_report_combines_doublet_diagnostics_from_readable_csv_inputs():
   assert template.index("## Doublet identification") < template.index(
     "## Sample QC metrics"
   )
+  assert "#### Linear counts{.tabset}" in template
+  assert "#### Log counts{.tabset}" in template
+  assert "heading_level = 5L, log_y = FALSE" in template
+  assert "heading_level = 5L, log_y = TRUE" in template
+  assert "Doublet-identification provenance" not in template
 
 
 def test_core_workflow_has_no_standalone_doublet_report_targets():

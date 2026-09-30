@@ -128,14 +128,20 @@ knitr::kable(doublet_summary_table(doublets), digits = 3)
 Samples are ordered by the percentage of cells called as doublets. Dashed red
 lines show the threshold reported by scDblFinder.
 
-```{r score_histogram_pages, fig.width = 14, fig.height = 10, results = 'asis'}
-for (i in seq_along(run_pages)) {
-  cat('\n#### Linear counts, page ', i, '\n\n', sep = '')
-  print(plot_doublet_histograms(doublets, run_pages[[i]], log_y = FALSE))
-  cat('\n\n#### Log counts, page ', i, '\n\n', sep = '')
-  print(plot_doublet_histograms(doublets, run_pages[[i]], log_y = TRUE))
-  cat('\n\n')
-}
+#### Linear counts{.tabset}
+
+```{r score_histogram_linear_pages, results = 'asis', cache = FALSE}
+render_doublet_pages(
+  doublets, run_pages, plot_doublet_histograms, 'score_histogram_linear',
+  heading_level = 5L, log_y = FALSE)
+```
+
+#### Log counts{.tabset}
+
+```{r score_histogram_log_pages, results = 'asis', cache = FALSE}
+render_doublet_pages(
+  doublets, run_pages, plot_doublet_histograms, 'score_histogram_log',
+  heading_level = 5L, log_y = TRUE)
 ```
 
 ### Real and artificial score distributions{.tabset}
@@ -147,19 +153,9 @@ making low-density regions visible. Dashed grey lines show the calling
 threshold for each sample. Sample strips give the percentage of real cells
 called as doublets.
 
-```{r score_density_pages, fig.width = 14, fig.height = 10, results = 'asis'}
-for (i in seq_along(run_pages)) {
-  cat('\n#### Samples, page ', i, '\n\n', sep = '')
-  print(plot_doublet_densities(doublets, run_pages[[i]]))
-  cat('\n\n')
-}
-```
-
-### Doublet-identification provenance
-
-```{r doublet_provenance}
-knitr::kable(unique(doublets$summary[, .(
-  scDblFinder_version, dbl_dbr_sd, dbl_clusters)]))
+```{r score_density_pages, results = 'asis', cache = FALSE}
+render_doublet_pages(
+  doublets, run_pages, plot_doublet_densities, 'score_density')
 ```
 
 ## Sample QC metrics{.tabset}

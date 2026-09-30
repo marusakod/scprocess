@@ -48,6 +48,10 @@ histogram_plot = plot_doublet_histograms(x, x$run_levels)
 density_plot = plot_doublet_densities(x, x$run_levels)
 run_labels = doublet_run_labels(x, x$run_levels)
 stopifnot(
+  isTRUE(all.equal(doublet_page_height(seq_len(4)), 3.4)),
+  isTRUE(all.equal(doublet_page_height(seq_len(6)), 5.6)),
+  isTRUE(all.equal(doublet_page_height(seq_len(20)), 10)))
+stopifnot(
   nrow(x$real) == 9L,
   nrow(x$artificial) == 6L,
   identical(x$run_levels, c('sample_a', 'sample_b')),
@@ -81,5 +85,23 @@ stopifnot(
   identical(
     unname(run_labels[c('sample_a', 'sample_b')]),
     c('sample_a (50.0%)', 'sample_b (20.0%)')))
+
+# Exercise child chunks as well as the plot objects: page headings and device
+# heights must survive knitting, including when the final page has fewer rows.
+local({
+  old_options = knitr::opts_chunk$get()
+  on.exit(knitr::opts_chunk$restore(old_options))
+  knitr::opts_chunk$set(fig.path = paste0(tmp_dir, '/'), dev = 'png')
+  pages = split_doublet_runs(x, page_size = 1L)
+  knitted = knitr::knit(text = c(
+    '```{r test_pages, results="asis", echo=FALSE}',
+    'render_doublet_pages(x, pages, plot_doublet_histograms, "test_hist", heading_level=5L)',
+    '```'), envir = environment(), quiet = TRUE)
+  stopifnot(
+    grepl('##### Page 1', knitted, fixed = TRUE),
+    grepl('##### Page 2', knitted, fixed = TRUE),
+    length(list.files(tmp_dir, pattern = 'test_hist.*png$')) == 2L,
+    !grepl('Error', knitted, fixed = TRUE))
+})
 
 unlink(tmp_dir, recursive = TRUE)
