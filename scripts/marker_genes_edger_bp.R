@@ -132,8 +132,13 @@ build_pseudobulk_cache_bpcells <- function(pb_dir, integration_f, h5ads_yaml_f,
       warning("skipping missing or empty H5AD for ", batch_name, ": ", h5ad_path)
       return(NULL)
     }
+    # BPCells 0.3.1 can open writable HDF5s in read/write mode, updating their
+    # timestamps even for reads. Keep a read-only handle alive throughout lazy
+    # evaluation, including in fork workers; never chmod or touch source files.
+    h5_readonly = rhdf5::H5Fopen(h5ad_path, flags = "H5F_ACC_RDONLY")
+    on.exit(rhdf5::H5Fclose(h5_readonly), add = TRUE)
     root_objects = tryCatch(
-      rhdf5::h5ls(h5ad_path, recursive = FALSE)$name,
+      rhdf5::h5ls(h5_readonly, recursive = FALSE)$name,
       error = function(e) {
         stop(
           "Unable to inspect H5AD for ", batch_name, ": ",
@@ -258,6 +263,15 @@ filter_pseudobulk_columns_bpcells <- function(counts, coldata, min_cells) {
 }
 
 
+.join_project_effect <- function(requested, project_id) {
+  if (requested && length(unique(project_id)) == 1L) {
+    message("  Only one project remains; omitting the constant project_id effect.")
+    return(FALSE)
+  }
+  requested
+}
+
+
 fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
   workers = 1L, block_size = 1000L, adjust_project_id = FALSE) {
   if (!is.logical(adjust_project_id) || length(adjust_project_id) != 1L ||
@@ -292,6 +306,7 @@ fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
     paste(names(versions), versions, sep = " ", collapse = "; ")
   )
 
+  adjust_project_id = .join_project_effect(adjust_project_id, coldata$project_id)
   group = factor(coldata$cluster, levels = unique(coldata$cluster))
   if (adjust_project_id) {
     project_id = factor(coldata$project_id, levels = unique(coldata$project_id))
@@ -497,6 +512,7 @@ prepare_join_pseudobulks_bpcells <- function(pb_dir, prepared_coldata_f,
     )
   }
 
+  adjust_project_id = .join_project_effect(adjust_project_id, coldata$project_id)
   group = factor(coldata$cluster, levels = clusters)
   if (adjust_project_id) {
     project_id = factor(coldata$project_id, levels = unique(coldata$project_id))

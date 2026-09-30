@@ -2694,6 +2694,9 @@ def check_join_config(config, join_schema_f, scdata_dir):
   """
   join_schema = _load_schema_file(join_schema_f)
   defaults    = _get_default_config_from_schema(join_schema, config)
+  if (config.get('integration', {}).get('int_use_paga') is False
+      and 'int_paga_cl_res' not in config.get('integration', {})):
+    defaults['integration'].pop('int_paga_cl_res', None)
   snakemake.utils.update_config(defaults, config)
   config      = defaults
 
@@ -2726,6 +2729,8 @@ def check_join_config(config, join_schema_f, scdata_dir):
       join_schema['properties'].get(section, {}).get('properties', {}))
 
   _check_join_integration_parameters(config)
+  if not config['integration']['int_use_paga']:
+    config['integration'].pop('int_paga_cl_res', None)
   config = _check_shiny_parameters(config)
 
   # validate train_xgboost section if present

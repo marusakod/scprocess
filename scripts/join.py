@@ -148,9 +148,18 @@ def _load_batch_hvg_matrix(h5ad_path, ok_cells, hvg_list, pid, batch_key):
       barcodes    = f['obs'][obs_idx_col][:].astype(str)
       var_idx_col = f['var'].attrs.get('_index', 'gene_ids')
       features    = f['var'][var_idx_col][:].astype(str)
-      data     = f['X/data'][:]
-      indices  = f['X/indices'][:]
-      indptr   = f['X/indptr'][:]
+      dense = isinstance(f['X'], h5py.Dataset)
+      if dense:
+        # Read only selected rows for dense inputs as well.
+        rows = np.flatnonzero(np.isin(barcodes, list(ok_cells)))
+        if not len(rows):
+          return None
+        csc_mat = csc_matrix(f['X'][rows, :].T)
+        barcodes = barcodes[rows]
+      else:
+        data     = f['X/data'][:]
+        indices  = f['X/indices'][:]
+        indptr   = f['X/indptr'][:]
       n_cells  = len(barcodes)
       n_genes  = len(features)
       enc_type = f['X'].attrs.get('encoding-type', 'csr_matrix')
@@ -162,8 +171,10 @@ def _load_batch_hvg_matrix(h5ad_path, ok_cells, hvg_list, pid, batch_key):
     return None
 
   # AnnData X is (n_cells, n_genes); convert to (n_genes, n_cells) CSC
-  if enc_type == 'csc_matrix':
-    csc_mat = csc_matrix((data, indices, indptr), shape=(n_genes, n_cells))
+  if dense:
+    pass
+  elif enc_type == 'csc_matrix':
+    csc_mat = csc_matrix((data, indices, indptr), shape=(n_cells, n_genes)).T.tocsc()
   else:
     csr_mat = csr_matrix((data, indices, indptr), shape=(n_cells, n_genes))
     csc_mat = csr_mat.T.tocsc()
@@ -179,9 +190,10 @@ def _load_batch_hvg_matrix(h5ad_path, ok_cells, hvg_list, pid, batch_key):
 
   # subset rows to HVG genes
   feat_idx    = {g: i for i, g in enumerate(features)}
-  hvg_row_idx = [feat_idx[g] for g in hvg_list if g in feat_idx]
-  if len(hvg_row_idx) == 0:
-    raise ValueError(f"No joint HVG genes found in h5ad for {batch_key} in {pid}")
+  missing = [g for g in hvg_list if g not in feat_idx]
+  if missing:
+    raise ValueError(f"Joint HVGs missing in h5ad for {batch_key} in {pid}: {missing[:10]}")
+  hvg_row_idx = [feat_idx[g] for g in hvg_list]
   csc_sub = csc_mat[hvg_row_idx, :]
 
   return csc_sub, kept_bcs.tolist()
@@ -200,7 +212,7 @@ def _build_project_coldata(int_dt, pid):
 
 
 def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_fs,
-                       out_h5_f):
+                       out_h5_f, require_all_cells=False):
   """Assemble a joint HVG count matrix from per-project h5ads."""
   import numpy as np
   import h5py
@@ -216,6 +228,7 @@ def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_f
 
   all_mats     = []
   all_barcodes = []
+  expected_cells = set()
 
   for pid, h5ads_yaml_f, int_f in zip(project_ids, h5ads_yaml_fs, integrated_dt_fs):
     print(f"  processing project: {pid}")
@@ -223,7 +236,10 @@ def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_f
       h5ad_paths = yaml.safe_load(fh)
     int_dt   = pl.read_csv(int_f)
     ok_cells = set(int_dt.filter(_ok_cells_filter(int_dt))['cell_id'].to_list())
+    expected_cells.update(ok_cells)
     print(f"    clean cells: {len(ok_cells)}")
+    if not ok_cells:
+      continue
 
     for batch_key, h5ad_entry in h5ad_paths.items():
       h5ad_path = h5ad_entry if isinstance(h5ad_entry, str) else h5ad_entry['path']
@@ -236,6 +252,8 @@ def build_joint_matrix(joint_hvgs_f, h5ads_yaml_fs, project_ids, integrated_dt_f
 
   if len(all_mats) == 0:
     raise ValueError("No cells loaded from any project")
+  if require_all_cells and set(all_barcodes) != expected_cells:
+    raise ValueError(f"Joint matrix is missing {len(expected_cells - set(all_barcodes))} selected zoom cells")
 
   print("  concatenating matrices")
   joint_csc = hstack(all_mats, format='csc').tocsc() if len(all_mats) > 1 else all_mats[0]
@@ -287,7 +305,8 @@ def build_joint_coldata(h5_f, project_ids, integrated_dt_fs, out_coldata_f):
   for pid, int_f in zip(project_ids, integrated_dt_fs):
     print(f"  processing project: {pid}")
     int_dt = pl.read_csv(int_f)
-
+    if not int_dt.height:
+      continue
     coldata_df = _build_project_coldata(int_dt, pid)
     all_coldata_dfs.append(coldata_df)
 
@@ -325,7 +344,8 @@ def build_joint_sample_metadata(project_ids, sample_meta_fs, out_sample_meta_f):
     ])
     if 'bad_sample_id' not in smeta_df.columns:
       smeta_df = smeta_df.with_columns(pl.lit(False).alias('bad_sample_id'))
-    all_smeta_dfs.append(smeta_df)
+    if smeta_df.height:
+      all_smeta_dfs.append(smeta_df)
 
   print("  saving sample metadata")
   smeta_df = _smart_concat(all_smeta_dfs)
@@ -347,6 +367,8 @@ def build_joint_qc(qc_fs, project_ids, coldata_f, out_f):
   for pid, qc_f in zip(project_ids, qc_fs):
     print(f"  loading QC metrics for {pid}")
     qc_df = pl.read_csv(qc_f)
+    if not qc_df.height:
+      continue
     if 'cell_id' not in qc_df.columns:
       raise KeyError(f"Source QC file has no cell_id column: {qc_f}")
     if qc_df['cell_id'].n_unique() != qc_df.height:
@@ -498,6 +520,7 @@ def _parse_args():
   p2.add_argument('--integrated_dt_fs', nargs='+', required=True,
     help='Per-project integrated_dt CSV.gz files')
   p2.add_argument('--out_h5_f',         required=True)
+  p2.add_argument('--require-all-cells', action='store_true')
 
   # --- build_joint_coldata ---
   p2b = sub.add_parser('build_joint_coldata')
@@ -551,7 +574,8 @@ if __name__ == '__main__':
       h5ads_yaml_fs      = args.h5ads_yaml_fs,
       project_ids        = args.project_ids,
       integrated_dt_fs   = args.integrated_dt_fs,
-      out_h5_f           = args.out_h5_f
+      out_h5_f           = args.out_h5_f,
+      require_all_cells  = args.require_all_cells
     )
 
   elif args.cmd == 'build_joint_coldata':

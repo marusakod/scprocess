@@ -422,7 +422,7 @@ rule join_integration:
     batch_var_concat  = config['integration']['int_batch_var'],
     res_ls_concat     = config['integration']['int_res_ls'],
     use_paga          = config['integration']['int_use_paga'],
-    paga_cl_res       = config['integration']['int_paga_cl_res'],
+    paga_cl_res       = config['integration'].get('int_paga_cl_res', 2),
     int_use_gpu       = config['integration']['int_use_gpu'],
     pca_method        = INT_PCA_METHOD
   retries: config['resources']['retries']

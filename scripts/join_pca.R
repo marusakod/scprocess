@@ -6,17 +6,20 @@ suppressPackageStartupMessages({
 })
 
 
-# Ensure HDF5 has all datasets required by BPCells open_matrix_10x_hdf5()
+# Validate without modifying an upstream output. Return the read-only handle
+# so the caller can retain it throughout BPCells' lazy reads.
 .ensure_10x_hdf5_compat <- function(h5_path) {
-  h5 <- H5File$new(h5_path, mode = "r+")
-  on.exit(h5$close_all())
-
-  grp <- h5[["matrix/features"]]
-  if (!"id" %in% names(grp)) {
-    message("  Adding missing 'matrix/features/id' dataset to HDF5")
-    grp[["id"]] <- grp[["name"]]$read()
-  }
-  invisible(NULL)
+  h5 <- H5File$new(h5_path, mode = "r")
+  tryCatch({
+    if (!h5$exists("matrix/features/id")) {
+      stop("Missing matrix/features/id in ", h5_path,
+           "; regenerate this matrix with join_build_matrix. Input left unchanged.")
+    }
+    h5
+  }, error = function(e) {
+    h5$close_all()
+    stop(e)
+  })
 }
 
 
@@ -26,7 +29,8 @@ suppressPackageStartupMessages({
 #' @param out_dir     Output BPCells matrix directory
 write_join_bpcells_matrix <- function(counts_h5_f, out_dir) {
   message("Loading count matrix from HDF5")
-  .ensure_10x_hdf5_compat(counts_h5_f)
+  h5_readonly <- .ensure_10x_hdf5_compat(counts_h5_f)
+  on.exit(h5_readonly$close_all(), add = TRUE)
   mat <- open_matrix_10x_hdf5(counts_h5_f)
   message(sprintf("  Matrix dimensions: %d genes x %d cells", nrow(mat), ncol(mat)))
 

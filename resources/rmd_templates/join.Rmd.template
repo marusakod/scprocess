@@ -63,7 +63,7 @@ fgsea_go_bp_f = "${fgsea_go_bp_f}"
 fgsea_go_cc_f = "${fgsea_go_cc_f}"
 fgsea_go_mf_f = "${fgsea_go_mf_f}"
 
-do_gsea       = ref_txome %in% c('human_2024', 'human_2020', 'mouse_2024', 'mouse_2020')
+do_gsea       = all(nzchar(c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f)))
 
 # xgboost files
 xgb_predictions_f = "${xgb_predictions_f}"

@@ -25,6 +25,12 @@ class TestJoinPcaBpcellsStorage(unittest.TestCase):
     self.assertIn("write_matrix_dir(", self.script)
     self.assertIn("open_matrix_dir(counts_bp_dir)", self.script)
 
+  def test_conversion_keeps_hdf5_input_readonly(self):
+    self.assertIn('H5File$new(h5_path, mode = "r")', self.script)
+    self.assertNotIn('mode = "r+"', self.script)
+    self.assertIn('on.exit(h5_readonly$close_all()', self.script)
+    self.assertIn('regenerate this matrix with join_build_matrix', self.script)
+
   def test_pca_queues_centering_and_scaling_before_threaded_svds(self):
     transform = "mat_scaled <- (mat_norm - gene_means) / gene_sds"
     solver = "svd_result <- BPCells::svds("
