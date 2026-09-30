@@ -15,6 +15,77 @@ import scripts.integration as integration
 
 
 class TestIntegrationOutput(unittest.TestCase):
+  def test_joined_zoom_keeps_parent_harmony_separate_from_new_embedding(self):
+    import tempfile
+    from pathlib import Path
+    from scripts.join_zoom import select_cells
+
+    parent = pl.DataFrame({
+      'cell_id': ['a', 'b', 'c'], 'sample_id': ['s1'] * 3,
+      'project_id': ['p1'] * 3, 'RNA_snn_res.0.5': ['cl1'] * 3,
+      'hmny_pca_01': [10., 11., 12.], 'hmny_pca_02': [20., 21., 22.],
+      'hmny_pca_03': [30., 31., 32.], 'UMAP1': [1., 2., 3.],
+    })
+    selected, _ = select_cells(
+      parent, parent, parent.select('sample_id', 'project_id').unique(),
+      parent, parent.select('cell_id'),
+      {'labels_col': 'RNA_snn_res.0.5', 'sel_labels': ['cl1']},
+      {'qc_min_cells': 2}, n_dims=2)
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+      root = Path(tmp_dir)
+      pca_f, coldata_f = root / 'pca.csv', root / 'cells.csv'
+      pl.DataFrame({'cell_id': ['c', 'a', 'b'],
+        'pca_01': [1., 2., 3.], 'pca_02': [4., 5., 6.]}).write_csv(pca_f)
+      selected.write_csv(coldata_f)
+
+      for embedding, prefix in [('harmony', 'hmny_pca'), ('pca', 'pca')]:
+        with self.subTest(embedding=embedding):
+          new_integration = pl.DataFrame({
+            'cell_id': ['c', 'a', 'b'], 'sample_id': ['s1'] * 3,
+            'project_id': ['p1'] * 3, 'RNA_snn_res.0.5': ['cl2', 'cl1', 'cl2'],
+            f'{prefix}_01': [1., 2., 3.], f'{prefix}_02': [4., 5., 6.],
+          })
+          output_f = root / f'{embedding}.csv.gz'
+          with patch.object(integration, '_do_one_integration', return_value=new_integration):
+            result = integration.run_zoom_integration(
+              hvg_mat_f=None, sample_qc_f=None, coldata_f=coldata_f,
+              demux_type='none', exclude_mito=False, embedding=embedding, n_dims=2,
+              cl_method='leiden', theta=0.1, res_ls_concat='0.5',
+              integration_f=output_f, batch_var='sample_id',
+              precomputed_pca_f=pca_f, retain_metadata=True)
+          self.assertEqual(result['cell_id'].to_list(), ['c', 'a', 'b'])
+          self.assertEqual(result.select(new_integration.columns).to_dicts(),
+                           new_integration.to_dicts())
+          self.assertNotIn('hmny_pca_03', result.columns)
+          for pc in range(1, 4):
+            self.assertEqual(result[f'parent_hmny_pca_{pc:02d}'].to_list(),
+                             [pc * 10. + 2, pc * 10., pc * 10. + 1])
+          self.assertEqual(pl.read_csv(output_f).to_dicts(), result.to_dicts())
+
+  def test_joined_zoom_retains_metadata_in_pca_order(self):
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as tmp_dir:
+      root = Path(tmp_dir)
+      pca_f, coldata_f, output_f = root / 'pca.csv', root / 'cells.csv', root / 'output.csv.gz'
+      pl.DataFrame({'cell_id': ['b', 'a'], 'pca_1': [2., 1.]}).write_csv(pca_f)
+      pl.DataFrame({'cell_id': ['a', 'b'], 'sample_id': ['s1', 's2'],
+        'project_id': ['p1', 'p2'], 'tissue': ['cortex', 'thalamus'],
+        'parent_label': ['cl1', 'cl3']}).write_csv(coldata_f)
+      new_clusters = pl.DataFrame({'cell_id': ['b', 'a'], 'sample_id': ['s2', 's1'],
+        'project_id': ['p2', 'p1'], 'RNA_snn_res.0.5': ['cl2', 'cl1']})
+      with patch.object(integration, '_do_one_integration', return_value=new_clusters):
+        result = integration.run_zoom_integration(
+          hvg_mat_f=None, sample_qc_f=None, coldata_f=coldata_f,
+          demux_type='none', exclude_mito=False, embedding='pca', n_dims=1,
+          cl_method='leiden', theta=0.1, res_ls_concat='0.5', integration_f=output_f,
+          batch_var='sample_id', precomputed_pca_f=pca_f, retain_metadata=True)
+      self.assertEqual(result['cell_id'].to_list(), ['b', 'a'])
+      self.assertEqual(result['tissue'].to_list(), ['thalamus', 'cortex'])
+      self.assertEqual(result['parent_label'].to_list(), ['cl3', 'cl1'])
+      self.assertEqual(result['RNA_snn_res.0.5'].to_list(), ['cl2', 'cl1'])
+
   def test_project_id_batch_variable_is_not_selected_twice(self):
     obs = pd.DataFrame({
       'cell_id': ['cell_1', 'cell_2'],

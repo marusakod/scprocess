@@ -2046,6 +2046,179 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
 
 # --- join parameter helpers ---
 
+def get_join_zoom_specs(config, scprocess_dir):
+  """Validate joined-zoom overrides without reading expression data or writing files."""
+  root = pathlib.Path(config['join']['proj_dir']).resolve()
+  schema_f = pathlib.Path(scprocess_dir).resolve() / 'resources/schemas/join_zoom.schema.json'
+  schema = _load_schema_file(schema_f)
+  join_schema = _load_schema_file(schema_f.with_name('join.schema.json'))
+  from referencing import Registry, Resource
+  registry = Registry()
+  for filename in ('zoom.schema.json', 'join.schema.json'):
+    path = schema_f.with_name(filename)
+    registry = registry.with_resource(filename, Resource.from_contents(_load_schema_file(path)))
+  validator = jsonschema.Draft202012Validator(schema, registry=registry)
+  specs = {}
+  for filename in config.get('zoom', []):
+    path = pathlib.Path(filename)
+    path = path if path.is_absolute() else root / path
+    with open(path) as fh:
+      spec = yaml.safe_load(fh)
+    if not isinstance(spec, dict):
+      raise ValueError(f'Joined zoom must contain a populated zoom block: {path}')
+    # Validate partial integration overrides after inheritance, including PAGA.
+    check = copy.deepcopy(spec)
+    if 'integration' in check:
+      integration = _get_default_config_from_schema(join_schema)['integration']
+      integration.update(config.get('integration', {}))
+      integration.update(check['integration'])
+      if not integration['int_use_paga']:
+        integration.pop('int_paga_cl_res', None)
+      check['integration'] = integration
+    try:
+      validator.validate(check)
+    except jsonschema.ValidationError as exc:
+      raise ValueError(f'Invalid joined zoom {path}: {exc.message}') from exc
+    name = spec['zoom']['name']
+    if name in specs:
+      raise ValueError(f'Duplicate joined zoom name: {name}')
+    spec['_config_f'] = str(path.resolve())
+    specs[name] = spec
+  tags = {config.get('shiny', {}).get('app_tag', config['join']['name']): 'parent join'}
+  for name, spec in specs.items():
+    tag = spec.get('shiny', {}).get('app_tag', config['join']['name'] + '_join_zoom_' + name)
+    if tag in tags:
+      raise ValueError(f'Joined zoom {name} shares shiny.app_tag={tag!r} with {tags[tag]}')
+    tags[tag] = name
+  return specs
+
+
+def get_join_zoom_prepare_params(config, context):
+  """Track only settings consumed by cell selection/source-table preparation.
+
+  The full configuration snapshot is separate: marker, HVG, report and
+  scheduling changes must not invalidate the selected cells.
+  """
+  prep_context = {key: context[key] for key in (
+    'paths', 'selection', 'qc', 'batches', 'selected_f', 'summary_f')}
+  prep_context['project'] = {key: context['project'][key] for key in (
+    'project_ids', 'integrated_fs', 'sample_meta_fs', 'qc_all_fs', 'h5ads_yaml_fs')}
+  prep_config = {'integration': {key: config['integration'][key] for key in (
+    'int_n_dims', 'int_batch_var')}}
+  return {'context': json.dumps(prep_context, sort_keys=True),
+          'effective': json.dumps(prep_config, sort_keys=True)}
+
+
+def get_join_zoom_context(parent, name, scprocess_dir, scdata_dir):
+  """Resolve one completed join subset into inputs for the shared join rules.
+
+  Source projects are not re-run. Intermediate per-project tables undo exactly
+  one sample prefix, so the existing join builders restore the parent's IDs.
+  """
+  specs = get_join_zoom_specs(parent, scprocess_dir)
+  if name not in specs:
+    raise ValueError(f'Unknown joined zoom {name!r}; available: {list(specs)}')
+  spec = copy.deepcopy(specs[name])
+  root = pathlib.Path(parent['join']['proj_dir']).resolve()
+  parent_tag = parent['join']['name'] + '_join'
+  date = parent['join']['date_stamp']
+  parent_dir = root / 'output' / parent_tag
+  out_dir = root / 'output' / (parent_tag + '_zoom') / name
+  tag = parent_tag + '_zoom_' + name
+  cfg = copy.deepcopy(parent)
+  for key in ('zoom', 'train_xgboost', 'label_celltypes'):
+    cfg.pop(key, None)
+  for section in ('hvg', 'integration', 'marker_genes', 'resources', 'shiny'):
+    cfg.setdefault(section, {}).update(spec.get(section, {}))
+  hvg = {'hvg_method': 'sample', 'hvg_chunk_size': 2000, **cfg['hvg']}
+  cfg['hvg'] = {'hvg_n_hvgs': hvg.get('hvg_n_hvgs', 2000)}
+  if cfg['integration'].get('int_use_paga') is False:
+    cfg['integration'].pop('int_paga_cl_res', None)
+  # Do not inherit parent app identifiers or cluster annotations for new clusters.
+  for key in ('app_tag', 'app_title', 'annotation_csv'):
+    cfg['shiny'].pop(key, None)
+  cfg['shiny'].update(spec.get('shiny', {}))
+  cfg['shiny'].setdefault('app_tag', tag)
+  cfg['shiny'].setdefault('app_title', f"{parent['join']['name']}: {name}")
+  if cfg['shiny']['app_tag'] == parent.get('shiny', {}).get('app_tag', parent['join']['name']):
+    raise ValueError('Joined zoom shiny.app_tag must differ from the parent app tag')
+  schema_f = pathlib.Path(scprocess_dir) / 'resources/schemas/join.schema.json'
+  cfg = check_join_config(cfg, schema_f, scdata_dir)
+  if cfg['integration']['int_n_dims'] < 1:
+    raise ValueError('integration.int_n_dims must be positive')
+  if (cfg['integration']['int_use_paga']
+      and cfg['integration']['int_paga_cl_res'] not in cfg['integration']['int_res_ls']):
+    raise ValueError('integration.int_paga_cl_res must occur in integration.int_res_ls; or disable int_use_paga')
+  if cfg['marker_genes']['mkr_sel_res'] not in cfg['integration']['int_res_ls']:
+    raise ValueError('marker_genes.mkr_sel_res must occur in integration.int_res_ls')
+  hvg['hvg_n_hvgs'] = cfg['hvg']['hvg_n_hvgs']
+  if hvg['hvg_n_hvgs'] <= cfg['integration']['int_n_dims']:
+    raise ValueError('Joined zoom needs more HVGs than integration.int_n_dims')
+  qc = {'qc_min_cells': 10, **spec.get('qc', {})}
+  _validate_qc_bounds(qc, f'joined zoom {name} qc')
+  cfg['join']['name'] = tag  # downstream tag overridden explicitly
+  paths = {
+    'integration': parent_dir / f'integrated_dt_{parent_tag}_{date}.csv.gz',
+    'coldata': parent_dir / f'joint_coldata_{parent_tag}_{date}.csv.gz',
+    'metadata': parent_dir / f'joint_sample_meta_{parent_tag}_{date}.csv',
+    'qc': parent_dir / f'joint_qc_{parent_tag}_{date}.csv.gz',
+    'manifest': parent_dir / f'h5ads_clean_paths_{parent_tag}_{date}.yaml',
+  }
+  selection = spec['zoom']
+  source = selection['labels_source']
+  if source == 'clusters':
+    labels_f = paths['integration']
+  elif source == 'custom':
+    labels_f = pathlib.Path(selection['custom_labels_f'])
+    labels_f = labels_f if labels_f.is_absolute() else root / labels_f
+  else:
+    model = selection['model']
+    labels_f = parent_dir / f'labels_{source}_model_{model}_{parent_tag}_{date}.csv.gz'
+  paths['labels'] = labels_f
+  for key, path in paths.items():
+    if not path.is_file():
+      raise FileNotFoundError(f'Completed parent join {key} input not found: {path}')
+  exclude_f = hvg.get('hvg_exclude_from_file')
+  if exclude_f:
+    path = pathlib.Path(exclude_f)
+    path = path if path.is_absolute() else root / path
+    if not path.is_file():
+      raise FileNotFoundError(path)
+    hvg['hvg_exclude_from_file'] = str(path)
+  with open(paths['manifest']) as fh:
+    manifest = yaml.safe_load(fh)
+  pids = list(parent['projects'])
+  for key, entry in manifest.items():
+    if not isinstance(entry, dict) or entry.get('project_id') not in pids:
+      raise ValueError(f'Parent joined H5AD manifest lacks a valid project_id for {key}')
+    path = pathlib.Path(entry['path'])
+    entry['path'] = str(path if path.is_absolute() else paths['manifest'].parent / path)
+  # Safe numeric IDs for wildcard paths; never parse identifiers on underscores.
+  batches = {str(i): {'key': key, **entry} for i, (key, entry) in enumerate(manifest.items())}
+  for i, batch in batches.items():
+    batch['cells_f'] = str(out_dir / 'batch_cells' / f'{i}.csv.gz')
+  source_dir = out_dir / 'sources'
+  proj = {
+    'project_ids': pids, 'project_cfgs': {}, 'batch_keys': list(manifest),
+    'hvg_fs': [str(out_dir / 'zoom_hvgs.csv.gz')],
+    'h5ads_yaml_fs': [str(source_dir / f'{i}.h5ads.yaml') for i in range(len(pids))],
+    'integrated_fs': [str(source_dir / f'{i}.cells.csv.gz') for i in range(len(pids))],
+    'sample_meta_fs': [str(source_dir / f'{i}.samples.csv') for i in range(len(pids))],
+    'qc_all_fs': [str(source_dir / f'{i}.qc.csv.gz') for i in range(len(pids))],
+  }
+  context = {
+    'name': name, 'tag': tag, 'out_dir': str(out_dir),
+    'logs_dir': str(root / '.log/join_zoom' / name),
+    'benchmark_dir': str(root / '.resources/join_zoom' / name),
+    'config_f': spec['_config_f'], 'paths': {k: str(v) for k, v in paths.items()},
+    'selection': selection, 'qc': qc, 'hvg': hvg, 'batches': batches, 'project': proj,
+    'selected_f': str(out_dir / 'selected_cells.csv.gz'),
+    'summary_f': str(out_dir / 'selection_summary.csv'),
+    'effective_f': str(out_dir / 'effective_config.yaml'),
+  }
+  return cfg, context
+
+
 def get_join_project_parameters(config):
   """Load source project configs and derive per-project paths and batch keys."""
   project_ids = list(config['projects'].keys())

@@ -27,7 +27,13 @@ scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
 
 # validate config, apply defaults, and check shiny parameters
-config = check_join_config(config, join_schema_f, scdata_dir)
+JOIN_ZOOM_CONTEXT = globals().get('JOIN_ZOOM_CONTEXT', {})
+config = config if JOIN_ZOOM_CONTEXT else check_join_config(config, join_schema_f, scdata_dir)
+
+# Track these options only for zooms. Even an empty-string parameter would
+# invalidate completed standard joins when upgrading to the zoom-capable rules.
+JOIN_REQUIRE_ALL_CELLS = '--require-all-cells' if JOIN_ZOOM_CONTEXT else ''
+JOIN_RETAIN_METADATA = '--retain-metadata' if JOIN_ZOOM_CONTEXT else ''
 
 # resource parameters (no ML model for join — uses schema defaults + user overrides)
 RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, scprocess_dir)
@@ -36,7 +42,7 @@ RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, scprocess_dir)
 # Project and derived parameters
 # ---------------------------------------------------------------------------
 
-JOIN_PROJ = get_join_project_parameters(config)
+JOIN_PROJ = JOIN_ZOOM_CONTEXT.get('project') or get_join_project_parameters(config)
 
 # unpack project parameters
 JOIN_PROJECT_IDS  = JOIN_PROJ['project_ids']
@@ -51,13 +57,13 @@ JOIN_BATCH_KEYS   = JOIN_PROJ['batch_keys']
 # join metadata and paths
 JOIN_NAME     = config['join']['name']
 JOIN_DIR      = pathlib.Path(config['join']['proj_dir'])
-JOIN_TAG      = f"{JOIN_NAME}_join"
+JOIN_TAG      = JOIN_ZOOM_CONTEXT.get('tag', f"{JOIN_NAME}_join")
 DATE_STAMP    = config['join']['date_stamp']
 GENOME_REF    = config['join'].get('probe_set', config['join'].get('ref_txome', ''))
-join_int_dir  = str(JOIN_DIR / f"output/{JOIN_TAG}")
+join_int_dir  = JOIN_ZOOM_CONTEXT.get('out_dir', str(JOIN_DIR / f"output/{JOIN_TAG}"))
 join_mkr_dir  = join_int_dir
-logs_dir      = str(JOIN_DIR / ".log/join")
-benchmark_dir = str(JOIN_DIR / ".resources")
+logs_dir      = JOIN_ZOOM_CONTEXT.get('logs_dir', str(JOIN_DIR / ".log/join"))
+benchmark_dir = JOIN_ZOOM_CONTEXT.get('benchmark_dir', str(JOIN_DIR / ".resources"))
 marker_edger_bp_script = str(scprocess_dir / "scripts/marker_genes_edger_bp.R")
 
 # integration
@@ -151,7 +157,7 @@ cluster_names_fs = [
 
 docs_dir  = str(JOIN_DIR / "public")
 rmd_dir   = str(JOIN_DIR / "analysis")
-code_dir  = str(JOIN_DIR / "code")
+code_dir  = str(pathlib.Path(join_int_dir) / 'code') if JOIN_ZOOM_CONTEXT else str(JOIN_DIR / "code")
 html_f    = f"{docs_dir}/{JOIN_TAG}.html"
 rmd_f     = f"{rmd_dir}/{JOIN_TAG}.Rmd"
 
@@ -182,7 +188,8 @@ rule all:
     *([fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else []),
     *label_fs,
     *cluster_names_fs,
-    html_f
+    html_f,
+    *([JOIN_ZOOM_CONTEXT['effective_f']] if JOIN_ZOOM_CONTEXT else [])
 
 
 if DO_TRAIN_XGB:
@@ -200,7 +207,7 @@ rule join_select_hvgs:
   output:
     joint_hvgs_f = joint_hvgs_f
   params:
-    project_ids  = " ".join(JOIN_PROJECT_IDS),
+    project_ids  = "zoom" if JOIN_ZOOM_CONTEXT else " ".join(JOIN_PROJECT_IDS),
     n_hvgs       = N_HVGS
   retries: config['resources']['retries']
   resources:
@@ -232,7 +239,8 @@ rule join_build_matrix:
   output:
     joint_label_counts_f = joint_label_counts_f
   params:
-    project_ids   = " ".join(JOIN_PROJECT_IDS)
+    project_ids   = " ".join(JOIN_PROJECT_IDS),
+    **({'require_all_cells': JOIN_REQUIRE_ALL_CELLS} if JOIN_ZOOM_CONTEXT else {})
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_matrix', 'memory', attempt),
@@ -250,7 +258,7 @@ rule join_build_matrix:
       --h5ads_yaml_fs       {input.h5ads_yaml_fs} \
       --project_ids         {params.project_ids} \
       --integrated_dt_fs    {input.integrated_fs} \
-      --out_h5_f            {output.joint_label_counts_f}
+      --out_h5_f            {output.joint_label_counts_f} {JOIN_REQUIRE_ALL_CELLS}
     """
 
 
@@ -424,7 +432,8 @@ rule join_integration:
     use_paga          = config['integration']['int_use_paga'],
     paga_cl_res       = config['integration'].get('int_paga_cl_res', 2),
     int_use_gpu       = config['integration']['int_use_gpu'],
-    pca_method        = INT_PCA_METHOD
+    pca_method        = INT_PCA_METHOD,
+    **({'retain_metadata': JOIN_RETAIN_METADATA} if JOIN_ZOOM_CONTEXT else {})
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_integration', 'memory', attempt),
@@ -451,6 +460,7 @@ rule join_integration:
       --batch_var_concat "{params.batch_var_concat}" \
       --res_ls_concat    "{params.res_ls_concat}" \
       --integration_f    {output.integration_f} \
+      {JOIN_RETAIN_METADATA} \
       $( [ "{params.use_paga}" == "True" ] && echo "--use-paga" ) \
       $( [ "{params.use_paga}" == "True" ] && echo "--paga-cl-res {params.paga_cl_res}" ) \
       $( [ "{params.int_use_gpu}" == "True" ] && echo "--use-gpu" ) \
@@ -463,7 +473,9 @@ rule join_build_h5ads_yaml:
     h5ads_yaml_fs = H5ADS_YAML_FS
   output:
     joint_h5ads_yaml_f = joint_h5ads_yaml_f,
-    h5ad_symlinks = [f"{h5ads_dir}/{bk}.h5ad" for bk in JOIN_BATCH_KEYS]
+    # Zoom preparation omits batches with no retained cells. Their identities
+    # are not known at DAG construction, so track the generated link directory.
+    h5ad_symlinks = directory(h5ads_dir) if JOIN_ZOOM_CONTEXT else [f"{h5ads_dir}/{bk}.h5ad" for bk in JOIN_BATCH_KEYS]
   params:
     project_ids = " ".join(JOIN_PROJECT_IDS),
     h5ads_dir   = h5ads_dir

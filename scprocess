@@ -547,7 +547,21 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   return
 
 
-def run_join(configfile, sc_dir, extraargs, dryrun, rule="all"):
+def run_join_zooms(configfile, sc_dir, extraargs, dryrun, zoom_name=None, shiny=False):
+  """Run named zooms sequentially, sharing the parent's Snakemake lock/profile."""
+  with open(configfile) as fh:
+    config = yaml.safe_load(fh)
+  specs = scprocess_utils.get_join_zoom_specs(config, sc_dir)
+  names = list(specs) if zoom_name in (None, 'all') else [zoom_name]
+  if not names or any(name not in specs for name in names):
+    raise ValueError(f'Unknown or missing joined zoom; available: {list(specs)}')
+  for name in names:
+    print(f'Joined zoom: {name}', flush=True)
+    run_join(configfile, sc_dir, extraargs.copy(), dryrun,
+      rule='configure_shiny_app' if shiny else 'all', zoom_name=name)
+
+
+def run_join(configfile, sc_dir, extraargs, dryrun, rule="all", zoom_name=None):
   """Run the scprocess join workflow from a join.yaml config."""
   config_path   = pathlib.Path(configfile).resolve()
   scprocess_dir = pathlib.Path(__file__).resolve().parent
@@ -585,12 +599,15 @@ def run_join(configfile, sc_dir, extraargs, dryrun, rule="all"):
 
   if rule == "configure_shiny_app":
     snakefile = scprocess_dir / "rules/shiny.smk"
+  elif zoom_name is not None:
+    snakefile = scprocess_dir / "rules/join_zoom.smk"
   else:
     snakefile = scprocess_dir / "rules/join.smk"
   cmd_list  = ["snakemake",
     "--snakefile",  str(snakefile),
     "--configfile", str(config_path),
     "--config",     f"scprocess_dir={str(scprocess_dir)}",
+    *([f"join_zoom_name={zoom_name}"] if zoom_name is not None else []),
     "--rerun-triggers", "mtime", "params", "--rerun-incomplete",
     "--show-failed-logs", "--printshellcmds",
     "--software-deployment-method", "conda",
@@ -1023,8 +1040,10 @@ if __name__ == '__main__':
   join_prsr.add_argument("configfile", type = str,
     help = "Join config YAML (join.yaml) specifying projects to integrate.")
   join_prsr.add_argument("-r", "--rule", type = str, default = "all",
-    choices = ["all", "train_xgboost", "shiny"],
+    choices = ["all", "train_xgboost", "shiny", "zoom"],
     help = "Leave empty to run the whole workflow, or select a specific rule.")
+  join_prsr.add_argument('--zoom', type=str,
+    help='With -r zoom or -r shiny, select a joined zoom by name (or all).')
   join_prsr.add_argument("-n", "--dry-run", action = "store_true",
     help = '"Dry run": show what Snakemake would do without executing.')
   join_prsr.add_argument("--unlock", action = "store_true",
@@ -1142,7 +1161,12 @@ if __name__ == '__main__':
       elif args.extraargs:
         extraargs.extend(shlex.split(args.extraargs[0]))
 
-      if args.rule == "shiny":
+      if args.zoom is not None and args.rule not in ('zoom', 'shiny'):
+        raise ValueError('--zoom requires -r zoom or -r shiny')
+      if args.rule == 'zoom' or (args.rule == 'shiny' and args.zoom is not None):
+        run_join_zooms(args.configfile, sc_dir, extraargs, args.dry_run,
+          zoom_name=args.zoom, shiny=args.rule == 'shiny')
+      elif args.rule == "shiny":
         config_path = pathlib.Path(args.configfile).resolve()
         with open(config_path, "r") as f:
           config = yaml.safe_load(f)

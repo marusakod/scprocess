@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false, "required": ["zoom"],
+  "properties": {
+    "zoom": {
+      "allOf": [
+        {"$ref": "zoom.schema.json#/properties/zoom"},
+        {"properties": {
+          "name": {"pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+          "sel_labels": {"minItems": 1, "uniqueItems": true},
+          "save_subset_anndata": {"const": false},
+          "save_subset_sces": {"const": false},
+          "save_cluster_names_file": {"const": false},
+          "exclude": {"properties": {"pool_id": {"maxItems": 0}}}
+        }}
+      ]
+    },
+    "qc": {"$ref": "zoom.schema.json#/properties/qc"},
+    "hvg": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "hvg_n_hvgs": {"type": "integer", "minimum": 2},
+        "hvg_method": {"const": "sample"},
+        "hvg_chunk_size": {"type": "integer", "minimum": 1},
+        "hvg_exclude_from_file": {"type": "string"}
+      }
+    },
+    "integration": {"$ref": "join.schema.json#/properties/integration"},
+    "marker_genes": {"$ref": "join.schema.json#/properties/marker_genes"},
+    "resources": {"$ref": "join.schema.json#/properties/resources"},
+    "shiny": {"$ref": "join.schema.json#/properties/shiny"}
+  }
+}

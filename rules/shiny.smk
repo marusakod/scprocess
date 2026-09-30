@@ -17,6 +17,8 @@ join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
 
 # detect config type: project (normal) or join
 _is_join = 'join' in config
+_join_zoom_name = config.pop('join_zoom_name', None)
+_join_zoom_context = {}
 
 # references that support GSEA (ref_txome for poly-A, probe_set for Flex)
 _GSEA_REFS = {'human_2024', 'human_2020', 'mouse_2024', 'mouse_2020',
@@ -24,26 +26,29 @@ _GSEA_REFS = {'human_2024', 'human_2020', 'mouse_2024', 'mouse_2020',
 
 if _is_join:
   # --- validate and unpack join config ---
-  config = check_join_config(config, join_schema_f, scdata_dir)
+  if _join_zoom_name is not None:
+    config, _join_zoom_context = get_join_zoom_context(config, _join_zoom_name, scprocess_dir, scdata_dir)
+  else:
+    config = check_join_config(config, join_schema_f, scdata_dir)
   RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, scprocess_dir)
 
   JOIN_NAME  = config['join']['name']
   PROJ_DIR   = pathlib.Path(config['join']['proj_dir'])
   DATE_STAMP = config['join']['date_stamp']
   GENOME_REF = config['join'].get('probe_set', config['join'].get('ref_txome', ''))
-  JOIN_TAG   = f"{JOIN_NAME}_join"
+  JOIN_TAG   = _join_zoom_context.get('tag', f"{JOIN_NAME}_join")
   FULL_TAG   = JOIN_TAG
   SHORT_TAG  = JOIN_NAME
   MKR_SEL_RES = config.get('marker_genes', {}).get('mkr_sel_res', 0.2)
 
-  int_dir   = str(PROJ_DIR / f"output/{JOIN_TAG}")
-  mkr_dir   = str(PROJ_DIR / f"output/{JOIN_TAG}")
+  int_dir   = _join_zoom_context.get('out_dir', str(PROJ_DIR / f"output/{JOIN_TAG}"))
+  mkr_dir   = int_dir
   zoom_dir  = ''   # not used for join
   logs_dir  = str(PROJ_DIR / ".log")
   docs_dir  = str(PROJ_DIR / "public")
 
   _shiny_cfg      = config.get('shiny', {})
-  _sample_meta_f  = str(PROJ_DIR / f"output/{JOIN_TAG}/joint_sample_meta_{JOIN_TAG}_{DATE_STAMP}.csv")
+  _sample_meta_f  = f"{int_dir}/joint_sample_meta_{JOIN_TAG}_{DATE_STAMP}.csv"
   _metadata_vars_ls = _shiny_cfg.get('metadata_vars', config['join'].get('metadata_vars', []))
   _metadata_vars  = ','.join(_metadata_vars_ls)
 

@@ -202,7 +202,7 @@ def _add_tricycle_scores(integration_df, tricycle_f):
 def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
   exclude_mito, embedding, n_dims, cl_method, theta, res_ls_concat,
   integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None,
-  precomputed_pca_f = None, umap_n_iter = 2000):
+  precomputed_pca_f = None, umap_n_iter = 2000, retain_metadata = False):
   print('setting up parameters')
   exclude_mito  = str(exclude_mito).strip().lower() == 'true'
   res_ls        = res_ls_concat.split()
@@ -254,6 +254,12 @@ def run_zoom_integration(hvg_mat_f, sample_qc_f, coldata_f, demux_type,
     embedding, use_gpu, theta, use_paga = use_paga, paga_cl = f"RNA_snn_res.{paga_cl_res}",
     skip_pca = skip_pca, umap_n_iter = umap_n_iter)
 
+  if retain_metadata:
+    metadata = pl.read_csv(coldata_f)
+    extra_cols = [c for c in metadata.columns if c not in int_df.columns]
+    int_df = (int_df.with_row_index('_output_order')
+      .join(metadata.select(['cell_id', *extra_cols]), on='cell_id', how='left', validate='1:1')
+      .sort('_output_order').drop('_output_order'))
   print('save results')
   with gzip.open(integration_f, 'wb') as f:
     int_df.write_csv(f)
@@ -705,6 +711,8 @@ if __name__ == "__main__":
   )
   parser_run_zoom_integration.add_argument('--precomputed_pca_f', type = str, default = None,
     help='Path to pre-computed PCA embeddings CSV.gz (from BPCells). Skips normalization and PCA.')
+  parser_run_zoom_integration.add_argument('--retain-metadata', action='store_true',
+    help='Retain additional coldata fields, including parent labels, in joined zoom output.')
   args = parser.parse_args()
 
   # gpu vs cpu setup
@@ -783,7 +791,8 @@ if __name__ == "__main__":
       zoom_theta, args.res_ls_concat, args.integration_f,
       zoom_batch_var, use_gpu, args.use_paga, args.paga_cl_res,
       precomputed_pca_f = args.precomputed_pca_f,
-      umap_n_iter = args.umap_n_iter
+      umap_n_iter = args.umap_n_iter,
+      retain_metadata = args.retain_metadata
     )
   else:
     parser.print_help()

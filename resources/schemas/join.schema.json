@@ -4,6 +4,10 @@
   "additionalProperties": false,
   "required": ["join", "projects"],
   "properties": {
+    "zoom": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "type": "string" }
+    },
     "join": {
       "type": "object",
       "additionalProperties": false,
@@ -159,6 +163,16 @@
       "additionalProperties": false,
       "properties": {
         "n_join_marker_genes_calc":          { "type": "integer", "minimum": 1, "default": 8 },
+        "gb_join_zoom_prepare":        { "type": "integer", "minimum": 1, "default": 16 },
+        "mins_join_zoom_prepare":      { "type": "integer", "minimum": 1, "default": 30 },
+        "gb_join_zoom_hvg_stats":      { "type": "integer", "minimum": 1, "default": 8 },
+        "mins_join_zoom_hvg_stats":    { "type": "integer", "minimum": 1, "default": 60 },
+        "gb_join_zoom_hvg_trend":      { "type": "integer", "minimum": 1, "default": 32 },
+        "mins_join_zoom_hvg_trend":    { "type": "integer", "minimum": 1, "default": 60 },
+        "gb_join_zoom_hvg_clip":       { "type": "integer", "minimum": 1, "default": 8 },
+        "mins_join_zoom_hvg_clip":     { "type": "integer", "minimum": 1, "default": 60 },
+        "gb_join_zoom_hvgs":           { "type": "integer", "minimum": 1, "default": 32 },
+        "mins_join_zoom_hvgs":         { "type": "integer", "minimum": 1, "default": 30 },
         "gb_join_select_hvgs":        { "type": "integer", "default": 4 },
         "gb_join_build_matrix":       { "type": "integer", "default": 16 },
         "gb_join_build_coldata":      { "type": "integer", "default": 4 },
