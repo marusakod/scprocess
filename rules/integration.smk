@@ -201,7 +201,7 @@ if INT_PCA_METHOD == 'bpcells':
       int_n_dims      = config['integration']['int_n_dims'],
       umap_n_iter     = config['integration']['int_umap_n_iter'],
       int_use_paga    = config['integration']['int_use_paga'],
-      int_paga_cl_res = config['integration']['int_paga_cl_res'],
+      int_paga_cl_res = config['integration'].get('int_paga_cl_res', 2),
       int_res_ls      = config['integration']['int_res_ls'],
       use_gpu         = config['integration']['int_use_gpu'],
       tricycle_arg    = f'--tricycle_f {TRICYCLE_SCORES_F}' if CELL_CYCLE_ENABLED else ''
@@ -260,7 +260,7 @@ else:
       int_dbl_res     = config['integration']['int_dbl_res'],
       int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
       int_use_paga    = config['integration']['int_use_paga'],
-      int_paga_cl_res = config['integration']['int_paga_cl_res'],
+      int_paga_cl_res = config['integration'].get('int_paga_cl_res', 2),
       int_res_ls      = config['integration']['int_res_ls'],
       use_gpu         = config['integration']['int_use_gpu'],
       tricycle_arg    = f'--tricycle_f {TRICYCLE_SCORES_F}' if CELL_CYCLE_ENABLED else ''

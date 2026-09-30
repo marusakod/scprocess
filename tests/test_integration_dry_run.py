@@ -17,12 +17,13 @@ from scripts.scprocess_utils import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.parametrize('paga', [True, False])
 @pytest.mark.parametrize('backend,correction,estimate_phase', [
     ('bpcells', 'within_sample', True), ('bpcells', 'global', True),
     ('bpcells', None, True), ('scanpy', None, True),
     ('bpcells', None, False), ('scanpy', None, False),
 ])
-def test_integration_dag_and_effective_arguments(tmp_path, backend, correction, estimate_phase):
+def test_integration_dag_and_effective_arguments(tmp_path, backend, correction, estimate_phase, paga):
     schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
     config = _get_default_config_from_schema(schema, {})
     config['project'] = {'ref_txome': 'mouse_2024'}
@@ -30,7 +31,9 @@ def test_integration_dag_and_effective_arguments(tmp_path, backend, correction, 
     config['ambient']['ambient_method'] = 'none'
     config['resources']['retries'] = 0
     config['integration'].update(int_pca_method=backend, int_umap_n_iter=1234,
-                                 int_use_gpu=False)
+                                 int_use_gpu=False, int_use_paga=paga)
+    if not paga:
+        config['integration'].pop('int_paga_cl_res')
     if estimate_phase:
         config['cell_cycle'] = {'cyc_target_cells': 5000}
     if correction:

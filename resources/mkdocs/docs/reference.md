@@ -591,7 +591,7 @@ before adopting non-default settings.
 * `int_sce_outs`: if `true` H5AD outputs will be converted to `SingleCellExperiment` objects and stored ad RDS files.
 * `int_res_ls`: list of resolution values to be used for clustering.
 * `int_use_paga`: if `true`, enable Partition-based graph abstraction (PAGA) for trajectory analysis and cell hierarchy inference. A clustering at the specified resolution will be computed for PAGA.
-* `int_paga_cl_res`: clustering resolution for PAGA analysis. Must be a value listed in `int_res_ls`. Default is 2 for project, zoom, and join analyses. Only used when `int_use_paga` is `true`. This is independent of `mkr_sel_res`, which defaults to 0.2.
+* `int_paga_cl_res`: clustering resolution for PAGA analysis. Must be a value listed in `int_res_ls`. Default is 2 for project, zoom, and join analyses. Omit this parameter when `int_use_paga` is `false`. This is independent of `mkr_sel_res`, which defaults to 0.2.
 
 ##### cell_cycle
 

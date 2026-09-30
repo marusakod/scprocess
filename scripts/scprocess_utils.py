@@ -281,6 +281,13 @@ def _get_default_config_from_schema(schema, config=None):
         if 'default' in sub_props:
           section_defaults[sub_key] = sub_props['default']
 
+      # A disabled PAGA analysis must not acquire a resolution implicitly.
+      # Explicitly supplying both remains a schema error.
+      requested = config.get(key, {}) if config is not None else {}
+      if (key == 'integration' and requested.get('int_use_paga') is False
+          and 'int_paga_cl_res' not in requested):
+        section_defaults.pop('int_paga_cl_res', None)
+
       if section_defaults:
         default_config[key] = section_defaults
 
