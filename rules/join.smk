@@ -696,7 +696,7 @@ rule join_fgsea:
     '../envs/rlibs.yaml'
   shell: """
     exec &>> {log}
-    Rscript -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/fgsea.R'); run_fgsea(
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/fgsea.R'); run_fgsea(
       mkrs_f        = '{input.mkrs_f}',
       fgsea_go_bp_f = '{output.fgsea_go_bp_f}',
       fgsea_go_cc_f = '{output.fgsea_go_cc_f}',

@@ -73,7 +73,7 @@ if INT_PCA_METHOD == 'bpcells':
       cp {input.hvg_mat_f} $LOCAL_HVG
       cp {input.dbl_hvg_mat_f} $LOCAL_DBL
 
-      Rscript -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
+      Rscript --vanilla -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
         counts_h5_fs = c('$LOCAL_HVG', '$LOCAL_DBL'),
         n_threads    = {threads},
         n_dims       = {params.n_dims},
@@ -174,7 +174,7 @@ if INT_PCA_METHOD == 'bpcells':
       trap "rm -f $LOCAL_HVG" EXIT
       cp {input.hvg_mat_f} $LOCAL_HVG
 
-      Rscript -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
+      Rscript --vanilla -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
         counts_h5_fs = '$LOCAL_HVG',
         n_threads    = {threads},
         n_dims       = {params.n_dims},
@@ -403,7 +403,7 @@ rule convert_h5ad_to_sce:
   shell:"""
     exec &>> {log}
     
-    Rscript -e "source('{scprocess_dir}/scripts/integration.R');
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/integration.R');
     make_clean_sce_from_h5ad(
       sel_batch  = '{wildcards.batch}', 
       adata_f    = '{input.clean_h5ad_f}',

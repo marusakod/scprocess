@@ -216,6 +216,8 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       qc_max_splice: 1
       qc_min_cells: 100
       dbl_min_feats: 100
+      dbl_dbr_sd: 1
+      dbl_clusters: false
       exclude_mito: true
     pb_empties:
       ambient_genes_logfc_thr: 0
@@ -346,6 +348,8 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       qc_max_splice: 1
       qc_min_cells: 100
       dbl_min_feats: 100
+      dbl_dbr_sd: 1
+      dbl_clusters: false
       exclude_mito: true
     pb_empties:
       ambient_genes_logfc_thr: 0
@@ -543,9 +547,17 @@ sample_id:
 * `qc_max_splice`: maximum proportion of spliced reads allowed to retain the cell.
 * `qc_min_cells`: minimum number of cells required in a sample after QC filtering to retain the sample.
 * `dbl_min_feats`: number of features required for each barcode to be included in `scDblFinder` calculations.
+* `dbl_dbr_sd`: uncertainty around the expected doublet rate used when selecting the `scDblFinder` calling threshold. The default is `1`, which removes the expected-rate penalty so that the threshold is determined by classification of artificial doublets. This is useful when the expected doublet rate is poorly calibrated, but it can change the number of retained cells substantially and should be assessed in the doublet-identification and integration reports. Set this to `null` to use the installed `scDblFinder` default instead.
+* `dbl_clusters`: controls cluster-based generation of artificial doublets. The default is `false`. Setting this to `true` first performs fast clustering and generates artificial doublets between clusters. This can improve detection of doublets formed by transcriptionally distinct cell types, but may perform less well when biologically real rare populations are separated into small clusters. Use the doublet-identification and integration reports to assess the choice for a particular dataset. Set this to `null` to use the installed `scDblFinder` default instead.
 * `exclude_mito`: boolean; whether to exclude mitochondrial genes or not.
 
 Configured maxima must be greater than or equal to their corresponding minima. Count and feature maxima are inclusive and are applied during final QC filtering, after `scDblFinder` has run.
+
+The doublet-identification report compares observed-cell score distributions,
+calling thresholds, and simulated artificial doublets across samples. Because
+changing doublet calls changes which cells enter HVG selection and integration,
+review the integration report as well as the doublet-identification report
+before adopting non-default settings.
 
 ##### pb_empties
 

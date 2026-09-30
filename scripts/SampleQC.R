@@ -40,10 +40,11 @@ splice_brks = c(1e-4, 1e-3, 1e-2, 0.10, 0.50, 0.90, 0.99, 0.999) %>% qlogis
 splice_labs = c("0.01%", "0.1%", "1%", "10%", "50%", "90%", "99%", "99.9%")
 
 main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux_f,
-  gtf_dt_f, ambient_method, all_batches_str, rowdata_f, dbl_f, qc_f,
+  gtf_dt_f, ambient_method, all_batches_str, rowdata_f, dbl_f, dbl_artificial_f,
+  dbl_summary_f, qc_f,
   coldata_f, mito_str, exclude_mito, hard_min_counts, hard_min_feats, hard_max_mito,
   run_var = "sample_id", demux_type = "none", batch_var = "sample_id", dbl_min_feats = 100,
-  dbl_min_cells = 100) {
+  dbl_min_cells = 100, dbl_dbr_sd = 1, dbl_clusters = FALSE) {
   # check inputs
   exclude_mito  = as.logical(exclude_mito)
 
@@ -51,7 +52,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 
   # check whether to exclude bc of cellbender
   exc_by_cb   = .was_excluded_by_cellbender(ambient_method, run_stats_f, run_var, run_name,
-    dbl_f, qc_f, rowdata_f, coldata_f)
+    dbl_f, dbl_artificial_f, dbl_summary_f, qc_f, rowdata_f, coldata_f)
   if (exc_by_cb)
     return(NULL)
 
@@ -80,7 +81,10 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 
   # do doublet calcs
   message('  starting doublet detection')
-  dbl_dt      = .run_scdblfinder(sce, run_name, run_var, ambient_method, dbl_f)
+  dbl_dt      = .run_scdblfinder(
+    sce, run_name, run_var, ambient_method, dbl_f, dbl_artificial_f,
+    dbl_summary_f, min_feats = dbl_min_feats, min_cells = dbl_min_cells,
+    dbl_dbr_sd = dbl_dbr_sd, dbl_clusters = dbl_clusters)
   
   # add doublet info to coldata
   message('  adding doublet info to column data')
@@ -107,7 +111,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 }
 
 .was_excluded_by_cellbender <- function(ambient_method, run_stats_f, run_var, run_name,
-  dbl_f, qc_f, rowdata_f, coldata_f) {
+  dbl_f, dbl_artificial_f, dbl_summary_f, qc_f, rowdata_f, coldata_f) {
   exc_by_cb   = FALSE
   if (ambient_method == 'cellbender') {
     message('  loading cellbender sample stats file')
@@ -116,6 +120,8 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
     if (exc_by_cb) {
       message('  run ', run_name, ' has been excluded. Saving empty results file')
       file.create(dbl_f)
+      file.create(dbl_artificial_f)
+      file.create(dbl_summary_f)
       file.create(qc_f)
       file.create(rowdata_f)
       file.create(coldata_f)
@@ -365,7 +371,8 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 }
 
 .run_scdblfinder <- function(sce, run_name, run_var = 'sample_id', ambient_method,
-  dbl_f, min_feats = 100, min_cells = 100) {
+  dbl_f, dbl_artificial_f, dbl_summary_f, min_feats = 100, min_cells = 100,
+  dbl_dbr_sd = 1, dbl_clusters = FALSE) {
   # subset to just this sample
   run_idx     = sce[[run_var]] == run_name
   sce         = sce[, run_idx ]
@@ -382,10 +389,29 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
     
   # run scDblFinder
   message('  running scDblFinder')
-  dbl_dt      = scDblFinder(sce, returnType = 'table', multiSampleMode = 'singleModel', 
-      verbose = FALSE ) %>% as.data.table(keep.rownames = 'cell_id') %>%
-    .[, (run_var) := run_name ] %>% setcolorder(run_var) %>%
-    .[ type == 'real' ] %>% setnames("class", "scdbl_class")
+  scdbl_args = list(
+    sce = sce,
+    returnType = 'table',
+    multiSampleMode = 'singleModel',
+    verbose = FALSE)
+  if (!is.null(dbl_dbr_sd))
+    scdbl_args$dbr.sd = dbl_dbr_sd
+  if (!is.null(dbl_clusters))
+    scdbl_args$clusters = dbl_clusters
+
+  dbl_all = do.call(scDblFinder, scdbl_args)
+  dbl_threshold = S4Vectors::metadata(dbl_all)$scDblFinder.threshold
+  assert_that(length(dbl_threshold) == 1L, is.finite(dbl_threshold))
+
+  dbl_all_dt = dbl_all %>% as.data.frame() %>%
+    as.data.table(keep.rownames = 'cell_id') %>%
+    .[, (run_var) := run_name ] %>% setcolorder(run_var)
+  if ('class' %in% names(dbl_all_dt))
+    setnames(dbl_all_dt, 'class', 'scdbl_class')
+
+  dbl_dt = dbl_all_dt[type == 'real']
+  dbl_artificial_dt = dbl_all_dt[type == 'doublet']
+  assert_that(nrow(dbl_dt) > 0L, nrow(dbl_artificial_dt) > 0L)
   
   # check if class is available from demultiplexing
   if ('demux_class' %in% colnames(colData(sce))) {
@@ -405,7 +431,21 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   # save
   assert_that( all(dbl_dt$cell_id == colnames(sce)) )
   message('  saving results')
-  fwrite(dbl_dt, file = dbl_f)   
+  fwrite(dbl_dt, file = dbl_f)
+  fwrite(dbl_artificial_dt, file = dbl_artificial_f)
+
+  dbl_summary_dt = data.table(
+    run_id = run_name,
+    n_real = nrow(dbl_dt),
+    n_artificial = nrow(dbl_artificial_dt),
+    n_called_doublet = sum(dbl_dt$scdbl_class == 'doublet'),
+    pct_called_doublet = 100 * mean(dbl_dt$scdbl_class == 'doublet'),
+    calling_threshold = as.numeric(dbl_threshold),
+    dbl_dbr_sd = if (is.null(dbl_dbr_sd)) NA_real_ else as.numeric(dbl_dbr_sd),
+    dbl_clusters = if (is.null(dbl_clusters)) NA else as.logical(dbl_clusters),
+    scDblFinder_version = as.character(packageVersion('scDblFinder')))
+  setnames(dbl_summary_dt, 'run_id', run_var)
+  fwrite(dbl_summary_dt, file = dbl_summary_f)
 
   message('done!')
     

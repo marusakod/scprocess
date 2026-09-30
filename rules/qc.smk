@@ -166,7 +166,9 @@ rule run_qc_one_run:
     qc_f         = temp(f'{qc_dir}/tmp_qc_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'), 
     coldata_f    = temp(f'{qc_dir}/tmp_coldata_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'),
     rowdata_f    = temp(f'{qc_dir}/tmp_rowdata_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'), 
-    dbl_f        = f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    dbl_f        = f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    dbl_artificial_f = f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_artificial_doublets_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    dbl_summary_f = f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_summary_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
     metadata_f      = config['project']['sample_metadata'],
     af_gtf_dt_f     = config['mapping_af']['gene_info_f'],
@@ -180,7 +182,9 @@ rule run_qc_one_run:
     run_var         = RUN_VAR,
     demux_type      = config['multiplexing']['demux_type'],
     batch_var       = BATCH_VAR,
-    dbl_min_feats   = config['qc']['dbl_min_feats']
+    dbl_min_feats   = config['qc']['dbl_min_feats'],
+    dbl_dbr_sd      = 'NULL' if config['qc']['dbl_dbr_sd'] is None else config['qc']['dbl_dbr_sd'],
+    dbl_clusters    = 'NULL' if config['qc']['dbl_clusters'] is None else str(config['qc']['dbl_clusters']).upper()
   threads: 4
   retries: config['resources']['retries']
   resources:
@@ -195,7 +199,7 @@ rule run_qc_one_run:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('{scprocess_dir}/scripts/SampleQC.R'); source('{scprocess_dir}/scripts/utils.R'); \
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/SampleQC.R'); source('{scprocess_dir}/scripts/utils.R'); \
       main_qc( \
         run_name        = '{wildcards.run}', \
         metadata_f      = '{params.metadata_f}', \
@@ -210,6 +214,8 @@ rule run_qc_one_run:
         qc_f            = '{output.qc_f}', \
         coldata_f       = '{output.coldata_f}', \
         dbl_f           = '{output.dbl_f}', \
+        dbl_artificial_f = '{output.dbl_artificial_f}', \
+        dbl_summary_f   = '{output.dbl_summary_f}', \
         mito_str        = '{params.mito_str}', \
         exclude_mito    = '{params.exclude_mito}', \
         hard_min_counts =  {params.hard_min_counts}, \
@@ -218,8 +224,50 @@ rule run_qc_one_run:
         run_var         = '{params.run_var}', \
         demux_type      = '{params.demux_type}', \
         batch_var       = '{params.batch_var}', \
-        dbl_min_feats   =  {params.dbl_min_feats} \
+        dbl_min_feats   =  {params.dbl_min_feats}, \
+        dbl_dbr_sd      =  {params.dbl_dbr_sd}, \
+        dbl_clusters    =  {params.dbl_clusters} \
       )"
+    """
+
+
+rule merge_doublet_diagnostics:
+  input:
+    real_fs = expand(
+      f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      run = RUNS),
+    artificial_fs = expand(
+      f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_artificial_doublets_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      run = RUNS),
+    summary_fs = expand(
+      f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_summary_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      run = RUNS)
+  output:
+    real_f = f'{dbl_dir}/scDblFinder_real_all_runs_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    artificial_f = f'{dbl_dir}/scDblFinder_artificial_doublets_all_runs_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    summary_f = f'{dbl_dir}/scDblFinder_summary_all_runs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb = 4000,
+    runtime = 15
+  benchmark:
+    f'{benchmark_dir}/qc/merge_doublet_diagnostics_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/qc/merge_doublet_diagnostics_{DATE_STAMP}.log'
+  conda:
+    '../envs/py_env.yaml'
+  shell:
+    r"""
+    exec &> {log}
+
+    python {scprocess_dir}/scripts/merge_doublet_diagnostics.py \
+      --real-output {output.real_f:q} \
+      --artificial-output {output.artificial_f:q} \
+      --summary-output {output.summary_f:q} \
+      --real-inputs {input.real_fs:q} \
+      --artificial-inputs {input.artificial_fs:q} \
+      --summary-inputs {input.summary_fs:q}
     """
 
 
@@ -247,7 +295,7 @@ rule merge_qc:
     exec &>> {log}
     
     QC_LIST="{input.qc_fs}" COL_LIST="{input.coldata_fs}" \
-      Rscript -e "source('{scprocess_dir}/scripts/SampleQC.R'); \
+      Rscript --vanilla -e "source('{scprocess_dir}/scripts/SampleQC.R'); \
         qc_files <- trimws(strsplit(Sys.getenv('QC_LIST'), ' ')[[1]]); \
         col_files <- trimws(strsplit(Sys.getenv('COL_LIST'), ' ')[[1]]); \
         merge_qc_files(qc_files, col_files, '{output.qc_merged_f}', '{output.coldata_merged_f}')"

@@ -175,7 +175,7 @@ rule save_alevin_to_h5:
   shell: """
     exec &>> {log}
 
-    Rscript -e "source('{scprocess_dir}/scripts/mapping.R');
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/mapping.R');
       save_alevin_h5_ambient_params(
         run           = '{wildcards.run}',
         fry_dir       = '{input.fry_dir}',

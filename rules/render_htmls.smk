@@ -80,7 +80,7 @@ if config['multiplexing']['demux_type'] == "hto":
     input:
       r_utils_f   = f'{code_dir}/utils.R', 
       metadata_f  = config['project']['sample_metadata'],
-      hto_knee_fs = expand(f'{af_dir}/af_{{run}}/hto/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz', run=RUNS), 
+      hto_knee_fs = expand(f'{af_dir}/af_{{run}}/hto/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz', run=RUNS),
       sce_hto_fs  = expand(f'{demux_dir}/sce_cells_htos_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds', run=RUNS)
     output:
       r_demux_f   = f"{code_dir}/multiplexing.R",
@@ -137,7 +137,7 @@ if config['multiplexing']['demux_type'] == "hto":
           ambient_method  = '{params.ambient_method}', 
           run_var         = '{params.run_var}', 
           batch_var       = '{params.batch_var}',
-          af_dir          = '{af_dir}', 
+          af_dir          = '{af_dir}',
           demux_dir       = '{demux_dir}'
         )"
       """
@@ -211,10 +211,13 @@ rule render_html_ambient:
 # render_html_qc
 rule render_html_qc:
   input:
-    r_utils_f   = f"{code_dir}/utils.R",
-    metadata_f  = config['project']['sample_metadata'],
-    qc_dt_f     = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv'
+    r_utils_f       = f"{code_dir}/utils.R",
+    metadata_f      = config['project']['sample_metadata'],
+    qc_dt_f         = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    cuts_f          = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv',
+    doublet_real_f  = f'{dbl_dir}/scDblFinder_real_all_runs_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    doublet_artificial_f = f'{dbl_dir}/scDblFinder_artificial_doublets_all_runs_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    doublet_summary_f = f'{dbl_dir}/scDblFinder_summary_all_runs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
     your_name           = config['project']['your_name'],
     affiliation         = config['project']['affiliation'],
@@ -223,13 +226,18 @@ rule render_html_qc:
     proj_dir            = config['project']['proj_dir'],
     min_cells           = config['qc']['qc_min_cells'],
     batch_var           = BATCH_VAR,
+    run_var             = RUN_VAR,
     qc_hard_min_counts  = config['qc']['qc_hard_min_counts'],
     qc_hard_min_feats   = config['qc']['qc_hard_min_feats'],
-    qc_hard_max_mito    = config['qc']['qc_hard_max_mito']
+    qc_hard_max_mito    = config['qc']['qc_hard_max_mito'],
+    dbl_min_feats       = config['qc']['dbl_min_feats'],
+    dbl_dbr_sd_label    = 'scDblFinder default' if config['qc']['dbl_dbr_sd'] is None else config['qc']['dbl_dbr_sd'],
+    dbl_clusters_label  = 'scDblFinder default' if config['qc']['dbl_clusters'] is None else str(config['qc']['dbl_clusters']).lower()
   output:
-    r_qc_f      = f"{code_dir}/qc.R",
-    rmd_f       = f"{rmd_dir}/{SHORT_TAG}_qc.Rmd",
-    html_f      = f"{docs_dir}/{SHORT_TAG}_qc.html"
+    r_qc_f          = f"{code_dir}/qc.R",
+    r_doublet_f     = f'{code_dir}/doublet_id.R',
+    rmd_f           = f"{rmd_dir}/{SHORT_TAG}_qc.Rmd",
+    html_f          = f"{docs_dir}/{SHORT_TAG}_qc.html"
   threads: 1
   retries: config['resources']['retries'] 
   conda:
@@ -247,6 +255,7 @@ rule render_html_qc:
     # copy R code over
     echo "copying relevant R files over"
     cp {scprocess_dir}/scripts/SampleQC.R {output.r_qc_f}
+    cp {scprocess_dir}/scripts/doublet_id.R {output.r_doublet_f}
 
     # define rule and template
     template_f={scprocess_dir}/resources/rmd_templates/SampleQC.Rmd.template
@@ -268,10 +277,17 @@ rule render_html_qc:
       qc_dt_f             = '{input.qc_dt_f}',
       cuts_f              = '{input.cuts_f}',
       batch_var           = '{params.batch_var}',
+      doublet_real_f      = '{input.doublet_real_f}',
+      doublet_artificial_f = '{input.doublet_artificial_f}',
+      doublet_summary_f   = '{input.doublet_summary_f}',
+      run_var             = '{params.run_var}',
       min_cells           =  {params.min_cells},
       qc_hard_min_counts  =  {params.qc_hard_min_counts},
       qc_hard_min_feats   =  {params.qc_hard_min_feats},
-      qc_hard_max_mito    =  {params.qc_hard_max_mito}
+      qc_hard_max_mito    =  {params.qc_hard_max_mito},
+      dbl_min_feats       =  {params.dbl_min_feats},
+      dbl_dbr_sd_label    = '{params.dbl_dbr_sd_label}',
+      dbl_clusters_label  = '{params.dbl_clusters_label}'
       )"
     """
 
