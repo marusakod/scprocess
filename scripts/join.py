@@ -308,11 +308,17 @@ def build_joint_coldata(h5_f, project_ids, integrated_dt_fs, out_coldata_f):
     if not int_dt.height:
       continue
     coldata_df = _build_project_coldata(int_dt, pid)
+    # CSV infers all-missing columns as strings (e.g. tricycle coordinates in
+    # projects without cell-cycle scoring). Let populated projects set the type.
+    coldata_df = coldata_df.with_columns([
+      pl.col(c).cast(pl.Null) for c in coldata_df.columns
+      if coldata_df[c].null_count() == coldata_df.height
+    ])
     all_coldata_dfs.append(coldata_df)
 
   # concatenate and reorder to match matrix barcodes
   print("  assembling coldata")
-  coldata_df = pl.concat(all_coldata_dfs, how='diagonal')
+  coldata_df = pl.concat(all_coldata_dfs, how='diagonal_relaxed')
   fixed_cols = ['cell_id', 'sample_id', 'project_id']
   other_cols = [c for c in coldata_df.columns if c not in fixed_cols]
   coldata_df = coldata_df.select(fixed_cols + other_cols)

@@ -118,6 +118,29 @@ class TestJoinedZoomCounts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'HVGs missing'):
             _load_batch_hvg_matrix(str(path), {'cell1'}, ['absent'], 'a', 's1')
 
+    def test_coldata_preserves_numeric_columns_missing_in_one_project(self):
+        counts = self.root / 'matrix.h5'
+        with h5py.File(counts, 'w') as handle:
+            handle.create_dataset('matrix/barcodes', data=np.array(['b1', 'a1'], dtype='S'))
+        sources = [self.root / f'{i}.csv.gz' for i in range(2)]
+        write_csv(pl.DataFrame({'cell_id': ['a1'], 'sample_id': ['s1'],
+            'tricycle_theta': [None], 'annotation': [None]}), sources[0])
+        write_csv(pl.DataFrame({'cell_id': ['b1'], 'sample_id': ['s2'],
+            'tricycle_theta': [1.25], 'annotation': ['cycling'],
+            'extra_numeric': [2.0]}), sources[1])
+        out = self.root / 'coldata.csv.gz'
+        for order in ([0, 1], [1, 0]):
+            with self.subTest(order=order):
+                build_joint_coldata(counts, [['a', 'b'][i] for i in order],
+                    [sources[i] for i in order], out)
+                actual = pl.read_csv(out)
+                self.assertEqual(actual['cell_id'].to_list(), ['b1', 'a1'])
+                self.assertEqual(actual['sample_id'].to_list(), ['b_s2', 'a_s1'])
+                self.assertEqual(actual.schema['tricycle_theta'], pl.Float64)
+                self.assertEqual(actual['tricycle_theta'].to_list(), [1.25, None])
+                self.assertEqual(actual['annotation'].to_list(), ['cycling', None])
+                self.assertEqual(actual['extra_numeric'].to_list(), [2.0, None])
+
     def test_prepare_and_build_with_only_one_retained_project(self):
         source = self.h5ad('source.h5ad', np.arange(80))
         parent = self.cells.with_columns(pl.lit('a').alias('project_id'),

@@ -23,6 +23,10 @@ Harmony PCs are named `hmny_pca_*`; their parent counterparts must be
 order. Surplus parent PCs must never be appended as new zoom PCs when the zoom
 uses fewer dimensions.
 
+All-missing source columns have no inferred type during coldata assembly;
+populated projects determine the common type. This preserves numeric tricycle
+coordinates when only some source projects have cell-cycle scores.
+
 ## Counts, HVGs and marker models
 
 The source H5ADs are read-only. The subset manifest and link directory include
