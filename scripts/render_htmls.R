@@ -166,7 +166,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
   } else if (sel_rule == 'cell_cycle') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp', 'threads',
       'scores_f', 'marker_expression_f', 'origin_f', 'sensitivity_f',
-      'diagnostics_f', 'coldata_f')
+      'diagnostics_f', 'blob_f', 'coldata_f')
 
     assert_that(all(req_names %in% add_args_names))
     params_ls = add_args[req_names]

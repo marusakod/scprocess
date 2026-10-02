@@ -188,7 +188,7 @@ with h5py.File(sys.argv[1], 'w') as fh:
 
 
 @pytest.mark.parametrize('change', [
-    {'cell_cycle': {'cyc_target_cells': 100}}, {'train_xgboost': {}},
+    {'cell_cycle': {'cyc_target_prop': 0.01}}, {'train_xgboost': {}},
     {'integration': {'int_cell_cycle_correction': 'within_sample'}},
     {'zoom': {}}, {'hvg': {'hvg_method': 'all'}},
 ])

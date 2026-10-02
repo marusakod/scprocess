@@ -1135,8 +1135,10 @@ def _check_cell_cycle_parameters(config):
     return config
 
   cell_cycle = config['cell_cycle']
-  if 'cyc_target_cells' not in cell_cycle:
-    raise ValueError("cell_cycle.cyc_target_cells is required; a suggested starting value is 5000")
+  if 'cyc_target_prop' not in cell_cycle:
+    raise ValueError(
+      "cell_cycle.cyc_target_prop is required; specify a proportion in (0, 1]"
+    )
   reference = config['project'].get('probe_set', config['project'].get('ref_txome', ''))
   reference_lower = reference.lower()
   if any(token in reference_lower for token in ('mouse', 'grcm', 'mm10', 'mm39')):

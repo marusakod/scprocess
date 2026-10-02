@@ -31,6 +31,9 @@ scores <- fread("${scores_f}")
 origin <- fread("${origin_f}")
 origin_sensitivity <- fread("${sensitivity_f}")
 diagnostics <- fread("${diagnostics_f}")
+display_sample <- cell_cycle_display_sample(
+  diagnostics[['inclusion_probability']], seed=origin[['seed']][1])
+blob <- read_cell_cycle_blob("${blob_f}")
 coldata <- fread("${coldata_f}", select=c('cell_id', 'keep'))
 scores_qc <- merge(scores, coldata[keep == TRUE], by='cell_id')
 scores_qc <- merge(
@@ -78,7 +81,7 @@ gene_colours <- c(
 gene_legend_labels <- setNames(
   sprintf('%s · %s', marker_annotation[['marker_phase']], marker_annotation[['gene']]),
   marker_annotation[['gene']])
-target_cell_levels <- as.character(sort(unique(origin_sensitivity[['target_cells']])))
+target_prop_levels <- as.character(sort(unique(origin_sensitivity[['target_prop']])))
 origin_is_manual <- identical(origin[['origin_method']][1], 'manual')
 origin_sensitivity_points <- if (origin_is_manual) {
   origin_sensitivity
@@ -87,14 +90,16 @@ origin_sensitivity_points <- if (origin_is_manual) {
 }
 origin_caption <- if (origin_is_manual) {
   sprintf(
-    'Manual origin: (%g, %g); KDE diagnostic target cells: %s',
+    'Manual origin: (%g, %g); KDE diagnostic target: %s',
     origin[['tricycle_pc1_origin']][1],
     origin[['tricycle_pc2_origin']][1],
-    scales::comma(origin[['target_cells']][1]))
+    sprintf('%s (%s expected cells)', format_cell_cycle_target_prop(origin[['target_prop']][1]),
+      scales::comma(round(signif(origin[['expected_retained_cells']][1], 2)))))
 } else {
   sprintf(
-    'Selected target cells: %s',
-    scales::comma(origin[['target_cells']][1]))
+    'Selected target: %s',
+    sprintf('%s (%s expected cells)', format_cell_cycle_target_prop(origin[['target_prop']][1]),
+      scales::comma(round(signif(origin[['expected_retained_cells']][1], 2)))))
 }
 
 add_origin <- function() {
@@ -184,14 +189,19 @@ if (nrow(expression_smooth[['curves']])) {
 ## Pooled projection and estimated origin
 
 The left panel is a log-count hexbin view of every QC-passed cell. Its grey
-path shows how the estimated origin changes across the configured target-cell
-grid, with target size encoded by fill and reported in the legend. The right
-panel shows the density-equalized subset for the selected
-target. The black cross is the selected pooled origin used to calculate theta;
+path shows how the estimated origin changes across the configured target-proportion
+grid, with target proportion encoded by fill and reported in the legend. The right
+panel shows a larger display sample with the same relative weights as the selected
+target. The highest-weight cells are always shown. The black cross is the selected pooled origin used to calculate theta;
 it is identical in all projection panels. When a manual origin is configured,
 all KDE-derived candidate centres remain visible for comparison and the
 density-equalized subset is diagnostic only. Grey radial lines mark the phase
-boundaries described above.
+boundaries described above. The vermilion 99% MCD ellipse and percentage outside
+are reference diagnostics only: they do not determine the origin or identify
+cycling cells. The origin is the deterministic weighted mean, not the mean of
+the displayed subset. Display probabilities are rescaled so their maximum is 1;
+this changes neither the origin nor theta. Of 100 seeded draws, the one closest
+to the expected display size is shown.
 
 ```{r pooled_projection, fig.height=5.5, fig.width=11}
 g_pooled <- ggplot(diagnostics, aes(tricycle_pc1, tricycle_pc2)) +
@@ -199,19 +209,21 @@ g_pooled <- ggplot(diagnostics, aes(tricycle_pc1, tricycle_pc2)) +
     aes(colour=after_stat(count), fill=after_scale(colour)),
     bins=180, linewidth=0) +
   geom_path(
-    data=origin_sensitivity[order(target_cells)],
+    data=origin_sensitivity[order(target_prop)],
     aes(tricycle_pc1_origin, tricycle_pc2_origin), inherit.aes=FALSE,
     linewidth=1.3, colour='white') +
   geom_path(
-    data=origin_sensitivity[order(target_cells)],
+    data=origin_sensitivity[order(target_prop)],
     aes(tricycle_pc1_origin, tricycle_pc2_origin), inherit.aes=FALSE,
     linewidth=0.55, colour='grey50') +
   geom_point(
     data=origin_sensitivity_points,
     aes(
       tricycle_pc1_origin, tricycle_pc2_origin,
-      fill=factor(target_cells, levels=target_cell_levels)),
+      fill=factor(target_prop, levels=target_prop_levels)),
     inherit.aes=FALSE, shape=21, size=2.5, stroke=0.5, colour='grey20') +
+  geom_path(data=blob$ellipse, colour='white', linewidth=1.1) +
+  geom_path(data=blob$ellipse, colour='#D55E00', linewidth=0.6) +
   add_phase_boundaries() +
   add_origin() +
   scale_colour_viridis_c(
@@ -219,17 +231,17 @@ g_pooled <- ggplot(diagnostics, aes(tricycle_pc1, tricycle_pc2)) +
     guide=guide_colourbar(order=1, direction='horizontal')) +
   scale_fill_discrete(
     palette=function(n) grey.colors(n, start=0.88, end=0.28),
-    name='target cells', limits=target_cell_levels, drop=FALSE,
-    labels=function(x) comma(as.numeric(x)),
+    name='target proportion', limits=target_prop_levels, drop=FALSE,
+    labels=function(x) format_cell_cycle_target_prop(as.numeric(x)),
     guide=guide_legend(order=2, direction='horizontal', nrow=1)) +
   coord_equal(xlim=pc_x_limits, ylim=pc_y_limits, expand=FALSE) +
   theme_bw() +
   labs(
     title='All QC-passed cells', x='tricycle PC1', y='tricycle PC2',
-    caption=origin_caption)
+    subtitle=blob$label, caption=origin_caption)
 
 g_retained <- ggplot(
-    diagnostics[diagnostic_retained == TRUE],
+    diagnostics[display_sample$retained],
     aes(tricycle_pc1, tricycle_pc2)) +
   geom_point(size=0.5, alpha=0.7, colour='#1F4E79') +
   add_phase_boundaries() +
@@ -238,8 +250,8 @@ g_retained <- ggplot(
   theme_bw() +
   labs(
     title=sprintf(
-      'Density-equalized cells (%s of %s)',
-      scales::comma(sum(diagnostics[['diagnostic_retained']])),
+      'Display sample (%s of %s cells)',
+      scales::comma(sum(display_sample$retained)),
       scales::comma(nrow(diagnostics))),
     x='tricycle PC1', y='tricycle PC2')
 

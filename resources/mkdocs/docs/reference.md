@@ -596,46 +596,58 @@ before adopting non-default settings.
 
 ##### cell_cycle
 
-The presence of the optional `cell_cycle` block enables fixed-reference
-tricycle projection. If the block is absent, no tricycle files or fields are
-created. Specify the required `cyc_target_cells` parameter to enable estimation
-and diagnostics; the other settings are optional. This does not enable
-cell-cycle correction during integration:
+The optional `cell_cycle` block enables tricycle projection and phase
+estimation. Omit it to disable estimation. Specify `cyc_target_prop`; an empty
+block is not accepted. This does not enable cell-cycle correction during
+integration.
 
 ```yaml
 cell_cycle:
-  cyc_target_cells: 5000
+  cyc_target_prop: 0.01
 ```
 
-The cell-cycle options use the `cyc_` prefix:
+`cyc_target_prop` is the expected retained proportion of pooled QC-passed
+origin candidates, between 0 and 1 (excluding 0). For example, 0.01 means 1%.
+It controls how strongly the dense G0/G1 population is downweighted relative
+to sparse regions; it is **not an estimate of the proportion of cycling cells**.
+Every projected cell still receives a phase, including known doublets, but
+known doublets do not contribute to origin estimation.
 
-* `cyc_bandwidth_multiplier`: multiplier applied to the data-derived KDE
-  bandwidth used for density equalization; default `1.0`;
-* `cyc_kde_grid_size`: number of bins per axis used for the binned KDE;
-  default `500`;
-* `cyc_target_cells` (required): expected number of density-equalized cells
-  retained for pooled-origin estimation, capped at the number of candidate
-  cells. A suggested starting value is `5000`; it is not filled in automatically.
-  It does not limit the number of cells assigned a cell-cycle phase;
-* `cyc_target_cells_grid`: target values used for origin-sensitivity
-  diagnostics; default `[100, 200, 500, 1000, 2000, 5000, 10000]`. The selected
-  `cyc_target_cells` value is always included, and values above the number of
-  candidate cells are capped and deduplicated;
-* `cyc_origin`: optional manual origin as `[tricycle_pc1, tricycle_pc2]`, using
-  the project-centred coordinate system shown in the diagnostics report. When
-  supplied, it defines `tricycle_theta`; KDE-derived candidate centres and the
-  density-equalized subset are still produced for comparison but do not define
-  theta; and
-* `cyc_seed`: random seed for density-equalized retention; default `20230308`.
+Smaller targets generally give the sparse trajectory more relative weight;
+larger targets move towards the ordinary mean of QC-passed candidates. At 1,
+all candidates have equal weight. Below the point where any inclusion probability
+reaches one, reducing the target further does not change the origin.
+Inspect the sensitivity path and cell-cycle marker curves when choosing a value.
 
-The KDE is calculated once. Candidate centres for the target-cell grid are
-then calculated deterministically as inverse-density probability-weighted
-means and written to `tricycle_origin_sensitivity_*.csv`. The pooled projection
-plot shows the resulting path of candidate centres and identifies their target
-sizes in the legend. Only `cyc_target_cells` defines `tricycle_theta` when
-`cyc_origin` is absent; otherwise the supplied coordinates define theta and all
-KDE results are diagnostic. `cyc_seed` affects which cells appear in the
-retained-cell diagnostic panel, not the estimated centres.
+Additional options:
+
+* `cyc_bandwidth_multiplier`: KDE smoothing multiplier; default 1. Larger
+  values smooth density over a broader neighbourhood and can change the
+  relative weights of the blob and sparse trajectory.
+* `cyc_target_prop_grid`: proportions shown on the sensitivity plot;
+  default `[0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1]`. The selected value is
+  always included. Plots show percentages.
+* `cyc_origin_manual`: optional `[PC1, PC2]` origin in the project-centred
+  coordinates shown in the report. This overrides the KDE origin; retain
+  `cyc_target_prop` to generate comparison diagnostics.
+* `cyc_kde_grid_size`: bins per axis for the KDE approximation; default 500.
+* `cyc_seed`: seed for the diagnostic downsample; default 20230308.
+  It does not change the estimated origin or theta.
+
+The origin is a deterministic mean weighted by capped inverse-density
+inclusion probabilities. Their sum equals `cyc_target_prop` times the number
+of pooled QC-passed candidates, without rounding to an integer. The report
+shows a larger sample for visual clarity: display probabilities are divided by
+their maximum, preserving relative weights and always including the highest-weight
+cells. One of 100 seeded draws is chosen for the closest count to the expected
+display size. This display-only rescaling does not change the origin or theta.
+
+The 99% MCD ellipse and percentage outside it remain reference diagnostics,
+not an origin-selection method or a validated cycling-cell estimate.
+The experimental `cyc_origin_line_fraction` setting is no longer supported.
+Use `cyc_origin_manual` for explicit coordinates. Existing per-run projections
+are reused when changing the target or bandwidth; pooled weighting, theta and
+dependent outputs must be regenerated.
 
 Species is inferred from `project.ref_txome` or `project.probe_set`; it is not
 specified again inside `cell_cycle`.
@@ -648,9 +660,7 @@ standalone diagnostics report is written to
 expression curves, the pooled projection and density-equalized origin, spatial
 expression of a canonical cell-cycle marker panel, sample-level projections,
 and approximate phase percentages by sample. Projection panels mark the
-approximate phase boundaries with radial guides; sample-level point sizes use
-the capped inverse-density inclusion probability so sparse cycling regions
-remain visible. Phase-percentage plots omit G1/G0 so that the less abundant
+approximate phase boundaries with radial guides. Phase-percentage plots omit G1/G0 so that the less abundant
 cycling phases remain legible. The phase categories are descriptive angular
 sectors;
 `tricycle_theta` remains the primary continuous result. Use
@@ -674,7 +684,7 @@ listed in the corresponding run summary.
   applying one common project-wide centring translation;
 * `tricycle_pc2`: second coordinate with the same project-wide centring; and
 * `tricycle_theta`: phase angle in radians in `[0, 2*pi)`, recalculated around
-  either the configured `cyc_origin` or one density-equalized origin estimated
+  either the configured `cyc_origin_manual` or a density-equalized origin estimated
   from QC-passed cells across the project.
 
 The projection coordinates are not integration PCs. Each run independently
@@ -757,9 +767,9 @@ sample-mean changes, which should be approximately zero for `within_sample`.
 
 ```yaml
 cell_cycle:
-  cyc_target_cells: 5000
-  # Optional override in project-centred tricycle-PC coordinates:
-  # cyc_origin: [-3, 1]
+  cyc_target_prop: 0.01
+  # Optional override in project-centred coordinates:
+  # cyc_origin_manual: [-3, 1]
 
 integration:
   int_cell_cycle_correction: within_sample  # alternative: global; omit to disable

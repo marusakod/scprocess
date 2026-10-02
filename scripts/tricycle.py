@@ -86,8 +86,8 @@ def _density_equalized_probabilities(density, target_cells):
   density = np.asarray(density, dtype=float)
   if np.any(~np.isfinite(density)) or np.any(density <= 0):
     raise ValueError("Density values must be finite and positive")
-  target = min(int(target_cells), density.size)
-  if target < 1:
+  target = min(float(target_cells), density.size)
+  if not np.isfinite(target) or target <= 0:
     raise ValueError("target_cells must be positive")
   if target == density.size:
     return np.ones(density.size)
@@ -106,9 +106,22 @@ def _density_equalized_probabilities(density, target_cells):
   return np.minimum(1.0, probabilities)
 
 
+def _diagnostic_downsample(probabilities, seed, n_draws=100):
+  """Choose the closest-sized Bernoulli draw for display; never use it to fit theta."""
+  rng = np.random.default_rng(int(seed))
+  expected = float(np.sum(probabilities))
+  best, best_error, best_index = None, np.inf, None
+  for index in range(n_draws):
+    draw = rng.random(len(probabilities)) < probabilities
+    error = abs(int(draw.sum()) - expected)
+    if error < best_error:
+      best, best_error, best_index = draw, error, index
+  return best, best_index
+
+
 def aggregate_tricycle(
   score_fs, marker_expression_fs, summary_fs, coldata_f, required_h5_fs,
-  bandwidth_multiplier, kde_grid_size, target_cells, target_cells_grid, seed,
+  bandwidth_multiplier, kde_grid_size, target_prop, target_prop_grid, seed,
   out_scores_f, out_marker_expression_f, out_origin_f, out_sensitivity_f,
   out_diagnostics_f, manual_origin=None
 ):
@@ -189,19 +202,18 @@ def aggregate_tricycle(
   density, bandwidth, n_bins = _binned_kde_density(
     points, bandwidth_multiplier, kde_grid_size
   )
-  selected_target = min(int(target_cells), candidate_scores.height)
-  sensitivity_targets = sorted({
-    min(int(value), candidate_scores.height)
-    for value in [target_cells, *target_cells_grid]
-  })
+  sensitivity_targets = sorted(set(float(value) for value in [target_prop, *target_prop_grid]))
+  if any(not np.isfinite(value) or not 0 < value <= 1 for value in sensitivity_targets):
+    raise ValueError("target_prop and target_prop_grid must be in (0, 1]")
+  selected_target = float(target_prop)
   sensitivity_rows = []
   selected_probabilities = None
   center = None
   for sensitivity_target in sensitivity_targets:
-    probabilities = _density_equalized_probabilities(density, sensitivity_target)
+    probabilities = _density_equalized_probabilities(density, sensitivity_target * candidate_scores.height)
     candidate_center = np.average(points, axis=0, weights=probabilities)
     sensitivity_rows.append({
-      "target_cells": sensitivity_target,
+      "target_prop": sensitivity_target,
       "expected_retained_cells": float(probabilities.sum()),
       "tricycle_pc1_origin": candidate_center[0],
       "tricycle_pc2_origin": candidate_center[1],
@@ -225,11 +237,11 @@ def aggregate_tricycle(
                             all_points[:, 0] - center[0]), 2 * np.pi)
   scores = scores.with_columns(pl.Series("tricycle_theta", theta))
 
-  rng = np.random.default_rng(int(seed))
+  retained, draw_index = _diagnostic_downsample(probabilities, seed)
   diagnostics = candidate_scores.with_columns(
     pl.Series("kde_density", density),
     pl.Series("inclusion_probability", probabilities),
-    pl.Series("diagnostic_retained", rng.random(probabilities.size) < probabilities)
+    pl.Series("diagnostic_retained", retained)
   )
   origin = pl.DataFrame({
     "origin_method": [origin_method],
@@ -241,15 +253,18 @@ def aggregate_tricycle(
     "tricycle_pc2_origin": [center[1]],
     "selected_kde_tricycle_pc1_origin": [automatic_center[0]],
     "selected_kde_tricycle_pc2_origin": [automatic_center[1]],
-    "target_cells_used_for_origin": [manual_origin is None],
+    "target_prop_used_for_origin": [manual_origin is None],
     "n_candidate_cells": [candidate_scores.height],
-    "target_cells": [selected_target],
+    "target_prop": [selected_target],
     "expected_retained_cells": [float(probabilities.sum())],
     "bandwidth_pc1": [bandwidth[0]],
     "bandwidth_pc2": [bandwidth[1]],
     "bandwidth_multiplier": [float(bandwidth_multiplier)],
     "kde_grid_bins": [n_bins],
     "seed": [int(seed)],
+    "diagnostic_draw": [draw_index],
+    "diagnostic_draws_tried": [100],
+    "n_diagnostic_retained": [int(retained.sum())],
     "projection_groups": [summaries.height],
     "reference": [summaries["reference"][0]],
     "tricycle_version": [summaries["tricycle_version"][0]],
@@ -284,9 +299,9 @@ def main():
   parser.add_argument("--required_h5_f", action="append", default=[])
   parser.add_argument("--bandwidth_multiplier", type=float, default=1.0)
   parser.add_argument("--kde_grid_size", type=int, default=500)
-  parser.add_argument("--target_cells", type=int, default=5000)
-  parser.add_argument("--target_cells_grid", action="append", type=int, default=[])
-  parser.add_argument("--origin", nargs=2, type=float)
+  parser.add_argument("--target_prop", type=float, required=True)
+  parser.add_argument("--target_prop_grid", action="append", type=float, default=[])
+  parser.add_argument("--origin_manual", nargs=2, type=float)
   parser.add_argument("--seed", type=int, default=20230308)
   parser.add_argument("--out_scores_f", required=True)
   parser.add_argument("--out_marker_expression_f", required=True)
@@ -297,9 +312,9 @@ def main():
   aggregate_tricycle(
     args.score_f, args.marker_expression_f, args.summary_f, args.coldata_f,
     args.required_h5_f, args.bandwidth_multiplier, args.kde_grid_size,
-    args.target_cells, args.target_cells_grid, args.seed, args.out_scores_f,
+    args.target_prop, args.target_prop_grid, args.seed, args.out_scores_f,
     args.out_marker_expression_f, args.out_origin_f, args.out_sensitivity_f,
-    args.out_diagnostics_f, manual_origin=args.origin
+    args.out_diagnostics_f, manual_origin=args.origin_manual
   )
 
 

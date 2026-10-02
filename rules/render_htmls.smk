@@ -361,6 +361,7 @@ if CELL_CYCLE_ENABLED:
       origin_f     = TRICYCLE_ORIGIN_F,
       sensitivity_f = TRICYCLE_ORIGIN_SENSITIVITY_F,
       diagnostics_f = TRICYCLE_DIAGNOSTICS_F,
+      blob_f       = TRICYCLE_BLOB_F,
       coldata_f    = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz'
     output:
       r_cell_cycle_f = f"{code_dir}/cell_cycle.R",
@@ -396,7 +397,7 @@ if CELL_CYCLE_ENABLED:
           threads={threads}, scores_f='{input.scores_f}',
           marker_expression_f='{input.marker_expression_f}',
           origin_f='{input.origin_f}', sensitivity_f='{input.sensitivity_f}',
-          diagnostics_f='{input.diagnostics_f}',
+          diagnostics_f='{input.diagnostics_f}', blob_f='{input.blob_f}',
           coldata_f='{input.coldata_f}')"
       """
 

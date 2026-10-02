@@ -12,6 +12,7 @@ from scripts.tricycle import (
   _bandwidth_nrd,
   _binned_kde_density,
   _density_equalized_probabilities,
+  _diagnostic_downsample,
 )
 
 
@@ -28,7 +29,7 @@ def test_cell_cycle_is_optional_and_not_materialized_by_defaults():
   assert 'enabled' not in cell_cycle_schema['properties']
   assert set(cell_cycle_schema['properties']) == {
     'cyc_bandwidth_multiplier', 'cyc_kde_grid_size',
-    'cyc_target_cells', 'cyc_target_cells_grid', 'cyc_origin', 'cyc_seed',
+    'cyc_target_prop', 'cyc_target_prop_grid', 'cyc_origin_manual', 'cyc_seed',
   }
 
 
@@ -36,11 +37,11 @@ def test_present_cell_cycle_block_receives_prefixed_defaults():
   from scripts.scprocess_utils import _get_default_config_from_schema
 
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
-  defaults = _get_default_config_from_schema(schema, {'cell_cycle': {'cyc_target_cells': 5000}})
+  defaults = _get_default_config_from_schema(schema, {'cell_cycle': {'cyc_target_prop': 0.01}})
   assert defaults['cell_cycle'] == {
     'cyc_bandwidth_multiplier': 1.0,
     'cyc_kde_grid_size': 500,
-    'cyc_target_cells_grid': [100, 200, 500, 1000, 2000, 5000, 10000],
+    'cyc_target_prop_grid': [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1],
     'cyc_seed': 20230308,
   }
 
@@ -49,10 +50,10 @@ def test_manual_origin_schema_requires_exactly_two_numbers():
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
   cell_cycle_schema = schema['properties']['cell_cycle']
 
-  jsonschema.validate({'cyc_target_cells': 5000, 'cyc_origin': [-3, 1]}, cell_cycle_schema)
+  jsonschema.validate({'cyc_target_prop': 0.01, 'cyc_origin_manual': [-3, 1]}, cell_cycle_schema)
   for invalid_origin in ([-3], [-3, 1, 2], ['-3', 1]):
     with pytest.raises(jsonschema.ValidationError):
-      jsonschema.validate({'cyc_target_cells': 5000, 'cyc_origin': invalid_origin}, cell_cycle_schema)
+      jsonschema.validate({'cyc_target_prop': 0.01, 'cyc_origin_manual': invalid_origin}, cell_cycle_schema)
 
 
 def test_density_equalization_is_capped_and_has_requested_expectation():
@@ -76,6 +77,26 @@ def test_binned_kde_is_deterministic_and_positive():
   np.testing.assert_array_equal(bandwidth_1, bandwidth_2)
   assert bins_1 == bins_2
   assert np.all(density_1 > 0)
+
+
+def test_fractional_expectation_and_diagnostic_draw():
+  density = np.array([0.1, 0.2, 1.0, 2.0, 10.0])
+  p = _density_equalized_probabilities(density, 0.37)
+  assert p.sum() == pytest.approx(0.37)
+  draw, index = _diagnostic_downsample(p, 7)
+  again, again_index = _diagnostic_downsample(p, 7)
+  np.testing.assert_array_equal(draw, again)
+  assert index == again_index
+  first = np.random.default_rng(7).random(len(p)) < p
+  assert abs(draw.sum()-p.sum()) <= abs(first.sum()-p.sum())
+  np.testing.assert_array_equal(_density_equalized_probabilities(density, len(density)), np.ones(5))
+
+
+def test_ellipse_parameter_is_rejected():
+  schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
+  with pytest.raises(jsonschema.ValidationError):
+    jsonschema.validate({'cyc_target_prop': 0.01, 'cyc_origin_line_fraction': 'auto'},
+                        schema['properties']['cell_cycle'])
 
 
 def test_normal_reference_bandwidth_matches_definition():
@@ -145,7 +166,7 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
 
   scores, marker_expression, origin, sensitivity, diagnostics = aggregate_tricycle(
     [score_f], [marker_expression_f], [summary_f], coldata_f, [], 1.0, 500,
-    2, [1, 2, 10], 7, out_scores_f, out_marker_expression_f, out_origin_f,
+    2/3, [1/3, 2/3, 1], 7, out_scores_f, out_marker_expression_f, out_origin_f,
     out_sensitivity_f, out_diagnostics_f,
   )
 
@@ -160,7 +181,7 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
   assert origin['projection_centring_method'][0] == 'pooled_project_mean'
   assert 'inclusion_probability' in diagnostics.columns
   assert diagnostics['inclusion_probability'].max() <= 1
-  assert sensitivity['target_cells'].to_list() == [1, 2, 3]
+  assert sensitivity['target_prop'].to_list() == [1/3, 2/3, 1]
   assert sensitivity['selected'].to_list() == [False, True, False]
   assert out_sensitivity_f.exists()
   np.testing.assert_allclose(
@@ -176,12 +197,12 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
   )]
   manual_scores, _, manual_origin, _, _ = aggregate_tricycle(
     [score_f], [marker_expression_f], [summary_f], coldata_f, [], 1.0, 500,
-    2, [1, 2, 10], 7, *manual_outputs, manual_origin=[-3, 1],
+    2/3, [1/3, 2/3, 1], 7, *manual_outputs, manual_origin=[-3, 1],
   )
   assert manual_origin['origin_method'][0] == 'manual'
   assert manual_origin['tricycle_pc1_origin'][0] == -3
   assert manual_origin['tricycle_pc2_origin'][0] == 1
-  assert manual_origin['target_cells_used_for_origin'][0] is False
+  assert manual_origin['target_prop_used_for_origin'][0] is False
   assert manual_origin['selected_kde_tricycle_pc1_origin'][0] == pytest.approx(
     origin['tricycle_pc1_origin'][0]
   )
@@ -237,7 +258,7 @@ def test_aggregate_reads_sparse_marker_columns_as_floats(tmp_path):
   )]
   _, marker_expression, _, _, _ = aggregate_tricycle(
     [score_f], [marker_expression_f], [summary_f], coldata_f, [], 1.0, 500,
-    50, [50], 7, *outputs,
+    1/3, [1/3], 7, *outputs,
   )
 
   assert marker_expression.schema['CCNB1'] == pl.Float64
@@ -390,11 +411,14 @@ def test_cell_cycle_has_standalone_diagnostics_report():
   assert "plot_layout(guides='collect')" in template
   assert "theme(legend.position='bottom')" in template
   assert "stroke=1.5, colour='black'" in template
-  assert "'Manual origin: (%g, %g); KDE diagnostic target cells: %s'" in template
+  assert "'Manual origin: (%g, %g); KDE diagnostic target: %s'" in template
   assert 'data=origin_sensitivity_points' in template
   assert 'caption=origin_caption' in template
   assert "colour='#1F4E79'" in template
-  assert 'diagnostic_retained == TRUE' in template
+  assert 'display_sample <- cell_cycle_display_sample(' in template
+  assert 'diagnostics[display_sample$retained]' in template
+  assert 'diagnostic_retained == TRUE' not in template
+  assert 'display_probabilities <- probabilities / max(probabilities)' in helper
   for marker in (
     'CDKN1A', 'PCNA', 'MCM4', 'MCM5', 'TYMS', 'TOP2A',
     'CCNB1', 'CDK1', 'TPX2', 'SMC2', 'MKI67', 'UBE2C',
@@ -433,7 +457,7 @@ def test_cell_cycle_target_requires_config_block():
 
   with pytest.raises(KeyError, match="no 'cell_cycle' section"):
     check_config_ok_for_rule({}, 'cell_cycle')
-  check_config_ok_for_rule({'cell_cycle': {'cyc_target_cells': 5000}}, 'cell_cycle')
+  check_config_ok_for_rule({'cell_cycle': {'cyc_target_prop': 0.01}}, 'cell_cycle')
 
 
 def test_bonus_doublet_rule_is_gpu_routed_on_shpc():
@@ -475,10 +499,10 @@ def test_tricycle_rule_records_all_marker_genes_from_full_run_matrix():
 def test_tricycle_rule_passes_optional_manual_origin_to_aggregation():
   rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
   script = (ROOT / 'scripts' / 'tricycle.py').read_text()
-  assert "if 'cyc_origin' in config['cell_cycle'] else ''" in rules
+  assert "if 'cyc_origin_manual' in config['cell_cycle'] else ''" in rules
   assert '{params.origin_args}' in rules
-  assert 'parser.add_argument("--origin", nargs=2, type=float)' in script
-  assert 'manual_origin=args.origin' in script
+  assert 'parser.add_argument("--origin_manual", nargs=2, type=float)' in script
+  assert 'manual_origin=args.origin_manual' in script
 
 
 def test_tricycle_reports_incremental_progress():
@@ -530,7 +554,7 @@ def test_invalid_regression_backend_is_rejected():
       'int_pca_method': 'scanpy',
       'int_cell_cycle_correction': 'within_sample',
     },
-    'cell_cycle': {'cyc_target_cells': 5000},
+    'cell_cycle': {'cyc_target_prop': 0.01},
   }
   with pytest.raises(ValueError, match='requires integration.int_pca_method: bpcells'):
     _check_cell_cycle_parameters(config)
@@ -542,7 +566,7 @@ def test_species_is_inferred_from_standard_reference():
   config = {
     'project': {'ref_txome': 'human_2024'},
     'integration': {'int_pca_method': 'bpcells'},
-    'cell_cycle': {'cyc_target_cells': 5000},
+    'cell_cycle': {'cyc_target_prop': 0.01},
   }
   checked = _check_cell_cycle_parameters(config)
   assert checked['cell_cycle']['_species'] == 'human'
@@ -557,7 +581,7 @@ def test_shared_regression_receives_integration_defaults():
       'int_pca_method': 'bpcells',
       'int_cell_cycle_correction': 'within_sample',
     },
-    'cell_cycle': {'cyc_target_cells': 5000},
+    'cell_cycle': {'cyc_target_prop': 0.01},
   }
   checked = _check_cell_cycle_parameters(config)
   assert checked['integration']['int_cell_cycle_harmonics'] == 2
@@ -588,7 +612,7 @@ def test_regression_tuning_requires_shared_regression():
       'int_pca_method': 'bpcells',
       'int_cell_cycle_harmonics': 1,
     },
-    'cell_cycle': {'cyc_target_cells': 5000},
+    'cell_cycle': {'cyc_target_prop': 0.01},
   }
   with pytest.raises(ValueError, match='int_cell_cycle_correction'):
     _check_cell_cycle_parameters(config)
@@ -598,7 +622,7 @@ def test_regression_tuning_requires_shared_regression():
 def test_cell_cycle_correction_choice(mode):
   from scripts.scprocess_utils import _check_cell_cycle_parameters
   config = {
-    'project': {'ref_txome': 'mouse_2024'}, 'cell_cycle': {'cyc_target_cells': 5000},
+    'project': {'ref_txome': 'mouse_2024'}, 'cell_cycle': {'cyc_target_prop': 0.01},
     'integration': {'int_pca_method': 'bpcells',
                     'int_cell_cycle_correction': mode},
   }
@@ -627,25 +651,25 @@ def test_empty_cell_cycle_block_remains_invalid_after_defaults():
   from scripts.scprocess_utils import _get_default_config_from_schema, _check_cell_cycle_parameters
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
   defaults = _get_default_config_from_schema(schema, {'cell_cycle': {}})
-  assert 'cyc_target_cells' not in defaults['cell_cycle']
-  with pytest.raises(jsonschema.ValidationError, match='cyc_target_cells'):
+  assert 'cyc_target_prop' not in defaults['cell_cycle']
+  with pytest.raises(jsonschema.ValidationError, match='cyc_target_prop'):
     jsonschema.validate(defaults['cell_cycle'], schema['properties']['cell_cycle'])
-  with pytest.raises(ValueError, match='cyc_target_cells is required'):
+  with pytest.raises(ValueError, match='cyc_target_prop is required'):
     _check_cell_cycle_parameters({'cell_cycle': {}})
-  for value in (0, -1, 2.5, True, None):
+  for value in (0, -1, 1.01, True, None):
     with pytest.raises(jsonschema.ValidationError):
-      jsonschema.validate({'cyc_target_cells': value}, schema['properties']['cell_cycle'])
-  for value in (1000, 5000):
-    jsonschema.validate({'cyc_target_cells': value}, schema['properties']['cell_cycle'])
+      jsonschema.validate({'cyc_target_prop': value}, schema['properties']['cell_cycle'])
+  for value in (0.001, 0.01, 1):
+    jsonschema.validate({'cyc_target_prop': value}, schema['properties']['cell_cycle'])
 
 
 @pytest.mark.parametrize('backend', ['bpcells', 'scanpy'])
 def test_phase_estimation_does_not_enable_correction(backend):
   from scripts.scprocess_utils import _check_cell_cycle_parameters, _get_default_config_from_schema
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
-  config = _get_default_config_from_schema(schema, {'cell_cycle': {'cyc_target_cells': 5000}})
+  config = _get_default_config_from_schema(schema, {'cell_cycle': {'cyc_target_prop': 0.01}})
   config['project'] = {'ref_txome': 'mouse_2024'}
-  config['cell_cycle']['cyc_target_cells'] = 5000
+  config['cell_cycle']['cyc_target_prop'] = 0.01
   config['integration']['int_pca_method'] = backend
   checked = _check_cell_cycle_parameters(config)
   assert checked['cell_cycle']['_species'] == 'mouse'
