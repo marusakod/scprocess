@@ -1259,8 +1259,16 @@ Switching marker resolution to another already calculated resolution reuses
 selection, HVGs, PCA and integration. Changing selected cells or QC filters
 requires recalculating the subset. Check the dry run when resuming an older run.
 
+Optional cell-cycle correction is available in joins and joined zooms using
+`integration.int_pca_method: bpcells`. Set `int_cell_cycle_correction` to
+`within_sample` or `global`; it is omitted by default and inherited from the
+parent join unless overridden. Every selected cell must have a finite
+`tricycle_theta` score from its source project. Review phase calibration across
+projects before correction. The subset fits its own correction model; marker
+counts remain unchanged. See the [join cell-cycle notes](development/join_cell_cycle.md).
+
 Joined zooms currently do not support recursive zooms, pool exclusions,
-cell-cycle correction, XGBoost training, fresh cell-type labelling or per-batch
+XGBoost training, fresh cell-type labelling or per-batch
 subset H5AD/SCE exports. See the [implementation notes](development/join_zoom.md)
 for workflow dependencies, resource settings and input handling.
 

@@ -39,7 +39,8 @@ class TestJoinPcaBpcellsStorage(unittest.TestCase):
     self.assertLess(self.script.index(transform), self.script.index(solver))
     self.assertIn("opts = list(tol = 1e-5)", self.script)
     self.assertIn("threads = n_threads", self.script)
-    self.assertIn("pc_scores <- sweep(svd_result$v", self.script)
+    self.assertIn("cell_vectors <- if (is.null(ridge)) svd_result$v else svd_result$u", self.script)
+    self.assertIn("pc_scores <- sweep(cell_vectors", self.script)
     self.assertIn("n_threads     =  {threads}", self.rules)
 
   def test_schema_has_conversion_resources_and_longer_pca_default(self):

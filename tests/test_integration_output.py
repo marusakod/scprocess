@@ -104,7 +104,7 @@ class TestIntegrationOutput(unittest.TestCase):
     self.assertLess(result.columns.index('project_id'), result.columns.index('sample_id'))
     self.assertEqual(result['project_id'].to_list(), ['project_a', 'project_b'])
 
-  def test_multiple_batch_variables_route_harmony_to_cpu(self):
+  def test_multiple_batch_variables_keep_gpu_harmony(self):
     gpu_pca = Mock()
     gpu_pca.get.return_value = np.ones((2, 2), dtype=np.float32)
     adata = SimpleNamespace(obsm={'X_pca': gpu_pca})
@@ -115,17 +115,16 @@ class TestIntegrationOutput(unittest.TestCase):
 
     with patch.object(integration, 'sce', fake_sce, create=True), \
          patch.object(integration, 'sc', fake_rsc, create=True), \
-         self.assertWarnsRegex(UserWarning, 'Harmony will run on CPU'):
+         patch.object(integration, 'cp', SimpleNamespace(float32=np.float32), create=True):
       integration._run_harmony(
         adata, ['project_id', 'sample_id'], [1.0, 0.1], use_gpu=True
       )
 
-    gpu_pca.get.assert_called_once_with()
-    cpu_harmony.assert_called_once_with(
-      adata, key=['project_id', 'sample_id'], theta=[1.0, 0.1]
-    )
-    gpu_harmony.assert_not_called()
-    self.assertIsInstance(adata.obsm['X_pca'], np.ndarray)
+    gpu_pca.get.assert_not_called()
+    cpu_harmony.assert_not_called()
+    gpu_harmony.assert_called_once_with(
+      adata, key=['project_id', 'sample_id'], max_iter_harmony=5,
+      dtype=np.float32, theta=[1.0, 0.1], flavor='harmony1')
 
   def test_single_batch_variable_keeps_gpu_harmony(self):
     adata = SimpleNamespace(obsm={'X_pca': np.ones((2, 2), dtype=np.float32)})
@@ -139,7 +138,7 @@ class TestIntegrationOutput(unittest.TestCase):
 
     gpu_harmony.assert_called_once_with(
       adata, key='sample_id', max_iter_harmony=5,
-      dtype=np.float32, theta=0.1
+      dtype=np.float32, theta=0.1, flavor='harmony1'
     )
 
   def test_precomputed_pca_loader_preserves_declared_order(self):
@@ -147,7 +146,7 @@ class TestIntegrationOutput(unittest.TestCase):
     from pathlib import Path
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-      pca_f = Path(tmp_dir) / 'pca.csv.gz'
+      pca_f = Path(tmp_dir) / 'pca.csv'
       pl.DataFrame({
         'cell_id': ['cell_b', 'cell_a'],
         'pca_1': [2.0, 1.0],
@@ -170,7 +169,7 @@ class TestIntegrationOutput(unittest.TestCase):
     from pathlib import Path
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-      pca_f = Path(tmp_dir) / 'pca.csv.gz'
+      pca_f = Path(tmp_dir) / 'pca.csv'
       pl.DataFrame({'cell_id': ['a', 'b'], 'pca_1': [1.0, 2.0]}).write_csv(pca_f)
       cells_df = pl.DataFrame({
         'cell_id': ['b', 'a'],
@@ -185,7 +184,7 @@ class TestIntegrationOutput(unittest.TestCase):
     from pathlib import Path
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-      score_f = Path(tmp_dir) / 'tricycle.csv.gz'
+      score_f = Path(tmp_dir) / 'tricycle.csv'
       pl.DataFrame({
         'cell_id': ['cell_b', 'cell_a'],
         'tricycle_pc1': [2.0, 1.0],

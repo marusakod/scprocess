@@ -189,7 +189,6 @@ with h5py.File(sys.argv[1], 'w') as fh:
 
 @pytest.mark.parametrize('change', [
     {'cell_cycle': {'cyc_target_prop': 0.01}}, {'train_xgboost': {}},
-    {'integration': {'int_cell_cycle_correction': 'within_sample'}},
     {'zoom': {}}, {'hvg': {'hvg_method': 'all'}},
 ])
 def test_unsupported_or_empty_settings_fail(parent_fixture, change):
@@ -440,3 +439,29 @@ def test_join_zoom_shiny_paths(parent_fixture, tmp_path):
     assert proc.returncode == 0, output
     assert 'public/shiny_atlas_join_zoom_neurons/' in output
     assert 'public/shiny_parent-app/' not in output
+
+
+@pytest.mark.parametrize('mode', ['within_sample', 'global'])
+@pytest.mark.parametrize('inherit', [False, True])
+def test_joined_zoom_resolves_cycle_correction(parent_fixture, mode, inherit):
+    parent, spec, scdata, config_f, *_ = parent_fixture
+    if inherit:
+        parent['integration']['int_cell_cycle_correction'] = mode
+    else:
+        spec['integration'] = {'int_cell_cycle_correction': mode}
+        config_f.with_name('zoom.yaml').write_text(yaml.safe_dump(spec))
+    config, context = get_join_zoom_context(parent, 'neurons', ROOT, scdata)
+    assert config['integration']['int_cell_cycle_correction'] == mode
+    assert config['integration']['int_cell_cycle_harmonics'] == 2
+    assert config['integration']['int_cell_cycle_ridge_lambda'] == 0.1
+    assert context['out_dir'].endswith('/atlas_join_zoom/neurons')
+    assert not Path(context['out_dir']).exists()
+
+
+def test_joined_zoom_rejects_cycle_correction_with_scanpy(parent_fixture):
+    parent, spec, scdata, config_f, *_ = parent_fixture
+    spec['integration'] = {'int_cell_cycle_correction': 'global',
+                           'int_pca_method': 'scanpy'}
+    config_f.with_name('zoom.yaml').write_text(yaml.safe_dump(spec))
+    with pytest.raises(ValueError, match='requires int_pca_method: bpcells'):
+        get_join_zoom_context(parent, 'neurons', ROOT, scdata)

@@ -51,16 +51,27 @@ write_join_bpcells_matrix <- function(counts_h5_f, out_dir) {
 #' @param n_dims       Number of PCA dimensions to compute
 #' @param n_threads    Number of threads for BPCells matrix-vector products
 #' @param out_pca_f    Output path for PCA embeddings (CSV.gz)
-run_join_pca <- function(counts_bp_dir, n_dims, n_threads, out_pca_f) {
+run_join_pca <- function(counts_bp_dir, n_dims, n_threads, out_pca_f,
+                         tricycle_f = NULL, harmonics = 2L, ridge_lambda = 0.1,
+                         correction_centering = "within_sample",
+                         out_regression_f = NULL, out_regression_genes_f = NULL) {
+  correction_centering <- match.arg(correction_centering, c("within_sample", "global"))
+  if (length(n_threads) != 1L || !is.finite(n_threads) || n_threads < 1 ||
+      n_threads != floor(n_threads)) stop("n_threads must be a positive integer")
   n_dims <- as.integer(n_dims)
   n_threads <- as.integer(n_threads)
 
   message("Loading native BPCells count matrix (disk-backed)")
   mat <- open_matrix_dir(counts_bp_dir)
   message(sprintf("  Matrix dimensions: %d genes x %d cells", nrow(mat), ncol(mat)))
+  if (min(dim(mat)) < 3L || length(n_dims) != 1L || is.na(n_dims) ||
+      n_dims < 1L || n_dims >= min(dim(mat))) {
+    stop("n_dims must be positive and smaller than both matrix dimensions")
+  }
 
   message("Normalizing: library size -> scale 1e4 -> log1p")
   lib_sizes <- BPCells::colSums(mat)
+  if (any(!is.finite(lib_sizes) | lib_sizes <= 0)) stop("Invalid or zero count library size")
   mat_norm <- multiply_cols(mat, 1e4 / lib_sizes) %>% log1p()
 
   message("Computing per-gene mean and variance (streaming)")
@@ -75,20 +86,42 @@ run_join_pca <- function(counts_bp_dir, n_dims, n_threads, out_pca_f) {
 
   message("Queueing delayed per-gene centering and scaling")
   mat_scaled <- (mat_norm - gene_means) / gene_sds
+  pca_matrix <- mat_scaled
+  ridge <- NULL
+  design_info <- NULL
+  if (!is.null(tricycle_f) && nzchar(tricycle_f)) {
+    if (!exists(".write_cycle_regression_provenance", mode = "function")) {
+      stop("Source scripts/bpcells_pca.R before using join cell-cycle regression")
+    }
+    message("Regressing source-project tricycle scores; correction centring: ", correction_centering)
+    design_info <- .cyclic_design(tricycle_f, colnames(mat), harmonics, correction_centering)
+    ridge <- .make_ridge_operator(t(mat_scaled), design_info$fit,
+                                  design_info$correction, ridge_lambda)
+    pca_matrix <- ridge$matrix
+  } else if (!is.null(out_regression_f) || !is.null(out_regression_genes_f)) {
+    stop("Regression diagnostics require tricycle_f")
+  }
 
   message(sprintf(
     "Running threaded BPCells truncated SVD (n_dims = %d, threads = %d)",
     n_dims, n_threads))
   svd_result <- BPCells::svds(
-    mat_scaled,
+    pca_matrix,
     k = n_dims,
     opts = list(tol = 1e-5),
     threads = n_threads
   )
+  if (length(svd_result$nconv) != 1L || !is.finite(svd_result$nconv) ||
+      svd_result$nconv != n_dims || length(svd_result$d) != n_dims ||
+      any(!is.finite(svd_result$d))) {
+    stop("BPCells::svds did not converge to all requested PCs")
+  }
 
   message("Computing PC scores (V * D)")
   # Input is genes x cells, so V contains cell embeddings.
-  pc_scores <- sweep(svd_result$v, 2, svd_result$d, "*")
+  # The regression operator is cells x genes, so its cell embeddings are U.
+  cell_vectors <- if (is.null(ridge)) svd_result$v else svd_result$u
+  pc_scores <- sweep(cell_vectors, 2, svd_result$d, "*")
 
   message("Writing PCA embeddings to CSV.gz")
   pca_colnames <- sprintf("pca_%d", seq_len(n_dims))
@@ -97,6 +130,11 @@ run_join_pca <- function(counts_bp_dir, n_dims, n_threads, out_pca_f) {
 
   dir.create(dirname(out_pca_f), recursive = TRUE, showWarnings = FALSE)
   fwrite(pca_dt, out_pca_f)
+  if (!is.null(ridge)) {
+    .write_cycle_regression_provenance(mat, ridge, design_info, harmonics,
+      ridge_lambda, out_regression_f, out_regression_genes_f)
+  }
 
   message(sprintf("Done. Wrote %d cells x %d PCs to %s", nrow(pca_dt), n_dims, out_pca_f))
+  invisible(pca_dt)
 }

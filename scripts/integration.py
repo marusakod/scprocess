@@ -387,26 +387,13 @@ def _normalize_hvg_mat(hvg_mat, cells_df, exclude_mito, scale_f = 10000):
   return hvg_mat
 
 
-def _use_cpu_harmony(use_gpu, batch_var):
-  """Return whether multi-covariate Harmony should use the CPU backend."""
-  return use_gpu and isinstance(batch_var, list) and len(batch_var) > 1
-
-
 def _run_harmony(adata, batch_var, theta, use_gpu):
   """Run Harmony on the selected backend, leaving its embedding in host memory."""
-  if _use_cpu_harmony(use_gpu, batch_var):
-    warnings.warn(
-      "Multiple Harmony batch variables requested with GPU acceleration. "
-      "Harmony will run on CPU; neighbors, Leiden, and UMAP will use GPU.",
-      UserWarning,
-      stacklevel=2,
-    )
-    pca = adata.obsm['X_pca']
-    adata.obsm['X_pca'] = pca.get() if hasattr(pca, 'get') else np.asarray(pca)
-    sce.pp.harmony_integrate(adata, key=batch_var, theta=theta)
-  elif use_gpu:
+  if use_gpu:
+    # RAPIDS single-cell 0.16.1 supports independent covariates and per-key theta.
+    # Explicitly preserve the original Harmony algorithm, not the new default.
     sc.pp.harmony_integrate(adata, key=batch_var, max_iter_harmony=5,
-      dtype=cp.float32, theta=theta)
+      dtype=cp.float32, theta=theta, flavor='harmony1')
   else:
     sce.pp.harmony_integrate(adata, key=batch_var, theta=theta)
 
@@ -734,6 +721,10 @@ if __name__ == "__main__":
   if use_gpu:
     print(f"Running on GPU")
     import rapids_singlecell as sc
+    from packaging.version import Version
+    if Version(sc.__version__) < Version('0.16.1'):
+      raise RuntimeError('GPU integration requires rapids-singlecell >= 0.16.1; '
+        'rebuild the workflow integration environment from envs/integration.yaml')
     import scanpy.external as sce
     import rmm
     from rmm.allocators.cupy import rmm_cupy_allocator

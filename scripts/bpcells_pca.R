@@ -16,6 +16,46 @@ suppressPackageStartupMessages({
 }
 
 
+.write_cycle_regression_provenance <- function(mat, ridge, design_info, harmonics,
+                                              ridge_lambda, out_regression_f,
+                                              out_regression_genes_f) {
+  if (!is.null(out_regression_f) && nzchar(out_regression_f)) {
+    if (is.null(ridge)) stop("out_regression_f requires tricycle regression")
+    component_variance <- colSums(
+      ridge$coefficients * (ridge$correction_gram %*% ridge$coefficients)
+    ) / max(1, nrow(design_info$fit) - 1L)
+    group_mean_changes <- design_info$group_correction_means %*% ridge$coefficients
+    provenance <- data.table(
+      n_cells = nrow(design_info$fit),
+      cell_set_md5 = .cell_set_fingerprint(colnames(mat)),
+      harmonics = as.integer(harmonics),
+      ridge_lambda = as.numeric(ridge_lambda),
+      ridge_lambda_effective = ridge$lambda_effective,
+      coefficient_fit_centring = "within_sample",
+      correction_design_centring = design_info$correction_centering,
+      design_condition_number = kappa(ridge$gram),
+      max_abs_within_sample_design_mean = design_info$max_sample_mean,
+      max_abs_global_correction_design_mean = design_info$max_global_correction_mean,
+      design_rms = paste(signif(design_info$rms, 8L), collapse = ";"),
+      coefficient_rms = sqrt(mean(ridge$coefficients^2)),
+      n_regression_groups = nrow(design_info$group_correction_means),
+      predicted_regression_group_mean_change_rms = sqrt(mean(group_mean_changes^2)),
+      predicted_regression_group_mean_change_max = max(abs(group_mean_changes)),
+      cyclic_component_variance_mean = mean(component_variance),
+      cyclic_component_variance_median = median(component_variance),
+      cyclic_component_variance_max = max(component_variance)
+    )
+    dir.create(dirname(out_regression_f), recursive = TRUE, showWarnings = FALSE)
+    fwrite(provenance, out_regression_f)
+    if (!is.null(out_regression_genes_f) && nzchar(out_regression_genes_f)) {
+      gene_provenance <- data.table(gene_id = rownames(mat))
+      gene_provenance[, (rownames(ridge$coefficients)) := as.data.table(t(ridge$coefficients))]
+      gene_provenance[, cyclic_component_variance := component_variance]
+      dir.create(dirname(out_regression_genes_f), recursive = TRUE, showWarnings = FALSE)
+      fwrite(gene_provenance, out_regression_genes_f)
+    }
+  }
+}
 .check_svd_convergence <- function(result, n_dims) {
   if (length(result$nconv) != 1L || !is.finite(result$nconv) ||
       result$nconv != n_dims || length(result$d) != n_dims ||
@@ -328,42 +368,8 @@ run_bpcells_pca <- function(
   dir.create(dirname(out_pca_f), recursive = TRUE, showWarnings = FALSE)
   fwrite(pca_dt, out_pca_f)
 
-  if (!is.null(out_regression_f) && nzchar(out_regression_f)) {
-    if (is.null(ridge)) stop("out_regression_f requires tricycle regression")
-    component_variance <- colSums(
-      ridge$coefficients * (ridge$correction_gram %*% ridge$coefficients)
-    ) / max(1, nrow(design_info$fit) - 1L)
-    group_mean_changes <- design_info$group_correction_means %*% ridge$coefficients
-    provenance <- data.table(
-      n_cells = nrow(design_info$fit),
-      cell_set_md5 = .cell_set_fingerprint(colnames(mat)),
-      harmonics = as.integer(harmonics),
-      ridge_lambda = as.numeric(ridge_lambda),
-      ridge_lambda_effective = ridge$lambda_effective,
-      coefficient_fit_centring = "within_sample",
-      correction_design_centring = design_info$correction_centering,
-      design_condition_number = kappa(ridge$gram),
-      max_abs_within_sample_design_mean = design_info$max_sample_mean,
-      max_abs_global_correction_design_mean = design_info$max_global_correction_mean,
-      design_rms = paste(signif(design_info$rms, 8L), collapse = ";"),
-      coefficient_rms = sqrt(mean(ridge$coefficients^2)),
-      n_regression_groups = nrow(design_info$group_correction_means),
-      predicted_regression_group_mean_change_rms = sqrt(mean(group_mean_changes^2)),
-      predicted_regression_group_mean_change_max = max(abs(group_mean_changes)),
-      cyclic_component_variance_mean = mean(component_variance),
-      cyclic_component_variance_median = median(component_variance),
-      cyclic_component_variance_max = max(component_variance)
-    )
-    dir.create(dirname(out_regression_f), recursive = TRUE, showWarnings = FALSE)
-    fwrite(provenance, out_regression_f)
-    if (!is.null(out_regression_genes_f) && nzchar(out_regression_genes_f)) {
-      gene_provenance <- data.table(gene_id = rownames(mat))
-      gene_provenance[, (rownames(ridge$coefficients)) := as.data.table(t(ridge$coefficients))]
-      gene_provenance[, cyclic_component_variance := component_variance]
-      dir.create(dirname(out_regression_genes_f), recursive = TRUE, showWarnings = FALSE)
-      fwrite(gene_provenance, out_regression_genes_f)
-    }
-  }
+  .write_cycle_regression_provenance(mat, ridge, design_info, harmonics,
+    ridge_lambda, out_regression_f, out_regression_genes_f)
   message(sprintf("Done. Wrote %d cells x %d PCs to %s", nrow(pca_dt), n_dims, out_pca_f))
   invisible(pca_dt)
 }

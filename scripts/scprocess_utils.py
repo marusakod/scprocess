@@ -2859,15 +2859,19 @@ def _check_join_integration_parameters(config):
       raise ValueError(
         "integration.int_batch_var and integration.int_theta must have matching "
         f"lengths when both are arrays (got {len(batch_vars)} and {len(theta)})")
-  if (integration.get('int_use_gpu', False)
-      and integration.get('int_embedding', 'harmony') == 'harmony'
-      and isinstance(batch_vars, list) and len(batch_vars) > 1):
-    warnings.warn(
-      "Multiple Harmony batch variables requested with int_use_gpu=true. "
-      "Harmony will run on CPU; neighbors, Leiden, and UMAP will use GPU.",
-      UserWarning,
-      stacklevel=2,
-    )
+  correction_key = 'int_cell_cycle_correction'
+  tuning_keys = ('int_cell_cycle_harmonics', 'int_cell_cycle_ridge_lambda')
+  if correction_key not in integration:
+    if any(key in integration for key in tuning_keys):
+      raise ValueError('Cell-cycle tuning parameters require int_cell_cycle_correction')
+    return
+  if integration[correction_key] not in ('within_sample', 'global'):
+    raise ValueError('int_cell_cycle_correction must be within_sample or global')
+  if integration.get('int_pca_method', 'bpcells') != 'bpcells':
+    raise ValueError('Join cell-cycle regression requires int_pca_method: bpcells')
+  # Joins reuse source-project tricycle scores; no new cell_cycle block is needed.
+  integration.setdefault('int_cell_cycle_harmonics', 2)
+  integration.setdefault('int_cell_cycle_ridge_lambda', 0.1)
 
 
 def check_join_config(config, join_schema_f, scdata_dir):

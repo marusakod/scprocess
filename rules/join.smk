@@ -72,6 +72,8 @@ INT_N_DIMS     = config['integration']['int_n_dims']
 INT_RES_LS     = config['integration']['int_res_ls']
 INT_PCA_METHOD = config['integration']['int_pca_method']
 INT_BATCH_VAR  = config['integration']['int_batch_var']
+INT_CYCLE_MODE = config['integration'].get('int_cell_cycle_correction')
+DO_CYCLE_CORRECTION = INT_CYCLE_MODE is not None
 
 # marker genes
 _mkr_cfg    = config['marker_genes']
@@ -131,6 +133,16 @@ joint_coldata_f     = f"{join_int_dir}/joint_coldata_{JOIN_TAG}_{DATE_STAMP}.csv
 joint_sample_meta_f = f"{join_int_dir}/joint_sample_meta_{JOIN_TAG}_{DATE_STAMP}.csv"
 joint_qc_f          = f"{join_int_dir}/joint_qc_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
 joint_pca_f         = f"{join_int_dir}/joint_pca_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
+joint_cycle_regression_f = f"{join_int_dir}/cell_cycle_regression_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
+joint_cycle_genes_f = f"{join_int_dir}/cell_cycle_regression_genes_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
+JOIN_CYCLE_ARGS = (
+  f", tricycle_f = '{joint_coldata_f}', "
+  f"correction_centering = '{INT_CYCLE_MODE}', "
+  f"harmonics = {config['integration']['int_cell_cycle_harmonics']}, "
+  f"ridge_lambda = {config['integration']['int_cell_cycle_ridge_lambda']}, "
+  f"out_regression_f = '{joint_cycle_regression_f}', "
+  f"out_regression_genes_f = '{joint_cycle_genes_f}'"
+) if DO_CYCLE_CORRECTION else ''
 joint_integration_f = f"{join_int_dir}/integrated_dt_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
 joint_h5ads_yaml_f  = f"{join_int_dir}/h5ads_clean_paths_{JOIN_TAG}_{DATE_STAMP}.yaml"
 h5ads_dir           = f"{join_int_dir}/h5ads"
@@ -380,11 +392,16 @@ rule join_build_bpcells_matrix:
 rule join_pca:
   """Compute centered and scaled PCA from native BPCells storage."""
   input:
-    counts_bp_dir = joint_bpcells_counts_dir
+    counts_bp_dir = joint_bpcells_counts_dir,
+    tricycle_f = joint_coldata_f if DO_CYCLE_CORRECTION else []
   output:
-    pca_f = joint_pca_f
+    pca_f = joint_pca_f,
+    regression_f = joint_cycle_regression_f if DO_CYCLE_CORRECTION else [],
+    regression_genes_f = joint_cycle_genes_f if DO_CYCLE_CORRECTION else []
   params:
-    n_dims = INT_N_DIMS
+    n_dims = INT_N_DIMS,
+    # Only track correction parameters when enabled; preserve ordinary join caches.
+    **({'cycle_args': JOIN_CYCLE_ARGS} if DO_CYCLE_CORRECTION else {})
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -407,11 +424,11 @@ rule join_pca:
     trap 'rm -rf -- "$LOCAL_BP"' EXIT
     cp -a {input.counts_bp_dir}/. "$LOCAL_BP"/
 
-    Rscript --vanilla -e "source('{scprocess_dir}/scripts/join_pca.R'); run_join_pca(
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); source('{scprocess_dir}/scripts/join_pca.R'); run_join_pca(
       counts_bp_dir = '$LOCAL_BP',
       n_dims        =  {params.n_dims},
       n_threads     =  {threads},
-      out_pca_f     = '{output.pca_f}')"
+      out_pca_f     = '{output.pca_f}'{JOIN_CYCLE_ARGS})"
     """
 
 
