@@ -912,6 +912,7 @@ rule join_render_html:
     label_files   = label_fs,
     cluster_names = cluster_names_fs,
     xgb_files     = [],
+    report_helper_f = str(scprocess_dir / "scripts/join_report.R"),
     rmd_template_f = str(scprocess_dir / "resources/rmd_templates/join.Rmd.template")
   output:
     r_utils_f     = f"{code_dir}/utils.R",

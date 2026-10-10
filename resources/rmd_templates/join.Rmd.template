@@ -30,6 +30,7 @@ source(file.path(scprocess_dir, 'scripts/integration.R'))
 source(file.path(scprocess_dir, 'scripts/marker_genes.R'))
 source(file.path(scprocess_dir, 'scripts/fgsea.R'))
 source(file.path(scprocess_dir, 'scripts/label_celltypes.R'))
+source(file.path(scprocess_dir, 'scripts/join_report.R'))
 library(stringi)
 setDTthreads(1L)
 do_xgboost = as.logical("${do_xgboost}")
@@ -94,7 +95,8 @@ if (do_labels) {
   model_ls       = str_split(model_ls_str, " ")[[1]]
   hi_res_cl_ls   = str_split(hi_res_cl_ls_str, " ")[[1]]
   min_cl_prop_ls = str_split(min_cl_prop_ls_str, " ")[[1]] %>% as.numeric()
-  min_cl2_p      = 0.2
+  min_cl2_p      = 0.05
+  lbl_threshold  = 0.05
 }
 
 cl_ord        = NULL
@@ -374,26 +376,33 @@ cat("Cell type labels were predicted using CellTypist. Per-cell predictions are\
 ```
 
 ```{r label_heatmap_header, eval=do_labels, include=do_labels, results="asis"}
-cat("### Clusters vs predicted cell types{.tabset}\n\n")
+cat("### Naive labels vs clusters and projects{.tabset}\n\n")
+cat("Rows are original per-cell naive predictions; columns are selected-resolution\n",
+    "clusters or projects. Missing labels are excluded. Labels below 5% in every\n",
+    "column are combined into Other using raw counts, before log pseudocounts.\n",
+    "Both axes are clustered. Both normalization views use log colors; printed\n",
+    "percentages use raw proportions and are shown only at 5% or above.\n\n")
 ```
 
 ```{r plot_labels_heatmap, eval=do_labels, include=do_labels, fig.height=12, fig.width=13, results="asis"}
-for (ii in seq_along(label_f_ls)) {
-  this_labeller  = labeller_ls[[ii]]
-  this_model     = model_ls[[ii]]
-  this_hi_res_cl = hi_res_cl_ls[[ii]]
-
-  guesses_sel = guesses_ls[[ii]] %>%
-    .[, .(cell_id, prediction = predicted_label_naive %>% factor)]
-  int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2,
-    hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
-  confuse_dt  = calc_confuse_dt(guesses_sel, int_tmp, "prediction",
-    "hi_res_cl", min_cl2_p = min_cl2_p)
-
-  cat('####', this_labeller, ',', this_model, '\n')
-  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", this_hi_res_cl,
-    plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
-  cat('\n\n')
+comparison_vars = c(paste0('RNA_snn_res.', sel_res), 'project_id')
+comparison_titles = c(paste('Clusters (resolution', paste0(sel_res, ')')), 'Projects')
+for (jj in seq_along(comparison_vars)) {
+  cat('####', comparison_titles[[jj]], '{.tabset}\n\n')
+  for (ii in seq_along(label_f_ls)) {
+    cat('#####', labeller_ls[[ii]], ',', model_ls[[ii]], '{.tabset}\n\n')
+    confuse_dt = prepare_join_label_comparison(guesses_ls[[ii]], int_dt,
+      comparison_vars[[jj]], min_cl2_p = min_cl2_p)
+    for (normalization in c('column', 'row')) {
+      view_title = if (normalization == 'row') 'Within cell types (rows sum to 1)'
+        else if (comparison_vars[[jj]] == 'project_id') 'Within projects (columns sum to 1)'
+        else 'Within clusters (columns sum to 1)'
+      cat('######', view_title, '\n\n')
+      draw(plot_join_label_comparison(confuse_dt, model_ls[[ii]],
+        comparison_titles[[jj]], normalization, lbl_threshold), merge_legend = TRUE)
+      cat('\n\n')
+    }
+  }
 }
 ```
 

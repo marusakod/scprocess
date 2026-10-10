@@ -290,6 +290,15 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
 
   # don't make any changes!
   copy_dt     = copy(confuse_dt)
+  # A cluster named 'cl1' collides with the dcast row-key column 'cl1'.
+  # Remove the row key by position, not by name, to retain numeric values
+  # and every comparison column, including the cluster named 'cl1'.
+  .numeric_confusion_matrix <- function(wide) {
+    mat = as.matrix(wide[, -1L, with = FALSE])
+    rownames(mat) = as.character(wide[[1L]])
+    stopifnot(is.numeric(mat))
+    mat
+  }
   if (!is.null(order_cl1))
     copy_dt     = copy_dt[, cl1 := factor(cl1, levels = order_cl1)]
   if (!is.null(order_cl2))
@@ -390,7 +399,7 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
     sel_cl    = str_extract(plot_var, "cl[0-9]")
     # define annotations
     txt_mat   = dcast( copy_dt, cl1 ~ cl2, value.var = paste0("p_", sel_cl) ) %>%
-      as.matrix(rownames = "cl1")
+      .numeric_confusion_matrix()
     .lbl_fn <- function(j, i, x, y, width, height, fill) {
       val     = txt_mat[i, j]
       if (val < lbl_threshold) {
@@ -404,14 +413,14 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
   } else if ( plot_var %in% c("N", "log_N")) {
     # define annotations
     txt_mat   = dcast( copy_dt, cl1 ~ cl2, value.var = "N" ) %>%
-      as.matrix(rownames = "cl1")
+      .numeric_confusion_matrix()
     .lbl_fn <- function(j, i, x, y, width, height, fill)
       grid.text(sprintf("%s", signif(txt_mat[i, j], 2)),
         x, y, gp = gpar(fontsize = 10))
   }
 
   # turn into matrix
-  data_mat    = data_wide %>% as.matrix( rownames = "cl1" )
+  data_mat    = .numeric_confusion_matrix(data_wide)
 
   # make data for annotations
   rows_dt     = copy_dt[, .(total_cl1 = sum(N)), by = cl1 ] %>%
@@ -437,7 +446,7 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
     row_annots  = rowAnnotation(
       `cl1 total`  = rows_dt$log_total_cl1,
       col = list(`cl1 total` = log_cols),
-      annotation_name_side = "bottom",
+      annotation_name_side = "top",
       annotation_legend_param = list(
         `cl1 total` = list(at = log_brks, labels = log_labs)
         )
@@ -445,7 +454,7 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
     col_annots  = HeatmapAnnotation(
       `cl2 total`  = cols_dt$log_total_cl2,
       col = list(`cl2 total` = log_cols),
-      annotation_name_side = "left",
+      annotation_name_side = "right",
       annotation_legend_param = list(
         `cl2 total` = list(at = log_brks, labels = log_labs)
         )
