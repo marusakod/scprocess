@@ -153,6 +153,18 @@ def _zoom_metadata_vars_ls(zoom_name):
   return ZOOM_PARAMS[zoom_name].get('shiny', {}).get('metadata_vars', _metadata_vars_ls)
 
 
+def _main_shiny_data_resource(input, param, attempt):
+  # Retain existing config keys and model after the data/configure rule split.
+  resource_params = dict(RESOURCE_PARAMS)
+  for section in ('user_vals', 'defaults'):
+    resource_params[section] = dict(RESOURCE_PARAMS[section])
+    for prefix in ('gb', 'mins'):
+      old_key = f'{prefix}_build_shiny_app'
+      if old_key in resource_params[section]:
+        resource_params[section][f'{prefix}_build_shiny_data'] = resource_params[section][old_key]
+  return get_resources(resource_params, rules, input, 'build_shiny_data', param,
+                       attempt, csv_rule='build_shiny_app')
+
 # ---- aggregate rule: build all zoom shiny apps ----------------------------
 rule build_all_zoom_shiny_apps:
   input:
@@ -184,8 +196,8 @@ rule build_shiny_data:
     fgsea_go_mf_f     = lambda wildcards, input: getattr(input, 'fgsea_go_mf_f', ''),
   threads: 4
   resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_shiny_app', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_shiny_app', 'time', attempt)
+    mem_mb  = lambda wildcards, attempt, input: _main_shiny_data_resource(input, 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: _main_shiny_data_resource(input, 'time', attempt)
   log:   f'{logs_dir}/shiny/build_shiny_data_{_main_app_tag}_{DATE_STAMP}.log'
   conda: '../envs/shiny.yaml'
   shell: """
