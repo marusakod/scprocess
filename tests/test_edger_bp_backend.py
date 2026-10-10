@@ -16,10 +16,10 @@ class TestEdgerBpBackend(unittest.TestCase):
   def test_environment_uses_public_release_channel(self):
     source = EDGER_BP_ENV.read_text()
     self.assertIn(
-      'https://raw.githubusercontent.com/wmacnair/edger.bp/conda-channel',
+      'https://raw.githubusercontent.com/marusakod/edger.bp/conda-channel',
       source,
     )
-    self.assertIn('r-edger-bp=0.1.1=r45_0', source)
+    self.assertIn('r-edger-bp=0.1.2=r45_0', source)
     self.assertNotIn('edger.bp-work', source)
     self.assertNotIn('r-edger-bp=0.0.0.9000', source)
 

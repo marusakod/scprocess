@@ -269,3 +269,77 @@ stopifnot(
     tolerance = 1e-12
   ))
 )
+
+# Exercise the public wrapper with a real PSOCK pool and a persistent fit.
+checkpoint_dir = tempfile("scprocess-marker-checkpoint-")
+dir.create(checkpoint_dir)
+edger.bp::bp_ensure_storage_order(bp_counts, order = "row",
+  outdir = file.path(checkpoint_dir, "counts_row"), tmpdir = tempdir())
+data.table::fwrite(coldata, file.path(checkpoint_dir, "coldata.csv.gz"))
+data.table::fwrite(data.frame(gene_id = rownames(counts)),
+  file.path(checkpoint_dir, "rowdata.csv.gz"))
+prepared_cols = file.path(checkpoint_dir, "prepared_cols.csv.gz")
+prepared_rows = file.path(checkpoint_dir, "prepared_rows.csv.gz")
+coldata$effective_lib_size = effective_lib_size
+data.table::fwrite(coldata, prepared_cols)
+data.table::fwrite(data.frame(gene_id = rownames(counts)), prepared_rows)
+markers_f = file.path(checkpoint_dir, "markers.csv.gz")
+checkpoint_f = paste0(markers_f, ".fitted.rds")
+original_fit = fit_markers_edger_bp
+fit_calls = 0L
+fit_markers_edger_bp = function(...) {
+  fit_calls <<- fit_calls + 1L
+  original_fit(...)
+}
+original_context = calc_marker_context_bpcells
+context_calls = 0L
+fail_context = FALSE
+calc_marker_context_bpcells = function(..., workers, block_apply) {
+  stopifnot(Sys.getpid() == parent_pid, workers == 1L,
+    identical(block_apply, .bp_lapply))
+  context_calls <<- context_calls + 1L
+  if (fail_context && context_calls %% 2L == 0L) stop("synthetic summary failure")
+  original_context(..., workers = workers, block_apply = block_apply)
+}
+run_markers = function(block_size = 20L) calculate_join_marker_genes_bpcells(
+  checkpoint_dir, prepared_cols, prepared_rows, markers_f, biotypes,
+  n_cores = 2L, block_size = block_size)
+fail_context = TRUE
+failed = tryCatch(run_markers(), error = identity)
+stopifnot(inherits(failed, "error"), grepl("synthetic summary", failed$message),
+  fit_calls == 1L, file.exists(checkpoint_f), !file.exists(markers_f))
+fail_context = FALSE
+recovered = run_markers()
+stopifnot(fit_calls == 1L, file.exists(markers_f), nrow(recovered) == n_genes * 3L)
+again = run_markers()
+stopifnot(fit_calls == 1L, isTRUE(all.equal(recovered, again)))
+changed = run_markers(block_size = 13L)
+stopifnot(fit_calls == 2L, isTRUE(all.equal(recovered, changed, tolerance = 1e-8)))
+saved = readRDS(checkpoint_f)
+for (field in c("counts_md5", "coldata", "rowdata", "adjust_project_id",
+                "versions", "implementations", "package_code", "package_binaries")) {
+  stale = saved$signature
+  stale[[field]] = NULL
+  stopifnot(is.null(.read_marker_fit_checkpoint(checkpoint_f, stale)))
+}
+# Changing a helper must also change the provenance without changing inputs.
+signature_before = .marker_fit_signature(checkpoint_dir, coldata,
+  data.frame(gene_id = rownames(counts)), FALSE, 13L, 2L)
+original_matrix = .bp_as_matrix
+.bp_as_matrix = function(x) { return(.without_bpcells_dense_message(as.matrix(x))) }
+signature_after = .marker_fit_signature(checkpoint_dir, coldata,
+  data.frame(gene_id = rownames(counts)), FALSE, 13L, 2L)
+stopifnot(!identical(signature_before, signature_after))
+.bp_as_matrix = original_matrix
+coldata$effective_lib_size[1L] = coldata$effective_lib_size[1L] * 1.1
+data.table::fwrite(coldata, prepared_cols)
+updated_metadata = run_markers(block_size = 13L)
+stopifnot(fit_calls == 3L,
+  !isTRUE(all.equal(updated_metadata$PValue, recovered$PValue)))
+writeBin(charToRaw("interrupted checkpoint write"), checkpoint_f)
+run_markers(block_size = 13L)
+stopifnot(fit_calls == 4L, is.list(readRDS(checkpoint_f)),
+  !length(list.files(checkpoint_dir, pattern = "^\\.marker-fit-", all.files = TRUE)))
+fit_markers_edger_bp = original_fit
+calc_marker_context_bpcells = original_context
+unlink(checkpoint_dir, recursive = TRUE)

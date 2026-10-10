@@ -1,3 +1,20 @@
+# An explicit, audited project library may override an older workflow package.
+# scprocess clears R_LIBS_USER on launch, so use a scoped variable and re-export
+# the selected library inside R for subsequently spawned PSOCK workers.
+.edger_bp_library = Sys.getenv("SCPROCESS_EDGER_BP_LIBRARY", "")
+if (nzchar(.edger_bp_library)) {
+  expected = normalizePath(file.path(.edger_bp_library, "edger.bp"), mustWork = TRUE)
+  if ("edger.bp" %in% loadedNamespaces() &&
+      normalizePath(getNamespaceInfo("edger.bp", "path")) != expected) {
+    stop("A different edger.bp namespace is already loaded; start a clean R process")
+  }
+  .libPaths(c(.edger_bp_library, .libPaths()))
+  Sys.setenv(R_LIBS_USER = .edger_bp_library)
+  if (normalizePath(find.package("edger.bp")) != expected) {
+    stop("Configured edger.bp library was not selected")
+  }
+  message("Explicit edger.bp library: ", expected)
+}
 RhpcBLASctl::blas_set_num_threads(1L)
 RhpcBLASctl::omp_set_num_threads(1L)
 
@@ -575,9 +592,89 @@ calculate_join_hvgs_bpcells <- function(pb_dir, prepared_coldata_f, pb_hvgs_f,
 }
 
 
+.marker_fit_signature <- function(pb_dir, coldata, rowdata, adjust_project_id,
+  block_size, workers) {
+  counts_dir = file.path(pb_dir, "counts_row")
+  files = sort(list.files(counts_dir, recursive = TRUE, full.names = TRUE))
+  hashes = tools::md5sum(files)
+  if (!length(hashes) || anyNA(hashes)) {
+    stop("Cannot fingerprint the BPCells count store.", call. = FALSE)
+  }
+  names(hashes) = substring(files, nchar(counts_dir) + 2L)
+  helpers = c("fit_markers_edger_bp", ".join_project_effect", ".bp_row_blocks",
+    ".bp_lapply", ".bp_as_matrix", ".without_bpcells_dense_message")
+  implementations = lapply(helpers, function(name) {
+    fun = get(name, envir = environment(.marker_fit_signature))
+    list(formals = formals(fun), body = deparse(body(fun)))
+  })
+  names(implementations) = helpers
+  packages = c("edger.bp", "BPCells", "edgeR", "limma", "R")
+  versions = vapply(packages, function(package) {
+    if (package == "R") as.character(getRversion()) else
+      as.character(utils::packageVersion(package))
+  }, character(1))
+  # Include installed implementations: development builds can share a version.
+  package_code = lapply(packages[packages != "R"], function(package) {
+    ns = asNamespace(package)
+    objects = sort(ls(ns, all.names = TRUE))
+    functions = objects[vapply(objects, function(name)
+      is.function(get(name, envir = ns, inherits = FALSE)), logical(1))]
+    setNames(lapply(functions, function(name) {
+      fun = get(name, envir = ns, inherits = FALSE)
+      list(formals = formals(fun), body = deparse(body(fun)))
+    }), functions)
+  })
+  package_binaries = lapply(packages[packages != "R"], function(package) {
+    root = find.package(package)
+    files = sort(list.files(file.path(root, "libs"), recursive = TRUE,
+      full.names = TRUE))
+    hashes = tools::md5sum(files)
+    if (anyNA(hashes)) stop("Cannot fingerprint package binaries: ", package)
+    names(hashes) = substring(files, nchar(root) + 2L)
+    hashes
+  })
+  list(format = 1L, counts_md5 = hashes,
+    coldata = as.data.frame(coldata), rowdata = as.data.frame(rowdata),
+    adjust_project_id = adjust_project_id, block_size = block_size,
+    workers = workers, versions = versions, implementations = implementations,
+    package_code = package_code, package_binaries = package_binaries)
+}
+
+
+.read_marker_fit_checkpoint <- function(path, signature) {
+  if (!file.exists(path)) return(NULL)
+  saved = tryCatch(readRDS(path), error = function(e) NULL)
+  if (!is.list(saved) || !identical(saved$signature, signature) ||
+      !is.data.frame(saved$markers) || !nrow(saved$markers) ||
+      !all(c("gene_id", "cluster", "PValue", "FDR", "logFC", "logCPM") %in%
+        names(saved$markers))) {
+    message("Marker fit checkpoint is stale or unreadable; recomputing: ", path)
+    return(NULL)
+  }
+  message("Reusing validated marker fit checkpoint: ", path)
+  saved$markers
+}
+
+
+.write_marker_fit_checkpoint <- function(markers, signature, path) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  temporary = tempfile(".marker-fit-", tmpdir = dirname(path))
+  on.exit(unlink(temporary), add = TRUE)
+  saveRDS(list(markers = as.data.frame(markers), signature = signature), temporary)
+  if (!file.rename(temporary, path)) {
+    stop("Could not replace marker fit checkpoint: ", path, call. = FALSE)
+  }
+}
+
+
 calculate_join_marker_genes_bpcells <- function(pb_dir, prepared_coldata_f,
   prepared_rowdata_f, mkrs_f, biotypes_dt, n_cores = 4L, block_size = 1000L,
   adjust_project_id = FALSE) {
+  required = c("bp_start_psock_pool", "bp_stop_psock_pool", "bp_with_psock_pool")
+  if (!all(required %in% getNamespaceExports("edger.bp"))) {
+    stop("Loaded edger.bp lacks the required PSOCK APIs: ", find.package("edger.bp"),
+         "; select the audited library with SCPROCESS_EDGER_BP_LIBRARY")
+  }
   cache = open_pseudobulk_cache_bpcells(pb_dir, storage_order = "row")
   coldata = data.table::fread(prepared_coldata_f)
   rowdata = data.table::fread(prepared_rowdata_f)
@@ -589,29 +686,42 @@ calculate_join_marker_genes_bpcells <- function(pb_dir, prepared_coldata_f,
   if (anyNA(rows)) {
     stop("Prepared genes are absent from the BPCells store.", call. = FALSE)
   }
-  pool = edger.bp::bp_start_psock_pool(
-    file.path(pb_dir, "counts_row"), rows = rows, cols = cols,
-    workers = n_cores, verbose = TRUE
-  )
-  on.exit(edger.bp::bp_stop_psock_pool(pool), add = TRUE)
-  counts = pool$counts
+  counts = cache$counts[rows, cols, drop = FALSE]
   clusters = unique(coldata$cluster)
-
-  markers = edger.bp::bp_with_psock_pool(pool, fit_markers_edger_bp(
-    counts, coldata, clusters,
-    effective_lib_size = coldata$effective_lib_size,
-    workers = n_cores, block_size = block_size,
-    adjust_project_id = adjust_project_id
-  ))
-
-  context = edger.bp::bp_with_psock_pool(pool, calc_marker_context_bpcells(
+  # Probe parent-process summaries before spending time on marker fitting.
+  calc_marker_context_bpcells(counts[seq_len(min(100L, nrow(counts))), , drop = FALSE],
+    coldata, coldata$effective_lib_size, block_size = block_size,
+    workers = 1L, block_apply = .bp_lapply)
+  checkpoint_f = paste0(mkrs_f, ".fitted.rds")
+  signature = .marker_fit_signature(pb_dir, coldata, rowdata,
+    adjust_project_id, block_size, n_cores)
+  markers = .read_marker_fit_checkpoint(checkpoint_f, signature)
+  if (is.null(markers)) {
+    pool = edger.bp::bp_start_psock_pool(
+      file.path(pb_dir, "counts_row"), rows = rows, cols = cols,
+      workers = n_cores, verbose = FALSE
+    )
+    on.exit(edger.bp::bp_stop_psock_pool(pool), add = TRUE)
+    markers = edger.bp::bp_with_psock_pool(pool, fit_markers_edger_bp(
+      pool$counts, coldata, clusters,
+      effective_lib_size = coldata$effective_lib_size,
+      workers = n_cores, block_size = block_size,
+      adjust_project_id = adjust_project_id
+    ))
+    .write_marker_fit_checkpoint(markers, signature, checkpoint_f)
+    message("Saved marker fit checkpoint: ", checkpoint_f)
+    edger.bp::bp_stop_psock_pool(pool)
+  }
+  # BPCells pointers cannot safely cross the pooled callback serialization here.
+  # Keep disk-backed summaries in the process that opened this matrix.
+  context = calc_marker_context_bpcells(
     counts,
     coldata,
     coldata$effective_lib_size,
     block_size = block_size,
-    workers = n_cores,
-    block_apply = edger.bp::bp_block_lapply
-  ))
+    workers = 1L,
+    block_apply = .bp_lapply
+  )
   markers = data.table::as.data.table(markers)
   markers = merge(markers, context, by = c("gene_id", "cluster"))
   markers = merge(markers, biotypes_dt, by = "gene_id", all.x = TRUE)

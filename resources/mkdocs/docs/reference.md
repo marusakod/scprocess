@@ -1307,16 +1307,23 @@ Additional parameters include:
   `resources.n_join_marker_genes_calc` controls the threads requested by
   `join_marker_genes_calc` and the number of streamed edgeR workers; its default is
   `8`. Marker fitting reuses one PSOCK worker pool across dispersion estimation,
-  cluster comparisons and expression summaries. Each independent R session
+  and cluster comparisons. Each independent R session
   opens the disk-backed counts once; the full matrix is not copied to each
   worker. This avoids repeated forks during long marker runs. BLAS and OpenMP
   are restricted to one thread per worker. Pass logs report worker identities
   and thread counts. More workers require additional memory and remain subject
-  to cluster process/thread limits. This requires an `edger.bp` build exporting
-  `bp_start_psock_pool`; update that package before running this marker rule.
+  to cluster process/thread limits. Expression summaries run blockwise in the
+  parent process, so their BPCells pointers are never serialized to workers.
+  Completed fits are saved beside the marker output as `.fitted.rds` checkpoints.
+  If a later summary step fails, rerunning reuses the fit when the count store,
+  prepared metadata, model settings, fitting code and dependency implementations
+  match. Changed inputs or settings trigger a fresh fit; unreadable checkpoints
+  also trigger recomputation. Gene annotations and summaries are rebuilt on each
+  invocation. Checkpoint writes are atomic.
+  This requires `edger.bp` 0.1.2, which exports `bp_start_psock_pool`.
   The rule environment installs the audited BPCells and `edger.bp` R 4.5
   builds from the public
-  [edger.bp GitHub Conda channel](https://github.com/wmacnair/edger.bp/tree/conda-channel);
+  [edger.bp GitHub Conda channel](https://github.com/marusakod/edger.bp/tree/conda-channel);
   creating this environment for the first time requires access to
   `raw.githubusercontent.com`.
   Standard project and zoom marker-gene runs retain their existing RDS,
