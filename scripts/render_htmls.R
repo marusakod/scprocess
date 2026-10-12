@@ -100,7 +100,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
         "making the spliced percentage a useful metric for evaluating the effectiveness of an ambient RNA removal method. ", 
         "By examining changes in spliced percentages, we can assess how well the method performed in reducing ambient RNA contamination.")
     } else{
-      spl_umis_pl_txt = paste0("The plot shows the relationship between the number of UMIs and the percentage of spliced reads, separated by sample. ", 
+      spl_umis_pl_txt = paste0(
+        "The plot shows the relationship between the number of UMIs and the percentage of spliced reads, separated by sample. ",
         "It can help diagnose potential ambient RNA contamination, as ambient RNA is typically characterized by a high proportion of spliced reads.")
       plot_removed_title = ""
       plot_removed_txt = ""

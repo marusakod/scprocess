@@ -2650,7 +2650,8 @@ def _estimate_resource_parameter(filt_lm_df, RESOURCE_PARAMS, input, rule, run):
   elif x_rq == 'raw_data_size':
     if run is None:
       raise ValueError(f'run argument should be defined')
-    x_val       = RESOURCE_PARAMS['R1_sizes'][run]
+    lib         = RESOURCE_PARAMS['RUNS_TO_LIBS'].get(run, run)
+    x_val       = RESOURCE_PARAMS['R1_sizes'][lib]
 
   elif x_rq == 'n_smpls_pre_qc':
     x_val       = RESOURCE_PARAMS['n_batches']
