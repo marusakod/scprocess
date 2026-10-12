@@ -100,20 +100,34 @@ def select_cells(parent, coldata, metadata, labels, qc, selection, thresholds, n
 
 
 def prepare(context, config):
-    import h5py  # only needed for H5AD header inspection
+    """Preserve the existing CLI/context interface for callers."""
     paths = context['paths']
+    project = context['project']
+    return prepare_sources(
+        paths['integration'], paths['coldata'], paths['metadata'], paths['labels'], paths['qc'],
+        context['selection'], context['qc'], context['batches'], project['project_ids'],
+        context['selected_f'], context['summary_f'], project['integrated_fs'],
+        project['sample_meta_fs'], project['qc_all_fs'], project['h5ads_yaml_fs'],
+        config['integration']['int_n_dims'], config['integration']['int_batch_var'])
+
+
+def prepare_sources(integration_f, coldata_f, metadata_f, labels_f, qc_f,
+    selection, qc, batches, project_ids, selected_f, summary_f,
+    integrated_fs, sample_meta_fs, qc_all_fs, h5ads_yaml_fs,
+    int_n_dims, int_batch_var):
+    import h5py  # only needed for H5AD header inspection
     cells, summary = select_cells(
-        *(pl.read_csv(paths[key]) for key in ('integration', 'coldata', 'metadata', 'labels', 'qc')),
-        context['selection'], context['qc'], config['integration']['int_n_dims'])
-    batch_vars = config['integration']['int_batch_var']
+        *(pl.read_csv(path) for path in (integration_f, coldata_f, metadata_f, labels_f, qc_f)),
+        selection, qc, int_n_dims)
+    batch_vars = int_batch_var
     for var in ([batch_vars] if isinstance(batch_vars, str) else batch_vars):
         if var not in cells.columns or cells[var].null_count() or (cells[var].cast(pl.String) == '').any():
             raise ValueError(f'Integration batch variable {var!r} is missing for selected cells')
     selected = set(cells['cell_id'])
     cell_rows = {cell: i for i, cell in enumerate(cells['cell_id'])}
     seen = set()
-    manifests = {pid: {} for pid in context['project']['project_ids']}
-    for batch in context['batches'].values():
+    manifests = {pid: {} for pid in project_ids}
+    for batch in batches.values():
         path = batch['path']
         if batch.get('cells_f'):
             write_csv(cells.head(0).select('cell_id', 'sample_id'), batch['cells_f'])
@@ -138,22 +152,21 @@ def prepare(context, config):
                 write_csv(cells[sorted(cell_rows[cell] for cell in ids)].select('cell_id', 'sample_id'), batch['cells_f'])
     if selected != seen:
         raise ValueError(f'{len(selected - seen)} selected cells are absent from the clean H5ADs')
-    write_csv(cells, context['selected_f'])
-    write_csv(summary, context['summary_f'])
-    qc = pl.read_csv(paths['qc']).join(cells.select('cell_id'), on='cell_id', how='semi')
-    metadata = pl.read_csv(paths['metadata']).join(cells.select('sample_id').unique(), on='sample_id', how='semi')
-    proj = context['project']
-    for i, pid in enumerate(proj['project_ids']):
+    write_csv(cells, selected_f)
+    write_csv(summary, summary_f)
+    qc = pl.read_csv(qc_f).join(cells.select('cell_id'), on='cell_id', how='semi')
+    metadata = pl.read_csv(metadata_f).join(cells.select('sample_id').unique(), on='sample_id', how='semi')
+    for i, pid in enumerate(project_ids):
         frame = cells.filter(pl.col('project_id') == pid)
         prefix = pid + '_'
         if not frame['sample_id'].str.starts_with(prefix).all():
             raise ValueError(f'Unexpected parent sample IDs for {pid}; expected prefix {prefix}')
         frame = frame.with_columns(pl.col('sample_id').str.strip_prefix(prefix))
-        write_csv(frame, proj['integrated_fs'][i])
+        write_csv(frame, integrated_fs[i])
         meta = metadata.filter(pl.col('project_id') == pid).with_columns(pl.col('sample_id').str.strip_prefix(prefix))
-        write_csv(meta, proj['sample_meta_fs'][i])
-        write_csv(qc.filter(pl.col('project_id') == pid), proj['qc_all_fs'][i])
-        with open(proj['h5ads_yaml_fs'][i], 'w') as fh:
+        write_csv(meta, sample_meta_fs[i])
+        write_csv(qc.filter(pl.col('project_id') == pid), qc_all_fs[i])
+        with open(h5ads_yaml_fs[i], 'w') as fh:
             yaml.safe_dump(manifests[pid], fh)
     print(f"Retained {cells.height} cells across {cells['sample_id'].n_unique()} samples", flush=True)
 
@@ -343,6 +356,13 @@ if 'snakemake' in globals():
     import contextlib
     with open(snakemake.log[0], 'a') as log:
         with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
-            prepare(json.loads(snakemake.params.context), json.loads(snakemake.params.effective))
+            prepare_sources(
+                snakemake.input.integration_f, snakemake.input.coldata_f,
+                snakemake.input.metadata_f, snakemake.input.labels_f, snakemake.input.qc_f,
+                snakemake.params.selection, snakemake.params.qc, snakemake.params.batches,
+                snakemake.params.project_ids, snakemake.output.cells, snakemake.output.summary,
+                list(snakemake.output.integrations), list(snakemake.output.metadata),
+                list(snakemake.output.qc), list(snakemake.output.manifests),
+                snakemake.params.int_n_dims, snakemake.params.int_batch_var)
 elif __name__ == '__main__':
     main()

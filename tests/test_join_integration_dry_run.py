@@ -34,7 +34,7 @@ join_int_dir, JOIN_TAG, DATE_STAMP = 'output', 'test', 'date'
 INT_N_DIMS, INT_PCA_METHOD = 6, 'bpcells'
 INT_CYCLE_MODE = {correction!r}
 DO_CYCLE_CORRECTION = {correction is not None!r}
-JOIN_ZOOM_CONTEXT, JOIN_RETAIN_METADATA = {{}}, ''
+JOIN_ZOOM_PARAMS, JOIN_RETAIN_METADATA = {{}}, ''
 logs_dir, benchmark_dir = 'logs', 'benchmarks'
 RESOURCE_PARAMS = {{}}
 def get_resources(*args): return 1000

@@ -18,7 +18,7 @@ join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
 # detect config type: project (normal) or join
 _is_join = 'join' in config
 _join_zoom_name = config.pop('join_zoom_name', None)
-_join_zoom_context = {}
+JOIN_ZOOM_PARAMS = {}
 
 # references that support GSEA (ref_txome for poly-A, probe_set for Flex)
 _GSEA_REFS = {'human_2024', 'human_2020', 'mouse_2024', 'mouse_2020',
@@ -27,7 +27,13 @@ _GSEA_REFS = {'human_2024', 'human_2020', 'mouse_2024', 'mouse_2020',
 if _is_join:
   # --- validate and unpack join config ---
   if _join_zoom_name is not None:
-    config, _join_zoom_context = get_join_zoom_context(config, _join_zoom_name, scprocess_dir, scdata_dir)
+    parent_config = config
+    zoom_specs = get_join_zoom_specs(parent_config, scprocess_dir)
+    if _join_zoom_name not in zoom_specs:
+      raise ValueError(f'Unknown joined zoom {_join_zoom_name!r}; available: {list(zoom_specs)}')
+    zoom_spec = zoom_specs[_join_zoom_name]
+    config = check_join_zoom_config(parent_config, zoom_spec, scprocess_dir, scdata_dir)
+    JOIN_ZOOM_PARAMS = get_join_zoom_parameters(parent_config, config, zoom_spec)
   else:
     config = check_join_config(config, join_schema_f, scdata_dir)
   RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, scprocess_dir)
@@ -36,12 +42,12 @@ if _is_join:
   PROJ_DIR   = pathlib.Path(config['join']['proj_dir'])
   DATE_STAMP = config['join']['date_stamp']
   GENOME_REF = config['join'].get('probe_set', config['join'].get('ref_txome', ''))
-  JOIN_TAG   = _join_zoom_context.get('tag', f"{JOIN_NAME}_join")
+  JOIN_TAG   = JOIN_ZOOM_PARAMS.get('tag', f"{JOIN_NAME}_join")
   FULL_TAG   = JOIN_TAG
   SHORT_TAG  = JOIN_NAME
   MKR_SEL_RES = config.get('marker_genes', {}).get('mkr_sel_res', 0.2)
 
-  int_dir   = _join_zoom_context.get('out_dir', str(PROJ_DIR / f"output/{JOIN_TAG}"))
+  int_dir   = JOIN_ZOOM_PARAMS.get('out_dir', str(PROJ_DIR / f"output/{JOIN_TAG}"))
   mkr_dir   = int_dir
   zoom_dir  = ''   # not used for join
   logs_dir  = str(PROJ_DIR / ".log")

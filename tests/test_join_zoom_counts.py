@@ -162,8 +162,7 @@ class TestJoinedZoomCounts(unittest.TestCase):
                'qc': {'qc_min_cells': 2}, 'project': proj,
                'batches': {'0': {'path': str(source), 'project_id': 'a', 'key': 'a_batch',
                                   'cells_f': str(self.root / 'batch_cells.csv.gz')}},
-               'selected_f': str(self.root / 'selected.csv.gz'), 'summary_f': str(self.root / 'summary.csv'),
-               'effective_f': str(self.root / 'effective.yaml')}
+               'selected_f': str(self.root / 'selected.csv.gz'), 'summary_f': str(self.root / 'summary.csv')}
         prepare(ctx, {'integration': {'int_n_dims': 2, 'int_batch_var': 'sample_id'}})
         self.assertEqual(pl.read_csv(self.root / 'batch_cells.csv.gz').height, 80)
         self.assertEqual(pl.read_csv(proj['integrated_fs'][1]).height, 0)

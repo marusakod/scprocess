@@ -10,9 +10,18 @@ import pytest
 import yaml
 
 from scripts.join_zoom import select_cells, write_csv
-from scripts.scprocess_utils import get_join_zoom_specs, get_join_zoom_context, get_join_zoom_prepare_params
+from scripts.scprocess_utils import (get_join_zoom_specs, check_join_zoom_config,
+  get_join_zoom_parameters, get_join_zoom_source_selection_parameters)
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def resolve_join_zoom_parameters(parent, name, scprocess_dir, scdata_dir):
+    specs = get_join_zoom_specs(parent, scprocess_dir)
+    if name not in specs:
+        raise ValueError(f'Unknown joined zoom {name!r}; available: {list(specs)}')
+    config = check_join_zoom_config(parent, specs[name], scprocess_dir, scdata_dir)
+    return config, get_join_zoom_parameters(parent, config, specs[name])
 
 
 @pytest.fixture
@@ -72,10 +81,27 @@ def parent_fixture(tmp_path):
     return parent, spec, scdata, config_f, cells, coldata, meta, qc
 
 
-def test_context_inherits_settings_and_isolates_outputs(parent_fixture):
+@pytest.mark.parametrize('old,new,parent_value', [(7, None, None), (None, 9, None),
+    (7, 9, None), (7, None, 11)])
+def test_hvg_resource_renaming_preserves_overrides(parent_fixture, old, new, parent_value):
+    parent, spec, scdata, config_f, *_ = parent_fixture
+    if parent_value is not None:
+        parent['resources'] = {'gb_join_zoom_calculate_raw_gene_count_statistics': parent_value}
+    spec['resources'] = {}
+    if old is not None:
+        spec['resources']['gb_join_zoom_hvg_stats'] = old
+    if new is not None:
+        spec['resources']['gb_join_zoom_calculate_raw_gene_count_statistics'] = new
+    config_f.with_name('zoom.yaml').write_text(yaml.safe_dump(spec))
+    config, _ = resolve_join_zoom_parameters(parent, 'neurons', ROOT, scdata)
+    assert config['resources']['gb_join_zoom_calculate_raw_gene_count_statistics'] == (new if new is not None else old)
+    assert 'gb_join_zoom_hvg_stats' not in config['resources']
+
+
+def test_parameters_inherit_settings_and_isolate_outputs(parent_fixture):
     parent, spec, scdata, _, *_ = parent_fixture
     original = copy.deepcopy(parent)
-    config, ctx = get_join_zoom_context(parent, 'neurons', ROOT, scdata)
+    config, ctx = resolve_join_zoom_parameters(parent, 'neurons', ROOT, scdata)
     assert parent == original
     assert config['integration']['int_umap_n_iter'] == 2222
     assert config['integration']['int_use_gpu'] is False
@@ -101,22 +127,22 @@ def test_context_inherits_settings_and_isolates_outputs(parent_fixture):
 ])
 def test_preparation_tracks_only_consumed_settings(parent_fixture, section, key, value, changes_preparation):
     parent, spec, scdata, config_f, *_ = parent_fixture
-    cfg, ctx = get_join_zoom_context(parent, 'neurons', ROOT, scdata)
-    before = get_join_zoom_prepare_params(cfg, ctx)
+    cfg, ctx = resolve_join_zoom_parameters(parent, 'neurons', ROOT, scdata)
+    before = get_join_zoom_source_selection_parameters(cfg, ctx)
     spec.setdefault(section, {})[key] = value
     config_f.with_name('zoom.yaml').write_text(yaml.safe_dump(spec))
-    cfg, ctx = get_join_zoom_context(parent, 'neurons', ROOT, scdata)
-    after = get_join_zoom_prepare_params(cfg, ctx)
+    cfg, ctx = resolve_join_zoom_parameters(parent, 'neurons', ROOT, scdata)
+    after = get_join_zoom_source_selection_parameters(cfg, ctx)
     assert (before != after) == changes_preparation
 
 
-def test_preparation_resume_and_config_record_are_independent(parent_fixture, tmp_path):
+def test_preparation_resume_tracks_only_consumed_settings(parent_fixture, tmp_path):
     """Execute real preparation on eight cell headers, then edit the zoom YAML.
 
     No counts/PCA/marker calculations run. Input mtimes must still be honoured.
     """
     parent, spec, scdata, config_f, cells, *_ = parent_fixture
-    _, ctx = get_join_zoom_context(parent, 'neurons', ROOT, scdata)
+    _, ctx = resolve_join_zoom_parameters(parent, 'neurons', ROOT, scdata)
     hvg_python = os.environ.get('SCPROCESS_TEST_HVG_PYTHON', sys.executable)
     check = subprocess.run([hvg_python, '-c', 'import h5py, polars'], capture_output=True)
     if check.returncode:
@@ -150,25 +176,20 @@ with h5py.File(sys.argv[1], 'w') as fh:
         assert proc.returncode == 0, output
         return output
 
-    run('join_zoom_record_config')
-    assert 'Nothing to be done' in run('join_zoom_record_config', dry=True)
+    run('join_zoom_prepare')
+    assert 'Nothing to be done' in run('join_zoom_prepare', dry=True)
     prepared = [Path(ctx['selected_f']), *map(Path, ctx['project']['integrated_fs'])]
     before = {str(p): (p.stat().st_mtime_ns, p.read_bytes()) for p in prepared}
-    # Comments/YAML formatting alone must not invalidate either rule.
+    # Comments/YAML formatting alone must not invalidate preparation.
     zoom_f = config_f.with_name('zoom.yaml')
     zoom_f.write_text(zoom_f.read_text() + '\n# No analytical change\n')
-    assert 'Nothing to be done' in run('join_zoom_record_config', dry=True)
+    assert 'Nothing to be done' in run('join_zoom_prepare', dry=True)
     spec['marker_genes'] = {'mkr_sel_res': 0.2}
     spec['resources'] = {'n_join_marker_genes_calc': 32}
     zoom_f.write_text(yaml.safe_dump(spec))
     assert 'Nothing to be done' in run('join_zoom_prepare', dry=True)
-    output = run('join_zoom_record_config', dry=True)
-    assert 'rule join_zoom_record_config:' in output
-    assert 'rule join_zoom_prepare:' not in output
-    run('join_zoom_record_config')
+    run('join_zoom_prepare')
     assert before == {str(p): (p.stat().st_mtime_ns, p.read_bytes()) for p in prepared}
-    recorded = yaml.safe_load(Path(ctx['effective_f']).read_text())
-    assert recorded['config']['marker_genes']['mkr_sel_res'] == 0.2
     spec['qc']['qc_min_cells'] = 3
     zoom_f.write_text(yaml.safe_dump(spec))
     assert 'rule join_zoom_prepare:' in run('join_zoom_prepare', dry=True)
@@ -202,7 +223,7 @@ def test_unsupported_or_empty_settings_fail(parent_fixture, change):
 def test_duplicate_names_and_bad_selector(parent_fixture):
     parent, _, scdata, config_f, *_ = parent_fixture
     with pytest.raises(ValueError, match='Unknown joined zoom'):
-        get_join_zoom_context(parent, 'missing', ROOT, scdata)
+        resolve_join_zoom_parameters(parent, 'missing', ROOT, scdata)
     parent['zoom'].append('zoom.yaml')
     with pytest.raises(ValueError, match='Duplicate'):
         get_join_zoom_specs(parent, ROOT)
@@ -213,7 +234,7 @@ def test_disabled_paga_and_partial_overrides(parent_fixture):
     spec['integration'] = {'int_use_paga': False, 'int_res_ls': [0.5], 'int_umap_n_iter': 2000}
     spec['marker_genes'] = {'mkr_sel_res': 0.5}
     config_f.with_name('zoom.yaml').write_text(yaml.safe_dump(spec))
-    config, _ = get_join_zoom_context(parent, 'neurons', ROOT, scdata)
+    config, _ = resolve_join_zoom_parameters(parent, 'neurons', ROOT, scdata)
     assert not config['integration']['int_use_paga']
     assert 'int_paga_cl_res' not in config['integration']
     assert config['integration']['int_umap_n_iter'] == 2000
@@ -225,7 +246,7 @@ def test_mismatched_paga_resolution_is_rejected(parent_fixture):
     spec['integration'] = {'int_res_ls': [0.2, 0.5]}
     config_f.with_name('zoom.yaml').write_text(yaml.safe_dump(spec))
     with pytest.raises(ValueError, match='int_paga_cl_res'):
-        get_join_zoom_context(parent, 'neurons', ROOT, scdata)
+        resolve_join_zoom_parameters(parent, 'neurons', ROOT, scdata)
 
 
 def test_app_tag_collision_is_rejected(parent_fixture):
@@ -288,8 +309,8 @@ def test_real_join_zoom_dag(parent_fixture, tmp_path, gpu, backend):
         capture_output=True, text=True, timeout=45, env=env)
     output = proc.stdout + proc.stderr
     assert proc.returncode == 0, output
-    for rule in ('join_zoom_prepare', 'join_zoom_hvg_stats', 'join_zoom_hvg_trend',
-                 'join_zoom_hvg_clip', 'join_zoom_hvgs', 'join_integration', 'join_make_pseudobulks',
+    for rule in ('join_zoom_prepare', 'join_zoom_calculate_raw_gene_count_statistics', 'join_zoom_fit_expected_gene_variances',
+                 'join_zoom_calculate_clipped_gene_count_statistics', 'join_zoom_rank_and_select_highly_variable_genes', 'join_integration', 'join_make_pseudobulks',
                  'join_marker_genes_prep', 'join_marker_genes_calc', 'join_render_html'):
         assert f'rule {rule}:' in output, output
     assert '--retain-metadata' in output and '--require-all-cells' in output
@@ -357,7 +378,7 @@ def test_h5ad_manifest_rule_tracks_retained_batches(parent_fixture, tmp_path, zo
     original_manifest = parent_manifest_f.read_bytes()
     sources = yaml.safe_load(original_manifest)
     if zoom:
-        _, ctx = get_join_zoom_context(parent, 'neurons', ROOT, scdata)
+        _, ctx = resolve_join_zoom_parameters(parent, 'neurons', ROOT, scdata)
         out_dir, tag = Path(ctx['out_dir']), ctx['tag']
         manifests = [Path(p) for p in ctx['project']['h5ads_yaml_fs']]
         for i, path in enumerate(manifests):
@@ -420,7 +441,7 @@ def test_h5ad_manifest_rule_tracks_retained_batches(parent_fixture, tmp_path, zo
 
 def test_join_zoom_shiny_paths(parent_fixture, tmp_path):
     parent, _, scdata, config_f, *_ = parent_fixture
-    cfg, ctx = get_join_zoom_context(parent, 'neurons', ROOT, scdata)
+    cfg, ctx = resolve_join_zoom_parameters(parent, 'neurons', ROOT, scdata)
     out = Path(ctx['out_dir'])
     out.mkdir(parents=True)
     tag = ctx['tag']
@@ -450,7 +471,7 @@ def test_joined_zoom_resolves_cycle_correction(parent_fixture, mode, inherit):
     else:
         spec['integration'] = {'int_cell_cycle_correction': mode}
         config_f.with_name('zoom.yaml').write_text(yaml.safe_dump(spec))
-    config, context = get_join_zoom_context(parent, 'neurons', ROOT, scdata)
+    config, context = resolve_join_zoom_parameters(parent, 'neurons', ROOT, scdata)
     assert config['integration']['int_cell_cycle_correction'] == mode
     assert config['integration']['int_cell_cycle_harmonics'] == 2
     assert config['integration']['int_cell_cycle_ridge_lambda'] == 0.1
@@ -464,4 +485,4 @@ def test_joined_zoom_rejects_cycle_correction_with_scanpy(parent_fixture):
                            'int_pca_method': 'scanpy'}
     config_f.with_name('zoom.yaml').write_text(yaml.safe_dump(spec))
     with pytest.raises(ValueError, match='requires int_pca_method: bpcells'):
-        get_join_zoom_context(parent, 'neurons', ROOT, scdata)
+        resolve_join_zoom_parameters(parent, 'neurons', ROOT, scdata)

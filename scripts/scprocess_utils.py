@@ -2109,39 +2109,28 @@ def get_join_zoom_specs(config, scprocess_dir):
   return specs
 
 
-def get_join_zoom_prepare_params(config, context):
-  """Track only settings consumed by cell selection/source-table preparation.
-
-  The full configuration snapshot is separate: marker, HVG, report and
-  scheduling changes must not invalidate the selected cells.
-  """
-  prep_context = {key: context[key] for key in (
-    'paths', 'selection', 'qc', 'batches', 'selected_f', 'summary_f')}
-  prep_context['project'] = {key: context['project'][key] for key in (
-    'project_ids', 'integrated_fs', 'sample_meta_fs', 'qc_all_fs', 'h5ads_yaml_fs')}
-  prep_config = {'integration': {key: config['integration'][key] for key in (
-    'int_n_dims', 'int_batch_var')}}
-  return {'context': json.dumps(prep_context, sort_keys=True),
-          'effective': json.dumps(prep_config, sort_keys=True)}
+def get_join_zoom_source_selection_parameters(config, zoom_params):
+  """Return the settings used to select cells and write source tables."""
+  return {
+    'selection': zoom_params['selection'],
+    'qc': zoom_params['qc'],
+    'batches': zoom_params['batches'],
+    'project_ids': zoom_params['project']['project_ids'],
+    'int_n_dims': config['integration']['int_n_dims'],
+    'int_batch_var': config['integration']['int_batch_var'],
+  }
 
 
-def get_join_zoom_context(parent, name, scprocess_dir, scdata_dir):
-  """Resolve one completed join subset into inputs for the shared join rules.
-
-  Source projects are not re-run. Intermediate per-project tables undo exactly
-  one sample prefix, so the existing join builders restore the parent's IDs.
-  """
-  specs = get_join_zoom_specs(parent, scprocess_dir)
-  if name not in specs:
-    raise ValueError(f'Unknown joined zoom {name!r}; available: {list(specs)}')
-  spec = copy.deepcopy(specs[name])
-  root = pathlib.Path(parent['join']['proj_dir']).resolve()
-  parent_tag = parent['join']['name'] + '_join'
-  date = parent['join']['date_stamp']
-  parent_dir = root / 'output' / parent_tag
-  out_dir = root / 'output' / (parent_tag + '_zoom') / name
-  tag = parent_tag + '_zoom_' + name
+def check_join_zoom_config(parent, spec, scprocess_dir, scdata_dir):
+  """Validate inherited join settings and the selected zoom overrides."""
+  spec = copy.deepcopy(spec)
+  name = spec['zoom']['name']
+  tag = parent['join']['name'] + '_join_zoom_' + name
   cfg = copy.deepcopy(parent)
+  if 'resources' in cfg:
+    cfg['resources'] = _normalize_join_zoom_resource_names(cfg['resources'])
+  if 'resources' in spec:
+    spec['resources'] = _normalize_join_zoom_resource_names(spec['resources'])
   for key in ('zoom', 'train_xgboost', 'label_celltypes'):
     cfg.pop(key, None)
   for section in ('hvg', 'integration', 'marker_genes', 'resources', 'shiny'):
@@ -2172,7 +2161,23 @@ def get_join_zoom_context(parent, name, scprocess_dir, scdata_dir):
     raise ValueError('Joined zoom needs more HVGs than integration.int_n_dims')
   qc = {'qc_min_cells': 10, **spec.get('qc', {})}
   _validate_qc_bounds(qc, f'joined zoom {name} qc')
-  cfg['join']['name'] = tag  # downstream tag overridden explicitly
+  cfg['join']['name'] = tag
+  cfg['hvg'] = hvg
+  cfg['qc'] = qc
+  return cfg
+
+
+def get_join_zoom_parameters(parent, config, spec):
+  """Resolve source files, batches and output paths for one joined zoom."""
+  name = spec['zoom']['name']
+  root = pathlib.Path(parent['join']['proj_dir']).resolve()
+  parent_tag = parent['join']['name'] + '_join'
+  date = parent['join']['date_stamp']
+  parent_dir = root / 'output' / parent_tag
+  out_dir = root / 'output' / (parent_tag + '_zoom') / name
+  tag = parent_tag + '_zoom_' + name
+  hvg = config['hvg']
+  qc = config['qc']
   paths = {
     'integration': parent_dir / f'integrated_dt_{parent_tag}_{date}.csv.gz',
     'coldata': parent_dir / f'joint_coldata_{parent_tag}_{date}.csv.gz',
@@ -2222,7 +2227,7 @@ def get_join_zoom_context(parent, name, scprocess_dir, scdata_dir):
     'sample_meta_fs': [str(source_dir / f'{i}.samples.csv') for i in range(len(pids))],
     'qc_all_fs': [str(source_dir / f'{i}.qc.csv.gz') for i in range(len(pids))],
   }
-  context = {
+  parameters = {
     'name': name, 'tag': tag, 'out_dir': str(out_dir),
     'logs_dir': str(root / '.log/join_zoom' / name),
     'benchmark_dir': str(root / '.resources/join_zoom' / name),
@@ -2230,9 +2235,8 @@ def get_join_zoom_context(parent, name, scprocess_dir, scdata_dir):
     'selection': selection, 'qc': qc, 'hvg': hvg, 'batches': batches, 'project': proj,
     'selected_f': str(out_dir / 'selected_cells.csv.gz'),
     'summary_f': str(out_dir / 'selection_summary.csv'),
-    'effective_f': str(out_dir / 'effective_config.yaml'),
   }
-  return cfg, context
+  return parameters
 
 
 def get_join_project_parameters(config):
@@ -2875,6 +2879,23 @@ def _check_join_integration_parameters(config):
   integration.setdefault('int_cell_cycle_ridge_lambda', 0.1)
 
 
+def _normalize_join_zoom_resource_names(resources):
+  resources = resources.copy()
+  rule_aliases = {
+    'join_zoom_hvg_stats': 'join_zoom_calculate_raw_gene_count_statistics',
+    'join_zoom_hvg_trend': 'join_zoom_fit_expected_gene_variances',
+    'join_zoom_hvg_clip': 'join_zoom_calculate_clipped_gene_count_statistics',
+    'join_zoom_hvgs': 'join_zoom_rank_and_select_highly_variable_genes',
+  }
+  for old_rule, new_rule in rule_aliases.items():
+    for prefix in ('gb_', 'mins_'):
+      old, new = prefix + old_rule, prefix + new_rule
+      if old in resources:
+        resources.setdefault(new, resources[old])
+        del resources[old]
+  return resources
+
+
 def check_join_config(config, join_schema_f, scdata_dir):
   """Validate and augment a join.yaml config dict.
 
@@ -2886,6 +2907,9 @@ def check_join_config(config, join_schema_f, scdata_dir):
 
   Returns the (possibly modified) config dict.
   """
+  config = copy.deepcopy(config)
+  if 'resources' in config:
+    config['resources'] = _normalize_join_zoom_resource_names(config['resources'])
   join_schema = _load_schema_file(join_schema_f)
   defaults    = _get_default_config_from_schema(join_schema, config)
   if (config.get('integration', {}).get('int_use_paga') is False
