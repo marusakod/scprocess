@@ -202,8 +202,7 @@ gsea_ls = lapply(fgsea_fs, function(f) if (!is.na(f) && file.exists(f)) fread(f)
 
 ## Integration diagnostics{.tabset}
 
-Cells from all projects were integrated using Harmony batch correction. Clustering
-was performed at multiple resolution values.
+Clustering of data is performed at different resolution values. For each value the clusters are displayed over a UMAP together with a plot showing the density of cells.
 
 ```{r plot_clusters, fig.height=7, fig.width=9, results="asis"}
 for (res in res_ls) {
@@ -221,18 +220,7 @@ for (res in res_ls) {
 
 ## Variable distributions over UMAP{.tabset}
 
-These plots show whether project identity or biological metadata is associated
-with the integrated cell populations. Assess project mixing within comparable
-cell types, together with their marker expression. Separation by project can
-indicate residual batch effects, but can also reflect differences in cell-type
-composition or biology. Conversely, uniform mixing alone does not show that
-integration preserved meaningful differences.
-
-If comparable populations remain separated, review `integration.int_batch_var`
-and compare settings of `integration.int_theta`, checking marker patterns after
-each change. Choose the variables to correct according to the study design;
-parameter tuning cannot distinguish batch effects from biology when they are
-confounded.
+The plot shows a binned UMAP with facets corresponding to specific values of project identity or metadata variables, which allows the evaluation of whether cells sharing certain annotations are particularly abundant in some clusters.
 
 ```{r plot_composition_umap, fig.height=5, fig.width=8, results="asis"}
 for (cv in composition_vars) {
@@ -260,9 +248,8 @@ for (cv in composition_vars) {
 
 ## Cluster distribution across samples{.tabset}
 
-This plot shows the entropy of cluster membership across samples. High entropy indicates
-cells from many samples are evenly distributed within a cluster; low entropy indicates a
-cluster is dominated by one or few samples.
+This plot visualizes the relationship between the entropy of clusters and the maximum proportion of cells from a single sample within each cluster (higher values suggest that a cluster predominantly contains cells from a single sample).
+Entropy measures how evenly distributed cells are across samples within each cluster—higher entropy indicates that cells from different samples are more evenly distributed, while lower entropy suggests that a cluster is dominated by cells from a small number of samples.
 
 ```{r plot_entropy_samples, fig.height=5, fig.width=7, results="asis"}
 n_clusts = res_ls %>% lapply(function(res) {
@@ -281,7 +268,8 @@ for (res in res_ls_pl) {
 
 ## Cluster distribution across projects{.tabset}
 
-The same entropy metric applied across projects rather than samples.
+This plot visualizes the relationship between the entropy of clusters and the maximum proportion of cells from a single project within each cluster (higher values suggest that a cluster predominantly contains cells from a single project).
+Entropy measures how evenly distributed cells are across projects within each cluster—higher entropy indicates that cells from different projects are more evenly distributed, while lower entropy suggests that a cluster is dominated by cells from a small number of projects.
 
 ```{r plot_entropy_projects, fig.height=5, fig.width=7, results="asis"}
 for (res in res_ls_pl) {
@@ -296,9 +284,7 @@ for (res in res_ls_pl) {
 
 ## QC metrics by cluster
 
-Distributions of post-filter cell-level QC metrics are shown for each cluster at
-the marker-gene resolution `r sel_res`. Clusters with fewer than 100 cells are
-omitted from this plot.
+Distributions of QC metrics (library size, number of features, mitochondrial proportion, and spliced proportion) are shown for each cluster at the marker-gene resolution `r sel_res`. Clusters with fewer than 100 cells are omitted from this plot.
 
 ```{r plot_join_cluster_qc, fig.height=8, fig.width=10}
 suppressWarnings(print(plot_cluster_qc_distns(
