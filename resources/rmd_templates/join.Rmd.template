@@ -221,9 +221,18 @@ for (res in res_ls) {
 
 ## Variable distributions over UMAP{.tabset}
 
-These plots show how cells from each project (and any metadata variables) are
-distributed across the UMAP. Even mixing across projects is the primary indicator
-that Harmony integration was successful.
+These plots show whether project identity or biological metadata is associated
+with the integrated cell populations. Assess project mixing within comparable
+cell types, together with their marker expression. Separation by project can
+indicate residual batch effects, but can also reflect differences in cell-type
+composition or biology. Conversely, uniform mixing alone does not show that
+integration preserved meaningful differences.
+
+If comparable populations remain separated, review `integration.int_batch_var`
+and compare settings of `integration.int_theta`, checking marker patterns after
+each change. Choose the variables to correct according to the study design;
+parameter tuning cannot distinguish batch effects from biology when they are
+confounded.
 
 ```{r plot_composition_umap, fig.height=5, fig.width=8, results="asis"}
 for (cv in composition_vars) {
