@@ -85,9 +85,9 @@ r_scripts = [
   code_dir  + '/utils.R',
   code_dir  + '/mapping.R',
   code_dir  + '/ambient.R',
-  #code_dir  + '/qc.R', 
-  code_dir  + '/hvgs.R', 
-  code_dir  + '/integration.R', 
+  #code_dir  + '/qc.R',
+  code_dir  + '/hvgs.R',
+  code_dir  + '/integration.R',
   code_dir  + '/marker_genes.R'
   ]
 if config['multiplexing']['demux_type'] == "hto":

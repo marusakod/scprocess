@@ -276,17 +276,29 @@ plot_spliced_vs_umis <- function(ss, usa_dt, ok_bcs, total_inc) {
     "no, used for\nambient"     = "#FB8072", 
     "no, excluded\ncompletely"  = "grey30")
 
-  # arrange data
-  plot_dt     = usa_dt[, .(
-    barcode,
-    pre_total     = pre_S + pre_U + pre_A,
-    post_total    = post_S + post_U + post_A,
-    pre_logit_S   = qlogis((pre_S + 1)/(pre_S + pre_U + 2)),
-    post_logit_S  = qlogis((post_S + 1)/(post_S + post_U + 2))
-    )] %>% 
-    melt( measure.vars = measure(stage, value.name, pattern = "(pre|post)_(.+)")) %>% 
-    .[, stage := factor(stage, levels = c("pre", "post")) ] %>% 
-    .[ total > 0 ] %>% 
+  # arrange data (no post-ambient-removal columns if ambient removal was not performed)
+  has_post    = all(c("post_S", "post_U", "post_A") %in% names(usa_dt))
+
+  if (has_post) {
+    plot_dt   = usa_dt[, .(
+      barcode,
+      pre_total     = pre_S + pre_U + pre_A,
+      post_total    = post_S + post_U + post_A,
+      pre_logit_S   = qlogis((pre_S + 1)/(pre_S + pre_U + 2)),
+      post_logit_S  = qlogis((post_S + 1)/(post_S + post_U + 2))
+      )]
+  } else {
+    plot_dt   = usa_dt[, .(
+      barcode,
+      pre_total     = pre_S + pre_U + pre_A,
+      pre_logit_S   = qlogis((pre_S + 1)/(pre_S + pre_U + 2))
+      )]
+  }
+
+  plot_dt     = plot_dt %>%
+    melt( measure.vars = measure(stage, value.name, pattern = "(pre|post)_(.+)")) %>%
+    .[, stage := factor(stage, levels = c("pre", "post")) ] %>%
+    .[ total > 0 ] %>%
     .[ order(total) ]
 
   # to keep
@@ -318,6 +330,12 @@ plot_spliced_vs_umis <- function(ss, usa_dt, ok_bcs, total_inc) {
     facet_grid( . ~ stage ) +
     theme_classic() + 
     labs( y = "spliced pct.", x = 'total UMIs', colour = "called as cell?" )
+
+  # a single ("pre") facet makes the strip label redundant
+  if (!has_post) {
+    g_dens = g_dens + theme(strip.text = element_blank(), strip.background = element_blank())
+    g_dots = g_dots + theme(strip.text = element_blank(), strip.background = element_blank())
+  }
 
   # join together
   g = g_dens / g_dots + plot_layout( axes = "collect" )

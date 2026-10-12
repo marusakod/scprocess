@@ -144,7 +144,7 @@ if config['multiplexing']['demux_type'] == "hto":
 
 # render_html_ambient
 rule render_html_ambient:
-  input: 
+  input:
     r_utils_f   = f"{code_dir}/utils.R",
     run_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv'
   output:
@@ -165,7 +165,7 @@ rule render_html_ambient:
     af_rna_dir        = af_rna_dir,
     cb_max_prop_kept  = config['ambient']['cb_max_prop_kept']
   threads: 4
-  retries: config['resources']['retries'] 
+  retries: config['resources']['retries']
   conda:
     '../envs/ambientr.yaml'
   resources:
@@ -181,7 +181,7 @@ rule render_html_ambient:
     # copy R code over
     echo "copying relevant R files over"
     cp {scprocess_dir}/scripts/ambient.R {output.r_amb_f}
-    
+
     # define rule and template
     template_f={scprocess_dir}/resources/rmd_templates/ambient.Rmd.template
     rule="ambient"
@@ -189,23 +189,23 @@ rule render_html_ambient:
     # rendering html
     Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \
       render_html(
-        rule_name         = '$rule', 
-        temp_f            = '$template_f', 
-        rmd_f             = '{output.rmd_f}', 
-        your_name         = '{params.your_name}', 
-        affiliation       = '{params.affiliation}', 
-        proj_dir          = '{params.proj_dir}', 
-        short_tag         = '{params.short_tag}', 
-        date_stamp        = '{params.date_stamp}', 
-        threads           =  {threads}, 
-        run_stats_f       = '{input.run_stats_f}', 
+        rule_name         = '$rule',
+        temp_f            = '$template_f',
+        rmd_f             = '{output.rmd_f}',
+        your_name         = '{params.your_name}',
+        affiliation       = '{params.affiliation}',
+        proj_dir          = '{params.proj_dir}',
+        short_tag         = '{params.short_tag}',
+        date_stamp        = '{params.date_stamp}',
+        threads           =  {threads},
+        run_stats_f       = '{input.run_stats_f}',
         run_var           = '{params.run_var}',
         runs_str          = '{params.runs_str}',
         ambient_method    = '{params.ambient_method}',
         demux_type        = '{params.demux_type}',
         af_rna_dir        = '{params.af_rna_dir}',
         cb_prop_max_kept  =  {params.cb_max_prop_kept}
-      )"    
+      )"
     """
 
 # render_html_qc
@@ -337,7 +337,6 @@ if CAN_CALC_AMBIENT_GENES:
 rule render_html_integration:
   input:
     r_utils_f     = f"{code_dir}/utils.R",
-    r_amb_f       = f"{code_dir}/ambient.R",
     qc_dt_f       = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
