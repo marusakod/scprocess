@@ -120,11 +120,15 @@ evenly_spaced_rows <- function(dt, maximum) {
 }
 ```
 
-`tricycle_pc1` and `tricycle_pc2` are fixed-reference projection coordinates,
-centred once across the project. `tricycle_theta` is the continuous cell-cycle
-position in radians, measured around the pooled origin and wrapped to
-$[0, 2\pi)$. The origin is either supplied explicitly in these coordinates or
-estimated from QC-passed cells using density-equalized weighting.
+`tricycle` works by subsetting data to a set of known cell-cycle genes, then 
+projecting the cells into the first two principle components, `tricycle_pc1` 
+and `tricycle_pc2`. When cycling cells are present, this results in a 
+continuous "loop" of cells around an origin. We identify the location of the
+origin across all cells in the project, either by first downsampling the data
+to avoid a dense blob at G0/G1 dominating, or specifying the origin manually. 
+We then calculate the cell-cycle position with reference to the origin, giving
+`tricycle_theta` which takes values $[0, 2\pi)$ in radians (i.e. 0 to 360 
+degrees).
 
 ## Expression around theta
 
