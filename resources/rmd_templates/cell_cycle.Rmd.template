@@ -192,20 +192,24 @@ if (nrow(expression_smooth[['curves']])) {
 
 ## Pooled projection and estimated origin
 
-The left panel is a log-count hexbin view of every QC-passed cell. Its grey
-path shows how the estimated origin changes across the configured target-proportion
-grid, with target proportion encoded by fill and reported in the legend. The right
-panel shows a larger display sample with the same relative weights as the selected
-target. The highest-weight cells are always shown. The black cross is the selected pooled origin used to calculate theta;
-it is identical in all projection panels. When a manual origin is configured,
-all KDE-derived candidate centres remain visible for comparison and the
-density-equalized subset is diagnostic only. Grey radial lines mark the phase
-boundaries described above. The vermilion 99% MCD ellipse and percentage outside
-are reference diagnostics only: they do not determine the origin or identify
-cycling cells. The origin is the deterministic weighted mean, not the mean of
-the displayed subset. Display probabilities are rescaled so their maximum is 1;
-this changes neither the origin nor theta. Of 100 seeded draws, the one closest
-to the expected display size is shown.
+These panels show the cell-cycle projection and the origin used to calculate
+theta. The left panel shows the density of all QC-passed cells; the right panel
+shows a density-equalized display sample. The black cross marks the chosen
+origin, and the grey path shows how its estimate changes across target
+proportions. Grey radial lines mark the approximate phase boundaries described
+above. The vermilion ellipse and percentage outside it describe the dense blob;
+they do not classify cells as cycling or determine the origin. With a manual
+origin, the estimated alternatives are shown for comparison.
+
+Where cycling cells form a loop, assess the origin together with the
+phase-associated marker-expression patterns above. A dataset with few cycling
+cells may not show a clear loop, so an
+absent loop alone does not establish a failed analysis.
+
+Compare the alternatives in `cell_cycle.cyc_target_prop_grid` before choosing
+`cell_cycle.cyc_target_prop`, which controls the density-equalization target used
+to estimate the origin. Alternatively, set `cell_cycle.cyc_origin_manual` to
+specify the origin coordinates manually.
 
 ```{r pooled_projection, fig.height=5.5, fig.width=11}
 g_pooled <- ggplot(diagnostics, aes(tricycle_pc1, tricycle_pc2)) +
