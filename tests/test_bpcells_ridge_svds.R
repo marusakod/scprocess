@@ -164,10 +164,12 @@ run_tests <- function() {
     genes_f <- file.path(tmp, "regression-genes.csv.gz")
     pcs <- run_bpcells_pca(c(first_h5, second_h5), k, pca_f,
       coldata_f = coldata_f, cells_f = cells_f, exclude_mito = TRUE,
-      tricycle_f = if (regression) tricycle_f else NULL,
-      out_regression_f = if (regression) diagnostic_f else NULL,
-      out_regression_genes_f = if (regression) genes_f else NULL,
-      n_threads = 2L, correction_centering = if (regression) mode else "within_sample")
+      tricycle_f = if (regression) tricycle_f else "",
+      harmonics = if (regression) 2L else NULL,
+      ridge_lambda = if (regression) 0.1 else NULL,
+      out_regression_f = if (regression) diagnostic_f else "",
+      out_regression_genes_f = if (regression) genes_f else "",
+      n_threads = 2L, correction_centering = if (regression) mode else "")
     stopifnot(identical(pcs$cell_id, selected_ids), file.exists(pca_f))
     corrected <- reference_base
     if (regression) {

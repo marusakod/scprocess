@@ -43,5 +43,5 @@ def test_primary_integration_has_persisted_clean_cell_boundary():
   rules = (ROOT / 'rules' / 'integration.smk').read_text()
   assert 'rule classify_additional_doublets:' in rules
   assert 'clean_cells_f = CLEAN_CELLS_F' in rules
-  assert 'rule final_pca:' in rules
-  assert 'cells_f      = \'{input.clean_cells_f}\'' in rules
+  assert 'rule pca_singlets_only:' in rules
+  assert re.search(r"cells_f\s*=\s*'\{input.clean_cells_f\}'", rules)

@@ -95,8 +95,11 @@ include: {str(ROOT / 'rules/integration.smk')!r}
     effective = subprocess.check_output(['bash', '-c', 'printf "%s" ' + fragment[0]], text=True)
     assert effective == (f'--paga-cl-res{paga_resolution}' if paga else '')
     if correction:
-        assert output.count(f"correction_centering = '{correction}'") == 2, output
-        assert 'preliminary_pca' in output and 'final_pca' in output
+        assert len(re.findall(r"correction_centering\s*=\s*'" + correction + "'", output)) == 2, output
+        assert 'pca_with_doublets' in output and 'pca_singlets_only' in output
     else:
-        assert 'correction_centering =' not in output
+        if backend == 'bpcells':
+            assert len(re.findall(r"correction_centering\s*=\s*''", output)) == 2, output
+            assert len(re.findall(r"harmonics\s*=\s*NULL", output)) == 2, output
+            assert len(re.findall(r"ridge_lambda\s*=\s*NULL", output)) == 2, output
     assert ('--tricycle_f' in output) == estimate_phase

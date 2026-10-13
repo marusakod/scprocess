@@ -186,8 +186,8 @@
         "int_sce_outs":     { "type": "boolean",  "default": false},
         "int_use_paga":     { "type": "boolean",  "default": true},
         "int_paga_cl_res":  { "type": "number",   "default": 2, "exclusiveMinimum": 0},
-        "int_cell_cycle_harmonics":    { "type": "integer", "enum": [1, 2] },
-        "int_cell_cycle_ridge_lambda": { "type": "number", "minimum": 0 },
+        "int_cell_cycle_harmonics":    { "type": "integer", "enum": [1, 2], "default": 2, "x-default-requires": "int_cell_cycle_correction" },
+        "int_cell_cycle_ridge_lambda": { "type": "number", "minimum": 0, "default": 0.1, "x-default-requires": "int_cell_cycle_correction" },
         "int_cell_cycle_correction": { "type": "string", "enum": ["within_sample", "global"] },
         "int_res_ls": {
           "type":     "array",

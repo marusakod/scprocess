@@ -299,7 +299,10 @@ run_bpcells_pca <- function(
     tricycle_f = NULL, harmonics = 2L, ridge_lambda = 0.1,
     out_regression_f = NULL, out_regression_genes_f = NULL, n_threads = 1L,
     correction_centering = "within_sample") {
-  correction_centering <- match.arg(correction_centering, c("within_sample", "global"))
+  if (!identical(correction_centering, "") ||
+      (!is.null(tricycle_f) && nzchar(tricycle_f))) {
+    correction_centering <- match.arg(correction_centering, c("within_sample", "global"))
+  }
   if (length(n_threads) != 1L || !is.finite(n_threads) ||
       n_threads < 1 || n_threads != floor(n_threads)) {
     stop("n_threads must be a positive integer")

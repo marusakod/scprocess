@@ -1,7 +1,10 @@
 import unittest
 import warnings
+from pathlib import Path
 
 from scripts.scprocess_utils import _check_join_integration_parameters
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class TestJoinIntegrationValidation(unittest.TestCase):
@@ -42,6 +45,9 @@ class TestJoinIntegrationValidation(unittest.TestCase):
   def test_cycle_regression_defaults_without_new_score_configuration(self):
     config = {'integration': {'int_batch_var': 'sample_id', 'int_theta': 0.1,
       'int_cell_cycle_correction': 'within_sample'}}
+    from scripts.scprocess_utils import _apply_join_defaults, _load_schema_file
+    schema = _load_schema_file(ROOT / 'resources/schemas/join.schema.json')
+    _apply_join_defaults(config['integration'], schema['properties']['integration']['properties'])
     _check_join_integration_parameters(config)
     self.assertEqual(config['integration']['int_cell_cycle_harmonics'], 2)
     self.assertEqual(config['integration']['int_cell_cycle_ridge_lambda'], 0.1)

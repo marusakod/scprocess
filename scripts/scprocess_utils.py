@@ -278,6 +278,9 @@ def _get_default_config_from_schema(schema, config=None):
       # create a nested dictionary of defaults for this section
       section_defaults = {}
       for sub_key, sub_props in props['properties'].items():
+        required_key = sub_props.get('x-default-requires')
+        if required_key and required_key not in (config or {}).get(key, {}):
+          continue
         if 'default' in sub_props:
           section_defaults[sub_key] = sub_props['default']
 
@@ -1105,6 +1108,13 @@ def _check_integration_parameters(config):
   return config
 
 
+def _apply_cell_cycle_tuning_defaults(integration, schema_name):
+  schema_f = pathlib.Path(__file__).resolve().parents[1] / 'resources/schemas' / f'{schema_name}.schema.json'
+  properties = _load_schema_file(schema_f)['properties']['integration']['properties']
+  for key in ('int_cell_cycle_harmonics', 'int_cell_cycle_ridge_lambda'):
+    integration.setdefault(key, properties[key]['default'])
+
+
 def _check_cell_cycle_parameters(config):
   integration = config.get('integration', {})
   regression_key = 'int_cell_cycle_correction'
@@ -1126,8 +1136,7 @@ def _check_cell_cycle_parameters(config):
       "cell-cycle regression requires integration.int_pca_method: bpcells"
     )
   if regression_enabled:
-    integration.setdefault('int_cell_cycle_harmonics', 2)
-    integration.setdefault('int_cell_cycle_ridge_lambda', 0.1)
+    _apply_cell_cycle_tuning_defaults(integration, 'config')
     if integration['int_cell_cycle_correction'] not in ('within_sample', 'global'):
       raise ValueError("integration.int_cell_cycle_correction must be within_sample or global")
 
@@ -2854,6 +2863,9 @@ def get_train_xgboost_parameters(config, schema_f):
 def _apply_join_defaults(cfg, schema_props):
   """Recursively apply JSON Schema defaults to cfg in-place."""
   for key, prop in schema_props.items():
+    required_key = prop.get('x-default-requires')
+    if required_key and required_key not in cfg:
+      continue
     if key not in cfg and 'default' in prop:
       cfg[key] = prop['default']
     elif key in cfg and prop.get('type') == 'object' and 'properties' in prop:
@@ -2878,11 +2890,10 @@ def _check_join_integration_parameters(config):
     return
   if integration[correction_key] not in ('within_sample', 'global'):
     raise ValueError('int_cell_cycle_correction must be within_sample or global')
-  if integration.get('int_pca_method', 'bpcells') != 'bpcells':
+  if integration['int_pca_method'] != 'bpcells':
     raise ValueError('Join cell-cycle regression requires int_pca_method: bpcells')
   # Joins reuse source-project tricycle scores; no new cell_cycle block is needed.
-  integration.setdefault('int_cell_cycle_harmonics', 2)
-  integration.setdefault('int_cell_cycle_ridge_lambda', 0.1)
+  _apply_cell_cycle_tuning_defaults(integration, 'join')
 
 
 def _normalize_join_zoom_resource_names(resources):

@@ -642,9 +642,11 @@ def test_correction_mode_requires_cell_cycle_block():
 
 
 def test_project_and_zoom_forward_correction_mode():
-  for name in ('integration', 'zoom'):
-    rules = (ROOT / f'rules/{name}.smk').read_text()
-    assert "correction_centering = '{integration['int_cell_cycle_correction']}'" in rules
+  project = (ROOT / 'rules/integration.smk').read_text()
+  assert "config['integration']['int_cell_cycle_correction'] if CELL_CYCLE_REGRESSION else ''" in project
+  assert "correction_centering   = '{params.centering}'" in project
+  zoom = (ROOT / 'rules/zoom.smk').read_text()
+  assert "correction_centering = '{integration['int_cell_cycle_correction']}'" in zoom
 
 
 def test_empty_cell_cycle_block_remains_invalid_after_defaults():

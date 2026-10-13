@@ -1428,3 +1428,16 @@ shiny:
 * When `label_celltypes` is configured, it runs as part of the default `scprocess join` target.
 * If a source project already has label_celltypes outputs for the same `labeller`/`model`, naive predictions are reused instead of re-running the labeller — only projects without existing labels trigger fresh runs.
 * `save_cluster_names_file: true` generates a `cluster_names_for_shiny_*.csv` at the `marker_genes:mkr_sel_res` resolution. This file can be used as `annotation_csv` in the `shiny:` section.
+
+### Project PCA stages
+
+The BPCells integration path uses `pca_with_doublets` for the QC-passed cells
+and doublets, followed by `pca_singlets_only` for retained cells. Cell-cycle
+correction, when enabled, is fitted separately at each stage. The corresponding
+regression CSV files contain correction summaries and gene coefficients.
+Existing preliminary/final output filenames are retained. Custom profile entries
+and direct targets should use the current rule names.
+
+Cell-cycle tuning defaults are defined in the configuration schemas and applied
+only when correction is enabled. Workflow rules pass the validated settings as
+individual named parameters; they do not supply fallback defaults.

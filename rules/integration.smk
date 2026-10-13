@@ -6,50 +6,38 @@ def get_run_for_one_batch(batch, RUNS_TO_BATCHES):
 
 localrules: make_clean_h5ad_paths_yaml
 
-INT_PCA_METHOD = config['integration']['int_pca_method']
-PRELIM_PCA_F   = f'{int_dir}/preliminary_pca_{FULL_TAG}_{DATE_STAMP}.csv.gz'
-DOUBLETS_F     = f'{int_dir}/integration_doublets_{FULL_TAG}_{DATE_STAMP}.csv.gz'
-CLEAN_CELLS_F  = f'{int_dir}/clean_cells_{FULL_TAG}_{DATE_STAMP}.csv'
-FINAL_PCA_F    = f'{int_dir}/final_pca_{FULL_TAG}_{DATE_STAMP}.csv.gz'
-CELL_CYCLE_REGRESSION = (
+INT_PCA_METHOD                   = config['integration']['int_pca_method']
+PCA_WITH_DOUBLETS_F              = f'{int_dir}/preliminary_pca_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+DOUBLETS_F                       = f'{int_dir}/integration_doublets_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+CLEAN_CELLS_F                    = f'{int_dir}/clean_cells_{FULL_TAG}_{DATE_STAMP}.csv'
+PCA_SINGLETS_ONLY_F              = f'{int_dir}/final_pca_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+CELL_CYCLE_REGRESSION            = (
   CELL_CYCLE_ENABLED and
   'int_cell_cycle_correction' in config['integration']
 )
-PRELIM_REGRESSION_F = f'{cell_cycle_dir}/preliminary_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'
-FINAL_REGRESSION_F = f'{cell_cycle_dir}/final_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'
-PRELIM_REGRESSION_GENES_F = f'{cell_cycle_dir}/preliminary_cell_cycle_regression_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz'
-FINAL_REGRESSION_GENES_F = f'{cell_cycle_dir}/final_cell_cycle_regression_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz'
-
-
-def _cell_cycle_regression_args(out_f, genes_f):
-  if not CELL_CYCLE_REGRESSION:
-    return ''
-  integration = config['integration']
-  return (
-    f", tricycle_f = '{TRICYCLE_SCORES_F}', "
-    f"harmonics = {integration['int_cell_cycle_harmonics']}, "
-    f"ridge_lambda = {integration['int_cell_cycle_ridge_lambda']}, "
-    f"correction_centering = '{integration['int_cell_cycle_correction']}', "
-    f"out_regression_f = '{out_f}', "
-    f"out_regression_genes_f = '{genes_f}'"
-  )
-
+REGRESSION_WITH_DOUBLETS_F       = f'{cell_cycle_dir}/preliminary_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'
+REGRESSION_SINGLETS_ONLY_F       = f'{cell_cycle_dir}/final_cell_cycle_regression_{FULL_TAG}_{DATE_STAMP}.csv'
+REGRESSION_WITH_DOUBLETS_GENES_F = f'{cell_cycle_dir}/preliminary_cell_cycle_regression_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+REGRESSION_SINGLETS_ONLY_GENES_F = f'{cell_cycle_dir}/final_cell_cycle_regression_genes_{FULL_TAG}_{DATE_STAMP}.csv.gz'
 
 if INT_PCA_METHOD == 'bpcells':
-  rule preliminary_pca:
+  rule pca_with_doublets:
     input:
       hvg_mat_f     = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5',
       dbl_hvg_mat_f = f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5',
       coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
       tricycle_f    = TRICYCLE_SCORES_F if CELL_CYCLE_REGRESSION else []
     output:
-      pca_f = PRELIM_PCA_F,
-      regression_f = PRELIM_REGRESSION_F if CELL_CYCLE_REGRESSION else [],
-      regression_genes_f = PRELIM_REGRESSION_GENES_F if CELL_CYCLE_REGRESSION else []
+      pca_f              = PCA_WITH_DOUBLETS_F,
+      regression_f       = REGRESSION_WITH_DOUBLETS_F if CELL_CYCLE_REGRESSION else [],
+      regression_genes_f = REGRESSION_WITH_DOUBLETS_GENES_F if CELL_CYCLE_REGRESSION else []
     params:
-      n_dims      = config['integration']['int_n_dims'],
+      n_dims       = config['integration']['int_n_dims'],
       exclude_mito = config['qc']['exclude_mito'],
-      regression_args = _cell_cycle_regression_args(PRELIM_REGRESSION_F, PRELIM_REGRESSION_GENES_F)
+      # Correction settings are unused when the optional score input is absent.
+      harmonics    = config['integration']['int_cell_cycle_harmonics'] if CELL_CYCLE_REGRESSION else 'NULL',
+      ridge_lambda = config['integration']['int_cell_cycle_ridge_lambda'] if CELL_CYCLE_REGRESSION else 'NULL',
+      centering    = config['integration']['int_cell_cycle_correction'] if CELL_CYCLE_REGRESSION else ''
     threads: 8
     retries: config['resources']['retries']
     resources:
@@ -74,18 +62,24 @@ if INT_PCA_METHOD == 'bpcells':
       cp {input.dbl_hvg_mat_f} $LOCAL_DBL
 
       Rscript --vanilla -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
-        counts_h5_fs = c('$LOCAL_HVG', '$LOCAL_DBL'),
-        n_threads    = {threads},
-        n_dims       = {params.n_dims},
-        out_pca_f    = '{output.pca_f}',
-        coldata_f    = '{input.coldata_f}',
-        exclude_mito = tolower('{params.exclude_mito}') == 'true'{params.regression_args})"
+        counts_h5_fs           = c('$LOCAL_HVG', '$LOCAL_DBL'),
+        n_threads              = {threads},
+        n_dims                 = {params.n_dims},
+        out_pca_f              = '{output.pca_f}',
+        coldata_f              = '{input.coldata_f}',
+        exclude_mito           = tolower('{params.exclude_mito}') == 'true',
+        tricycle_f             = '{input.tricycle_f}',
+        harmonics              = {params.harmonics},
+        ridge_lambda           = {params.ridge_lambda},
+        correction_centering   = '{params.centering}',
+        out_regression_f       = '{output.regression_f}',
+        out_regression_genes_f = '{output.regression_genes_f}')"
       """
 
 
   rule classify_additional_doublets:
     input:
-      pca_f         = PRELIM_PCA_F,
+      pca_f         = PCA_WITH_DOUBLETS_F,
       hvg_mat_f     = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5',
       dbl_hvg_mat_f = f'{hvg_dir}/top_hvgs_doublet_counts_{FULL_TAG}_{DATE_STAMP}.h5',
       qc_stats_f    = f'{qc_dir}/qc_{BATCH_VAR}_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
@@ -139,20 +133,23 @@ if INT_PCA_METHOD == 'bpcells':
       """
 
 
-  rule final_pca:
+  rule pca_singlets_only:
     input:
-      hvg_mat_f    = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5',
+      hvg_mat_f     = f'{hvg_dir}/top_hvgs_counts_{FULL_TAG}_{DATE_STAMP}.h5',
       clean_cells_f = CLEAN_CELLS_F,
-      coldata_f    = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-      tricycle_f   = TRICYCLE_SCORES_F if CELL_CYCLE_REGRESSION else []
+      coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      tricycle_f    = TRICYCLE_SCORES_F if CELL_CYCLE_REGRESSION else []
     output:
-      pca_f = FINAL_PCA_F,
-      regression_f = FINAL_REGRESSION_F if CELL_CYCLE_REGRESSION else [],
-      regression_genes_f = FINAL_REGRESSION_GENES_F if CELL_CYCLE_REGRESSION else []
+      pca_f              = PCA_SINGLETS_ONLY_F,
+      regression_f       = REGRESSION_SINGLETS_ONLY_F if CELL_CYCLE_REGRESSION else [],
+      regression_genes_f = REGRESSION_SINGLETS_ONLY_GENES_F if CELL_CYCLE_REGRESSION else []
     params:
       n_dims       = config['integration']['int_n_dims'],
       exclude_mito = config['qc']['exclude_mito'],
-      regression_args = _cell_cycle_regression_args(FINAL_REGRESSION_F, FINAL_REGRESSION_GENES_F)
+      # Correction settings are unused when the optional score input is absent.
+      harmonics    = config['integration']['int_cell_cycle_harmonics'] if CELL_CYCLE_REGRESSION else 'NULL',
+      ridge_lambda = config['integration']['int_cell_cycle_ridge_lambda'] if CELL_CYCLE_REGRESSION else 'NULL',
+      centering    = config['integration']['int_cell_cycle_correction'] if CELL_CYCLE_REGRESSION else ''
     threads: 8
     retries: config['resources']['retries']
     resources:
@@ -175,19 +172,25 @@ if INT_PCA_METHOD == 'bpcells':
       cp {input.hvg_mat_f} $LOCAL_HVG
 
       Rscript --vanilla -e "source('{scprocess_dir}/scripts/bpcells_pca.R'); run_bpcells_pca(
-        counts_h5_fs = '$LOCAL_HVG',
-        n_threads    = {threads},
-        n_dims       = {params.n_dims},
-        out_pca_f    = '{output.pca_f}',
-        coldata_f    = '{input.coldata_f}',
-        cells_f      = '{input.clean_cells_f}',
-        exclude_mito = tolower('{params.exclude_mito}') == 'true'{params.regression_args})"
+        counts_h5_fs           = '$LOCAL_HVG',
+        n_threads              = {threads},
+        n_dims                 = {params.n_dims},
+        out_pca_f              = '{output.pca_f}',
+        coldata_f              = '{input.coldata_f}',
+        cells_f                = '{input.clean_cells_f}',
+        exclude_mito           = tolower('{params.exclude_mito}') == 'true',
+        tricycle_f             = '{input.tricycle_f}',
+        harmonics              = {params.harmonics},
+        ridge_lambda           = {params.ridge_lambda},
+        correction_centering   = '{params.centering}',
+        out_regression_f       = '{output.regression_f}',
+        out_regression_genes_f = '{output.regression_genes_f}')"
       """
 
 
   rule run_integration:
     input:
-      pca_f      = FINAL_PCA_F,
+      pca_f      = PCA_SINGLETS_ONLY_F,
       doublet_f  = DOUBLETS_F,
       coldata_f  = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
       tricycle_f = TRICYCLE_SCORES_F if CELL_CYCLE_ENABLED else []
@@ -311,26 +314,26 @@ def int_get_filt_counts_f(run):
   elif ambient_method == "none":
     return f'{amb_dir}/ambient_{run}/uncorrected_{run}_{DATE_STAMP}_filtered.h5'
 
-# rule to create sce objects without any doublets (and delete temporary sce objects in the qc directory)
+# save clean cells in per-batch H5AD files
 rule make_clean_h5ads:
   input:
-    integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    h5_paths_f    = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
-    h5_filt_fs    = [int_get_filt_counts_f(run) for run in RUNS],
-    coldata_f     = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    rowdata_f     = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    cell_cycle_origin_f = TRICYCLE_ORIGIN_F if CELL_CYCLE_ENABLED else [],
-    cell_cycle_regression_f = FINAL_REGRESSION_F if CELL_CYCLE_REGRESSION else [],
-    af_h5_f       = lambda wildcards: f'{af_dir}/af_{get_run_for_one_batch(wildcards.batch, RUNS_TO_BATCHES)[0]}/{af_rna_dir}af_counts_mat.h5',
+    integration_f           = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    h5_paths_f              = f'{hvg_dir}/hvg_paths_{FULL_TAG}_{DATE_STAMP}.csv',
+    h5_filt_fs              = [int_get_filt_counts_f(run) for run in RUNS],
+    coldata_f               = f'{qc_dir}/coldata_dt_all_cells_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    rowdata_f               = f'{qc_dir}/rowdata_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    cell_cycle_origin_f     = TRICYCLE_ORIGIN_F if CELL_CYCLE_ENABLED else [],
+    cell_cycle_regression_f = REGRESSION_SINGLETS_ONLY_F if CELL_CYCLE_REGRESSION else [],
+    af_h5_f                 = lambda wildcards: f'{af_dir}/af_{get_run_for_one_batch(wildcards.batch, RUNS_TO_BATCHES)[0]}/{af_rna_dir}af_counts_mat.h5',
   output:
-    clean_h5ad_f  = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad'
+    clean_h5ad_f = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad'
   params:
-    sel_run       = lambda wildcards: get_run_for_one_batch(wildcards.batch, RUNS_TO_BATCHES),
-    run_var       = RUN_VAR,
-    batch_var     = BATCH_VAR,
+    sel_run         = lambda wildcards: get_run_for_one_batch(wildcards.batch, RUNS_TO_BATCHES),
+    run_var         = RUN_VAR,
+    batch_var       = BATCH_VAR,
     cell_cycle_args = (
       f'--cell_cycle_origin_f {TRICYCLE_ORIGIN_F} ' +
-      (f'--cell_cycle_regression_f {FINAL_REGRESSION_F}' if CELL_CYCLE_REGRESSION else '')
+      (f'--cell_cycle_regression_f {REGRESSION_SINGLETS_ONLY_F}' if CELL_CYCLE_REGRESSION else '')
     ) if CELL_CYCLE_ENABLED else ''
   threads: 1
   retries: config['resources']['retries']
@@ -363,9 +366,9 @@ rule make_clean_h5ads:
 # make a yaml with all clean sce file paths
 rule make_clean_h5ad_paths_yaml:
   input:
-    clean_h5ad_fs  = expand(f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad', batch = BATCHES)
+    clean_h5ad_fs = expand(f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad', batch = BATCHES)
   output:
-    h5ads_yaml_f   = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
+    h5ads_yaml_f = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
   log:
     f'{logs_dir}/integration/make_clean_h5ad_paths_yaml_{DATE_STAMP}.log'
   run:
@@ -386,9 +389,9 @@ rule make_clean_h5ad_paths_yaml:
 
 rule convert_h5ad_to_sce: 
   input:
-    clean_h5ad_f  = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad'
+    clean_h5ad_f = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad'
   output:
-    clean_sce_f   = f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds'
+    clean_sce_f = f'{int_dir}/sce_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.rds'
   threads: 1
   retries: config['resources']['retries']
   resources:
