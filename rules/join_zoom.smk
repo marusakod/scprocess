@@ -48,7 +48,7 @@ rule join_zoom_prepare:
     labels_f           = JOIN_ZOOM_PARAMS['paths']['labels'],
     manifest_f         = JOIN_ZOOM_PARAMS['paths']['manifest'],
     h5ads              = [b['path'] for b in JOIN_ZOOM_PARAMS['batches'].values()],
-    JOIN_ZOOM_SCRIPT_F = JOIN_ZOOM_SCRIPT_F
+    join_zoom_script_f = JOIN_ZOOM_SCRIPT_F
   output:
     cells        = JOIN_ZOOM_PARAMS['selected_f'],
     summary      = JOIN_ZOOM_PARAMS['summary_f'],
@@ -83,7 +83,7 @@ rule join_zoom_calculate_raw_gene_count_statistics:
   input:
     cells              = lambda wildcards: JOIN_ZOOM_PARAMS['batches'][wildcards.batch]['cells_f'],
     h5ad               = lambda wildcards: JOIN_ZOOM_PARAMS['batches'][wildcards.batch]['path'],
-    JOIN_ZOOM_SCRIPT_F = JOIN_ZOOM_SCRIPT_F
+    join_zoom_script_f = JOIN_ZOOM_SCRIPT_F
   output: zoom_stats_pattern
   params: chunk_size = JOIN_ZOOM_PARAMS['hvg']['hvg_chunk_size']
   threads: 1
@@ -99,15 +99,15 @@ rule join_zoom_calculate_raw_gene_count_statistics:
     '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
-    python3 {input.JOIN_ZOOM_SCRIPT_F:q} stats --h5ad {input.h5ad:q} --cells {input.cells:q} \
+    python3 {input.join_zoom_script_f:q} stats --h5ad {input.h5ad:q} --cells {input.cells:q} \
       --chunk-size {params.chunk_size} --output {output:q}
     """
 
 rule join_zoom_fit_expected_gene_variances:
   input:
     stats              = expand(zoom_stats_pattern, batch=ZOOM_BATCHES),
-    JOIN_ZOOM_SCRIPT_F = JOIN_ZOOM_SCRIPT_F,
-    HVGS_SCRIPT_F      = HVGS_SCRIPT_F
+    join_zoom_script_f = JOIN_ZOOM_SCRIPT_F,
+    hvgs_script_f      = HVGS_SCRIPT_F
   output:
     trend   = zoom_trend_f,
     batches = expand(zoom_batch_trend_pattern, batch=ZOOM_BATCHES)
@@ -124,7 +124,7 @@ rule join_zoom_fit_expected_gene_variances:
     '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
-    python3 {input.JOIN_ZOOM_SCRIPT_F:q} trend --inputs {input.stats:q} --output {output.trend:q} --batch-outputs {output.batches:q}
+    python3 {input.join_zoom_script_f:q} trend --inputs {input.stats:q} --output {output.trend:q} --batch-outputs {output.batches:q}
     """
 
 rule join_zoom_calculate_clipped_gene_count_statistics:
@@ -132,7 +132,7 @@ rule join_zoom_calculate_clipped_gene_count_statistics:
     cells              = lambda wildcards: JOIN_ZOOM_PARAMS['batches'][wildcards.batch]['cells_f'],
     h5ad               = lambda wildcards: JOIN_ZOOM_PARAMS['batches'][wildcards.batch]['path'],
     trend              = zoom_batch_trend_pattern,
-    JOIN_ZOOM_SCRIPT_F = JOIN_ZOOM_SCRIPT_F
+    join_zoom_script_f = JOIN_ZOOM_SCRIPT_F
   output: zoom_clip_pattern
   params: chunk_size = JOIN_ZOOM_PARAMS['hvg']['hvg_chunk_size']
   threads: 1
@@ -148,7 +148,7 @@ rule join_zoom_calculate_clipped_gene_count_statistics:
     '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
-    python3 {input.JOIN_ZOOM_SCRIPT_F:q} clip --h5ad {input.h5ad:q} --cells {input.cells:q} \
+    python3 {input.join_zoom_script_f:q} clip --h5ad {input.h5ad:q} --cells {input.cells:q} \
       --chunk-size {params.chunk_size} --trend {input.trend:q} --output {output:q}
     """
 
@@ -156,8 +156,8 @@ rule join_zoom_rank_and_select_highly_variable_genes:
   input:
     stats              = expand(zoom_clip_pattern, batch=ZOOM_BATCHES),
     trend              = zoom_trend_f,
-    JOIN_ZOOM_SCRIPT_F = JOIN_ZOOM_SCRIPT_F,
-    HVGS_SCRIPT_F      = HVGS_SCRIPT_F,
+    join_zoom_script_f = JOIN_ZOOM_SCRIPT_F,
+    hvgs_script_f      = HVGS_SCRIPT_F,
     exclude            = [JOIN_ZOOM_PARAMS['hvg']['hvg_exclude_from_file']] if JOIN_ZOOM_PARAMS['hvg'].get('hvg_exclude_from_file') else []
   output: HVG_FS[0]
   params:
@@ -176,7 +176,7 @@ rule join_zoom_rank_and_select_highly_variable_genes:
     '../envs/hvgs.yaml'
   shell: """
     exec &>> {log}
-    python3 {input.JOIN_ZOOM_SCRIPT_F:q} rank --inputs {input.stats:q} --trend {input.trend:q} \
+    python3 {input.join_zoom_script_f:q} rank --inputs {input.stats:q} --trend {input.trend:q} \
       --n-hvgs {params.n_hvgs} --output {output:q} {params.exclude_flag} {input.exclude:q}
     """
 

@@ -78,9 +78,10 @@ parent. Unsupported subset options are rejected by the joined-zoom schema.
 
 ## HVG rule names and code inputs
 
-Fixed code dependencies use uppercase input names, `JOIN_ZOOM_SCRIPT_F` and
-`HVGS_SCRIPT_F`; data inputs keep their existing lowercase names. Code files
-remain dependencies so changes to them can trigger recomputation.
+Fixed code-file constants use uppercase names, `JOIN_ZOOM_SCRIPT_F` and
+`HVGS_SCRIPT_F`. Named rule inputs use lowercase: `join_zoom_script_f` and
+`hvgs_script_f`, for example `join_zoom_script_f = JOIN_ZOOM_SCRIPT_F`. Code
+files remain dependencies so changes to them can trigger recomputation.
 
 | Earlier rule name | Current rule name |
 | --- | --- |
