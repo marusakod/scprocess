@@ -43,6 +43,6 @@ def test_hvg_matrix_rules_track_the_builder_script():
     "if __name__", 1
   )[0]
   assert "script_f" in create_hvg
-  assert "python3 {input.script_f} create_hvg_matrix" in create_hvg
+  assert "python3 {input.hvgs_script_f} create_hvg_matrix" in create_hvg
   assert "script_f" in create_doublets
-  assert "python3 {input.script_f} create_doublets_matrix" in create_doublets
+  assert "python3 {input.hvgs_script_f} create_doublets_matrix" in create_doublets

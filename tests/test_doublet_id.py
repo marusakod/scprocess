@@ -2,6 +2,7 @@ import csv
 import gzip
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 
@@ -73,8 +74,8 @@ def test_qc_rule_passes_optional_doublet_parameters_and_outputs():
   qc_rule = (ROOT / "rules" / "qc.smk").read_text()
   sample_qc = (ROOT / "scripts" / "SampleQC.R").read_text()
 
-  assert "dbl_dbr_sd      =  {params.dbl_dbr_sd}" in qc_rule
-  assert "dbl_clusters    =  {params.dbl_clusters}" in qc_rule
+  assert re.search(r"dbl_dbr_sd\s*=\s*\{params.dbl_dbr_sd\}", qc_rule)
+  assert re.search(r"dbl_clusters\s*=\s*\{params.dbl_clusters\}", qc_rule)
   assert "artificial_doublets" in qc_rule
   assert "dbl_all_dt[type == 'doublet']" in sample_qc
   assert "scDblFinder.threshold" in sample_qc

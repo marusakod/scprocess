@@ -357,6 +357,8 @@
         "mins_check_demux_ids":           { "type": "integer", "default": 5 },
 
         "gb_run_qc_one_run":              { "type": "integer", "default": 12 },
+        "gb_merge_doublet_diagnostics":   { "type": "integer", "default": 4 },
+        "mins_merge_doublet_diagnostics": { "type": "integer", "default": 15 },
         "gb_merge_qc":                    { "type": ["integer", "null"] },
         "gb_merge_rowdata":               { "type": ["integer", "null"] },
         "gb_get_qc_sample_statistics":    { "type": ["integer", "null"] },

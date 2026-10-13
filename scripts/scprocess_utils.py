@@ -1049,8 +1049,6 @@ def _check_hvg_parameters(config):
     absent_vals = set(exc_vals) - set(all_vals)
     if len(absent_vals) > 0:
       raise ValueError(f"the following genes were specified in 'hvg_exclude_from_file' but were not found in the reference transcriptome: {', '.join(absent_vals)}")
-  else:
-    config['hvg']['hvg_exclude_from_file'] = None
 
   # define dummy group names for all
   if config['hvg']['hvg_method'] == 'all':
@@ -1863,6 +1861,87 @@ def _get_run_parameters_one_run(run_name, config, scdata_dir, custom_run_params,
   }
 
   return out_dc
+
+
+# QC statistics and threshold preparation
+def extract_qc_sample_statistics(run_stats_f, qc_merged_f, cuts_f, config, BATCHES, RUNS_TO_BATCHES, BATCH_VAR, RUN_VAR):
+  # load the merged qc file, also thresholds
+  qc_df     = pl.read_csv(qc_merged_f)
+  cuts_df   = pl.read_csv(cuts_f)
+
+  # count the number of cells that passed qc per sample
+  qc_df     = qc_df.filter(pl.col("keep") == True)
+  sample_df = qc_df.group_by(BATCH_VAR).agg( pl.col(BATCH_VAR).count().alias('n_cells') )
+
+  cuts_sample_df = cuts_df.select(BATCH_VAR)
+  sample_df = cuts_sample_df.join(sample_df, on=BATCH_VAR, how='left')
+  sample_df = sample_df.fill_null(0)
+
+  # check all samples present in sample_df
+  if set(sample_df[BATCH_VAR].to_list()) != set(cuts_df[BATCH_VAR].to_list()):
+    raise ValueError("sample_df and cuts_df have different sets of values for BATCH_VAR")
+
+  # load cuts, merge and use to identify samples that do not meet the minimum cell threshold
+  sample_df = sample_df.join( cuts_df.select([BATCH_VAR, "min_cells"]), on = BATCH_VAR, how = "left")
+  sample_df = sample_df.with_columns( (pl.col('n_cells') < pl.col('min_cells')).alias('bad_qc') )
+
+  # handle samples excluded after cellbender
+  if config['ambient']['ambient_method'] == 'cellbender':
+    # load ambient sample stats
+    amb_stats   = pl.read_csv(run_stats_f)
+
+    # get bad pools or samples
+    bad_bender  = amb_stats.filter( pl.col('bad_run') )[ RUN_VAR ].to_list()
+
+    # check for these
+    if config['multiplexing']['demux_type'] != "none":
+      bad_bender_batches = []
+      for bad_run in bad_bender:
+        if bad_run in RUNS_TO_BATCHES:
+          bad_bender_batches.extend(RUNS_TO_BATCHES[bad_run])
+      if not all(b in BATCHES for b in bad_bender_batches):
+        raise ValueError("Some bad bender samples are not in the BATCHES list.")
+    else:
+      bad_bender_batches = bad_bender
+
+    # record samples where cellbender went wrong
+    sample_df = sample_df.with_columns( pl.lit(False).alias('bad_bender'))
+    if len(bad_bender_batches) != 0:
+      # add bad_bender column to sample_df
+      bad_bender_df = pl.DataFrame({
+        BATCH_VAR:    bad_bender_batches,
+        'n_cells':    None,
+        'min_cells':  None,
+        'bad_qc':     False,
+        'bad_bender': True
+      }).with_columns(
+        pl.col("n_cells").cast(sample_df["n_cells"].dtype),
+        pl.col("min_cells").cast(sample_df["min_cells"].dtype),
+      )
+      sample_df = sample_df.vstack(bad_bender_df)
+
+    # check we didn't miss anything
+    if not all([b in sample_df[BATCH_VAR].to_list() for b in BATCHES]):
+      raise KeyError("some samples missing from sample_df")
+
+    # label as bad if bad_bender or bad_qc
+    sample_df   = sample_df.with_columns( (pl.col('bad_bender') | pl.col('bad_qc')).alias(f'bad_{BATCH_VAR}') )
+
+  else:
+    sample_df   = sample_df.with_columns( pl.col('bad_qc').alias(f'bad_{BATCH_VAR}') )
+
+  return sample_df
+
+
+def write_qc_thresholds(qc_by_batch, batch_var, out_f):
+  rows = []
+  for batch, qc_params in qc_by_batch.items():
+    row = {batch_var: batch}
+    row.update(qc_params)
+    rows.append(row)
+  cuts_df = pl.DataFrame(rows)
+  cuts_df = cuts_df.rename(lambda name: name.replace('qc_', '') if name.startswith('qc_') else name)
+  cuts_df.write_csv(out_f)
 
 
 # get variables for each run

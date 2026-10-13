@@ -799,7 +799,7 @@ rule zoom_get_highly_variable_genes:
     zoom_hvg_method   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_method'],
     zoom_n_hvgs       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_n_hvgs'],
     batch_var         = BATCH_VAR,
-    zoom_exc_gs_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_exclude_from_file'],
+    zoom_exc_gs_f     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_exclude_from_file'] if 'hvg_exclude_from_file' in ZOOM_PARAMS[wildcards.zoom_name]['hvg'] else [],
     zoom_exc_ambient  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_exclude_ambient_genes']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
