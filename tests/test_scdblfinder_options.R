@@ -41,8 +41,8 @@ invisible(.run_scdblfinder(
   sce, 'sample_a', 'sample_id', 'none', real_f, artificial_f, summary_f,
   min_feats = 1L, min_cells = 1L))
 stopifnot(
-  identical(captured_args$dbr.sd, 1),
-  identical(captured_args$clusters, FALSE))
+  !('dbr.sd' %in% names(captured_args)),
+  !('clusters' %in% names(captured_args)))
 
 invisible(.run_scdblfinder(
   sce, 'sample_a', 'sample_id', 'none', real_f, artificial_f, summary_f,

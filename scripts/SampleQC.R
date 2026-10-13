@@ -44,7 +44,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   dbl_summary_f, qc_f,
   coldata_f, mito_str, exclude_mito, hard_min_counts, hard_min_feats, hard_max_mito,
   run_var = "sample_id", demux_type = "none", batch_var = "sample_id", dbl_min_feats = 100,
-  dbl_min_cells = 100, dbl_dbr_sd = 1, dbl_clusters = FALSE) {
+  dbl_min_cells = 100, dbl_dbr_sd = NULL, dbl_clusters = NULL) {
   # check inputs
   exclude_mito  = as.logical(exclude_mito)
 
@@ -372,7 +372,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 
 .run_scdblfinder <- function(sce, run_name, run_var = 'sample_id', ambient_method,
   dbl_f, dbl_artificial_f, dbl_summary_f, min_feats = 100, min_cells = 100,
-  dbl_dbr_sd = 1, dbl_clusters = FALSE) {
+  dbl_dbr_sd = NULL, dbl_clusters = NULL) {
   # subset to just this sample
   run_idx     = sce[[run_var]] == run_name
   sce         = sce[, run_idx ]

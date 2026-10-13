@@ -23,13 +23,13 @@ def _write_csv_gz(path, rows):
     writer.writerows(rows)
 
 
-def test_doublet_schema_defaults_use_rate_free_unclustered_calls():
+def test_doublet_schema_defaults_use_package_defaults():
   schema = json.loads(
     (ROOT / "resources" / "schemas" / "config.schema.json").read_text())
   qc = schema["properties"]["qc"]["properties"]
 
-  assert qc["dbl_dbr_sd"]["default"] == 1
-  assert qc["dbl_clusters"]["default"] is False
+  assert qc["dbl_dbr_sd"]["default"] is None
+  assert qc["dbl_clusters"]["default"] is None
   assert qc["dbl_dbr_sd"]["minimum"] == 0
 
 

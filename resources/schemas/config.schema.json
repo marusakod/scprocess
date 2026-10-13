@@ -135,8 +135,8 @@
         "qc_max_splice":  { "type": "number", "minimum": 0, "maximum": 1, "default": 1 },
         "qc_min_cells":   { "type": "integer", "exclusiveMinimum": 0, "default": 100 },
         "dbl_min_feats":  { "type": "integer", "exclusiveMinimum": 0, "default": 100 },
-        "dbl_dbr_sd":     { "type": ["number", "null"], "minimum": 0, "default": 1 },
-        "dbl_clusters":   { "type": ["boolean", "null"], "default": false },
+        "dbl_dbr_sd":     { "type": ["number", "null"], "minimum": 0, "default": null },
+        "dbl_clusters":   { "type": ["boolean", "null"], "default": null },
         "exclude_mito":   { "type": "boolean", "default": true }
       }
     },
