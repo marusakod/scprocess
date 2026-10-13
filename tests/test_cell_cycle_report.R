@@ -19,9 +19,9 @@ file.copy(file.path(repo, "scripts", c("utils.R", "cell_cycle.R")),
 cycle_dir = file.path(source_project, "output/test_cell_cycle")
 tag = "test_project_2026-01-01"
 # Build a small report fixture from saved coordinates; source outputs stay untouched.
-blob_f = file.path(test_project, 'data/blob.csv')
+ellipse_f = file.path(test_project, 'data/blob.csv')
 blob = estimate_cell_cycle_blob(
-  file.path(cycle_dir, paste0('tricycle_origin_diagnostics_', tag, '.csv.gz')), blob_f)
+  file.path(cycle_dir, paste0('tricycle_origin_diagnostics_', tag, '.csv.gz')), ellipse_f)
 diagnostics = fread(file.path(cycle_dir,
   paste0('tricycle_origin_diagnostics_', tag, '.csv.gz')))
 # Constant inclusion probabilities give an ordinary mean; use a small target
@@ -57,7 +57,7 @@ render_html(
   scores_f = scores_f,
   marker_expression_f = file.path(cycle_dir, paste0("tricycle_marker_expression_", tag, ".csv.gz")),
   diagnostics_f = diagnostics_f,
-  blob_f = blob_f,
+  ellipse_f = ellipse_f,
   origin_f = origin_f, sensitivity_f = sensitivity_f,
   coldata_f = file.path(source_project, "output/test_qc", paste0("coldata_dt_all_cells_", tag, ".csv.gz")))
 html = readLines(file.path(test_project, "public/test_cell_cycle.html"), warn = FALSE)

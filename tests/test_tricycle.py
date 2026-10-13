@@ -473,7 +473,7 @@ def test_bonus_doublet_rule_is_gpu_routed_on_shpc():
 def test_tricycle_rule_runs_once_per_physical_run():
   rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
   assert "Rscript --vanilla -e 'source(\"{scprocess_dir}/scripts/tricycle.R\")" in rules
-  assert 'rule estimate_run_tricycle:' in rules
+  assert 'rule calculate_tricycle_projection_one_run:' in rules
   assert 'run_column = "{params.run_var}"' in rules
   assert 'run_value = "{wildcards.run}"' in rules
   assert 'estimate_sample_tricycle' not in rules
@@ -516,8 +516,8 @@ def test_tricycle_reports_incremental_progress():
 
 def test_tricycle_run_jobs_use_dedicated_resource_model():
   rules = (ROOT / 'rules' / 'tricycle.smk').read_text()
-  assert rules.count("'estimate_run_tricycle', 'memory', attempt") == 1
-  assert rules.count("'estimate_run_tricycle', 'time', attempt") == 1
+  assert rules.count("'calculate_tricycle_projection_one_run', 'memory', attempt") == 1
+  assert rules.count("'calculate_tricycle_projection_one_run', 'time', attempt") == 1
   assert 'runtime = 60' not in rules
 
 

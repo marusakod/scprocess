@@ -395,8 +395,14 @@
         "mins_create_hvg_matrix":         { "type": ["integer", "null"] },
         "mins_create_doublets_hvg_matrix": { "type": ["integer", "null"] },
 
+        "gb_calculate_tricycle_projection_one_run":       { "type": ["integer", "null"] },
         "gb_estimate_run_tricycle":       { "type": ["integer", "null"] },
+        "mins_calculate_tricycle_projection_one_run":     { "type": ["integer", "null"] },
         "mins_estimate_run_tricycle":     { "type": ["integer", "null"] },
+        "gb_aggregate_tricycle":           { "type": "integer", "default": 8 },
+        "mins_aggregate_tricycle":         { "type": "integer", "default": 30 },
+        "gb_estimate_tricycle_reference_ellipse":   { "type": "integer", "default": 8 },
+        "mins_estimate_tricycle_reference_ellipse": { "type": "integer", "default": 30 },
 
         "gb_run_integration":             { "type": "integer", "default": 32 },
         "gb_make_clean_h5ads":            { "type": "integer", "default": 8 },

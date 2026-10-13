@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.mark.parametrize('setting', [{'cyc_target_prop': 0.01}, {'cyc_target_prop': 1},
   {'cyc_target_prop': 0.01, 'cyc_origin_manual': [-3, 1]}])
-def test_tricycle_origin_arguments(tmp_path, setting):
+@pytest.mark.parametrize('target', ['origin', 'standalone_default', 'parent_default'])
+def test_tricycle_origin_arguments(tmp_path, setting, target):
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
   config = _get_default_config_from_schema(schema, {'cell_cycle': setting})
   config['cell_cycle'].update(setting, _species='mouse')
@@ -26,6 +27,13 @@ def test_tricycle_origin_arguments(tmp_path, setting):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch()
   snakefile = tmp_path / 'Snakefile'
+  parent_rule = '''rule all:
+  input: "cycle/tricycle_origin_test_date.csv"
+''' if target == 'parent_default' else ''
+  rule_path = str(ROOT / 'rules/tricycle.smk')
+  include_rule = (
+    f'workflow.include({rule_path!r}, overwrite_default_target=True)'
+    if target == 'standalone_default' else f'include: {rule_path!r}')
   snakefile.write_text(f'''
 config = {config!r}
 scprocess_dir = {str(ROOT)!r}
@@ -38,7 +46,8 @@ def get_filtered_counts_file(*args):
     return "counts.h5"
 def get_resources(*args):
     return 1000
-include: {str(ROOT / 'rules/tricycle.smk')!r}
+{parent_rule}
+{include_rule}
 ''')
   env = {k: v for k, v in os.environ.items() if not k.startswith('SNAKEMAKE_')}
   env['XDG_CACHE_HOME'] = str(tmp_path / 'cache')
@@ -46,12 +55,13 @@ include: {str(ROOT / 'rules/tricycle.smk')!r}
     sys.executable, '-m', 'snakemake', '--snakefile', str(snakefile),
     '--directory', str(tmp_path), '--dry-run', '--printshellcmds',
     '--cores', '2', '--executor', 'local', '--profile', 'none',
-    '--workflow-profile', 'none', '--nolock', 'cycle/tricycle_origin_test_date.csv',
-  ], text=True, capture_output=True, timeout=45, env=env)
+    '--workflow-profile', 'none', '--nolock',
+  ] + (['cycle/tricycle_origin_test_date.csv'] if target == 'origin' else []),
+    text=True, capture_output=True, timeout=45, env=env)
   output = result.stdout + result.stderr
   assert result.returncode == 0, output
   assert '--target_prop ' + str(setting['cyc_target_prop']) in output
-  assert 'estimate_cell_cycle_blob(' not in output
+  assert ('estimate_cell_cycle_blob(' in output) == (target == 'standalone_default')
   assert 'prepare_tricycle' not in output
   assert output.count('run_column = "pool_id"') == 2
   if 'cyc_origin_manual' in setting:

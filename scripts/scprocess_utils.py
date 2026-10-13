@@ -2495,6 +2495,12 @@ def prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS=None, BATCH
 
   # get user resource values
   user_vals   = config.get('resources', {}).copy()
+  # Keep resource overrides from the former per-run tricycle rule name working.
+  for prefix in ('gb_', 'mins_'):
+    old_name = prefix + 'estimate_run_tricycle'
+    new_name = prefix + 'calculate_tricycle_projection_one_run'
+    if old_name in user_vals:
+      user_vals.setdefault(new_name, user_vals.pop(old_name))
 
   # if same as default, remove from user vals
   for n in list(user_vals):

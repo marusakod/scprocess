@@ -697,6 +697,27 @@ from QC-passed candidate singlets. Known doublets receive coordinates and theta
 but are excluded from origin estimation. Project-wide centring and the pooled
 origin make all three values dependent on project composition.
 
+#### Tricycle rule names
+
+The per-run projection rule is `calculate_tricycle_projection_one_run` (formerly
+`estimate_run_tricycle`). Resource overrides use
+`gb_calculate_tricycle_projection_one_run` and
+`mins_calculate_tricycle_projection_one_run`; the earlier YAML keys remain
+accepted, with current keys taking precedence. Custom profile entries and direct
+rule targets should use the current name. Resource model values are unchanged.
+
+The pooled reference ellipse rule is `estimate_tricycle_reference_ellipse`
+(formerly `estimate_tricycle_blob`). It fits a robust covariance ellipse to
+QC-passed projections; it does not assign G0/G1 membership. Existing output
+filenames are preserved; named rule and report parameters use `ellipse_f`.
+Both pooled rules use configurable resource defaults: 8 GiB and 30 minutes.
+Override them with `gb_aggregate_tricycle`, `mins_aggregate_tricycle`,
+`gb_estimate_tricycle_reference_ellipse` and
+`mins_estimate_tricycle_reference_ellipse`. Memory increases on retry through
+the standard resource helper. The default memory request is now 8192 MiB,
+compared with the previous hard-coded 8000 MiB.
+
+
 Set `integration.int_cell_cycle_correction: within_sample` (or `global`) to
 remove shared cyclic effects from normalized, scaled HVG expression before
 PCA. In standard projects, correction is applied both before the preliminary

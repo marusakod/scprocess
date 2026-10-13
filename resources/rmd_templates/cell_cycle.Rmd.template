@@ -33,7 +33,7 @@ origin_sensitivity <- fread("${sensitivity_f}")
 diagnostics <- fread("${diagnostics_f}")
 display_sample <- cell_cycle_display_sample(
   diagnostics[['inclusion_probability']], seed=origin[['seed']][1])
-blob <- read_cell_cycle_blob("${blob_f}")
+blob <- read_cell_cycle_blob("${ellipse_f}")
 coldata <- fread("${coldata_f}", select=c('cell_id', 'keep'))
 scores_qc <- merge(scores, coldata[keep == TRUE], by='cell_id')
 scores_qc <- merge(
