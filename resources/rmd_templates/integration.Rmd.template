@@ -2,7 +2,7 @@
 title: "Integration diagnostics"
 author:
 - name: ${your_name}
-  affiliation: 
+  affiliation:
   - ${affiliation}
 date: '`r format(as.Date("${date_stamp}"), "%B %d, %Y")`'
 output:
@@ -17,7 +17,7 @@ output:
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
-knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png', 
+knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png',
 fig.path = "figure/${short_tag}_integration.Rmd/", message = FALSE, warning = FALSE
 )
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
@@ -35,10 +35,11 @@ setDTthreads(n_cores)
 ```{r setup_input, include = FALSE}
 # inputs via reprocessing
 qc_f          = "${qc_dt_f}"
+doublet_real_f = "${doublet_real_f}"
 
 # define QC lookups
-qc_names      = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
-qc_lu         = c('no. of UMIs', 'no. of genes', 'mito pct.', 'spliced pct.') %>% 
+qc_names      = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced', 'doublet_score')
+qc_lu         = c('no. of UMIs', 'no. of genes', 'mito pct.', 'spliced pct.', 'doublet score') %>%
   setNames(qc_names)
 
 # define integration inputs
@@ -65,11 +66,13 @@ if (demux_type == 'hto') {
 
 
 ```{r load_qc_results, include = FALSE}
-qc_melt       = fread(qc_f) %>% 
+qc_melt       = fread(qc_f) %>%
+  merge(fread(doublet_real_f)[, .(cell_id, doublet_score = score)],
+    by = 'cell_id', all.x = TRUE) %>%
   melt(id = 'cell_id', measure = qc_names, val = 'qc_val', var = 'qc_var') %>%
   .[, qc_full := qc_lu[ qc_var ] ] %>%
   .[, qc_var  := factor(qc_var, levels = qc_names) ] %>%
-  .[, qc_full := fct_reorder(qc_full, as.integer(qc_var)) ] %>% 
+  .[, qc_full := fct_reorder(qc_full, as.integer(qc_var)) ] %>%
   .[ !is.na(qc_val) ]
 ```
 
@@ -78,21 +81,21 @@ int_all       = fread(integration_f)
 ```
 
 ```{r extract_dbl_checks, include = FALSE}
-int_dbl       = int_all %>% 
+int_dbl       = int_all %>%
   .[, .(batch_var = get(batch_var), cell_id, UMAP1 = dbl_UMAP1, UMAP2 = dbl_UMAP2, is_dbl, dbl_cluster)]
 ```
 
 ```{r extract_normal_integration, include = FALSE}
-int_dt        = int_all[ !is.na(UMAP1) ] %>% 
-  .[, c(batch_var, "cell_id", "embedding", "UMAP1", "UMAP2", 
+int_dt        = int_all[ !is.na(UMAP1) ] %>%
+  .[, c(batch_var, "cell_id", "embedding", "UMAP1", "UMAP2",
     intersect(c("tricycle_pc1", "tricycle_pc2", "tricycle_theta"), names(int_all)),
     str_subset(names(int_all), "RNA_snn_res")), with = FALSE]
 ```
 
 ```{r extract_clusters, include = FALSE}
-clusts_dt   = int_dt %>% 
-  melt(measure = patterns('RNA_snn_res'), var = 'resolution', val = 'cluster') %>% 
-  .[, .(embedding, batch_var = get(batch_var), cell_id, 
+clusts_dt   = int_dt %>%
+  melt(measure = patterns('RNA_snn_res'), var = 'resolution', val = 'cluster') %>%
+  .[, .(embedding, batch_var = get(batch_var), cell_id,
     resolution = str_extract(resolution, "(?<=res\\.)(.+)"), cluster)]
 ```
 
@@ -101,7 +104,7 @@ Integration of cells and clustering is repeated after removing doublet enriched 
 
 ## Doublets over UMAP
 
-The plot displays a binned UMAP with the proportion of doublets as well as the number of doublets in each bin. 
+The plot displays a binned UMAP with the proportion of doublets as well as the number of doublets in each bin.
 
 ```{r plot_doublet_integration, fig.height = 5, fig.width = 11}
 g_dbl   = plot_umap_doublets(int_dbl)
@@ -120,7 +123,7 @@ The plot shows the proportion of doublets for each cluster in relation to the to
 
 ## Clusters over UMAP{.tabset}
 
-Clustering of data is performed at different resolution values. For each value the clusters are displayed over a UMAP together with a plot showing the density of cells. 
+Clustering of data is performed at different resolution values. For each value the clusters are displayed over a UMAP together with a plot showing the density of cells.
 
 After removing doublets, there were **`r nrow(int_dt)` QC-ed cells used for integration**.
 
@@ -128,7 +131,7 @@ After removing doublets, there were **`r nrow(int_dt)` QC-ed cells used for inte
 for (res in res_ls) {
   cat('### ', res, '\n')
   g_cl    = plot_umap_cluster(
-    umap_dt   = int_dt[, .(cell_id, UMAP1, UMAP2) ], 
+    umap_dt   = int_dt[, .(cell_id, UMAP1, UMAP2) ],
     clust_dt  = int_dt[, .(cell_id, cluster = get(paste0('RNA_snn_res.', res))) ],
     name      = sprintf('res = %s', res))
   g_dens  = plot_umap_density(int_dt[, .(cell_id, UMAP1, UMAP2) ])
@@ -165,7 +168,7 @@ n_clusts = res_ls %>% lapply(function(res){
 res_ls_pl = res_ls[n_clusts > 1]
 for (res in res_ls_pl) {
   cat('### ', res, '\n')
-  input_dt  = int_dt[, .(batch_var = get(batch_var), cell_id, 
+  input_dt  = int_dt[, .(batch_var = get(batch_var), cell_id,
     cluster = get(paste0('RNA_snn_res.', res)))]
   suppressWarnings(print(plot_cluster_entropies(input_dt, batch_var, what = "norm")))
   cat('\n\n')
@@ -174,14 +177,14 @@ for (res in res_ls_pl) {
 
 ## Check QC metrics of clusters{.tabset}
 
-Distributions of QC metrics (library size, number of features, mitochondrial proportion, and spliced proportion) are shown for each cluster across different resolution values.
+Distributions of QC metrics (library size, number of features, mitochondrial proportion, spliced proportion, and scDblFinder doublet score) are shown for each cluster across different resolution values.
 
-```{r plot_qc_distns, fig.height = 8, fig.width = 10, results = 'asis'}
+```{r plot_qc_distns, fig.height = 10, fig.width = 10, results = 'asis'}
 for (res in res_ls) {
   cat('### ', res, '\n')
   suppressWarnings(print(plot_cluster_qc_distns(
-    qc_melt, 
-    clust_dt  = int_dt[, .(cell_id, cluster = get(paste0('RNA_snn_res.', res)))], 
+    qc_melt,
+    clust_dt  = int_dt[, .(cell_id, cluster = get(paste0('RNA_snn_res.', res)))],
     name      = res)))
   cat('\n\n')
 }

@@ -239,7 +239,9 @@ plot_cluster_qc_distns <- function(qc_melt, clust_dt, name, min_cl_size = 1e2) {
         qc_full == "mito pct."        ~
           scale_y_continuous(breaks = logit_brks, labels = logit_labs),
         qc_full == "spliced pct."     ~
-          scale_y_continuous(breaks = logit_brks, labels = logit_labs)
+          scale_y_continuous(breaks = logit_brks, labels = logit_labs),
+        qc_full == "doublet score" ~
+          scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.25))
         )
       ) +
     theme_bw() +

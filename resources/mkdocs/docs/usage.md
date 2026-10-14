@@ -174,3 +174,7 @@ calling thresholds. Entropy describes score polarisation rather than detection
 accuracy. Beta fits describe score location and spread; samples flagged for
 unusually high fractions of scores above 0.5 merit review, not automatic exclusion.
 Percentages in the numeric summary use one decimal place.
+
+Integration reports show scDblFinder scores as the bottom row of the per-cluster
+QC violin plots, using the original 0–1 score scale. Scores come from real-cell
+doublet diagnostics and are joined to QC data by cell ID.

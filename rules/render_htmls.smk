@@ -407,7 +407,8 @@ rule render_html_integration:
   input:
     r_utils_f     = f"{code_dir}/utils.R",
     qc_dt_f       = f'{qc_dir}/qc_all_samples_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-    integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+    integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+    doublet_real_f = f'{dbl_dir}/scDblFinder_real_all_runs_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
     r_int_f     = f"{code_dir}/integration.R",
     rmd_f       = f"{rmd_dir}/{SHORT_TAG}_integration.Rmd",
@@ -457,6 +458,7 @@ rule render_html_integration:
       short_tag       = '{params.short_tag}',
       date_stamp      = '{params.date_stamp}',
       qc_dt_f         = '{input.qc_dt_f}',
+      doublet_real_f   = '{input.doublet_real_f}',
       threads         =  {threads},
       integration_f   = '{input.integration_f}',
       int_res_ls_str  = '{params.int_res_ls_str}',
