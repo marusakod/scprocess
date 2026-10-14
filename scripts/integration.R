@@ -208,6 +208,12 @@ plot_cluster_qc_distns <- function(qc_melt, clust_dt, name, min_cl_size = 1e2) {
 
   # join
   plot_dt   = merge(qc_melt, clust_dt, by = 'cell_id')
+  # Transform individual scores for plotting; exact endpoints have infinite logits.
+  score_rows = which(plot_dt$qc_full == 'doublet score')
+  scores = plot_dt$qc_val[score_rows]
+  scores[scores == 0] = 1e-12
+  scores[scores == 1] = 1 - 1e-12
+  set(plot_dt, i = score_rows, j = 'qc_val', value = qlogis(scores))
 
   # define colours
   cl_cols     = seq_along( levels(plot_dt$cluster) ) %>%
@@ -225,6 +231,9 @@ plot_cluster_qc_distns <- function(qc_melt, clust_dt, name, min_cl_size = 1e2) {
   splice_brks = seq(0.1, 0.9, 0.1) %>% qlogis
   splice_labs = (100*seq(0.1, 0.9, 0.1)) %>% as.integer %>% sprintf("%d%%", .)
 
+  score_ticks = c(1e-9, 1e-6, 0.001, 0.01, 0.1, 0.5, 0.9, 0.99, 0.999)
+  score_labels = c('1e-9', '1e-6', '0.001', '0.01', '0.1', '0.5', '0.9', '0.99', '0.999')
+
   # plot
   g = ggplot(plot_dt) + aes( x = cluster, y = qc_val, fill = cluster ) +
     geom_violin(kernel = 'rectangular', adjust = 0.5, scale = 'width', width = 0.8, colour = NA) +
@@ -241,7 +250,7 @@ plot_cluster_qc_distns <- function(qc_melt, clust_dt, name, min_cl_size = 1e2) {
         qc_full == "spliced pct."     ~
           scale_y_continuous(breaks = logit_brks, labels = logit_labs),
         qc_full == "doublet score" ~
-          scale_y_continuous(limits = c(0, NA), breaks = pretty_breaks())
+          scale_y_continuous(breaks = qlogis(score_ticks), labels = score_labels)
         )
       ) +
     theme_bw() +

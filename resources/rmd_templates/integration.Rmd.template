@@ -179,6 +179,9 @@ for (res in res_ls_pl) {
 
 Distributions of QC metrics (library size, number of features, mitochondrial proportion, spliced proportion, and scDblFinder doublet score) are shown for each cluster across different resolution values.
 
+Doublet scores use a logit axis labelled with original score values. Exact zero
+and one scores are moved to 1e-12 and 1-1e-12 for plotting only.
+
 ```{r plot_qc_distns, fig.height = 10, fig.width = 10, results = 'asis'}
 for (res in res_ls) {
   cat('### ', res, '\n')
