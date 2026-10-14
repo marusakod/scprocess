@@ -118,7 +118,7 @@ Mean binary entropy measures how close real-cell scores are to zero or one.
 Values range from zero (endpoint scores) to one bit (scores of 0.5). It describes
 score polarisation, not calibration or doublet-detection accuracy.
 
-```{r doublet_score_entropy, fig.width = 8, fig.height = max(4, 0.22 * length(doublets$run_levels) + 1.5)}
+```{r doublet_score_entropy, fig.width = max(8, 0.25 * length(doublets$run_levels) + 2), fig.height = 4}
 plot_doublet_score_entropy(doublets)
 ```
 

@@ -276,13 +276,13 @@ plot_doublet_score_entropy <- function(x) {
     geom_hline(yintercept = median(summary$mean_binary_entropy),
       linewidth = 0.45, linetype = 'dashed', colour = 'grey55') +
     geom_point(size = 2.2, alpha = 0.85, colour = 'grey25') +
-    coord_flip() +
-    scale_y_continuous(limits = c(0, 1), breaks = pretty_breaks(),
-      expand = expansion(mult = c(0, 0.02))) +
+    scale_y_continuous(limits = c(0, NA), breaks = pretty_breaks(),
+      expand = expansion(mult = c(0, 0.05))) +
     labs(x = NULL, y = 'Mean binary entropy (bits)',
       caption = 'Samples are ordered by entropy; the dashed line is the across-sample median.') +
     theme_classic() +
-    theme(plot.caption = element_text(colour = 'grey40', size = 8, hjust = 1))
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
+      plot.caption = element_text(colour = 'grey40', size = 8, hjust = 1))
 }
 
 plot_doublet_beta_mean_variance <- function(x) {
