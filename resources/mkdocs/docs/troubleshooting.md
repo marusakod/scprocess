@@ -30,3 +30,11 @@
 If you encounter any problems when running {{sc}} please consider opening an issue on our [GitHub](https://github.com/marusakod/scprocess).
 
 
+
+## GPU requested but unavailable
+
+Integration with `int_use_gpu: true` fails if no usable GPU is visible; it does
+not fall back to CPU. Check the effective Slurm GPU request, allocated resources
+and CUDA environment. A partial Snakemake `--set-resources` CLI override can
+replace the workflow profile's entire resource map, discarding GPU requests for
+other rules. Prefer project `resources` settings for memory or time adjustments.

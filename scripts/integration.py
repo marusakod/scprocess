@@ -707,16 +707,13 @@ if __name__ == "__main__":
   if use_gpu:
     try:
       import cupy as cp
-      gpu_count = cp.cuda.runtime.getDeviceCount() # this gives an error if gpu is not found
-            
-      if gpu_count == 0: # some drivers might still return 0 without erroring
-        print("GPU usage requested but no GPU available, running on CPU")
-        use_gpu = False
-
-    except (ImportError, Exception) as e:
-      print(f"GPU usage requested but no GPU available, running on CPU")
-      print(f"   (Error: {e})")
-      use_gpu = False
+      if cp.cuda.runtime.getDeviceCount() < 1:
+        raise RuntimeError('No CUDA-capable GPU is visible')
+    except Exception as e:
+      raise RuntimeError(
+        'GPU integration was requested but no usable GPU is available. '
+        'Check the Slurm GPU allocation and CUDA environment; CPU fallback is disabled.'
+      ) from e
 
   if use_gpu:
     print(f"Running on GPU")
