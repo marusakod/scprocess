@@ -225,3 +225,85 @@ render_doublet_pages <- function(x, pages, plot_fun, chunk_prefix,
     cat('\n\n')
   }
 }
+
+fit_doublet_score_beta <- function(scores) {
+  empty_fit = c(fitted_mean = NA_real_, fitted_variance = NA_real_)
+  if (length(scores) < 3L || var(scores) == 0) return(empty_fit)
+  n = length(scores)
+  adjusted = (scores * (n - 1) + 0.5) / n
+  mu = mean(adjusted)
+  concentration = mu * (1 - mu) / var(adjusted) - 1
+  if (!is.finite(concentration) || concentration <= 0) concentration = 2
+  start = log(pmax(c(mu * concentration, (1 - mu) * concentration), 0.05))
+  sum_log = sum(log(adjusted))
+  sum_log_one_minus = sum(log1p(-adjusted))
+  objective = function(log_parameters) {
+    a = exp(log_parameters[1L])
+    b = exp(log_parameters[2L])
+    n * lbeta(a, b) - (a - 1) * sum_log - (b - 1) * sum_log_one_minus
+  }
+  fit = tryCatch(optim(start, objective, method = 'BFGS'), error = function(e) NULL)
+  if (is.null(fit) || fit$convergence != 0L) return(empty_fit)
+  parameters = exp(fit$par)
+  total = sum(parameters)
+  if (any(!is.finite(parameters)) || any(parameters <= 0)) return(empty_fit)
+  c(fitted_mean = parameters[1L] / total,
+    fitted_variance = prod(parameters) / (total^2 * (total + 1)))
+}
+
+summarize_doublet_scores <- function(x) {
+  summary = x$real[, {
+    entropy = numeric(.N)
+    interior = score > 0 & score < 1
+    entropy[interior] = -(score[interior] * log2(score[interior]) +
+      (1 - score[interior]) * log2(1 - score[interior]))
+    c(list(mean_binary_entropy = mean(entropy), n_cells = .N,
+      n_high_scores = sum(score > 0.5)), as.list(fit_doublet_score_beta(score)))
+  }, by = run_id]
+  summary[, logit_high_score_prop := qlogis((n_high_scores + 0.5) / (n_cells + 1))]
+  spread = mad(summary$logit_high_score_prop)
+  cutoff = if (is.finite(spread) && spread > 0)
+    median(summary$logit_high_score_prop) + 2 * spread else Inf
+  summary[, high_score_outlier := logit_high_score_prop > cutoff]
+  summary
+}
+
+plot_doublet_score_entropy <- function(x) {
+  summary = copy(x$score_summary)
+  summary[, run_id := factor(as.character(run_id),
+    levels = as.character(summary[order(-mean_binary_entropy, run_id), run_id]))]
+  ggplot(summary, aes(x = run_id, y = mean_binary_entropy)) +
+    geom_hline(yintercept = median(summary$mean_binary_entropy),
+      linewidth = 0.45, linetype = 'dashed', colour = 'grey55') +
+    geom_point(size = 2.2, alpha = 0.85, colour = 'grey25') +
+    coord_flip() +
+    scale_y_continuous(limits = c(0, 1), breaks = pretty_breaks(),
+      expand = expansion(mult = c(0, 0.02))) +
+    labs(x = NULL, y = 'Mean binary entropy (bits)',
+      caption = 'Samples are ordered by entropy; the dashed line is the across-sample median.') +
+    theme_classic() +
+    theme(plot.caption = element_text(colour = 'grey40', size = 8, hjust = 1))
+}
+
+plot_doublet_beta_mean_variance <- function(x) {
+  fits = x$score_summary[is.finite(fitted_mean) & is.finite(fitted_variance)]
+  outliers = fits[high_score_outlier == TRUE]
+  omitted = nrow(x$score_summary) - nrow(fits)
+  caption = 'Maximum-likelihood beta fits; red labels flag unusually high fractions of scores above 0.5.'
+  if (omitted > 0) caption = paste(caption,
+    sprintf('%d sample(s) omitted because a beta fit was not estimable.', omitted))
+  ggplot(fits, aes(x = fitted_mean, y = fitted_variance)) +
+    geom_point(size = 2.2, alpha = 0.8, colour = 'grey30') +
+    geom_point(data = outliers, size = 2.4, colour = '#D7191C') +
+    ggrepel::geom_label_repel(data = outliers, aes(label = run_id),
+      seed = 1, size = 3, min.segment.length = 0,
+      box.padding = 0.35, point.padding = 0.25,
+      fill = alpha('white', 0.9), colour = 'grey20',
+      label.size = 0.15, max.overlaps = Inf) +
+    scale_x_continuous(breaks = pretty_breaks(), labels = label_number(accuracy = 0.01)) +
+    scale_y_continuous(breaks = pretty_breaks(), labels = label_number(accuracy = 0.01)) +
+    labs(x = 'Fitted beta mean', y = 'Fitted beta variance', caption = caption) +
+    theme_classic() +
+    theme(aspect.ratio = 1,
+      plot.caption = element_text(colour = 'grey40', size = 8, hjust = 1))
+}

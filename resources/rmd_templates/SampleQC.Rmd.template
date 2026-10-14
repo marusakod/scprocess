@@ -58,6 +58,7 @@ qc_lu       = c('no. of cells', 'no. of UMIs', 'no. of genes', 'mito. pct.', 'sp
 ```{r load_doublet_values, include = FALSE}
 doublets     = load_doublet_id_data(
   doublet_real_f, doublet_artificial_f, doublet_summary_f, run_var)
+doublets$score_summary = summarize_doublet_scores(doublets)
 run_pages    = split_doublet_runs(doublets, page_size = 20L)
 ```
 
@@ -111,16 +112,41 @@ Artificial doublets are simulated training observations, not biological cells.
 plot_doublet_overview(doublets)
 ```
 
-#### Calls versus calling threshold
+#### Score entropy by sample
 
-```{r doublet_thresholds, fig.width = 6, fig.height = 4}
-plot_doublet_thresholds(doublets)
+Mean binary entropy measures how close real-cell scores are to zero or one.
+Values range from zero (endpoint scores) to one bit (scores of 0.5). It describes
+score polarisation, not calibration or doublet-detection accuracy.
+
+```{r doublet_score_entropy, fig.width = 8, fig.height = max(4, 0.22 * length(doublets$run_levels) + 1.5)}
+plot_doublet_score_entropy(doublets)
+```
+
+#### Beta mean and variance by sample
+
+A beta distribution is fitted to each sample's real-cell scores by maximum
+likelihood, after moving exact endpoints minimally inside (0, 1). Its fitted
+mean describes score location and its variance describes spread. Red, labelled
+samples have an unusually high fraction of scores above 0.5 (more than two MADs
+above the median on the logit scale); this is a review flag, not an exclusion.
+
+```{r doublet_beta_mean_variance, fig.width = 8, fig.height = 7}
+plot_doublet_beta_mean_variance(doublets)
 ```
 
 #### Numeric summary
 
 ```{r doublet_summary_table}
-knitr::kable(doublet_summary_table(doublets), digits = 3)
+summary_table = doublet_summary_table(doublets)
+pct_columns = grep('_pct$', names(summary_table), value = TRUE)
+summary_table[, (pct_columns) := lapply(.SD, function(value) sprintf('%.1f', value)), .SDcols = pct_columns]
+knitr::kable(summary_table, digits = 3)
+```
+
+#### Calls vs calling threshold
+
+```{r doublet_thresholds, fig.width = 6, fig.height = 4}
+plot_doublet_thresholds(doublets)
 ```
 
 ### Real-cell score histograms{.tabset}
