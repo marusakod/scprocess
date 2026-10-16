@@ -551,6 +551,24 @@ sample_id:
 * `dbl_clusters`: controls cluster-based generation of artificial doublets. The default is `null`, which uses the installed `scDblFinder` default. Setting this to `false` disables cluster-based generation. Setting this to `true` first performs fast clustering and generates artificial doublets between clusters. This can improve detection of doublets formed by transcriptionally distinct cell types, but may perform less well when biologically real rare populations are separated into small clusters. Use the doublet-identification and integration reports to assess the choice for a particular dataset.
 * `exclude_mito`: boolean; whether to exclude mitochondrial genes or not.
 
+`dbl_dbr_sd` can also be overridden in `project.custom_sample_params`:
+
+```yaml
+sample_id:
+  SAMPLE_01:
+    qc:
+      dbl_dbr_sd: 1
+  SAMPLE_02:
+    qc:
+      dbl_dbr_sd: null
+```
+
+Unspecified runs inherit the project-wide value. An explicit `null` uses the
+installed scDblFinder default, even when the project-wide value is numeric.
+For HTO/custom multiplexing, doublet calling runs per pool: use `pool_id` instead
+of `sample_id`. Sample-level `dbl_dbr_sd` overrides in these pooled workflows
+raise an error. Overrides are recorded in each run's doublet summary.
+
 Configured maxima must be greater than or equal to their corresponding minima. Count and feature maxima are inclusive and are applied during final QC filtering, after `scDblFinder` has run.
 
 The doublet-identification section of the QC report compares observed-cell score

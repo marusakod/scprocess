@@ -1423,6 +1423,16 @@ def get_run_parameters(config, scprocess_data_dir, LIB_VAR, LIBS):
     # should we exclude runs?
     RUNS        = _do_exclusions(RUNS, config, RUN_VAR)
 
+  # Doublet calling is performed once per run, before pooled demultiplexed QC.
+  if RUN_VAR == "pool_id":
+    custom_samples = _get_custom_parameters(config, "sample_id")
+    invalid = [name for name, values in custom_samples.items()
+               if "dbl_dbr_sd" in values.get("qc", {})]
+    if invalid:
+      raise ValueError(
+        "qc.dbl_dbr_sd must be configured under pool_id for pooled doublet "
+        f"calling; sample_id overrides are unsupported: {', '.join(sorted(invalid))}")
+
   # get any custom parameters
   custom_run_params = _get_custom_parameters(config, RUN_VAR)
 
@@ -1794,6 +1804,13 @@ def _get_lib_parameters_one_lib(lib_name, config, RNA_FQS, HTO_FQS, scdata_dir, 
   return out_dc
 
 
+def resolve_run_doublet_parameters(run_name, config, custom_run_params):
+  """Resolve run-level doublet settings; explicit null restores package defaults."""
+  overrides = custom_run_params.get(run_name, {}).get("qc", {})
+  value = overrides.get("dbl_dbr_sd", config.get("qc", {}).get("dbl_dbr_sd"))
+  return {"dbl_dbr_sd": value}
+
+
 # get parameters for one run
 def _get_run_parameters_one_run(run_name, config, scdata_dir, custom_run_params, probe_id=None, ocm_id=None, lib_name=None, LIB_PARAMS=None):
 
@@ -1857,7 +1874,8 @@ def _get_run_parameters_one_run(run_name, config, scdata_dir, custom_run_params,
   # make dict of dicts
   out_dc      = {
     "mapping": mapping_dc,
-    "ambient": ambient_dc
+    "ambient": ambient_dc,
+    "qc": resolve_run_doublet_parameters(run_name, config, custom_run_params)
   }
 
   return out_dc

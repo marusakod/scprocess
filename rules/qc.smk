@@ -84,7 +84,7 @@ rule run_qc_one_run:
     demux_type      = config['multiplexing']['demux_type'],
     batch_var       = BATCH_VAR,
     dbl_min_feats   = config['qc']['dbl_min_feats'],
-    dbl_dbr_sd      = 'NULL' if config['qc']['dbl_dbr_sd'] is None else config['qc']['dbl_dbr_sd'],
+    dbl_dbr_sd      = lambda wildcards: 'NULL' if RUN_PARAMS[wildcards.run]['qc']['dbl_dbr_sd'] is None else RUN_PARAMS[wildcards.run]['qc']['dbl_dbr_sd'],
     dbl_clusters    = 'NULL' if config['qc']['dbl_clusters'] is None else str(config['qc']['dbl_clusters']).upper()
   threads: 4
   retries: config['resources']['retries']

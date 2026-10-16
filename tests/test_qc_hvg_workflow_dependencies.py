@@ -77,6 +77,7 @@ logs_dir, benchmark_dir = 'logs', 'benchmarks'
 RUNS = BATCHES = ['s1', 's2']
 RUN_VAR = BATCH_VAR = 'sample_id'
 RUNS_TO_BATCHES = {{run: [run] for run in RUNS}}
+RUN_PARAMS = {{run: {{'qc': {{'dbl_dbr_sd': config['qc']['dbl_dbr_sd']}}}} for run in RUNS}}
 BATCH_PARAMS = {{run: {{'qc': {{'qc_min_counts': 20, 'qc_max_counts': None}}}} for run in RUNS}}
 CAN_CALC_AMBIENT_GENES = False
 RESOURCE_PARAMS = {{}}
