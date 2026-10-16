@@ -21,7 +21,23 @@ dependencies:
   - bioconductor-rhdf5
   - bioconductor-rtracklayer
   - bioconductor-scater
-  - bioconductor-scdblfinder
+  # scDblFinder 1.27.12 is installed from the audited GitHub commit by
+  # rlibs.post-deploy.sh; keep its dependencies in this managed environment.
+  - bioconductor-scrapper=1.4.0
+  - bioconductor-biocgenerics
+  - bioconductor-biocneighbors
+  - bioconductor-biocsingular
+  - bioconductor-bluster
+  - bioconductor-genomeinfodb
+  - bioconductor-genomicranges
+  - bioconductor-iranges
+  - bioconductor-rsamtools
+  - bioconductor-s4vectors
+  - bioconductor-summarizedexperiment
+  - r-igraph
+  - r-mass
+  - r-rlang
+  - git
   - bioconductor-scran
   - bioconductor-scuttle
   - bioconductor-singlecellexperiment
@@ -67,6 +83,7 @@ dependencies:
   - r-uwot
   - r-viridis
   - r-workflowr
-  - r-xgboost
+  # Conda version 3.4.2 exposes R package version 3.4.2.1.
+  - r-xgboost=3.4.2
   - r-yaml
   - r-devtools

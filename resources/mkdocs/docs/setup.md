@@ -183,3 +183,31 @@ user:
   profile_name: slurm_my_cluster
 ```
 {{scsetup}} and {{scrun}} will then run in cluster mode with the active profile in `$SCPROCESS_DATA_DIR/profiles/slurm_my_cluster`.
+
+## Pinned R doublet-detection packages
+
+`envs/rlibs.yaml` pins Conda `r-xgboost=3.4.2`, whose R package version is
+**3.4.2.1**, and supplies `scrapper=1.4.0`. Snakemake then runs
+`envs/rlibs.post-deploy.sh` to install **scDblFinder 1.27.12** from the exact
+GitHub commit `e66180a1d84733bbcf63ed8590ae75a4a5329e34`. The hook checks the
+loaded versions and source commit and tests classifier training with both
+fixed and cross-validated numbers of boosting rounds. An installation or
+training failure stops environment creation. The verified versions are saved
+under `<environment>/share/scprocess/doublet-package-versions.tsv`.
+
+This pair was tested on Siletti amygdala sample `10X219-1` with `dbr.sd = 1`.
+The older scDblFinder 1.24.10 / XGBoost 3.4.2.1 combination failed because it
+requested early stopping without an evaluation set; scDblFinder silently
+returned preliminary scores after catching the error. Pinning only a minimum
+XGBoost version does not prevent this compatibility problem.
+
+Use scprocess's `--create-envs` option in a compute/Slurm context to provision
+workflow environments. The changed YAML and deployment hook produce a new
+Snakemake environment; existing environments are retained. Updating an
+environment does not itself regenerate completed doublet calls: rerun QC and
+its dependent analysis deliberately when replacing affected results.
+
+If creating the environment manually rather than through Snakemake, activate
+it and run `bash envs/rlibs.post-deploy.sh` before using it. The environment
+requires GitHub access during this installation step; ordinary rule execution
+uses the installed package and does not download it again.
