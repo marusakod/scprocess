@@ -124,20 +124,22 @@ Mean binary entropy measures how close real-cell scores are to zero or one.
 Values range from zero (endpoint scores) to one bit (scores of 0.5). It describes
 score polarisation, not calibration or doublet-detection accuracy.
 
-```{r doublet_score_entropy, fig.width = max(8, 0.25 * length(doublets$run_levels) + 2), fig.height = 4}
+```{r doublet_score_entropy, fig.width = 6, fig.height = 4}
 plot_doublet_score_entropy(doublets)
 ```
 
-#### Beta mean and variance by sample
+#### Beta mean and precision by sample
 
 A beta distribution is fitted to each sample's real-cell scores by maximum
 likelihood, after moving exact endpoints minimally inside (0, 1). Its fitted
-mean describes score location and its variance describes spread. Red, labelled
+mean describes score location; its precision is the sum of the two shape
+parameters (alpha + beta). At a given mean, higher precision means a narrower
+score distribution. Red, labelled
 samples have an unusually high fraction of scores above 0.5 (more than two MADs
 above the median on the logit scale); this is a review flag, not an exclusion.
 
-```{r doublet_beta_mean_variance, fig.width = 8, fig.height = 7}
-plot_doublet_beta_mean_variance(doublets)
+```{r doublet_beta_mean_precision, fig.width = 6, fig.height = 4}
+plot_doublet_beta_mean_precision(doublets)
 ```
 
 #### Numeric summary

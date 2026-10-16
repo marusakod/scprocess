@@ -227,7 +227,7 @@ render_doublet_pages <- function(x, pages, plot_fun, chunk_prefix,
 }
 
 fit_doublet_score_beta <- function(scores) {
-  empty_fit = c(fitted_mean = NA_real_, fitted_variance = NA_real_)
+  empty_fit = c(fitted_mean = NA_real_, fitted_variance = NA_real_, fitted_precision = NA_real_)
   if (length(scores) < 3L || var(scores) == 0) return(empty_fit)
   n = length(scores)
   adjusted = (scores * (n - 1) + 0.5) / n
@@ -246,9 +246,10 @@ fit_doublet_score_beta <- function(scores) {
   if (is.null(fit) || fit$convergence != 0L) return(empty_fit)
   parameters = exp(fit$par)
   total = sum(parameters)
-  if (any(!is.finite(parameters)) || any(parameters <= 0)) return(empty_fit)
+  if (any(!is.finite(parameters)) || any(parameters <= 0) || !is.finite(total)) return(empty_fit)
   c(fitted_mean = parameters[1L] / total,
-    fitted_variance = prod(parameters) / (total^2 * (total + 1)))
+    fitted_variance = prod(parameters) / (total^2 * (total + 1)),
+    fitted_precision = total)
 }
 
 summarize_doublet_scores <- function(x) {
@@ -285,14 +286,14 @@ plot_doublet_score_entropy <- function(x) {
       plot.caption = element_text(colour = 'grey40', size = 8, hjust = 1))
 }
 
-plot_doublet_beta_mean_variance <- function(x) {
-  fits = x$score_summary[is.finite(fitted_mean) & is.finite(fitted_variance)]
+plot_doublet_beta_mean_precision <- function(x) {
+  fits = x$score_summary[is.finite(fitted_mean) & is.finite(fitted_precision)]
   outliers = fits[high_score_outlier == TRUE]
   omitted = nrow(x$score_summary) - nrow(fits)
   caption = 'Maximum-likelihood beta fits; red labels flag unusually high fractions of scores above 0.5.'
   if (omitted > 0) caption = paste(caption,
     sprintf('%d sample(s) omitted because a beta fit was not estimable.', omitted))
-  ggplot(fits, aes(x = fitted_mean, y = fitted_variance)) +
+  ggplot(fits, aes(x = fitted_mean, y = fitted_precision)) +
     geom_point(size = 2.2, alpha = 0.8, colour = 'grey30') +
     geom_point(data = outliers, size = 2.4, colour = '#D7191C') +
     ggrepel::geom_label_repel(data = outliers, aes(label = run_id),
@@ -302,8 +303,7 @@ plot_doublet_beta_mean_variance <- function(x) {
       label.size = 0.15, max.overlaps = Inf) +
     scale_x_continuous(breaks = pretty_breaks(), labels = label_number(accuracy = 0.01)) +
     scale_y_continuous(breaks = pretty_breaks(), labels = label_number(accuracy = 0.01)) +
-    labs(x = 'Fitted beta mean', y = 'Fitted beta variance', caption = caption) +
+    labs(x = 'Fitted beta mean', y = 'Fitted beta precision (alpha + beta)', caption = caption) +
     theme_classic() +
-    theme(aspect.ratio = 1,
-      plot.caption = element_text(colour = 'grey40', size = 8, hjust = 1))
+    theme(plot.caption = element_text(colour = 'grey40', size = 8, hjust = 1))
 }

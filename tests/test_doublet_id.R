@@ -37,6 +37,18 @@ fwrite(artificial, artificial_f)
 fwrite(summary, summary_f)
 
 x = load_doublet_id_data(real_f, artificial_f, summary_f, 'sample_id')
+x$score_summary = summarize_doublet_scores(x)
+precision_plot = plot_doublet_beta_mean_precision(x)
+set.seed(713)
+beta_fit = fit_doublet_score_beta(rbeta(4000, 5, 15))
+stopifnot(
+  abs(beta_fit[['fitted_mean']] - 0.25) < 0.02,
+  abs(beta_fit[['fitted_precision']] - 20) < 2,
+  isTRUE(all.equal(unname(beta_fit[['fitted_variance']]),
+    unname(beta_fit[['fitted_mean']] * (1 - beta_fit[['fitted_mean']]) /
+      (beta_fit[['fitted_precision']] + 1)))),
+  all(is.na(fit_doublet_score_beta(rep(0.5, 10)))),
+  identical(rlang::as_label(precision_plot$mapping$y), 'fitted_precision'))
 overview_plot = plot_doublet_overview(x)
 regression_dt = fit_doublet_median_regression(x$summary)
 summary_table = doublet_summary_table(x)
