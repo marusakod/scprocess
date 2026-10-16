@@ -53,6 +53,20 @@ H5ADS_YAML_FS     = JOIN_PROJ['h5ads_yaml_fs']
 INTEGRATED_FS     = JOIN_PROJ['integrated_fs']
 SAMPLE_META_FS    = JOIN_PROJ['sample_meta_fs']
 QC_ALL_FS         = JOIN_PROJ['qc_all_fs']
+# Prefer merged real-cell diagnostics; legacy projects may have only per-run scores.
+import shlex
+JOIN_DOUBLET_INPUTS = []
+if not JOIN_ZOOM_PARAMS:
+  for _pid in JOIN_PROJECT_IDS:
+    _pcfg = PROJECT_CFGS[_pid]['project']
+    _ddir = pathlib.Path(_pcfg['proj_dir']) / 'output' / f"{_pcfg['short_tag']}_doublet_id"
+    _merged = _ddir / f"scDblFinder_real_all_runs_{_pcfg['full_tag']}_{_pcfg['date_stamp']}.csv.gz"
+    _paths = [_merged] if _merged.is_file() else sorted(_ddir.glob(
+      f"dbl_*/scDblFinder_*_outputs_{_pcfg['full_tag']}_{_pcfg['date_stamp']}.csv.gz"))
+    JOIN_DOUBLET_INPUTS.extend((_pid, str(path)) for path in _paths)
+JOIN_DOUBLET_ARGS = ('--doublet_project_ids ' + shlex.join([pid for pid, path in JOIN_DOUBLET_INPUTS]) +
+                    ' --doublet_fs ' + shlex.join([path for pid, path in JOIN_DOUBLET_INPUTS])) if JOIN_DOUBLET_INPUTS else ''
+
 JOIN_BATCH_KEYS   = JOIN_PROJ['batch_keys']
 
 # join metadata and paths
@@ -334,11 +348,13 @@ rule join_build_qc:
   """Combine source QC metrics for cells included in the joint analysis."""
   input:
     qc_fs     = QC_ALL_FS,
+    doublet_fs = [path for pid, path in JOIN_DOUBLET_INPUTS],
     coldata_f = joint_coldata_f
   output:
     qc_f = joint_qc_f
   params:
-    project_ids = " ".join(JOIN_PROJECT_IDS)
+    project_ids = " ".join(JOIN_PROJECT_IDS),
+    doublet_args = JOIN_DOUBLET_ARGS
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_build_qc', 'memory', attempt),
@@ -355,7 +371,8 @@ rule join_build_qc:
       --qc_fs       {input.qc_fs} \
       --project_ids {params.project_ids} \
       --coldata_f   {input.coldata_f} \
-      --out_f       {output.qc_f}
+      --out_f       {output.qc_f} \
+      {params.doublet_args}
     """
 
 

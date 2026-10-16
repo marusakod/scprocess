@@ -117,8 +117,8 @@ meta_dt   = fread(sample_meta_f)
 
 
 ```{r load_qc, include=FALSE}
-qc_names = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced')
-qc_lu = c('no. of UMIs', 'no. of genes', 'mito pct.', 'spliced pct.') %>%
+qc_names = c('log_counts', 'log_feats', 'logit_mito', 'logit_spliced', 'doublet_score')
+qc_lu = c('no. of UMIs', 'no. of genes', 'mito pct.', 'spliced pct.', 'doublet score') %>%
   setNames(qc_names)
 qc_dt = fread(qc_f)
 qc_names = intersect(qc_names, names(qc_dt))
@@ -284,9 +284,16 @@ for (res in res_ls_pl) {
 
 ## QC metrics by cluster
 
-Distributions of QC metrics (library size, number of features, mitochondrial proportion, and spliced proportion) are shown for each cluster at the marker-gene resolution `r sel_res`. Clusters with fewer than 100 cells are omitted from this plot.
+Distributions of QC metrics (library size, number of features, mitochondrial proportion, and spliced proportion) are shown for each cluster at the marker-gene resolution `r sel_res`. Clusters with fewer than 100 cells are omitted from this plot. Doublet scores use a logit axis with labels in the original score units; the axis range follows the data.
 
-```{r plot_join_cluster_qc, fig.height=8, fig.width=10}
+```{r join_doublet_score_coverage, results="asis", echo=FALSE}
+if (!"doublet_score" %in% names(qc_dt) || anyNA(qc_dt$doublet_score)) {
+  n_missing = if ("doublet_score" %in% names(qc_dt)) sum(is.na(qc_dt$doublet_score)) else nrow(qc_dt)
+  cat(sprintf("Doublet scores were unavailable for %s joined cells; those cells are omitted from the score panel.\n", format(n_missing, big.mark=",")))
+}
+```
+
+```{r plot_join_cluster_qc, fig.height=10, fig.width=10}
 suppressWarnings(print(plot_cluster_qc_distns(
   qc_melt,
   clust_dt = sel_cl_int_dt[, .(cell_id, cluster)],

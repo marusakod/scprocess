@@ -82,5 +82,51 @@ class TestBuildJointQc(unittest.TestCase):
         )
 
 
+  def test_doublet_scores_match_project_and_preserve_endpoints(self):
+    with tempfile.TemporaryDirectory() as tmpdir:
+      tmpdir = Path(tmpdir)
+      qa, qb, col, sa, sb, out = [tmpdir / (name + '.csv.gz') for name in ('qa','qb','col','sa','sb','out')]
+      self.write_csv(qa, {'cell_id':['same'], 'log_counts':[2.0]})
+      self.write_csv(qb, {'cell_id':['same'], 'log_counts':[3.0]})
+      self.write_csv(col, {'cell_id':['same','same'], 'sample_id':['b_s','a_s'], 'project_id':['b','a']})
+      self.write_csv(sa, {'cell_id':['same'], 'score':[0.0]})
+      self.write_csv(sb, {'cell_id':['same'], 'score':[1.0]})
+      build_joint_qc([str(qa),str(qb)],['a','b'],str(col),str(out),[str(sa),str(sb)],['a','b'])
+      result = pl.read_csv(out)
+      self.assertEqual(result['project_id'].to_list(), ['b','a'])
+      self.assertEqual(result['doublet_score'].to_list(), [1.0,0.0])
+
+  def test_doublet_input_missing_invalid_and_duplicate_scores(self):
+    with tempfile.TemporaryDirectory() as tmpdir:
+      tmpdir=Path(tmpdir)
+      qc,col,scores,out=[tmpdir/(name+'.csv.gz') for name in ('qc','col','scores','out')]
+      self.write_csv(qc, {'cell_id':['a1'], 'log_counts':[2.0]})
+      self.write_csv(col, {'cell_id':['a1'], 'sample_id':['a_s'], 'project_id':['a']})
+      for values, message in [({'cell_id':['other'],'score':[0.2]},'missing'),
+                              ({'cell_id':['a1'],'score':[1.1]},'Invalid'),
+                              ({'cell_id':['a1','a1'],'score':[0.1,0.2]},'Duplicate')]:
+        with self.subTest(message=message):
+          self.write_csv(scores,values)
+          with self.assertRaisesRegex(ValueError,message):
+            build_joint_qc([str(qc)],['a'],str(col),str(out),[str(scores)],['a'])
+
+
+
+  def test_inherited_scores_survive_zoom_and_explicit_scores_take_precedence(self):
+    with tempfile.TemporaryDirectory() as tmpdir:
+      tmpdir = Path(tmpdir)
+      qc, col, scores, out = [tmpdir / (name + '.csv.gz')
+        for name in ('qc', 'col', 'scores', 'out')]
+      self.write_csv(qc, {'cell_id': ['a1', 'a2'], 'log_counts': [2.0, 3.0],
+        'doublet_score': [0.0, 1.0]})
+      self.write_csv(col, {'cell_id': ['a2', 'a1'], 'sample_id': ['a_s', 'a_s'],
+        'project_id': ['a', 'a']})
+      build_joint_qc([str(qc)], ['a'], str(col), str(out))
+      self.assertEqual(pl.read_csv(out)['doublet_score'].to_list(), [1.0, 0.0])
+      self.write_csv(scores, {'cell_id': ['a1', 'a2'], 'score': [0.2, 0.8]})
+      build_joint_qc([str(qc)], ['a'], str(col), str(out), [str(scores)], ['a'])
+      self.assertEqual(pl.read_csv(out)['doublet_score'].to_list(), [0.8, 0.2])
+
+
 if __name__ == '__main__':
   unittest.main()

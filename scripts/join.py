@@ -361,14 +361,14 @@ def build_joint_sample_metadata(project_ids, sample_meta_fs, out_sample_meta_f):
   print("done!")
 
 
-def build_joint_qc(qc_fs, project_ids, coldata_f, out_f):
+def build_joint_qc(qc_fs, project_ids, coldata_f, out_f, doublet_fs=None, doublet_project_ids=None):
   """Combine source QC metrics for the cells included in the joint analysis."""
   if len(qc_fs) != len(project_ids):
     raise ValueError(
       f"Expected one QC file per project, got {len(qc_fs)} files for "
       f"{len(project_ids)} projects")
 
-  qc_metrics = ['log_counts', 'log_feats', 'logit_mito', 'logit_spliced']
+  qc_metrics = ['log_counts', 'log_feats', 'logit_mito', 'logit_spliced', 'doublet_score']
   qc_dfs = []
   for pid, qc_f in zip(project_ids, qc_fs):
     print(f"  loading QC metrics for {pid}")
@@ -407,7 +407,46 @@ def build_joint_qc(qc_fs, project_ids, coldata_f, out_f):
       f"QC metrics were not found for {missing_df.height} joined cells; "
       f"examples: {examples}")
 
-  joint_qc_df = joint_qc_df.drop(['_order', '_qc_present'])
+  if 'doublet_score' not in joint_qc_df.columns:
+    joint_qc_df = joint_qc_df.with_columns(pl.lit(None, dtype=pl.Float64).alias('doublet_score'))
+  else:
+    joint_qc_df = joint_qc_df.with_columns(pl.col('doublet_score').cast(pl.Float64))
+    invalid = joint_qc_df.filter(pl.col('doublet_score').is_not_null() & (
+      ~pl.col('doublet_score').is_finite() | (pl.col('doublet_score') < 0) |
+      (pl.col('doublet_score') > 1)))
+    if invalid.height:
+      raise ValueError('Invalid doublet scores in source QC')
+
+  doublet_fs = doublet_fs or []
+  doublet_project_ids = doublet_project_ids or []
+  if len(doublet_fs) != len(doublet_project_ids):
+    raise ValueError('Expected one project ID for each doublet-score file')
+  if set(doublet_project_ids) - set(project_ids):
+    raise ValueError('Doublet-score files reference unknown projects')
+  if doublet_fs:
+    score_frames = []
+    for pid, score_f in zip(doublet_project_ids, doublet_fs):
+      scores = pl.read_csv(score_f, columns=['cell_id', 'score']).with_columns(
+        pl.col('score').cast(pl.Float64), pl.lit(pid).alias('project_id'))
+      if scores.filter(pl.col('score').is_null() | ~pl.col('score').is_finite() |
+                       (pl.col('score') < 0) | (pl.col('score') > 1)).height:
+        raise ValueError(f'Invalid doublet scores in {score_f}')
+      score_frames.append(scores)
+    scores = pl.concat(score_frames)
+    if scores.unique(subset=['project_id', 'cell_id']).height != scores.height:
+      raise ValueError('Duplicate doublet scores within a project')
+    joint_qc_df = joint_qc_df.join(
+      scores.rename({'score': '_source_doublet_score'}), on=['project_id', 'cell_id'], how='left')
+    missing = joint_qc_df.filter(
+      pl.col('project_id').is_in(doublet_project_ids) & pl.col('_source_doublet_score').is_null())
+    if missing.height:
+      raise ValueError(f'Doublet scores missing for {missing.height} joined cells in projects with score inputs')
+    joint_qc_df = joint_qc_df.with_columns(
+      pl.coalesce('_source_doublet_score', 'doublet_score').alias('doublet_score')
+    ).drop('_source_doublet_score')
+  print(f"  doublet-score coverage: {joint_qc_df['doublet_score'].count()} / {joint_qc_df.height}")
+
+  joint_qc_df = joint_qc_df.sort('_order').drop(['_order', '_qc_present'])
   pathlib.Path(out_f).parent.mkdir(parents=True, exist_ok=True)
   with gzip.open(out_f, 'wb') as fh:
     joint_qc_df.write_csv(fh)
@@ -552,6 +591,8 @@ def _parse_args():
   p2c.add_argument('--coldata_f',   required=True,
     help='Joint coldata CSV.gz defining the included cells')
   p2c.add_argument('--out_f',       required=True)
+  p2c.add_argument('--doublet_fs', nargs='+', default=[])
+  p2c.add_argument('--doublet_project_ids', nargs='+', default=[])
 
   # --- build_join_h5ads_yaml ---
   p3 = sub.add_parser('build_join_h5ads_yaml')
@@ -604,7 +645,9 @@ if __name__ == '__main__':
       qc_fs       = args.qc_fs,
       project_ids = args.project_ids,
       coldata_f   = args.coldata_f,
-      out_f       = args.out_f
+      out_f       = args.out_f,
+      doublet_fs  = args.doublet_fs,
+      doublet_project_ids = args.doublet_project_ids
     )
 
   elif args.cmd == 'build_join_h5ads_yaml':

@@ -1463,3 +1463,12 @@ and direct targets should use the current rule names.
 Cell-cycle tuning defaults are defined in the configuration schemas and applied
 only when correction is enabled. Workflow rules pass the validated settings as
 individual named parameters; they do not supply fallback defaults.
+
+
+The join report's **QC metrics by cluster** includes source scDblFinder scores as
+an additional facet. Scores use a logit axis with labels in original score units
+and data-driven limits. Joined QC reads merged real-cell diagnostics when
+available, otherwise saved per-run score files, matching by project and cell ID.
+Missing scores within a project with score inputs are errors. Projects without
+saved scores retain the other QC panels and the report states missing coverage;
+report rendering does not rerun doublet detection.
