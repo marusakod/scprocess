@@ -78,6 +78,8 @@ qc_melt       = fread(qc_f) %>%
 
 ```{r load_integration_results, include = FALSE}
 int_all       = fread(integration_f)
+dbl_threshold = read_doublet_cluster_threshold(int_all, dbl_cl_prop)
+dbl_cl_prop   = dbl_threshold$threshold
 ```
 
 ```{r extract_dbl_checks, include = FALSE}
@@ -115,7 +117,24 @@ print(g)
 
 ## Doublet proportions in clusters
 
-The plot shows the proportion of doublets for each cluster in relation to the total number of cells in that cluster. Clusters with a doublet proportion exceeding `r dbl_cl_prop*100`% are excluded from further analysis.
+The plot shows the proportion of doublets for each cluster in relation to its
+cell count. Clusters above **`r sprintf('%.1f', dbl_cl_prop * 100)`%** are excluded.
+The thresholding method is **`r dbl_threshold$method`**.
+
+```{r doublet_threshold_details, results = 'asis'}
+if (!dbl_threshold$recorded) {
+  cat('Legacy output has no saved threshold metadata; the configured fixed cutoff is shown.\n')
+} else if (dbl_threshold$method == 'mean_mad') {
+  knitr::kable(data.frame(
+    reference_clusters = dbl_threshold$n_reference,
+    mean_logit = dbl_threshold$mean_logit,
+    scaled_MAD = dbl_threshold$scaled_mad_logit,
+    MAD_multiplier = dbl_threshold$mad_multiplier,
+    reference_ceiling_pct = 100 * dbl_threshold$reference_ceiling,
+    estimated_threshold_pct = 100 * dbl_threshold$uncapped_threshold,
+    applied_threshold_pct = 100 * dbl_threshold$threshold), digits = 3)
+}
+```
 
 ```{r plot_doublet_clusters, fig.height = 4, fig.width = 6}
 ( plot_doublet_clusters(int_dbl, dbl_cl_prop) )

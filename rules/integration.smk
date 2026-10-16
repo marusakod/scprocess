@@ -96,6 +96,8 @@ if INT_PCA_METHOD == 'bpcells':
       umap_n_iter     = config['integration']['int_umap_n_iter'],
       int_dbl_res     = config['integration']['int_dbl_res'],
       int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
+      dbl_threshold_method = config['integration']['int_dbl_threshold_method'],
+      dbl_mad_multiplier = config['integration']['int_dbl_mad_multiplier'],
       int_use_paga    = config['integration']['int_use_paga'],
       use_gpu         = config['integration']['int_use_gpu']
     threads: 1
@@ -125,6 +127,8 @@ if INT_PCA_METHOD == 'bpcells':
         --cl_method          {params.int_cl_method} \
         --dbl_res            {params.int_dbl_res} \
         --dbl_cl_prop        {params.int_dbl_cl_prop} \
+        --dbl_threshold_method {params.dbl_threshold_method} \
+        --dbl_mad_multiplier {params.dbl_mad_multiplier} \
         --doublet_f          {output.doublet_f} \
         --clean_cells_f      {output.clean_cells_f} \
         --batch_var          {params.int_batch_var} \
@@ -262,6 +266,8 @@ else:
       umap_n_iter     = config['integration']['int_umap_n_iter'],
       int_dbl_res     = config['integration']['int_dbl_res'],
       int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
+      dbl_threshold_method = config['integration']['int_dbl_threshold_method'],
+      dbl_mad_multiplier = config['integration']['int_dbl_mad_multiplier'],
       int_use_paga    = config['integration']['int_use_paga'],
       int_paga_cl_res = get_paga_resolution(config['integration']),
       int_res_ls      = config['integration']['int_res_ls'],
@@ -294,6 +300,8 @@ else:
         --cl_method     {params.int_cl_method} \
         --dbl_res       {params.int_dbl_res} \
         --dbl_cl_prop   {params.int_dbl_cl_prop} \
+        --dbl_threshold_method {params.dbl_threshold_method} \
+        --dbl_mad_multiplier {params.dbl_mad_multiplier} \
         --theta         {params.int_theta} \
         --res_ls_concat "{params.int_res_ls}" \
         --integration_f {output.integration_f} \

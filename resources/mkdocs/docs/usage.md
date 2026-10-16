@@ -179,3 +179,7 @@ Integration reports show scDblFinder scores as the bottom row of the per-cluster
 QC violin plots, using a logit axis labelled in original score units. Exact
 endpoint scores are moved just inside (0, 1) for plotting only. Scores come from real-cell
 doublet diagnostics and are joined to QC data by cell ID.
+
+By default, the preliminary doublet-cluster pass uses an adaptive mean-plus-MAD
+threshold. See the integration options in [Reference](reference.md#integration).
+`int_dbl_threshold_method: fixed` retains the previous fixed-cutoff behaviour.

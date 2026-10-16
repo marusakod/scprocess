@@ -60,7 +60,10 @@ def test_cli_default_override_and_rejection(integration, command, value):
     namespace.update({name: Mock() for name in (
         'run_integration', 'run_zoom_integration',
         'run_preliminary_integration', 'run_final_integration')})
-    main = next(n for n in TREE.body if isinstance(n, ast.If))
+    main = next(n for n in TREE.body if isinstance(n, ast.If)
+                and isinstance(n.test, ast.Compare)
+                and isinstance(n.test.left, ast.Name)
+                and n.test.left.id == '__name__')
     body = ast.Module(body=main.body, type_ignores=[])
     argv = ['integration.py', command]
     # The split BPCells integration entry points require explicit input flags.
