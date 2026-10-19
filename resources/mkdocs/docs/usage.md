@@ -157,6 +157,10 @@ To identify problematic samples, {{sc}} computes two diagnostic ratios:
 
 * `slope_ratio`: This is the ratio of the slope of the barcode-rank curve in the empty droplet region compared to the slope at the first inflection point (`shin1`). Samples with a high slope ratio, as seen in example C, are likely problematic because the empty droplet plateau is not clearly distinguishable. In such cases, ambient RNA contamination algorithms like `DecontX` and `CellBender` may struggle to accurately estimate background noise, and we recommend considering removing these samples from further analysis.
 
+The mapping report includes a **Pairwise landmark coordinates** tabset immediately before the **Dotplot with diagnostic ratios**. Separate Knees and Shins tabs compare UMI counts and barcode ranks for each pair of landmarks in six upper-triangular panels, with logarithmic axes labelled in original units, denser second-landmark UMI breaks and square panels. Dark grey circles mark runs without mapping overrides; orange triangles mark runs with non-null custom mapping parameters under the applicable `sample_id` or `pool_id` section. Landmark counts use saved/custom values; ranks use the nearest observed count (the first saved row resolves ties). Faint grey contours show 95% robust covariance ellipses from `robustbase::covMcd()` on log10 coordinates (alpha 0.5, deterministic algorithm, reweighted covariance). These describe spread rather than uncertainty in the centre and are omitted for fewer than five runs or singular covariance. These plots flag unusual runs for inspection without changing landmark parameters or filtering.
+
+Fitted knee UMI values may fall between observed droplet totals. When locating the second-knee rank, {{sc}} uses the nearest observed total; an exact count match is not required. This prevents a missing rank bound but does not establish that the inferred curve landmarks are biologically appropriate.
+
 If {{sc}} fails to estimate the knee plot parameters but the barcode-rank curve appears normal, we suggest manually adjusting the `knee1`, `knee2`, `shin1`, and `shin2` parameters in the `custom_sample_params` file. A convenient way to fine-tune these parameters is by using the [`plotknee`](reference.md#scprocess-plotknee) function in {{sc}}. This allows for easy visualization and adjustment of knee points.
     
 
@@ -180,6 +184,9 @@ QC violin plots, using a logit axis labelled in original score units. Exact
 endpoint scores are moved just inside (0, 1) for plotting only. Scores come from real-cell
 doublet diagnostics and are joined to QC data by cell ID.
 
-By default, the preliminary doublet-cluster pass uses an adaptive mean-plus-MAD
-threshold. See the integration options in [Reference](reference.md#integration).
+By default, the preliminary doublet-cluster pass uses a robust split-estimated
+mixture threshold: median and scaled MAD on corrected logit fractions within
+clusters below/above 50%, weighted by the numbers of clusters. The cutoff is
+the weighted-density crossing between the two centres, with no 50% cap.
+`int_dbl_threshold_method: mean_mad` retains the previous mean-plus-MAD rule. See the integration options in [Reference](reference.md#integration).
 `int_dbl_threshold_method: fixed` retains the previous fixed-cutoff behaviour.

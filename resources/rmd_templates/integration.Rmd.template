@@ -124,6 +124,14 @@ The thresholding method is **`r dbl_threshold$method`**.
 ```{r doublet_threshold_details, results = 'asis'}
 if (!dbl_threshold$recorded) {
   cat('Legacy output has no saved threshold metadata; the configured fixed cutoff is shown.\n')
+} else if (dbl_threshold$method == 'split_mad_mixture') {
+  print(knitr::kable(data.frame(
+    group = c('Below 50%', 'Above 50%'),
+    clusters = c(dbl_threshold$n_low, dbl_threshold$n_high),
+    weight = c(dbl_threshold$weight_low, dbl_threshold$weight_high),
+    median_logit = c(dbl_threshold$median_logit_low, dbl_threshold$median_logit_high),
+    scaled_MAD_logit = c(dbl_threshold$scaled_mad_logit_low, dbl_threshold$scaled_mad_logit_high)), digits = 3))
+  cat('\nThe applied cutoff is the crossing between the two component centres, without a 50% cap. Clusters exactly at 50% are omitted from estimation: ', dbl_threshold$n_equal_50, '.\n')
 } else if (dbl_threshold$method == 'mean_mad') {
   knitr::kable(data.frame(
     reference_clusters = dbl_threshold$n_reference,

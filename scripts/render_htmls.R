@@ -135,6 +135,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     assert_that(all(req_names %in% add_args_names))
 
     params_ls = add_args
+    if (!'custom_sample_params_f' %in% names(params_ls)) params_ls$custom_sample_params_f = ''
 
   } else if (sel_rule == 'multiplexing') {
     req_names = c('your_name', 'affiliation', 'short_tag', 

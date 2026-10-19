@@ -150,7 +150,39 @@ for (i in 1:length(exp_tot_ratio_split_l) ) {
 ```
 
 
-### Dotplot with diagnotic ratios
+### Pairwise landmark coordinates {.tabset}
+
+Each point represents one run. The six upper-triangular panels compare UMI counts
+and barcode ranks for the first and second landmarks. Axes are logarithmic with
+labels in original units. Counts use saved values, including custom overrides;
+ranks use the nearest observed count, with the first saved row resolving ties.
+Orange triangles highlight runs with custom mapping parameters; grey circles
+show runs without overrides. Faint grey ellipses describe 95% robust covariance
+contours estimated with `robustbase::covMcd()` on log10 coordinates (alpha 0.5,
+deterministic, reweighted covariance). These describe spread, not confidence
+intervals for the centre. Ellipses are omitted when fewer than five runs or
+singular covariance prevent estimation. Unusual positions should be checked
+against the barcode-rank curves; these diagnostics do not change filtering.
+
+```{r landmark_custom_runs, include = FALSE}
+custom_mapping_runs = get_mapping_custom_runs("${custom_sample_params_f}", sample_var = sample_var)
+```
+
+#### Knees
+
+```{r knee_coordinates_pairwise, fig.height = 8.2, fig.width = 8}
+print(plot_knee_coordinates_pairwise(rna_knee_params_df, sample_var = sample_var,
+  landmark = 'knee', custom_runs = custom_mapping_runs))
+```
+
+#### Shins
+
+```{r shin_coordinates_pairwise, fig.height = 8.2, fig.width = 8}
+print(plot_knee_coordinates_pairwise(rna_knee_params_df, sample_var = sample_var,
+  landmark = 'shin', custom_runs = custom_mapping_runs))
+```
+
+### Dotplot with diagnostic ratios
 
 Both the slope ratio and the expected cells to empty droplets ratio are displayed in a dot plot, where each dot represents a sample.
 Outliers are labeled with their corresponding `r sample_var` values.

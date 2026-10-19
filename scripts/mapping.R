@@ -364,9 +364,17 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
     )
   }
 
-  # get rank corresponding to the second knee
-  knee2_x = ranks_dt[total == sel_knee['knee'], rank] %>%
-    unique()
+  # The fitted/rounded knee need not equal an observed UMI total. Use the
+  # nearest observed droplet, as for the first inflection, so the rank bound
+  # is still defined when the fitted count falls in a gap between totals.
+  if (!is.finite(sel_knee['knee'])) {
+    stop("Cannot locate second-knee rank: fitted knee is not finite")
+  }
+  knee2_idx = which.min(abs(ranks_dt$total - sel_knee['knee']))[1]
+  if (is.na(knee2_idx)) {
+    stop("Cannot locate second-knee rank: no observed droplet totals")
+  }
+  knee2_x = ranks_dt[knee2_idx, rank]
 
   return(list(sel_knee = sel_knee, knee2_x = knee2_x))
 }
@@ -446,6 +454,9 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
 # find slope at first inflection and total droplets included & expected_cells/total ratio
 get_knee_params <- function(knee_f, sample_var) {
   ranks_df  = fread(knee_f)
+  knee_coordinates = merge(.get_knee_coordinates_from_ranks(ranks_df, sample_var),
+    .get_knee_coordinates_from_ranks(ranks_df, sample_var, landmark = 'shin'),
+    by = sample_var, sort = FALSE)
   total_thr = unique(ranks_df$total_droplets_included) %>% log10()
   
   # get x coordinate of shin1
@@ -487,7 +498,7 @@ get_knee_params <- function(knee_f, sample_var) {
       expected_total_ratio = expected_cells / total_droplets_included
     )]
   
-  return(final)
+  return(merge(final, knee_coordinates, by = sample_var, sort = FALSE))
 }
 
 
@@ -769,4 +780,118 @@ plot_qc_metrics_split_by_cells_empties <- function(rna_knee_fs,
     theme(panel.spacing = unit(1, "lines"))
   
   return(g_violin)
+}
+
+
+.get_knee_coordinates_from_ranks <- function(ranks_dt, sample_var, landmark = c('knee', 'shin')) {
+  landmark = match.arg(landmark)
+  ids = unique(ranks_dt[[sample_var]])
+  if (length(ids) != 1L || anyNA(ids)) stop('Expected exactly one run in knee data')
+  observed = ranks_dt[is.finite(total) & total > 0 & is.finite(rank) & rank > 0]
+  if (!nrow(observed)) stop('No positive observed droplet totals and ranks')
+  result = data.table(run = ids)
+  setnames(result, 'run', sample_var)
+  for (knee in paste0(landmark, 1:2)) {
+    value = unique(ranks_dt[[knee]])
+    if (length(value) != 1L || !is.finite(value) || value <= 0)
+      stop('Expected one positive finite ', knee, ' value for ', ids)
+    # Match the configured/fitted knee count, including values between observed counts.
+    # which.min selects the first saved row for ties, as in existing rank lookup.
+    nearest = observed[which.min(abs(total - value))]
+    result[[paste0(knee, '_log10_umis')]] = log10(value)
+    result[[paste0(knee, '_log10_rank')]] = log10(nearest$rank)
+    result[[paste0(knee, '_rank')]] = nearest$rank
+    result[[paste0(knee, '_observed_umis')]] = nearest$total
+  }
+  result
+}
+
+get_knee_coordinates <- function(knee_f, sample_var = 'sample_id', landmark = c('knee', 'shin')) {
+  landmark = match.arg(landmark)
+  ranks_dt = fread(knee_f, select = c(sample_var, 'total', 'rank', paste0(landmark, 1:2)))
+  .get_knee_coordinates_from_ranks(ranks_dt, sample_var, landmark)
+}
+
+get_mapping_custom_runs <- function(custom_sample_params_f = '', sample_var = 'sample_id') {
+  if (!nzchar(custom_sample_params_f)) return(character())
+  if (!file.exists(custom_sample_params_f)) stop('Missing custom parameter file: ', custom_sample_params_f)
+  custom = yaml::read_yaml(custom_sample_params_f)[[sample_var]]
+  if (is.null(custom)) return(character())
+  names(custom)[vapply(custom, function(run) {
+    overrides = run$mapping
+    length(overrides) > 0L && any(!vapply(overrides, is.null, logical(1)))
+  }, logical(1))]
+}
+
+.landmark_log_breaks <- function(limits, dense = FALSE) {
+  values = 10^limits
+  if (any(!is.finite(values)) || any(values <= 0)) return(numeric())
+  powers = seq(floor(log10(min(values))), ceiling(log10(max(values))))
+  breaks = sort(as.vector(outer(if (dense) c(1, 2, 3, 5) else c(1, 3), 10^powers)))
+  log10(breaks[breaks >= min(values) & breaks <= max(values)])
+}
+
+.landmark_log_labels <- function(values) {
+  sub('K', 'k', scales::label_number(scale_cut = scales::cut_short_scale())(10^values), fixed = TRUE)
+}
+
+.landmark_mcd_ellipse <- function(x, y, coverage = 0.95) {
+  empty = data.table(x = numeric(), y = numeric())
+  if (length(x) < 5L || any(apply(cbind(x, y), 2, sd) == 0)) return(empty)
+  fit = tryCatch(robustbase::covMcd(cbind(x, y), alpha = 0.5, nsamp = 'deterministic'),
+    error = function(e) NULL)
+  if (is.null(fit) || any(!is.finite(fit$cov))) return(empty)
+  eig = eigen(fit$cov, symmetric = TRUE)
+  if (min(eig$values) <= 0) return(empty)
+  theta = seq(0, 2 * pi, length.out = 181L)
+  boundary = sqrt(qchisq(coverage, 2)) * cbind(cos(theta), sin(theta)) %*%
+    diag(sqrt(eig$values)) %*% t(eig$vectors)
+  boundary = sweep(boundary, 2, fit$center, '+')
+  data.table(x = boundary[, 1], y = boundary[, 2])
+}
+
+plot_knee_coordinates_pairwise <- function(knee_params, sample_var = 'sample_id',
+                                          landmark = c('knee', 'shin'), custom_runs = character()) {
+  landmark = match.arg(landmark)
+  variables = paste0(landmark, rep(1:2, each = 2), rep(c('_log10_umis', '_log10_rank'), 2))
+  title = if (landmark == 'knee') 'Knee' else 'Shin'
+  labels = paste(title, c('1: UMIs', '1: rank', '2: UMIs', '2: rank'))
+  required = c(sample_var, variables)
+  if (!all(required %in% names(knee_params))) stop('Missing ', landmark, ' coordinate columns')
+  dt = as.data.table(knee_params)[, ..required]
+  if (!nrow(dt) || anyDuplicated(dt[[sample_var]])) stop('Expected one coordinate row per run')
+  if (any(!is.finite(as.matrix(dt[, ..variables])))) stop('Non-finite landmark coordinates')
+  pairs = rbindlist(lapply(seq_len(3L), function(row) {
+    rbindlist(lapply(seq.int(row + 1L, 4L), function(col) {
+      data.table(run = dt[[sample_var]], x = dt[[variables[col]]], y = dt[[variables[row]]],
+                 x_metric = labels[col], y_metric = labels[row])
+    }))
+  }))
+  pairs[, x_metric := factor(x_metric, levels = labels)]
+  pairs[, y_metric := factor(y_metric, levels = labels)]
+  pairs[, parameter_source := factor(fifelse(run %in% custom_runs, 'Custom', 'Automatic'),
+    levels = c('Automatic', 'Custom'))]
+  setorder(pairs, parameter_source)
+  ellipses = pairs[, .landmark_mcd_ellipse(x, y), by = .(x_metric, y_metric)]
+  n_ellipses = nrow(unique(ellipses[, .(x_metric, y_metric)]))
+  caption = 'Log-scaled axes with original units. Light grey contours: 95% robust MCD covariance ellipses.'
+  if (n_ellipses < 6L) caption = paste0(caption, '\nEllipses omitted where too few runs or singular covariance prevent estimation.')
+  ggplot(pairs, aes(x, y)) +
+    (if (nrow(ellipses)) geom_path(data = ellipses, aes(x, y), inherit.aes = FALSE,
+      colour = '#BBBBBB', alpha = 0.6, linewidth = 0.4) else NULL) +
+    geom_point(aes(colour = parameter_source, shape = parameter_source, size = parameter_source), alpha = 0.85) +
+    scale_colour_manual(name = 'Parameters', values = c(Automatic = '#555555', Custom = '#D55E00')) +
+    scale_shape_manual(name = 'Parameters', values = c(Automatic = 16, Custom = 17)) +
+    scale_size_manual(values = c(Automatic = 1.5, Custom = 2.5), guide = 'none') +
+    ggh4x::facet_grid2(y_metric ~ x_metric, scales = 'free', render_empty = FALSE) +
+    scale_x_continuous(breaks = .landmark_log_breaks, labels = .landmark_log_labels) +
+    scale_y_continuous(breaks = .landmark_log_breaks, labels = .landmark_log_labels) +
+    ggh4x::facetted_pos_scales(
+      x = list(grepl('2: UMIs$', x_metric) ~ scale_x_continuous(
+        breaks = function(limits) .landmark_log_breaks(limits, dense = TRUE), labels = .landmark_log_labels)),
+      y = list(grepl('2: UMIs$', y_metric) ~ scale_y_continuous(
+        breaks = function(limits) .landmark_log_breaks(limits, dense = TRUE), labels = .landmark_log_labels))) +
+    theme_bw(base_size = 10) + theme(panel.grid = element_blank(), aspect.ratio = 1,
+      strip.background = element_rect(fill = 'white'), legend.position = 'bottom') +
+    labs(x = NULL, y = NULL, caption = caption)
 }

@@ -15,7 +15,8 @@ def get_conditional_fgsea_files(genome_ref, do_gsea):
 # rule render_html_mapping
 rule render_html_mapping:
   input:
-    knee_fs         = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz', run=RUNS)
+    knee_fs         = expand(f'{af_dir}/af_{{run}}/{af_rna_dir}knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz', run=RUNS),
+    custom_params_f = [config['project']['custom_sample_params']] if config['project'].get('custom_sample_params') else []
   output:
     r_utils_f       = f"{code_dir}/utils.R",
     r_map_f         = f"{code_dir}/mapping.R",
@@ -30,7 +31,8 @@ rule render_html_mapping:
     ambient_method  = config['ambient']['ambient_method'],
     run_var         = RUN_VAR,
     runs_str        = ','.join(RUNS),
-    af_rna_dir      = af_rna_dir
+    af_rna_dir      = af_rna_dir,
+    custom_params_f = config['project'].get('custom_sample_params', '')
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -70,7 +72,8 @@ rule render_html_mapping:
         ambient_method  = '{params.ambient_method}',
         run_var         = '{params.run_var}',
         af_dir          = '{af_dir}',
-        af_rna_dir      = '{params.af_rna_dir}'
+        af_rna_dir      = '{params.af_rna_dir}',
+        custom_sample_params_f = '{params.custom_params_f}'
       )"
     """
 

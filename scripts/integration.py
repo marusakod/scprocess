@@ -70,7 +70,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
   integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None,
   tricycle_f = None, umap_n_iter = 2000,
-  dbl_threshold_method='mean_mad', dbl_mad_multiplier=2.0):
+  dbl_threshold_method='split_mad_mixture', dbl_mad_multiplier=2.0):
   print('setting up parameters')
   exclude_mito  = str(exclude_mito).strip().lower() == 'true'
   res_ls        = res_ls_concat.split()
@@ -134,7 +134,7 @@ def run_preliminary_integration(
   hvg_mat_f, dbl_hvg_mat_f, precomputed_pca_f, sample_qc_f, coldata_f,
   demux_type, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop,
   doublet_f, clean_cells_f, batch_var, use_gpu=False, use_paga=False,
-  umap_n_iter=2000, dbl_threshold_method='mean_mad', dbl_mad_multiplier=2.0
+  umap_n_iter=2000, dbl_threshold_method='split_mad_mixture', dbl_mad_multiplier=2.0
 ):
   """Run the bonus doublet pass and persist its clean-cell boundary."""
   bcs_passed = _get_h5_barcodes(hvg_mat_f)
@@ -553,7 +553,7 @@ def _get_embeddings_from_adata(adata, embedding,  sel_embed):
 
 
 def _calc_dbl_data(int_dbl, cells_df, dbl_res, dbl_cl_prop, demux_type, batch_var,
-  dbl_threshold_method='mean_mad', dbl_mad_multiplier=2.0):
+  dbl_threshold_method='split_mad_mixture', dbl_mad_multiplier=2.0):
   # get doublet cells
   dbl_ids       = cells_df.filter( pl.col("is_dbl_int") == True )["cell_id"]
 
@@ -631,7 +631,7 @@ if __name__ == "__main__":
   parser_run_integration.add_argument('--cl_method',      type = str)
   parser_run_integration.add_argument('--dbl_res',        type = float)
   parser_run_integration.add_argument('--dbl_cl_prop',    type = float)
-  parser_run_integration.add_argument('--dbl_threshold_method', choices=('mean_mad', 'fixed'), default='mean_mad')
+  parser_run_integration.add_argument('--dbl_threshold_method', choices=('split_mad_mixture', 'mean_mad', 'fixed'), default='split_mad_mixture')
   parser_run_integration.add_argument('--dbl_mad_multiplier', type=float, default=2.0)
   parser_run_integration.add_argument('--theta',          type = float)
   parser_run_integration.add_argument('--res_ls_concat',  type = str)
@@ -662,7 +662,7 @@ if __name__ == "__main__":
   parser_preliminary.add_argument('--cl_method', type=str, required=True)
   parser_preliminary.add_argument('--dbl_res', type=float, required=True)
   parser_preliminary.add_argument('--dbl_cl_prop', type=float, required=True)
-  parser_preliminary.add_argument('--dbl_threshold_method', choices=('mean_mad', 'fixed'), default='mean_mad')
+  parser_preliminary.add_argument('--dbl_threshold_method', choices=('split_mad_mixture', 'mean_mad', 'fixed'), default='split_mad_mixture')
   parser_preliminary.add_argument('--dbl_mad_multiplier', type=float, default=2.0)
   parser_preliminary.add_argument('--doublet_f', type=str, required=True)
   parser_preliminary.add_argument('--clean_cells_f', type=str, required=True)
