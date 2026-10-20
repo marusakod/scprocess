@@ -126,7 +126,8 @@ for (i in 1:length(slope_ratio_split_l) ) {
   knee_fs = rna_knee_fs[samples]
   cat('#### ', name, '\n')
   suppressWarnings(print(plot_barcode_ranks_w_params(knee_fs, rna_knee_params_df, 
-    sample_var = sample_var, bender_priors_df = NULL)))
+    sample_var = sample_var, bender_priors_df = NULL,
+    n_slots = min(n_per_plot, sample_n))))
   cat('\n\n')
 }
 ```
@@ -144,7 +145,8 @@ for (i in 1:length(exp_tot_ratio_split_l) ) {
   knee_fs = rna_knee_fs[samples]
   cat('#### ', name, '\n')
   suppressWarnings(print(plot_barcode_ranks_w_params(knee_fs, rna_knee_params_df, 
-    sample_var = sample_var, bender_priors_df = NULL)))
+    sample_var = sample_var, bender_priors_df = NULL,
+    n_slots = min(n_per_plot, sample_n))))
   cat('\n\n')
 }
 ```

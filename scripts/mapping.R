@@ -502,7 +502,7 @@ get_knee_params <- function(knee_f, sample_var) {
 }
 
 
-plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, bender_priors_df = NULL, show_lines = TRUE) {
+plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, bender_priors_df = NULL, show_lines = TRUE, n_slots = NULL) {
   
   s_ord = names(knee_fs)
   
@@ -561,10 +561,20 @@ plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, b
     vlines[[sample_var]] = factor(vlines[[sample_var]], levels = s_ord)
   }
   
+  # Reserve unused slots so short final report chunks keep the same panel size.
+  if (is.null(n_slots)) {
+    knee_facets = facet_wrap(~get(sample_var), ncol = 4)
+  } else {
+    stopifnot(length(n_slots) == 1L, is.finite(n_slots),
+              n_slots >= length(s_ord), n_slots >= 1, n_slots == as.integer(n_slots))
+    knee_facets = ggh4x::facet_wrap2(~get(sample_var),
+      ncol = min(4L, n_slots), nrow = ceiling(n_slots / 4), trim_blank = FALSE)
+  }
+
   p = ggplot(knee_data) +
     aes(x = bc_rank, y = lib_size) +
     geom_line(linewidth = 0.3, color = '#283747') +
-    facet_wrap( ~ get(sample_var), ncol = 4 ) +
+    knee_facets +
     scale_x_log10(labels = p_labels, breaks = p_breaks) +
     scale_y_log10(labels = p_labels, breaks = p_breaks) +
     scale_color_manual(
