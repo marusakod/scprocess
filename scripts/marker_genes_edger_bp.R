@@ -90,6 +90,37 @@ load_gene_biotypes_bpcells <- function(gtf_dt_f) {
 }
 
 
+.bp_align_gene_rows <- function(matrices, labels = names(matrices)) {
+  stopifnot(length(matrices) > 0L)
+  if (is.null(labels)) labels = as.character(seq_along(matrices))
+  stopifnot(length(labels) == length(matrices))
+  genes = rownames(matrices[[1L]])
+  reordered = character()
+  for (i in seq_along(matrices)) {
+    ids = rownames(matrices[[i]])
+    if (is.null(ids) || anyNA(ids) || any(!nzchar(trimws(ids))) || anyDuplicated(ids)) {
+      stop("Gene IDs must be unique, nonmissing and nonblank in H5AD pseudobulk chunk: ",
+        labels[[i]], call. = FALSE)
+    }
+    if (identical(ids, genes)) next
+    if (length(ids) != length(genes) || !setequal(ids, genes)) {
+      stop("Gene sets differ between H5AD pseudobulk chunks: ", labels[[i]],
+        " (", length(setdiff(genes, ids)), " missing; ",
+        length(setdiff(ids, genes)), " extra relative to the first chunk).",
+        call. = FALSE)
+    }
+    matrices[[i]] = matrices[[i]][match(genes, ids), , drop = FALSE]
+    reordered = c(reordered, labels[[i]])
+  }
+  if (length(reordered)) {
+    warning("Same genes, different order: reordered gene rows by ID in ",
+      length(reordered), " H5AD pseudobulk chunk(s) to match the first chunk. Examples: ",
+      paste(utils::head(reordered, 3L), collapse = ", "), call. = FALSE)
+  }
+  matrices
+}
+
+
 build_pseudobulk_cache_bpcells <- function(pb_dir, integration_f, h5ads_yaml_f,
   sel_res, batch_var, min_cl_size, n_cores = 8L, bp_tmpdir) {
   stopifnot(
@@ -195,14 +226,13 @@ build_pseudobulk_cache_bpcells <- function(pb_dir, integration_f, h5ads_yaml_f,
   }
 
   chunk_paths = .bp_lapply(h5ad_batches, n_cores, build_one)
+  names(chunk_paths) = h5ad_batches
   chunk_paths = Filter(Negate(is.null), chunk_paths)
   if (!length(chunk_paths)) stop("No pseudobulk chunks were created.", call. = FALSE)
 
   message("    combining disk-backed sample chunks")
   chunk_mats = lapply(chunk_paths, BPCells::open_matrix_dir)
-  genes = rownames(chunk_mats[[1L]])
-  same_genes = vapply(chunk_mats, function(x) identical(rownames(x), genes), logical(1))
-  if (!all(same_genes)) stop("Gene rows differ between H5AD pseudobulk chunks.", call. = FALSE)
+  chunk_mats = .bp_align_gene_rows(chunk_mats, names(chunk_paths))
   combined = do.call(cbind, chunk_mats)
   if (anyDuplicated(colnames(combined))) {
     message("    summing pseudobulk groups represented in multiple H5AD batches")

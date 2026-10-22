@@ -192,3 +192,11 @@ clusters below/above 50%, weighted by the numbers of clusters. The cutoff is
 the weighted-density crossing between the two centres, with no 50% cap.
 `int_dbl_threshold_method: mean_mad` retains the previous mean-plus-MAD rule. See the integration options in [Reference](reference.md#integration).
 `int_dbl_threshold_method: fixed` retains the previous fixed-cutoff behaviour.
+
+### Gene order in joined pseudobulks
+
+Joined pseudobulk inputs must contain the same unique, nonmissing gene IDs.
+When H5AD batches contain the same genes in a different order, scprocess aligns
+pseudobulk rows by gene ID to the first nonempty batch and emits a warning
+identifying affected batches. Gene-set differences and duplicate or missing IDs
+remain errors. Source H5AD files and counts are unchanged by this alignment.

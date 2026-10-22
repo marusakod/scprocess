@@ -35,7 +35,7 @@ write_matrix_anndata_hdf5(
   h5ad_a
 )
 write_matrix_anndata_hdf5(
-  convert_matrix_type(Matrix(batch_b, sparse = TRUE), "uint32_t"),
+  convert_matrix_type(Matrix(batch_b[c(3L, 1L, 2L), , drop = FALSE], sparse = TRUE), "uint32_t"),
   h5ad_b
 )
 rhdf5::h5createFile(h5ad_empty)
@@ -61,7 +61,8 @@ yaml::write_yaml(
 cache_dir = file.path(cache_test_dir, "pseudobulk.bpcells")
 cache_tmpdir = file.path(cache_test_dir, "tmp")
 dir.create(cache_tmpdir)
-cache = build_pseudobulk_cache_bpcells(
+gene_order_warnings = character()
+cache = withCallingHandlers(build_pseudobulk_cache_bpcells(
   pb_dir = cache_dir,
   integration_f = integration_f,
   h5ads_yaml_f = h5ads_yaml_f,
@@ -70,7 +71,26 @@ cache = build_pseudobulk_cache_bpcells(
   min_cl_size = 1L,
   n_cores = 1L,
   bp_tmpdir = cache_tmpdir
-)
+), warning = function(w) {
+  if (grepl("Same genes, different order", conditionMessage(w), fixed = TRUE)) {
+    gene_order_warnings <<- c(gene_order_warnings, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }
+})
+stopifnot(length(gene_order_warnings) == 1L,
+  grepl("sequencing_batch_b", gene_order_warnings, fixed = TRUE))
+# Real gene-set mismatches and ambiguous identifiers must still fail.
+expect_gene_error = function(ids, pattern) {
+  bad = batch_b
+  rownames(bad) = ids
+  error = tryCatch(.bp_align_gene_rows(list(batch_a, bad)), error = identity)
+  stopifnot(inherits(error, "error"), grepl(pattern, conditionMessage(error), fixed = TRUE))
+}
+expect_gene_error(c("g1", "g2", "g4"), "Gene sets differ")
+expect_gene_error(c("g1", "g1", "g3"), "unique, nonmissing and nonblank")
+expect_gene_error(c("g1", NA_character_, "g3"), "unique, nonmissing and nonblank")
+expect_gene_error(c("g1", "", "g3"), "unique, nonmissing and nonblank")
+stopifnot(identical(.bp_align_gene_rows(list(batch_a, batch_b)), list(batch_a, batch_b)))
 cache_dense = .bp_as_matrix(cache$counts)
 expected_cache = cbind(
   A_s1 = batch_a[, "c1"] + batch_b[, "c3"],
