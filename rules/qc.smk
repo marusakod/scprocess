@@ -84,6 +84,7 @@ rule run_qc_one_run:
     demux_type      = config['multiplexing']['demux_type'],
     batch_var       = BATCH_VAR,
     dbl_min_feats   = config['qc']['dbl_min_feats'],
+    dbl_min_counts  = config['qc']['dbl_min_counts'],
     dbl_dbr_sd      = lambda wildcards: 'NULL' if RUN_PARAMS[wildcards.run]['qc']['dbl_dbr_sd'] is None else RUN_PARAMS[wildcards.run]['qc']['dbl_dbr_sd'],
     dbl_clusters    = 'NULL' if config['qc']['dbl_clusters'] is None else str(config['qc']['dbl_clusters']).upper()
   threads: 4
@@ -125,7 +126,8 @@ rule run_qc_one_run:
         run_var          = '{params.run_var}', \
         demux_type       = '{params.demux_type}', \
         batch_var        = '{params.batch_var}', \
-        dbl_min_feats    = {params.dbl_min_feats}, \
+        dbl_min_feats    = {params.dbl_min_feats},
+        dbl_min_counts   = {params.dbl_min_counts}, \
         dbl_dbr_sd       = {params.dbl_dbr_sd}, \
         dbl_clusters     = {params.dbl_clusters} \
       )"

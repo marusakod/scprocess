@@ -3,8 +3,10 @@
 source('scripts/SampleQC.R')
 
 captured_args = NULL
+captured_cells = NULL
 scDblFinder = function(sce, returnType, multiSampleMode, verbose, ...) {
   captured_args <<- list(...)
+  captured_cells <<- colnames(sce)
   n_real = ncol(sce)
   result = S4Vectors::DataFrame(
     type = c(rep('real', n_real), rep('doublet', 2L)),
@@ -50,5 +52,25 @@ invisible(.run_scdblfinder(
 stopifnot(
   !('dbr.sd' %in% names(captured_args)),
   !('clusters' %in% names(captured_args)))
+
+# UMI filtering is distinct from the detected-feature filter, includes the
+# exact boundary, and uses count-matrix sums rather than cached QC metadata.
+counts(sce) = Matrix::Matrix(matrix(c(99, 100, 100, 100, 100,
+  rep(100, 5), rep(120, 5)), nrow = 5L, dimnames = dimnames(sce)), sparse = TRUE)
+sce$sum = 9999
+result = .run_scdblfinder(
+  sce, 'sample_a', 'sample_id', 'none', real_f, artificial_f, summary_f,
+  min_feats = 1L, min_cells = 1L, min_counts = 500L, dbl_clusters = FALSE)
+stopifnot(identical(captured_cells, c('cell_2', 'cell_3')),
+  identical(result$cell_id, c('cell_2', 'cell_3')),
+  fread(summary_f)$dbl_min_counts == 500L,
+  fread(summary_f)$n_before_input_filter == 3L,
+  identical(captured_args$clusters, FALSE))
+# Retain the feature requirement even when a cell meets the UMI requirement.
+sce$detected = c(5L, 0L, 5L)
+result = .run_scdblfinder(
+  sce, 'sample_a', 'sample_id', 'none', real_f, artificial_f, summary_f,
+  min_feats = 1L, min_cells = 1L, min_counts = 500L)
+stopifnot(identical(captured_cells, 'cell_3'), nrow(result) == 1L)
 
 unlink(tmp_dir, recursive = TRUE)

@@ -44,7 +44,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   dbl_summary_f, qc_f,
   coldata_f, mito_str, exclude_mito, hard_min_counts, hard_min_feats, hard_max_mito,
   run_var = "sample_id", demux_type = "none", batch_var = "sample_id", dbl_min_feats = 100,
-  dbl_min_cells = 100, dbl_dbr_sd = NULL, dbl_clusters = NULL) {
+  dbl_min_cells = 100, dbl_dbr_sd = NULL, dbl_clusters = NULL, dbl_min_counts = 0) {
   # check inputs
   exclude_mito  = as.logical(exclude_mito)
 
@@ -84,7 +84,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   dbl_dt      = .run_scdblfinder(
     sce, run_name, run_var, ambient_method, dbl_f, dbl_artificial_f,
     dbl_summary_f, min_feats = dbl_min_feats, min_cells = dbl_min_cells,
-    dbl_dbr_sd = dbl_dbr_sd, dbl_clusters = dbl_clusters)
+    dbl_dbr_sd = dbl_dbr_sd, dbl_clusters = dbl_clusters, min_counts = dbl_min_counts)
   
   # add doublet info to coldata
   message('  adding doublet info to column data')
@@ -372,16 +372,18 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
 
 .run_scdblfinder <- function(sce, run_name, run_var = 'sample_id', ambient_method,
   dbl_f, dbl_artificial_f, dbl_summary_f, min_feats = 100, min_cells = 100,
-  dbl_dbr_sd = NULL, dbl_clusters = NULL) {
+  dbl_dbr_sd = NULL, dbl_clusters = NULL, min_counts = 0) {
   # subset to just this sample
   run_idx     = sce[[run_var]] == run_name
   sce         = sce[, run_idx ]
     
-  # exclude tiny cells
-  message('  filtering out cells with low counts')
-  # assert_that( 'detected' %in% colnames(colData(sce)) )
-  detected    = colSums(counts(sce) > 0)
-  keep_idx    = sce$detected >= min_feats
+  # Feature and UMI limits are independent. Count the actual input matrix,
+  # after its configured rRNA/mitochondrial gene removal, as scDblFinder does.
+  message('  filtering doublet inputs by detected features and UMIs')
+  stopifnot(length(min_counts) == 1L, is.finite(min_counts), min_counts >= 0)
+  n_before_filter = ncol(sce)
+  keep_idx = sce$detected >= min_feats
+  if (min_counts > 0) keep_idx = keep_idx & Matrix::colSums(counts(sce)) >= min_counts
   assert_that( sum(keep_idx) >= min_cells, msg = "insufficient cells to run scDblFinder :(")
   message(sprintf('    keeping %d / %d cells (%.0f%%)',
     sum(keep_idx), length(keep_idx), 100 * sum(keep_idx) / length(keep_idx)))
@@ -437,6 +439,9 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   dbl_summary_dt = data.table(
     run_id = run_name,
     n_real = nrow(dbl_dt),
+    n_before_input_filter = n_before_filter,
+    dbl_min_feats = min_feats,
+    dbl_min_counts = min_counts,
     n_artificial = nrow(dbl_artificial_dt),
     n_called_doublet = sum(dbl_dt$scdbl_class == 'doublet'),
     pct_called_doublet = 100 * mean(dbl_dt$scdbl_class == 'doublet'),
