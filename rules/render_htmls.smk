@@ -423,7 +423,7 @@ rule render_html_integration:
     date_stamp      = config['project']['date_stamp'],
     proj_dir        = config['project']['proj_dir'],
     int_res_ls_str  = ','.join(map(str, config['integration']['int_res_ls'])),
-    int_dbl_cl_prop = config['integration']['int_dbl_cl_prop'],
+    int_dbl_cl_prop = config['integration'].get('int_dbl_cl_prop', 0.5),
     int_embedding   = config['integration']['int_embedding'],
     demux_type      = config['multiplexing']['demux_type'],
     batch_var       = BATCH_VAR

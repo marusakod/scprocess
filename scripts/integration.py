@@ -70,7 +70,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
   exclude_mito, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop, theta, res_ls_concat,
   integration_f, batch_var, use_gpu = False, use_paga = False, paga_cl_res = None,
   tricycle_f = None, umap_n_iter = 2000,
-  dbl_threshold_method='split_mad_mixture', dbl_mad_multiplier=2.0):
+  dbl_threshold_method='adaptive'):
   print('setting up parameters')
   exclude_mito  = str(exclude_mito).strip().lower() == 'true'
   res_ls        = res_ls_concat.split()
@@ -104,7 +104,7 @@ def run_integration(hvg_mat_f, dbl_hvg_mat_f, sample_qc_f, coldata_f, demux_type
 
   print('filter to non-doublet cells')
   dbl_data      = _calc_dbl_data(int_dbl, cells_df, dbl_res, dbl_cl_prop, demux_type, batch_var,
-    dbl_threshold_method, dbl_mad_multiplier)
+    dbl_threshold_method)
   adata         = _adata_filter_out_doublets(all_hvg_mat, cells_df, dbl_data)
   print(adata)
   print(f"  anndata object has {adata.shape[0]} cells and {adata.shape[1]} dims")
@@ -134,7 +134,7 @@ def run_preliminary_integration(
   hvg_mat_f, dbl_hvg_mat_f, precomputed_pca_f, sample_qc_f, coldata_f,
   demux_type, embedding, n_dims, cl_method, dbl_res, dbl_cl_prop,
   doublet_f, clean_cells_f, batch_var, use_gpu=False, use_paga=False,
-  umap_n_iter=2000, dbl_threshold_method='split_mad_mixture', dbl_mad_multiplier=2.0
+  umap_n_iter=2000, dbl_threshold_method='adaptive'
 ):
   """Run the bonus doublet pass and persist its clean-cell boundary."""
   bcs_passed = _get_h5_barcodes(hvg_mat_f)
@@ -154,7 +154,7 @@ def run_preliminary_integration(
   )
   dbl_data = _calc_dbl_data(
     int_dbl, cells_df, dbl_res, dbl_cl_prop, demux_type, batch_var,
-    dbl_threshold_method, dbl_mad_multiplier
+    dbl_threshold_method
   )
   clean_cells = dbl_data.filter(
     (~pl.col('is_dbl')) & (~pl.col('in_dbl_cl'))
@@ -553,7 +553,7 @@ def _get_embeddings_from_adata(adata, embedding,  sel_embed):
 
 
 def _calc_dbl_data(int_dbl, cells_df, dbl_res, dbl_cl_prop, demux_type, batch_var,
-  dbl_threshold_method='split_mad_mixture', dbl_mad_multiplier=2.0):
+  dbl_threshold_method='adaptive'):
   # get doublet cells
   dbl_ids       = cells_df.filter( pl.col("is_dbl_int") == True )["cell_id"]
 
@@ -578,7 +578,7 @@ def _calc_dbl_data(int_dbl, cells_df, dbl_res, dbl_cl_prop, demux_type, batch_va
   )
   fit = calculate_doublet_cluster_threshold(
     cluster_counts.select('n_doublets', 'n_cells').iter_rows(),
-    method=dbl_threshold_method, ceiling=dbl_cl_prop, mad_multiplier=dbl_mad_multiplier
+    method=dbl_threshold_method, ceiling=dbl_cl_prop
   )
   print('Doublet cluster threshold:', fit)
   dbl_data = dbl_data.with_columns(
@@ -631,8 +631,7 @@ if __name__ == "__main__":
   parser_run_integration.add_argument('--cl_method',      type = str)
   parser_run_integration.add_argument('--dbl_res',        type = float)
   parser_run_integration.add_argument('--dbl_cl_prop',    type = float)
-  parser_run_integration.add_argument('--dbl_threshold_method', choices=('split_mad_mixture', 'mean_mad', 'fixed'), default='split_mad_mixture')
-  parser_run_integration.add_argument('--dbl_mad_multiplier', type=float, default=2.0)
+  parser_run_integration.add_argument('--dbl_threshold_method', choices=('adaptive', 'manual'), default='adaptive')
   parser_run_integration.add_argument('--theta',          type = float)
   parser_run_integration.add_argument('--res_ls_concat',  type = str)
   parser_run_integration.add_argument('--integration_f',  type = str)
@@ -662,8 +661,7 @@ if __name__ == "__main__":
   parser_preliminary.add_argument('--cl_method', type=str, required=True)
   parser_preliminary.add_argument('--dbl_res', type=float, required=True)
   parser_preliminary.add_argument('--dbl_cl_prop', type=float, required=True)
-  parser_preliminary.add_argument('--dbl_threshold_method', choices=('split_mad_mixture', 'mean_mad', 'fixed'), default='split_mad_mixture')
-  parser_preliminary.add_argument('--dbl_mad_multiplier', type=float, default=2.0)
+  parser_preliminary.add_argument('--dbl_threshold_method', choices=('adaptive', 'manual'), default='adaptive')
   parser_preliminary.add_argument('--doublet_f', type=str, required=True)
   parser_preliminary.add_argument('--clean_cells_f', type=str, required=True)
   parser_preliminary.add_argument('--batch_var', type=str, required=True)
@@ -769,7 +767,6 @@ if __name__ == "__main__":
       args.dbl_res, args.dbl_cl_prop, args.theta, args.res_ls_concat, args.integration_f,
       args.batch_var, use_gpu, args.use_paga, args.paga_cl_res, args.tricycle_f,
       umap_n_iter = args.umap_n_iter, dbl_threshold_method=args.dbl_threshold_method,
-      dbl_mad_multiplier=args.dbl_mad_multiplier
     )
   elif args.function_name == 'run_preliminary_integration':
     run_preliminary_integration(
@@ -778,7 +775,7 @@ if __name__ == "__main__":
       args.n_dims, args.cl_method, args.dbl_res, args.dbl_cl_prop,
       args.doublet_f, args.clean_cells_f, args.batch_var, use_gpu,
       args.use_paga, umap_n_iter=args.umap_n_iter,
-      dbl_threshold_method=args.dbl_threshold_method, dbl_mad_multiplier=args.dbl_mad_multiplier
+      dbl_threshold_method=args.dbl_threshold_method
     )
   elif args.function_name == 'run_final_integration':
     run_final_integration(

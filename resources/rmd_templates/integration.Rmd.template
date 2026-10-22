@@ -124,7 +124,7 @@ The thresholding method is **`r dbl_threshold$method`**.
 ```{r doublet_threshold_details, results = 'asis'}
 if (!dbl_threshold$recorded) {
   cat('Legacy output has no saved threshold metadata; the configured fixed cutoff is shown.\n')
-} else if (dbl_threshold$method == 'split_mad_mixture') {
+} else if (dbl_threshold$method %in% c('adaptive', 'split_mad_mixture')) {
   print(knitr::kable(data.frame(
     group = c('Below 50%', 'Above 50%'),
     clusters = c(dbl_threshold$n_low, dbl_threshold$n_high),

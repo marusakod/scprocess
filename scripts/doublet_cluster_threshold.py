@@ -3,19 +3,20 @@ import math
 import statistics
 
 
-def calculate_doublet_cluster_threshold(counts, method='split_mad_mixture', ceiling=0.5,
-                                       mad_multiplier=2.0):
-    """Estimate the split median/MAD mixture, legacy mean-MAD, or fixed cutoff.
+def calculate_doublet_cluster_threshold(counts, method='adaptive', ceiling=None):
+    """Estimate the adaptive split median/MAD mixture or use a manual cutoff.
 
     counts contains (number called doublets, total cells) pairs. The half-count
     correction is used for fitting only; exclusion compares raw proportions.
     """
-    if method not in ('split_mad_mixture', 'mean_mad', 'fixed'):
-        raise ValueError('Doublet threshold method must be split_mad_mixture, mean_mad or fixed')
+    if method not in ('adaptive', 'manual'):
+        raise ValueError('Doublet threshold method must be adaptive or manual')
+    if ceiling is None:
+        if method == 'manual':
+            raise ValueError('Manual doublet threshold requires an explicit cutoff')
+        ceiling = 0.5
     if not math.isfinite(ceiling) or not 0 <= ceiling <= 1:
         raise ValueError('Doublet reference ceiling must be between 0 and 1')
-    if not math.isfinite(mad_multiplier) or mad_multiplier < 0:
-        raise ValueError('Doublet MAD multiplier must be finite and non-negative')
     counts = list(counts)
     if not counts:
         raise ValueError('No doublet clusters are available')
@@ -23,29 +24,11 @@ def calculate_doublet_cluster_threshold(counts, method='split_mad_mixture', ceil
         if total <= 0 or not 0 <= doublets <= total:
             raise ValueError('Doublet cluster counts must satisfy 0 <= doublets <= total, total > 0')
     result = dict(method=method, threshold=ceiling, reference_ceiling=ceiling,
-                  mad_multiplier=mad_multiplier, n_reference=0,
+                  mad_multiplier=None, n_reference=0,
                   mean_logit=None, scaled_mad_logit=None, uncapped_threshold=None)
-    if method == 'fixed':
+    if method == 'manual':
         return result
-    if method == 'split_mad_mixture':
-        return _split_mad_mixture(counts, result)
-    reference = [(d, n) for d, n in counts if d / n < ceiling]
-    if not reference:
-        raise ValueError('No doublet clusters fall below the reference ceiling; '
-                         'cannot estimate mean-MAD threshold. Inspect the data or explicitly use fixed.')
-    logits = [math.log((d + 0.5) / (n - d + 0.5)) for d, n in reference]
-    mean = statistics.mean(logits)
-    centre = statistics.median(logits)
-    mad = 1.4826 * statistics.median(abs(value - centre) for value in logits)
-    if mad == 0:
-        raise ValueError('Reference cluster logit rates have zero MAD; cannot estimate an adaptive threshold. '
-                         'Inspect the data or explicitly use fixed.')
-    cutoff = mean + mad_multiplier * mad
-    # Stable inverse logit, including extreme but valid multiplier values.
-    estimate = 1 / (1 + math.exp(-cutoff)) if cutoff >= 0 else math.exp(cutoff) / (1 + math.exp(cutoff))
-    result.update(threshold=min(ceiling, estimate), n_reference=len(reference),
-                  mean_logit=mean, scaled_mad_logit=mad, uncapped_threshold=estimate)
-    return result
+    return _split_mad_mixture(counts, result)
 
 
 def _split_mad_mixture(counts, result):
@@ -56,13 +39,13 @@ def _split_mad_mixture(counts, result):
     if any(len(group) < 2 for group in groups):
         raise ValueError('Split-MAD mixture requires at least two clusters strictly below '
                          'and strictly above 50% doublets. Inspect the data or explicitly '
-                         'select mean_mad or fixed; no automatic fallback is applied.')
+                         'select manual; no automatic fallback is applied.')
     means = [statistics.median(group) for group in groups]
     scales = [1.4826 * statistics.median(abs(x - centre) for x in group)
               for group, centre in zip(groups, means)]
     if any(scale == 0 for scale in scales):
         raise ValueError('Split-MAD mixture group has zero MAD; inspect the data or '
-                         'explicitly select mean_mad or fixed.')
+                         'explicitly select manual.')
     sizes = [len(group) for group in groups]
     weights = [size / sum(sizes) for size in sizes]
     lo, hi = means
@@ -79,7 +62,7 @@ def _split_mad_mixture(counts, result):
     interior = [value for value in roots if lo < value < hi]
     if len(interior) != 1:
         raise ValueError('Split-MAD mixture has no unique between-centres crossing; '
-                         'inspect the data or explicitly select mean_mad or fixed.')
+                         'inspect the data or explicitly select manual.')
     logit = interior[0]
     threshold = 1 / (1 + math.exp(-logit)) if logit >= 0 else math.exp(logit) / (1 + math.exp(logit))
     result.update(threshold=threshold, uncapped_threshold=threshold, reference_ceiling=0.5,

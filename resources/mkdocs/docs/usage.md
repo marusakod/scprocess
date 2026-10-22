@@ -190,8 +190,14 @@ By default, the preliminary doublet-cluster pass uses a robust split-estimated
 mixture threshold: median and scaled MAD on corrected logit fractions within
 clusters below/above 50%, weighted by the numbers of clusters. The cutoff is
 the weighted-density crossing between the two centres, with no 50% cap.
-`int_dbl_threshold_method: mean_mad` retains the previous mean-plus-MAD rule. See the integration options in [Reference](reference.md#integration).
-`int_dbl_threshold_method: fixed` retains the previous fixed-cutoff behaviour.
+Use `int_dbl_threshold_method: adaptive` (default) for this estimate.
+For a chosen fixed cutoff, use `int_dbl_threshold_method: manual` and specify
+`int_dbl_cl_prop` explicitly; there is no default.
+With `adaptive` (also the default when the method is omitted), omit
+`int_dbl_cl_prop`; supplying it is a configuration validation error.
+The old names `split_mad_mixture` and `fixed` must be replaced by `adaptive` and
+`manual`; `mean_mad` and `int_dbl_mad_multiplier` have been removed. Historical
+saved threshold metadata remain readable. See [Reference](reference.md#integration).
 
 ### Gene order in joined pseudobulks
 

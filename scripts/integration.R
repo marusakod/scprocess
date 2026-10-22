@@ -373,7 +373,7 @@ read_doublet_cluster_threshold <- function(integration_dt, legacy_cutoff) {
   names(values) = keys
   if (!is.finite(values$threshold) || values$threshold < 0 || values$threshold > 1)
     stop('Invalid recorded doublet-cluster threshold')
-  if (values$method == 'split_mad_mixture') {
+  if (values$method %in% c('adaptive', 'split_mad_mixture')) {
     mixture_keys = c('n_low', 'n_high', 'n_equal_50', 'median_logit_low', 'median_logit_high',
       'scaled_mad_logit_low', 'scaled_mad_logit_high', 'weight_low', 'weight_high')
     for (key in mixture_keys) {
