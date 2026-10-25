@@ -14,9 +14,9 @@ def get_all_batches_str(wildcards):
 
 
 rule make_qc_thresholds_csv:
-  input:
-    metadata_f = config['project']['sample_metadata'],
-    custom_f   = config['project']['custom_sample_params'] if 'custom_sample_params' in config['project'] else []
+  # BATCH_PARAMS already resolves metadata, exclusions and custom QC limits.
+  # Track those values in params, not whole-file mtimes: changing a knee or
+  # per-run doublet option must not regenerate the shared QC-cutoff table.
   output:
     cuts_f = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv'
   params:

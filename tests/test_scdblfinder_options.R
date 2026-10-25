@@ -73,4 +73,13 @@ result = .run_scdblfinder(
   min_feats = 1L, min_cells = 1L, min_counts = 500L)
 stopifnot(identical(captured_cells, 'cell_3'), nrow(result) == 1L)
 
+# Failed training warnings must not silently produce accepted outputs.
+original_mock = scDblFinder
+original_scorer = get('.scDblscore', asNamespace('scDblFinder'))
+scDblFinder = function(...) warning('A training iteration failed with the error: mock')
+err = tryCatch(.call_scdblfinder(list()), error = identity)
+stopifnot(inherits(err, 'error'), grepl('refusing fallback scores', conditionMessage(err)),
+  identical(get('.scDblscore', asNamespace('scDblFinder')), original_scorer))
+scDblFinder = original_mock
+
 unlink(tmp_dir, recursive = TRUE)

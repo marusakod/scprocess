@@ -114,8 +114,17 @@ def test_hvg_optional_exclusion_and_metadata_inputs(tmp_path, method, exclude):
 
 
 @pytest.mark.parametrize('custom',[False,True])
-def test_qc_threshold_local_rule_and_custom_file_recomputation(tmp_path,custom):
+def test_qc_threshold_rule_tracks_resolved_limits_not_unrelated_settings(tmp_path,custom):
   setup_rules(tmp_path, 'qc.smk',custom=custom)
+  snake = tmp_path / 'Snakefile'
+  # Use the real resolver so file edits flow through effective batch params.
+  text = snake.read_text().replace('CAN_CALC_AMBIENT_GENES = False',
+    "config['qc']['qc_min_counts'] = 20\n"
+    "BATCH_PARAMS, BATCH_VAR, SAMPLES = get_batch_parameters(config, RUNS, None)\n"
+    'CAN_CALC_AMBIENT_GENES = False')
+  snake.write_text(text)
+  if custom:
+    (tmp_path / 'custom.yaml').write_text('sample_id:\n  s1:\n    qc:\n      qc_min_counts: 20\n')
   target = 'qc/qc_thresholds_by_sample_id_test_date.csv'
   run_snakemake(tmp_path,target)
   table = pl.read_csv(tmp_path / target)
@@ -123,9 +132,27 @@ def test_qc_threshold_local_rule_and_custom_file_recomputation(tmp_path,custom):
   assert table['min_counts'].to_list() == [20,20]
   assert table['max_counts'].null_count() == 2
   assert 'Nothing to be done' in run_snakemake(tmp_path,target,'--dry-run')
+  # Integration-only settings must not invalidate the threshold table.
+  text = snake.read_text().replace('CAN_CALC_AMBIENT_GENES = False',
+    "config['integration'].update(int_dbl_threshold_method='manual', int_dbl_cl_prop=0.25)\n"
+    'CAN_CALC_AMBIENT_GENES = False')
+  snake.write_text(text)
+  assert 'Nothing to be done' in run_snakemake(tmp_path,target,'--dry-run')
   if custom:
-    (tmp_path / 'custom.yaml').write_text('s1:\n  qc_min_counts: 30\n')
+    (tmp_path / 'custom.yaml').write_text('sample_id:\n  s1:\n    qc:\n      qc_min_counts: 20\n      dbl_dbr_sd: 1\n    mapping:\n      knee1: 100\n')
+    assert 'Nothing to be done' in run_snakemake(tmp_path,target,'--dry-run')
+    (tmp_path / 'custom.yaml').write_text('sample_id:\n  s1:\n    qc:\n      qc_min_counts: 30\n')
     assert 'rule make_qc_thresholds_csv:' in run_snakemake(tmp_path,target,'--dry-run')
+    run_snakemake(tmp_path,target)
+    assert pl.read_csv(tmp_path / target)['min_counts'].to_list() == [30,20]
+  else:
+    snake.write_text(snake.read_text().replace("config['qc']['qc_min_counts'] = 20", "config['qc']['qc_min_counts'] = 30"))
+    assert 'rule make_qc_thresholds_csv:' in run_snakemake(tmp_path,target,'--dry-run')
+    run_snakemake(tmp_path,target)
+    assert pl.read_csv(tmp_path / target)['min_counts'].to_list() == [30,30]
+  # Cohort edits still invalidate the table via the resolved batch identifiers.
+  (tmp_path / 'metadata.csv').write_text('sample_id,group\ns1,g\ns2,g\ns3,g\n')
+  assert 'rule make_qc_thresholds_csv:' in run_snakemake(tmp_path,target,'--dry-run')
 
 
 def test_moved_qc_statistics_preserves_counts_and_minimum_checks(tmp_path):

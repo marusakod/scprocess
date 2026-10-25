@@ -370,6 +370,45 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   return(sce)
 }
 
+# scDblFinder 1.27.12 can remove artificial-doublet rows after its first
+# training iteration without updating the predictor matrix. Align by cell ID
+# whenever that exact upstream filtering statement is present. The namespace
+# change is confined to this call and restored even if fitting fails.
+.call_scdblfinder <- function(args) {
+  ns = asNamespace('scDblFinder')
+  original = get('.scDblscore', envir = ns)
+  target = quote(d <- .filterUnrecognizableDoublets(d))
+  replacement = quote({
+    d <- .filterUnrecognizableDoublets(d)
+    training_rows <- match(rownames(d), rownames(preds))
+    stopifnot(!is.null(rownames(d)), !is.null(rownames(preds)),
+      !anyDuplicated(rownames(d)), !anyDuplicated(rownames(preds)),
+      !anyNA(training_rows))
+    preds <- preds[training_rows, , drop = FALSE]
+  })
+  changed = FALSE
+  align_rows = function(node) {
+    if (identical(node, target)) {
+      changed <<- TRUE
+      return(replacement)
+    }
+    if (is.call(node)) return(as.call(lapply(as.list(node), align_rows)))
+    node
+  }
+  patched = original
+  body(patched) = align_rows(body(original))
+  if (changed) {
+    message('  applying scDblFinder artificial-row alignment compatibility fix')
+    assignInNamespace('.scDblscore', patched, ns = 'scDblFinder')
+    on.exit(assignInNamespace('.scDblscore', original, ns = 'scDblFinder'))
+  }
+  withCallingHandlers(do.call(scDblFinder, args), warning = function(w) {
+    if (grepl('A training iteration failed', conditionMessage(w), fixed = TRUE))
+      stop('scDblFinder training failed; refusing fallback scores: ',
+        conditionMessage(w), call. = FALSE)
+  })
+}
+
 .run_scdblfinder <- function(sce, run_name, run_var = 'sample_id', ambient_method,
   dbl_f, dbl_artificial_f, dbl_summary_f, min_feats = 100, min_cells = 100,
   dbl_dbr_sd = NULL, dbl_clusters = NULL, min_counts = 0) {
@@ -401,7 +440,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   if (!is.null(dbl_clusters))
     scdbl_args$clusters = dbl_clusters
 
-  dbl_all = do.call(scDblFinder, scdbl_args)
+  dbl_all = .call_scdblfinder(scdbl_args)
   dbl_threshold = S4Vectors::metadata(dbl_all)$scDblFinder.threshold
   assert_that(length(dbl_threshold) == 1L, is.finite(dbl_threshold))
 
