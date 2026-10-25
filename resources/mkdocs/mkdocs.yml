@@ -12,6 +12,7 @@ nav:
     - Troubleshooting: troubleshooting.md
     - Citations: citation.md
     - Developer notes:
+        - Versioning and releases: development/versioning.md
         - Joined zooms: development/join_zoom.md
         - Join GPU integration and cell cycle: development/join_cell_cycle.md
 theme:

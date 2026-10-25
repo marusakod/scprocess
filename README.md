@@ -12,6 +12,13 @@ For detailed setup instructions, extended reference guides, and step-by-step tut
 
 ---
 
+## Versions and development
+
+Use a tagged release from `main` for stable analyses, or pin a clean `dev` commit
+when testing newer functionality. See the [versioning and development policy](resources/mkdocs/docs/development/versioning.md)
+and [release notes](CHANGELOG.md) for compatibility, scientific-default changes,
+model versions and reproducible run provenance. Coding agents should read [AGENTS.md](AGENTS.md).
+
 ## Features
 
 `scprocess` consists of a series of core steps which can be performed in a single execution of the workflow. Additional steps are available to extend the core analyses as needed. 

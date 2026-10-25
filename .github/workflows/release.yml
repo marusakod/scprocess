@@ -1,0 +1,40 @@
+name: Publish release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate version and extract release notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os, re
+          from pathlib import Path
+          tag = os.environ['RELEASE_TAG']
+          assert re.fullmatch(r'v\d+\.\d+\.\d+(?:-rc\.\d+)?', tag), tag
+          version = Path('VERSION').read_text().strip()
+          assert tag == 'v' + version, (tag, version)
+          match = re.search(r'^## ' + re.escape(version) + r' — [^\n]+\n(.*?)(?=^## |\Z)',
+                            Path('CHANGELOG.md').read_text(), re.M | re.S)
+          assert match, 'Missing matching changelog entry'
+          Path('release-notes.md').write_text(match.group(1).strip() + '\n')
+          PY
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          extra=()
+          if [[ "$RELEASE_TAG" == *-rc.* ]]; then extra+=(--prerelease); fi
+          gh release create "$RELEASE_TAG" --verify-tag --title "scprocess $RELEASE_TAG" --notes-file release-notes.md "${extra[@]}"

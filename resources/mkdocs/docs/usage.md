@@ -206,3 +206,29 @@ When H5AD batches contain the same genes in a different order, scprocess aligns
 pseudobulk rows by gene ID to the first nonempty batch and emits a warning
 identifying affected batches. Gene-set differences and duplicate or missing IDs
 remain errors. Source H5AD files and counts are unchanged by this alignment.
+
+### scDblFinder training integrity
+
+With scDblFinder 1.27.12, filtering unrecognizable artificial doublets can shorten
+the cell table between training iterations without shortening its predictor
+matrix. scprocess applies a call-local compatibility fix that aligns predictor
+rows to the remaining cell IDs after that filtering statement. Installed package
+files are unchanged and the original namespace function is restored afterwards.
+QC thresholds and scDblFinder parameters are unchanged. A reported failed training
+iteration now raises an error before scores are saved, rather than accepting
+scDblFinder's fallback to an earlier iteration.
+
+### QC threshold dependencies and Shiny count handling
+
+The shared QC-threshold table tracks the resolved limits and batch cohort.
+Changing unrelated knee or per-sample doublet settings does not by itself rebuild
+it; changing real limits or cohort membership still does.
+
+Shiny construction aligns identical input gene sets by ID before combining batches,
+warning when gene order changes and rejecting invalid or different gene sets.
+UMAP density-based downsampling accumulates the same Gaussian kernel estimate in
+bounded chunks to avoid atlas-scale memory allocations. The sample size, bandwidth
+and sampling policy are unchanged.
+
+For code provenance, clean analysis checkouts and configuration migration, see the
+[versioning and release policy](development/versioning.md).
