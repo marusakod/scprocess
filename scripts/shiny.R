@@ -92,6 +92,15 @@ suppressPackageStartupMessages({
 }
 
 
+.open_shiny_h5ad <- function(path) {
+  # Hold this handle throughout lazy BPCells evaluation. BPCells 0.3.1 can
+  # otherwise open writable inputs in read/write mode and change their mtime.
+  handle <- hdf5r::H5File$new(path, mode = "r")
+  tryCatch(list(matrix = BPCells::open_matrix_anndata_hdf5(path), handle = handle),
+    error = function(e) { handle$close_all(); stop(e) })
+}
+
+
 #' Build Shiny app from scprocess outputs
 #'
 #' @param integration_f  Path to integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz
@@ -352,6 +361,11 @@ make_shiny_app_scprocess <- function(
   message("Reading h5ad files")
   h5ad_paths  <- yaml::yaml.load_file(h5ads_yaml_f)  # list: batch_name -> path (or {path, project_id})
 
+  h5_readonly_handles <- list()
+  on.exit({
+    for (handle in h5_readonly_handles) handle$close_all()
+  }, add = TRUE)
+
   # Helper: load one h5ad; if entry is a join dict {path, project_id}, log the project
   # Cell IDs are kept as-is (the join pipeline already ensures uniqueness across projects)
   .load_one_h5ad_for_shiny <- function(h5ad_entry) {
@@ -366,7 +380,9 @@ make_shiny_app_scprocess <- function(
       return(NULL)
     }
     message(" reading ", basename(h5ad_f))
-    BPCells::open_matrix_anndata_hdf5(h5ad_f)
+    opened <- .open_shiny_h5ad(h5ad_f)
+    h5_readonly_handles[[length(h5_readonly_handles) + 1L]] <<- opened$handle
+    opened$matrix
   }
 
   mat_list   <- Filter(Negate(is.null), lapply(h5ad_paths, .load_one_h5ad_for_shiny))

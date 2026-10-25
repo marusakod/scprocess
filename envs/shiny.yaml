@@ -6,6 +6,7 @@ channels:
 dependencies:
   - r-base=4.4.3
   - r-bpcells
+  - r-hdf5r
   - bioconductor-complexheatmap=2.22.0
   - bioconductor-singlecellexperiment=1.28.0
   - bioconductor-zellkonverter=1.16.0

@@ -224,7 +224,9 @@ The shared QC-threshold table tracks the resolved limits and batch cohort.
 Changing unrelated knee or per-sample doublet settings does not by itself rebuild
 it; changing real limits or cohort membership still does.
 
-Shiny construction aligns identical input gene sets by ID before combining batches,
+Shiny construction retains explicit read-only HDF5 handles for all lazy input
+reads, preserving upstream file contents and timestamps. It also aligns identical
+input gene sets by ID before combining batches,
 warning when gene order changes and rejecting invalid or different gene sets.
 UMAP density-based downsampling accumulates the same Gaussian kernel estimate in
 bounded chunks to avoid atlas-scale memory allocations. The sample size, bandwidth
