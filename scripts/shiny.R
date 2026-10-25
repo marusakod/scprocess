@@ -68,6 +68,30 @@ suppressPackageStartupMessages({
 }
 
 
+.align_shiny_gene_rows <- function(matrices, labels = names(matrices)) {
+  if (!length(matrices)) stop("No nonempty H5AD matrices for Shiny", call. = FALSE)
+  if (is.null(labels)) labels <- as.character(seq_along(matrices))
+  stopifnot(length(labels) == length(matrices))
+  genes <- rownames(matrices[[1L]])
+  reordered <- character()
+  for (i in seq_along(matrices)) {
+    ids <- rownames(matrices[[i]])
+    if (is.null(ids) || anyNA(ids) || any(!nzchar(trimws(ids))) || anyDuplicated(ids))
+      stop("Gene IDs must be unique, nonmissing and nonblank in Shiny H5AD: ", labels[[i]], call. = FALSE)
+    if (identical(ids, genes)) next
+    if (length(ids) != length(genes) || !setequal(ids, genes))
+      stop("Gene sets differ between Shiny H5AD inputs: ", labels[[i]], call. = FALSE)
+    matrices[[i]] <- matrices[[i]][match(genes, ids), , drop = FALSE]
+    reordered <- c(reordered, labels[[i]])
+  }
+  if (length(reordered))
+    warning("Same genes, different order: aligned Shiny H5AD gene rows by ID in ",
+      length(reordered), " matrix/matrices. Examples: ",
+      paste(utils::head(reordered, 3L), collapse = ", "), call. = FALSE)
+  matrices
+}
+
+
 #' Build Shiny app from scprocess outputs
 #'
 #' @param integration_f  Path to integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz
@@ -346,6 +370,7 @@ make_shiny_app_scprocess <- function(
   }
 
   mat_list   <- Filter(Negate(is.null), lapply(h5ad_paths, .load_one_h5ad_for_shiny))
+  mat_list   <- .align_shiny_gene_rows(mat_list)
   counts_mat <- do.call(cbind, mat_list)
   rm(mat_list)
 
@@ -963,12 +988,31 @@ configure_shiny_app_scprocess <- function(
 }
 
 
-.get_density <- function(x, y, ...) {
-  dens <- MASS::kde2d(x, y, ...)
-  ix   <- findInterval(x, dens$x)
-  iy   <- findInterval(y, dens$y)
-  ii   <- cbind(ix, iy)
-  dens$z[ii]
+.get_density <- function(x, y, n = 25, h = c(MASS::bandwidth.nrd(x), MASS::bandwidth.nrd(y)),
+                         lims = c(range(x), range(y)), chunk_size = 8192L) {
+  # MASS::kde2d creates grid-size by cell-count intermediates. Accumulate
+  # the identical Gaussian kernel sum in chunks to bound atlas-scale memory.
+  nx <- length(x)
+  if (length(y) != nx || !nx || any(!is.finite(x)) || any(!is.finite(y)))
+    stop("Density coordinates must be finite, nonempty and equally sized")
+  if (length(chunk_size) != 1L || !is.finite(chunk_size) || chunk_size < 1)
+    stop("chunk_size must be positive")
+  n <- rep(n, length.out = 2L)
+  h <- rep(h, length.out = 2L) / 4
+  if (any(!is.finite(h)) || any(h <= 0)) stop("Bandwidths must be positive")
+  if (any(!is.finite(lims))) stop("Density limits must be finite")
+  gx <- seq.int(lims[1L], lims[2L], length.out = n[1L])
+  gy <- seq.int(lims[3L], lims[4L], length.out = n[2L])
+  z <- matrix(0, n[1L], n[2L])
+  for (start in seq.int(1L, nx, by = as.integer(chunk_size))) {
+    idx <- seq.int(start, min(nx, start + chunk_size - 1L))
+    ax <- outer(gx, x[idx], "-") / h[1L]
+    ay <- outer(gy, y[idx], "-") / h[2L]
+    z <- z + tcrossprod(matrix(dnorm(ax), nrow = n[1L]),
+                       matrix(dnorm(ay), nrow = n[2L]))
+  }
+  z <- z / (nx * h[1L] * h[2L])
+  z[cbind(findInterval(x, gx), findInterval(y, gy))]
 }
 
 
