@@ -12,6 +12,14 @@ For detailed setup instructions, extended reference guides, and step-by-step tut
 
 ---
 
+## Development and release approval
+
+Development work is reviewed on `dev`. Promotion to `main` and any release
+require explicit approval from both Will Macnair and Marusa. A version-file
+update or dev push does not approve a release. See the
+[versioning policy](resources/mkdocs/docs/development/versioning.md) and
+[agent instructions](AGENTS.md).
+
 ## Features
 
 `scprocess` consists of a series of core steps which can be performed in a single execution of the workflow. Additional steps are available to extend the core analyses as needed. 

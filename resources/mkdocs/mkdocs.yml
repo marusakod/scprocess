@@ -11,6 +11,7 @@ nav:
     - Reference: reference.md
     - Troubleshooting: troubleshooting.md
     - Citations: citation.md
+    - Versioning and approvals: development/versioning.md
 theme:
   font:
     text: Helvetica Neue
