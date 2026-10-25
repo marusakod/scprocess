@@ -1,6 +1,19 @@
 # Changelog
 
-## 0.2.1 — 2026-10-25
+## 0.2.2 — Unreleased development version
+
+- Require explicit approval from both Will Macnair and Marusa before promotion
+  to main, release tags or release publication. Dev commits/pushes and VERSION
+  updates do not imply release approval. Disable automatic release publication.
+- Retain recent processing and Shiny fixes on dev for review. Restore main to
+  the previous stable processing code, retaining the approval policy and docs CI.
+- The 0.2.0 and 0.2.1 publications below were premature and withdrawn at the
+  user's request; preserve their commits and analysis provenance.
+- Next: train/evaluate/register the Siletti classifier as a separate feature
+  version; then resume project-specific code/docs/Rmd style and tone review.
+
+
+## 0.2.1 — 2026-10-25 (publication withdrawn)
 
 ### Fixes
 
@@ -22,7 +35,7 @@
   not silently accepted as proof of unchanged contents.
 
 
-## 0.2.0 — 2026-10-25
+## 0.2.0 — 2026-10-25 (publication withdrawn)
 
 This release promotes the accumulated dev work since the published GitHub
 v0.1.1 release to main. It establishes the versioning/development policy and

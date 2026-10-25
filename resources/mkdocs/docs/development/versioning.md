@@ -4,6 +4,24 @@ scprocess maintains a stable release branch (`main`) and a development branch
 (`dev`). Published releases are immutable annotated `vX.Y.Z` tags with matching
 `VERSION` contents and GitHub releases. A branch name is not an analysis version.
 
+## Approval boundary
+
+Commits and pushes to `dev` are allowed within the authorized task. They do not
+authorize promotion to `main` or a release. Before pushing/merging to `main`,
+creating or pushing a release tag, or publishing any GitHub/Conda release,
+obtain explicit approval from **both Will Macnair and Marusa** for the concrete
+candidate commit, version and release contents. If either approval is absent or
+unclear, leave the reviewed work on `dev` and ask; never infer Marusa's approval
+from Will's approval, a generic request to fix/commit work, or passing tests.
+Preparing and incrementing VERSION on `dev` is not release approval. Review
+results must be available before seeking the two approvals. Material changes
+after approval require renewed approval of the changed candidate.
+
+Automatic publication on tag pushes is disabled. Do not re-enable publication
+automation without an approval mechanism that requires both maintainers. The
+user's explicit instruction to withdraw the premature releases and restore main
+is authorization for that rollback only, not a new release.
+
 ## Classify work before changing code or running an analysis
 
 At the start of a new task, inspect the branch, commit, dirty state and active
@@ -35,7 +53,9 @@ A bug fix can change scientific results without being an interface break; explai
 its impact in release notes. Choose 1.0 when the interface is ready for a stability
 commitment, not simply because a paper is submitted.
 
-`VERSION` is the source of the released version. Release tags must match it.
+`VERSION` records the software version; it may use a plain version such as
++ `0.2.2` on dev before approval. This alone neither creates nor approves a
++ release. Approved release tags must match VERSION.
 Between releases, identify development runs with the full commit SHA and the
 nearest release plus distance (`git describe`); an unchanged VERSION file alone
 does not identify a development checkout. Conda packages use the same upstream
@@ -44,10 +64,12 @@ prerelease spelling to Conda's supported conventions when packaging is introduce
 
 ## Branches and compact commits
 
-- `main` points to a tested release. Prepare releases on `dev`, preferably through
-  a release PR, then promote the tested commit to main and tag that same commit.
-- Use short-lived working branches for substantial features and fixes. A sole
-  maintainer can review their own PR; a second reviewer is not mandatory.
+- `main` is the stable branch. Prepare and review results on `dev`; promote a
+  tested candidate to main and tag it only after explicit approval from both
+  Will Macnair and Marusa. A release PR is the preferred review record.
+- Use short-lived working branches for substantial features and fixes. Routine
+  development review can be lightweight; main promotion and releases always
+  require the two explicit maintainer approvals.
 - Keep commits focused and reviewable: implementation, relevant tests and docs
   belong together. Separate scientific-behaviour changes from broad text cleanup.
 - Squash fixup/work-in-progress commits on unpublished working branches when that
@@ -100,21 +122,31 @@ notes about result changes. Training/evaluation must avoid donor or sample leaka
 3. Update VERSION and CHANGELOG.md with breaking changes/migration, changes
    affecting results, features, fixes and validation limits. Do not imply that
    each historical analysis used the complete release.
-4. Promote the tested clean commit to main, create an annotated matching tag,
-   and publish the tag and GitHub release. Existing release contents are immutable;
-   corrections require a new release. The tag workflow checks VERSION and uses
-   the matching CHANGELOG section for GitHub release notes.
+4. Present the tested clean candidate, validation results, version and release
+   notes to Will Macnair and Marusa. Wait for explicit approval from both before
+   promotion to main, release tagging or publication. Record both approvals and
+   their scope. Existing approved releases are immutable; ordinary corrections
+   require a later jointly approved release. Do not automatically publish tags.
 5. Verify remote branches/tag, GitHub release publication and documentation
    deployment. Record failures separately from successful local preparation.
    Archive journal releases with a DOI when archive integration is available;
    a GitHub release by itself is not a DOI.
 
-## Immediate sequence agreed for Siletti
+## Next steps agreed for Siletti
 
-Record the outstanding Siletti-related processing fixes and a truthful provenance
-snapshot, and release 0.2.0 now. Train the Siletti XGBoost classifier from pinned
-inputs/software next; register its independently versioned model in a separate
-commit. Complete the remaining code/documentation/Rmd text cleanup in separate
-commits. Neither model training nor the unfinished text cleanup is part of 0.2.0
-merely because it is planned. Release the model addition in a subsequent minor
-version, and classify later cleanup according to whether it changes behaviour.
+1. Record the recent processing fixes, review results and provenance on `dev`,
+   with VERSION set to `0.2.2`. The prematurely published 0.2.0 and 0.2.1 releases
+   and tags were explicitly withdrawn; their commits and analysis records remain.
+2. Train the Siletti XGBoost classifier from pinned software and training inputs,
+   review its evaluation, and register the immutable model with provenance as
+   the next feature version. Do not silently choose a label level or holdout
+   design when those affect the intended classifier.
+3. Resume the user's existing code/docs/Rmd editing work, including work in other
+   sessions where available. Review coding style, tone, level of detail and
+   context against the surrounding codebase. Avoid generic agent prose and
+   boilerplate; preserve useful project-specific explanations and user edits.
+   Keep this separate from classifier and scientific-behaviour changes, and
+   distinguish pure wording cleanup from refactoring requiring verification.
+4. Review results before any main promotion or release, and obtain explicit
+   approval from both Will Macnair and Marusa. Dev version updates and pushes
+   do not grant either approval.

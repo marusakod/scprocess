@@ -1,0 +1,39 @@
+name: Withdraw premature releases
+
+on:
+  push:
+    branches: [dev]
+    paths: ['.github/workflows/withdraw-premature-releases.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  withdraw:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Withdraw only the explicitly authorized release objects
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request, urllib.error
+          expected = {'v0.2.0': 423365908, 'v0.2.1': 423372286}
+          base = 'https://api.github.com/repos/' + os.environ['GH_REPO']
+          headers = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                     'Accept': 'application/vnd.github+json'}
+          for tag, release_id in expected.items():
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(base + '/releases/tags/' + tag, headers=headers)) as r:
+                      release = json.load(r)
+              except urllib.error.HTTPError as e:
+                  if e.code == 404:
+                      print(tag, 'already absent')
+                      continue
+                  raise
+              assert release['tag_name'] == tag and release['id'] == release_id, 'Unexpected replacement release'
+              with urllib.request.urlopen(urllib.request.Request(base + '/releases/' + str(release_id), headers=headers, method='DELETE')) as r:
+                  assert r.status == 204
+              print('Withdrew', tag, 'release ID', release_id)
+          PY
