@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.2.1 — 2026-10-25
+
+### Fixes
+
+- Keep explicit read-only HDF5 handles alive through Shiny's lazy BPCells reads.
+  This prevents BPCells 0.3.1 from modifying source H5AD timestamps. Add hdf5r
+  explicitly to the managed Shiny environment. Counts and analysis parameters
+  are unchanged; previously touched timestamps are not reset.
+- Update GitHub Pages to Python 3.12 on Ubuntu 24.04. The previous Python 3.9
+  setup stopped working after ubuntu-latest migrated to Ubuntu 26.04. This fixes
+  documentation deployment without altering the immutable 0.2.0 release.
+
+### Validation
+
+- Regression coverage checks count preservation, lazy cross-file evaluation,
+  source checksums and mtimes, and closure of read-only handles. Existing Shiny
+  gene-alignment, density and workflow/configuration checks are retained.
+- Siletti source inputs are checked against the pre-Shiny filesystem snapshot
+  before refreshing failed-build input signatures; timestamp changes alone are
+  not silently accepted as proof of unchanged contents.
+
+
 ## 0.2.0 — 2026-10-25
 
 This release promotes the accumulated dev work since the published GitHub
