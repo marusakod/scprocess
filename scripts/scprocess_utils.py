@@ -1293,10 +1293,10 @@ def _get_one_zoom_parameters(zoom_yaml_f, zoom_schema_f, config):
 
   if 'train_xgboost' in zoom_config:
     _zxgb = zoom_config['train_xgboost']
-    if 'ref_tag' not in _zxgb:
-      _zxgb['ref_tag'] = f"xgboost_{config['project']['full_tag']}_zoom_{zoom_config['zoom']['name']}"
+    if 'xgboost_tag' not in _zxgb:
+      _zxgb['xgboost_tag'] = f"xgboost_{config['project']['full_tag']}_zoom_{zoom_config['zoom']['name']}"
     else:
-      _zxgb['ref_tag'] = f"xgboost_{_zxgb['ref_tag']}"
+      _zxgb['xgboost_tag'] = f"xgboost_{_zxgb['xgboost_tag']}"
 
   # get useful things
   SHORT_TAG     = config['project']['short_tag']
@@ -2584,7 +2584,7 @@ def get_train_xgboost_targets(config, scprocess_dir, scdata_dir, zoom_name=None)
   if 'train_xgboost' not in ZOOM_PARAMS[zoom_name]:
     raise ValueError(f"Zoom '{zoom_name}' does not have a train_xgboost section.")
 
-  ref_tag = ZOOM_PARAMS[zoom_name]['train_xgboost']['ref_tag']
+  ref_tag = ZOOM_PARAMS[zoom_name]['train_xgboost']['xgboost_tag']
   short_tag = config['project']['short_tag']
   mkr_sel_res = ZOOM_PARAMS[zoom_name]['marker_genes']['mkr_sel_res']
   model_f = str(proj_dir / f"output/{short_tag}_zoom/{zoom_name}/train_xgboost/{ref_tag}_xgboost_model.json")
@@ -2893,6 +2893,24 @@ def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_
 
 
 
+def get_xgboost_planning_config(config):
+  keys = ('excluded_labels', 'label_map_f', 'cluster_majority_vote_resolution',
+    'cluster_majority_vote_min_purity', 'test_group_var', 'test_groups',
+    'validation_group_var', 'validation_fraction', 'validation_variable_combinations',
+    'sampling_variable_combinations', 'train_cells_per_type',
+    'validation_cells_per_type', 'min_cells_per_type', 'seed')
+  return {key: config[key] for key in keys if key in config}
+
+
+def _check_xgboost_group_columns(xgb, columns):
+  if bool(xgb.get('test_group_var')) != bool(xgb.get('test_groups')):
+    raise ValueError('test_group_var and test_groups must be specified together')
+  # Group metadata may come from annotations or integration; full checks belong
+  # to the planning stage after the two tables have been joined.
+  if xgb.get('min_genes', 100) > xgb.get('max_genes', 3000):
+    raise ValueError('min_genes must not exceed max_genes')
+
+
 def _check_train_xgboost_parameters(config):
   if 'train_xgboost' not in config:
     return config
@@ -2928,6 +2946,7 @@ def _check_train_xgboost_parameters(config):
     if "coarse_label" not in map_df.columns:
       raise ValueError("label_map_f must have 'coarse_label' column")
 
+  _check_xgboost_group_columns(xgb, annots_df.columns)
   return config
 
 
@@ -2945,10 +2964,10 @@ def get_train_xgboost_parameters(config, schema_f):
     if v not in xgb:
       xgb[v] = xgb_defaults[v]
 
-  if 'ref_tag' not in xgb:
-    xgb['ref_tag'] = f"xgboost_{config['project']['full_tag']}"
+  if 'xgboost_tag' not in xgb:
+    xgb['xgboost_tag'] = f"xgboost_{config['project']['full_tag']}"
   else:
-    xgb['ref_tag'] = f"xgboost_{xgb['ref_tag']}"
+    xgb['xgboost_tag'] = f"xgboost_{xgb['xgboost_tag']}"
 
   return xgb
 
@@ -3072,10 +3091,10 @@ def check_join_config(config, join_schema_f, scdata_dir):
       join_schema['properties'].get('train_xgboost', {}).get('properties', {}))
 
     join_name = config['join']['name']
-    if 'ref_tag' not in xgb:
-      xgb['ref_tag'] = f"xgboost_{join_name}"
+    if 'xgboost_tag' not in xgb:
+      xgb['xgboost_tag'] = f"xgboost_{join_name}"
     else:
-      xgb['ref_tag'] = f"xgboost_{xgb['ref_tag']}"
+      xgb['xgboost_tag'] = f"xgboost_{xgb['xgboost_tag']}"
 
     # resolve annots_f
     join_dir = pathlib.Path(config['join']['proj_dir'])

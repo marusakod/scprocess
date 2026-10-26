@@ -1,3 +1,4 @@
+import json
 # load modules
 import os
 import sys
@@ -117,7 +118,7 @@ zoom_xgb_outs = []
 for zoom_name in ZOOMS:
   if 'train_xgboost' in ZOOM_PARAMS[zoom_name]:
     _zxgb = ZOOM_PARAMS[zoom_name]['train_xgboost']
-    _zxgb_ref_tag = _zxgb['ref_tag']
+    _zxgb_ref_tag = _zxgb['xgboost_tag']
     _zxgb_mkr_sel_res = ZOOM_PARAMS[zoom_name]['marker_genes']['mkr_sel_res']
     zoom_xgb_outs.extend([
       f'{zoom_dir}/{zoom_name}/train_xgboost/{_zxgb_ref_tag}_xgboost_model.json',
@@ -1147,11 +1148,43 @@ rule zoom_make_subsets:
     """
 
 
+rule zoom_train_xgboost_plan:
+  input:
+    annots_f = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['annots_f'],
+    cluster_csv = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
+    h5ads_yaml = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
+    label_map = lambda wildcards: [ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['label_map_f']] if ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') else [],
+    planner = str(scprocess_dir / 'scripts/train_xgboost_plan.py'),
+  output:
+    plan_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_plan.csv.gz',
+    coverage_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_split_coverage.csv',
+    counts_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_label_counts.csv',
+    metadata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_plan.csv.gz' + '.json',
+  params:
+    config_json = lambda wildcards: json.dumps(get_xgboost_planning_config(ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'])),
+    batch_var = BATCH_VAR,
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb = config['resources'].get('gb_train_xgboost_plan', 8) * 1024,
+    runtime = config['resources'].get('mins_train_xgboost_plan', 10)
+  log: f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_plan.csv.gz' + '.log'
+  conda: '../envs/label_celltypes.yaml'
+  shell: """
+    exec &>> {log}
+    python3 {scprocess_dir}/scripts/train_xgboost.py plan \
+      --annots_f {input.annots_f:q} --cluster_csv {input.cluster_csv:q} \
+      --h5ads_yaml {input.h5ads_yaml:q} --batch_var {params.batch_var:q} \
+      --config_json {params.config_json:q} --plan_f {output.plan_f:q} \
+      --coverage_f {output.coverage_f:q} --counts_f {output.counts_f:q}
+    """
+
+
 rule zoom_train_xgboost:
   input:
-    annots_f    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['annots_f'],
-    cluster_csv = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
-    h5ads_yaml  = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
+    plan_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_plan.csv.gz',
+    h5ads_yaml = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
+    trainer = str(scprocess_dir / "scripts/train_xgboost_workflow.py"),
   output:
     model_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_xgboost_model.json',
     cls_f    = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_allowed_cls.csv',
@@ -1159,31 +1192,10 @@ rule zoom_train_xgboost:
     imp_f    = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_gene_importance.csv',
     preds_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_predictions.csv.gz',
     pb_f     = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_pseudobulk.h5ad',
+    model_card_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_model_card.json',
   params:
-    output_dir           = lambda wildcards: f'{zoom_dir}/{wildcards.zoom_name}/train_xgboost',
-    batch_var            = BATCH_VAR,
-    int_res_ls           = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['integration']['int_res_ls'],
-    label_map_f          = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') or '',
-    refine_labels        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('refine_labels', True),
-    purity_threshold     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('purity_threshold', 0.65),
-    n_cells_per_type     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('n_cells_per_type', 1000),
-    min_cells_per_type   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('min_cells_per_type', 20),
-    min_cells_expressed  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('min_cells_expressed', 10),
-    gene_exclude_re      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('gene_exclude_re', '(lincRNA|lncRNA|pseudogene|antisense)'),
-    seed                 = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('seed', 42),
-    use_gpu              = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('use_gpu', False),
-    pass1_subsample      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass1_subsample', 0.632),
-    pass1_colsample_bytree = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass1_colsample_bytree', 0.1),
-    pass1_learning_rate  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass1_learning_rate', 0.1),
-    pass1_nrounds        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass1_nrounds', 300),
-    pass1_early_stopping = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass1_early_stopping', 10),
-    pass2_colsample_bytree = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass2_colsample_bytree', 0.5),
-    pass2_learning_rate  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass2_learning_rate', 0.05),
-    pass2_nrounds        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass2_nrounds', 500),
-    pass2_early_stopping = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('pass2_early_stopping', 10),
-    gain_threshold       = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('gain_threshold', 0.9),
-    min_genes            = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('min_genes', 100),
-    max_genes            = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('max_genes', 3000),
+    output_dir = lambda wildcards: f'{zoom_dir}/{wildcards.zoom_name}/train_xgboost',
+    config_json = lambda wildcards: json.dumps(ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']),
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -1196,39 +1208,13 @@ rule zoom_train_xgboost:
   benchmark:
     f'{benchmark_dir}/zoom/zoom_train_xgboost_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.benchmark.txt'
   conda:
-    '../envs/label_celltypes.yaml'
+    lambda wildcards: '../envs/train_xgboost_gpu.yaml' if ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('use_gpu', False) else '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
     python3 {scprocess_dir}/scripts/train_xgboost.py train \
-      --annots_f          {input.annots_f} \
-      --cluster_csv       {input.cluster_csv} \
-      --h5ads_yaml        {input.h5ads_yaml} \
-      --ref_tag           {wildcards.ref_tag} \
-      --output_dir        {params.output_dir} \
-      --batch_var         {params.batch_var} \
-      --int_res_ls        "{params.int_res_ls}" \
-      --refine_labels     {params.refine_labels} \
-      --purity_threshold  {params.purity_threshold} \
-      --n_cells_per_type  {params.n_cells_per_type} \
-      --min_cells_per_type {params.min_cells_per_type} \
-      --min_cells_expressed {params.min_cells_expressed} \
-      --gene_exclude_re  "{params.gene_exclude_re}" \
-      --seed              {params.seed} \
-      --n_cores           {threads} \
-      --pass1_subsample      {params.pass1_subsample} \
-      --pass1_colsample_bytree {params.pass1_colsample_bytree} \
-      --pass1_learning_rate  {params.pass1_learning_rate} \
-      --pass1_nrounds        {params.pass1_nrounds} \
-      --pass1_early_stopping {params.pass1_early_stopping} \
-      --pass2_colsample_bytree {params.pass2_colsample_bytree} \
-      --pass2_learning_rate  {params.pass2_learning_rate} \
-      --pass2_nrounds        {params.pass2_nrounds} \
-      --pass2_early_stopping {params.pass2_early_stopping} \
-      --gain_threshold    {params.gain_threshold} \
-      --min_genes         {params.min_genes} \
-      --max_genes         {params.max_genes} \
-      $( [ "{params.label_map_f}" != "" ] && echo "--label_map_f {params.label_map_f}" ) \
-      $( [ "{params.use_gpu}" == "True" ] && echo "--use_gpu" )
+      --plan_f {input.plan_f:q} --h5ads_yaml {input.h5ads_yaml:q} \
+      --config_json {params.config_json:q} --output_dir {params.output_dir:q} \
+      --n_cores {threads}
     """
 
 

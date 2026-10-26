@@ -30,7 +30,9 @@ class TestOptionalSectionDefaults(unittest.TestCase):
         config = {'train_xgboost': {'annots_f': 'annotations.csv'}}
         defaults = _get_default_config_from_schema(schema, config)
         self.assertIn('train_xgboost', defaults)
-        self.assertTrue(defaults['train_xgboost']['refine_labels'])
+        self.assertNotIn('cluster_majority_vote_resolution', defaults['train_xgboost'])
+        self.assertEqual(defaults['train_xgboost']['train_cells_per_type'], 2000)
+        self.assertEqual(defaults['train_xgboost']['validation_cells_per_type'], 500)
         self.assertEqual(defaults['train_xgboost']['seed'], 42)
         self.assertFalse(defaults['train_xgboost']['use_gpu'])
 

@@ -175,14 +175,19 @@ for (i in seq(1, n_pages * per_p, by = per_p)) {
 Predictions on all cells in the integration (not just the downsampled training subset). Cells are categorized as:
 
 * **train**: used for model training
-* **validation**: held-out batches used for early stopping and hyperparameter evaluation
-* **holdout**: annotated cells not selected during downsampling
+* **validation**: selected cells from separate groups, used for early stopping
+* **test**: cells from explicitly held-out groups
+* **development_holdout**: development cells omitted by sampling
+* **excluded**: labels excluded from fitting and primary evaluation
+* **unsupported**: development labels with insufficient training support
 * **unlabeled**: cells without annotations
 
 ```{r fulldata_setup, include = FALSE}
 fulldata_dt = fread(fulldata_predictions_f)
+fulldata_dt[!selected & split %in% c("train", "validation"), split := "development_holdout"]
 fulldata_dt = merge(fulldata_dt, int_dt, by = "cell_id", all.x = TRUE) %>%
   .[ !is.na(UMAP1) ]
+label_order = unique(c(label_order, sort(na.omit(unique(fulldata_dt$label)))))
 fulldata_dt[, label := factor(label, levels = label_order)]
 fulldata_dt[, predicted_label := factor(predicted_label, levels = label_order)]
 if (has_coarse) {
@@ -192,18 +197,31 @@ if (has_coarse) {
 }
 ```
 
+### Evaluation summary
+
+Training agreement, early-stopping validation and independent test performance
+answer different questions. The test row is absent for a candidate fitted across
+all donors. Accuracy and macro F1 measure agreement with the supplied annotations,
+which are not necessarily biological ground truth. Small test populations should
+be interpreted alongside their cell counts and donor/region coverage.
+
+```{r evaluation_summary}
+evaluation_f = sub("_fulldata_predictions.csv.gz$", "_evaluation.csv", fulldata_predictions_f)
+if(file.exists(evaluation_f))print(knitr::kable(fread(evaluation_f),digits=3))
+```
+
 ### Split summary
 
 ```{r fulldata_split_summary}
 fulldata_dt[, .N, by = split][order(-N)] %>% knitr::kable()
 ```
 
-### Holdout metrics
+### Independent test metrics
 
-Per-class evaluation metrics for holdout cells (annotated cells not used in training or validation).
+Per-class metrics for the explicitly held-out test groups. These cells were excluded from training, feature selection and early stopping. Development-set cells omitted by sampling are summarised separately; they are not independent donor tests.
 
 ```{r fulldata_holdout_metrics}
-holdout_dt = fulldata_dt[ split == "holdout" ]
+holdout_dt = fulldata_dt[ split == "test" ]
 if (nrow(holdout_dt) > 0) {
   holdout_metrics_dt = get_metrics_dt(holdout_dt)
   holdout_metrics_dt[, Class := factor(Class, levels = label_order)]
@@ -218,7 +236,7 @@ if (nrow(holdout_dt) > 0) {
 ```
 
 
-### Holdout confusion matrix {.tabset}
+### Independent test confusion matrix {.tabset}
 
 ```{r fulldata_holdout_confusion, fig.height = 10, fig.width = 12, results = 'asis'}
 if (nrow(holdout_dt) > 0) {
@@ -240,7 +258,7 @@ if (nrow(holdout_dt) > 0) {
 UMAPs showing predicted labels for all cells, split by category.
 
 ```{r fulldata_umap, fig.height = 6, fig.width = 8, results = 'asis'}
-for (sp in c("holdout", "unlabeled")) {
+for (sp in c("test", "development_holdout", "excluded", "unlabeled")) {
   sp_dt = fulldata_dt[ split == sp ]
   if (nrow(sp_dt) == 0) next
   cat('####', sp, sprintf('(%s cells)', format(nrow(sp_dt), big.mark = ',')), '\n')

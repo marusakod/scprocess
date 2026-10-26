@@ -399,8 +399,8 @@ rule label_celltypes:
 if TRAIN_XGB_PARAMS is not None:
   rule train_xgboost:
     input:
-      f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_xgboost_model.json',
-      f'{xgb_dir}/{TRAIN_XGB_PARAMS["ref_tag"]}_fulldata_predictions.csv.gz',
+      f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_xgboost_model.json',
+      f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_fulldata_predictions.csv.gz',
       f'{rmd_dir}/{SHORT_TAG}_train_xgboost.Rmd',
       f'{docs_dir}/{SHORT_TAG}_train_xgboost.html'
 

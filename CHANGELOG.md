@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0 — Unreleased development candidate
+
+### Training features and interface changes
+
+- Add saved XGBoost training plans, explicit test groups, whole-group validation,
+  joint variable-combination sampling and separate training/validation caps.
+- Rename training `ref_tag` to `xgboost_tag`; replace `refine_labels` with optional
+  `cluster_majority_vote_resolution`. Omitted resolution preserves original
+  labels, changing the former smoothing default. Rename the associated purity
+  option and reject obsolete YAML keys; see the XGBoost training guide.
+- Compute majority votes from training annotations only, preserve original test
+  labels, filter genes using training cells only, align reordered genes by ID,
+  and slice exported/predicted models at the best early-stopping iteration.
+- Separate independent test results from early-stopping validation and sampled
+  development holdouts in full-data summaries and reports.
+- GPU training selects an explicit CUDA-enabled environment and verifies real GPU
+  execution before reading expression; missing CUDA/CPU fallback is an error.
+- Candidate only: no release, main promotion or model registration is implied.
+
 ## 0.2.2 — Unreleased development version
 
 - Require explicit approval from both Will Macnair and Marusa before promotion

@@ -8,11 +8,11 @@ dependencies:
   - celltypist>=1.6
   - xgboost>=2.0,<2.1
   - scanpy>=1.9
-  - anndata>=0.10
+  - anndata>=0.10,<0.12
   - polars>=1.0
-  - pyarrow
-  - scipy>=1.10
-  - numpy>=1.24
+  - pyarrow=20
+  - scipy=1.14.1
+  - numpy>=1.26,<2
   - h5py>=3.9
   - matplotlib>=3.7
   - pyyaml>=6.0

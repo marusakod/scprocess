@@ -102,6 +102,15 @@ def run_celltypist(sel_batch, batch_var, model_name, adata_f):
 
 
 def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes_f):
+  # Failed/excluded batches can be represented by a zero-byte H5AD placeholder.
+  # Keep a typed, header-only prediction file so aggregation preserves the DAG.
+  if pathlib.Path(adata_f).stat().st_size == 0:
+    print(f"Skipping empty H5AD placeholder: {adata_f}", flush=True)
+    return pl.DataFrame(schema={
+      'cell_id': pl.String, 'predicted_label_naive': pl.String,
+      'probability_naive': pl.Float64, 'labeller': pl.String,
+      batch_var: pl.String, 'model': pl.String,
+    })
   # lazy imports: only available in the XGBoost labelling environment
   import anndata
   import numpy as np
@@ -174,7 +183,8 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var, lab
 
 
   # get all prediction files
-  preds_df    = pl.concat([ pl.read_csv(f) for f in pred_fs ], how = "vertical")
+  preds_df    = pl.concat([ pl.read_csv(f, schema_overrides={
+    'probability_naive': pl.Float64}) for f in pred_fs ], how = "vertical")
   # Keep only cell-level prediction columns. This also allows an already
   # aggregated labels file to be re-aggregated against a different integration
   # (for example, the high-resolution clusters from a zoom analysis) without

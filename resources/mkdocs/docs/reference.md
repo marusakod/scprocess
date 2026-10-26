@@ -865,14 +865,33 @@ does not construct a dense, whole-matrix VST.
 
 ##### train_xgboost
 
+See [Training an XGBoost classifier](development/xgboost-training.md) for grouped
+validation, independent test groups, joint variable-combination sampling, and
+migration from older YAML keys. The block inherits processing identifiers from
+its project, join or zoom context.
+
+* `excluded_labels`: annotation labels omitted from fitting and primary evaluation.
+* `cluster_majority_vote_resolution`: optional saved integration resolution for
+  training-derived cluster majority voting. Omit it to preserve original labels.
+* `cluster_majority_vote_min_purity`: required majority fraction when voting;
+  default 0.9. Voting requires at least ten training annotations per cluster.
+* `test_group_var`, `test_groups`: metadata column and group values reserved
+  exclusively for independent testing; supply both or neither.
+* `validation_group_var`: biological grouping unit for early stopping; defaults
+  to the inherited processing batch. Whole groups remain together.
+* `validation_fraction`: proportion of validation groups; default 0.2.
+* `validation_variable_combinations`: balance validation group assignment within
+  joint combinations of these metadata columns; optional.
+* `train_cells_per_type`, `validation_cells_per_type`: separate sampling caps
+  after splitting; defaults 2,000 and 500 cells per label.
+* `sampling_variable_combinations`: balance joint metadata combinations within
+  each label and split; omit for uniform sampling within the label.
+
 * `annots_f` (required): path to a CSV file containing cell annotations. Must have columns `cell_id` and `annotation`. Should be absolute or relative to `proj_dir`.
-* `ref_tag` (optional): a unique identifier for the classifier.
+* `xgboost_tag` (optional): a unique identifier for the classifier.
 * `label_map_f`: path to a CSV file mapping fine-grained annotations to coarse labels. Must have columns `annotation` and `coarse_label`. If provided, the trained classifier will also be evaluated on coarse labels and a label map file will be included in the classifier outputs. Should be absolute or relative to `proj_dir`.
-* `refine_labels`: if `true` (default), labels are refined by cluster majority voting — clusters where the majority of cells share the same annotation are assigned that label, which helps correct noisy annotations.
-* `purity_threshold`: minimum proportion of cells in a cluster that must share the same annotation for the cluster to be assigned that label during label refinement. Default is `0.65`.
-* `n_cells_per_type`: target number of cells per cell type after downsampling to balance the training set. Default is `1000`.
 * `min_cells_per_type`: minimum number of cells required to retain a cell type in the training set. Cell types with fewer cells are excluded. Default is `20`.
-* `min_cells_expressed`: minimum number of cells in which a gene must be detected (non-zero counts) for the gene to be included as a feature. Default is `10`.
+* `min_cells_expressed`: minimum number of training cells in which a gene must be detected (non-zero counts) for the gene to be included as a feature. Default is `10`.
 * `gene_exclude_re`: regular expression pattern to exclude specific gene types from training. Default is `"(lincRNA|lncRNA|pseudogene|antisense)"`; this default allows the classifier to be used on probe-based Flex data as well as reverse-transcription-based data.
 * `seed`: random seed for reproducibility. Default is `42`.
 * `use_gpu`: whether to use GPU acceleration for `XGBoost` training. Default is `false`.
@@ -898,6 +917,7 @@ does not construct a dense, whole-matrix VST.
     * `pass2_learning_rate`: learning rate. Default is `0.05`.
     * `pass2_nrounds`: maximum number of boosting rounds. Default is `500`.
     * `pass2_early_stopping`: stop training if validation performance does not improve for this many rounds. Default is `10`.
+
 
 ##### shiny
 

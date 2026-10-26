@@ -13,6 +13,7 @@ nav:
     - Citations: citation.md
     - Developer notes:
         - Versioning and releases: development/versioning.md
+        - XGBoost training: development/xgboost-training.md
         - Joined zooms: development/join_zoom.md
         - Join GPU integration and cell cycle: development/join_cell_cycle.md
 theme:

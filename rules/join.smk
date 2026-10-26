@@ -16,7 +16,7 @@ scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 sys.path.append(str(scprocess_dir / 'scripts'))
 from scprocess_utils import (check_join_config, get_resources, prep_resource_params,
   get_join_project_parameters, get_join_source_labels_f, get_join_batch_sources,
-  get_paga_resolution)
+  get_paga_resolution, get_xgboost_planning_config)
 
 # Prevent underscore-containing model names from being partially captured as the
 # labeller in join label, log, benchmark, and cluster-name file patterns.
@@ -198,7 +198,7 @@ DO_TRAIN_XGB = 'train_xgboost' in config
 if DO_TRAIN_XGB:
   _join_xgb_cfg = config['train_xgboost']
   join_xgb_dir  = str(JOIN_DIR / f"output/{JOIN_NAME}_train_xgboost")
-  _join_xgb_ref_tag = _join_xgb_cfg['ref_tag']
+  _join_xgb_ref_tag = _join_xgb_cfg['xgboost_tag']
   _join_xgb_model_f    = f"{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json"
   _join_xgb_fulldata_f = f"{join_xgb_dir}/{_join_xgb_ref_tag}_fulldata_predictions.csv.gz"
 
@@ -1052,11 +1052,43 @@ rule join_render_html:
 
 if DO_TRAIN_XGB:
 
+  rule join_train_xgboost_plan:
+    input:
+      annots_f = _join_xgb_cfg['annots_f'],
+      cluster_csv = joint_integration_f,
+      h5ads_yaml = joint_h5ads_yaml_f,
+      label_map = [_join_xgb_cfg['label_map_f']] if _join_xgb_cfg.get('label_map_f') else [],
+      planner = str(scprocess_dir / 'scripts/train_xgboost_plan.py'),
+    output:
+      plan_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_plan.csv.gz',
+      coverage_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_split_coverage.csv',
+      counts_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_counts.csv',
+      metadata_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_plan.csv.gz' + '.json',
+    params:
+      config_json = json.dumps(get_xgboost_planning_config(_join_xgb_cfg)),
+      batch_var = 'sample_id',
+    threads: 1
+    retries: config['resources']['retries']
+    resources:
+      mem_mb = config['resources'].get('gb_train_xgboost_plan', 8) * 1024,
+      runtime = config['resources'].get('mins_train_xgboost_plan', 10)
+    log: f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_plan.csv.gz' + '.log'
+    conda: '../envs/label_celltypes.yaml'
+    shell: """
+      exec &>> {log}
+      python3 {scprocess_dir}/scripts/train_xgboost.py plan \
+        --annots_f {input.annots_f:q} --cluster_csv {input.cluster_csv:q} \
+        --h5ads_yaml {input.h5ads_yaml:q} --batch_var {params.batch_var:q} \
+        --config_json {params.config_json:q} --plan_f {output.plan_f:q} \
+        --coverage_f {output.coverage_f:q} --counts_f {output.counts_f:q}
+      """
+
+
   rule join_train_xgboost_train:
     input:
-      annots_f    = _join_xgb_cfg['annots_f'],
-      cluster_csv = joint_integration_f,
-      h5ads_yaml  = joint_h5ads_yaml_f,
+      plan_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_plan.csv.gz',
+      h5ads_yaml = joint_h5ads_yaml_f,
+      trainer = str(scprocess_dir / "scripts/train_xgboost_workflow.py"),
     output:
       model_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json',
       cls_f     = f'{join_xgb_dir}/{_join_xgb_ref_tag}_allowed_cls.csv',
@@ -1064,33 +1096,10 @@ if DO_TRAIN_XGB:
       imp_f     = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv',
       preds_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
       pb_f      = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad',
-      label_counts_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_counts.csv',
+      model_card_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_model_card.json',
     params:
-      ref_tag              = _join_xgb_ref_tag,
-      output_dir           = join_xgb_dir,
-      batch_var            = INT_BATCH_VAR if not isinstance(INT_BATCH_VAR, list) else INT_BATCH_VAR[0],
-      int_res_ls           = INT_RES_LS,
-      label_map_f          = _join_xgb_cfg.get('label_map_f') or '',
-      refine_labels        = _join_xgb_cfg.get('refine_labels', True),
-      purity_threshold     = _join_xgb_cfg.get('purity_threshold', 0.65),
-      n_cells_per_type     = _join_xgb_cfg.get('n_cells_per_type', 1000),
-      min_cells_per_type   = _join_xgb_cfg.get('min_cells_per_type', 20),
-      min_cells_expressed  = _join_xgb_cfg.get('min_cells_expressed', 10),
-      gene_exclude_re      = _join_xgb_cfg.get('gene_exclude_re', '(lincRNA|lncRNA|pseudogene|antisense)'),
-      seed                 = _join_xgb_cfg.get('seed', 42),
-      use_gpu              = _join_xgb_cfg.get('use_gpu', False),
-      pass1_subsample      = _join_xgb_cfg.get('pass1_subsample', 0.632),
-      pass1_colsample_bytree = _join_xgb_cfg.get('pass1_colsample_bytree', 0.1),
-      pass1_learning_rate  = _join_xgb_cfg.get('pass1_learning_rate', 0.1),
-      pass1_nrounds        = _join_xgb_cfg.get('pass1_nrounds', 300),
-      pass1_early_stopping = _join_xgb_cfg.get('pass1_early_stopping', 10),
-      pass2_colsample_bytree = _join_xgb_cfg.get('pass2_colsample_bytree', 0.5),
-      pass2_learning_rate  = _join_xgb_cfg.get('pass2_learning_rate', 0.05),
-      pass2_nrounds        = _join_xgb_cfg.get('pass2_nrounds', 500),
-      pass2_early_stopping = _join_xgb_cfg.get('pass2_early_stopping', 10),
-      gain_threshold       = _join_xgb_cfg.get('gain_threshold', 0.9),
-      min_genes            = _join_xgb_cfg.get('min_genes', 100),
-      max_genes            = _join_xgb_cfg.get('max_genes', 3000),
+      output_dir = join_xgb_dir,
+      config_json = json.dumps(_join_xgb_cfg),
     threads: 8
     retries: config['resources']['retries']
     resources:
@@ -1101,39 +1110,13 @@ if DO_TRAIN_XGB:
     benchmark:
       f"{benchmark_dir}/join_train_xgboost_{_join_xgb_ref_tag}_{DATE_STAMP}.benchmark.txt"
     conda:
-      '../envs/label_celltypes.yaml'
+      '../envs/train_xgboost_gpu.yaml' if _join_xgb_cfg.get('use_gpu', False) else '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
       python3 {scprocess_dir}/scripts/train_xgboost.py train \
-        --annots_f          {input.annots_f} \
-        --cluster_csv       {input.cluster_csv} \
-        --h5ads_yaml        {input.h5ads_yaml} \
-        --ref_tag           {params.ref_tag} \
-        --output_dir        {params.output_dir} \
-        --batch_var         {params.batch_var} \
-        --int_res_ls        "{params.int_res_ls}" \
-        --refine_labels     {params.refine_labels} \
-        --purity_threshold  {params.purity_threshold} \
-        --n_cells_per_type  {params.n_cells_per_type} \
-        --min_cells_per_type {params.min_cells_per_type} \
-        --min_cells_expressed {params.min_cells_expressed} \
-        --gene_exclude_re  "{params.gene_exclude_re}" \
-        --seed              {params.seed} \
-        --n_cores           {threads} \
-        --pass1_subsample      {params.pass1_subsample} \
-        --pass1_colsample_bytree {params.pass1_colsample_bytree} \
-        --pass1_learning_rate  {params.pass1_learning_rate} \
-        --pass1_nrounds        {params.pass1_nrounds} \
-        --pass1_early_stopping {params.pass1_early_stopping} \
-        --pass2_colsample_bytree {params.pass2_colsample_bytree} \
-        --pass2_learning_rate  {params.pass2_learning_rate} \
-        --pass2_nrounds        {params.pass2_nrounds} \
-        --pass2_early_stopping {params.pass2_early_stopping} \
-        --gain_threshold    {params.gain_threshold} \
-        --min_genes         {params.min_genes} \
-        --max_genes         {params.max_genes} \
-        $( [ "{params.label_map_f}" != "" ] && echo "--label_map_f {params.label_map_f}" ) \
-        $( [ "{params.use_gpu}" == "True" ] && echo "--use_gpu" )
+        --plan_f {input.plan_f:q} --h5ads_yaml {input.h5ads_yaml:q} \
+        --config_json {params.config_json:q} --output_dir {params.output_dir:q} \
+        --n_cores {threads}
       """
 
   rule join_train_xgboost_predict:
@@ -1174,8 +1157,10 @@ if DO_TRAIN_XGB:
       pred_fs          = expand(
         f"{join_xgb_dir}/tmp_fulldata_predict_{_join_xgb_ref_tag}_{{batch}}.csv.gz",
         batch=JOIN_BATCH_KEYS),
-      subsample_preds_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
-      annots_f          = _join_xgb_cfg['annots_f'],
+
+
+      plan_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_plan.csv.gz',
+      cluster_csv = joint_integration_f,
     output:
       fulldata_f = _join_xgb_fulldata_f
     params:
@@ -1194,11 +1179,8 @@ if DO_TRAIN_XGB:
     shell: """
       exec &>> {log}
       python3 {scprocess_dir}/scripts/train_xgboost.py aggregate_fulldata \
-        {input.pred_fs} \
-        --annots_f          {input.annots_f} \
-        --subsample_preds_f {input.subsample_preds_f} \
-        --output_f          {output.fulldata_f} \
-        $( [ "{params.label_map_f}" != "" ] && echo "--label_map_f {params.label_map_f}" )
+        {input.pred_fs:q} --plan_f {input.plan_f:q} --cluster_csv {input.cluster_csv:q} \
+        --output_f {output.fulldata_f:q}
       """
 
 
