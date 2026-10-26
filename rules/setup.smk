@@ -273,10 +273,14 @@ rule download_celltypist_models:
 
 
 rule add_xgboost:
+  input:
+    manifest = lambda wildcards: ([str(scprocess_dir / 'resources/xgboost' / f'{wildcards.xgb_name}.json')]
+      if (scprocess_dir / 'resources/xgboost' / f'{wildcards.xgb_name}.json').is_file() else []),
   output:
     model_f = f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_xgboost_model.json',
     cls_f   = f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_allowed_cls.csv',
     genes_f = f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_selected_genes.txt',
+    identity_f = f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_manifest.json',
   params:
     ref_tag     = lambda wildcards: XGB_PARAMS_LS[wildcards.xgb_name].get('ref_tag', wildcards.xgb_name),
     src_dir     = lambda wildcards: XGB_PARAMS_LS[wildcards.xgb_name].get('src_dir', None),

@@ -69,6 +69,9 @@ URLS_XGBOOSTS = {
   'Siletti_hippocampus-2026-06-22': 'https://github.com/marusakod/scprocessData/releases/download/v0.2.1/Siletti_hippocampus-2026-06-22.tar.gz',
 }
 
+from xgboost_models import builtin_models, install_builtin, sha256
+URLS_XGBOOSTS.update({name: model['url'] for name, model in builtin_models().items()})
+
 COMPLEMENT = str.maketrans('ACGT', 'TGCA')
 
 def _reverse_complement(seq):
@@ -920,10 +923,21 @@ def add_xgboost_classifier(scdata_dir, name, ref_tag, src_dir, is_prebuilt):
     if os.path.isfile(label_map_src):
       shutil.copy2(label_map_src, os.path.join(dest_dir, f'{name}_label_map.csv'))
 
+  manifest_f = os.path.join(dest_dir, f'{name}_manifest.json')
+  if not is_prebuilt or name not in builtin_models():
+    import json
+    files = {f'{name}_{suffix}': sha256(os.path.join(dest_dir, f'{name}_{suffix}'))
+      for suffix in ['xgboost_model.json', 'allowed_cls.csv', 'selected_genes.txt']}
+    with open(manifest_f, 'w') as stream:
+      json.dump({'name': name, 'model_id': name, 'files': files}, stream, indent=2)
+
   print(f"Installed xgboost classifier '{name}' to {dest_dir}")
 
 
 def _download_prebuilt_xgboost(name, dest_dir):
+  if name in builtin_models():
+    install_builtin(name, dest_dir)
+    return
   url = URLS_XGBOOSTS[name]
   tar_path = os.path.join(dest_dir, f'{name}.tar.gz')
   print(f"Downloading prebuilt xgboost classifier '{name}'")
@@ -940,7 +954,10 @@ def save_available_xgboost_csv(csv_f, scdata_dir, names):
     cls_f   = os.path.join(xgb_dir, f'{name}_allowed_cls.csv')
     genes_f = os.path.join(xgb_dir, f'{name}_selected_genes.txt')
     label_map_f = os.path.join(xgb_dir, f'{name}_label_map.csv')
+    from xgboost_models import model_identity
+    identity = model_identity(model_f, name)
     rows.append({
+      **identity,
       'model':       name,
       'model_f':     model_f,
       'cls_f':       cls_f,

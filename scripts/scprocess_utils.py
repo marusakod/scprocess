@@ -2120,15 +2120,8 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
           f"These models are currently available: {', '.join(mdls_xgboost)}"
         )
 
-      row = xgboost_df.filter(pl.col('model') == entry['model']).row(0, named=True)
-      entry['model_f']     = row['model_f']
-      entry['cls_f']       = row['cls_f']
-      entry['genes_f']     = row['genes_f']
-      entry['label_map_f'] = row.get('label_map_f', '')
-
-      for key in ['model_f', 'cls_f', 'genes_f']:
-        if not pathlib.Path(entry[key]).is_file():
-          raise FileNotFoundError(f"file {entry[key]} doesn't exist; consider (re)running scprocess setup")
+      from xgboost_models import resolve_xgboost_entry
+      resolve_xgboost_entry(entry, scdata_dir)
 
     # resolve label_map_f
     if 'label_map' in entry:
@@ -3193,22 +3186,13 @@ def check_join_config(config, join_schema_f, scdata_dir):
 
     typist_ls_f = scdata_dir / 'celltypist/celltypist_models.csv'
     mdls_typist = pl.read_csv(typist_ls_f)['model'].to_list() if typist_ls_f.is_file() else []
-    mdls_scproc = ['human_cns']
+    from xgboost_models import resolve_xgboost_entry
     for entry in lbl_cfg:
       if entry['labeller'] == 'celltypist':
         if entry['model'] not in mdls_typist:
           raise ValueError(f"CellTypist model '{entry['model']}' not found. Valid: {', '.join(mdls_typist)}")
       elif entry['labeller'] == 'scprocess':
-        if entry['model'] not in mdls_scproc:
-          raise ValueError(f"scprocess model '{entry['model']}' not found. Valid: {', '.join(mdls_scproc)}")
-        xgb_dir = scdata_dir / 'xgboost'
-        if entry['model'] == 'human_cns':
-          entry['xgb_f']     = str(xgb_dir / 'Siletti_Macnair-2025-07-23/xgboost_obj_hvgs_Siletti_Macnair_2025-07-23.rds')
-          entry['xgb_cls_f'] = str(xgb_dir / 'Siletti_Macnair-2025-07-23/allowed_cls_Siletti_Macnair_2025-07-23.csv')
-        if not pathlib.Path(entry['xgb_f']).is_file():
-          raise FileNotFoundError(f"XGBoost model file not found: {entry['xgb_f']}")
-        if not pathlib.Path(entry['xgb_cls_f']).is_file():
-          raise FileNotFoundError(f"XGBoost classes file not found: {entry['xgb_cls_f']}")
+        resolve_xgboost_entry(entry, scdata_dir)
 
   # check that each metadata_var is present in at least one project's sample
   # metadata file. Unlike the standard pipeline (which requires all vars in a

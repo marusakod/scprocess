@@ -110,6 +110,7 @@ def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes
       'cell_id': pl.String, 'predicted_label_naive': pl.String,
       'probability_naive': pl.Float64, 'labeller': pl.String,
       batch_var: pl.String, 'model': pl.String,
+      'model_id': pl.String, 'model_sha256': pl.String,
     })
   # lazy imports: only available in the XGBoost labelling environment
   import anndata
@@ -118,6 +119,8 @@ def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes
   import xgboost as xgb
   from train_xgboost import normalize_counts
 
+  from xgboost_models import model_identity
+  identity = model_identity(model_f, model_name)
   model = xgb.Booster()
   model.load_model(model_f)
 
@@ -162,6 +165,8 @@ def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes
     pl.lit("scprocess").alias("labeller"),
     pl.lit(sel_batch).alias(batch_var),
     pl.lit(model_name).alias("model"),
+    pl.lit(identity['model_id']).alias('model_id'),
+    pl.lit(identity['model_sha256']).alias('model_sha256'),
   )
 
   return pred_df
@@ -184,12 +189,12 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var, lab
 
   # get all prediction files
   preds_df    = pl.concat([ pl.read_csv(f, schema_overrides={
-    'probability_naive': pl.Float64}) for f in pred_fs ], how = "vertical")
+    'probability_naive': pl.Float64}) for f in pred_fs ], how = "diagonal_relaxed")
   # Keep only cell-level prediction columns. This also allows an already
   # aggregated labels file to be re-aggregated against a different integration
   # (for example, the high-resolution clusters from a zoom analysis) without
   # retaining its previous hi_res_cl/predicted_label_agg columns.
-  pred_cols   = ['model', batch_var, 'cell_id', 'predicted_label_naive',
+  pred_cols   = ['model', 'model_id', 'model_sha256', batch_var, 'cell_id', 'predicted_label_naive',
     'probability_naive']
   pred_cols   = [col for col in pred_cols if col in preds_df.columns]
   preds_df    = preds_df.select(pred_cols)
@@ -216,6 +221,7 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var, lab
   # join to
   out_cols = ['model', 'cell_id', 'hi_res_cl', 'predicted_label_agg',
     'prop_hi_res_cl', 'predicted_label_naive', 'probability_naive']
+  out_cols += [name for name in ['model_id', 'model_sha256'] if name in data_df.columns]
   if batch_var in data_df.columns:
     out_cols.insert(1, batch_var)
   agg_df      = data_df.join(hi_res_lu, on = "hi_res_cl", how = "left").select(out_cols)

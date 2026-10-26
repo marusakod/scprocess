@@ -1,0 +1,20 @@
+{
+  "name": "human_cns",
+  "model_id": "human_cns-v1",
+  "reference": "human_2024",
+  "url": "https://github.com/marusakod/scprocessData/releases/download/human_cns-v1/human_cns-v1.tar.gz",
+  "archive_sha256": "9c5c81f88f3767f363439bde39b1b02d1e34c59bf7b335b7289e47c5cfae8ebc",
+  "files": {
+    "evaluation-summary.csv": "7e293386a0215530b6be1549e280ffda23d07645e51a49564d286f091e834743",
+    "heldout-per-label-summary.csv": "197e59848c7e1cecaa5c6e257f6e891ef768429dd04c87f321463d457c13a8a8",
+    "heldout-sensitivity-specificity.csv": "014a545eb9a469f65bb0d733a36b380d5aefddd179d904ac38e06594fc406810",
+    "human_cns_allowed_cls.csv": "7fe0e2d9250028954da29db6b21e1519b7e43802a022dd25b4f964510aaa5550",
+    "human_cns_model_card.json": "256c9a9c151c0eebf735f9fd0526bf8c99f43846db7d517dd184fb93a85ad9c3",
+    "human_cns_selected_genes.txt": "8c01d3b39de392a538bebc66c5a170da8f30068257c7db3069b2dd44aff1c783",
+    "human_cns_xgboost_model.json": "82740290d513e4d4800cd85257c75f31bc069bb504fd33a79b285e8744a973a5"
+  },
+  "n_classes": 31,
+  "n_genes": 2134,
+  "xgboost_version": "2.0.3",
+  "normalization": "log1p(10000 * counts / library_size); library size before selecting model genes"
+}

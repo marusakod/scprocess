@@ -18,7 +18,7 @@ def test_empty_placeholder_needs_no_model(tmp_path):
     assert result.height == 0
     assert result.schema['probability_naive'] == pl.Float64
     assert set(result.columns) == {'cell_id', 'predicted_label_naive',
-        'probability_naive', 'labeller', 'sample_id', 'model'}
+        'probability_naive', 'labeller', 'sample_id', 'model', 'model_id', 'model_sha256'}
     with pytest.raises(FileNotFoundError):
         run_xgboost('missing', 'sample_id', 'model', tmp_path / 'missing.h5ad',
             'absent-model', 'absent-classes', 'absent-genes')

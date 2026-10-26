@@ -17,7 +17,12 @@
   development holdouts in full-data summaries and reports.
 - GPU training selects an explicit CUDA-enabled environment and verifies real GPU
   execution before reading expression; missing CUDA/CPU fallback is an error.
-- Candidate only: no release, main promotion or model registration is implied.
+- Add the built-in human_cns-v1 adult human CNS classifier (31 Siletti labels),
+  pinned archive/member checksums, model metadata and donor-held-out evaluations.
+- Use the shared XGBoost registry in project, join and zoom validation; remove
+  the legacy R-format human_cns lookup. Save model ID/checksum in predictions.
+- Development candidate only: model-asset publication and the scprocess release
+  remain subject to explicit approval from both maintainers.
 
 ## 0.2.2 — Unreleased development version
 

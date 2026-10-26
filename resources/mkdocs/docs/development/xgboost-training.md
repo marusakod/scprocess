@@ -132,3 +132,4 @@ prediction writes a header-only CSV for that batch. Aggregation accepts empty
 batch outputs and still requires a prediction for every retained integration
 cell. Missing files and invalid nonempty H5ADs remain errors.
 
+For the centrally distributed Siletti model, see the [human CNS classifier](../human-cns.md).
