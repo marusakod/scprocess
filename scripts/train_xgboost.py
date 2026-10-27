@@ -17,25 +17,27 @@ import yaml
 
 # Training plans
 
-def prepare_plan(annots_f, cluster_csv, h5ads_yaml, batch_var, plan_f, coverage_f, counts_f,
+def prepare_plan(annots_f, integration_f, h5ads_yaml, batch_var, plan_f, coverage_f, counts_f,
   *, is_join, excluded_labels, label_map_f, cluster_majority_vote_resolution,
   cluster_majority_vote_min_purity, test_group_var, test_groups, validation_group_var,
   validation_fraction, validation_variable_combinations, sampling_variable_combinations,
   train_cells_per_type, validation_cells_per_type, min_cells_per_type, seed):
 
-  # Collect the cluster and grouping columns needed for this plan.
+  # Read cell/batch IDs, join project IDs and optional voting clusters from integration_f.
+  # Requested grouping/sampling metadata comes from annotations when available,
+  # otherwise from integration_f.
   vote_res = cluster_majority_vote_resolution
   vote_col = f'RNA_snn_res.{float(vote_res):g}' if vote_res is not None else None
-  needed = set(validation_variable_combinations + sampling_variable_combinations)
+  needed   = set(validation_variable_combinations + sampling_variable_combinations)
   needed |= {v for v in [test_group_var, validation_group_var] if v}
 
   # Join labels and integration metadata, preserving integration cell order.
-  plan_df = _load_plan_metadata(annots_f, cluster_csv, batch_var, is_join, vote_col, needed)
+  plan_df = _load_plan_metadata(annots_f, integration_f, batch_var, is_join, vote_col, needed)
   plan_df = _resolve_plan_batches(plan_df, h5ads_yaml, batch_var, is_join, needed)
 
   # Split whole groups before exclusions, optional voting and cell selection.
   rng = np.random.default_rng(seed)
-  plan_df, supported, rescued = _assign_splits(plan_df, rng,
+  plan_df, labels_with_minimum_development_cells, validation_groups_moved_to_training = _assign_splits(plan_df, rng,
     test_group_var                   = test_group_var,
     test_groups                      = test_groups,
     validation_group_var             = validation_group_var,
@@ -44,7 +46,7 @@ def prepare_plan(annots_f, cluster_csv, h5ads_yaml, batch_var, plan_f, coverage_
     excluded_labels                  = excluded_labels,
     min_cells_per_type               = min_cells_per_type)
 
-  plan_df = _prepare_plan_labels(plan_df, supported, excluded_labels, vote_col,
+  plan_df = _prepare_plan_labels(plan_df, labels_with_minimum_development_cells, excluded_labels, vote_col,
     cluster_majority_vote_min_purity)
   plan_df = _select_plan_cells(plan_df, rng, sampling_variable_combinations,
     train_cells_per_type, validation_cells_per_type)
@@ -66,51 +68,51 @@ def prepare_plan(annots_f, cluster_csv, h5ads_yaml, batch_var, plan_f, coverage_
     validation_cells_per_type        = validation_cells_per_type,
     min_cells_per_type               = min_cells_per_type,
     seed                             = seed)
-  _write_training_plan(plan_df, plan_f, coverage_f, counts_f, configuration, rescued)
+  _write_training_plan(plan_df, plan_f, coverage_f, counts_f, configuration, validation_groups_moved_to_training)
   return plan_df
 
 
-def _load_plan_metadata(annots_f, cluster_csv, batch_var, is_join, vote_col, needed):
+def _load_plan_metadata(annots_f, integration_f, batch_var, is_join, vote_col, needed):
   # Read labels and only the integration columns required for planning.
-  columns = ['cell_id', batch_var]
+  integration_columns = ['cell_id', batch_var]
   if is_join:
-    columns.append('project_id')
+    integration_columns.append('project_id')
   if vote_col:
-    columns.append(vote_col)
-  annotations = pl.read_csv(annots_f)
+    integration_columns.append(vote_col)
+  annotations_df = pl.read_csv(annots_f)
   # Accept one standard or legacy label column, then use the canonical name.
-  label_columns = [name for name in ['label', 'annotation', 'fine_label'] if name in annotations.columns]
+  label_columns = [name for name in ['label', 'annotation', 'fine_label'] if name in annotations_df.columns]
   if len(label_columns) != 1:
     raise ValueError('annots_f needs one label column (label; legacy annotation/fine_label accepted)')
-  annotations = annotations.rename({label_columns[0]: 'label'})
-  if _missing_values(annotations, ['cell_id']) or annotations['cell_id'].n_unique() != len(annotations):
+  annotations_df = annotations_df.rename({label_columns[0]: 'label'})
+  if _missing_values(annotations_df, ['cell_id']) or annotations_df['cell_id'].n_unique() != len(annotations_df):
     raise ValueError('Annotations must have unique nonmissing cell_id values')
   # Grouping metadata may come from either input table.
-  header = pl.read_csv(cluster_csv, n_rows = 0).columns
-  columns += [
+  header = pl.read_csv(integration_f, n_rows = 0).columns
+  integration_columns += [
     v for v in sorted(needed)
-    if v in header and v not in annotations.columns and v not in columns]
-  integration = pl.read_csv(cluster_csv, columns = list(dict.fromkeys(columns)))
-  if _missing_values(integration, ['cell_id']) or integration['cell_id'].n_unique() != len(integration):
+    if v in header and v not in annotations_df.columns and v not in integration_columns]
+  int_df = pl.read_csv(integration_f, columns = list(dict.fromkeys(integration_columns)))
+  if _missing_values(int_df, ['cell_id']) or int_df['cell_id'].n_unique() != len(int_df):
     raise ValueError('Integration must have unique nonmissing cell_id values')
 
   # Reject conflicting shared metadata before dropping duplicate columns.
-  overlap = [v for v in annotations.columns if v != 'cell_id' and v in integration.columns]
+  overlap = [v for v in annotations_df.columns if v != 'cell_id' and v in int_df.columns]
   if overlap:
-    check = integration.join(
-      annotations.select(['cell_id'] + overlap),
+    comparison_df = int_df.join(
+      annotations_df.select(['cell_id'] + overlap),
       on     = 'cell_id',
       suffix = '_annotation')
     for var in overlap:
       conflict = (pl.col(var).is_not_null() & pl.col(var + '_annotation').is_not_null()
         & (pl.col(var).cast(pl.String) != pl.col(var + '_annotation').cast(pl.String)))
-      if check.filter(conflict).height:
+      if comparison_df.filter(conflict).height:
         raise ValueError(f'Conflicting integration and annotation values: {var}')
-    annotations = annotations.drop(overlap)
+    annotations_df = annotations_df.drop(overlap)
 
   # Keep integration order; the matrix loader later groups selected rows by batch.
-  plan_df = integration.join(
-    annotations,
+  plan_df = int_df.join(
+    annotations_df,
     on             = 'cell_id',
     how            = 'inner',
     maintain_order = 'left')
@@ -122,13 +124,15 @@ def _load_plan_metadata(annots_f, cluster_csv, batch_var, is_join, vote_col, nee
 
 def _resolve_plan_batches(plan_df, h5ads_yaml, batch_var, is_join, needed):
   # Joined integrations may already have project-qualified batch identifiers.
-  manifest = yaml.safe_load(Path(h5ads_yaml).read_text())
-  batch    = plan_df[batch_var].cast(pl.String)
-  if is_join and not set(batch) <= set(manifest):
-    batch = plan_df['project_id'].cast(pl.String) + '_' + batch
-  if not set(batch) <= set(manifest):
+  h5ad_lookup     = yaml.safe_load(Path(h5ads_yaml).read_text())
+  batch_col       = plan_df[batch_var].cast(pl.String)
+  missing_batches = set(batch_col) - set(h5ad_lookup)
+  if is_join and missing_batches:
+    batch_col       = plan_df['project_id'].cast(pl.String) + '_' + batch_col
+    missing_batches = set(batch_col) - set(h5ad_lookup)
+  if missing_batches:
     raise ValueError('Input batch identifiers do not match H5AD manifest')
-  plan_df    = plan_df.with_columns(batch.alias('batch'))
+  plan_df    = plan_df.with_columns(batch_col.alias('batch'))
   # Check grouping metadata before any split or sampling decisions.
   required = needed - {'batch'}
   missing  = required - set(plan_df.columns)
@@ -146,73 +150,73 @@ def _assign_splits(plan_df, rng, *, test_group_var, test_groups, validation_grou
 
 
   # Reserve explicitly held-out groups for the independent test set.
-  result = plan_df.with_columns(pl.lit('development').alias('split'))
+  plan_df = plan_df.with_columns(pl.lit('development').alias('split'))
   if bool(test_group_var) != bool(test_groups):
     raise ValueError('test_group_var and nonempty test_groups must be supplied together')
   if test_group_var:
-    if _missing_values(result, [test_group_var]):
+    if _missing_values(plan_df, [test_group_var]):
       raise ValueError(f'Missing test grouping values: {test_group_var}')
-    groups  = result[test_group_var].cast(pl.String)
+    groups  = plan_df[test_group_var].cast(pl.String)
     missing = set(test_groups) - set(groups)
     if missing:
       raise ValueError(f'Test groups absent from annotations/integration: {sorted(missing)}')
-    result = result.with_columns(
+    plan_df = plan_df.with_columns(
       pl.when(groups.is_in(test_groups)).then(pl.lit('test'))
         .otherwise(pl.col('split')).alias('split'))
 
   # Validation units must be disjoint from test groups and have consistent metadata.
-  pool      = result.filter(pl.col('split') != 'test')
-  group_var = validation_group_var
-  test      = result.filter(pl.col('split') == 'test')
-  if set(pool[group_var]) & set(test[group_var]):
+  development_df = plan_df.filter(pl.col('split') != 'test')
+  group_var      = validation_group_var
+  test_df        = plan_df.filter(pl.col('split') == 'test')
+  if set(development_df[group_var]) & set(test_df[group_var]):
     raise ValueError('Validation groups overlap the held-out test groups')
   variables = validation_variable_combinations
-  if _missing_values(pool, [group_var] + variables):
+  if _missing_values(development_df, [group_var] + variables):
     raise ValueError('Missing validation grouping/combination values')
-  units = pool.select(list(dict.fromkeys([group_var] + variables))).unique(maintain_order = True)
-  if units[group_var].n_unique() != len(units):
+  group_units_df = development_df.select(list(dict.fromkeys([group_var] + variables))).unique(maintain_order = True)
+  if group_units_df[group_var].n_unique() != len(group_units_df):
     raise ValueError('A validation group spans several variable combinations; choose compatible variables')
 
   # Select whole validation units within each variable combination.
   validation = set()
-  groups     = _sorted_groups(units, variables) if variables else [units]
-  for group in groups:
-    n = min(len(group) - 1, max(1, int(len(group) * validation_fraction)))
+  groups     = _sorted_groups(group_units_df, variables) if variables else [group_units_df]
+  for group_df in groups:
+    n = min(len(group_df) - 1, max(1, int(len(group_df) * validation_fraction)))
     if n > 0:
-      validation.update(rng.choice(group[group_var].to_numpy(), n, replace = False))
+      validation.update(rng.choice(group_df[group_var].to_numpy(), n, replace = False))
   if not validation:
     raise ValueError('No whole groups available for validation; supply more groups or different validation combinations')
 
-  # Rescue whole validation groups until rare labels have enough training cells.
-  eligible  = pool.filter(pl.col('label').is_not_null() & ~pl.col('label').is_in(excluded_labels))
-  support   = eligible.group_by('label').len()
-  supported = set(support.filter(pl.col('len') >= min_cells_per_type)['label'])
-  rescued   = []
-  for label in sorted(supported):
-    group = pool.filter(pl.col('label') == label)
-    while sum(value not in validation for value in group[group_var]) < min_cells_per_type:
-      sizes = (group.filter(pl.col(group_var).is_in(list(validation)))
+  # Move whole validation groups to training until rare labels have enough cells.
+  eligible_df                           = development_df.filter(pl.col('label').is_not_null() & ~pl.col('label').is_in(excluded_labels))
+  label_counts_df                       = eligible_df.group_by('label').len()
+  labels_with_minimum_development_cells = set(label_counts_df.filter(pl.col('len') >= min_cells_per_type)['label'])
+  validation_groups_moved_to_training   = []
+  for label in sorted(labels_with_minimum_development_cells):
+    group_df = development_df.filter(pl.col('label') == label)
+    while sum(value not in validation for value in group_df[group_var]) < min_cells_per_type:
+      group_sizes_df = (group_df.filter(pl.col(group_var).is_in(list(validation)))
         .group_by(group_var).len().sort(group_var))
-      if sizes.is_empty():
+      if group_sizes_df.is_empty():
         raise ValueError(f'Unable to retain training support for {label}')
       # Preserve the previous descending quicksort tie order and seeded selections.
-      indices = np.arange(len(sizes))[::-1]
-      order   = indices[np.argsort(sizes['len'].to_numpy()[::-1], kind = 'quicksort')][::-1]
-      unit    = sizes[group_var][int(order[0])]
+      indices = np.arange(len(group_sizes_df))[::-1]
+      order   = indices[np.argsort(group_sizes_df['len'].to_numpy()[::-1], kind = 'quicksort')][::-1]
+      unit    = group_sizes_df[group_var][int(order[0])]
       validation.remove(unit)
-      rescued.append({'label': label, 'group': str(unit)})
+      validation_groups_moved_to_training.append({'label': label, 'group': str(unit)})
 
-  # Apply the final group assignments after any rare-label rescues.
-  result = result.with_columns(
+  # Apply the final group assignments after moving any groups back to training.
+  plan_df = plan_df.with_columns(
     pl.when(pl.col('split') == 'test').then(pl.lit('test'))
       .when(pl.col(group_var).is_in(list(validation))).then(pl.lit('validation'))
       .otherwise(pl.lit('train')).alias('split'))
-  if not result.filter(pl.col('split') == 'validation').height:
+  if not plan_df.filter(pl.col('split') == 'validation').height:
     raise ValueError('No validation groups remain after rescuing rare labels')
-  return result, supported, rescued
+  return plan_df, labels_with_minimum_development_cells, validation_groups_moved_to_training
 
 
-def _prepare_plan_labels(plan_df, supported, excluded_labels, vote_col,
+def _prepare_plan_labels(plan_df, labels_with_minimum_development_cells, excluded_labels, vote_col,
   cluster_majority_vote_min_purity):
 
   # Preserve reference labels and flag excluded, unlabelled or unsupported cells.
@@ -220,18 +224,18 @@ def _prepare_plan_labels(plan_df, supported, excluded_labels, vote_col,
     pl.col('label').alias('original_label'),
     pl.when(pl.col('label').is_null()).then(pl.lit('unlabeled'))
       .when(pl.col('label').is_in(excluded_labels)).then(pl.lit('excluded'))
-      .when(~pl.col('label').is_in(list(supported)) & pl.col('split').is_in(['train', 'validation']))
+      .when(~pl.col('label').is_in(list(labels_with_minimum_development_cells)) & pl.col('split').is_in(['train', 'validation']))
       .then(pl.lit('unsupported')).otherwise(pl.col('split')).alias('split'))
 
   # Optional voting uses training labels only, leaving the test labels untouched.
   if vote_col:
-    counts = plan_df.filter(pl.col('split') == 'train').group_by([vote_col, 'label']).len()
-    top    = (counts.with_columns(pl.col('len').sum().over(vote_col).alias('total'))
+    cluster_counts_df = plan_df.filter(pl.col('split') == 'train').group_by([vote_col, 'label']).len()
+    cluster_labels_df = (cluster_counts_df.with_columns(pl.col('len').sum().over(vote_col).alias('total'))
       .sort([vote_col, 'len', 'label'], descending = [False, True, False])
       .unique(vote_col, keep = 'first', maintain_order = True)
       .filter((pl.col('len') / pl.col('total') >= cluster_majority_vote_min_purity) & (pl.col('total') >= 10)))
-    mapping = dict(top.select(vote_col, 'label').iter_rows())
-    plan_df   = plan_df.with_columns(
+    mapping = dict(cluster_labels_df.select(vote_col, 'label').iter_rows())
+    plan_df = plan_df.with_columns(
       pl.when(pl.col('split').is_in(['train', 'validation']))
         .then(pl.col(vote_col).replace_strict(mapping, default = pl.col('label')))
         .otherwise(pl.col('label')).alias('label'))
@@ -243,20 +247,20 @@ def _select_plan_cells(plan_df, rng, sampling_variable_combinations,
   train_cells_per_type, validation_cells_per_type):
 
   # Sample independently within each label and split, retaining plan row order.
-  plan_df         = plan_df.with_row_index('_plan_row')
+  plan_df       = plan_df.with_row_index('_plan_row')
   selected_rows = []
-  eligible      = plan_df.filter(pl.col('split').is_in(['train', 'validation']))
-  for group in _sorted_groups(eligible, ['label', 'split']):
-    cap    = train_cells_per_type if group['split'][0] == 'train' else validation_cells_per_type
-    sample = _balanced_sample(group, cap, sampling_variable_combinations, rng)
-    selected_rows.extend(sample['_plan_row'].to_list())
+  eligible_df   = plan_df.filter(pl.col('split').is_in(['train', 'validation']))
+  for group_df in _sorted_groups(eligible_df, ['label', 'split']):
+    cap       = train_cells_per_type if group_df['split'][0] == 'train' else validation_cells_per_type
+    sample_df = _balanced_sample(group_df, cap, sampling_variable_combinations, rng)
+    selected_rows.extend(sample_df['_plan_row'].to_list())
   plan_df    = plan_df.with_columns(pl.col('_plan_row').is_in(selected_rows).alias('selected')).drop('_plan_row')
   # Require both splits and training support for every validation label.
-  selected = plan_df.filter(pl.col('selected'))
-  if not {'train', 'validation'} <= set(selected['split']):
+  selected_df = plan_df.filter(pl.col('selected'))
+  if not {'train', 'validation'} <= set(selected_df['split']):
     raise ValueError('Both training and validation cells are required')
-  train_labels = set(selected.filter(pl.col('split') == 'train')['label'])
-  if not set(selected.filter(pl.col('split') == 'validation')['label']) <= train_labels:
+  train_labels = set(selected_df.filter(pl.col('split') == 'train')['label'])
+  if not set(selected_df.filter(pl.col('split') == 'validation')['label']) <= train_labels:
     raise ValueError('Validation label absent from training')
   plan_df = plan_df.with_columns(
     pl.col('label').is_in(list(train_labels)).fill_null(False).alias('label_supported_in_training'))
@@ -264,47 +268,47 @@ def _select_plan_cells(plan_df, rng, sampling_variable_combinations,
   return plan_df
 
 
-def _write_training_plan(plan_df, plan_f, coverage_f, counts_f, configuration, rescued):
-  selected = plan_df.filter(pl.col('selected'))
-  train_labels = set(selected.filter(pl.col('split') == 'train')['label'])
+def _write_training_plan(plan_df, plan_f, coverage_f, counts_f, configuration, validation_groups_moved_to_training):
+  selected_df  = plan_df.filter(pl.col('selected'))
+  train_labels = set(selected_df.filter(pl.col('split') == 'train')['label'])
 
   # Save the full plan, selection coverage and decisions needed for provenance.
   plan_df.write_csv(plan_f, compression = 'gzip')
-  coverage = (plan_df.group_by(['label', 'split']).agg(
+  coverage_df = (plan_df.group_by(['label', 'split']).agg(
     pl.len().alias('n_cells'), pl.col('selected').sum().alias('n_selected'))
     .sort(['label', 'split'], nulls_last = True))
-  coverage.write_csv(coverage_f)
-  (selected.filter(pl.col('split') == 'train')
+  coverage_df.write_csv(coverage_f)
+  (selected_df.filter(pl.col('split') == 'train')
     .group_by('label').len().sort('label')
     .write_csv(counts_f))
-  # Keep planning settings and rare-label rescues beside the saved cell plan.
+  # Record planning settings and any validation groups moved back to training.
   metadata = dict(
     configuration               = configuration,
-    rescued_validation_groups   = rescued,
+    rescued_validation_groups   = validation_groups_moved_to_training,
     n_annotated                 = len(plan_df),
-    n_train                     = selected.filter(pl.col('split') == 'train').height,
-    n_validation                = selected.filter(pl.col('split') == 'validation').height,
+    n_train                     = selected_df.filter(pl.col('split') == 'train').height,
+    n_validation                = selected_df.filter(pl.col('split') == 'validation').height,
     n_test                      = plan_df.filter(pl.col('split') == 'test').height,
     n_classes                   = len(train_labels),
     majority_vote_training_only = True)
   Path(str(plan_f) + '.json').write_text(json.dumps(metadata, indent = 2) + '\n')
-  print(coverage, flush = True)
+  print(coverage_df, flush = True)
 
 
-def _balanced_sample(df, n, variables, rng):
+def _balanced_sample(input_df, n, variables, rng):
 
   # Keep all cells below the cap; sample uniformly when no balancing is requested.
-  if len(df) <= n:
-    return df.clone()
+  if len(input_df) <= n:
+    return input_df.clone()
   if not variables:
-    return df[rng.choice(len(df), n, replace = False)]
+    return input_df[rng.choice(len(input_df), n, replace = False)]
 
   # Balance joint combinations, redistributing unused quotas to larger groups.
-  indexed   = df.with_row_index('_sample_row')
-  groups    = [g['_sample_row'].to_numpy() for g in _sorted_groups(indexed, variables)]
-  order     = rng.permutation(len(groups))
-  quota     = np.zeros(len(groups), dtype = int)
-  remaining = n
+  indexed_df = input_df.with_row_index('_sample_row')
+  groups     = [group_df['_sample_row'].to_numpy() for group_df in _sorted_groups(indexed_df, variables)]
+  order      = rng.permutation(len(groups))
+  quota      = np.zeros(len(groups), dtype = int)
+  remaining  = n
   while remaining:
     active = [i for i in order if quota[i] < len(groups[i])]
     share  = max(1, remaining // len(active))
@@ -314,23 +318,23 @@ def _balanced_sample(df, n, variables, rng):
       remaining -= take
       if not remaining:
         break
-  idx = np.concatenate([rng.choice(g, q, replace = False) for g, q in zip(groups, quota) if q])
-  return df[idx]
+  idx = np.concatenate([rng.choice(indices, q, replace = False) for indices, q in zip(groups, quota) if q])
+  return input_df[idx]
 
 
-def _sorted_groups(df, variables):
+def _sorted_groups(input_df, variables):
   # Keep original row order within lexicographically ordered combinations.
   if not variables:
-    return [df]
+    return [input_df]
   return (
-    df.sort(variables, nulls_last = True, maintain_order = True)
+    input_df.sort(variables, nulls_last = True, maintain_order = True)
       .partition_by(variables, maintain_order = True))
 
 
-def _missing_values(df, columns):
+def _missing_values(input_df, columns):
   # Treat floating-point NaN as missing alongside Polars null values.
   for name in columns:
-    values = df[name]
+    values = input_df[name]
     if values.null_count() or (values.dtype.is_float() and values.is_nan().any()):
       return True
   return False
@@ -351,19 +355,19 @@ def fit_plan(plan_f, h5ads_yaml, output_dir, n_cores, *, xgboost_tag, use_gpu,
   gpu_device = _verify_gpu(n_cores) if use_gpu else 'cpu'
 
   # Load only the cells selected by the saved training plan.
-  plan     = pl.read_csv(plan_f, schema_overrides = {'label': pl.String})
-  plan     = plan.filter(pl.col('selected') & pl.col('split').is_in(['train', 'validation']))
-  manifest = yaml.safe_load(Path(h5ads_yaml).read_text())
-  raw, norm, genes, types, plan = _load_plan_expression(plan, manifest, normalize_counts)
+  plan_df     = pl.read_csv(plan_f, schema_overrides = {'label': pl.String})
+  plan_df     = plan_df.filter(pl.col('selected') & pl.col('split').is_in(['train', 'validation']))
+  h5ad_lookup = yaml.safe_load(Path(h5ads_yaml).read_text())
+  raw, norm, genes, types, plan_df = _load_plan_expression(plan_df, h5ad_lookup, normalize_counts)
 
   # Encode labels consistently across the training and validation matrices.
-  train   = plan['split'].to_numpy() == 'train'
+  train   = plan_df['split'].to_numpy() == 'train'
   val     = ~train
-  classes = sorted(plan.filter(train)['label'].unique())
-  if not set(plan.filter(val)['label']) <= set(classes):
+  classes = sorted(plan_df.filter(train)['label'].unique())
+  if not set(plan_df.filter(val)['label']) <= set(classes):
     raise ValueError('Validation label absent from training')
   class_indices = {name: i for i, name in enumerate(classes)}
-  y             = np.array([class_indices[name] for name in plan['label']])
+  y             = np.array([class_indices[name] for name in plan_df['label']])
 
   # Detection filtering uses training cells only; held-out cells cannot select genes.
   norm, raw, genes, types = _filter_genes_by_type(norm, raw, genes, types, gene_exclude_re)
@@ -394,7 +398,7 @@ def fit_plan(plan_f, h5ads_yaml, output_dir, n_cores, *, xgboost_tag, use_gpu,
   model1 = _best_iteration_model(model1)
 
   # Retain genes contributing the requested cumulative gain, within size bounds.
-  selected, names, importance = _select_features_by_gain(
+  selected, names, gene_importance_df = _select_features_by_gain(
     model          = model1,
     gene_names     = genes,
     gain_threshold = gain_threshold,
@@ -423,21 +427,21 @@ def fit_plan(plan_f, h5ads_yaml, output_dir, n_cores, *, xgboost_tag, use_gpu,
   model2 = _best_iteration_model(model2)
 
   # Export the best iteration, selected-cell predictions and raw-count summaries.
-  pb = _compute_pseudobulk(raw, plan, genes, selected)
+  pb = _compute_pseudobulk(raw, plan_df, genes, selected)
   _save_outputs(
-    model            = model2,
-    class_names      = classes,
-    selected_genes   = names,
-    gene_importance  = importance,
-    output_dir       = out,
-    ref_tag          = xgboost_tag,
-    cells_df         = plan,
-    label_map        = _load_label_mapping(label_map_f),
-    X_train          = xtrain,
-    y_train          = y[train],
-    X_val            = xval,
-    y_val            = y[val],
-    pseudobulk_adata = pb)
+    model              = model2,
+    class_names        = classes,
+    selected_genes     = names,
+    gene_importance_df = gene_importance_df,
+    output_dir         = out,
+    ref_tag            = xgboost_tag,
+    cells_df           = plan_df,
+    label_map          = _load_label_mapping(label_map_f),
+    X_train            = xtrain,
+    y_train            = y[train],
+    X_val              = xval,
+    y_val              = y[val],
+    pseudobulk_adata   = pb)
 
   # Record fitting settings separately from display specifications.
   configuration = dict(
@@ -498,23 +502,23 @@ def _verify_gpu(n_cores):
   return device
 
 
-def _load_plan_expression(plan, manifest, normalize):
+def _load_plan_expression(plan_df, h5ad_lookup, normalize):
   import scipy.sparse as sp
 
   # Read batches in deterministic order and normalise before gene filtering.
   raw_parts, norm_parts, ordered = [], [], []
   genes = types = None
-  for group in _sorted_groups(plan, ['batch']):
-    batch = group['batch'][0]
-    entry = manifest[batch]
+  for batch_df in _sorted_groups(plan_df, ['batch']):
+    batch = batch_df['batch'][0]
+    entry = h5ad_lookup[batch]
     path  = entry['path'] if isinstance(entry, dict) else entry
-    raw, current, current_types = _read_selected_h5ad(path, group['cell_id'].to_list(), genes)
+    raw, current, current_types = _read_selected_h5ad(path, batch_df['cell_id'].to_list(), genes)
     if genes is None:
       genes, types = current, current_types
     raw_parts.append(raw)
     norm_parts.append(normalize(raw).astype(np.float32))
-    ordered.append(group)
-    print(f'Loading {batch}: {len(group)} selected cells', flush = True)
+    ordered.append(batch_df)
+    print(f'Loading {batch}: {len(batch_df)} selected cells', flush = True)
   # Stack count matrices and metadata in the same cell order.
   raw = sp.vstack(raw_parts, format = 'csr')
   raw_parts.clear()
@@ -716,7 +720,7 @@ def _select_features_by_gain(model, gene_names,
   sel_indices    = sorted_idx[:n_sel]
   sel_gene_names = [gene_names[i] for i in sel_indices]
 
-  gene_importance = pl.DataFrame({
+  gene_importance_df = pl.DataFrame({
     "gene_id": [gene_names[i] for i in sorted_idx],
     "gain": sorted_gains.tolist(),
     "cumulative_gain_frac": cum_gain.tolist(),
@@ -726,7 +730,7 @@ def _select_features_by_gain(model, gene_names,
   print(f"  Genes at {gain_threshold*100:.0f}% cumulative gain: {n_sel}")
   print(f"  Top 10 genes: {sel_gene_names[:10]}")
 
-  return sel_indices, sel_gene_names, gene_importance
+  return sel_indices, sel_gene_names, gene_importance_df
 
 
 def _best_iteration_model(model):
@@ -736,7 +740,7 @@ def _best_iteration_model(model):
 
 # Save model outputs and selected-cell summaries
 
-def _save_outputs(model, class_names, selected_genes, gene_importance,
+def _save_outputs(model, class_names, selected_genes, gene_importance_df,
   output_dir, ref_tag, cells_df, label_map = None, X_train = None, y_train = None,
   X_val = None, y_val = None, pseudobulk_adata = None):
 
@@ -757,7 +761,7 @@ def _save_outputs(model, class_names, selected_genes, gene_importance,
   print(f"  Genes: {genes_path}")
 
   imp_path = out_dir / f"{ref_tag}_gene_importance.csv"
-  gene_importance.write_csv(str(imp_path))
+  gene_importance_df.write_csv(str(imp_path))
   print(f"  Importance: {imp_path}")
 
   if label_map is not None:
@@ -812,19 +816,19 @@ def _make_predictions_df(model, X_train, y_train, X_val, y_val, cells_df, class_
 
   pred_labels = [class_names[i] for i in all_pred]
 
-  result = cells_df.select(["cell_id", "batch", "label", "split"]).with_columns([
+  predictions_df = cells_df.select(["cell_id", "batch", "label", "split"]).with_columns([
     pl.Series("predicted_label", pred_labels),
     pl.Series("probability", all_pmax),
   ])
 
   # Add coarse labels if mapping is available
   if label_map is not None:
-    result = result.with_columns([
+    predictions_df = predictions_df.with_columns([
       pl.col("label").replace(label_map).alias("coarse_true"),
       pl.col("predicted_label").replace(label_map).alias("coarse_predicted"),
     ])
 
-  return result
+  return predictions_df
 
 
 def _compute_pseudobulk(X_raw, cells_df, gene_names, sel_indices):
@@ -905,39 +909,39 @@ def _load_label_mapping(label_map_f):
 
 # Full-data evaluation and label specifications
 
-def aggregate_plan_predictions(pred_fs, plan_f, output_f, cluster_csv):
+def aggregate_plan_predictions(pred_fs, plan_f, output_f, integration_f):
   # Combine per-batch calls and require one prediction per integrated cell.
-  preds = pl.concat([pl.read_csv(path, columns = ['cell_id', 'predicted_label_naive', 'probability_naive'],
+  predictions_df = pl.concat([pl.read_csv(path, columns = ['cell_id', 'predicted_label_naive', 'probability_naive'],
     schema_overrides = {'cell_id': pl.String, 'predicted_label_naive': pl.String,
       'probability_naive': pl.Float64}) for path in pred_fs])
-  if preds['cell_id'].n_unique() != len(preds):
+  if predictions_df['cell_id'].n_unique() != len(predictions_df):
     raise ValueError('Duplicate full-data predictions')
-  preds = preds.select('cell_id', pl.col('predicted_label_naive').alias('predicted_label'),
+  predictions_df = predictions_df.select('cell_id', pl.col('predicted_label_naive').alias('predicted_label'),
     pl.col('probability_naive').alias('probability'))
-  join_cells = pl.read_csv(cluster_csv, columns = ['cell_id'])
-  preds      = preds.join(join_cells, on = 'cell_id', how = 'inner', maintain_order = 'left')
-  if len(preds) != len(join_cells):
+  integration_cells_df = pl.read_csv(integration_f, columns = ['cell_id'])
+  predictions_df       = predictions_df.join(integration_cells_df, on = 'cell_id', how = 'inner', maintain_order = 'left')
+  if len(predictions_df) != len(integration_cells_df):
     raise ValueError('Integrated cells missing from full-data predictions')
 
   # Preserve all integrated cells, including those without a reference label.
-  plan   = pl.read_csv(plan_f, schema_overrides = {'label': pl.String, 'original_label': pl.String})
-  fields = ['cell_id', 'label', 'original_label', 'split', 'selected', 'label_supported_in_training']
-  result = preds.join(plan.select(fields), on = 'cell_id', how = 'left', maintain_order = 'left').with_columns(
+  plan_df   = pl.read_csv(plan_f, schema_overrides = {'label': pl.String, 'original_label': pl.String})
+  fields    = ['cell_id', 'label', 'original_label', 'split', 'selected', 'label_supported_in_training']
+  result_df = predictions_df.join(plan_df.select(fields), on = 'cell_id', how = 'left', maintain_order = 'left').with_columns(
     pl.col('split').fill_null('unlabeled'), pl.col('selected').fill_null(False),
     pl.col('label_supported_in_training').fill_null(False))
-  if not set(plan['cell_id']) <= set(result['cell_id']):
+  if not set(plan_df['cell_id']) <= set(result_df['cell_id']):
     raise ValueError('Planned cells missing from full-data predictions')
   metadata_f    = Path(str(plan_f) + '.json')
   configuration = json.loads(metadata_f.read_text())['configuration'] if metadata_f.exists() else {}
   if configuration.get('label_map_f'):
-    mapping = _load_label_mapping(configuration['label_map_f'])
-    result  = result.with_columns(pl.col('label').replace(mapping).alias('coarse_true'),
+    mapping   = _load_label_mapping(configuration['label_map_f'])
+    result_df = result_df.with_columns(pl.col('label').replace(mapping).alias('coarse_true'),
       pl.col('predicted_label').replace(mapping).alias('coarse_predicted'))
-  result.write_csv(output_f, compression = 'gzip')
+  result_df.write_csv(output_f, compression = 'gzip')
 
   # Score unselected development cells separately from fitting/validation cells.
   prefix = str(output_f).removesuffix('_fulldata_predictions.csv.gz')
-  _write_evaluation(_evaluation_counts(result), prefix, 'label')
+  _write_evaluation(_evaluation_counts(result_df), prefix, 'label')
 
 
 def write_label_specifications(cls_f, counts_f, predictions_f, output_dir, *,
@@ -945,8 +949,8 @@ def write_label_specifications(cls_f, counts_f, predictions_f, output_dir, *,
 
   # Use training abundance for the default display order unless a table supplies one.
   classes       = pl.read_csv(cls_f)['class'].to_list()
-  counts        = dict(pl.read_csv(counts_f).select('label', 'len').iter_rows())
-  default_order = sorted(classes, key = lambda name: (-counts.get(name, 0), name))
+  label_counts  = dict(pl.read_csv(counts_f).select('label', 'len').iter_rows())
+  default_order = sorted(classes, key = lambda name: (-label_counts.get(name, 0), name))
   specs, coarse = read_label_specs(label_specs_f, coarse_label_specs_f, default_order, label_map_f)
   out = Path(output_dir)
   out.mkdir(parents = True, exist_ok = True)
@@ -959,39 +963,39 @@ def write_label_specifications(cls_f, counts_f, predictions_f, output_dir, *,
   # Coarse evaluation is a direct lookup of fine labels, without another vote.
   mapping = label_mapping(specs)
   if mapping:
-    counts = _evaluation_counts(pl.scan_csv(predictions_f,
+    evaluation_df = _evaluation_counts(pl.scan_csv(predictions_f,
       schema_overrides = {'label': pl.String, 'predicted_label': pl.String}), mapping)
   else:
-    counts = pl.DataFrame(schema = {'split': pl.String, 'label': pl.String,
+    evaluation_df = pl.DataFrame(schema = {'split': pl.String, 'label': pl.String,
       'predicted_label': pl.String, 'len': pl.UInt32})
-  _write_evaluation(counts, str(prefix) + '_coarse', 'coarse_label')
+  _write_evaluation(evaluation_df, str(prefix) + '_coarse', 'coarse_label')
 
 
-def _evaluation_counts(df, mapping = None):
+def _evaluation_counts(predictions_df, mapping = None):
   # Summarise lazily so full prediction tables need not be converted or collected.
-  if isinstance(df, pl.DataFrame):
-    df = df.lazy()
-  if 'selected' not in df.collect_schema():
-    df = df.with_columns(pl.lit(True).alias('selected'))
-  df = df.filter(
+  if isinstance(predictions_df, pl.DataFrame):
+    predictions_df = predictions_df.lazy()
+  if 'selected' not in predictions_df.collect_schema():
+    predictions_df = predictions_df.with_columns(pl.lit(True).alias('selected'))
+  predictions_df = predictions_df.filter(
     pl.col('label').is_not_null() & ~pl.col('split').is_in(['excluded', 'unsupported', 'unlabeled']))
-  df = df.with_columns(
+  predictions_df = predictions_df.with_columns(
     pl.when(~pl.col('selected') & pl.col('split').is_in(['train', 'validation']))
       .then(pl.lit('development_holdout')).otherwise(pl.col('split')).alias('split'))
   if mapping:
-    df = df.with_columns(pl.col('label').replace(mapping), pl.col('predicted_label').replace(mapping))
-  return df.group_by(['split', 'label', 'predicted_label']).len().collect(engine = 'streaming')
+    predictions_df = predictions_df.with_columns(pl.col('label').replace(mapping), pl.col('predicted_label').replace(mapping))
+  return predictions_df.group_by(['split', 'label', 'predicted_label']).len().collect(engine = 'streaming')
 
 
-def _write_evaluation(counts, prefix, label_column_name):
+def _write_evaluation(counts_df, prefix, label_column_name):
 
   # Evaluate each split using both observed and predicted labels.
   metrics   = []
   per_label = []
-  for group in _sorted_groups(counts, ['split']):
-    split     = group['split'][0]
-    labels    = sorted(set(group['label']) | set(group['predicted_label']))
-    confusion = {(a, b): n for _, a, b, n in group.select('split', 'label', 'predicted_label', 'len').iter_rows()}
+  for split_df in _sorted_groups(counts_df, ['split']):
+    split     = split_df['split'][0]
+    labels    = sorted(set(split_df['label']) | set(split_df['predicted_label']))
+    confusion = {(a, b): n for _, a, b, n in split_df.select('split', 'label', 'predicted_label', 'len').iter_rows()}
     scores    = []
     for name in labels:
       support   = sum(n for (a, b), n in confusion.items() if a == name)
@@ -1016,21 +1020,21 @@ def _write_evaluation(counts, prefix, label_column_name):
     'macro_f1': pl.Float64, 'balanced_accuracy': pl.Float64}
   label_schema = {'split': pl.String, label_column_name: pl.String, 'precision': pl.Float64,
     'recall': pl.Float64, 'f1': pl.Float64, 'n_test': pl.Int64}
-  summary = pl.DataFrame(metrics, schema = metric_schema)
-  summary.write_csv(str(prefix) + '_evaluation.csv')
+  summary_df = pl.DataFrame(metrics, schema = metric_schema)
+  summary_df.write_csv(str(prefix) + '_evaluation.csv')
   pl.DataFrame(per_label, schema = label_schema).write_csv(str(prefix) + '_per_label_evaluation.csv')
-  print(summary, flush = True)
+  print(summary_df, flush = True)
 
 
 # Model installation, registry identities and label specifications
 
 def resolve_xgboost_entry(entry, scdata_dir):
   # Resolve a single installed classifier and check its required files.
-  registry = pl.read_csv(Path(scdata_dir) / 'xgboost/xgboost_models.csv')
-  rows = registry.filter(pl.col('model') == entry['model'])
-  if len(rows) != 1:
-    raise ValueError(f"Expected one registered XGBoost model named {entry['model']}; found {len(rows)}")
-  row = rows.row(0, named = True)
+  registry_df = pl.read_csv(Path(scdata_dir) / 'xgboost/xgboost_models.csv')
+  matches_df  = registry_df.filter(pl.col('model') == entry['model'])
+  if len(matches_df) != 1:
+    raise ValueError(f"Expected one registered XGBoost model named {entry['model']}; found {len(matches_df)}")
+  row = matches_df.row(0, named = True)
   for key in ['model_f', 'cls_f', 'genes_f']:
     entry[key] = row[key]
     if not Path(entry[key]).is_file():
@@ -1113,8 +1117,8 @@ def read_label_specs(label_specs_f = None, coarse_label_specs_f = None, labels =
   records = []
   if source:
     with Path(source).open(newline = '') as stream:
-      reader = csv.DictReader(stream)
-      columns = reader.fieldnames or []
+      reader        = csv.DictReader(stream)
+      columns       = reader.fieldnames or []
       label_columns = [name for name in ['label', 'annotation', 'fine_label'] if name in columns]
       if len(label_columns) != 1:
         raise ValueError(f'{source} needs one label column (label; legacy annotation/fine_label accepted)')
@@ -1197,7 +1201,7 @@ if __name__ == '__main__':
   # The workflow supplies validated settings; defaults belong in the schemas.
   # Planning uses metadata only, before expression matrices are loaded.
   plan = commands.add_parser('plan')
-  for name in ('annots_f', 'cluster_csv', 'h5ads_yaml', 'batch_var',
+  for name in ('annots_f', 'integration_f', 'h5ads_yaml', 'batch_var',
     'plan_f', 'coverage_f', 'counts_f', 'validation_group_var'):
     plan.add_argument('--' + name, required = True)
 
@@ -1237,7 +1241,7 @@ if __name__ == '__main__':
 
   # Full-data evaluation combines per-batch predictions with the original plan.
   aggregate = commands.add_parser('aggregate_fulldata')
-  for name in ('plan_f', 'cluster_csv', 'output_f'):
+  for name in ('plan_f', 'integration_f', 'output_f'):
     aggregate.add_argument('--' + name, required = True)
 
   aggregate.add_argument('pred_fs', nargs = '+')

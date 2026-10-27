@@ -1151,7 +1151,7 @@ rule zoom_make_subsets:
 rule zoom_train_xgboost_plan:
   input:
     annots_f = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['annots_f'],
-    cluster_csv = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
+    integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
     h5ads_yaml = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
     label_map = lambda wildcards: [ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['label_map_f']] if ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') else [],
     planner = str(scprocess_dir / 'scripts/train_xgboost.py'),
@@ -1187,7 +1187,7 @@ rule zoom_train_xgboost_plan:
   shell: """
     exec &>> {log}
     python3 {scprocess_dir}/scripts/train_xgboost.py plan \
-      --annots_f {input.annots_f:q} --cluster_csv {input.cluster_csv:q} \
+      --annots_f {input.annots_f:q} --integration_f {input.integration_f:q} \
       --h5ads_yaml {input.h5ads_yaml:q} --batch_var {params.batch_var:q} \
       --is_join {params.is_join} \
       --excluded_labels {params.excluded_labels:q} \

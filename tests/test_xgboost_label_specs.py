@@ -169,7 +169,7 @@ def test_cli_optional_features_can_be_omitted(tmp_path):
   data.select('cell_id', 'sample_id').write_csv(integration)
   manifest.write_text(yaml.safe_dump({batch: 'unused.h5ad' for batch in data['sample_id'].unique()}))
   plan_f = tmp_path / 'plan.csv.gz'
-  settings = dict(annots_f = annotations, cluster_csv = integration, h5ads_yaml = manifest,
+  settings = dict(annots_f = annotations, integration_f = integration, h5ads_yaml = manifest,
     batch_var = 'sample_id', plan_f = plan_f, coverage_f = tmp_path / 'coverage.csv',
     counts_f = tmp_path / 'counts.csv', validation_group_var = 'batch', is_join = 0,
     train_cells_per_type = 20, validation_cells_per_type = 10, min_cells_per_type = 2,

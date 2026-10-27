@@ -1056,7 +1056,7 @@ if DO_TRAIN_XGB:
   rule join_train_xgboost_plan:
     input:
       annots_f = _join_xgb_cfg['annots_f'],
-      cluster_csv = joint_integration_f,
+      integration_f = joint_integration_f,
       h5ads_yaml = joint_h5ads_yaml_f,
       label_map = [_join_xgb_cfg['label_map_f']] if _join_xgb_cfg.get('label_map_f') else [],
       planner = str(scprocess_dir / 'scripts/train_xgboost.py'),
@@ -1092,7 +1092,7 @@ if DO_TRAIN_XGB:
     shell: """
       exec &>> {log}
       python3 {scprocess_dir}/scripts/train_xgboost.py plan \
-        --annots_f {input.annots_f:q} --cluster_csv {input.cluster_csv:q} \
+        --annots_f {input.annots_f:q} --integration_f {input.integration_f:q} \
         --h5ads_yaml {input.h5ads_yaml:q} --batch_var {params.batch_var:q} \
         --is_join {params.is_join} \
         --excluded_labels {params.excluded_labels:q} \
@@ -1223,7 +1223,7 @@ if DO_TRAIN_XGB:
 
 
       plan_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_plan.csv.gz',
-      cluster_csv = joint_integration_f,
+      integration_f = joint_integration_f,
     output:
       fulldata_f = _join_xgb_fulldata_f
     params:
@@ -1242,7 +1242,7 @@ if DO_TRAIN_XGB:
     shell: """
       exec &>> {log}
       python3 {scprocess_dir}/scripts/train_xgboost.py aggregate_fulldata \
-        {input.pred_fs:q} --plan_f {input.plan_f:q} --cluster_csv {input.cluster_csv:q} \
+        {input.pred_fs:q} --plan_f {input.plan_f:q} --integration_f {input.integration_f:q} \
         --output_f {output.fulldata_f:q}
       """
 

@@ -6,7 +6,7 @@ if TRAIN_XGB_PARAMS is not None:
   rule train_xgboost_plan:
     input:
       annots_f    = TRAIN_XGB_PARAMS['annots_f'],
-      cluster_csv = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
       h5ads_yaml  = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
       label_map   = [TRAIN_XGB_PARAMS['label_map_f']] if TRAIN_XGB_PARAMS.get('label_map_f') else [],
       planner     = str(scprocess_dir / 'scripts/train_xgboost.py'),
@@ -43,7 +43,7 @@ if TRAIN_XGB_PARAMS is not None:
       exec &>> {log}
       python3 {scprocess_dir}/scripts/train_xgboost.py plan \
         --annots_f                          {input.annots_f:q} \
-        --cluster_csv                       {input.cluster_csv:q} \
+        --integration_f                       {input.integration_f:q} \
         --h5ads_yaml                        {input.h5ads_yaml:q} \
         --batch_var                         {params.batch_var:q} \
         --is_join                           {params.is_join} \
@@ -217,7 +217,7 @@ if TRAIN_XGB_PARAMS is not None:
         f'{xgb_dir}/tmp_fulldata_predict_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{{batch}}.csv.gz',
         batch = BATCHES),
       plan_f      = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_plan.csv.gz',
-      cluster_csv = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
+      integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     output:
       fulldata_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_fulldata_predictions.csv.gz'
     params:
@@ -233,6 +233,6 @@ if TRAIN_XGB_PARAMS is not None:
     shell: """
       exec &>> {log}
       python3 {scprocess_dir}/scripts/train_xgboost.py aggregate_fulldata \
-        {input.pred_fs:q} --plan_f {input.plan_f:q} --cluster_csv {input.cluster_csv:q} \
+        {input.pred_fs:q} --plan_f {input.plan_f:q} --integration_f {input.integration_f:q} \
         --output_f                          {output.fulldata_f:q}
       """
