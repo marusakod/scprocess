@@ -10,7 +10,7 @@ import pathlib
 
 scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 sys.path.append(str(scprocess_dir / 'scripts'))
-from setup import get_txome_index_parameters, get_probe_set_parameters, get_xgboost_parameters
+from setup import get_txome_index_parameters, get_probe_set_parameters, get_xgboost_parameters, get_xgboost_source_files
 
 # get parameters
 SCDATA_DIR       = os.getenv('SCPROCESS_DATA_DIR')
@@ -98,7 +98,7 @@ rule all:
     f'{SCDATA_DIR}/gmt_pathways/m5.go.mf.v2023.1.Mm.symbols.gmt',
     f'{SCDATA_DIR}/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt',
     # xgboost classifiers (prebuilt + user-trained)
-    expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_xgboost_model.json', xgb_name=XGB_NAMES),
+    expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_manifest.json', xgb_name=XGB_NAMES),
     expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_allowed_cls.csv', xgb_name=XGB_NAMES),
     expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_selected_genes.txt', xgb_name=XGB_NAMES),
     f'{SCDATA_DIR}/xgboost/xgboost_models.csv',
@@ -274,6 +274,7 @@ rule download_celltypist_models:
 
 rule add_xgboost:
   input:
+    source_files = lambda wildcards: get_xgboost_source_files(XGB_PARAMS_LS[wildcards.xgb_name]),
     manifest = lambda wildcards: ([str(scprocess_dir / 'resources/xgboost' / f'{wildcards.xgb_name}.json')]
       if (scprocess_dir / 'resources/xgboost' / f'{wildcards.xgb_name}.json').is_file() else []),
   output:
@@ -297,7 +298,7 @@ rule add_xgboost:
 
 rule save_available_xgboost_csv:
   input:
-    expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_xgboost_model.json', xgb_name=XGB_NAMES),
+    expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_manifest.json', xgb_name=XGB_NAMES),
   output:
     csv_f = f'{SCDATA_DIR}/xgboost/xgboost_models.csv',
   params:

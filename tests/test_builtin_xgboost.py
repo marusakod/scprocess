@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
-import xgboost_models as models
+import train_xgboost as models
 from label_celltypes import aggregate_predictions
 
 
@@ -84,3 +84,26 @@ def test_aggregate_preserves_identity_and_empty_batches(tmp_path):
     result = aggregate_predictions([first, empty], integration, 'RNA_snn_res.4', .5, 'sample_id')
     assert result['model_id'].to_list() == ['human_cns-v1']
     assert result['model_sha256'].to_list() == ['abc']
+
+
+
+def test_registry_import_does_not_load_training_libraries():
+  import subprocess
+  code = """
+import importlib.abc
+import sys
+class BlockTraining(importlib.abc.MetaPathFinder):
+  def find_spec(self, fullname, path=None, target=None):
+    if fullname.split('.')[0] in {'anndata', 'xgboost', 'scipy'}:
+      raise AssertionError('Unexpected training import: ' + fullname)
+sys.meta_path.insert(0, BlockTraining())
+sys.path.insert(0, sys.argv[1])
+import train_xgboost
+assert 'human_cns' in train_xgboost.builtin_models()
+assert train_xgboost.read_label_specs(labels=['a'])[0][0]['label'] == 'a'
+import setup
+assert 'human_cns' in setup.get_xgboost_parameters({})
+"""
+  result = subprocess.run([sys.executable, '-c', code, str(ROOT / 'scripts')],
+    text = True, capture_output = True, timeout = 30)
+  assert result.returncode == 0, result.stdout + result.stderr

@@ -639,6 +639,8 @@ rule render_html_label_celltypes:
 if TRAIN_XGB_PARAMS is not None:
   rule render_html_train_xgboost:
     input:
+      label_specs_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_label_specs.csv',
+      coarse_label_specs_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_coarse_label_specs.csv',
       r_mkr_f       = f"{code_dir}/marker_genes.R",
       r_utils_f     = f"{code_dir}/utils.R",
       preds_f              = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_predictions.csv.gz',

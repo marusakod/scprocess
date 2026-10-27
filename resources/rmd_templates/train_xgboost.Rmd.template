@@ -16,7 +16,7 @@ output:
 
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
-knitr::opts_chunk$set( autodep=TRUE, cache=TRUE, cache.lazy=FALSE, dev='png',
+knitr::opts_chunk$set( autodep=TRUE, cache=FALSE, cache.lazy=FALSE, dev='png',
 fig.path = "figure/${short_tag}_train_xgboost.Rmd/", message = FALSE, warning = FALSE
 )
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
@@ -49,18 +49,13 @@ int_dt      = fread(integration_f)[, .(cell_id, UMAP1, UMAP2)]
 ```
 
 ```{r make_xgboost_dt, include = FALSE}
-# label order from pre-subsample frequencies
 label_order = fread(label_counts_f)[order(-len)]$label
-
 xgboost_dt = merge(preds_dt, int_dt, by = "cell_id", all.x = TRUE) %>%
   .[ !is.na(UMAP1) ]
-xgboost_dt[, label := factor(label, levels = label_order)]
-xgboost_dt[, predicted_label := factor(predicted_label, levels = label_order)]
-if (has_coarse) {
-  coarse_order = xgboost_dt[, .N, by = coarse_true][order(-N)]$coarse_true
-  xgboost_dt[, coarse_true := factor(coarse_true, levels = coarse_order)]
-  xgboost_dt[, coarse_predicted := factor(coarse_predicted, levels = coarse_order)]
-}
+style = read_xgboost_style(predictions_f, label_order)
+label_order = style$order
+xgboost_dt = apply_xgboost_style(xgboost_dt, style)
+has_coarse = length(style$mapping) > 0
 # keep only validation data for plotting
 val_dt     = xgboost_dt[ split == "validation" ]
 ```
@@ -100,7 +95,7 @@ for (lbl in lbl_type_vec) {
   } else {
     is_coarse = FALSE
   }
-  print(plot_pred_true_umap(val_dt, coarse = is_coarse))
+  print(plot_pred_true_umap(val_dt, coarse = is_coarse, label_colours=if (is_coarse) style$coarse_colours else style$colours))
   cat('\n\n')
 }
 ```
@@ -118,7 +113,7 @@ confuse_dt = calc_confuse_dt(cl1_dt, cl2_dt, "true_label", "pred_label")
 for (pv in c("p_cl1", "log_p_cl1")) {
   cat('###', pv, '\n')
   print(plot_cluster_comparison_heatmap(confuse_dt, "true_label", "pred_label",
-    plot_var = pv, do_sort = "hclust"))
+    plot_var = pv, do_sort = "no", order_cl1=label_order, order_cl2=label_order))
   cat('\n\n')
 }
 ```
@@ -140,7 +135,7 @@ metrics_dt[order(Class)] %>% knitr::kable(digits = 3)
 ```
 
 ```{r pr_plot_validation, fig.height = 5, fig.width = 6}
-plot_precision_recall(metrics_dt)
+plot_precision_recall(metrics_dt, label_colours=style$colours)
 ```
 
 ### Cumulative gain curve
@@ -161,10 +156,10 @@ top_genes_dt = gain_dt[order(-gain)][1:min(100, .N)]
 n_pages = 10
 per_p   = 10
 p       = 1
-for (i in seq(1, n_pages * per_p, by = per_p)) {
+for (i in seq(1, nrow(top_genes_dt), by = per_p)) {
   cat('#### page', p, '\n'); p = p + 1
-  sel_gs  = top_genes_dt[ i:(i + 9) ]
-  print(plot_top_xgboost_genes(sel_gs, cpms_dt, label_order = label_order))
+  sel_gs  = top_genes_dt[i:min(i + 9, .N)]
+  print(plot_top_xgboost_genes(sel_gs, cpms_dt, label_order = label_order, label_colours=style$colours))
   cat('\n\n')
 }
 ```
@@ -187,14 +182,8 @@ fulldata_dt = fread(fulldata_predictions_f)
 fulldata_dt[!selected & split %in% c("train", "validation"), split := "development_holdout"]
 fulldata_dt = merge(fulldata_dt, int_dt, by = "cell_id", all.x = TRUE) %>%
   .[ !is.na(UMAP1) ]
-label_order = unique(c(label_order, sort(na.omit(unique(fulldata_dt$label)))))
-fulldata_dt[, label := factor(label, levels = label_order)]
-fulldata_dt[, predicted_label := factor(predicted_label, levels = label_order)]
-if (has_coarse) {
-  coarse_order = xgboost_dt[, .N, by = coarse_true][order(-N)]$coarse_true
-  fulldata_dt[, coarse_true := factor(coarse_true, levels = coarse_order)]
-  fulldata_dt[, coarse_predicted := factor(coarse_predicted, levels = coarse_order)]
-}
+fulldata_dt = apply_xgboost_style(fulldata_dt, style)
+label_order = levels(fulldata_dt$label)
 ```
 
 ### Evaluation summary
@@ -231,7 +220,7 @@ if (nrow(holdout_dt) > 0) {
 
 ```{r pr_plot_holdout, fig.height = 5, fig.width = 6}
 if (nrow(holdout_dt) > 0) {
-  plot_precision_recall(holdout_metrics_dt)
+  plot_precision_recall(holdout_metrics_dt, label_colours=style$colours)
 }
 ```
 
@@ -246,7 +235,7 @@ if (nrow(holdout_dt) > 0) {
   for (pv in c("p_cl1", "log_p_cl1")) {
     cat('####', pv, '\n')
     print(plot_cluster_comparison_heatmap(confuse_dt, "true_label", "pred_label",
-      plot_var = pv, do_sort = "hclust"))
+      plot_var = pv, do_sort = "no", order_cl1=label_order, order_cl2=label_order))
     cat('\n\n')
   }
 }
@@ -264,7 +253,7 @@ for (sp in c("test", "development_holdout", "excluded", "unlabeled")) {
   cat('####', sp, sprintf('(%s cells)', format(nrow(sp_dt), big.mark = ',')), '\n')
   lbls = levels(fulldata_dt$predicted_label)
   if (is.null(lbls)) lbls = fulldata_dt[, predicted_label] %>% unique() %>% sort()
-  lbl_cols = nice_cols[ seq_along(lbls) ] %>% setNames(lbls)
+  lbl_cols = xgboost_colours(lbls, style$colours)
   p = ggplot(sp_dt) +
     aes(x = UMAP1, y = UMAP2, colour = predicted_label) +
     geom_point(size = 0.3) +
@@ -275,5 +264,37 @@ for (sp in c("test", "development_holdout", "excluded", "unlabeled")) {
     guides(color = guide_legend(override.aes = list(size = 3)))
   print(p)
   cat('\n\n')
+}
+```
+
+
+## Broader label evaluation {.tabset}
+
+Broader labels are obtained directly from the user-supplied fine-to-coarse
+mapping, applied equally to reference and predicted labels. This involves no
+voting, additional classification or probability summation.
+
+```{r coarse_evaluation, results='asis', fig.width=12, fig.height=8}
+if (!has_coarse) {
+  cat("No coarse-label mapping was supplied.\n")
+} else {
+  coarse_metrics_f = sub("_predictions.csv.gz$", "_coarse_evaluation.csv", predictions_f)
+  if (file.exists(coarse_metrics_f)) print(knitr::kable(fread(coarse_metrics_f), digits=3))
+  for (sp in c("validation", "test", "development_holdout")) {
+    selected = fulldata_dt[split == sp & !is.na(label)]
+    if (!nrow(selected)) next
+    cat("\n\n### ", sp, "\n\n", sep="")
+    metrics = get_metrics_dt(selected, coarse=TRUE)
+    metrics[, Class := factor(Class, levels=unique(c(style$coarse_order, as.character(Class))))]
+    cat(knitr::kable(metrics[order(Class)], format="html", digits=3), "\n\n")
+    print(plot_precision_recall(metrics, label_colours=style$coarse_colours))
+    reference = selected[, .(cell_id, label=coarse_true)]
+    predicted = selected[, .(cell_id, predicted_label=coarse_predicted)]
+    confusion = calc_confuse_dt(reference, predicted, "label", "predicted_label")
+    coarse_plot_order = unique(c(style$coarse_order, as.character(selected$coarse_true), as.character(selected$coarse_predicted)))
+    for (variable in c("log_p_cl1", "log_p_cl2"))
+      print(plot_cluster_comparison_heatmap(confusion, "label", "predicted_label",
+        plot_var=variable, do_sort="no", order_cl1=coarse_plot_order, order_cl2=coarse_plot_order))
+  }
 }
 ```

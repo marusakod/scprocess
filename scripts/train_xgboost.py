@@ -1,56 +1,599 @@
 # Train an XGBoost classifier to predict cell type labels from scRNA-seq data.
 
 import argparse
-import pathlib
+import gc
+import hashlib
+import json
+from pathlib import Path
 import re
-import sys
-import pandas as pd
-import anndata as ad
+import shutil
+import tarfile
+import tempfile
+import urllib.request
 import numpy as np
 import polars as pl
-import scipy.sparse as sp
-import xgboost as xgb
 import yaml
 
 
-def load_label_mapping(label_map_f):
+# Training plans
 
-  if label_map_f is None:
-    return None
+def prepare_plan(annots_f, cluster_csv, h5ads_yaml, batch_var, plan_f, coverage_f, counts_f,
+  *, is_join, excluded_labels, label_map_f, cluster_majority_vote_resolution,
+  cluster_majority_vote_min_purity, test_group_var, test_groups, validation_group_var,
+  validation_fraction, validation_variable_combinations, sampling_variable_combinations,
+  train_cells_per_type, validation_cells_per_type, min_cells_per_type, seed):
 
-  map_df = pl.read_csv(label_map_f)
-  assert "annotation" in map_df.columns, "label_map_f must have 'annotation' column"
-  assert "coarse_label" in map_df.columns, "label_map_f must have 'coarse_label' column"
+  # Collect the cluster and grouping columns needed for this plan.
+  vote_res = cluster_majority_vote_resolution
+  vote_col = f'RNA_snn_res.{float(vote_res):g}' if vote_res is not None else None
+  needed = set(validation_variable_combinations + sampling_variable_combinations)
+  needed |= {v for v in [test_group_var, validation_group_var] if v}
 
-  return dict(zip(
-    map_df["annotation"].to_list(),
-    map_df["coarse_label"].to_list(),
-  ))
+  # Join labels and integration metadata, preserving integration cell order.
+  plan_df = _load_plan_metadata(annots_f, cluster_csv, batch_var, is_join, vote_col, needed)
+  plan_df = _resolve_plan_batches(plan_df, h5ads_yaml, batch_var, is_join, needed)
+
+  # Split whole groups before exclusions, optional voting and cell selection.
+  rng = np.random.default_rng(seed)
+  plan_df, supported, rescued = _assign_splits(plan_df, rng,
+    test_group_var                   = test_group_var,
+    test_groups                      = test_groups,
+    validation_group_var             = validation_group_var,
+    validation_fraction              = validation_fraction,
+    validation_variable_combinations = validation_variable_combinations,
+    excluded_labels                  = excluded_labels,
+    min_cells_per_type               = min_cells_per_type)
+
+  plan_df = _prepare_plan_labels(plan_df, supported, excluded_labels, vote_col,
+    cluster_majority_vote_min_purity)
+  plan_df = _select_plan_cells(plan_df, rng, sampling_variable_combinations,
+    train_cells_per_type, validation_cells_per_type)
+
+  # Record the explicit planning settings alongside the selected-cell tables.
+  configuration = dict(
+    is_join                          = bool(is_join),
+    excluded_labels                  = excluded_labels,
+    label_map_f                      = label_map_f,
+    cluster_majority_vote_resolution = cluster_majority_vote_resolution,
+    cluster_majority_vote_min_purity = cluster_majority_vote_min_purity,
+    test_group_var                   = test_group_var,
+    test_groups                      = test_groups,
+    validation_group_var             = validation_group_var,
+    validation_fraction              = validation_fraction,
+    validation_variable_combinations = validation_variable_combinations,
+    sampling_variable_combinations   = sampling_variable_combinations,
+    train_cells_per_type             = train_cells_per_type,
+    validation_cells_per_type        = validation_cells_per_type,
+    min_cells_per_type               = min_cells_per_type,
+    seed                             = seed)
+  _write_training_plan(plan_df, plan_f, coverage_f, counts_f, configuration, rescued)
+  return plan_df
 
 
-def normalize_counts(X, scale_factor=10000):
-  X_csr = X.tocsr().astype(np.float64)
-  lib_sizes = np.array(X_csr.sum(axis=1)).flatten()
+def _load_plan_metadata(annots_f, cluster_csv, batch_var, is_join, vote_col, needed):
+  # Read labels and only the integration columns required for planning.
+  columns = ['cell_id', batch_var]
+  if is_join:
+    columns.append('project_id')
+  if vote_col:
+    columns.append(vote_col)
+  annotations = pl.read_csv(annots_f)
+  # Accept one standard or legacy label column, then use the canonical name.
+  label_columns = [name for name in ['label', 'annotation', 'fine_label'] if name in annotations.columns]
+  if len(label_columns) != 1:
+    raise ValueError('annots_f needs one label column (label; legacy annotation/fine_label accepted)')
+  annotations = annotations.rename({label_columns[0]: 'label'})
+  if _missing_values(annotations, ['cell_id']) or annotations['cell_id'].n_unique() != len(annotations):
+    raise ValueError('Annotations must have unique nonmissing cell_id values')
+  # Grouping metadata may come from either input table.
+  header = pl.read_csv(cluster_csv, n_rows = 0).columns
+  columns += [
+    v for v in sorted(needed)
+    if v in header and v not in annotations.columns and v not in columns]
+  integration = pl.read_csv(cluster_csv, columns = list(dict.fromkeys(columns)))
+  if _missing_values(integration, ['cell_id']) or integration['cell_id'].n_unique() != len(integration):
+    raise ValueError('Integration must have unique nonmissing cell_id values')
+
+  # Reject conflicting shared metadata before dropping duplicate columns.
+  overlap = [v for v in annotations.columns if v != 'cell_id' and v in integration.columns]
+  if overlap:
+    check = integration.join(
+      annotations.select(['cell_id'] + overlap),
+      on     = 'cell_id',
+      suffix = '_annotation')
+    for var in overlap:
+      conflict = (pl.col(var).is_not_null() & pl.col(var + '_annotation').is_not_null()
+        & (pl.col(var).cast(pl.String) != pl.col(var + '_annotation').cast(pl.String)))
+      if check.filter(conflict).height:
+        raise ValueError(f'Conflicting integration and annotation values: {var}')
+    annotations = annotations.drop(overlap)
+
+  # Keep integration order; the matrix loader later groups selected rows by batch.
+  plan_df = integration.join(
+    annotations,
+    on             = 'cell_id',
+    how            = 'inner',
+    maintain_order = 'left')
+  if plan_df.is_empty():
+    raise ValueError('No overlapping original labels and integration cells')
+
+  return plan_df
+
+
+def _resolve_plan_batches(plan_df, h5ads_yaml, batch_var, is_join, needed):
+  # Joined integrations may already have project-qualified batch identifiers.
+  manifest = yaml.safe_load(Path(h5ads_yaml).read_text())
+  batch    = plan_df[batch_var].cast(pl.String)
+  if is_join and not set(batch) <= set(manifest):
+    batch = plan_df['project_id'].cast(pl.String) + '_' + batch
+  if not set(batch) <= set(manifest):
+    raise ValueError('Input batch identifiers do not match H5AD manifest')
+  plan_df    = plan_df.with_columns(batch.alias('batch'))
+  # Check grouping metadata before any split or sampling decisions.
+  required = needed - {'batch'}
+  missing  = required - set(plan_df.columns)
+  if missing:
+    raise ValueError(f'Missing grouping/sampling columns: {sorted(missing)}')
+  if _missing_values(plan_df, required):
+    raise ValueError('Missing values in grouping/sampling columns')
+
+  return plan_df
+
+
+def _assign_splits(plan_df, rng, *, test_group_var, test_groups, validation_group_var,
+  validation_fraction, validation_variable_combinations, excluded_labels,
+  min_cells_per_type):
+
+
+  # Reserve explicitly held-out groups for the independent test set.
+  result = plan_df.with_columns(pl.lit('development').alias('split'))
+  if bool(test_group_var) != bool(test_groups):
+    raise ValueError('test_group_var and nonempty test_groups must be supplied together')
+  if test_group_var:
+    if _missing_values(result, [test_group_var]):
+      raise ValueError(f'Missing test grouping values: {test_group_var}')
+    groups  = result[test_group_var].cast(pl.String)
+    missing = set(test_groups) - set(groups)
+    if missing:
+      raise ValueError(f'Test groups absent from annotations/integration: {sorted(missing)}')
+    result = result.with_columns(
+      pl.when(groups.is_in(test_groups)).then(pl.lit('test'))
+        .otherwise(pl.col('split')).alias('split'))
+
+  # Validation units must be disjoint from test groups and have consistent metadata.
+  pool      = result.filter(pl.col('split') != 'test')
+  group_var = validation_group_var
+  test      = result.filter(pl.col('split') == 'test')
+  if set(pool[group_var]) & set(test[group_var]):
+    raise ValueError('Validation groups overlap the held-out test groups')
+  variables = validation_variable_combinations
+  if _missing_values(pool, [group_var] + variables):
+    raise ValueError('Missing validation grouping/combination values')
+  units = pool.select(list(dict.fromkeys([group_var] + variables))).unique(maintain_order = True)
+  if units[group_var].n_unique() != len(units):
+    raise ValueError('A validation group spans several variable combinations; choose compatible variables')
+
+  # Select whole validation units within each variable combination.
+  validation = set()
+  groups     = _sorted_groups(units, variables) if variables else [units]
+  for group in groups:
+    n = min(len(group) - 1, max(1, int(len(group) * validation_fraction)))
+    if n > 0:
+      validation.update(rng.choice(group[group_var].to_numpy(), n, replace = False))
+  if not validation:
+    raise ValueError('No whole groups available for validation; supply more groups or different validation combinations')
+
+  # Rescue whole validation groups until rare labels have enough training cells.
+  eligible  = pool.filter(pl.col('label').is_not_null() & ~pl.col('label').is_in(excluded_labels))
+  support   = eligible.group_by('label').len()
+  supported = set(support.filter(pl.col('len') >= min_cells_per_type)['label'])
+  rescued   = []
+  for label in sorted(supported):
+    group = pool.filter(pl.col('label') == label)
+    while sum(value not in validation for value in group[group_var]) < min_cells_per_type:
+      sizes = (group.filter(pl.col(group_var).is_in(list(validation)))
+        .group_by(group_var).len().sort(group_var))
+      if sizes.is_empty():
+        raise ValueError(f'Unable to retain training support for {label}')
+      # Preserve the previous descending quicksort tie order and seeded selections.
+      indices = np.arange(len(sizes))[::-1]
+      order   = indices[np.argsort(sizes['len'].to_numpy()[::-1], kind = 'quicksort')][::-1]
+      unit    = sizes[group_var][int(order[0])]
+      validation.remove(unit)
+      rescued.append({'label': label, 'group': str(unit)})
+
+  # Apply the final group assignments after any rare-label rescues.
+  result = result.with_columns(
+    pl.when(pl.col('split') == 'test').then(pl.lit('test'))
+      .when(pl.col(group_var).is_in(list(validation))).then(pl.lit('validation'))
+      .otherwise(pl.lit('train')).alias('split'))
+  if not result.filter(pl.col('split') == 'validation').height:
+    raise ValueError('No validation groups remain after rescuing rare labels')
+  return result, supported, rescued
+
+
+def _prepare_plan_labels(plan_df, supported, excluded_labels, vote_col,
+  cluster_majority_vote_min_purity):
+
+  # Preserve reference labels and flag excluded, unlabelled or unsupported cells.
+  plan_df = plan_df.with_columns(
+    pl.col('label').alias('original_label'),
+    pl.when(pl.col('label').is_null()).then(pl.lit('unlabeled'))
+      .when(pl.col('label').is_in(excluded_labels)).then(pl.lit('excluded'))
+      .when(~pl.col('label').is_in(list(supported)) & pl.col('split').is_in(['train', 'validation']))
+      .then(pl.lit('unsupported')).otherwise(pl.col('split')).alias('split'))
+
+  # Optional voting uses training labels only, leaving the test labels untouched.
+  if vote_col:
+    counts = plan_df.filter(pl.col('split') == 'train').group_by([vote_col, 'label']).len()
+    top    = (counts.with_columns(pl.col('len').sum().over(vote_col).alias('total'))
+      .sort([vote_col, 'len', 'label'], descending = [False, True, False])
+      .unique(vote_col, keep = 'first', maintain_order = True)
+      .filter((pl.col('len') / pl.col('total') >= cluster_majority_vote_min_purity) & (pl.col('total') >= 10)))
+    mapping = dict(top.select(vote_col, 'label').iter_rows())
+    plan_df   = plan_df.with_columns(
+      pl.when(pl.col('split').is_in(['train', 'validation']))
+        .then(pl.col(vote_col).replace_strict(mapping, default = pl.col('label')))
+        .otherwise(pl.col('label')).alias('label'))
+
+  return plan_df
+
+
+def _select_plan_cells(plan_df, rng, sampling_variable_combinations,
+  train_cells_per_type, validation_cells_per_type):
+
+  # Sample independently within each label and split, retaining plan row order.
+  plan_df         = plan_df.with_row_index('_plan_row')
+  selected_rows = []
+  eligible      = plan_df.filter(pl.col('split').is_in(['train', 'validation']))
+  for group in _sorted_groups(eligible, ['label', 'split']):
+    cap    = train_cells_per_type if group['split'][0] == 'train' else validation_cells_per_type
+    sample = _balanced_sample(group, cap, sampling_variable_combinations, rng)
+    selected_rows.extend(sample['_plan_row'].to_list())
+  plan_df    = plan_df.with_columns(pl.col('_plan_row').is_in(selected_rows).alias('selected')).drop('_plan_row')
+  # Require both splits and training support for every validation label.
+  selected = plan_df.filter(pl.col('selected'))
+  if not {'train', 'validation'} <= set(selected['split']):
+    raise ValueError('Both training and validation cells are required')
+  train_labels = set(selected.filter(pl.col('split') == 'train')['label'])
+  if not set(selected.filter(pl.col('split') == 'validation')['label']) <= train_labels:
+    raise ValueError('Validation label absent from training')
+  plan_df = plan_df.with_columns(
+    pl.col('label').is_in(list(train_labels)).fill_null(False).alias('label_supported_in_training'))
+
+  return plan_df
+
+
+def _write_training_plan(plan_df, plan_f, coverage_f, counts_f, configuration, rescued):
+  selected = plan_df.filter(pl.col('selected'))
+  train_labels = set(selected.filter(pl.col('split') == 'train')['label'])
+
+  # Save the full plan, selection coverage and decisions needed for provenance.
+  plan_df.write_csv(plan_f, compression = 'gzip')
+  coverage = (plan_df.group_by(['label', 'split']).agg(
+    pl.len().alias('n_cells'), pl.col('selected').sum().alias('n_selected'))
+    .sort(['label', 'split'], nulls_last = True))
+  coverage.write_csv(coverage_f)
+  (selected.filter(pl.col('split') == 'train')
+    .group_by('label').len().sort('label')
+    .write_csv(counts_f))
+  # Keep planning settings and rare-label rescues beside the saved cell plan.
+  metadata = dict(
+    configuration               = configuration,
+    rescued_validation_groups   = rescued,
+    n_annotated                 = len(plan_df),
+    n_train                     = selected.filter(pl.col('split') == 'train').height,
+    n_validation                = selected.filter(pl.col('split') == 'validation').height,
+    n_test                      = plan_df.filter(pl.col('split') == 'test').height,
+    n_classes                   = len(train_labels),
+    majority_vote_training_only = True)
+  Path(str(plan_f) + '.json').write_text(json.dumps(metadata, indent = 2) + '\n')
+  print(coverage, flush = True)
+
+
+def _balanced_sample(df, n, variables, rng):
+
+  # Keep all cells below the cap; sample uniformly when no balancing is requested.
+  if len(df) <= n:
+    return df.clone()
+  if not variables:
+    return df[rng.choice(len(df), n, replace = False)]
+
+  # Balance joint combinations, redistributing unused quotas to larger groups.
+  indexed   = df.with_row_index('_sample_row')
+  groups    = [g['_sample_row'].to_numpy() for g in _sorted_groups(indexed, variables)]
+  order     = rng.permutation(len(groups))
+  quota     = np.zeros(len(groups), dtype = int)
+  remaining = n
+  while remaining:
+    active = [i for i in order if quota[i] < len(groups[i])]
+    share  = max(1, remaining // len(active))
+    for i in active:
+      take = min(share, len(groups[i]) - quota[i], remaining)
+      quota[i] += take
+      remaining -= take
+      if not remaining:
+        break
+  idx = np.concatenate([rng.choice(g, q, replace = False) for g, q in zip(groups, quota) if q])
+  return df[idx]
+
+
+def _sorted_groups(df, variables):
+  # Keep original row order within lexicographically ordered combinations.
+  if not variables:
+    return [df]
+  return (
+    df.sort(variables, nulls_last = True, maintain_order = True)
+      .partition_by(variables, maintain_order = True))
+
+
+def _missing_values(df, columns):
+  # Treat floating-point NaN as missing alongside Polars null values.
+  for name in columns:
+    values = df[name]
+    if values.null_count() or (values.dtype.is_float() and values.is_nan().any()):
+      return True
+  return False
+
+
+# Two-pass training and feature selection
+
+def fit_plan(plan_f, h5ads_yaml, output_dir, n_cores, *, xgboost_tag, use_gpu,
+  gene_exclude_re, min_cells_expressed, seed, pass1_subsample, pass1_colsample_bytree,
+  pass1_learning_rate, pass1_nrounds, pass1_early_stopping, gain_threshold, min_genes,
+  max_genes, pass2_colsample_bytree, pass2_learning_rate, pass2_nrounds,
+  pass2_early_stopping, label_map_f):
+
+  import xgboost as xgb
+
+  out = Path(output_dir)
+  out.mkdir(parents = True, exist_ok = True)
+  gpu_device = _verify_gpu(n_cores) if use_gpu else 'cpu'
+
+  # Load only the cells selected by the saved training plan.
+  plan     = pl.read_csv(plan_f, schema_overrides = {'label': pl.String})
+  plan     = plan.filter(pl.col('selected') & pl.col('split').is_in(['train', 'validation']))
+  manifest = yaml.safe_load(Path(h5ads_yaml).read_text())
+  raw, norm, genes, types, plan = _load_plan_expression(plan, manifest, normalize_counts)
+
+  # Encode labels consistently across the training and validation matrices.
+  train   = plan['split'].to_numpy() == 'train'
+  val     = ~train
+  classes = sorted(plan.filter(train)['label'].unique())
+  if not set(plan.filter(val)['label']) <= set(classes):
+    raise ValueError('Validation label absent from training')
+  class_indices = {name: i for i, name in enumerate(classes)}
+  y             = np.array([class_indices[name] for name in plan['label']])
+
+  # Detection filtering uses training cells only; held-out cells cannot select genes.
+  norm, raw, genes, types = _filter_genes_by_type(norm, raw, genes, types, gene_exclude_re)
+  keep  = _training_gene_mask(raw, train, min_cells_expressed)
+  norm  = norm[:, keep].tocsr()
+  raw   = raw[:, keep].tocsr()
+  genes = [g for g, k in zip(genes, keep) if k]
+  if not genes:
+    raise ValueError('No genes pass training-only filtering')
+  xtrain = norm[train]
+  xval   = norm[val]
+
+  # Pass 1 considers all retained genes with the lower column-sampling fraction.
+  model1 = _run_xgboost_pass1(
+    X_train          = xtrain,
+    y_train          = y[train],
+    X_val            = xval,
+    y_val            = y[val],
+    n_cores          = n_cores,
+    seed             = seed,
+    use_gpu          = use_gpu,
+    subsample        = pass1_subsample,
+    colsample_bytree = pass1_colsample_bytree,
+    learning_rate    = pass1_learning_rate,
+    nrounds          = pass1_nrounds,
+    early_stopping   = pass1_early_stopping)
+  best1  = int(model1.best_iteration)
+  model1 = _best_iteration_model(model1)
+
+  # Retain genes contributing the requested cumulative gain, within size bounds.
+  selected, names, importance = _select_features_by_gain(
+    model          = model1,
+    gene_names     = genes,
+    gain_threshold = gain_threshold,
+    min_genes      = min_genes,
+    max_genes      = max_genes)
+  del model1, norm
+  gc.collect()
+  xtrain = xtrain[:, selected].tocsr()
+  xval   = xval[:, selected].tocsr()
+
+  # Pass 2 fits the final classifier on those genes, stopping on validation loss.
+  model2 = _run_xgboost_pass2(
+    X_train          = xtrain,
+    y_train          = y[train],
+    X_val            = xval,
+    y_val            = y[val],
+    n_cores          = n_cores,
+    seed             = seed,
+    use_gpu          = use_gpu,
+    subsample        = pass1_subsample,
+    colsample_bytree = pass2_colsample_bytree,
+    learning_rate    = pass2_learning_rate,
+    nrounds          = pass2_nrounds,
+    early_stopping   = pass2_early_stopping)
+  best2  = int(model2.best_iteration)
+  model2 = _best_iteration_model(model2)
+
+  # Export the best iteration, selected-cell predictions and raw-count summaries.
+  pb = _compute_pseudobulk(raw, plan, genes, selected)
+  _save_outputs(
+    model            = model2,
+    class_names      = classes,
+    selected_genes   = names,
+    gene_importance  = importance,
+    output_dir       = out,
+    ref_tag          = xgboost_tag,
+    cells_df         = plan,
+    label_map        = _load_label_mapping(label_map_f),
+    X_train          = xtrain,
+    y_train          = y[train],
+    X_val            = xval,
+    y_val            = y[val],
+    pseudobulk_adata = pb)
+
+  # Record fitting settings separately from display specifications.
+  configuration = dict(
+    xgboost_tag            = xgboost_tag,
+    use_gpu                = bool(use_gpu),
+    gene_exclude_re        = gene_exclude_re,
+    min_cells_expressed    = min_cells_expressed,
+    seed                   = seed,
+    pass1_subsample        = pass1_subsample,
+    pass1_colsample_bytree = pass1_colsample_bytree,
+    pass1_learning_rate    = pass1_learning_rate,
+    pass1_nrounds          = pass1_nrounds,
+    pass1_early_stopping   = pass1_early_stopping,
+    gain_threshold         = gain_threshold,
+    min_genes              = min_genes,
+    max_genes              = max_genes,
+    pass2_colsample_bytree = pass2_colsample_bytree,
+    pass2_learning_rate    = pass2_learning_rate,
+    pass2_nrounds          = pass2_nrounds,
+    pass2_early_stopping   = pass2_early_stopping,
+    label_map_f            = label_map_f)
+  model_f = out / f'{xgboost_tag}_xgboost_model.json'
+  card    = dict(
+    configuration                  = configuration,
+    n_train                        = int(train.sum()),
+    n_validation                   = int(val.sum()),
+    n_classes                      = len(classes),
+    n_genes                        = len(names),
+    n_genes_tested                 = len(genes),
+    pass1_best_iteration           = best1,
+    pass2_best_iteration           = best2,
+    detection_filter_training_only = True,
+    best_iteration_model_sliced    = True,
+    model_sha256                   = hashlib.sha256(model_f.read_bytes()).hexdigest(),
+    plan_sha256                    = hashlib.sha256(Path(plan_f).read_bytes()).hexdigest(),
+    xgboost_version                = xgb.__version__,
+    xgboost_build                  = xgb.build_info(),
+    training_device                = gpu_device,
+    normalization                  = 'log1p(10000 * counts / all-input-gene library size)',
+    status                         = 'Unreviewed candidate; not registered or published')
+  (out / f'{xgboost_tag}_model_card.json').write_text(json.dumps(card, indent = 2) + '\n')
+
+
+def _verify_gpu(n_cores):
+  import xgboost as xgb
+
+  # Run a tiny CUDA fit and reject silent fallback to CPU.
+  if not xgb.build_info().get('USE_CUDA'):
+    raise RuntimeError('GPU training requested but XGBoost was built without CUDA')
+  probe = xgb.DMatrix(np.array([[0., 1.], [1., 0.], [1., 1.], [0., 0.]], dtype = np.float32),
+    label = np.array([0, 1, 1, 0]), nthread = min(n_cores, 2))
+  model = xgb.train({'objective': 'binary:logistic', 'device': 'cuda',
+    'tree_method': 'hist', 'nthread': min(n_cores, 2)}, probe, num_boost_round = 1)
+  device = json.loads(model.save_config())['learner']['generic_param']['device']
+  if not device.startswith('cuda'):
+    raise RuntimeError('GPU training requested but XGBoost fell back to CPU')
+  print('Verified XGBoost GPU execution on ' + device, flush = True)
+  return device
+
+
+def _load_plan_expression(plan, manifest, normalize):
+  import scipy.sparse as sp
+
+  # Read batches in deterministic order and normalise before gene filtering.
+  raw_parts, norm_parts, ordered = [], [], []
+  genes = types = None
+  for group in _sorted_groups(plan, ['batch']):
+    batch = group['batch'][0]
+    entry = manifest[batch]
+    path  = entry['path'] if isinstance(entry, dict) else entry
+    raw, current, current_types = _read_selected_h5ad(path, group['cell_id'].to_list(), genes)
+    if genes is None:
+      genes, types = current, current_types
+    raw_parts.append(raw)
+    norm_parts.append(normalize(raw).astype(np.float32))
+    ordered.append(group)
+    print(f'Loading {batch}: {len(group)} selected cells', flush = True)
+  # Stack count matrices and metadata in the same cell order.
+  raw = sp.vstack(raw_parts, format = 'csr')
+  raw_parts.clear()
+  norm = sp.vstack(norm_parts, format = 'csr')
+  norm_parts.clear()
+  return raw, norm, genes, types, pl.concat(ordered)
+
+
+def _read_selected_h5ad(path, cells, reference = None):
+  import scipy.sparse as sp
+
+  import anndata as ad
+
+  # Backed read-only access keeps count inputs unchanged.
+  before = (Path(path).stat().st_size, Path(path).stat().st_mtime_ns)
+  data   = ad.read_h5ad(path, backed = 'r')
+  try:
+    ids = (data.obs['cell_id'] if 'cell_id' in data.obs else data.obs_names).astype(str).tolist()
+    if len(set(ids)) != len(ids):
+      raise ValueError(f'Duplicate cell IDs: {path}')
+    positions = {cell: i for i, cell in enumerate(ids)}
+    idx       = np.array([positions.get(cell, -1) for cell in cells])
+    if np.any(idx < 0) or len(set(cells)) != len(cells):
+      raise ValueError(f'Missing/duplicated selected cells: {path}')
+    genes = data.var_names.astype(str).tolist()
+    if len(set(genes)) != len(genes) or any(not g.strip() for g in genes):
+      raise ValueError(f'Invalid gene IDs: {path}')
+    types = (data.var['gene_type'].astype(object).fillna('unknown').astype(str).tolist()
+      if 'gene_type' in data.var else ['unknown'] * len(genes))
+
+    # HDF5 needs sorted row indices; restore the requested order after reading.
+    order  = np.argsort(idx)
+    matrix = sp.csr_matrix(data.X[idx[order], :])[np.argsort(order)].tocsr()
+
+    # Align identical gene sets; mismatched contents remain an error.
+    if reference is not None and genes != reference:
+      if set(genes) != set(reference):
+        raise ValueError(f'Different gene sets: {path}')
+      import warnings
+      warnings.warn(f'Same genes, different order: aligning {path}', stacklevel = 2)
+      positions = {gene: i for i, gene in enumerate(genes)}
+      indices   = [positions[gene] for gene in reference]
+      matrix    = matrix[:, indices].tocsr()
+      types     = [types[i] for i in indices]
+      genes     = list(reference)
+  finally:
+    data.file.close()
+  if before != (Path(path).stat().st_size, Path(path).stat().st_mtime_ns):
+    raise RuntimeError(f'Reading changed input signature: {path}')
+  return matrix, genes, types
+
+
+def normalize_counts(X, scale_factor = 10000):
+  import scipy.sparse as sp
+
+  # Scale by each cell's full-input library size, then apply log1p.
+  X_csr     = X.tocsr().astype(np.float64)
+  lib_sizes = np.array(X_csr.sum(axis = 1)).flatten()
   lib_sizes[lib_sizes == 0] = 1.0
   inv_lib = sp.diags(1.0 / lib_sizes)
-  X_norm = inv_lib @ X_csr
+  X_norm  = inv_lib @ X_csr
   X_norm *= scale_factor
   X_norm.data = np.log1p(X_norm.data)
   return X_norm
 
 
-def filter_genes_by_type(X_norm, X_raw, gene_names, gene_types,gene_exclude_re):
+def _filter_genes_by_type(X_norm, X_raw, gene_names, gene_types, gene_exclude_re):
   # remove genes whose gene_type matches the exclusion regex.
+
   if gene_exclude_re is None or gene_exclude_re == "":
     return X_norm, X_raw, gene_names, gene_types
 
-  pattern = re.compile(gene_exclude_re)
+  pattern   = re.compile(gene_exclude_re)
   keep_mask = np.array([not pattern.search(gt) for gt in gene_types])
-  n_before = len(gene_names)
-  n_after = int(keep_mask.sum())
+  n_before  = len(gene_names)
+  n_after   = int(keep_mask.sum())
 
-  X_norm_filtered = X_norm[:, keep_mask]
-  X_raw_filtered = X_raw[:, keep_mask]
+  X_norm_filtered     = X_norm[:, keep_mask]
+  X_raw_filtered      = X_raw[:, keep_mask]
   gene_names_filtered = [g for g, keep in zip(gene_names, keep_mask) if keep]
   gene_types_filtered = [gt for gt, keep in zip(gene_types, keep_mask) if keep]
 
@@ -60,82 +603,74 @@ def filter_genes_by_type(X_norm, X_raw, gene_names, gene_types,gene_exclude_re):
   return X_norm_filtered, X_raw_filtered, gene_names_filtered, gene_types_filtered
 
 
-def filter_uninformative_genes(X_norm, X_raw, gene_names, min_cells=10):
-  # remove genes expressed in fewer than min_cells cells.
-  cells_per_gene = np.array(X_raw.getnnz(axis=0)).flatten()
-  keep_mask = cells_per_gene >= min_cells
-  n_before = len(gene_names)
-  n_after = int(keep_mask.sum())
+def _training_gene_mask(raw, train, minimum):
 
-  X_norm_filtered = X_norm[:, keep_mask]
-  X_raw_filtered = X_raw[:, keep_mask]
-  gene_names_filtered = [g for g, keep in zip(gene_names, keep_mask) if keep]
-
-  print(f"  Gene filter (>= {min_cells} cells): {n_before} → {n_after} genes "
-        f"({n_before - n_after} removed)")
-
-  return X_norm_filtered, X_raw_filtered, gene_names_filtered
+  # Count detection in training cells only, avoiding held-out information.
+  detected = np.asarray(raw[train].getnnz(axis = 0)).ravel()
+  return detected >= minimum
 
 
-def compute_pseudobulk(X_raw, cells_df, gene_names, sel_indices):
+def _run_xgboost_pass1(X_train, y_train, X_val, y_val,
+  n_cores, seed, use_gpu, subsample, colsample_bytree, learning_rate,
+  nrounds, early_stopping):
+  import xgboost as xgb
 
-  X_sel = X_raw[:, sel_indices]
-  sel_gene_names = [gene_names[i] for i in sel_indices]
+  num_class = int(y_train.max()) + 1
 
-  labels = cells_df["label"].to_list()
-  batches = cells_df["batch"].to_list()
-
-  unique_labels = sorted(set(labels))
-  unique_batches = sorted(set(batches))
-  n_batches = len(unique_batches)
-  n_genes = len(sel_gene_names)
-  batch_to_idx = {s: i for i, s in enumerate(unique_batches)}
-
-  groups: dict[tuple[str, str], list[int]] = {}
-  for i, (lbl, bid) in enumerate(zip(labels, batches)):
-    key = (lbl, bid)
-    if key not in groups:
-      groups[key] = []
-    groups[key].append(i)
-
-  layers = {}
-  n_cells_dict: dict[str, list[int]] = {}
-  for lbl in unique_labels:
-    count_mat = np.zeros((n_batches, n_genes), dtype=np.float64)
-    n_cells_per_batch = [0] * n_batches
-    for bid in unique_batches:
-      key = (lbl, bid)
-      if key in groups:
-        indices = groups[key]
-        count_mat[batch_to_idx[bid], :] = np.array(
-          X_sel[indices, :].sum(axis=0)).flatten()
-        n_cells_per_batch[batch_to_idx[bid]] = len(indices)
-
-    layers[lbl] = count_mat
-    n_cells_dict[lbl] = n_cells_per_batch
-
-  obs_df = pd.DataFrame({"batch": unique_batches}, index=unique_batches)
-  var_df = pd.DataFrame({"gene_id": sel_gene_names}, index=sel_gene_names)
-
-  pb_adata = ad.AnnData(
-    X=np.zeros((n_batches, n_genes)),
-    obs=obs_df,
-    var=var_df,
-    layers=layers,
+  # Fit the broad-feature model, with validation log loss controlling early stopping.
+  params = _build_xgb_params(n_cores, seed, use_gpu, num_class,
+    subsample        = subsample,
+    colsample_bytree = colsample_bytree,
+    learning_rate    = learning_rate,
   )
 
-  n_cells_mat = np.column_stack([n_cells_dict[lbl] for lbl in unique_labels])
-  pb_adata.obsm["n_cells"] = pd.DataFrame(
-    n_cells_mat, index=unique_batches, columns=unique_labels)
+  dtrain = xgb.DMatrix(X_train, label = y_train)
+  dval   = xgb.DMatrix(X_val, label = y_val)
 
-  print(f"  Pseudobulk raw counts: {n_batches} batches, {n_genes} genes, "
-        f"{len(unique_labels)} labels (stored as layers)")
+  model = xgb.train(
+    params                = params, dtrain = dtrain,
+    num_boost_round       = nrounds,
+    evals                 = [(dtrain, "train"), (dval, "val")],
+    early_stopping_rounds = early_stopping,
+    verbose_eval          = 50,
+  )
 
-  return pb_adata
+  print(f"  Best iteration: {model.best_iteration}")
+  return model
 
 
-# xgboost training and feature selection
+def _run_xgboost_pass2(X_train, y_train, X_val, y_val, n_cores, seed, use_gpu,
+  subsample, colsample_bytree, learning_rate, nrounds, early_stopping):
+
+  import xgboost as xgb
+
+  num_class = int(y_train.max()) + 1
+
+  params = _build_xgb_params(n_cores, seed, use_gpu, num_class,
+    subsample        = subsample,
+    colsample_bytree = colsample_bytree,
+    learning_rate    = learning_rate,
+  )
+
+  # Use stable names for the selected features in the saved model.
+  feat_names = [f"g{i}" for i in range(X_train.shape[1])]
+  dtrain     = xgb.DMatrix(X_train, label = y_train, feature_names = feat_names)
+  dval       = xgb.DMatrix(X_val, label = y_val, feature_names = feat_names)
+
+  model = xgb.train(
+    params                = params, dtrain = dtrain,
+    num_boost_round       = nrounds,
+    evals                 = [(dtrain, "train"), (dval, "val")],
+    early_stopping_rounds = early_stopping,
+    verbose_eval          = 50,
+  )
+
+  print(f"  Best iteration: {model.best_iteration}")
+  return model
+
+
 def _build_xgb_params(n_cores, seed, use_gpu, num_class, **overrides):
+  # Use multiclass probabilities and log loss in both training passes.
   params = {
     "objective": "multi:softprob",
     "num_class": num_class,
@@ -150,57 +685,35 @@ def _build_xgb_params(n_cores, seed, use_gpu, num_class, **overrides):
   return params
 
 
-def run_xgboost_pass1(X_train, y_train, X_val, y_val,
-  n_cores, seed, use_gpu, subsample, colsample_bytree, learning_rate,
-  nrounds, early_stopping):
-  num_class = int(y_train.max()) + 1
-
-  params = _build_xgb_params(n_cores, seed, use_gpu, num_class,
-    subsample=subsample,
-    colsample_bytree=colsample_bytree,
-    learning_rate=learning_rate,
-  )
-
-  dtrain = xgb.DMatrix(X_train, label=y_train)
-  dval = xgb.DMatrix(X_val, label=y_val)
-
-  model = xgb.train(
-    params=params, dtrain=dtrain,
-    num_boost_round=nrounds,
-    evals=[(dtrain, "train"), (dval, "val")],
-    early_stopping_rounds=early_stopping,
-    verbose_eval=50,
-  )
-
-  print(f"  Best iteration: {model.best_iteration}")
-  return model
-
-
-def select_features_by_gain(model, gene_names,
+def _select_features_by_gain(model, gene_names,
   gain_threshold, min_genes, max_genes):
 
-  importance = model.get_score(importance_type="gain")
+
+  # Map XGBoost feature indices back to the input genes.
+  importance = model.get_score(importance_type = "gain")
 
   gene_gains = np.zeros(len(gene_names))
   for feat, gain in importance.items():
     gene_gains[int(feat[1:])] = gain
 
-  sorted_idx = np.argsort(-gene_gains)
+  sorted_idx   = np.argsort(-gene_gains)
   sorted_gains = gene_gains[sorted_idx]
 
+  # Accumulate gain over features actually used by the first model.
   nonzero_mask = sorted_gains > 0
-  sorted_idx = sorted_idx[nonzero_mask]
+  sorted_idx   = sorted_idx[nonzero_mask]
   sorted_gains = sorted_gains[nonzero_mask]
 
   total_gain = sorted_gains.sum()
-  cum_gain = np.cumsum(sorted_gains) / total_gain
+  cum_gain   = np.cumsum(sorted_gains) / total_gain
 
+  # Find the cumulative-gain cutoff and apply the configured size bounds.
   n_sel = int(np.searchsorted(cum_gain, gain_threshold)) + 1
   n_sel = max(n_sel, min_genes)
   n_sel = min(n_sel, max_genes)
   n_sel = min(n_sel, len(sorted_idx))
 
-  sel_indices = sorted_idx[:n_sel]
+  sel_indices    = sorted_idx[:n_sel]
   sel_gene_names = [gene_names[i] for i in sel_indices]
 
   gene_importance = pl.DataFrame({
@@ -216,138 +729,19 @@ def select_features_by_gain(model, gene_names,
   return sel_indices, sel_gene_names, gene_importance
 
 
-def run_xgboost_pass2(X_train, y_train, X_val, y_val, n_cores, seed, use_gpu,
-  subsample, colsample_bytree, learning_rate, nrounds, early_stopping):
-
-  num_class = int(y_train.max()) + 1
-
-  params = _build_xgb_params(n_cores, seed, use_gpu, num_class,
-    subsample=subsample,
-    colsample_bytree=colsample_bytree,
-    learning_rate=learning_rate,
-  )
-
-  feat_names = [f"g{i}" for i in range(X_train.shape[1])]
-  dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=feat_names)
-  dval = xgb.DMatrix(X_val, label=y_val, feature_names=feat_names)
-
-  model = xgb.train(
-    params=params, dtrain=dtrain,
-    num_boost_round=nrounds,
-    evals=[(dtrain, "train"), (dval, "val")],
-    early_stopping_rounds=early_stopping,
-    verbose_eval=50,
-  )
-
-  print(f"  Best iteration: {model.best_iteration}")
-  return model
+def _best_iteration_model(model):
+  # Drop rounds after the best validation iteration before scoring or export.
+  return model[:int(model.best_iteration) + 1]
 
 
-# model evaluation
-def evaluate_model(model, X_val, y_val, class_names):
-  
-  feat_names = [f"g{i}" for i in range(X_val.shape[1])]
-  dval = xgb.DMatrix(X_val, feature_names=feat_names)
-  probs = model.predict(dval)
-  y_pred = probs.argmax(axis=1)
-  p_max = probs.max(axis=1)
+# Save model outputs and selected-cell summaries
 
-  overall_acc = (y_pred == y_val).mean()
-  print(f"  Overall accuracy: {overall_acc:.3f}")
-
-  hc_mask = p_max > 0.5
-  if hc_mask.sum() > 0:
-    hc_acc = (y_pred[hc_mask] == y_val[hc_mask]).mean()
-    print(f"  High-confidence accuracy (p>0.5): {hc_acc:.3f} ({hc_mask.sum()} cells)")
-
-  print(f"\n  {'Class':<30} {'N':>6} {'Acc':>6} {'F1':>6}")
-  print("  " + "-" * 52)
-
-  f1_scores = []
-  for i, name in enumerate(class_names):
-    mask_true = y_val == i
-    n_true = mask_true.sum()
-    if n_true == 0:
-      continue
-
-    acc = (y_pred[mask_true] == i).mean()
-    pred_pos = y_pred == i
-    tp = ((y_pred == i) & (y_val == i)).sum()
-    precision = tp / pred_pos.sum() if pred_pos.sum() > 0 else 0
-    recall = tp / n_true if n_true > 0 else 0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
-    f1_scores.append(f1)
-
-    print(f"  {name:<30} {n_true:>6} {acc:>6.3f} {f1:>6.3f}")
-
-  macro_f1 = np.mean(f1_scores) if f1_scores else 0
-  print(f"\n  Macro F1: {macro_f1:.3f}")
-
-  print("\n  Top misclassifications:")
-  print(f"  {'True':<20} {'Predicted':<20} {'N':>5} {'%':>6}")
-  print("  " + "-" * 55)
-
-  confusion_pairs = {}
-  for i in range(len(y_val)):
-    if y_pred[i] != y_val[i]:
-      key = (class_names[y_val[i]], class_names[y_pred[i]])
-      confusion_pairs[key] = confusion_pairs.get(key, 0) + 1
-
-  sorted_pairs = sorted(confusion_pairs.items(), key=lambda x: -x[1])[:15]
-  for (true_name, pred_name), count in sorted_pairs:
-    n_true_class = (y_val == class_names.index(true_name)).sum()
-    pct = count / n_true_class * 100 if n_true_class > 0 else 0
-    print(f"  {true_name:<20} {pred_name:<20} {count:>5} {pct:>5.1f}%")
-
-
-def evaluate_model_coarse(model, X_val, y_val, class_names, label_map):
-
-  feat_names = [f"g{i}" for i in range(X_val.shape[1])]
-  dval = xgb.DMatrix(X_val, feature_names=feat_names)
-  probs = model.predict(dval)
-  y_pred_fine = probs.argmax(axis=1)
-
-  def to_coarse(fine_idx):
-    return label_map.get(class_names[fine_idx], class_names[fine_idx])
-
-  y_true_coarse = np.array([to_coarse(i) for i in y_val])
-  y_pred_coarse = np.array([to_coarse(i) for i in y_pred_fine])
-
-  coarse_classes = sorted(set(y_true_coarse))
-  overall_acc = (y_true_coarse == y_pred_coarse).mean()
-  print(f"  Overall coarse accuracy: {overall_acc:.3f}")
-
-  print(f"\n  {'Coarse class':<30} {'N':>6} {'Acc':>6} {'F1':>6}")
-  print("  " + "-" * 52)
-
-  f1_scores = []
-  for cls in coarse_classes:
-    mask_true = y_true_coarse == cls
-    n_true = mask_true.sum()
-    if n_true == 0:
-      continue
-
-    acc = (y_pred_coarse[mask_true] == cls).mean()
-    pred_pos = y_pred_coarse == cls
-    tp = ((y_pred_coarse == cls) & (y_true_coarse == cls)).sum()
-    precision = tp / pred_pos.sum() if pred_pos.sum() > 0 else 0
-    recall = tp / n_true if n_true > 0 else 0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
-    f1_scores.append(f1)
-
-    print(f"  {cls:<30} {n_true:>6} {acc:>6.3f} {f1:>6.3f}")
-
-  macro_f1 = np.mean(f1_scores) if f1_scores else 0
-  print(f"\n  Coarse Macro F1: {macro_f1:.3f}")
-
-
-# save outputs
-def save_outputs(model, class_names, selected_genes, gene_importance,
-  output_dir, ref_tag, cells_df, label_map=None, X_train=None, y_train=None,
-  X_val=None, y_val=None, pseudobulk_adata=None):
+def _save_outputs(model, class_names, selected_genes, gene_importance,
+  output_dir, ref_tag, cells_df, label_map = None, X_train = None, y_train = None,
+  X_val = None, y_val = None, pseudobulk_adata = None):
 
   # save model, gene list, classes, importance, predictions, and pseudobulk
-  out_dir = pathlib.Path(output_dir)
+  out_dir = Path(output_dir)
 
   model_path = out_dir / f"{ref_tag}_xgboost_model.json"
   model.save_model(str(model_path))
@@ -369,7 +763,7 @@ def save_outputs(model, class_names, selected_genes, gene_importance,
   if label_map is not None:
     map_path = out_dir / f"{ref_tag}_label_map.csv"
     pl.DataFrame({
-      "fine_label": list(label_map.keys()),
+      "label": list(label_map.keys()),
       "coarse_label": list(label_map.values()),
     }).write_csv(str(map_path))
     print(f"  Label map: {map_path}")
@@ -377,10 +771,10 @@ def save_outputs(model, class_names, selected_genes, gene_importance,
   # save predictions for all cells (train + validation)
   if X_val is not None and X_train is not None:
     preds_path = out_dir / f"{ref_tag}_predictions.csv.gz"
-    preds_df = _make_predictions_df(
+    preds_df   = _make_predictions_df(
       model, X_train, y_train, X_val, y_val, cells_df, class_names, label_map
     )
-    preds_df.write_csv(str(preds_path), compression="gzip")
+    preds_df.write_csv(str(preds_path), compression = "gzip")
     print(f"  Predictions: {preds_path}")
 
   if pseudobulk_adata is not None:
@@ -389,26 +783,28 @@ def save_outputs(model, class_names, selected_genes, gene_importance,
     print(f"  Pseudobulk: {pb_path}")
 
 
-def _make_predictions_df(model, X_train, y_train, X_val, y_val, cells_df, class_names, label_map=None):
-  # genertae predictions for all cells
+def _make_predictions_df(model, X_train, y_train, X_val, y_val, cells_df, class_names, label_map = None):
+  # Generate predictions in the selected cell order.
+  import xgboost as xgb
+
   feat_names = [f"g{i}" for i in range(X_val.shape[1])]
 
   # Predict on validation set
-  dval = xgb.DMatrix(X_val, feature_names=feat_names)
+  dval      = xgb.DMatrix(X_val, feature_names = feat_names)
   val_probs = model.predict(dval)
-  val_pred = val_probs.argmax(axis=1)
-  val_pmax = val_probs.max(axis=1)
+  val_pred  = val_probs.argmax(axis = 1)
+  val_pmax  = val_probs.max(axis = 1)
 
   # Predict on training set
-  dtrain = xgb.DMatrix(X_train, feature_names=feat_names)
+  dtrain      = xgb.DMatrix(X_train, feature_names = feat_names)
   train_probs = model.predict(dtrain)
-  train_pred = train_probs.argmax(axis=1)
-  train_pmax = train_probs.max(axis=1)
+  train_pred  = train_probs.argmax(axis = 1)
+  train_pmax  = train_probs.max(axis = 1)
 
-  # Build arrays in cells_df order (train first, then validation)
+  # Fill predictions in cells_df order using the split mask.
   train_mask = cells_df["split"].to_numpy() == "train"
-  all_pred = np.empty(len(cells_df), dtype=int)
-  all_pmax = np.empty(len(cells_df))
+  all_pred   = np.empty(len(cells_df), dtype = int)
+  all_pmax   = np.empty(len(cells_df))
   all_pred[train_mask] = train_pred
   all_pred[~train_mask] = val_pred
   all_pmax[train_mask] = train_pmax
@@ -431,79 +827,443 @@ def _make_predictions_df(model, X_train, y_train, X_val, y_val, cells_df, class_
   return result
 
 
-def aggregate_fulldata_predictions(pred_fs, annots_f, subsample_preds_f,
-  label_map_f, output_f):
+def _compute_pseudobulk(X_raw, cells_df, gene_names, sel_indices):
+  # AnnData requires pandas for obs, var and labelled obsm tables.
 
-  print("=" * 60)
-  print("Aggregating full-data predictions")
-  print("=" * 60)
+  import anndata as ad
 
-  all_preds = pl.concat([pl.read_csv(f) for f in pred_fs])
-  print(f"  Total cells predicted: {all_preds.shape[0]}")
+  X_sel          = X_raw[:, sel_indices]
+  sel_gene_names = [gene_names[i] for i in sel_indices]
 
-  all_preds = all_preds.select([
-    "cell_id",
-    pl.col("predicted_label_naive").alias("predicted_label"),
-    pl.col("probability_naive").alias("probability"),
-  ])
+  labels  = cells_df["label"].to_list()
+  batches = cells_df["batch"].to_list()
 
-  annots_df = pl.read_csv(annots_f)
-  assert "cell_id" in annots_df.columns, "annots_f must have 'cell_id' column"
-  assert "annotation" in annots_df.columns, "annots_f must have 'annotation' column"
-  annots_df = annots_df.select(["cell_id", pl.col("annotation").alias("label")])
+  unique_labels  = sorted(set(labels))
+  unique_batches = sorted(set(batches))
+  n_batches      = len(unique_batches)
+  n_genes        = len(sel_gene_names)
+  batch_to_idx   = {s: i for i, s in enumerate(unique_batches)}
 
-  subsample_df = pl.read_csv(subsample_preds_f).select(["cell_id", "split"])
+  # Index cells by label and batch for raw-count aggregation.
+  groups: dict[tuple[str, str], list[int]] = {}
+  for i, (lbl, bid) in enumerate(zip(labels, batches)):
+    key = (lbl, bid)
+    if key not in groups:
+      groups[key] = []
+    groups[key].append(i)
 
-  result = all_preds.join(annots_df, on="cell_id", how="left")
-  result = result.join(subsample_df, on="cell_id", how="left")
+  # Store one batch-by-gene count matrix per label, including empty combinations.
+  layers = {}
+  n_cells_dict: dict[str, list[int]] = {}
+  for lbl in unique_labels:
+    count_mat         = np.zeros((n_batches, n_genes), dtype = np.float64)
+    n_cells_per_batch = [0] * n_batches
+    for bid in unique_batches:
+      key = (lbl, bid)
+      if key in groups:
+        indices = groups[key]
+        count_mat[batch_to_idx[bid], :] = np.array(
+          X_sel[indices, :].sum(axis = 0)).flatten()
+        n_cells_per_batch[batch_to_idx[bid]] = len(indices)
 
-  result = result.with_columns(
-    pl.when(pl.col("split").is_not_null())
-      .then(pl.col("split"))
-      .when(pl.col("label").is_not_null())
-      .then(pl.lit("holdout"))
-      .otherwise(pl.lit("unlabeled"))
-      .alias("split")
+    layers[lbl] = count_mat
+    n_cells_dict[lbl] = n_cells_per_batch
+
+  obs_df = pl.DataFrame({"batch": unique_batches}).to_pandas()
+  var_df = pl.DataFrame({"gene_id": sel_gene_names}).to_pandas()
+  obs_df.index = unique_batches
+  var_df.index = sel_gene_names
+
+  pb_adata = ad.AnnData(
+    X      = np.zeros((n_batches, n_genes)),
+    obs    = obs_df,
+    var    = var_df,
+    layers = layers,
   )
 
-  label_map = load_label_mapping(label_map_f)
-  if label_map is not None:
-    result = result.with_columns([
-      pl.col("label").replace(label_map).alias("coarse_true"),
-      pl.col("predicted_label").replace(label_map).alias("coarse_predicted"),
-    ])
+  # Keep contributing cell counts alongside the pseudobulk sums.
+  n_cells_mat = np.column_stack([n_cells_dict[lbl] for lbl in unique_labels])
+  n_cells_df  = pl.DataFrame(n_cells_mat, schema = unique_labels, orient = 'row').to_pandas()
+  n_cells_df.index = unique_batches
+  pb_adata.obsm["n_cells"] = n_cells_df
 
-  split_summary = result.group_by("split").len().sort("split")
-  for row in split_summary.iter_rows(named=True):
-    print(f"  {row['split']}: {row['len']} cells")
+  print(f"  Pseudobulk raw counts: {n_batches} batches, {n_genes} genes, "
+        f"{len(unique_labels)} labels (stored as layers)")
 
-  result.write_csv(output_f, compression="gzip")
-  print(f"  Saved to {output_f}")
+  return pb_adata
 
 
-if __name__ == "__main__":
-  import json
-  from train_xgboost_plan import prepare_plan
-  from train_xgboost_workflow import fit_plan, aggregate_plan_predictions
-  parser = argparse.ArgumentParser(description="Train an XGBoost classifier from scprocess outputs")
-  commands = parser.add_subparsers(dest="command", required=True)
-  plan = commands.add_parser("plan")
-  for name in ("annots_f", "cluster_csv", "h5ads_yaml", "batch_var", "config_json", "plan_f", "coverage_f", "counts_f"):
-    plan.add_argument("--" + name, required=True)
-  fit = commands.add_parser("train")
-  for name in ("plan_f", "h5ads_yaml", "config_json", "output_dir"):
-    fit.add_argument("--" + name, required=True)
-  fit.add_argument("--n_cores", type=int, required=True)
-  aggregate = commands.add_parser("aggregate_fulldata")
-  aggregate.add_argument("pred_fs", nargs="+")
-  aggregate.add_argument("--plan_f", required=True)
-  aggregate.add_argument("--cluster_csv", required=True)
-  aggregate.add_argument("--output_f", required=True)
-  args = parser.parse_args()
-  if args.command == "plan":
-    prepare_plan(args.annots_f, args.cluster_csv, args.h5ads_yaml, json.loads(args.config_json),
-      args.batch_var, args.plan_f, args.coverage_f, args.counts_f)
-  elif args.command == "train":
-    fit_plan(args.plan_f, args.h5ads_yaml, json.loads(args.config_json), args.output_dir, args.n_cores)
+def _load_label_mapping(label_map_f):
+
+  # Leave labels unchanged when no legacy mapping file is supplied.
+  if label_map_f is None:
+    return None
+
+  records, _ = read_label_specs(label_map_f = label_map_f)
+  return label_mapping(records)
+
+
+# Full-data evaluation and label specifications
+
+def aggregate_plan_predictions(pred_fs, plan_f, output_f, cluster_csv):
+  # Combine per-batch calls and require one prediction per integrated cell.
+  preds = pl.concat([pl.read_csv(path, columns = ['cell_id', 'predicted_label_naive', 'probability_naive'],
+    schema_overrides = {'cell_id': pl.String, 'predicted_label_naive': pl.String,
+      'probability_naive': pl.Float64}) for path in pred_fs])
+  if preds['cell_id'].n_unique() != len(preds):
+    raise ValueError('Duplicate full-data predictions')
+  preds = preds.select('cell_id', pl.col('predicted_label_naive').alias('predicted_label'),
+    pl.col('probability_naive').alias('probability'))
+  join_cells = pl.read_csv(cluster_csv, columns = ['cell_id'])
+  preds      = preds.join(join_cells, on = 'cell_id', how = 'inner', maintain_order = 'left')
+  if len(preds) != len(join_cells):
+    raise ValueError('Integrated cells missing from full-data predictions')
+
+  # Preserve all integrated cells, including those without a reference label.
+  plan   = pl.read_csv(plan_f, schema_overrides = {'label': pl.String, 'original_label': pl.String})
+  fields = ['cell_id', 'label', 'original_label', 'split', 'selected', 'label_supported_in_training']
+  result = preds.join(plan.select(fields), on = 'cell_id', how = 'left', maintain_order = 'left').with_columns(
+    pl.col('split').fill_null('unlabeled'), pl.col('selected').fill_null(False),
+    pl.col('label_supported_in_training').fill_null(False))
+  if not set(plan['cell_id']) <= set(result['cell_id']):
+    raise ValueError('Planned cells missing from full-data predictions')
+  metadata_f    = Path(str(plan_f) + '.json')
+  configuration = json.loads(metadata_f.read_text())['configuration'] if metadata_f.exists() else {}
+  if configuration.get('label_map_f'):
+    mapping = _load_label_mapping(configuration['label_map_f'])
+    result  = result.with_columns(pl.col('label').replace(mapping).alias('coarse_true'),
+      pl.col('predicted_label').replace(mapping).alias('coarse_predicted'))
+  result.write_csv(output_f, compression = 'gzip')
+
+  # Score unselected development cells separately from fitting/validation cells.
+  prefix = str(output_f).removesuffix('_fulldata_predictions.csv.gz')
+  _write_evaluation(_evaluation_counts(result), prefix, 'label')
+
+
+def write_label_specifications(cls_f, counts_f, predictions_f, output_dir, *,
+  xgboost_tag, label_specs_f, coarse_label_specs_f, label_map_f):
+
+  # Use training abundance for the default display order unless a table supplies one.
+  classes       = pl.read_csv(cls_f)['class'].to_list()
+  counts        = dict(pl.read_csv(counts_f).select('label', 'len').iter_rows())
+  default_order = sorted(classes, key = lambda name: (-counts.get(name, 0), name))
+  specs, coarse = read_label_specs(label_specs_f, coarse_label_specs_f, default_order, label_map_f)
+  out = Path(output_dir)
+  out.mkdir(parents = True, exist_ok = True)
+  prefix = out / xgboost_tag
+  pl.DataFrame(specs, schema = {'label': pl.String, 'colour': pl.String, 'coarse_label': pl.String}).write_csv(
+    str(prefix) + '_label_specs.csv')
+  pl.DataFrame(coarse, schema = {'coarse_label': pl.String, 'coarse_colour': pl.String}).write_csv(
+    str(prefix) + '_coarse_label_specs.csv')
+
+  # Coarse evaluation is a direct lookup of fine labels, without another vote.
+  mapping = label_mapping(specs)
+  if mapping:
+    counts = _evaluation_counts(pl.scan_csv(predictions_f,
+      schema_overrides = {'label': pl.String, 'predicted_label': pl.String}), mapping)
   else:
-    aggregate_plan_predictions(args.pred_fs, args.plan_f, args.output_f, args.cluster_csv)
+    counts = pl.DataFrame(schema = {'split': pl.String, 'label': pl.String,
+      'predicted_label': pl.String, 'len': pl.UInt32})
+  _write_evaluation(counts, str(prefix) + '_coarse', 'coarse_label')
+
+
+def _evaluation_counts(df, mapping = None):
+  # Summarise lazily so full prediction tables need not be converted or collected.
+  if isinstance(df, pl.DataFrame):
+    df = df.lazy()
+  if 'selected' not in df.collect_schema():
+    df = df.with_columns(pl.lit(True).alias('selected'))
+  df = df.filter(
+    pl.col('label').is_not_null() & ~pl.col('split').is_in(['excluded', 'unsupported', 'unlabeled']))
+  df = df.with_columns(
+    pl.when(~pl.col('selected') & pl.col('split').is_in(['train', 'validation']))
+      .then(pl.lit('development_holdout')).otherwise(pl.col('split')).alias('split'))
+  if mapping:
+    df = df.with_columns(pl.col('label').replace(mapping), pl.col('predicted_label').replace(mapping))
+  return df.group_by(['split', 'label', 'predicted_label']).len().collect(engine = 'streaming')
+
+
+def _write_evaluation(counts, prefix, label_column_name):
+
+  # Evaluate each split using both observed and predicted labels.
+  metrics   = []
+  per_label = []
+  for group in _sorted_groups(counts, ['split']):
+    split     = group['split'][0]
+    labels    = sorted(set(group['label']) | set(group['predicted_label']))
+    confusion = {(a, b): n for _, a, b, n in group.select('split', 'label', 'predicted_label', 'len').iter_rows()}
+    scores    = []
+    for name in labels:
+      support   = sum(n for (a, b), n in confusion.items() if a == name)
+      predicted = sum(n for (a, b), n in confusion.items() if b == name)
+      tp        = confusion.get((name, name), 0)
+      precision = tp / max(predicted, 1)
+      recall    = tp / max(support, 1)
+      f1        = 2 * precision * recall / (precision + recall) if precision + recall else 0.
+      per_label.append(dict(split = split, **{label_column_name: name},
+        precision = precision, recall = recall, f1 = f1, n_test = support))
+      # Average over labels with reference cells in this split.
+      if support:
+        scores.append((recall, f1))
+    n_cells = sum(confusion.values())
+    metrics.append(dict(split = split, n_cells = n_cells,
+      accuracy          = sum(n for (a, b), n in confusion.items() if a == b) / n_cells,
+      macro_f1          = float(np.mean([s[1] for s in scores])),
+      balanced_accuracy = float(np.mean([s[0] for s in scores]))))
+
+  # Write stable table columns even when there are no evaluable cells.
+  metric_schema = {'split': pl.String, 'n_cells': pl.Int64, 'accuracy': pl.Float64,
+    'macro_f1': pl.Float64, 'balanced_accuracy': pl.Float64}
+  label_schema = {'split': pl.String, label_column_name: pl.String, 'precision': pl.Float64,
+    'recall': pl.Float64, 'f1': pl.Float64, 'n_test': pl.Int64}
+  summary = pl.DataFrame(metrics, schema = metric_schema)
+  summary.write_csv(str(prefix) + '_evaluation.csv')
+  pl.DataFrame(per_label, schema = label_schema).write_csv(str(prefix) + '_per_label_evaluation.csv')
+  print(summary, flush = True)
+
+
+# Model installation, registry identities and label specifications
+
+def resolve_xgboost_entry(entry, scdata_dir):
+  # Resolve a single installed classifier and check its required files.
+  registry = pl.read_csv(Path(scdata_dir) / 'xgboost/xgboost_models.csv')
+  rows = registry.filter(pl.col('model') == entry['model'])
+  if len(rows) != 1:
+    raise ValueError(f"Expected one registered XGBoost model named {entry['model']}; found {len(rows)}")
+  row = rows.row(0, named = True)
+  for key in ['model_f', 'cls_f', 'genes_f']:
+    entry[key] = row[key]
+    if not Path(entry[key]).is_file():
+      raise FileNotFoundError(f"XGBoost file missing: {entry[key]}; rerun scprocess setup")
+  # Older registry entries may omit display and coarse-label specifications.
+  entry['label_specs_f'] = row.get('label_specs_f') or ''
+  entry['coarse_label_specs_f'] = row.get('coarse_label_specs_f') or ''
+  entry['label_map_f'] = row.get('label_map_f') or ''
+  if entry['label_specs_f']:
+    classes = pl.read_csv(entry['cls_f'])['class'].to_list()
+    specs, coarse = read_label_specs(entry['label_specs_f'], entry['coarse_label_specs_f'], classes)
+    entry['label_map_f'] = entry['label_specs_f'] if label_mapping(specs) else ''
+  # Attach the installed model identity after verifying its checksums.
+  entry.update(model_identity(entry['model_f'], entry['model']))
+  return entry
+
+
+def install_builtin(name, dest_dir):
+  manifest = builtin_models()[name]
+  dest_dir = Path(dest_dir)
+  dest_dir.parent.mkdir(parents = True, exist_ok = True)
+  # Validate the complete download before replacing any installed files.
+  with tempfile.TemporaryDirectory(dir = dest_dir.parent) as directory:
+    stage   = Path(directory)
+    archive = stage / 'download.tar.gz'
+    urllib.request.urlretrieve(manifest['url'], archive)
+    if sha256(archive) != manifest['archive_sha256']:
+      raise ValueError(f'Archive checksum mismatch for {name}')
+    # Accept only the expected regular files within this model archive.
+    found = set()
+    with tarfile.open(archive, 'r:gz') as tar:
+      for member in tar.getmembers():
+        path = Path(member.name)
+        if member.isdir() and path.parts == (manifest['model_id'],):
+          continue
+        if (not member.isfile() or len(path.parts) != 2 or
+            path.parts[0] != manifest['model_id'] or
+            path.name not in manifest['files'] or path.name in found):
+          raise ValueError(f'Unexpected model archive member: {member.name}')
+        with tar.extractfile(member) as source, (stage / path.name).open('wb') as target:
+          shutil.copyfileobj(source, target)
+        if sha256(stage / path.name) != manifest['files'][path.name]:
+          raise ValueError(f'Model member checksum mismatch: {path.name}')
+        found.add(path.name)
+    if found != set(manifest['files']):
+      raise ValueError(f'Incomplete model archive for {name}')
+    # Install files only after the entire staged archive passes validation.
+    dest_dir.mkdir(exist_ok = True)
+    for filename in found:
+      shutil.copy2(stage / filename, dest_dir / filename)
+    (dest_dir / f'{name}_manifest.json').write_text(json.dumps(manifest, indent = 2) + '\n')
+
+
+def model_identity(model_f, name):
+  model_f    = Path(model_f)
+  checksum   = sha256(model_f)
+  manifest_f = model_f.with_name(model_f.name.removesuffix('_xgboost_model.json') + '_manifest.json')
+  model_id   = name
+  # Installed manifests identify the model and protect all companion files.
+  if manifest_f.exists():
+    manifest = json.loads(manifest_f.read_text())
+    expected = manifest['files'][model_f.name]
+    if checksum != expected:
+      raise ValueError(f'XGBoost model checksum mismatch: {model_f}')
+    for filename, expected_hash in manifest['files'].items():
+      if filename != model_f.name and sha256(model_f.with_name(filename)) != expected_hash:
+        raise ValueError(f'XGBoost file checksum mismatch: {filename}')
+    model_id = manifest['model_id']
+  return {'model_id': model_id, 'model_sha256': checksum}
+
+
+def read_label_specs(label_specs_f = None, coarse_label_specs_f = None, labels = None, label_map_f = None):
+  import csv
+
+  if label_specs_f and label_map_f:
+    raise ValueError('Use label_specs_f or legacy label_map_f, not both')
+
+  # Read standard labels in the supplied display order.
+  source  = label_specs_f or label_map_f
+  records = []
+  if source:
+    with Path(source).open(newline = '') as stream:
+      reader = csv.DictReader(stream)
+      columns = reader.fieldnames or []
+      label_columns = [name for name in ['label', 'annotation', 'fine_label'] if name in columns]
+      if len(label_columns) != 1:
+        raise ValueError(f'{source} needs one label column (label; legacy annotation/fine_label accepted)')
+      column = label_columns[0]
+      for row in reader:
+        records.append({'label': (row.get(column) or '').strip(),
+          'colour': (row.get('colour') or '').strip(),
+          'coarse_label': (row.get('coarse_label') or '').strip()})
+    if not records:
+      raise ValueError(f'Empty label specifications: {source}')
+  elif labels is not None:
+    records = [{'label': str(label), 'colour': '', 'coarse_label': ''} for label in labels]
+
+  # Validate label coverage and complete optional colour/group specifications.
+  names = [row['label'] for row in records]
+  if any(not name for name in names) or len(set(names)) != len(names):
+    raise ValueError('Label specifications contain missing or duplicate labels')
+  if labels is not None and not set(labels) <= set(names):
+    raise ValueError(f"Label specifications miss model labels: {sorted(set(labels)-set(names))}")
+  colours = [row['colour'] for row in records]
+  if any(colours) and not all(colours):
+    raise ValueError('Supply colours for every label, or omit the colour column')
+  mapping = [row['coarse_label'] for row in records]
+  if any(mapping) and not all(mapping):
+    raise ValueError('Supply coarse_label for every label, or omit the coarse_label column')
+
+  # A separate table can give coarse labels their own order and colours.
+  groups = list(dict.fromkeys(value for value in mapping if value))
+  coarse = []
+  if coarse_label_specs_f:
+    with Path(coarse_label_specs_f).open(newline = '') as stream:
+      reader = csv.DictReader(stream)
+      if 'coarse_label' not in (reader.fieldnames or []):
+        raise ValueError('Coarse specifications need a coarse_label column')
+      coarse = [{'coarse_label': (row.get('coarse_label') or '').strip(),
+        'coarse_colour': (row.get('coarse_colour') or '').strip()} for row in reader]
+    if coarse and not groups:
+      raise ValueError('Coarse specifications require a coarse_label mapping in label_specs_f')
+    names_coarse = [row['coarse_label'] for row in coarse]
+    if any(not name for name in names_coarse) or len(names_coarse) != len(set(names_coarse)):
+      raise ValueError('Coarse specifications contain missing or duplicate labels')
+    if not set(groups) <= set(names_coarse):
+      raise ValueError(f"Coarse specifications miss groups: {sorted(set(groups)-set(names_coarse))}")
+  else:
+    coarse = [{'coarse_label': name, 'coarse_colour': ''} for name in groups]
+  coarse_colours = [row['coarse_colour'] for row in coarse]
+  if any(coarse_colours) and not all(coarse_colours):
+    raise ValueError('Supply colours for every coarse label, or omit coarse_colour')
+
+  # Explicit hex colours are portable between Python, R and installed models.
+  for colour in colours + coarse_colours:
+    if colour and not re.fullmatch(r'#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?', colour):
+      raise ValueError(f'Invalid colour {colour!r}; use #RRGGBB or #RRGGBBAA')
+  return records, coarse
+
+
+def builtin_models():
+  # Load the centrally maintained model manifests shipped with this checkout.
+  root = Path(__file__).resolve().parents[1] / 'resources/xgboost'
+  return {record['name']: record for path in sorted(root.glob('*.json'))
+    for record in [json.loads(path.read_text())]}
+
+
+def sha256(path):
+  # Hash large model files without reading them fully into memory.
+  with Path(path).open('rb') as stream:
+    return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def label_mapping(records):
+  # Include only explicitly assigned coarse labels.
+  return {row['label']: row['coarse_label'] for row in records if row['coarse_label']}
+
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser(
+    description = 'Train an XGBoost classifier from scprocess outputs')
+  commands = parser.add_subparsers(dest = 'command', required = True)
+
+  # The workflow supplies validated settings; defaults belong in the schemas.
+  # Planning uses metadata only, before expression matrices are loaded.
+  plan = commands.add_parser('plan')
+  for name in ('annots_f', 'cluster_csv', 'h5ads_yaml', 'batch_var',
+    'plan_f', 'coverage_f', 'counts_f', 'validation_group_var'):
+    plan.add_argument('--' + name, required = True)
+
+  for name in ('label_map_f', 'test_group_var'):
+    plan.add_argument('--' + name)
+
+  for name in ('train_cells_per_type', 'validation_cells_per_type', 'min_cells_per_type', 'seed'):
+    plan.add_argument('--' + name, required = True, type = int)
+
+  for name in ('cluster_majority_vote_min_purity', 'validation_fraction'):
+    plan.add_argument('--' + name, required = True, type = float)
+
+  for name in ('excluded_labels', 'test_groups', 'validation_variable_combinations',
+    'sampling_variable_combinations'):
+    plan.add_argument('--' + name, nargs = '*', default = [])
+
+  plan.add_argument('--cluster_majority_vote_resolution',
+    type = lambda value: float(value) if value else None)
+  plan.add_argument('--is_join', type = int, choices = [0, 1], required = True)
+
+  # Both training passes use the saved cell selection and these fitting settings.
+  fit = commands.add_parser('train')
+  for name in ('plan_f', 'h5ads_yaml', 'output_dir', 'xgboost_tag', 'gene_exclude_re'):
+    fit.add_argument('--' + name, required = True)
+
+  fit.add_argument('--label_map_f')
+
+  for name in ('n_cores', 'seed', 'min_cells_expressed', 'min_genes', 'max_genes',
+    'pass1_nrounds', 'pass1_early_stopping', 'pass2_nrounds', 'pass2_early_stopping'):
+    fit.add_argument('--' + name, required = True, type = int)
+
+  for name in ('pass1_subsample', 'pass1_colsample_bytree', 'pass1_learning_rate',
+    'pass2_colsample_bytree', 'pass2_learning_rate', 'gain_threshold'):
+    fit.add_argument('--' + name, required = True, type = float)
+
+  fit.add_argument('--use_gpu', type = int, choices = [0, 1], required = True)
+
+  # Full-data evaluation combines per-batch predictions with the original plan.
+  aggregate = commands.add_parser('aggregate_fulldata')
+  for name in ('plan_f', 'cluster_csv', 'output_f'):
+    aggregate.add_argument('--' + name, required = True)
+
+  aggregate.add_argument('pred_fs', nargs = '+')
+
+  # Display specifications and coarse summaries can change without refitting.
+  specs = commands.add_parser('specs')
+  for name in ('cls_f', 'counts_f', 'predictions_f', 'output_dir', 'xgboost_tag'):
+    specs.add_argument('--' + name, required = True)
+
+  for name in ('label_specs_f', 'coarse_label_specs_f', 'label_map_f'):
+    specs.add_argument('--' + name)
+
+  args    = vars(parser.parse_args())
+  command = args.pop('command')
+
+  # Empty strings represent omitted optional features, not alternative defaults.
+  for name in ('test_group_var', 'label_map_f', 'label_specs_f',
+    'coarse_label_specs_f', 'gene_exclude_re'):
+    if name in args and args[name] == '':
+      args[name] = None
+
+  if command == 'plan':
+    prepare_plan(**args)
+  elif command == 'train':
+    fit_plan(**args)
+  elif command == 'specs':
+    write_label_specifications(**args)
+  else:
+    aggregate_plan_predictions(**args)

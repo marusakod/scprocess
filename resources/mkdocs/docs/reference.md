@@ -91,7 +91,23 @@ Probe set indices for 10x Flex data are prepared with {{scsetup}} by adding a `p
 Custom `XGBoost` classifiers trained with {{sc}} (using the `train_xgboost` functionality) can be registered with {{scsetup}} so they are available for cell type annotation in any project. To register a user-trained classifier, add an `xgboost` section to the `scprocess_setup.yaml` file. Each entry specifies a classifier to install. There are two ways to reference a trained classifier:
 
  * use the `config` parameter to point to the project configuration file that was used to train the classifier. {{sc}} will automatically locate the training outputs.
- * use the `scr_dir` parameter to point directly to the directory containing the trained classifier. Required the `name` parameter (unique identifier for the classifier) to be specified.
+ * use the `src_dir` parameter to point directly to the directory containing the trained classifier. Required the `name` parameter (unique identifier for the classifier) to be specified.
+
+For a local classifier with display metadata, for example:
+
+```yaml
+xgboost:
+  - name: my_classifier
+    src_dir: /path/to/project/output/my_project_train_xgboost
+    xgboost_tag: xgboost_my_classifier
+```
+
+The source tag identifies the filename prefix; `name` identifies the installed
+classifier. Alternatively use `config: /path/to/config.yaml` (and an optional
+`name`) to resolve the current `xgboost_tag` and training output directory.
+Optional `*_label_specs.csv` and `*_coarse_label_specs.csv` are copied with the
+weights. See [label specifications](development/xgboost-training.md#label-specifications)
+for input formats and ordering/colour behaviour.
 
 ## {{scnew}}
 

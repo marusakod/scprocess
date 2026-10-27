@@ -1154,20 +1154,34 @@ rule zoom_train_xgboost_plan:
     cluster_csv = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
     h5ads_yaml = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
     label_map = lambda wildcards: [ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['label_map_f']] if ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') else [],
-    planner = str(scprocess_dir / 'scripts/train_xgboost_plan.py'),
+    planner = str(scprocess_dir / 'scripts/train_xgboost.py'),
   output:
     plan_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_plan.csv.gz',
     coverage_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_split_coverage.csv',
     counts_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_label_counts.csv',
     metadata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_plan.csv.gz' + '.json',
   params:
-    config_json = lambda wildcards: json.dumps(get_xgboost_planning_config(ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'])),
+    excluded_labels                  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['excluded_labels'],
+    label_map_f                      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') or '',
+    cluster_majority_vote_resolution = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('cluster_majority_vote_resolution', ''),
+    cluster_majority_vote_min_purity = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['cluster_majority_vote_min_purity'],
+    test_group_var                   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('test_group_var') or '',
+    test_groups                      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('test_groups', []),
+    validation_group_var             = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['validation_group_var'],
+    validation_fraction              = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['validation_fraction'],
+    validation_variable_combinations = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['validation_variable_combinations'],
+    sampling_variable_combinations   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['sampling_variable_combinations'],
+    train_cells_per_type             = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['train_cells_per_type'],
+    validation_cells_per_type        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['validation_cells_per_type'],
+    min_cells_per_type               = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['min_cells_per_type'],
+    seed                             = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['seed'],
     batch_var = BATCH_VAR,
+    is_join   = 0,
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = config['resources'].get('gb_train_xgboost_plan', 8) * 1024,
-    runtime = config['resources'].get('mins_train_xgboost_plan', 10)
+    mem_mb = config['resources']['gb_train_xgboost_plan'] * 1024,
+    runtime = config['resources']['mins_train_xgboost_plan']
   log: f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_plan.csv.gz' + '.log'
   conda: '../envs/label_celltypes.yaml'
   shell: """
@@ -1175,7 +1189,21 @@ rule zoom_train_xgboost_plan:
     python3 {scprocess_dir}/scripts/train_xgboost.py plan \
       --annots_f {input.annots_f:q} --cluster_csv {input.cluster_csv:q} \
       --h5ads_yaml {input.h5ads_yaml:q} --batch_var {params.batch_var:q} \
-      --config_json {params.config_json:q} --plan_f {output.plan_f:q} \
+      --is_join {params.is_join} \
+      --excluded_labels {params.excluded_labels:q} \
+      --label_map_f={params.label_map_f:q} \
+      --cluster_majority_vote_resolution={params.cluster_majority_vote_resolution:q} \
+      --cluster_majority_vote_min_purity {params.cluster_majority_vote_min_purity:q} \
+      --test_group_var={params.test_group_var:q} \
+      --test_groups {params.test_groups:q} \
+      --validation_group_var {params.validation_group_var:q} \
+      --validation_fraction {params.validation_fraction:q} \
+      --validation_variable_combinations {params.validation_variable_combinations:q} \
+      --sampling_variable_combinations {params.sampling_variable_combinations:q} \
+      --train_cells_per_type {params.train_cells_per_type:q} \
+      --validation_cells_per_type {params.validation_cells_per_type:q} \
+      --min_cells_per_type {params.min_cells_per_type:q} \
+      --seed {params.seed:q} --plan_f {output.plan_f:q} \
       --coverage_f {output.coverage_f:q} --counts_f {output.counts_f:q}
     """
 
@@ -1184,7 +1212,7 @@ rule zoom_train_xgboost:
   input:
     plan_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_plan.csv.gz',
     h5ads_yaml = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
-    trainer = str(scprocess_dir / "scripts/train_xgboost_workflow.py"),
+    trainer = str(scprocess_dir / "scripts/train_xgboost.py"),
   output:
     model_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_xgboost_model.json',
     cls_f    = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_allowed_cls.csv',
@@ -1195,7 +1223,24 @@ rule zoom_train_xgboost:
     model_card_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_model_card.json',
   params:
     output_dir = lambda wildcards: f'{zoom_dir}/{wildcards.zoom_name}/train_xgboost',
-    config_json = lambda wildcards: json.dumps(ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']),
+    xgboost_tag            = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['xgboost_tag'],
+    use_gpu                = lambda wildcards: int(ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['use_gpu']),
+    gene_exclude_re        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('gene_exclude_re') or '',
+    min_cells_expressed    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['min_cells_expressed'],
+    seed                   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['seed'],
+    pass1_subsample        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass1_subsample'],
+    pass1_colsample_bytree = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass1_colsample_bytree'],
+    pass1_learning_rate    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass1_learning_rate'],
+    pass1_nrounds          = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass1_nrounds'],
+    pass1_early_stopping   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass1_early_stopping'],
+    gain_threshold         = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['gain_threshold'],
+    min_genes              = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['min_genes'],
+    max_genes              = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['max_genes'],
+    pass2_colsample_bytree = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass2_colsample_bytree'],
+    pass2_learning_rate    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass2_learning_rate'],
+    pass2_nrounds          = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass2_nrounds'],
+    pass2_early_stopping   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass2_early_stopping'],
+    label_map_f            = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') or '',
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -1208,13 +1253,66 @@ rule zoom_train_xgboost:
   benchmark:
     f'{benchmark_dir}/zoom/zoom_train_xgboost_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.benchmark.txt'
   conda:
-    lambda wildcards: '../envs/train_xgboost_gpu.yaml' if ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('use_gpu', False) else '../envs/label_celltypes.yaml'
+    lambda wildcards: '../envs/train_xgboost_gpu.yaml' if ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['use_gpu'] else '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
     python3 {scprocess_dir}/scripts/train_xgboost.py train \
       --plan_f {input.plan_f:q} --h5ads_yaml {input.h5ads_yaml:q} \
-      --config_json {params.config_json:q} --output_dir {params.output_dir:q} \
+      --xgboost_tag {params.xgboost_tag:q} \
+      --use_gpu {params.use_gpu:q} \
+      --gene_exclude_re={params.gene_exclude_re:q} \
+      --min_cells_expressed {params.min_cells_expressed:q} \
+      --seed {params.seed:q} \
+      --pass1_subsample {params.pass1_subsample:q} \
+      --pass1_colsample_bytree {params.pass1_colsample_bytree:q} \
+      --pass1_learning_rate {params.pass1_learning_rate:q} \
+      --pass1_nrounds {params.pass1_nrounds:q} \
+      --pass1_early_stopping {params.pass1_early_stopping:q} \
+      --gain_threshold {params.gain_threshold:q} \
+      --min_genes {params.min_genes:q} \
+      --max_genes {params.max_genes:q} \
+      --pass2_colsample_bytree {params.pass2_colsample_bytree:q} \
+      --pass2_learning_rate {params.pass2_learning_rate:q} \
+      --pass2_nrounds {params.pass2_nrounds:q} \
+      --pass2_early_stopping {params.pass2_early_stopping:q} \
+      --label_map_f={params.label_map_f:q} --output_dir {params.output_dir:q} \
       --n_cores {threads}
+    """
+
+
+rule zoom_train_xgboost_specs:
+  input:
+    cls_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_allowed_cls.csv',
+    counts_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_label_counts.csv',
+    predictions_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_predictions.csv.gz',
+    specifications = lambda wildcards: get_xgboost_spec_inputs(ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']),
+    script_f = str(scprocess_dir / "scripts/train_xgboost.py"),
+  output:
+    label_specs_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_label_specs.csv',
+    coarse_label_specs_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_coarse_label_specs.csv',
+    coarse_evaluation_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_coarse_evaluation.csv',
+    coarse_per_label_evaluation_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_coarse_per_label_evaluation.csv',
+  params:
+    xgboost_tag          = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['xgboost_tag'],
+    label_specs_f        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_specs_f') or '',
+    coarse_label_specs_f = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('coarse_label_specs_f') or '',
+    label_map_f          = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') or '',
+    output_dir = lambda wildcards: str(pathlib.Path(f'{zoom_dir}/{wildcards.zoom_name}/train_xgboost/{wildcards.ref_tag}').parent),
+  threads: 1
+  resources:
+    mem_mb = 2048,
+    runtime = 5
+  log: f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_specs.log'
+  conda: '../envs/label_celltypes.yaml'
+  shell: """
+    exec &>> {log}
+    python3 {scprocess_dir}/scripts/train_xgboost.py specs \
+      --cls_f {input.cls_f:q} --counts_f {input.counts_f:q} \
+      --predictions_f {input.predictions_f:q} --xgboost_tag {params.xgboost_tag:q} \
+      --label_specs_f={params.label_specs_f:q} \
+      --coarse_label_specs_f={params.coarse_label_specs_f:q} \
+      --label_map_f={params.label_map_f:q} \
+      --output_dir {params.output_dir:q}
     """
 
 

@@ -2,6 +2,7 @@
 
 
 import argparse
+import pathlib
 import gzip
 import os
 import re
@@ -69,7 +70,7 @@ URLS_XGBOOSTS = {
   'Siletti_hippocampus-2026-06-22': 'https://github.com/marusakod/scprocessData/releases/download/v0.2.1/Siletti_hippocampus-2026-06-22.tar.gz',
 }
 
-from xgboost_models import builtin_models, install_builtin, sha256
+from train_xgboost import builtin_models, install_builtin, sha256
 URLS_XGBOOSTS.update({name: model['url'] for name, model in builtin_models().items()})
 
 COMPLEMENT = str.maketrans('ACGT', 'TGCA')
@@ -838,6 +839,17 @@ def get_xgboost_parameters(config):
 def _resolve_xgboost_spec(spec):
   import pathlib
 
+  if spec.get('src_dir'):
+    if spec.get('config'):
+      raise ValueError('Specify config or src_dir, not both')
+    src_dir = str(pathlib.Path(spec['src_dir']).resolve())
+    tags = [p.name.removesuffix('_xgboost_model.json') for p in pathlib.Path(src_dir).glob('*_xgboost_model.json')]
+    tag = spec.get('xgboost_tag')
+    if tag is None:
+      if len(tags) != 1:
+        raise ValueError('Specify xgboost_tag when src_dir does not contain exactly one model')
+      tag = tags[0]
+    return spec['name'], tag, src_dir
   config_f = spec['config']
   if not os.path.isfile(config_f):
     raise FileNotFoundError(f"config file {config_f} does not exist")
@@ -855,7 +867,7 @@ def _resolve_xgboost_spec(spec):
       raise ValueError(f"Config file {config_f} does not contain a 'train_xgboost' section")
     join_name = cfg['join']['name']
     join_dir  = cfg['join']['proj_dir']
-    raw_tag   = cfg['train_xgboost'].get('ref_tag')
+    raw_tag   = cfg['train_xgboost'].get('xgboost_tag', cfg['train_xgboost'].get('ref_tag'))
     ref_tag   = f"xgboost_{raw_tag}" if raw_tag else f"xgboost_{join_name}"
     src_dir   = os.path.join(join_dir, 'output', f'{join_name}_train_xgboost')
   elif zoom_name is not None:
@@ -871,13 +883,13 @@ def _resolve_xgboost_spec(spec):
     if 'train_xgboost' not in cfg:
       raise ValueError(f"Config file {config_f} does not contain a 'train_xgboost' section")
     full_tag  = cfg['project']['full_tag']
-    raw_tag   = cfg['train_xgboost'].get('ref_tag')
+    raw_tag   = cfg['train_xgboost'].get('xgboost_tag', cfg['train_xgboost'].get('ref_tag'))
     ref_tag   = f"xgboost_{raw_tag}" if raw_tag else f"xgboost_{full_tag}"
     proj_dir  = cfg['project']['proj_dir']
     short_tag = cfg['project']['short_tag']
     src_dir   = os.path.join(proj_dir, 'output', f'{short_tag}_train_xgboost')
 
-  return ref_tag, ref_tag, src_dir
+  return spec.get('name', ref_tag), ref_tag, src_dir
 
 
 def _resolve_zoom_xgboost_ref_tag(zoom_yamls, zoom_name, project_config):
@@ -895,7 +907,7 @@ def _resolve_zoom_xgboost_ref_tag(zoom_yamls, zoom_name, project_config):
       continue
     if 'train_xgboost' not in zoom_cfg:
       raise ValueError(f"Zoom '{zoom_name}' does not have a train_xgboost section")
-    raw_tag = zoom_cfg['train_xgboost'].get('ref_tag')
+    raw_tag = zoom_cfg['train_xgboost'].get('xgboost_tag', cfg['train_xgboost'].get('ref_tag'))
     if raw_tag:
       return f"xgboost_{raw_tag}"
     full_tag = project_config['project']['full_tag']
@@ -919,15 +931,20 @@ def add_xgboost_classifier(scdata_dir, name, ref_tag, src_dir, is_prebuilt):
     for src_name, dst_name in file_pairs:
       shutil.copy2(os.path.join(src_dir, src_name), os.path.join(dest_dir, dst_name))
 
-    label_map_src = os.path.join(src_dir, f'{ref_tag}_label_map.csv')
-    if os.path.isfile(label_map_src):
-      shutil.copy2(label_map_src, os.path.join(dest_dir, f'{name}_label_map.csv'))
+    for suffix in ['label_map.csv','label_specs.csv','coarse_label_specs.csv']:
+      source = os.path.join(src_dir, f'{ref_tag}_{suffix}')
+      if os.path.isfile(source):
+        shutil.copy2(source, os.path.join(dest_dir, f'{name}_{suffix}'))
 
   manifest_f = os.path.join(dest_dir, f'{name}_manifest.json')
   if not is_prebuilt or name not in builtin_models():
     import json
     files = {f'{name}_{suffix}': sha256(os.path.join(dest_dir, f'{name}_{suffix}'))
       for suffix in ['xgboost_model.json', 'allowed_cls.csv', 'selected_genes.txt']}
+    for suffix in ['label_map.csv','label_specs.csv','coarse_label_specs.csv']:
+      path = os.path.join(dest_dir, f'{name}_{suffix}')
+      if os.path.isfile(path):
+        files[os.path.basename(path)] = sha256(path)
     with open(manifest_f, 'w') as stream:
       json.dump({'name': name, 'model_id': name, 'files': files}, stream, indent=2)
 
@@ -954,7 +971,7 @@ def save_available_xgboost_csv(csv_f, scdata_dir, names):
     cls_f   = os.path.join(xgb_dir, f'{name}_allowed_cls.csv')
     genes_f = os.path.join(xgb_dir, f'{name}_selected_genes.txt')
     label_map_f = os.path.join(xgb_dir, f'{name}_label_map.csv')
-    from xgboost_models import model_identity
+    from train_xgboost import model_identity
     identity = model_identity(model_f, name)
     rows.append({
       **identity,
@@ -963,6 +980,8 @@ def save_available_xgboost_csv(csv_f, scdata_dir, names):
       'cls_f':       cls_f,
       'genes_f':     genes_f,
       'label_map_f': label_map_f if os.path.isfile(label_map_f) else '',
+      'label_specs_f': str(pathlib.Path(xgb_dir) / f'{name}_label_specs.csv') if os.path.isfile(os.path.join(xgb_dir,f'{name}_label_specs.csv')) else '',
+      'coarse_label_specs_f': str(pathlib.Path(xgb_dir) / f'{name}_coarse_label_specs.csv') if os.path.isfile(os.path.join(xgb_dir,f'{name}_coarse_label_specs.csv')) else '',
     })
   df = pl.from_dicts(rows)
   df.write_csv(csv_f)
@@ -1066,3 +1085,13 @@ if __name__ == "__main__":
   else:
     parser.print_help()
 
+
+
+def get_xgboost_source_files(parameters):
+  if parameters.get('is_prebuilt'):
+    return []
+  directory = pathlib.Path(parameters['src_dir'])
+  tag = parameters['ref_tag']
+  return [str(path) for path in directory.glob(f'{tag}_*') if path.is_file() and
+    path.name.endswith(('xgboost_model.json','allowed_cls.csv','selected_genes.txt',
+      'label_map.csv','label_specs.csv','coarse_label_specs.csv'))]

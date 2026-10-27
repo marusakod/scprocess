@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from label_celltypes import run_xgboost
-from train_xgboost_workflow import aggregate_plan_predictions
+from train_xgboost import aggregate_plan_predictions
 
 
 def test_empty_placeholder_needs_no_model(tmp_path):

@@ -676,7 +676,10 @@ xgb_preds_dt = fread(xgb_predictions_f)
 xgb_gain_dt  = fread(xgb_importance_f)
 xgb_dt       = merge(xgb_preds_dt, int_dt[, .(cell_id, UMAP1, UMAP2)],
   by = "cell_id", all.x = TRUE) %>% .[ !is.na(UMAP1) ]
-xgb_val_dt   = xgb_dt[ split == "validation" ]
+xgb_style = read_xgboost_style(xgb_predictions_f, sort(unique(xgb_dt$label)))
+xgb_dt = apply_xgboost_style(xgb_dt, xgb_style)
+xgb_has_coarse = length(xgb_style$mapping) > 0
+xgb_val_dt = xgb_dt[split == "validation"]
 ```
 
 ```{r xgb_load_cpms, eval = do_xgboost, include = FALSE}
@@ -710,7 +713,7 @@ for (lbl in lbl_type_vec) {
   } else {
     is_coarse = FALSE
   }
-  print(plot_pred_true_umap(xgb_val_dt, coarse = is_coarse))
+  print(plot_pred_true_umap(xgb_val_dt, coarse = is_coarse, label_colours=if (is_coarse) xgb_style$coarse_colours else xgb_style$colours))
   cat('\n\n')
 }
 ```
@@ -750,7 +753,7 @@ p       = 1
 for (i in seq(1, n_pages * per_p, by = per_p)) {
   cat('#### page', p, '\n'); p = p + 1
   sel_gs  = xgb_top_genes_dt[ i:(i + 9) ]
-  print(plot_top_xgboost_genes(sel_gs, xgb_cpms_dt))
+  print(plot_top_xgboost_genes(sel_gs, xgb_cpms_dt, label_order=xgb_style$order, label_colours=xgb_style$colours))
   cat('\n\n')
 }
 ```

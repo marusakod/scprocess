@@ -4,6 +4,22 @@
 
 ### Training features and interface changes
 
+- Add optional standard/coarse label specification CSVs, independent row ordering
+  and named colours, carried through reports and local installation. Standardise
+  new label columns as `label`, retaining legacy input names. Derive coarse
+  evaluation from saved predictions without refitting or repeating inference.
+- Keep optional CLI features omittable and consolidate model registry,
+  installation and label-specification helpers into `train_xgboost.py`.
+- Resolve current training tags during setup and support direct local source
+  directories with an independent installed classifier name.
+
+- Consolidate XGBoost planning, fitting and evaluation into `train_xgboost.py`;
+  keep the existing commands, workflow stages and scientific behaviour.
+- Use Polars for training plans and evaluation summaries, retaining seeded cell
+  selections and model outputs. Pass named settings through project/join/zoom
+  rules, with defaults defined in their schemas. Reorder the trainer by stage,
+  mark internal helpers with underscores and improve code/rule layout.
+
 - Add saved XGBoost training plans, explicit test groups, whole-group validation,
   joint variable-combination sampling and separate training/validation caps.
 - Rename training `ref_tag` to `xgboost_tag`; replace `refine_labels` with optional

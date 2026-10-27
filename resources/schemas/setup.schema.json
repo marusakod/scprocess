@@ -76,8 +76,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["config"],
+        "oneOf": [{"required": ["config"]}, {"required": ["src_dir", "name"]}],
         "properties": {
+          "name": {"type": "string"},
+          "src_dir": {"type": "string"},
+          "xgboost_tag": {"type": "string"},
           "config":    { "type": "string" },
           "zoom_name": { "type": "string" }
         }

@@ -2,6 +2,7 @@ suppressPackageStartupMessages({
   library("anndataR")
 })
 
+
 plot_train_test_split <- function(xgboost_dt){
 
   ggplot(xgboost_dt) + aes(x = UMAP1, y = UMAP2) +
@@ -13,7 +14,7 @@ plot_train_test_split <- function(xgboost_dt){
     labs( fill = sprintf("density"))
 }
 
-plot_pred_true_umap <- function(val_dt, coarse = FALSE){
+plot_pred_true_umap <- function(val_dt, coarse = FALSE, label_colours = NULL){
 
   if(coarse){
     true_lbl_var = 'coarse_true'
@@ -36,7 +37,7 @@ plot_pred_true_umap <- function(val_dt, coarse = FALSE){
 
   lbls       = levels(val_dt_long$label)
   if (is.null(lbls)) lbls = val_dt_long[, label] %>% unique() %>% sort()
-  lbl_cols   = nice_cols[ seq_along(lbls) ] %>% setNames(lbls)
+  lbl_cols   = xgboost_colours(lbls, label_colours)
 
   p = ggplot(val_dt_long) +
     aes(x = UMAP1, y = UMAP2, colour = label) +
@@ -49,9 +50,9 @@ plot_pred_true_umap <- function(val_dt, coarse = FALSE){
 
 }
 
-get_metrics_dt <- function(val_dt){
-  true_labels = as.character(val_dt$label)
-  pred_labels = as.character(val_dt$predicted_label)
+get_metrics_dt <- function(val_dt, coarse = FALSE){
+  true_labels = as.character(val_dt[[if (coarse) "coarse_true" else "label"]])
+  pred_labels = as.character(val_dt[[if (coarse) "coarse_predicted" else "predicted_label"]])
   classes     = unique(true_labels)
   metrics_dt  = rbindlist(lapply(classes, function(cls) {
     tp   = sum(pred_labels == cls & true_labels == cls)
@@ -68,8 +69,8 @@ get_metrics_dt <- function(val_dt){
 }
 
 
-plot_precision_recall <- function(metrics_dt) {
-  lbl_cols = nice_cols[ seq_len(nrow(metrics_dt)) ] %>% setNames(metrics_dt$Class)
+plot_precision_recall <- function(metrics_dt, label_colours = NULL) {
+  lbl_cols = xgboost_colours(as.character(metrics_dt$Class), label_colours)
   ggplot(metrics_dt) +
     aes(x = Recall, y = Precision, colour = Class, size = N) +
     geom_hline(yintercept = 1, colour = "grey70", linetype = "dashed") +
@@ -105,7 +106,7 @@ plot_gain_curve <- function(gain_dt){
 
 
 plot_top_xgboost_genes <- function(sel_dt, cpms_dt, label_order = NULL,
-  pseudo_count = 10, ncol = 2, nrow = NULL) {
+  pseudo_count = 10, ncol = 2, nrow = NULL, label_colours = NULL) {
 
   # infer number of rows
   if (is.null(nrow)) {
@@ -124,7 +125,7 @@ plot_top_xgboost_genes <- function(sel_dt, cpms_dt, label_order = NULL,
     cl_ls   = plot_dt$cluster %>% unique %>% sort()
   }
   plot_dt[, cluster := factor(cluster, levels = cl_ls)]
-  cl_cols   = nice_cols[ seq_along(cl_ls) ] %>% setNames(cl_ls)
+  cl_cols   = xgboost_colours(cl_ls, label_colours)
 
   # plot!
   log_brks  = c(0, 10, 20, 50, 1e2, 2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4) %>%

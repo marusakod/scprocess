@@ -8,7 +8,9 @@ and integration outputs; review a dry run before launching.
 ```yaml
 train_xgboost:
   xgboost_tag: siletti_superclusters_holdout_donor2
-  annots_f: data/classifier_annotations.csv.gz
+  annots_f: data/configs/cell_labels.csv.gz
+  label_specs_f: data/configs/label_specs.csv
+  coarse_label_specs_f: data/configs/coarse_label_specs.csv
   excluded_labels: [Misc neuron, Splatter]
   test_group_var: donor_id
   test_groups: [siletti_donor_2]
@@ -21,11 +23,65 @@ train_xgboost:
   seed: 20261025
 ```
 
-The annotation CSV needs unique `cell_id` and `annotation` columns. Grouping and
+The annotation CSV needs unique `cell_id` and `label` columns. Grouping and
 sampling columns can be supplied there or in the integration table. Shared
 columns must agree. `tube_group` should identify a biological tissue tube uniquely
 across donors. The workflow inherits processing identifiers from its project or
 join context; do not set `batch_var` in the training block.
+
+Planning, fitting and full-data evaluation are implemented in
+`scripts/train_xgboost.py`, through its `plan`, `train` and
+`aggregate_fulldata` commands. The `specs` command exports display metadata and
+broader-label metrics from saved predictions. They remain separate workflow stages so that
+the saved plan can be inspected before fitting.
+
+
+## Label specifications
+
+`label_specs_f` and `coarse_label_specs_f` are optional. All relative paths resolve
+from the project folder; `data/configs/` is the suggested location in examples,
+not a special search directory. Omitting both settings leaves coarse labels
+disabled. Existing files using `annotation` or `fine_label` as their label column
+are accepted; new outputs use `label`.
+
+For example, `data/configs/label_specs.csv`:
+
+```csv
+label,colour,coarse_label
+Astrocyte,#74C476,Astroglia
+Bergmann glia,#238B45,Astroglia
+Microglia,#A1887F,Immune
+Leukocyte,#6D4C41,Immune
+```
+
+And `data/configs/coarse_label_specs.csv`:
+
+```csv
+coarse_label,coarse_colour
+Immune,#A1887F
+Astroglia,#74C476
+```
+
+Rows in each file independently set its display order. Supply every model label
+in the standard table; it can also describe excluded/test-only labels. `colour`
+and `coarse_label` may be omitted. Without a coarse mapping, the standard table
+controls ordering and colours only. A coarse mapping without a coarse table uses
+first-appearance order and the explicit default palette. Colours, when supplied,
+must cover the whole corresponding table and use `#RRGGBB` or `#RRGGBBAA`.
+Duplicate/missing labels, incomplete mappings and undefined coarse groups fail
+validation. The example above illustrates four labels; a real model's table must
+include all of its labels.
+
+The model still fits and predicts standard labels. Each coarse label is a direct
+lookup from a standard label, applied equally to reference and predicted labels;
+there is no voting or probability summation. Both specification tables are saved
+beside the model, retained during installation and used by reports. The separate
+specification stage reads saved predictions, so changing display metadata does
+not require fitting or inference again. Broader-label evaluation CSVs and report
+views distinguish independent tests, validation and development holdouts.
+
+Legacy `label_map_f` remains supported, but cannot be combined with
+`label_specs_f`. New configurations should use the two specification settings.
 
 ## Splitting and sampling
 
@@ -105,7 +161,7 @@ of biological correctness. Compare per-label support and donor/region coverage.
 
 ## Migration to the 0.3 training interface
 
-- Rename `ref_tag` to `xgboost_tag`.
+- Rename `ref_tag` to `xgboost_tag`. Prefer `label` over `annotation` in input CSVs.
 - Remove `refine_labels`. Omit `cluster_majority_vote_resolution` to disable
   smoothing, or set an explicit saved resolution to enable majority voting.
 - Rename `purity_threshold` to `cluster_majority_vote_min_purity` when voting.
@@ -133,3 +189,27 @@ batch outputs and still requires a prediction for every retained integration
 cell. Missing files and invalid nonempty H5ADs remain errors.
 
 For the centrally distributed Siletti model, see the [human CNS classifier](../human-cns.md).
+
+Planning, fitting and specification export pass named settings from the validated
+configuration to `train_xgboost.py`. Defaults live in the schemas, including
+`validation_group_var: batch` when no grouping variable is supplied. Table
+preparation and evaluation use Polars; pandas is limited to AnnData metadata.
+
+The workflow passes `is_join` explicitly to the planning command. Project and
+project-zoom training use false; join and joined-zoom training use true. This
+controls project metadata and batch-key qualification independently of whether
+`batch_var` names samples or pools. It is internal workflow context, not an
+additional YAML setting.
+
+The internal CLI requires essential inputs, workflow context and numerical
+settings supplied by schema validation. Optional feature arguments can be
+omitted: exclusions, test groups, variable combinations, cluster voting and
+label mapping/specification files. Missing list arguments disable their feature;
+missing file arguments use no mapping/specification. Test grouping still requires
+both a variable and a nonempty list of groups. Numerical defaults are not
+repeated in argparse.
+
+Model installation, registry identities and label specification helpers also
+live in `train_xgboost.py`. Training-only libraries are imported inside the
+functions that use them, so setup and configuration checks can reuse these
+helpers without loading AnnData or XGBoost.
