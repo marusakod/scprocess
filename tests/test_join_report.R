@@ -1,5 +1,5 @@
 source("scripts/utils.R")
-source("scripts/join_report.R")
+source("scripts/integration.R")
 
 ids <- paste0("cell", seq_len(60L))
 predictions <- data.table(cell_id = ids,

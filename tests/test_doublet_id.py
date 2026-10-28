@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load_merge_module():
-  path = ROOT / "scripts" / "merge_doublet_diagnostics.py"
+  path = ROOT / "scripts" / "scprocess_utils.py"
   spec = importlib.util.spec_from_file_location("merge_doublet_diagnostics", path)
   module = importlib.util.module_from_spec(spec)
   spec.loader.exec_module(module)
@@ -44,7 +44,7 @@ def test_merge_doublet_diagnostics_keeps_one_header_and_all_rows(tmp_path):
   _write_csv_gz(
     second, [{"sample_id": "b", "ratio.k58": "0.8", "score": "0.9"}])
 
-  module.merge_csv_gz([first, second], output)
+  module._merge_csv_gz([first, second], output)
 
   with gzip.open(output, "rt", newline="") as handle:
     rows = list(csv.DictReader(handle))
@@ -62,10 +62,10 @@ def test_merge_doublet_diagnostics_keeps_one_header_and_all_rows(tmp_path):
 
 def test_merge_doublet_diagnostics_cli_avoids_snakemake_serialization():
   rule = (ROOT / "rules" / "qc.smk").read_text()
-  script = (ROOT / "scripts" / "merge_doublet_diagnostics.py").read_text()
+  script = (ROOT / "scripts" / "scprocess_utils.py").read_text()
 
   assert "script:\n    '../scripts/merge_doublet_diagnostics.py'" not in rule
-  assert "python {scprocess_dir}/scripts/merge_doublet_diagnostics.py" in rule
+  assert "python {scprocess_dir}/scripts/scprocess_utils.py merge_doublet_diagnostics" in rule
   assert 'main(snakemake)' not in script
   assert 'parser.add_argument("--real-inputs"' in script
 

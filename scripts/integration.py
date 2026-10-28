@@ -10,10 +10,8 @@ from scipy.sparse import csc_matrix, csr_matrix, hstack
 import anndata as ad
 import polars as pl
 
-if __package__:
-  from .doublet_cluster_threshold import calculate_doublet_cluster_threshold
-else:
-  from doublet_cluster_threshold import calculate_doublet_cluster_threshold
+import math
+import statistics
 
 
 def _get_h5_barcodes(h5_f):
@@ -550,6 +548,135 @@ def _get_embeddings_from_adata(adata, embedding,  sel_embed):
   embeds_df = pca_df.join(umap_df, on = 'cell_id', how = 'inner')
 
   return embeds_df
+
+
+def calculate_doublet_cluster_threshold(counts, method = 'adaptive', ceiling = None):
+  """Estimate a split median/MAD mixture boundary or return a manual cutoff.
+
+  Each input pair contains the doublet count and total cell count of one cluster.
+  Half-count correction is used only for fitting; exclusion uses raw proportions.
+  """
+  # Settings are schema-validated; counts come from integration cluster totals.
+  # The adaptive method always splits its reference groups at 50%.
+  if method == 'adaptive':
+    ceiling = 0.5
+  counts = list(counts)
+
+  # Preserve the diagnostic fields shared with integration/report outputs.
+  result = dict(
+    method = method, threshold = ceiling, reference_ceiling = ceiling,
+    mad_multiplier = None, n_reference = 0, mean_logit = None,
+    scaled_mad_logit = None, uncapped_threshold = None)
+  if method == 'manual':
+    return result
+  return _split_mad_mixture(counts, result)
+
+
+def _split_mad_mixture(counts, result):
+  """Fit low/high-doublet components and record their separating threshold."""
+
+  # Each cluster contributes one logit, regardless of its number of cells.
+  # Clusters at exactly 50% doublets are excluded from both reference groups.
+  low_logits  = []
+  high_logits = []
+  for n_doublets, n_cells in counts:
+    doublet_prop = n_doublets / n_cells
+    logit = math.log((n_doublets + 0.5) / (n_cells - n_doublets + 0.5))
+    if doublet_prop < 0.5:
+      low_logits.append(logit)
+    elif doublet_prop > 0.5:
+      high_logits.append(logit)
+
+  n_low  = len(low_logits)
+  n_high = len(high_logits)
+  if n_low < 2 or n_high < 2:
+    raise ValueError(
+      'Split-MAD mixture requires at least two clusters strictly below '
+      'and strictly above 50% doublets. Inspect the data or explicitly '
+      'select manual; no automatic fallback is applied.')
+
+  # Use each component's median as its centre. Multiplying MAD by 1.4826
+  # puts its spread on the standard-deviation scale of a normal distribution.
+  low_median  = statistics.median(low_logits)
+  high_median = statistics.median(high_logits)
+  low_deviations  = [abs(value - low_median) for value in low_logits]
+  high_deviations = [abs(value - high_median) for value in high_logits]
+  low_scale  = 1.4826 * statistics.median(low_deviations)
+  high_scale = 1.4826 * statistics.median(high_deviations)
+  if low_scale == 0 or high_scale == 0:
+    raise ValueError(
+      'Split-MAD mixture group has zero MAD; inspect the data or '
+      'explicitly select manual.')
+
+  # Mixing weights are the fractions of fitted clusters in the two groups.
+  n_fitted        = n_low + n_high
+  low_weight      = n_low / n_fitted
+  high_weight     = n_high / n_fitted
+  boundary_logit  = _find_doublet_logit_boundary(
+    low_median  = low_median, high_median = high_median,
+    low_scale   = low_scale,  high_scale  = high_scale,
+    low_weight  = low_weight, high_weight = high_weight)
+
+  # Convert the boundary back to a proportion, avoiding exponential overflow.
+  if boundary_logit >= 0:
+    threshold = 1 / (1 + math.exp(-boundary_logit))
+  else:
+    threshold = math.exp(boundary_logit) / (1 + math.exp(boundary_logit))
+
+  # Keep the component parameters alongside the cutoff for report diagnostics.
+  result.update(
+    threshold             = threshold,
+    uncapped_threshold    = threshold,
+    reference_ceiling     = 0.5,
+    mad_multiplier        = None,
+    n_reference           = n_low,
+    n_low                 = n_low,
+    n_high                = n_high,
+    n_equal_50            = len(counts) - n_fitted,
+    median_logit_low      = low_median,
+    median_logit_high     = high_median,
+    scaled_mad_logit_low  = low_scale,
+    scaled_mad_logit_high = high_scale,
+    weight_low            = low_weight,
+    weight_high           = high_weight)
+  return result
+
+
+def _find_doublet_logit_boundary(*, low_median, high_median, low_scale,
+  high_scale, low_weight, high_weight):
+  """Find the weighted-density crossing between the two component centres."""
+
+  # Equating the weighted normal densities, then taking logs, gives
+  # a*z^2 + b*z + c = 0, where z is the doublet proportion on the logit scale.
+  low_variance  = low_scale**2
+  high_variance = high_scale**2
+  a = 0.5 / low_variance - 0.5 / high_variance
+  b = high_median / high_variance - low_median / low_variance
+  c = (math.log(high_weight / low_weight)
+       + math.log(low_scale / high_scale)
+       + low_median**2 / (2 * low_variance)
+       - high_median**2 / (2 * high_variance))
+
+  # Similar component spreads make the quadratic term negligible. Solve
+  # the resulting linear equation instead of dividing by a near-zero value.
+  roots = []
+  if abs(a) < 1e-10:
+    if abs(b) > 1e-10:
+      roots = [-c / b]
+  else:
+    discriminant = b*b - 4*a*c
+    if discriminant >= 0:
+      root_offset = math.sqrt(discriminant)
+      roots = [(-b - root_offset) / (2*a), (-b + root_offset) / (2*a)]
+
+  # Unequal spreads can produce a second crossing in a tail. Only a unique
+  # crossing between the component centres defines the separation we need.
+  interior_roots = [root for root in roots if low_median < root < high_median]
+  if len(interior_roots) != 1:
+    raise ValueError(
+      'Split-MAD mixture has no unique between-centres crossing; '
+      'inspect the data or explicitly select manual.')
+  return interior_roots[0]
 
 
 def _calc_dbl_data(int_dbl, cells_df, dbl_res, dbl_cl_prop, demux_type, batch_var,

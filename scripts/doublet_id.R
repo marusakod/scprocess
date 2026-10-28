@@ -34,6 +34,7 @@ load_doublet_id_data <- function(real_f, artificial_f, summary_f, run_var) {
   if (anyDuplicated(summary[[run_var]]))
     stop('Doublet summary has more than one row per ', run_var)
 
+  # Use a common plotting column while preserving the original run variable in tables.
   setnames(real, run_var, 'run_id')
   setnames(artificial, run_var, 'run_id')
   setnames(summary, run_var, 'run_id')
@@ -230,11 +231,15 @@ fit_doublet_score_beta <- function(scores) {
   empty_fit = c(fitted_mean = NA_real_, fitted_variance = NA_real_, fitted_precision = NA_real_)
   if (length(scores) < 3L || var(scores) == 0) return(empty_fit)
   n = length(scores)
+
+  # Move endpoint scores inside (0, 1) so beta likelihoods remain finite.
   adjusted = (scores * (n - 1) + 0.5) / n
   mu = mean(adjusted)
   concentration = mu * (1 - mu) / var(adjusted) - 1
   if (!is.finite(concentration) || concentration <= 0) concentration = 2
   start = log(pmax(c(mu * concentration, (1 - mu) * concentration), 0.05))
+
+  # Fit both positive beta parameters on the log scale.
   sum_log = sum(log(adjusted))
   sum_log_one_minus = sum(log1p(-adjusted))
   objective = function(log_parameters) {
@@ -262,6 +267,8 @@ summarize_doublet_scores <- function(x) {
       n_high_scores = sum(score > 0.5)), as.list(fit_doublet_score_beta(score)))
   }, by = run_id]
   summary[, logit_high_score_prop := qlogis((n_high_scores + 0.5) / (n_cells + 1))]
+
+  # Flag sample-level outliers for display; this does not change doublet calls.
   spread = mad(summary$logit_high_score_prop)
   cutoff = if (is.finite(spread) && spread > 0)
     median(summary$logit_high_score_prop) + 2 * spread else Inf

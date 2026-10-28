@@ -197,7 +197,6 @@ print_sel_gene <- function(mkrs_dt, sel_ls) {
   return(mats_sum)
 }
 
-
 calc_confuse_dt <- function(cl1_dt, cl2_dt, cl1, cl2, min_cl2_p = NULL,
   other_cl1_label = NULL) {
   assert_that( cl1 %in% names(cl1_dt) )
@@ -501,7 +500,6 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
 
   return(hm_obj)
 }
-
 
 xgboost_colours <- function(labels, specified = NULL) {
   labels = unique(as.character(labels))

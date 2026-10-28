@@ -3271,3 +3271,78 @@ def check_join_config(config, join_schema_f, scdata_dir):
           f"metadata_var '{var}' not found in any project's sample metadata file")
 
   return config
+
+
+# Combine QC diagnostics without materialising all runs in memory.
+def merge_doublet_diagnostics(real_inputs, artificial_inputs, summary_inputs,
+  real_output, artificial_output, summary_output):
+  """Merge real cells, artificial doublets and per-run calling summaries."""
+  _merge_csv_gz(real_inputs, real_output)
+  _merge_csv_gz(artificial_inputs, artificial_output)
+  _merge_csv_gz(summary_inputs, summary_output)
+
+
+def _merge_csv_gz(input_files, output_file):
+  """Merge gzip CSVs using the ordered union of sample-specific columns."""
+  input_paths = [pathlib.Path(input_file) for input_file in input_files]
+  merged_header = []
+  seen_columns = set()
+  n_rows = 0
+  output_path = pathlib.Path(output_file)
+  output_path.parent.mkdir(parents=True, exist_ok=True)
+
+  for input_path in input_paths:
+    if not input_path.exists():
+      raise FileNotFoundError(input_path)
+    if input_path.stat().st_size == 0:
+      continue
+    with gzip.open(input_path, "rt", newline="") as input_handle:
+      header = next(csv.reader(input_handle), None)
+    if header is None:
+      continue
+    for column in header:
+      if column not in seen_columns:
+        merged_header.append(column)
+        seen_columns.add(column)
+
+  if not merged_header:
+    raise ValueError(f"No diagnostic columns were available for {output_path}")
+
+  with gzip.open(output_path, "wt", newline="") as output_handle:
+    writer = csv.DictWriter(output_handle, fieldnames=merged_header)
+    writer.writeheader()
+    for input_path in input_paths:
+      if input_path.stat().st_size == 0:
+        continue
+      with gzip.open(input_path, "rt", newline="") as input_handle:
+        reader = csv.DictReader(input_handle)
+        for row in reader:
+          writer.writerow(row)
+          n_rows += 1
+
+  if n_rows == 0:
+    raise ValueError(f"No diagnostic rows were available for {output_path}")
+
+
+def _doublet_diagnostics_cli():
+  import argparse
+
+  parser = argparse.ArgumentParser(description='Merge per-run doublet diagnostics')
+  parser.add_argument('command', choices=['merge_doublet_diagnostics'])
+
+  # Output paths, followed by the three lists of per-run inputs.
+  parser.add_argument("--real-output", required=True)
+  parser.add_argument("--artificial-output", required=True)
+  parser.add_argument("--summary-output", required=True)
+  parser.add_argument("--real-inputs", nargs="+", required=True)
+  parser.add_argument("--artificial-inputs", nargs="+", required=True)
+  parser.add_argument("--summary-inputs", nargs="+", required=True)
+  args = parser.parse_args()
+  merge_doublet_diagnostics(
+    real_inputs = args.real_inputs, artificial_inputs = args.artificial_inputs,
+    summary_inputs = args.summary_inputs, real_output = args.real_output,
+    artificial_output = args.artificial_output, summary_output = args.summary_output)
+
+
+if __name__ == '__main__':
+  _doublet_diagnostics_cli()

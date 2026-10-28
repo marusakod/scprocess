@@ -113,7 +113,6 @@ get_one_hto_sce <- function(sel_pool, sample_stats_f, amb_yaml_f, hto_mat_f, tra
   return(NULL)
 }
 
-
 # functions for multiplexing QC
 get_hto_dt <- function(pool_sce) {
   pool_counts = counts(pool_sce)
@@ -143,7 +142,6 @@ get_hto_dt <- function(pool_sce) {
 
   return(pool_all)
 }
-
 
 hto_ridges <- function(sel_sample, proj_meta, hto_dt_ls) {
   # get the right pool dt
@@ -175,7 +173,6 @@ hto_ridges <- function(sel_sample, proj_meta, hto_dt_ls) {
 
   return(g)
 }
-
 
 # make pairwise plots
 hto_pairwise <- function(pool_dt, var = c("prop", "norm_count")) {
@@ -218,7 +215,6 @@ hto_pairwise <- function(pool_dt, var = c("prop", "norm_count")) {
 
   return(g)
 }
-
 
 hto_barplot <- function(hto_dt_ls) {
   

@@ -363,6 +363,15 @@ def test_cell_cycle_has_standalone_diagnostics_report():
   renderer = (ROOT / 'scripts' / 'render_htmls.R').read_text()
   template = (ROOT / 'resources/rmd_templates/cell_cycle.Rmd.template').read_text()
   helper = (ROOT / 'scripts/cell_cycle.R').read_text()
+  # Qualifying prepared report inputs does not change plot specifications.
+  report_code = template + helper.replace('report_data$', '')
+  assert '<- function(' not in template
+  assert 'ggplot(' not in template
+  for function in ('load_cell_cycle_report_data', 'plot_cell_cycle_expression',
+                   'plot_cell_cycle_pooled_projection', 'plot_cell_cycle_spatial_expression',
+                   'render_cell_cycle_sample_diagnostics', 'make_cell_cycle_phase_summary'):
+    assert function + '(' in template
+
   assert 'rule render_html_cell_cycle:' in report_rules
   assert 'source_cell_cycle_f = f"{scprocess_dir}/scripts/cell_cycle.R"' in report_rules
   assert 'template_f   = f"{scprocess_dir}/resources/rmd_templates/cell_cycle.Rmd.template"' in report_rules
@@ -375,65 +384,65 @@ def test_cell_cycle_has_standalone_diagnostics_report():
   assert '${cell_cycle_link}' in (ROOT / 'resources/rmd_templates/index.Rmd.template').read_text()
   integration_target = main_rules.split('rule integration:', 1)[1].split('rule marker_genes:', 1)[0]
   assert 'cell_cycle_outs' not in integration_target
-  assert 'Pooled projection and estimated origin' in template
-  assert 'Spatial marker expression' in template
-  assert 'Expression around theta' in template
-  assert 'Cell-cycle position' not in template
-  assert '```{r theta_density' not in template
+  assert 'Pooled projection and estimated origin' in report_code
+  assert 'Spatial marker expression' in report_code
+  assert 'Expression around theta' in report_code
+  assert 'Cell-cycle position' not in report_code
+  assert '```{r theta_density' not in report_code
   assert template.index('Expression around theta') < template.index(
     'Pooled projection and estimated origin'
   ) < template.index('Spatial marker expression')
-  assert '${marker_expression_f}' in template
-  assert '${hvg_mat_f}' not in template
-  assert '${rowdata_f}' not in template
-  assert 'g_theta_projection + g_expression_curves' in template
-  assert 'plot_layout(widths=c(1, 1.4))' in template
-  assert 'scale_y_continuous(breaks=pretty_breaks())' in template
-  assert 'coord_cartesian(ylim=c(0, 1.05))' in template
-  assert 'Sample-level diagnostics' in template
-  assert 'size=inclusion_probability' in template
-  assert "scale_size_continuous(range=c(0.2, 2), limits=c(0, 1)" in template
-  assert 'Approximate phase percentages by sample' in template
-  assert 'percent_cells := 100 * n_cells / sum(n_cells)' in template
-  assert "phase_dt[approximate_phase != 'G1/G0']" in template
-  assert 'not renormalized' in template
-  assert 'aes(percent_cells, sample_id, fill=approximate_phase)' in template
-  assert 'geom_quasirandom(' in template
-  assert "shape=21, size=3, width=0.25, orientation='y'" in template
-  assert 'scale_y_discrete(limits=rev)' in template
-  assert 'scale_x_log10(' in template
-  assert 'breaks=c(0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100)' in template
-  assert 'geom_hex' in template
-  assert 'fill=after_scale(colour)' in template
-  assert 'scale_colour_viridis_c(' in template
-  assert 'scale_fill_discrete(' in template
-  assert 'palette=function(n) grey.colors' in template
-  assert "plot_layout(guides='collect')" in template
-  assert "theme(legend.position='bottom')" in template
-  assert "stroke=1.5, colour='black'" in template
-  assert "'Manual origin: (%g, %g); KDE diagnostic target: %s'" in template
-  assert 'data=origin_sensitivity_points' in template
-  assert 'caption=origin_caption' in template
-  assert "colour='#1F4E79'" in template
-  assert 'display_sample <- cell_cycle_display_sample(' in template
-  assert 'diagnostics[display_sample$retained]' in template
-  assert 'diagnostic_retained == TRUE' not in template
+  assert '${marker_expression_f}' in report_code
+  assert '${hvg_mat_f}' not in report_code
+  assert '${rowdata_f}' not in report_code
+  assert 'g_theta_projection + g_expression_curves' in helper
+  assert 'plot_layout(widths=c(1, 1.4))' in helper
+  assert 'scale_y_continuous(breaks=pretty_breaks())' in report_code
+  assert 'coord_cartesian(ylim=c(0, 1.05))' in report_code
+  assert 'Sample-level diagnostics' in report_code
+  assert 'size=inclusion_probability' in report_code
+  assert "scale_size_continuous(range=c(0.2, 2), limits=c(0, 1)" in report_code
+  assert 'Approximate phase percentages by sample' in report_code
+  assert 'percent_cells := 100 * n_cells / sum(n_cells)' in report_code
+  assert "phase_dt[approximate_phase != 'G1/G0']" in report_code
+  assert 'not renormalized' in report_code
+  assert 'aes(percent_cells, sample_id, fill=approximate_phase)' in report_code
+  assert 'geom_quasirandom(' in report_code
+  assert "shape=21, size=3, width=0.25, orientation='y'" in report_code
+  assert 'scale_y_discrete(limits=rev)' in report_code
+  assert 'scale_x_log10(' in report_code
+  assert 'breaks=c(0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100)' in report_code
+  assert 'geom_hex' in report_code
+  assert 'fill=after_scale(colour)' in report_code
+  assert 'scale_colour_viridis_c(' in report_code
+  assert 'scale_fill_discrete(' in report_code
+  assert 'palette=function(n) grey.colors' in report_code
+  assert "plot_layout(guides='collect')" in report_code
+  assert "theme(legend.position='bottom')" in report_code
+  assert "stroke = 1.5, colour = 'black'" in helper
+  assert "'Manual origin: (%g, %g); KDE diagnostic target: %s'" in report_code
+  assert 'data=origin_sensitivity_points' in report_code
+  assert 'caption=origin_caption' in report_code
+  assert "colour='#1F4E79'" in report_code
+  assert 'display_sample <- cell_cycle_display_sample(' in report_code
+  assert 'diagnostics[display_sample$retained]' in report_code
+  assert 'diagnostic_retained == TRUE' not in report_code
   assert 'display_probabilities <- probabilities / max(probabilities)' in helper
   for marker in (
     'CDKN1A', 'PCNA', 'MCM4', 'MCM5', 'TYMS', 'TOP2A',
     'CCNB1', 'CDK1', 'TPX2', 'SMC2', 'MKI67', 'UBE2C',
   ):
     assert marker in helper
-  assert 'facet_wrap(~gene, ncol=4' in template
-  assert "strip.background=element_rect(fill='white'" in template
-  assert 'marker_expression <- marker_expression[sample.int(.N)]' in template
-  assert 'setorder(marker_expression, gene, expression_q98)' not in template
+  assert 'facet_wrap(~gene, ncol=4' in report_code
+  assert "strip.background=element_rect(fill='white'" in report_code
+  assert 'marker_expression <- marker_expression[sample.int(.N)]' in report_code
+  assert 'setorder(marker_expression, gene, expression_q98)' not in report_code
   assert 'rep(c("checkpoint", "S", "G2/M")' in helper
-  assert "'CDKN1A'='#636363'" in template
-  assert 'add_phase_boundaries <- function()' in template
-  assert "theta=c(0.25, 0.5, 1, 1.75) * pi" in template
-  assert template.count('add_phase_boundaries() +') == 5
-  assert "geom_vline(xintercept=c(0.25, 0.5, 1, 1.75)" in template
+  assert "'CDKN1A'='#636363'" in report_code
+  assert '.cell_cycle_phase_layer <- function(phase_boundaries)' in helper
+  assert "theta=c(0.25, 0.5, 1, 1.75) * pi" in report_code
+  assert helper.count('.cell_cycle_phase_layer(report_data$phase_boundaries) +') == 5
+  assert "geom_vline(xintercept=c(0.25, 0.5, 1, 1.75)" in report_code
   assert 'read_cell_cycle_marker_expression <- function' in helper
   assert 'cell_cycle_marker_annotation <- function' in helper
   assert 'smooth_periodic_expression <- function' in helper
@@ -441,10 +450,10 @@ def test_cell_cycle_has_standalone_diagnostics_report():
   assert 'list(binned = binned, curves = curves)' in helper
   assert 'curve_peak := max(mean_expression' in helper
   assert 'mean_expression / curve_peak' in helper
-  assert 'data=bin_dt' not in template
-  assert "name='cells per bin'" not in template
-  assert "y='pooled mean expression (curve maximum = 1)'" in template
-  assert 'geom_ribbon(' not in template
+  assert 'data=bin_dt' not in report_code
+  assert "name='cells per bin'" not in report_code
+  assert "y='pooled mean expression (curve maximum = 1)'" in report_code
+  assert 'geom_ribbon(' not in report_code
   assert 'ci95_scaled' not in helper
   assert 'span = 0.5' in helper
   assert 'span = span / 3' in helper
@@ -501,8 +510,8 @@ def test_tricycle_rule_passes_optional_manual_origin_to_aggregation():
   script = (ROOT / 'scripts' / 'tricycle.py').read_text()
   assert "if 'cyc_origin_manual' in config['cell_cycle'] else ''" in rules
   assert '{params.origin_args}' in rules
-  assert 'parser.add_argument("--origin_manual", nargs=2, type=float)' in script
-  assert 'manual_origin=args.origin_manual' in script
+  assert 'parser.add_argument("--origin_manual", nargs = 2, type = float)' in script
+  assert 'manual_origin = args.origin_manual' in script
 
 
 def test_tricycle_reports_incremental_progress():
@@ -541,7 +550,7 @@ def test_projection_is_centered_once_at_project_level():
   py_script = (ROOT / 'scripts' / 'tricycle.py').read_text()
   assert 'gene_means <- Matrix::rowMeans(normalized)' not in r_script
   assert 'tricycle_raw_pc1' in r_script
-  assert 'projection_center = raw_points.mean(axis=0)' in py_script
+  assert 'projection_center = raw_points.mean(axis = 0)' in py_script
   assert 'pooled_project_mean' in py_script
 
 

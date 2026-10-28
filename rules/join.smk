@@ -908,7 +908,7 @@ rule join_render_html:
     cluster_names = cluster_names_fs,
     xgb_files = ([f'{join_xgb_dir}/{_join_xgb_ref_tag}_model_card.json',
       _join_xgb_fulldata_f, str(scprocess_dir / 'scripts/train_xgboost.R')] if DO_TRAIN_XGB else []),
-    report_helper_f = str(scprocess_dir / "scripts/join_report.R"),
+    report_helper_f = str(scprocess_dir / "scripts/integration.R"),
     rmd_template_f = str(scprocess_dir / "resources/rmd_templates/join.Rmd.template")
   output:
     r_utils_f     = f"{code_dir}/utils.R",

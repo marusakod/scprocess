@@ -144,7 +144,8 @@ rule merge_doublet_diagnostics:
       run = RUNS),
     summary_fs    = expand(
       f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_summary_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-      run = RUNS)
+      run = RUNS),
+    scprocess_utils_f = f'{scprocess_dir}/scripts/scprocess_utils.py'
   output:
     real_f       = f'{dbl_dir}/scDblFinder_real_all_runs_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     artificial_f = f'{dbl_dir}/scDblFinder_artificial_doublets_all_runs_{FULL_TAG}_{DATE_STAMP}.csv.gz',
@@ -164,7 +165,7 @@ rule merge_doublet_diagnostics:
     r"""
     exec &> {log}
 
-    python {scprocess_dir}/scripts/merge_doublet_diagnostics.py \
+    python {scprocess_dir}/scripts/scprocess_utils.py merge_doublet_diagnostics \
       --real-output {output.real_f:q} \
       --artificial-output {output.artificial_f:q} \
       --summary-output {output.summary_f:q} \

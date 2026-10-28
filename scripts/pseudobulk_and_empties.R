@@ -112,7 +112,6 @@ make_pb_cells <- function(sel_run, batch_lu_f, qc_stats_f, h5_paths_f, coldata_f
   message('done!')
 }
 
-
 merge_pbs_cells <- function(cells_paths_f, rowdata_f, batch_var, pb_cells_f) {
   # get paths to ok pb cells files
   paths_dt    = fread(cells_paths_f)
@@ -140,8 +139,6 @@ merge_pbs_cells <- function(cells_paths_f, rowdata_f, batch_var, pb_cells_f) {
   
   message(' done!')
 }
-
-
 
 make_pb_empty <- function(sel_run, af_paths_f, pb_empty_f, ambient_method, run_var = 'sample_id') {
   message('create pseudobulk matrix for empty droplets')
@@ -172,7 +169,6 @@ make_pb_empty <- function(sel_run, af_paths_f, pb_empty_f, ambient_method, run_v
   
   message(' done!')
 }
-
 
 merge_pbs_empty <- function(af_paths_f, rowdata_f, pb_empty_f, ambient_method) {
   # get paths to empty pb files for for runs that weren't excluded
@@ -207,7 +203,6 @@ merge_pbs_empty <- function(af_paths_f, rowdata_f, pb_empty_f, ambient_method) {
   message(' done!')
 }
 
-
 .get_one_empty_pb <- function(sample_id, af_mat_f, af_knee_f) {
   
   # get empty barcodes
@@ -233,7 +228,6 @@ merge_pbs_empty <- function(af_paths_f, rowdata_f, pb_empty_f, ambient_method) {
   
   return(empty_pb)
 }
-
 
 .aggregateData_datatable <- function(sce, by_vars = c('sample_id'),
   fun = c("sum", "mean", "median", "prop.detected", "num.detected")) {
@@ -302,9 +296,6 @@ merge_pbs_empty <- function(af_paths_f, rowdata_f, pb_empty_f, ambient_method) {
   return(mat)
 }
 
-
-
-
 plot_empty_plateau <- function(knees, empty_plat_df) {
   # get sample order
   s_ord = names(knees)
@@ -346,7 +337,6 @@ plot_empty_plateau <- function(knees, empty_plat_df) {
   return(p)
 }
 
-
 calc_empty_genes <- function(pb_cells_f, pb_empty_f, fdr_thr, logfc_thr, empty_gs_f) {
   message('calculate empty genes')
   
@@ -371,7 +361,6 @@ calc_empty_genes <- function(pb_cells_f, pb_empty_f, fdr_thr, logfc_thr, empty_g
   
   message('done!')
 }
-
 
 .run_edger_empties <- function(cells_mat, empties_mat) {
   assert_that( nrow(cells_mat) == nrow(empties_mat) )
@@ -468,15 +457,4 @@ calc_empty_genes <- function(pb_cells_f, pb_empty_f, fdr_thr, logfc_thr, empty_g
   message(' done!')
   
   return(exclude_dt)
-}
-
-
-.ignore_this <- function() {
-  min_cpm = 100
-  empties_dt %>% 
-    .[ (mean_logcpm.cells >= log(min_cpm + 1)) | (mean_logcpm.empties >= log(min_cpm + 1)) ] %>% 
-    .[, .(gene_id, log2fc = logFC %>% round(1), padj = FDR %>% signif(2), 
-      CPM.cells = (exp(mean_logcpm.cells) - 1) %>% signif(2) %>% round,
-      CPM.empties = (exp(mean_logcpm.empties) - 1) %>% signif(2) %>% round
-    ) ] %>% print(topn = 20)
 }

@@ -78,7 +78,6 @@ rule run_scprocess_labeller:
     """
 
 # --- Merge per-batch predictions into final labels ---
-
 def _get_good_batch_labels(wildcards):
   """Defer batch list resolution until the QC checkpoint completes."""
   qc_stats_f = checkpoints.get_qc_sample_statistics.get().output.qc_stats_f

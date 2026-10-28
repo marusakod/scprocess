@@ -168,7 +168,6 @@ make_pseudobulk_object <- function(pb_f, integration_f, h5ads_yaml_f, sel_res, b
   return(pb)
 }
 
-
 .make_one_pseudobulk <- function(sel_b, h5ad_paths, batch_var, cl_var, keep_cls, agg_fn) {
   library("anndataR")
 
@@ -500,7 +499,6 @@ make_logcpms_all_rmd <- function(pb, batch_var, lib_size_method = c("edger", "ra
 
   return(logcpm_dt)
 }
-
 
 make_props_dt <- function(pb_prop, batch_var, exc_regex = NULL, min_cells = 10, n_cores = 4) {
   # set up cluster

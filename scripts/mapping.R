@@ -139,7 +139,7 @@ save_alevin_h5_knee_params_df <- function(run, fry_dir, h5_f, knee_data_f,
   # estimate ambient(cellbender) parameters, write to csv
   bender_ps   = calc_ambient_params(split_mat = mat, run = run,
     knee1 = knee1, shin1 = shin1, knee2 = knee2, shin2 = shin2,
-    run_var = run_var, low_count_threshold = low_count_thr, 
+    run_var = run_var, low_count_threshold = low_count_thr,
     expected_cells = exp_cells, total_included = total_included )
 
   # add spliced stats if not hto (rows are named gene_S, gene_U, gene_A)
@@ -149,6 +149,7 @@ save_alevin_h5_knee_params_df <- function(run, fry_dir, h5_f, knee_data_f,
       spliced   = colSums(mat[grepl("_S$", rownames(mat)), , drop = FALSE]),
       unspliced = colSums(mat[grepl("_U$", rownames(mat)), , drop = FALSE])
     )
+
     # add to bender_ps
     bender_ps = merge(bender_ps, splice_dt, by = "barcode") %>% .[ order(rank) ]
   }
@@ -167,8 +168,8 @@ save_alevin_h5_knee_params_df <- function(run, fry_dir, h5_f, knee_data_f,
 # low_count_threshold: 'shin2', 'knee2' or a specific library_size;
 # low count threshold can be equal to second knee or second inflection or can be set manually
 
-calc_ambient_params <- function(split_mat, run, min_umis_empty = 5, 
-  min_umis_cells = NULL, rank_empty_plateau = NULL, low_count_threshold = 'shin2', 
+calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
+  min_umis_cells = NULL, rank_empty_plateau = NULL, low_count_threshold = 'shin2',
   expected_cells = NA, total_included = NA, run_var= "sample_id",
   knee1 = NA, shin1 = NA, knee2 = NA, shin2 = NA) {
   # some checks on inputs
@@ -182,7 +183,7 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
   knee1_ls  = .get_knee_and_shin_1(split_mat, min_umis_cells, knee1, shin1, knee2)
 
   # get second knee
-  knee2_ls  = .get_knee_and_shin_2(split_mat, knee1_ls$ranks_dt, rank_empty_plateau, 
+  knee2_ls  = .get_knee_and_shin_2(split_mat, knee1_ls$ranks_dt, rank_empty_plateau,
     min_umis_empty, knee1_ls$shin1_x, knee2, shin2)
 
   # get parameters
@@ -204,25 +205,25 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
 
   # label cells in empty plateau
   bender_ps = .get_empty_plateau(
-    knee_df        = bender_ps, 
-    shin1          = knee1_ls$sel_knee[ 'shin' ], 
-    total_included = params_ls$total_included, 
+    knee_df        = bender_ps,
+    shin1          = knee1_ls$sel_knee[ 'shin' ],
+    total_included = params_ls$total_included,
     knee2          = knee2_ls$sel_knee[ 'knee' ]
   )
 
   return(bender_ps)
 }
 
-
 .get_empty_plateau <- function(knee_df, shin1, total_included, knee2) {
+  # Locate the nearest observed total: fitted landmarks can fall between droplets.
   shin1_idx = which.min(abs(knee_df$total - shin1))[1]
-  shin1_x   = knee_df[shin1_idx, rank] 
+  shin1_x   = knee_df[shin1_idx, rank]
 
   empty_start = copy(knee_df)[, n := .I] %>%
-    .[rank %between% c(shin1_x, total_included), n] %>%  
+    .[rank %between% c(shin1_x, total_included), n] %>%
     log10() %>%
     mean() %>%
-    (function(x) 10^x)() 
+    (function(x) 10^x)()
 
   knee2_idx = which.min(abs(knee_df$total - knee2))[1]
   empty_end = knee_df[knee2_idx, rank]
@@ -231,7 +232,6 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
 
   return(knee_df)
 }
-
 
 .get_knee_and_shin_1 <- function(split_mat, min_umis_cells, knee1 = NA, shin1 = NA, knee2 = NA) {
   # check if custom knees and shins are defined
@@ -262,7 +262,7 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
 
     # which parameters do these point to?
     ranks_ls_knees_and_shins = lapply(ranks_ls,
-      function(x) paste0( as.integer(round(as.numeric(as.character(metadata(x)$inflection)))), 
+      function(x) paste0( as.integer(round(as.numeric(as.character(metadata(x)$inflection)))),
         '_', as.integer(round(as.numeric(as.character(metadata(x)$knee)))) )
     ) %>% unlist()
 
@@ -294,7 +294,6 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
   # put list of outputs together
   return(list(ranks_dt = ranks_dt, sel_knee = sel_knee, shin1_x = shin1_x))
 }
-
 
 .get_knee_and_shin_2 <- function(split_mat, ranks_dt, rank_empty_plateau,
   min_umis_empty, shin1_x, knee2, shin2) {
@@ -379,7 +378,6 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
   return(list(sel_knee = sel_knee, knee2_x = knee2_x))
 }
 
-
 .calc_small_knee_cuts_ls <- function(ranks_dt, min_umis_empty, shin_x) {
   # pick a 'total' value below which there are still enough data points to run
   # barcodeRanks(), barcodeRanks() need as least 3 unique 'total' (library size) values
@@ -403,8 +401,7 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
   return( cuts )
 }
 
-
-.get_params_ls <- function(knee1_ls, knee2_ls, low_count_threshold, expected_cells = NA, 
+.get_params_ls <- function(knee1_ls, knee2_ls, low_count_threshold, expected_cells = NA,
   total_included = NA) {
   # unpack some things
   ranks_dt  = knee1_ls$ranks_dt
@@ -454,20 +451,22 @@ calc_ambient_params <- function(split_mat, run, min_umis_empty = 5,
 # find slope at first inflection and total droplets included & expected_cells/total ratio
 get_knee_params <- function(knee_f, sample_var) {
   ranks_df  = fread(knee_f)
+
+  # Retain both landmarks before restricting ranks for the diagnostic spline.
   knee_coordinates = merge(.get_knee_coordinates_from_ranks(ranks_df, sample_var),
     .get_knee_coordinates_from_ranks(ranks_df, sample_var, landmark = 'shin'),
     by = sample_var, sort = FALSE)
   total_thr = unique(ranks_df$total_droplets_included) %>% log10()
-  
+
   # get x coordinate of shin1
   shin1     = unique(ranks_df$shin1)
   shin1_row = which.min( abs(ranks_df$total - shin1) )[1]
-  
+
   # get x coordinate of shin1
   shin1_x   = ranks_df[ shin1_row, rank ] %>% log10
-  
+
   # fit curve to all points
-  ranks_df = ranks_df %>% 
+  ranks_df = ranks_df %>%
     .[total > 5] %>%
     .[, `:=`(
       ranks_log = log10(rank),
@@ -475,37 +474,36 @@ get_knee_params <- function(knee_f, sample_var) {
     )
     ] %>%
     unique
-  
+
   fit = smooth.spline(x = ranks_df$ranks_log, y = ranks_df$total_log)
   fitted.vals = 10^fitted(fit)
-  
+
   # get value of the first derivative at total included and inflection1
   d1       = predict(fit, deriv=1)
   d1_shin  = d1$y[ which.min(abs(d1$x - shin1_x))[1] ]
   d1_total = d1$y[ which.min(abs(d1$x - total_thr))[1] ]
-  
+
   keep_cols = c(sample_var, 'knee1', 'shin1', 'knee2', 'shin2', 'total_droplets_included', 'expected_cells')
-  
+
   final = ranks_df %>%
     .[, ..keep_cols] %>%
     unique() %>%
     .[, `:=`(
       slope_shin1 = d1_shin,
       slope_total_included = d1_total
-    )]%>% 
+    )]%>%
     .[, `:=`(
       slope_ratio = abs(slope_total_included) / abs(slope_shin1),
       expected_total_ratio = expected_cells / total_droplets_included
     )]
-  
+
   return(merge(final, knee_coordinates, by = sample_var, sort = FALSE))
 }
 
-
 plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, bender_priors_df = NULL, show_lines = TRUE, n_slots = NULL) {
-  
+
   s_ord = names(knee_fs)
-  
+
   # Add knee and inflection to params
   knee_data = lapply(s_ord, function(s) {
     knee_f = knee_fs[[s]]
@@ -516,22 +514,22 @@ plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, b
       .[, bc_rank := cumsum(n_bc)] %>%
       .[, (sample_var) := s]
   }) %>% rbindlist()
-  
+
   knee_vars = c(sample_var, 'knee1', 'shin1', 'knee2', 'shin2',
     'total_droplets_included', 'expected_cells')
-  
-  lines_knees = ambient_knees_df %>% as.data.table %>% 
+
+  lines_knees = ambient_knees_df %>% as.data.table %>%
     .[ get(sample_var) %in% s_ord, ..knee_vars] %>%
-    setnames( "total_droplets_included", "empty_plateau_middle" ) %>% 
-    setnames( "expected_cells", "expected_cells" ) %>% 
+    setnames( "total_droplets_included", "empty_plateau_middle" ) %>%
+    setnames( "expected_cells", "expected_cells" ) %>%
     melt(id.vars = sample_var) %>%
     .[, `:=`(
       axis = fifelse(variable %in% c('knee1', 'knee2', 'shin1', 'shin2'), 'y', 'x'),
       type = fifelse(variable %in% c('knee1', 'knee2', 'shin1', 'shin2'),
-                     'cellbender intermediate\nparameter', 
+                     'cellbender intermediate\nparameter',
                      'cellbender input\nparameter')
     )]
-  
+
   if ( is.null(bender_priors_df) ) {
     lines_priors = NULL
   } else {
@@ -544,23 +542,23 @@ plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, b
         type = 'cellbender prior\nparameter'
       )]
   }
-  
+
   lines = list(lines_knees, lines_priors) %>% rbindlist()
-  
+
   hlines = lines %>% filter(axis == 'y')
   vlines = lines %>% filter(axis == 'x')
-  
+
   # plot everything above low count threshold
   p_labels =  c("1", "10", "100", "1k", "10k", "100k", "1M")
   p_breaks =  c(1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6)
-  
+
   # set factor levels for sample_var so the samples will appear in the right order in the plot
   knee_data[[sample_var]] = factor(knee_data[[sample_var]], levels = s_ord)
   if (show_lines) {
     hlines[[sample_var]] = factor(hlines[[sample_var]], levels = s_ord)
     vlines[[sample_var]] = factor(vlines[[sample_var]], levels = s_ord)
   }
-  
+
   # Reserve unused slots so short final report chunks keep the same panel size.
   if (is.null(n_slots)) {
     knee_facets = facet_wrap(~get(sample_var), ncol = 4)
@@ -584,7 +582,7 @@ plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, b
     theme_classic(base_size = 9) +
     theme(legend.position = 'none') +
     labs(x = 'barcode rank', y = 'library size', color = NULL)
-  
+
   # add lines only if show_lines is TRUE
   if (show_lines) {
     p = p +
@@ -597,11 +595,9 @@ plot_barcode_ranks_w_params <- function(knee_fs, ambient_knees_df, sample_var, b
       geom_text_repel(data = vlines, mapping = aes(x = value, y = 100, label = variable),
                       size = 2.5, angle = 90)
   }
-  
+
   return(p)
 }
-
-
 
 find_outlier <- function(x) {
   return(x < quantile(x, .25) - 1.5*IQR(x) | x > quantile(x, .75) + 1.5*IQR(x))
@@ -612,36 +608,36 @@ find_outlier <- function(x) {
 plot_amb_params_dotplot <- function(params_qc, sample_var, scales = 'fixed') {
   all_scales_opts = c('fixed', 'free')
   scale = match.arg(scales, all_scales_opts)
-  
+
   # get outliers
   outliers_te = params_qc$expected_total_ratio %>%
     set_names(params_qc[[sample_var]]) %>%
     log10() %>%
     find_outlier(.) %>% .[.] %>%
     names()
-  
+
   outliers_slopes = params_qc$slope_ratio %>%
     set_names(params_qc[[sample_var]]) %>%
     log10() %>%
     find_outlier(.) %>% .[.] %>%
     names()
-  
+
   keep_cols = c(sample_var, 'slope_ratio', 'expected_total_ratio')
-  plot_df = params_qc %>% 
+  plot_df = params_qc %>%
     .[, ..keep_cols] %>%
     melt(id.vars = sample_var) %>%
     .[, `:=`(
-      is.outlier_slope = fifelse(get(sample_var) %in% outliers_slopes, TRUE, FALSE), 
+      is.outlier_slope = fifelse(get(sample_var) %in% outliers_slopes, TRUE, FALSE),
       is.outlier_te    = fifelse(get(sample_var) %in% outliers_te, TRUE, FALSE)
     )
      ]
-  
+
   outlier_df_slope = copy(plot_df) %>%
     .[is.outlier_slope == TRUE & variable == 'slope_ratio']
-    
-  outlier_df_te = copy(plot_df) %>% 
-    .[is.outlier_te == TRUE & variable == 'expected_total_ratio'] 
-  
+
+  outlier_df_te = copy(plot_df) %>%
+    .[is.outlier_te == TRUE & variable == 'expected_total_ratio']
+
   pl =  ggplot(plot_df, aes(x = variable, y = value) ) +
     geom_quasirandom( fill = 'grey', shape = 21, size = 3 ) +
     labs(x = NULL, y = 'ratio') +
@@ -652,14 +648,14 @@ plot_amb_params_dotplot <- function(params_qc, sample_var, scales = 'fixed') {
           axis.text.y = element_text(size = 10),
           axis.title.y = element_text(size = 12)) +
     scale_y_log10()
-  
+
   if (scales == 'free') {
     pl =  pl + facet_wrap(~variable, scales ='free') +
       theme(axis.text.x  = element_blank(),
             axis.ticks.x = element_blank(),
             strip.text = element_text(size = 12))
   }
-  
+
   return(pl)
 }
 
@@ -737,19 +733,19 @@ make_amb_sample_qc_oulier_plots <- function(qc_df, var1, var2, outliers_df,
   return(p)
 }
 
-plot_qc_metrics_split_by_cells_empties <- function(rna_knee_fs, 
+plot_qc_metrics_split_by_cells_empties <- function(rna_knee_fs,
   sample_var = "sample_id", min_umis = 10, n_cores) {
-  
+
   # setup cluster
   bpparam = MulticoreParam(workers = n_cores, progressbar = FALSE)
-  
+
   # get cells and empties
   plot_dt   = rna_knee_fs %>% bplapply(function(f) {
-    tmp_dt = fread(f) %>% 
-      .[rank <= expected_cells | in_empty_plateau == TRUE ] %>% 
+    tmp_dt = fread(f) %>%
+      .[rank <= expected_cells | in_empty_plateau == TRUE ] %>%
       .[, `:=`(
-        umis       = log10(total), 
-        splice_pct = qlogis((spliced + 1) / (spliced + unspliced + 2)), 
+        umis       = log10(total),
+        splice_pct = qlogis((spliced + 1) / (spliced + unspliced + 2)),
         what       = fifelse(rank <= expected_cells, "cell", "empty")
       )] %>%
       .[, c(sample_var, 'barcode', 'umis', 'splice_pct', 'what'), with = FALSE]
@@ -758,21 +754,21 @@ plot_qc_metrics_split_by_cells_empties <- function(rna_knee_fs,
       variable.name = "qc_metric", value.name = "qc_val"
     ) %>%
     .[, qc_metric := fcase(
-      qc_metric == 'umis', 'no. of UMIs', 
-      qc_metric == 'splice_pct', "spliced pct.", 
+      qc_metric == 'umis', 'no. of UMIs',
+      qc_metric == 'splice_pct', "spliced pct.",
       default = NA_character_
     )]
 
   # breaks and labs
     umis_brks    = c(1e0, 1e1, 3e1, 1e2, 3e2, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6) %>% log10
     umis_labs    = c("1", "10", "30", "100", "300", "1k", "3k", "10k", "30k", "100k", "300k", "1M")
-  
+
     splice_brks  = c(0.01, 0.03, 0.1, 0.3, 0.5, 0.7, 0.9, 0.97, 0.99) %>% qlogis
     splice_labs = c("1%", "3%", "10%", "30%", "50%", "70%", "90%", "97%", "99%")
-    
+
   g_violin = ggplot() +
     geom_violin( data = plot_dt[ !is.na(qc_val) ],
-                 aes( x = get(sample_var), y = qc_val, fill = what), colour = NA, 
+                 aes( x = get(sample_var), y = qc_val, fill = what), colour = NA,
                  kernel = 'rectangular', adjust = 0.1, scale = 'width', width = 0.8) +
     facet_grid( . ~ qc_metric, scales = 'free', space = 'free_y' ) +
     facetted_pos_scales(
@@ -788,10 +784,9 @@ plot_qc_metrics_split_by_cells_empties <- function(rna_knee_fs,
     theme_classic() +
     labs( x = NULL, y = NULL, fill = "what does\nthe barcode\nrepresent?" ) +
     theme(panel.spacing = unit(1, "lines"))
-  
+
   return(g_violin)
 }
-
 
 .get_knee_coordinates_from_ranks <- function(ranks_dt, sample_var, landmark = c('knee', 'shin')) {
   landmark = match.arg(landmark)
@@ -805,6 +800,7 @@ plot_qc_metrics_split_by_cells_empties <- function(rna_knee_fs,
     value = unique(ranks_dt[[knee]])
     if (length(value) != 1L || !is.finite(value) || value <= 0)
       stop('Expected one positive finite ', knee, ' value for ', ids)
+
     # Match the configured/fitted knee count, including values between observed counts.
     # which.min selects the first saved row for ties, as in existing rank lookup.
     nearest = observed[which.min(abs(total - value))]

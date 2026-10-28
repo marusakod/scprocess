@@ -1,3 +1,4 @@
+import gzip
 import json
 import pathlib
 import sys
@@ -21,7 +22,7 @@ def test_reaggregate_preaggregated_labels_against_zoom_clusters(tmp_path):
     labels_f = tmp_path / "parent_labels.csv.gz"
     integration_f = tmp_path / "zoom_integration.csv.gz"
 
-    pl.DataFrame({
+    labels_df = pl.DataFrame({
         "model": ["test"] * 4,
         "sample_id": ["s1", "s1", "s2", "s2"],
         "cell_id": ["c1", "c2", "c3", "c4"],
@@ -30,13 +31,17 @@ def test_reaggregate_preaggregated_labels_against_zoom_clusters(tmp_path):
         "prop_hi_res_cl": [1.0, 1.0, 1.0, 1.0],
         "predicted_label_naive": ["A", "A", "B", "A"],
         "probability_naive": [0.9, 0.8, 0.7, 0.6],
-    }).write_csv(labels_f)
+    })
+    with gzip.open(labels_f, "wb") as handle:
+        labels_df.write_csv(handle)
 
-    pl.DataFrame({
+    integration_df = pl.DataFrame({
         "cell_id": ["c1", "c2", "c3", "c4"],
         "sample_id": ["s1", "s1", "s2", "s2"],
         "RNA_snn_res.2": ["zoom1", "zoom2", "zoom2", "zoom2"],
-    }).write_csv(integration_f)
+    })
+    with gzip.open(integration_f, "wb") as handle:
+        integration_df.write_csv(handle)
 
     result = aggregate_predictions(
         [str(labels_f)], str(integration_f), "RNA_snn_res.2", 0.5, "sample_id"

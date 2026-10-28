@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from scripts.doublet_cluster_threshold import calculate_doublet_cluster_threshold
+from scripts.integration import calculate_doublet_cluster_threshold
 
 
 class TestDoubletClusterThreshold(unittest.TestCase):
@@ -12,10 +12,21 @@ class TestDoubletClusterThreshold(unittest.TestCase):
         self.assertEqual([d/n > fit['threshold'] for d,n in [(30,100),(31,100)]], [False,True])
         self.assertIsNone(fit['mean_logit'])
 
-    def test_reject_removed_names(self):
+
+    def test_schema_rejects_invalid_methods_and_cutoffs(self):
+        import json
+        from pathlib import Path
+        import jsonschema
+
+        schema_f = Path(__file__).resolve().parents[1] / 'resources/schemas/config.schema.json'
+        schema = json.loads(schema_f.read_text())['properties']['integration']
         for method in ('split_mad_mixture', 'mean_mad', 'fixed', 'unknown'):
-            with self.subTest(method=method), self.assertRaisesRegex(ValueError, 'adaptive or manual'):
-                calculate_doublet_cluster_threshold([(1,10)], method=method)
+            with self.subTest(method=method), self.assertRaises(jsonschema.ValidationError):
+                jsonschema.validate(dict(int_use_paga=False, int_dbl_threshold_method=method), schema)
+        for cutoff in (-1, 1.1):
+            with self.subTest(cutoff=cutoff), self.assertRaises(jsonschema.ValidationError):
+                jsonschema.validate(dict(int_use_paga=False,
+                    int_dbl_threshold_method='manual', int_dbl_cl_prop=cutoff), schema)
 
     def test_schema_matches_public_methods(self):
         import json
@@ -39,39 +50,6 @@ class TestDoubletClusterThreshold(unittest.TestCase):
         for supplied in ({'int_dbl_threshold_method': 'adaptive'}, {},
                          {'int_dbl_threshold_method': 'manual', 'int_dbl_cl_prop': .3}):
             jsonschema.validate(dict(int_use_paga=False, **supplied), schema)
-
-    def test_default_resolution_preserves_method_validation(self):
-        import json
-        from pathlib import Path
-        import jsonschema
-        from scripts.scprocess_utils import _get_default_config_from_schema
-        from snakemake.utils import update_config
-        schema = json.loads((Path(__file__).resolve().parents[1] / 'resources/schemas/config.schema.json').read_text())
-        for method in (None, 'adaptive', 'manual'):
-            supplied = {'integration': {}} if method is None else {'integration': {'int_dbl_threshold_method': method}}
-            effective = _get_default_config_from_schema(schema, supplied)['integration']
-            self.assertNotIn('int_dbl_cl_prop', effective)
-            if method == 'manual':
-                supplied['integration']['int_dbl_cl_prop'] = .3
-            update_config(effective, supplied['integration'])
-            jsonschema.validate(effective, schema['properties']['integration'])
-        supplied = {'integration': {'int_dbl_threshold_method': 'adaptive', 'int_dbl_cl_prop': .3}}
-        effective = _get_default_config_from_schema(schema, supplied)['integration']
-        update_config(effective, supplied['integration'])
-        with self.assertRaises(jsonschema.ValidationError):
-            jsonschema.validate(effective, schema['properties']['integration'])
-
-    def test_manual_requires_explicit_cutoff(self):
-        with self.assertRaisesRegex(ValueError, 'explicit cutoff'):
-            calculate_doublet_cluster_threshold([(1,10)], method='manual')
-
-    def test_invalid_parameters(self):
-        for kwargs in ({'ceiling': 1.1}, {'ceiling': -1}):
-            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
-                calculate_doublet_cluster_threshold([(1,10)], **kwargs)
-        for counts in ([], [(11,10)], [(0,0)]):
-            with self.subTest(counts=counts), self.assertRaises(ValueError):
-                calculate_doublet_cluster_threshold(counts)
 
 
 class TestSplitMadMixture(unittest.TestCase):

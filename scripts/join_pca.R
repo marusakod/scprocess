@@ -6,30 +6,13 @@ suppressPackageStartupMessages({
 })
 
 
-# Validate without modifying an upstream output. Return the read-only handle
-# so the caller can retain it throughout BPCells' lazy reads.
-.ensure_10x_hdf5_compat <- function(h5_path) {
-  h5 <- H5File$new(h5_path, mode = "r")
-  tryCatch({
-    if (!h5$exists("matrix/features/id")) {
-      stop("Missing matrix/features/id in ", h5_path,
-           "; regenerate this matrix with join_build_matrix. Input left unchanged.")
-    }
-    h5
-  }, error = function(e) {
-    h5$close_all()
-    stop(e)
-  })
-}
-
-
 #' Convert a joint 10x HDF5 count matrix to native BPCells storage.
 #'
 #' @param counts_h5_f Path to joint counts HDF5 (10x-format CSC matrix)
 #' @param out_dir     Output BPCells matrix directory
 write_join_bpcells_matrix <- function(counts_h5_f, out_dir) {
   message("Loading count matrix from HDF5")
-  h5_readonly <- .ensure_10x_hdf5_compat(counts_h5_f)
+  h5_readonly <- .open_join_counts_readonly(counts_h5_f)
   on.exit(h5_readonly$close_all(), add = TRUE)
   mat <- open_matrix_10x_hdf5(counts_h5_f)
   message(sprintf("  Matrix dimensions: %d genes x %d cells", nrow(mat), ncol(mat)))
@@ -72,9 +55,10 @@ run_join_pca <- function(counts_bp_dir, n_dims, n_threads, out_pca_f,
   message("Normalizing: library size -> scale 1e4 -> log1p")
   lib_sizes <- BPCells::colSums(mat)
   if (any(!is.finite(lib_sizes) | lib_sizes <= 0)) stop("Invalid or zero count library size")
-  mat_norm <- multiply_cols(mat, 1e4 / lib_sizes) %>% log1p()
+  mat_norm <- log1p(multiply_cols(mat, 1e4 / lib_sizes))
 
   message("Computing per-gene mean and variance (streaming)")
+
   # BPCells 0.3.x accepts one row statistic; requesting variance also returns mean.
   stats <- matrix_stats(mat_norm, row_stats = "variance")
   gene_means <- stats$row_stats["mean", ]
@@ -86,6 +70,8 @@ run_join_pca <- function(counts_bp_dir, n_dims, n_threads, out_pca_f,
 
   message("Queueing delayed per-gene centering and scaling")
   mat_scaled <- (mat_norm - gene_means) / gene_sds
+
+  # Join PCA retains its uncapped scaling; cell-cycle correction is optional.
   pca_matrix <- mat_scaled
   ridge <- NULL
   design_info <- NULL
@@ -118,6 +104,7 @@ run_join_pca <- function(counts_bp_dir, n_dims, n_threads, out_pca_f,
   }
 
   message("Computing PC scores (V * D)")
+
   # Input is genes x cells, so V contains cell embeddings.
   # The regression operator is cells x genes, so its cell embeddings are U.
   cell_vectors <- if (is.null(ridge)) svd_result$v else svd_result$u
@@ -137,4 +124,21 @@ run_join_pca <- function(counts_bp_dir, n_dims, n_threads, out_pca_f,
 
   message(sprintf("Done. Wrote %d cells x %d PCs to %s", nrow(pca_dt), n_dims, out_pca_f))
   invisible(pca_dt)
+}
+
+
+# Validate without modifying an upstream output. Return the read-only handle
+# so the caller can retain it throughout BPCells' lazy reads.
+.open_join_counts_readonly <- function(h5_path) {
+  h5 <- H5File$new(h5_path, mode = "r")
+  tryCatch({
+    if (!h5$exists("matrix/features/id")) {
+      stop("Missing matrix/features/id in ", h5_path,
+           "; regenerate this matrix with join_build_matrix. Input left unchanged.")
+    }
+    h5
+  }, error = function(e) {
+    h5$close_all()
+    stop(e)
+  })
 }

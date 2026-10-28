@@ -128,8 +128,6 @@ save_cellbender_as_sce <- function(sce_df_f, metadata_f, gtf_dt_f, mito_str, sce
   message('done!')
 }
 
-
-
 save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mito_str, 
   sce_f, rowdata_f, demux_f, min_counts = 100, n_cores = 8, demux_type = "none", 
   sample_var = 'sample_id', keep_smpls_str ) {
@@ -219,9 +217,6 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
 }
 
-
-
-
 .get_one_bender_outputs <- function(cb_full_f, cb_filt_f, sel_s, bender_prob) {
   # get this file
   h5_filt   = H5Fopen(cb_filt_f, flags = "H5F_ACC_RDONLY" )
@@ -266,7 +261,6 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
   return(list(mat = mat, bender_dt = bender_dt))
 }
-
 
 .make_one_sce <- function(bender_ls, sel_s, sample_var, gene_annots, mito_str) {
   # unpack inputs
@@ -450,7 +444,6 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
   return(sce_out)
 }
 
-
 .add_qc_metrics <- function(sce, mito_str, bpparam) {
   mt_gs     = str_detect(rownames(sce), mito_str)
   message(sprintf("  the following %d genes are selected as mitochondrial: ", length(mt_gs)))
@@ -460,7 +453,6 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
   return(sce)
 }
-
 
 .add_metadata <- function(sce, metadata_f) {
   # get all metadata
@@ -482,7 +474,6 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
   return(sce)
 }
-
 
 .add_demux_metadata <- function(sce, metadata_f, demux_f, demux_type){
 
@@ -558,7 +549,6 @@ save_noncb_as_sce <- function(sce_df_f, ambient_method, metadata_f, gtf_dt_f, mi
 
 }
 
-
 calc_gene_totals <- function(sce_input) {
   gene_totals_dt  = rowData(sce_input) %>% as.data.frame %>%
     as.data.table %>%
@@ -569,7 +559,6 @@ calc_gene_totals <- function(sce_input) {
 
   return(gene_totals_dt)
 }
-
 
 .get_one_nonbender_sce <- function(mat_f, sel_s, mito_str, gene_annots, min_counts, sample_var) {
 
@@ -660,7 +649,6 @@ calc_gene_totals <- function(sce_input) {
   return(sce_tmp)
 }
 
-
 save_hto_sce <- function(sce_df_f, sce_hto_f, n_cores){
   # unpack some inputs
   samples_dt  = fread(sce_df_f)
@@ -716,8 +704,6 @@ save_hto_sce <- function(sce_df_f, sce_hto_f, n_cores){
 
 }
 
-
-
 get_one_hto_sce <- function(sel_sample, sample_stats_f, amb_yaml_f, hto_mat_f, trans_f, hto_sce_f, ambient_method){
 
   # if ambient method is cellbender exclude bad samples
@@ -742,7 +728,7 @@ get_one_hto_sce <- function(sel_sample, sample_stats_f, amb_yaml_f, hto_mat_f, t
   yaml_data       = yaml.load_file(amb_yaml_f)
   bcs_f = yaml_data$bcs_f
 
-# get file for barcode translation
+  # get file for barcode translation
   bc_dict = trans_f %>% fread(header = FALSE) %>%
     set_colnames(c("bc_rna", "bc_hto"))
 
@@ -795,7 +781,6 @@ get_one_hto_sce <- function(sel_sample, sample_stats_f, amb_yaml_f, hto_mat_f, t
 
 }
 
-
 # functions for multiplexing QC
 
 get_hto_dt <- function(pool, hto_sce){
@@ -831,7 +816,6 @@ get_hto_dt <- function(pool, hto_sce){
 
 }
 
-
 hto_ridges <- function(sel_sample, proj_meta, hto_dt_ls){
 
   # get the right pool dt
@@ -863,7 +847,6 @@ hto_ridges <- function(sel_sample, proj_meta, hto_dt_ls){
 
   return(p)
 }
-
 
 # make pairwise plots
 hto_pairwise <- function(pool_dt, var = c("prop", "norm_count")){
@@ -898,156 +881,3 @@ hto_pairwise <- function(pool_dt, var = c("prop", "norm_count")){
 
   return(g)
 }
-
-
-
-
-
-
-
-
-# maybe useful for later...
-#
-# get_bcs_dt <- function(fry_dirs, name_regex, n_cores) {
-#   # get subdirectories
-#   fry_subs  = lapply(fry_dirs, function(fry_dir)
-#     .get_fry_sub_dirs(fry_dir, name_regex, what = 'qc')) %>%
-#     do.call(c, .)
-#
-#   # load featureDump.txt from each
-#   message('loading barcodes:\n  ', appendLF = FALSE)
-#   bpparam   = MulticoreParam(workers = n_cores, tasks = length(fry_subs))
-#   on.exit(bpstop(bpparam))
-#   bcs_dt    = bplapply(names(fry_subs), function(fry_name) {
-#     message(fry_name, " ", appendLF = FALSE)
-#     # get date
-#     fry_sub   = fry_subs[[fry_name]]
-#
-#     # get date
-#     fs        = list.files(fry_sub, recursive = FALSE )
-#     date_str  = fs %>% str_subset("outs_alevin_[0-9]{4}-[0-9]{2}-[0-9]{2}") %>%
-#       str_extract("[0-9]{4}-[0-9]{2}-[0-9]{2}") %>% unique %>%
-#       sort(decreasing = TRUE) %>% .[ 1 ]
-#     fry_dir   = paste0('outs_fry_', date_str)
-#     alvn_dir  = paste0('outs_alevin_', date_str)
-#
-#     # get data
-#     tmp_dt    = readAlevinFryQC(
-#         mapDir    = file.path(fry_sub, alvn_dir),
-#         permitDir = file.path(fry_sub, fry_dir),
-#         quantDir  = file.path(fry_sub, fry_dir)
-#       ) %>% use_series('cbTable') %>% as.data.table %>%
-#       .[, sample_id := fry_name]
-#     }, BPPARAM = bpparam) %>% rbindlist %>%
-#     setcolorder('sample_id') %>% janitor::clean_names(.)
-#   message()
-#
-#   return(bcs_dt)
-# }
-
-# make_alevinQC_reports <- function(fry_dirs, save_dir, overwrite = FALSE) {
-#   # get all directories
-#   fry_subs  = lapply(fry_dirs, function(fry_dir)
-#     .get_fry_sub_dirs(fry_dir, name_regex, what = 'qc')) %>% do.call(c, .)
-#
-#   # for each one, make report
-#   for (fry_name in names(fry_subs)) {
-#     # get relevant subdirectory
-#     fry_sub   = fry_subs[[fry_name]]
-#     # check if already done
-#     report_f  = sprintf('alevinQC_%s.html', fry_name)
-#     if (file.exists(file.path(save_dir, report_f)) & overwrite == FALSE) {
-#       message(fry_name, ' report already done; skipping')
-#       message()
-#       next
-#     }
-#
-#     message()
-#     message('making alevinQC report for ', fry_name)
-#
-#     # else make report
-#     alevinQC::alevinFryQCReport(
-#       mapDir    = file.path(fry_sub, 'outs_alevin'),
-#       permitDir = file.path(fry_sub, 'outs_fry'),
-#       quantDir  = file.path(fry_sub, 'outs_fry'),
-#       sampleId = fry_name, outputFile = report_f, outputDir = save_dir,
-#       forceOverwrite = overwrite
-#       )
-#   }
-# }
-
-# plot_knees <- function(bcs_dt, what = c('barcodes', 'genes'), do_facet = TRUE) {
-#   what        = match.arg(what)
-#
-#   if (what == 'barcodes') {
-#     # what to summarise by?
-#     agg_var     = 'original_freq'
-#     permit_ls   = c(TRUE, FALSE)
-#
-#     # define breaks
-#     x_brks      = 10^seq(0, 7) %>% log10
-#     x_labs      = c("1", "10", "100", "1k", "10k", "100k", "1M", "10M")
-#     y_brks      = x_brks
-#     y_labs      = x_labs
-#
-#     # define labels
-#     x_lab       = "Cell barcode rank"
-#     y_lab       = "Cell barcode frequency"
-#
-#     # what to do with x axis
-#     .trans_fn   = log10
-#
-#   } else {
-#     # what to summarise by?
-#     agg_var     = 'nbr_genes_above_zero'
-#     permit_ls   = c(TRUE)
-#
-#     # define breaks
-#     x_brks      = seq(0, 2e4, 5e3)
-#     x_labs      = as.character(x_brks)
-#     y_brks      = c(0, 10^seq(0, 7)) %>% `+`(1) %>% log10
-#     y_labs      = c("0", "1", "10", "100", "1k", "10k", "100k", "1M", "10M")
-#
-#     # define labels
-#     x_lab       = "Cell barcode rank"
-#     y_lab       = "No. genes observed"
-#
-#     # what to do with x axis
-#     .trans_fn   = identity
-#   }
-#   assert_that( length(x_brks) == length(x_labs) )
-#   assert_that( length(y_brks) == length(y_labs) )
-#
-#   # aggregate
-#   plot_dt     = bcs_dt[ in_permit_list %in% permit_ls ] %>%
-#     setnames(agg_var, 'agg_var', skip_absent = TRUE) %>%
-#     .[, .(n_bc = .N), by = c("sample_id", "agg_var", "in_permit_list") ] %>%
-#     .[ order(sample_id, -agg_var) ] %>%
-#     .[, cum_bcs   := cumsum(n_bc), by = sample_id ] %>%
-#     .[, n_ok      := max(.SD[ in_permit_list == TRUE ]$cum_bcs), by = sample_id ] %>%
-#     .[, sample_id := fct_reorder(sample_id, n_ok) ]
-#
-#   # make plot
-#   g = ggplot(plot_dt) +
-#     aes(x = .trans_fn(cum_bcs), y = log10(agg_var), group = sample_id ) +
-#     geom_step( aes(color = in_permit_list),
-#       alpha = ifelse(do_facet, 1, 0.5), direction = 'vh' ) +
-#     # scale_x_continuous( breaks = log_brks, labels = log_labs ) +
-#     scale_x_continuous( breaks = x_brks, labels = x_labs ) +
-#     scale_y_continuous( breaks = y_brks, labels = y_labs ) +
-#     scale_color_manual(values = c(`TRUE` = "black", `FALSE` = "grey")) +
-#     theme_bw() +
-#     theme(
-#       panel.grid.minor = element_blank(),
-#       panel.grid.major.x = element_blank(),
-#       axis.title = element_text(size = 12)) +
-#     labs(x = x_lab, y = y_lab)
-#
-#   if (do_facet)
-#     g = g + facet_wrap( ~ sample_id )
-#
-#   return(g)
-# }
-
-
-

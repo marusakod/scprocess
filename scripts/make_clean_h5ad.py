@@ -68,7 +68,6 @@ def make_clean_h5ad(sel_b, sel_run, integration_f, h5_paths_f,
   print('done!')
 
 
-
 def _get_clean_adata(filtered_f, sel_run, rowdata_f, coldata_f, sub_cols ):
   
   with h5py.File(filtered_f, 'r') as f:

@@ -291,8 +291,6 @@ def _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict, output_
   return
 
 
-
-
 def get_txome_index_parameters(config):
   # initialize
   ref_txomes  = config.get('ref_txomes', {})
@@ -405,7 +403,6 @@ def _safe_boolean(val):
     raise ValueError('{val} is not a boolean')
 
   return res
-
 
 
 # function that makes simpleaf index
@@ -808,6 +805,16 @@ def _make_index_params_yaml(yaml_f, ref_txome, fasta_f, index_dir, gtf_f, gtf_tx
   return
 
 
+def get_xgboost_source_files(parameters):
+  if parameters.get('is_prebuilt'):
+    return []
+  directory = pathlib.Path(parameters['src_dir'])
+  tag = parameters['ref_tag']
+  return [str(path) for path in directory.glob(f'{tag}_*') if path.is_file() and
+    path.name.endswith(('xgboost_model.json','allowed_cls.csv','selected_genes.txt',
+      'label_map.csv','label_specs.csv','coarse_label_specs.csv'))]
+
+
 def get_xgboost_parameters(config):
   xgboost_ls = config.get('xgboost', [])
   SETUP_LS   = []
@@ -1141,14 +1148,3 @@ if __name__ == "__main__":
     save_available_xgboost_csv(args.csv_f, args.scdata_dir, args.names)
   else:
     parser.print_help()
-
-
-
-def get_xgboost_source_files(parameters):
-  if parameters.get('is_prebuilt'):
-    return []
-  directory = pathlib.Path(parameters['src_dir'])
-  tag = parameters['ref_tag']
-  return [str(path) for path in directory.glob(f'{tag}_*') if path.is_file() and
-    path.name.endswith(('xgboost_model.json','allowed_cls.csv','selected_genes.txt',
-      'label_map.csv','label_specs.csv','coarse_label_specs.csv'))]

@@ -12,6 +12,83 @@ suppressPackageStartupMessages({
 )
 
 
+#' Estimate uncentred fixed-reference tricycle coordinates for one physical run.
+estimate_run_tricycle <- function(
+    counts_h5_f, coldata_f, rowdata_f, run_column, run_value, species,
+    out_scores_f, out_marker_expression_f, out_summary_f,
+    min_reference_genes = 100L) {
+  .tricycle_log("Reading cell metadata for ", run_column, " ", run_value)
+  coldata <- fread(coldata_f)
+  required <- c("cell_id", "sample_id", "keep", "scdbl_class", run_column)
+  missing <- setdiff(required, names(coldata))
+  if (length(missing)) stop("coldata is missing: ", paste(missing, collapse = ", "))
+  if (anyDuplicated(coldata$cell_id)) stop("coldata contains duplicate cell IDs")
+
+  # Project QC-passed cells and known doublets; only QC-passed cells fit the origin.
+  known_doublet <- coldata$scdbl_class == "doublet"
+  if ("demux_class" %in% names(coldata)) {
+    known_doublet <- known_doublet | coldata$demux_class == "doublet"
+  }
+  known_doublet[is.na(known_doublet)] <- FALSE
+  eligible <- coldata$keep == TRUE | known_doublet
+  eligible[is.na(eligible)] <- FALSE
+  in_group <- !is.na(coldata[[run_column]]) & coldata[[run_column]] == run_value
+  selected <- coldata[eligible & in_group, cell_id]
+  if (!length(selected)) stop("No eligible cells found for ", run_column, " ", run_value)
+
+  .tricycle_log("Loading one run-level count matrix")
+  mat <- .read_10x_csc(counts_h5_f, run_value)
+  selected <- selected[selected %in% colnames(mat)]
+  if (!length(selected)) stop("No eligible cells were present in the supplied matrices")
+  .tricycle_log("Selected ", length(selected), " eligible cells present in the count matrix")
+  projection <- .project_selected_cells(
+    mat, selected, species, rowdata_f, min_reference_genes
+  )
+  embedding <- projection$embedding
+
+  scores <- data.table(
+    cell_id = rownames(embedding),
+    sample_id = coldata$sample_id[match(rownames(embedding), coldata$cell_id)],
+    tricycle_projection_group = paste0("run:", run_value),
+    tricycle_raw_pc1 = embedding[, 1L],
+    tricycle_raw_pc2 = embedding[, 2L]
+  )
+  .tricycle_log("Writing ", nrow(scores), " uncentred cell projections")
+  dir.create(dirname(out_scores_f), recursive = TRUE, showWarnings = FALSE)
+  fwrite(scores, out_scores_f)
+  .tricycle_log(
+    "Writing expression for ", length(.CELL_CYCLE_MARKER_GENES),
+    " canonical cell-cycle markers"
+  )
+  fwrite(projection$marker_expression, out_marker_expression_f)
+
+  summary <- data.table(
+    projection_group = run_value,
+    projection_group_column = run_column,
+    centring_scope = "project_aggregation",
+    species = species,
+    gene_id_type = projection$gene_id_type,
+    n_cells = nrow(embedding),
+    n_output_cells = nrow(scores),
+    n_marker_genes_requested = length(.CELL_CYCLE_MARKER_GENES),
+    n_marker_genes_found = length(projection$marker_genes_found),
+    marker_genes_missing = paste(
+      setdiff(.CELL_CYCLE_MARKER_GENES, projection$marker_genes_found),
+      collapse = ";"
+    ),
+    n_reference_genes = projection$n_reference_genes,
+    n_reference_total = projection$n_reference_total,
+    n_reference_missing = projection$n_reference_missing,
+    n_duplicate_feature_mappings = projection$n_duplicate_feature_mappings,
+    reference = "tricycle::neuroRef",
+    tricycle_version = as.character(packageVersion("tricycle"))
+  )
+  fwrite(summary, out_summary_f)
+  .tricycle_log("Finished ", run_column, " ", run_value)
+  invisible(scores)
+}
+
+
 .tricycle_log <- function(...) {
   message(sprintf("[%s] %s", format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z"),
                   paste0(..., collapse = "")))
@@ -114,6 +191,8 @@ suppressPackageStartupMessages({
 
 .extract_marker_expression <- function(mat, cell_idx, selected, lib_size, rowdata_f) {
   feature_symbols <- .feature_symbols(rownames(mat), rowdata_f)
+
+  # Collapse duplicate symbols before normalising the small diagnostic marker set.
   selected_rows <- which(feature_symbols %in% .CELL_CYCLE_MARKER_GENES)
   marker_expression <- matrix(
     0, nrow = length(.CELL_CYCLE_MARKER_GENES), ncol = length(selected),
@@ -148,6 +227,7 @@ suppressPackageStartupMessages({
   .tricycle_log("Calculating library sizes for ", length(selected), " cells")
   cell_idx <- match(selected, colnames(mat))
   if (anyNA(cell_idx)) stop("Some selected cells are absent from the tricycle matrices")
+
   # Matrix::colSums traverses the in-memory CSC arrays once. Calculate all
   # columns before indexing to avoid copying most of a run-sized sparse matrix.
   lib_size <- Matrix::colSums(mat)[cell_idx]
@@ -211,80 +291,4 @@ suppressPackageStartupMessages({
        n_reference_total = n_reference_total,
        n_reference_missing = n_reference_total - length(unique_keys),
        n_duplicate_feature_mappings = length(matched_keys) - length(unique_keys))
-}
-
-
-#' Estimate uncentred fixed-reference tricycle coordinates for one physical run.
-estimate_run_tricycle <- function(
-    counts_h5_f, coldata_f, rowdata_f, run_column, run_value, species,
-    out_scores_f, out_marker_expression_f, out_summary_f,
-    min_reference_genes = 100L) {
-  .tricycle_log("Reading cell metadata for ", run_column, " ", run_value)
-  coldata <- fread(coldata_f)
-  required <- c("cell_id", "sample_id", "keep", "scdbl_class", run_column)
-  missing <- setdiff(required, names(coldata))
-  if (length(missing)) stop("coldata is missing: ", paste(missing, collapse = ", "))
-  if (anyDuplicated(coldata$cell_id)) stop("coldata contains duplicate cell IDs")
-
-  known_doublet <- coldata$scdbl_class == "doublet"
-  if ("demux_class" %in% names(coldata)) {
-    known_doublet <- known_doublet | coldata$demux_class == "doublet"
-  }
-  known_doublet[is.na(known_doublet)] <- FALSE
-  eligible <- coldata$keep == TRUE | known_doublet
-  eligible[is.na(eligible)] <- FALSE
-  in_group <- !is.na(coldata[[run_column]]) & coldata[[run_column]] == run_value
-  selected <- coldata[eligible & in_group, cell_id]
-  if (!length(selected)) stop("No eligible cells found for ", run_column, " ", run_value)
-
-  .tricycle_log("Loading one run-level count matrix")
-  mat <- .read_10x_csc(counts_h5_f, run_value)
-  selected <- selected[selected %in% colnames(mat)]
-  if (!length(selected)) stop("No eligible cells were present in the supplied matrices")
-  .tricycle_log("Selected ", length(selected), " eligible cells present in the count matrix")
-  projection <- .project_selected_cells(
-    mat, selected, species, rowdata_f, min_reference_genes
-  )
-  embedding <- projection$embedding
-
-  scores <- data.table(
-    cell_id = rownames(embedding),
-    sample_id = coldata$sample_id[match(rownames(embedding), coldata$cell_id)],
-    tricycle_projection_group = paste0("run:", run_value),
-    tricycle_raw_pc1 = embedding[, 1L],
-    tricycle_raw_pc2 = embedding[, 2L]
-  )
-  .tricycle_log("Writing ", nrow(scores), " uncentred cell projections")
-  dir.create(dirname(out_scores_f), recursive = TRUE, showWarnings = FALSE)
-  fwrite(scores, out_scores_f)
-  .tricycle_log(
-    "Writing expression for ", length(.CELL_CYCLE_MARKER_GENES),
-    " canonical cell-cycle markers"
-  )
-  fwrite(projection$marker_expression, out_marker_expression_f)
-
-  summary <- data.table(
-    projection_group = run_value,
-    projection_group_column = run_column,
-    centring_scope = "project_aggregation",
-    species = species,
-    gene_id_type = projection$gene_id_type,
-    n_cells = nrow(embedding),
-    n_output_cells = nrow(scores),
-    n_marker_genes_requested = length(.CELL_CYCLE_MARKER_GENES),
-    n_marker_genes_found = length(projection$marker_genes_found),
-    marker_genes_missing = paste(
-      setdiff(.CELL_CYCLE_MARKER_GENES, projection$marker_genes_found),
-      collapse = ";"
-    ),
-    n_reference_genes = projection$n_reference_genes,
-    n_reference_total = projection$n_reference_total,
-    n_reference_missing = projection$n_reference_missing,
-    n_duplicate_feature_mappings = projection$n_duplicate_feature_mappings,
-    reference = "tricycle::neuroRef",
-    tricycle_version = as.character(packageVersion("tricycle"))
-  )
-  fwrite(summary, out_summary_f)
-  .tricycle_log("Finished ", run_column, " ", run_value)
-  invisible(scores)
 }

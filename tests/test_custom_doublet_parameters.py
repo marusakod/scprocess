@@ -64,3 +64,25 @@ def test_pooled_run_accepts_mixed_pool_and_sample_qc(tmp_path):
     params, run_var = utils.get_run_parameters(config, None, "pool_id", ["p1"])
     assert run_var == "pool_id"
     assert params["p1"]["qc"]["dbl_dbr_sd"] == 1
+
+
+def test_default_resolution_preserves_method_validation():
+    import json
+    from pathlib import Path
+    import jsonschema
+    from scripts.scprocess_utils import _get_default_config_from_schema
+    from snakemake.utils import update_config
+    schema = json.loads((Path(__file__).resolve().parents[1] / 'resources/schemas/config.schema.json').read_text())
+    for method in (None, 'adaptive', 'manual'):
+        supplied = {'integration': {}} if method is None else {'integration': {'int_dbl_threshold_method': method}}
+        effective = _get_default_config_from_schema(schema, supplied)['integration']
+        assert 'int_dbl_cl_prop' not in effective
+        if method == 'manual':
+            supplied['integration']['int_dbl_cl_prop'] = .3
+        update_config(effective, supplied['integration'])
+        jsonschema.validate(effective, schema['properties']['integration'])
+    supplied = {'integration': {'int_dbl_threshold_method': 'adaptive', 'int_dbl_cl_prop': .3}}
+    effective = _get_default_config_from_schema(schema, supplied)['integration']
+    update_config(effective, supplied['integration'])
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(effective, schema['properties']['integration'])

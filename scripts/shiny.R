@@ -10,97 +10,6 @@ suppressPackageStartupMessages({
 })
 
 
-.validate_shiny_annotation <- function(annotation_csv_f, data_clusters) {
-  if (!file.exists(annotation_csv_f))
-    stop("annotation_csv does not exist: ", annotation_csv_f)
-
-  annot <- fread(annotation_csv_f)
-  required_cols <- c("cluster", "cluster_name")
-  missing_cols  <- setdiff(required_cols, colnames(annot))
-  if (length(missing_cols) > 0L)
-    stop("annotation_csv must contain columns 'cluster' and 'cluster_name'; missing: ",
-         paste(missing_cols, collapse = ", "))
-
-  annot[, cluster      := trimws(as.character(cluster))]
-  annot[, cluster_name := trimws(as.character(cluster_name))]
-
-  blank_clusters <- is.na(annot$cluster) | annot$cluster == ""
-  if (any(blank_clusters))
-    stop("annotation_csv contains missing or blank cluster values at rows: ",
-         paste(which(blank_clusters), collapse = ", "))
-
-  blank_names <- is.na(annot$cluster_name) | annot$cluster_name == ""
-  if (any(blank_names))
-    stop("annotation_csv contains missing or blank cluster_name values at rows: ",
-         paste(which(blank_names), collapse = ", "))
-
-  duplicate_clusters <- unique(annot$cluster[duplicated(annot$cluster)])
-  if (length(duplicate_clusters) > 0L)
-    stop("annotation_csv contains duplicated cluster values: ",
-         paste(duplicate_clusters, collapse = ", "))
-
-  duplicate_names <- unique(annot$cluster_name[duplicated(annot$cluster_name)])
-  if (length(duplicate_names) > 0L)
-    stop("annotation_csv contains duplicated cluster_name values: ",
-         paste(duplicate_names, collapse = ", "))
-
-  data_clusters  <- unique(trimws(as.character(data_clusters)))
-  annot_clusters <- annot$cluster
-  only_in_annot  <- sort(setdiff(annot_clusters, data_clusters))
-  only_in_data   <- sort(setdiff(data_clusters, annot_clusters))
-
-  if (length(only_in_annot) > 0L || length(only_in_data) > 0L) {
-    mismatch_details <- c(
-      if (length(only_in_annot) > 0L)
-        paste0("Present only in annotation_csv: ", paste(only_in_annot, collapse = ", ")),
-      if (length(only_in_data) > 0L)
-        paste0("Present only in analysis data: ", paste(only_in_data, collapse = ", "))
-    )
-    stop(
-      "annotation_csv does not match the clusters in the current analysis.\n",
-      paste(mismatch_details, collapse = "\n"),
-      "\nThe annotation may belong to a different clustering resolution or analysis run. ",
-      "Update shiny.annotation_csv before rebuilding the app."
-    )
-  }
-
-  annot
-}
-
-
-.align_shiny_gene_rows <- function(matrices, labels = names(matrices)) {
-  if (!length(matrices)) stop("No nonempty H5AD matrices for Shiny", call. = FALSE)
-  if (is.null(labels)) labels <- as.character(seq_along(matrices))
-  stopifnot(length(labels) == length(matrices))
-  genes <- rownames(matrices[[1L]])
-  reordered <- character()
-  for (i in seq_along(matrices)) {
-    ids <- rownames(matrices[[i]])
-    if (is.null(ids) || anyNA(ids) || any(!nzchar(trimws(ids))) || anyDuplicated(ids))
-      stop("Gene IDs must be unique, nonmissing and nonblank in Shiny H5AD: ", labels[[i]], call. = FALSE)
-    if (identical(ids, genes)) next
-    if (length(ids) != length(genes) || !setequal(ids, genes))
-      stop("Gene sets differ between Shiny H5AD inputs: ", labels[[i]], call. = FALSE)
-    matrices[[i]] <- matrices[[i]][match(genes, ids), , drop = FALSE]
-    reordered <- c(reordered, labels[[i]])
-  }
-  if (length(reordered))
-    warning("Same genes, different order: aligned Shiny H5AD gene rows by ID in ",
-      length(reordered), " matrix/matrices. Examples: ",
-      paste(utils::head(reordered, 3L), collapse = ", "), call. = FALSE)
-  matrices
-}
-
-
-.open_shiny_h5ad <- function(path) {
-  # Hold this handle throughout lazy BPCells evaluation. BPCells 0.3.1 can
-  # otherwise open writable inputs in read/write mode and change their mtime.
-  handle <- hdf5r::H5File$new(path, mode = "r")
-  tryCatch(list(matrix = BPCells::open_matrix_anndata_hdf5(path), handle = handle),
-    error = function(e) { handle$close_all(); stop(e) })
-}
-
-
 #' Build Shiny app from scprocess outputs
 #'
 #' @param integration_f  Path to integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz
@@ -155,7 +64,7 @@ make_shiny_app_scprocess <- function(
 ) {
   setDTthreads(n_cores)
 
-  # ---- Resolve species from ref_txome name --------------------------------
+  # Resolve species from ref_txome name
   if (grepl("GRCh|hg|human", ref_txome, ignore.case = TRUE)) {
     species  <- "human"
     gene_re  <- "-ENSG"
@@ -168,7 +77,7 @@ make_shiny_app_scprocess <- function(
   }
   message("Species: ", species)
 
-  # ---- Parse comma-separated args ----------------------------------------
+  # Parse comma-separated args
   metadata_vars <- strsplit(metadata_vars, ",")[[1]] %>% trimws()
   var_names     <- strsplit(var_names, ",")[[1]] %>% trimws()
   metadata_combns    <- jsonlite::fromJSON(metadata_combns)
@@ -181,59 +90,18 @@ make_shiny_app_scprocess <- function(
   n_keep        <- as.integer(n_keep)
   cluster_col   <- paste0("RNA_snn_res.", mkr_sel_res)
 
-  # ---- Parse and validate palette arguments ----------------------------------
-  # Load valid palette names from the shared resource file (mirrors scprocess_utils.py)
-  .pal_file       <- file.path(scprocess_dir, "resources", "valid_palettes.json")
-  .pal_groups     <- jsonlite::read_json(.pal_file)
-  .valid_pal_names <- unlist(.pal_groups[!startsWith(names(.pal_groups), "_")], use.names = FALSE)
+  # Validate colour settings identically for full builds and configuration updates.
+  palette_settings <- .read_shiny_palette_settings(scprocess_dir, cluster_palette, metadata_palettes)
+  normalised_pals <- palette_settings$metadata_palettes
 
-  .check_palette_name <- function(name, context) {
-    if (!name %in% .valid_pal_names)
-      stop("Unknown palette '", name, "' in ", context, ". ",
-           "See the scprocess documentation for valid palette names.")
-  }
-
-  # Validate cluster_palette
-  if (nchar(cluster_palette) > 0)
-    .check_palette_name(cluster_palette, "cluster_palette")
-
-  # Parse metadata_palettes from JSON and normalise into shinyconfig format.
-  # Input shapes (per variable):
-  #   "VanGogh1"             -> {palette: "VanGogh1"}
-  #   ["#FF0000", "#0000FF"] -> {colours: [...]}
-  #   {palette: "Klimt", values: [...]} -> {palette: "Klimt", values: [...]}
-  #   {colours: [...], values: [...]}   -> {colours: [...], values: [...]}
-  raw_pals <- jsonlite::fromJSON(metadata_palettes, simplifyVector = FALSE)
-
-  normalised_pals <- lapply(names(raw_pals), function(v) {
-    spec <- raw_pals[[ v ]]
-    if (is.character(spec) && length(spec) == 1L) {
-      # scalar string: palette name
-      .check_palette_name(spec, paste0("metadata_palettes$", v))
-      list(palette = spec)
-    } else if (is.list(spec) && !is.null(names(spec))) {
-      # named object: {palette:, colours:, values:}
-      if (!is.null(spec$palette))
-        .check_palette_name(spec$palette, paste0("metadata_palettes$", v, "$palette"))
-      spec
-    } else if (is.list(spec) && is.null(names(spec))) {
-      # unnamed list from JSON array: explicit colour list
-      list(colours = spec)
-    } else {
-      stop("metadata_palettes$", v, ": unexpected format. ",
-           "Expected a palette name (string), colour list (array), ",
-           "or object with 'palette'/'colours'/'values' keys.")
-    }
-  }) %>% setNames(names(raw_pals))
-
-  # ---- Set up output directories ------------------------------------------
+  # Set up output directories
   deploy_dir <- gsub("/$", "", deploy_dir)
   assert_that(dir.exists(deploy_dir), msg = paste("deploy_dir does not exist:", deploy_dir))
   data_dir   <- file.path(deploy_dir, "data")
   dir.create(data_dir, showWarnings = FALSE)
   dir.create(file.path(deploy_dir, "www"), showWarnings = FALSE)
 
-  # ---- Copy app files from resources/shiny/ --------------------------------
+  # Copy app files from resources/shiny/
   message("Copying app files")
   app_src <- file.path(scprocess_dir, "resources/shiny")
   assert_that(dir.exists(app_src),
@@ -256,7 +124,7 @@ make_shiny_app_scprocess <- function(
     file.copy(list.files(src, full.names = TRUE), dest, overwrite = TRUE)
   }
 
-  # ---- Copy or create home.md --------------------------------------------
+  # Copy or create home.md
   home_md_dest <- file.path(data_dir, "home.md")
   if (nchar(home_md_f) > 0 && file.exists(home_md_f)) {
     file.copy(home_md_f, home_md_dest, overwrite = TRUE)
@@ -278,7 +146,7 @@ make_shiny_app_scprocess <- function(
     message(" created placeholder home.md")
   }
 
-  # ---- Read integrated_dt, extract UMAP + cluster + cell metadata ----------
+  # Read integrated_dt, extract UMAP + cluster + cell metadata
   message("Reading integration outputs")
   int_dt    <- fread(integration_f)
 
@@ -301,7 +169,7 @@ make_shiny_app_scprocess <- function(
   umaps  <- int_dt[, .(cell_id, umap_1 = UMAP1, umap_2 = UMAP2)]
   clusts <- int_dt[, .(cell_id, cluster = get(cluster_col))]
 
-  # ---- Join with sample metadata to get per-cell metadata -----------------
+  # Join with sample metadata to get per-cell metadata
   message("Joining with sample metadata")
   sample_meta <- fread(sample_meta_f)
   assert_that("sample_id" %in% colnames(sample_meta),
@@ -316,7 +184,7 @@ make_shiny_app_scprocess <- function(
     by = "sample_id", all.x = TRUE
   )
 
-  # ---- Merge all metadata into a single table -----------------------------
+  # Merge all metadata into a single table
   all_meta <- cell_meta %>%
     merge(umaps,  by = "cell_id") %>%
     merge(clusts, by = "cell_id")
@@ -336,7 +204,7 @@ make_shiny_app_scprocess <- function(
     )
   }
 
-  # ---- Downsample UMAP -----------------------------------------------------
+  # Downsample UMAP
   message("Downsampling UMAP to ", n_keep, " cells")
   keep_cells <- .subsample_umap(
     all_meta[, .(cell_id, UMAP_1 = umap_1, UMAP_2 = umap_2, cluster)],
@@ -357,7 +225,7 @@ make_shiny_app_scprocess <- function(
   if (is.null(annot) && file.exists(annotation_dest))
     unlink(annotation_dest)
 
-  # ---- Read h5ad files and combine into a single BPCells matrix -----------
+  # Read h5ad files and combine into a single BPCells matrix
   message("Reading h5ad files")
   h5ad_paths  <- yaml::yaml.load_file(h5ads_yaml_f)  # list: batch_name -> path (or {path, project_id})
 
@@ -374,6 +242,7 @@ make_shiny_app_scprocess <- function(
     } else {
       h5ad_f  <- h5ad_entry[["path"]]
     }
+
     # skip empty files (excluded batches produce zero-byte h5ad placeholders)
     if (file.size(h5ad_f) == 0) {
       message(" skipping empty ", basename(h5ad_f))
@@ -402,7 +271,7 @@ make_shiny_app_scprocess <- function(
   all_meta   <- all_meta[cell_id %in% shared_cells]
   counts_mat <- counts_mat[, all_meta$cell_id]
 
-  # ---- Save cell metadata --------------------------------------------------
+  # Save cell metadata
   out_fs <- .create_out_f_names(data_dir, app_tag, date_stamp)
 
   message("Saving cell metadata")
@@ -410,33 +279,34 @@ make_shiny_app_scprocess <- function(
   setnames(all_meta, c("umap_1", "umap_2"), c("UMAP_1", "UMAP_2"))
   fwrite(all_meta, out_fs["out_cell_meta_f"])
 
-  # ---- Pre-compute cluster centroids from all cells (before downsampling) --
+  # Pre-compute cluster centroids from all cells (before downsampling)
   message("Computing cluster centroids")
   centroids_dt <- all_meta[, .(UMAP_1 = median(UMAP_1), UMAP_2 = median(UMAP_2)), by = cluster] %>%
     setorder(cluster)
   fwrite(centroids_dt, out_fs["out_centroids_f"])
 
-  # ---- Pre-compute repelled label positions from full UMAP density ----------
+  # Pre-compute repelled label positions from full UMAP density
   message("Computing repelled label positions")
   repel_pos_dt <- .compute_repel_positions(all_meta, centroids_dt)
   fwrite(repel_pos_dt, out_fs["out_repel_pos_f"])
 
-  # ---- Copy annotation.csv if supplied ------------------------------------
+  # Copy annotation.csv if supplied
   if (!is.null(annot)) {
     fwrite(annot, annotation_dest)
     message(" copied annotation.csv")
   }
 
-  # ---- Normalise counts and write BPCells matrix (downsampled cells only) --
+  # Normalise counts and write BPCells matrix (downsampled cells only)
   message("Normalising and saving downsampled counts as BPCells")
   keep_mat    <- counts_mat[, all_meta$cell_id[all_meta$keep_cell]]
   norm_counts <- BPCells::multiply_cols(keep_mat, 1e4 / BPCells::colSums(keep_mat)) %>%
     log1p()
 
   .write_bpcells(norm_counts, out_fs["out_count_h5_f"])
-  rm(keep_mat, norm_counts); gc(full = TRUE)
+  rm(keep_mat, norm_counts)
+  gc(full = TRUE)
 
-  # ---- Sample pseudobulks -------------------------------------------------
+  # Sample pseudobulks
   message("Creating sample pseudobulks")
   sample_pb_sum    <- BPCells::pseudobulk_matrix(counts_mat, all_meta$sample_id, method = "sum")
   sample_pb_counts <- as(sample_pb_sum, "IterableMatrix") %>%
@@ -448,7 +318,7 @@ make_shiny_app_scprocess <- function(
   .write_bpcells(sample_pb_counts, out_fs["out_sample_pb_h5_f"])
   fwrite(sample_pb_meta, out_fs["out_sample_meta_f"])
 
-  # ---- Cluster pseudobulks ------------------------------------------------
+  # Cluster pseudobulks
   message("Creating cluster pseudobulks")
   pb_group          <- paste0(all_meta$sample_id, ".", all_meta$cluster)
   cluster_pb_sum    <- BPCells::pseudobulk_matrix(counts_mat, pb_group, method = "sum")
@@ -475,7 +345,7 @@ make_shiny_app_scprocess <- function(
   .write_bpcells(cluster_pb_counts, out_fs["out_cluster_pb_h5_f"])
   fwrite(cluster_pb_meta, out_fs["out_cluster_meta_f"])
 
-  # ---- Gene (row) metadata -----------------------------------------------
+  # Gene (row) metadata
   message("Saving gene metadata")
   rowd <- data.table(
     gene_id = rownames(counts_mat),
@@ -485,7 +355,7 @@ make_shiny_app_scprocess <- function(
   )
   fwrite(rowd, out_fs["out_row_indices_f"])
 
-  # ---- TF annotation -------------------------------------------------------
+  # TF annotation
   message("Loading transcription factor annotations")
   genesets_dir <- file.path(scprocess_dir, "resources/shiny/extdata/genesets")
   tfs_f        <- file.path(genesets_dir, paste0("transcription_factors_", species, ".txt.gz"))
@@ -497,7 +367,7 @@ make_shiny_app_scprocess <- function(
     tf_symbols <- rowd[ensembl %in% tfs_dt$ensembl, symbol]
   }
 
-  # ---- Markers -------------------------------------------------------------
+  # Markers
   message("Processing cluster markers")
   markers <- fread(mkrs_f)
   assert_that(all(c("symbol", "cluster", "FDR", "logFC", "logcpm.sel") %in% colnames(markers)),
@@ -511,7 +381,7 @@ make_shiny_app_scprocess <- function(
   markers <- markers %>% setorder(cluster, FDR)
   fwrite(markers, out_fs["out_cluster_markers_f"])
 
-  # ---- HVGs ----------------------------------------------------------------
+  # HVGs
   message("Processing HVGs")
   pb_hvgs <- fread(pb_hvgs_f)
   variability_col <- intersect(c("logcpm_var", "vst_var"), colnames(pb_hvgs))[1]
@@ -522,7 +392,7 @@ make_shiny_app_scprocess <- function(
     setorder(-variability)
   fwrite(pb_hvgs, out_fs["out_pb_hvgs_f"])
 
-  # ---- GSEA ----------------------------------------------------------------
+  # GSEA
   do_gsea <- nchar(fgsea_bp_f) > 0 && nchar(fgsea_cc_f) > 0 && nchar(fgsea_mf_f) > 0
 
   if (do_gsea) {
@@ -562,7 +432,7 @@ make_shiny_app_scprocess <- function(
   }
   fwrite(top_paths, out_fs["out_fgsea_f"])
 
-  # ---- GO term gene lists --------------------------------------------------
+  # GO term gene lists
   go_terms_f <- file.path(genesets_dir, paste0("genes_go_pathways_", species, ".txt.gz"))
   if (!do_gsea) {
     message("Skipping GO term gene lists (no GSEA results)")
@@ -600,7 +470,7 @@ make_shiny_app_scprocess <- function(
   }
   fwrite(go_genes, out_fs["out_go_terms_f"])
 
-  # ---- Write shinyconfig.yaml ----------------------------------------------
+  # Write shinyconfig.yaml
   message("Writing shinyconfig.yaml")
   meta_section <- list(
     vars      = as.list(metadata_vars),
@@ -669,37 +539,11 @@ configure_shiny_app_scprocess <- function(
   assert_that(length(metadata_vars) == length(var_names),
     msg = "metadata_vars and var_names must have the same length")
 
-  pal_file       <- file.path(scprocess_dir, "resources", "valid_palettes.json")
-  pal_groups     <- jsonlite::read_json(pal_file)
-  valid_pal_names <- unlist(pal_groups[!startsWith(names(pal_groups), "_")], use.names = FALSE)
+  # Validate colour settings identically for full builds and configuration updates.
+  palette_settings <- .read_shiny_palette_settings(scprocess_dir, cluster_palette, metadata_palettes)
+  normalised_pals <- palette_settings$metadata_palettes
 
-  check_palette_name <- function(name, context) {
-    if (!name %in% valid_pal_names)
-      stop("Unknown palette '", name, "' in ", context, ". ",
-           "See the scprocess documentation for valid palette names.")
-  }
-
-  if (nchar(cluster_palette) > 0)
-    check_palette_name(cluster_palette, "cluster_palette")
-
-  raw_pals <- jsonlite::fromJSON(metadata_palettes, simplifyVector = FALSE)
-  normalised_pals <- lapply(names(raw_pals), function(v) {
-    spec <- raw_pals[[v]]
-    if (is.character(spec) && length(spec) == 1L) {
-      check_palette_name(spec, paste0("metadata_palettes$", v))
-      list(palette = spec)
-    } else if (is.list(spec) && !is.null(names(spec))) {
-      if (!is.null(spec$palette))
-        check_palette_name(spec$palette, paste0("metadata_palettes$", v, "$palette"))
-      spec
-    } else if (is.list(spec) && is.null(names(spec))) {
-      list(colours = spec)
-    } else {
-      stop("metadata_palettes$", v, ": unexpected format. ",
-           "Expected a palette name (string), colour list (array), ",
-           "or object with 'palette'/'colours'/'values' keys.")
-    }
-  }) %>% setNames(names(raw_pals))
+  pal_file <- palette_settings$palette_f
 
   out_fs       <- .create_out_f_names(data_dir, app_tag, date_stamp)
   cell_meta_f  <- unname(out_fs["out_cell_meta_f"])
@@ -797,7 +641,96 @@ configure_shiny_app_scprocess <- function(
 }
 
 
-# HELPER FUNCTIONS -------------------------------------------------------------
+.validate_shiny_annotation <- function(annotation_csv_f, data_clusters) {
+  if (!file.exists(annotation_csv_f))
+    stop("annotation_csv does not exist: ", annotation_csv_f)
+
+  annot <- fread(annotation_csv_f)
+  required_cols <- c("cluster", "cluster_name")
+  missing_cols  <- setdiff(required_cols, colnames(annot))
+  if (length(missing_cols) > 0L)
+    stop("annotation_csv must contain columns 'cluster' and 'cluster_name'; missing: ",
+         paste(missing_cols, collapse = ", "))
+
+  annot[, cluster      := trimws(as.character(cluster))]
+  annot[, cluster_name := trimws(as.character(cluster_name))]
+
+  blank_clusters <- is.na(annot$cluster) | annot$cluster == ""
+  if (any(blank_clusters))
+    stop("annotation_csv contains missing or blank cluster values at rows: ",
+         paste(which(blank_clusters), collapse = ", "))
+
+  blank_names <- is.na(annot$cluster_name) | annot$cluster_name == ""
+  if (any(blank_names))
+    stop("annotation_csv contains missing or blank cluster_name values at rows: ",
+         paste(which(blank_names), collapse = ", "))
+
+  duplicate_clusters <- unique(annot$cluster[duplicated(annot$cluster)])
+  if (length(duplicate_clusters) > 0L)
+    stop("annotation_csv contains duplicated cluster values: ",
+         paste(duplicate_clusters, collapse = ", "))
+
+  duplicate_names <- unique(annot$cluster_name[duplicated(annot$cluster_name)])
+  if (length(duplicate_names) > 0L)
+    stop("annotation_csv contains duplicated cluster_name values: ",
+         paste(duplicate_names, collapse = ", "))
+
+  data_clusters  <- unique(trimws(as.character(data_clusters)))
+  annot_clusters <- annot$cluster
+  only_in_annot  <- sort(setdiff(annot_clusters, data_clusters))
+  only_in_data   <- sort(setdiff(data_clusters, annot_clusters))
+
+  if (length(only_in_annot) > 0L || length(only_in_data) > 0L) {
+    mismatch_details <- c(
+      if (length(only_in_annot) > 0L)
+        paste0("Present only in annotation_csv: ", paste(only_in_annot, collapse = ", ")),
+      if (length(only_in_data) > 0L)
+        paste0("Present only in analysis data: ", paste(only_in_data, collapse = ", "))
+    )
+    stop(
+      "annotation_csv does not match the clusters in the current analysis.\n",
+      paste(mismatch_details, collapse = "\n"),
+      "\nThe annotation may belong to a different clustering resolution or analysis run. ",
+      "Update shiny.annotation_csv before rebuilding the app."
+    )
+  }
+
+  annot
+}
+
+
+.align_shiny_gene_rows <- function(matrices, labels = names(matrices)) {
+  if (!length(matrices)) stop("No nonempty H5AD matrices for Shiny", call. = FALSE)
+  if (is.null(labels)) labels <- as.character(seq_along(matrices))
+  stopifnot(length(labels) == length(matrices))
+  genes <- rownames(matrices[[1L]])
+  reordered <- character()
+  for (i in seq_along(matrices)) {
+    ids <- rownames(matrices[[i]])
+    if (is.null(ids) || anyNA(ids) || any(!nzchar(trimws(ids))) || anyDuplicated(ids))
+      stop("Gene IDs must be unique, nonmissing and nonblank in Shiny H5AD: ", labels[[i]], call. = FALSE)
+    if (identical(ids, genes)) next
+    if (length(ids) != length(genes) || !setequal(ids, genes))
+      stop("Gene sets differ between Shiny H5AD inputs: ", labels[[i]], call. = FALSE)
+    matrices[[i]] <- matrices[[i]][match(genes, ids), , drop = FALSE]
+    reordered <- c(reordered, labels[[i]])
+  }
+  if (length(reordered))
+    warning("Same genes, different order: aligned Shiny H5AD gene rows by ID in ",
+      length(reordered), " matrix/matrices. Examples: ",
+      paste(utils::head(reordered, 3L), collapse = ", "), call. = FALSE)
+  matrices
+}
+
+
+.open_shiny_h5ad <- function(path) {
+  # Hold this handle throughout lazy BPCells evaluation. BPCells 0.3.1 can
+  # otherwise open writable inputs in read/write mode and change their mtime.
+  handle <- hdf5r::H5File$new(path, mode = "r")
+  tryCatch(list(matrix = BPCells::open_matrix_anndata_hdf5(path), handle = handle),
+    error = function(e) { handle$close_all(); stop(e) })
+}
+
 
 .create_out_f_names <- function(data_dir, app_tag, date_stamp) {
   fs <- c(
@@ -856,10 +789,7 @@ configure_shiny_app_scprocess <- function(
 }
 
 
-# Compute non-overlapping label positions in low-density UMAP space.
-# Uses a grid density map to find positions whose label footprint is clear of
-# cells, then allocates those positions globally so labels cannot overlap.
-# Returns a data.table with columns: cluster, repel_1, repel_2.
+# Place cluster labels in low-density UMAP regions, maintaining separation.
 .compute_repel_positions <- function(all_meta, centroids_dt,
                                      grid_res = 200L, max_radius_frac = 0.5,
                                      r_clear = 6L, r_label = r_clear,
@@ -868,8 +798,10 @@ configure_shiny_app_scprocess <- function(
             r_clear >= 0L, r_label >= 0L, label_gap >= 0L,
             padding_frac >= 0)
 
-  raw_u1_min <- min(all_meta$UMAP_1); raw_u1_max <- max(all_meta$UMAP_1)
-  raw_u2_min <- min(all_meta$UMAP_2); raw_u2_max <- max(all_meta$UMAP_2)
+  raw_u1_min <- min(all_meta$UMAP_1)
+  raw_u1_max <- max(all_meta$UMAP_1)
+  raw_u2_min <- min(all_meta$UMAP_2)
+  raw_u2_max <- max(all_meta$UMAP_2)
   u1_span <- raw_u1_max - raw_u1_min
   u2_span <- raw_u2_max - raw_u2_min
   if (u1_span == 0 || u2_span == 0)
@@ -1036,4 +968,52 @@ configure_shiny_app_scprocess <- function(
   if (dir.exists(dir_name)) unlink(dir_name, recursive = TRUE)
   if (!is(mx, "IterableMatrix")) mx <- as(mx, "IterableMatrix")
   BPCells::transpose_storage_order(mx, outdir = dir_name)
+}
+
+
+.read_shiny_palette_settings <- function(scprocess_dir, cluster_palette, metadata_palettes) {
+  palette_f       <- file.path(scprocess_dir, "resources", "valid_palettes.json")
+  palette_groups     <- jsonlite::read_json(palette_f)
+  valid_palette_names <- unlist(palette_groups[!startsWith(names(palette_groups), "_")], use.names = FALSE)
+
+  check_palette_name <- function(name, context) {
+    if (!name %in% valid_palette_names)
+      stop("Unknown palette '", name, "' in ", context, ". ",
+           "See the scprocess documentation for valid palette names.")
+  }
+
+  # Validate cluster_palette
+  if (nchar(cluster_palette) > 0)
+    check_palette_name(cluster_palette, "cluster_palette")
+
+  # Parse metadata_palettes from JSON and normalise into shinyconfig format.
+  # Input shapes (per variable):
+  #   "VanGogh1"             -> {palette: "VanGogh1"}
+  #   ["#FF0000", "#0000FF"] -> {colours: [...]}
+  #   {palette: "Klimt", values: [...]} -> {palette: "Klimt", values: [...]}
+  #   {colours: [...], values: [...]}   -> {colours: [...], values: [...]}
+  raw_pals <- jsonlite::fromJSON(metadata_palettes, simplifyVector = FALSE)
+
+  normalised_pals <- lapply(names(raw_pals), function(v) {
+    spec <- raw_pals[[ v ]]
+    if (is.character(spec) && length(spec) == 1L) {
+      # scalar string: palette name
+      check_palette_name(spec, paste0("metadata_palettes$", v))
+      list(palette = spec)
+    } else if (is.list(spec) && !is.null(names(spec))) {
+      # named object: {palette:, colours:, values:}
+      if (!is.null(spec$palette))
+        check_palette_name(spec$palette, paste0("metadata_palettes$", v, "$palette"))
+      spec
+    } else if (is.list(spec) && is.null(names(spec))) {
+      # unnamed list from JSON array: explicit colour list
+      list(colours = spec)
+    } else {
+      stop("metadata_palettes$", v, ": unexpected format. ",
+           "Expected a palette name (string), colour list (array), ",
+           "or object with 'palette'/'colours'/'values' keys.")
+    }
+  }) %>% setNames(names(raw_pals))
+
+  list(palette_f = palette_f, metadata_palettes = normalised_pals)
 }
