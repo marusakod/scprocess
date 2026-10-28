@@ -224,6 +224,8 @@
         "mins_join_render_html":        { "type": "integer", "default": 30 },
         "gb_join_extract_labels":       { "type": "integer", "default": 4 },
         "mins_join_extract_labels":     { "type": "integer", "default": 10 },
+        "gb_join_train_xgboost_prepare":     { "type": "integer", "minimum": 1, "default": 8 },
+        "mins_join_train_xgboost_prepare":   { "type": "integer", "minimum": 1, "default": 10 },
         "gb_join_train_xgboost_train":       { "type": "integer", "default": 32 },
         "gb_join_train_xgboost_predict":     { "type": "integer", "default": 8 },
         "gb_join_train_xgboost_combine":   { "type": "integer", "default": 8 },

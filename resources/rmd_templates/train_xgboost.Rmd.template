@@ -33,6 +33,7 @@ source('code/marker_genes.R')
 ```{r setup_input, include = FALSE}
 predictions_f          = "${predictions_f}"
 gain_f                 = "${importance_f}"
+model_card_f           = "${model_card_f}"
 pb_f                   = "${pseudobulk_f}"
 label_counts_f         = "${label_counts_f}"
 fulldata_predictions_f = "${fulldata_predictions_f}"
@@ -45,6 +46,7 @@ setDTthreads(n_cores)
 # load data
 preds_dt    = fread(predictions_f)
 gain_dt     = fread(gain_f)
+feature_selection = read_xgboost_feature_selection(model_card_f)
 int_dt      = fread(integration_f)[, .(cell_id, UMAP1, UMAP2)]
 ```
 
@@ -140,10 +142,12 @@ plot_precision_recall(metrics_dt, label_colours=style$colours)
 
 ### Cumulative gain curve
 
-Genes are ranked by their contribution to XGBoost's loss reduction (gain). The vertical line shows the cutoff where the top genes capture 90% of total gain. Genes to the left of the line are included in the final model.
+Genes are ranked by their contribution to XGBoost's loss reduction (gain). The horizontal line shows the requested `r scales::percent(feature_selection$gain_threshold, accuracy = 1)` cumulative gain target. The vertical line shows the actual number of genes included in the final model, after applying the minimum and maximum gene counts.
 
 ```{r plot_gain_curve, fig.height = 5, fig.width = 8}
-print(plot_gain_curve(gain_dt))
+print(plot_gain_curve(gain_dt,
+  gain_threshold = feature_selection$gain_threshold,
+  n_selected_genes = feature_selection$n_selected_genes))
 ```
 
 
@@ -152,7 +156,8 @@ print(plot_gain_curve(gain_dt))
 Pseudobulk logCPM expression of the top XGBoost genes ranked by descending gain, shown per cell type label. Each dot represents one batch; dot size indicates the number of cells contributing to that pseudobulk value.
 
 ```{r plot_top_genes, fig.height = 8, fig.width = 8, results = "asis"}
-top_genes_dt = gain_dt[order(-gain)][1:min(100, .N)]
+# Pseudobulks contain final-model genes; omit first-pass-only features.
+top_genes_dt = gain_dt[gene_id %in% cpms_dt$gene_id][order(-gain)][1:min(100, .N)]
 n_pages = 10
 per_p   = 10
 p       = 1

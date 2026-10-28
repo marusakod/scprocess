@@ -16,7 +16,7 @@ scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 sys.path.append(str(scprocess_dir / 'scripts'))
 from scprocess_utils import (check_join_config, get_resources, prep_resource_params,
   get_join_project_parameters, get_join_source_labels_f, get_join_batch_sources,
-  get_paga_resolution)
+  get_paga_resolution, get_xgboost_spec_inputs)
 
 # Prevent underscore-containing model names from being partially captured as the
 # labeller in join label, log, benchmark, and cluster-name file patterns.
@@ -928,7 +928,8 @@ rule join_render_html:
     fgsea_files   = [fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else [],
     label_files   = label_fs,
     cluster_names = cluster_names_fs,
-    xgb_files     = [],
+    xgb_files = ([f'{join_xgb_dir}/{_join_xgb_ref_tag}_model_card.json',
+      str(scprocess_dir / 'scripts/train_xgboost.R')] if DO_TRAIN_XGB else []),
     report_helper_f = str(scprocess_dir / "scripts/join_report.R"),
     rmd_template_f = str(scprocess_dir / "resources/rmd_templates/join.Rmd.template")
   output:
@@ -974,6 +975,7 @@ rule join_render_html:
     do_xgboost       = DO_TRAIN_XGB,
     xgb_predictions_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz' if DO_TRAIN_XGB else '',
     xgb_importance_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv' if DO_TRAIN_XGB else '',
+    xgb_model_card_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_model_card.json' if DO_TRAIN_XGB else '',
     xgb_pseudobulk_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad' if DO_TRAIN_XGB else '',
     xgb_has_coarse    = ("true" if _join_xgb_cfg.get('label_map_f') else "false") if DO_TRAIN_XGB else 'false',
     xgb_min_cells     = _join_xgb_cfg.get('min_cells_expressed', 10) if DO_TRAIN_XGB else 10
@@ -1044,6 +1046,7 @@ rule join_render_html:
       do_xgboost       = '{params.do_xgboost}',
       xgb_predictions_f = '{params.xgb_predictions_f}',
       xgb_importance_f  = '{params.xgb_importance_f}',
+      xgb_model_card_f  = '{params.xgb_model_card_f}',
       xgb_pseudobulk_f  = '{params.xgb_pseudobulk_f}',
       xgb_has_coarse    = '{params.xgb_has_coarse}',
       xgb_min_cells     = '{params.xgb_min_cells}'
@@ -1085,8 +1088,8 @@ if DO_TRAIN_XGB:
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb = config['resources']['gb_train_xgboost_prepare'] * 1024,
-      runtime = config['resources']['mins_train_xgboost_prepare']
+      mem_mb = config['resources']['gb_join_train_xgboost_prepare'] * 1024,
+      runtime = config['resources']['mins_join_train_xgboost_prepare']
     log: f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_metadata.csv.gz' + '.log'
     conda: '../envs/label_celltypes.yaml'
     shell: """
@@ -1285,6 +1288,9 @@ if DO_TRAIN_XGB:
 
   rule join_render_html_train_xgboost:
     input:
+      model_card_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_model_card.json',
+      train_script_f = str(scprocess_dir / 'scripts/train_xgboost.R'),
+      template_f = str(scprocess_dir / 'resources/rmd_templates/train_xgboost.Rmd.template'),
       label_specs_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_specs.csv',
       coarse_label_specs_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_coarse_label_specs.csv',
       preds_f              = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
@@ -1342,6 +1348,7 @@ if DO_TRAIN_XGB:
           ref_tag         = '{params.ref_tag}',
           predictions_f   = '{params.predictions_f}',
           importance_f    = '{params.importance_f}',
+          model_card_f    = '{input.model_card_f}',
           pseudobulk_f    = '{params.pseudobulk_f}',
           label_counts_f         = '{params.label_counts_f}',
           fulldata_predictions_f = '{params.fulldata_predictions_f}',

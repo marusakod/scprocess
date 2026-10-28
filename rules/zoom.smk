@@ -1390,6 +1390,7 @@ rule render_html_zoom:
     xgb_args              = lambda wildcards, input: ", ".join([
       f"xgb_predictions_f = '{input.get('xgb_preds_f', '')}'",
       f"xgb_importance_f  = '{input.get('xgb_imp_f', '')}'",
+      f"xgb_model_card_f  = '{input.get('xgb_model_card_f', '')}'",
       f"xgb_pseudobulk_f  = '{input.get('xgb_pb_f', '')}'",
       f"xgb_has_coarse    = '{'true' if ZOOM_PARAMS[wildcards.zoom_name].get('train_xgboost', {}).get('label_map_f') else 'false'}'",
       f"xgb_min_cells     = '{ZOOM_PARAMS[wildcards.zoom_name].get('train_xgboost', {}).get('min_cells_expressed', 10)}'"

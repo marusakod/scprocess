@@ -36,6 +36,11 @@ class TestOptionalSectionDefaults(unittest.TestCase):
         self.assertEqual(defaults['train_xgboost']['seed'], 42)
         self.assertFalse(defaults['train_xgboost']['use_gpu'])
 
+  def test_join_training_preparation_resources_have_defaults(self):
+    defaults = _get_default_config_from_schema(self.schemas['join'], {})
+    self.assertEqual(defaults['resources']['gb_join_train_xgboost_prepare'], 8)
+    self.assertEqual(defaults['resources']['mins_join_train_xgboost_prepare'], 10)
+
   def test_explicit_empty_train_xgboost_still_requires_annotations(self):
     for name, schema in self.schemas.items():
       with self.subTest(schema=name):

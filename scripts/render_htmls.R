@@ -249,7 +249,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'fgsea_go_bp_f','fgsea_go_cc_f', 'fgsea_go_mf_f', 'int_res_ls',
       'custom_mkr_names', 'custom_mkr_paths', 'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_sel_res',
       'mkr_min_cells', 'mkr_gsea_var', 'mkr_gsea_cut', 'ref_txome', 'batch_var', 'do_gsea',
-      'do_xgboost', 'xgb_predictions_f', 'xgb_importance_f', 'xgb_pseudobulk_f',
+      'do_xgboost', 'xgb_predictions_f', 'xgb_importance_f', 'xgb_pseudobulk_f', 'xgb_model_card_f',
       'xgb_has_coarse', 'xgb_min_cells')
 
     assert_that(all(req_names %in% add_args_names))
@@ -303,7 +303,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'integration_f', 'qc_f', 'sample_meta_f', 'mkrs_f', 'pb_hvgs_f',
       'pb_plot_data_f',
       'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f',
-      'do_xgboost', 'xgb_predictions_f', 'xgb_importance_f', 'xgb_pseudobulk_f',
+      'do_xgboost', 'xgb_predictions_f', 'xgb_importance_f', 'xgb_pseudobulk_f', 'xgb_model_card_f',
       'xgb_has_coarse', 'xgb_min_cells')
 
     assert_that(all(req_names %in% add_args_names))
@@ -490,7 +490,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
   } else if (sel_rule == 'train_xgboost') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'ref_tag',
-      'predictions_f', 'importance_f', 'pseudobulk_f', 'label_counts_f',
+      'predictions_f', 'importance_f', 'pseudobulk_f', 'model_card_f', 'label_counts_f',
       'fulldata_predictions_f', 'integration_f', 'has_coarse', 'min_cells', 'n_cores')
     assert_that(all(req_names %in% add_args_names))
 

@@ -36,6 +36,15 @@ broader-label metrics from saved predictions. They remain separate workflow stag
 the saved training metadata can be inspected before fitting.
 
 
+The gain plot reads the requested gain threshold and final gene count from the
+fitted model card. Its vertical cutoff reflects the actual selected genes,
+including minimum/maximum gene limits, rather than assuming a 90% cutoff.
+Gene-expression pages show only final-model genes present in the saved
+pseudobulks, and paginate over the available genes. Small models therefore
+produce fewer pages. Join preparation resources are
+`gb_join_train_xgboost_prepare` (8 GB) and
+`mins_join_train_xgboost_prepare` (10 minutes); both are schema defaults.
+
 ## Label specifications
 
 `label_specs_f` and `coarse_label_specs_f` are optional. All relative paths resolve

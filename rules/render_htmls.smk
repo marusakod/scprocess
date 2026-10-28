@@ -639,6 +639,9 @@ rule render_html_label_celltypes:
 if TRAIN_XGB_PARAMS is not None:
   rule render_html_train_xgboost:
     input:
+      model_card_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_model_card.json',
+      train_script_f = str(scprocess_dir / 'scripts/train_xgboost.R'),
+      template_f = str(scprocess_dir / 'resources/rmd_templates/train_xgboost.Rmd.template'),
       label_specs_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_label_specs.csv',
       coarse_label_specs_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_coarse_label_specs.csv',
       r_mkr_f       = f"{code_dir}/marker_genes.R",
@@ -698,6 +701,7 @@ if TRAIN_XGB_PARAMS is not None:
           ref_tag         = '{params.ref_tag}',
           predictions_f   = '{params.predictions_f}',
           importance_f    = '{params.importance_f}',
+          model_card_f    = '{input.model_card_f}',
           pseudobulk_f    = '{params.pseudobulk_f}',
           label_counts_f         = '{params.label_counts_f}',
           fulldata_predictions_f = '{params.fulldata_predictions_f}',
