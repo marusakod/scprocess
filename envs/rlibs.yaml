@@ -57,6 +57,7 @@ dependencies:
   - r-glue
   - r-gridextra
   - r-harmony
+  - r-hexbin
   - r-kableextra
   - r-magrittr
   - r-matrix

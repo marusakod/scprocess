@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.1 — Unreleased development candidate
+
+- Give every completed version, including patch versions, an immutable annotated
+  Git tag. Development-version tags do not publish a release; main promotion and
+  release publication still require both maintainers' explicit approval.
+
+- Group fine/coarse diagnostics into nested label/cell-group tabsets and move
+  gain/selected-gene plots to the end of the training report.
+
+- Revise XGBoost reports with combined train/validation hex density and local
+  validation fractions, square larger UMAPs, log row-proportion confusion
+  matrices by cell group, scrollable metrics and legible precision–recall plots
+  with full/zoomed axes. Apply the presentation to coarse labels as well.
+- Render evaluation tables as HTML and call sampled-out cells "Remaining cells"
+  in report prose, tabs and tables. Stored split codes and model results are
+  unchanged. Use pretty axis breaks on gain curves.
+
+
 ## 0.4.0 — Unreleased development candidate
 
 ### Reviewed training interface

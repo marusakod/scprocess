@@ -222,3 +222,23 @@ Model installation, registry identities and label specification helpers also
 live in `train_xgboost.py`. Training-only libraries are imported inside the
 functions that use them, so setup and configuration checks can reuse these
 helpers without loading AnnData or XGBoost.
+
+
+## Report views
+
+The report contrasts combined training/validation density with the validation
+fraction within each hexagon. Fine and coarse confusion matrices use log row
+proportions, with separate tabs for training, validation, test and remaining
+cells. "Remaining cells" means annotated cells omitted by the sampling caps;
+they are not independent test observations. Empty test groups are identified
+explicitly. Per-label metrics scroll, and precision–recall plots offer full
+and shared zoomed axis ranges with a colour legend. These report choices do not
+change fitting, predictions or the stored split codes.
+
+
+Results are grouped by diagnostic, with Labels/Coarse tabs and nested cell-group
+tabs for confusion matrices, per-class metrics and full-data UMAPs. Validation
+precision–recall views nest full/zoomed axes under the same label tabs.
+Gain and selected-gene expression plots appear last. An independent test is
+shown only when test groups were held out; absent groups are identified in their
+tabs rather than silently pooled with sampled-out cells.

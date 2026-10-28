@@ -237,3 +237,15 @@ def test_evaluation_requires_selection_metadata():
     predictions_df = pl.DataFrame({'label': ['a'], 'predicted_label': ['a'], 'split': ['train']})
     with pytest.raises(ValueError, match = 'selected column'):
         _evaluation_counts(predictions_df)
+
+
+def test_zoom_report_tracks_existing_full_data_calls(tmp_path):
+  from zoom import get_zoom_conditional_xgboost_files
+  config = {'train_xgboost': {'xgboost_tag': 'fixture'}}
+  inputs = get_zoom_conditional_xgboost_files(config, str(tmp_path), 'subset', 'code')
+  assert 'xgb_full_predictions_f' not in inputs
+  full_predictions_f = tmp_path / 'subset/train_xgboost/fixture_fulldata_predictions.csv.gz'
+  full_predictions_f.parent.mkdir(parents=True)
+  full_predictions_f.touch()
+  inputs = get_zoom_conditional_xgboost_files(config, str(tmp_path), 'subset', 'code')
+  assert inputs['xgb_full_predictions_f'] == str(full_predictions_f)

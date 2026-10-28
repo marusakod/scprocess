@@ -58,6 +58,7 @@ get_xgboost_report_text <- function(do_xgboost) {
     xgb_pred_true_txt = "",
     xgb_confusion_title = "",
     xgb_metrics_title = "",
+    xgb_precision_recall_title = "",
     xgb_gain_title = "",
     xgb_top_genes_title = "",
     xgb_top_genes_txt = "")
@@ -67,11 +68,12 @@ get_xgboost_report_text <- function(do_xgboost) {
 
   list(
     xgboost_title = "## XGBoost classifier",
-    xgb_train_validation_title = "### Train / validation split",
+    xgb_train_validation_title = "### Train and validation coverage",
     xgb_pred_true_title = "### Predicted vs true labels UMAP {.tabset}",
     xgb_pred_true_txt = "UMAPs showing the true (training) labels alongside model predictions on the validation set.",
-    xgb_confusion_title = "### Confusion matrix (validation set)",
+    xgb_confusion_title = "### Confusion matrices {.tabset}",
     xgb_metrics_title = "### Per-class evaluation metrics (validation set)",
+    xgb_precision_recall_title = "### Precision–recall (validation set) {.tabset}",
     xgb_gain_title = "### Cumulative gain curve",
     xgb_top_genes_title = "### Top XGBoost genes {.tabset}",
     xgb_top_genes_txt = "Pseudobulk logCPM expression of the top 20 most important XGBoost genes, shown per cell type label.")

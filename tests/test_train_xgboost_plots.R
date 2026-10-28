@@ -57,3 +57,20 @@ layers = ggplot_build(gene_plot)$data
 stopifnot(isTRUE(all.equal(sort(unique(layers[[2]]$y)), log(c(5, 105)))))
 
 cat('SUCCESS: label metrics/order, fitted gain cutoffs, facet layout and pseudocount scales passed\n')
+
+
+# Hex fractions use all selected cells in their denominator, excluding other groups.
+split_dt = data.table(UMAP1 = rep(c(0, 10), each = 4), UMAP2 = rep(c(0, 10), each = 4),
+  split = c('train', 'train', 'train', 'validation', 'train', 'validation', 'validation', 'validation'))
+coverage_plot = plot_train_test_split(split_dt)
+hex_dt = ggplot_build(coverage_plot[[2]])$data[[1]]
+stopifnot(isTRUE(all.equal(sort(hex_dt$value), c(.25, .75))),
+  umap$theme$aspect.ratio == 1)
+
+# Both zoom axes start at the smallest class precision/recall, with no text labels.
+zoom_plot = plot_precision_recall(metrics_dt, label_colours, zoom = TRUE)
+stopifnot(identical(zoom_plot$coordinates$limits$x, c(.5, 1)),
+  identical(zoom_plot$coordinates$limits$y, c(.5, 1)),
+  length(zoom_plot$layers) == 3,
+  grepl('400px', format_xgboost_metrics_table(metrics_dt), fixed = TRUE))
+cat('SUCCESS: hex validation fractions, square UMAPs, zoom axes and scrollable metrics passed\n')

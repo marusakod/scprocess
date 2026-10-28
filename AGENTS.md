@@ -8,7 +8,7 @@ Instructions for coding agents working in this repository.
 
 Commits and pushes to `dev` are allowed within the authorized task. They do not
 authorize promotion to `main` or a release. Before pushing/merging to `main`,
-creating or pushing a release tag, or publishing any GitHub/Conda release,
+publishing any GitHub/Conda release or marking a version as a stable release,
 obtain explicit approval from **both Will Macnair and Marusa** for the concrete
 candidate commit, version and release contents. If either approval is absent or
 unclear, leave the reviewed work on `dev` and ask; never infer Marusa's approval
@@ -16,6 +16,16 @@ from Will's approval, a generic request to fix/commit work, or passing tests.
 Preparing and incrementing VERSION on `dev` is not release approval. Review
 results must be available before seeking the two approvals. Material changes
 after approval require renewed approval of the changed candidate.
+
+Every completed version, including patch versions, must have an immutable
+annotated Git tag `vX.Y.Z` pointing to the committed snapshot whose VERSION
+matches. Will explicitly authorized development-version tagging on 2026-10-28.
+These tags may be created and pushed on dev without publishing a release;
+version tagging alone is not main promotion or stable-release approval.
+Main promotion and release publication still require both maintainers' explicit
+approval. Tag after validation and commit, never tag a dirty working tree as if
+its uncommitted contents were included, and never move an existing shared tag.
+The explicitly withdrawn v0.2.0/v0.2.1 tags remain absent.
 
 Automatic publication on tag pushes is disabled. Do not re-enable publication
 automation without an approval mechanism that requires both maintainers. The

@@ -467,6 +467,12 @@ xgb_style = read_xgboost_style(xgb_predictions_f, sort(unique(xgb_dt$label)))
 xgb_dt = apply_xgboost_style(xgb_dt, xgb_style)
 xgb_has_coarse = length(xgb_style$mapping) > 0
 xgb_val_dt = xgb_dt[split == "validation"]
+
+# Use full-data calls for the four evaluated cell groups when they are available.
+xgb_full_f = sub('_predictions.csv.gz$', '_fulldata_predictions.csv.gz', xgb_predictions_f)
+xgb_full_dt = if (file.exists(xgb_full_f)) fread(xgb_full_f) else copy(xgb_dt)
+xgb_full_dt[!selected & split %in% c('train', 'validation'), split := 'development_holdout']
+xgb_full_dt = apply_xgboost_style(xgb_full_dt, xgb_style)
 ```
 
 ```{r xgb_load_cpms, eval = do_xgboost, include = FALSE}
@@ -480,7 +486,7 @@ xgb_cpms_dt = xgb_pb %>% make_logcpms_all_rmd("sample_id",
 
 ${xgb_train_validation_title}
 
-```{r xgb_train_test_split, eval = do_xgboost, include = do_xgboost, fig.height = 6, fig.width = 8}
+```{r xgb_train_test_split, eval = do_xgboost, include = do_xgboost, fig.height = 6, fig.width = 13}
 plot_train_test_split(xgb_dt)
 ```
 
@@ -507,19 +513,32 @@ for (lbl in lbl_type_vec) {
 
 ${xgb_confusion_title}
 
-```{r xgb_confusion_matrix, eval = do_xgboost, include = do_xgboost, fig.height = 10, fig.width = 12}
-xgb_cl1_dt = xgb_val_dt[, .(cell_id, true_label = label %>% factor)]
-xgb_cl2_dt = xgb_val_dt[, .(cell_id, pred_label = predicted_label %>% factor)]
-xgb_confuse_dt = calc_confuse_dt(xgb_cl1_dt, xgb_cl2_dt, "true_label", "pred_label")
-plot_cluster_comparison_heatmap(xgb_confuse_dt, "true_label", "pred_label",
-  plot_var = "p_cl1", do_sort = "hclust")
+```{r xgb_confusion_matrix, eval = do_xgboost, include = do_xgboost, fig.height = 10, fig.width = 12, results = 'asis'}
+for (sp in names(XGBOOST_CELL_GROUPS)) {
+  cat('\n\n####', XGBOOST_CELL_GROUPS[sp], '\n\n')
+  cells_dt = xgb_full_dt[split == sp & !is.na(label)]
+  if (nrow(cells_dt)) {
+    print(plot_xgboost_confusion(cells_dt, xgb_style$order))
+  } else {
+    cat('No annotated cells in this group.\n\n')
+  }
+}
 ```
 
 ${xgb_metrics_title}
 
-```{r xgb_metrics_table, eval = do_xgboost, include = do_xgboost}
+```{r xgb_metrics_table, eval = do_xgboost, include = do_xgboost, results = 'asis'}
 xgb_metrics_dt = get_metrics_dt(xgb_val_dt)
-xgb_metrics_dt %>% knitr::kable(digits = 3)
+cat(format_xgboost_metrics_table(xgb_metrics_dt), '\n\n')
+```
+
+${xgb_precision_recall_title}
+
+```{r xgb_precision_recall, eval = do_xgboost, include = do_xgboost, fig.height = 7, fig.width = 12, results = 'asis'}
+for (zoom in c(FALSE, TRUE)) {
+  cat('\n\n####', if (zoom) 'Zoomed axes' else 'Full axes', '\n\n')
+  print(plot_precision_recall(xgb_metrics_dt, xgb_style$colours, zoom = zoom))
+}
 ```
 
 ${xgb_gain_title}

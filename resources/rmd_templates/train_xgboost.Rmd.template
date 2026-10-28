@@ -13,24 +13,20 @@ output:
     css: custom.css
 ---
 
-
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
-knitr::opts_chunk$set( autodep=TRUE, cache=FALSE, cache.lazy=FALSE, dev='png',
-fig.path = "figure/${short_tag}_train_xgboost.Rmd/", message = FALSE, warning = FALSE
-)
+knitr::opts_chunk$set(autodep = TRUE, cache = FALSE, cache.lazy = FALSE, dev = 'png',
+  fig.path = "figure/${short_tag}_train_xgboost.Rmd/", message = FALSE, warning = FALSE)
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 ```
 
-
-```{r setup_libs, cache=FALSE, include = FALSE}
+```{r setup_libs, include=FALSE}
 source('code/utils.R')
 source('code/train_xgboost.R')
 source('code/marker_genes.R')
 ```
 
-
-```{r setup_input, include = FALSE}
+```{r setup_input, include=FALSE}
 predictions_f          = "${predictions_f}"
 gain_f                 = "${importance_f}"
 model_card_f           = "${model_card_f}"
@@ -38,268 +34,211 @@ pb_f                   = "${pseudobulk_f}"
 label_counts_f         = "${label_counts_f}"
 fulldata_predictions_f = "${fulldata_predictions_f}"
 integration_f          = "${integration_f}"
-has_coarse      = as.logical("${has_coarse}")
-min_cells       = as.integer("${min_cells}")
-n_cores         = as.integer("${n_cores}")
+min_cells              = as.integer("${min_cells}")
+n_cores                = as.integer("${n_cores}")
 setDTthreads(n_cores)
 
-# load data
-preds_dt    = fread(predictions_f)
-gain_dt     = fread(gain_f)
+# Read saved predictions and coordinates; no model fitting or inference is run.
+preds_dt = fread(predictions_f)
+gain_dt = fread(gain_f)
 feature_selection = read_xgboost_feature_selection(model_card_f)
-int_dt      = fread(integration_f)[, .(cell_id, UMAP1, UMAP2)]
-```
-
-```{r make_xgboost_dt, include = FALSE}
+int_dt = fread(integration_f, select = c('cell_id', 'UMAP1', 'UMAP2'))
 label_order = fread(label_counts_f)[order(-len)]$label
-xgboost_dt = merge(preds_dt, int_dt, by = "cell_id", all.x = TRUE) %>%
-  .[ !is.na(UMAP1) ]
 style = read_xgboost_style(predictions_f, label_order)
 label_order = style$order
-xgboost_dt = apply_xgboost_style(xgboost_dt, style)
 has_coarse = length(style$mapping) > 0
-# keep only validation data for plotting
-val_dt     = xgboost_dt[ split == "validation" ]
 ```
 
-```{r load_cpms, include = FALSE}
-pb     = read_h5ad(pb_f, as = 'SingleCellExperiment')
-if('X' %in% assayNames(pb)){
-  assays(pb)[['X']] = NULL
-}
-batch_col = intersect(c("batch", "sample_id"), colnames(colData(pb)))[1]
-cpms_dt =  pb %>% make_logcpms_all_rmd(batch_col, lib_size_method = "edger",
-  min_cells = min_cells, n_cores = n_cores)
+```{r make_xgboost_dt, include=FALSE}
+xgboost_dt = merge(preds_dt, int_dt, by = 'cell_id', all.x = TRUE)[!is.na(UMAP1)]
+xgboost_dt = apply_xgboost_style(xgboost_dt, style)
+val_dt = xgboost_dt[split == 'validation']
+
+# Each row is one integrated cell, including cells omitted by the sampling caps.
+fulldata_dt = fread(fulldata_predictions_f)
+fulldata_dt[!selected & split %in% c('train', 'validation'), split := 'development_holdout']
+fulldata_dt = merge(fulldata_dt, int_dt, by = 'cell_id', all.x = TRUE)[!is.na(UMAP1)]
+fulldata_dt = apply_xgboost_style(fulldata_dt, style)
 ```
 
-## Train / validation split
+## Train and validation coverage
 
-Plot showing the split into validation and training sets. The validation set should be well distributed across the UMAP space, indicating that it contains a representative sample of all cell types and states.
+The left panel shows the density of training and validation cells together. The right shows the percentage of those cells assigned to validation within each hexagon. Empty hexagons contain no selected cells. Regional differences in validation coverage can reflect whole-group splitting and unequal cell counts between groups.
 
-```{r plot_train_test_split, fig.height = 5, fig.width = 11}
+```{r plot_train_test_split, fig.height=6, fig.width=13}
 plot_train_test_split(xgboost_dt)
 ```
 
-
 ## Predicted vs true labels UMAP {.tabset}
 
-UMAPs showing the true (training) labels alongside model predictions on the validation set.
+Reference labels and model predictions on the early-stopping validation cells.
 
-```{r plot_pred_true_umap, fig.height = 5, fig.width = 12, results = 'asis'}
-lbl_type_vec = 'Training labels'
-if (has_coarse) {
-  lbl_type_vec = c('Coarse labels', 'Training labels')
+```{r plot_pred_true_umap, fig.height=7, fig.width=14, results='asis'}
+for (coarse in c(FALSE, if (has_coarse) TRUE)) {
+  cat('\n\n###', if (coarse) 'Coarse' else 'Labels', '\n\n')
+  print(plot_pred_true_umap(val_dt, coarse = coarse,
+    label_colours = if (coarse) style$coarse_colours else style$colours))
 }
-for (lbl in lbl_type_vec) {
-  cat('###', lbl, '\n')
-  if(lbl == 'Coarse labels') {
-    is_coarse = TRUE
-  } else {
-    is_coarse = FALSE
+```
+
+## Confusion matrices {.tabset}
+
+Rows are reference labels and columns are predictions. Colours show the log proportion within each reference label (`log_p_cl1`). Training agreement and early-stopping validation are distinct from independent test performance. Remaining cells are annotated cells omitted by the sampling caps; they are not an independent test set.
+
+When supplied, coarse labels are a direct lookup from standard labels, applied to both reference and predicted labels without voting, additional classification or probability summation.
+
+```{r confusion_matrix, fig.height=10, fig.width=12, results='asis'}
+for (coarse in c(FALSE, if (has_coarse) TRUE)) {
+  cat('\n\n###', if (coarse) 'Coarse' else 'Labels', '{.tabset}\n\n')
+  reference_col = if (coarse) 'coarse_true' else 'label'
+  plot_order = if (coarse) style$coarse_order else label_order
+  for (sp in names(XGBOOST_CELL_GROUPS)) {
+    cat('\n\n####', XGBOOST_CELL_GROUPS[sp], '\n\n')
+    cells_dt = fulldata_dt[split == sp & !is.na(get(reference_col))]
+    if (nrow(cells_dt)) {
+      print(plot_xgboost_confusion(cells_dt, plot_order, coarse = coarse))
+    } else {
+      cat('No annotated cells in this group.\n\n')
+    }
   }
-  print(plot_pred_true_umap(val_dt, coarse = is_coarse, label_colours=if (is_coarse) style$coarse_colours else style$colours))
-  cat('\n\n')
 }
 ```
 
 
-## Confusion matrix (validation set) {.tabset}
+## Per-class evaluation metrics {.tabset}
 
-Heatmap showing the proportion of cells with each true label (rows) that are predicted as each class (columns).
+N is the number of reference cells for each label. Precision measures the fraction of predictions with that label that match the reference. Recall measures the fraction of reference cells recovered. F1 is the harmonic mean of precision and recall. Compare cell groups separately: training agreement and early-stopping validation are not independent tests.
 
-```{r confusion_matrix, fig.height = 10, fig.width = 12, results = 'asis'}
-cl1_dt = val_dt[, .(cell_id, true_label = factor(label, levels = label_order))]
-cl2_dt = val_dt[, .(cell_id, pred_label = factor(predicted_label, levels = label_order))]
-
-confuse_dt = calc_confuse_dt(cl1_dt, cl2_dt, "true_label", "pred_label")
-for (pv in c("p_cl1", "log_p_cl1")) {
-  cat('###', pv, '\n')
-  print(plot_cluster_comparison_heatmap(confuse_dt, "true_label", "pred_label",
-    plot_var = pv, do_sort = "no", order_cl1=label_order, order_cl2=label_order))
-  cat('\n\n')
+```{r metrics_table, results='asis'}
+for (coarse in c(FALSE, if (has_coarse) TRUE)) {
+  cat('\n\n###', if (coarse) 'Coarse' else 'Labels', '{.tabset}\n\n')
+  reference_col = if (coarse) 'coarse_true' else 'label'
+  plot_order = if (coarse) style$coarse_order else label_order
+  for (sp in names(XGBOOST_CELL_GROUPS)) {
+    cat('\n\n####', XGBOOST_CELL_GROUPS[sp], '\n\n')
+    cells_dt = fulldata_dt[split == sp & !is.na(get(reference_col))]
+    if (nrow(cells_dt)) {
+      metrics_dt = get_metrics_dt(cells_dt, coarse = coarse)
+      metrics_dt[, Class := factor(Class, levels = plot_order)]
+      cat(format_xgboost_metrics_table(metrics_dt[order(Class)]), '\n\n')
+    } else {
+      cat('No annotated cells in this group.\n\n')
+    }
+  }
 }
 ```
 
 
-## Per-class evaluation metrics (validation set)
+## Precision–recall (validation set) {.tabset}
 
-To asses the model performance the following metrics are calculated for each individual cell type (label) in the validation set:
+Each point represents one reference label; size shows its cell count. The zoom uses the minimum precision or recall across labels as the lower limit on both axes.
 
-* N: The total number of cells belonging to some cell type in the validation set.
-* Precision: Out of all cells predicted by the model to be some cell type, the fraction that truly belong to it.
-* Recall: Out of all actual cells belonging to some cell type, the fraction that the model successfully identified.
-* F1 Score: The harmonic mean of precision and recall.
-
-```{r metrics_table}
-metrics_dt = get_metrics_dt(val_dt)
-metrics_dt[, Class := factor(Class, levels = label_order)]
-metrics_dt[order(Class)] %>% knitr::kable(digits = 3)
-```
-
-```{r pr_plot_validation, fig.height = 5, fig.width = 6}
-plot_precision_recall(metrics_dt, label_colours=style$colours)
-```
-
-### Cumulative gain curve
-
-Genes are ranked by their contribution to XGBoost's loss reduction (gain). The horizontal line shows the requested `r scales::percent(feature_selection$gain_threshold, accuracy = 1)` cumulative gain target. The vertical line shows the actual number of genes included in the final model, after applying the minimum and maximum gene counts.
-
-```{r plot_gain_curve, fig.height = 5, fig.width = 8}
-print(plot_gain_curve(gain_dt,
-  gain_threshold = feature_selection$gain_threshold,
-  n_selected_genes = feature_selection$n_selected_genes))
-```
-
-
-### Top XGBoost genes: {.tabset}
-
-Pseudobulk logCPM expression of the top XGBoost genes ranked by descending gain, shown per cell type label. Each dot represents one batch; dot size indicates the number of cells contributing to that pseudobulk value.
-
-```{r plot_top_genes, fig.height = 8, fig.width = 8, results = "asis"}
-# Pseudobulks contain final-model genes; omit first-pass-only features.
-top_genes_dt = gain_dt[gene_id %in% cpms_dt$gene_id][order(-gain)][1:min(100, .N)]
-n_pages = 10
-per_p   = 10
-p       = 1
-for (i in seq(1, nrow(top_genes_dt), by = per_p)) {
-  cat('#### page', p, '\n'); p = p + 1
-  sel_gs  = top_genes_dt[i:min(i + 9, .N)]
-  print(plot_top_xgboost_genes(sel_gs, cpms_dt, label_order = label_order, label_colours=style$colours))
-  cat('\n\n')
+```{r pr_plot_validation, fig.height=7, fig.width=12, results='asis'}
+for (coarse in c(FALSE, if (has_coarse) TRUE)) {
+  cat('\n\n###', if (coarse) 'Coarse' else 'Labels', '{.tabset}\n\n')
+  plot_order = if (coarse) style$coarse_order else label_order
+  plot_colours = if (coarse) style$coarse_colours else style$colours
+  metrics_dt = get_metrics_dt(val_dt, coarse = coarse)
+  metrics_dt[, Class := factor(Class, levels = plot_order)]
+  for (zoom in c(FALSE, TRUE)) {
+    cat('\n\n####', if (zoom) 'Zoomed axes' else 'Full axes', '\n\n')
+    print(plot_precision_recall(metrics_dt, plot_colours, zoom = zoom))
+  }
 }
 ```
 
 
 ## Full-data evaluation
 
-Predictions on all cells in the integration (not just the downsampled training subset). Cells are categorized as:
+Predictions cover all cells in the integration, including cells omitted from the sampled fitting data:
 
-* **train**: used for model training
-* **validation**: selected cells from separate groups, used for early stopping
-* **test**: cells from explicitly held-out groups
-* **development_holdout**: development cells omitted by sampling
-* **excluded**: labels excluded from fitting and primary evaluation
-* **unsupported**: development labels with insufficient training support
-* **unlabeled**: cells without annotations
+* **Train:** selected cells used to fit the model.
+* **Validation:** selected cells from separate groups, used for early stopping.
+* **Test:** cells from explicitly held-out groups.
+* **Remaining cells:** annotated cells omitted by the training/validation sampling caps; these are not independent test cells.
+* **Excluded labels:** reference labels deliberately excluded from fitting and primary evaluation.
+* **Insufficient training support:** reference labels with too few training cells.
+* **Unlabelled cells:** cells without reference annotations.
 
-```{r fulldata_setup, include = FALSE}
-fulldata_dt = fread(fulldata_predictions_f)
-fulldata_dt[!selected & split %in% c("train", "validation"), split := "development_holdout"]
-fulldata_dt = merge(fulldata_dt, int_dt, by = "cell_id", all.x = TRUE) %>%
-  .[ !is.na(UMAP1) ]
-fulldata_dt = apply_xgboost_style(fulldata_dt, style)
-label_order = levels(fulldata_dt$label)
-```
+### Evaluation summary {.tabset}
 
-### Evaluation summary
+Accuracy and macro F1 measure agreement with the supplied annotations, which are not necessarily biological ground truth. The test row is absent when no test groups were held out. Interpret small populations alongside their cell counts and donor/region coverage.
 
-Training agreement, early-stopping validation and independent test performance
-answer different questions. The test row is absent for a candidate fitted across
-all donors. Accuracy and macro F1 measure agreement with the supplied annotations,
-which are not necessarily biological ground truth. Small test populations should
-be interpreted alongside their cell counts and donor/region coverage.
-
-```{r evaluation_summary}
-evaluation_f = sub("_fulldata_predictions.csv.gz$", "_evaluation.csv", fulldata_predictions_f)
-if(file.exists(evaluation_f))print(knitr::kable(fread(evaluation_f),digits=3))
-```
-
-### Split summary
-
-```{r fulldata_split_summary}
-fulldata_dt[, .N, by = split][order(-N)] %>% knitr::kable()
-```
-
-### Independent test metrics
-
-Per-class metrics for the explicitly held-out test groups. These cells were excluded from training, feature selection and early stopping. Development-set cells omitted by sampling are summarised separately; they are not independent donor tests.
-
-```{r fulldata_holdout_metrics}
-holdout_dt = fulldata_dt[ split == "test" ]
-if (nrow(holdout_dt) > 0) {
-  holdout_metrics_dt = get_metrics_dt(holdout_dt)
-  holdout_metrics_dt[, Class := factor(Class, levels = label_order)]
-  holdout_metrics_dt[order(Class)] %>% knitr::kable(digits = 3)
-}
-```
-
-```{r pr_plot_holdout, fig.height = 5, fig.width = 6}
-if (nrow(holdout_dt) > 0) {
-  plot_precision_recall(holdout_metrics_dt, label_colours=style$colours)
-}
-```
-
-
-### Independent test confusion matrix {.tabset}
-
-```{r fulldata_holdout_confusion, fig.height = 10, fig.width = 12, results = 'asis'}
-if (nrow(holdout_dt) > 0) {
-  cl1_dt = holdout_dt[, .(cell_id, true_label = factor(label, levels = label_order))]
-  cl2_dt = holdout_dt[, .(cell_id, pred_label = factor(predicted_label, levels = label_order))]
-  confuse_dt = calc_confuse_dt(cl1_dt, cl2_dt, "true_label", "pred_label")
-  for (pv in c("p_cl1", "log_p_cl1")) {
-    cat('####', pv, '\n')
-    print(plot_cluster_comparison_heatmap(confuse_dt, "true_label", "pred_label",
-      plot_var = pv, do_sort = "no", order_cl1=label_order, order_cl2=label_order))
-    cat('\n\n')
+```{r evaluation_summary, results='asis'}
+for (coarse in c(FALSE, if (has_coarse) TRUE)) {
+  cat('\n\n####', if (coarse) 'Coarse' else 'Labels', '\n\n')
+  evaluation_f = if (coarse) {
+    sub('_predictions.csv.gz$', '_coarse_evaluation.csv', predictions_f)
+  } else {
+    sub('_fulldata_predictions.csv.gz$', '_evaluation.csv', fulldata_predictions_f)
+  }
+  if (file.exists(evaluation_f)) {
+    evaluation_dt = fread(evaluation_f)
+    evaluation_dt[, split := XGBOOST_SPLIT_LABELS[split]]
+    cat(knitr::kable(evaluation_dt, format = 'html', digits = 3), '\n\n')
   }
 }
 ```
 
 
-### Full-data predicted labels UMAP {.tabset}
+### Cell group summary
 
-UMAPs showing predicted labels for all cells, split by category.
+```{r fulldata_split_summary, results='asis'}
+split_counts_dt = fulldata_dt[, .N, by = split][order(-N)]
+split_counts_dt[, split := XGBOOST_SPLIT_LABELS[split]]
+cat(knitr::kable(split_counts_dt, format = 'html'), '\n\n')
+```
 
-```{r fulldata_umap, fig.height = 6, fig.width = 8, results = 'asis'}
-for (sp in c("test", "development_holdout", "excluded", "unlabeled")) {
-  sp_dt = fulldata_dt[ split == sp ]
-  if (nrow(sp_dt) == 0) next
-  cat('####', sp, sprintf('(%s cells)', format(nrow(sp_dt), big.mark = ',')), '\n')
-  lbls = levels(fulldata_dt$predicted_label)
-  if (is.null(lbls)) lbls = fulldata_dt[, predicted_label] %>% unique() %>% sort()
-  lbl_cols = xgboost_colours(lbls, style$colours)
-  p = ggplot(sp_dt) +
-    aes(x = UMAP1, y = UMAP2, colour = predicted_label) +
-    geom_point(size = 0.3) +
-    coord_fixed() +
-    theme_classic() +
-    scale_color_manual(values = lbl_cols) +
-    theme(axis.text = element_blank(), axis.ticks = element_blank()) +
-    guides(color = guide_legend(override.aes = list(size = 3)))
-  print(p)
-  cat('\n\n')
+## Full-data predicted labels UMAP {.tabset}
+
+Predicted labels for each cell group. Excluded and unlabelled cells are shown separately from the evaluated annotated groups. Coarse calls use the same direct label mapping as the metrics and confusion matrices.
+
+```{r fulldata_umap, fig.height=9, fig.width=12, results='asis'}
+for (coarse in c(FALSE, if (has_coarse) TRUE)) {
+  cat('\n\n###', if (coarse) 'Coarse' else 'Labels', '{.tabset}\n\n')
+  plot_colours = if (coarse) style$coarse_colours else style$colours
+  for (sp in names(XGBOOST_SPLIT_LABELS)) {
+    cells_dt = fulldata_dt[split == sp]
+    if (!nrow(cells_dt) && !sp %in% names(XGBOOST_CELL_GROUPS)) next
+    cat('\n\n####', XGBOOST_SPLIT_LABELS[sp],
+      sprintf('(%s cells)', format(nrow(cells_dt), big.mark = ',')), '\n\n')
+    if (nrow(cells_dt)) {
+      print(plot_xgboost_prediction_umap(cells_dt, plot_colours, coarse = coarse))
+    } else {
+      cat('No cells in this group.\n\n')
+    }
+  }
 }
 ```
 
+## Cumulative gain curve
 
-## Broader label evaluation {.tabset}
+Genes are ranked by their contribution to XGBoost's loss reduction (gain). The horizontal line shows the requested `r scales::percent(feature_selection$gain_threshold, accuracy = 1)` cumulative gain target. The vertical line shows the actual number of genes included in the final model, after applying the minimum and maximum gene counts.
 
-Broader labels are obtained directly from the user-supplied fine-to-coarse
-mapping, applied equally to reference and predicted labels. This involves no
-voting, additional classification or probability summation.
+```{r plot_gain_curve, fig.height=5, fig.width=8}
+plot_gain_curve(gain_dt, gain_threshold = feature_selection$gain_threshold,
+  n_selected_genes = feature_selection$n_selected_genes)
+```
 
-```{r coarse_evaluation, results='asis', fig.width=12, fig.height=8}
-if (!has_coarse) {
-  cat("No coarse-label mapping was supplied.\n")
-} else {
-  coarse_metrics_f = sub("_predictions.csv.gz$", "_coarse_evaluation.csv", predictions_f)
-  if (file.exists(coarse_metrics_f)) print(knitr::kable(fread(coarse_metrics_f), digits=3))
-  for (sp in c("validation", "test", "development_holdout")) {
-    selected = fulldata_dt[split == sp & !is.na(label)]
-    if (!nrow(selected)) next
-    cat("\n\n### ", sp, "\n\n", sep="")
-    metrics = get_metrics_dt(selected, coarse=TRUE)
-    metrics[, Class := factor(Class, levels=unique(c(style$coarse_order, as.character(Class))))]
-    cat(knitr::kable(metrics[order(Class)], format="html", digits=3), "\n\n")
-    print(plot_precision_recall(metrics, label_colours=style$coarse_colours))
-    reference = selected[, .(cell_id, label=coarse_true)]
-    predicted = selected[, .(cell_id, predicted_label=coarse_predicted)]
-    confusion = calc_confuse_dt(reference, predicted, "label", "predicted_label")
-    coarse_plot_order = unique(c(style$coarse_order, as.character(selected$coarse_true), as.character(selected$coarse_predicted)))
-    for (variable in c("log_p_cl1", "log_p_cl2"))
-      print(plot_cluster_comparison_heatmap(confusion, "label", "predicted_label",
-        plot_var=variable, do_sort="no", order_cl1=coarse_plot_order, order_cl2=coarse_plot_order))
-  }
+## Top XGBoost genes {.tabset}
+
+Pseudobulk logCPM expression of final-model genes ranked by descending gain. Each dot represents one batch; dot size indicates the number of contributing cells.
+
+```{r load_cpms, include=FALSE}
+pb = read_h5ad(pb_f, as = 'SingleCellExperiment')
+if ('X' %in% assayNames(pb)) assays(pb)[['X']] = NULL
+batch_col = intersect(c('batch', 'sample_id'), colnames(colData(pb)))[1]
+cpms_dt = make_logcpms_all_rmd(pb, batch_col, lib_size_method = 'edger',
+  min_cells = min_cells, n_cores = n_cores)
+```
+
+```{r plot_top_genes, fig.height=8, fig.width=8, results='asis'}
+top_genes_dt = gain_dt[gene_id %in% cpms_dt$gene_id][order(-gain)][1:min(100, .N)]
+per_page = 10
+for (i in seq(1, nrow(top_genes_dt), by = per_page)) {
+  cat('\n\n### Page', ceiling(i / per_page), '\n\n')
+  selected_genes_dt = top_genes_dt[i:min(i + per_page - 1, .N)]
+  print(plot_top_xgboost_genes(selected_genes_dt, cpms_dt,
+    label_order = label_order, label_colours = style$colours))
 }
 ```
