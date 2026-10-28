@@ -109,7 +109,7 @@ for (ii in seq_along(guess_f_ls)) {
 
 ## Predicted cell types over UMAP{.tabset}
 
-Clustering of data is performed with different labellers and models. Each of these is shown over a UMAP together with a plot showing predicted cell type labels.
+The same UMAP is coloured by the cell-level predictions and by the labels assigned through high-resolution cluster voting. Each tab shows one labeller and model. Large changes between the two views can identify mixed clusters or uncertain predictions to review.
 
 ```{r plot_preds_over_umap, fig.height = 5, fig.width = 12, results = 'asis'}
 for (ii in seq_along(guess_f_ls)) {
@@ -148,7 +148,7 @@ for (ii in seq_along(guess_f_ls)) {
 
 ## Totals for each predicted cell type{.tabset}
 
-Tables showing how many in total of each celltype are predicted for each label, for each combination of labeller and model.
+Cell counts for each predicted label, before and after cluster voting, shown separately for each labeller and model.
 
 ```{r tbl_of_celltypes, results = "asis"}
 for (ii in seq_along(guess_f_ls)) {

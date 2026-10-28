@@ -349,10 +349,7 @@ heatmap_w   = (n_batches * unit_w + base_w) %>% min(max_w)
 
 ## HVG selection diagnostics
 
-The selection of highly variable genes is a crucial step in the integration process and in
-identifying clusters in single-cell experiments. However, contamination from ambient RNA can act as a
-significant confounding factor. This section of the report provides plots to evaluate the influence of ambient RNA on the selection
-of highly variable genes and its potential impact on downstream analyses.
+Highly variable genes (HVGs) help determine which cells cluster together. Genes abundant in empty droplets can also appear variable across cells when ambient RNA differs between samples. Use these plots to check whether such genes dominate HVG selection before interpreting the integration.
 
 ### Are highly variable genes "ambient" ?
 

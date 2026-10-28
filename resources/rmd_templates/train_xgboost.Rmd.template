@@ -61,17 +61,17 @@ fulldata_dt = merge(fulldata_dt, int_dt, by = 'cell_id', all.x = TRUE)[!is.na(UM
 fulldata_dt = apply_xgboost_style(fulldata_dt, style)
 ```
 
-## Train and validation coverage
+## Cells used for training and validation
 
-The left panel shows the density of training and validation cells together. The right shows the percentage of those cells assigned to validation within each hexagon. Empty hexagons contain no selected cells. Regional differences in validation coverage can reflect whole-group splitting and unequal cell counts between groups.
+Training cells are used to fit the classifier. Validation cells come from separate groups, such as tissue tubes or donors, and are used to decide when to stop training. The left panel shows the density of both groups together; the right shows the percentage assigned to validation in each hexagon. Uneven coverage can reflect differences in the size and composition of the groups held aside.
 
 ```{r plot_train_test_split, fig.height=6, fig.width=13}
 plot_train_test_split(xgboost_dt)
 ```
 
-## Predicted vs true labels UMAP {.tabset}
+## Predicted vs reference labels UMAP {.tabset}
 
-Reference labels and model predictions on the early-stopping validation cells.
+Compare the supplied reference labels with predictions for validation cells. These cells were used to decide when to stop training, so agreement here can overestimate performance on a new dataset.
 
 ```{r plot_pred_true_umap, fig.height=7, fig.width=14, results='asis'}
 for (coarse in c(FALSE, if (has_coarse) TRUE)) {
@@ -83,9 +83,11 @@ for (coarse in c(FALSE, if (has_coarse) TRUE)) {
 
 ## Confusion matrices {.tabset}
 
-Rows are reference labels and columns are predictions. Colours show the log proportion within each reference label (`log_p_cl1`). Training agreement and early-stopping validation are distinct from independent test performance. Remaining cells are annotated cells omitted by the sampling caps; they are not an independent test set.
+Rows are reference labels and columns are predictions. Colours show the proportion of each reference label assigned to each prediction, on a log scale so smaller fractions remain visible. A strong diagonal indicates agreement; off-diagonal entries identify labels to examine.
 
-When supplied, coarse labels are a direct lookup from standard labels, applied to both reference and predicted labels without voting, additional classification or probability summation.
+Performance on cells used to train or tune the classifier can be optimistic. Test cells, when specified, come from groups held aside from both steps and provide a more independent check. Remaining cells were left out to limit training and validation cell counts, but may share donors or samples with those used for training.
+
+When supplied, coarse labels combine the standard labels according to the specified mapping. The same mapping is applied to reference labels and predictions.
 
 ```{r confusion_matrix, fig.height=10, fig.width=12, results='asis'}
 for (coarse in c(FALSE, if (has_coarse) TRUE)) {
@@ -105,9 +107,9 @@ for (coarse in c(FALSE, if (has_coarse) TRUE)) {
 ```
 
 
-## Per-class evaluation metrics {.tabset}
+## Evaluation metrics by label {.tabset}
 
-N is the number of reference cells for each label. Precision measures the fraction of predictions with that label that match the reference. Recall measures the fraction of reference cells recovered. F1 is the harmonic mean of precision and recall. Compare cell groups separately: training agreement and early-stopping validation are not independent tests.
+N is the number of reference cells for each label. Precision asks: of cells predicted to have this label, what fraction match the reference? Recall asks: of cells with this reference label, what fraction were recovered? F1 combines precision and recall, penalising a low value in either. Compare training, validation and test results separately, using the distinction described above.
 
 ```{r metrics_table, results='asis'}
 for (coarse in c(FALSE, if (has_coarse) TRUE)) {
@@ -153,8 +155,8 @@ for (coarse in c(FALSE, if (has_coarse) TRUE)) {
 Predictions cover all cells in the integration, including cells omitted from the sampled fitting data:
 
 * **Train:** selected cells used to fit the model.
-* **Validation:** selected cells from separate groups, used for early stopping.
-* **Test:** cells from explicitly held-out groups.
+* **Validation:** cells from separate groups, used to decide when to stop training.
+* **Test:** cells from groups held aside from both model fitting and the decision about when to stop training.
 * **Remaining cells:** annotated cells omitted by the training/validation sampling caps; these are not independent test cells.
 * **Excluded labels:** reference labels deliberately excluded from fitting and primary evaluation.
 * **Insufficient training support:** reference labels with too few training cells.
@@ -162,7 +164,7 @@ Predictions cover all cells in the integration, including cells omitted from the
 
 ### Evaluation summary {.tabset}
 
-Accuracy and macro F1 measure agreement with the supplied annotations, which are not necessarily biological ground truth. The test row is absent when no test groups were held out. Interpret small populations alongside their cell counts and donor/region coverage.
+Accuracy is the fraction of cells whose predicted and reference labels agree. Macro F1 gives each label equal weight when averaging its F1 score, so abundant labels do not dominate. These measures assess agreement with the supplied annotations, which may themselves contain errors. The test row is absent when no test groups were held aside. Interpret small populations alongside their cell counts and donor/region coverage.
 
 ```{r evaluation_summary, results='asis'}
 for (coarse in c(FALSE, if (has_coarse) TRUE)) {
@@ -213,7 +215,7 @@ for (coarse in c(FALSE, if (has_coarse) TRUE)) {
 
 ## Cumulative gain curve
 
-Genes are ranked by their contribution to XGBoost's loss reduction (gain). The horizontal line shows the requested `r scales::percent(feature_selection$gain_threshold, accuracy = 1)` cumulative gain target. The vertical line shows the actual number of genes included in the final model, after applying the minimum and maximum gene counts.
+Genes are ranked by how much they helped distinguish the reference labels during training, measured by XGBoost gain. High gain indicates usefulness to this classifier; it does not establish that a gene is a specific biological marker. The horizontal line shows the requested `r scales::percent(feature_selection$gain_threshold, accuracy = 1)` cumulative gain target. The vertical line shows the actual number of genes included in the final model, after applying the minimum and maximum gene counts.
 
 ```{r plot_gain_curve, fig.height=5, fig.width=8}
 plot_gain_curve(gain_dt, gain_threshold = feature_selection$gain_threshold,
@@ -222,7 +224,7 @@ plot_gain_curve(gain_dt, gain_threshold = feature_selection$gain_threshold,
 
 ## Top XGBoost genes {.tabset}
 
-Pseudobulk logCPM expression of final-model genes ranked by descending gain. Each dot represents one batch; dot size indicates the number of contributing cells.
+Expression of genes used by the final classifier, ranked by their contribution during training. Counts are summed within each label and batch, normalised for library size and shown as logCPM. Each dot represents one batch; its size indicates the number of contributing cells. Check that useful genes show biologically plausible expression rather than patterns confined to one batch.
 
 ```{r load_cpms, include=FALSE}
 pb = read_h5ad(pb_f, as = 'SingleCellExperiment')

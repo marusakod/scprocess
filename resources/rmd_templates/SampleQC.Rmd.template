@@ -93,7 +93,7 @@ marg_h      = min((n_batches + 1) * violin_h, max_marg_h)
 
 Doublets were identified independently within each `${run_var}` using
 `scDblFinder`. Barcodes with fewer than **${dbl_min_feats} detected genes**
-were excluded before doublet identification. The settings that affect the
+were excluded before doublet identification. Very low-count droplets are also removed according to `qc.dbl_min_counts`. The settings that affect the
 artificial-doublet model and calling threshold were:
 
 * `dbr.sd`: **${dbl_dbr_sd_label}**
@@ -122,7 +122,7 @@ plot_doublet_overview(doublets)
 
 Mean binary entropy measures how close real-cell scores are to zero or one.
 Values range from zero (endpoint scores) to one bit (scores of 0.5). It describes
-score polarisation, not calibration or doublet-detection accuracy.
+whether scores concentrate near the endpoints. It does not show whether the calls are correct, or whether a score of 0.8 corresponds to an 80% chance of being a doublet.
 
 ```{r doublet_score_entropy, fig.width = 6, fig.height = 4}
 plot_doublet_score_entropy(doublets)
@@ -206,10 +206,10 @@ An overview of quality control (QC) metrics for all samples, both before and aft
 
 * `no. of genes` : Number of unique features with non-zero counts for each cell with log-transformed values displayed.
 
-* `mito pct.` : The proportion of reads that mapped to genes in the mitochondrial genome. High proportions are indicative of poor-quality cells (compromised membranes allow individual RNA molecules to escape while retaining mitochondria, leading to an increased relative abundance of mitochondrial transcript) or nuclei (incomplete removal of cytoplasm). Logit-transformed values are displayed as applying the logit (inverse logistic) transformation to mitochondrial proportions yields approximately Gaussian distributions. 
+* `mito pct.` : The proportion of reads that mapped to genes in the mitochondrial genome. High proportions are indicative of poor-quality cells (compromised membranes allow individual RNA molecules to escape while retaining mitochondria, leading to an increased relative abundance of mitochondrial transcript) or nuclei (incomplete removal of cytoplasm). Proportions are displayed on a logit scale, which spreads values near zero and one.
 
 * `spliced pct.` : The proportion of spliced reads. In single-nuclei RNA sequencing, high spliced proportions may indicate inadequate removal of cytoplasmic material from the nuclei.
-Logit-transformed values are displayed as applying the logit  (inverse logistic) transformation to spliced proportions results in approximately Gaussian distributions.
+Proportions are displayed on the same logit scale.
 
 
 ```{r plot_qc_ranges_marginals, fig.height = marg_h, fig.width = 8, results = 'asis'}

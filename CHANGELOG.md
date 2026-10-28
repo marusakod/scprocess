@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.3 — Unreleased development candidate
+
+- Consolidate doublet-cluster thresholding, streaming diagnostic merging and
+  join-report plotting into their existing implementation modules. Keep data
+  dependencies and the scientific calculations unchanged.
+- Improve processing helper names, function ordering, comments and layout;
+  remove unused examples/commented code and place classifier setup helpers
+  before CLI dispatch. Setup/download behavior is unchanged.
+- Use equivalent base-R normalization calls in PCA, avoiding an undeclared
+  magrittr pipe dependency, and distinguish project/join HDF5 helpers.
+- Simplify cell-cycle aggregation and its numerical helpers. Move report
+  preparation and plotting out of the Rmd into cell_cycle.R; preserve the
+  existing report narrative, projections, origin estimates and diagnostic draws.
+- Explain classifier evaluation and QC diagnostics for computational biologists.
+  Use reference-label terminology, describe training/validation/test groups,
+  clarify optional project adjustment and temper absolute ambient-QC claims.
+- Validation includes exact threshold and real-cell prediction comparisons,
+  unchanged aggregation tables and report PNGs, focused Python/R/workflow
+  checks, small report renders and the documentation build. Project marker
+  migration and setup/Zenodo migration remain separate future work.
+
 ## 0.4.2 — Unreleased development candidate
 
 - Allow `scprocess join ... -r label_celltypes` to run annotation without

@@ -304,8 +304,7 @@ suppressWarnings(print(plot_cluster_qc_distns(
 
 Pseudobulk marker genes were identified at resolution `r sel_res` using `edgeR`.
 For each cluster, pseudobulk counts for cells in that cluster were compared against
-all other clusters, with `project_id` included as an additive blocking factor to
-account for project-level technical differences.
+all other clusters. When `marker_genes.mkr_adjust_project_id` is enabled, the tests also account for differences between source projects. Otherwise the model includes only cluster membership.
 
 ### Heatmaps of marker genes{.tabset}
 

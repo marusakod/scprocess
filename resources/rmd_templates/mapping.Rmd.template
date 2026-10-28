@@ -107,9 +107,9 @@ marg_h      = min((sample_n + 1) * violin_h, max_marg_h)
 For each sample, barcodes are ranked in descending order based on their library size (number of unique molecular identifiers (UMIs)).
 Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high RNA content, while the second represents empty droplets containing ambient RNA. 
 Key transition points on the curve (shin and knee points), are annotated with horizontal lines.
-Two main parameters infered by `scprocess` based on transition points are `expected_cells` and `empty_plateau_middle`.
+Two main parameters inferred by `scprocess` based on transition points are `expected_cells` and `empty_plateau_middle`.
 `empty_plateau_middle` should extend a few thousand barcodes into the second plateau. 
-The absence of a clear empty plateau indicates poor sample quality due to ambient RNA contamination.
+A weak or absent empty-droplet plateau can make these estimates unreliable. Check the marked transition points against the curve and, where needed, specify custom mapping parameters before ambient RNA removal.
 
 
 ### Ordered by slope ratio{.tabset}
@@ -157,12 +157,10 @@ for (i in 1:length(exp_tot_ratio_split_l) ) {
 Each point represents one run. The six upper-triangular panels compare UMI counts
 and barcode ranks for the first and second landmarks. Axes are logarithmic with
 labels in original units. Counts use saved values, including custom overrides;
-ranks use the nearest observed count, with the first saved row resolving ties.
+ranks use the droplet count nearest to each saved landmark.
 Orange triangles highlight runs with custom mapping parameters; grey circles
 show runs without overrides. Faint grey ellipses describe 95% robust covariance
-contours estimated with `robustbase::covMcd()` on log10 coordinates (alpha 0.5,
-deterministic, reweighted covariance). These describe spread, not confidence
-intervals for the centre. Ellipses are omitted when fewer than five runs or
+contours estimated robustly from log10 coordinates using `robustbase::covMcd()`. These describe the spread of runs, rather than uncertainty in the average position. Ellipses are omitted when fewer than five runs or
 singular covariance prevent estimation. Unusual positions should be checked
 against the barcode-rank curves; these diagnostics do not change filtering.
 

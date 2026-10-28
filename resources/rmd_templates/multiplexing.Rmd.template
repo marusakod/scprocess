@@ -136,7 +136,7 @@ bplot_h   = (h_per_r * sample_n) + 1
 For each multiplexed sample/pool, barcodes are ranked in descending order based on their library size (number of unique molecular identifiers).
 Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high HTO content,
 while the second represents empty droplets containing ambient HTOs.
-The absence of a clear empty plateau indicates poor sample quality due to ambient HTO contamination.
+A weak or absent empty-droplet plateau can make cell and background signals difficult to separate. Check the HTO expression and demultiplexing results below before interpreting it as a sample-quality problem.
 
 ```{r hto_knee_plots_slope_ordered, fig.height = knee_height, fig.width = knee_width, results='asis'}
 for (i in 1:length(slope_ratio_split_l) ) {

@@ -69,10 +69,10 @@ get_xgboost_report_text <- function(do_xgboost) {
   list(
     xgboost_title = "## XGBoost classifier",
     xgb_train_validation_title = "### Train and validation coverage",
-    xgb_pred_true_title = "### Predicted vs true labels UMAP {.tabset}",
-    xgb_pred_true_txt = "UMAPs showing the true (training) labels alongside model predictions on the validation set.",
+    xgb_pred_true_title = "### Predicted vs reference labels UMAP {.tabset}",
+    xgb_pred_true_txt = "Compare reference labels with predictions for validation cells. These cells helped determine when to stop training; agreement here may overestimate performance on new datasets.",
     xgb_confusion_title = "### Confusion matrices {.tabset}",
-    xgb_metrics_title = "### Per-class evaluation metrics (validation set)",
+    xgb_metrics_title = "### Evaluation metrics by label (validation set)",
     xgb_precision_recall_title = "### Precision–recall (validation set) {.tabset}",
     xgb_gain_title = "### Cumulative gain curve",
     xgb_top_genes_title = "### Top XGBoost genes {.tabset}",
@@ -99,8 +99,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       plot_removed_txt = "Plots show what proportion of reads were removed from all barcodes called as cells."
       spl_umis_pl_txt = paste0("The plots show the relationship between the number of UMIs and the percentage of spliced reads, ", 
         "separated by sample, both before and after ambient RNA removal. Ambient RNA is typically characterized by a high proportion of spliced reads, ", 
-        "making the spliced percentage a useful metric for evaluating the effectiveness of an ambient RNA removal method. ", 
-        "By examining changes in spliced percentages, we can assess how well the method performed in reducing ambient RNA contamination.")
+        "so changes can help assess ambient removal in nuclear preparations. ",
+        "Spliced proportions also vary by cell type; a change alone does not establish that removal was successful.")
     } else{
       spl_umis_pl_txt = paste0(
         "The plot shows the relationship between the number of UMIs and the percentage of spliced reads, separated by sample. ",
