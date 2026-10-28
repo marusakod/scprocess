@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import train_xgboost as training
 from train_xgboost import _balanced_sample, _read_selected_h5ad, _best_iteration_model
-from train_xgboost import aggregate_plan_predictions, _training_gene_mask
+from train_xgboost import combine_predictions
 
 
 def frame():
@@ -29,26 +29,26 @@ def frame():
 def cfg():
   return dict(test_group_var = 'donor', test_groups = ['d3'], validation_group_var = 'tube',
     validation_fraction = .4, validation_variable_combinations = ['donor', 'project'],
-    min_cells_per_type = 5, excluded_labels = [], train_cells_per_type = 15,
-    validation_cells_per_type = 8, sampling_variable_combinations = ['donor', 'tube'], seed = 7,
+    min_cells_per_label = 5, excluded_labels = [], train_cells_per_label = 15,
+    validation_cells_per_label = 8, sampling_variable_combinations = ['donor', 'tube'], seed = 7,
     label_map_f = None, cluster_majority_vote_resolution = None, cluster_majority_vote_min_purity = .9)
 
 
 def assign(data, config):
   keys = ['test_group_var', 'test_groups', 'validation_group_var', 'validation_fraction',
-    'validation_variable_combinations', 'excluded_labels', 'min_cells_per_type']
+    'validation_variable_combinations', 'excluded_labels', 'min_cells_per_label']
   return training._assign_splits(data, np.random.default_rng(config['seed']), **{key: config[key] for key in keys})
 
 
-def plan_fixture(tmp_path, data, config):
+def training_metadata_fixture(tmp_path, data, config):
   annotations = tmp_path / 'annotations.csv'
   data.rename({'label': 'annotation'}).write_csv(annotations)
   integration = tmp_path / 'integration.csv'
   data.select('cell_id', pl.col('batch').alias('sample_id'), pl.lit('cl1').alias('RNA_snn_res.2')).write_csv(integration)
   manifest = tmp_path / 'manifest.yaml'
   manifest.write_text(yaml.safe_dump({batch: 'unused.h5ad' for batch in data['batch'].unique()}))
-  return training.prepare_plan(annotations, integration, manifest, 'sample_id',
-    tmp_path / 'plan.csv.gz', tmp_path / 'coverage.csv', tmp_path / 'counts.csv', is_join = False, **config)
+  return training.prepare_training_metadata(annotations, integration, manifest, 'sample_id',
+    tmp_path / 'training_metadata.csv.gz', tmp_path / 'coverage.csv', tmp_path / 'counts.csv', is_join = False, **config)
 
 
 def test_donor_and_tube_disjoint():
@@ -83,10 +83,10 @@ def test_joint_combination_sampling():
   assert dict(sample.group_by('group').len().iter_rows()) == {'large': 4, 'rare1': 3, 'rare2': 2}
 
 
-def test_prepare_plan_and_no_default_smoothing(tmp_path):
+def test_prepare_training_metadata_and_no_default_smoothing(tmp_path):
   config = cfg()
   config['excluded_labels'] = ['b']
-  result = plan_fixture(tmp_path, frame(), config)
+  result = training_metadata_fixture(tmp_path, frame(), config)
   assert set(result.filter(pl.col('selected'))['label']) == {'a'}
   assert set(result.filter(pl.col('label') == 'b')['split']) == {'excluded'}
   assert result['label'].equals(result['original_label'])
@@ -145,7 +145,9 @@ def test_best_iteration_export():
 
 
 def test_aggregation_preserves_test_and_counts_unsupported(tmp_path):
-  plan = tmp_path / 'plan.csv.gz'
+  plan = tmp_path / 'training_metadata.csv.gz'
+  metadata_f = Path(str(plan) + '.json')
+  metadata_f.write_text(json.dumps({'configuration': {'label_map_f': None}}))
   pl.DataFrame(dict(cell_id = ['a', 'b', 'c'], label = ['x', 'unseen', 'x'], original_label = ['x', 'unseen', 'x'],
     split = ['train', 'test', 'validation'], selected = [True, False, False],
     label_supported_in_training = [True, False, True])).write_csv(plan, compression = 'gzip')
@@ -155,7 +157,7 @@ def test_aggregation_preserves_test_and_counts_unsupported(tmp_path):
   integration = tmp_path / 'integration.csv'
   pl.DataFrame({'cell_id': ['a', 'b', 'c']}).write_csv(integration)
   output = tmp_path / 'demo_fulldata_predictions.csv.gz'
-  aggregate_plan_predictions([pred], plan, output, integration)
+  combine_predictions([pred], plan, output, integration)
   result = pl.read_csv(output)
   assert set(result['cell_id']) == {'a', 'b', 'c'}
   assert result.filter(pl.col('cell_id') == 'b')['split'][0] == 'test'
@@ -163,13 +165,32 @@ def test_aggregation_preserves_test_and_counts_unsupported(tmp_path):
   test = metrics.filter(pl.col('split') == 'test')
   assert test['accuracy'][0] == 0 and test['macro_f1'][0] == 0
   assert 'development_holdout' in metrics['split']
+  assert 'coarse_predicted' not in result.columns
+
+  # Missing metadata must not silently disable a possibly requested mapping.
+  metadata_f.unlink()
+  with pytest.raises(FileNotFoundError, match = 'cannot determine whether coarse-label mapping was requested'):
+    combine_predictions([pred], plan, output, integration)
+
+  # A requested but missing mapping file must also fail instead of being omitted.
+  metadata_f.write_text(json.dumps({'configuration': {'label_map_f': str(tmp_path / 'missing-map.csv')}}))
+  with pytest.raises(FileNotFoundError):
+    combine_predictions([pred], plan, output, integration)
 
 
 def test_validation_only_genes_do_not_pass_detection_filter():
   import scipy.sparse as sp
   raw = sp.csr_matrix([[1, 0, 1], [2, 0, 0], [3, 0, 0], [0, 4, 0], [0, 5, 0]])
-  mask = _training_gene_mask(raw, np.array([True, True, True, False, False]), 2)
-  assert mask.tolist() == [True, False, False]
+  normalized_counts = raw.astype(float) * .5
+  filtered_norm, filtered_raw, gene_names = training._filter_training_genes(
+    normalized_counts, raw,
+    pl.Series('gene_id', ['g1', 'g2', 'g3']),
+    pl.Series('gene_type', ['protein_coding'] * 3),
+    np.array([True, True, True, False, False]),
+    gene_exclude_re = None, min_cells_expressed = 2)
+  assert gene_names == ['g1']
+  np.testing.assert_array_equal(filtered_raw.toarray(), raw[:, [0]].toarray())
+  np.testing.assert_array_equal(filtered_norm.toarray(), normalized_counts[:, [0]].toarray())
 
 
 def test_majority_votes_use_training_labels_only(tmp_path):
@@ -178,7 +199,7 @@ def test_majority_votes_use_training_labels_only(tmp_path):
       .then(pl.lit('b')).otherwise(pl.lit('a')).alias('label'))
   config = cfg()
   config.update(cluster_majority_vote_resolution = 2, cluster_majority_vote_min_purity = .9)
-  result = plan_fixture(tmp_path, data, config)
+  result = training_metadata_fixture(tmp_path, data, config)
   assert set(result.filter(pl.col('split') == 'train')['label']) == {'a'}
   assert set(result.filter(pl.col('split') == 'test')['label']) == {'b'}
   assert set(result.filter(pl.col('split') == 'test')['original_label']) == {'b'}
@@ -220,16 +241,75 @@ def test_planning_context_is_independent_of_batch_column(tmp_path, batch_var, is
     keys = data['project_id'] + '_' + keys
   manifest = tmp_path / 'manifest.yaml'
   manifest.write_text(yaml.safe_dump({key: 'unused.h5ad' for key in keys.unique()}))
-  plan_f = tmp_path / 'plan.csv.gz'
-  result = training.prepare_plan(annotations, integration, manifest, batch_var,
-    plan_f, tmp_path / 'coverage.csv', tmp_path / 'counts.csv', is_join = is_join, **cfg())
+  training_metadata_f = tmp_path / 'training_metadata.csv.gz'
+  result = training.prepare_training_metadata(annotations, integration, manifest, batch_var,
+    training_metadata_f, tmp_path / 'coverage.csv', tmp_path / 'counts.csv', is_join = is_join, **cfg())
 
   assert result['cell_id'].to_list() == data['cell_id'].to_list()
   assert result['batch'].to_list() == keys.to_list()
-  assert json.loads(Path(str(plan_f) + '.json').read_text())['configuration']['is_join'] == is_join
+  assert json.loads(Path(str(training_metadata_f) + '.json').read_text())['configuration']['is_join'] == is_join
 
   if is_join and not qualified:
     # The same raw IDs must fail when incorrectly declared as a single project.
     with pytest.raises(ValueError, match = 'batch identifiers'):
-      training.prepare_plan(annotations, integration, manifest, batch_var,
-        plan_f, tmp_path / 'coverage.csv', tmp_path / 'counts.csv', is_join = False, **cfg())
+      training.prepare_training_metadata(annotations, integration, manifest, batch_var,
+        training_metadata_f, tmp_path / 'coverage.csv', tmp_path / 'counts.csv', is_join = False, **cfg())
+
+
+def test_feature_selection_rejects_no_positive_gains():
+  from train_xgboost import _select_features_by_gain
+
+  class NoInformativeFeatures:
+    def get_score(self, importance_type):
+      return {}
+
+  with pytest.raises(ValueError, match = 'no genes with positive feature gain'):
+    _select_features_by_gain(NoInformativeFeatures(), ['g1', 'g2'], .9, 1, 2)
+
+
+@pytest.mark.parametrize('a_cells,b_cells,expected_unit', [(10, 10, 'a'), (8, 10, 'b')])
+def test_training_support_prefers_largest_unit_then_unit_id(a_cells, b_cells, expected_unit):
+  # Choose the two large units for validation so training needs one moved back.
+  class FixedValidationSelection:
+    def choice(self, values, n, replace):
+      assert n == 2 and not replace
+      return np.array(['b', 'a'])
+
+  cells_df = pl.DataFrame({
+    'tube': ['a'] * a_cells + ['b'] * b_cells + ['c', 'd'],
+    'label': ['rare'] * (a_cells + b_cells + 2)})
+  result_df, _, moved_groups = training._assign_splits(cells_df, FixedValidationSelection(),
+    test_group_var = None, test_groups = [], validation_group_var = 'tube',
+    validation_fraction = .5, validation_variable_combinations = [],
+    excluded_labels = [], min_cells_per_label = 10)
+  assert moved_groups == [{'label': 'rare', 'group': expected_unit}]
+  assert result_df.filter(pl.col('tube') == expected_unit)['split'].unique().to_list() == ['train']
+
+
+@pytest.mark.parametrize('pattern,expected_indices', [
+  (None, [0, 1, 2, 3]),
+  ('', [0, 1, 2, 3]),
+  ('lncRNA|pseudogene', [0, 3]),
+  ('^protein_coding$', [1, 2, 3]),
+  ('absent', [0, 1, 2, 3]),
+  ('.*', [])])
+def test_gene_type_filter_preserves_matrix_and_metadata_alignment(pattern, expected_indices):
+  import scipy.sparse as sp
+
+  gene_names = pl.Series('gene_id', ['g3', 'g1', 'g4', 'g2'])
+  gene_types = pl.Series('gene_type', ['protein_coding', 'lncRNA', 'processed_pseudogene', 'unknown'])
+  raw_counts = sp.csr_matrix(np.arange(8).reshape(2, 4))
+  normalized_counts = raw_counts.astype(float) * .5
+  if not expected_indices:
+    with pytest.raises(ValueError, match = 'No genes pass training-only filtering'):
+      training._filter_training_genes(normalized_counts, raw_counts, gene_names, gene_types,
+        np.array([True, True]), gene_exclude_re = pattern, min_cells_expressed = 1)
+    return
+
+  filtered_norm, filtered_raw, filtered_names = training._filter_training_genes(
+    normalized_counts, raw_counts, gene_names, gene_types, np.array([True, True]),
+    gene_exclude_re = pattern, min_cells_expressed = 1)
+
+  np.testing.assert_array_equal(filtered_raw.toarray(), raw_counts[:, expected_indices].toarray())
+  np.testing.assert_array_equal(filtered_norm.toarray(), normalized_counts[:, expected_indices].toarray())
+  assert filtered_names == [gene_names[index] for index in expected_indices]

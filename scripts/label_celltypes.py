@@ -119,8 +119,8 @@ def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes
   import xgboost as xgb
   from train_xgboost import normalize_counts
 
-  from train_xgboost import model_identity
-  identity = model_identity(model_f, model_name)
+  from train_xgboost import get_xgboost_model_info
+  identity = get_xgboost_model_info(model_f, model_name)
   model = xgb.Booster()
   model.load_model(model_f)
 

@@ -303,7 +303,7 @@
         "label_map_f": {"type": ["string", "null"], "default": null},
         "label_specs_f": {"type": ["string", "null"], "default": null},
         "coarse_label_specs_f": {"type": ["string", "null"], "default": null},
-        "min_cells_per_type": {"type": "integer", "minimum": 1, "default": 20},
+        "min_cells_per_label": {"type": "integer", "minimum": 1, "default": 20},
         "min_cells_expressed": {"type": "integer", "minimum": 1, "default": 10},
         "gene_exclude_re": {"type": ["string", "null"], "default": "(lincRNA|lncRNA|pseudogene|antisense)"},
         "seed": {"type": "integer", "default": 42},
@@ -330,8 +330,8 @@
         "validation_fraction": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1, "default": 0.2},
         "validation_variable_combinations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "default": []},
         "sampling_variable_combinations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "default": []},
-        "train_cells_per_type": {"type": "integer", "minimum": 1, "default": 2000},
-        "validation_cells_per_type": {"type": "integer", "minimum": 1, "default": 500}
+        "train_cells_per_label": {"type": "integer", "minimum": 1, "default": 2000},
+        "validation_cells_per_label": {"type": "integer", "minimum": 1, "default": 500}
       },
       "allOf": [{"if": {"required": ["test_group_var"]}, "then": {"required": ["test_groups"]}}, {"if": {"required": ["test_groups"]}, "then": {"required": ["test_group_var"]}}]
     },
@@ -503,15 +503,15 @@
         "mins_zoom_make_subsets":                        { "type": "integer", "default": 15 },
         "mins_render_html_zoom":                         { "type": "integer", "default": 20 },
 
-        "gb_train_xgboost_plan": { "type": "integer", "minimum": 1, "default": 8 },
-        "mins_train_xgboost_plan": { "type": "integer", "minimum": 1, "default": 10 },
+        "gb_train_xgboost_prepare": { "type": "integer", "minimum": 1, "default": 8 },
+        "mins_train_xgboost_prepare": { "type": "integer", "minimum": 1, "default": 10 },
         "gb_train_xgboost_train":              { "type": "integer", "default": 32 },
         "gb_train_xgboost_predict":            { "type": "integer", "default": 8 },
-        "gb_train_xgboost_aggregate":          { "type": "integer", "default": 8 },
+        "gb_train_xgboost_combine":          { "type": "integer", "default": 8 },
         "gb_render_html_train_xgboost":        { "type": "integer", "default": 8 },
         "mins_train_xgboost_train":            { "type": "integer", "default": 180 },
         "mins_train_xgboost_predict":          { "type": "integer", "default": 30 },
-        "mins_train_xgboost_aggregate":        { "type": "integer", "default": 30 },
+        "mins_train_xgboost_combine":        { "type": "integer", "default": 30 },
         "mins_render_html_train_xgboost":      { "type": "integer", "default": 15 },
 
         "gb_zoom_train_xgboost":               { "type": "integer", "default": 32 },

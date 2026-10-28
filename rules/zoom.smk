@@ -1148,7 +1148,7 @@ rule zoom_make_subsets:
     """
 
 
-rule zoom_train_xgboost_plan:
+rule zoom_train_xgboost_prepare:
   input:
     annots_f = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['annots_f'],
     integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
@@ -1156,10 +1156,10 @@ rule zoom_train_xgboost_plan:
     label_map = lambda wildcards: [ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['label_map_f']] if ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') else [],
     planner = str(scprocess_dir / 'scripts/train_xgboost.py'),
   output:
-    plan_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_plan.csv.gz',
+    training_metadata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_metadata.csv.gz',
     coverage_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_split_coverage.csv',
     counts_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_label_counts.csv',
-    metadata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_plan.csv.gz' + '.json',
+    metadata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_metadata.csv.gz' + '.json',
   params:
     excluded_labels                  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['excluded_labels'],
     label_map_f                      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') or '',
@@ -1171,22 +1171,22 @@ rule zoom_train_xgboost_plan:
     validation_fraction              = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['validation_fraction'],
     validation_variable_combinations = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['validation_variable_combinations'],
     sampling_variable_combinations   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['sampling_variable_combinations'],
-    train_cells_per_type             = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['train_cells_per_type'],
-    validation_cells_per_type        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['validation_cells_per_type'],
-    min_cells_per_type               = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['min_cells_per_type'],
+    train_cells_per_label             = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['train_cells_per_label'],
+    validation_cells_per_label        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['validation_cells_per_label'],
+    min_cells_per_label               = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['min_cells_per_label'],
     seed                             = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['seed'],
     batch_var = BATCH_VAR,
     is_join   = 0,
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = config['resources']['gb_train_xgboost_plan'] * 1024,
-    runtime = config['resources']['mins_train_xgboost_plan']
-  log: f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_plan.csv.gz' + '.log'
+    mem_mb = config['resources']['gb_train_xgboost_prepare'] * 1024,
+    runtime = config['resources']['mins_train_xgboost_prepare']
+  log: f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_metadata.csv.gz' + '.log'
   conda: '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
-    python3 {scprocess_dir}/scripts/train_xgboost.py plan \
+    python3 {scprocess_dir}/scripts/train_xgboost.py prepare \
       --annots_f {input.annots_f:q} --integration_f {input.integration_f:q} \
       --h5ads_yaml {input.h5ads_yaml:q} --batch_var {params.batch_var:q} \
       --is_join {params.is_join} \
@@ -1200,17 +1200,17 @@ rule zoom_train_xgboost_plan:
       --validation_fraction {params.validation_fraction:q} \
       --validation_variable_combinations {params.validation_variable_combinations:q} \
       --sampling_variable_combinations {params.sampling_variable_combinations:q} \
-      --train_cells_per_type {params.train_cells_per_type:q} \
-      --validation_cells_per_type {params.validation_cells_per_type:q} \
-      --min_cells_per_type {params.min_cells_per_type:q} \
-      --seed {params.seed:q} --plan_f {output.plan_f:q} \
+      --train_cells_per_label {params.train_cells_per_label:q} \
+      --validation_cells_per_label {params.validation_cells_per_label:q} \
+      --min_cells_per_label {params.min_cells_per_label:q} \
+      --seed {params.seed:q} --training_metadata_f {output.training_metadata_f:q} \
       --coverage_f {output.coverage_f:q} --counts_f {output.counts_f:q}
     """
 
 
 rule zoom_train_xgboost:
   input:
-    plan_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_plan.csv.gz',
+    training_metadata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_metadata.csv.gz',
     h5ads_yaml = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
     trainer = str(scprocess_dir / "scripts/train_xgboost.py"),
   output:
@@ -1257,7 +1257,7 @@ rule zoom_train_xgboost:
   shell: """
     exec &>> {log}
     python3 {scprocess_dir}/scripts/train_xgboost.py train \
-      --plan_f {input.plan_f:q} --h5ads_yaml {input.h5ads_yaml:q} \
+      --training_metadata_f {input.training_metadata_f:q} --h5ads_yaml {input.h5ads_yaml:q} \
       --xgboost_tag {params.xgboost_tag:q} \
       --use_gpu {params.use_gpu:q} \
       --gene_exclude_re={params.gene_exclude_re:q} \

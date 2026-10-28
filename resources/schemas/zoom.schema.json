@@ -180,7 +180,7 @@
         "label_map_f": {"type": ["string", "null"], "default": null},
         "label_specs_f": {"type": ["string", "null"], "default": null},
         "coarse_label_specs_f": {"type": ["string", "null"], "default": null},
-        "min_cells_per_type": {"type": "integer", "minimum": 1, "default": 20},
+        "min_cells_per_label": {"type": "integer", "minimum": 1, "default": 20},
         "min_cells_expressed": {"type": "integer", "minimum": 1, "default": 10},
         "gene_exclude_re": {"type": ["string", "null"], "default": "(lincRNA|lncRNA|pseudogene|antisense)"},
         "seed": {"type": "integer", "default": 42},
@@ -207,8 +207,8 @@
         "validation_fraction": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1, "default": 0.2},
         "validation_variable_combinations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "default": []},
         "sampling_variable_combinations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "default": []},
-        "train_cells_per_type": {"type": "integer", "minimum": 1, "default": 2000},
-        "validation_cells_per_type": {"type": "integer", "minimum": 1, "default": 500}
+        "train_cells_per_label": {"type": "integer", "minimum": 1, "default": 2000},
+        "validation_cells_per_label": {"type": "integer", "minimum": 1, "default": 500}
       },
       "allOf": [{"if": {"required": ["test_group_var"]}, "then": {"required": ["test_groups"]}}, {"if": {"required": ["test_groups"]}, "then": {"required": ["test_group_var"]}}]
     },

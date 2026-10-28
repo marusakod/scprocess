@@ -2,6 +2,9 @@
 
 
 import argparse
+import json
+import tempfile
+import urllib.request
 import pathlib
 import gzip
 import os
@@ -70,7 +73,7 @@ URLS_XGBOOSTS = {
   'Siletti_hippocampus-2026-06-22': 'https://github.com/marusakod/scprocessData/releases/download/v0.2.1/Siletti_hippocampus-2026-06-22.tar.gz',
 }
 
-from train_xgboost import builtin_models, install_builtin, sha256
+from train_xgboost import builtin_models, sha256
 URLS_XGBOOSTS.update({name: model['url'] for name, model in builtin_models().items()})
 
 COMPLEMENT = str.maketrans('ACGT', 'TGCA')
@@ -951,9 +954,63 @@ def add_xgboost_classifier(scdata_dir, name, ref_tag, src_dir, is_prebuilt):
   print(f"Installed xgboost classifier '{name}' to {dest_dir}")
 
 
+def _install_builtin_xgboost_model(name, dest_dir):
+
+  model_manifest = builtin_models()[name]
+  expected_hashes = model_manifest['files']
+  expected_files  = set(expected_hashes)
+  dest_dir        = pathlib.Path(dest_dir)
+  dest_dir.parent.mkdir(parents = True, exist_ok = True)
+
+  # Download into a temporary sibling directory; leave installed files untouched.
+  with tempfile.TemporaryDirectory(dir = dest_dir.parent) as temporary_dir:
+    staging_dir = pathlib.Path(temporary_dir)
+    download_f  = staging_dir / 'download.tar.gz'
+    urllib.request.urlretrieve(model_manifest['url'], download_f)
+    if sha256(download_f) != model_manifest['archive_sha256']:
+      raise ValueError(f'Archive checksum mismatch for {name}')
+
+    # Accept the model's top-level directory and its expected regular files only.
+    found_files = set()
+    with tarfile.open(download_f, 'r:gz') as archive:
+      for member in archive.getmembers():
+        member_path = pathlib.Path(member.name)
+        is_model_directory = (
+          member.isdir() and member_path.parts == (model_manifest['model_id'],))
+        if is_model_directory:
+          continue
+
+        is_expected_file = (
+          member.isfile()
+          and len(member_path.parts) == 2
+          and member_path.parts[0] == model_manifest['model_id']
+          and member_path.name in expected_files
+          and member_path.name not in found_files)
+        if not is_expected_file:
+          raise ValueError(f'Unexpected model archive member: {member.name}')
+
+        # Stage each file and check its contents before considering installation.
+        staged_f = staging_dir / member_path.name
+        with archive.extractfile(member) as source_stream, staged_f.open('wb') as target_stream:
+          shutil.copyfileobj(source_stream, target_stream)
+        if sha256(staged_f) != expected_hashes[member_path.name]:
+          raise ValueError(f'Model member checksum mismatch: {member_path.name}')
+        found_files.add(member_path.name)
+
+    # A valid archive must contain every required file, with no duplicates.
+    if found_files != expected_files:
+      raise ValueError(f'Incomplete model archive for {name}')
+
+    # Install only after the entire staged archive passes validation.
+    dest_dir.mkdir(exist_ok = True)
+    for filename in found_files:
+      shutil.copy2(staging_dir / filename, dest_dir / filename)
+    manifest_f = dest_dir / f'{name}_manifest.json'
+    manifest_f.write_text(json.dumps(model_manifest, indent = 2) + '\n')
+
 def _download_prebuilt_xgboost(name, dest_dir):
   if name in builtin_models():
-    install_builtin(name, dest_dir)
+    _install_builtin_xgboost_model(name, dest_dir)
     return
   url = URLS_XGBOOSTS[name]
   tar_path = os.path.join(dest_dir, f'{name}.tar.gz')
@@ -971,8 +1028,8 @@ def save_available_xgboost_csv(csv_f, scdata_dir, names):
     cls_f   = os.path.join(xgb_dir, f'{name}_allowed_cls.csv')
     genes_f = os.path.join(xgb_dir, f'{name}_selected_genes.txt')
     label_map_f = os.path.join(xgb_dir, f'{name}_label_map.csv')
-    from train_xgboost import model_identity
-    identity = model_identity(model_f, name)
+    from train_xgboost import get_xgboost_model_info
+    identity = get_xgboost_model_info(model_f, name)
     rows.append({
       **identity,
       'model':       name,

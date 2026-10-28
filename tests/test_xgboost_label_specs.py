@@ -10,7 +10,7 @@ import yaml
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
-from train_xgboost import read_label_specs, label_mapping, model_identity
+from train_xgboost import read_label_specs, label_mapping, get_xgboost_model_info
 from train_xgboost import write_label_specifications
 from scprocess_utils import _check_xgboost_label_files
 
@@ -131,9 +131,9 @@ def test_installation_preserves_specifications_and_checksums(tmp_path):
     setup.save_available_xgboost_csv(str(data/'xgboost/xgboost_models.csv'),str(data),['local'])
     row=pd.read_csv(data/'xgboost/xgboost_models.csv').iloc[0]
     assert row.label_specs_f==str(dest/'local_label_specs.csv')
-    model_identity(dest/'local_xgboost_model.json','local')
+    get_xgboost_model_info(dest/'local_xgboost_model.json','local')
     (dest/'local_label_specs.csv').write_text('changed')
-    with pytest.raises(ValueError,match='checksum'):model_identity(dest/'local_xgboost_model.json','local')
+    with pytest.raises(ValueError,match='checksum'):get_xgboost_model_info(dest/'local_xgboost_model.json','local')
 
 
 def test_setup_direct_source_and_current_config_tag(tmp_path):
@@ -168,17 +168,17 @@ def test_cli_optional_features_can_be_omitted(tmp_path):
   data.select('cell_id', 'label').write_csv(annotations)
   data.select('cell_id', 'sample_id').write_csv(integration)
   manifest.write_text(yaml.safe_dump({batch: 'unused.h5ad' for batch in data['sample_id'].unique()}))
-  plan_f = tmp_path / 'plan.csv.gz'
+  training_metadata_f = tmp_path / 'training_metadata.csv.gz'
   settings = dict(annots_f = annotations, integration_f = integration, h5ads_yaml = manifest,
-    batch_var = 'sample_id', plan_f = plan_f, coverage_f = tmp_path / 'coverage.csv',
+    batch_var = 'sample_id', training_metadata_f = training_metadata_f, coverage_f = tmp_path / 'coverage.csv',
     counts_f = tmp_path / 'counts.csv', validation_group_var = 'batch', is_join = 0,
-    train_cells_per_type = 20, validation_cells_per_type = 10, min_cells_per_type = 2,
+    train_cells_per_label = 20, validation_cells_per_label = 10, min_cells_per_label = 2,
     seed = 7, cluster_majority_vote_min_purity = .9, validation_fraction = .25)
-  command = [sys.executable, str(ROOT / 'scripts/train_xgboost.py'), 'plan']
+  command = [sys.executable, str(ROOT / 'scripts/train_xgboost.py'), 'prepare']
   for name, value in settings.items():
     command += ['--' + name, str(value)]
   subprocess.run(command, check = True, capture_output = True, text = True, timeout = 30)
-  plan = pl.read_csv(plan_f)
+  plan = pl.read_csv(training_metadata_f)
   assert set(plan['split']) == {'train', 'validation'}
   assert plan['label'].equals(plan['original_label'])
 
@@ -201,3 +201,39 @@ def test_cli_optional_features_can_be_omitted(tmp_path):
     '--xgboost_tag', 'demo'], check = True, capture_output = True, text = True, timeout = 30)
   assert pl.read_csv(tmp_path / 'demo_coarse_evaluation.csv').is_empty()
   assert set(pl.read_csv(tmp_path / 'demo_label_specs.csv')['label']) == {'a', 'b'}
+
+
+def test_specification_csv_preserves_strings_and_strips_values(tmp_path):
+  fine = tmp_path / 'labels.csv'
+  fine.write_text('label,colour,coarse_label\n001, #112233 , 01 \n"a,b",#223344,02\n')
+  coarse = tmp_path / 'coarse.csv'
+  coarse.write_text('coarse_label,coarse_colour\n 02 ,#123456\n01, #654321 \n')
+
+  fine_specs, coarse_specs = read_label_specs(fine, coarse, ['001', 'a,b'])
+  assert [row['label'] for row in fine_specs] == ['001', 'a,b']
+  assert [row['coarse_label'] for row in fine_specs] == ['01', '02']
+  assert [row['coarse_label'] for row in coarse_specs] == ['02', '01']
+  assert fine_specs[0]['colour'] == '#112233'
+  assert coarse_specs[1]['coarse_colour'] == '#654321'
+
+
+@pytest.mark.parametrize('coarse_table', [False, True])
+def test_specification_csv_rejects_extra_fields(tmp_path, coarse_table):
+    fine = tmp_path / 'fine.csv'
+    coarse = tmp_path / 'coarse.csv'
+    fine.write_text('label,coarse_label\na,A\n')
+    if coarse_table:
+        coarse.write_text('coarse_label\nA,unexpected\n')
+    else:
+        fine.write_text('label,coarse_label\na,A,unexpected\n')
+    import polars as pl
+    with pytest.raises(pl.exceptions.ComputeError):
+        read_label_specs(fine, coarse if coarse_table else None)
+
+
+def test_evaluation_requires_selection_metadata():
+    import polars as pl
+    from train_xgboost import _evaluation_counts
+    predictions_df = pl.DataFrame({'label': ['a'], 'predicted_label': ['a'], 'split': ['train']})
+    with pytest.raises(ValueError, match = 'selected column'):
+        _evaluation_counts(predictions_df)

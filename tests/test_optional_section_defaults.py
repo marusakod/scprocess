@@ -31,8 +31,8 @@ class TestOptionalSectionDefaults(unittest.TestCase):
         defaults = _get_default_config_from_schema(schema, config)
         self.assertIn('train_xgboost', defaults)
         self.assertNotIn('cluster_majority_vote_resolution', defaults['train_xgboost'])
-        self.assertEqual(defaults['train_xgboost']['train_cells_per_type'], 2000)
-        self.assertEqual(defaults['train_xgboost']['validation_cells_per_type'], 500)
+        self.assertEqual(defaults['train_xgboost']['train_cells_per_label'], 2000)
+        self.assertEqual(defaults['train_xgboost']['validation_cells_per_label'], 500)
         self.assertEqual(defaults['train_xgboost']['seed'], 42)
         self.assertFalse(defaults['train_xgboost']['use_gpu'])
 

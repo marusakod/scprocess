@@ -17,8 +17,8 @@ train_xgboost:
   validation_group_var: tube_group
   validation_fraction: 0.2
   validation_variable_combinations: [donor_id, project_id]
-  train_cells_per_type: 2000
-  validation_cells_per_type: 500
+  train_cells_per_label: 2000
+  validation_cells_per_label: 500
   sampling_variable_combinations: [original_cluster, donor_id, tube_group]
   seed: 20261025
 ```
@@ -29,11 +29,11 @@ columns must agree. `tube_group` should identify a biological tissue tube unique
 across donors. The workflow inherits processing identifiers from its project or
 join context; do not set `batch_var` in the training block.
 
-Planning, fitting and full-data evaluation are implemented in
-`scripts/train_xgboost.py`, through its `plan`, `train` and
-`aggregate_fulldata` commands. The `specs` command exports display metadata and
+Metadata preparation, fitting and full-data evaluation are implemented in
+`scripts/train_xgboost.py`, through its `prepare`, `train` and
+`combine` commands. The `specs` command exports display metadata and
 broader-label metrics from saved predictions. They remain separate workflow stages so that
-the saved plan can be inspected before fitting.
+the saved training metadata can be inspected before fitting.
 
 
 ## Label specifications
@@ -85,11 +85,11 @@ Legacy `label_map_f` remains supported, but cannot be combined with
 
 ## Splitting and sampling
 
-The planning rule writes `_training_plan.csv.gz`, `_split_coverage.csv`,
+The preparation rule writes `_training_metadata.csv.gz`, `_split_coverage.csv`,
 `_label_counts.csv`, and planning metadata before reading expression. The plan
 includes the original and training labels, processing batch, split membership,
 selection flag and training-class support. Inspect these files before fitting
-large references. Changing model hyperparameters reuses the plan when its inputs
+large references. Changing model hyperparameters reuses the training metadata when its inputs
 and planning options are unchanged.
 
 `test_groups` names values of `test_group_var` reserved for independent testing.
@@ -113,7 +113,7 @@ It is not hierarchical: when combinations outnumber the cap, combinations are
 sampled at random. Available cells are redistributed without duplication.
 Without sampling variables, sampling is uniform within the label. Test cells
 are not downsampled. Small labels retain their available cells; development
-labels below `min_cells_per_type` are excluded from fitting. Test labels absent
+labels below `min_cells_per_label` are excluded from fitting. Test labels absent
 from training remain evaluation errors rather than being dropped.
 
 Training and validation caps default to 2,000 and 500 cells per label. These are
@@ -136,7 +136,7 @@ A cluster needs at least ten training annotations and the requested majority
 fraction. Its training-derived majority label is applied to development labels;
 independent test targets remain unchanged. Majority voting can erase genuine
 minority cell types within mixed clusters. Inspect the original/training labels
-in the plan before enabling it. The Siletti demonstration leaves it disabled.
+in the training metadata before enabling it. The Siletti demonstration leaves it disabled.
 
 ## Fitting and outputs
 
@@ -165,8 +165,8 @@ of biological correctness. Compare per-label support and donor/region coverage.
 - Remove `refine_labels`. Omit `cluster_majority_vote_resolution` to disable
   smoothing, or set an explicit saved resolution to enable majority voting.
 - Rename `purity_threshold` to `cluster_majority_vote_min_purity` when voting.
-- Replace `n_cells_per_type` with separate `train_cells_per_type` and
-  `validation_cells_per_type`. Sampling now happens after group assignment.
+- Replace `n_cells_per_type` with separate `train_cells_per_label` and
+  `validation_cells_per_label`. Sampling now happens after group assignment.
 - Grouped tests and joint-combination balancing are optional additions; when
   enabled they intentionally change selected cells and the evaluation question.
 

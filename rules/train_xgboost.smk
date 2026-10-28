@@ -3,7 +3,7 @@
 if TRAIN_XGB_PARAMS is not None:
 
   # Hold out whole groups and select cells before loading expression matrices.
-  rule train_xgboost_plan:
+  rule train_xgboost_prepare:
     input:
       annots_f    = TRAIN_XGB_PARAMS['annots_f'],
       integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
@@ -11,10 +11,10 @@ if TRAIN_XGB_PARAMS is not None:
       label_map   = [TRAIN_XGB_PARAMS['label_map_f']] if TRAIN_XGB_PARAMS.get('label_map_f') else [],
       planner     = str(scprocess_dir / 'scripts/train_xgboost.py'),
     output:
-      plan_f     = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_plan.csv.gz',
+      training_metadata_f     = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_metadata.csv.gz',
       coverage_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_split_coverage.csv',
       counts_f   = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_label_counts.csv',
-      metadata_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_plan.csv.gz.json',
+      metadata_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_metadata.csv.gz.json',
     params:
       excluded_labels                  = TRAIN_XGB_PARAMS['excluded_labels'],
       label_map_f                      = TRAIN_XGB_PARAMS.get('label_map_f') or '',
@@ -26,22 +26,22 @@ if TRAIN_XGB_PARAMS is not None:
       validation_fraction              = TRAIN_XGB_PARAMS['validation_fraction'],
       validation_variable_combinations = TRAIN_XGB_PARAMS['validation_variable_combinations'],
       sampling_variable_combinations   = TRAIN_XGB_PARAMS['sampling_variable_combinations'],
-      train_cells_per_type             = TRAIN_XGB_PARAMS['train_cells_per_type'],
-      validation_cells_per_type        = TRAIN_XGB_PARAMS['validation_cells_per_type'],
-      min_cells_per_type               = TRAIN_XGB_PARAMS['min_cells_per_type'],
+      train_cells_per_label             = TRAIN_XGB_PARAMS['train_cells_per_label'],
+      validation_cells_per_label        = TRAIN_XGB_PARAMS['validation_cells_per_label'],
+      min_cells_per_label               = TRAIN_XGB_PARAMS['min_cells_per_label'],
       seed                             = TRAIN_XGB_PARAMS['seed'],
       batch_var                        = BATCH_VAR,
       is_join                          = 0,
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb  = config['resources']['gb_train_xgboost_plan'] * 1024,
-      runtime = config['resources']['mins_train_xgboost_plan']
-    log: f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_plan.csv.gz.log'
+      mem_mb  = config['resources']['gb_train_xgboost_prepare'] * 1024,
+      runtime = config['resources']['mins_train_xgboost_prepare']
+    log: f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_metadata.csv.gz.log'
     conda: '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
-      python3 {scprocess_dir}/scripts/train_xgboost.py plan \
+      python3 {scprocess_dir}/scripts/train_xgboost.py prepare \
         --annots_f                          {input.annots_f:q} \
         --integration_f                       {input.integration_f:q} \
         --h5ads_yaml                        {input.h5ads_yaml:q} \
@@ -57,11 +57,11 @@ if TRAIN_XGB_PARAMS is not None:
         --validation_fraction               {params.validation_fraction:q} \
         --validation_variable_combinations  {params.validation_variable_combinations:q} \
         --sampling_variable_combinations    {params.sampling_variable_combinations:q} \
-        --train_cells_per_type              {params.train_cells_per_type:q} \
-        --validation_cells_per_type         {params.validation_cells_per_type:q} \
-        --min_cells_per_type                {params.min_cells_per_type:q} \
+        --train_cells_per_label              {params.train_cells_per_label:q} \
+        --validation_cells_per_label         {params.validation_cells_per_label:q} \
+        --min_cells_per_label                {params.min_cells_per_label:q} \
         --seed                              {params.seed:q} \
-        --plan_f                            {output.plan_f:q} \
+        --training_metadata_f                            {output.training_metadata_f:q} \
         --coverage_f                        {output.coverage_f:q} \
         --counts_f                          {output.counts_f:q}
       """
@@ -70,7 +70,7 @@ if TRAIN_XGB_PARAMS is not None:
   # Fit both passes and export the selected genes and validation predictions.
   rule train_xgboost_train:
     input:
-      plan_f     = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_plan.csv.gz',
+      training_metadata_f     = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_metadata.csv.gz',
       h5ads_yaml = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
       trainer    = str(scprocess_dir / "scripts/train_xgboost.py"),
     output:
@@ -113,7 +113,7 @@ if TRAIN_XGB_PARAMS is not None:
     shell: """
       exec &>> {log}
       python3 {scprocess_dir}/scripts/train_xgboost.py train \
-        --plan_f                            {input.plan_f:q} \
+        --training_metadata_f                            {input.training_metadata_f:q} \
         --h5ads_yaml                        {input.h5ads_yaml:q} \
         --xgboost_tag                       {params.xgboost_tag:q} \
         --use_gpu                           {params.use_gpu:q} \
@@ -211,12 +211,12 @@ if TRAIN_XGB_PARAMS is not None:
 
 
   # Combine full-data calls and evaluate each saved split.
-  rule train_xgboost_aggregate:
+  rule train_xgboost_combine:
     input:
       pred_fs = expand(
         f'{xgb_dir}/tmp_fulldata_predict_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{{batch}}.csv.gz',
         batch = BATCHES),
-      plan_f      = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_plan.csv.gz',
+      training_metadata_f      = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_metadata.csv.gz',
       integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     output:
       fulldata_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_fulldata_predictions.csv.gz'
@@ -224,15 +224,15 @@ if TRAIN_XGB_PARAMS is not None:
       label_map_f = TRAIN_XGB_PARAMS.get('label_map_f', ''),
     retries: config['resources']['retries']
     resources:
-      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'train_xgboost_aggregate', 'memory', attempt),
-      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'train_xgboost_aggregate', 'time', attempt)
-    log: f'{logs_dir}/train_xgboost/train_xgboost_aggregate_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{DATE_STAMP}.log'
-    benchmark: f'{benchmark_dir}/train_xgboost/train_xgboost_aggregate_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{DATE_STAMP}.benchmark.txt'
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'train_xgboost_combine', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'train_xgboost_combine', 'time', attempt)
+    log: f'{logs_dir}/train_xgboost/train_xgboost_combine_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{DATE_STAMP}.log'
+    benchmark: f'{benchmark_dir}/train_xgboost/train_xgboost_combine_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{DATE_STAMP}.benchmark.txt'
     conda:
       '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
-      python3 {scprocess_dir}/scripts/train_xgboost.py aggregate_fulldata \
-        {input.pred_fs:q} --plan_f {input.plan_f:q} --integration_f {input.integration_f:q} \
+      python3 {scprocess_dir}/scripts/train_xgboost.py combine \
+        {input.pred_fs:q} --training_metadata_f {input.training_metadata_f:q} --integration_f {input.integration_f:q} \
         --output_f                          {output.fulldata_f:q}
       """

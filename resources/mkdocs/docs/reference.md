@@ -286,7 +286,7 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       refine_labels: true
       purity_threshold: 0.65
       n_cells_per_type: 1000
-      min_cells_per_type: 20
+      min_cells_per_label: 20
       min_cells_expressed: 10
       gene_exclude_re: "(lincRNA|lncRNA|pseudogene|antisense)"
       seed: 42
@@ -418,7 +418,7 @@ This is an example `configfile` for {{sc}} with all parameters and their default
       refine_labels: true
       purity_threshold: 0.65
       n_cells_per_type: 1000
-      min_cells_per_type: 20
+      min_cells_per_label: 20
       min_cells_expressed: 10
       gene_exclude_re: "(lincRNA|lncRNA|pseudogene|antisense)"
       seed: 42
@@ -889,6 +889,8 @@ its project, join or zoom context.
 * `excluded_labels`: annotation labels omitted from fitting and primary evaluation.
 * `cluster_majority_vote_resolution`: optional saved integration resolution for
   training-derived cluster majority voting. Omit it to preserve original labels.
+  A cluster needs at least 10 training cells to supply a majority-vote label;
+  this is a fixed minimum, not a configuration option.
 * `cluster_majority_vote_min_purity`: required majority fraction when voting;
   default 0.9. Voting requires at least ten training annotations per cluster.
 * `test_group_var`, `test_groups`: metadata column and group values reserved
@@ -898,7 +900,7 @@ its project, join or zoom context.
 * `validation_fraction`: proportion of validation groups; default 0.2.
 * `validation_variable_combinations`: balance validation group assignment within
   joint combinations of these metadata columns; optional.
-* `train_cells_per_type`, `validation_cells_per_type`: separate sampling caps
+* `train_cells_per_label`, `validation_cells_per_label`: separate sampling caps
   after splitting; defaults 2,000 and 500 cells per label.
 * `sampling_variable_combinations`: balance joint metadata combinations within
   each label and split; omit for uniform sampling within the label.
@@ -906,9 +908,9 @@ its project, join or zoom context.
 * `annots_f` (required): path to a CSV file containing cell annotations. Must have columns `cell_id` and `annotation`. Should be absolute or relative to `proj_dir`.
 * `xgboost_tag` (optional): a unique identifier for the classifier.
 * `label_map_f`: path to a CSV file mapping fine-grained annotations to coarse labels. Must have columns `annotation` and `coarse_label`. If provided, the trained classifier will also be evaluated on coarse labels and a label map file will be included in the classifier outputs. Should be absolute or relative to `proj_dir`.
-* `min_cells_per_type`: minimum number of cells required to retain a cell type in the training set. Cell types with fewer cells are excluded. Default is `20`.
+* `min_cells_per_label`: minimum number of cells required to retain a cell type in the training set. Cell types with fewer cells are excluded. Default is `20`.
 * `min_cells_expressed`: minimum number of training cells in which a gene must be detected (non-zero counts) for the gene to be included as a feature. Default is `10`.
-* `gene_exclude_re`: regular expression pattern to exclude specific gene types from training. Default is `"(lincRNA|lncRNA|pseudogene|antisense)"`; this default allows the classifier to be used on probe-based Flex data as well as reverse-transcription-based data.
+* `gene_exclude_re`: regular expression pattern to exclude specific gene types from training. Default is `"(lincRNA|lncRNA|pseudogene|antisense)"`; this default allows the classifier to be used on probe-based Flex data as well as reverse-transcription-based data. Matching uses Polars regular expressions.
 * `seed`: random seed for reproducibility. Default is `42`.
 * `use_gpu`: whether to use GPU acceleration for `XGBoost` training. Default is `false`.
 * `gain_threshold`: cumulative gain fraction at which to stop selecting genes. Default is `0.9` (top 90% of total gain).
@@ -1133,7 +1135,7 @@ Additional parameters include:
     * `gb_merge_labels`: maximum memory required (in GB) for rule `merge_labels`.
     * `gb_train_xgboost_train`: maximum memory required (in GB) for rule `train_xgboost_train`.
     * `gb_train_xgboost_predict`: maximum memory required (in GB) for rule `train_xgboost_predict`.
-    * `gb_train_xgboost_aggregate`: maximum memory required (in GB) for rule `train_xgboost_aggregate`.
+    * `gb_train_xgboost_combine`: maximum memory required (in GB) for rule `train_xgboost_combine`.
     * `gb_render_html_train_xgboost`: maximum memory required (in GB) for rule `render_html_train_xgboost`.
     * `gb_zoom_get_sample_statistics`: maximum memory required (in GB) for rule `zoom_get_sample_statistics`.
     * `gb_zoom_make_one_pb_cells`: maximum memory required (in GB) for rule `zoom_make_one_pb_cells`.
@@ -1201,7 +1203,7 @@ Additional parameters include:
     * `mins_merge_labels`: maximum runtime required (in minutes) for rule `merge_labels`.
     * `mins_train_xgboost_train`: maximum runtime required (in minutes) for rule `train_xgboost_train`.
     * `mins_train_xgboost_predict`: maximum runtime required (in minutes) for rule `train_xgboost_predict`.
-    * `mins_train_xgboost_aggregate`: maximum runtime required (in minutes) for rule `train_xgboost_aggregate`.
+    * `mins_train_xgboost_combine`: maximum runtime required (in minutes) for rule `train_xgboost_combine`.
     * `mins_render_html_train_xgboost`: maximum runtime required (in minutes) for rule `render_html_train_xgboost`.
     * `mins_zoom_get_sample_statistics`: maximum runtime required (in minutes) for rule `zoom_get_sample_statistics`.
     * `mins_zoom_make_one_pb_cells`: maximum runtime required (in minutes) for rule `zoom_make_one_pb_cells`.
