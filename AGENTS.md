@@ -128,7 +128,7 @@ Python scripts are invoked by Snakemake rules using the `script:` directive. Key
 - `hvgs.py` — Memory-efficient HVG detection: chunks the expression matrix and applies Seurat VST per chunk.
 - `integration.py` — Scanpy-based integration: Harmony batch correction, optional GPU-accelerated RAPIDS, UMAP, Leiden clustering. Supports pre-computed PCA embeddings via `--precomputed_pca_f` (used by BPCells join path).
 - `label_celltypes.py` — CellTypist and XGBoost-based cell type annotation. The `xgboost_one_batch` subcommand is also reused by `train_xgboost` for full-data evaluation.
-- `train_xgboost.py` — Train XGBoost cell type classifier. CLI uses subparsers: `train` (model training) and `aggregate_fulldata` (merge per-batch predictions with annotations and split labels). Works in scprocess, join, and zoom contexts — in join, h5ad lookup keys are `{project_id}_{batch_var}`.
+- `train_xgboost.py` — Train XGBoost cell type classifier. Planning, fitting, aggregation, model identity helpers and label specification export live in this single Python file. Training-only imports are local so setup/config checks remain lightweight. Optional label_specs_f/coarse_label_specs_f CSVs control mapping, ordering and colours; their separate specs stage reuses saved predictions. The file starts with planning, then count preparation, fitting, output writing and evaluation. CLI entry functions retain public names; internal helpers use leading underscores. normalize_counts is shared with inference. Rules pass named validated settings rather than config_json. CLI uses subparsers: `prepare` (cell splitting and selection), `train` (model training) and `combine` (merge per-batch predictions with annotations and split labels) and `specs` (display tables and coarse evaluation). Works in scprocess, join, and zoom contexts — in join, h5ad lookup keys are `{project_id}_{batch_var}`.
 - `mapping.py` — Chemistry auto-detection, simpleaf alignment, per-pool mapping. Main entry point is `map_fastqs_to_counts()`, which delegates to: `_resolve_fastq_paths()` (Arvados download or local path resolution), `_resolve_chemistry()` → `_autodetect_chemistry()` or `_validate_chemistry()` (chemistry/orientation detection), and `_write_chemistry_stats()` (saves results to YAML).
 
 R scripts are invoked via `script:` directive or called in shell blocks:
@@ -258,12 +258,154 @@ Controlled by `af_rna_dir` in `scprocess.smk`: `'flex/'` for flex, `'rna/'` for 
 
 ## Coding Conventions
 
-- **`.smk` files must be flat and readable**: Keep them declarative — rule definitions, variable unpacking, and output file paths only. No complex logic, no multi-line helper functions. Parameter parsing, validation, and path resolution belong in `scprocess_utils.py` (or other script files).
-- **Avoid `if` blocks around rules**: Whether a rule runs should be controlled by Snakemake's DAG resolution (i.e. whether its outputs are requested), not by conditional rule definitions. Define rules unconditionally; use empty lists for optional targets.
-- **Validation in `scprocess_utils.py`**: All config checks live in `_check_*_parameters()` functions. Never validate in `.smk` files.
-- **Consistent rule directive order**: `input` → `output` → `params` → `threads` → `retries` → `resources` → `log` → `benchmark` → `conda` → `shell`.
-- **Shell blocks**: Always start with `exec &>> {log}`.
-- **Lazy imports**: When a script runs in multiple conda envs, heavy imports (e.g. `scanpy`, `celltypist`) should be inside the function that needs them, with a comment explaining why.
+The shared user preferences are in
+[/home/macnairw/.codex/coding-style.md](/home/macnairw/.codex/coding-style.md).
+Read that guide when available; the repository-specific conventions below
+apply to scprocess. Review history and unfinished batches remain in
+`../scprocess-design/style_review_plan.md` and `style_review_examples.md`.
+
+### Implementation layout
+
+- Use established two-space Python/Snakemake indentation and local assignment/
+  argument alignment, including spaces around keyword-argument equals signs.
+  Do not impose one quote style across the repository.
+- Keep the established R idioms: function definitions use `<-`, ordinary local
+  assignments generally use `=` with local alignment, and data.table and `%>%`
+  remain appropriate. Do not change unusual assignment contexts mechanically.
+- Keep related small training helpers in train_xgboost.py rather than splitting
+  off tiny planning/workflow/model modules; normalize_counts remains shared with
+  inference. This is the reviewed organisation of the current trainer.
+- When a script runs in multiple Conda environments, keep genuinely heavy or
+  training-only imports local where needed, with a brief reason. This does not
+  justify repeated local NumPy imports throughout one file.
+- Pass explicit project/join context (is_join) to classifier planning; batch_var
+  is a column name and may be sample_id or pool_id. Use integration_f consistently
+  for the integration table in scripts, CLI flags and named workflow inputs.
+
+### Schema defaults and CLI settings
+
+User clarification, 2026-10-13: never introduce fallback defaults for configurable
+parameters in workflow rules or implementation helpers. In particular, prohibit
+config.get('parameter', literal_default), config['section'].get('parameter',
+literal_default), setdefault with a literal default, and equivalent expressions
+that substitute a value when a validated setting is missing. Put default values
+in the relevant schema and apply them during configuration validation. Consumers
+must access the validated settings explicitly. A missing required value is a
+validation error, not permission to choose another default locally.
+
+Optional-feature checks may represent an inactive argument as absent/NULL;
+these must not choose an alternative active-analysis value. Conditional defaults
+must remain conditional, with values defined in the schema. Generic lookups for
+optional sections and computed file paths are not parameter default definitions.
+Review existing local fallback defaults as findings in their own batches rather
+than silently expanding a style edit into a repository-wide behavior change.
+
+The schemas are in resources/schemas/. Essential file paths, identifiers and
+schema-supplied scientific settings remain explicit CLI inputs. Optional features
+may be omitted; check paired options together. CLI declaration groups should be
+easy to scan by type. Relative paths resolve from the project folder; data/configs/
+is a location used in examples, not an implicit filename search directory.
+
+Fixed method constants are distinct from configurable defaults. For example,
+MIN_CLUSTER_MAJORITY_VOTE_CELLS is the fixed 10-training-cell minimum for a cluster
+vote, not a YAML option. Keep such constants named and explained at file level.
+Classifier aggregation requires the training-metadata JSON to determine whether legacy
+coarse mapping was requested; missing metadata is an error, while a recorded
+absence of optional mapping is valid.
+
+### Snakemake workflow files
+
+Treat workflow files as a distinct review area. `rules/join_zoom.smk` is an
+historical negative example identified by the user, not a style reference.
+Compare it with established setup and rule patterns in historical integration,
+zoom, HVG and marker workflows. Review:
+
+- Setup sequence: imports, config validation, parameter extraction, common
+  variables/output paths, targets and rules should be easy to follow.
+- Names and scope: distinguish parameter dictionaries, lists of batches, paths
+  and constants. Avoid opaque aliases such as `_z` and unexplained context
+  globals such as `JOIN_ZOOM_CONTEXT`; document and reduce implicit coupling
+  across `include` boundaries where a concrete redesign supports that.
+- Use uppercase names for file-level code constants such as
+  `JOIN_ZOOM_SCRIPT_F` and `HVGS_SCRIPT_F`. All named rule inputs use descriptive
+  lowercase names, for example `join_zoom_script_f = JOIN_ZOOM_SCRIPT_F`.
+  Code remains a tracked input.
+- Give rules descriptive names that identify their calculation and output;
+  update corresponding resource keys, profile references and tests together.
+- Declare file dependencies under `input:`, generated files under `output:`,
+  and individual named settings under `params:`. Lists and dictionaries may be
+  passed directly to `script:` rules. Avoid generic JSON `context`/`effective`
+  bundles. Use the supplied join/zoom YAML files as the configuration record;
+  do not add a separate resolved-configuration snapshot.
+- Keep rules readable and primarily declarative. Put substantial validation,
+  selection and serialization logic in appropriately named helpers; do not
+  hide simple path declarations behind unnecessary helper layers.
+- Use established two-space indentation, local alignment, readable multiline
+  directives and shell arguments, and short section comments. Compare directive
+  order with adjacent historical rules rather than blindly reformatting all files.
+- Rule names and ordering should communicate the analytical stages and their
+  dependencies.
+- Preserve logging, resources, environment choices, wildcard behavior and DAG
+  dependencies. Keep `script:` where it solves a real transport/execution need;
+  do not replace it with `shell:` merely for visual consistency.
+- Any restructuring must preserve rerun behavior, tracked configuration, source
+  isolation, optional outputs and the distinction between join and joined zoom.
+- Keep .smk files flat and declarative. Configuration checks live in the
+  _check_*_parameters() functions in scprocess_utils.py, not in rule files.
+- Prefer unconditional rule definitions with optional targets controlled by the
+  DAG, using empty lists where appropriate rather than if blocks around rules.
+- Follow directive order input → output → params → threads → retries → resources
+  → log → benchmark → conda → shell, preserving justified adjacent patterns.
+- Shell log redirection starts with exec &>> {log}. Preserve scoped redirection
+  for local Python execution and justified script: interfaces.
+- Do not pass generic config_json bundles. Changing unrelated configuration
+  must not force expensive upstream recomputation.
+
+### Reports and documentation
+
+Review reports independently from the website/reference documentation. The
+explanatory text is for computational biologists. For each substantive output
+section, assess whether it:
+
+1. Provides biological context: what question the figure/table addresses and
+   what its axes, groups, colours or summary represent.
+2. Indicates success and failure: recognizable evidence of a useful result,
+   warning signs, and limitations of interpretation. Distinguish a technical
+   failure from a biologically plausible absence of signal; do not prescribe
+   an attractive plot as proof of a valid analysis.
+3. Briefly explains parameter adjustment: name the relevant configuration
+   parameter, explain what it affects and when changing it may help. Verify
+   names and behavior against the actual schema/code. If no adjustment can
+   address the concern, say that rather than inventing a tuning suggestion.
+
+These are content criteria, not a requirement to add three repetitive headings
+to every plot. Prefer concise, connected explanations near the outputs.
+Avoid explaining worker pools, serialization, caching mechanics, implementation
+history, seeded display draws or source-code organization unless they change
+how a computational biologist should interpret or use the result. Retain
+necessary methodological details such as normalization, transformations and
+scaling when they change the meaning of an axis or comparison. Compact method
+notes may support the explanation; developer details belong in developer notes.
+
+Review figure captions, tab introductions, missing-result messages and prose
+generated by R chunks as well as static Markdown. Include all report stages:
+mapping, ambient removal, multiplexing, QC, HVGs, integration, cell cycle,
+markers, annotation/training, join, zoom and index summaries. Evaluate each
+according to its purpose rather than inserting boilerplate everywhere.
+
+Reuse established integration.Rmd.template explanations for corresponding join
+outputs, checking historical and related templates before drafting new text.
+Match text to the actual plot: entropy guidance does not describe a composition
+UMAP. Record the reused source section and any real gap during a report review.
+The superseded agent-generated join-integration preview in the examples document
+is historical evidence, not an approved style reference.
+
+Keep reusable preparation and plotting functions in associated R helpers and
+heavy calculations outside rendering. Validate representative rendered HTML after
+report changes. Website, schema, CLI and Shiny text have their own audiences:
+retain actionable setup, resource and dependency guidance where it belongs.
+Check resources/mkdocs when functionality changes. Preserve the user's existing
+cell-cycle introduction and unrelated edits during review.
 
 ## Key Patterns
 
@@ -279,4 +421,4 @@ Controlled by `af_rna_dir` in `scprocess.smk`: `'flex/'` for flex, `'rna/'` for 
 - **R environment isolation**: `_clean_conda_env()` in the CLI sets `R_LIBS_SITE=""`, `R_LIBS_USER=""`, `BASILISK_USE_SYSTEM_DIR=0`, and `BASILISK_EXTERNAL_DIR` to prevent conda R from loading system packages and to store basilisk Python envs alongside Snakemake conda envs. R scripts that use `zellkonverter` via parallel workers (e.g. `marker_genes.R`) pre-initialize the basilisk env before `bplapply` to avoid race conditions.
 - **Join label reuse**: The join workflow checks whether source projects already have label_celltypes outputs for the same labeller/model. If they do, naive predictions are extracted from the source labels instead of re-running celltypist/XGBoost — only projects without existing labels trigger fresh runs.
 - **Shiny as a rule**: Shiny is invoked via `scprocess run -r shiny` or `scprocess join -r shiny` (not a separate subcommand). `shiny.smk` separates expensive `build_*_shiny_data` rules from lightweight `configure_*_shiny_app` rules; the CLI targets configuration, which depends on data generation only when analytical inputs are stale.
-- **train_xgboost across contexts**: `train_xgboost` runs in three contexts (scprocess, join, zoom), each with different h5ad key construction. In scprocess, `batch_var` is `sample_id` and h5ad keys match directly. In join, h5ad keys are `{project_id}_{batch_var}` (constructed in `plan_training_cells`). All shell blocks must use the `train` subcommand (`python3 scripts/train_xgboost.py train ...`). Full-data evaluation reuses `label_celltypes.py xgboost_one_batch` for per-batch prediction, with `aggregate_fulldata` merging results and assigning train/validation/holdout/unlabeled split labels.
+- **train_xgboost across contexts**: `train_xgboost` runs in three contexts (scprocess, join, zoom), each with different h5ad key construction. The preparation rules pass explicit is_join context: false for project/project zoom and true for join/joined zoom. Do not infer this from batch_var. Project H5AD keys match directly; joined keys are project-qualified, preserving already-qualified integration values. All shell blocks must use the `train` subcommand (`python3 scripts/train_xgboost.py train ...`). Full-data evaluation reuses `label_celltypes.py xgboost_one_batch` for per-batch prediction, with `combine` merging results and assigning train/validation/holdout/unlabeled split labels.

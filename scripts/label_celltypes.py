@@ -119,8 +119,8 @@ def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes
   import xgboost as xgb
   from train_xgboost import normalize_counts
 
-  from xgboost_models import model_identity
-  identity = model_identity(model_f, model_name)
+  from train_xgboost import get_xgboost_model_info
+  identity = get_xgboost_model_info(model_f, model_name)
   model = xgb.Booster()
   model.load_model(model_f)
 
@@ -227,8 +227,11 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var, lab
   agg_df      = data_df.join(hi_res_lu, on = "hi_res_cl", how = "left").select(out_cols)
 
   if label_map_f and pathlib.Path(label_map_f).is_file():
-    map_df = pl.read_csv(label_map_f)
-    label_map = dict(zip(map_df['fine_label'].to_list(), map_df['coarse_label'].to_list()))
+    from train_xgboost import read_label_specs, label_mapping
+    records, _ = read_label_specs(label_specs_f=label_map_f)
+    label_map = label_mapping(records)
+    if not label_map:
+      return agg_df
     agg_df = agg_df.with_columns(
       pl.col('predicted_label_naive').replace(label_map).alias('coarse_predicted_label_naive'),
       pl.col('predicted_label_agg').replace(label_map).alias('coarse_predicted_label_agg'),

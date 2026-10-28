@@ -2,6 +2,10 @@
 
 
 import argparse
+import json
+import tempfile
+import urllib.request
+import pathlib
 import gzip
 import os
 import re
@@ -69,7 +73,7 @@ URLS_XGBOOSTS = {
   'Siletti_hippocampus-2026-06-22': 'https://github.com/marusakod/scprocessData/releases/download/v0.2.1/Siletti_hippocampus-2026-06-22.tar.gz',
 }
 
-from xgboost_models import builtin_models, install_builtin, sha256
+from train_xgboost import builtin_models, sha256
 URLS_XGBOOSTS.update({name: model['url'] for name, model in builtin_models().items()})
 
 COMPLEMENT = str.maketrans('ACGT', 'TGCA')
@@ -838,6 +842,17 @@ def get_xgboost_parameters(config):
 def _resolve_xgboost_spec(spec):
   import pathlib
 
+  if spec.get('src_dir'):
+    if spec.get('config'):
+      raise ValueError('Specify config or src_dir, not both')
+    src_dir = str(pathlib.Path(spec['src_dir']).resolve())
+    tags = [p.name.removesuffix('_xgboost_model.json') for p in pathlib.Path(src_dir).glob('*_xgboost_model.json')]
+    tag = spec.get('xgboost_tag')
+    if tag is None:
+      if len(tags) != 1:
+        raise ValueError('Specify xgboost_tag when src_dir does not contain exactly one model')
+      tag = tags[0]
+    return spec['name'], tag, src_dir
   config_f = spec['config']
   if not os.path.isfile(config_f):
     raise FileNotFoundError(f"config file {config_f} does not exist")
@@ -855,7 +870,7 @@ def _resolve_xgboost_spec(spec):
       raise ValueError(f"Config file {config_f} does not contain a 'train_xgboost' section")
     join_name = cfg['join']['name']
     join_dir  = cfg['join']['proj_dir']
-    raw_tag   = cfg['train_xgboost'].get('ref_tag')
+    raw_tag   = cfg['train_xgboost'].get('xgboost_tag', cfg['train_xgboost'].get('ref_tag'))
     ref_tag   = f"xgboost_{raw_tag}" if raw_tag else f"xgboost_{join_name}"
     src_dir   = os.path.join(join_dir, 'output', f'{join_name}_train_xgboost')
   elif zoom_name is not None:
@@ -871,13 +886,13 @@ def _resolve_xgboost_spec(spec):
     if 'train_xgboost' not in cfg:
       raise ValueError(f"Config file {config_f} does not contain a 'train_xgboost' section")
     full_tag  = cfg['project']['full_tag']
-    raw_tag   = cfg['train_xgboost'].get('ref_tag')
+    raw_tag   = cfg['train_xgboost'].get('xgboost_tag', cfg['train_xgboost'].get('ref_tag'))
     ref_tag   = f"xgboost_{raw_tag}" if raw_tag else f"xgboost_{full_tag}"
     proj_dir  = cfg['project']['proj_dir']
     short_tag = cfg['project']['short_tag']
     src_dir   = os.path.join(proj_dir, 'output', f'{short_tag}_train_xgboost')
 
-  return ref_tag, ref_tag, src_dir
+  return spec.get('name', ref_tag), ref_tag, src_dir
 
 
 def _resolve_zoom_xgboost_ref_tag(zoom_yamls, zoom_name, project_config):
@@ -895,7 +910,7 @@ def _resolve_zoom_xgboost_ref_tag(zoom_yamls, zoom_name, project_config):
       continue
     if 'train_xgboost' not in zoom_cfg:
       raise ValueError(f"Zoom '{zoom_name}' does not have a train_xgboost section")
-    raw_tag = zoom_cfg['train_xgboost'].get('ref_tag')
+    raw_tag = zoom_cfg['train_xgboost'].get('xgboost_tag', cfg['train_xgboost'].get('ref_tag'))
     if raw_tag:
       return f"xgboost_{raw_tag}"
     full_tag = project_config['project']['full_tag']
@@ -919,24 +934,83 @@ def add_xgboost_classifier(scdata_dir, name, ref_tag, src_dir, is_prebuilt):
     for src_name, dst_name in file_pairs:
       shutil.copy2(os.path.join(src_dir, src_name), os.path.join(dest_dir, dst_name))
 
-    label_map_src = os.path.join(src_dir, f'{ref_tag}_label_map.csv')
-    if os.path.isfile(label_map_src):
-      shutil.copy2(label_map_src, os.path.join(dest_dir, f'{name}_label_map.csv'))
+    for suffix in ['label_map.csv','label_specs.csv','coarse_label_specs.csv']:
+      source = os.path.join(src_dir, f'{ref_tag}_{suffix}')
+      if os.path.isfile(source):
+        shutil.copy2(source, os.path.join(dest_dir, f'{name}_{suffix}'))
 
   manifest_f = os.path.join(dest_dir, f'{name}_manifest.json')
   if not is_prebuilt or name not in builtin_models():
     import json
     files = {f'{name}_{suffix}': sha256(os.path.join(dest_dir, f'{name}_{suffix}'))
       for suffix in ['xgboost_model.json', 'allowed_cls.csv', 'selected_genes.txt']}
+    for suffix in ['label_map.csv','label_specs.csv','coarse_label_specs.csv']:
+      path = os.path.join(dest_dir, f'{name}_{suffix}')
+      if os.path.isfile(path):
+        files[os.path.basename(path)] = sha256(path)
     with open(manifest_f, 'w') as stream:
       json.dump({'name': name, 'model_id': name, 'files': files}, stream, indent=2)
 
   print(f"Installed xgboost classifier '{name}' to {dest_dir}")
 
 
+def _install_builtin_xgboost_model(name, dest_dir):
+
+  model_manifest = builtin_models()[name]
+  expected_hashes = model_manifest['files']
+  expected_files  = set(expected_hashes)
+  dest_dir        = pathlib.Path(dest_dir)
+  dest_dir.parent.mkdir(parents = True, exist_ok = True)
+
+  # Download into a temporary sibling directory; leave installed files untouched.
+  with tempfile.TemporaryDirectory(dir = dest_dir.parent) as temporary_dir:
+    staging_dir = pathlib.Path(temporary_dir)
+    download_f  = staging_dir / 'download.tar.gz'
+    urllib.request.urlretrieve(model_manifest['url'], download_f)
+    if sha256(download_f) != model_manifest['archive_sha256']:
+      raise ValueError(f'Archive checksum mismatch for {name}')
+
+    # Accept the model's top-level directory and its expected regular files only.
+    found_files = set()
+    with tarfile.open(download_f, 'r:gz') as archive:
+      for member in archive.getmembers():
+        member_path = pathlib.Path(member.name)
+        is_model_directory = (
+          member.isdir() and member_path.parts == (model_manifest['model_id'],))
+        if is_model_directory:
+          continue
+
+        is_expected_file = (
+          member.isfile()
+          and len(member_path.parts) == 2
+          and member_path.parts[0] == model_manifest['model_id']
+          and member_path.name in expected_files
+          and member_path.name not in found_files)
+        if not is_expected_file:
+          raise ValueError(f'Unexpected model archive member: {member.name}')
+
+        # Stage each file and check its contents before considering installation.
+        staged_f = staging_dir / member_path.name
+        with archive.extractfile(member) as source_stream, staged_f.open('wb') as target_stream:
+          shutil.copyfileobj(source_stream, target_stream)
+        if sha256(staged_f) != expected_hashes[member_path.name]:
+          raise ValueError(f'Model member checksum mismatch: {member_path.name}')
+        found_files.add(member_path.name)
+
+    # A valid archive must contain every required file, with no duplicates.
+    if found_files != expected_files:
+      raise ValueError(f'Incomplete model archive for {name}')
+
+    # Install only after the entire staged archive passes validation.
+    dest_dir.mkdir(exist_ok = True)
+    for filename in found_files:
+      shutil.copy2(staging_dir / filename, dest_dir / filename)
+    manifest_f = dest_dir / f'{name}_manifest.json'
+    manifest_f.write_text(json.dumps(model_manifest, indent = 2) + '\n')
+
 def _download_prebuilt_xgboost(name, dest_dir):
   if name in builtin_models():
-    install_builtin(name, dest_dir)
+    _install_builtin_xgboost_model(name, dest_dir)
     return
   url = URLS_XGBOOSTS[name]
   tar_path = os.path.join(dest_dir, f'{name}.tar.gz')
@@ -954,8 +1028,8 @@ def save_available_xgboost_csv(csv_f, scdata_dir, names):
     cls_f   = os.path.join(xgb_dir, f'{name}_allowed_cls.csv')
     genes_f = os.path.join(xgb_dir, f'{name}_selected_genes.txt')
     label_map_f = os.path.join(xgb_dir, f'{name}_label_map.csv')
-    from xgboost_models import model_identity
-    identity = model_identity(model_f, name)
+    from train_xgboost import get_xgboost_model_info
+    identity = get_xgboost_model_info(model_f, name)
     rows.append({
       **identity,
       'model':       name,
@@ -963,6 +1037,8 @@ def save_available_xgboost_csv(csv_f, scdata_dir, names):
       'cls_f':       cls_f,
       'genes_f':     genes_f,
       'label_map_f': label_map_f if os.path.isfile(label_map_f) else '',
+      'label_specs_f': str(pathlib.Path(xgb_dir) / f'{name}_label_specs.csv') if os.path.isfile(os.path.join(xgb_dir,f'{name}_label_specs.csv')) else '',
+      'coarse_label_specs_f': str(pathlib.Path(xgb_dir) / f'{name}_coarse_label_specs.csv') if os.path.isfile(os.path.join(xgb_dir,f'{name}_coarse_label_specs.csv')) else '',
     })
   df = pl.from_dicts(rows)
   df.write_csv(csv_f)
@@ -1066,3 +1142,13 @@ if __name__ == "__main__":
   else:
     parser.print_help()
 
+
+
+def get_xgboost_source_files(parameters):
+  if parameters.get('is_prebuilt'):
+    return []
+  directory = pathlib.Path(parameters['src_dir'])
+  tag = parameters['ref_tag']
+  return [str(path) for path in directory.glob(f'{tag}_*') if path.is_file() and
+    path.name.endswith(('xgboost_model.json','allowed_cls.csv','selected_genes.txt',
+      'label_map.csv','label_specs.csv','coarse_label_specs.csv'))]

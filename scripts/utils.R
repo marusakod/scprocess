@@ -501,3 +501,49 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
 
   return(hm_obj)
 }
+
+
+xgboost_colours <- function(labels, specified = NULL) {
+  labels = unique(as.character(labels))
+  labels = labels[!is.na(labels)]
+  palette = if (length(labels) <= length(nice_cols)) nice_cols[seq_along(labels)] else
+    grDevices::hcl.colors(length(labels), "Dark 3")
+  colours = setNames(palette, labels)
+  supplied = intersect(labels, names(specified))
+  colours[supplied] = specified[supplied]
+  colours
+}
+
+read_xgboost_style <- function(predictions_f, labels, label_specs_f=NULL, coarse_label_specs_f=NULL) {
+  prefix = if (is.null(predictions_f)) "" else sub("_predictions.csv.gz$", "", predictions_f)
+  fine_f = if (!is.null(label_specs_f)) label_specs_f else paste0(prefix, "_label_specs.csv")
+  coarse_f = if (!is.null(coarse_label_specs_f)) coarse_label_specs_f else paste0(prefix, "_coarse_label_specs.csv")
+  fine = if (file.exists(fine_f)) fread(fine_f, na.strings=c("", "NA")) else data.table()
+  coarse = if (file.exists(coarse_f)) fread(coarse_f, na.strings=c("", "NA")) else data.table()
+  order = unique(c(if ("label" %in% names(fine)) fine$label else character(), as.character(labels)))
+  order = order[!is.na(order)]
+  colours = if (all(c("label","colour") %in% names(fine)))
+    setNames(fine[!is.na(colour)]$colour, fine[!is.na(colour)]$label) else NULL
+  mapping = if (all(c("label","coarse_label") %in% names(fine)))
+    setNames(fine[!is.na(coarse_label)]$coarse_label, fine[!is.na(coarse_label)]$label) else character()
+  coarse_order = unique(c(if ("coarse_label" %in% names(coarse)) coarse$coarse_label else character(), unname(mapping)))
+  coarse_colours = if (all(c("coarse_label","coarse_colour") %in% names(coarse)))
+    setNames(coarse[!is.na(coarse_colour)]$coarse_colour, coarse[!is.na(coarse_colour)]$coarse_label) else NULL
+  list(order=order, colours=xgboost_colours(order,colours), mapping=mapping,
+    coarse_order=coarse_order, coarse_colours=xgboost_colours(coarse_order,coarse_colours))
+}
+
+apply_xgboost_style <- function(data, style) {
+  order = unique(c(style$order, as.character(data$label), as.character(data$predicted_label)))
+  for (column in intersect(c("label","predicted_label"),names(data)))
+    set(data, j=column, value=factor(data[[column]],levels=order[!is.na(order)]))
+  if (length(style$mapping)) {
+    for (columns in list(c("label","coarse_true"),c("predicted_label","coarse_predicted"))) {
+      original = as.character(data[[columns[1]]])
+      value = unname(style$mapping[original])
+      value[is.na(value)] = original[is.na(value)]
+      set(data, j=columns[2], value=factor(value,levels=unique(c(style$coarse_order,value[!is.na(value)]))))
+    }
+  }
+  data
+}

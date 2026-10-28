@@ -1,8 +1,57 @@
 # Changelog
 
+## 0.4.0 — Unreleased development candidate
+
+### Reviewed training interface
+
+- Consolidate training in `train_xgboost.py`, with Polars tables, explicit
+  project/join context, clearer function ordering and documented split units.
+- Rename the CLI stages to `prepare`, `train`, `combine` and `specs`; rename
+  per-label sampling settings to `*_cells_per_label`, saved plans to
+  `*_training_metadata.csv.gz`, and corresponding workflow/resource names.
+  Update maintained project, join and zoom callers together.
+- Add optional standard/coarse label specification CSVs with independent order
+  and named colours. Carry them through reports, prediction and local setup;
+  regenerate display/coarse summaries from saved predictions without refitting.
+- Place model-path lookup in scprocess utilities and built-in installation in
+  setup; simplify registry and model-information helpers.
+
+### Scientific behaviour and validation
+
+- Keep the majority-vote minimum as the named fixed 10-cell method constant.
+  Break validation-unit rescue ties by cell count then unit ID, replacing the
+  former incidental quicksort tie order; seeded selections can change for ties.
+- Require informative training features, required metadata and valid complete
+  specification CSV rows; remove silent fallbacks. Gene-type exclusion uses
+  native Polars regular expressions.
+- Make report gain cutoffs reflect the fitted model's actual target and selected
+  gene count. Plot final-model genes only and paginate small models correctly.
+- Supply schema defaults for join training preparation and import its label
+  specification helper, verified with the complete native join workflow on
+  1,440 real Siletti cells from six libraries, including the HTML report.
+- Development candidate only. No main promotion, release tags, publication or
+  replacement public model asset is included.
+
+
 ## 0.3.0 — Unreleased development candidate
 
 ### Training features and interface changes
+
+- Add optional standard/coarse label specification CSVs, independent row ordering
+  and named colours, carried through reports and local installation. Standardise
+  new label columns as `label`, retaining legacy input names. Derive coarse
+  evaluation from saved predictions without refitting or repeating inference.
+- Keep optional CLI features omittable and consolidate model registry,
+  installation and label-specification helpers into `train_xgboost.py`.
+- Resolve current training tags during setup and support direct local source
+  directories with an independent installed classifier name.
+
+- Consolidate XGBoost planning, fitting and evaluation into `train_xgboost.py`;
+  keep the existing commands, workflow stages and scientific behaviour.
+- Use Polars for training plans and evaluation summaries, retaining seeded cell
+  selections and model outputs. Pass named settings through project/join/zoom
+  rules, with defaults defined in their schemas. Reorder the trainer by stage,
+  mark internal helpers with underscores and improve code/rule layout.
 
 - Add saved XGBoost training plans, explicit test groups, whole-group validation,
   joint variable-combination sampling and separate training/validation caps.

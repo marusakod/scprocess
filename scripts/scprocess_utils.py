@@ -2120,8 +2120,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
           f"These models are currently available: {', '.join(mdls_xgboost)}"
         )
 
-      from xgboost_models import resolve_xgboost_entry
-      resolve_xgboost_entry(entry, scdata_dir)
+      get_xgboost_model_paths(entry, scdata_dir)
 
     # resolve label_map_f
     if 'label_map' in entry:
@@ -2136,8 +2135,8 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
 
     if entry['label_map_f'] != '':
       lm_df = pl.read_csv(entry['label_map_f'], n_rows=5)
-      if 'fine_label' not in lm_df.columns or 'coarse_label' not in lm_df.columns:
-        raise ValueError(f"label_map file must have 'fine_label' and 'coarse_label' columns: {entry['label_map_f']}")
+      from train_xgboost import read_label_specs
+      read_label_specs(label_specs_f=entry['label_map_f'])
 
     # add defaults
     for v in label_defaults:
@@ -2157,6 +2156,51 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
   LABELLER_PARAMS = [ _check_one_label_celltypes_parameters(entry) for entry in config['label_celltypes'] ]
 
   return LABELLER_PARAMS
+
+
+def get_xgboost_model_paths(entry, scdata_dir):
+  # Shared with setup/inference; keep model-specific imports local.
+  from train_xgboost import read_label_specs, label_mapping, get_xgboost_model_info
+
+  # The registry has one row per installed model; exactly one must match the request.
+  model_name  = entry['model']
+  registry_f  = pathlib.Path(scdata_dir) / 'xgboost/xgboost_models.csv'
+  registry_df = pl.read_csv(registry_f)
+  matches_df  = registry_df.filter(pl.col('model') == model_name)
+  if len(matches_df) != 1:
+    raise ValueError(f"Expected one registered XGBoost model named {model_name}; found {len(matches_df)}")
+  model_record = matches_df.row(0, named = True)
+
+  # Attach and check the weights, class list and selected-gene list.
+  for file_key in ['model_f', 'cls_f', 'genes_f']:
+    file_path = model_record[file_key]
+    entry[file_key] = file_path
+    if not pathlib.Path(file_path).is_file():
+      raise FileNotFoundError(f"XGBoost file missing: {file_path}; rerun scprocess setup")
+
+  # Optional specification paths may be absent or empty in the registry.
+  entry['label_specs_f']        = model_record.get('label_specs_f') or ''
+  entry['coarse_label_specs_f'] = model_record.get('coarse_label_specs_f') or ''
+  entry['label_map_f']          = model_record.get('label_map_f') or ''
+  if entry['label_specs_f']:
+    classes_df  = pl.read_csv(entry['cls_f'])
+    class_names = classes_df['class'].to_list()
+    fine_specs, _ = read_label_specs(
+      label_specs_f        = entry['label_specs_f'],
+      coarse_label_specs_f = entry['coarse_label_specs_f'],
+      labels               = class_names)
+
+    # A style-only specification table must not enable coarse-label mapping.
+    label_map = label_mapping(fine_specs)
+    if label_map:
+      entry['label_map_f'] = entry['label_specs_f']
+    else:
+      entry['label_map_f'] = ''
+
+  # Verify the installed files' checksums and attach the model identity.
+  identity = get_xgboost_model_info(entry['model_f'], model_name)
+  entry.update(identity)
+  return entry
 
 
 # --- join parameter helpers ---
@@ -2408,7 +2452,6 @@ def get_join_project_parameters(config):
     'qc_all_fs':      [str(_qc_all_f(pid)) for pid in project_ids],
     'batch_keys':     batch_keys,
   }
-
 
 
 def get_join_source_labels_f(project_cfgs, pid, labeller, model):
@@ -2885,23 +2928,37 @@ def make_hvgs_input_df(runs, ambient_outs_yamls, RUN_VAR, BATCH_VAR, BATCHES_TO_
   return hvg_df_full
 
 
-
-def get_xgboost_planning_config(config):
-  keys = ('excluded_labels', 'label_map_f', 'cluster_majority_vote_resolution',
-    'cluster_majority_vote_min_purity', 'test_group_var', 'test_groups',
-    'validation_group_var', 'validation_fraction', 'validation_variable_combinations',
-    'sampling_variable_combinations', 'train_cells_per_type',
-    'validation_cells_per_type', 'min_cells_per_type', 'seed')
-  return {key: config[key] for key in keys if key in config}
-
-
 def _check_xgboost_group_columns(xgb, columns):
   if bool(xgb.get('test_group_var')) != bool(xgb.get('test_groups')):
     raise ValueError('test_group_var and test_groups must be specified together')
   # Group metadata may come from annotations or integration; full checks belong
   # to the planning stage after the two tables have been joined.
-  if xgb.get('min_genes', 100) > xgb.get('max_genes', 3000):
+  if xgb['min_genes'] > xgb['max_genes']:
     raise ValueError('min_genes must not exceed max_genes')
+
+
+def _check_xgboost_label_files(xgb, project_dir):
+  from train_xgboost import read_label_specs
+  for key in ['annots_f','label_specs_f','coarse_label_specs_f','label_map_f']:
+    if not xgb.get(key):
+      continue
+    path = pathlib.Path(xgb[key])
+    if not path.is_absolute():
+      path = project_dir / path
+    if not path.is_file():
+      raise FileNotFoundError(f'{key} file not found: {path}')
+    xgb[key] = str(path)
+  annotations = pl.read_csv(xgb['annots_f'], n_rows=5)
+  if 'cell_id' not in annotations.columns:
+    raise ValueError("annots_f must have 'cell_id' column")
+  label_columns = [name for name in ['label', 'annotation', 'fine_label'] if name in annotations.columns]
+  if len(label_columns) != 1:
+    raise ValueError('annots_f needs one label column (label; legacy annotation/fine_label accepted)')
+  read_label_specs(xgb.get('label_specs_f'), xgb.get('coarse_label_specs_f'), label_map_f=xgb.get('label_map_f'))
+
+
+def get_xgboost_spec_inputs(config):
+  return [config[key] for key in ['label_specs_f','coarse_label_specs_f','label_map_f'] if config.get(key)]
 
 
 def _check_train_xgboost_parameters(config):
@@ -2910,34 +2967,8 @@ def _check_train_xgboost_parameters(config):
 
   xgb = config['train_xgboost']
 
-  # resolve annots_f relative to proj_dir
-  annots_f = pathlib.Path(xgb['annots_f'])
-  if not annots_f.is_absolute():
-    annots_f = pathlib.Path(config['project']['proj_dir']) / annots_f
-  xgb['annots_f'] = str(annots_f)
-
-  # check annotations file
-  if not annots_f.is_file():
-    raise FileNotFoundError(f"Annotations file not found: {annots_f}")
-  annots_df = pl.read_csv(str(annots_f), n_rows=5)
-  if "cell_id" not in annots_df.columns:
-    raise ValueError("annots_f must have 'cell_id' column")
-  if "annotation" not in annots_df.columns:
-    raise ValueError("annots_f must have 'annotation' column")
-
-  # check label map if provided
-  if xgb.get("label_map_f") is not None:
-    label_map_f = pathlib.Path(xgb["label_map_f"])
-    if not label_map_f.is_absolute():
-      label_map_f = pathlib.Path(config['project']['proj_dir']) / label_map_f
-    xgb['label_map_f'] = str(label_map_f)
-    if not label_map_f.is_file():
-      raise FileNotFoundError(f"Label map file not found: {label_map_f}")
-    map_df = pl.read_csv(str(label_map_f), n_rows=5)
-    if "annotation" not in map_df.columns:
-      raise ValueError("label_map_f must have 'annotation' column")
-    if "coarse_label" not in map_df.columns:
-      raise ValueError("label_map_f must have 'coarse_label' column")
+  _check_xgboost_label_files(xgb, pathlib.Path(config['project']['proj_dir']))
+  annots_df = pl.read_csv(xgb['annots_f'], n_rows=5)
 
   _check_xgboost_group_columns(xgb, annots_df.columns)
   return config
@@ -3089,33 +3120,8 @@ def check_join_config(config, join_schema_f, scdata_dir):
     else:
       xgb['xgboost_tag'] = f"xgboost_{xgb['xgboost_tag']}"
 
-    # resolve annots_f
     join_dir = pathlib.Path(config['join']['proj_dir'])
-    annots_f = pathlib.Path(xgb['annots_f'])
-    if not annots_f.is_absolute():
-      annots_f = join_dir / annots_f
-    xgb['annots_f'] = str(annots_f)
-    if not annots_f.is_file():
-      raise FileNotFoundError(f"Annotations file not found: {annots_f}")
-    annots_df = pl.read_csv(str(annots_f), n_rows=5)
-    if "cell_id" not in annots_df.columns:
-      raise ValueError("train_xgboost.annots_f must have 'cell_id' column")
-    if "annotation" not in annots_df.columns:
-      raise ValueError("train_xgboost.annots_f must have 'annotation' column")
-
-    # check label_map_f if provided
-    if xgb.get("label_map_f") is not None:
-      label_map_f = pathlib.Path(xgb["label_map_f"])
-      if not label_map_f.is_absolute():
-        label_map_f = join_dir / label_map_f
-      xgb['label_map_f'] = str(label_map_f)
-      if not label_map_f.is_file():
-        raise FileNotFoundError(f"Label map file not found: {label_map_f}")
-      map_df = pl.read_csv(str(label_map_f), n_rows=5)
-      if "annotation" not in map_df.columns:
-        raise ValueError("label_map_f must have 'annotation' column")
-      if "coarse_label" not in map_df.columns:
-        raise ValueError("label_map_f must have 'coarse_label' column")
+    _check_xgboost_label_files(xgb, join_dir)
 
     # inject output_dir
     join_name = config['join']['name']
@@ -3186,13 +3192,12 @@ def check_join_config(config, join_schema_f, scdata_dir):
 
     typist_ls_f = scdata_dir / 'celltypist/celltypist_models.csv'
     mdls_typist = pl.read_csv(typist_ls_f)['model'].to_list() if typist_ls_f.is_file() else []
-    from xgboost_models import resolve_xgboost_entry
     for entry in lbl_cfg:
       if entry['labeller'] == 'celltypist':
         if entry['model'] not in mdls_typist:
           raise ValueError(f"CellTypist model '{entry['model']}' not found. Valid: {', '.join(mdls_typist)}")
       elif entry['labeller'] == 'scprocess':
-        resolve_xgboost_entry(entry, scdata_dir)
+        get_xgboost_model_paths(entry, scdata_dir)
 
   # check that each metadata_var is present in at least one project's sample
   # metadata file. Unlike the standard pipeline (which requires all vars in a
