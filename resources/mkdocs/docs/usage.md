@@ -234,3 +234,32 @@ and sampling policy are unchanged.
 
 For code provenance, clean analysis checkouts and configuration migration, see the
 [versioning and release policy](development/versioning.md).
+
+## Annotating an existing join
+
+Add the installed classifier to the join YAML, for example:
+
+```yaml
+label_celltypes:
+  - labeller: scprocess
+    model: my_classifier
+    hi_res_cl: RNA_snn_res.2
+    min_cl_prop: 0.5
+```
+
+Set `model` to a classifier registered in your installation. `hi_res_cl` selects
+the clusters used for majority voting; `min_cl_prop` is the minimum fraction of
+cells in a cluster supporting its assigned label. Run annotation with:
+
+```bash
+scprocess join configs/join.yaml -r label_celltypes -n
+scprocess join configs/join.yaml -r label_celltypes
+```
+
+The target reuses completed integration and count outputs and produces per-cell
+labels and any requested cluster-name tables. Source-project predictions are
+reused where available for the selected model; other batches run inference.
+Outputs retain naive and majority-vote fine labels. If the installed model
+specifies coarse labels, both fine calls are mapped to their coarse labels.
+Updating that mapping reruns aggregation. Marker genes and the main join report
+remain separate targets.

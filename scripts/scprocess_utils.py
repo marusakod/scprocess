@@ -1345,11 +1345,13 @@ def check_config_ok_for_rule(config, rule):
       raise KeyError(
         "no 'cell_cycle' section found in config file. "
         "Add a 'cell_cycle' block to your config to use -r cell_cycle.")
+
   if rule == 'label_celltypes':
-    if 'label_celltypes' not in config:
+    if not config.get('label_celltypes'):
       raise KeyError(
-        "no 'label_celltypes' section found in config file. "
-        "Add a 'label_celltypes' block to your config to use -r label_celltypes.")
+        "No classifiers configured in 'label_celltypes'. "
+        "Add a nonempty 'label_celltypes' block to use -r label_celltypes.")
+
   if rule == 'train_xgboost':
     if 'train_xgboost' not in config:
       raise KeyError(
@@ -2158,6 +2160,37 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
   return LABELLER_PARAMS
 
 
+def get_join_labeller_parameters(config, schema_f, scdata_dir):
+  labeller_entries = config.get('label_celltypes', [])
+  if not labeller_entries:
+    return []
+
+  # Apply schema defaults to each configured classifier.
+  schema = _load_schema_file(schema_f)
+  label_properties = schema['properties']['label_celltypes']['items']['properties']
+  for entry in labeller_entries:
+    for key, properties in label_properties.items():
+      if key not in entry and 'default' in properties:
+        entry[key] = properties['default']
+
+  # A missing CellTypist registry is valid when only XGBoost models are used.
+  celltypist_models_f = scdata_dir / 'celltypist/celltypist_models.csv'
+  celltypist_models = (
+    pl.read_csv(celltypist_models_f)['model'].to_list()
+    if celltypist_models_f.is_file() else [])
+
+  for entry in labeller_entries:
+    if entry['labeller'] == 'celltypist':
+      if entry['model'] not in celltypist_models:
+        raise ValueError(
+          f"CellTypist model '{entry['model']}' not found. "
+          f"Valid: {', '.join(celltypist_models)}")
+    elif entry['labeller'] == 'scprocess':
+      get_xgboost_model_paths(entry = entry, scdata_dir = scdata_dir)
+
+  return labeller_entries
+
+
 def get_xgboost_model_paths(entry, scdata_dir):
   # Shared with setup/inference; keep model-specific imports local.
   from train_xgboost import read_label_specs, label_mapping, get_xgboost_model_info
@@ -2204,6 +2237,14 @@ def get_xgboost_model_paths(entry, scdata_dir):
 
 
 # --- join parameter helpers ---
+
+def get_join_zoom_spec(config, zoom_name, scprocess_dir):
+  """Return the requested validated zoom specification."""
+  zoom_specs = get_join_zoom_specs(config, scprocess_dir)
+  if zoom_name not in zoom_specs:
+    raise ValueError(f'Unknown joined zoom {zoom_name!r}; available: {list(zoom_specs)}')
+  return zoom_specs[zoom_name]
+
 
 def get_join_zoom_specs(config, scprocess_dir):
   """Validate joined-zoom overrides without reading expression data or writing files."""

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.2 — Unreleased development candidate
+
+- Allow `scprocess join ... -r label_celltypes` to run annotation without
+  marker genes or the main join report.
+- Use installed XGBoost label metadata in joins, mapping both naive and
+  majority-vote fine calls to coarse labels when specified. Updating the mapping
+  regenerates aggregated labels; fine predictions and voting settings are unchanged.
+- Reject an explicitly requested `label_celltypes` step with no classifiers.
+- Refactor joined-zoom source preparation and HVG calculation for readability,
+  preserving bounded sparse reads, cell selection, outputs and workflow dependencies.
+- Remove the unused zoom-name CLI helper.
+
 ## 0.4.1 — Unreleased development candidate
 
 - Give every completed version, including patch versions, an immutable annotated

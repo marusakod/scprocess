@@ -627,15 +627,6 @@ def run_join(configfile, sc_dir, extraargs, dryrun, rule="all", zoom_name=None):
     sys.exit(result.returncode)
 
 
-def _get_zoom_names(config, scprocess_dir, scdata_dir):
-  """Return list of zoom names from config, or [] if none defined."""
-  if 'zoom' not in config or not config['zoom']:
-    return []
-  zoom_schema_f = pathlib.Path(scprocess_dir) / "resources/schemas/zoom.schema.json"
-  ZOOM_PARAMS   = scprocess_utils.get_zoom_parameters(config, zoom_schema_f, scdata_dir)
-  return list(ZOOM_PARAMS.keys())
-
-
 def _render_index(scprocess_dir, config, setup_cfg, config_path):
   # 1. Locate the template and script
   template_f    = (scprocess_dir / "resources/rmd_templates/index.Rmd.template").resolve()
@@ -1040,7 +1031,7 @@ if __name__ == '__main__':
   join_prsr.add_argument("configfile", type = str,
     help = "Join config YAML (join.yaml) specifying projects to integrate.")
   join_prsr.add_argument("-r", "--rule", type = str, default = "all",
-    choices = ["all", "train_xgboost", "shiny", "zoom"],
+    choices = ["all", "label_celltypes", "train_xgboost", "shiny", "zoom"],
     help = "Leave empty to run the whole workflow, or select a specific rule.")
   join_prsr.add_argument('--zoom', type=str,
     help='With -r zoom or -r shiny, select a joined zoom by name (or all).')

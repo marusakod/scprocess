@@ -338,6 +338,7 @@ def test_zoom_only_params_do_not_invalidate_standard_joins(parent_fixture, tmp_p
     workflow = ROOT / 'rules' / ('join_zoom.smk' if zoom else 'join.smk')
     wrapper = tmp_path / 'inspect_params.smk'
     wrapper.write_text(
+        'import json\n'
         f'include: {str(workflow)!r}\n'
         'print("JOIN_PARAMS=" + json.dumps({name: dict(workflow.get_rule(name).params.items()) '
         'for name in ("join_build_matrix", "join_integration")}))\n'

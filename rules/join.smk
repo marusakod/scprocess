@@ -10,13 +10,12 @@ import sys
 import pathlib
 import yaml
 import polars as pl
-import json
 
 scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 sys.path.append(str(scprocess_dir / 'scripts'))
 from scprocess_utils import (check_join_config, get_resources, prep_resource_params,
   get_join_project_parameters, get_join_source_labels_f, get_join_batch_sources,
-  get_paga_resolution, get_xgboost_spec_inputs)
+  get_paga_resolution, get_xgboost_spec_inputs, get_join_labeller_parameters)
 
 # Prevent underscore-containing model names from being partially captured as the
 # labeller in join label, log, benchmark, and cluster-name file patterns.
@@ -102,42 +101,9 @@ GSEA_REFS   = ['human_2024', 'human_2020', 'mouse_2024', 'mouse_2020',
                'human_v1', 'human_v2', 'mouse_v1', 'mouse_v2']
 DO_GSEA     = _mkr_cfg['mkr_do_gsea'] and (GENOME_REF in GSEA_REFS)
 
-# label_celltypes (optional; validated and defaults applied by check_join_config)
-_lbl_cfg = config.get('label_celltypes', [])
-DO_LABEL = len(_lbl_cfg) > 0
-if DO_LABEL:
-  with open(join_schema_f) as _f:
-    _join_schema = json.load(_f)
-  _lbl_schema_props = _join_schema['properties']['label_celltypes']['items']['properties']
-  for entry in _lbl_cfg:
-    for key, prop in _lbl_schema_props.items():
-      if key not in entry and 'default' in prop:
-        entry[key] = prop['default']
-
-  _typist_ls_f  = scdata_dir / 'celltypist/celltypist_models.csv'
-  _mdls_typist  = pl.read_csv(_typist_ls_f)['model'].to_list() if _typist_ls_f.is_file() else []
-  _xgb_csv_f    = scdata_dir / 'xgboost' / 'xgboost_models.csv'
-  _xgb_df       = pl.read_csv(_xgb_csv_f) if _xgb_csv_f.is_file() else pl.DataFrame()
-  _mdls_scproc  = _xgb_df['model'].to_list() if len(_xgb_df) > 0 else []
-
-  for entry in _lbl_cfg:
-    if entry['labeller'] == 'celltypist':
-      if entry['model'] not in _mdls_typist:
-        raise ValueError(f"CellTypist model '{entry['model']}' not found. Valid: {', '.join(_mdls_typist)}")
-    elif entry['labeller'] == 'scprocess':
-      if entry['model'] not in _mdls_scproc:
-        raise ValueError(f"scprocess model '{entry['model']}' not found. Valid: {', '.join(_mdls_scproc)}")
-      row = _xgb_df.filter(pl.col('model') == entry['model']).row(0, named=True)
-      entry['model_f'] = row['model_f']
-      entry['cls_f']   = row['cls_f']
-      entry['genes_f'] = row['genes_f']
-      for key in ['model_f', 'cls_f', 'genes_f']:
-        if not pathlib.Path(entry[key]).is_file():
-          raise FileNotFoundError(f"file {entry[key]} doesn't exist; consider (re)running scprocess setup")
-
-  LABELLER_PARAMS = _lbl_cfg
-else:
-  LABELLER_PARAMS = []
+# Load optional annotation settings and validate installed model metadata.
+LABELLER_PARAMS = get_join_labeller_parameters(config, join_schema_f, scdata_dir)
+DO_LABEL        = bool(LABELLER_PARAMS)
 
 # output paths
 joint_hvgs_f        = f"{join_int_dir}/joint_hvgs_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
@@ -216,6 +182,12 @@ rule all:
     *label_fs,
     *cluster_names_fs,
     html_f
+
+
+rule label_celltypes:
+  input:
+    label_fs,
+    cluster_names_fs
 
 
 if DO_TRAIN_XGB:
@@ -864,12 +836,17 @@ rule join_merge_labels:
   """Aggregate per-batch predictions by majority voting."""
   input:
     pred_fs       = _join_merge_labels_inputs,
-    integration_f = joint_integration_f
+    integration_f = joint_integration_f,
+    label_map_f   = lambda wildcards: (
+      _get_labeller_entry(wildcards.labeller, wildcards.model).get('label_map_f') or [])
   output:
     pred_out_f    = f"{join_lbl_dir}/labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}.csv.gz"
   params:
     hi_res_cl   = lambda wildcards: _get_labeller_entry(wildcards.labeller, wildcards.model)['hi_res_cl'],
-    min_cl_prop = lambda wildcards: _get_labeller_entry(wildcards.labeller, wildcards.model)['min_cl_prop']
+    min_cl_prop = lambda wildcards: _get_labeller_entry(wildcards.labeller, wildcards.model)['min_cl_prop'],
+
+    # An absent optional input becomes an empty argument for the CLI.
+    label_map_f = lambda wildcards, input: str(input.label_map_f)
   threads: 4
   retries: config['resources']['retries']
   resources:
@@ -889,6 +866,7 @@ rule join_merge_labels:
       --hi_res_cl       {params.hi_res_cl} \
       --min_cl_prop     {params.min_cl_prop} \
       --batch_var       sample_id \
+      --label_map_f     {params.label_map_f:q} \
       --agg_f           {output.pred_out_f}
     """
 
