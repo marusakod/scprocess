@@ -533,7 +533,7 @@ rule join_make_pseudobulks:
     export MKL_NUM_THREADS=1
     export OMP_NUM_THREADS=1
 
-    Rscript --vanilla -e "source('{input.marker_script}'); make_join_pseudobulks_bpcells(
+    Rscript --vanilla -e "source('{input.marker_script}'); make_pseudobulks_bpcells(
       integration_f = '{input.integration_f}',
       h5ads_yaml_f  = '{input.h5ads_yaml_f}',
       pb_dir        = '{output.pb_dir}',
@@ -571,7 +571,7 @@ rule join_marker_genes_prep:
     export MKL_NUM_THREADS=1
     export OMP_NUM_THREADS=1
 
-    Rscript --vanilla -e "source('{input.marker_script}'); prepare_join_pseudobulks_bpcells(
+    Rscript --vanilla -e "source('{input.marker_script}'); prepare_pseudobulks_bpcells(
       pb_dir             = '{input.pb_dir}',
       prepared_coldata_f = '{output.prepared_coldata_f}',
       prepared_rowdata_f = '{output.prepared_rowdata_f}',
@@ -607,7 +607,7 @@ rule join_calc_hvgs:
     export MKL_NUM_THREADS=1
     export OMP_NUM_THREADS=1
 
-    Rscript --vanilla -e "source('{input.marker_script}'); calculate_join_hvgs_bpcells(
+    Rscript --vanilla -e "source('{input.marker_script}'); calculate_pseudobulk_hvgs_bpcells(
       pb_dir             = '{input.pb_dir}',
       prepared_coldata_f = '{input.prepared_coldata_f}',
       pb_hvgs_f          = '{output.pb_hvgs_f}',
@@ -626,7 +626,8 @@ rule join_marker_genes_calc:
     mkrs_f = mkrs_f
   params:
     gene_info_f       = GENE_INFO_F,
-    adjust_project_id = str(config['marker_genes']['mkr_adjust_project_id']).upper()
+    adjust_project_id = str(config['marker_genes']['mkr_adjust_project_id']).upper(),
+    dispersion_use_clusters = str(config['marker_genes']['mkr_dispersion_use_clusters']).upper()
   threads: config['resources']['n_join_marker_genes_calc']
   retries: config['resources']['retries']
   resources:
@@ -644,13 +645,14 @@ rule join_marker_genes_calc:
     export MKL_NUM_THREADS=1
     export OMP_NUM_THREADS=1
 
-    Rscript --vanilla -e "source('{input.marker_script}'); calculate_join_marker_genes_bpcells(
+    Rscript --vanilla -e "source('{input.marker_script}'); calculate_marker_genes_bpcells(
       pb_dir             = '{input.pb_dir}',
       prepared_coldata_f = '{input.prepared_coldata_f}',
       prepared_rowdata_f = '{input.prepared_rowdata_f}',
       mkrs_f             = '{output.mkrs_f}',
       biotypes_dt        = load_gene_biotypes_bpcells('{params.gene_info_f}'),
       adjust_project_id  =  {params.adjust_project_id},
+      dispersion_use_clusters = {params.dispersion_use_clusters},
       n_cores            =  {threads})"
     """
 

@@ -87,8 +87,6 @@ memory,"",,,run_mapping_flex,"",2048
 time,"",,,run_mapping_flex,"",600
 memory,"",,,run_mapping_hto,"",2048
 time,"",,,run_mapping_hto,"",600
-memory,n_smpls_pre_qc,13365.768,2156.211,run_marker_genes,"",2048
-time,n_smpls_pre_qc,2627.518,10.947,run_marker_genes,"",600
 memory,input.af_h5_f,1291.05,48528.688,run_qc_one_run,3v3,2048
 time,input.af_h5_f,60.106,1680.912,run_qc_one_run,3v3,600
 memory,input.af_h5_f,3638.425,45985.942,run_qc_one_run,3v4,2048

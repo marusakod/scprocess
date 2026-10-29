@@ -62,6 +62,8 @@ docs_dir      = f"{PROJ_DIR}/public"
 zoom_dir      = f"{PROJ_DIR}/output/{SHORT_TAG}_zoom"
 TRICYCLE_SCORES_F = f'{cell_cycle_dir}/tricycle_scores_{FULL_TAG}_{DATE_STAMP}.csv.gz'
 
+MARKER_EDGER_BP_SCRIPT_F = str(scprocess_dir / 'scripts/marker_genes_edger_bp.R')
+
 # define zoom marker outputs
 zoom_mkr_report_outs = [
   file
@@ -72,7 +74,7 @@ zoom_mkr_report_outs = [
   )
   for file in (
     [
-      '%s/%s/pb_%s_%s_%s_%s.rds' % (zoom_dir, zoom_name, FULL_TAG, zoom_name, mkr_sel_res, DATE_STAMP),
+      '%s/%s/pb_%s_%s_%s_%s.bpcells' % (zoom_dir, zoom_name, FULL_TAG, zoom_name, mkr_sel_res, DATE_STAMP),
       '%s/%s/pb_marker_genes_%s_%s_%s_%s.csv.gz' % (zoom_dir, zoom_name, FULL_TAG, zoom_name, mkr_sel_res, DATE_STAMP),
       '%s/%s/pb_hvgs_%s_%s_%s_%s.csv.gz' % (zoom_dir, zoom_name, FULL_TAG, zoom_name, mkr_sel_res, DATE_STAMP),
       '%s/%s_zoom_%s_%s.Rmd' % (rmd_dir, SHORT_TAG, zoom_name, mkr_sel_res),
@@ -1010,50 +1012,201 @@ rule zoom_run_integration:
     """
 
 
-rule zoom_run_marker_genes:
+rule zoom_make_marker_pseudobulks:
   input:
-    h5ads_yaml_f    = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
-    integration_f   = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
+    h5ads_yaml_f  = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
+    integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
+    marker_script = MARKER_EDGER_BP_SCRIPT_F
   output:
-    pb_f            = f'{zoom_dir}/{{zoom_name}}/pb_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.rds',
-    mkrs_f          = f'{zoom_dir}/{{zoom_name}}/pb_marker_genes_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
-    pb_hvgs_f       = f'{zoom_dir}/{{zoom_name}}/pb_hvgs_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz'
+    pb_dir = directory(f'{zoom_dir}/{{zoom_name}}/pb_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.bpcells')
   params:
-    genome_ref          = GENOME_REF,
-    af_gtf_dt_f         = config['mapping_af']['gene_info_f'],
-    batch_var           = BATCH_VAR,
-    zoom_mkr_sel_res     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_sel_res'],
-    zoom_mkr_min_cl_size = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cl_size'], 
-    zoom_mkr_min_cells   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cells']
+    sel_res     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_sel_res'],
+    min_cl_size = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cl_size'],
+    batch_var   = BATCH_VAR,
+    project_id  = FULL_TAG
   threads: 8
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
-      'zoom_run_marker_genes', 'memory', attempt, csv_rule = 'run_marker_genes'),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_run_marker_genes', 'time', attempt, csv_rule = 'run_marker_genes')
-  benchmark:
-    f'{benchmark_dir}/zoom/zoom_run_marker_genes_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.benchmark.txt'
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_make_marker_pseudobulks', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_make_marker_pseudobulks', 'time', attempt)
   log:
-    f'{logs_dir}/zoom/zoom_run_marker_genes_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.log'
+    f"{logs_dir}/zoom/zoom_make_marker_pseudobulks_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/zoom/zoom_make_marker_pseudobulks_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.benchmark.txt"
   conda:
-    '../envs/rlibs.yaml'
+    '../envs/rlibs_bpcells.yaml'
   shell: """
     exec &>> {log}
+    export OPENBLAS_NUM_THREADS=1
+    export MKL_NUM_THREADS=1
+    export OMP_NUM_THREADS=1
 
-    Rscript --vanilla -e "source('{scprocess_dir}/scripts/utils.R'); source('{scprocess_dir}/scripts/marker_genes.R'); calculate_marker_genes(
-      integration_f = '{input.integration_f}', 
+    Rscript --vanilla -e "source('{input.marker_script}'); make_pseudobulks_bpcells(
+      integration_f = '{input.integration_f}',
       h5ads_yaml_f  = '{input.h5ads_yaml_f}',
-      pb_f          = '{output.pb_f}',
-      mkrs_f        = '{output.mkrs_f}',
-      pb_hvgs_f     = '{output.pb_hvgs_f}',
-      gtf_dt_f      = '{params.af_gtf_dt_f}',
-      sel_res       = '{params.zoom_mkr_sel_res}',
-      min_cl_size   =  {params.zoom_mkr_min_cl_size},
-      min_cells     =  {params.zoom_mkr_min_cells},
-      zoom          = 'True', 
-      batch_var     = '{params.batch_var}', 
+      pb_dir        = '{output.pb_dir}',
+      sel_res       = '{params.sel_res}',
+      min_cl_size   =  {params.min_cl_size},
+      batch_var     = '{params.batch_var}',
+      project_id    = '{params.project_id}',
+      exclude_doublets = FALSE,
       n_cores       =  {threads})"
+    """
+
+
+rule zoom_prepare_marker_pseudobulks:
+  input:
+    pb_dir        = f'{zoom_dir}/{{zoom_name}}/pb_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.bpcells',
+    marker_script = MARKER_EDGER_BP_SCRIPT_F
+  output:
+    prepared_coldata_f = f'{zoom_dir}/{{zoom_name}}/pb_prepared_coldata_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
+    prepared_rowdata_f = f'{zoom_dir}/{{zoom_name}}/pb_prepared_rowdata_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz'
+  params:
+    min_cells        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cells'],
+    adjust_project_id = "FALSE"
+  threads: 8
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_prepare_marker_pseudobulks', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_prepare_marker_pseudobulks', 'time', attempt)
+  log:
+    f"{logs_dir}/zoom/zoom_prepare_marker_pseudobulks_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/zoom/zoom_prepare_marker_pseudobulks_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/rlibs_bpcells.yaml'
+  shell: """
+    exec &>> {log}
+    export OPENBLAS_NUM_THREADS=1
+    export MKL_NUM_THREADS=1
+    export OMP_NUM_THREADS=1
+
+    Rscript --vanilla -e "source('{input.marker_script}'); prepare_pseudobulks_bpcells(
+      pb_dir             = '{input.pb_dir}',
+      prepared_coldata_f = '{output.prepared_coldata_f}',
+      prepared_rowdata_f = '{output.prepared_rowdata_f}',
+      min_cells          =  {params.min_cells},
+      adjust_project_id  =  {params.adjust_project_id},
+      n_cores            =  {threads})"
+    """
+
+
+rule zoom_calc_marker_hvgs:
+  input:
+    pb_dir             = f'{zoom_dir}/{{zoom_name}}/pb_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.bpcells',
+    prepared_coldata_f = f'{zoom_dir}/{{zoom_name}}/pb_prepared_coldata_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
+    marker_script      = MARKER_EDGER_BP_SCRIPT_F
+  output:
+    pb_hvgs_f = f'{zoom_dir}/{{zoom_name}}/pb_hvgs_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz'
+  params:
+    gene_info_f = config['mapping_af']['gene_info_f']
+  threads: 4
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_calc_marker_hvgs', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_calc_marker_hvgs', 'time', attempt)
+  log:
+    f"{logs_dir}/zoom/zoom_calc_marker_hvgs_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/zoom/zoom_calc_marker_hvgs_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/rlibs_bpcells.yaml'
+  shell: """
+    exec &>> {log}
+    export OPENBLAS_NUM_THREADS=1
+    export MKL_NUM_THREADS=1
+    export OMP_NUM_THREADS=1
+
+    Rscript --vanilla -e "source('{input.marker_script}'); calculate_pseudobulk_hvgs_bpcells(
+      pb_dir             = '{input.pb_dir}',
+      prepared_coldata_f = '{input.prepared_coldata_f}',
+      pb_hvgs_f          = '{output.pb_hvgs_f}',
+      biotypes_dt        = load_gene_biotypes_bpcells('{params.gene_info_f}'),
+      n_cores            =  {threads})"
+    """
+
+
+rule zoom_run_marker_genes:
+  input:
+    pb_dir             = f'{zoom_dir}/{{zoom_name}}/pb_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.bpcells',
+    prepared_coldata_f = f'{zoom_dir}/{{zoom_name}}/pb_prepared_coldata_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
+    prepared_rowdata_f = f'{zoom_dir}/{{zoom_name}}/pb_prepared_rowdata_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
+    marker_script      = MARKER_EDGER_BP_SCRIPT_F
+  output:
+    mkrs_f = f'{zoom_dir}/{{zoom_name}}/pb_marker_genes_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz'
+  params:
+    gene_info_f       = config['mapping_af']['gene_info_f'],
+    adjust_project_id = "FALSE",
+    dispersion_use_clusters = lambda wildcards: str(ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_dispersion_use_clusters']).upper()
+  threads: config['resources']['n_run_marker_genes']
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_run_marker_genes', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_run_marker_genes', 'time', attempt)
+  log:
+    f"{logs_dir}/zoom/zoom_run_marker_genes_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/zoom/zoom_run_marker_genes_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/rlibs_bpcells.yaml'
+  shell: """
+    exec &>> {log}
+    export OPENBLAS_NUM_THREADS=1
+    export MKL_NUM_THREADS=1
+    export OMP_NUM_THREADS=1
+
+    Rscript --vanilla -e "source('{input.marker_script}'); calculate_marker_genes_bpcells(
+      pb_dir             = '{input.pb_dir}',
+      prepared_coldata_f = '{input.prepared_coldata_f}',
+      prepared_rowdata_f = '{input.prepared_rowdata_f}',
+      mkrs_f             = '{output.mkrs_f}',
+      biotypes_dt        = load_gene_biotypes_bpcells('{params.gene_info_f}'),
+      adjust_project_id  =  {params.adjust_project_id},
+      dispersion_use_clusters = {params.dispersion_use_clusters},
+      n_cores            =  {threads})"
+    """
+
+
+rule zoom_prepare_marker_plot_data:
+  input:
+    pb_dir             = f'{zoom_dir}/{{zoom_name}}/pb_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.bpcells',
+    prepared_coldata_f = f'{zoom_dir}/{{zoom_name}}/pb_prepared_coldata_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
+    mkrs_f             = f'{zoom_dir}/{{zoom_name}}/pb_marker_genes_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
+    pb_hvgs_f          = f'{zoom_dir}/{{zoom_name}}/pb_hvgs_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
+    marker_script      = MARKER_EDGER_BP_SCRIPT_F,
+    marker_plot_script = str(scprocess_dir / 'scripts/marker_genes.R'),
+    utils_script       = str(scprocess_dir / 'scripts/utils.R'),
+    custom_marker_fs   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_paths'].split(',') if ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_paths'] else [],
+    ambient_f          = f'{zoom_dir}/{{zoom_name}}/edger_empty_genes_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
+  output:
+    pb_plot_data_f = f'{zoom_dir}/{{zoom_name}}/pb_plot_data_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz'
+  params:
+    min_cpm_mkr = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_min_cpm_mkr'],
+    not_ok_re   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_not_ok_re'],
+    custom_mkr_paths = lambda wildcards, input: ','.join(input.custom_marker_fs)
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_prepare_marker_plot_data', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'zoom_prepare_marker_plot_data', 'time', attempt)
+  log:
+    f"{logs_dir}/zoom/zoom_prepare_marker_plot_data_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.log"
+  benchmark:
+    f"{benchmark_dir}/zoom/zoom_prepare_marker_plot_data_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.benchmark.txt"
+  conda:
+    '../envs/rlibs_bpcells.yaml'
+  shell: """
+    exec &>> {log}
+    Rscript --vanilla -e "source('{input.utils_script}'); source('{input.marker_script}'); source('{input.marker_plot_script}'); make_report_logcpms_bpcells(
+      pb_dir             = '{input.pb_dir}',
+      prepared_coldata_f = '{input.prepared_coldata_f}',
+      mkrs_f             = '{input.mkrs_f}',
+      pb_hvgs_f          = '{input.pb_hvgs_f}',
+      out_f              = '{output.pb_plot_data_f}',
+      min_cpm_mkr        = {params.min_cpm_mkr},
+      not_ok_re          = '{params.not_ok_re}',
+      ambient_f          = '{input.ambient_f}',
+      custom_mkr_paths   = strsplit('{params.custom_mkr_paths}', ',', fixed = TRUE)[[1]])"
     """
 
 
@@ -1337,7 +1490,7 @@ rule render_html_zoom:
     pb_empty_f            = f'{pb_dir}/pb_empties_{FULL_TAG}_{DATE_STAMP}.rds',
     zoom_cell_hvgs_f      = f'{zoom_dir}/{{zoom_name}}/hvg_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
     zoom_int_f            = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
-    zoom_pb_f             = f'{zoom_dir}/{{zoom_name}}/pb_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.rds',
+    zoom_pb_plot_data_f   = f'{zoom_dir}/{{zoom_name}}/pb_plot_data_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
     zoom_pb_hvgs_f        = f'{zoom_dir}/{{zoom_name}}/pb_hvgs_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
     zoom_mkrs_f           = f'{zoom_dir}/{{zoom_name}}/pb_marker_genes_{FULL_TAG}_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.csv.gz',
     zoom_empty_gs_f       = f'{zoom_dir}/{{zoom_name}}/edger_empty_genes_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz'
@@ -1451,7 +1604,7 @@ rule render_html_zoom:
       zoom_qc_max_splice = '{params.zoom_qc_max_splice}',
       cell_hvgs_f       = '{input.zoom_cell_hvgs_f}',
       int_f             = '{input.zoom_int_f}',
-      pb_f              = '{input.zoom_pb_f}',
+      pb_plot_data_f    = '{input.zoom_pb_plot_data_f}',
       mkrs_f            = '{input.zoom_mkrs_f}',
       pb_hvgs_f         = '{input.zoom_pb_hvgs_f}',
       empty_gs_f        = '{input.zoom_empty_gs_f}',

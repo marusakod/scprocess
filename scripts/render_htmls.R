@@ -187,7 +187,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
   } else if (sel_rule == 'markers') {
     req_names = c('your_name', 'affiliation', 'short_tag', 
       'date_stamp', 'threads', 'metadata_f','meta_vars_ls',
-      'gtf_dt_f', 'integration_f', 'pb_f', 'mkrs_f', 'hvgs_f', 'ambient_f',
+      'gtf_dt_f', 'integration_f', 'pb_plot_data_f', 'mkrs_f', 'hvgs_f', 'ambient_f',
       'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f',
       'mkr_sel_res', 'custom_mkr_names', 'custom_mkr_paths',
       'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_var', 'mkr_gsea_cut', 
@@ -247,7 +247,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'zoom_qc_min_counts', 'zoom_qc_max_counts', 'zoom_qc_min_feats', 'zoom_qc_max_feats',
       'zoom_qc_min_mito', 'zoom_qc_max_mito',
       'zoom_qc_min_splice', 'zoom_qc_max_splice',
-      'cell_hvgs_f', 'int_f', 'pb_f', 'pb_hvgs_f', 'mkrs_f', 'empty_gs_f', 'pb_empty_f',
+      'cell_hvgs_f', 'int_f', 'pb_plot_data_f', 'pb_hvgs_f', 'mkrs_f', 'empty_gs_f', 'pb_empty_f',
       'fgsea_go_bp_f','fgsea_go_cc_f', 'fgsea_go_mf_f', 'int_res_ls',
       'custom_mkr_names', 'custom_mkr_paths', 'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_sel_res',
       'mkr_min_cells', 'mkr_gsea_var', 'mkr_gsea_cut', 'ref_txome', 'batch_var', 'do_gsea',

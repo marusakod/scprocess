@@ -78,6 +78,27 @@ class TestEdgerBpBackend(unittest.TestCase):
       source,
     )
 
+  def test_dispersion_cluster_setting_defaults_and_validation(self):
+    from jsonschema import Draft7Validator
+    from scripts.scprocess_utils import _get_default_config_from_schema
+
+    for name in ('config', 'join', 'zoom'):
+      with self.subTest(schema=name):
+        schema = json.loads((ROOT / f'resources/schemas/{name}.schema.json').read_text())
+        setting = schema['properties']['marker_genes']['properties']['mkr_dispersion_use_clusters']
+        defaults = _get_default_config_from_schema(schema)
+        self.assertIs(defaults['marker_genes']['mkr_dispersion_use_clusters'], True)
+        validator = Draft7Validator(setting)
+        for value in (True, False):
+          self.assertTrue(validator.is_valid(value))
+        for value in ('true', 'false', 0, 1, None):
+          self.assertFalse(validator.is_valid(value))
+
+    # Joined zooms inherit the join marker schema and fitting rule.
+    schema = json.loads((ROOT / 'resources/schemas/join_zoom.schema.json').read_text())
+    self.assertEqual(schema['properties']['marker_genes']['$ref'],
+      'join.schema.json#/properties/marker_genes')
+
   def test_project_adjustment_is_optional_and_disabled_by_default(self):
     source = JOIN_RULES.read_text()
     adapter_source = ADAPTER_R.read_text()
@@ -115,7 +136,8 @@ class TestEdgerBpBackend(unittest.TestCase):
     marker_source = MARKER_GENES_R.read_text()
     adapter_source = ADAPTER_R.read_text()
     self.assertNotIn('as.matrix(pb_one)', adapter_source)
-    self.assertIn('calculate_marker_genes_bpcells(', marker_source)
+    self.assertNotIn('calculate_marker_genes <-', marker_source)
+    self.assertNotIn('use_bpcells', marker_source)
     self.assertIn('BPCells::write_matrix_dir(', adapter_source)
     self.assertIn('file.path(pb_dir, "counts_col")', adapter_source)
     self.assertIn('file.path(pb_dir, "counts_row")', adapter_source)

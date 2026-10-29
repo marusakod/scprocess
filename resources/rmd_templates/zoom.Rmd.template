@@ -67,7 +67,7 @@ zoom_qc_min_splice    = "${zoom_qc_min_splice}"
 zoom_qc_max_splice    = "${zoom_qc_max_splice}"
 cell_hvgs_f   = "${cell_hvgs_f}"
 int_f         = "${int_f}"
-pb_f          = "${pb_f}"
+pb_plot_data_f = "${pb_plot_data_f}"
 pb_hvgs_f     = "${pb_hvgs_f}"
 mkrs_f        = "${mkrs_f}"
 empty_gs_f    = "${empty_gs_f}"
@@ -267,16 +267,14 @@ biotypes_dt   = load_gene_biotypes(gtf_dt_f)
 ```
 
 ```{r load_cpms, include = FALSE}
-cpms_dt     = readRDS(pb_f) %>% 
-  make_logcpms_all("sample_id", lib_size_method = "edger", 
-    min_cells = min_cells, n_cores = n_cores) %>% 
+cpms_dt = fread(pb_plot_data_f) %>%
   merge(biotypes_dt[, .(gene_id, gene_type)], by = "gene_id")
 ```
 
 ```{r load_mkr_hvgs, include = FALSE}
 pb_hvgs_dt  = fread(pb_hvgs_f) %>% 
   .[ str_detect(gene_type, not_ok_re, negate = TRUE) ] %>% 
-  .[ order(-vst_var) ]
+  .[ order(-logcpm_var) ]
 top_hvgs    =  pb_hvgs_dt[ 1:50 ] %>% .[, geneset := "HVGs" ]
 ```
 
@@ -603,6 +601,13 @@ within a specific cluster for each sample. Similarly, pseudobulk counts are gene
 by aggregating expression values separately for each sample. The resulting pseudobulk values for the target cluster
 are then compared to those of the remaining clusters using `edgeR`.
 
+Counts are normalised using TMM. By default, dispersion estimation accounts for
+differences between clusters when estimating variation between samples within a
+cluster. Setting `marker_genes.mkr_dispersion_use_clusters` to `false` omits
+cluster membership from dispersion estimation; marker tests still compare each
+cluster with the remaining clusters.
+The calculations use `edgeR` through the disk-backed `edger.bp` implementation.
+
 ### Heatmaps of marker genes{.tabset}
 
 The resulting `log2` fold change values (calculated using `edgeR`) per cluster are 
@@ -622,8 +627,8 @@ for (nn in names(mkrs_ls)) {
 ```
 
 ### Highly variable genes{.tabset}
-Normalized pseudobulk expression values for top 100 highly variable genes are shown 
-for each cluster, in descending order of variance (variance calculated using `DESeq2::vst`).
+TMM-normalised pseudobulk log-CPM expression for the top 100 highly variable genes,
+ranked by their variance across eligible cluster-sample pseudobulks.
 
 ```{r plot_hvgs_pb_hmny, fig.height = 8, fig.width = 8, results = "asis"}
 n_pages = 10

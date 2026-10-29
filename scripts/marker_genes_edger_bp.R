@@ -19,8 +19,9 @@ RhpcBLASctl::blas_set_num_threads(1L)
 RhpcBLASctl::omp_set_num_threads(1L)
 
 
-make_join_pseudobulks_bpcells <- function(integration_f, h5ads_yaml_f, batch_var,
-  pb_dir, sel_res, min_cl_size, n_cores = 4L) {
+make_pseudobulks_bpcells <- function(integration_f, h5ads_yaml_f, batch_var,
+  pb_dir, sel_res, min_cl_size, n_cores = 4L, project_id = NULL,
+  exclude_doublets = FALSE) {
   tmp_base = Sys.getenv("TMPDIR", unset = tempdir())
   bp_tmpdir = tempfile("scprocess-edger-bp-", tmpdir = tmp_base)
   dir.create(bp_tmpdir, recursive = TRUE)
@@ -28,13 +29,14 @@ make_join_pseudobulks_bpcells <- function(integration_f, h5ads_yaml_f, batch_var
 
   build_pseudobulk_cache_bpcells(
     pb_dir, integration_f, h5ads_yaml_f, sel_res, batch_var,
-    min_cl_size = min_cl_size, n_cores = n_cores, bp_tmpdir = bp_tmpdir
+    min_cl_size = min_cl_size, n_cores = n_cores, bp_tmpdir = bp_tmpdir,
+    project_id = project_id, exclude_doublets = exclude_doublets
   )
   invisible(pb_dir)
 }
 
 
-prepare_join_pseudobulks_bpcells <- function(pb_dir, prepared_coldata_f,
+prepare_pseudobulks_bpcells <- function(pb_dir, prepared_coldata_f,
   prepared_rowdata_f, min_cells, n_cores = 4L, block_size = 1000L,
   adjust_project_id = FALSE) {
   if (!is.logical(adjust_project_id) || length(adjust_project_id) != 1L ||
@@ -54,7 +56,7 @@ prepare_join_pseudobulks_bpcells <- function(pb_dir, prepared_coldata_f,
   }
   if (!"project_id" %in% names(coldata)) {
     stop(
-      "The pseudobulk metadata lacks project_id; rebuild join pseudobulks ",
+      "The pseudobulk metadata lacks project_id; rebuild pseudobulks ",
       "with the current scprocess version.",
       call. = FALSE
     )
@@ -103,7 +105,7 @@ prepare_join_pseudobulks_bpcells <- function(pb_dir, prepared_coldata_f,
 }
 
 
-calculate_join_hvgs_bpcells <- function(pb_dir, prepared_coldata_f, pb_hvgs_f,
+calculate_pseudobulk_hvgs_bpcells <- function(pb_dir, prepared_coldata_f, pb_hvgs_f,
   biotypes_dt, n_cores = 4L, block_size = 1000L) {
   cache = open_pseudobulk_cache_bpcells(pb_dir, storage_order = "row")
   coldata = data.table::fread(prepared_coldata_f)
@@ -125,9 +127,9 @@ calculate_join_hvgs_bpcells <- function(pb_dir, prepared_coldata_f, pb_hvgs_f,
 }
 
 
-calculate_join_marker_genes_bpcells <- function(pb_dir, prepared_coldata_f,
+calculate_marker_genes_bpcells <- function(pb_dir, prepared_coldata_f,
   prepared_rowdata_f, mkrs_f, biotypes_dt, n_cores = 4L, block_size = 1000L,
-  adjust_project_id = FALSE) {
+  adjust_project_id = FALSE, dispersion_use_clusters = TRUE) {
   required = c("bp_start_psock_pool", "bp_stop_psock_pool", "bp_with_psock_pool")
   if (!all(required %in% getNamespaceExports("edger.bp"))) {
     stop("Loaded edger.bp lacks the required PSOCK APIs: ", find.package("edger.bp"),
@@ -155,7 +157,7 @@ calculate_join_marker_genes_bpcells <- function(pb_dir, prepared_coldata_f,
   # Reuse a fit only when counts, metadata, code and package identities match.
   checkpoint_f = paste0(mkrs_f, ".fitted.rds")
   signature = .marker_fit_signature(pb_dir, coldata, rowdata,
-    adjust_project_id, block_size, n_cores)
+    adjust_project_id, block_size, n_cores, dispersion_use_clusters)
   markers = .read_marker_fit_checkpoint(checkpoint_f, signature)
   if (is.null(markers)) {
     pool = edger.bp::bp_start_psock_pool(
@@ -167,7 +169,8 @@ calculate_join_marker_genes_bpcells <- function(pb_dir, prepared_coldata_f,
       pool$counts, coldata, clusters,
       effective_lib_size = coldata$effective_lib_size,
       workers = n_cores, block_size = block_size,
-      adjust_project_id = adjust_project_id
+      adjust_project_id = adjust_project_id,
+      dispersion_use_clusters = dispersion_use_clusters
     ))
     .write_marker_fit_checkpoint(markers, signature, checkpoint_f)
     message("Saved marker fit checkpoint: ", checkpoint_f)
@@ -193,37 +196,10 @@ calculate_join_marker_genes_bpcells <- function(pb_dir, prepared_coldata_f,
 }
 
 
-calculate_marker_genes_bpcells <- function(integration_f, h5ads_yaml_f, batch_var,
-  pb_dir, mkrs_f, pb_hvgs_f, biotypes_dt, sel_res, min_cl_size, min_cells,
-  n_cores = 4L, block_size = 1000L, adjust_project_id = FALSE) {
-  prep_dir = tempfile("scprocess-edger-bp-prepared-")
-  dir.create(prep_dir)
-  on.exit(unlink(prep_dir, recursive = TRUE), add = TRUE)
-  prepared_coldata_f = file.path(prep_dir, "coldata.csv.gz")
-  prepared_rowdata_f = file.path(prep_dir, "rowdata.csv.gz")
-
-  make_join_pseudobulks_bpcells(
-    integration_f, h5ads_yaml_f, batch_var, pb_dir, sel_res, min_cl_size, n_cores
-  )
-  prepare_join_pseudobulks_bpcells(
-    pb_dir, prepared_coldata_f, prepared_rowdata_f, min_cells, n_cores, block_size,
-    adjust_project_id
-  )
-  calculate_join_hvgs_bpcells(
-    pb_dir, prepared_coldata_f, pb_hvgs_f, biotypes_dt, n_cores, block_size
-  )
-  calculate_join_marker_genes_bpcells(
-    pb_dir, prepared_coldata_f, prepared_rowdata_f, mkrs_f, biotypes_dt,
-    n_cores, block_size, adjust_project_id
-  )
-  invisible(NULL)
-}
-
-
 make_report_logcpms_bpcells <- function(pb_dir, prepared_coldata_f, mkrs_f,
   pb_hvgs_f, out_f,
   min_cpm_mkr, not_ok_re = "(lincRNA|lncRNA|pseudogene|antisense)",
-  pseudo_count = 10) {
+  pseudo_count = 10, ambient_f = "", custom_mkr_paths = character()) {
   cache = open_pseudobulk_cache_bpcells(pb_dir, storage_order = "row")
   coldata = data.table::fread(prepared_coldata_f)
   counts = cache$counts[, match(coldata$group_id, colnames(cache$counts)), drop = FALSE]
@@ -236,6 +212,28 @@ make_report_logcpms_bpcells <- function(pb_dir, prepared_coldata_f, mkrs_f,
       logcpm.sel >= log(min_cpm_mkr + 1)
   ] %>% get_top_markers()
   gene_ids = unique(c(top_hvgs$gene_id, top_markers$gene_id))
+
+  # Ambient panels use the same abundance/type filters as the marker report.
+  if (nzchar(ambient_f)) {
+    ambient = data.table::fread(ambient_f)
+    ambient = merge(ambient, unique(hvgs[, .(gene_id, gene_type)]), by = "gene_id")
+    ambient = ambient[
+      !stringr::str_detect(gene_type, not_ok_re) & logFC > 0 &
+        mean_logcpm.empties > log(min_cpm_mkr + 1)
+    ][order(PValue)]
+    gene_ids = unique(c(gene_ids, head(ambient$gene_id, 50L)))
+  }
+  for (custom_f in custom_mkr_paths) {
+    custom = data.table::fread(custom_f)
+    if ("gene_id" %in% names(custom)) {
+      custom_gene_ids = custom$gene_id
+    } else if ("symbol" %in% names(custom)) {
+      custom_gene_ids = hvgs[symbol %in% custom$symbol, gene_id]
+    } else {
+      custom_gene_ids = hvgs[ensembl_id %in% custom$ensembl_id, gene_id]
+    }
+    gene_ids = unique(c(gene_ids, custom_gene_ids))
+  }
   rows = match(gene_ids, rownames(counts))
   rows = rows[!is.na(rows)]
   block = .bp_as_matrix(counts[rows, , drop = FALSE])
@@ -253,6 +251,7 @@ make_report_logcpms_bpcells <- function(pb_dir, prepared_coldata_f, mkrs_f,
     coldata[, .(group_id, cluster, sample_id = sample, n_cells)],
     by = "group_id"
   )
+  out = merge(out, unique(hvgs[, .(gene_id, symbol)]), by = "gene_id", all.x = TRUE)
   data.table::fwrite(out, out_f)
   invisible(out)
 }
@@ -318,10 +317,10 @@ make_report_logcpms_bpcells <- function(pb_dir, prepared_coldata_f, mkrs_f,
 
 
 load_gene_biotypes_bpcells <- function(gtf_dt_f) {
-  biotypes_dt = data.table::fread(
-    gtf_dt_f,
-    select = c("gene_id", "symbol", "gene_type")
-  )
+  # Retain Ensembl IDs when available so custom panels can use either identifier.
+  metadata_columns = names(data.table::fread(gtf_dt_f, nrows = 0L))
+  cols_needed = intersect(c("gene_id", "symbol", "gene_type", "ensembl_id"), metadata_columns)
+  biotypes_dt = data.table::fread(gtf_dt_f, select = cols_needed)
   if (anyDuplicated(biotypes_dt$gene_id)) {
     stop("Gene metadata contains duplicate gene IDs.", call. = FALSE)
   }
@@ -361,7 +360,8 @@ load_gene_biotypes_bpcells <- function(gtf_dt_f) {
 
 
 build_pseudobulk_cache_bpcells <- function(pb_dir, integration_f, h5ads_yaml_f,
-  sel_res, batch_var, min_cl_size, n_cores = 8L, bp_tmpdir) {
+  sel_res, batch_var, min_cl_size, n_cores = 8L, bp_tmpdir,
+  project_id = NULL, exclude_doublets = FALSE) {
   stopifnot(
     is.character(pb_dir), length(pb_dir) == 1L,
     is.character(bp_tmpdir), length(bp_tmpdir) == 1L, dir.exists(bp_tmpdir),
@@ -370,16 +370,23 @@ build_pseudobulk_cache_bpcells <- function(pb_dir, integration_f, h5ads_yaml_f,
 
   cl_var = paste0("RNA_snn_res.", sel_res)
   message("    loading integration columns")
-  int_dt = data.table::fread(
-    integration_f,
-    select = c("cell_id", batch_var, "project_id", cl_var)
-  )
-  data.table::setnames(int_dt, c(batch_var, cl_var), c("sample", "cluster"))
+  integration_columns = c("cell_id", "sample_id", batch_var, cl_var)
+  if (is.null(project_id)) integration_columns = c(integration_columns, "project_id")
+  if (exclude_doublets) integration_columns = c(integration_columns, "is_dbl", "in_dbl_cl")
+  int_dt = data.table::fread(integration_f, select = unique(integration_columns))
+  if (!is.null(project_id)) {
+    source_project_id = project_id
+    int_dt[, project_id := source_project_id]
+  }
+
+  # sample_id identifies the biological sample; batch_var may identify a pooled H5AD.
+  data.table::setnames(int_dt, c("sample_id", cl_var), c("sample", "cluster"))
   int_dt = int_dt[
     !is.na(sample) & nzchar(as.character(sample)) &
       !is.na(project_id) & nzchar(as.character(project_id)) &
       !is.na(cluster)
   ]
+  if (exclude_doublets) int_dt = int_dt[is_dbl == FALSE & in_dbl_cl == FALSE]
   int_dt[, `:=`(
     sample = as.character(sample),
     project_id = as.character(project_id),
@@ -387,7 +394,7 @@ build_pseudobulk_cache_bpcells <- function(pb_dir, integration_f, h5ads_yaml_f,
   )]
   sample_project_counts = int_dt[, data.table::uniqueN(project_id), by = sample]
   if (any(sample_project_counts$V1 != 1L)) {
-    stop("Each join sample must belong to exactly one project.", call. = FALSE)
+    stop("Each sample must belong to exactly one project.", call. = FALSE)
   }
 
   message("    excluding tiny clusters")
@@ -562,7 +569,8 @@ filter_pseudobulk_columns_bpcells <- function(counts, coldata, min_cells) {
 
 
 fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
-  workers = 1L, block_size = 1000L, adjust_project_id = FALSE) {
+  workers = 1L, block_size = 1000L, adjust_project_id = FALSE,
+  dispersion_use_clusters = TRUE) {
   if (!is.logical(adjust_project_id) || length(adjust_project_id) != 1L ||
       is.na(adjust_project_id)) {
     stop("`adjust_project_id` must be TRUE or FALSE.", call. = FALSE)
@@ -601,11 +609,11 @@ fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
   group = factor(coldata$cluster, levels = unique(coldata$cluster))
   if (adjust_project_id) {
     project_id = factor(coldata$project_id, levels = unique(coldata$project_id))
-    dispersion_design = stats::model.matrix(~ project_id + group)
+    cluster_design = stats::model.matrix(~ project_id + group)
   } else {
-    dispersion_design = stats::model.matrix(~ group)
+    cluster_design = stats::model.matrix(~ group)
   }
-  if (adjust_project_id && qr(dispersion_design)$rank < ncol(dispersion_design)) {
+  if (adjust_project_id && qr(cluster_design)$rank < ncol(cluster_design)) {
     stop(
       "The project-adjusted cluster design is not full rank; project and cluster ",
       "are confounded in these pseudobulks.",
@@ -620,6 +628,17 @@ fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
   # TMM-adjusted library sizes enter the count model as log offsets.
   offset = log(effective_lib_size)
 
+  # Omitting clusters estimates dispersion across all pseudobulks, while
+  # retaining the optional project effect and unchanged marker contrasts.
+  dispersion_design = cluster_design
+  if (!dispersion_use_clusters) {
+    dispersion_design = if (adjust_project_id) {
+      stats::model.matrix(~ project_id)
+    } else {
+      stats::model.matrix(~ 1, data = coldata)
+    }
+  }
+  message("  dispersion estimation includes clusters: ", dispersion_use_clusters)
   message("  estimating streamed dispersions")
   dispersion_fit = .without_bpcells_dense_message(edger.bp::bp_estimate_disp_stream(
     counts,
@@ -638,7 +657,7 @@ fit_markers_edger_bp <- function(counts, coldata, clusters, effective_lib_size,
   message("  calculating streamed average logCPM")
   ave_fit = .without_bpcells_dense_message(edger.bp::bp_glm_lrt(
     counts,
-    design = dispersion_design,
+    design = cluster_design,
     dispersion = dispersion_fit$common.dispersion,
     offset = offset,
     block.size = block_size,
@@ -765,7 +784,7 @@ calc_marker_context_bpcells <- function(counts, coldata, effective_lib_size,
 
 
 .marker_fit_signature <- function(pb_dir, coldata, rowdata, adjust_project_id,
-  block_size, workers) {
+  block_size, workers, dispersion_use_clusters = TRUE) {
   counts_dir = file.path(pb_dir, "counts_row")
   files = sort(list.files(counts_dir, recursive = TRUE, full.names = TRUE))
   hashes = tools::md5sum(files)
@@ -808,7 +827,8 @@ calc_marker_context_bpcells <- function(counts, coldata, effective_lib_size,
   })
   list(format = 1L, counts_md5 = hashes,
     coldata = as.data.frame(coldata), rowdata = as.data.frame(rowdata),
-    adjust_project_id = adjust_project_id, block_size = block_size,
+    adjust_project_id = adjust_project_id,
+    dispersion_use_clusters = dispersion_use_clusters, block_size = block_size,
     workers = workers, versions = versions, implementations = implementations,
     package_code = package_code, package_binaries = package_binaries)
 }

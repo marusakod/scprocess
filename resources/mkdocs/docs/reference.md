@@ -838,9 +838,38 @@ integration:
 
 ##### marker_genes
 
+Projects, joins and zooms use the same edgeR.bp marker calculation. Counts are
+summed within each cluster and biological sample, filtered by `mkr_min_cells`,
+and normalized using TMM. By default, dispersion estimation includes a cluster design;
+each cluster is then compared with all remaining clusters using a Treat test.
+The optional join project adjustment is described below. This marker comparison
+does not replace a sample-level experimental comparison of treatments or donors.
+
+From 0.5.0, project and zoom pseudobulks are saved as `pb_*.bpcells` directories
+rather than RDS objects. Marker CSV filenames remain unchanged. Preparation,
+marker fitting and plot data have separate workflow outputs, allowing a failed
+stage to resume without rebuilding the counts. Reports read prepared logCPM
+values and rank variable genes by TMM-logCPM variance, consistently across
+projects and joins. These normalization, dispersion and variability choices
+can change results relative to the earlier project marker implementation.
+
+`resources.n_run_marker_genes` controls project and project-zoom fitting CPUs.
+Existing `gb_run_marker_genes` / `mins_run_marker_genes` and their `zoom_`
+counterparts control fitting allocations. The new pseudobulk, preparation,
+variability and plot-data stages have independent resource settings; the old
+combined in-memory resource model is no longer used.
+
 * `mkr_sel_res`: selected cluster resolution used for identifying marker genes.
 * `mkr_min_cl_size`: minimum number of cells required in a cluster to calculate marker genes for that cluster.
 * `mkr_min_cells`: minimum number of cells required in a pseudobulk sample to include it in marker gene calculations.
+* `mkr_dispersion_use_clusters`: boolean, default `true`, available for projects,
+  joins and zooms. Include cluster membership when estimating dispersion, so
+  systematic differences between clusters are accounted for when estimating
+  variation between samples. Set to `false` to omit cluster membership from
+  dispersion estimation. Gene filtering, TMM normalization and cluster-versus-rest
+  marker tests are unchanged; optional join project adjustment remains independent.
+  Changing this setting requires refitting markers and updating downstream reports,
+  but does not require rebuilding pseudobulks or normalization tables.
 * `mkr_adjust_project_id`: join-only boolean controlling whether marker-gene
   dispersion and one-versus-rest Treat models include `project_id` as an
   additive blocking factor. The default is `false`, which uses cluster-only

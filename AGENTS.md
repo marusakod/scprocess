@@ -145,7 +145,8 @@ R scripts are invoked via `script:` directive or called in shell blocks:
 
 - `mapping.R` — Converts alevin-fry output to per-sample h5 files; handles Flex (probe_id) and OCM (overhang) barcode splitting. For flex/OCM, the filtered matrix is passed in-memory via `precomputed_mat` to avoid h5 round-trip issues.
 - `SampleQC.R` — QC metric visualization and filtering.
-- `marker_genes.R` — edgeR pseudobulk DE testing and GSEA visualization (fgsea).
+- `marker_genes.R` — Marker report plotting and expression helpers shared with classifier reports.
+- `marker_genes_edger_bp.R` — The single edgeR.bp marker backend for projects, joins and zooms: BPCells pseudobulks, persisted TMM preparation, streamed fitting and compact report expression data.
 - `label_celltypes.R` — R-side cell labeling utilities.
 - `train_xgboost.R` — R plotting functions for the XGBoost training report: precision-recall plots, UMAP facets, gene importance dot plots, metrics tables.
 - `shiny.R` — Builds and deploys the Shiny app. `make_shiny_app_scprocess()` reads scprocess-format inputs (`integrated_dt`, per-batch h5ads, markers, HVGs, fgsea) and writes BPCells-backed app data. `configure_shiny_app_scprocess()` performs lightweight annotation, template, and `shinyconfig.yaml` updates without rebuilding matrices.
