@@ -7,16 +7,10 @@ nav:
     - Introduction: introduction.md
     - Getting started: setup.md
     - Usage: usage.md
-    - Human CNS classifier: human-cns.md
     - Tutorials: tutorial.md
     - Reference: reference.md
     - Troubleshooting: troubleshooting.md
     - Citations: citation.md
-    - Developer notes:
-        - Versioning and releases: development/versioning.md
-        - XGBoost training: development/xgboost-training.md
-        - Joined zooms: development/join_zoom.md
-        - Join GPU integration and cell cycle: development/join_cell_cycle.md
 theme:
   font:
     text: Helvetica Neue

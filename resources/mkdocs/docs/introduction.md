@@ -1,6 +1,6 @@
 # What is {{sc}}?
 
-{{sc}} is a Snakemake pipeline designed to automate various steps of processing single-cell and single-nuclei RNA sequencing data. This comprehensive solution effectively handles data generated using 10x Genomics technology. Starting from raw sequencing files (as well as a metadata file and a config file), {{sc}} performs a series of standard analysis steps, delivering outputs suitable for a variety of downstream analyses. The pipeline supports analyses across multiple samples, enabling researchers to gain a complete understanding of their datasets while ensuring reproducibility and scalability in their workflows.
+{{sc}} is a Snakemake-based pipeline for processing single cell and single nuclei RNA sequencing data generated using the 10x Genomics droplet based sequencing technology, supporting both poly(A)-capture and probe-based (“Flex”) assays. Starting from raw sequencing files, {{sc}} performs a series of standard analysis steps, delivering outputs suitable for a variety of downstream analyses. The pipeline supports analyses across multiple samples, enabling researchers to gain a complete understanding of their datasets while ensuring reproducibility and scalability in their workflows.
 
 ---
 
@@ -8,19 +8,19 @@
 
 ### Overview
 
-{{sc}} consists of a series of core steps which can be performed in a single execution of the workflow. Additional optional steps are available to extend the core analyses as needed. The diagram below outlines all steps, with detailed descriptions provided in the following sections.
+{{sc}} consists of a series of core steps which can be performed in a single execution of the workflow. Additional functionality is available to extend the core analyses as needed. Detailed descriptions of all steps are provided below.
+
+### Core pipeline steps
 
 ![workflow_chart](assets/images/scprocess_workflow_diagram_white_bg.png#only-light)
 ![workflow_chart](assets/images/scprocess_workflow_diagram_black_bg.png#only-dark)
 
 ---
-<div class="img-caption"> The figure illustrates all steps in {{sc}}. Specific software packages used are listed for individual steps. Several steps generate HTML reports with diagnostic plots, enabling users to inspect the results at key points in the workflow. </div>
-
-### Core pipeline steps
+<div class="img-caption"> The figure illustrates all core steps in {{sc}}. Specific software packages used are listed for individual steps. Several steps generate HTML reports with diagnostic plots, enabling users to inspect the results at key points in the workflow. </div>
 
 * #### Read alignment and quantification
     
-    {{sc}} starts by mapping sequencing reads to the reference genome and performing transcript quantification using `simpleaf`[@He2023-fx]. This open-source alternative to [Cell Ranger](https://www.10xgenomics.com/support/software/cell-ranger/latest) is designed for speed and memory efficiency, while also offering the advantage of reporting counts for spliced and unspliced transcripts separately.
+    {{sc}} starts by mapping sequencing reads to the reference genome (poly(A)-capture assays) or a probe reference (probe-based assays) and performing unique molecular identifier (UMI) quantification using `simpleaf`[@He2023-fx]. This open-source alternative to [Cell Ranger](https://www.10xgenomics.com/support/software/cell-ranger/latest) is designed for speed and memory efficiency, while also offering the advantage of reporting counts for spliced and unspliced transcripts separately.
 
 * #### Ambient RNA removal (optional)
 
@@ -36,7 +36,7 @@
 
 * #### QC filtering
 
-    In addition to removing doublets, {{sc}} filters out cells based on library size, feature counts, mitochondrial read proportions and spliced read proportions using user-defined thresholds. The spliced proportion is a particularly informative metric in single-nuclei RNA-seq, as elevated levels may indicate residual cytoplasmic material [@Montserrat-Ayuso2024-bm].
+    In addition to removing doublets, {{sc}} filters out cells based on library size, feature counts, mitochondrial read proportions and spliced read proportions based on user-defined thresholds. The spliced proportion is a particularly informative metric in singlenuclei RNA-seq, as elevated levels may indicate residual cytoplasmic material [@Montserrat-Ayuso2024-bm].
 
 * #### Generating pseudobulks from cells and empty droplets and ambient gene detection
 
@@ -44,7 +44,11 @@
 
 * #### Highly variable gene detection
 
-    Highly variable gene detection in {{sc}} is performed using the `Seurat VST`[@Stuart2019-pv] method in a chunk-wise or sample-wise manner, enabling the computation of ranking metrics for all genes without the need to load the entire dataset into memory. The efficient generation of a reduced matrix containing only highly variable genes ensures optimal performance in downstream analyses and facilitates the processing of larger datasets.
+    Highly variable gene (HVG) detection in {{sc}} is performed using the `Seurat VST`[@Stuart2019-pv] method in a chunk-wise or sample-wise manner, enabling the computation of ranking metrics for all genes without the need to load the entire dataset into memory. The efficient generation of a reduced matrix containing only highly variable genes ensures optimal performance in downstream analyses and facilitates the processing of larger datasets.
+
+* #### Cell cycle annotation
+    
+    The cell cycle program is highly conserved across distinct cell lineages and can overpower cell-type-specific signals, causing different cell types to cluster together. {{sc}} offers the option to estimate and then regress out this cell cycle signal to ensure clustering is driven primarily by cell identity. First, {{sc}} uses tricycle [@Zheng2022-gd] to infer a continuous cell cycle position (theta) for each cell. It then fits a harmonic (sine/cosine) ridge regression on theta to remove phase-dependent variation from HVG expression before calculating the PCA embedding.
 
 * #### Integration
     
@@ -52,14 +56,7 @@
 
 * #### Marker gene identification
     
-    Assigning meaningful labels to clusters in single-cell data is essential for interpretation of single cell data. This is commonly achieved by examining marker genes for each cluster, identified by comparing the expression profile of each cluster against all others. In {{sc}}, transcript counts are aggregated per cluster within each sample to generate "pseudobulk" values, which are then compared using `edgeR`[@Robinson2010-qz],[@Chen2025-jo]. This approach avoids the assumption that individual cells from the same sample are independent, thereby enhancing the statistical reliability of the results. 
-
-
-### Optional steps
-
-* #### Processing multiplexed samples
-    
-    Multiplexing strategies are commonly used to scale up single-cell experiments by enabling the analysis of multiple samples in a single run. Common approaches include labeling cells in individual samples with lipid-bound or antibody-conjugated oligonucleotides (hashtag oligos, or HTOs) prior to pooling. Alternatively, sample labels can be derived based on differences in genetic backgrounds. {{sc}} supports the analysis of multiplexed samples by quantifying HTOs and demultiplexing samples using the `Seurat HTODemux`[@Stoeckius2018-os] function. It also accommodates outputs from external demultiplexing tools, enabling seamless processing of samples regardless of the multiplexing strategy employed.
+    Assigning meaningful labels to clusters in single-cell data is essential for interpretation of single cell data. This is commonly achieved by examining marker genes for each cluster, identified by comparing the expression profile of each cluster against all others. In {{sc}}, transcript counts are aggregated per cluster within each sample to generate "pseudobulk" values, which are then compared using `edger.pb` (implementation of the `edgeR`[@Robinson2010-qz],[@Chen2025-jo]package using `BPcells`[@Parks2025-cl] as a backend). This approach avoids the assumption that individual cells from the same sample are independent, thereby enhancing the statistical reliability of the results. 
 
 * #### Gene set enrichment analysis
 
@@ -67,10 +64,28 @@
 
 * #### Cell type labelling
 
-    {{sc}} provides automated cell type annotation of human brain datasets using an `XGBoost` classifier trained on the adult human whole-brain dataset[@Siletti2023-rb]. In addition, {{sc}} enables users to train custom `XGBoost` classifiers from their own annotated datasets. The trained classifier can then be reused for annotating other datasets processed with {{sc}}. {{sc}} alo supports cell type annotation using pre-trained models available through `CellTypist`[@Xu2023-al],[@Dominguez_Conde2022_kd].
+    {{sc}} enables automated cell type annotation of human brain datasets using an `XGBoost` classifier trained on the adult human whole-brain dataset[@Siletti2023-rb]. {{sc}} alo supports cell type annotation using pre-trained models available through `CellTypist`[@Xu2023-al],[@Dominguez_Conde2022_kd].
+
+* #### Processing multiplexed samples
+
+    Multiplexing strategies are commonly used to scale up single cell experiments, allowing for simultaneous analysis of multiple samples within a single reaction. A common approach includes tagging cells or nuclei in individual samples with lipid-bound or antibody-conjugated oligonucleotides (hashtag oligos, or HTOs) prior to pooling. Prior labelling is not required for on-chip multiplexing (OCM) where up to four samples are physically separated inside the microfluidic chip, each receiving a unique set of cell barcodes. For scaling up to 384 samples, the Flex technology leverages gene-specific probes tagged with sample barcodes that hybridize directly within fixed cells prior to sample pooling. Alternatively, in studies involving genetically distinct individuals, sample identities can be recovered based on natural genetic variation. {{sc}} supports the analysis of multiplexed samples by leveraging `simpleaf` to generate HTO count matrices from associated cDNA libraries, which are subsequently processed via the `Seurat HTODemux`[@Stoeckius2018-os] function. Furthermore, {{sc}} accommodates multiplexed Flex data, OCM datasets and outputs from external demultiplexing tools, enabling seamless processing of samples regardless of the multiplexing strategy employed.
+
+### Extended functionality
 
 * #### Subclustering
 
-    {{sc}} offers a subclustering feature that enables users to perform a second round of analysis on a specific subset of cells and includes the following steps: generating pseudobulks from selected cells and detecting ambient genes, indentifying higly variable genes, data integration and marker gene identification. Cell subsets can be defined based on user-provided cell type labels, clusters identified during the primary round of {{sc}}, or cell type labels assigned with a selected classifier. This functionality is particularly valuable when a primary cluster or cell type contains diverse cell states, developmental stages, or activation states that warrant more detailed exploration.
+    {{sc}} offers a subclustering feature that enables users to perform a second round of analysis on a specific subset of cells and includes the following steps: optional reevaluation of QC thresholds, generation of pseudobulks from selected cells and detecting ambient genes, identification of higly variable genes, data integration and marker gene identification. Cell subsets can be defined based on user-provided cell type labels, clusters identified during the primary round of {{sc}}, or cell type labels assigned with a selected classifier. This functionality is particularly valuable when a primary cluster or cell type contains diverse cell states, developmental stages, or activation states that warrant more detailed exploration.
+
+* #### Cross-project analysis
+
+    {{sc}} provides a join module to integrate outputs across multiple projects (full-dataset runs, subclustering results, or a combination of both), requiring only a YAML file that lists individual project-level configuration files. Integration begins with the selection of consensus highly variable genes (HVGs) across projects, followed by marker gene identification.
+
+* #### Interactive visualization of results
+
+    Any {{sc}} output can be turned into a deployable `Shiny` application for interactive data exploration across four modules. These include “explore genes” for assessing gene expression, “explore clusters” for inspecting cluster markers, “explore gene sets” for comparing gene groups (e.g., transcription factors, pathways, or custom sets) across clusters, and “explore prevalence” for evaluating how cluster composition varies across metadata variables.   
+    
+* #### Training and reusing custom XGBoost classifiers
+
+    Pre-trained classifiers for cell type annotations are not available for certain tissue and species combinations. To avoid repeated time-consuming manual annotation, {{sc}} allows users to train custom `XGBoost` classifiers using their own annotated reference datasets. Such classifiers can be registered alongside built-in models and reused in subsequent labelling runs.
 
 

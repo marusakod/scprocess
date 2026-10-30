@@ -66,7 +66,7 @@ scprocess run /path/to/config-my_project.yaml -E "--max-threads 8"
 
 ??? info "Why you should always consider running a dry run?"
     
-    Before launching your analysis, you should always consider performing a dry run to your {{scrun}} or {{scsetup}} command. This process allows the workflow manager to map out the entire execution plan and display a summary of the tasks to be performed without actually running any scripts or consuming computational resources. It serves as a safety check to ensure that all input files are accessible and that the job sequence aligns with your expectations before you commit to the full execution of the pipeline.
+   In a dry run, a workflow manager maps out the entire execution plan and display a summary of the tasks to be performed without actually running any scripts or consuming computational resources. It serves as a safety check to ensure that all input files are accessible and that the job sequence aligns with your expectations before you commit to the full execution of the pipeline.
 
 
 The initial run of {{sc}} will take some time as the Conda environments are built. You can pre-build these environments without running the workflow by using the `--create-envs` flag:
@@ -77,7 +77,7 @@ scprocess run /path/to/config-my_project.yaml --create-envs
 
 By default {{scrun}} will run rule `all` which includes all [core steps](introduction.md#core-pipeline-steps). The [optional steps](introduction.md#optional-steps) (with the exception of gene set enrichment analysis) can run only after rule `all` is completed and have to be specifically requested.
 
-Additionally, you can run individual rules that generate HTML outputs (`mapping`, `ambient`, `demux`, `qc`, `hvg`, `integration`, `marker_genes`). This is useful if you want to inspect the HTML outputs for the intermediate steps first and then continue with the analysis. Optional steps such as `label_celltypes`, `train_xgboost`, and `zoom` must be requested explicitly. To run each rule separately you have to specify the rule using the `-r` or `--rule` flag e.g.
+Additionally, you can run individual rules that generate HTML outputs (`mapping`, `ambient`, `demux`, `qc`, `hvg`, `cell_cycle`, `integration`, `marker_genes`, `label_celltypes`). This is useful if you want to inspect the HTML outputs for the intermediate steps first and then continue with the analysis. To run each rule separately you have to specify the rule using the `-r` or `--rule` flag e.g.
 
 ```bash
 scprocess run /path/to/config.yaml -r qc
@@ -126,6 +126,68 @@ Processing multiplexed samples requires a different format for the sample metada
 
 * Batch correction performed with `pool_id` as a batch variable: This approach might be preferred if a significant proportion of cells cannot be confidently demultiplexed, which may point to technical issues with sample multiplexing rather than poor cell quality. If selected, unassigned cells are retained when integrating and defining clusters with the aim to improve clustering results. Doublet calls from `Seurat HTODemux` are ignored.
 
+## Extended functionality
+
+Beyond the core workflow, {{sc}} provides several downstream modules that build upon the primary outputs.
+
+### Command structure
+
+All {{sc}} commands follow a standard syntax:
+
+```bash
+scprocess run|join config.yaml -r <rule> [--zoom <name>]
+```
+{{scrun}} executes the pipeline on an individual project, whereas {{scjoin}} integrates outputs across multiple projects. Each mode requires its own dedicated configuration file. The `-r` flag specifies the target rule or workflow step to execute. The optional `--zoom <name>` flag applies compatible rules directly to a defined subclustering output or all subclustering outputs.
+
+The table below details supported rules for both commands and indicates whether they can operate on subclustered data.
+
+<div class="md-typeset__table" markdown>
+
+<table markdown="0">
+<thead>
+<tr><th>Command</th><th>Rule</th><th>Zoom</th></tr>
+</thead>
+<tbody>
+<tr><td rowspan="13"><code>scprocess run</code></td><td><code>all</code></td><td>✗</td></tr>
+<tr><td><code>mapping</code></td><td>✗</td></tr>
+<tr><td><code>ambient</code></td><td>✗</td></tr>
+<tr><td><code>demux</code></td><td>✗</td></tr>
+<tr><td><code>qc</code></td><td>✗</td></tr>
+<tr><td><code>hvg</code></td><td>✗</td></tr>
+<tr><td><code>cell_cycle</code></td><td>✗</td></tr>
+<tr><td><code>integration</code></td><td>✗</td></tr>
+<tr><td><code>marker_genes</code></td><td>✗</td></tr>
+<tr><td><code>label_celltypes</code></td><td>✗</td></tr>
+<tr><td><code>zoom</code></td><td>✗</td></tr>
+<tr><td><code>shiny</code></td><td>✓</td></tr>
+<tr><td><code>train_xgboost</code></td><td>✓</td></tr>
+<tr><td rowspan="5"><code>scprocess join</code></td><td><code>all</code></td><td>✗</td></tr>
+<tr><td><code>label_celltypes</code></td><td>✗</td></tr>
+<tr><td><code>train_xgboost</code></td><td>✗</td></tr>
+<tr><td><code>zoom</code></td><td>✓</td></tr>
+<tr><td><code>shiny</code></td><td>✓</td></tr>
+</tbody>
+</table>
+
+</div>
+
+[maybe give a couple of examples]
+
+A few things worth noting from this table:
+
+* `run -r zoom` always runs every zoom listed in the project configuration; `--zoom` is not read in this case, even though it's accepted elsewhere for `run`. To single out one zoom's output, use `--zoom` with `-r shiny` or `-r train_xgboost` instead.
+* `join -r zoom` is the opposite: `--zoom <name>` runs just that one zoom, and omitting it runs every zoom listed in the join configuration.
+* `join -r shiny --zoom <name>` builds the app for that one joined zoom; omitting `--zoom` builds it for the parent join rather than for every zoom.
+* XGBoost classifiers can only be trained on a join's combined output, never on one of its individual zooms — `train_xgboost` has no zoom support for `join`.
+
+
+![workflow_chart](assets/images/scprocess_workflow_diagram_white_bg.png#only-light)
+![workflow_chart](assets/images/scprocess_workflow_diagram_black_bg.png#only-dark)
+
+---
+<div class="img-caption"> Extended functionality of {sc}: At the individual project level {{sc}} offers a subclustering (zoom) feature that enables exploration of heterogeneity within a selected cell subset. {{sc}} also offers a </code>join</code> module for combining project-level results. Outputs of both project-level and cross-project analysis can be used to generate interactive Shiny applications as well as to train XGBoost classifiers for cell type annotation.
+</div>
+
 ## Best practices
 
 The default parameters in the configuration file are suitable for running {{sc}} on the [example dataset](tutorial.md). Here are some of the most important things to consider when you are running {{sc}} on your own dataset:
@@ -157,12 +219,6 @@ To identify problematic samples, {{sc}} computes two diagnostic ratios:
 
 * `slope_ratio`: This is the ratio of the slope of the barcode-rank curve in the empty droplet region compared to the slope at the first inflection point (`shin1`). Samples with a high slope ratio, as seen in example C, are likely problematic because the empty droplet plateau is not clearly distinguishable. In such cases, ambient RNA contamination algorithms like `DecontX` and `CellBender` may struggle to accurately estimate background noise, and we recommend considering removing these samples from further analysis.
 
-Barcode-rank plots are grouped into chunks of up to 12 samples. The final chunk reserves unused panel positions so its samples have the same panel dimensions as the full chunks.
-
-The mapping report includes a **Pairwise landmark coordinates** tabset immediately before the **Dotplot with diagnostic ratios**. Separate Knees and Shins tabs compare UMI counts and barcode ranks for each pair of landmarks in six upper-triangular panels, with logarithmic axes labelled in original units, denser second-landmark UMI breaks and square panels. Dark grey circles mark runs without mapping overrides; orange triangles mark runs with non-null custom mapping parameters under the applicable `sample_id` or `pool_id` section. Landmark counts use saved/custom values; ranks use the nearest observed count (the first saved row resolves ties). Faint grey contours show 95% robust covariance ellipses from `robustbase::covMcd()` on log10 coordinates (alpha 0.5, deterministic algorithm, reweighted covariance). These describe spread rather than uncertainty in the centre and are omitted for fewer than five runs or singular covariance. These plots flag unusual runs for inspection without changing landmark parameters or filtering.
-
-Fitted knee UMI values may fall between observed droplet totals. When locating the second-knee rank, {{sc}} uses the nearest observed total; an exact count match is not required. This prevents a missing rank bound but does not establish that the inferred curve landmarks are biologically appropriate.
-
 If {{sc}} fails to estimate the knee plot parameters but the barcode-rank curve appears normal, we suggest manually adjusting the `knee1`, `knee2`, `shin1`, and `shin2` parameters in the `custom_sample_params` file. A convenient way to fine-tune these parameters is by using the [`plotknee`](reference.md#scprocess-plotknee) function in {{sc}}. This allows for easy visualization and adjustment of knee points.
     
 
@@ -172,94 +228,3 @@ It is recommended to review the QC HTML report generated by {{sc}} and adjust QC
 
 
 
-
-
-The QC report's across-sample doublet overview includes score entropy and fitted
-beta-distribution mean/variance, alongside call rates, numeric summaries and
-calling thresholds. Entropy describes score polarisation rather than detection
-accuracy. Beta fits describe score location and spread; samples flagged for
-unusually high fractions of scores above 0.5 merit review, not automatic exclusion.
-Percentages in the numeric summary use one decimal place.
-
-Integration reports show scDblFinder scores as the bottom row of the per-cluster
-QC violin plots, using a logit axis labelled in original score units. Exact
-endpoint scores are moved just inside (0, 1) for plotting only. Scores come from real-cell
-doublet diagnostics and are joined to QC data by cell ID.
-
-By default, the preliminary doublet-cluster pass uses a robust split-estimated
-mixture threshold: median and scaled MAD on corrected logit fractions within
-clusters below/above 50%, weighted by the numbers of clusters. The cutoff is
-the weighted-density crossing between the two centres, with no 50% cap.
-Use `int_dbl_threshold_method: adaptive` (default) for this estimate.
-For a chosen fixed cutoff, use `int_dbl_threshold_method: manual` and specify
-`int_dbl_cl_prop` explicitly; there is no default.
-With `adaptive` (also the default when the method is omitted), omit
-`int_dbl_cl_prop`; supplying it is a configuration validation error.
-The old names `split_mad_mixture` and `fixed` must be replaced by `adaptive` and
-`manual`; `mean_mad` and `int_dbl_mad_multiplier` have been removed. Historical
-saved threshold metadata remain readable. See [Reference](reference.md#integration).
-
-### Gene order in joined pseudobulks
-
-Joined pseudobulk inputs must contain the same unique, nonmissing gene IDs.
-When H5AD batches contain the same genes in a different order, scprocess aligns
-pseudobulk rows by gene ID to the first nonempty batch and emits a warning
-identifying affected batches. Gene-set differences and duplicate or missing IDs
-remain errors. Source H5AD files and counts are unchanged by this alignment.
-
-### scDblFinder training integrity
-
-With scDblFinder 1.27.12, filtering unrecognizable artificial doublets can shorten
-the cell table between training iterations without shortening its predictor
-matrix. scprocess applies a call-local compatibility fix that aligns predictor
-rows to the remaining cell IDs after that filtering statement. Installed package
-files are unchanged and the original namespace function is restored afterwards.
-QC thresholds and scDblFinder parameters are unchanged. A reported failed training
-iteration now raises an error before scores are saved, rather than accepting
-scDblFinder's fallback to an earlier iteration.
-
-### QC threshold dependencies and Shiny count handling
-
-The shared QC-threshold table tracks the resolved limits and batch cohort.
-Changing unrelated knee or per-sample doublet settings does not by itself rebuild
-it; changing real limits or cohort membership still does.
-
-Shiny construction retains explicit read-only HDF5 handles for all lazy input
-reads, preserving upstream file contents and timestamps. It also aligns identical
-input gene sets by ID before combining batches,
-warning when gene order changes and rejecting invalid or different gene sets.
-UMAP density-based downsampling accumulates the same Gaussian kernel estimate in
-bounded chunks to avoid atlas-scale memory allocations. The sample size, bandwidth
-and sampling policy are unchanged.
-
-For code provenance, clean analysis checkouts and configuration migration, see the
-[versioning and release policy](development/versioning.md).
-
-## Annotating an existing join
-
-Add the installed classifier to the join YAML, for example:
-
-```yaml
-label_celltypes:
-  - labeller: scprocess
-    model: my_classifier
-    hi_res_cl: RNA_snn_res.2
-    min_cl_prop: 0.5
-```
-
-Set `model` to a classifier registered in your installation. `hi_res_cl` selects
-the clusters used for majority voting; `min_cl_prop` is the minimum fraction of
-cells in a cluster supporting its assigned label. Run annotation with:
-
-```bash
-scprocess join configs/join.yaml -r label_celltypes -n
-scprocess join configs/join.yaml -r label_celltypes
-```
-
-The target reuses completed integration and count outputs and produces per-cell
-labels and any requested cluster-name tables. Source-project predictions are
-reused where available for the selected model; other batches run inference.
-Outputs retain naive and majority-vote fine labels. If the installed model
-specifies coarse labels, both fine calls are mapped to their coarse labels.
-Updating that mapping reruns aggregation. Marker genes and the main join report
-remain separate targets.

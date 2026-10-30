@@ -26,24 +26,43 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
   
 2.  Create a Conda environment:
     
-    Navigate into the {{sc}} directory and create a Conda environment. Choose the appropriate command based on your operating environment (local machine, SLURM, or LSF cluster).
-    
+    Navigate into the {{sc}} directory and create a Conda environment. Choose the appropriate command based on your operating environment (local machine or one of the supported job schedulers).
+
     === "local"
         ```bash
-        conda env create -n scprocess -f envs/scprocess_local.yaml
+        conda env create -f envs/scprocess_local.yaml
         ```
 
     === "SLURM"
         ```bash
-        conda env create -n scprocess -f envs/scprocess_slurm.yaml
+        conda env create -f envs/scprocess_slurm.yaml
         ```
 
     === "LSF"
         ```bash
-        conda env create -n scprocess -f envs/scprocess_lsf.yaml
+        conda env create -f envs/scprocess_lsf.yaml
         ```
 
-    If you are using LSF or SLURM, remember to also review the [Cluster setup](#cluster-setup) section below.
+    === "PBS"
+        ```bash
+        conda env create -f envs/scprocess_pbs.yaml
+        ```
+
+    === "SGE"
+        ```bash
+        conda env create -f envs/scprocess_sge.yaml
+        ```
+
+    === "HTCondor"
+        ```bash
+        conda env create -f envs/scprocess_htcondor.yaml
+        ```
+
+    If you are using a job scheduler, remember to also review the [Cluster setup](#cluster-setup) section below.
+
+
+    !!! note "Tested environments"
+        Only the `local` and `SLURM` Conda environments have been tested.
 
 3.  Add {{sc}} to your PATH. 
     
@@ -97,7 +116,7 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
     This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) reference transcriptomes from 10x Genomics. `local_cores` should be specified if you're running {{sc}} locally. If you're running {{sc}} on a cluster you should use `profile` instead (see [Cluster setup](#cluster-setup) section bellow). For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](reference.md#scprocess-setup) section.
 
     ??? tip "Save some space by removing the reference transcriptome used for the tutorial"
-        [Quick start tutorial](tutorial.md) section demonstrates how to run {{sc}} on example mouse datasets. In order for users to be able to follow the tutorial {{scsetup}} will automatically download the `mouse_2024` reference transcriptome. If you would like to remove it (after running the tutorial) use:
+        [Quick start tutorial](tutorial.md) section demonstrates how to run {{sc}} on example mouse datasets. In order for users to be able to follow the tutorial, {{scsetup}} will automatically download the `mouse_2024` reference transcriptome. If you would like to remove it (after running the tutorial) use:
     
         ```bash
         rm -rf $SCPROCESS_DATA_DIR/reference_transcriptomes/mouse_2024
@@ -110,21 +129,11 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
 
     To process 10x Flex data, {{sc}} requires a probe set index to be built during setup. Add a `probe_sets` section to your _scprocess_setup.yaml_ file listing the probe sets you need e.g.
 
-    !!! note "OCM (on-chip multiplexing) support"
-        For 10x GEM-X Universal Multiplex (OCM) data, no additional setup is needed beyond the standard Cell Ranger download. The OCM overhang barcode map (`ocm_overhang_map.txt`) is automatically extracted from the Cell Ranger tarball during {{scsetup}}.
-
     ```yaml
     probe_sets:
       tenx:
       - name: human_v1
       - name: mouse_v1
-    ```
-
-    To register custom XGBoost classifiers trained with the `train_xgboost` step, add an `xgboost` section pointing to the project config file that was used for training (see the [Reference](reference.md#setup-xgboost) section for more details):
-
-    ```yaml
-    xgboost:
-      - config: /path/to/config-training_project.yaml
     ```
 
 4. Finish setting up the {{sc}} data directory:
@@ -134,14 +143,13 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
     ```bash
     scprocess setup -c "https://cf.10xgenomics.com/releases/cell-exp/cellranger-10.0.0.tar.gz..." 
     ```
-     
     Note that {{sc}} only requires barcode whitelists from Cell Ranger, therefore the full Cell Ranger installation will not be retained after the setup process.
 
     Once the inital setup is complete, you do not need to provide the Cell Ranger link again i.e if you modify the _scprocess_setup.yaml_ file to add additional reference genomes, simply run {{scsetup}}.
 
 ## Cluster setup
 
-{{sc}} is intended to be used on a cluster with a job scheduler such as `SLURM` or `LSF` (although it will also work without a job scheduler). To set up a job scheduler in `Snakemake`, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{sc}} comes with predefined configuration profile templates stored in the package _profiles_ directory, including _profiles/slurm_default_, _profiles/lsf_default_, _profiles/pbs_default_, _profiles/sge_default_, and _profiles/htcondor_default_. During setup, {{sc}} copies the selected template into `$SCPROCESS_DATA_DIR/profiles`, where it can be edited for your cluster.
+{{sc}} is intended to be used on a cluster with a job scheduler such as `SLURM` or `LSF` (although it will also work without a job scheduler). To set up a job scheduler in `Snakemake`, it is common to define a configuration profile with cluster settings e.g. resource allocation. {{sc}} comes with predefined configuration profile templates stored in the package _profiles_ directory. During setup, {{sc}} copies the selected template into `$SCPROCESS_DATA_DIR/profiles`, where it can be edited for your cluster.
 
 To use {{sc}} with a job scheduler, add a `profile_template` parameter to your _scprocess_setup.yaml_ file:
 
@@ -171,9 +179,7 @@ To use {{sc}} with a job scheduler, add a `profile_template` parameter to your _
       profile_template: htcondor_default
     ```
 
-The first `scprocess setup` run with a new profile copies the template and exits before running Snakemake. Edit the copied `config.yaml`, then rerun `scprocess setup`.
-
-The active Python environment that launches {{sc}} must include the Snakemake executor plugin for the selected profile. The PBS template uses the `cluster-generic` executor plugin, while the SGE and HTCondor templates use the `sge` and `htcondor` executor plugins respectively.
+The first {{scsetup}} run copies the template and exits before running Snakemake. Edit the copied `config.yaml`, then rerun {{scsetup}}.
 
 If you want the local profile to have a different name from the template, specify `profile_name`:
 
@@ -184,30 +190,5 @@ user:
 ```
 {{scsetup}} and {{scrun}} will then run in cluster mode with the active profile in `$SCPROCESS_DATA_DIR/profiles/slurm_my_cluster`.
 
-## Pinned R doublet-detection packages
-
-`envs/rlibs.yaml` pins Conda `r-xgboost=3.4.2`, whose R package version is
-**3.4.2.1**, and supplies `scrapper=1.4.0`. Snakemake then runs
-`envs/rlibs.post-deploy.sh` to install **scDblFinder 1.27.12** from the exact
-GitHub commit `e66180a1d84733bbcf63ed8590ae75a4a5329e34`. The hook checks the
-loaded versions and source commit and tests classifier training with both
-fixed and cross-validated numbers of boosting rounds. An installation or
-training failure stops environment creation. The verified versions are saved
-under `<environment>/share/scprocess/doublet-package-versions.tsv`.
-
-This pair was tested on Siletti amygdala sample `10X219-1` with `dbr.sd = 1`.
-The older scDblFinder 1.24.10 / XGBoost 3.4.2.1 combination failed because it
-requested early stopping without an evaluation set; scDblFinder silently
-returned preliminary scores after catching the error. Pinning only a minimum
-XGBoost version does not prevent this compatibility problem.
-
-Use scprocess's `--create-envs` option in a compute/Slurm context to provision
-workflow environments. The changed YAML and deployment hook produce a new
-Snakemake environment; existing environments are retained. Updating an
-environment does not itself regenerate completed doublet calls: rerun QC and
-its dependent analysis deliberately when replacing affected results.
-
-If creating the environment manually rather than through Snakemake, activate
-it and run `bash envs/rlibs.post-deploy.sh` before using it. The environment
-requires GitHub access during this installation step; ordinary rule execution
-uses the installed package and does not download it again.
+!!! note "Don't forget to add the -c flag to {{scsetup}} once the profile setup is complete"
+    The profile-copying run of {{scsetup}} does not need, and will ignore, the `-c`/`--rangerurl` flag described in [Installation](#installation). You only need to supply `-c`/`--rangerurl` starting with the next {{scsetup}} call, once your edited profile is in place.
