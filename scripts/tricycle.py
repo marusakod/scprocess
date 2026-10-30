@@ -21,13 +21,12 @@ CELL_CYCLE_MARKER_GENES = [
 MARKER_EXPRESSION_COLUMNS = ["cell_id", *CELL_CYCLE_MARKER_GENES]
 
 # Fixed numerical/display methods, rather than additional analysis options.
-DENSITY_WEIGHT_ITERATIONS = 80
 DIAGNOSTIC_DRAWS = 100
 
 
 def aggregate_tricycle(
   score_fs, marker_expression_fs, summary_fs, coldata_f, required_h5_fs,
-  bandwidth_multiplier, kde_grid_size, target_prop, target_prop_grid, seed,
+  bandwidth_multiplier, kde_grid_size, density_percentile, density_percentile_grid, seed,
   out_scores_f, out_marker_expression_f, out_origin_f, out_sensitivity_f,
   out_diagnostics_f, manual_origin = None
 ):
@@ -42,9 +41,10 @@ def aggregate_tricycle(
   density, bandwidth, n_bins    = _binned_kde_density(
     points, bandwidth_multiplier, kde_grid_size)
 
-  # Expected inclusion probabilities determine the origin; no cells are drawn here.
+  # Density-percentile weights determine the origin; no cells are drawn here.
   sensitivity_df, probabilities, estimated_origin = _estimate_origin_sensitivity(
-    points, density, target_prop, target_prop_grid)
+    points, density, density_percentile, density_percentile_grid)
+  selected_estimate = sensitivity_df.filter(pl.col("selected")).row(0, named = True)
   origin_coordinates = estimated_origin.copy()
   if manual_origin is not None:
     manual_origin = np.asarray(manual_origin, dtype = float)
@@ -70,7 +70,8 @@ def aggregate_tricycle(
     origin_method = origin_method, origin_coordinates = origin_coordinates,
     estimated_origin = estimated_origin, projection_center = projection_center,
     n_projection_cells = scores_df.height, n_candidate_cells = candidate_scores_df.height,
-    target_prop = float(target_prop), manual_origin = manual_origin,
+    density_percentile = float(density_percentile),
+    density_threshold = selected_estimate["density_threshold"], manual_origin = manual_origin,
     probabilities = probabilities, bandwidth = bandwidth,
     bandwidth_multiplier = bandwidth_multiplier, n_bins = n_bins, seed = seed,
     display_draw_index = display_draw_index, display_retained = display_retained,
@@ -245,59 +246,48 @@ def _bandwidth_nrd(values):
   return 1.06 * scale * values.size ** (-0.2)
 
 
-def _estimate_origin_sensitivity(points, density, target_prop, target_prop_grid):
-  """Compare weighted origins at the requested expected retained fractions."""
-  sensitivity_targets = sorted(set(float(value) for value in [target_prop, *target_prop_grid]))
-  if any(not np.isfinite(value) or not 0 < value <= 1 for value in sensitivity_targets):
-    raise ValueError("target_prop and target_prop_grid must be in (0, 1]")
-  selected_target = float(target_prop)
+def _estimate_origin_sensitivity(points, density, density_percentile, density_percentile_grid):
+  """Compare origins using density thresholds at the requested cell percentiles."""
+  percentiles = sorted(set(float(value) for value in [density_percentile, *density_percentile_grid]))
+  if any(not np.isfinite(value) or not 0 <= value <= 100 for value in percentiles):
+    raise ValueError("density_percentile and density_percentile_grid must be in [0, 100]")
+  selected_percentile = float(density_percentile)
   sensitivity_rows = []
-  selected_probabilities = None
+  selected_weights = None
   center = None
-  for sensitivity_target in sensitivity_targets:
-    probabilities = _density_equalized_probabilities(density, sensitivity_target * len(points))
-    candidate_center = np.average(points, axis = 0, weights = probabilities)
+  for percentile in percentiles:
+    weights, threshold = _density_equalized_weights(density, percentile)
+    candidate_center = np.average(points, axis = 0, weights = weights)
     sensitivity_rows.append({
-      "target_prop": sensitivity_target,
-      "expected_retained_cells": float(probabilities.sum()),
+      "density_percentile": percentile,
+      "density_threshold": threshold,
+      "mean_origin_weight": float(weights.mean()),
+      "n_full_weight_cells": int(np.count_nonzero(weights == 1)),
+      "full_weight_percent": float(100 * np.mean(weights == 1)),
       "tricycle_pc1_origin": candidate_center[0],
       "tricycle_pc2_origin": candidate_center[1],
-      "selected": sensitivity_target == selected_target,
+      "selected": percentile == selected_percentile,
     })
-    if sensitivity_target == selected_target:
-      selected_probabilities = probabilities
+    if percentile == selected_percentile:
+      selected_weights = weights
       center = candidate_center
   sensitivity_df = pl.DataFrame(sensitivity_rows)
-  return sensitivity_df, selected_probabilities, center
+  return sensitivity_df, selected_weights, center
 
 
-def _density_equalized_probabilities(density, target_cells):
-  """Return capped inverse-density inclusion probabilities with fixed sum."""
+def _density_equalized_weights(density, density_percentile):
+  """Give full weight below a density percentile and inverse-density weight above it."""
   density = np.asarray(density, dtype = float)
-  if np.any(~np.isfinite(density)) or np.any(density <= 0):
+  if density.size == 0 or np.any(~np.isfinite(density)) or np.any(density <= 0):
     raise ValueError("Density values must be finite and positive")
-  expected_target = min(float(target_cells), density.size)
-  if not np.isfinite(expected_target) or expected_target <= 0:
-    raise ValueError("target_cells must be positive")
-  if expected_target == density.size:
-    return np.ones(density.size)
 
-  # Lower-density cells receive larger probabilities, capped at one.
-  lower_scale = 0.0
-  upper_scale = float(density.max())
+  # Percentiles describe cells, not equally weighted KDE grid locations.
+  # Linear interpolation matches NumPy's standard percentile definition.
+  threshold = float(np.percentile(density, density_percentile, method = "linear"))
+  weights = np.minimum(1.0, threshold / density)
 
-  # Solve sum(min(1, scale / density)) = expected_target by bisection.
-  # The target is an expected number of cells and need not be an integer.
-  for _ in range(DENSITY_WEIGHT_ITERATIONS):
-    trial_scale = (lower_scale + upper_scale) / 2
-    expected_cells = np.minimum(1.0, trial_scale / density).sum()
-    if expected_cells < expected_target:
-      lower_scale = trial_scale
-    else:
-      upper_scale = trial_scale
-  probabilities = np.minimum(1.0, upper_scale / density)
-  probabilities *= expected_target / probabilities.sum()
-  return np.minimum(1.0, probabilities)
+  # At 0 these are proportional to inverse density; at 100 every weight is one.
+  return weights, threshold
 
 
 def _diagnostic_downsample(probabilities, seed, n_draws = DIAGNOSTIC_DRAWS):
@@ -318,7 +308,7 @@ def _diagnostic_downsample(probabilities, seed, n_draws = DIAGNOSTIC_DRAWS):
 
 
 def _make_origin_summary(*, origin_method, origin_coordinates, estimated_origin,
-  projection_center, n_projection_cells, n_candidate_cells, target_prop,
+  projection_center, n_projection_cells, n_candidate_cells, density_percentile, density_threshold,
   manual_origin, probabilities, bandwidth, bandwidth_multiplier, n_bins,
   seed, display_draw_index, display_retained, summaries_df):
   """Record the fitted origin and provenance as a single-row table."""
@@ -332,10 +322,13 @@ def _make_origin_summary(*, origin_method, origin_coordinates, estimated_origin,
     "tricycle_pc2_origin": [origin_coordinates[1]],
     "selected_kde_tricycle_pc1_origin": [estimated_origin[0]],
     "selected_kde_tricycle_pc2_origin": [estimated_origin[1]],
-    "target_prop_used_for_origin": [manual_origin is None],
+    "density_percentile_used_for_origin": [manual_origin is None],
     "n_candidate_cells": [n_candidate_cells],
-    "target_prop": [target_prop],
-    "expected_retained_cells": [float(probabilities.sum())],
+    "density_percentile": [density_percentile],
+    "density_threshold": [density_threshold],
+    "mean_origin_weight": [float(probabilities.mean())],
+    "n_full_weight_cells": [int(np.count_nonzero(probabilities == 1))],
+    "full_weight_percent": [float(100 * np.mean(probabilities == 1))],
     "bandwidth_pc1": [bandwidth[0]],
     "bandwidth_pc2": [bandwidth[1]],
     "bandwidth_multiplier": [float(bandwidth_multiplier)],
@@ -367,12 +360,12 @@ def main():
     parser.add_argument('--' + argument, action = 'append', required = True)
   parser.add_argument('--required_h5_f', action = 'append', default = [])
 
-  # Numerical settings retain the existing CLI interface and defaults.
+  # The selected density percentile is required; report alternatives come from the schema.
   parser.add_argument('--kde_grid_size', type = int, default = 500)
   parser.add_argument('--seed', type = int, default = 20230308)
   parser.add_argument('--bandwidth_multiplier', type = float, default = 1.0)
-  parser.add_argument('--target_prop', type = float, required = True)
-  parser.add_argument('--target_prop_grid', action = 'append', type = float, default = [])
+  parser.add_argument('--density_percentile', type = float, required = True)
+  parser.add_argument('--density_percentile_grid', action = 'append', type = float, default = [])
   parser.add_argument("--origin_manual", nargs = 2, type = float)
   args = parser.parse_args()
 
@@ -384,8 +377,8 @@ def main():
     required_h5_fs = args.required_h5_f,
     bandwidth_multiplier = args.bandwidth_multiplier,
     kde_grid_size = args.kde_grid_size,
-    target_prop = args.target_prop,
-    target_prop_grid = args.target_prop_grid,
+    density_percentile = args.density_percentile,
+    density_percentile_grid = args.density_percentile_grid,
     seed = args.seed,
     out_scores_f = args.out_scores_f,
     out_marker_expression_f = args.out_marker_expression_f,

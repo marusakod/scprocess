@@ -113,7 +113,7 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
       - name: mouse_2024 
     ```
 
-    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) reference transcriptomes from 10x Genomics. `local_cores` should be specified if you're running {{sc}} locally. If you're running {{sc}} on a cluster you should use `profile` instead (see [Cluster setup](#cluster-setup) section bellow). For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](reference.md#scprocess-setup) section.
+    This will ask the setup process to download and prepare the most recent pre-built [human](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Human%20reference%20(GRCh38)%20%2D%202024%2DA) and [mouse](https://www.10xgenomics.com/support/software/cell-ranger/downloads#reference-downloads:~:text=Mouse%20reference%20(GRCm39)%20%2D%202024%2DA) reference transcriptomes from 10x Genomics. `local_cores` should be specified if you're running {{sc}} locally. If you're running {{sc}} on a cluster you should use `profile_template` instead (see [Cluster setup](#cluster-setup) section bellow). For more information on how to structure the _scprocess_setup.yaml_ see the [`Reference`](reference.md#scprocess-setup) section.
 
     ??? tip "Save some space by removing the reference transcriptome used for the tutorial"
         [Quick start tutorial](tutorial.md) section demonstrates how to run {{sc}} on example mouse datasets. In order for users to be able to follow the tutorial, {{scsetup}} will automatically download the `mouse_2024` reference transcriptome. If you would like to remove it (after running the tutorial) use:
@@ -146,6 +146,27 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
     Note that {{sc}} only requires barcode whitelists from Cell Ranger, therefore the full Cell Ranger installation will not be retained after the setup process.
 
     Once the inital setup is complete, you do not need to provide the Cell Ranger link again i.e if you modify the _scprocess_setup.yaml_ file to add additional reference genomes, simply run {{scsetup}}.
+
+## Downloaded support files and classifiers
+
+From 0.6.0, marker tables, gene sets and the built-in `human_cns` classifier
+come from the [pinned Zenodo record](https://zenodo.org/records/23803028).
+Setup verifies the support/model archives and their individual files before
+replacing installed contents. The installed support manifest is saved as
+`$SCPROCESS_DATA_DIR/scprocess_support_manifest.json`; the classifier manifest
+is saved beside its weights.
+
+Support files and Cell Ranger resources are downloaded in separate steps.
+Updating support data or the classifier does not require another Cell Ranger
+download. A first installation still needs the vendor link for extracting
+barcode whitelists. Vendor genome/probe-set downloads and CellTypist models
+retain their upstream sources.
+
+Rerunning setup updates the configured models while keeping other registered
+custom classifiers and unrelated files in `$SCPROCESS_DATA_DIR`. Files declared
+by an older built-in model manifest but absent from its replacement are removed
+after the new archive has passed verification, so older evaluation summaries
+are not presented beside new weights.
 
 ## Cluster setup
 

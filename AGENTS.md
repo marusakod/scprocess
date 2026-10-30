@@ -6,8 +6,10 @@ Instructions for coding agents working in this repository.
 
 ### Required approval before main or release publication
 
-Commits and pushes to `dev` are allowed within the authorized task. They do not
-authorize promotion to `main` or a release. Before pushing/merging to `main`,
+Commits to `dev` are allowed within the authorized task. Ask Will for explicit
+approval before pushing any branch or tag, including development versions.
+Approval to push dev does not authorize promotion to `main` or a release.
+Before pushing/merging to `main`,
 publishing any GitHub/Conda release or marking a version as a stable release,
 obtain explicit approval from **both Will Macnair and Marusa** for the concrete
 candidate commit, version and release contents. If either approval is absent or
@@ -20,8 +22,9 @@ after approval require renewed approval of the changed candidate.
 Every completed version, including patch versions, must have an immutable
 annotated Git tag `vX.Y.Z` pointing to the committed snapshot whose VERSION
 matches. Will explicitly authorized development-version tagging on 2026-10-28.
-These tags may be created and pushed on dev without publishing a release;
-version tagging alone is not main promotion or stable-release approval.
+These tags may be created on dev without publishing a release; pushing them
+requires Will's explicit approval. Development version tagging alone is not
+main promotion or stable-release approval.
 Main promotion and release publication still require both maintainers' explicit
 approval. Tag after validation and commit, never tag a dirty working tree as if
 its uncommitted contents were included, and never move an existing shared tag.
@@ -32,7 +35,6 @@ automation without an approval mechanism that requires both maintainers. The
 user's explicit instruction to withdraw the premature releases and restore main
 is authorization for that rollback only, not a new release.
 
-Follow [the versioning and development policy](resources/mkdocs/docs/development/versioning.md).
 At the start of a new task, inspect the checkout and active jobs, and establish
 with the user whether software work is a patch, small additional functionality,
 or major rewriting/breaking changes. Reuse a classification already agreed in
@@ -54,6 +56,127 @@ breaking changes and changes affecting results separately. Models have immutable
 independent IDs/checksums. Record analysis provenance per stage; a later commit
 does not retroactively identify earlier dirty runs.
 
+
+### Interface changes and version identity
+
+The public interface includes CLI arguments, YAML keys and defaults, supported
+output formats and paths consumed downstream, and model-loading contracts.
+Document intentional scientific-default changes even when existing configs still
+validate. A bug fix can change scientific results without breaking the interface;
+explain its effect separately in the changelog.
+
+During 0.x development, compatible fixes and documentation corrections increment
+the patch version; additional functionality, breaking changes and intentional
+scientific-default changes increment the minor version and reset the patch to
+zero. An upcoming candidate may use a prerelease such as `0.6.0-rc.1`.
+After 1.0, use patch versions for compatible fixes, minor versions for compatible
+features/deprecations and major versions for incompatible interface changes.
+Choose 1.0 when ready to commit to interface stability, rather than simply
+because a manuscript is submitted.
+
+VERSION may contain a plain version on dev before release approval. Between
+completed versions, record the full commit SHA and `git describe` output; neither
+a branch name nor an unchanged VERSION identifies the code used for an analysis.
+Conda packages use the upstream version, with build numbers for packaging-only
+rebuilds. Translate prerelease spelling to Conda conventions when packaging is
+introduced.
+
+Use short-lived branches for substantial features and fixes. Keep scientific
+behaviour changes separate from broad text cleanup. Classify changes as they
+are made, but bump VERSION and create its annotated tag when completing a
+version, rather than for every review commit. Never force-push shared history
+or release tags as routine cleanup. A release PR is the preferred record for
+reviewing promotion to main.
+
+### Analysis and model provenance
+
+Before production, training or report jobs, check tracked and untracked source
+changes and inspect active users of the checkout. Prefer an isolated checkout
+for simultaneous development. If relevant edits are uncommitted, propose a
+compact tested commit before launching. An explicitly approved dirty run must
+save its base SHA, complete diff, relevant untracked source files and checksums
+before execution; do not describe it as an unmodified release.
+
+Record configurations and custom overrides, resolved environments and important
+dependency versions, reference/index identity, model identity/checksums and
+random seeds with the code identity. Record these separately for preprocessing,
+integration, training and Shiny construction when their versions differ. Label
+a later snapshot with its actual date; it is not proof of an earlier dirty run.
+
+Version trained models independently of software. Each registry entry should
+identify immutable weights and checksum, training-data and label version,
+features/preprocessing/reference, software and environment versions, split
+assignments, evaluation and loader compatibility. Store large weights in a
+versioned asset repository and a small registry entry in the code repository.
+Adding an optional model is a feature. Replacing weights normally creates a new
+model ID; never silently repoint an existing model version or depend on a mutable
+latest URL. Record default-model changes and their effects on results explicitly.
+The previously approved replacement of the unpublished human_cns-v1 candidate
+is a scoped exception, not general permission to replace published model versions.
+Training and evaluation must avoid donor or sample leakage.
+
+### Completing a version and publishing a release
+
+1. Review the full delta from the previous completed tag, including schema and
+   default changes. Do not silently move a mismatched local or remote tag.
+2. Run relevant unit/regression checks, representative schema/workflow dry runs
+   and the documentation build in the appropriate environment. Record unavailable
+   dependencies and end-to-end testing limitations honestly.
+3. Update VERSION and CHANGELOG.md with breaking changes and migration, changes
+   affecting results, features, fixes and validation limits. Do not imply every
+   historical analysis used the complete version.
+4. Commit the validated candidate and create its matching annotated development
+   tag. Present the commit, version, validation results and release notes before
+   requesting push approval from Will. Main promotion and release publication
+   additionally require explicit approval from both Will and Marusa; record both
+   approvals and their scope. Material changes require renewed approval.
+5. Independently verify remote branches and tags after an approved push. If a
+   stable release is jointly approved, also verify publication and documentation
+   deployment. Distinguish failures from successful local preparation. Archive
+   journal releases with a DOI when archive integration is available; a GitHub
+   release alone is not a DOI.
+
+The former versioning page's initial Siletti roadmap was processing fixes at
+0.2.2, classifier development, then separate code/documentation review before
+joint release approval. Those historical steps are recorded in CHANGELOG.md and
+Git history; they are not pending tasks for the current version.
+
+
+## Compatibility removals for 0.6.0 (2026-10-29)
+
+Will explicitly approved removing the legacy hippocampus installer, the old
+embedded Siletti_Macnair R model from distribution assets, annotation/fine_label
+CSV aliases, train_xgboost.label_map_f, user.profile, shiny.var_names, renamed
+tricycle/join-zoom resource aliases, and historical doublet/report fallbacks.
+Use canonical label CSVs, label_specs_f/coarse_label_specs_f, profile_template,
+metadata_labels and current rule resource names. Coarse evaluation belongs to
+the specification stage; fitting and combining predictions do not read a legacy
+mapping from training-metadata JSON. Current generated inference maps, custom
+model installation, checksums and fitted class-index order remain supported.
+
+### If older doublet reports are needed again
+
+Will specifically requested this recovery note for a future agent session.
+The removed support allowed reports from older outputs without artificial
+doublet scores/calling thresholds, integration tables without saved threshold
+metadata, old threshold method names, and joins with only per-run real scores.
+Current reports require complete diagnostic tables and recorded adaptive/manual
+thresholds; joins use merged real-cell diagnostics from each source project.
+
+The complete pre-removal implementation is in immutable tag v0.5.0, commit
+4aaa93242c7ec8efbd4e56a24f196d09fdf49cbf. Inspect with git show, for example:
+
+    git show v0.5.0:scripts/integration.R
+    git show v0.5.0:resources/rmd_templates/integration.Rmd.template
+    git show v0.5.0:resources/rmd_templates/SampleQC.Rmd.template
+    git show v0.5.0:rules/join.smk
+
+Also compare scripts/doublet_id.R for the newly required diagnostics. Restore
+only the needed reader/report support after discussing the scope with Will;
+do not revert current numerical processing or package changes wholesale. The
+old reports explicitly marked missing diagnostics and unverified historical
+settings. Preserve that distinction: a current config cannot establish an old
+run's calling settings, and unavailable artificial scores must not be invented.
 
 ## Project-specific Instructions for Development
 
@@ -320,9 +443,8 @@ is a location used in examples, not an implicit filename search directory.
 Fixed method constants are distinct from configurable defaults. For example,
 MIN_CLUSTER_MAJORITY_VOTE_CELLS is the fixed 10-training-cell minimum for a cluster
 vote, not a YAML option. Keep such constants named and explained at file level.
-Classifier aggregation requires the training-metadata JSON to determine whether legacy
-coarse mapping was requested; missing metadata is an error, while a recorded
-absence of optional mapping is valid.
+Classifier coarse mapping is optional and comes from label_specs_f in the
+specification stage. The fit and combination stages handle fine labels only.
 
 ### Snakemake workflow files
 

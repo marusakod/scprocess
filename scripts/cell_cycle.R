@@ -61,25 +61,23 @@ load_cell_cycle_report_data <- function(scores_f, origin_f, sensitivity_f,
   gene_legend_labels <- setNames(
     sprintf('%s · %s', marker_annotation[['marker_phase']], marker_annotation[['gene']]),
     marker_annotation[['gene']])
-  target_prop_levels <- as.character(sort(unique(origin_sensitivity[['target_prop']])))
+  density_percentile_levels <- as.character(sort(unique(origin_sensitivity[['density_percentile']])))
   origin_is_manual <- identical(origin[['origin_method']][1], 'manual')
   origin_sensitivity_points <- if (origin_is_manual) {
     origin_sensitivity
   } else {
     origin_sensitivity[selected == FALSE]
   }
+  percentile_caption <- sprintf(
+    'Density percentile: %s; full weight: %s of cells',
+    format_cell_cycle_density_percentile(origin[['density_percentile']][1]),
+    format_cell_cycle_density_percentile(origin[['full_weight_percent']][1]))
   origin_caption <- if (origin_is_manual) {
-    sprintf(
-      'Manual origin: (%g, %g); KDE diagnostic target: %s',
-      origin[['tricycle_pc1_origin']][1],
-      origin[['tricycle_pc2_origin']][1],
-      sprintf('%s (%s expected cells)', format_cell_cycle_target_prop(origin[['target_prop']][1]),
-        scales::comma(round(signif(origin[['expected_retained_cells']][1], 2)))))
+    sprintf('Manual origin: (%g, %g); %s',
+      origin[['tricycle_pc1_origin']][1], origin[['tricycle_pc2_origin']][1],
+      percentile_caption)
   } else {
-    sprintf(
-      'Selected target: %s',
-      sprintf('%s (%s expected cells)', format_cell_cycle_target_prop(origin[['target_prop']][1]),
-        scales::comma(round(signif(origin[['expected_retained_cells']][1], 2)))))
+    percentile_caption
   }
 
   # Per-cell tables, a one-row origin table, marker curves and shared plot styles.
@@ -102,7 +100,7 @@ load_cell_cycle_report_data <- function(scores_f, origin_f, sensitivity_f,
     phase_colours = phase_colours,
     gene_colours = gene_colours,
     gene_legend_labels = gene_legend_labels,
-    target_prop_levels = target_prop_levels,
+    density_percentile_levels = density_percentile_levels,
     origin_sensitivity_points = origin_sensitivity_points,
     origin_caption = origin_caption)
 }
@@ -156,18 +154,18 @@ plot_cell_cycle_pooled_projection <- function(report_data) {
       aes(colour=after_stat(count), fill=after_scale(colour)),
       bins=180, linewidth=0) +
     geom_path(
-      data=report_data$origin_sensitivity[order(target_prop)],
+      data=report_data$origin_sensitivity[order(density_percentile)],
       aes(tricycle_pc1_origin, tricycle_pc2_origin), inherit.aes=FALSE,
       linewidth=1.3, colour='white') +
     geom_path(
-      data=report_data$origin_sensitivity[order(target_prop)],
+      data=report_data$origin_sensitivity[order(density_percentile)],
       aes(tricycle_pc1_origin, tricycle_pc2_origin), inherit.aes=FALSE,
       linewidth=0.55, colour='grey50') +
     geom_point(
       data=report_data$origin_sensitivity_points,
       aes(
         tricycle_pc1_origin, tricycle_pc2_origin,
-        fill=factor(target_prop, levels=report_data$target_prop_levels)),
+        fill=factor(density_percentile, levels=report_data$density_percentile_levels)),
       inherit.aes=FALSE, shape=21, size=2.5, stroke=0.5, colour='grey20') +
     geom_path(data=report_data$blob$ellipse, colour='white', linewidth=1.1) +
     geom_path(data=report_data$blob$ellipse, colour='#D55E00', linewidth=0.6) +
@@ -178,8 +176,8 @@ plot_cell_cycle_pooled_projection <- function(report_data) {
       guide=guide_colourbar(order=1, direction='horizontal')) +
     scale_fill_discrete(
       palette=function(n) grey.colors(n, start=0.88, end=0.28),
-      name='target proportion', limits=report_data$target_prop_levels, drop=FALSE,
-      labels=function(x) format_cell_cycle_target_prop(as.numeric(x)),
+      name='density percentile', limits=report_data$density_percentile_levels, drop=FALSE,
+      labels=function(x) format_cell_cycle_density_percentile(as.numeric(x)),
       guide=guide_legend(order=2, direction='horizontal', nrow=1)) +
     coord_equal(xlim=report_data$pc_x_limits, ylim=report_data$pc_y_limits, expand=FALSE) +
     theme_bw() +
@@ -313,9 +311,9 @@ make_cell_cycle_phase_summary <- function(report_data) {
 }
 
 
-format_cell_cycle_target_prop <- function(x) {
+format_cell_cycle_density_percentile <- function(x) {
   vapply(x, function(value) {
-    paste0(format(100 * value, trim=TRUE, scientific=FALSE, digits=15), '%')
+    paste0(format(value, trim=TRUE, scientific=FALSE, digits=15), '%')
   }, character(1))
 }
 

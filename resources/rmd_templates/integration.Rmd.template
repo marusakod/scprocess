@@ -78,7 +78,7 @@ qc_melt       = fread(qc_f) %>%
 
 ```{r load_integration_results, include = FALSE}
 int_all       = fread(integration_f)
-dbl_threshold = read_doublet_cluster_threshold(int_all, dbl_cl_prop)
+dbl_threshold = read_doublet_cluster_threshold(int_all)
 dbl_cl_prop   = dbl_threshold$threshold
 ```
 
@@ -122,9 +122,7 @@ cell count. Clusters above **`r sprintf('%.1f', dbl_cl_prop * 100)`%** are exclu
 The thresholding method is **`r dbl_threshold$method`**.
 
 ```{r doublet_threshold_details, results = 'asis'}
-if (!dbl_threshold$recorded) {
-  cat('Legacy output has no saved threshold metadata; the configured fixed cutoff is shown.\n')
-} else if (dbl_threshold$method %in% c('adaptive', 'split_mad_mixture')) {
+if (dbl_threshold$method == 'adaptive') {
   print(knitr::kable(data.frame(
     group = c('Below 50%', 'Above 50%'),
     clusters = c(dbl_threshold$n_low, dbl_threshold$n_high),
@@ -132,15 +130,7 @@ if (!dbl_threshold$recorded) {
     median_logit = c(dbl_threshold$median_logit_low, dbl_threshold$median_logit_high),
     scaled_MAD_logit = c(dbl_threshold$scaled_mad_logit_low, dbl_threshold$scaled_mad_logit_high)), digits = 3))
   cat('\nThe applied cutoff is the crossing between the two component centres, without a 50% cap. Clusters exactly at 50% are omitted from estimation: ', dbl_threshold$n_equal_50, '.\n')
-} else if (dbl_threshold$method == 'mean_mad') {
-  knitr::kable(data.frame(
-    reference_clusters = dbl_threshold$n_reference,
-    mean_logit = dbl_threshold$mean_logit,
-    scaled_MAD = dbl_threshold$scaled_mad_logit,
-    MAD_multiplier = dbl_threshold$mad_multiplier,
-    reference_ceiling_pct = 100 * dbl_threshold$reference_ceiling,
-    estimated_threshold_pct = 100 * dbl_threshold$uncapped_threshold,
-    applied_threshold_pct = 100 * dbl_threshold$threshold), digits = 3)
+
 }
 ```
 

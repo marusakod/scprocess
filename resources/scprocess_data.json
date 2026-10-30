@@ -1,0 +1,31 @@
+{
+  "name": "scprocess_data",
+  "version": "v1",
+  "archive_sha256": "322d0d48db0289285ca0e51f6e503b6735f89eb47fd80343435fe10687b8041e",
+  "files": {
+    "gmt_pathways/c2.all.v2023.1.Hs.symbols.gmt": "a215548ef2e5cc409535af405164cb8cbaaf23f335c235eea377f1e6318dfa94",
+    "gmt_pathways/c1.all.v2023.1.Hs.symbols.gmt": "c2ce743ff9bd3459d3d419fdc2259c97876473ce563628d16d071d2ba54aa382",
+    "gmt_pathways/c3.mir.v2023.1.Hs.symbols.gmt": "48c668ea9e2c3df9415d7ad615cb2bb92c4774748198310d6d68c9d1562dd209",
+    "gmt_pathways/c2.cp.v2023.1.Hs.symbols.gmt": "576300e0468736c0e91f6a08d49059a941668452a7203d0ad045c7d659c3696e",
+    "gmt_pathways/c8.all.v2023.1.Hs.symbols.gmt": "1772cec06cd55fcfe83ccb1d710b403de539c29883fece7986f70b8fbac71eab",
+    "gmt_pathways/m5.go.mf.v2023.1.Mm.symbols.gmt": "c11cb9295451113dc78d0c6aa26d5509747968c8fbc920aabc79b2ccc066f7b3",
+    "gmt_pathways/m2.cp.biocarta.v2023.1.Mm.symbols.gmt": "0d8663b6f135fdb05431094f696e7ee1bc5406615853c12a8e488b6f751cf250",
+    "gmt_pathways/c5.hpo.v2023.1.Hs.symbols.gmt": "36f302a1614f40c6e23374cde3396618db922b8d713ff79a9077d52733340951",
+    "gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt": "16c2541012a914768ec0950c2c9695ad329c834096c8b37f68a10df41049d2c8",
+    "gmt_pathways/h.all.v2023.1.Hs.symbols.gmt": "27e48f776cda235ad5b63acaecc3136853ee79c6447d883ce2b070a4d2d47b75",
+    "gmt_pathways/m5.go.bp.v2023.1.Mm.symbols.gmt": "d6c7a4e88ea9262ad19f1d6e3693edc8a41f6037aed2ea7b69c9b8745a40f83b",
+    "gmt_pathways/m2.cp.v2023.1.Mm.symbols.gmt": "5d841d227869c1d03102ef474a03ffbc7363ceeef62a0def8322214edaae21e8",
+    "gmt_pathways/c5.go.bp.v2023.1.Hs.symbols.gmt": "4f684f8c901249b2b822c0a5c196c1dc50ed305299e98803cf2b50eaec7fbf57",
+    "gmt_pathways/c3.tft.v2023.1.Hs.symbols.gmt": "296f0390338ab2573ce16b537f594a39336e123387e8b19e62a26f2a313f1996",
+    "gmt_pathways/c2.cp.kegg.v2023.1.Hs.symbols.gmt": "48de51190366ee388dffe34fa2931e590de43ee5e2a4c27c50c0fc33b9d194fc",
+    "gmt_pathways/c5.go.cc.v2023.1.Hs.symbols.gmt": "f8c183b70878765e75b2e20765e948634bc0a061e683c70ada4da7fe75e8cd5f",
+    "gmt_pathways/m5.go.cc.v2023.1.Mm.symbols.gmt": "23dabed035d78f0e5d53dab86029f5a3f51e2a44e100e5277c677a0f296e4b22",
+    "gmt_pathways/c5.go.mf.v2023.1.Hs.symbols.gmt": "ba71000021723fe7555a472553f581ac17eaba8e960f0bdd7a73c399f203f606",
+    "gmt_pathways/c2.cp.biocarta.v2023.1.Hs.symbols.gmt": "72e4f16da99fc578d4b3e093421226b90f21810a2c5ac810a99b4bdd0acd21dc",
+    "gmt_pathways/c7.immunesigdb.v2023.1.Hs.symbols.gmt": "711c572ead632400124cf0249711ef568295bad152f049e58143d27c92337a2f",
+    "marker_genes/mouse_brain.csv": "6952bb924a68987138b91493f0a7ebad8505e3420f63d4c02808f41d79b01cb6",
+    "marker_genes/human_brain.csv": "6d2905a128874a5296b9dfc50d5fd4a65a013dc314dc08b7667ca51440b85d85"
+  },
+  "url": "https://zenodo.org/records/23803028/files/scprocess_data_archive.tar.gz",
+  "record_doi": "10.5281/zenodo.23803028"
+}

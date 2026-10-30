@@ -31,7 +31,7 @@ def cfg():
     validation_fraction = .4, validation_variable_combinations = ['donor', 'project'],
     min_cells_per_label = 5, excluded_labels = [], train_cells_per_label = 15,
     validation_cells_per_label = 8, sampling_variable_combinations = ['donor', 'tube'], seed = 7,
-    label_map_f = None, cluster_majority_vote_resolution = None, cluster_majority_vote_min_purity = .9)
+    cluster_majority_vote_resolution = None, cluster_majority_vote_min_purity = .9)
 
 
 def assign(data, config):
@@ -42,7 +42,7 @@ def assign(data, config):
 
 def training_metadata_fixture(tmp_path, data, config):
   annotations = tmp_path / 'annotations.csv'
-  data.rename({'label': 'annotation'}).write_csv(annotations)
+  data.write_csv(annotations)
   integration = tmp_path / 'integration.csv'
   data.select('cell_id', pl.col('batch').alias('sample_id'), pl.lit('cl1').alias('RNA_snn_res.2')).write_csv(integration)
   manifest = tmp_path / 'manifest.yaml'
@@ -146,8 +146,6 @@ def test_best_iteration_export():
 
 def test_aggregation_preserves_test_and_counts_unsupported(tmp_path):
   plan = tmp_path / 'training_metadata.csv.gz'
-  metadata_f = Path(str(plan) + '.json')
-  metadata_f.write_text(json.dumps({'configuration': {'label_map_f': None}}))
   pl.DataFrame(dict(cell_id = ['a', 'b', 'c'], label = ['x', 'unseen', 'x'], original_label = ['x', 'unseen', 'x'],
     split = ['train', 'test', 'validation'], selected = [True, False, False],
     label_supported_in_training = [True, False, True])).write_csv(plan, compression = 'gzip')
@@ -167,15 +165,6 @@ def test_aggregation_preserves_test_and_counts_unsupported(tmp_path):
   assert 'development_holdout' in metrics['split']
   assert 'coarse_predicted' not in result.columns
 
-  # Missing metadata must not silently disable a possibly requested mapping.
-  metadata_f.unlink()
-  with pytest.raises(FileNotFoundError, match = 'cannot determine whether coarse-label mapping was requested'):
-    combine_predictions([pred], plan, output, integration)
-
-  # A requested but missing mapping file must also fail instead of being omitted.
-  metadata_f.write_text(json.dumps({'configuration': {'label_map_f': str(tmp_path / 'missing-map.csv')}}))
-  with pytest.raises(FileNotFoundError):
-    combine_predictions([pred], plan, output, integration)
 
 
 def test_validation_only_genes_do_not_pass_detection_filter():
@@ -313,3 +302,57 @@ def test_gene_type_filter_preserves_matrix_and_metadata_alignment(pattern, expec
   np.testing.assert_array_equal(filtered_raw.toarray(), raw_counts[:, expected_indices].toarray())
   np.testing.assert_array_equal(filtered_norm.toarray(), normalized_counts[:, expected_indices].toarray())
   assert filtered_names == [gene_names[index] for index in expected_indices]
+
+
+def test_two_pass_fit_and_separate_coarse_specifications(tmp_path):
+  import anndata as ad
+  import scipy.sparse as sp
+
+  # A small synthetic fixture checks the complete fitting/export interface.
+  rng = np.random.default_rng(31)
+  cell_ids = [f'c{i}' for i in range(48)]
+  labels = ['a' if i % 2 == 0 else 'b' for i in range(48)]
+  means = np.full((48, 12), 2.)
+  for i, label in enumerate(labels):
+    means[i, :6] += 20 if label == 'a' else 0
+    means[i, 6:] += 20 if label == 'b' else 0
+  data = ad.AnnData(sp.csr_matrix(rng.poisson(means)))
+  data.obs_names = cell_ids
+  data.var_names = [f'g{i}' for i in range(12)]
+  data.var['gene_type'] = 'protein_coding'
+  h5ad_f = tmp_path / 'sample.h5ad'
+  data.write_h5ad(h5ad_f)
+  h5ads_f = tmp_path / 'h5ads.yaml'
+  h5ads_f.write_text(yaml.safe_dump({'sample': str(h5ad_f)}))
+  cells_df = pl.DataFrame(dict(cell_id=cell_ids, batch=['sample'] * 48, label=labels,
+    split=['train'] * 32 + ['validation'] * 16, selected=[True] * 48))
+  metadata_f = tmp_path / 'training_metadata.csv.gz'
+  cells_df.write_csv(metadata_f, compression='gzip')
+  model_dir = tmp_path / 'model'
+  training.fit_classifier(metadata_f, h5ads_f, model_dir, 1,
+    xgboost_tag='tiny', use_gpu=False, gene_exclude_re=None,
+    min_cells_expressed=1, seed=31, pass1_subsample=1., pass1_colsample_bytree=.5,
+    pass1_learning_rate=.3, pass1_nrounds=8, pass1_early_stopping=3,
+    gain_threshold=.9, min_genes=2, max_genes=12, pass2_colsample_bytree=.5,
+    pass2_learning_rate=.3, pass2_nrounds=8, pass2_early_stopping=3)
+  model_f = model_dir / 'tiny_xgboost_model.json'
+  model_before = model_f.read_bytes()
+  calls_df = pl.read_csv(model_dir / 'tiny_predictions.csv.gz')
+  assert calls_df.height == 48 and 'coarse_predicted' not in calls_df.columns
+
+  # Coarse evaluation uses the specification stage without changing fitted weights.
+  calls_df = calls_df.with_columns(pl.lit(True).alias('selected'))
+  predictions_f = tmp_path / 'full_predictions.csv.gz'
+  calls_df.write_csv(predictions_f, compression='gzip')
+  counts_df = cells_df.group_by('label').len()
+  counts_f = tmp_path / 'counts.csv'
+  counts_df.write_csv(counts_f)
+  specs_f = tmp_path / 'label_specs.csv'
+  specs_f.write_text('label,coarse_label\na,Neuron\nb,Neuron\n')
+  training.write_label_specifications(model_dir / 'tiny_allowed_cls.csv', counts_f,
+    predictions_f, model_dir, xgboost_tag='tiny', label_specs_f=specs_f,
+    coarse_label_specs_f=None)
+  assert model_f.read_bytes() == model_before
+  metrics_df = pl.read_csv(model_dir / 'tiny_coarse_evaluation.csv')
+  assert set(metrics_df['split']) == {'train', 'validation'}
+  assert metrics_df['accuracy'].to_list() == [1., 1.]

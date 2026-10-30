@@ -69,7 +69,6 @@ do_gsea       = all(nzchar(c(fgsea_go_bp_f, fgsea_go_cc_f, fgsea_go_mf_f)))
 xgb_predictions_f = "${xgb_predictions_f}"
 xgb_importance_f  = "${xgb_importance_f}"
 xgb_pseudobulk_f  = "${xgb_pseudobulk_f}"
-xgb_has_coarse    = as.logical("${xgb_has_coarse}")
 xgb_min_cells     = as.integer("${xgb_min_cells}")
 
 # custom markers for heatmap

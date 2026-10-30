@@ -77,7 +77,6 @@ pb_empty_f    = "${pb_empty_f}"
 xgb_predictions_f = "${xgb_predictions_f}"
 xgb_importance_f  = "${xgb_importance_f}"
 xgb_pseudobulk_f  = "${xgb_pseudobulk_f}"
-xgb_has_coarse    = as.logical("${xgb_has_coarse}")
 xgb_min_cells     = as.integer("${xgb_min_cells}")
 
 # fgsea files

@@ -194,6 +194,13 @@ def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var, lab
   # get all prediction files
   preds_df = pl.concat([ pl.read_csv(f, schema_overrides = {
     'probability_naive': pl.Float64}) for f in pred_fs ], how = "diagonal_relaxed")
+
+  # A shared model name is insufficient when installed weights have changed.
+  if 'model_sha256' in preds_df.columns and len(preds_df):
+    checksums = preds_df['model_sha256']
+    if checksums.null_count() or checksums.n_unique() != 1:
+      raise ValueError('Prediction files contain missing or mixed model checksums; rerun annotation')
+
   # Keep only cell-level prediction columns. This also allows an already
   # aggregated labels file to be re-aggregated against a different integration
   # (for example, the high-resolution clusters from a zoom analysis) without
@@ -292,25 +299,33 @@ def save_cluster_names(labels_f, integration_f, mkr_sel_res, output_f):
   cluster_names_df.write_csv(output_f)
 
 
-def extract_naive_predictions(source_labels_fs, int_f, model_name, pred_f):
+def extract_naive_predictions(source_labels_fs, int_f, model_name, pred_f, model_sha256 = None):
   """Extract naive predictions from source project labels for cells in the join integration."""
   int_df = pl.read_csv(int_f, columns = ["cell_id"])
   valid_cells = set(int_df["cell_id"].to_list())
 
   prediction_dfs = []
-  for f in source_labels_fs:
-    df = pl.read_csv(f)
-    df = df.filter(pl.col("cell_id").is_in(valid_cells)).select(
-      pl.lit(model_name).alias("model"),
-      "cell_id",
-      "predicted_label_naive",
-      "probability_naive",
-    )
-    prediction_dfs.append(df)
+  for path in source_labels_fs:
+    source_df = pl.read_csv(path)
+    source_df = source_df.filter(pl.col("cell_id").is_in(valid_cells))
+    if model_sha256:
+      if ('model_sha256' not in source_df.columns
+          or source_df['model_sha256'].null_count()
+          or not (source_df['model_sha256'] == model_sha256).all()):
+        raise ValueError('Source predictions use different model weights; rerun annotation')
+    identity_columns = [name for name in ('model_id', 'model_sha256') if name in source_df.columns]
+    source_df = source_df.select(
+      pl.lit(model_name).alias('model'), 'cell_id', 'predicted_label_naive',
+      'probability_naive', *identity_columns)
+    prediction_dfs.append(source_df)
 
   predictions_df = pl.concat(prediction_dfs)
-  with gzip.open(pred_f, 'wb') as fh:
-    predictions_df.write_csv(fh)
+
+  # Write the header once and serialize bounded chunks into the gzip stream.
+  with gzip.open(pred_f, 'wt') as stream:
+    stream.write(predictions_df.head(0).write_csv())
+    for batch_df in predictions_df.iter_slices(n_rows = 100_000):
+      stream.write(batch_df.write_csv(include_header = False))
 
 
 def main():
@@ -362,6 +377,7 @@ def main():
   names_prsr.add_argument("--output_f",      type = str, required = True)
 
   # extract_naive_predictions arguments
+  extract_prsr.add_argument("--model_sha256")
   extract_prsr.add_argument(  "source_labels_fs", type = str, nargs = "+")
   extract_prsr.add_argument("--int_f",        type = str, required = True)
   extract_prsr.add_argument("--model",        type = str, required = True)
@@ -423,7 +439,7 @@ def main():
 
   elif args.subcommand == "extract_naive_predictions":
     extract_naive_predictions(
-      args.source_labels_fs, args.int_f, args.model, args.pred_f)
+      args.source_labels_fs, args.int_f, args.model, args.pred_f, model_sha256 = args.model_sha256)
 
   elif args.subcommand == "download_models":
     download_celltypist_models(args.models_f)

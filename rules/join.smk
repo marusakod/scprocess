@@ -52,7 +52,7 @@ H5ADS_YAML_FS     = JOIN_PROJ['h5ads_yaml_fs']
 INTEGRATED_FS     = JOIN_PROJ['integrated_fs']
 SAMPLE_META_FS    = JOIN_PROJ['sample_meta_fs']
 QC_ALL_FS         = JOIN_PROJ['qc_all_fs']
-# Prefer merged real-cell diagnostics; legacy projects may have only per-run scores.
+# Source projects must provide the merged real-cell diagnostic table.
 import shlex
 JOIN_DOUBLET_INPUTS = []
 if not JOIN_ZOOM_PARAMS:
@@ -60,9 +60,7 @@ if not JOIN_ZOOM_PARAMS:
     _pcfg = PROJECT_CFGS[_pid]['project']
     _ddir = pathlib.Path(_pcfg['proj_dir']) / 'output' / f"{_pcfg['short_tag']}_doublet_id"
     _merged = _ddir / f"scDblFinder_real_all_runs_{_pcfg['full_tag']}_{_pcfg['date_stamp']}.csv.gz"
-    _paths = [_merged] if _merged.is_file() else sorted(_ddir.glob(
-      f"dbl_*/scDblFinder_*_outputs_{_pcfg['full_tag']}_{_pcfg['date_stamp']}.csv.gz"))
-    JOIN_DOUBLET_INPUTS.extend((_pid, str(path)) for path in _paths)
+    JOIN_DOUBLET_INPUTS.append((_pid, str(_merged)))
 JOIN_DOUBLET_ARGS = ('--doublet_project_ids ' + shlex.join([pid for pid, path in JOIN_DOUBLET_INPUTS]) +
                     ' --doublet_fs ' + shlex.join([path for pid, path in JOIN_DOUBLET_INPUTS])) if JOIN_DOUBLET_INPUTS else ''
 
@@ -741,7 +739,8 @@ def _get_labeller_entry(labeller, model):
 
 def _join_merge_labels_inputs(wildcards):
   fresh_batches, reuse_label_fs = get_join_batch_sources(
-    PROJECT_CFGS, JOIN_PROJECT_IDS, JOIN_BATCH_KEYS, wildcards.labeller, wildcards.model)
+    PROJECT_CFGS, JOIN_PROJECT_IDS, JOIN_BATCH_KEYS, wildcards.labeller, wildcards.model,
+    model_sha256 = _get_labeller_entry(wildcards.labeller, wildcards.model).get('model_sha256'))
   pred_fs = expand(
     f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz",
     batch=fresh_batches, allow_missing=True)
@@ -812,10 +811,14 @@ rule join_scprocess_labeller:
 rule join_extract_labels:
   """Extract naive predictions from source project labels for cells in the join."""
   input:
-    source_labels_fs = lambda wildcards: get_join_batch_sources(PROJECT_CFGS, JOIN_PROJECT_IDS, JOIN_BATCH_KEYS, wildcards.labeller, wildcards.model)[1],
+    source_labels_fs = lambda wildcards: get_join_batch_sources(
+      PROJECT_CFGS, JOIN_PROJECT_IDS, JOIN_BATCH_KEYS, wildcards.labeller, wildcards.model,
+      model_sha256 = _get_labeller_entry(wildcards.labeller, wildcards.model).get('model_sha256'))[1],
     integration_f    = joint_integration_f
   output:
     pred_f = temp(f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_reused.csv.gz")
+  params:
+    model_sha256 = lambda wildcards: _get_labeller_entry(wildcards.labeller, wildcards.model).get('model_sha256') or ''
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_extract_labels', 'memory', attempt),
@@ -830,6 +833,7 @@ rule join_extract_labels:
       {input.source_labels_fs} \
       --int_f     {input.integration_f} \
       --model     {wildcards.model} \
+      --model_sha256={params.model_sha256:q} \
       --pred_f    {output.pred_f}
     """
 
@@ -957,7 +961,6 @@ rule join_render_html:
     xgb_importance_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv' if DO_TRAIN_XGB else '',
     xgb_model_card_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_model_card.json' if DO_TRAIN_XGB else '',
     xgb_pseudobulk_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad' if DO_TRAIN_XGB else '',
-    xgb_has_coarse    = ("true" if _join_xgb_cfg.get('label_map_f') else "false") if DO_TRAIN_XGB else 'false',
     xgb_min_cells     = _join_xgb_cfg.get('min_cells_expressed', 10) if DO_TRAIN_XGB else 10
   threads: 1
   retries: config['resources']['retries']
@@ -1028,7 +1031,6 @@ rule join_render_html:
       xgb_importance_f  = '{params.xgb_importance_f}',
       xgb_model_card_f  = '{params.xgb_model_card_f}',
       xgb_pseudobulk_f  = '{params.xgb_pseudobulk_f}',
-      xgb_has_coarse    = '{params.xgb_has_coarse}',
       xgb_min_cells     = '{params.xgb_min_cells}'
     )"
     """
@@ -1041,7 +1043,6 @@ if DO_TRAIN_XGB:
       annots_f = _join_xgb_cfg['annots_f'],
       integration_f = joint_integration_f,
       h5ads_yaml = joint_h5ads_yaml_f,
-      label_map = [_join_xgb_cfg['label_map_f']] if _join_xgb_cfg.get('label_map_f') else [],
       planner = str(scprocess_dir / 'scripts/train_xgboost.py'),
     output:
       training_metadata_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_metadata.csv.gz',
@@ -1050,7 +1051,6 @@ if DO_TRAIN_XGB:
       metadata_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_metadata.csv.gz' + '.json',
     params:
       excluded_labels                  = _join_xgb_cfg['excluded_labels'],
-      label_map_f                      = _join_xgb_cfg.get('label_map_f') or '',
       cluster_majority_vote_resolution = _join_xgb_cfg.get('cluster_majority_vote_resolution', ''),
       cluster_majority_vote_min_purity = _join_xgb_cfg['cluster_majority_vote_min_purity'],
       test_group_var                   = _join_xgb_cfg.get('test_group_var') or '',
@@ -1079,7 +1079,6 @@ if DO_TRAIN_XGB:
         --h5ads_yaml {input.h5ads_yaml:q} --batch_var {params.batch_var:q} \
         --is_join {params.is_join} \
         --excluded_labels {params.excluded_labels:q} \
-        --label_map_f={params.label_map_f:q} \
         --cluster_majority_vote_resolution={params.cluster_majority_vote_resolution:q} \
         --cluster_majority_vote_min_purity {params.cluster_majority_vote_min_purity:q} \
         --test_group_var={params.test_group_var:q} \
@@ -1128,7 +1127,6 @@ if DO_TRAIN_XGB:
       pass2_learning_rate    = _join_xgb_cfg['pass2_learning_rate'],
       pass2_nrounds          = _join_xgb_cfg['pass2_nrounds'],
       pass2_early_stopping   = _join_xgb_cfg['pass2_early_stopping'],
-      label_map_f            = _join_xgb_cfg.get('label_map_f') or '',
     threads: 8
     retries: config['resources']['retries']
     resources:
@@ -1161,7 +1159,7 @@ if DO_TRAIN_XGB:
         --pass2_learning_rate {params.pass2_learning_rate:q} \
         --pass2_nrounds {params.pass2_nrounds:q} \
         --pass2_early_stopping {params.pass2_early_stopping:q} \
-        --label_map_f={params.label_map_f:q} --output_dir {params.output_dir:q} \
+        --output_dir {params.output_dir:q} \
         --n_cores {threads}
       """
 
@@ -1211,7 +1209,6 @@ if DO_TRAIN_XGB:
       fulldata_f = _join_xgb_fulldata_f
     params:
       ref_tag      = _join_xgb_ref_tag,
-      label_map_f  = _join_xgb_cfg.get('label_map_f') or '',
     retries: config['resources']['retries']
     resources:
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_combine', 'memory', attempt),
@@ -1246,7 +1243,6 @@ if DO_TRAIN_XGB:
       xgboost_tag          = _join_xgb_cfg['xgboost_tag'],
       label_specs_f        = _join_xgb_cfg.get('label_specs_f') or '',
       coarse_label_specs_f = _join_xgb_cfg.get('coarse_label_specs_f') or '',
-      label_map_f          = _join_xgb_cfg.get('label_map_f') or '',
       output_dir = str(pathlib.Path(f'{join_xgb_dir}/{_join_xgb_ref_tag}').parent),
     threads: 1
     resources:
@@ -1261,7 +1257,6 @@ if DO_TRAIN_XGB:
         --predictions_f {input.predictions_f:q} --xgboost_tag {params.xgboost_tag:q} \
         --label_specs_f={params.label_specs_f:q} \
         --coarse_label_specs_f={params.coarse_label_specs_f:q} \
-        --label_map_f={params.label_map_f:q} \
         --output_dir {params.output_dir:q}
       """
 
@@ -1294,7 +1289,6 @@ if DO_TRAIN_XGB:
       label_counts_f       = f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_counts.csv',
       fulldata_predictions_f = _join_xgb_fulldata_f,
       integration_f        = joint_integration_f,
-      has_coarse           = "true" if _join_xgb_cfg.get('label_map_f') else "false",
       min_cells            = _join_xgb_cfg.get('min_cells_expressed', 10),
     threads: 1
     retries: config['resources']['retries']
@@ -1333,7 +1327,6 @@ if DO_TRAIN_XGB:
           label_counts_f         = '{params.label_counts_f}',
           fulldata_predictions_f = '{params.fulldata_predictions_f}',
           integration_f          = '{params.integration_f}',
-          has_coarse             = '{params.has_coarse}',
           min_cells              = '{params.min_cells}',
           n_cores                = '{threads}'
         )"

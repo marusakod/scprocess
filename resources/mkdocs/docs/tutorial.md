@@ -60,15 +60,19 @@ To download input files for {{sc}} run the following lines:
 
 ```bash
 # download all raw sequencing files into data/fastqs
-curl -s https://api.github.com/repos/marusakod/scprocessData/releases/tags/v0.1.0 \
-| grep -o "https://.*GSM.*\.tar\.gz" \
-| wget -c --show-progress -P data/fastqs -i -
+for file in \
+  GSM8612257_SRR31256781_raw_data.tar.gz \
+  GSM8612258_SRR31256780_raw_data.tar.gz \
+  GSM8612262_SRR31256771_raw_data.tar.gz \
+  GSM8612261_SRR31256774_raw_data.tar.gz; do
+  wget -c --show-progress -P data/fastqs "https://zenodo.org/records/23803028/files/$file"
+done
 
 # extract raw sequencing files
 for file in data/fastqs/GSM*.tar.gz; do tar -xzvf "$file" -C data/fastqs && rm "$file"; done
 
 # download sample metadata into data/metadata
-wget -P data/metadata https://github.com/marusakod/scprocessData/releases/download/v0.1.0/test_project_metadata.csv
+wget -P data/metadata https://zenodo.org/records/23803028/files/test_project_metadata.csv
 ```
 
 With `ls data/fastqs` you should be able to see the following files:
@@ -356,9 +360,13 @@ To download input files for {{sc}} run the following lines:
 
 ```bash
 # download all raw sequencing files into data/fastqs
-curl -s https://api.github.com/repos/marusakod/scprocessData/releases/tags/v0.1.0 \
-| grep -o "https://.*run.*\.tar\.gz" \
-| wget -c --show-progress -P data/fastqs -i -
+for file in \
+  run1_rna_raw_data.tar.gz \
+  run2_rna_raw_data.tar.gz \
+  run1_hto_raw_data.tar.gz \
+  run2_hto_raw_data.tar.gz; do
+  wget -c --show-progress -P data/fastqs "https://zenodo.org/records/23803028/files/$file"
+done
 
 # extract gene expression sequening files
 for file in data/fastqs/run*_rna*.tar.gz; do tar -xzvf "$file" -C data/fastqs/rna && rm "$file"; done
@@ -367,10 +375,10 @@ for file in data/fastqs/run*_rna*.tar.gz; do tar -xzvf "$file" -C data/fastqs/rn
 for file in data/fastqs/run*_hto*.tar.gz; do tar -xzvf "$file" -C data/fastqs/hto && rm "$file"; done
 
 # download sample metadata into data/metadata
-wget -P data/metadata https://github.com/marusakod/scprocessData/releases/download/v0.1.0/multiplexed_test_project_metadata.csv
+wget -P data/metadata https://zenodo.org/records/23803028/files/multiplexed_test_project_metadata.csv
 
 # dowload feature reference file into data/metadata
-wget -P data/metadata https://github.com/marusakod/scprocessData/releases/download/v0.1.0/multiplexed_test_project_feature_ref.csv
+wget -P data/metadata https://zenodo.org/records/23803028/files/multiplexed_test_project_feature_ref.csv
 ```
 
 With `ls data/fastqs/rna` you should be able to see the following files:

@@ -1,7 +1,7 @@
 source('scripts/cell_cycle.R')
 stopifnot(identical(
-  format_cell_cycle_target_prop(c(0.005, 0.01, 0.9, 1, 0.000005)),
-  c('0.5%', '1%', '90%', '100%', '0.0005%')))
+  format_cell_cycle_density_percentile(c(0.5, 1.3, 90, 100, 0)),
+  c('0.5%', '1.3%', '90%', '100%', '0%')))
 setDTthreads(1)
 set.seed(41)
 weights <- c(0.001, 0.01, 0.1, 0.2, 0.2)

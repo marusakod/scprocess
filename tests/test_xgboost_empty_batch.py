@@ -27,7 +27,6 @@ def test_empty_placeholder_needs_no_model(tmp_path):
 
 def test_header_only_batch_and_complete_membership(tmp_path):
     plan = tmp_path / 'training_metadata.csv.gz'
-    Path(str(plan) + '.json').write_text(json.dumps({'configuration': {'label_map_f': None}}))
     pd.DataFrame(dict(cell_id=['a', 'b'], label=['x', 'y'],
         original_label=['x', 'y'], split=['train', 'test'],
         selected=[True, False], label_supported_in_training=[True, True])).to_csv(plan, index=False)

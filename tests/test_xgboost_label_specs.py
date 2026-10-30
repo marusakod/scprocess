@@ -44,11 +44,12 @@ def test_independent_order_and_colours(tmp_path):
     assert label_mapping(labels)=={'b':'group2','a':'group1'}
 
 
-@pytest.mark.parametrize('alias',['annotation','fine_label','label'])
-def test_legacy_input_names(tmp_path,alias):
-    path=tmp_path/'labels.csv';path.write_text(f'{alias},coarse_label\na,A\n')
-    labels,_=read_label_specs(label_map_f=path,labels=['a'])
-    assert labels[0]['label']=='a'
+@pytest.mark.parametrize('alias', ['annotation', 'fine_label'])
+def test_noncanonical_label_columns_are_rejected(tmp_path, alias):
+    path = tmp_path / 'labels.csv'
+    path.write_text(f'{alias},coarse_label\na,A\n')
+    with pytest.raises(ValueError, match="must have a 'label' column"):
+        read_label_specs(label_specs_f=path, labels=['a'])
 
 
 @pytest.mark.parametrize('contents,match',[
@@ -56,7 +57,7 @@ def test_legacy_input_names(tmp_path,alias):
     ('label,colour\na,red\n','Invalid colour'),
     ('label,colour\na,#112233\nb,\n','every label'),
     ('label,coarse_label\na,A\nb,\n','every label'),
-    ('label,annotation\na,a\n','one label column')])
+    ('annotation\na\n', "must have a 'label' column")])
 def test_invalid_specifications_fail(tmp_path,contents,match):
     path=tmp_path/'labels.csv';path.write_text(contents)
     with pytest.raises(ValueError,match=match):read_label_specs(path)
@@ -67,7 +68,6 @@ def test_mapping_coverage_and_coarse_groups(tmp_path):
     with pytest.raises(ValueError,match='miss model labels'):read_label_specs(fine,coarse,['unknown'])
     coarse.write_text('coarse_label\ngroup1\n')
     with pytest.raises(ValueError,match='miss groups'):read_label_specs(fine,coarse)
-    with pytest.raises(ValueError,match='not both'):read_label_specs(fine,label_map_f=fine)
 
 
 def test_display_only_and_optional_coarse_table(tmp_path):
@@ -96,7 +96,7 @@ def test_export_and_coarse_metrics_use_direct_mapping(tmp_path):
     predictions=tmp_path/'predictions.csv.gz'
     pd.DataFrame(dict(label=['a','b'],predicted_label=['b','a'],split=['test','test'],
         selected=[False,False])).to_csv(predictions,index=False)
-    write_label_specifications(classes, counts, predictions, tmp_path, xgboost_tag='demo', label_specs_f=str(fine), coarse_label_specs_f=None, label_map_f=None)
+    write_label_specifications(classes, counts, predictions, tmp_path, xgboost_tag='demo', label_specs_f=str(fine), coarse_label_specs_f=None)
     result=pd.read_csv(tmp_path/'demo_coarse_evaluation.csv')
     assert result.loc[0,'accuracy']==1 and result.loc[0,'n_cells']==2
     assert pd.read_csv(tmp_path/'demo_label_specs.csv').label.tolist()==['b','a']
@@ -106,7 +106,7 @@ def test_export_and_coarse_metrics_use_direct_mapping(tmp_path):
 def test_no_coarse_mapping_writes_empty_metrics(tmp_path):
     classes=tmp_path/'classes.csv';classes.write_text('class\na\n')
     counts=tmp_path/'counts.csv';counts.write_text('label,len\na,1\n')
-    write_label_specifications(classes, counts, 'unused', tmp_path, xgboost_tag='demo', label_specs_f=None, coarse_label_specs_f=None, label_map_f=None)
+    write_label_specifications(classes, counts, 'unused', tmp_path, xgboost_tag='demo', label_specs_f=None, coarse_label_specs_f=None)
     assert pd.read_csv(tmp_path/'demo_coarse_evaluation.csv').empty
     assert pd.read_csv(tmp_path/'demo_coarse_label_specs.csv').empty
 

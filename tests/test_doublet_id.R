@@ -116,4 +116,15 @@ local({
     !grepl('Error', knitted, fixed = TRUE))
 })
 
+# An older run's empty artificial table or missing threshold cannot supply the
+# diagnostics required by current reports.
+fwrite(artificial[0], artificial_f)
+incomplete = tryCatch(load_doublet_id_data(real_f, artificial_f, summary_f, 'sample_id'), error = identity)
+stopifnot(inherits(incomplete, 'error'), grepl('rerun QC', conditionMessage(incomplete)))
+fwrite(artificial, artificial_f)
+summary[, calling_threshold := NA_real_]
+fwrite(summary, summary_f)
+incomplete = tryCatch(load_doublet_id_data(real_f, artificial_f, summary_f, 'sample_id'), error = identity)
+stopifnot(inherits(incomplete, 'error'), grepl('rerun QC', conditionMessage(incomplete)))
+
 unlink(tmp_dir, recursive = TRUE)

@@ -31,6 +31,14 @@ load_doublet_id_data <- function(real_f, artificial_f, summary_f, run_var) {
       any(real$score < 0 | real$score > 1) ||
       any(artificial$score < 0 | artificial$score > 1))
     stop('scDblFinder scores must be finite and between zero and one')
+  # Complete current diagnostics are required; empty placeholder tables cannot
+  # reconstruct the artificial scores or thresholds from an older run.
+  if (!nrow(summary) || any(summary$n_real <= 0) || any(summary$n_artificial <= 0) ||
+      any(!is.finite(summary$calling_threshold)) ||
+      any(summary$calling_threshold < 0 | summary$calling_threshold > 1) ||
+      !setequal(real[[run_var]], summary[[run_var]]) ||
+      !setequal(artificial[[run_var]], summary[[run_var]]))
+    stop('Incomplete doublet diagnostics; rerun QC before rendering this report.')
   if (anyDuplicated(summary[[run_var]]))
     stop('Doublet summary has more than one row per ', run_var)
 

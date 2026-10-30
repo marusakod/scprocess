@@ -354,26 +354,23 @@ make_clean_sce_from_h5ad <- function(sel_batch, adata_f, sce_f){
   message('saving sce object for ', sel_batch)
   saveRDS(sce, file=sce_f, compress = FALSE)
 }
-read_doublet_cluster_threshold <- function(integration_dt, legacy_cutoff) {
-  if (!'dbl_threshold' %in% names(integration_dt)) {
-    return(list(threshold = legacy_cutoff, method = 'legacy fixed',
-      n_reference = NA_integer_, mean_logit = NA_real_, scaled_mad_logit = NA_real_,
-      mad_multiplier = NA_real_, reference_ceiling = legacy_cutoff,
-      uncapped_threshold = NA_real_, recorded = FALSE))
-  }
-  keys = c('threshold', 'method', 'n_reference', 'mean_logit', 'scaled_mad_logit',
-    'mad_multiplier', 'reference_ceiling', 'uncapped_threshold')
+read_doublet_cluster_threshold <- function(integration_dt) {
+  # Reports use the cutoff recorded during processing, never today's config.
+  keys = c('threshold', 'method')
   values = lapply(keys, function(key) {
     column = if (key == 'threshold') 'dbl_threshold' else paste0('dbl_threshold_', key)
-    if (!column %in% names(integration_dt)) stop('Threshold metadata lacks ', column)
+    if (!column %in% names(integration_dt))
+      stop('Threshold metadata lacks ', column, '; rerun integration before rendering.')
     value = unique(na.omit(integration_dt[[column]]))
-    if (length(value) > 1L) stop('Inconsistent doublet threshold metadata: ', column)
-    if (length(value) == 0L) NA else value[[1L]]
+    if (length(value) != 1L) stop('Missing or inconsistent threshold metadata: ', column)
+    value[[1L]]
   })
   names(values) = keys
   if (!is.finite(values$threshold) || values$threshold < 0 || values$threshold > 1)
     stop('Invalid recorded doublet-cluster threshold')
-  if (values$method %in% c('adaptive', 'split_mad_mixture')) {
+  if (!values$method %in% c('adaptive', 'manual'))
+    stop('Unsupported recorded doublet threshold method: ', values$method)
+  if (values$method == 'adaptive') {
     mixture_keys = c('n_low', 'n_high', 'n_equal_50', 'median_logit_low', 'median_logit_high',
       'scaled_mad_logit_low', 'scaled_mad_logit_high', 'weight_low', 'weight_high')
     for (key in mixture_keys) {
@@ -384,7 +381,6 @@ read_doublet_cluster_threshold <- function(integration_dt, legacy_cutoff) {
       values[[key]] = value[[1L]]
     }
   }
-  values$recorded = TRUE
   values
 }
 

@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.6.0 — Unreleased development candidate
+
+- Update the shared Python rule environment from Python 3.10 to 3.12,
+  including its ABI pin. Setup checksum verification uses hashlib.file_digest;
+  Snakemake creates a new environment from the updated specification.
+
+- Replace `cell_cycle.cyc_target_prop` with required `cyc_density_percentile`
+  (0–100). The selected cell-density percentile sets the full-weight threshold;
+  denser cells are weighted inversely by density. The diagnostic grid is now
+  `cyc_density_percentile_grid`, default `[0, 0.1, 0.3, 1, 3, 10, 100]`.
+  This changes origin selection: old proportions cannot simply be renamed or
+  multiplied by 100. Saved origin/sensitivity tables and reports use percentile
+  metadata; regenerate aggregation and affected downstream results after choosing
+  a percentile. Per-run projections can be reused. No old-input alias is provided.
+
+- Remove the retired hippocampus classifier download and its separate installer.
+- Require canonical `label` input columns and the optional `label_specs_f` /
+  `coarse_label_specs_f` tables; remove the old training `label_map_f` interface.
+  Coarse evaluation remains separate from model fitting.
+- Remove deprecated `user.profile`, `shiny.var_names` and former tricycle/
+  join-zoom resource names. Use the current schema names.
+- Require saved doublet diagnostics and adaptive/manual integration threshold
+  metadata when rendering reports; remove support for older incomplete outputs.
+  Recovery guidance for future agent sessions is recorded in AGENTS.md.
+- Download support data, reference annotations/indices and tutorial inputs from
+  pinned Zenodo records. Verify support/model archives and members before installing.
+- Reuse source-project XGBoost calls in joins only when the model checksum
+  matches; retain identity fields and reject mixed-weight prediction files.
+- Ship the reviewed 32-label/2,386-gene human_cns-v1 replacement, including its
+  fine/coarse specifications and evaluation summaries; fitted weights are unchanged.
+- Separate support-data updates from Cell Ranger whitelist extraction. Preserve
+  other registered custom classifiers when refreshing the installed model list.
+
 ## 0.5.0 — Unreleased development candidate
 
 - Add `marker_genes.mkr_dispersion_use_clusters` (default `true`) to projects,

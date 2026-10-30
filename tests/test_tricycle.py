@@ -11,8 +11,9 @@ from scripts.tricycle import (
   aggregate_tricycle,
   _bandwidth_nrd,
   _binned_kde_density,
-  _density_equalized_probabilities,
+  _density_equalized_weights,
   _diagnostic_downsample,
+  _estimate_origin_sensitivity,
 )
 
 
@@ -29,7 +30,7 @@ def test_cell_cycle_is_optional_and_not_materialized_by_defaults():
   assert 'enabled' not in cell_cycle_schema['properties']
   assert set(cell_cycle_schema['properties']) == {
     'cyc_bandwidth_multiplier', 'cyc_kde_grid_size',
-    'cyc_target_prop', 'cyc_target_prop_grid', 'cyc_origin_manual', 'cyc_seed',
+    'cyc_density_percentile', 'cyc_density_percentile_grid', 'cyc_origin_manual', 'cyc_seed',
   }
 
 
@@ -37,11 +38,11 @@ def test_present_cell_cycle_block_receives_prefixed_defaults():
   from scripts.scprocess_utils import _get_default_config_from_schema
 
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
-  defaults = _get_default_config_from_schema(schema, {'cell_cycle': {'cyc_target_prop': 0.01}})
+  defaults = _get_default_config_from_schema(schema, {'cell_cycle': {'cyc_density_percentile': 1.3}})
   assert defaults['cell_cycle'] == {
     'cyc_bandwidth_multiplier': 1.0,
     'cyc_kde_grid_size': 500,
-    'cyc_target_prop_grid': [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1],
+    'cyc_density_percentile_grid': [0, 0.1, 0.3, 1, 3, 10, 100],
     'cyc_seed': 20230308,
   }
 
@@ -50,19 +51,74 @@ def test_manual_origin_schema_requires_exactly_two_numbers():
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
   cell_cycle_schema = schema['properties']['cell_cycle']
 
-  jsonschema.validate({'cyc_target_prop': 0.01, 'cyc_origin_manual': [-3, 1]}, cell_cycle_schema)
+  jsonschema.validate({'cyc_density_percentile': 1.3, 'cyc_origin_manual': [-3, 1]}, cell_cycle_schema)
   for invalid_origin in ([-3], [-3, 1, 2], ['-3', 1]):
     with pytest.raises(jsonschema.ValidationError):
-      jsonschema.validate({'cyc_target_prop': 0.01, 'cyc_origin_manual': invalid_origin}, cell_cycle_schema)
+      jsonschema.validate({'cyc_density_percentile': 1.3, 'cyc_origin_manual': invalid_origin}, cell_cycle_schema)
 
 
-def test_density_equalization_is_capped_and_has_requested_expectation():
+def test_density_percentile_sets_threshold_and_capped_inverse_density_weights():
   density = np.array([0.1, 0.2, 1.0, 2.0, 10.0])
-  probabilities = _density_equalized_probabilities(density, 3)
-  assert np.all((probabilities > 0) & (probabilities <= 1))
-  assert probabilities.sum() == pytest.approx(3)
-  assert probabilities[0] == 1
-  assert probabilities[-1] < probabilities[-2]
+  weights, threshold = _density_equalized_weights(density, 25)
+  assert threshold == pytest.approx(0.2)
+  np.testing.assert_allclose(weights, [1, 1, 0.2, 0.1, 0.02])
+
+
+def test_density_percentile_endpoints_and_ties():
+  density = np.array([0.1, 0.1, 0.2, 1.0])
+  inverse_weights, threshold = _density_equalized_weights(density, 0)
+  assert threshold == density.min()
+  np.testing.assert_allclose(inverse_weights, density.min() / density)
+  equal_weights, threshold = _density_equalized_weights(density, 100)
+  assert threshold == density.max()
+  np.testing.assert_array_equal(equal_weights, np.ones(4))
+  tied_weights, _ = _density_equalized_weights(density, 10)
+  assert np.mean(tied_weights == 1) == 0.5
+  for percentile in (0, 1.3, 100):
+    weights, _ = _density_equalized_weights(np.ones(5), percentile)
+    np.testing.assert_array_equal(weights, np.ones(5))
+
+
+def test_sensitivity_includes_selected_percentile_and_records_actual_full_weights():
+  points = np.array([[0, 0], [2, 0], [0, 2], [2, 2]], dtype = float)
+  density = np.array([1, 1, 2, 4], dtype = float)
+  sensitivity_df, weights, origin = _estimate_origin_sensitivity(points, density, 1.3, [100, 0])
+  assert sensitivity_df['density_percentile'].to_list() == [0, 1.3, 100]
+  assert sensitivity_df['selected'].to_list() == [False, True, False]
+  selected = sensitivity_df.filter(pl.col('selected')).row(0, named = True)
+  assert selected['density_threshold'] == 1
+  assert selected['n_full_weight_cells'] == 2
+  assert selected['full_weight_percent'] == 50
+  np.testing.assert_allclose(weights, [1, 1, 0.5, 0.25])
+  np.testing.assert_allclose(origin, [2.5 / 2.75, 1.5 / 2.75])
+  equal_origin = sensitivity_df.filter(pl.col('density_percentile') == 100)
+  np.testing.assert_allclose(equal_origin.select('tricycle_pc1_origin', 'tricycle_pc2_origin'), [[1, 1]])
+
+
+def test_percentile_weights_are_invariant_to_density_units():
+  density = np.array([0.1, 0.2, 1, 2, 10])
+  for percentile in (0, 1.3, 30, 100):
+    weights, threshold = _density_equalized_weights(density, percentile)
+    rescaled_weights, rescaled_threshold = _density_equalized_weights(density * 100, percentile)
+    np.testing.assert_allclose(weights, rescaled_weights)
+    assert rescaled_threshold == pytest.approx(threshold * 100)
+
+
+@pytest.mark.parametrize('percentile', [-1, 101, float('nan'), float('inf')])
+def test_origin_rejects_invalid_percentiles(percentile):
+  with pytest.raises(ValueError, match='must be in'):
+    _estimate_origin_sensitivity(np.eye(2), np.ones(2), percentile, [])
+
+
+def test_old_density_target_settings_and_invalid_grids_are_rejected():
+  schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
+  cell_cycle_schema = schema['properties']['cell_cycle']
+  for old_key, old_value in [('cyc_target_prop', 0.01), ('cyc_target_prop_grid', [0.01])]:
+    with pytest.raises(jsonschema.ValidationError):
+      jsonschema.validate({'cyc_density_percentile': 1.3, old_key: old_value}, cell_cycle_schema)
+  for grid in [[-0.1], [100.1], [True], [None], [1, 1]]:
+    with pytest.raises(jsonschema.ValidationError):
+      jsonschema.validate({'cyc_density_percentile': 1.3, 'cyc_density_percentile_grid': grid}, cell_cycle_schema)
 
 
 def test_binned_kde_is_deterministic_and_positive():
@@ -79,23 +135,22 @@ def test_binned_kde_is_deterministic_and_positive():
   assert np.all(density_1 > 0)
 
 
-def test_fractional_expectation_and_diagnostic_draw():
-  density = np.array([0.1, 0.2, 1.0, 2.0, 10.0])
-  p = _density_equalized_probabilities(density, 0.37)
-  assert p.sum() == pytest.approx(0.37)
-  draw, index = _diagnostic_downsample(p, 7)
-  again, again_index = _diagnostic_downsample(p, 7)
+def test_density_percentile_interpolation_and_diagnostic_draw():
+  density = np.array([1.0, 3.0, 10.0, 20.0, 100.0])
+  weights, threshold = _density_equalized_weights(density, 1.3)
+  assert threshold == pytest.approx(1.104)
+  draw, index = _diagnostic_downsample(weights, 7)
+  again, again_index = _diagnostic_downsample(weights, 7)
   np.testing.assert_array_equal(draw, again)
   assert index == again_index
-  first = np.random.default_rng(7).random(len(p)) < p
-  assert abs(draw.sum()-p.sum()) <= abs(first.sum()-p.sum())
-  np.testing.assert_array_equal(_density_equalized_probabilities(density, len(density)), np.ones(5))
+  first = np.random.default_rng(7).random(len(weights)) < weights
+  assert abs(draw.sum() - weights.sum()) <= abs(first.sum() - weights.sum())
 
 
 def test_ellipse_parameter_is_rejected():
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
   with pytest.raises(jsonschema.ValidationError):
-    jsonschema.validate({'cyc_target_prop': 0.01, 'cyc_origin_line_fraction': 'auto'},
+    jsonschema.validate({'cyc_density_percentile': 1.3, 'cyc_origin_line_fraction': 'auto'},
                         schema['properties']['cell_cycle'])
 
 
@@ -166,7 +221,7 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
 
   scores, marker_expression, origin, sensitivity, diagnostics = aggregate_tricycle(
     [score_f], [marker_expression_f], [summary_f], coldata_f, [], 1.0, 500,
-    2/3, [1/3, 2/3, 1], 7, out_scores_f, out_marker_expression_f, out_origin_f,
+    25, [0, 25, 100], 7, out_scores_f, out_marker_expression_f, out_origin_f,
     out_sensitivity_f, out_diagnostics_f,
   )
 
@@ -181,7 +236,9 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
   assert origin['projection_centring_method'][0] == 'pooled_project_mean'
   assert 'inclusion_probability' in diagnostics.columns
   assert diagnostics['inclusion_probability'].max() <= 1
-  assert sensitivity['target_prop'].to_list() == [1/3, 2/3, 1]
+  assert sensitivity['density_percentile'].to_list() == [0, 25, 100]
+  assert 'density_threshold' in origin.columns
+  assert 'full_weight_percent' in origin.columns
   assert sensitivity['selected'].to_list() == [False, True, False]
   assert out_sensitivity_f.exists()
   np.testing.assert_allclose(
@@ -197,12 +254,12 @@ def test_aggregate_assigns_theta_to_all_cells_but_fits_origin_from_kept_cells(tm
   )]
   manual_scores, _, manual_origin, _, _ = aggregate_tricycle(
     [score_f], [marker_expression_f], [summary_f], coldata_f, [], 1.0, 500,
-    2/3, [1/3, 2/3, 1], 7, *manual_outputs, manual_origin=[-3, 1],
+    25, [0, 25, 100], 7, *manual_outputs, manual_origin=[-3, 1],
   )
   assert manual_origin['origin_method'][0] == 'manual'
   assert manual_origin['tricycle_pc1_origin'][0] == -3
   assert manual_origin['tricycle_pc2_origin'][0] == 1
-  assert manual_origin['target_prop_used_for_origin'][0] is False
+  assert manual_origin['density_percentile_used_for_origin'][0] is False
   assert manual_origin['selected_kde_tricycle_pc1_origin'][0] == pytest.approx(
     origin['tricycle_pc1_origin'][0]
   )
@@ -420,7 +477,7 @@ def test_cell_cycle_has_standalone_diagnostics_report():
   assert "plot_layout(guides='collect')" in report_code
   assert "theme(legend.position='bottom')" in report_code
   assert "stroke = 1.5, colour = 'black'" in helper
-  assert "'Manual origin: (%g, %g); KDE diagnostic target: %s'" in report_code
+  assert "'Manual origin: (%g, %g); %s'" in report_code
   assert 'data=origin_sensitivity_points' in report_code
   assert 'caption=origin_caption' in report_code
   assert "colour='#1F4E79'" in report_code
@@ -466,7 +523,7 @@ def test_cell_cycle_target_requires_config_block():
 
   with pytest.raises(KeyError, match="no 'cell_cycle' section"):
     check_config_ok_for_rule({}, 'cell_cycle')
-  check_config_ok_for_rule({'cell_cycle': {'cyc_target_prop': 0.01}}, 'cell_cycle')
+  check_config_ok_for_rule({'cell_cycle': {'cyc_density_percentile': 1.3}}, 'cell_cycle')
 
 
 def test_bonus_doublet_rule_is_gpu_routed_on_shpc():
@@ -563,7 +620,7 @@ def test_invalid_regression_backend_is_rejected():
       'int_pca_method': 'scanpy',
       'int_cell_cycle_correction': 'within_sample',
     },
-    'cell_cycle': {'cyc_target_prop': 0.01},
+    'cell_cycle': {'cyc_density_percentile': 1.3},
   }
   with pytest.raises(ValueError, match='requires integration.int_pca_method: bpcells'):
     _check_cell_cycle_parameters(config)
@@ -575,7 +632,7 @@ def test_species_is_inferred_from_standard_reference():
   config = {
     'project': {'ref_txome': 'human_2024'},
     'integration': {'int_pca_method': 'bpcells'},
-    'cell_cycle': {'cyc_target_prop': 0.01},
+    'cell_cycle': {'cyc_density_percentile': 1.3},
   }
   checked = _check_cell_cycle_parameters(config)
   assert checked['cell_cycle']['_species'] == 'human'
@@ -590,7 +647,7 @@ def test_shared_regression_receives_integration_defaults():
       'int_pca_method': 'bpcells',
       'int_cell_cycle_correction': 'within_sample',
     },
-    'cell_cycle': {'cyc_target_prop': 0.01},
+    'cell_cycle': {'cyc_density_percentile': 1.3},
   }
   checked = _check_cell_cycle_parameters(config)
   assert checked['integration']['int_cell_cycle_harmonics'] == 2
@@ -621,7 +678,7 @@ def test_regression_tuning_requires_shared_regression():
       'int_pca_method': 'bpcells',
       'int_cell_cycle_harmonics': 1,
     },
-    'cell_cycle': {'cyc_target_prop': 0.01},
+    'cell_cycle': {'cyc_density_percentile': 1.3},
   }
   with pytest.raises(ValueError, match='int_cell_cycle_correction'):
     _check_cell_cycle_parameters(config)
@@ -631,7 +688,7 @@ def test_regression_tuning_requires_shared_regression():
 def test_cell_cycle_correction_choice(mode):
   from scripts.scprocess_utils import _check_cell_cycle_parameters
   config = {
-    'project': {'ref_txome': 'mouse_2024'}, 'cell_cycle': {'cyc_target_prop': 0.01},
+    'project': {'ref_txome': 'mouse_2024'}, 'cell_cycle': {'cyc_density_percentile': 1.3},
     'integration': {'int_pca_method': 'bpcells',
                     'int_cell_cycle_correction': mode},
   }
@@ -662,25 +719,25 @@ def test_empty_cell_cycle_block_remains_invalid_after_defaults():
   from scripts.scprocess_utils import _get_default_config_from_schema, _check_cell_cycle_parameters
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
   defaults = _get_default_config_from_schema(schema, {'cell_cycle': {}})
-  assert 'cyc_target_prop' not in defaults['cell_cycle']
-  with pytest.raises(jsonschema.ValidationError, match='cyc_target_prop'):
+  assert 'cyc_density_percentile' not in defaults['cell_cycle']
+  with pytest.raises(jsonschema.ValidationError, match='cyc_density_percentile'):
     jsonschema.validate(defaults['cell_cycle'], schema['properties']['cell_cycle'])
-  with pytest.raises(ValueError, match='cyc_target_prop is required'):
+  with pytest.raises(ValueError, match='cyc_density_percentile is required'):
     _check_cell_cycle_parameters({'cell_cycle': {}})
-  for value in (0, -1, 1.01, True, None):
+  for value in (-1, 100.01, True, None):
     with pytest.raises(jsonschema.ValidationError):
-      jsonschema.validate({'cyc_target_prop': value}, schema['properties']['cell_cycle'])
-  for value in (0.001, 0.01, 1):
-    jsonschema.validate({'cyc_target_prop': value}, schema['properties']['cell_cycle'])
+      jsonschema.validate({'cyc_density_percentile': value}, schema['properties']['cell_cycle'])
+  for value in (0, 0.1, 1.3, 100):
+    jsonschema.validate({'cyc_density_percentile': value}, schema['properties']['cell_cycle'])
 
 
 @pytest.mark.parametrize('backend', ['bpcells', 'scanpy'])
 def test_phase_estimation_does_not_enable_correction(backend):
   from scripts.scprocess_utils import _check_cell_cycle_parameters, _get_default_config_from_schema
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
-  config = _get_default_config_from_schema(schema, {'cell_cycle': {'cyc_target_prop': 0.01}})
+  config = _get_default_config_from_schema(schema, {'cell_cycle': {'cyc_density_percentile': 1.3}})
   config['project'] = {'ref_txome': 'mouse_2024'}
-  config['cell_cycle']['cyc_target_prop'] = 0.01
+  config['cell_cycle']['cyc_density_percentile'] = 1.3
   config['integration']['int_pca_method'] = backend
   checked = _check_cell_cycle_parameters(config)
   assert checked['cell_cycle']['_species'] == 'mouse'

@@ -24,19 +24,19 @@ blob = estimate_cell_cycle_blob(
   file.path(cycle_dir, paste0('tricycle_origin_diagnostics_', tag, '.csv.gz')), ellipse_f)
 diagnostics = fread(file.path(cycle_dir,
   paste0('tricycle_origin_diagnostics_', tag, '.csv.gz')))
-# Constant inclusion probabilities give an ordinary mean; use a small target
-# to catch percentage captions that incorrectly round 0.005 to zero percent.
-# This tests report rendering; the Python tests exercise the KDE estimator.
-diagnostics[, `:=`(kde_density=1, inclusion_probability=0.005, diagnostic_retained=FALSE)]
-diagnostics[seq_len(round(.N * 0.005)), diagnostic_retained := TRUE]
+# Identical densities give all cells full weight at any requested percentile.
+# Keep a non-integer percentile to verify report captions display 1.3% directly.
+diagnostics[, `:=`(kde_density=1, inclusion_probability=1, diagnostic_retained=TRUE)]
 centre = colMeans(as.matrix(diagnostics[, .(tricycle_pc1, tricycle_pc2)]))
-origin = data.table(origin_method='kde_density_equalized', target_prop=0.005, seed=20230308L,
-  expected_retained_cells=nrow(diagnostics)*0.005,
+origin = data.table(origin_method='kde_density_equalized', density_percentile=1.3, seed=20230308L,
+  density_threshold=1, mean_origin_weight=1, full_weight_percent=100,
+  n_full_weight_cells=nrow(diagnostics),
   tricycle_pc1_origin=centre[1], tricycle_pc2_origin=centre[2])
-sensitivity = data.table(target_prop=c(0.005, 1),
-  expected_retained_cells=nrow(diagnostics)*c(0.005, 1),
+sensitivity = data.table(density_percentile=c(0, 1.3, 100),
+  density_threshold=1, mean_origin_weight=1, full_weight_percent=100,
+  n_full_weight_cells=nrow(diagnostics),
   tricycle_pc1_origin=centre[1], tricycle_pc2_origin=centre[2],
-  selected=c(TRUE, FALSE))
+  selected=c(FALSE, TRUE, FALSE))
 diagnostics_f = file.path(test_project, 'data/diagnostics.csv.gz')
 fwrite(diagnostics, diagnostics_f)
 scores = fread(file.path(cycle_dir, paste0('tricycle_scores_', tag, '.csv.gz')))
@@ -60,6 +60,13 @@ render_html(
   ellipse_f = ellipse_f,
   origin_f = origin_f, sensitivity_f = sensitivity_f,
   coldata_f = file.path(source_project, "output/test_qc", paste0("coldata_dt_all_cells_", tag, ".csv.gz")))
+report_data = load_cell_cycle_report_data(
+  scores_f, origin_f, sensitivity_f, diagnostics_f, ellipse_f,
+  file.path(source_project, "output/test_qc", paste0("coldata_dt_all_cells_", tag, ".csv.gz")),
+  file.path(cycle_dir, paste0("tricycle_marker_expression_", tag, ".csv.gz")))
+stopifnot(grepl('Density percentile: 1.3%', report_data$origin_caption, fixed=TRUE),
+  grepl('full weight: 100%', report_data$origin_caption, fixed=TRUE),
+  !grepl('expected cells', report_data$origin_caption, fixed=TRUE))
 html = readLines(file.path(test_project, "public/test_cell_cycle.html"), warn = FALSE)
 stopifnot(any(grepl("</html>", html, fixed = TRUE)))
 document = xml2::read_html(file.path(test_project, "public/test_cell_cycle.html"))

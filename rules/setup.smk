@@ -7,10 +7,12 @@ import numpy as np
 import sys
 import warnings
 import pathlib
+import json
+import shlex
 
 scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 sys.path.append(str(scprocess_dir / 'scripts'))
-from setup import get_txome_index_parameters, get_probe_set_parameters, get_xgboost_parameters, get_xgboost_source_files
+from setup import get_txome_index_parameters, get_probe_set_parameters, get_xgboost_parameters, get_xgboost_source_files, CELLRANGER_RESOURCE_FILES
 
 # get parameters
 SCDATA_DIR       = os.getenv('SCPROCESS_DATA_DIR')
@@ -22,6 +24,12 @@ PROBE_SET_NAMES  = list(PROBE_SET_LS.keys())
 XGB_PARAMS_LS    = get_xgboost_parameters(config)
 XGB_NAMES        = list(XGB_PARAMS_LS.keys())
 logs_dir         = f'{SCDATA_DIR}/.log/setup'
+
+# The manifest is the single list of marker/gene-set files supplied by Zenodo.
+SUPPORT_MANIFEST_F = str(scprocess_dir / 'resources/scprocess_data.json')
+SUPPORT_MANIFEST = json.loads(pathlib.Path(SUPPORT_MANIFEST_F).read_text())
+SUPPORT_FILES = [str(pathlib.Path(SCDATA_DIR) / filename) for filename in SUPPORT_MANIFEST['files']]
+CELLRANGER_FILES = [str(pathlib.Path(SCDATA_DIR) / 'cellranger_ref' / name) for name in CELLRANGER_RESOURCE_FILES]
 
 # define simpleaf index files for standard txome indices
 TXOME_INDEX_FS = [
@@ -58,45 +66,9 @@ localrules: save_index_parameters_csv, add_xgboost, save_available_xgboost_csv
 # define top level rule
 rule all:
   input:
-    # rule download scprocess repo data
-    f'{SCDATA_DIR}/marker_genes/human_brain.csv',
-    f'{SCDATA_DIR}/marker_genes/mouse_brain.csv',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v2_5v1_5v2.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v3.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v4.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_5v3.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_multiome_gex.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_flexv1.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_flexv2.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3v3.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3v4.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3v3.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3v4.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_probe_barcodes_flexv1.tsv',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_probe_barcodes_flexv2.tsv',
-    f'{SCDATA_DIR}/cellranger_ref/ocm_overhang_map.txt',
-    f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelists.csv',
-    f'{SCDATA_DIR}/cellranger_ref/.cellranger_version',
-    f'{SCDATA_DIR}/gmt_pathways/c1.all.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/c2.all.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/c2.cp.biocarta.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/c2.cp.kegg.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/c2.cp.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/c3.mir.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/c3.tft.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/c5.go.bp.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/c5.go.cc.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/c5.go.mf.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/c5.hpo.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/c7.immunesigdb.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/c8.all.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/h.all.v2023.1.Hs.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/m2.cp.biocarta.v2023.1.Mm.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/m2.cp.v2023.1.Mm.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/m5.go.bp.v2023.1.Mm.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/m5.go.cc.v2023.1.Mm.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/m5.go.mf.v2023.1.Mm.symbols.gmt',
-    f'{SCDATA_DIR}/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt',
+    SUPPORT_FILES,
+    f'{SCDATA_DIR}/scprocess_support_manifest.json',
+    CELLRANGER_FILES,
     # xgboost classifiers (prebuilt + user-trained)
     expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_manifest.json', xgb_name=XGB_NAMES),
     expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_allowed_cls.csv', xgb_name=XGB_NAMES),
@@ -114,63 +86,47 @@ rule all:
     f'{SCDATA_DIR}/index_parameters.csv'
 
 
-# rule for getting scprocess data from github repo (maybe not a good idea to have all files as outputs)
+# Support data and vendor files have independent downloads and dependencies.
 rule download_scprocess_files:
+  input:
+    support_manifest = SUPPORT_MANIFEST_F,
+    setup_script = str(scprocess_dir / 'scripts/setup.py')
   output:
-    brain_mkrs_hsa   = f'{SCDATA_DIR}/marker_genes/human_brain.csv',
-    brain_mkrs_mmu   = f'{SCDATA_DIR}/marker_genes/mouse_brain.csv',
-    wl_3v2_5v1_5v2   = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v2_5v1_5v2.txt',
-    wl_3v3           = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v3.txt',
-    wl_3v4	         = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_3v4.txt',
-    wl_5v3	         = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_5v3.txt',
-    wl_multiome      = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_multiome_gex.txt',
-    wl_flex_v1       = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_flexv1.txt',
-    wl_flex_v2       = f'{SCDATA_DIR}/cellranger_ref/cellranger_gex_barcode_whitelist_flexv2.txt',
-    wl_hto_3v3       = f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3v3.txt',
-    wl_hto_3v4	     = f'{SCDATA_DIR}/cellranger_ref/cellranger_hto_barcode_whitelist_3v4.txt',
-    wl_translation_3v3 =  f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3v3.txt',
-    wl_translation_3v4 =  f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelist_translation_3v4.txt',
-    probe_bcs_flex_v1 = f'{SCDATA_DIR}/cellranger_ref/cellranger_probe_barcodes_flexv1.tsv',
-    probe_bcs_flex_v2 = f'{SCDATA_DIR}/cellranger_ref/cellranger_probe_barcodes_flexv2.tsv',
-    ocm_overhang_map  = f'{SCDATA_DIR}/cellranger_ref/ocm_overhang_map.txt',
-    all_wl           = f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelists.csv',
-    cr_version       = f'{SCDATA_DIR}/cellranger_ref/.cellranger_version', 
-    gmt_f_1          = f'{SCDATA_DIR}/gmt_pathways/c1.all.v2023.1.Hs.symbols.gmt',
-    gmt_f_2          = f'{SCDATA_DIR}/gmt_pathways/c2.all.v2023.1.Hs.symbols.gmt',
-    gmt_f_3          = f'{SCDATA_DIR}/gmt_pathways/c2.cp.biocarta.v2023.1.Hs.symbols.gmt',
-    gmt_f_4          = f'{SCDATA_DIR}/gmt_pathways/c2.cp.kegg.v2023.1.Hs.symbols.gmt',
-    gmt_f_5          = f'{SCDATA_DIR}/gmt_pathways/c2.cp.v2023.1.Hs.symbols.gmt',
-    gmt_f_6          = f'{SCDATA_DIR}/gmt_pathways/c3.mir.v2023.1.Hs.symbols.gmt',
-    gmt_f_7          = f'{SCDATA_DIR}/gmt_pathways/c3.tft.v2023.1.Hs.symbols.gmt',
-    gmt_f_8          = f'{SCDATA_DIR}/gmt_pathways/c5.go.bp.v2023.1.Hs.symbols.gmt',
-    gmt_f_9          = f'{SCDATA_DIR}/gmt_pathways/c5.go.cc.v2023.1.Hs.symbols.gmt',
-    gmt_f_10         = f'{SCDATA_DIR}/gmt_pathways/c5.go.mf.v2023.1.Hs.symbols.gmt',
-    gmt_f_11         = f'{SCDATA_DIR}/gmt_pathways/c5.hpo.v2023.1.Hs.symbols.gmt',
-    gmt_f_12         = f'{SCDATA_DIR}/gmt_pathways/c7.immunesigdb.v2023.1.Hs.symbols.gmt',
-    gmt_f_13         = f'{SCDATA_DIR}/gmt_pathways/c8.all.v2023.1.Hs.symbols.gmt',
-    gmt_f_14         = f'{SCDATA_DIR}/gmt_pathways/h.all.v2023.1.Hs.symbols.gmt',
-    gmt_f_15         = f'{SCDATA_DIR}/gmt_pathways/m2.cp.biocarta.v2023.1.Mm.symbols.gmt',
-    gmt_f_16         = f'{SCDATA_DIR}/gmt_pathways/m2.cp.v2023.1.Mm.symbols.gmt',
-    gmt_f_17         = f'{SCDATA_DIR}/gmt_pathways/m5.go.bp.v2023.1.Mm.symbols.gmt',
-    gmt_f_18         = f'{SCDATA_DIR}/gmt_pathways/m5.go.cc.v2023.1.Mm.symbols.gmt',
-    gmt_f_19         = f'{SCDATA_DIR}/gmt_pathways/m5.go.mf.v2023.1.Mm.symbols.gmt',
-    gmt_f_20         = f'{SCDATA_DIR}/gmt_pathways/mh.all.v2023.1.Mm.symbols.gmt'
-  params: 
-    ranger_version   = config['cellranger_version']
+    support_files = update(SUPPORT_FILES),
+    installed_manifest = update(f'{SCDATA_DIR}/scprocess_support_manifest.json')
   conda:
     '../envs/py_env.yaml'
   threads: 1
-  log: 
+  log:
     f'{logs_dir}/download_scprocess_files.log'
   shell: """
     exec &>> {log}
-
-    python3 {scprocess_dir}/scripts/setup.py get_scprocess_data \
-      "{SCDATA_DIR}" \
-      "{RANGER_URL}" \
-      "{output.all_wl}" \
-      "{output.cr_version}"
+    python3 {input.setup_script:q} get_scprocess_data {SCDATA_DIR:q}
     """
+
+
+rule download_cellranger_files:
+  output:
+    resource_files = update(CELLRANGER_FILES)
+  params:
+    ranger_version = config['cellranger_version'],
+    ranger_url_arg = shlex.quote(RANGER_URL),
+    whitelists_f = f'{SCDATA_DIR}/cellranger_ref/cellranger_whitelists.csv',
+    version_f = f'{SCDATA_DIR}/cellranger_ref/.cellranger_version'
+  conda:
+    '../envs/py_env.yaml'
+  threads: 1
+  log:
+    f'{logs_dir}/download_cellranger_files.log'
+  shell: """
+    exec &>> {log}
+    python3 {scprocess_dir}/scripts/setup.py get_cellranger_data \
+      {SCDATA_DIR:q} \
+      {params.ranger_url_arg} \
+      {params.whitelists_f:q} \
+      {params.version_f:q}
+    """
+
 
 rule refresh_simpleaf_chems:
   output:
@@ -274,14 +230,15 @@ rule download_celltypist_models:
 
 rule add_xgboost:
   input:
+    setup_script = str(scprocess_dir / 'scripts/setup.py'),
     source_files = lambda wildcards: get_xgboost_source_files(XGB_PARAMS_LS[wildcards.xgb_name]),
     manifest = lambda wildcards: ([str(scprocess_dir / 'resources/xgboost' / f'{wildcards.xgb_name}.json')]
       if (scprocess_dir / 'resources/xgboost' / f'{wildcards.xgb_name}.json').is_file() else []),
   output:
-    model_f = f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_xgboost_model.json',
-    cls_f   = f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_allowed_cls.csv',
-    genes_f = f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_selected_genes.txt',
-    identity_f = f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_manifest.json',
+    model_f = update(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_xgboost_model.json'),
+    cls_f   = update(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_allowed_cls.csv'),
+    genes_f = update(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_selected_genes.txt'),
+    identity_f = update(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_manifest.json'),
   params:
     ref_tag     = lambda wildcards: XGB_PARAMS_LS[wildcards.xgb_name].get('ref_tag', wildcards.xgb_name),
     src_dir     = lambda wildcards: XGB_PARAMS_LS[wildcards.xgb_name].get('src_dir', None),
@@ -298,9 +255,10 @@ rule add_xgboost:
 
 rule save_available_xgboost_csv:
   input:
-    expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_manifest.json', xgb_name=XGB_NAMES),
+    setup_script = str(scprocess_dir / 'scripts/setup.py'),
+    model_manifests = expand(f'{SCDATA_DIR}/xgboost/{{xgb_name}}/{{xgb_name}}_manifest.json', xgb_name=XGB_NAMES),
   output:
-    csv_f = f'{SCDATA_DIR}/xgboost/xgboost_models.csv',
+    csv_f = update(f'{SCDATA_DIR}/xgboost/xgboost_models.csv'),
   params:
     xgb_names = ' '.join(XGB_NAMES),
   threads: 1

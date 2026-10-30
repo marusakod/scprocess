@@ -81,21 +81,15 @@ def parent_fixture(tmp_path):
     return parent, spec, scdata, config_f, cells, coldata, meta, qc
 
 
-@pytest.mark.parametrize('old,new,parent_value', [(7, None, None), (None, 9, None),
-    (7, 9, None), (7, None, 11)])
-def test_hvg_resource_renaming_preserves_overrides(parent_fixture, old, new, parent_value):
+@pytest.mark.parametrize('parent_value,zoom_value,expected', [(7, None, 7), (7, 9, 9)])
+def test_current_hvg_resource_overrides(parent_fixture, parent_value, zoom_value, expected):
     parent, spec, scdata, config_f, *_ = parent_fixture
-    if parent_value is not None:
-        parent['resources'] = {'gb_join_zoom_calculate_raw_gene_count_statistics': parent_value}
-    spec['resources'] = {}
-    if old is not None:
-        spec['resources']['gb_join_zoom_hvg_stats'] = old
-    if new is not None:
-        spec['resources']['gb_join_zoom_calculate_raw_gene_count_statistics'] = new
+    key = 'gb_join_zoom_calculate_raw_gene_count_statistics'
+    parent['resources'] = {key: parent_value}
+    spec['resources'] = {} if zoom_value is None else {key: zoom_value}
     config_f.with_name('zoom.yaml').write_text(yaml.safe_dump(spec))
     config, _ = resolve_join_zoom_parameters(parent, 'neurons', ROOT, scdata)
-    assert config['resources']['gb_join_zoom_calculate_raw_gene_count_statistics'] == (new if new is not None else old)
-    assert 'gb_join_zoom_hvg_stats' not in config['resources']
+    assert config['resources'][key] == expected
 
 
 def test_parameters_inherit_settings_and_isolate_outputs(parent_fixture):
@@ -209,7 +203,7 @@ with h5py.File(sys.argv[1], 'w') as fh:
 
 
 @pytest.mark.parametrize('change', [
-    {'cell_cycle': {'cyc_target_prop': 0.01}}, {'train_xgboost': {}},
+    {'cell_cycle': {'cyc_density_percentile': 1.3}}, {'train_xgboost': {}},
     {'zoom': {}}, {'hvg': {'hvg_method': 'all'}},
 ])
 def test_unsupported_or_empty_settings_fail(parent_fixture, change):

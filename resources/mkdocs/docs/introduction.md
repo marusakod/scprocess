@@ -47,7 +47,7 @@
     Highly variable gene (HVG) detection in {{sc}} is performed using the `Seurat VST`[@Stuart2019-pv] method in a chunk-wise or sample-wise manner, enabling the computation of ranking metrics for all genes without the need to load the entire dataset into memory. The efficient generation of a reduced matrix containing only highly variable genes ensures optimal performance in downstream analyses and facilitates the processing of larger datasets.
 
 * #### Cell cycle annotation
-    
+
     The cell cycle program is highly conserved across distinct cell lineages and can overpower cell-type-specific signals, causing different cell types to cluster together. {{sc}} offers the option to estimate and then regress out this cell cycle signal to ensure clustering is driven primarily by cell identity. First, {{sc}} uses tricycle [@Zheng2022-gd] to infer a continuous cell cycle position (theta) for each cell. It then fits a harmonic (sine/cosine) ridge regression on theta to remove phase-dependent variation from HVG expression before calculating the PCA embedding.
 
 * #### Integration
@@ -56,7 +56,7 @@
 
 * #### Marker gene identification
     
-    Assigning meaningful labels to clusters in single-cell data is essential for interpretation of single cell data. This is commonly achieved by examining marker genes for each cluster, identified by comparing the expression profile of each cluster against all others. In {{sc}}, transcript counts are aggregated per cluster within each sample to generate "pseudobulk" values, which are then compared using `edger.pb` (implementation of the `edgeR`[@Robinson2010-qz],[@Chen2025-jo]package using `BPcells`[@Parks2025-cl] as a backend). This approach avoids the assumption that individual cells from the same sample are independent, thereby enhancing the statistical reliability of the results. 
+    Assigning meaningful labels to clusters in single-cell data is essential for interpretation of single cell data. This is commonly achieved by examining marker genes for each cluster, identified by comparing the expression profile of each cluster against all others. In {{sc}}, transcript counts are aggregated per cluster within each sample to generate "pseudobulk" values, which are then compared using `edgeR.bp` (implementation of the `edgeR`[@Robinson2010-qz],[@Chen2025-jo] package using `BPCells`[@Parks2025-cl] as a backend). This approach avoids the assumption that individual cells from the same sample are independent, thereby enhancing the statistical reliability of the results.
 
 * #### Gene set enrichment analysis
 
@@ -82,8 +82,8 @@
 
 * #### Interactive visualization of results
 
-    Any {{sc}} output can be turned into a deployable `Shiny` application for interactive data exploration across four modules. These include “explore genes” for assessing gene expression, “explore clusters” for inspecting cluster markers, “explore gene sets” for comparing gene groups (e.g., transcription factors, pathways, or custom sets) across clusters, and “explore prevalence” for evaluating how cluster composition varies across metadata variables.   
-    
+    Any {{sc}} output can be turned into a deployable `Shiny` application for interactive data exploration across four modules. These include “explore genes” for assessing gene expression, “explore clusters” for inspecting cluster markers, “explore gene sets” for comparing gene groups (e.g., transcription factors, pathways, or custom sets) across clusters, and “explore prevalence” for evaluating how cluster composition varies across metadata variables.
+
 * #### Training and reusing custom XGBoost classifiers
 
     Pre-trained classifiers for cell type annotations are not available for certain tissue and species combinations. To avoid repeated time-consuming manual annotation, {{sc}} allows users to train custom `XGBoost` classifiers using their own annotated reference datasets. Such classifiers can be registered alongside built-in models and reused in subsequent labelling runs.

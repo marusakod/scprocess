@@ -21,7 +21,7 @@ MIN_CLUSTER_MAJORITY_VOTE_CELLS = 10
 # Training metadata
 
 def prepare_training_metadata(annots_f, integration_f, h5ads_yaml, batch_var, training_metadata_f, coverage_f, counts_f,
-  *, is_join, excluded_labels, label_map_f, cluster_majority_vote_resolution,
+  *, is_join, excluded_labels, cluster_majority_vote_resolution,
   cluster_majority_vote_min_purity, test_group_var, test_groups, validation_group_var,
   validation_fraction, validation_variable_combinations, sampling_variable_combinations,
   train_cells_per_label, validation_cells_per_label, min_cells_per_label, seed):
@@ -58,7 +58,6 @@ def prepare_training_metadata(annots_f, integration_f, h5ads_yaml, batch_var, tr
   configuration = dict(
     is_join                          = bool(is_join),
     excluded_labels                  = excluded_labels,
-    label_map_f                      = label_map_f,
     cluster_majority_vote_resolution = cluster_majority_vote_resolution,
     cluster_majority_vote_min_purity = cluster_majority_vote_min_purity,
     test_group_var                   = test_group_var,
@@ -87,11 +86,8 @@ def _load_training_metadata(annots_f, integration_f, batch_var, is_join, vote_co
   # labels_df: one row per annotated cell, including any supplied cell metadata.
   labels_df = pl.read_csv(annots_f)
 
-  # Accept one standard or legacy label column, then use the canonical name.
-  label_columns = [name for name in ['label', 'annotation', 'fine_label'] if name in labels_df.columns]
-  if len(label_columns) != 1:
-    raise ValueError('annots_f needs one label column (label; legacy annotation/fine_label accepted)')
-  labels_df = labels_df.rename({label_columns[0]: 'label'})
+  if 'label' not in labels_df.columns:
+    raise ValueError("annots_f must have a 'label' column")
   if _missing_values(labels_df, ['cell_id']) or labels_df['cell_id'].n_unique() != len(labels_df):
     raise ValueError('Annotations must have unique nonmissing cell_id values')
 
@@ -397,7 +393,7 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
   gene_exclude_re, min_cells_expressed, seed, pass1_subsample, pass1_colsample_bytree,
   pass1_learning_rate, pass1_nrounds, pass1_early_stopping, gain_threshold, min_genes,
   max_genes, pass2_colsample_bytree, pass2_learning_rate, pass2_nrounds,
-  pass2_early_stopping, label_map_f):
+  pass2_early_stopping):
 
   import xgboost as xgb
 
@@ -477,7 +473,6 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
     output_dir         = output_path,
     xgboost_tag        = xgboost_tag,
     cells_df           = training_metadata_df,
-    label_map          = _load_label_mapping(label_map_f),
     X_train            = X_train,
     X_val              = X_validation,
     pseudobulk_adata   = pseudobulk_adata)
@@ -500,8 +495,7 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
     pass2_colsample_bytree = pass2_colsample_bytree,
     pass2_learning_rate    = pass2_learning_rate,
     pass2_nrounds          = pass2_nrounds,
-    pass2_early_stopping   = pass2_early_stopping,
-    label_map_f            = label_map_f)
+    pass2_early_stopping   = pass2_early_stopping)
   model_f    = output_path / f'{xgboost_tag}_xgboost_model.json'
   model_card = dict(
     configuration                  = configuration,
@@ -768,7 +762,7 @@ def _best_iteration_model(model):
 # Save model outputs and selected-cell summaries
 
 def _save_outputs(model, class_names, selected_genes, gene_importance_df,
-  output_dir, xgboost_tag, cells_df, X_train, X_val, pseudobulk_adata, label_map = None):
+  output_dir, xgboost_tag, cells_df, X_train, X_val, pseudobulk_adata):
 
   # Save model files and the metadata required to use the classifier.
   out_dir = Path(output_dir)
@@ -791,15 +785,6 @@ def _save_outputs(model, class_names, selected_genes, gene_importance_df,
   gene_importance_df.write_csv(str(imp_path))
   print(f"  Importance: {imp_path}")
 
-  if label_map is not None:
-    map_path     = out_dir / f"{xgboost_tag}_label_map.csv"
-    label_map_df = pl.DataFrame({
-      "label": list(label_map.keys()),
-      "coarse_label": list(label_map.values()),
-    })
-    label_map_df.write_csv(map_path)
-    print(f"  Label map: {map_path}")
-
   # The fitting workflow always supplies selected-cell predictions and pseudobulks.
   predictions_f  = out_dir / f"{xgboost_tag}_predictions.csv.gz"
   predictions_df = _make_predictions_df(
@@ -807,8 +792,7 @@ def _save_outputs(model, class_names, selected_genes, gene_importance_df,
     X_train     = X_train,
     X_val       = X_val,
     cells_df    = cells_df,
-    class_names = class_names,
-    label_map   = label_map)
+    class_names = class_names)
   predictions_df.write_csv(predictions_f, compression = "gzip")
   print(f"  Predictions: {predictions_f}")
 
@@ -817,7 +801,7 @@ def _save_outputs(model, class_names, selected_genes, gene_importance_df,
   print(f"  Pseudobulk: {pseudobulk_f}")
 
 
-def _make_predictions_df(model, X_train, X_val, cells_df, class_names, label_map = None):
+def _make_predictions_df(model, X_train, X_val, cells_df, class_names):
   import xgboost as xgb
 
   feat_names = [f"g{i}" for i in range(X_val.shape[1])]
@@ -848,13 +832,6 @@ def _make_predictions_df(model, X_train, X_val, cells_df, class_names, label_map
     pl.Series("predicted_label", pred_labels),
     pl.Series("probability", all_pmax),
   ])
-
-  # Add coarse labels if mapping is available
-  if label_map is not None:
-    predictions_df = predictions_df.with_columns([
-      pl.col("label").replace(label_map).alias("coarse_true"),
-      pl.col("predicted_label").replace(label_map).alias("coarse_predicted"),
-    ])
 
   return predictions_df
 
@@ -926,18 +903,6 @@ def _compute_pseudobulk(X_raw, cells_df, gene_names, sel_indices):
   return pb_adata
 
 
-def _load_label_mapping(label_map_f):
-
-  # Leave labels unchanged when no legacy mapping file is supplied.
-  if label_map_f is None:
-    return None
-
-  records, _ = read_label_specs(label_map_f = label_map_f)
-  return label_mapping(records)
-
-
-# Full-data evaluation and label specifications
-
 def combine_predictions(pred_fs, training_metadata_f, output_f, integration_f):
 
   # Prediction tables have one row per cell; concatenation preserves that row unit.
@@ -984,17 +949,6 @@ def combine_predictions(pred_fs, training_metadata_f, output_f, integration_f):
   if not set(training_metadata_df['cell_id']) <= set(result_df['cell_id']):
     raise ValueError('Training-metadata cells missing from full-data predictions')
 
-  # Training metadata distinguishes an omitted mapping from a lost mapping setting.
-  metadata_f = Path(str(training_metadata_f) + '.json')
-  if not metadata_f.is_file():
-    raise FileNotFoundError(
-      f'Training metadata JSON missing: {metadata_f}; cannot determine whether coarse-label mapping was requested')
-  configuration = json.loads(metadata_f.read_text())['configuration']
-  if configuration.get('label_map_f'):
-    label_map = _load_label_mapping(configuration['label_map_f'])
-    result_df = result_df.with_columns(
-      pl.col('label').replace(label_map).alias('coarse_true'),
-      pl.col('predicted_label').replace(label_map).alias('coarse_predicted'))
   result_df.write_csv(output_f, compression = 'gzip')
 
   # Score unselected development cells separately from fitting/validation cells.
@@ -1003,7 +957,7 @@ def combine_predictions(pred_fs, training_metadata_f, output_f, integration_f):
 
 
 def write_label_specifications(cls_f, counts_f, predictions_f, output_dir, *,
-  xgboost_tag, label_specs_f, coarse_label_specs_f, label_map_f):
+  xgboost_tag, label_specs_f, coarse_label_specs_f):
 
   # One row per model class or training label; abundance sets the default order.
   classes_df      = pl.read_csv(cls_f)
@@ -1017,8 +971,7 @@ def write_label_specifications(cls_f, counts_f, predictions_f, output_dir, *,
   fine_specs, coarse_specs = read_label_specs(
     label_specs_f        = label_specs_f,
     coarse_label_specs_f = coarse_label_specs_f,
-    labels               = default_label_order,
-    label_map_f          = label_map_f)
+    labels               = default_label_order)
   output_path = Path(output_dir)
   output_path.mkdir(parents = True, exist_ok = True)
   output_prefix = output_path / xgboost_tag
@@ -1162,14 +1115,10 @@ def get_xgboost_model_info(model_f, name):
   return {'model_id': model_id, 'model_sha256': checksum}
 
 
-def read_label_specs(label_specs_f = None, coarse_label_specs_f = None, labels = None, label_map_f = None):
-
-  if label_specs_f and label_map_f:
-    raise ValueError('Use label_specs_f or legacy label_map_f, not both')
+def read_label_specs(label_specs_f = None, coarse_label_specs_f = None, labels = None):
 
   # Keep fine and coarse display order independent, with a direct label mapping.
-  fine_specs_f = label_specs_f or label_map_f
-  fine_specs   = _read_fine_label_specs(fine_specs_f, labels)
+  fine_specs = _read_fine_label_specs(label_specs_f, labels)
   coarse_names = list(dict.fromkeys(row['coarse_label'] for row in fine_specs if row['coarse_label']))
   coarse_specs = _read_coarse_label_specs(coarse_label_specs_f, coarse_names)
 
@@ -1187,13 +1136,11 @@ def _read_fine_label_specs(label_specs_f, labels):
   fine_specs = []
   if label_specs_f:
     specs_df      = pl.read_csv(label_specs_f, infer_schema = False, raise_if_empty = False)
-    label_columns = [name for name in ['label', 'annotation', 'fine_label'] if name in specs_df.columns]
-    if len(label_columns) != 1:
-      raise ValueError(f'{label_specs_f} needs one label column (label; legacy annotation/fine_label accepted)')
-    label_col = label_columns[0]
+    if 'label' not in specs_df.columns:
+      raise ValueError(f"{label_specs_f} must have a 'label' column")
     for row in specs_df.iter_rows(named = True):
       fine_specs.append({
-        'label': (row.get(label_col) or '').strip(),
+        'label': (row.get('label') or '').strip(),
         'colour': (row.get('colour') or '').strip(),
         'coarse_label': (row.get('coarse_label') or '').strip()})
     if not fine_specs:
@@ -1278,8 +1225,7 @@ if __name__ == '__main__':
     'training_metadata_f', 'coverage_f', 'counts_f', 'validation_group_var'):
     prepare.add_argument('--' + name, required = True)
 
-  for name in ('label_map_f', 'test_group_var'):
-    prepare.add_argument('--' + name)
+  prepare.add_argument('--test_group_var')
 
   for name in ('train_cells_per_label', 'validation_cells_per_label', 'min_cells_per_label', 'seed'):
     prepare.add_argument('--' + name, required = True, type = int)
@@ -1299,8 +1245,6 @@ if __name__ == '__main__':
   fit = commands.add_parser('train')
   for name in ('training_metadata_f', 'h5ads_yaml', 'output_dir', 'xgboost_tag', 'gene_exclude_re'):
     fit.add_argument('--' + name, required = True)
-
-  fit.add_argument('--label_map_f')
 
   for name in ('n_cores', 'seed', 'min_cells_expressed', 'min_genes', 'max_genes',
     'pass1_nrounds', 'pass1_early_stopping', 'pass2_nrounds', 'pass2_early_stopping'):
@@ -1324,14 +1268,14 @@ if __name__ == '__main__':
   for name in ('cls_f', 'counts_f', 'predictions_f', 'output_dir', 'xgboost_tag'):
     specs.add_argument('--' + name, required = True)
 
-  for name in ('label_specs_f', 'coarse_label_specs_f', 'label_map_f'):
+  for name in ('label_specs_f', 'coarse_label_specs_f'):
     specs.add_argument('--' + name)
 
   args    = vars(parser.parse_args())
   command = args.pop('command')
 
   # Empty strings represent omitted optional features, not alternative defaults.
-  for name in ('test_group_var', 'label_map_f', 'label_specs_f',
+  for name in ('test_group_var', 'label_specs_f',
     'coarse_label_specs_f', 'gene_exclude_re'):
     if name in args and args[name] == '':
       args[name] = None

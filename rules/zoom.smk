@@ -1306,7 +1306,6 @@ rule zoom_train_xgboost_prepare:
     annots_f = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['annots_f'],
     integration_f = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
     h5ads_yaml = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
-    label_map = lambda wildcards: [ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['label_map_f']] if ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') else [],
     planner = str(scprocess_dir / 'scripts/train_xgboost.py'),
   output:
     training_metadata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_metadata.csv.gz',
@@ -1315,7 +1314,6 @@ rule zoom_train_xgboost_prepare:
     metadata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_metadata.csv.gz' + '.json',
   params:
     excluded_labels                  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['excluded_labels'],
-    label_map_f                      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') or '',
     cluster_majority_vote_resolution = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('cluster_majority_vote_resolution', ''),
     cluster_majority_vote_min_purity = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['cluster_majority_vote_min_purity'],
     test_group_var                   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('test_group_var') or '',
@@ -1344,7 +1342,6 @@ rule zoom_train_xgboost_prepare:
       --h5ads_yaml {input.h5ads_yaml:q} --batch_var {params.batch_var:q} \
       --is_join {params.is_join} \
       --excluded_labels {params.excluded_labels:q} \
-      --label_map_f={params.label_map_f:q} \
       --cluster_majority_vote_resolution={params.cluster_majority_vote_resolution:q} \
       --cluster_majority_vote_min_purity {params.cluster_majority_vote_min_purity:q} \
       --test_group_var={params.test_group_var:q} \
@@ -1393,7 +1390,6 @@ rule zoom_train_xgboost:
     pass2_learning_rate    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass2_learning_rate'],
     pass2_nrounds          = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass2_nrounds'],
     pass2_early_stopping   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass2_early_stopping'],
-    label_map_f            = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') or '',
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -1428,7 +1424,7 @@ rule zoom_train_xgboost:
       --pass2_learning_rate {params.pass2_learning_rate:q} \
       --pass2_nrounds {params.pass2_nrounds:q} \
       --pass2_early_stopping {params.pass2_early_stopping:q} \
-      --label_map_f={params.label_map_f:q} --output_dir {params.output_dir:q} \
+      --output_dir {params.output_dir:q} \
       --n_cores {threads}
     """
 
@@ -1449,7 +1445,6 @@ rule zoom_train_xgboost_specs:
     xgboost_tag          = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['xgboost_tag'],
     label_specs_f        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_specs_f') or '',
     coarse_label_specs_f = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('coarse_label_specs_f') or '',
-    label_map_f          = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('label_map_f') or '',
     output_dir = lambda wildcards: str(pathlib.Path(f'{zoom_dir}/{wildcards.zoom_name}/train_xgboost/{wildcards.ref_tag}').parent),
   threads: 1
   resources:
@@ -1464,7 +1459,6 @@ rule zoom_train_xgboost_specs:
       --predictions_f {input.predictions_f:q} --xgboost_tag {params.xgboost_tag:q} \
       --label_specs_f={params.label_specs_f:q} \
       --coarse_label_specs_f={params.coarse_label_specs_f:q} \
-      --label_map_f={params.label_map_f:q} \
       --output_dir {params.output_dir:q}
     """
 
@@ -1545,7 +1539,6 @@ rule render_html_zoom:
       f"xgb_importance_f  = '{input.get('xgb_imp_f', '')}'",
       f"xgb_model_card_f  = '{input.get('xgb_model_card_f', '')}'",
       f"xgb_pseudobulk_f  = '{input.get('xgb_pb_f', '')}'",
-      f"xgb_has_coarse    = '{'true' if ZOOM_PARAMS[wildcards.zoom_name].get('train_xgboost', {}).get('label_map_f') else 'false'}'",
       f"xgb_min_cells     = '{ZOOM_PARAMS[wildcards.zoom_name].get('train_xgboost', {}).get('min_cells_expressed', 10)}'"
     ])
   threads: 1

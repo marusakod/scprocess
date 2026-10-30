@@ -87,9 +87,6 @@ def _normalise_profile_config(setup_cfg):
   if 'profile_template' in user:
     profile_template = user['profile_template']
     profile_name     = user.get('profile_name', profile_template)
-  elif 'profile' in user:
-    profile_template = user['profile']
-    profile_name     = user.get('profile_name', profile_template)
   else:
     return setup_cfg
 
@@ -107,7 +104,7 @@ def _normalise_profile_config(setup_cfg):
 
 def _uses_cluster_profile(setup_cfg):
   user = setup_cfg.get('user', {})
-  return any(key in user for key in ['profile', 'profile_template'])
+  return 'profile_template' in user
 
 
 def get_cluster_profile_dir(scprocess_dir, scdata_dir, setup_cfg):
@@ -921,14 +918,6 @@ def _check_shiny_parameters(config):
 
   valid_palette_names = _load_valid_palette_names()
 
-  # check var_names length matches metadata_vars
-  if shiny_cfg.get('var_names') is not None:
-    if len(shiny_cfg['var_names']) != len(metadata_vars):
-      raise ValueError(
-        f"shiny.var_names has {len(shiny_cfg['var_names'])} entries but "
-        f"metadata_vars has {len(metadata_vars)}; they must be the same length"
-      )
-
   # check metadata_combns values are in metadata_vars
   if shiny_cfg.get('metadata_combns'):
     for pair in shiny_cfg['metadata_combns']:
@@ -1142,9 +1131,9 @@ def _check_cell_cycle_parameters(config):
     return config
 
   cell_cycle = config['cell_cycle']
-  if 'cyc_target_prop' not in cell_cycle:
+  if 'cyc_density_percentile' not in cell_cycle:
     raise ValueError(
-      "cell_cycle.cyc_target_prop is required; specify a proportion in (0, 1]"
+      "cell_cycle.cyc_density_percentile is required; specify a percentile in [0, 100]"
     )
   reference = config['project'].get('probe_set', config['project'].get('ref_txome', ''))
   reference_lower = reference.lower()
@@ -2311,10 +2300,6 @@ def check_join_zoom_config(parent, spec, scprocess_dir, scdata_dir):
   name = spec['zoom']['name']
   tag = parent['join']['name'] + '_join_zoom_' + name
   cfg = copy.deepcopy(parent)
-  if 'resources' in cfg:
-    cfg['resources'] = _normalize_join_zoom_resource_names(cfg['resources'])
-  if 'resources' in spec:
-    spec['resources'] = _normalize_join_zoom_resource_names(spec['resources'])
   for key in ('zoom', 'train_xgboost', 'label_celltypes'):
     cfg.pop(key, None)
   for section in ('hvg', 'integration', 'marker_genes', 'resources', 'shiny'):
@@ -2513,12 +2498,22 @@ def get_join_source_labels_f(project_cfgs, pid, labeller, model):
   return str(f) if f.is_file() else None
 
 
-def get_join_batch_sources(project_cfgs, project_ids, batch_keys, labeller, model):
-  """Split batch keys into those with reusable labels and those needing fresh runs."""
+def get_join_batch_sources(project_cfgs, project_ids, batch_keys, labeller, model,
+  *, model_sha256 = None):
+  """Reuse XGBoost labels only when their saved weights match the requested model."""
+  if labeller == 'scprocess' and not model_sha256:
+    raise ValueError('The installed XGBoost model checksum is required for label reuse')
   reuse_label_fs = []
   fresh_batches = []
   for pid in project_ids:
     proj_label_f = get_join_source_labels_f(project_cfgs, pid, labeller, model)
+    if proj_label_f and labeller == 'scprocess':
+      # Read just the first row while planning. Extraction checks every reused
+      # cell, and aggregation refuses mixed model checksums.
+      first_row_df = pl.read_csv(proj_label_f, n_rows = 1)
+      if (first_row_df.is_empty() or 'model_sha256' not in first_row_df.columns
+          or first_row_df['model_sha256'][0] != model_sha256):
+        proj_label_f = None
     pid_batches = [bk for bk in batch_keys if bk.startswith(f"{pid}_")]
     if proj_label_f:
       reuse_label_fs.append(proj_label_f)
@@ -2678,13 +2673,6 @@ def prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS=None, BATCH
 
   # get user resource values
   user_vals   = config.get('resources', {}).copy()
-  # Keep resource overrides from the former per-run tricycle rule name working.
-  for prefix in ('gb_', 'mins_'):
-    old_name = prefix + 'estimate_run_tricycle'
-    new_name = prefix + 'calculate_tricycle_projection_one_run'
-    if old_name in user_vals:
-      user_vals.setdefault(new_name, user_vals.pop(old_name))
-
   # if same as default, remove from user vals
   for n in list(user_vals):
     if n in defaults:
@@ -2980,7 +2968,7 @@ def _check_xgboost_group_columns(xgb, columns):
 
 def _check_xgboost_label_files(xgb, project_dir):
   from train_xgboost import read_label_specs
-  for key in ['annots_f','label_specs_f','coarse_label_specs_f','label_map_f']:
+  for key in ['annots_f','label_specs_f','coarse_label_specs_f']:
     if not xgb.get(key):
       continue
     path = pathlib.Path(xgb[key])
@@ -2992,14 +2980,13 @@ def _check_xgboost_label_files(xgb, project_dir):
   annotations = pl.read_csv(xgb['annots_f'], n_rows=5)
   if 'cell_id' not in annotations.columns:
     raise ValueError("annots_f must have 'cell_id' column")
-  label_columns = [name for name in ['label', 'annotation', 'fine_label'] if name in annotations.columns]
-  if len(label_columns) != 1:
-    raise ValueError('annots_f needs one label column (label; legacy annotation/fine_label accepted)')
-  read_label_specs(xgb.get('label_specs_f'), xgb.get('coarse_label_specs_f'), label_map_f=xgb.get('label_map_f'))
+  if 'label' not in annotations.columns:
+    raise ValueError("annots_f must have a 'label' column")
+  read_label_specs(xgb.get('label_specs_f'), xgb.get('coarse_label_specs_f'))
 
 
 def get_xgboost_spec_inputs(config):
-  return [config[key] for key in ['label_specs_f','coarse_label_specs_f','label_map_f'] if config.get(key)]
+  return [config[key] for key in ['label_specs_f','coarse_label_specs_f'] if config.get(key)]
 
 
 def _check_train_xgboost_parameters(config):
@@ -3077,23 +3064,6 @@ def _check_join_integration_parameters(config):
   _apply_cell_cycle_tuning_defaults(integration, 'join')
 
 
-def _normalize_join_zoom_resource_names(resources):
-  resources = resources.copy()
-  rule_aliases = {
-    'join_zoom_hvg_stats': 'join_zoom_calculate_raw_gene_count_statistics',
-    'join_zoom_hvg_trend': 'join_zoom_fit_expected_gene_variances',
-    'join_zoom_hvg_clip': 'join_zoom_calculate_clipped_gene_count_statistics',
-    'join_zoom_hvgs': 'join_zoom_rank_and_select_highly_variable_genes',
-  }
-  for old_rule, new_rule in rule_aliases.items():
-    for prefix in ('gb_', 'mins_'):
-      old, new = prefix + old_rule, prefix + new_rule
-      if old in resources:
-        resources.setdefault(new, resources[old])
-        del resources[old]
-  return resources
-
-
 def check_join_config(config, join_schema_f, scdata_dir):
   """Validate and augment a join.yaml config dict.
 
@@ -3106,8 +3076,6 @@ def check_join_config(config, join_schema_f, scdata_dir):
   Returns the (possibly modified) config dict.
   """
   config = copy.deepcopy(config)
-  if 'resources' in config:
-    config['resources'] = _normalize_join_zoom_resource_names(config['resources'])
   join_schema = _load_schema_file(join_schema_f)
   defaults    = _get_default_config_from_schema(join_schema, config)
   if (config.get('integration', {}).get('int_use_paga') is False

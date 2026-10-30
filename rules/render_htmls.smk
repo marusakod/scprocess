@@ -672,7 +672,6 @@ if TRAIN_XGB_PARAMS is not None:
       label_counts_f         = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_label_counts.csv',
       fulldata_predictions_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_fulldata_predictions.csv.gz',
       integration_f          = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
-      has_coarse             = "true" if TRAIN_XGB_PARAMS.get('label_map_f') is not None else "false",
       min_cells              = TRAIN_XGB_PARAMS.get('min_cells_expressed', 10),
     threads: 1
     retries: config['resources']['retries']
@@ -710,7 +709,6 @@ if TRAIN_XGB_PARAMS is not None:
           label_counts_f         = '{params.label_counts_f}',
           fulldata_predictions_f = '{params.fulldata_predictions_f}',
           integration_f          = '{params.integration_f}',
-          has_coarse             = '{params.has_coarse}',
           min_cells              = '{params.min_cells}',
           n_cores                = '{threads}'
         )"

@@ -8,7 +8,6 @@ if TRAIN_XGB_PARAMS is not None:
       annots_f    = TRAIN_XGB_PARAMS['annots_f'],
       integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
       h5ads_yaml  = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
-      label_map   = [TRAIN_XGB_PARAMS['label_map_f']] if TRAIN_XGB_PARAMS.get('label_map_f') else [],
       planner     = str(scprocess_dir / 'scripts/train_xgboost.py'),
     output:
       training_metadata_f     = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_metadata.csv.gz',
@@ -17,7 +16,6 @@ if TRAIN_XGB_PARAMS is not None:
       metadata_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_metadata.csv.gz.json',
     params:
       excluded_labels                  = TRAIN_XGB_PARAMS['excluded_labels'],
-      label_map_f                      = TRAIN_XGB_PARAMS.get('label_map_f') or '',
       cluster_majority_vote_resolution = TRAIN_XGB_PARAMS.get('cluster_majority_vote_resolution', ''),
       cluster_majority_vote_min_purity = TRAIN_XGB_PARAMS['cluster_majority_vote_min_purity'],
       test_group_var                   = TRAIN_XGB_PARAMS.get('test_group_var') or '',
@@ -48,7 +46,6 @@ if TRAIN_XGB_PARAMS is not None:
         --batch_var                         {params.batch_var:q} \
         --is_join                           {params.is_join} \
         --excluded_labels                   {params.excluded_labels:q} \
-        --label_map_f={params.label_map_f:q} \
         --cluster_majority_vote_resolution={params.cluster_majority_vote_resolution:q} \
         --cluster_majority_vote_min_purity  {params.cluster_majority_vote_min_purity:q} \
         --test_group_var={params.test_group_var:q} \
@@ -100,7 +97,6 @@ if TRAIN_XGB_PARAMS is not None:
       pass2_learning_rate    = TRAIN_XGB_PARAMS['pass2_learning_rate'],
       pass2_nrounds          = TRAIN_XGB_PARAMS['pass2_nrounds'],
       pass2_early_stopping   = TRAIN_XGB_PARAMS['pass2_early_stopping'],
-      label_map_f            = TRAIN_XGB_PARAMS.get('label_map_f') or '',
     threads: 8
     retries: config['resources']['retries']
     resources:
@@ -132,7 +128,6 @@ if TRAIN_XGB_PARAMS is not None:
         --pass2_learning_rate               {params.pass2_learning_rate:q} \
         --pass2_nrounds                     {params.pass2_nrounds:q} \
         --pass2_early_stopping              {params.pass2_early_stopping:q} \
-        --label_map_f={params.label_map_f:q} \
         --output_dir                        {params.output_dir:q} \
         --n_cores                           {threads}
       """
@@ -188,7 +183,6 @@ if TRAIN_XGB_PARAMS is not None:
       xgboost_tag          = TRAIN_XGB_PARAMS['xgboost_tag'],
       label_specs_f        = TRAIN_XGB_PARAMS.get('label_specs_f') or '',
       coarse_label_specs_f = TRAIN_XGB_PARAMS.get('coarse_label_specs_f') or '',
-      label_map_f          = TRAIN_XGB_PARAMS.get('label_map_f') or '',
       output_dir           = str(pathlib.Path(f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}').parent),
     threads: 1
     resources:
@@ -205,7 +199,6 @@ if TRAIN_XGB_PARAMS is not None:
         --xgboost_tag                       {params.xgboost_tag:q} \
         --label_specs_f={params.label_specs_f:q} \
         --coarse_label_specs_f={params.coarse_label_specs_f:q} \
-        --label_map_f={params.label_map_f:q} \
         --output_dir                        {params.output_dir:q}
       """
 
@@ -221,7 +214,6 @@ if TRAIN_XGB_PARAMS is not None:
     output:
       fulldata_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_fulldata_predictions.csv.gz'
     params:
-      label_map_f = TRAIN_XGB_PARAMS.get('label_map_f', ''),
     retries: config['resources']['retries']
     resources:
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'train_xgboost_combine', 'memory', attempt),

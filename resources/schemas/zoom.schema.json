@@ -178,7 +178,6 @@
       "required": ["annots_f"],
       "properties": {
         "annots_f": {"type": "string"},
-        "label_map_f": {"type": ["string", "null"], "default": null},
         "label_specs_f": {"type": ["string", "null"], "default": null},
         "coarse_label_specs_f": {"type": ["string", "null"], "default": null},
         "min_cells_per_label": {"type": "integer", "minimum": 1, "default": 20},
@@ -224,7 +223,6 @@
         "n_keep":         { "type": "integer", "exclusiveMinimum": 0, "default": 30000 },
         "metadata_vars":  { "type": "array",  "items": { "type": "string" } },
         "metadata_labels": { "type": "object", "additionalProperties": { "type": "string" } },
-        "var_names":      { "type": "array",   "items": { "type": "string" } },
         "metadata_combns": {
           "type": "array",
           "items": { "type": "array", "items": { "type": "string" } }

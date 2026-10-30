@@ -16,6 +16,15 @@ from label_celltypes import aggregate_predictions
 from scprocess_utils import get_xgboost_model_paths
 
 
+@pytest.mark.parametrize('payload', [b'', b'scprocess\x00\xff', bytes(range(256)) * 4096 + b'tail'],
+  ids=['empty', 'binary', 'multiple_blocks'])
+def test_sha256_matches_reference(tmp_path, payload):
+  path = tmp_path / 'payload.bin'
+  path.write_bytes(payload)
+  expected = hashlib.sha256(payload).hexdigest()
+  assert models.sha256(path) == expected
+
+
 @pytest.fixture
 def setup_tools():
     spec = importlib.util.spec_from_file_location('scprocess_builtin_setup', ROOT / 'scripts/setup.py')

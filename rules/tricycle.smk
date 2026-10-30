@@ -73,20 +73,20 @@ rule aggregate_tricycle:
     sensitivity_f       = TRICYCLE_ORIGIN_SENSITIVITY_F,
     diagnostics_f       = TRICYCLE_DIAGNOSTICS_F
   params:
-    score_args             = lambda wildcards, input: ' '.join(f'--score_f {path}' for path in input.score_fs),
-    marker_expression_args = lambda wildcards, input: ' '.join(
+    score_args                   = lambda wildcards, input: ' '.join(f'--score_f {path}' for path in input.score_fs),
+    marker_expression_args       = lambda wildcards, input: ' '.join(
       f'--marker_expression_f {path}' for path in input.marker_expression_fs),
-    summary_args           = lambda wildcards, input: ' '.join(f'--summary_f {path}' for path in input.summary_fs),
-    bandwidth_multiplier   = lambda wildcards: config['cell_cycle']['cyc_bandwidth_multiplier'],
-    kde_grid_size          = lambda wildcards: config['cell_cycle']['cyc_kde_grid_size'],
-    target_prop            = lambda wildcards: config['cell_cycle']['cyc_target_prop'],
-    target_prop_grid_args  = lambda wildcards: ' '.join(
-      f"--target_prop_grid {value}"
-      for value in config['cell_cycle']['cyc_target_prop_grid']),
-    origin_args            = lambda wildcards: (
+    summary_args                 = lambda wildcards, input: ' '.join(f'--summary_f {path}' for path in input.summary_fs),
+    bandwidth_multiplier         = lambda wildcards: config['cell_cycle']['cyc_bandwidth_multiplier'],
+    kde_grid_size                = lambda wildcards: config['cell_cycle']['cyc_kde_grid_size'],
+    density_percentile           = lambda wildcards: config['cell_cycle']['cyc_density_percentile'],
+    density_percentile_grid_args = lambda wildcards: ' '.join(
+      f"--density_percentile_grid {value}"
+      for value in config['cell_cycle']['cyc_density_percentile_grid']),
+    origin_args                  = lambda wildcards: (
       '--origin_manual ' + ' '.join(str(value) for value in config['cell_cycle']['cyc_origin_manual'])
       if 'cyc_origin_manual' in config['cell_cycle'] else ''),
-    seed                   = lambda wildcards: config['cell_cycle']['cyc_seed']
+    seed                         = lambda wildcards: config['cell_cycle']['cyc_seed']
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -111,8 +111,8 @@ rule aggregate_tricycle:
       --required_h5_f {input.dbl_hvg_mat_f} \
       --bandwidth_multiplier {params.bandwidth_multiplier} \
       --kde_grid_size {params.kde_grid_size} \
-      --target_prop {params.target_prop} \
-      {params.target_prop_grid_args} \
+      --density_percentile {params.density_percentile} \
+      {params.density_percentile_grid_args} \
       {params.origin_args} \
       --seed {params.seed} \
       --out_scores_f {output.scores_f} \

@@ -12,8 +12,8 @@ from scripts.scprocess_utils import _get_default_config_from_schema
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize('setting', [{'cyc_target_prop': 0.01}, {'cyc_target_prop': 1},
-  {'cyc_target_prop': 0.01, 'cyc_origin_manual': [-3, 1]}])
+@pytest.mark.parametrize('setting', [{'cyc_density_percentile': 0}, {'cyc_density_percentile': 1.3}, {'cyc_density_percentile': 100},
+  {'cyc_density_percentile': 1.3, 'cyc_origin_manual': [-3, 1]}])
 @pytest.mark.parametrize('target', ['origin', 'standalone_default', 'parent_default'])
 def test_tricycle_origin_arguments(tmp_path, setting, target):
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())
@@ -60,10 +60,12 @@ def get_resources(*args):
     text=True, capture_output=True, timeout=45, env=env)
   output = result.stdout + result.stderr
   assert result.returncode == 0, output
-  assert '--target_prop ' + str(setting['cyc_target_prop']) in output
+  assert '--density_percentile ' + str(setting['cyc_density_percentile']) in output
   assert ('estimate_cell_cycle_blob(' in output) == (target == 'standalone_default')
   assert 'prepare_tricycle' not in output
   assert output.count('run_column = "pool_id"') == 2
   if 'cyc_origin_manual' in setting:
     assert '--origin_manual -3 1' in output
   assert '--origin_line_fraction' not in output
+  assert '--density_percentile_grid 100' in output
+  assert '--target_prop' not in output

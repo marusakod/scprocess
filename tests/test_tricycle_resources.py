@@ -88,20 +88,6 @@ def test_tricycle_runtime_and_user_overrides(tmp_path):
   ) == 20
 
 
-def test_legacy_tricycle_resource_overrides_keep_working():
-  root = Path(__file__).resolve().parents[1]
-  resources = {
-    'gb_estimate_run_tricycle': 4,
-    'mins_estimate_run_tricycle': 20,
-    'gb_calculate_tricycle_projection_one_run': 6,
-  }
-  params = prep_resource_params(
-    {'resources': resources}, root / 'resources/schemas/config.schema.json', root)
-  assert params['user_vals']['gb_calculate_tricycle_projection_one_run'] == 6
-  assert params['user_vals']['mins_calculate_tricycle_projection_one_run'] == 20
-  assert resources['gb_estimate_run_tricycle'] == 4
-
-
 @pytest.mark.parametrize('rule_name', [
   'aggregate_tricycle', 'estimate_tricycle_reference_ellipse'])
 def test_pooled_tricycle_resources_use_defaults_overrides_and_retries(rule_name):

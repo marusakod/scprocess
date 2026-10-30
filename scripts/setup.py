@@ -30,25 +30,25 @@ URLS_10X_REFS = {
   'mouse_2024': "https://cf.10xgenomics.com/supp/cell-exp/refdata-gex-GRCm39-2024-A.tar.gz"
 }
 URLS_GTF_TXTS = { 
-  'human_2020': "https://zenodo.org/records/14247195/files/human_2020_rrna_genes_gtf.txt.gz", 
-  'human_2024': "https://zenodo.org/records/14247195/files/human_2024_rrna_genes_gtf.txt.gz", 
-  'mouse_2020': "https://zenodo.org/records/14247195/files/mouse_2020_rrna_genes_gtf.txt.gz", 
-  'mouse_2024': "https://zenodo.org/records/14247195/files/mouse_2024_rrna_genes_gtf.txt.gz"
+  'human_2020': "https://zenodo.org/records/23803028/files/human_2020_rrna_genes_gtf.txt.gz",
+  'human_2024': "https://zenodo.org/records/23803028/files/human_2024_rrna_genes_gtf.txt.gz",
+  'mouse_2020': "https://zenodo.org/records/23803028/files/mouse_2020_rrna_genes_gtf.txt.gz",
+  'mouse_2024': "https://zenodo.org/records/23803028/files/mouse_2024_rrna_genes_gtf.txt.gz"
 }
 URLS_ZEN_IDXS = { 
-  'human_2020': "https://zenodo.org/records/20270573/files/alevin-idx_human_2020_rrna.tar.gz", 
-  'human_2024': "https://zenodo.org/records/20270573/files/alevin-idx_human_2024_rrna.tar.gz", 
-  'mouse_2020': "https://zenodo.org/records/20270573/files/alevin-idx_mouse_2020_rrna.tar.gz", 
-  'mouse_2024': "https://zenodo.org/records/20270573/files/alevin-idx_mouse_2024_rrna.tar.gz"
+  'human_2020': "https://zenodo.org/records/23803028/files/alevin-idx_human_2020_rrna.tar.gz",
+  'human_2024': "https://zenodo.org/records/23803028/files/alevin-idx_human_2024_rrna.tar.gz",
+  'mouse_2020': "https://zenodo.org/records/23803028/files/alevin-idx_mouse_2020_rrna.tar.gz",
+  'mouse_2024': "https://zenodo.org/records/23803028/files/alevin-idx_mouse_2024_rrna.tar.gz"
 }
 
 TENX_PROBE_SET_NAMES = ['human_v1', 'mouse_v1', 'human_v2', 'mouse_v2']
 
 URLS_PROBE_GTF_TXTS = {
-  'human_v1': "https://zenodo.org/records/14247195/files/human_2024_rrna_genes_gtf.txt.gz",
-  'human_v2': "https://zenodo.org/records/14247195/files/human_2024_rrna_genes_gtf.txt.gz",
-  'mouse_v1': "https://zenodo.org/records/14247195/files/mouse_2024_rrna_genes_gtf.txt.gz",
-  'mouse_v2': "https://zenodo.org/records/14247195/files/mouse_2024_rrna_genes_gtf.txt.gz"
+  'human_v1': "https://zenodo.org/records/23803028/files/human_2024_rrna_genes_gtf.txt.gz",
+  'human_v2': "https://zenodo.org/records/23803028/files/human_2024_rrna_genes_gtf.txt.gz",
+  'mouse_v1': "https://zenodo.org/records/23803028/files/mouse_2024_rrna_genes_gtf.txt.gz",
+  'mouse_v2': "https://zenodo.org/records/23803028/files/mouse_2024_rrna_genes_gtf.txt.gz"
 }
 
 TENX_PROBE_SET_MITOS = {
@@ -69,12 +69,30 @@ URLS_10X_PROBE_BCS = {
   'flexv2': "https://cf.10xgenomics.com/supp/cell-exp/probeset/flex-v2-384.txt"
 }
 
-URLS_XGBOOSTS = {
-  'Siletti_hippocampus-2026-06-22': 'https://github.com/marusakod/scprocessData/releases/download/v0.2.1/Siletti_hippocampus-2026-06-22.tar.gz',
-}
-
 from train_xgboost import builtin_models, sha256
-URLS_XGBOOSTS.update({name: model['url'] for name, model in builtin_models().items()})
+
+URLS_XGBOOSTS = {name: model['url'] for name, model in builtin_models().items()}
+
+CELLRANGER_RESOURCE_FILES = (
+  'cellranger_gex_barcode_whitelist_3v2_5v1_5v2.txt',
+  'cellranger_gex_barcode_whitelist_3v3.txt',
+  'cellranger_gex_barcode_whitelist_3v4.txt',
+  'cellranger_gex_barcode_whitelist_5v3.txt',
+  'cellranger_gex_barcode_whitelist_multiome_gex.txt',
+  'cellranger_gex_barcode_whitelist_flexv1.txt',
+  'cellranger_gex_barcode_whitelist_flexv2.txt',
+  'cellranger_hto_barcode_whitelist_3v3.txt',
+  'cellranger_hto_barcode_whitelist_3v4.txt',
+  'cellranger_whitelist_translation_3v3.txt',
+  'cellranger_whitelist_translation_3v4.txt',
+  'cellranger_probe_barcodes_flexv1.tsv',
+  'cellranger_probe_barcodes_flexv2.tsv',
+  'ocm_overhang_map.txt',
+  'cellranger_whitelists.csv',
+  '.cellranger_version',
+)
+
+SCPROCESS_SUPPORT_MANIFEST_F = pathlib.Path(__file__).resolve().parents[1] / 'resources/scprocess_data.json'
 
 COMPLEMENT = str.maketrans('ACGT', 'TGCA')
 
@@ -82,44 +100,77 @@ def _reverse_complement(seq):
   return seq.translate(COMPLEMENT)[::-1]
 
 
-def get_scprocess_data(scdata_dir, ranger_url, whitelists_lu_f, ranger_version_f):
-  print('Downloading data from scprocessData github repo')
+def get_scprocess_data(scdata_dir):
+  manifest = json.loads(SCPROCESS_SUPPORT_MANIFEST_F.read_text())
+  expected_hashes = manifest['files']
+  expected_files = set(expected_hashes)
+  scdata_dir = pathlib.Path(scdata_dir)
+  scdata_dir.mkdir(parents = True, exist_ok = True)
+  print('Downloading scprocess marker tables and gene sets from Zenodo')
 
-  if ranger_url == "":
-    raise ValueError('Something went wrong. Please provide a valid cellranger link')
+  # Verify the whole download and every member before replacing installed data.
+  with tempfile.TemporaryDirectory(dir = scdata_dir) as temporary_dir:
+    staging_dir = pathlib.Path(temporary_dir)
+    download_f = staging_dir / 'support.tar.gz'
+    urllib.request.urlretrieve(manifest['url'], download_f)
+    if sha256(download_f) != manifest['archive_sha256']:
+      raise ValueError('Support archive checksum mismatch')
 
-  # switch to scprocess data dir
-  os.chdir(scdata_dir)
+    expected_directories = {str(parent)
+      for filename in expected_files
+      for parent in pathlib.PurePosixPath(filename).parents if str(parent) != '.'}
+    found_files = set()
+    with tarfile.open(download_f, 'r:gz') as archive:
+      for member in archive.getmembers():
+        member_path = pathlib.PurePosixPath(member.name)
+        if member.isdir() and member.name in expected_directories:
+          continue
+        is_expected_file = (
+          member.isfile() and not member_path.is_absolute()
+          and '..' not in member_path.parts and member.name in expected_files
+          and member.name not in found_files)
+        if not is_expected_file:
+          raise ValueError(f'Unexpected support archive member: {member.name}')
 
-  # download tar archive from scprocessData and extract
-  subprocess.run('wget https://github.com/marusakod/scprocessData/releases/download/v0.1.0/scprocess_data_archive.tar.gz',
-  shell=True, capture_output=False)
-  
-  subprocess.run('tar xvf scprocess_data_archive.tar.gz', shell=True, capture_output=False)
+        staged_f = staging_dir / member.name
+        staged_f.parent.mkdir(parents = True, exist_ok = True)
+        with archive.extractfile(member) as source, staged_f.open('wb') as dest:
+          shutil.copyfileobj(source, dest)
+        if sha256(staged_f) != expected_hashes[member.name]:
+          raise ValueError(f'Support member checksum mismatch: {member.name}')
+        found_files.add(member.name)
+    if found_files != expected_files:
+      raise ValueError('Incomplete support archive')
 
-  # remove tar archive
-  os.remove('scprocess_data_archive.tar.gz')
-  
-  # check if all necessary directories are there
-  dirs_ls = [ "gmt_pathways", "marker_genes"]
-  for dir in dirs_ls:
-    assert os.path.isdir(dir), \
-      f"{dir} directory doesn't exist"
-  
-  # get version of cellranger
-  ranger_version = re.search(r"cellranger-(\d+\.\d+\.\d+)", ranger_url).group(1)
-  
-  # download cellranger and extract whitelists
-  ranger_data_dir = os.path.join(scdata_dir, 'cellranger_ref')
-  extract_cellranger_resources(ranger_data_dir, whitelists_lu_f, ranger_url, ranger_version)
+    # Replace only the named support files; custom models and other data remain.
+    for filename in sorted(found_files):
+      destination = scdata_dir / filename
+      destination.parent.mkdir(parents = True, exist_ok = True)
+      shutil.copy2(staging_dir / filename, destination)
+    (scdata_dir / 'scprocess_support_manifest.json').write_text(json.dumps(manifest, indent = 2) + '\n')
+  print('Installed verified scprocess support data')
 
-  # save file with cellranger version
-  with open(ranger_version_f, "w") as f:
-    f.write(str(ranger_version))
 
-  print('Done!')
+def get_cellranger_data(scdata_dir, ranger_url, whitelists_lu_f, ranger_version_f):
+  # Complete installed vendor files can be reused when only Zenodo data changes.
+  ranger_data_dir = pathlib.Path(scdata_dir) / 'cellranger_ref'
+  complete = all((ranger_data_dir / name).is_file() for name in CELLRANGER_RESOURCE_FILES)
+  version_f = pathlib.Path(ranger_version_f)
+  if not ranger_url:
+    if complete:
+      print('Reusing installed Cell Ranger resources')
+      return
+    raise ValueError('Provide a valid Cell Ranger download link for first-time setup')
 
-  return
+  version_match = re.search(r"cellranger-(\d+\.\d+\.\d+)", ranger_url)
+  if version_match is None:
+    raise ValueError('Provide a valid Cell Ranger download link for first-time setup')
+  ranger_version = version_match.group(1)
+  if complete and version_f.read_text().strip() == ranger_version:
+    print('Reusing installed Cell Ranger resources')
+    return
+  extract_cellranger_resources(str(ranger_data_dir), whitelists_lu_f, ranger_url, ranger_version)
+  version_f.write_text(ranger_version)
 
 
 def extract_cellranger_resources(output_dir, whitelists_lu_f, ranger_url, ranger_version):
@@ -877,7 +928,7 @@ def _resolve_xgboost_spec(spec):
       raise ValueError(f"Config file {config_f} does not contain a 'train_xgboost' section")
     join_name = cfg['join']['name']
     join_dir  = cfg['join']['proj_dir']
-    raw_tag   = cfg['train_xgboost'].get('xgboost_tag', cfg['train_xgboost'].get('ref_tag'))
+    raw_tag   = cfg['train_xgboost'].get('xgboost_tag')
     ref_tag   = f"xgboost_{raw_tag}" if raw_tag else f"xgboost_{join_name}"
     src_dir   = os.path.join(join_dir, 'output', f'{join_name}_train_xgboost')
   elif zoom_name is not None:
@@ -893,7 +944,7 @@ def _resolve_xgboost_spec(spec):
     if 'train_xgboost' not in cfg:
       raise ValueError(f"Config file {config_f} does not contain a 'train_xgboost' section")
     full_tag  = cfg['project']['full_tag']
-    raw_tag   = cfg['train_xgboost'].get('xgboost_tag', cfg['train_xgboost'].get('ref_tag'))
+    raw_tag   = cfg['train_xgboost'].get('xgboost_tag')
     ref_tag   = f"xgboost_{raw_tag}" if raw_tag else f"xgboost_{full_tag}"
     proj_dir  = cfg['project']['proj_dir']
     short_tag = cfg['project']['short_tag']
@@ -917,7 +968,7 @@ def _resolve_zoom_xgboost_ref_tag(zoom_yamls, zoom_name, project_config):
       continue
     if 'train_xgboost' not in zoom_cfg:
       raise ValueError(f"Zoom '{zoom_name}' does not have a train_xgboost section")
-    raw_tag = zoom_cfg['train_xgboost'].get('xgboost_tag', cfg['train_xgboost'].get('ref_tag'))
+    raw_tag = zoom_cfg['train_xgboost'].get('xgboost_tag')
     if raw_tag:
       return f"xgboost_{raw_tag}"
     full_tag = project_config['project']['full_tag']
@@ -931,7 +982,7 @@ def add_xgboost_classifier(scdata_dir, name, ref_tag, src_dir, is_prebuilt):
   os.makedirs(dest_dir, exist_ok=True)
 
   if is_prebuilt:
-    _download_prebuilt_xgboost(name, dest_dir)
+    _install_builtin_xgboost_model(name, dest_dir)
   else:
     file_pairs = [
       (f'{ref_tag}_xgboost_model.json', f'{name}_xgboost_model.json'),
@@ -947,7 +998,7 @@ def add_xgboost_classifier(scdata_dir, name, ref_tag, src_dir, is_prebuilt):
         shutil.copy2(source, os.path.join(dest_dir, f'{name}_{suffix}'))
 
   manifest_f = os.path.join(dest_dir, f'{name}_manifest.json')
-  if not is_prebuilt or name not in builtin_models():
+  if not is_prebuilt:
     import json
     files = {f'{name}_{suffix}': sha256(os.path.join(dest_dir, f'{name}_{suffix}'))
       for suffix in ['xgboost_model.json', 'allowed_cls.csv', 'selected_genes.txt']}
@@ -1008,24 +1059,22 @@ def _install_builtin_xgboost_model(name, dest_dir):
     if found_files != expected_files:
       raise ValueError(f'Incomplete model archive for {name}')
 
+    # Retire obsolete declared outputs, such as evaluations from the previous
+    # model. Keep any unrelated user files in the model directory.
+    manifest_f = dest_dir / f'{name}_manifest.json'
+    previous_files = set()
+    if manifest_f.is_file():
+      previous_files = set(json.loads(manifest_f.read_text())['files'])
+      if any(pathlib.PurePosixPath(filename).name != filename for filename in previous_files):
+        raise ValueError('Installed model manifest contains invalid filenames')
+
     # Install only after the entire staged archive passes validation.
     dest_dir.mkdir(exist_ok = True)
     for filename in found_files:
       shutil.copy2(staging_dir / filename, dest_dir / filename)
-    manifest_f = dest_dir / f'{name}_manifest.json'
+    for filename in sorted(previous_files - expected_files):
+      (dest_dir / filename).unlink(missing_ok = True)
     manifest_f.write_text(json.dumps(model_manifest, indent = 2) + '\n')
-
-def _download_prebuilt_xgboost(name, dest_dir):
-  if name in builtin_models():
-    _install_builtin_xgboost_model(name, dest_dir)
-    return
-  url = URLS_XGBOOSTS[name]
-  tar_path = os.path.join(dest_dir, f'{name}.tar.gz')
-  print(f"Downloading prebuilt xgboost classifier '{name}'")
-  subprocess.run(['wget', '-O', tar_path, url], check=True)
-  subprocess.run(['tar', '-xzf', tar_path, '-C', dest_dir, '--strip-components=1'], check=True)
-  os.remove(tar_path)
-
 
 def save_available_xgboost_csv(csv_f, scdata_dir, names):
   rows = []
@@ -1047,9 +1096,20 @@ def save_available_xgboost_csv(csv_f, scdata_dir, names):
       'label_specs_f': str(pathlib.Path(xgb_dir) / f'{name}_label_specs.csv') if os.path.isfile(os.path.join(xgb_dir,f'{name}_label_specs.csv')) else '',
       'coarse_label_specs_f': str(pathlib.Path(xgb_dir) / f'{name}_coarse_label_specs.csv') if os.path.isfile(os.path.join(xgb_dir,f'{name}_coarse_label_specs.csv')) else '',
     })
-  df = pl.from_dicts(rows)
-  df.write_csv(csv_f)
-  print(f"Saved available classifiers CSV with {len(names)} entries to {csv_f}")
+  models_df = pl.from_dicts(rows)
+  if pathlib.Path(csv_f).is_file():
+    installed_df = pl.read_csv(csv_f)
+    custom_df = installed_df.filter(~pl.col('model').is_in(names))
+    for record in custom_df.iter_rows(named = True):
+      for key in ('model_f', 'cls_f', 'genes_f'):
+        if not pathlib.Path(record[key]).is_file():
+          raise FileNotFoundError(f"Registered model file missing: {record[key]}")
+      get_xgboost_model_info(record['model_f'], record['model'])
+    models_df = pl.concat([models_df, custom_df], how = 'diagonal_relaxed')
+  if models_df['model'].n_unique() != len(models_df):
+    raise ValueError('Installed classifier names must be unique')
+  models_df.write_csv(csv_f)
+  print(f"Saved available classifiers CSV with {len(models_df)} entries to {csv_f}")
 
 
 def save_index_params_csv(csv_f, yaml_fs):
@@ -1081,10 +1141,14 @@ if __name__ == "__main__":
 
   # parser for get_scprocess_data
   getdata     = subparsers.add_parser('get_scprocess_data')
-  getdata.add_argument('scdata_dir', type=str)
-  getdata.add_argument('cr_url', type = str)
-  getdata.add_argument('wl_lu_f', type=str)
-  getdata.add_argument('cr_version_f', type=str)
+  getdata.add_argument('scdata_dir', type = str)
+
+  # Cell Ranger is a separate vendor download used for whitelist extraction.
+  getranger = subparsers.add_parser('get_cellranger_data')
+  getranger.add_argument('scdata_dir', type = str)
+  getranger.add_argument('cr_url', type = str)
+  getranger.add_argument('wl_lu_f', type = str)
+  getranger.add_argument('cr_version_f', type = str)
 
   # parsers for set_up_txome_index
   get_af      = subparsers.add_parser('set_up_txome_index')
@@ -1132,7 +1196,9 @@ if __name__ == "__main__":
   # decide which function
   args = parser.parse_args()
   if args.function_name == 'get_scprocess_data':
-    get_scprocess_data(args.scdata_dir, args.cr_url, args.wl_lu_f, args.cr_version_f)
+    get_scprocess_data(args.scdata_dir)
+  elif args.function_name == 'get_cellranger_data':
+    get_cellranger_data(args.scdata_dir, args.cr_url, args.wl_lu_f, args.cr_version_f)
   elif args.function_name == 'set_up_txome_index':
     set_up_txome_index(args.scdata_dir, args.genome, args.fasta_f, args.gtf_f, args.index_dir, args.mito_str,
       _safe_boolean(args.is_prebuilt), _safe_boolean(args.is_tenx),

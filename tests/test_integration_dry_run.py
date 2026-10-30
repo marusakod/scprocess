@@ -38,7 +38,7 @@ def test_integration_dag_and_effective_arguments(tmp_path, backend, correction, 
     else:
         config['integration']['int_paga_cl_res'] = paga_resolution
     if estimate_phase:
-        config['cell_cycle'] = {'cyc_target_prop': 0.01}
+        config['cell_cycle'] = {'cyc_density_percentile': 1.3}
     if correction:
         config['integration']['int_cell_cycle_correction'] = correction
     config = _check_cell_cycle_parameters(config)

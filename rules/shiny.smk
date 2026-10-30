@@ -110,13 +110,10 @@ def _resolve_optional_path(val, proj_dir):
   return str(p)
 
 def _resolve_var_names(metadata_vars_ls, shiny_cfg):
-  """Build display names list from metadata_labels (dict) or var_names (legacy array)."""
+  """Build display names from the optional metadata_labels dictionary."""
   labels = shiny_cfg.get('metadata_labels', {})
-  if labels:
-    return [labels.get(v, v) for v in metadata_vars_ls]
-  if 'var_names' in shiny_cfg:
-    return shiny_cfg['var_names']
-  return list(metadata_vars_ls)
+  return [labels.get(v, v) for v in metadata_vars_ls]
+
 
 _home_md_f        = _resolve_optional_path(_shiny_cfg.get('home_md'),        PROJ_DIR)
 _annotation_csv_f = _resolve_optional_path(_shiny_cfg.get('annotation_csv'), PROJ_DIR)

@@ -102,11 +102,7 @@ artificial-doublet model and calling threshold were:
 
 When a setting is reported as `scDblFinder default`, scprocess omitted that
 argument and allowed the installed scDblFinder version to choose its default.
-```{r legacy_doublet_diagnostics, results='asis', echo=FALSE, cache=FALSE}
-if (nrow(doublets$artificial) == 0L && all(is.na(doublets$summary$calling_threshold))) {
-  cat("**Historical diagnostics:** these reports reuse saved real-cell scores and calls. Artificial-doublet scores, calling thresholds and original package/settings metadata were not saved and are unavailable. Empty artificial tables represent missing diagnostics; no artificial scores were reconstructed. The configuration values above describe the current config, not verified historical settings.\n\n")
-}
-```
+
 
 Artificial doublets are simulated training observations, not biological cells.
 
