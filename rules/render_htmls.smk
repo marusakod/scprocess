@@ -475,10 +475,14 @@ rule render_html_integration:
 # render_html_marker_genes
 rule render_html_marker_genes:
   input:
+    rmd_template_f = str(scprocess_dir / 'resources/rmd_templates/marker_genes.Rmd.template'),
+    marker_script = str(scprocess_dir / 'scripts/marker_genes.R'),
+    fgsea_script  = str(scprocess_dir / 'scripts/fgsea.R'),
+    render_script = str(scprocess_dir / 'scripts/render_htmls.R'),
     r_utils_f     = f"{code_dir}/utils.R",
     r_int_f       = f'{code_dir}/integration.R',
     metadata_f    = config['project']['sample_metadata'],
-    pb_f          = f'{mkr_dir}/pb_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.rds',
+    pb_plot_data_f = MARKER_PLOT_DATA_F,
     mkrs_f        = f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     hvgs_f        = f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
@@ -530,15 +534,15 @@ rule render_html_marker_genes:
 
     # copy R code over
     echo "copying relevant R files over"
-    cp {scprocess_dir}/scripts/marker_genes.R {output.r_mkr_f}
-    cp {scprocess_dir}/scripts/fgsea.R {output.r_fgsea_f}
+    cp {input.marker_script} {output.r_mkr_f}
+    cp {input.fgsea_script} {output.r_fgsea_f}
 
     # define rule and template
-    template_f={scprocess_dir}/resources/rmd_templates/marker_genes.Rmd.template
+    template_f={input.rmd_template_f}
     rule="markers"
 
     # rendering html
-    Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \
+    Rscript --vanilla -e "source('{input.render_script}'); \
     render_html(
       rule_name         = '$rule',
       temp_f            = '$template_f',
@@ -554,7 +558,7 @@ rule render_html_marker_genes:
       gtf_dt_f          = '{params.af_gtf_dt_f}',
       ambient_f         = '{params.ambient_f}',
       integration_f     = '{input.integration_f}',
-      pb_f              = '{input.pb_f}',
+      pb_plot_data_f    = '{input.pb_plot_data_f}',
       hvgs_f            = '{input.hvgs_f}',
       mkrs_f            = '{input.mkrs_f}',
       custom_mkr_names  = '{params.custom_mkr_names}',

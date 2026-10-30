@@ -245,7 +245,7 @@ rule all:
     clean_sce_fs,
     f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml', 
     # marker genes
-    f'{mkr_dir}/pb_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.rds',
+    f'{mkr_dir}/pb_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.bpcells',
     f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
     f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{ config['marker_genes']['mkr_sel_res'] }_{DATE_STAMP}.csv.gz',
     # fgsea outputs
@@ -382,7 +382,7 @@ rule integration:
 
 rule marker_genes:
   input:     
-    f'{mkr_dir}/pb_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.rds',
+    f'{mkr_dir}/pb_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.bpcells',
     f'{mkr_dir}/pb_marker_genes_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.csv.gz',
     f'{mkr_dir}/pb_hvgs_{FULL_TAG}_{config['marker_genes']['mkr_sel_res']}_{DATE_STAMP}.csv.gz',
     # fgsea outputs

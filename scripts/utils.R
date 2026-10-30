@@ -114,12 +114,11 @@ cols_fn <- function(mat, res, pal, pal_dir, range=c('has_zero', 'symmetric', 'na
 }
 
 load_gene_biotypes <- function(gtf_dt_f) {
-    # .[, .(ensembl_id = gene_id, symbol = gene_name, gene_type)] %>%
-    # unique %>%
-    # .[, .(gene_id = paste0(symbol, '_', ensembl_id), symbol, gene_type)]
-  biotypes_dt = fread(gtf_dt_f) %>%
-    .[, .(gene_id, symbol, gene_type)]
-  assert_that( all(table(biotypes_dt$gene_id) == 1) )
+  # Standard annotations include Ensembl IDs used by optional custom panels.
+  metadata_columns = names(fread(gtf_dt_f, nrows = 0L))
+  cols_needed = intersect(c("gene_id", "symbol", "gene_type", "ensembl_id"), metadata_columns)
+  biotypes_dt = fread(gtf_dt_f, select = cols_needed)
+  assert_that(all(table(biotypes_dt$gene_id) == 1))
 
   return(biotypes_dt)
 }

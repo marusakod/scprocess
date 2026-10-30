@@ -306,6 +306,11 @@ Pseudobulk marker genes were identified at resolution `r sel_res` using `edgeR`.
 For each cluster, pseudobulk counts for cells in that cluster were compared against
 all other clusters. When `marker_genes.mkr_adjust_project_id` is enabled, the tests also account for differences between source projects. Otherwise the model includes only cluster membership.
 
+By default, dispersion estimation accounts for differences between clusters.
+Setting `marker_genes.mkr_dispersion_use_clusters` to `false` omits cluster
+membership from dispersion estimation, while retaining any requested project
+adjustment. Cluster-versus-rest marker tests are unchanged.
+
 ### Heatmaps of marker genes{.tabset}
 
 ```{r plot_marker_heatmaps, fig.height=9, fig.width=10, results="asis"}

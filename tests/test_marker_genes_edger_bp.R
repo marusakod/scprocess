@@ -17,6 +17,18 @@ stopifnot(identical(unlist(parallel_retry), seq_len(8L)))
 cache_test_dir = tempfile("scprocess-edger-bp-cache-")
 dir.create(cache_test_dir)
 on.exit(unlink(cache_test_dir, recursive = TRUE), add = TRUE)
+# Optional Ensembl identifiers must survive preparation for custom gene panels.
+gene_info_f = file.path(cache_test_dir, "genes.csv")
+gene_info = data.table::data.table(gene_id = c("g1", "g2"),
+  symbol = c("Gene1", "Gene2"), gene_type = "protein_coding",
+  ensembl_id = c("ENS1", "ENS2"))
+data.table::fwrite(gene_info, gene_info_f)
+stopifnot(identical(load_gene_biotypes_bpcells(gene_info_f)$ensembl_id,
+  gene_info$ensembl_id))
+data.table::fwrite(gene_info[, .(gene_id, symbol, gene_type)], gene_info_f)
+stopifnot(identical(names(load_gene_biotypes_bpcells(gene_info_f)),
+  c("gene_id", "symbol", "gene_type")))
+
 h5ad_a = file.path(cache_test_dir, "batch_a.h5ad")
 h5ad_b = file.path(cache_test_dir, "batch_b.h5ad")
 h5ad_empty = file.path(cache_test_dir, "batch_empty.h5ad")
@@ -108,6 +120,38 @@ stopifnot(
   identical(cache$coldata$n_cells, c(2L, 1L, 1L))
 )
 
+# A pooled project must retain biological samples and use integration membership.
+# c3 is a doublet and its project cluster differs from the earlier fixture.
+project_integration_f = file.path(cache_test_dir, "project-integration.csv")
+data.table::fwrite(data.table::data.table(
+  cell_id = c("c1", "c2", "c3", "c4"),
+  sample_id = c("s1", "s2", "s1", "s1"),
+  pool_id = c("pool1", "pool1", "pool2", "pool2"),
+  RNA_snn_res.0.5 = c("A", "A", "B", "B"),
+  is_dbl = c(FALSE, FALSE, TRUE, FALSE),
+  in_dbl_cl = FALSE
+), project_integration_f)
+for (exclude_doublets in c(TRUE, FALSE)) {
+  project_cache_dir = file.path(cache_test_dir, paste0("project-", exclude_doublets))
+  make_pseudobulks_bpcells(
+    integration_f = project_integration_f, h5ads_yaml_f = h5ads_yaml_f,
+    batch_var = "pool_id", pb_dir = project_cache_dir, sel_res = "0.5",
+    min_cl_size = 1L, n_cores = 1L, project_id = "project1",
+    exclude_doublets = exclude_doublets
+  )
+  project_cache = open_pseudobulk_cache_bpcells(project_cache_dir)
+  expected_b = batch_b[, "c4"]
+  if (!exclude_doublets) expected_b = expected_b + batch_b[, "c3"]
+  expected_project = cbind(batch_a[, "c1"], batch_a[, "c2"], expected_b)
+  stopifnot(
+    identical(project_cache$coldata$sample, c("s1", "s2", "s1")),
+    all(project_cache$coldata$project_id == "project1"),
+    identical(project_cache$coldata$cluster, c("A", "A", "B")),
+    identical(project_cache$coldata$n_cells, c(1L, 1L, if (exclude_doublets) 1L else 2L)),
+    isTRUE(all.equal(unname(as.matrix(project_cache$counts)), unname(expected_project)))
+  )
+}
+
 cache_coldata = data.table::as.data.table(cache$coldata)
 cache_coldata[, `:=`(
   raw_lib_size = colSums(cache_dense),
@@ -189,7 +233,7 @@ bp_counts = write_matrix_dir(
 )
 group = factor(clusters, levels = unique(clusters))
 project_id = factor(projects, levels = unique(projects))
-for (adjust_project_id in c(FALSE, TRUE)) {
+for (adjust_project_id in c(FALSE, TRUE)) for (dispersion_use_clusters in c(TRUE, FALSE)) {
   dispersion_design = if (adjust_project_id) {
     model.matrix(~ project_id + group)
   } else {
@@ -210,7 +254,8 @@ for (adjust_project_id in c(FALSE, TRUE)) {
     effective_lib_size = prepared$effective.lib.size,
     workers = 1L,
     block_size = 20L,
-    adjust_project_id = adjust_project_id
+    adjust_project_id = adjust_project_id,
+    dispersion_use_clusters = dispersion_use_clusters
   )
 
   dge = DGEList(counts)
@@ -222,6 +267,15 @@ for (adjust_project_id in c(FALSE, TRUE)) {
   )
   dge = dge[keep, , keep.lib.sizes = FALSE]
   dge = normLibSizes(dge, method = "TMM")
+  # Gene filtering and TMM preparation use the same cluster design in both
+  # cases. Only the subsequent dispersion estimation changes.
+  if (!dispersion_use_clusters) {
+    dispersion_design = if (adjust_project_id) {
+      model.matrix(~ project_id)
+    } else {
+      model.matrix(~ 1, data = coldata)
+    }
+  }
   dge = estimateDisp(dge, design = dispersion_design)
 
   expected = do.call(rbind, lapply(c("A", "B", "C"), function(cluster) {
@@ -321,7 +375,7 @@ calc_marker_context_bpcells = function(..., workers, block_apply) {
   if (fail_context && context_calls %% 2L == 0L) stop("synthetic summary failure")
   original_context(..., workers = workers, block_apply = block_apply)
 }
-run_markers = function(block_size = 20L) calculate_join_marker_genes_bpcells(
+run_markers = function(block_size = 20L) calculate_marker_genes_bpcells(
   checkpoint_dir, prepared_cols, prepared_rows, markers_f, biotypes,
   n_cores = 2L, block_size = block_size)
 fail_context = TRUE
@@ -336,7 +390,7 @@ stopifnot(fit_calls == 1L, isTRUE(all.equal(recovered, again)))
 changed = run_markers(block_size = 13L)
 stopifnot(fit_calls == 2L, isTRUE(all.equal(recovered, changed, tolerance = 1e-8)))
 saved = readRDS(checkpoint_f)
-for (field in c("counts_md5", "coldata", "rowdata", "adjust_project_id",
+for (field in c("counts_md5", "coldata", "rowdata", "adjust_project_id", "dispersion_use_clusters",
                 "versions", "implementations", "package_code", "package_binaries")) {
   stale = saved$signature
   stale[[field]] = NULL
@@ -345,6 +399,9 @@ for (field in c("counts_md5", "coldata", "rowdata", "adjust_project_id",
 # Changing a helper must also change the provenance without changing inputs.
 signature_before = .marker_fit_signature(checkpoint_dir, coldata,
   data.frame(gene_id = rownames(counts)), FALSE, 13L, 2L)
+signature_without_clusters = .marker_fit_signature(checkpoint_dir, coldata,
+  data.frame(gene_id = rownames(counts)), FALSE, 13L, 2L, FALSE)
+stopifnot(!identical(signature_before, signature_without_clusters))
 original_matrix = .bp_as_matrix
 .bp_as_matrix = function(x) { return(.without_bpcells_dense_message(as.matrix(x))) }
 signature_after = .marker_fit_signature(checkpoint_dir, coldata,

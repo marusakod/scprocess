@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.0 — Unreleased development candidate
+
+- Add `marker_genes.mkr_dispersion_use_clusters` (default `true`) to projects,
+  joins and zooms. Setting it to `false` omits cluster effects only during
+  dispersion estimation; filtering, normalization and marker contrasts remain
+  unchanged. Fit checkpoints distinguish the two settings.
+- Use edgeR.bp as the single marker backend for projects, joins and their zooms.
+  Persist BPCells pseudobulks, preparation tables and compact report expression
+  data as separate workflow outputs. Existing marker CSV names are retained;
+  project/zoom pseudobulk RDS outputs are replaced by `.bpcells` directories.
+- Project markers adopt the join calculation: shared TMM offsets, dispersion
+  estimation with a cluster design, and streamed one-versus-rest Treat tests.
+  Marker statistics may change; this is not a storage-only migration.
+- Rank variable pseudobulk genes by TMM-logCPM variance, as joins already do,
+  instead of the former project DESeq2 transformation. Reports use this ranking.
+- Preserve project doublet exclusions and zoom membership, and aggregate pooled
+  libraries by biological sample rather than treating the pool as a sample.
+- Replace the obsolete combined marker resource prediction with explicit defaults
+  for the split stages; retain fitting memory/time override names.
+
 ## 0.4.3 — Unreleased development candidate
 
 - Consolidate doublet-cluster thresholding, streaming diagnostic merging and
