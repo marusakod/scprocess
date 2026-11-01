@@ -147,26 +147,6 @@ If you plan to use `CellBender` for ambient RNA correction, you will also need A
 
     Once the inital setup is complete, you do not need to provide the Cell Ranger link again i.e if you modify the _scprocess_setup.yaml_ file to add additional reference genomes, simply run {{scsetup}}.
 
-## Downloaded support files and classifiers
-
-From 0.6.0, marker tables, gene sets and the built-in `human_cns` classifier
-come from the [pinned Zenodo record](https://zenodo.org/records/23803028).
-Setup verifies the support/model archives and their individual files before
-replacing installed contents. The installed support manifest is saved as
-`$SCPROCESS_DATA_DIR/scprocess_support_manifest.json`; the classifier manifest
-is saved beside its weights.
-
-Support files and Cell Ranger resources are downloaded in separate steps.
-Updating support data or the classifier does not require another Cell Ranger
-download. A first installation still needs the vendor link for extracting
-barcode whitelists. Vendor genome/probe-set downloads and CellTypist models
-retain their upstream sources.
-
-Rerunning setup updates the configured models while keeping other registered
-custom classifiers and unrelated files in `$SCPROCESS_DATA_DIR`. Files declared
-by an older built-in model manifest but absent from its replacement are removed
-after the new archive has passed verification, so older evaluation summaries
-are not presented beside new weights.
 
 ## Cluster setup
 
