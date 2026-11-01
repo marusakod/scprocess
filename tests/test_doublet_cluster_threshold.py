@@ -76,11 +76,16 @@ class TestSplitMadMixture(unittest.TestCase):
         self.assertGreater(fit['threshold'], .5)
         self.assertEqual(fit['reference_ceiling'], .5)
 
-    def test_insufficient_or_zero_mad_group_errors(self):
-        for counts in ([(1,100),(5,100),(90,100)],
-                       [(1,100),(1,100),(70,100),(90,100)]):
-            with self.subTest(counts=counts), self.assertRaises(ValueError):
-                calculate_doublet_cluster_threshold(counts)
+    def test_zero_mad_group_errors(self):
+        counts = [(1,100),(1,100),(70,100),(90,100)]
+        with self.assertRaises(ValueError):
+            calculate_doublet_cluster_threshold(counts)
+
+    def test_insufficient_clusters_falls_back_to_manual(self):
+        counts = [(1,100),(5,100),(90,100)]
+        fit = calculate_doublet_cluster_threshold(counts)
+        self.assertEqual(fit['method'], 'manual')
+        self.assertEqual(fit['threshold'], .5)
 
 
 if __name__ == '__main__':

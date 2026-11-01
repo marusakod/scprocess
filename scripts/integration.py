@@ -590,10 +590,13 @@ def _split_mad_mixture(counts, result):
   n_low  = len(low_logits)
   n_high = len(high_logits)
   if n_low < 2 or n_high < 2:
-    raise ValueError(
-      'Split-MAD mixture requires at least two clusters strictly below '
-      'and strictly above 50% doublets. Inspect the data or explicitly '
-      'select manual; no automatic fallback is applied.')
+    # Not enough clusters on one side to fit a mixture component. Fall back
+    # to a manual 50% cutoff (result['threshold'] is already the ceiling).
+    print('Doublet cluster threshold: not enough clusters below/above 50% '
+          f'(n_low={n_low}, n_high={n_high}) to fit the adaptive Split-MAD '
+          "mixture; falling back to a manual 50% cutoff.")
+    result['method'] = 'manual'
+    return result
 
   # Use each component's median as its centre. Multiplying MAD by 1.4826
   # puts its spread on the standard-deviation scale of a normal distribution.
