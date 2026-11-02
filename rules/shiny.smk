@@ -157,16 +157,7 @@ def _zoom_metadata_vars_ls(zoom_name):
 
 
 def _main_shiny_data_resource(input, param, attempt):
-  # Retain existing config keys and model after the data/configure rule split.
-  resource_params = dict(RESOURCE_PARAMS)
-  for section in ('user_vals', 'defaults'):
-    resource_params[section] = dict(RESOURCE_PARAMS[section])
-    for prefix in ('gb', 'mins'):
-      old_key = f'{prefix}_build_shiny_app'
-      if old_key in resource_params[section]:
-        resource_params[section][f'{prefix}_build_shiny_data'] = resource_params[section][old_key]
-  return get_resources(resource_params, rules, input, 'build_shiny_data', param,
-                       attempt, csv_rule='build_shiny_app')
+  return get_resources(RESOURCE_PARAMS, rules, input, 'build_shiny_data', param, attempt)
 
 # ---- aggregate rule: build all zoom shiny apps ----------------------------
 rule build_all_zoom_shiny_apps:

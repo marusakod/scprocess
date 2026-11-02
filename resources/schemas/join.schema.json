@@ -228,6 +228,10 @@
         "mins_join_render_html_train_xgboost": { "type": "integer", "default": 15 },
         "gb_build_shiny_app":           { "type": "integer", "default": 16 },
         "mins_build_shiny_app":         { "type": "integer", "default": 30 },
+        "gb_build_shiny_data":          { "type": "integer", "default": 16 },
+        "mins_build_shiny_data":        { "type": "integer", "default": 30 },
+        "gb_build_zoom_shiny_app":      { "type": "integer", "default": 16 },
+        "mins_build_zoom_shiny_app":    { "type": "integer", "default": 30 },
         "retries":                      { "type": "integer", "default": 0 }
       }
     },

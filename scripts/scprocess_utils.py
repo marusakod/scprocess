@@ -2709,37 +2709,37 @@ def prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS=None, BATCH
   return RESOURCE_PARAMS
 
 
-def get_resources(RESOURCE_PARAMS, rules, input, rule, param, attempt, run = None, csv_rule = None):
+def get_resources(RESOURCE_PARAMS, rules, input, rule, param, attempt, run = None):
   attempt_exp = 1.5
   if not hasattr(rules, rule):
     raise ValueError(f'rule {rule} is not defined.')
   param_name  = f'mins_{rule}' if param == 'time' else f'gb_{rule}'
-  lookup_rule = csv_rule if csv_rule is not None else rule
 
   defaults    = RESOURCE_PARAMS['defaults']
   user_vals   = RESOURCE_PARAMS['user_vals']
 
-  # 1. user override takes priority (keyed by actual rule name)
+  # user override takes priority
   if param_name in user_vals:
     if param == 'memory':
       mem_mb    = user_vals[param_name] * MB_PER_GB
     else:
       time_min  = user_vals[param_name]
 
-  # 2. resource model CSV (keyed by lookup_rule to allow model reuse)
-  elif _rule_in_csv(RESOURCE_PARAMS, lookup_rule, param):
-    filt_df   = _get_csv_row(RESOURCE_PARAMS, lookup_rule, param, run)
-    mem_mb, time_min = _predict_from_csv(filt_df, RESOURCE_PARAMS, input, lookup_rule, param, run)
-
-  # 3. schema default fallback (for rules not in CSV)
-  elif param_name in defaults:
-    if param == 'memory':
-      mem_mb    = defaults[param_name] * MB_PER_GB
-    else:
-      time_min  = defaults[param_name]
-
   else:
-    raise KeyError(f'No resource model or schema default for {param_name}.')
+    filt_df = _get_csv_row(RESOURCE_PARAMS, rule, param, run) if _rule_in_csv(RESOURCE_PARAMS, rule, param) else None
+
+    if filt_df is not None:
+      mem_mb, time_min = _predict_from_csv(filt_df, RESOURCE_PARAMS, input, rule, param, run)
+
+    # schema default fallback (for rules not in CSV, or an unresolved chemistry)
+    elif param_name in defaults:
+      if param == 'memory':
+        mem_mb    = defaults[param_name] * MB_PER_GB
+      else:
+        time_min  = defaults[param_name]
+
+    else:
+      raise KeyError(f'No resource model or schema default for {param_name}.')
 
   if param == 'memory':
     mem_mb     *= attempt_exp**(attempt - 1)
@@ -2752,8 +2752,10 @@ def get_resources(RESOURCE_PARAMS, rules, input, rule, param, attempt, run = Non
 
 
 def _rule_in_csv(RESOURCE_PARAMS, rule, param):
+  # Rows without a fitted model carry no floor and fall back to the schema default instead
   lm_df = RESOURCE_PARAMS['lm_df']
-  return lm_df.filter((pl.col("param") == param) & (pl.col("rule") == rule)).shape[0] > 0
+  rows  = lm_df.filter((pl.col("param") == param) & (pl.col("rule") == rule))
+  return rows.shape[0] > 0 and not rows["rq_slope"].is_null().all()
 
 
 def _get_csv_row(RESOURCE_PARAMS, rule, param, run):
@@ -2765,12 +2767,14 @@ def _get_csv_row(RESOURCE_PARAMS, rule, param, run):
     chemistry     = _resolve_run_chemistry(run, RESOURCE_PARAMS)
     chem_group    = _get_chemistry_group(chemistry)
     chem_row      = rule_rows.filter(pl.col("chemistry") == chem_group)
-    if chem_row.shape[0] == 1:
+    # A row can exist (e.g. as a documented placeholder) without a model.
+    # Only accept it as a match if it actually has one.
+    if chem_row.shape[0] == 1 and not chem_row["rq_slope"].is_null().all():
       return chem_row
     generic_row   = rule_rows.filter(pl.col("chemistry") == "")
-    if generic_row.shape[0] == 1:
+    if generic_row.shape[0] == 1 and not generic_row["rq_slope"].is_null().all():
       return generic_row
-    raise ValueError(f"No matching chemistry row for rule '{rule}', param '{param}', chemistry '{chem_group}'.")
+    return None
 
   generic_row = rule_rows.filter(pl.col("chemistry") == "")
   if generic_row.shape[0] == 1:
@@ -2782,23 +2786,22 @@ def _get_csv_row(RESOURCE_PARAMS, rule, param, run):
 
 def _predict_from_csv(filt_df, RESOURCE_PARAMS, input, rule, param, run):
   has_model = not filt_df["rq_slope"].is_null().all()
+  if not has_model:
+    raise ValueError(
+      f"Resolved resource-model row for rule '{rule}', param '{param}' has no "
+      "fitted model; check for a chemistry-specific row missing its model.")
+
   floor_val = filt_df["floor"].item()
   mem_mb    = None
   time_min  = None
 
-  if has_model:
-    param_est = _estimate_resource_parameter(filt_df, RESOURCE_PARAMS, input, rule, run)
-    param_est = max(floor_val, param_est)
-    if param == "memory":
-      mem_mb    = param_est
-    else:
-      time_s    = param_est
-      time_min  = time_s / 60
+  param_est = _estimate_resource_parameter(filt_df, RESOURCE_PARAMS, input, rule, run)
+  param_est = max(floor_val, param_est)
+  if param == "memory":
+    mem_mb    = param_est
   else:
-    if param == "memory":
-      mem_mb    = floor_val
-    else:
-      time_min  = floor_val / 60
+    time_s    = param_est
+    time_min  = time_s / 60
 
   return mem_mb, time_min
 
@@ -2868,9 +2871,10 @@ def _resolve_run_chemistry(run, RESOURCE_PARAMS):
 
 
 def _get_chemistry_group(tenx_chemistry):
-  if tenx_chemistry == "3v4":
-    return "3v4"
-  return "3v3"
+  if tenx_chemistry in ("3v3", "3v4"):
+    return tenx_chemistry
+  # Unrecognised chemistry: no chemistry-specific row should match this.
+  return ""
 
 
 ### helpers
