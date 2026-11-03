@@ -200,7 +200,8 @@ scprocess run <config.yaml> -n
 # Run a specific pipeline stage
 scprocess run <config.yaml> -r mapping|ambient|demux|qc|hvg|cell_cycle|integration|marker_genes|label_celltypes|train_xgboost|zoom|shiny
 
-# Target a project zoom with -r shiny or -r train_xgboost (name or 'all')
+# Run all zooms, or only one; --zoom also works with -r shiny / -r train_xgboost
+scprocess run <config.yaml> -r zoom [--zoom <zoom_name>|all]
 scprocess run <config.yaml> -r shiny --zoom <zoom_name>
 
 # Unlock after an interrupted run
@@ -224,11 +225,11 @@ scprocess newproj <name> -w <where> [-s] [-c sc|sn|multiplex|flex ...]
 # Create a join project scaffold, optionally pre-filling projects (-p requires -c)
 scprocess newjoin <name> -w <where> [-c] [-p <project_config.yaml> ...]
 
-# Join several scprocess projects (no --create-envs option for join yet)
-scprocess join <join.yaml> [-n] [--unlock] [-r all|label_celltypes|train_xgboost|shiny|zoom]
+# Join several scprocess projects
+scprocess join <join.yaml> [-n] [--unlock] [--create-envs] [-r all|label_celltypes|train_xgboost|shiny|zoom]
 
-# Run joined zooms (name or 'all'), or build a joined zoom's Shiny app
-scprocess join <join.yaml> -r zoom --zoom <zoom_name>
+# Run all joined zooms, or only one; build a joined zoom's Shiny app
+scprocess join <join.yaml> -r zoom [--zoom <zoom_name>|all]
 scprocess join <join.yaml> -r shiny --zoom <zoom_name>
 
 # Build docs site (in resources/mkdocs/)
@@ -260,7 +261,7 @@ Each `.smk` file is a self-contained Snakemake rule module. The core orchestrato
 | `label_celltypes.smk` | Cell type annotation (CellTypist or XGBoost); runs as part of `rule all` when configured |
 | `train_xgboost.smk` | Train custom XGBoost classifier from annotated data; per-batch full-data evaluation |
 | `render_htmls.smk` | HTML report generation from R Markdown |
-| `zoom.smk` | Project subclustering workflow for cell subsets; run as a separate Snakefile by `scprocess run -r zoom` |
+| `zoom.smk` | Project subclustering workflow for cell subsets; one Snakemake run covers all zooms, or only the zoom passed as `--config zoom_name=` by `scprocess run -r zoom --zoom NAME` |
 | `shiny.smk` | Builds Shiny data, then performs a lightweight app deployment/configuration into `public/shiny_*`; invoked via `-r shiny` |
 | `hto.smk` | Hashtag (multiplexing) demultiplexing; HTO index built with piscem via `simpleaf index` |
 | `flex.smk` | Flex assay mapping (simpleaf multiplex-quant) |

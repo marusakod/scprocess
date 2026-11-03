@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — planned 0.7.0
+
+- Make `--zoom` behave the same for projects and joins. `scprocess run -r zoom`
+  still runs every zoom; `scprocess run -r zoom --zoom NAME` now runs only that
+  zoom, matching `scprocess join -r zoom --zoom NAME`. `--zoom all` is
+  equivalent to omitting it.
+- Breaking CLI change: `scprocess run --zoom` with a rule other than `zoom`,
+  `shiny` or `train_xgboost` is now an error; it was previously ignored
+  silently. Unknown zoom names fail before Snakemake starts.
+- Add `--create-envs` to `scprocess join`.
+- Results are unchanged. Running a single zoom no longer builds the other zooms'
+  chunked counts first: `zoom_create_hvg_matrix` declares every zoom's counts
+  as inputs, so this still happens when all zooms are run together.
+
 ## 0.6.0 — Unreleased development candidate
 
 - Update the shared Python rule environment from Python 3.10 to 3.12,

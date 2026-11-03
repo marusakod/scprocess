@@ -1226,6 +1226,26 @@ def get_zoom_parameters(config, zoom_schema_f, scdata_dir):
   return ZOOM_PARAMS
 
 
+def get_zooms_to_run(zoom_names, zoom_name):
+  """Return the zoom names selected by --zoom, for projects and joins.
+
+  zoom_name None or 'all' selects every defined zoom, in config order;
+  otherwise only the named zoom, e.g. (['neurons', 'glia'], 'glia') -> ['glia'].
+  """
+  zoom_names = list(zoom_names)
+  if not zoom_names:
+    raise ValueError("No zooms defined. Add zoom specification files to the 'zoom:' section of the config.")
+
+  # Snakemake --config may parse a numeric-looking name as a number.
+  if zoom_name is None or str(zoom_name) == 'all':
+    return zoom_names
+  zoom_name = str(zoom_name)
+  if zoom_name not in zoom_names:
+    raise ValueError(f"Zoom '{zoom_name}' not found in config. Available zooms: {', '.join(zoom_names)}")
+
+  return [zoom_name]
+
+
 def _warn_zoom_qc_thresholds(zoom_qc, main_qc, zoom_name):
   checks = [
     ('qc_min_counts', 'higher'), ('qc_min_feats', 'higher'),
@@ -2580,26 +2600,15 @@ def get_shiny_targets(config, scprocess_dir, scdata_dir, dryrun, zoom_name=None)
       os.makedirs(docs_dir / f"shiny_{app_tag}", exist_ok=True)
     return ["configure_shiny_app"], proj_dir
 
-  if zoom_name == "all":
-    zoom_schema_f = pathlib.Path(scprocess_dir) / "resources/schemas/zoom.schema.json"
-    ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
-    zoom_names = list(ZOOM_PARAMS.keys())
-    if not zoom_names:
-      raise ValueError("No zoom specs found in config. Add a 'zoom:' section to your config file.")
-    if not dryrun:
-      for zn in zoom_names:
-        os.makedirs(docs_dir / f"shiny_zoom_{zn}", exist_ok=True)
-    return ["build_all_zoom_shiny_apps"], proj_dir
-
   zoom_schema_f = pathlib.Path(scprocess_dir) / "resources/schemas/zoom.schema.json"
   ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
-  zoom_names = list(ZOOM_PARAMS.keys())
-  if zoom_name not in zoom_names:
-    raise ValueError(
-      f"Zoom '{zoom_name}' not found in config. "
-      f"Available zooms: {', '.join(zoom_names) if zoom_names else '(none)'}")
+  zoom_names = get_zooms_to_run(ZOOM_PARAMS, zoom_name)
   if not dryrun:
-    os.makedirs(docs_dir / f"shiny_zoom_{zoom_name}", exist_ok=True)
+    for zn in zoom_names:
+      os.makedirs(docs_dir / f"shiny_zoom_{zn}", exist_ok=True)
+
+  if zoom_name == "all":
+    return ["build_all_zoom_shiny_apps"], proj_dir
   return [str(docs_dir / f"shiny_zoom_{zoom_name}" / f".shiny_built_{date_stamp}")], proj_dir
 
 
@@ -2639,20 +2648,14 @@ def get_train_xgboost_targets(config, scprocess_dir, scdata_dir, zoom_name=None)
 
   zoom_schema_f = scprocess_dir / "resources/schemas/zoom.schema.json"
   ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
-  zoom_names = list(ZOOM_PARAMS.keys())
+  zoom_names = get_zooms_to_run(ZOOM_PARAMS, zoom_name)
 
   if zoom_name == "all":
-    if not zoom_names:
-      raise ValueError("No zoom specs found in config.")
     zooms_with_xgb = [zn for zn in zoom_names if 'train_xgboost' in ZOOM_PARAMS[zn]]
     if not zooms_with_xgb:
       raise ValueError("No zooms have a train_xgboost section.")
     return ["zoom_train_xgboost_all"], proj_dir
 
-  if zoom_name not in zoom_names:
-    raise ValueError(
-      f"Zoom '{zoom_name}' not found in config. "
-      f"Available zooms: {', '.join(zoom_names) if zoom_names else '(none)'}")
   if 'train_xgboost' not in ZOOM_PARAMS[zoom_name]:
     raise ValueError(f"Zoom '{zoom_name}' does not have a train_xgboost section.")
 

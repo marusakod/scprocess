@@ -158,7 +158,7 @@ The table below details supported rules for both commands and indicates whether 
 <tr><td><code>integration</code></td><td>✗</td></tr>
 <tr><td><code>marker_genes</code></td><td>✗</td></tr>
 <tr><td><code>label_celltypes</code></td><td>✗</td></tr>
-<tr><td><code>zoom</code></td><td>✗</td></tr>
+<tr><td><code>zoom</code></td><td>✓</td></tr>
 <tr><td><code>shiny</code></td><td>✓</td></tr>
 <tr><td><code>train_xgboost</code></td><td>✓</td></tr>
 <tr><td rowspan="5"><code>scprocess join</code></td><td><code>all</code></td><td>✗</td></tr>
@@ -171,23 +171,25 @@ The table below details supported rules for both commands and indicates whether 
 
 </div>
 
-For example, to analyse the zoom named `my_zoom` in a join configuration:
+For example, to analyse only the zoom named `my_zoom` in a project or join configuration:
 
 ```bash
+scprocess run config.yaml -r zoom --zoom my_zoom
 scprocess join config-join.yaml -r zoom --zoom my_zoom
 ```
 
 To build a Shiny app for that completed zoom:
 
 ```bash
+scprocess run config.yaml -r shiny --zoom my_zoom
 scprocess join config-join.yaml -r shiny --zoom my_zoom
 ```
 
 A few things worth noting from this table:
 
-* `run -r zoom` always runs every zoom listed in the project configuration; `--zoom` is not read in this case, even though it's accepted elsewhere for `run`. To single out one zoom's output, use `--zoom` with `-r shiny` or `-r train_xgboost` instead.
-* `join -r zoom` is the opposite: `--zoom <name>` runs just that one zoom, and omitting it runs every zoom listed in the join configuration.
-* `join -r shiny --zoom <name>` builds the app for that one joined zoom; omitting `--zoom` builds it for the parent join rather than for every zoom.
+* `-r zoom` behaves the same for `run` and `join`: omitting `--zoom` (or passing `--zoom all`) runs every zoom listed in the configuration, and `--zoom <name>` runs just that one.
+* `-r shiny --zoom <name>` builds the app for that one zoom, and `--zoom all` builds apps for every zoom. Omitting `--zoom` builds the app for the main project or parent join, not for its zooms.
+* `--zoom` with any other rule is an error.
 * XGBoost classifiers can only be trained on a join's combined output, never on one of its individual zooms — `train_xgboost` has no zoom support for `join`.
 
 

@@ -13,6 +13,9 @@ from snakemake.utils import validate, min_version
 
 # import utils
 scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
+
+# optional zoom selected by `scprocess run -r zoom --zoom NAME`; absent runs all zooms
+ZOOM_NAME     = config.pop('zoom_name', None)
 sys.path.append(str(scprocess_dir / 'scripts'))
 from scprocess_utils import *
 from zoom import *
@@ -38,7 +41,7 @@ LABELLER_PARAMS     = get_labeller_parameters(config, proj_schema_f, scdata_dir)
 
 # get zoom parameters
 ZOOM_PARAMS         = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
-ZOOMS               = list(ZOOM_PARAMS.keys())
+ZOOMS               = get_zooms_to_run(ZOOM_PARAMS, ZOOM_NAME)
 
 # unpack some variables that we use a lot
 PROJ_DIR        = config['project']['proj_dir']

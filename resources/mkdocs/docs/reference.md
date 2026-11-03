@@ -245,9 +245,10 @@ mapping step.
     + `train_xgboost`: train a custom `XGBoost` classifier from annotated data.
     + `zoom`: subclustering.
     + `shiny`: build an interactive Shiny app from pipeline outputs.
-* `--zoom` (optional): only used with `-r shiny`. Build the Shiny app for a zoom (subclustering)
-  output. Pass a zoom name (e.g. `--zoom immune_cells`) or `all` to build apps for every zoom
-  defined in the config.
+* `--zoom` (optional): with `-r zoom`, `-r shiny` or `-r train_xgboost`, select a zoom
+  (subclustering) by name (e.g. `--zoom immune_cells`), or `all` for every zoom defined in the
+  config. Without this option, `-r zoom` runs every zoom, while `-r shiny` and `-r train_xgboost`
+  target the main project.
 
 
 ### Configuration file
@@ -1519,6 +1520,8 @@ to confirm the allocations actually requested.
   this option, `-r zoom` runs every listed zoom; `-r shiny` builds the parent join's app.
 * `-n`/`--dry-run` (optional): list the join steps without executing them. Helpful for checking
   input files and parameters.
+* `--create-envs` (optional): only create the conda environments needed for the workflow, without
+  running any rules.
 * `-E`/`--extraargs` (optional): list of additional arguments to pass to `Snakemake`. Refer to
   [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli).
 * `--unlock` (optional): unlock the directory if a previous run was interrupted.
