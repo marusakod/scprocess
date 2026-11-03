@@ -39,6 +39,10 @@
   previously ran on a CPU node and failed the GPU check. Existing copied
   profiles under `$SCPROCESS_DATA_DIR/profiles/` need the same entry; project
   training needs `train_xgboost_train` (not the `train_xgboost` target).
+- List every GPU-capable rule in the profile templates. `slurm_default` now
+  requests one GPU for doublet classification, project/zoom/join integration
+  and classifier training as well as integration and CellBender; the LSF, SGE,
+  PBS and HTCondor examples add `classify_additional_doublets`.
 - Fix the scprocess version recorded in driver logs
   (`.log/scprocess/scprocess_*.log`). `git describe` ran in the current
   directory, so runs started inside a project or join git repository (e.g.

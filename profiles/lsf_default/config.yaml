@@ -19,6 +19,8 @@ default-resources:
 # set-resources:
 #   run_integration:
 #     lsf_extra: "-gpu 'num=1'"
+#   classify_additional_doublets:
+#     lsf_extra: "-gpu 'num=1'"
 #   zoom_run_integration:
 #     lsf_extra: "-gpu 'num=1'"
 #   join_integration:

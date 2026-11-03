@@ -30,6 +30,7 @@ cluster-generic-cancel-cmd: qdel
 # that switches on {rule}, then set cluster-generic-submit-cmd to that wrapper.
 # GPU candidate rules:
 #   run_integration
+#   classify_additional_doublets
 #   zoom_run_integration
 #   join_integration
 #   run_cellbender

@@ -23,6 +23,7 @@ htcondor-jobdir: .snakemake/htcondor
 #
 # GPU candidate rules:
 #   run_integration
+#   classify_additional_doublets
 #   zoom_run_integration
 #   join_integration
 #   run_cellbender

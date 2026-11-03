@@ -24,6 +24,8 @@ sge-logdir: .snakemake/sge_logs
 # set-resources:
 #   run_integration:
 #     sge_queue: gpu.q
+#   classify_additional_doublets:
+#     sge_queue: gpu.q
 #   zoom_run_integration:
 #     sge_queue: gpu.q
 #   join_integration:
