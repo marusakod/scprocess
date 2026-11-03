@@ -35,8 +35,6 @@ library(stringi)
 library(kableExtra)
 n_cores = ${threads}
 setDTthreads(n_cores)
-do_xgboost = as.logical("${do_xgboost}")
-if (do_xgboost) source('code/train_xgboost.R')
 ```
 
 
@@ -72,12 +70,6 @@ pb_hvgs_f     = "${pb_hvgs_f}"
 mkrs_f        = "${mkrs_f}"
 empty_gs_f    = "${empty_gs_f}"
 pb_empty_f    = "${pb_empty_f}"
-
-# xgboost files
-xgb_predictions_f = "${xgb_predictions_f}"
-xgb_importance_f  = "${xgb_importance_f}"
-xgb_pseudobulk_f  = "${xgb_pseudobulk_f}"
-xgb_min_cells     = as.integer("${xgb_min_cells}")
 
 # fgsea files
 ref_txome     = "${ref_txome}"
@@ -670,122 +662,6 @@ for (p in names(gsea_ls)) {
 ```
 
 
-${xgboost_title}
-
-```{r xgb_load_data, eval = do_xgboost, include = FALSE}
-xgb_preds_dt = fread(xgb_predictions_f)
-xgb_gain_dt  = fread(xgb_importance_f)
-xgb_feature_selection = read_xgboost_feature_selection("${xgb_model_card_f}")
-xgb_dt       = merge(xgb_preds_dt, int_dt[, .(cell_id, UMAP1, UMAP2)],
-  by = "cell_id", all.x = TRUE) %>% .[ !is.na(UMAP1) ]
-xgb_style = read_xgboost_style(xgb_predictions_f, sort(unique(xgb_dt$label)))
-xgb_dt = apply_xgboost_style(xgb_dt, xgb_style)
-xgb_has_coarse = length(xgb_style$mapping) > 0
-xgb_val_dt = xgb_dt[split == "validation"]
-
-# Use full-data calls for the four evaluated cell groups when they are available.
-xgb_full_f = sub('_predictions.csv.gz$', '_fulldata_predictions.csv.gz', xgb_predictions_f)
-xgb_full_dt = if (file.exists(xgb_full_f)) fread(xgb_full_f) else copy(xgb_dt)
-xgb_full_dt[!selected & split %in% c('train', 'validation'), split := 'development_holdout']
-xgb_full_dt = apply_xgboost_style(xgb_full_dt, xgb_style)
-```
-
-```{r xgb_load_cpms, eval = do_xgboost, include = FALSE}
-xgb_pb      = read_h5ad(xgb_pseudobulk_f, as = 'SingleCellExperiment')
-if ('X' %in% assayNames(xgb_pb)) {
-  assays(xgb_pb)[['X']] = NULL
-}
-xgb_cpms_dt = xgb_pb %>% make_logcpms_all_rmd("sample_id",
-  lib_size_method = "edger", min_cells = xgb_min_cells, n_cores = n_cores)
-```
-
-${xgb_train_validation_title}
-
-```{r xgb_train_test_split, eval = do_xgboost, include = do_xgboost, fig.height = 6, fig.width = 13}
-plot_train_test_split(xgb_dt)
-```
-
-${xgb_pred_true_title}
-
-${xgb_pred_true_txt}
-
-```{r xgb_pred_true_umap, eval = do_xgboost, include = do_xgboost, fig.height = 7, fig.width = 14, results = 'asis'}
-lbl_type_vec = 'Training labels'
-if (xgb_has_coarse) {
-  lbl_type_vec = c('Coarse labels', 'Training labels')
-}
-for (lbl in lbl_type_vec) {
-  cat('####', lbl, '\n')
-  if (lbl == 'Coarse labels') {
-    is_coarse = TRUE
-  } else {
-    is_coarse = FALSE
-  }
-  print(plot_pred_true_umap(xgb_val_dt, coarse = is_coarse, label_colours=if (is_coarse) xgb_style$coarse_colours else xgb_style$colours))
-  cat('\n\n')
-}
-```
-
-${xgb_confusion_title}
-
-```{r xgb_confusion_matrix, eval = do_xgboost, include = do_xgboost, fig.height = 10, fig.width = 12, results = 'asis'}
-for (sp in names(XGBOOST_CELL_GROUPS)) {
-  cat('\n\n####', XGBOOST_CELL_GROUPS[sp], '\n\n')
-  cells_dt = xgb_full_dt[split == sp & !is.na(label)]
-  if (nrow(cells_dt)) {
-    print(plot_xgboost_confusion(cells_dt, xgb_style$order))
-  } else {
-    cat('No annotated cells in this group.\n\n')
-  }
-}
-```
-
-${xgb_metrics_title}
-
-```{r xgb_metrics_table, eval = do_xgboost, include = do_xgboost, results = 'asis'}
-xgb_metrics_dt = get_metrics_dt(xgb_val_dt)
-cat(format_xgboost_metrics_table(xgb_metrics_dt), '\n\n')
-```
-
-${xgb_precision_recall_title}
-
-```{r xgb_precision_recall, eval = do_xgboost, include = do_xgboost, fig.height = 7, fig.width = 12, results = 'asis'}
-for (zoom in c(FALSE, TRUE)) {
-  cat('\n\n####', if (zoom) 'Zoomed axes' else 'Full axes', '\n\n')
-  print(plot_precision_recall(xgb_metrics_dt, xgb_style$colours, zoom = zoom))
-}
-```
-
-${xgb_gain_title}
-
-```{r xgb_gain_curve, eval = do_xgboost, include = do_xgboost, fig.height = 5, fig.width = 8}
-print(plot_gain_curve(xgb_gain_dt,
-  gain_threshold = xgb_feature_selection$gain_threshold,
-  n_selected_genes = xgb_feature_selection$n_selected_genes))
-```
-
-${xgb_top_genes_title}
-
-${xgb_top_genes_txt}
-
-```{r xgb_top_genes, eval = do_xgboost, include = do_xgboost, fig.height = 8, fig.width = 8, results = "asis"}
-# Pseudobulks contain final-model genes; omit first-pass-only features.
-xgb_top_genes_dt = xgb_gain_dt[gene_id %in% xgb_cpms_dt$gene_id][order(-gain)][1:min(100, .N)]
-n_pages = 10
-per_p   = 10
-p       = 1
-for (i in seq(1, nrow(xgb_top_genes_dt), by = per_p)) {
-  cat('#### page', p, '\n'); p = p + 1
-  sel_gs  = xgb_top_genes_dt[i:min(i + 9, .N)]
-  print(plot_top_xgboost_genes(sel_gs, xgb_cpms_dt, label_order=xgb_style$order, label_colours=xgb_style$colours))
-  cat('\n\n')
-}
-```
-
-
-## R session info
-
-Details of the R package versions used are given below.
 
 <details>
 ```{r session_info, include=TRUE, echo=TRUE, results="markup"}

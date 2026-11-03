@@ -248,9 +248,10 @@ mapping step.
     + `zoom`: subclustering.
     + `shiny`: build an interactive Shiny app from pipeline outputs.
 * `--zoom` (optional): with `-r zoom`, `-r shiny` or `-r train_xgboost`, select a zoom
-  (subclustering) by name (e.g. `--zoom immune_cells`), or `all` for every zoom defined in the
-  config. Without this option, `-r zoom` runs every zoom, while `-r shiny` and `-r train_xgboost`
-  target the main project.
+  (subclustering) by name (e.g. `--zoom immune_cells`). With `-r zoom` or `-r shiny`, `all`
+  selects every zoom defined in the config; `-r train_xgboost` trains one classifier at a time
+  and needs a single zoom name. Without this option, `-r zoom` runs every zoom, while `-r shiny`
+  and `-r train_xgboost` target the main project.
 
 
 ### Configuration file
@@ -1120,9 +1121,24 @@ train_xgboost:
   validation_cells_per_label: 500
 ```
 
-Run `scprocess run CONFIG -r train_xgboost`, or
-`scprocess join CONFIG -r train_xgboost` for a join. Review the resulting HTML
-report before installing the classifier for use in other projects.
+For a project zoom, put the `train_xgboost` block in that zoom's specification
+file instead.
+
+Training runs only when requested, typically after you have checked the
+standard outputs and prepared your labels; `scprocess run`, `-r zoom` and the
+default `scprocess join` target never train a classifier. Run one of:
+
+```bash
+scprocess run CONFIG -r train_xgboost                     # project
+scprocess run CONFIG -r train_xgboost --zoom ZOOM_NAME    # one project zoom
+scprocess join CONFIG -r train_xgboost                    # join
+```
+
+Each classifier has its own HTML report, separate from the project, zoom and
+join reports: `public/SHORT_TAG_train_xgboost.html`,
+`public/SHORT_TAG_zoom_ZOOM_NAME_train_xgboost.html` or
+`public/JOIN_TAG_train_xgboost.html`. Review it before installing the classifier
+for use in other projects.
 
 ###### Input labels
 

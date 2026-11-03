@@ -2646,25 +2646,19 @@ def get_train_xgboost_targets(config, scprocess_dir, scdata_dir, zoom_name=None)
   if zoom_name is None:
     return ["train_xgboost"], proj_dir
 
+  # classifiers are trained one at a time, so a single named zoom is required
+  if zoom_name == "all":
+    raise ValueError("-r train_xgboost trains one classifier at a time; pass --zoom with a single zoom name.")
   zoom_schema_f = scprocess_dir / "resources/schemas/zoom.schema.json"
   ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
-  zoom_names = get_zooms_to_run(ZOOM_PARAMS, zoom_name)
-
-  if zoom_name == "all":
-    zooms_with_xgb = [zn for zn in zoom_names if 'train_xgboost' in ZOOM_PARAMS[zn]]
-    if not zooms_with_xgb:
-      raise ValueError("No zooms have a train_xgboost section.")
-    return ["zoom_train_xgboost_all"], proj_dir
-
+  zoom_name   = get_zooms_to_run(ZOOM_PARAMS, zoom_name)[0]
   if 'train_xgboost' not in ZOOM_PARAMS[zoom_name]:
     raise ValueError(f"Zoom '{zoom_name}' does not have a train_xgboost section.")
 
-  ref_tag = ZOOM_PARAMS[zoom_name]['train_xgboost']['xgboost_tag']
+  # the zoom's standalone classifier report depends on every training output
   short_tag = config['project']['short_tag']
-  mkr_sel_res = ZOOM_PARAMS[zoom_name]['marker_genes']['mkr_sel_res']
-  model_f = str(proj_dir / f"output/{short_tag}_zoom/{zoom_name}/train_xgboost/{ref_tag}_xgboost_model.json")
-  html_f = str(proj_dir / f"public/{short_tag}_zoom_{zoom_name}_{mkr_sel_res}.html")
-  return [model_f, html_f], proj_dir
+  html_f    = str(proj_dir / f"public/{short_tag}_zoom_{zoom_name}_train_xgboost.html")
+  return [html_f], proj_dir
 
 
 def prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS=None, BATCHES=None,

@@ -119,17 +119,15 @@ zoom_cluster_names_fs = [
   if ZOOM_PARAMS[zoom_name]['zoom']['save_cluster_names_file']
 ]
 
-zoom_xgb_outs = []
-for zoom_name in ZOOMS:
-  if 'train_xgboost' in ZOOM_PARAMS[zoom_name]:
-    _zxgb = ZOOM_PARAMS[zoom_name]['train_xgboost']
-    _zxgb_ref_tag = _zxgb['xgboost_tag']
-    _zxgb_mkr_sel_res = ZOOM_PARAMS[zoom_name]['marker_genes']['mkr_sel_res']
-    zoom_xgb_outs.extend([
-      f'{zoom_dir}/{zoom_name}/train_xgboost/{_zxgb_ref_tag}_xgboost_model.json',
-      f'{zoom_dir}/{zoom_name}/train_xgboost/{_zxgb_ref_tag}_predictions.csv.gz',
-      f'{docs_dir}/{SHORT_TAG}_zoom_{zoom_name}_{_zxgb_mkr_sel_res}.html',
-    ])
+# Keep report and training file patterns distinct, e.g. so that
+# X_fulldata_predictions.csv.gz cannot match {ref_tag}_predictions.csv.gz and
+# zoom_neurons_train_xgboost.html cannot match zoom_{zoom_name}_{mkr_sel_res}.html.
+# '(?!)' never matches, for projects whose zooms train no classifier.
+ZOOM_XGB_TAGS = [ZOOM_PARAMS[zoom_name]['train_xgboost']['xgboost_tag']
+  for zoom_name in ZOOM_PARAMS if 'train_xgboost' in ZOOM_PARAMS[zoom_name]]
+wildcard_constraints:
+  mkr_sel_res = r'[0-9]+(\.[0-9]+)?',
+  ref_tag     = '|'.join(re.escape(tag) for tag in ZOOM_XGB_TAGS) or '(?!)'
 
 rule zoom:
   input:
@@ -159,12 +157,6 @@ rule zoom:
     zoom_all_subset_fs,
     # suggested cluster names for Shiny (optional)
     zoom_cluster_names_fs,
-
-
-if zoom_xgb_outs:
-  rule zoom_train_xgboost_all:
-    input:
-      zoom_xgb_outs
 
 
 
@@ -1437,7 +1429,7 @@ rule zoom_train_xgboost_specs:
   input:
     cls_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_allowed_cls.csv',
     counts_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_label_counts.csv',
-    predictions_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_predictions.csv.gz',
+    predictions_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_fulldata_predictions.csv.gz',
     specifications = lambda wildcards: get_xgboost_spec_inputs(ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']),
     script_f = str(scprocess_dir / "scripts/train_xgboost.py"),
   output:
@@ -1467,13 +1459,148 @@ rule zoom_train_xgboost_specs:
     """
 
 
+# Predict every project cell in one batch with the zoom's classifier; combine keeps zoom cells.
+rule zoom_train_xgboost_predict:
+  input:
+    adata_f = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad',
+    model_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_xgboost_model.json',
+    cls_f   = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_allowed_cls.csv',
+    genes_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_selected_genes.txt',
+  output:
+    pred_f  = temp(f'{zoom_dir}/{{zoom_name}}/train_xgboost/tmp_fulldata_predict_{{ref_tag}}_{{batch}}.csv.gz')
+  params:
+    batch_var = BATCH_VAR
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_train_xgboost_predict', 'memory', attempt, csv_rule = 'train_xgboost_predict'),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_train_xgboost_predict', 'time', attempt, csv_rule = 'train_xgboost_predict')
+  log:
+    f'{logs_dir}/zoom/zoom_train_xgboost_predict_{{zoom_name}}_{{ref_tag}}_{{batch}}_{DATE_STAMP}.log'
+  benchmark:
+    f'{benchmark_dir}/zoom/zoom_train_xgboost_predict_{{zoom_name}}_{{ref_tag}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
+  conda:
+    '../envs/label_celltypes.yaml'
+  shell: """
+    exec &>> {log}
+    python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_one_batch \
+      {wildcards.batch} {params.batch_var} {wildcards.ref_tag} \
+      --adata_f {input.adata_f} \
+      --model_f {input.model_f} \
+      --cls_f   {input.cls_f} \
+      --genes_f {input.genes_f} \
+      --pred_f  {output.pred_f}
+    """
+
+
+# Combine full-data calls for the zoom's integrated cells and evaluate each saved split.
+rule zoom_train_xgboost_combine:
+  input:
+    pred_fs = expand(
+      f'{zoom_dir}/{{zoom_name}}/train_xgboost/tmp_fulldata_predict_{{ref_tag}}_{{batch}}.csv.gz',
+      batch = BATCHES, allow_missing = True),
+    training_metadata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_metadata.csv.gz',
+    integration_f       = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
+  output:
+    fulldata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_fulldata_predictions.csv.gz'
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_train_xgboost_combine', 'memory', attempt, csv_rule = 'train_xgboost_combine'),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_train_xgboost_combine', 'time', attempt, csv_rule = 'train_xgboost_combine')
+  log:
+    f'{logs_dir}/zoom/zoom_train_xgboost_combine_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.log'
+  benchmark:
+    f'{benchmark_dir}/zoom/zoom_train_xgboost_combine_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.benchmark.txt'
+  conda:
+    '../envs/label_celltypes.yaml'
+  shell: """
+    exec &>> {log}
+    python3 {scprocess_dir}/scripts/train_xgboost.py combine \
+      {input.pred_fs:q} \
+      --training_metadata_f {input.training_metadata_f:q} \
+      --integration_f       {input.integration_f:q} \
+      --output_f            {output.fulldata_f:q}
+    """
+
+
+def _zoom_xgb_f(wildcards, suffix):
+  """Training output for this zoom's classifier, e.g. suffix '_model_card.json'."""
+  ref_tag = ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['xgboost_tag']
+  return f'{zoom_dir}/{wildcards.zoom_name}/train_xgboost/{ref_tag}{suffix}'
+
+
+# Standalone classifier report, separate from the zoom report.
+rule render_html_zoom_train_xgboost:
+  input:
+    model_card_f         = lambda wildcards: _zoom_xgb_f(wildcards, '_model_card.json'),
+    label_specs_f        = lambda wildcards: _zoom_xgb_f(wildcards, '_label_specs.csv'),
+    coarse_label_specs_f = lambda wildcards: _zoom_xgb_f(wildcards, '_coarse_label_specs.csv'),
+    preds_f              = lambda wildcards: _zoom_xgb_f(wildcards, '_predictions.csv.gz'),
+    imp_f                = lambda wildcards: _zoom_xgb_f(wildcards, '_gene_importance.csv'),
+    pb_f                 = lambda wildcards: _zoom_xgb_f(wildcards, '_pseudobulk.h5ad'),
+    label_counts_f       = lambda wildcards: _zoom_xgb_f(wildcards, '_label_counts.csv'),
+    fulldata_preds_f     = lambda wildcards: _zoom_xgb_f(wildcards, '_fulldata_predictions.csv.gz'),
+    integration_f        = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
+    template_f           = str(scprocess_dir / 'resources/rmd_templates/train_xgboost.Rmd.template'),
+    r_train_f            = f'{code_dir}/train_xgboost.R',
+    r_mkr_f              = f'{code_dir}/marker_genes.R',
+    r_utils_f            = f'{code_dir}/utils.R'
+  output:
+    rmd_f  = f'{rmd_dir}/{SHORT_TAG}_zoom_{{zoom_name}}_train_xgboost.Rmd',
+    html_f = f'{docs_dir}/{SHORT_TAG}_zoom_{{zoom_name}}_train_xgboost.html'
+  params:
+    your_name   = config['project']['your_name'],
+    affiliation = config['project']['affiliation'],
+    proj_dir    = PROJ_DIR,
+    report_tag  = lambda wildcards: f'{SHORT_TAG}_zoom_{wildcards.zoom_name}',
+    ref_tag     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['xgboost_tag'],
+    min_cells   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['min_cells_expressed']
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'render_html_zoom_train_xgboost', 'memory', attempt, csv_rule = 'render_html_train_xgboost'),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'render_html_zoom_train_xgboost', 'time', attempt, csv_rule = 'render_html_train_xgboost')
+  log:
+    f'{logs_dir}/zoom/render_html_zoom_train_xgboost_{{zoom_name}}_{DATE_STAMP}.log'
+  benchmark:
+    f'{benchmark_dir}/zoom/render_html_zoom_train_xgboost_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
+  conda:
+    '../envs/rlibs.yaml'
+  shell: """
+    exec &>> {log}
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \\
+      render_html(
+        rule_name              = 'train_xgboost',
+        proj_dir               = '{params.proj_dir}',
+        temp_f                 = '{input.template_f}',
+        rmd_f                  = '{output.rmd_f}',
+        your_name              = '{params.your_name}',
+        affiliation            = '{params.affiliation}',
+        short_tag              = '{params.report_tag}',
+        ref_tag                = '{params.ref_tag}',
+        predictions_f          = '{input.preds_f}',
+        importance_f           = '{input.imp_f}',
+        model_card_f           = '{input.model_card_f}',
+        pseudobulk_f           = '{input.pb_f}',
+        label_counts_f         = '{input.label_counts_f}',
+        fulldata_predictions_f = '{input.fulldata_preds_f}',
+        integration_f          = '{input.integration_f}',
+        min_cells              = '{params.min_cells}',
+        n_cores                = '{threads}'
+      )"
+    """
+
 # render_html_zoom
 rule render_html_zoom:
   input:
     unpack(lambda wildcards: get_zoom_conditional_fgsea_files(GENOME_REF, zoom_dir,
         FULL_TAG, DATE_STAMP, ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_do_gsea'])),
-    unpack(lambda wildcards: get_zoom_conditional_xgboost_files(
-        ZOOM_PARAMS[wildcards.zoom_name], zoom_dir, wildcards.zoom_name, code_dir)),
     rmd_template_f        = str(scprocess_dir / "resources/rmd_templates/zoom.Rmd.template"),
     r_utils_f             = f'{code_dir}/utils.R',
     r_hvgs_f              = f'{code_dir}/hvgs.R',
@@ -1537,14 +1664,6 @@ rule render_html_zoom:
     zoom_mkr_gsea_cut     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['mkr_gsea_cut'],
     zoom_custom_mkr_names = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_names'],
     zoom_custom_mkr_paths = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['marker_genes']['custom_mkr_paths'],
-    do_xgboost            = lambda wildcards: 'train_xgboost' in ZOOM_PARAMS[wildcards.zoom_name],
-    xgb_args              = lambda wildcards, input: ", ".join([
-      f"xgb_predictions_f = '{input.get('xgb_preds_f', '')}'",
-      f"xgb_importance_f  = '{input.get('xgb_imp_f', '')}'",
-      f"xgb_model_card_f  = '{input.get('xgb_model_card_f', '')}'",
-      f"xgb_pseudobulk_f  = '{input.get('xgb_pb_f', '')}'",
-      f"xgb_min_cells     = '{ZOOM_PARAMS[wildcards.zoom_name].get('train_xgboost', {}).get('min_cells_expressed', 10)}'"
-    ])
   threads: 1
   retries: config['resources']['retries']
   conda:
@@ -1618,8 +1737,6 @@ rule render_html_zoom:
       mkr_gsea_cut      =  {params.zoom_mkr_gsea_cut},
       ref_txome         = '{params.genome_ref}',
       batch_var         = '{params.batch_var}',
-      do_gsea           = '{params.zoom_mkr_do_gsea}',
-      do_xgboost        = '{params.do_xgboost}',
-      {params.xgb_args}
+      do_gsea           = '{params.zoom_mkr_do_gsea}'
     )"
     """

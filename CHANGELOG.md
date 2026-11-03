@@ -18,6 +18,22 @@
   `train_xgboost.yaml` and `xgboost_r.yaml`. No rule used them: CellTypist,
   XGBoost prediction and CPU training run in `label_celltypes.yaml`, and
   chemistry detection runs in `alevin_fry.yaml`.
+- Give every XGBoost classifier its own report and train only on request.
+  Breaking/report changes: zoom and join reports no longer contain classifier
+  sections, and no longer depend on training outputs. `scprocess run -r zoom`
+  and the default `scprocess join` target therefore no longer train classifiers
+  configured in zoom specifications or join configs; use
+  `scprocess run -r train_xgboost --zoom NAME` or
+  `scprocess join -r train_xgboost`. Project zoom classifiers get a new report,
+  `public/SHORT_TAG_zoom_NAME_train_xgboost.html`.
+- Breaking CLI change: `scprocess run -r train_xgboost --zoom all` and the
+  `zoom_train_xgboost_all` rule are removed; train one zoom classifier at a time.
+- Changes affecting results: project zoom training now runs full-data
+  prediction and evaluation (`zoom_train_xgboost_predict`/`_combine`), as
+  projects and joins already did. `{tag}_fulldata_predictions.csv.gz` and the
+  per-split evaluation tables are new zoom outputs, and the zoom coarse label
+  evaluation (`specs`) now uses full-data predictions instead of
+  validation-only predictions. Fitted models are unchanged.
 - Fix the scprocess version recorded in driver logs
   (`.log/scprocess/scprocess_*.log`). `git describe` ran in the current
   directory, so runs started inside a project or join git repository (e.g.

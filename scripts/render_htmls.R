@@ -48,37 +48,6 @@ make_rmd_from_temp <- function(rule_name, temp_f, temp_ls, rmd_f) {
   }
 }
 
-get_xgboost_report_text <- function(do_xgboost) {
-  do_xgboost = isTRUE(as.logical(do_xgboost))
-
-  empty_ls = list(
-    xgboost_title = "",
-    xgb_train_validation_title = "",
-    xgb_pred_true_title = "",
-    xgb_pred_true_txt = "",
-    xgb_confusion_title = "",
-    xgb_metrics_title = "",
-    xgb_precision_recall_title = "",
-    xgb_gain_title = "",
-    xgb_top_genes_title = "",
-    xgb_top_genes_txt = "")
-
-  if (!do_xgboost)
-    return(empty_ls)
-
-  list(
-    xgboost_title = "## XGBoost classifier",
-    xgb_train_validation_title = "### Train and validation coverage",
-    xgb_pred_true_title = "### Predicted vs reference labels UMAP {.tabset}",
-    xgb_pred_true_txt = "Compare reference labels with predictions for validation cells. These cells helped determine when to stop training; agreement here may overestimate performance on new datasets.",
-    xgb_confusion_title = "### Confusion matrices {.tabset}",
-    xgb_metrics_title = "### Evaluation metrics by label (validation set)",
-    xgb_precision_recall_title = "### Precision–recall (validation set) {.tabset}",
-    xgb_gain_title = "### Cumulative gain curve",
-    xgb_top_genes_title = "### Top XGBoost genes {.tabset}",
-    xgb_top_genes_txt = "Pseudobulk logCPM expression of the top 20 most important XGBoost genes, shown per cell type label.")
-}
-
 get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg', 'cell_cycle', 'integration',
   'markers', 'label_celltypes', 'zoom', 'index', 'train_xgboost', 'join'), proj_dir, ...) {
   # get arguments
@@ -250,9 +219,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'cell_hvgs_f', 'int_f', 'pb_plot_data_f', 'pb_hvgs_f', 'mkrs_f', 'empty_gs_f', 'pb_empty_f',
       'fgsea_go_bp_f','fgsea_go_cc_f', 'fgsea_go_mf_f', 'int_res_ls',
       'custom_mkr_names', 'custom_mkr_paths', 'mkr_not_ok_re', 'mkr_min_cpm_mkr', 'mkr_sel_res',
-      'mkr_min_cells', 'mkr_gsea_var', 'mkr_gsea_cut', 'ref_txome', 'batch_var', 'do_gsea',
-      'do_xgboost', 'xgb_predictions_f', 'xgb_importance_f', 'xgb_pseudobulk_f', 'xgb_model_card_f',
-      'xgb_min_cells')
+      'mkr_min_cells', 'mkr_gsea_var', 'mkr_gsea_cut', 'ref_txome', 'batch_var', 'do_gsea')
 
     assert_that(all(req_names %in% add_args_names))
 
@@ -283,8 +250,6 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       fgsea_txt   = ""
     }
 
-    xgboost_txt_ls = get_xgboost_report_text(add_args[['do_xgboost']])
-
     params_ls = c(
       add_args[req_names],
       list(meta_bars_title = meta_bars_title,
@@ -292,8 +257,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
            meta_umap_title = meta_umap_title,
            meta_umap_txt   = meta_umap_txt,
            fgsea_title     = fgsea_title,
-           fgsea_txt       = fgsea_txt),
-      xgboost_txt_ls)
+           fgsea_txt       = fgsea_txt))
 
   } else if (sel_rule == 'join') {
     req_names = c('your_name', 'affiliation', 'join_name', 'join_tag',
@@ -304,16 +268,11 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_cut',
       'integration_f', 'qc_f', 'sample_meta_f', 'mkrs_f', 'pb_hvgs_f',
       'pb_plot_data_f',
-      'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f',
-      'do_xgboost', 'xgb_predictions_f', 'xgb_importance_f', 'xgb_pseudobulk_f', 'xgb_model_card_f',
-      'xgb_min_cells')
+      'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f')
 
     assert_that(all(req_names %in% add_args_names))
 
-    xgboost_txt_ls = get_xgboost_report_text(add_args[['do_xgboost']])
-
-    params_ls = c(add_args[req_names],
-      xgboost_txt_ls)
+    params_ls = as.list(add_args[req_names])
 
   } else if (sel_rule == 'index') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'docs_dir', 'full_tag', 'date_stamp', 'mkr_sel_res', 'config_f', 'show_arv_uuids')

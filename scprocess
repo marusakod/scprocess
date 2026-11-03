@@ -1062,8 +1062,9 @@ if __name__ == '__main__':
       ''')
   run_prsr.add_argument("--zoom", type = str, default = None, metavar = "ZOOM_NAME",
     help = ("Used with -r zoom, -r shiny or -r train_xgboost. Pass a zoom (subclustering) name, "
-            "e.g. --zoom immune_cells, or 'all'. Without --zoom, -r zoom runs every zoom, "
-            "while -r shiny and -r train_xgboost target the main project."))
+            "e.g. --zoom immune_cells, or 'all' (not for -r train_xgboost, which trains one "
+            "classifier at a time). Without --zoom, -r zoom runs every zoom, while -r shiny "
+            "and -r train_xgboost target the main project."))
   run_prsr.add_argument("-n", "--dry-run", action="store_true", 
     help = '''
       "Dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.

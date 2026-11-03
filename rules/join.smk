@@ -902,7 +902,6 @@ rule join_save_cluster_names:
 
 rule join_render_html:
   input:
-    xgb_specs = ([f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_specs.csv', f'{join_xgb_dir}/{_join_xgb_ref_tag}_coarse_label_specs.csv'] if DO_TRAIN_XGB else []),
     integration_f = joint_integration_f,
     qc_f          = joint_qc_f,
     sample_meta_f = joint_sample_meta_f,
@@ -912,8 +911,6 @@ rule join_render_html:
     fgsea_files   = [fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else [],
     label_files   = label_fs,
     cluster_names = cluster_names_fs,
-    xgb_files = ([f'{join_xgb_dir}/{_join_xgb_ref_tag}_model_card.json',
-      _join_xgb_fulldata_f, str(scprocess_dir / 'scripts/train_xgboost.R')] if DO_TRAIN_XGB else []),
     report_helper_f = str(scprocess_dir / "scripts/integration.R"),
     rmd_template_f = str(scprocess_dir / "resources/rmd_templates/join.Rmd.template")
   output:
@@ -955,13 +952,7 @@ rule join_render_html:
     fgsea_go_mf_f    = fgsea_mf_f if DO_GSEA else '',
     proj_dir         = str(JOIN_DIR),
     scprocess_dir    = str(scprocess_dir),
-    date_stamp       = DATE_STAMP,
-    do_xgboost       = DO_TRAIN_XGB,
-    xgb_predictions_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz' if DO_TRAIN_XGB else '',
-    xgb_importance_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv' if DO_TRAIN_XGB else '',
-    xgb_model_card_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_model_card.json' if DO_TRAIN_XGB else '',
-    xgb_pseudobulk_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad' if DO_TRAIN_XGB else '',
-    xgb_min_cells     = _join_xgb_cfg.get('min_cells_expressed', 10) if DO_TRAIN_XGB else 10
+    date_stamp       = DATE_STAMP
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -1025,13 +1016,7 @@ rule join_render_html:
       fgsea_go_cc_f    = '{params.fgsea_go_cc_f}',
       fgsea_go_mf_f    = '{params.fgsea_go_mf_f}',
       scprocess_dir    = '{params.scprocess_dir}',
-      date_stamp       = '{params.date_stamp}',
-      do_xgboost       = '{params.do_xgboost}',
-      xgb_predictions_f = '{params.xgb_predictions_f}',
-      xgb_importance_f  = '{params.xgb_importance_f}',
-      xgb_model_card_f  = '{params.xgb_model_card_f}',
-      xgb_pseudobulk_f  = '{params.xgb_pseudobulk_f}',
-      xgb_min_cells     = '{params.xgb_min_cells}'
+      date_stamp       = '{params.date_stamp}'
     )"
     """
 

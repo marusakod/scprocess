@@ -191,6 +191,7 @@ A few things worth noting from this table:
 
 * `-r zoom` behaves the same for `run` and `join`: omitting `--zoom` (or passing `--zoom all`) runs every zoom listed in the configuration, and `--zoom <name>` runs just that one.
 * `-r shiny --zoom <name>` builds the app for that one zoom, and `--zoom all` builds apps for every zoom. Omitting `--zoom` builds the app for the main project or parent join, not for its zooms.
+* `-r train_xgboost --zoom <name>` trains the classifier defined in that zoom's specification. It trains one classifier at a time, so `--zoom all` is not accepted. Each classifier has its own report; zoom and join reports do not include classifier results.
 * `--zoom` with any other rule is an error.
 * XGBoost classifiers can only be trained on a join's combined output, never on one of its individual zooms — `train_xgboost` has no zoom support for `join`.
 

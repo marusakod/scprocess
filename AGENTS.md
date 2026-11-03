@@ -200,9 +200,12 @@ scprocess run <config.yaml> -n
 # Run a specific pipeline stage
 scprocess run <config.yaml> -r mapping|ambient|demux|qc|hvg|cell_cycle|integration|marker_genes|label_celltypes|train_xgboost|zoom|shiny
 
-# Run all zooms, or only one; --zoom also works with -r shiny / -r train_xgboost
+# Run all zooms, or only one; --zoom also works with -r shiny
 scprocess run <config.yaml> -r zoom [--zoom <zoom_name>|all]
-scprocess run <config.yaml> -r shiny --zoom <zoom_name>
+scprocess run <config.yaml> -r shiny --zoom <zoom_name>|all
+
+# Train one classifier (never part of all, -r zoom or join all); own report each
+scprocess run <config.yaml> -r train_xgboost [--zoom <zoom_name>]
 
 # Unlock after an interrupted run
 scprocess run <config.yaml> --unlock
@@ -580,4 +583,4 @@ cell-cycle introduction and unrelated edits during review.
 - **R environment isolation**: `_clean_conda_env()` in the CLI sets `R_LIBS_SITE=""`, `R_LIBS_USER=""`, `BASILISK_USE_SYSTEM_DIR=0`, and `BASILISK_EXTERNAL_DIR` to prevent conda R from loading system packages and to store basilisk Python envs alongside Snakemake conda envs. R scripts that use `zellkonverter` via parallel workers (e.g. `marker_genes.R`) pre-initialize the basilisk env before `bplapply` to avoid race conditions.
 - **Join label reuse**: The join workflow checks whether source projects already have label_celltypes outputs for the same labeller/model. If they do, naive predictions are extracted from the source labels instead of re-running celltypist/XGBoost — only projects without existing labels trigger fresh runs.
 - **Shiny as a rule**: Shiny is invoked via `scprocess run -r shiny` or `scprocess join -r shiny` (not a separate subcommand). `shiny.smk` separates expensive `build_*_shiny_data` rules from lightweight `configure_*_shiny_app` rules; the CLI targets configuration, which depends on data generation only when analytical inputs are stale.
-- **train_xgboost across contexts**: `train_xgboost` runs in three contexts (scprocess, join, zoom), each with different h5ad key construction. The preparation rules pass explicit is_join context: false for project/project zoom and true for join/joined zoom. Do not infer this from batch_var. Project H5AD keys match directly; joined keys are project-qualified, preserving already-qualified integration values. All shell blocks must use the `train` subcommand (`python3 scripts/train_xgboost.py train ...`). Full-data evaluation reuses `label_celltypes.py xgboost_one_batch` for per-batch prediction, with `combine` merging results and assigning train/validation/holdout/unlabeled split labels.
+- **train_xgboost across contexts**: `train_xgboost` runs in three contexts (scprocess, join, zoom), each with different h5ad key construction. It only runs when requested with `-r train_xgboost` (project or join) or `-r train_xgboost --zoom NAME` (one project zoom; no `all`), never as part of `all`, `-r zoom` or join `all`. Every classifier has its own standalone report rendered from `train_xgboost.Rmd.template` (`render_html_train_xgboost`, `render_html_zoom_train_xgboost`, `join_render_html_train_xgboost`); project, zoom and join reports must not depend on training outputs. All three contexts run full-data prediction and `combine` before `specs`. The preparation rules pass explicit is_join context: false for project/project zoom and true for join/joined zoom. Do not infer this from batch_var. Project H5AD keys match directly; joined keys are project-qualified, preserving already-qualified integration values. All shell blocks must use the `train` subcommand (`python3 scripts/train_xgboost.py train ...`). Full-data evaluation reuses `label_celltypes.py xgboost_one_batch` for per-batch prediction, with `combine` merging results and assigning train/validation/holdout/unlabeled split labels.
