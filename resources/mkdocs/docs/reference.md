@@ -1135,9 +1135,12 @@ scprocess join CONFIG -r train_xgboost                    # join
 ```
 
 Each classifier has its own HTML report, separate from the project, zoom and
-join reports: `public/SHORT_TAG_train_xgboost.html`,
-`public/SHORT_TAG_zoom_ZOOM_NAME_train_xgboost.html` or
-`public/JOIN_TAG_train_xgboost.html`. Review it before installing the classifier
+join reports, named after the classifier's `xgboost_tag` so that reports for
+different classifiers never replace each other:
+`public/SHORT_TAG_train_XGBOOST_TAG.html`,
+`public/SHORT_TAG_zoom_ZOOM_NAME_train_XGBOOST_TAG.html` or
+`public/JOIN_TAG_train_XGBOOST_TAG.html`, for example
+`public/my_project_train_xgboost_my_classifier.html`. Review it before installing the classifier
 for use in other projects.
 
 ###### Input labels

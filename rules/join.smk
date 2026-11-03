@@ -193,8 +193,8 @@ if DO_TRAIN_XGB:
     input:
       _join_xgb_model_f,
       _join_xgb_fulldata_f,
-      f"{rmd_dir}/{JOIN_TAG}_train_xgboost.Rmd",
-      f"{docs_dir}/{JOIN_TAG}_train_xgboost.html"
+      f"{rmd_dir}/{JOIN_TAG}_train_{_join_xgb_ref_tag}.Rmd",
+      f"{docs_dir}/{JOIN_TAG}_train_{_join_xgb_ref_tag}.html"
 
 
 rule join_select_hvgs:
@@ -1265,8 +1265,8 @@ if DO_TRAIN_XGB:
       label_counts_f       = f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_counts.csv',
       fulldata_preds_f     = _join_xgb_fulldata_f
     output:
-      rmd_f         = f"{rmd_dir}/{JOIN_TAG}_train_xgboost.Rmd",
-      html_f        = f"{docs_dir}/{JOIN_TAG}_train_xgboost.html"
+      rmd_f         = f"{rmd_dir}/{JOIN_TAG}_train_{_join_xgb_ref_tag}.Rmd",
+      html_f        = f"{docs_dir}/{JOIN_TAG}_train_{_join_xgb_ref_tag}.html"
     params:
       your_name            = config['join'].get('your_name', ''),
       affiliation          = config['join'].get('affiliation', ''),

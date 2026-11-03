@@ -16,7 +16,7 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set(autodep = TRUE, cache = FALSE, cache.lazy = FALSE, dev = 'png',
-  fig.path = "figure/${short_tag}_train_xgboost.Rmd/", message = FALSE, warning = FALSE)
+  fig.path = "figure/${short_tag}_train_${ref_tag}.Rmd/", message = FALSE, warning = FALSE)
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 ```
 

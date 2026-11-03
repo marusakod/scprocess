@@ -2,6 +2,13 @@
 
 ## Unreleased — planned 0.7.0
 
+- Name every classifier training report, its Rmd and its figure folder after
+  the model's `xgboost_tag` (`SHORT_TAG_train_XGBOOST_TAG.html`, and likewise
+  for zooms and joins), so that training a second classifier in the same
+  project or join no longer overwrites the first one's report. Report path
+  change: existing `*_train_xgboost.html` reports are left in place; the next
+  `-r train_xgboost` renders the report under the new name, reusing the saved
+  training outputs rather than refitting.
 - Add optional depth augmentation for XGBoost training (`train_xgboost`
   `downsample_copies`, `downsample_min_umis`, `downsample_max_umis`; projects,
   joins and project zooms). Each selected train/validation cell gets thinned
@@ -34,7 +41,7 @@
   configured in zoom specifications or join configs; use
   `scprocess run -r train_xgboost --zoom NAME` or
   `scprocess join -r train_xgboost`. Project zoom classifiers get a new report,
-  `public/SHORT_TAG_zoom_NAME_train_xgboost.html`.
+  `public/SHORT_TAG_zoom_NAME_train_XGBOOST_TAG.html`.
 - Breaking CLI change: `scprocess run -r train_xgboost --zoom all` and the
   `zoom_train_xgboost_all` rule are removed; train one zoom classifier at a time.
 - Changes affecting results: project zoom training now runs full-data

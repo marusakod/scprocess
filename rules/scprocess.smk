@@ -401,8 +401,8 @@ if TRAIN_XGB_PARAMS is not None:
     input:
       f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_xgboost_model.json',
       f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_fulldata_predictions.csv.gz',
-      f'{rmd_dir}/{SHORT_TAG}_train_xgboost.Rmd',
-      f'{docs_dir}/{SHORT_TAG}_train_xgboost.html'
+      f'{rmd_dir}/{SHORT_TAG}_train_{TRAIN_XGB_PARAMS["xgboost_tag"]}.Rmd',
+      f'{docs_dir}/{SHORT_TAG}_train_{TRAIN_XGB_PARAMS["xgboost_tag"]}.html'
 
 # define rules that are needed
 include: "mapping.smk"

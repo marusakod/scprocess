@@ -657,8 +657,8 @@ if TRAIN_XGB_PARAMS is not None:
       fulldata_preds_f     = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_fulldata_predictions.csv.gz'
     output:
       r_train_f     = f"{code_dir}/train_xgboost.R",
-      rmd_f         = f"{rmd_dir}/{SHORT_TAG}_train_xgboost.Rmd",
-      html_f        = f"{docs_dir}/{SHORT_TAG}_train_xgboost.html"
+      rmd_f         = f"{rmd_dir}/{SHORT_TAG}_train_{TRAIN_XGB_PARAMS['xgboost_tag']}.Rmd",
+      html_f        = f"{docs_dir}/{SHORT_TAG}_train_{TRAIN_XGB_PARAMS['xgboost_tag']}.html"
     params:
       your_name              = config['project'].get('your_name', ''),
       affiliation            = config['project'].get('affiliation', ''),
