@@ -17,6 +17,10 @@ import yaml
 # Minimum training cells supporting a cluster's majority-vote label.
 MIN_CLUSTER_MAJORITY_VOTE_CELLS = 10
 
+# Random stream for depth augmentation. It is combined with the training seed, so
+# thinning is reproducible and independent of XGBoost's own seeded sampling.
+DEPTH_AUGMENTATION_STREAM = 1
+
 
 # Training metadata
 
@@ -393,9 +397,16 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
   gene_exclude_re, min_cells_expressed, seed, pass1_subsample, pass1_colsample_bytree,
   pass1_learning_rate, pass1_nrounds, pass1_early_stopping, gain_threshold, min_genes,
   max_genes, pass2_colsample_bytree, pass2_learning_rate, pass2_nrounds,
-  pass2_early_stopping):
+  pass2_early_stopping, downsample_copies, downsample_min_umis, downsample_max_umis):
 
   import xgboost as xgb
+  import scipy.sparse as sp
+
+  # Depth bounds are only used when copies are requested; check them as a pair then.
+  if downsample_copies < 0:
+    raise ValueError('downsample_copies must be zero or positive')
+  if downsample_copies > 0 and not 0 < downsample_min_umis < downsample_max_umis:
+    raise ValueError('downsample_min_umis must be positive and below downsample_max_umis')
 
   output_path = Path(output_dir)
   output_path.mkdir(parents = True, exist_ok = True)
@@ -407,21 +418,54 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
   h5ad_lookup = yaml.safe_load(Path(h5ads_yaml).read_text())
   raw_counts, normalized_counts, gene_ids, gene_types, training_metadata_df = _load_training_expression(training_metadata_df, h5ad_lookup)
 
-  # Encode labels and filter genes before the two fitting passes.
+  # Encode labels for the original cells (one row per selected cell).
   class_names, label_indices, train_mask, validation_mask = _encode_training_labels(training_metadata_df)
+
+  # Optional depth augmentation: thinned copies of train and validation cells, made
+  # from full-gene raw counts so that each copy has its own library size.
+  augmented_counts, augmented_source_rows = _make_depth_augmented_counts(raw_counts,
+    copies   = downsample_copies,
+    min_umis = downsample_min_umis,
+    max_umis = downsample_max_umis,
+    seed     = seed)
+
+  # Filter genes using original training cells only, then keep the same genes in
+  # the thinned copies (gene IDs are unique, so names identify column positions).
+  all_gene_ids = gene_ids.to_list()
   normalized_counts, raw_counts, gene_names = _filter_training_genes(
     normalized_counts, raw_counts, gene_ids, gene_types, train_mask,
     gene_exclude_re = gene_exclude_re,
     min_cells_expressed = min_cells_expressed)
   X_train      = normalized_counts[train_mask]
   X_validation = normalized_counts[validation_mask]
+  y_train      = label_indices[train_mask]
+  y_validation = label_indices[validation_mask]
+
+  # Fitting matrices: original rows first, then their thinned copies, each copy in
+  # its original's split. Outputs below use the original rows only.
+  X_fit_train, y_fit_train, X_fit_validation, y_fit_validation = X_train, y_train, X_validation, y_validation
+  n_train_augmented = n_validation_augmented = 0
+  if augmented_counts is not None:
+    gene_positions   = {gene: i for i, gene in enumerate(all_gene_ids)}
+    augmented_counts = augmented_counts[:, [gene_positions[gene] for gene in gene_names]].tocsr()
+    copy_is_train    = train_mask[augmented_source_rows]
+    copy_labels      = label_indices[augmented_source_rows]
+    X_fit_train      = sp.vstack([X_train, augmented_counts[copy_is_train]], format = 'csr')
+    y_fit_train      = np.concatenate([y_train, copy_labels[copy_is_train]])
+    X_fit_validation = sp.vstack([X_validation, augmented_counts[~copy_is_train]], format = 'csr')
+    y_fit_validation = np.concatenate([y_validation, copy_labels[~copy_is_train]])
+    n_train_augmented      = int(copy_is_train.sum())
+    n_validation_augmented = int((~copy_is_train).sum())
+    del augmented_counts
+    print(f'Depth augmentation: {n_train_augmented} train and {n_validation_augmented} '
+          f'validation copies added', flush = True)
 
   # Pass 1 considers all retained genes with the lower column-sampling fraction.
   pass1_model = _fit_xgboost(
-    X_train          = X_train,
-    y_train          = label_indices[train_mask],
-    X_val            = X_validation,
-    y_val            = label_indices[validation_mask],
+    X_train          = X_fit_train,
+    y_train          = y_fit_train,
+    X_val            = X_fit_validation,
+    y_val            = y_fit_validation,
     n_cores          = n_cores,
     seed             = seed,
     use_gpu          = use_gpu,
@@ -444,13 +488,18 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
   gc.collect()
   X_train      = X_train[:, selected_gene_indices].tocsr()
   X_validation = X_validation[:, selected_gene_indices].tocsr()
+  if n_train_augmented + n_validation_augmented > 0:
+    X_fit_train      = X_fit_train[:, selected_gene_indices].tocsr()
+    X_fit_validation = X_fit_validation[:, selected_gene_indices].tocsr()
+  else:
+    X_fit_train, X_fit_validation = X_train, X_validation
 
   # Pass 2 fits the final classifier on those genes, stopping on validation loss.
   pass2_model = _fit_xgboost(
-    X_train          = X_train,
-    y_train          = label_indices[train_mask],
-    X_val            = X_validation,
-    y_val            = label_indices[validation_mask],
+    X_train          = X_fit_train,
+    y_train          = y_fit_train,
+    X_val            = X_fit_validation,
+    y_val            = y_fit_validation,
     n_cores          = n_cores,
     seed             = seed,
     use_gpu          = use_gpu,
@@ -495,12 +544,21 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
     pass2_colsample_bytree = pass2_colsample_bytree,
     pass2_learning_rate    = pass2_learning_rate,
     pass2_nrounds          = pass2_nrounds,
-    pass2_early_stopping   = pass2_early_stopping)
+    pass2_early_stopping   = pass2_early_stopping,
+    downsample_copies      = downsample_copies,
+    downsample_min_umis    = downsample_min_umis,
+    downsample_max_umis    = downsample_max_umis)
   model_f    = output_path / f'{xgboost_tag}_xgboost_model.json'
   model_card = dict(
     configuration                  = configuration,
     n_train                        = int(train_mask.sum()),
     n_validation                   = int(validation_mask.sum()),
+    n_train_augmented              = n_train_augmented,
+    n_validation_augmented         = n_validation_augmented,
+    depth_augmentation             = (
+      'binomial thinning of full-gene raw counts to log-uniform target depths; copies '
+      'keep their original split and are used in both fitting passes; the detection '
+      'filter and all outputs use original cells only' if downsample_copies > 0 else 'none'),
     n_classes                      = len(class_names),
     n_genes                        = len(selected_gene_names),
     n_genes_tested                 = len(gene_names),
@@ -529,6 +587,59 @@ def _encode_training_labels(training_metadata_df):
   class_indices = {name: i for i, name in enumerate(class_names)}
   label_indices = np.array([class_indices[name] for name in training_metadata_df['label']])
   return class_names, label_indices, train_mask, validation_mask
+
+
+def _make_depth_augmented_counts(raw_counts, *, copies, min_umis, max_umis, seed):
+  """Return normalised thinned copies of cells and the original row of each copy.
+
+  Each copy keeps every count independently with probability target / cell total
+  (binomial thinning), so its total is close to a target depth drawn log-uniformly
+  between min_umis and min(max_umis, cell total). For example, with bounds 300 and
+  3,000 a 10,000-UMI cell gets a target between 300 and 3,000, and a 1,000-UMI cell
+  between 300 and 1,000. Cells with at most min_umis UMIs are not copied, so counts
+  are never added. Copies are grouped by copy number, each in original row order.
+  """
+  import scipy.sparse as sp
+
+  if copies == 0:
+    return None, np.array([], dtype = np.int64)
+
+  # Thinning needs integer counts; clean H5ADs store integer-valued floats.
+  counts_csr = raw_counts.tocsr()
+  if counts_csr.data.size and (np.any(counts_csr.data < 0)
+    or not np.allclose(counts_csr.data, np.round(counts_csr.data))):
+    raise ValueError('Depth augmentation requires non-negative integer raw counts')
+  cell_totals   = np.asarray(counts_csr.sum(axis = 1)).ravel()
+  eligible_rows = np.flatnonzero(cell_totals > min_umis)
+  if eligible_rows.size == 0:
+    return None, np.array([], dtype = np.int64)
+
+  # Draw each copy's target depth, then thin that cell's counts towards it.
+  rng          = np.random.default_rng([seed, DEPTH_AUGMENTATION_STREAM])
+  eligible_csr = counts_csr[eligible_rows]
+  upper_umis   = np.minimum(max_umis, cell_totals[eligible_rows])
+  copy_parts   = []
+  for _ in range(copies):
+    target_umis = np.exp(rng.uniform(np.log(min_umis), np.log(upper_umis)))
+    thinned     = _thin_counts(eligible_csr, target_umis, rng)
+
+    # Normalise with the thinned library size, as for a natively shallow cell.
+    copy_parts.append(normalize_counts(thinned).astype(np.float32))
+
+  augmented_counts = sp.vstack(copy_parts, format = 'csr')
+  source_rows      = np.tile(eligible_rows, copies)
+  return augmented_counts, source_rows
+
+
+def _thin_counts(counts_csr, target_umis, rng):
+  # Keep each read independently with probability target / cell total (one
+  # probability per row), so totals are binomial around the target and never larger.
+  cell_totals  = np.asarray(counts_csr.sum(axis = 1)).ravel()
+  keep_prob    = np.repeat(target_umis / cell_totals, np.diff(counts_csr.indptr))
+  thinned      = counts_csr.copy()
+  thinned.data = rng.binomial(np.round(counts_csr.data).astype(np.int64), keep_prob).astype(counts_csr.dtype)
+  thinned.eliminate_zeros()
+  return thinned
 
 
 def _filter_training_genes(normalized_counts, raw_counts, gene_ids, gene_types,
@@ -1247,7 +1358,8 @@ if __name__ == '__main__':
     fit.add_argument('--' + name, required = True)
 
   for name in ('n_cores', 'seed', 'min_cells_expressed', 'min_genes', 'max_genes',
-    'pass1_nrounds', 'pass1_early_stopping', 'pass2_nrounds', 'pass2_early_stopping'):
+    'pass1_nrounds', 'pass1_early_stopping', 'pass2_nrounds', 'pass2_early_stopping',
+    'downsample_copies', 'downsample_min_umis', 'downsample_max_umis'):
     fit.add_argument('--' + name, required = True, type = int)
 
   for name in ('pass1_subsample', 'pass1_colsample_bytree', 'pass1_learning_rate',

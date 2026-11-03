@@ -1112,6 +1112,9 @@ if DO_TRAIN_XGB:
       pass2_learning_rate    = _join_xgb_cfg['pass2_learning_rate'],
       pass2_nrounds          = _join_xgb_cfg['pass2_nrounds'],
       pass2_early_stopping   = _join_xgb_cfg['pass2_early_stopping'],
+      downsample_copies      = _join_xgb_cfg['downsample_copies'],
+      downsample_min_umis    = _join_xgb_cfg['downsample_min_umis'],
+      downsample_max_umis    = _join_xgb_cfg['downsample_max_umis'],
     threads: 8
     retries: config['resources']['retries']
     resources:
@@ -1144,6 +1147,9 @@ if DO_TRAIN_XGB:
         --pass2_learning_rate {params.pass2_learning_rate:q} \
         --pass2_nrounds {params.pass2_nrounds:q} \
         --pass2_early_stopping {params.pass2_early_stopping:q} \
+        --downsample_copies {params.downsample_copies:q} \
+        --downsample_min_umis {params.downsample_min_umis:q} \
+        --downsample_max_umis {params.downsample_max_umis:q} \
         --output_dir {params.output_dir:q} \
         --n_cores {threads}
       """

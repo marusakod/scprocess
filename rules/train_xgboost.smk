@@ -97,6 +97,9 @@ if TRAIN_XGB_PARAMS is not None:
       pass2_learning_rate    = TRAIN_XGB_PARAMS['pass2_learning_rate'],
       pass2_nrounds          = TRAIN_XGB_PARAMS['pass2_nrounds'],
       pass2_early_stopping   = TRAIN_XGB_PARAMS['pass2_early_stopping'],
+      downsample_copies      = TRAIN_XGB_PARAMS['downsample_copies'],
+      downsample_min_umis    = TRAIN_XGB_PARAMS['downsample_min_umis'],
+      downsample_max_umis    = TRAIN_XGB_PARAMS['downsample_max_umis'],
     threads: 8
     retries: config['resources']['retries']
     resources:
@@ -128,6 +131,9 @@ if TRAIN_XGB_PARAMS is not None:
         --pass2_learning_rate               {params.pass2_learning_rate:q} \
         --pass2_nrounds                     {params.pass2_nrounds:q} \
         --pass2_early_stopping              {params.pass2_early_stopping:q} \
+        --downsample_copies                 {params.downsample_copies:q} \
+        --downsample_min_umis               {params.downsample_min_umis:q} \
+        --downsample_max_umis               {params.downsample_max_umis:q} \
         --output_dir                        {params.output_dir:q} \
         --n_cores                           {threads}
       """

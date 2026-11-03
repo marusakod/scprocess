@@ -1295,6 +1295,34 @@ model or recalculating predictions.
     | `pass2_nrounds` | Maximum rounds in the final fit | `500` |
     | `pass2_early_stopping` | Stop after this many rounds without improved validation performance | `10` |
 
+??? note "Training for shallowly sequenced cells (depth augmentation)"
+
+    A classifier trained on deeply sequenced cells can misclassify cells with few
+    UMIs, because many marker genes go undetected and single reads of other genes
+    look highly expressed. Depth augmentation adds shallower copies of the
+    training cells, so the model also learns from cells at the depths it may
+    later need to classify. It is off by default.
+
+    Each copy keeps a random subset of the original cell's reads (binomial
+    thinning of the raw counts), aiming for a depth drawn at random between
+    `downsample_min_umis` and `downsample_max_umis`, or the cell's own depth if
+    that is lower. Cells with no more than `downsample_min_umis` UMIs are not
+    copied. Copies keep their cell's label and stay in the same training or
+    validation group; test cells are never copied.
+
+    * `downsample_copies`: shallow copies per selected training and validation
+      cell; default `0` (off). `1` is a good starting point.
+    * `downsample_min_umis`, `downsample_max_umis`: range of copy depths in UMIs
+      per cell; defaults `300` and `3000`. Choose a range covering the depths of
+      the datasets you plan to classify.
+
+    Copies are used in both fits, so gene selection favours genes that remain
+    informative in shallow cells. Gene detection filtering, predictions, the
+    report and all evaluation tables use the original cells only, and the model
+    card records the settings and the number of copies. One copy roughly doubles
+    the cells fitted; memory and training time increase, though by less than
+    double because thinned cells have fewer non-zero values.
+
 Once reviewed, the classifier can be
 [installed for use in other projects](#setup-xgboost).
 

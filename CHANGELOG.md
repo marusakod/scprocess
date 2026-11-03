@@ -2,6 +2,15 @@
 
 ## Unreleased — planned 0.7.0
 
+- Add optional depth augmentation for XGBoost training (`train_xgboost`
+  `downsample_copies`, `downsample_min_umis`, `downsample_max_umis`; projects,
+  joins and project zooms). Each selected train/validation cell gets thinned
+  copies made by binomial thinning of its raw counts to a log-uniform target
+  depth, normalised with their own library size and used in both fitting
+  passes. The detection filter, predictions, pseudobulk, report and evaluation
+  use original cells only. Off by default (`downsample_copies: 0`), which gives
+  byte-identical models to the previous trainer. Enabling it changes fitted
+  models; it aims to improve accuracy on cells with few UMIs.
 - Make `--zoom` behave the same for projects and joins. `scprocess run -r zoom`
   still runs every zoom; `scprocess run -r zoom --zoom NAME` now runs only that
   zoom, matching `scprocess join -r zoom --zoom NAME`. `--zoom all` is
