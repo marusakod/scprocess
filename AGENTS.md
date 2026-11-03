@@ -316,7 +316,7 @@ Resource allocation for individual rules is predicted by linear models fitted on
 
 ### Conda Environments
 
-Each rule specifies a `conda:` environment file from `envs/`. This is a selection, not a complete list:
+Each rule specifies a `conda:` environment file from `envs/`; `rules/create_envs.smk` lists every rule environment:
 - `envs/scprocess_local.yaml` — main environment (Python, Snakemake, scanpy, polars, h5py, etc.); `scprocess_{slurm,lsf,pbs,sge}.yaml` are the same environment plus the scheduler's Snakemake executor plugin
 - `envs/alevin_fry.yaml` — alignment
 - `envs/rlibs.yaml` — R libraries (edgeR, fgsea, ggplot2)
@@ -324,7 +324,8 @@ Each rule specifies a `conda:` environment file from `envs/`. This is a selectio
 - `envs/hvgs.yaml`, `envs/ambientr.yaml`, `envs/py_env.yaml` — HVG, ambient and general Python steps
 - `envs/integration.yaml` — GPU-compatible scanpy/rapids stack
 - `envs/bpcells_pca.yaml` — BPCells for disk-backed PCA (integration, zoom and join)
-- `envs/label_celltypes.yaml`, `envs/celltypist.yaml`, `envs/train_xgboost{,_gpu}.yaml`, `envs/xgboost_r.yaml` — annotation and classifier training
+- `envs/label_celltypes.yaml` — CellTypist and XGBoost prediction, and CPU XGBoost training
+- `envs/train_xgboost_gpu.yaml` — GPU XGBoost training (`use_gpu: true`)
 - `envs/tricycle.yaml` — cell-cycle scoring
 - `envs/shiny.yaml` — Shiny app build environment (BPCells, zellkonverter, shiny, shinydashboard, ComplexHeatmap, Seurat, etc.)
 
