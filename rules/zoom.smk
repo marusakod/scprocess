@@ -844,9 +844,10 @@ rule zoom_get_highly_variable_genes:
 
 rule zoom_create_hvg_matrix:
   input: 
+    # this zoom's chunked counts for every batch; allow_missing keeps {zoom_name} as a wildcard
     clean_h5_f    = expand(
       f'{zoom_dir}/{{zoom_name}}/chunked_counts_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5',
-      zoom_name = ZOOMS, batch = BATCHES
+      batch = BATCHES, allow_missing = True
     ),
     smpl_stats_f  = f'{zoom_dir}/{{zoom_name}}/zoom_{BATCH_VAR}_statistics_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv', 
     hvg_paths_f   = f'{zoom_dir}/{{zoom_name}}/hvg_paths_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv', 

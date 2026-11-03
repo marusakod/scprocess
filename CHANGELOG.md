@@ -26,9 +26,12 @@
   scprocess checkout and also records its full commit SHA. Existing logs from
   git-tracked project directories may show the project's version; use the
   checkout history to establish the scprocess code used for those runs.
-- Results are unchanged. Running a single zoom no longer builds the other zooms'
-  chunked counts first: `zoom_create_hvg_matrix` declares every zoom's counts
-  as inputs, so this still happens when all zooms are run together.
+- Fix `zoom_create_hvg_matrix` depending on every zoom's temporary chunked
+  counts instead of only its own. Adding or rerunning one zoom previously made
+  every completed zoom's HVG matrix out of date, so Snakemake regenerated their
+  chunked counts and reran HVGs, PCA, integration and markers for all zooms
+  (for a three-zoom test project, 753 instead of 337 planned jobs). Each matrix
+  only ever read its own zoom's files, so results are unchanged.
 
 ## 0.6.0 — Unreleased development candidate
 
