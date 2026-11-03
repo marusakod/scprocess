@@ -2,6 +2,11 @@
 
 ## Unreleased — planned 0.7.0
 
+- Fix project zooms without `hvg.hvg_exclude_from_file` failing at
+  `zoom_get_highly_variable_genes` (`hvgs.py: error: argument --exc_gs_f:
+  expected one argument`). Since `b468280` (first tagged in v0.2.2) the omitted
+  setting is passed as an empty value, but the rule still tested for `None`.
+  Zooms with an exclusion file, joined zooms and project HVGs were unaffected.
 - Make `--zoom` behave the same for projects and joins. `scprocess run -r zoom`
   still runs every zoom; `scprocess run -r zoom --zoom NAME` now runs only that
   zoom, matching `scprocess join -r zoom --zoom NAME`. `--zoom all` is

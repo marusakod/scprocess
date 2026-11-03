@@ -817,8 +817,9 @@ rule zoom_get_highly_variable_genes:
     if [ "{params.zoom_exc_ambient}" = "True" ]; then
       NOAMBIENT_FLAG="--noambient"
     fi
+    # an omitted hvg_exclude_from_file is an empty list, which renders as ""
     EXC_GS_F_FLAG=""
-    if [ "{params.zoom_exc_gs_f}" != "None" ]; then
+    if [ "{params.zoom_exc_gs_f}" != "" ]; then
       EXC_GS_F_FLAG="--exc_gs_f {params.zoom_exc_gs_f}"
     fi
 
