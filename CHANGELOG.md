@@ -34,6 +34,11 @@
   per-split evaluation tables are new zoom outputs, and the zoom coarse label
   evaluation (`specs`) now uses full-data predictions instead of
   validation-only predictions. Fitted models are unchanged.
+- Request a GPU for `zoom_train_xgboost` in the `slurm_shpc` profile template,
+  as for project and join training. Zoom classifiers with `use_gpu: true`
+  previously ran on a CPU node and failed the GPU check. Existing copied
+  profiles under `$SCPROCESS_DATA_DIR/profiles/` need the same entry; project
+  training needs `train_xgboost_train` (not the `train_xgboost` target).
 - Fix the scprocess version recorded in driver logs
   (`.log/scprocess/scprocess_*.log`). `git describe` ran in the current
   directory, so runs started inside a project or join git repository (e.g.
