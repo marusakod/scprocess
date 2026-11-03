@@ -9,7 +9,11 @@
 - Breaking CLI change: `scprocess run --zoom` with a rule other than `zoom`,
   `shiny` or `train_xgboost` is now an error; it was previously ignored
   silently. Unknown zoom names fail before Snakemake starts.
-- Add `--create-envs` to `scprocess join`.
+- Breaking CLI change: move `--create-envs` from `scprocess run` to
+  `scprocess setup --create-envs`. It creates every rule environment once,
+  under the Conda prefix used by later project and join runs, without needing a
+  project config, a Cell Ranger link or reference data. `-n` now lists the
+  environments; Snakemake previously created them despite `-n`.
 - Results are unchanged. Running a single zoom no longer builds the other zooms'
   chunked counts first: `zoom_create_hvg_matrix` declares every zoom's counts
   as inputs, so this still happens when all zooms are run together.

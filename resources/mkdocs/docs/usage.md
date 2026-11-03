@@ -69,11 +69,13 @@ scprocess run /path/to/config-my_project.yaml -E "--max-threads 8"
     In a dry run, a workflow manager maps out the entire execution plan and displays a summary of the tasks to be performed without actually running any scripts or consuming computational resources. It serves as a safety check to ensure that all input files are accessible and that the job sequence aligns with your expectations before you commit to the full execution of the pipeline.
 
 
-The initial run of {{sc}} will take some time as the Conda environments are built. You can pre-build these environments without running the workflow by using the `--create-envs` flag:
+The initial run of {{sc}} will take some time as the Conda environments are built. You can pre-build all of these environments once, without running any workflow, using {{scsetup}}:
 
 ```bash
-scprocess run /path/to/config-my_project.yaml --create-envs
+scprocess setup --create-envs
 ```
+
+Later project and join runs reuse these environments, provided they use the same Conda prefix (set by `conda-prefix` in your cluster profile). Environments are rebuilt only when their specification changes in a new {{sc}} version.
 
 By default {{scrun}} will run rule `all` which includes all [core steps](introduction.md#core-pipeline-steps). The [optional steps](introduction.md#extended-functionality) (with the exception of gene set enrichment analysis) can run only after rule `all` is completed and have to be specifically requested.
 

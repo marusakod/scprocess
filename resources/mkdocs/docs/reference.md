@@ -17,6 +17,10 @@ See [Getting started](setup.md) for installation and data-directory setup.
 **Parameters**:
 
 * `-n`/`--dry-run` (optional): list the setup steps without running them.
+* `--create-envs` (optional): only create the Conda environments used by {{scrun}} and
+  {{scjoin}}, without downloading or building reference data. This reads `scprocess_setup.yaml`
+  for the cluster profile but does not need `--rangerurl`. With `-n`, list the environments
+  without creating them.
 * `-E`/`--extraargs` (optional): quoted Snakemake arguments, for example `-E="--cores 8"`.
 * `-c`/`--rangerurl`:  download link for Cell Ranger (v9.0.0 or higher) available on the [10x
   Genomics CellRanger download & installation
@@ -223,8 +227,6 @@ mapping step.
 * `configfile` (positional): path to a configuration YAML file.
 * `-n`/`--dry-run` (optional): list the analysis steps without executing them. Helpful for checking
   input files and parameters.
-* `--create-envs` (optional): only create the conda environments needed for the workflow, without
-  running any rules.
 * `-E`/`--extraargs` (optional): list of additional arguments to pass to `Snakemake`. Refer to
   [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for a
   detailed explanation of available command-line options.
@@ -1520,8 +1522,6 @@ to confirm the allocations actually requested.
   this option, `-r zoom` runs every listed zoom; `-r shiny` builds the parent join's app.
 * `-n`/`--dry-run` (optional): list the join steps without executing them. Helpful for checking
   input files and parameters.
-* `--create-envs` (optional): only create the conda environments needed for the workflow, without
-  running any rules.
 * `-E`/`--extraargs` (optional): list of additional arguments to pass to `Snakemake`. Refer to
   [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli).
 * `--unlock` (optional): unlock the directory if a previous run was interrupted.

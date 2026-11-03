@@ -207,8 +207,8 @@ scprocess run <config.yaml> -r shiny --zoom <zoom_name>
 # Unlock after an interrupted run
 scprocess run <config.yaml> --unlock
 
-# Create conda environments only (no execution)
-scprocess run <config.yaml> --create-envs
+# Create all rule conda environments only (no reference data, no workflow)
+scprocess setup --create-envs
 
 # Build Shiny app from completed pipeline outputs
 scprocess run <config.yaml> -r shiny
@@ -226,7 +226,7 @@ scprocess newproj <name> -w <where> [-s] [-c sc|sn|multiplex|flex ...]
 scprocess newjoin <name> -w <where> [-c] [-p <project_config.yaml> ...]
 
 # Join several scprocess projects
-scprocess join <join.yaml> [-n] [--unlock] [--create-envs] [-r all|label_celltypes|train_xgboost|shiny|zoom]
+scprocess join <join.yaml> [-n] [--unlock] [-r all|label_celltypes|train_xgboost|shiny|zoom]
 
 # Run all joined zooms, or only one; build a joined zoom's Shiny app
 scprocess join <join.yaml> -r zoom [--zoom <zoom_name>|all]
@@ -251,6 +251,7 @@ Each `.smk` file is a self-contained Snakemake rule module. The core orchestrato
 |-----------|---------------|
 | `scprocess.smk` | Core orchestrator; imports all modules |
 | `setup.smk` | Reference genome indexing |
+| `create_envs.smk` | Placeholder rule per conda env, used by `scprocess setup --create-envs`; its env list is checked against rule `conda:` directives by `tests/test_create_envs.py` |
 | `mapping.smk` | Read alignment via simpleaf (alevin-fry) |
 | `ambient.smk` | Ambient RNA removal (CellBender or DecontX) |
 | `qc.smk` | Cell QC, doublet detection (scDblFinder), filtering |

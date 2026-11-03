@@ -54,7 +54,7 @@ def _clean_conda_env(conda_prefix=None):
 
 
 # scprocess setup
-def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
+def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs, create_envs=False):
   print('doing some checks on inputs')
  
   # get scprocess_data_dir; should be defined in .bashrc
@@ -108,6 +108,11 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
     extraargs.append('--cores')
     extraargs.append(str(setup_cfg['user']['local_cores']))
 
+  # only create conda environments; no reference data or Cell Ranger needed
+  if create_envs:
+    _create_conda_envs(scprocess_dir, setup_cfg, extraargs, scdata_dir, log_f, dryrun)
+    return
+
   # get cellranger version
   if ranger_url == "":
     # setup was done already, look for version file
@@ -145,6 +150,34 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
   print(f"\nlogging progress to: {log_f}")
   subprocess.run(final_cmd, check=True, shell = True, env = _clean_conda_env(),
     cwd=scdata_dir)
+
+def _create_conda_envs(scprocess_dir, setup_cfg, extraargs, scdata_dir, log_f, dryrun):
+  """Create all rule conda environments under the prefix used by project and join runs."""
+
+  # project and join runs use this prefix; matching it lets them reuse the envs
+  conda_prefix = scprocess_utils.get_conda_prefix(setup_cfg, scprocess_dir)
+
+  # Snakemake ignores -n with --conda-create-envs-only and creates the envs anyway,
+  # so a dry run only lists the environment rules
+  cmd_list     = ['snakemake',
+    "--snakefile", str(scprocess_dir / "rules/create_envs.smk"),
+    "--software-deployment-method", "conda",
+    *([] if dryrun else ["--conda-create-envs-only"]),
+    "--conda-prefix", str(conda_prefix),
+    *extraargs
+  ]
+
+  # run, logging as for the rest of setup
+  cmd_str      = " ".join(map(shlex.quote, map(str, cmd_list)))
+  strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
+  final_cmd    = f"set -o pipefail; script -q -e -c {shlex.quote(cmd_str)} /dev/null | tee /dev/stderr | {strip_colors} >> {log_f}"
+
+  print("creating scprocess conda environments")
+  print(f"\nsnakemake command:\n{cmd_str}")
+  print(f"\nlogging progress to: {log_f}")
+  subprocess.run(final_cmd, check=True, shell = True, env = _clean_conda_env(conda_prefix),
+    executable='/bin/bash', cwd=scdata_dir)
+
 
 # scprocess newproj
 def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
@@ -962,6 +995,11 @@ if __name__ == '__main__':
       Extra snakamake arguments. Must be provided within quotes and use an equals sign.
       For example, to have a dryrun: -E="-n"
       ''')
+  setup_prsr.add_argument("--create-envs", action="store_true",
+    help = '''
+      Only create the conda environments used by scprocess workflows, without
+      downloading or building any reference data.
+      ''')
 
   # subparser for the 'plotknee' subcommand
   newprj_prsr = subparsers.add_parser('newproj', help="create new project folder with structure that scprocess expects")
@@ -1016,11 +1054,6 @@ if __name__ == '__main__':
       may be locked. If you get an error message saying that it is locked, use this
       option to unlock it, then run scprocess as normal.
       ''')
-  run_prsr.add_argument("--create-envs", action="store_true",
-    help = '''
-      Only create the conda environments needed for the workflow, without
-      running any rules.
-      ''')
   run_prsr.add_argument("--noindex", action='store_true', help = "")
 
   # subparser for the 'plotknee' subcommand
@@ -1050,8 +1083,6 @@ if __name__ == '__main__':
     help = "Unlock the Snakemake directory if a previous run was interrupted.")
   join_prsr.add_argument("-E", "--extraargs", action = "store", nargs = 1, type = str,
     help = "Extra Snakemake arguments (quoted, using = syntax, e.g. -E=\"--quiet\").")
-  join_prsr.add_argument("--create-envs", action = "store_true",
-    help = "Only create the conda environments needed for the workflow, without running any rules.")
 
   # define scprocess directory
   sc_dir    = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
@@ -1077,7 +1108,7 @@ if __name__ == '__main__':
         extraargs.append("-np")
 
       # call bsub thing
-      run_setup(sc_dir, snakefile, args.rangerurl, args.dry_run, extraargs)
+      run_setup(sc_dir, snakefile, args.rangerurl, args.dry_run, extraargs, args.create_envs)
 
     elif args.subcommand == "newproj":
       # make new project directory
@@ -1122,12 +1153,10 @@ if __name__ == '__main__':
       # sort out extra arguments
       extraargs   = []
       noindex     = args.noindex
-      doindex     = (not noindex) and (not args.dry_run) and (not args.unlock) and (not args.create_envs)
+      doindex     = (not noindex) and (not args.dry_run) and (not args.unlock)
       if args.unlock:
         extraargs.append("--unlock")
       else:
-        if args.create_envs:
-          extraargs.append("--conda-create-envs-only")
         if args.extraargs:
           extraargs.extend(shlex.split(args.extraargs[0]))
         if args.dry_run:
@@ -1165,11 +1194,8 @@ if __name__ == '__main__':
       extraargs = []
       if args.unlock:
         extraargs.append("--unlock")
-      else:
-        if args.create_envs:
-          extraargs.append("--conda-create-envs-only")
-        if args.extraargs:
-          extraargs.extend(shlex.split(args.extraargs[0]))
+      elif args.extraargs:
+        extraargs.extend(shlex.split(args.extraargs[0]))
 
       # joined zooms do not support label_celltypes or train_xgboost sections
       if args.zoom is not None and args.rule not in ('zoom', 'shiny'):
