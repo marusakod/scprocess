@@ -18,6 +18,14 @@
   `train_xgboost.yaml` and `xgboost_r.yaml`. No rule used them: CellTypist,
   XGBoost prediction and CPU training run in `label_celltypes.yaml`, and
   chemistry detection runs in `alevin_fry.yaml`.
+- Fix the scprocess version recorded in driver logs
+  (`.log/scprocess/scprocess_*.log`). `git describe` ran in the current
+  directory, so runs started inside a project or join git repository (e.g.
+  workflowr) recorded that repository's version instead of scprocess's, and
+  runs started outside any git repository failed. The header now describes the
+  scprocess checkout and also records its full commit SHA. Existing logs from
+  git-tracked project directories may show the project's version; use the
+  checkout history to establish the scprocess code used for those runs.
 - Results are unchanged. Running a single zoom no longer builds the other zooms'
   chunked counts first: `zoom_create_hvg_matrix` declares every zoom's counts
   as inputs, so this still happens when all zooms are run together.

@@ -763,21 +763,46 @@ def _get_main_log(config_path, log_dir, dryrun):
   log_f       = 'scprocess_dry_run.log' if dryrun else f"scprocess_run_{timestamp}.log"
   log_full_f  = log_dir /  log_f
   
-  # get git tag
-  git_version = subprocess.check_output(
-    ["git", "describe", "--tags", "--always", "--dirty"],
-    stderr=subprocess.DEVNULL
-  ).decode("utf-8").strip()
-      
+  # identify the scprocess code used, not the git repo of the current directory
+  git_version, git_commit = _get_scprocess_git_identity()
+
   log_header = (
       f"\n{'='*60}\n"
       f"RUN START:    {timestamp}\n"
       f"GIT VERSION:  {git_version}\n"
+      f"GIT COMMIT:   {git_commit}\n"
       f"CONFIG:       {config_path}\n"
       f"{'='*60}\n\n\n\n"
   )
 
   return log_full_f, log_header
+
+
+def _get_scprocess_git_identity():
+  """Return git describe output and full commit SHA for this scprocess checkout.
+
+  Runs git in the directory containing this file, so a project or join that is
+  itself a git (e.g. workflowr) repository does not change the result. Outside a
+  git checkout, e.g. a packaged install, both values are reported as unavailable
+  and the version comes from the VERSION file.
+  """
+  scprocess_dir = pathlib.Path(__file__).resolve().parent
+  try:
+    git_version = subprocess.check_output(
+      ["git", "-C", str(scprocess_dir), "describe", "--tags", "--always", "--dirty"],
+      stderr=subprocess.DEVNULL
+    ).decode("utf-8").strip()
+    git_commit  = subprocess.check_output(
+      ["git", "-C", str(scprocess_dir), "rev-parse", "HEAD"],
+      stderr=subprocess.DEVNULL
+    ).decode("utf-8").strip()
+  except (subprocess.CalledProcessError, FileNotFoundError):
+    version_f   = scprocess_dir / "VERSION"
+    version     = version_f.read_text().strip() if version_f.is_file() else "unknown"
+    git_version = f"{version} (not a git checkout)"
+    git_commit  = "unavailable"
+
+  return git_version, git_commit
 
 
 def _find_env_path_from_yaml(scprocess_dir, setup_cfg, source_yaml):
