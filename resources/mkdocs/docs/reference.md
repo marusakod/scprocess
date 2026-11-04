@@ -1274,7 +1274,7 @@ model or recalculating predictions.
     * `gain_threshold`: select genes accounting for this fraction of total
       gain in the first fit; default `0.9` (90%).
     * `min_genes`, `max_genes`: lower and upper limits on the selected gene
-      count; defaults `100` and `3000`.
+      count; defaults `100` and `5000`.
     * `seed`: random seed for reproducible cell selection and fitting;
       default `42`.
     * `use_gpu`: use a GPU for training; default `false`.
@@ -1291,11 +1291,11 @@ model or recalculating predictions.
     | `pass1_subsample` | Fraction of training cells sampled for each round in the first fit | `0.632` |
     | `pass1_colsample_bytree` | Fraction of genes considered for each tree in the first fit | `0.1` |
     | `pass1_learning_rate` | How much each added tree changes predictions | `0.1` |
-    | `pass1_nrounds` | Maximum rounds in the first fit | `300` |
+    | `pass1_nrounds` | Maximum rounds in the first fit | `1000` |
     | `pass1_early_stopping` | Stop after this many rounds without improved validation performance | `10` |
     | `pass2_colsample_bytree` | Fraction of selected genes considered for each tree in the final fit | `0.5` |
     | `pass2_learning_rate` | How much each added tree changes predictions | `0.05` |
-    | `pass2_nrounds` | Maximum rounds in the final fit | `500` |
+    | `pass2_nrounds` | Maximum rounds in the final fit | `2000` |
     | `pass2_early_stopping` | Stop after this many rounds without improved validation performance | `10` |
 
 ??? note "Training for shallowly sequenced cells (depth augmentation)"

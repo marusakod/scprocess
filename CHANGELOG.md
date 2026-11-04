@@ -2,6 +2,14 @@
 
 ## Unreleased — planned 0.7.0
 
+- Changes affecting results (scientific defaults): raise the XGBoost training
+  caps to `max_genes: 5000` (from 3000), `pass1_nrounds: 1000` (from 300) and
+  `pass2_nrounds: 2000` (from 500), for projects, joins and zooms. Early
+  stopping on validation loss is unchanged, so fits that already stopped early
+  are unaffected; fits that reached a cap (e.g. the depth-augmented Siletti
+  candidate: 3,000 genes, best iterations 299/300 and 499/500) can select more
+  genes and train longer. Training time can increase up to several-fold for such
+  fits; set the old values explicitly to reproduce earlier models.
 - Name every classifier training report, its Rmd and its figure folder after
   the model's `xgboost_tag` (`SHORT_TAG_train_XGBOOST_TAG.html`, and likewise
   for zooms and joins), so that training a second classifier in the same
