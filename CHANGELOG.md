@@ -2,6 +2,16 @@
 
 ## Unreleased — planned 0.7.0
 
+- Shrink the classifier report pseudobulk and fix it for labels containing `/`
+  (for example `Ependymal / ciliated`). `{tag}_pseudobulk.h5ad` stored one
+  dense layer of all selected genes per label, named after the label, so a `/`
+  split the name into nested HDF5 groups that could not be read (451 MB for the
+  5,000-gene Siletti model). It now has one row per label and batch (`label`,
+  `batch`, `n_cells`, `lib_size` in obs) and only the plotted genes: the top
+  100 by overall gain and the top 10 per label. Changes affecting results
+  (report only): top-gene plots now scale by each pseudobulk's total counts
+  across all genes, rather than edgeR TMM over the stored genes; the model is
+  unaffected. Older pseudobulk files are not read by the new report.
 - Add accuracy at lower sequencing depth to every classifier training report
   (projects, joins and zooms). A new rule per context
   (`train_xgboost_depth_evaluation`, `join_train_xgboost_depth_evaluation`,

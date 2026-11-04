@@ -214,6 +214,30 @@ plot_gain_curve <- function(gain_dt, gain_threshold, n_selected_genes) {
 }
 
 
+# Expression of the plotted genes for the top-gene plots. The pseudobulk h5ad has
+# one row per label and batch (obs: label, batch, n_cells, lib_size) and only the
+# genes the report plots. lib_size is the total count over all genes, so logCPMs
+# do not depend on which genes were kept. As for marker genes, batches with fewer
+# than min_cells cells of a label, or a low-outlier library size within that
+# label, are dropped. Returns one row per gene, label and batch.
+calc_xgboost_pseudobulk_logcpms <- function(pb_f, min_cells, pseudo_count = 10) {
+  pb        = read_h5ad(pb_f, as = 'SingleCellExperiment')
+  obs_dt    = as.data.table(as.data.frame(colData(pb)))[, pb_id := colnames(pb)]
+  obs_dt    = obs_dt[n_cells >= min_cells]
+  obs_dt    = obs_dt[, .SD[!scater::isOutlier(lib_size, log = TRUE, type = 'lower', nmads = 3)],
+    by = label]
+
+  counts    = as.matrix(assay(pb, 'X')[, obs_dt$pb_id, drop = FALSE])
+  cpms_dt   = as.data.table(counts, keep.rownames = 'gene_id') %>%
+    melt.data.table(id = 'gene_id', variable.name = 'pb_id', value.name = 'count',
+      variable.factor = FALSE) %>%
+    merge(obs_dt, by = 'pb_id') %>%
+    .[, logcpm := log(count / lib_size * 1e6 + pseudo_count)] %>%
+    .[, symbol := str_extract(gene_id, '^[^_]+')] %>%
+    setnames('label', 'cluster')
+  return(cpms_dt[, .(gene_id, symbol, cluster, batch, n_cells, count, lib_size, logcpm)])
+}
+
 plot_top_xgboost_genes <- function(selected_genes_dt, cpms_dt, label_order = NULL,
   pseudo_count = 10, ncol = 2, nrow = NULL, label_colours = NULL) {
 

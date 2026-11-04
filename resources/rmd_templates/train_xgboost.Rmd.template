@@ -258,14 +258,10 @@ plot_gain_curve(gain_dt, gain_threshold = feature_selection$gain_threshold,
 
 ## Top XGBoost genes {.tabset}
 
-Expression of genes used by the final classifier, ranked by their contribution during training. Counts are summed within each label and batch, normalised for library size and shown as logCPM. Each dot represents one batch; its size indicates the number of contributing cells. Check that useful genes show biologically plausible expression rather than patterns confined to one batch.
+Expression of genes used by the final classifier, ranked by their contribution during training. Counts are summed within each label and batch, divided by that pseudobulk's total counts across all genes and shown as counts per million (CPM). Each dot represents one batch; its size indicates the number of contributing cells. Check that useful genes show biologically plausible expression rather than patterns confined to one batch.
 
 ```{r load_cpms, include=FALSE}
-pb = read_h5ad(pb_f, as = 'SingleCellExperiment')
-if ('X' %in% assayNames(pb)) assays(pb)[['X']] = NULL
-batch_col = intersect(c('batch', 'sample_id'), colnames(colData(pb)))[1]
-cpms_dt = make_logcpms_all_rmd(pb, batch_col, lib_size_method = 'edger',
-  min_cells = min_cells, n_cores = n_cores)
+cpms_dt = calc_xgboost_pseudobulk_logcpms(pb_f, min_cells = min_cells)
 ```
 
 ```{r plot_top_genes, fig.height=8, fig.width=8, results='asis'}

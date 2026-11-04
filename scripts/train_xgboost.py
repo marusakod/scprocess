@@ -33,6 +33,12 @@ DEPTH_EVALUATION_CELLS_PER_LABEL = 200
 DEPTH_EVALUATION_MIN_UMIS        = 2000
 DEPTH_EVALUATION_STREAM          = 2
 
+# Genes kept in the report pseudobulk: those the training report plots, i.e. the
+# top genes by overall gain and the top genes by each label's gain in the final
+# model. The report template plots the same numbers of genes.
+REPORT_TOP_GENES           = 100
+REPORT_TOP_GENES_PER_LABEL = 10
+
 
 # Training metadata
 
@@ -430,6 +436,10 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
   h5ad_lookup = yaml.safe_load(Path(h5ads_yaml).read_text())
   raw_counts, normalized_counts, gene_ids, gene_types, training_metadata_df = _load_training_expression(training_metadata_df, h5ad_lookup)
 
+  # Library size of each cell over all genes, as used by normalize_counts; the
+  # report pseudobulk keeps only a few genes, so its library sizes come from here.
+  cell_lib_sizes = np.asarray(raw_counts.sum(axis = 1)).ravel()
+
   # Encode labels for the original cells (one row per selected cell).
   class_names, label_indices, train_mask, validation_mask = _encode_training_labels(training_metadata_df)
 
@@ -524,13 +534,18 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
   pass2_best_iteration = int(pass2_model.best_iteration)
   pass2_model          = _best_iteration_model(pass2_model)
 
-  # Export the best iteration, selected-cell predictions and raw-count summaries.
-  pseudobulk_adata = _compute_pseudobulk(raw_counts, training_metadata_df, gene_names, selected_gene_indices)
+  # Export the best iteration, selected-cell predictions and raw-count summaries
+  # of the genes shown in the report.
+  label_importance_df = _gene_gain_by_label(pass2_model, class_names, selected_gene_names)
+  report_genes        = _get_report_genes(gene_importance_df, label_importance_df, selected_gene_names)
+  pseudobulk_adata    = _compute_pseudobulk(raw_counts, cell_lib_sizes, training_metadata_df,
+    gene_names, report_genes)
   _save_outputs(
-    model              = pass2_model,
-    class_names        = class_names,
-    selected_genes     = selected_gene_names,
-    gene_importance_df = gene_importance_df,
+    model               = pass2_model,
+    class_names         = class_names,
+    selected_genes      = selected_gene_names,
+    gene_importance_df  = gene_importance_df,
+    label_importance_df = label_importance_df,
     output_dir         = output_path,
     xgboost_tag        = xgboost_tag,
     cells_df           = training_metadata_df,
@@ -904,7 +919,7 @@ def _best_iteration_model(model):
 # Save model outputs and selected-cell summaries
 
 def _save_outputs(model, class_names, selected_genes, gene_importance_df,
-  output_dir, xgboost_tag, cells_df, X_train, X_val, pseudobulk_adata):
+  label_importance_df, output_dir, xgboost_tag, cells_df, X_train, X_val, pseudobulk_adata):
 
   # Save model files and the metadata required to use the classifier.
   out_dir = Path(output_dir)
@@ -928,7 +943,6 @@ def _save_outputs(model, class_names, selected_genes, gene_importance_df,
   print(f"  Importance: {imp_path}")
 
   label_imp_path = out_dir / f"{xgboost_tag}_gene_importance_by_label.csv"
-  label_importance_df = _gene_gain_by_label(model, class_names, selected_genes)
   label_importance_df.write_csv(str(label_imp_path))
   print(f"  Importance by label: {label_imp_path}")
 
@@ -944,7 +958,7 @@ def _save_outputs(model, class_names, selected_genes, gene_importance_df,
   print(f"  Predictions: {predictions_f}")
 
   pseudobulk_f = out_dir / f"{xgboost_tag}_pseudobulk.h5ad"
-  pseudobulk_adata.write_h5ad(pseudobulk_f)
+  pseudobulk_adata.write_h5ad(pseudobulk_f, compression = 'gzip')
   print(f"  Pseudobulk: {pseudobulk_f}")
 
 
@@ -1006,69 +1020,52 @@ def _make_predictions_df(model, X_train, X_val, cells_df, class_names):
   return predictions_df
 
 
-def _compute_pseudobulk(X_raw, cells_df, gene_names, sel_indices):
-  # AnnData requires pandas for obs, var and labelled obsm tables.
+def _get_report_genes(gene_importance_df, label_importance_df, selected_genes):
+  """Selected genes plotted in the training report, in first-use order.
 
+  The top REPORT_TOP_GENES selected genes by overall gain, then each label's
+  top REPORT_TOP_GENES_PER_LABEL genes by its own gain; e.g. overall [A, B] and
+  per-label {x: [B, C]} give [A, B, C].
+  """
+  overall_genes = (gene_importance_df.filter(pl.col('gene_id').is_in(selected_genes))
+    .head(REPORT_TOP_GENES)['gene_id'].to_list())
+  label_genes   = (label_importance_df.sort(['label', 'gain'], descending = [False, True])
+    .group_by('label', maintain_order = True).head(REPORT_TOP_GENES_PER_LABEL)['gene_id'].to_list())
+  return list(dict.fromkeys(overall_genes + label_genes))
+
+
+def _compute_pseudobulk(X_raw, cell_lib_sizes, cells_df, gene_names, report_genes):
+  # AnnData requires pandas for obs and var tables; training-only imports.
   import anndata as ad
+  import scipy.sparse as sp
 
-  X_sel          = X_raw[:, sel_indices]
-  sel_gene_names = [gene_names[i] for i in sel_indices]
+  gene_positions = {gene: i for i, gene in enumerate(gene_names)}
+  X_report       = sp.csr_matrix(X_raw[:, [gene_positions[gene] for gene in report_genes]])
 
-  labels  = cells_df["label"].to_list()
-  batches = cells_df["batch"].to_list()
+  # One row per label and batch with at least one cell, ordered by label then
+  # batch. Labels stay in obs rather than becoming HDF5 keys, so names such as
+  # 'Ependymal / ciliated' are stored unchanged. lib_size sums the cells' total
+  # counts over all genes, so logCPMs do not depend on which genes are kept.
+  groups_df = (cells_df.select('label', 'batch').with_row_index('cell_idx')
+    .with_columns(lib_size = pl.Series(cell_lib_sizes),
+      group_idx = pl.struct('label', 'batch').rank('dense').cast(pl.Int64) - 1))
+  pb_obs_df = (groups_df.group_by('group_idx').agg(pl.col('label').first(), pl.col('batch').first(),
+    n_cells = pl.len(), lib_size = pl.col('lib_size').sum()).sort('group_idx'))
 
-  unique_labels  = sorted(set(labels))
-  unique_batches = sorted(set(batches))
-  n_batches      = len(unique_batches)
-  n_genes        = len(sel_gene_names)
-  batch_to_idx   = {s: i for i, s in enumerate(unique_batches)}
+  # Sum raw counts with a group-by-cell indicator matrix, e.g. cells [0, 1, 2]
+  # in groups [1, 0, 1] give rows sum(cell 1) and sum(cells 0, 2).
+  indicator = sp.csr_matrix((np.ones(groups_df.height), (groups_df['group_idx'].to_numpy(),
+    groups_df['cell_idx'].to_numpy())), shape = (pb_obs_df.height, groups_df.height))
+  pb_counts = (indicator @ X_report).tocsr().astype(np.float32)
 
-  # Index cells by label and batch for raw-count aggregation.
-  groups: dict[tuple[str, str], list[int]] = {}
-  for i, (lbl, bid) in enumerate(zip(labels, batches)):
-    key = (lbl, bid)
-    if key not in groups:
-      groups[key] = []
-    groups[key].append(i)
+  obs_df = pb_obs_df.select('label', 'batch', 'n_cells', 'lib_size').to_pandas()
+  obs_df.index = [f'pb{i}' for i in range(pb_obs_df.height)]
+  var_df = pl.DataFrame({'gene_id': report_genes}).to_pandas()
+  var_df.index = report_genes
+  pb_adata = ad.AnnData(X = pb_counts, obs = obs_df, var = var_df)
 
-  # Store one batch-by-gene count matrix per label, including empty combinations.
-  layers = {}
-  n_cells_dict: dict[str, list[int]] = {}
-  for lbl in unique_labels:
-    count_mat         = np.zeros((n_batches, n_genes), dtype = np.float64)
-    n_cells_per_batch = [0] * n_batches
-    for bid in unique_batches:
-      key = (lbl, bid)
-      if key in groups:
-        indices = groups[key]
-        count_mat[batch_to_idx[bid], :] = np.array(
-          X_sel[indices, :].sum(axis = 0)).flatten()
-        n_cells_per_batch[batch_to_idx[bid]] = len(indices)
-
-    layers[lbl] = count_mat
-    n_cells_dict[lbl] = n_cells_per_batch
-
-  # AnnData metadata has one row per batch (obs_df) or selected gene (var_df).
-  obs_df = pl.DataFrame({"batch": unique_batches}).to_pandas()
-  var_df = pl.DataFrame({"gene_id": sel_gene_names}).to_pandas()
-  obs_df.index = unique_batches
-  var_df.index = sel_gene_names
-
-  pb_adata = ad.AnnData(
-    X      = np.zeros((n_batches, n_genes)),
-    obs    = obs_df,
-    var    = var_df,
-    layers = layers,
-  )
-
-  # Keep contributing cell counts alongside the pseudobulk sums.
-  n_cells_mat = np.column_stack([n_cells_dict[lbl] for lbl in unique_labels])
-  n_cells_df  = pl.DataFrame(n_cells_mat, schema = unique_labels, orient = 'row').to_pandas()
-  n_cells_df.index = unique_batches
-  pb_adata.obsm["n_cells"] = n_cells_df
-
-  print(f"  Pseudobulk raw counts: {n_batches} batches, {n_genes} genes, "
-        f"{len(unique_labels)} labels (stored as layers)")
+  print(f"  Pseudobulk raw counts: {pb_obs_df.height} label-batch rows, {len(report_genes)} report genes, "
+        f"{pb_obs_df['label'].n_unique()} labels")
 
   return pb_adata
 
