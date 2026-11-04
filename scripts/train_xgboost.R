@@ -223,8 +223,16 @@ plot_top_xgboost_genes <- function(selected_genes_dt, cpms_dt, label_order = NUL
   }
 
   # plot_dt has one row per gene, batch and label, with expression and cell counts.
+  # Strips show each gene's gain and, when supplied, the running cumulative gain
+  # fraction in ranked order, e.g. 'GFAP (gain 3,348; cumulative 12.3%)'.
   plot_dt = merge(cpms_dt, selected_genes_dt, by = 'gene_id')
-  plot_dt[, symbol_lab := sprintf('%s (gain = %s)', symbol, signif(gain, 3))]
+  gain_text = format(signif(plot_dt$gain, 3), big.mark = ',', trim = TRUE, scientific = FALSE)
+  if ('cumulative_gain_frac' %in% names(plot_dt)) {
+    plot_dt[, symbol_lab := sprintf('%s (gain %s; cumulative %s)', symbol, gain_text,
+      scales::percent(cumulative_gain_frac, accuracy = 0.1))]
+  } else {
+    plot_dt[, symbol_lab := sprintf('%s (gain %s)', symbol, gain_text)]
+  }
 
   # Collapse repeated batch/label rows to rank each gene facet by its gain.
   gene_gains_dt = plot_dt[, .(gain = gain[1]), by = symbol_lab][order(-gain)]
@@ -264,9 +272,14 @@ plot_top_xgboost_genes <- function(selected_genes_dt, cpms_dt, label_order = NUL
 
 # Accuracy at lower sequencing depth
 
-# Cell groups in the depth evaluation, both unused in fitting, with fixed colours.
-XGBOOST_DEPTH_GROUPS = c(test = 'Test', remaining = 'Remaining cells')
+# Cell groups in the depth evaluation. Test and remaining cells were never used in
+# fitting; validation and train cells only top up labels with too few of those.
+XGBOOST_DEPTH_GROUPS = c(test = 'Test', remaining = 'Remaining cells',
+  validation = 'Validation (fitted)', train = 'Train (fitted)')
 XGBOOST_DEPTH_GROUP_COLOURS = c(Test = '#7A5195', `Remaining cells` = '#EF5675', All = 'grey20')
+
+# Labels whose accuracy falls below this at any depth are highlighted in the by-label plot.
+XGBOOST_DEPTH_HIGHLIGHT_ACCURACY = 0.9
 
 
 read_xgboost_depth_evaluation <- function(depth_evaluation_f) {
@@ -279,42 +292,68 @@ read_xgboost_depth_evaluation <- function(depth_evaluation_f) {
   thinned = sort(as.integer(setdiff(unique(depth_dt$depth), 'full')))
   depth_dt[, depth := factor(depth, levels = c(thinned, 'full'),
     labels = c(format(thinned, big.mark = ',', trim = TRUE), 'Full'))]
+  depth_dt[, fitted := cell_group %in% c('validation', 'train')]
   depth_dt[, cell_group := XGBOOST_DEPTH_GROUPS[cell_group]]
   depth_dt[, correct := label == predicted_label]
   return(depth_dt)
 }
 
 
+xgboost_depth_y_scale <- function(accuracy) {
+
+  # Fit the data but always show 100%, e.g. accuracies of 0.81-0.99 give 80%-100%.
+  list(scale_y_continuous(breaks = scales::pretty_breaks(), labels = scales::percent),
+    expand_limits(y = c(min(accuracy), 1)))
+}
+
+
 plot_depth_accuracy <- function(depth_dt) {
 
-  # Accuracy over all evaluated cells and, when both are present, by cell group.
-  all_dt   = depth_dt[, .(accuracy = mean(correct), n_cells = .N), by = depth][, cell_group := 'All']
-  group_dt = depth_dt[, .(accuracy = mean(correct), n_cells = .N), by = .(depth, cell_group)]
-  plot_dt  = if (uniqueN(depth_dt$cell_group) > 1) rbind(all_dt, group_dt) else all_dt
+  # Cells never used in fitting only; by cell group when both are present.
+  unused_dt = depth_dt[fitted == FALSE]
+  all_dt    = unused_dt[, .(accuracy = mean(correct), n_cells = .N), by = depth][, cell_group := 'All']
+  group_dt  = unused_dt[, .(accuracy = mean(correct), n_cells = .N), by = .(depth, cell_group)]
+  plot_dt   = if (uniqueN(unused_dt$cell_group) > 1) rbind(all_dt, group_dt) else all_dt
   plot = ggplot(plot_dt, aes(x = depth, y = accuracy, colour = cell_group, group = cell_group)) +
     geom_line(linewidth = 0.8) + geom_point(size = 2) +
     scale_colour_manual(values = XGBOOST_DEPTH_GROUP_COLOURS, name = NULL) +
-    scale_y_continuous(breaks = scales::pretty_breaks(), labels = scales::percent) +
-    expand_limits(y = c(min(0.5, min(plot_dt$accuracy)), 1)) +
+    xgboost_depth_y_scale(plot_dt$accuracy) +
     theme_classic() +
+    theme(panel.grid.major.y = element_line(colour = 'grey92', linewidth = 0.4)) +
     labs(x = 'UMIs per cell', y = 'Accuracy')
   return(plot)
 }
 
 
-plot_depth_accuracy_heatmap <- function(depth_dt, label_order) {
+plot_depth_accuracy_by_label <- function(depth_dt, label_colours,
+  highlight_below = XGBOOST_DEPTH_HIGHLIGHT_ACCURACY) {
 
-  # One tile per label and depth: the fraction of that label's cells called correctly.
-  label_dt = depth_dt[, .(accuracy = mean(correct), n_cells = .N), by = .(label, depth)]
-  label_dt[, label := factor(label, levels = rev(intersect(label_order, unique(label))))]
-  plot = ggplot(label_dt, aes(x = depth, y = label, fill = accuracy)) +
-    geom_tile(colour = 'white') +
-    geom_text(aes(label = scales::percent(accuracy, accuracy = 1),
-      colour = accuracy < 0.6), size = 3, show.legend = FALSE) +
-    scale_colour_manual(values = c(`TRUE` = 'white', `FALSE` = 'black')) +
-    scale_fill_viridis_c(option = 'magma', limits = c(0, 1), breaks = scales::pretty_breaks(),
-      labels = scales::percent, name = 'Accuracy') +
-    theme_classic() + theme(axis.line = element_blank(), axis.ticks = element_blank()) +
-    labs(x = 'UMIs per cell', y = NULL)
+  # One line per label. Labels dropping below highlight_below at any depth are drawn
+  # in their colour and named; the rest are faint. Dashed lines include fitted cells.
+  label_dt = depth_dt[, .(accuracy = mean(correct), n_cells = .N, any_fitted = any(fitted)),
+    by = .(label, depth)]
+  label_dt[, highlight := min(accuracy) < highlight_below, by = label]
+  label_dt[, any_fitted := any(any_fitted), by = label]
+  name_dt = label_dt[highlight == TRUE & as.integer(depth) == 1]
+  line_colours = c(xgboost_colours(sort(unique(label_dt[highlight == TRUE]$label)), label_colours))
+
+  plot = ggplot(label_dt, aes(x = depth, y = accuracy, group = label,
+      linetype = ifelse(any_fitted, 'Includes fitted cells', 'Unused cells only'))) +
+    geom_line(data = label_dt[highlight == FALSE], colour = 'grey70', alpha = 0.5, linewidth = 0.4) +
+    geom_line(data = label_dt[highlight == TRUE], aes(colour = label), linewidth = 0.9) +
+    geom_point(data = label_dt[highlight == TRUE], aes(colour = label), size = 1.6) +
+    ggrepel::geom_text_repel(data = name_dt, aes(label = label, colour = label),
+      nudge_x = -0.35, direction = 'y', hjust = 1, size = 3, segment.alpha = 0.4,
+      show.legend = FALSE) +
+    scale_colour_manual(values = line_colours, guide = 'none') +
+    scale_linetype_manual(values = c(`Unused cells only` = 'solid', `Includes fitted cells` = 'dashed'),
+      name = NULL) +
+    scale_x_discrete(expand = expansion(add = c(2.2, 0.3))) +
+    geom_hline(yintercept = highlight_below, colour = 'grey60', linetype = 'dotted') +
+    xgboost_depth_y_scale(label_dt$accuracy) +
+    theme_classic() +
+    theme(panel.grid.major.y = element_line(colour = 'grey92', linewidth = 0.4),
+      legend.position = 'bottom') +
+    labs(x = 'UMIs per cell', y = 'Accuracy')
   return(plot)
 }

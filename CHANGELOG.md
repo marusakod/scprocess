@@ -8,9 +8,15 @@
   `zoom_train_xgboost_depth_evaluation`; `train_xgboost.py depth`) thins up to
   200 unused cells per label with more than 2,000 UMIs to 250-2,000 UMIs and
   classifies them with the final model, writing
-  `XGBOOST_TAG_depth_evaluation.csv.gz`. The report adds accuracy-by-depth,
-  a per-label heatmap and a 500-UMI confusion matrix. Fitted models are
-  unchanged; existing training reports re-render to add the section.
+  `XGBOOST_TAG_depth_evaluation.csv.gz`. Labels without enough unused cells
+  are topped up with validation and then training cells, marked as optimistic.
+  The report adds accuracy-by-depth (unused cells only), per-label accuracy
+  lines highlighting labels below 90%, and a 500-UMI confusion matrix. Fitted
+  models are unchanged; existing training reports re-render to add the section.
+- Add per-label gene importance to training: the final model's gain is summed
+  over each label's trees and saved as `XGBOOST_TAG_gene_importance_by_label.csv`;
+  the report gains a "Top genes by label" section. Top-gene strips now also show
+  the running cumulative gain.
 - Speed up XGBoost prediction about tenfold: build the model's feature matrix
   with one column selection instead of a per-gene loop (`select_model_features`,
   shared by `label_celltypes` inference and training full-data prediction).

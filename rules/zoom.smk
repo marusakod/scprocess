@@ -1364,6 +1364,7 @@ rule zoom_train_xgboost:
     cls_f    = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_allowed_cls.csv',
     genes_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_selected_genes.txt',
     imp_f    = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_gene_importance.csv',
+    label_imp_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_gene_importance_by_label.csv',
     preds_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_predictions.csv.gz',
     pb_f     = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_pseudobulk.h5ad',
     model_card_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_model_card.json',

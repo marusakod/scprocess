@@ -531,7 +531,7 @@
         "mins_train_xgboost_train":            { "type": "integer", "default": 180 },
         "mins_train_xgboost_predict":          { "type": "integer", "default": 30 },
         "mins_train_xgboost_combine":        { "type": "integer", "default": 30 },
-        "mins_train_xgboost_depth_evaluation": { "type": "integer", "default": 15 },
+        "mins_train_xgboost_depth_evaluation": { "type": "integer", "default": 30 },
         "mins_render_html_train_xgboost":      { "type": "integer", "default": 15 },
 
         "gb_zoom_train_xgboost":               { "type": "integer", "default": 32 },
@@ -542,7 +542,7 @@
         "mins_zoom_train_xgboost":             { "type": "integer", "default": 180 },
         "mins_zoom_train_xgboost_predict":     { "type": "integer", "default": 30 },
         "mins_zoom_train_xgboost_combine":     { "type": "integer", "default": 30 },
-        "mins_zoom_train_xgboost_depth_evaluation": { "type": "integer", "default": 15 },
+        "mins_zoom_train_xgboost_depth_evaluation": { "type": "integer", "default": 30 },
         "mins_render_html_zoom_train_xgboost": { "type": "integer", "default": 15 },
 
         "gb_build_shiny_app":                            { "type": "integer", "default": 16 },

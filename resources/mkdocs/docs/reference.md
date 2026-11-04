@@ -1144,12 +1144,19 @@ different classifiers never replace each other:
 for use in other projects.
 
 Every training report also shows how accuracy changes at lower sequencing
-depth. Up to 200 cells per label that were not used for fitting, each with more
-than 2,000 UMIs, are randomly thinned to 250, 500, 1,000 and 2,000 UMIs and
-classified again; the report plots overall and per-label accuracy against depth
+depth. Up to 200 cells per label with more than 2,000 UMIs are randomly thinned
+to 250, 500, 1,000 and 2,000 UMIs and classified again. Cells not used for
+fitting are chosen first; labels without enough of them (for example rare
+labels whose cells were all needed for training) are topped up with fitted
+cells, which are marked as optimistic. The report plots accuracy against depth
+overall and for each label, highlighting labels whose accuracy falls below 90%,
 and a confusion matrix at 500 UMIs. The cells and calls are saved as
 `XGBOOST_TAG_depth_evaluation.csv.gz` beside the model. If accuracy falls at the
 depths of the data you plan to classify, consider depth augmentation (below).
+
+The report also lists the genes the model relies on most for each label, from
+the gain of each gene in that label's trees
+(`XGBOOST_TAG_gene_importance_by_label.csv`).
 
 ###### Input labels
 

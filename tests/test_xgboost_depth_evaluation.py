@@ -57,16 +57,19 @@ def _fit_and_evaluate(tmp_path, base_mean, name = 'eval'):
   return pl.read_csv(output_f, schema_overrides = {'depth': pl.String}), cells_df
 
 
-def test_unused_deep_cells_are_evaluated_at_every_depth(tmp_path):
-  # ~2,400 UMIs per cell: all deeper than DEPTH_EVALUATION_MIN_UMIS
+def test_labels_are_topped_up_with_fitted_cells_and_evaluated_at_every_depth(tmp_path):
+  # ~3,000 UMIs per cell, all deeper than DEPTH_EVALUATION_MIN_UMIS. Each label has
+  # 10 unused cells, fewer than DEPTH_EVALUATION_CELLS_PER_LABEL, so fitted
+  # validation and training cells top it up and are marked with their split.
   depth_df, cells_df = _fit_and_evaluate(tmp_path, base_mean = 100)
-  unused = set(cells_df.filter(~pl.col('selected'))['cell_id'])
   depths = [str(d) for d in training.DEPTH_EVALUATION_UMIS] + ['full']
 
-  assert set(depth_df['cell_id']) == unused
-  assert depth_df.group_by('depth').len().sort('depth')['len'].to_list() == [len(unused)] * len(depths)
+  assert set(depth_df['cell_id']) == set(cells_df['cell_id'])
+  assert depth_df.group_by('depth').len()['len'].to_list() == [cells_df.height] * len(depths)
   assert set(depth_df['depth']) == set(depths)
-  assert set(depth_df['cell_group']) == {'remaining'}
+  groups_df = (depth_df.filter(pl.col('depth') == 'full').join(cells_df, on = 'cell_id')
+    .with_columns(expected = pl.when(~pl.col('selected')).then(pl.lit('remaining')).otherwise(pl.col('split'))))
+  assert (groups_df['cell_group'] == groups_df['expected']).all()
 
   # thinned totals sit near their targets and never exceed the original
   full = dict(depth_df.filter(pl.col('depth') == 'full').select('cell_id', 'n_umis').iter_rows())
@@ -98,3 +101,14 @@ def test_rules_evaluate_depth_and_feed_the_report(rule_f, rule):
   report_rules = {'train_xgboost.smk': 'render_htmls.smk', 'join.smk': 'join.smk', 'zoom.smk': 'zoom.smk'}
   report_text = ' '.join((ROOT / 'rules' / report_rules[rule_f]).read_text().split())
   assert "depth_evaluation_f = '{input.depth_evaluation_f}'" in report_text
+
+
+def test_gene_gain_by_label_is_consistent(tmp_path):
+  _fit_and_evaluate(tmp_path, base_mean = 100)
+  model_dir = tmp_path / 'model'
+  by_label_df = pl.read_csv(model_dir / 'tiny_gene_importance_by_label.csv')
+  selected = set((model_dir / 'tiny_selected_genes.txt').read_text().split())
+  assert set(by_label_df['label']) <= {'a', 'b'} and set(by_label_df['gene_id']) <= selected
+  sums_df = by_label_df.group_by('label').agg(pl.col('gain_frac').sum(), pl.col('cumulative_gain_frac').max())
+  assert sums_df['gain_frac'].to_list() == pytest.approx([1., 1.][:sums_df.height])
+  assert sums_df['cumulative_gain_frac'].to_list() == pytest.approx([1., 1.][:sums_df.height])

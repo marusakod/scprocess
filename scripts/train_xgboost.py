@@ -22,10 +22,12 @@ MIN_CLUSTER_MAJORITY_VOTE_CELLS = 10
 DEPTH_AUGMENTATION_STREAM = 1
 
 # Depth evaluation for every training report: up to DEPTH_EVALUATION_CELLS_PER_LABEL
-# cells per label that were never used in fitting (test cells first, then remaining
-# development cells), each with more than DEPTH_EVALUATION_MIN_UMIS UMIs so that
-# every target depth (UMIs per cell) is a reduction. The same cells are thinned to
-# each depth with their own random stream, so curves compare depths, not cells.
+# cells per label, each with more than DEPTH_EVALUATION_MIN_UMIS UMIs so that every
+# target depth (UMIs per cell) is a reduction. Cells never used in fitting come first
+# (test, then remaining development cells); labels without enough of them, e.g. rare
+# labels whose cells were all used for fitting, are topped up with validation and then
+# training cells, which give optimistic accuracy. The same cells are thinned to each
+# depth with their own random stream, so curves compare depths, not cells.
 DEPTH_EVALUATION_UMIS            = [250, 500, 1000, 2000]
 DEPTH_EVALUATION_CELLS_PER_LABEL = 200
 DEPTH_EVALUATION_MIN_UMIS        = 2000
@@ -925,6 +927,11 @@ def _save_outputs(model, class_names, selected_genes, gene_importance_df,
   gene_importance_df.write_csv(str(imp_path))
   print(f"  Importance: {imp_path}")
 
+  label_imp_path = out_dir / f"{xgboost_tag}_gene_importance_by_label.csv"
+  label_importance_df = _gene_gain_by_label(model, class_names, selected_genes)
+  label_importance_df.write_csv(str(label_imp_path))
+  print(f"  Importance by label: {label_imp_path}")
+
   # The fitting workflow always supplies selected-cell predictions and pseudobulks.
   predictions_f  = out_dir / f"{xgboost_tag}_predictions.csv.gz"
   predictions_df = _make_predictions_df(
@@ -939,6 +946,29 @@ def _save_outputs(model, class_names, selected_genes, gene_importance_df,
   pseudobulk_f = out_dir / f"{xgboost_tag}_pseudobulk.h5ad"
   pseudobulk_adata.write_h5ad(pseudobulk_f)
   print(f"  Pseudobulk: {pseudobulk_f}")
+
+
+def _gene_gain_by_label(model, class_names, selected_genes):
+  """Total gain of each selected gene in the final model's trees for each label.
+
+  A multi-class model adds one tree per label in every round, in class-index order,
+  so tree i belongs to label i mod n_labels. One row per label and gene with
+  non-zero gain; gain_frac and cumulative_gain_frac are within that label.
+  """
+  # XGBoost returns its tree table as pandas; convert at that boundary.
+  trees_df = pl.from_pandas(model.trees_to_dataframe()[['Tree', 'Feature', 'Gain']])
+  feature_genes = {f'g{i}': gene for i, gene in enumerate(selected_genes)}
+  class_labels  = dict(enumerate(class_names))
+  label_gain_df = (trees_df
+    .filter(pl.col('Feature') != 'Leaf')
+    .with_columns(
+      label   = (pl.col('Tree') % len(class_names)).replace_strict(class_labels, return_dtype = pl.String),
+      gene_id = pl.col('Feature').replace_strict(feature_genes, return_dtype = pl.String))
+    .group_by('label', 'gene_id').agg(gain = pl.col('Gain').sum())
+    .sort(['label', 'gain'], descending = [False, True])
+    .with_columns(gain_frac = pl.col('gain') / pl.col('gain').sum().over('label'))
+    .with_columns(cumulative_gain_frac = pl.col('gain_frac').cum_sum().over('label')))
+  return label_gain_df
 
 
 def _make_predictions_df(model, X_train, X_val, cells_df, class_names):
@@ -1238,30 +1268,34 @@ def _write_evaluation(counts_df, prefix, label_column_name):
 
 def evaluate_depths(training_metadata_f, h5ads_yaml, model_f, cls_f, genes_f, output_f,
   n_cores, *, seed):
-  """Classify unused cells after thinning them to fixed depths; one row per cell and depth.
+  """Classify cells after thinning them to fixed depths; one row per cell and depth.
 
   depth is 'full' for the original counts or a target in DEPTH_EVALUATION_UMIS.
-  cell_group is 'test' for held-out test cells and 'remaining' for development cells
-  not selected for fitting. An empty table means no eligible cells.
+  cell_group is 'test' or 'remaining' for cells never used in fitting, and
+  'validation' or 'train' for fitted cells used only to top up labels with too few
+  unused cells. An empty table means no eligible cells.
   """
   import xgboost as xgb
 
-  # training_metadata_df is cell-level; candidates are labelled cells never used to fit.
+  # training_metadata_df is cell-level; candidates are labelled cells of model labels,
+  # ranked test, remaining (unused), validation, train (fitted).
   class_names = pl.read_csv(cls_f)['class'].to_list()
   selected_genes = [line.strip() for line in Path(genes_f).read_text().splitlines() if line.strip()]
   training_metadata_df = pl.read_csv(training_metadata_f, schema_overrides = {'label': pl.String})
+  group_rank = {'test': 0, 'remaining': 1, 'validation': 2, 'train': 3}
   candidates_df = (training_metadata_df
-    .filter(pl.col('label').is_in(class_names) & (
-      (pl.col('split') == 'test') |
-      (pl.col('split').is_in(['train', 'validation']) & ~pl.col('selected'))))
-    .with_columns(cell_group = pl.when(pl.col('split') == 'test').then(pl.lit('test')).otherwise(pl.lit('remaining'))))
+    .filter(pl.col('label').is_in(class_names) & pl.col('split').is_in(['test', 'train', 'validation']))
+    .with_columns(cell_group = pl.when(pl.col('split') == 'test').then(pl.lit('test'))
+      .when(~pl.col('selected')).then(pl.lit('remaining'))
+      .otherwise(pl.col('split')))
+    .with_columns(group_rank = pl.col('cell_group').replace_strict(group_rank, return_dtype = pl.Int32)))
 
-  # Read up to three times the target per label, test cells first, since some
-  # candidates are too shallow; the order within each group is seeded.
+  # Read up to three times the target per label in rank order, since some candidates
+  # are too shallow; the order within each group is seeded.
   rng = np.random.default_rng([seed, DEPTH_EVALUATION_STREAM])
   candidates_df = (candidates_df
     .with_columns(draw = pl.Series(rng.random(candidates_df.height)))
-    .sort(['label', pl.col('cell_group') != 'test', 'draw'])
+    .sort(['label', 'group_rank', 'draw'])
     .group_by('label', maintain_order = True).head(3 * DEPTH_EVALUATION_CELLS_PER_LABEL))
   if candidates_df.is_empty():
     _write_depth_evaluation(None, output_f)
@@ -1275,7 +1309,7 @@ def evaluate_depths(training_metadata_f, h5ads_yaml, model_f, cls_f, genes_f, ou
   cells_df = (cells_df
     .with_columns(n_umis_full = pl.Series(cell_totals), row = pl.int_range(pl.len()))
     .filter(pl.col('n_umis_full') > DEPTH_EVALUATION_MIN_UMIS)
-    .sort(['label', pl.col('cell_group') != 'test', 'draw'])
+    .sort(['label', 'group_rank', 'draw'])
     .group_by('label', maintain_order = True).head(DEPTH_EVALUATION_CELLS_PER_LABEL))
   if cells_df.is_empty():
     _write_depth_evaluation(None, output_f)

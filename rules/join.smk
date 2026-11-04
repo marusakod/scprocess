@@ -1090,6 +1090,7 @@ if DO_TRAIN_XGB:
       cls_f     = f'{join_xgb_dir}/{_join_xgb_ref_tag}_allowed_cls.csv',
       genes_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_selected_genes.txt',
       imp_f     = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv',
+      label_imp_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance_by_label.csv',
       preds_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
       pb_f      = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad',
       model_card_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_model_card.json',
