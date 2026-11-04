@@ -54,7 +54,7 @@ for (lines in list(zoom_lines, join_lines)) {
 xgb_args = list(your_name = 'test', affiliation = 'test', short_tag = 'proj_zoom_neurons',
   ref_tag = 'neurons_v1', predictions_f = 'p.csv.gz', importance_f = 'i.csv',
   pseudobulk_f = 'pb.h5ad', model_card_f = 'card.json', label_counts_f = 'counts.csv',
-  fulldata_predictions_f = 'full.csv.gz', integration_f = 'int.csv.gz',
+  fulldata_predictions_f = 'full.csv.gz', depth_evaluation_f = 'depth.csv.gz', integration_f = 'int.csv.gz',
   min_cells = '10', n_cores = '1')
 xgb_lines = substitute_template('train_xgboost',
   'resources/rmd_templates/train_xgboost.Rmd.template', xgb_args)

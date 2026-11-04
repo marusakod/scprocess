@@ -2657,7 +2657,8 @@ def get_train_xgboost_targets(config, scprocess_dir, scdata_dir, zoom_name=None)
 
   # the zoom's standalone classifier report depends on every training output
   short_tag = config['project']['short_tag']
-  html_f    = str(proj_dir / f"public/{short_tag}_zoom_{zoom_name}_train_xgboost.html")
+  ref_tag   = ZOOM_PARAMS[zoom_name]['train_xgboost']['xgboost_tag']
+  html_f    = str(proj_dir / f"public/{short_tag}_zoom_{zoom_name}_train_{ref_tag}.html")
   return [html_f], proj_dir
 
 
@@ -2961,6 +2962,13 @@ def _check_xgboost_group_columns(xgb, columns):
   # to the planning stage after the two tables have been joined.
   if xgb['min_genes'] > xgb['max_genes']:
     raise ValueError('min_genes must not exceed max_genes')
+  _check_xgboost_depth_augmentation(xgb)
+
+
+def _check_xgboost_depth_augmentation(xgb):
+  # Depth bounds matter only when thinned copies are requested.
+  if xgb['downsample_copies'] > 0 and xgb['downsample_min_umis'] >= xgb['downsample_max_umis']:
+    raise ValueError('train_xgboost: downsample_min_umis must be below downsample_max_umis')
 
 
 def _check_xgboost_label_files(xgb, project_dir):
@@ -3128,6 +3136,7 @@ def check_join_config(config, join_schema_f, scdata_dir):
 
     join_dir = pathlib.Path(config['join']['proj_dir'])
     _check_xgboost_label_files(xgb, join_dir)
+    _check_xgboost_depth_augmentation(xgb)
 
     # inject output_dir
     join_name = config['join']['name']

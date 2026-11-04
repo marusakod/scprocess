@@ -334,7 +334,8 @@ def test_two_pass_fit_and_separate_coarse_specifications(tmp_path):
     min_cells_expressed=1, seed=31, pass1_subsample=1., pass1_colsample_bytree=.5,
     pass1_learning_rate=.3, pass1_nrounds=8, pass1_early_stopping=3,
     gain_threshold=.9, min_genes=2, max_genes=12, pass2_colsample_bytree=.5,
-    pass2_learning_rate=.3, pass2_nrounds=8, pass2_early_stopping=3)
+    pass2_learning_rate=.3, pass2_nrounds=8, pass2_early_stopping=3,
+    downsample_copies=0, downsample_min_umis=300, downsample_max_umis=3000)
   model_f = model_dir / 'tiny_xgboost_model.json'
   model_before = model_f.read_bytes()
   calls_df = pl.read_csv(model_dir / 'tiny_predictions.csv.gz')

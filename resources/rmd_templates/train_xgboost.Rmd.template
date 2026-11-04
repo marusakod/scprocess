@@ -16,7 +16,7 @@ output:
 ```{r setup_knitr, include=FALSE}
 library('BiocStyle')
 knitr::opts_chunk$set(autodep = TRUE, cache = FALSE, cache.lazy = FALSE, dev = 'png',
-  fig.path = "figure/${short_tag}_train_xgboost.Rmd/", message = FALSE, warning = FALSE)
+  fig.path = "figure/${short_tag}_train_${ref_tag}.Rmd/", message = FALSE, warning = FALSE)
 knitr::opts_knit$set(root.dir = '..', base.dir = '../public/', base.url = '')
 ```
 
@@ -33,6 +33,7 @@ model_card_f           = "${model_card_f}"
 pb_f                   = "${pseudobulk_f}"
 label_counts_f         = "${label_counts_f}"
 fulldata_predictions_f = "${fulldata_predictions_f}"
+depth_evaluation_f     = "${depth_evaluation_f}"
 integration_f          = "${integration_f}"
 min_cells              = as.integer("${min_cells}")
 n_cores                = as.integer("${n_cores}")
@@ -42,6 +43,8 @@ setDTthreads(n_cores)
 preds_dt = fread(predictions_f)
 gain_dt = fread(gain_f)
 feature_selection = read_xgboost_feature_selection(model_card_f)
+model_configuration = jsonlite::fromJSON(model_card_f)$configuration
+depth_dt = read_xgboost_depth_evaluation(depth_evaluation_f)
 int_dt = fread(integration_f, select = c('cell_id', 'UMAP1', 'UMAP2'))
 label_order = fread(label_counts_f)[order(-len)]$label
 style = read_xgboost_style(predictions_f, label_order)
@@ -213,6 +216,37 @@ for (coarse in c(FALSE, if (has_coarse) TRUE)) {
 }
 ```
 
+## Accuracy at lower sequencing depth {.tabset}
+
+Up to 200 cells per label with more than 2,000 UMIs are randomly thinned to fixed depths and classified again. **Accuracy** is the percentage of cells whose most probable predicted label matches their reference label. Cells not used for fitting are chosen first; labels with too few are topped up with fitted cells, whose accuracy is optimistic.
+
+**Overall** pools the cells not used for fitting. **By label** shows the percentage of each label's cells assigned to it; labels below 90% at any depth are named, and dashed lines include fitted cells. A robust model stays close to its full-depth accuracy down to the depths you plan to classify. `r if (isTRUE(model_configuration$downsample_copies > 0)) sprintf("This model was trained with depth augmentation (%d thinned %s per cell, %s to %s UMIs).", model_configuration$downsample_copies, if (model_configuration$downsample_copies == 1) "copy" else "copies", format(model_configuration$downsample_min_umis, big.mark = ","), format(model_configuration$downsample_max_umis, big.mark = ",")) else "If accuracy falls at the depths you need, retrain with depth augmentation (\x60downsample_copies: 1\x60)."`
+
+```{r depth_accuracy_overall, fig.height=5, fig.width=8, results='asis'}
+if (nrow(depth_dt)) {
+  cat('\n\n### Overall\n\n')
+  print(plot_depth_accuracy(depth_dt))
+} else {
+  cat('No unused annotated cells had more than 2,000 UMIs, so accuracy at lower depth could not be estimated.\n\n')
+}
+```
+
+```{r depth_accuracy_labels, fig.height=6, fig.width=9, results='asis'}
+if (nrow(depth_dt)) {
+  cat('\n\n### By label\n\n')
+  print(plot_depth_accuracy_by_label(depth_dt, style$colours))
+}
+```
+
+```{r depth_confusion, fig.height=10, fig.width=12, results='asis'}
+if (nrow(depth_dt)) {
+  shallow_depth = levels(depth_dt$depth)[2]
+  cat('\n\n### Confusion matrix at', shallow_depth, 'UMIs\n\n')
+  print(plot_xgboost_confusion(depth_dt[depth == shallow_depth], label_order))
+}
+```
+
+
 ## Cumulative gain curve
 
 Genes are ranked by how much they helped distinguish the reference labels during training, measured by XGBoost gain. High gain indicates usefulness to this classifier; it does not establish that a gene is a specific biological marker. The horizontal line shows the requested `r scales::percent(feature_selection$gain_threshold, accuracy = 1)` cumulative gain target. The vertical line shows the actual number of genes included in the final model, after applying the minimum and maximum gene counts.
@@ -224,14 +258,10 @@ plot_gain_curve(gain_dt, gain_threshold = feature_selection$gain_threshold,
 
 ## Top XGBoost genes {.tabset}
 
-Expression of genes used by the final classifier, ranked by their contribution during training. Counts are summed within each label and batch, normalised for library size and shown as logCPM. Each dot represents one batch; its size indicates the number of contributing cells. Check that useful genes show biologically plausible expression rather than patterns confined to one batch.
+Expression of the genes with the highest gain. Each dot is one batch, sized by its number of cells; counts are summed within each label and batch and shown as counts per million.
 
 ```{r load_cpms, include=FALSE}
-pb = read_h5ad(pb_f, as = 'SingleCellExperiment')
-if ('X' %in% assayNames(pb)) assays(pb)[['X']] = NULL
-batch_col = intersect(c('batch', 'sample_id'), colnames(colData(pb)))[1]
-cpms_dt = make_logcpms_all_rmd(pb, batch_col, lib_size_method = 'edger',
-  min_cells = min_cells, n_cores = n_cores)
+cpms_dt = calc_xgboost_pseudobulk_logcpms(pb_f, min_cells = min_cells)
 ```
 
 ```{r plot_top_genes, fig.height=8, fig.width=8, results='asis'}
@@ -241,6 +271,22 @@ for (i in seq(1, nrow(top_genes_dt), by = per_page)) {
   cat('\n\n### Page', ceiling(i / per_page), '\n\n')
   selected_genes_dt = top_genes_dt[i:min(i + per_page - 1, .N)]
   print(plot_top_xgboost_genes(selected_genes_dt, cpms_dt,
+    label_order = label_order, label_colours = style$colours))
+}
+```
+
+
+## Top genes by label {.tabset}
+
+Genes with the highest gain within each label's trees, which can include genes low in that label but high in labels it must be distinguished from. Brackets show the cumulative gain for that label.
+
+```{r plot_top_genes_by_label, fig.height=8, fig.width=8, results='asis'}
+label_gain_f  = sub('_gene_importance.csv$', '_gene_importance_by_label.csv', gain_f)
+label_gain_dt = fread(label_gain_f)
+for (lbl in intersect(label_order, unique(label_gain_dt$label))) {
+  cat('\n\n###', lbl, '\n\n')
+  selected_genes_dt = label_gain_dt[label == lbl & gene_id %in% cpms_dt$gene_id][order(-gain)][1:min(10, .N)]
+  print(plot_top_xgboost_genes(selected_genes_dt[, .(gene_id, gain, cumulative_gain_frac)], cpms_dt,
     label_order = label_order, label_colours = style$colours))
 }
 ```

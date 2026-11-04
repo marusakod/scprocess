@@ -17,6 +17,28 @@ import yaml
 # Minimum training cells supporting a cluster's majority-vote label.
 MIN_CLUSTER_MAJORITY_VOTE_CELLS = 10
 
+# Random stream for depth augmentation. It is combined with the training seed, so
+# thinning is reproducible and independent of XGBoost's own seeded sampling.
+DEPTH_AUGMENTATION_STREAM = 1
+
+# Depth evaluation for every training report: up to DEPTH_EVALUATION_CELLS_PER_LABEL
+# cells per label, each with more than DEPTH_EVALUATION_MIN_UMIS UMIs so that every
+# target depth (UMIs per cell) is a reduction. Cells never used in fitting come first
+# (test, then remaining development cells); labels without enough of them, e.g. rare
+# labels whose cells were all used for fitting, are topped up with validation and then
+# training cells, which give optimistic accuracy. The same cells are thinned to each
+# depth with their own random stream, so curves compare depths, not cells.
+DEPTH_EVALUATION_UMIS            = [250, 500, 1000, 2000]
+DEPTH_EVALUATION_CELLS_PER_LABEL = 200
+DEPTH_EVALUATION_MIN_UMIS        = 2000
+DEPTH_EVALUATION_STREAM          = 2
+
+# Genes kept in the report pseudobulk: those the training report plots, i.e. the
+# top genes by overall gain and the top genes by each label's gain in the final
+# model. The report template plots the same numbers of genes.
+REPORT_TOP_GENES           = 100
+REPORT_TOP_GENES_PER_LABEL = 10
+
 
 # Training metadata
 
@@ -393,9 +415,16 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
   gene_exclude_re, min_cells_expressed, seed, pass1_subsample, pass1_colsample_bytree,
   pass1_learning_rate, pass1_nrounds, pass1_early_stopping, gain_threshold, min_genes,
   max_genes, pass2_colsample_bytree, pass2_learning_rate, pass2_nrounds,
-  pass2_early_stopping):
+  pass2_early_stopping, downsample_copies, downsample_min_umis, downsample_max_umis):
 
   import xgboost as xgb
+  import scipy.sparse as sp
+
+  # Depth bounds are only used when copies are requested; check them as a pair then.
+  if downsample_copies < 0:
+    raise ValueError('downsample_copies must be zero or positive')
+  if downsample_copies > 0 and not 0 < downsample_min_umis < downsample_max_umis:
+    raise ValueError('downsample_min_umis must be positive and below downsample_max_umis')
 
   output_path = Path(output_dir)
   output_path.mkdir(parents = True, exist_ok = True)
@@ -407,21 +436,58 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
   h5ad_lookup = yaml.safe_load(Path(h5ads_yaml).read_text())
   raw_counts, normalized_counts, gene_ids, gene_types, training_metadata_df = _load_training_expression(training_metadata_df, h5ad_lookup)
 
-  # Encode labels and filter genes before the two fitting passes.
+  # Library size of each cell over all genes, as used by normalize_counts; the
+  # report pseudobulk keeps only a few genes, so its library sizes come from here.
+  cell_lib_sizes = np.asarray(raw_counts.sum(axis = 1)).ravel()
+
+  # Encode labels for the original cells (one row per selected cell).
   class_names, label_indices, train_mask, validation_mask = _encode_training_labels(training_metadata_df)
+
+  # Optional depth augmentation: thinned copies of train and validation cells, made
+  # from full-gene raw counts so that each copy has its own library size.
+  augmented_counts, augmented_source_rows = _make_depth_augmented_counts(raw_counts,
+    copies   = downsample_copies,
+    min_umis = downsample_min_umis,
+    max_umis = downsample_max_umis,
+    seed     = seed)
+
+  # Filter genes using original training cells only, then keep the same genes in
+  # the thinned copies (gene IDs are unique, so names identify column positions).
+  all_gene_ids = gene_ids.to_list()
   normalized_counts, raw_counts, gene_names = _filter_training_genes(
     normalized_counts, raw_counts, gene_ids, gene_types, train_mask,
     gene_exclude_re = gene_exclude_re,
     min_cells_expressed = min_cells_expressed)
   X_train      = normalized_counts[train_mask]
   X_validation = normalized_counts[validation_mask]
+  y_train      = label_indices[train_mask]
+  y_validation = label_indices[validation_mask]
+
+  # Fitting matrices: original rows first, then their thinned copies, each copy in
+  # its original's split. Outputs below use the original rows only.
+  X_fit_train, y_fit_train, X_fit_validation, y_fit_validation = X_train, y_train, X_validation, y_validation
+  n_train_augmented = n_validation_augmented = 0
+  if augmented_counts is not None:
+    gene_positions   = {gene: i for i, gene in enumerate(all_gene_ids)}
+    augmented_counts = augmented_counts[:, [gene_positions[gene] for gene in gene_names]].tocsr()
+    copy_is_train    = train_mask[augmented_source_rows]
+    copy_labels      = label_indices[augmented_source_rows]
+    X_fit_train      = sp.vstack([X_train, augmented_counts[copy_is_train]], format = 'csr')
+    y_fit_train      = np.concatenate([y_train, copy_labels[copy_is_train]])
+    X_fit_validation = sp.vstack([X_validation, augmented_counts[~copy_is_train]], format = 'csr')
+    y_fit_validation = np.concatenate([y_validation, copy_labels[~copy_is_train]])
+    n_train_augmented      = int(copy_is_train.sum())
+    n_validation_augmented = int((~copy_is_train).sum())
+    del augmented_counts
+    print(f'Depth augmentation: {n_train_augmented} train and {n_validation_augmented} '
+          f'validation copies added', flush = True)
 
   # Pass 1 considers all retained genes with the lower column-sampling fraction.
   pass1_model = _fit_xgboost(
-    X_train          = X_train,
-    y_train          = label_indices[train_mask],
-    X_val            = X_validation,
-    y_val            = label_indices[validation_mask],
+    X_train          = X_fit_train,
+    y_train          = y_fit_train,
+    X_val            = X_fit_validation,
+    y_val            = y_fit_validation,
     n_cores          = n_cores,
     seed             = seed,
     use_gpu          = use_gpu,
@@ -444,13 +510,18 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
   gc.collect()
   X_train      = X_train[:, selected_gene_indices].tocsr()
   X_validation = X_validation[:, selected_gene_indices].tocsr()
+  if n_train_augmented + n_validation_augmented > 0:
+    X_fit_train      = X_fit_train[:, selected_gene_indices].tocsr()
+    X_fit_validation = X_fit_validation[:, selected_gene_indices].tocsr()
+  else:
+    X_fit_train, X_fit_validation = X_train, X_validation
 
   # Pass 2 fits the final classifier on those genes, stopping on validation loss.
   pass2_model = _fit_xgboost(
-    X_train          = X_train,
-    y_train          = label_indices[train_mask],
-    X_val            = X_validation,
-    y_val            = label_indices[validation_mask],
+    X_train          = X_fit_train,
+    y_train          = y_fit_train,
+    X_val            = X_fit_validation,
+    y_val            = y_fit_validation,
     n_cores          = n_cores,
     seed             = seed,
     use_gpu          = use_gpu,
@@ -463,13 +534,18 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
   pass2_best_iteration = int(pass2_model.best_iteration)
   pass2_model          = _best_iteration_model(pass2_model)
 
-  # Export the best iteration, selected-cell predictions and raw-count summaries.
-  pseudobulk_adata = _compute_pseudobulk(raw_counts, training_metadata_df, gene_names, selected_gene_indices)
+  # Export the best iteration, selected-cell predictions and raw-count summaries
+  # of the genes shown in the report.
+  label_importance_df = _gene_gain_by_label(pass2_model, class_names, selected_gene_names)
+  report_genes        = _get_report_genes(gene_importance_df, label_importance_df, selected_gene_names)
+  pseudobulk_adata    = _compute_pseudobulk(raw_counts, cell_lib_sizes, training_metadata_df,
+    gene_names, report_genes)
   _save_outputs(
-    model              = pass2_model,
-    class_names        = class_names,
-    selected_genes     = selected_gene_names,
-    gene_importance_df = gene_importance_df,
+    model               = pass2_model,
+    class_names         = class_names,
+    selected_genes      = selected_gene_names,
+    gene_importance_df  = gene_importance_df,
+    label_importance_df = label_importance_df,
     output_dir         = output_path,
     xgboost_tag        = xgboost_tag,
     cells_df           = training_metadata_df,
@@ -495,12 +571,21 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
     pass2_colsample_bytree = pass2_colsample_bytree,
     pass2_learning_rate    = pass2_learning_rate,
     pass2_nrounds          = pass2_nrounds,
-    pass2_early_stopping   = pass2_early_stopping)
+    pass2_early_stopping   = pass2_early_stopping,
+    downsample_copies      = downsample_copies,
+    downsample_min_umis    = downsample_min_umis,
+    downsample_max_umis    = downsample_max_umis)
   model_f    = output_path / f'{xgboost_tag}_xgboost_model.json'
   model_card = dict(
     configuration                  = configuration,
     n_train                        = int(train_mask.sum()),
     n_validation                   = int(validation_mask.sum()),
+    n_train_augmented              = n_train_augmented,
+    n_validation_augmented         = n_validation_augmented,
+    depth_augmentation             = (
+      'binomial thinning of full-gene raw counts to log-uniform target depths; copies '
+      'keep their original split and are used in both fitting passes; the detection '
+      'filter and all outputs use original cells only' if downsample_copies > 0 else 'none'),
     n_classes                      = len(class_names),
     n_genes                        = len(selected_gene_names),
     n_genes_tested                 = len(gene_names),
@@ -529,6 +614,59 @@ def _encode_training_labels(training_metadata_df):
   class_indices = {name: i for i, name in enumerate(class_names)}
   label_indices = np.array([class_indices[name] for name in training_metadata_df['label']])
   return class_names, label_indices, train_mask, validation_mask
+
+
+def _make_depth_augmented_counts(raw_counts, *, copies, min_umis, max_umis, seed):
+  """Return normalised thinned copies of cells and the original row of each copy.
+
+  Each copy keeps every count independently with probability target / cell total
+  (binomial thinning), so its total is close to a target depth drawn log-uniformly
+  between min_umis and min(max_umis, cell total). For example, with bounds 300 and
+  3,000 a 10,000-UMI cell gets a target between 300 and 3,000, and a 1,000-UMI cell
+  between 300 and 1,000. Cells with at most min_umis UMIs are not copied, so counts
+  are never added. Copies are grouped by copy number, each in original row order.
+  """
+  import scipy.sparse as sp
+
+  if copies == 0:
+    return None, np.array([], dtype = np.int64)
+
+  # Thinning needs integer counts; clean H5ADs store integer-valued floats.
+  counts_csr = raw_counts.tocsr()
+  if counts_csr.data.size and (np.any(counts_csr.data < 0)
+    or not np.allclose(counts_csr.data, np.round(counts_csr.data))):
+    raise ValueError('Depth augmentation requires non-negative integer raw counts')
+  cell_totals   = np.asarray(counts_csr.sum(axis = 1)).ravel()
+  eligible_rows = np.flatnonzero(cell_totals > min_umis)
+  if eligible_rows.size == 0:
+    return None, np.array([], dtype = np.int64)
+
+  # Draw each copy's target depth, then thin that cell's counts towards it.
+  rng          = np.random.default_rng([seed, DEPTH_AUGMENTATION_STREAM])
+  eligible_csr = counts_csr[eligible_rows]
+  upper_umis   = np.minimum(max_umis, cell_totals[eligible_rows])
+  copy_parts   = []
+  for _ in range(copies):
+    target_umis = np.exp(rng.uniform(np.log(min_umis), np.log(upper_umis)))
+    thinned     = _thin_counts(eligible_csr, target_umis, rng)
+
+    # Normalise with the thinned library size, as for a natively shallow cell.
+    copy_parts.append(normalize_counts(thinned).astype(np.float32))
+
+  augmented_counts = sp.vstack(copy_parts, format = 'csr')
+  source_rows      = np.tile(eligible_rows, copies)
+  return augmented_counts, source_rows
+
+
+def _thin_counts(counts_csr, target_umis, rng):
+  # Keep each read independently with probability target / cell total (one
+  # probability per row), so totals are binomial around the target and never larger.
+  cell_totals  = np.asarray(counts_csr.sum(axis = 1)).ravel()
+  keep_prob    = np.repeat(target_umis / cell_totals, np.diff(counts_csr.indptr))
+  thinned      = counts_csr.copy()
+  thinned.data = rng.binomial(np.round(counts_csr.data).astype(np.int64), keep_prob).astype(counts_csr.dtype)
+  thinned.eliminate_zeros()
+  return thinned
 
 
 def _filter_training_genes(normalized_counts, raw_counts, gene_ids, gene_types,
@@ -665,6 +803,25 @@ def normalize_counts(X, scale_factor = 10000):
   return X_norm
 
 
+def select_model_features(normalized_counts, gene_ids, selected_genes):
+  """Return normalised counts in the model's feature order, one row per cell.
+
+  Model genes absent from the input become all-zero columns, e.g. input genes
+  [g1, g2, g3] and model genes [g3, g9, g1] give columns g3, zeros, g1. Stored
+  zeros are dropped, so absent and zero values are both missing to XGBoost.
+  """
+  import scipy.sparse as sp
+
+  # Pad with one empty column and point absent genes at it, then select once.
+  positions   = {gene: i for i, gene in enumerate(gene_ids)}
+  zero_column = normalized_counts.shape[1]
+  columns     = [positions.get(gene, zero_column) for gene in selected_genes]
+  padded      = sp.hstack([normalized_counts, sp.csr_matrix((normalized_counts.shape[0], 1))], format = 'csr')
+  model_counts = padded[:, columns].tocsr()
+  model_counts.eliminate_zeros()
+  return model_counts
+
+
 def _fit_xgboost(X_train, y_train, X_val, y_val, *, n_cores, seed, use_gpu,
   subsample, colsample_bytree, learning_rate, nrounds, early_stopping,
   feature_names = None):
@@ -762,7 +919,7 @@ def _best_iteration_model(model):
 # Save model outputs and selected-cell summaries
 
 def _save_outputs(model, class_names, selected_genes, gene_importance_df,
-  output_dir, xgboost_tag, cells_df, X_train, X_val, pseudobulk_adata):
+  label_importance_df, output_dir, xgboost_tag, cells_df, X_train, X_val, pseudobulk_adata):
 
   # Save model files and the metadata required to use the classifier.
   out_dir = Path(output_dir)
@@ -785,6 +942,10 @@ def _save_outputs(model, class_names, selected_genes, gene_importance_df,
   gene_importance_df.write_csv(str(imp_path))
   print(f"  Importance: {imp_path}")
 
+  label_imp_path = out_dir / f"{xgboost_tag}_gene_importance_by_label.csv"
+  label_importance_df.write_csv(str(label_imp_path))
+  print(f"  Importance by label: {label_imp_path}")
+
   # The fitting workflow always supplies selected-cell predictions and pseudobulks.
   predictions_f  = out_dir / f"{xgboost_tag}_predictions.csv.gz"
   predictions_df = _make_predictions_df(
@@ -797,8 +958,31 @@ def _save_outputs(model, class_names, selected_genes, gene_importance_df,
   print(f"  Predictions: {predictions_f}")
 
   pseudobulk_f = out_dir / f"{xgboost_tag}_pseudobulk.h5ad"
-  pseudobulk_adata.write_h5ad(pseudobulk_f)
+  pseudobulk_adata.write_h5ad(pseudobulk_f, compression = 'gzip')
   print(f"  Pseudobulk: {pseudobulk_f}")
+
+
+def _gene_gain_by_label(model, class_names, selected_genes):
+  """Total gain of each selected gene in the final model's trees for each label.
+
+  A multi-class model adds one tree per label in every round, in class-index order,
+  so tree i belongs to label i mod n_labels. One row per label and gene with
+  non-zero gain; gain_frac and cumulative_gain_frac are within that label.
+  """
+  # XGBoost returns its tree table as pandas; convert at that boundary.
+  trees_df = pl.from_pandas(model.trees_to_dataframe()[['Tree', 'Feature', 'Gain']])
+  feature_genes = {f'g{i}': gene for i, gene in enumerate(selected_genes)}
+  class_labels  = dict(enumerate(class_names))
+  label_gain_df = (trees_df
+    .filter(pl.col('Feature') != 'Leaf')
+    .with_columns(
+      label   = (pl.col('Tree') % len(class_names)).replace_strict(class_labels, return_dtype = pl.String),
+      gene_id = pl.col('Feature').replace_strict(feature_genes, return_dtype = pl.String))
+    .group_by('label', 'gene_id').agg(gain = pl.col('Gain').sum())
+    .sort(['label', 'gain'], descending = [False, True])
+    .with_columns(gain_frac = pl.col('gain') / pl.col('gain').sum().over('label'))
+    .with_columns(cumulative_gain_frac = pl.col('gain_frac').cum_sum().over('label')))
+  return label_gain_df
 
 
 def _make_predictions_df(model, X_train, X_val, cells_df, class_names):
@@ -836,69 +1020,52 @@ def _make_predictions_df(model, X_train, X_val, cells_df, class_names):
   return predictions_df
 
 
-def _compute_pseudobulk(X_raw, cells_df, gene_names, sel_indices):
-  # AnnData requires pandas for obs, var and labelled obsm tables.
+def _get_report_genes(gene_importance_df, label_importance_df, selected_genes):
+  """Selected genes plotted in the training report, in first-use order.
 
+  The top REPORT_TOP_GENES selected genes by overall gain, then each label's
+  top REPORT_TOP_GENES_PER_LABEL genes by its own gain; e.g. overall [A, B] and
+  per-label {x: [B, C]} give [A, B, C].
+  """
+  overall_genes = (gene_importance_df.filter(pl.col('gene_id').is_in(selected_genes))
+    .head(REPORT_TOP_GENES)['gene_id'].to_list())
+  label_genes   = (label_importance_df.sort(['label', 'gain'], descending = [False, True])
+    .group_by('label', maintain_order = True).head(REPORT_TOP_GENES_PER_LABEL)['gene_id'].to_list())
+  return list(dict.fromkeys(overall_genes + label_genes))
+
+
+def _compute_pseudobulk(X_raw, cell_lib_sizes, cells_df, gene_names, report_genes):
+  # AnnData requires pandas for obs and var tables; training-only imports.
   import anndata as ad
+  import scipy.sparse as sp
 
-  X_sel          = X_raw[:, sel_indices]
-  sel_gene_names = [gene_names[i] for i in sel_indices]
+  gene_positions = {gene: i for i, gene in enumerate(gene_names)}
+  X_report       = sp.csr_matrix(X_raw[:, [gene_positions[gene] for gene in report_genes]])
 
-  labels  = cells_df["label"].to_list()
-  batches = cells_df["batch"].to_list()
+  # One row per label and batch with at least one cell, ordered by label then
+  # batch. Labels stay in obs rather than becoming HDF5 keys, so names such as
+  # 'Ependymal / ciliated' are stored unchanged. lib_size sums the cells' total
+  # counts over all genes, so logCPMs do not depend on which genes are kept.
+  groups_df = (cells_df.select('label', 'batch').with_row_index('cell_idx')
+    .with_columns(lib_size = pl.Series(cell_lib_sizes),
+      group_idx = pl.struct('label', 'batch').rank('dense').cast(pl.Int64) - 1))
+  pb_obs_df = (groups_df.group_by('group_idx').agg(pl.col('label').first(), pl.col('batch').first(),
+    n_cells = pl.len(), lib_size = pl.col('lib_size').sum()).sort('group_idx'))
 
-  unique_labels  = sorted(set(labels))
-  unique_batches = sorted(set(batches))
-  n_batches      = len(unique_batches)
-  n_genes        = len(sel_gene_names)
-  batch_to_idx   = {s: i for i, s in enumerate(unique_batches)}
+  # Sum raw counts with a group-by-cell indicator matrix, e.g. cells [0, 1, 2]
+  # in groups [1, 0, 1] give rows sum(cell 1) and sum(cells 0, 2).
+  indicator = sp.csr_matrix((np.ones(groups_df.height), (groups_df['group_idx'].to_numpy(),
+    groups_df['cell_idx'].to_numpy())), shape = (pb_obs_df.height, groups_df.height))
+  pb_counts = (indicator @ X_report).tocsr().astype(np.float32)
 
-  # Index cells by label and batch for raw-count aggregation.
-  groups: dict[tuple[str, str], list[int]] = {}
-  for i, (lbl, bid) in enumerate(zip(labels, batches)):
-    key = (lbl, bid)
-    if key not in groups:
-      groups[key] = []
-    groups[key].append(i)
+  obs_df = pb_obs_df.select('label', 'batch', 'n_cells', 'lib_size').to_pandas()
+  obs_df.index = [f'pb{i}' for i in range(pb_obs_df.height)]
+  var_df = pl.DataFrame({'gene_id': report_genes}).to_pandas()
+  var_df.index = report_genes
+  pb_adata = ad.AnnData(X = pb_counts, obs = obs_df, var = var_df)
 
-  # Store one batch-by-gene count matrix per label, including empty combinations.
-  layers = {}
-  n_cells_dict: dict[str, list[int]] = {}
-  for lbl in unique_labels:
-    count_mat         = np.zeros((n_batches, n_genes), dtype = np.float64)
-    n_cells_per_batch = [0] * n_batches
-    for bid in unique_batches:
-      key = (lbl, bid)
-      if key in groups:
-        indices = groups[key]
-        count_mat[batch_to_idx[bid], :] = np.array(
-          X_sel[indices, :].sum(axis = 0)).flatten()
-        n_cells_per_batch[batch_to_idx[bid]] = len(indices)
-
-    layers[lbl] = count_mat
-    n_cells_dict[lbl] = n_cells_per_batch
-
-  # AnnData metadata has one row per batch (obs_df) or selected gene (var_df).
-  obs_df = pl.DataFrame({"batch": unique_batches}).to_pandas()
-  var_df = pl.DataFrame({"gene_id": sel_gene_names}).to_pandas()
-  obs_df.index = unique_batches
-  var_df.index = sel_gene_names
-
-  pb_adata = ad.AnnData(
-    X      = np.zeros((n_batches, n_genes)),
-    obs    = obs_df,
-    var    = var_df,
-    layers = layers,
-  )
-
-  # Keep contributing cell counts alongside the pseudobulk sums.
-  n_cells_mat = np.column_stack([n_cells_dict[lbl] for lbl in unique_labels])
-  n_cells_df  = pl.DataFrame(n_cells_mat, schema = unique_labels, orient = 'row').to_pandas()
-  n_cells_df.index = unique_batches
-  pb_adata.obsm["n_cells"] = n_cells_df
-
-  print(f"  Pseudobulk raw counts: {n_batches} batches, {n_genes} genes, "
-        f"{len(unique_labels)} labels (stored as layers)")
+  print(f"  Pseudobulk raw counts: {pb_obs_df.height} label-batch rows, {len(report_genes)} report genes, "
+        f"{pb_obs_df['label'].n_unique()} labels")
 
   return pb_adata
 
@@ -1094,6 +1261,93 @@ def _write_evaluation(counts_df, prefix, label_column_name):
   print(summary_df, flush = True)
 
 
+# Accuracy at lower sequencing depth
+
+def evaluate_depths(training_metadata_f, h5ads_yaml, model_f, cls_f, genes_f, output_f,
+  n_cores, *, seed):
+  """Classify cells after thinning them to fixed depths; one row per cell and depth.
+
+  depth is 'full' for the original counts or a target in DEPTH_EVALUATION_UMIS.
+  cell_group is 'test' or 'remaining' for cells never used in fitting, and
+  'validation' or 'train' for fitted cells used only to top up labels with too few
+  unused cells. An empty table means no eligible cells.
+  """
+  import xgboost as xgb
+
+  # training_metadata_df is cell-level; candidates are labelled cells of model labels,
+  # ranked test, remaining (unused), validation, train (fitted).
+  class_names = pl.read_csv(cls_f)['class'].to_list()
+  selected_genes = [line.strip() for line in Path(genes_f).read_text().splitlines() if line.strip()]
+  training_metadata_df = pl.read_csv(training_metadata_f, schema_overrides = {'label': pl.String})
+  group_rank = {'test': 0, 'remaining': 1, 'validation': 2, 'train': 3}
+  candidates_df = (training_metadata_df
+    .filter(pl.col('label').is_in(class_names) & pl.col('split').is_in(['test', 'train', 'validation']))
+    .with_columns(cell_group = pl.when(pl.col('split') == 'test').then(pl.lit('test'))
+      .when(~pl.col('selected')).then(pl.lit('remaining'))
+      .otherwise(pl.col('split')))
+    .with_columns(group_rank = pl.col('cell_group').replace_strict(group_rank, return_dtype = pl.Int32)))
+
+  # Read up to three times the target per label in rank order, since some candidates
+  # are too shallow; the order within each group is seeded.
+  rng = np.random.default_rng([seed, DEPTH_EVALUATION_STREAM])
+  candidates_df = (candidates_df
+    .with_columns(draw = pl.Series(rng.random(candidates_df.height)))
+    .sort(['label', 'group_rank', 'draw'])
+    .group_by('label', maintain_order = True).head(3 * DEPTH_EVALUATION_CELLS_PER_LABEL))
+  if candidates_df.is_empty():
+    _write_depth_evaluation(None, output_f)
+    return
+  h5ad_lookup = yaml.safe_load(Path(h5ads_yaml).read_text())
+  raw_counts, _, gene_ids, _, cells_df = _load_training_expression(candidates_df, h5ad_lookup)
+
+  # Keep cells deep enough for every target, then up to the per-label limit in the
+  # seeded order (loading reorders cells by batch, so sort by the draw again).
+  cell_totals = np.asarray(raw_counts.sum(axis = 1)).ravel()
+  cells_df = (cells_df
+    .with_columns(n_umis_full = pl.Series(cell_totals), row = pl.int_range(pl.len()))
+    .filter(pl.col('n_umis_full') > DEPTH_EVALUATION_MIN_UMIS)
+    .sort(['label', 'group_rank', 'draw'])
+    .group_by('label', maintain_order = True).head(DEPTH_EVALUATION_CELLS_PER_LABEL))
+  if cells_df.is_empty():
+    _write_depth_evaluation(None, output_f)
+    return
+  raw_counts = raw_counts[cells_df['row'].to_numpy()].tocsr()
+  raw_counts.data = np.round(raw_counts.data)
+
+  # Thin the same cells to each target depth and classify every version.
+  model = xgb.Booster()
+  model.load_model(model_f)
+  model.set_param({'device': 'cpu', 'nthread': n_cores})
+  feature_names = [f'g{i}' for i in range(len(selected_genes))]
+  depth_tables  = []
+  for depth in DEPTH_EVALUATION_UMIS + ['full']:
+    if depth == 'full':
+      counts = raw_counts
+    else:
+      counts = _thin_counts(raw_counts, np.full(raw_counts.shape[0], float(depth)), rng)
+    model_counts = select_model_features(normalize_counts(counts), gene_ids.to_list(), selected_genes)
+    probs = model.predict(xgb.DMatrix(model_counts, feature_names = feature_names, nthread = n_cores))
+    depth_df = cells_df.select('cell_id', 'label', 'cell_group').with_columns(
+      depth           = pl.lit(str(depth)),
+      n_umis          = pl.Series(np.asarray(counts.sum(axis = 1)).ravel()),
+      predicted_label = pl.Series(np.asarray(class_names)[probs.argmax(axis = 1)]),
+      probability     = pl.Series(probs.max(axis = 1)))
+    depth_tables.append(depth_df)
+  _write_depth_evaluation(pl.concat(depth_tables), output_f)
+
+
+def _write_depth_evaluation(depth_evaluation_df, output_f):
+  # An empty, correctly typed table records that no cell was deep enough.
+  if depth_evaluation_df is None:
+    depth_evaluation_df = pl.DataFrame(schema = {'cell_id': pl.String, 'label': pl.String,
+      'cell_group': pl.String, 'depth': pl.String, 'n_umis': pl.Float64,
+      'predicted_label': pl.String, 'probability': pl.Float64})
+  depth_evaluation_df.write_csv(output_f, compression = 'gzip')
+  accuracy_df = depth_evaluation_df.group_by('depth', maintain_order = True).agg(
+    n_cells = pl.len(), accuracy = (pl.col('label') == pl.col('predicted_label')).mean())
+  print(accuracy_df, flush = True)
+
+
 # Model identity and label specifications
 
 def get_xgboost_model_info(model_f, name):
@@ -1247,7 +1501,8 @@ if __name__ == '__main__':
     fit.add_argument('--' + name, required = True)
 
   for name in ('n_cores', 'seed', 'min_cells_expressed', 'min_genes', 'max_genes',
-    'pass1_nrounds', 'pass1_early_stopping', 'pass2_nrounds', 'pass2_early_stopping'):
+    'pass1_nrounds', 'pass1_early_stopping', 'pass2_nrounds', 'pass2_early_stopping',
+    'downsample_copies', 'downsample_min_umis', 'downsample_max_umis'):
     fit.add_argument('--' + name, required = True, type = int)
 
   for name in ('pass1_subsample', 'pass1_colsample_bytree', 'pass1_learning_rate',
@@ -1271,6 +1526,14 @@ if __name__ == '__main__':
   for name in ('label_specs_f', 'coarse_label_specs_f'):
     specs.add_argument('--' + name)
 
+  # Accuracy of the final model on unused cells thinned to fixed depths.
+  depth = commands.add_parser('depth')
+  for name in ('training_metadata_f', 'h5ads_yaml', 'model_f', 'cls_f', 'genes_f', 'output_f'):
+    depth.add_argument('--' + name, required = True)
+
+  for name in ('n_cores', 'seed'):
+    depth.add_argument('--' + name, required = True, type = int)
+
   args    = vars(parser.parse_args())
   command = args.pop('command')
 
@@ -1286,5 +1549,7 @@ if __name__ == '__main__':
     fit_classifier(**args)
   elif command == 'combine':
     combine_predictions(**args)
-  else:
+  elif command == 'specs':
     write_label_specifications(**args)
+  else:
+    evaluate_depths(**args)

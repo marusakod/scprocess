@@ -4,7 +4,6 @@ import pathlib
 import polars as pl
 import gzip
 import requests
-import numpy as np
 
 
 def download_celltypist_models(models_f):
@@ -119,7 +118,7 @@ def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes
   import anndata
   import scipy.sparse as sp
   import xgboost as xgb
-  from train_xgboost import normalize_counts, get_xgboost_model_info
+  from train_xgboost import normalize_counts, select_model_features, get_xgboost_model_info
   model_info = get_xgboost_model_info(model_f, model_name)
   model = xgb.Booster()
   model.load_model(model_f)
@@ -134,26 +133,16 @@ def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes
   cell_ids = adata.obs_names.tolist()
   gene_ids = adata.var_names.tolist()
 
-  gene_to_idx = {g: i for i, g in enumerate(gene_ids)}
-  present_mask = [g in gene_to_idx for g in selected_genes]
-
   raw_counts = adata.X
   if not sp.issparse(raw_counts):
     raw_counts = sp.csr_matrix(raw_counts)
 
-  # Normalise with all input genes before selecting model features.
+  # Normalise with all input genes, then put the model genes in its saved order;
+  # missing model genes remain zero.
   normalized_counts = normalize_counts(raw_counts)
+  model_counts      = select_model_features(normalized_counts, gene_ids, selected_genes)
 
-  # Missing model genes remain zero; present genes keep the saved feature order.
-  n_cells = normalized_counts.shape[0]
-  n_genes = len(selected_genes)
-  model_counts = sp.lil_matrix((n_cells, n_genes), dtype = np.float64)
-  for j, (gene, is_present) in enumerate(zip(selected_genes, present_mask)):
-    if is_present:
-      col_idx = gene_to_idx[gene]
-      model_counts[:, j] = normalized_counts[:, col_idx]
-  model_counts = model_counts.tocsr()
-
+  n_genes    = len(selected_genes)
   feat_names = [f"g{i}" for i in range(n_genes)]
   dmat = xgb.DMatrix(model_counts, feature_names = feat_names)
   # Report the most probable label and its score, without confidence filtering.

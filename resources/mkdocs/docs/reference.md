@@ -1135,10 +1135,28 @@ scprocess join CONFIG -r train_xgboost                    # join
 ```
 
 Each classifier has its own HTML report, separate from the project, zoom and
-join reports: `public/SHORT_TAG_train_xgboost.html`,
-`public/SHORT_TAG_zoom_ZOOM_NAME_train_xgboost.html` or
-`public/JOIN_TAG_train_xgboost.html`. Review it before installing the classifier
+join reports, named after the classifier's `xgboost_tag` so that reports for
+different classifiers never replace each other:
+`public/SHORT_TAG_train_XGBOOST_TAG.html`,
+`public/SHORT_TAG_zoom_ZOOM_NAME_train_XGBOOST_TAG.html` or
+`public/JOIN_TAG_train_XGBOOST_TAG.html`, for example
+`public/my_project_train_xgboost_my_classifier.html`. Review it before installing the classifier
 for use in other projects.
+
+Every training report also shows how accuracy changes at lower sequencing
+depth. Up to 200 cells per label with more than 2,000 UMIs are randomly thinned
+to 250, 500, 1,000 and 2,000 UMIs and classified again. Cells not used for
+fitting are chosen first; labels without enough of them (for example rare
+labels whose cells were all needed for training) are topped up with fitted
+cells, which are marked as optimistic. The report plots accuracy against depth
+overall and for each label, highlighting labels whose accuracy falls below 90%,
+and a confusion matrix at 500 UMIs. The cells and calls are saved as
+`XGBOOST_TAG_depth_evaluation.csv.gz` beside the model. If accuracy falls at the
+depths of the data you plan to classify, consider depth augmentation (below).
+
+The report also lists the genes the model relies on most for each label, from
+the gain of each gene in that label's trees
+(`XGBOOST_TAG_gene_importance_by_label.csv`).
 
 ###### Input labels
 
@@ -1271,7 +1289,7 @@ model or recalculating predictions.
     * `gain_threshold`: select genes accounting for this fraction of total
       gain in the first fit; default `0.9` (90%).
     * `min_genes`, `max_genes`: lower and upper limits on the selected gene
-      count; defaults `100` and `3000`.
+      count; defaults `100` and `5000`.
     * `seed`: random seed for reproducible cell selection and fitting;
       default `42`.
     * `use_gpu`: use a GPU for training; default `false`.
@@ -1288,12 +1306,40 @@ model or recalculating predictions.
     | `pass1_subsample` | Fraction of training cells sampled for each round in the first fit | `0.632` |
     | `pass1_colsample_bytree` | Fraction of genes considered for each tree in the first fit | `0.1` |
     | `pass1_learning_rate` | How much each added tree changes predictions | `0.1` |
-    | `pass1_nrounds` | Maximum rounds in the first fit | `300` |
+    | `pass1_nrounds` | Maximum rounds in the first fit | `1000` |
     | `pass1_early_stopping` | Stop after this many rounds without improved validation performance | `10` |
     | `pass2_colsample_bytree` | Fraction of selected genes considered for each tree in the final fit | `0.5` |
     | `pass2_learning_rate` | How much each added tree changes predictions | `0.05` |
-    | `pass2_nrounds` | Maximum rounds in the final fit | `500` |
+    | `pass2_nrounds` | Maximum rounds in the final fit | `2000` |
     | `pass2_early_stopping` | Stop after this many rounds without improved validation performance | `10` |
+
+??? note "Training for shallowly sequenced cells (depth augmentation)"
+
+    A classifier trained on deeply sequenced cells can misclassify cells with few
+    UMIs, because many marker genes go undetected and single reads of other genes
+    look highly expressed. Depth augmentation adds shallower copies of the
+    training cells, so the model also learns from cells at the depths it may
+    later need to classify. It is off by default.
+
+    Each copy keeps a random subset of the original cell's reads (binomial
+    thinning of the raw counts), aiming for a depth drawn at random between
+    `downsample_min_umis` and `downsample_max_umis`, or the cell's own depth if
+    that is lower. Cells with no more than `downsample_min_umis` UMIs are not
+    copied. Copies keep their cell's label and stay in the same training or
+    validation group; test cells are never copied.
+
+    * `downsample_copies`: shallow copies per selected training and validation
+      cell; default `0` (off). `1` is a good starting point.
+    * `downsample_min_umis`, `downsample_max_umis`: range of copy depths in UMIs
+      per cell; defaults `300` and `3000`. Choose a range covering the depths of
+      the datasets you plan to classify.
+
+    Copies are used in both fits, so gene selection favours genes that remain
+    informative in shallow cells. Gene detection filtering, predictions, the
+    report and all evaluation tables use the original cells only, and the model
+    card records the settings and the number of copies. One copy roughly doubles
+    the cells fitted; memory and training time increase, though by less than
+    double because thinned cells have fewer non-zero values.
 
 Once reviewed, the classifier can be
 [installed for use in other projects](#setup-xgboost).

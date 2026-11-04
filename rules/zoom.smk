@@ -121,7 +121,7 @@ zoom_cluster_names_fs = [
 
 # Keep report and training file patterns distinct, e.g. so that
 # X_fulldata_predictions.csv.gz cannot match {ref_tag}_predictions.csv.gz and
-# zoom_neurons_train_xgboost.html cannot match zoom_{zoom_name}_{mkr_sel_res}.html.
+# zoom_neurons_train_xgboost_x.html cannot match zoom_{zoom_name}_{mkr_sel_res}.html.
 # '(?!)' never matches, for projects whose zooms train no classifier.
 ZOOM_XGB_TAGS = [ZOOM_PARAMS[zoom_name]['train_xgboost']['xgboost_tag']
   for zoom_name in ZOOM_PARAMS if 'train_xgboost' in ZOOM_PARAMS[zoom_name]]
@@ -1365,6 +1365,7 @@ rule zoom_train_xgboost:
     cls_f    = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_allowed_cls.csv',
     genes_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_selected_genes.txt',
     imp_f    = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_gene_importance.csv',
+    label_imp_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_gene_importance_by_label.csv',
     preds_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_predictions.csv.gz',
     pb_f     = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_pseudobulk.h5ad',
     model_card_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_model_card.json',
@@ -1387,6 +1388,9 @@ rule zoom_train_xgboost:
     pass2_learning_rate    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass2_learning_rate'],
     pass2_nrounds          = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass2_nrounds'],
     pass2_early_stopping   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['pass2_early_stopping'],
+    downsample_copies      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['downsample_copies'],
+    downsample_min_umis    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['downsample_min_umis'],
+    downsample_max_umis    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['downsample_max_umis'],
   threads: 8
   retries: config['resources']['retries']
   resources:
@@ -1421,6 +1425,9 @@ rule zoom_train_xgboost:
       --pass2_learning_rate {params.pass2_learning_rate:q} \
       --pass2_nrounds {params.pass2_nrounds:q} \
       --pass2_early_stopping {params.pass2_early_stopping:q} \
+      --downsample_copies {params.downsample_copies:q} \
+      --downsample_min_umis {params.downsample_min_umis:q} \
+      --downsample_max_umis {params.downsample_max_umis:q} \
       --output_dir {params.output_dir:q} \
       --n_cores {threads}
     """
@@ -1528,37 +1535,70 @@ rule zoom_train_xgboost_combine:
     """
 
 
-def _zoom_xgb_f(wildcards, suffix):
-  """Training output for this zoom's classifier, e.g. suffix '_model_card.json'."""
-  ref_tag = ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['xgboost_tag']
-  return f'{zoom_dir}/{wildcards.zoom_name}/train_xgboost/{ref_tag}{suffix}'
+# Accuracy of the final model on unused zoom cells thinned to fixed depths.
+rule zoom_train_xgboost_depth_evaluation:
+  input:
+    training_metadata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_metadata.csv.gz',
+    h5ads_yaml          = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
+    model_f             = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_xgboost_model.json',
+    cls_f               = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_allowed_cls.csv',
+    genes_f             = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_selected_genes.txt'
+  output:
+    depth_evaluation_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_depth_evaluation.csv.gz'
+  params:
+    seed = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['seed']
+  threads: 4
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_train_xgboost_depth_evaluation', 'memory', attempt, csv_rule = 'train_xgboost_depth_evaluation'),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_train_xgboost_depth_evaluation', 'time', attempt, csv_rule = 'train_xgboost_depth_evaluation')
+  log:
+    f'{logs_dir}/zoom/zoom_train_xgboost_depth_evaluation_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.log'
+  benchmark:
+    f'{benchmark_dir}/zoom/zoom_train_xgboost_depth_evaluation_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.benchmark.txt'
+  conda:
+    '../envs/label_celltypes.yaml'
+  shell: """
+    exec &>> {log}
+    python3 {scprocess_dir}/scripts/train_xgboost.py depth \
+      --training_metadata_f {input.training_metadata_f:q} \
+      --h5ads_yaml {input.h5ads_yaml:q} \
+      --model_f {input.model_f:q} \
+      --cls_f {input.cls_f:q} \
+      --genes_f {input.genes_f:q} \
+      --output_f {output.depth_evaluation_f:q} \
+      --seed {params.seed} \
+      --n_cores {threads}
+    """
 
 
 # Standalone classifier report, separate from the zoom report.
 rule render_html_zoom_train_xgboost:
   input:
-    model_card_f         = lambda wildcards: _zoom_xgb_f(wildcards, '_model_card.json'),
-    label_specs_f        = lambda wildcards: _zoom_xgb_f(wildcards, '_label_specs.csv'),
-    coarse_label_specs_f = lambda wildcards: _zoom_xgb_f(wildcards, '_coarse_label_specs.csv'),
-    preds_f              = lambda wildcards: _zoom_xgb_f(wildcards, '_predictions.csv.gz'),
-    imp_f                = lambda wildcards: _zoom_xgb_f(wildcards, '_gene_importance.csv'),
-    pb_f                 = lambda wildcards: _zoom_xgb_f(wildcards, '_pseudobulk.h5ad'),
-    label_counts_f       = lambda wildcards: _zoom_xgb_f(wildcards, '_label_counts.csv'),
-    fulldata_preds_f     = lambda wildcards: _zoom_xgb_f(wildcards, '_fulldata_predictions.csv.gz'),
+    model_card_f         = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_model_card.json',
+    label_specs_f        = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_label_specs.csv',
+    coarse_label_specs_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_coarse_label_specs.csv',
+    preds_f              = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_predictions.csv.gz',
+    imp_f                = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_gene_importance.csv',
+    pb_f                 = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_pseudobulk.h5ad',
+    label_counts_f       = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_label_counts.csv',
+    fulldata_preds_f     = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_fulldata_predictions.csv.gz',
+    depth_evaluation_f   = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_depth_evaluation.csv.gz',
     integration_f        = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
     template_f           = str(scprocess_dir / 'resources/rmd_templates/train_xgboost.Rmd.template'),
     r_train_f            = f'{code_dir}/train_xgboost.R',
     r_mkr_f              = f'{code_dir}/marker_genes.R',
     r_utils_f            = f'{code_dir}/utils.R'
   output:
-    rmd_f  = f'{rmd_dir}/{SHORT_TAG}_zoom_{{zoom_name}}_train_xgboost.Rmd',
-    html_f = f'{docs_dir}/{SHORT_TAG}_zoom_{{zoom_name}}_train_xgboost.html'
+    rmd_f  = f'{rmd_dir}/{SHORT_TAG}_zoom_{{zoom_name}}_train_{{ref_tag}}.Rmd',
+    html_f = f'{docs_dir}/{SHORT_TAG}_zoom_{{zoom_name}}_train_{{ref_tag}}.html'
   params:
     your_name   = config['project']['your_name'],
     affiliation = config['project']['affiliation'],
     proj_dir    = PROJ_DIR,
     report_tag  = lambda wildcards: f'{SHORT_TAG}_zoom_{wildcards.zoom_name}',
-    ref_tag     = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['xgboost_tag'],
     min_cells   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['min_cells_expressed']
   threads: 1
   retries: config['resources']['retries']
@@ -1568,9 +1608,9 @@ rule render_html_zoom_train_xgboost:
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
       'render_html_zoom_train_xgboost', 'time', attempt, csv_rule = 'render_html_train_xgboost')
   log:
-    f'{logs_dir}/zoom/render_html_zoom_train_xgboost_{{zoom_name}}_{DATE_STAMP}.log'
+    f'{logs_dir}/zoom/render_html_zoom_train_xgboost_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.log'
   benchmark:
-    f'{benchmark_dir}/zoom/render_html_zoom_train_xgboost_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/zoom/render_html_zoom_train_xgboost_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.benchmark.txt'
   conda:
     '../envs/rlibs.yaml'
   shell: """
@@ -1584,13 +1624,14 @@ rule render_html_zoom_train_xgboost:
         your_name              = '{params.your_name}',
         affiliation            = '{params.affiliation}',
         short_tag              = '{params.report_tag}',
-        ref_tag                = '{params.ref_tag}',
+        ref_tag                = '{wildcards.ref_tag}',
         predictions_f          = '{input.preds_f}',
         importance_f           = '{input.imp_f}',
         model_card_f           = '{input.model_card_f}',
         pseudobulk_f           = '{input.pb_f}',
         label_counts_f         = '{input.label_counts_f}',
         fulldata_predictions_f = '{input.fulldata_preds_f}',
+        depth_evaluation_f     = '{input.depth_evaluation_f}',
         integration_f          = '{input.integration_f}',
         min_cells              = '{params.min_cells}',
         n_cores                = '{threads}'

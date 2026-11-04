@@ -7,6 +7,60 @@
   expected one argument`). Since `b468280` (first tagged in v0.2.2) the omitted
   setting is passed as an empty value, but the rule still tested for `None`.
   Zooms with an exclusion file, joined zooms and project HVGs were unaffected.
+- Shrink the classifier report pseudobulk and fix it for labels containing `/`
+  (for example `Ependymal / ciliated`). `{tag}_pseudobulk.h5ad` stored one
+  dense layer of all selected genes per label, named after the label, so a `/`
+  split the name into nested HDF5 groups that could not be read (451 MB for the
+  5,000-gene Siletti model). It now has one row per label and batch (`label`,
+  `batch`, `n_cells`, `lib_size` in obs) and only the plotted genes: the top
+  100 by overall gain and the top 10 per label. Changes affecting results
+  (report only): top-gene plots now scale by each pseudobulk's total counts
+  across all genes, rather than edgeR TMM over the stored genes; the model is
+  unaffected. Older pseudobulk files are not read by the new report.
+- Add accuracy at lower sequencing depth to every classifier training report
+  (projects, joins and zooms). A new rule per context
+  (`train_xgboost_depth_evaluation`, `join_train_xgboost_depth_evaluation`,
+  `zoom_train_xgboost_depth_evaluation`; `train_xgboost.py depth`) thins up to
+  200 unused cells per label with more than 2,000 UMIs to 250-2,000 UMIs and
+  classifies them with the final model, writing
+  `XGBOOST_TAG_depth_evaluation.csv.gz`. Labels without enough unused cells
+  are topped up with validation and then training cells, marked as optimistic.
+  The report adds accuracy-by-depth (unused cells only), per-label accuracy
+  lines highlighting labels below 90%, and a 500-UMI confusion matrix. Fitted
+  models are unchanged; existing training reports re-render to add the section.
+- Add per-label gene importance to training: the final model's gain is summed
+  over each label's trees and saved as `XGBOOST_TAG_gene_importance_by_label.csv`;
+  the report gains a "Top genes by label" section. Top-gene strips now also show
+  the running cumulative gain.
+- Speed up XGBoost prediction about tenfold: build the model's feature matrix
+  with one column selection instead of a per-gene loop (`select_model_features`,
+  shared by `label_celltypes` inference and training full-data prediction).
+  Predictions are identical (checked byte for byte on a Siletti batch: 124 s ->
+  12 s); the loop was ~90% of each prediction job.
+- Changes affecting results (scientific defaults): raise the XGBoost training
+  caps to `max_genes: 5000` (from 3000), `pass1_nrounds: 1000` (from 300) and
+  `pass2_nrounds: 2000` (from 500), for projects, joins and zooms. Early
+  stopping on validation loss is unchanged, so fits that already stopped early
+  are unaffected; fits that reached a cap (e.g. the depth-augmented Siletti
+  candidate: 3,000 genes, best iterations 299/300 and 499/500) can select more
+  genes and train longer. Training time can increase up to several-fold for such
+  fits; set the old values explicitly to reproduce earlier models.
+- Name every classifier training report, its Rmd and its figure folder after
+  the model's `xgboost_tag` (`SHORT_TAG_train_XGBOOST_TAG.html`, and likewise
+  for zooms and joins), so that training a second classifier in the same
+  project or join no longer overwrites the first one's report. Report path
+  change: existing `*_train_xgboost.html` reports are left in place; the next
+  `-r train_xgboost` renders the report under the new name, reusing the saved
+  training outputs rather than refitting.
+- Add optional depth augmentation for XGBoost training (`train_xgboost`
+  `downsample_copies`, `downsample_min_umis`, `downsample_max_umis`; projects,
+  joins and project zooms). Each selected train/validation cell gets thinned
+  copies made by binomial thinning of its raw counts to a log-uniform target
+  depth, normalised with their own library size and used in both fitting
+  passes. The detection filter, predictions, pseudobulk, report and evaluation
+  use original cells only. Off by default (`downsample_copies: 0`), which gives
+  byte-identical models to the previous trainer. Enabling it changes fitted
+  models; it aims to improve accuracy on cells with few UMIs.
 - Make `--zoom` behave the same for projects and joins. `scprocess run -r zoom`
   still runs every zoom; `scprocess run -r zoom --zoom NAME` now runs only that
   zoom, matching `scprocess join -r zoom --zoom NAME`. `--zoom all` is
@@ -30,7 +84,7 @@
   configured in zoom specifications or join configs; use
   `scprocess run -r train_xgboost --zoom NAME` or
   `scprocess join -r train_xgboost`. Project zoom classifiers get a new report,
-  `public/SHORT_TAG_zoom_NAME_train_xgboost.html`.
+  `public/SHORT_TAG_zoom_NAME_train_XGBOOST_TAG.html`.
 - Breaking CLI change: `scprocess run -r train_xgboost --zoom all` and the
   `zoom_train_xgboost_all` rule are removed; train one zoom classifier at a time.
 - Changes affecting results: project zoom training now runs full-data
