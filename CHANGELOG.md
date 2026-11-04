@@ -2,6 +2,16 @@
 
 ## Unreleased — planned 0.7.0
 
+- Predict cell labels in chunks of batches. Labelling (CellTypist and XGBoost)
+  and classifier full-data evaluation ran one job per batch, so large projects
+  spent most of their time starting jobs and loading models (598 jobs for the
+  Siletti atlas). A checkpoint (`assign_prediction_chunks`, and its zoom and
+  join versions) now groups batches by cell count, up to 150,000 cells per job,
+  and each job loads the model once. Rule names and resource keys are unchanged;
+  `mins_run_celltypist` and `mins_run_scprocess_labeller` defaults rise from 8
+  to 30 minutes, and these two rules no longer use the resource-model CSV. The
+  `celltypist_one_batch`/`xgboost_one_batch` subcommands are replaced by
+  `celltypist_batches`/`xgboost_batches`. Predictions are unchanged.
 - Shrink the classifier report pseudobulk and fix it for labels containing `/`
   (for example `Ependymal / ciliated`). `{tag}_pseudobulk.h5ad` stored one
   dense layer of all selected genes per label, named after the label, so a `/`
