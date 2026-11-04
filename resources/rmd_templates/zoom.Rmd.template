@@ -428,104 +428,74 @@ for (res in res_ls) {
 cat("### Input cell-type labels{.tabset}\n\n")
 cat("These diagnostics reuse the parent `label_celltypes` cell-level predictions for cells retained in the zoom analysis. Predictions are re-aggregated by majority vote using the zoom analysis high-resolution clusters (`", zoom_label_hi_res_cl, "`). No new cell-type prediction is performed.\n\n", sep = "")
 cat("Labels that do not reach 20% in any zoom cluster are combined into `Other`; percentages still use all cells in each zoom cluster as the denominator.\n\n")
-cat("#### Zoom clusters versus predicted cell types\n\n")
-
 zoom_cluster_col = zoom_label_hi_res_cl
 zoom_cluster_dt = int_dt[, .(
   cell_id,
   zoom_cluster = get(zoom_cluster_col) %>% fct_infreq
 )]
 zoom_label_dt = report_lbls_df[cell_id %chin% int_dt$cell_id]
-has_coarse_labels = all(c('coarse_predicted_label_naive', 'coarse_predicted_label_agg') %in% names(zoom_label_dt))
 
-if (has_coarse_labels) {
-  cat("##### Coarse labels\n\n")
-  coarse_dt = zoom_label_dt[, .(
-    cell_id,
-    prediction = coarse_predicted_label_naive %>% factor
-  )]
-  coarse_confuse_dt = calc_confuse_dt(
-    coarse_dt, zoom_cluster_dt, 'prediction', 'zoom_cluster',
+# Labels / Grouped labels tabs, ordered and coloured by the parent model's
+# label specifications when exactly one installed model made the predictions
+zoom_label_models = unique(zoom_label_dt$model)
+zoom_label_style  = if (length(zoom_label_models) == 1) installed_label_style(zoom_label_models) else
+  list(order = NULL, colours = NULL, coarse_order = NULL, coarse_colours = NULL)
+zoom_label_views  = get_label_views(zoom_label_dt, zoom_label_style)
+zoom_view_heading = function(title) {
+  cat('#### ', title, if (length(zoom_label_views) > 1) ' {.tabset}', '\n\n', sep = '')
+}
+zoom_view_tab = function(view_name) {
+  if (length(zoom_label_views) > 1) cat('##### ', view_name, '\n\n', sep = '')
+}
+
+zoom_view_heading('Zoom clusters versus predicted cell types')
+for (view_name in names(zoom_label_views)) {
+  zoom_view_tab(view_name)
+  prediction_dt = zoom_label_views[[ view_name ]]$labels_dt[, .(cell_id, prediction = predicted_label_naive %>% factor)]
+  confuse_dt = calc_confuse_dt(
+    prediction_dt, zoom_cluster_dt, 'prediction', 'zoom_cluster',
     min_cl2_p = 0.2, other_cl1_label = 'Other'
   )
   draw(plot_cluster_comparison_heatmap(
-    coarse_confuse_dt, 'prediction', zoom_cluster_col,
+    confuse_dt, 'prediction', zoom_cluster_col,
     plot_var = 'log_p_cl2', do_sort = 'hclust'
   ), merge_legend = TRUE)
   cat("\n\n")
 }
-
-cat("##### Fine labels\n\n")
-fine_dt = zoom_label_dt[, .(
-  cell_id,
-  prediction = predicted_label_naive %>% factor
-)]
-fine_confuse_dt = calc_confuse_dt(
-  fine_dt, zoom_cluster_dt, 'prediction', 'zoom_cluster',
-  min_cl2_p = 0.2, other_cl1_label = 'Other'
-)
-draw(plot_cluster_comparison_heatmap(
-  fine_confuse_dt, 'prediction', zoom_cluster_col,
-  plot_var = 'log_p_cl2', do_sort = 'hclust'
-), merge_legend = TRUE)
-cat("\n\n")
 ```
 
 ```{r plot_zoom_labels_over_umap, eval = do_label_celltypes, include = do_label_celltypes, fig.height = 5, fig.width = 12, results = 'asis'}
-cat("#### Predicted cell types over zoom UMAP{.tabset}\n\n")
+zoom_view_heading('Predicted cell types over zoom UMAP')
 
+# zoom clusters are numbered on the left UMAP because their colours can repeat
 g_cluster = plot_umap_labels(
   int_dt,
   zoom_cluster_dt[, .(cell_id, cluster = zoom_cluster)],
-  paste0('zoom cluster\n(', zoom_label_hi_res_cl, ')')
+  paste0('zoom cluster\n(', zoom_label_hi_res_cl, ')'),
+  label_clusters = TRUE
 )
-
-if (has_coarse_labels) {
-  cat("##### Coarse labels\n\n")
-  coarse_agg_dt = zoom_label_dt[, .(
-    cell_id,
-    cluster = coarse_predicted_label_agg %>% factor
-  )]
-  g_coarse = plot_umap_labels(int_dt, coarse_agg_dt, 'prediction\n(coarse, aggregated)')
-  print(g_cluster + g_coarse)
+for (view_name in names(zoom_label_views)) {
+  zoom_view_tab(view_name)
+  view   = zoom_label_views[[ view_name ]]
+  g_pred = plot_umap_labels(int_dt, view$labels_dt[, .(cell_id, cluster = predicted_label_agg)],
+    'prediction\n(aggregated)', label_order = view$order, label_colours = view$colours)
+  print(g_cluster + g_pred)
   cat("\n\n")
 }
-
-cat("##### Fine labels\n\n")
-fine_agg_dt = zoom_label_dt[, .(
-  cell_id,
-  cluster = predicted_label_agg %>% factor
-)]
-g_fine = plot_umap_labels(int_dt, fine_agg_dt, 'prediction\n(aggregated)')
-print(g_cluster + g_fine)
-cat("\n\n")
 ```
 
 ```{r table_zoom_label_totals, eval = do_label_celltypes, include = do_label_celltypes, results = 'asis'}
-cat("#### Totals for each predicted cell type{.tabset}\n\n")
-
-if (has_coarse_labels) {
-  cat("##### Coarse labels\n\n")
-  coarse_counts_dt = zoom_label_dt[, .(
-    cell_id,
-    predicted_label_agg = coarse_predicted_label_agg,
-    predicted_label_naive = coarse_predicted_label_naive
-  )]
-  coarse_counts_dt %>% calc_labels_table %>% kbl('html') %>%
+zoom_view_heading('Totals for each predicted cell type')
+for (view_name in names(zoom_label_views)) {
+  zoom_view_tab(view_name)
+  view = zoom_label_views[[ view_name ]]
+  view$labels_dt %>% calc_labels_table(label_order = view$order) %>% kbl('html') %>%
     row_spec(row = 0, bold = TRUE) %>%
     kable_styling(bootstrap_options = 'striped', full_width = FALSE,
       font_size = 12, position = 'center') %>%
     scroll_box(width = '60%', height = '500px') %>% print
   cat("\n\n")
 }
-
-cat("##### Fine labels\n\n")
-zoom_label_dt %>% calc_labels_table %>% kbl('html') %>%
-  row_spec(row = 0, bold = TRUE) %>%
-  kable_styling(bootstrap_options = 'striped', full_width = FALSE,
-    font_size = 12, position = 'center') %>%
-  scroll_box(width = '60%', height = '500px') %>% print
-cat("\n\n")
 ```
 
 ### Evaluating cluster distribution across samples{.tabset}

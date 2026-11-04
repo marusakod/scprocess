@@ -9,7 +9,8 @@ suppressPackageStartupMessages({
 })
 
 
-plot_umap_labels <- function(umap_dt, clust_dt, name, label_order = NULL, label_colours = NULL) {
+plot_umap_labels <- function(umap_dt, clust_dt, name, label_order = NULL, label_colours = NULL,
+  label_clusters = FALSE) {
   # join umap and clusters
   assert_that(
     all(c('UMAP1', 'UMAP2') %in% names(umap_dt)),
@@ -52,6 +53,13 @@ plot_umap_labels <- function(umap_dt, clust_dt, name, label_order = NULL, label_
       axis.ticks = element_blank(), axis.text = element_blank() ) +
     labs( colour = name )
 
+  # Print each cluster's name at its median position, so that clusters sharing
+  # a repeated colour can still be told apart
+  if (label_clusters) {
+    centres_dt = plot_dt[, .(UMAP1 = median(UMAP1), UMAP2 = median(UMAP2)), by = cluster]
+    g = g + geom_text(data = centres_dt, aes(label = cluster), colour = 'black', size = 2.5)
+  }
+
   return(g)
 }
 
@@ -77,13 +85,15 @@ calc_labels_table <- function(guesses_dt, label_order = NULL) {
   return(ns_dt)
 }
 
-installed_label_style <- function(model) {
+installed_label_style <- function(model_name) {
   registry_f = file.path(Sys.getenv("SCPROCESS_DATA_DIR"), "xgboost", "xgboost_models.csv")
   empty = list(order = NULL, colours = NULL, coarse_order = NULL,
     coarse_colours = NULL, mapping = character())
   if (!file.exists(registry_f)) return(empty)
   registry = fread(registry_f, na.strings = c("", "NA"))
-  entry = registry[registry$model == model]
+  # model_name must differ from the registry's model column: inside data.table
+  # brackets, a bare `model` would mean the column itself and match every row.
+  entry = registry[model == model_name]
   # Models without specification tables keep the report's existing defaults.
   has_specs = nrow(entry) == 1L && "label_specs_f" %in% names(entry) &&
     !is.na(entry$label_specs_f)
@@ -94,4 +104,22 @@ installed_label_style <- function(model) {
     coarse_specs_f = entry$coarse_label_specs_f
   }
   read_xgboost_style(NULL, character(), entry$label_specs_f, coarse_specs_f)
+}
+
+
+# The tables shown in each labeller's tabs: the model's labels, then the
+# grouped labels when the predictions have them. Each table has cell_id,
+# predicted_label_naive and predicted_label_agg; the grouped table holds only
+# the grouped columns under those names.
+get_label_views <- function(guesses_dt, style) {
+  views = list(Labels = list(
+    labels_dt = guesses_dt[, .(cell_id, predicted_label_naive, predicted_label_agg)],
+    order = style$order, colours = style$colours))
+  if (all(c('coarse_predicted_label_naive', 'coarse_predicted_label_agg') %in% names(guesses_dt))) {
+    views[['Grouped labels']] = list(
+      labels_dt = guesses_dt[, .(cell_id, predicted_label_naive = coarse_predicted_label_naive,
+        predicted_label_agg = coarse_predicted_label_agg)],
+      order = style$coarse_order, colours = style$coarse_colours)
+  }
+  return(views)
 }

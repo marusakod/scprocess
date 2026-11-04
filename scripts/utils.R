@@ -503,8 +503,8 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
 xgboost_colours <- function(labels, specified = NULL) {
   labels = unique(as.character(labels))
   labels = labels[!is.na(labels)]
-  palette = if (length(labels) <= length(nice_cols)) nice_cols[seq_along(labels)] else
-    grDevices::hcl.colors(length(labels), "Dark 3")
+  # nice_cols repeats once it runs out, e.g. for many clusters
+  palette = rep_len(nice_cols, length(labels))
   colours = setNames(palette, labels)
   supplied = intersect(labels, names(specified))
   colours[supplied] = specified[supplied]

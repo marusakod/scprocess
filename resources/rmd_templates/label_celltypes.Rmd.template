@@ -75,73 +75,47 @@ These cell-level predictions are then aggregated at the level of high-resolution
 
 The heatmap helps to assess whether this aggregation step seems sensible. Each cell on the heatmap shows the proportion of cells within a cluster (on the x-axis) that are assigned a specific predicted cell type in the first step (on the y-axis).
 
+When the model groups its labels into broader classes, the **Grouped labels** tabs in each section show the same views for those groups.
+
 ```{r plot_cls_vs_pred, fig.height = 12, fig.width = 13, results = 'asis'}
 for (ii in seq_along(guess_f_ls)) {
-  style = styles_ls[[ii]]
-  # unpack
-  this_labeller   = labeller_ls[[ ii ]]
-  this_model      = model_ls[[ ii ]]
-  this_hi_res_cl  = hi_res_cl_ls[[ ii ]]
-  has_coarse      = "coarse_predicted_label_naive" %in% colnames(guesses_ls[[ ii ]])
+  # one tab per labeller and model, with Labels / Grouped labels tabs inside
+  views    = get_label_views(guesses_ls[[ ii ]], styles_ls[[ ii ]])
+  int_tmp  = int_dt[, .(cell_id, hi_res_cl = get(hi_res_cl_ls[[ ii ]]) %>% fct_infreq)]
+  cat('### ', labeller_ls[[ ii ]], ', ', model_ls[[ ii ]], if (length(views) > 1) ' {.tabset}', '\n\n', sep = '')
 
-  int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2, hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
-
-  cat('### ', this_labeller, ', ', this_model, '\n', sep = '')
-
-  if (has_coarse) {
-    cat('**Coarse labels**\n\n')
-    guesses_sel = guesses_ls[[ ii ]] %>% .[, .(cell_id, prediction = coarse_predicted_label_naive %>% factor)]
+  for (view_name in names(views)) {
+    if (length(views) > 1) cat('#### ', view_name, '\n\n', sep = '')
+    guesses_sel = views[[ view_name ]]$labels_dt[, .(cell_id, prediction = predicted_label_naive %>% factor)]
     confuse_dt  = calc_confuse_dt(guesses_sel, int_tmp, "prediction", "hi_res_cl", min_cl2_p = min_cl2_p)
-    draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", this_hi_res_cl,
+    draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", hi_res_cl_ls[[ ii ]],
       plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
     cat('\n\n')
-
-    cat('**Fine labels**\n\n')
   }
-
-  guesses_sel = guesses_ls[[ ii ]] %>% .[, .(cell_id, prediction = predicted_label_naive %>% factor)]
-  confuse_dt  = calc_confuse_dt(guesses_sel, int_tmp, "prediction", "hi_res_cl", min_cl2_p = min_cl2_p)
-  draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", this_hi_res_cl,
-    plot_var = 'log_p_cl2', do_sort = "hclust"), merge_legend = TRUE)
-  cat('\n\n')
 }
 ```
 
 ## Predicted cell types over UMAP{.tabset}
 
-The same UMAP is coloured by the cell-level predictions and by the labels assigned through high-resolution cluster voting. Each tab shows one labeller and model. Large changes between the two views can identify mixed clusters or uncertain predictions to review.
+The left UMAP shows the high-resolution clusters, numbered at their centres; the right shows the labels assigned to them by cluster voting. Each tab shows one labeller and model.
 
 ```{r plot_preds_over_umap, fig.height = 5, fig.width = 12, results = 'asis'}
 for (ii in seq_along(guess_f_ls)) {
-  style = styles_ls[[ii]]
-  # unpack
-  this_labeller   = labeller_ls[[ ii ]]
-  this_model      = model_ls[[ ii ]]
-  this_hi_res_cl  = hi_res_cl_ls[[ ii ]]
-  has_coarse      = "coarse_predicted_label_agg" %in% colnames(guesses_ls[[ ii ]])
+  # high-resolution clusters on the left; their numbers are printed because
+  # cluster colours repeat once the palette runs out
+  views    = get_label_views(guesses_ls[[ ii ]], styles_ls[[ ii ]])
+  int_tmp  = int_dt[, .(cell_id, cluster = get(hi_res_cl_ls[[ ii ]]) %>% fct_infreq)]
+  g_cl     = plot_umap_labels(int_dt, int_tmp, "high resolution\nharmony\ncluster", label_clusters = TRUE)
+  cat('### ', labeller_ls[[ ii ]], ', ', model_ls[[ ii ]], if (length(views) > 1) ' {.tabset}', '\n\n', sep = '')
 
-  int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2, hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
-  g_cl        = plot_umap_labels(int_dt,
-    int_tmp[, .(cell_id, cluster = hi_res_cl)], "high resolution\nharmony\ncluster")
-
-  cat('### ', this_labeller, ', ', this_model, '\n', sep = '')
-
-  if (has_coarse) {
-    cat('**Coarse labels**\n\n')
-    guesses_sel = guesses_ls[[ ii ]] %>% .[, .(cell_id, prediction = coarse_predicted_label_agg %>% factor)]
-    g_pred      = plot_umap_labels(int_dt,
-      guesses_sel[, .(cell_id, cluster = prediction)], "prediction\n(coarse, aggregated)", label_order=style$coarse_order, label_colours=style$coarse_colours)
+  for (view_name in names(views)) {
+    if (length(views) > 1) cat('#### ', view_name, '\n\n', sep = '')
+    view    = views[[ view_name ]]
+    g_pred  = plot_umap_labels(int_dt, view$labels_dt[, .(cell_id, cluster = predicted_label_agg)],
+      "prediction\n(aggregated)", label_order = view$order, label_colours = view$colours)
     print(g_cl + g_pred)
     cat('\n\n')
-
-    cat('**Fine labels**\n\n')
   }
-
-  guesses_sel = guesses_ls[[ ii ]] %>% .[, .(cell_id, prediction = predicted_label_agg %>% factor)]
-  g_pred      = plot_umap_labels(int_dt,
-    guesses_sel[, .(cell_id, cluster = prediction)], "prediction\n(aggregated)", label_order=style$order, label_colours=style$colours)
-  print(g_cl + g_pred)
-  cat('\n\n')
 }
 ```
 
@@ -152,31 +126,17 @@ Cell counts for each predicted label, before and after cluster voting, shown sep
 
 ```{r tbl_of_celltypes, results = "asis"}
 for (ii in seq_along(guess_f_ls)) {
-  style = styles_ls[[ii]]
-  # unpack
-  this_labeller   = labeller_ls[[ ii ]]
-  this_model      = model_ls[[ ii ]]
-  has_coarse      = "coarse_predicted_label_agg" %in% colnames(guesses_ls[[ ii ]])
+  views = get_label_views(guesses_ls[[ ii ]], styles_ls[[ ii ]])
+  cat('### ', labeller_ls[[ ii ]], ', ', model_ls[[ ii ]], if (length(views) > 1) ' {.tabset}', '\n\n', sep = '')
 
-  cat('### ', this_labeller, ', ', this_model, '\n', sep = '')
-
-  if (has_coarse) {
-    cat('**Coarse labels**\n\n')
-    coarse_dt = copy(guesses_ls[[ ii ]])
-    setnames(coarse_dt, "coarse_predicted_label_agg", "predicted_label_agg", skip_absent = TRUE)
-    setnames(coarse_dt, "coarse_predicted_label_naive", "predicted_label_naive", skip_absent = TRUE)
-    coarse_dt %>% calc_labels_table(label_order=style$coarse_order) %>% kbl("html") %>% row_spec(row = 0, bold = TRUE) %>%
+  for (view_name in names(views)) {
+    if (length(views) > 1) cat('#### ', view_name, '\n\n', sep = '')
+    view = views[[ view_name ]]
+    view$labels_dt %>% calc_labels_table(label_order = view$order) %>% kbl("html") %>% row_spec(row = 0, bold = TRUE) %>%
       kable_styling(bootstrap_options = "striped", full_width = FALSE, font_size = 12, position = "center") %>%
       scroll_box(width = "60%", height = "500px") %>% print
     cat('\n\n')
-
-    cat('**Fine labels**\n\n')
   }
-
-  guesses_ls[[ ii ]] %>% calc_labels_table(label_order=style$order) %>% kbl("html") %>% row_spec(row = 0, bold = TRUE) %>%
-    kable_styling(bootstrap_options = "striped", full_width = FALSE, font_size = 12, position = "center") %>%
-    scroll_box(width = "60%", height = "500px") %>% print
-  cat('\n\n')
 }
 ```
 

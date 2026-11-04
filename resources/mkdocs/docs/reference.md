@@ -161,7 +161,7 @@ the trained model; `name` is the identifier used after installation. Alternative
 `config: /path/to/config.yaml` (and an optional `name`) to locate the model from
 its training configuration.
 Optional `*_label_specs.csv` and `*_coarse_label_specs.csv` are copied with the
-weights.
+weights; the labelling and zoom reports use them for label order and colours.
 
 ## {{scnew}}
 
@@ -1488,8 +1488,8 @@ retained cells' naive `label_celltypes` predictions. It re-aggregates those pred
 vote against the zoom analysis high-resolution clusters, using the matching parent `label_celltypes`
 entry's `hi_res_cl` (default `RNA_snn_res.2`) and `min_cl_prop`. The report shows naive predicted
 labels against those high-resolution zoom clusters, zoom-aggregated labels over the zoom UMAP, and
-naive-versus-aggregated label totals. Coarse-label panels are included when the source label output
-contains coarse predictions. The zoom workflow does not rerun the classifier.
+naive-versus-aggregated label totals. A **Grouped labels** tab is added beside each **Labels** view
+when the source label output contains coarse predictions. The zoom workflow does not rerun the classifier.
 
 * `qc_min_counts`: minimum UMI counts per cell. Only effective if stricter than the main pipeline
   threshold. Default: not set.

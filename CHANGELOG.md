@@ -2,6 +2,15 @@
 
 ## Unreleased — planned 0.7.0
 
+- Fix the labelling report ignoring the model's label specifications: the
+  installed-model lookup matched every row of `xgboost_models.csv` (a
+  data.table scoping error, since 0.4.0), so whenever more than one classifier
+  was installed, labels appeared in frequency order with generic colours. Also
+  fix the coarse totals table repeating the fine labels. The project labelling
+  and zoom label diagnostics now show **Labels** and **Grouped labels** tabs in
+  each section, in the model's order and colours, and number clusters on the
+  cluster UMAPs. Categorical colours repeat `nice_cols` once it runs out,
+  rather than switching to a default hue palette. Report changes only.
 - Fix project zooms without `hvg.hvg_exclude_from_file` failing at
   `zoom_get_highly_variable_genes` (`hvgs.py: error: argument --exc_gs_f:
   expected one argument`). Since `b468280` (first tagged in v0.2.2) the omitted
