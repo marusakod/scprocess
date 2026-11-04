@@ -218,9 +218,9 @@ for (coarse in c(FALSE, if (has_coarse) TRUE)) {
 
 ## Accuracy at lower sequencing depth {.tabset}
 
-Classifiers trained on deeply sequenced cells can misclassify shallow cells, because marker genes go undetected and single reads of other genes appear highly expressed. To show how this classifier behaves, up to 200 cells per label with more than 2,000 UMIs are randomly thinned to fixed depths, keeping each read with equal probability, and classified again. Cells never used for fitting are chosen first (test cells, then remaining cells). Labels without enough of them, such as rare labels whose cells were all needed for fitting, are topped up with validation and then training cells; the model has seen those cells, so their accuracy is optimistic. The same cells are used at every depth, so differences reflect depth rather than cell composition.
+Up to 200 cells per label with more than 2,000 UMIs are randomly thinned to fixed depths and classified again. **Accuracy** is the percentage of cells whose most probable predicted label matches their reference label. Cells not used for fitting are chosen first; labels with too few are topped up with fitted cells, whose accuracy is optimistic.
 
-Accuracy that stays close to the full-depth value down to the depths of the data you plan to classify indicates a robust model. A steep fall at low depths means shallow cells will often be mislabelled. The overall curve uses only cells never used for fitting. In the by-label plot, labels whose accuracy drops below 90% at any depth are coloured and named, and dashed lines mark labels evaluated partly or wholly on fitted cells; the confusion matrix shows which labels absorb the misclassified cells. Thinning removes reads at random, so real shallow libraries can perform somewhat differently, and remaining cells come from the same donors and samples as the training cells. `r if (isTRUE(model_configuration$downsample_copies > 0)) sprintf("This model was trained with %d thinned %s of each training and validation cell, at %s to %s UMIs (\x60downsample_copies\x60, \x60downsample_min_umis\x60, \x60downsample_max_umis\x60).", model_configuration$downsample_copies, if (model_configuration$downsample_copies == 1) "copy" else "copies", format(model_configuration$downsample_min_umis, big.mark = ","), format(model_configuration$downsample_max_umis, big.mark = ",")) else "If accuracy falls at the depths you need, retrain with depth augmentation (\x60downsample_copies: 1\x60), choosing \x60downsample_min_umis\x60 and \x60downsample_max_umis\x60 to cover those depths."`
+**Overall** pools the cells not used for fitting. **By label** shows the percentage of each label's cells assigned to it; labels below 90% at any depth are named, and dashed lines include fitted cells. A robust model stays close to its full-depth accuracy down to the depths you plan to classify. `r if (isTRUE(model_configuration$downsample_copies > 0)) sprintf("This model was trained with depth augmentation (%d thinned %s per cell, %s to %s UMIs).", model_configuration$downsample_copies, if (model_configuration$downsample_copies == 1) "copy" else "copies", format(model_configuration$downsample_min_umis, big.mark = ","), format(model_configuration$downsample_max_umis, big.mark = ",")) else "If accuracy falls at the depths you need, retrain with depth augmentation (\x60downsample_copies: 1\x60)."`
 
 ```{r depth_accuracy_overall, fig.height=5, fig.width=8, results='asis'}
 if (nrow(depth_dt)) {
@@ -258,7 +258,7 @@ plot_gain_curve(gain_dt, gain_threshold = feature_selection$gain_threshold,
 
 ## Top XGBoost genes {.tabset}
 
-Expression of genes used by the final classifier, ranked by their contribution during training. Counts are summed within each label and batch, divided by that pseudobulk's total counts across all genes and shown as counts per million (CPM). Each dot represents one batch; its size indicates the number of contributing cells. Check that useful genes show biologically plausible expression rather than patterns confined to one batch.
+Expression of the genes with the highest gain. Each dot is one batch, sized by its number of cells; counts are summed within each label and batch and shown as counts per million.
 
 ```{r load_cpms, include=FALSE}
 cpms_dt = calc_xgboost_pseudobulk_logcpms(pb_f, min_cells = min_cells)
@@ -278,7 +278,7 @@ for (i in seq(1, nrow(top_genes_dt), by = per_page)) {
 
 ## Top genes by label {.tabset}
 
-Genes contributing most to each label's predictions in the final model. A multi-class classifier builds separate trees for each label, so a gene's gain is summed over that label's trees; the bracket shows the label's running cumulative gain. These are the genes the model relies on to recognise each label, which can include genes that are low in that label but high in labels it must be distinguished from. Expression is shown as for the overall top genes.
+Genes with the highest gain within each label's trees, which can include genes low in that label but high in labels it must be distinguished from. Brackets show the cumulative gain for that label.
 
 ```{r plot_top_genes_by_label, fig.height=8, fig.width=8, results='asis'}
 label_gain_f  = sub('_gene_importance.csv$', '_gene_importance_by_label.csv', gain_f)

@@ -326,7 +326,9 @@ read_xgboost_depth_evaluation <- function(depth_evaluation_f) {
 xgboost_depth_y_scale <- function(accuracy) {
 
   # Fit the data but always show 100%, e.g. accuracies of 0.81-0.99 give 80%-100%.
-  list(scale_y_continuous(breaks = scales::pretty_breaks(), labels = scales::percent),
+  # Labels drop trailing zeros, e.g. 94%, 100%, but 99.5% where breaks need it.
+  percent_labels = function(x) paste0(format(x * 100, trim = TRUE, drop0trailing = TRUE), '%')
+  list(scale_y_continuous(breaks = scales::pretty_breaks(), labels = percent_labels),
     expand_limits(y = c(min(accuracy), 1)))
 }
 
