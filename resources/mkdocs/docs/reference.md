@@ -1099,6 +1099,11 @@ rare populations within a cluster; inspect both views.
   can be used as the `annotation_csv` in the shiny config. Requires a `marker_genes` block to be
   configured. Default is `false`.
 
+Prediction runs in jobs of whole batches with up to 150,000 cells each, so each
+job loads the model once. If these jobs run out of memory or time, raise
+`gb_run_scprocess_labeller` and `mins_run_scprocess_labeller` (or the
+`run_celltypist` equivalents; `join_*` in joins) in the `resources` section.
+
 
 ##### train_xgboost
 

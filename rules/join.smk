@@ -742,65 +742,111 @@ def _join_merge_labels_inputs(wildcards):
     PROJECT_CFGS, JOIN_PROJECT_IDS, JOIN_BATCH_KEYS, wildcards.labeller, wildcards.model,
     model_sha256 = _get_labeller_entry(wildcards.labeller, wildcards.model).get('model_sha256'))
   pred_fs = expand(
-    f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz",
-    batch=fresh_batches, allow_missing=True)
+    f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{chunk}}.csv.gz",
+    chunk=list(_get_join_labelling_chunks(wildcards.labeller, wildcards.model)), allow_missing=True)
   if reuse_label_fs:
     pred_fs.append(f"{join_lbl_dir}/tmp_labels_{wildcards.labeller}_model_{wildcards.model}_{JOIN_TAG}_{DATE_STAMP}_reused.csv.gz")
   return pred_fs
 
 
-rule join_celltypist:
-  """Run CellTypist on each batch h5ad for the join integration."""
+# Group the joined batches into prediction chunks by cell count, for labelling
+# and classifier evaluation.
+localrules: join_assign_prediction_chunks
+
+checkpoint join_assign_prediction_chunks:
   input:
-    adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad"
+    h5ads_yaml_f = joint_h5ads_yaml_f
   output:
-    pred_f  = temp(f"{join_lbl_dir}/tmp_labels_celltypist_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz")
+    chunks_f     = f"{join_int_dir}/prediction_chunks_{JOIN_TAG}_{DATE_STAMP}.csv"
+  log:
+    f"{logs_dir}/join_assign_prediction_chunks_{JOIN_TAG}_{DATE_STAMP}.log"
+  conda:
+    '../envs/label_celltypes.yaml'
+  shell: """
+    exec &>> {log}
+    python3 {scprocess_dir}/scripts/label_celltypes.py assign_prediction_chunks \
+      --h5ads_yaml_f {input.h5ads_yaml_f} \
+      --chunks_f     {output.chunks_f}
+    """
+
+
+def _get_join_prediction_chunks(batches = None):
+  return get_prediction_chunks(checkpoints.join_assign_prediction_chunks.get().output.chunks_f, batches)
+
+def _get_join_labelling_chunks(labeller, model):
+  # Batches without reusable source-project labels, in chunks
+  fresh_batches, _ = get_join_batch_sources(
+    PROJECT_CFGS, JOIN_PROJECT_IDS, JOIN_BATCH_KEYS, labeller, model,
+    model_sha256 = _get_labeller_entry(labeller, model).get('model_sha256'))
+  return _get_join_prediction_chunks(fresh_batches)
+
+def _get_join_chunk_batches(wildcards, labeller):
+  return _get_join_labelling_chunks(labeller, wildcards.model)[wildcards.chunk]
+
+
+rule join_celltypist:
+  """Run CellTypist on a chunk of batch h5ads for the join integration."""
+  input:
+    adata_fs = lambda wildcards: [f"{join_int_dir}/h5ads/{batch}.h5ad"
+      for batch in _get_join_chunk_batches(wildcards, 'celltypist')]
+  output:
+    pred_f   = temp(f"{join_lbl_dir}/tmp_labels_celltypist_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{chunk}}.csv.gz")
+  params:
+    batches  = lambda wildcards: _get_join_chunk_batches(wildcards, 'celltypist')
+  wildcard_constraints:
+    chunk    = r'chunk\d+'
   threads: 4
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_celltypist', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_celltypist', 'time', attempt)
   log:
-    f"{logs_dir}/join_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.log"
+    f"{logs_dir}/join_celltypist_{{model}}_{{chunk}}_{DATE_STAMP}.log"
   benchmark:
-    f"{benchmark_dir}/join_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt"
+    f"{benchmark_dir}/join_celltypist_{{model}}_{{chunk}}_{DATE_STAMP}.benchmark.txt"
   conda:
     '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
-    python3 {scprocess_dir}/scripts/label_celltypes.py celltypist_one_batch \
-      {wildcards.batch} sample_id {wildcards.model} \
-      --adata_f   {input.adata_f} \
+    python3 {scprocess_dir}/scripts/label_celltypes.py celltypist_batches \
+      sample_id {wildcards.model} \
+      --batches   {params.batches} \
+      --adata_fs  {input.adata_fs} \
       --pred_f    {output.pred_f}
     """
 
 
 rule join_scprocess_labeller:
-  """Run scprocess XGBoost labeller on each batch h5ad."""
+  """Run scprocess XGBoost labeller on a chunk of batch h5ads."""
   input:
-    adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad"
+    adata_fs = lambda wildcards: [f"{join_int_dir}/h5ads/{batch}.h5ad"
+      for batch in _get_join_chunk_batches(wildcards, 'scprocess')]
   output:
-    pred_f  = temp(f"{join_lbl_dir}/tmp_labels_scprocess_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz")
+    pred_f   = temp(f"{join_lbl_dir}/tmp_labels_scprocess_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{chunk}}.csv.gz")
   params:
-    model_f = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['model_f'],
-    cls_f   = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['cls_f'],
-    genes_f = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['genes_f']
+    batches  = lambda wildcards: _get_join_chunk_batches(wildcards, 'scprocess'),
+    model_f  = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['model_f'],
+    cls_f    = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['cls_f'],
+    genes_f  = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['genes_f']
+  wildcard_constraints:
+    chunk    = r'chunk\d+'
   threads: 1
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_scprocess_labeller', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_scprocess_labeller', 'time', attempt)
   log:
-    f"{logs_dir}/join_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.log"
+    f"{logs_dir}/join_scprocess_labeller_{{model}}_{{chunk}}_{DATE_STAMP}.log"
   benchmark:
-    f"{benchmark_dir}/join_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt"
+    f"{benchmark_dir}/join_scprocess_labeller_{{model}}_{{chunk}}_{DATE_STAMP}.benchmark.txt"
   conda:
     '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
-    python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_one_batch \
-      {wildcards.batch} sample_id {wildcards.model} \
-      --adata_f   {input.adata_f} \
+    python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_batches \
+      sample_id {wildcards.model} \
+      --batches   {params.batches} \
+      --adata_fs  {input.adata_fs} \
       --model_f   {params.model_f} \
       --cls_f     {params.cls_f} \
       --genes_f   {params.genes_f} \
@@ -1157,30 +1203,35 @@ if DO_TRAIN_XGB:
 
   rule join_train_xgboost_predict:
     input:
-      adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad",
-      model_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json',
-      cls_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_allowed_cls.csv',
-      genes_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_selected_genes.txt',
+      adata_fs = lambda wildcards: [f"{join_int_dir}/h5ads/{batch}.h5ad"
+        for batch in _get_join_prediction_chunks()[wildcards.chunk]],
+      model_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json',
+      cls_f    = f'{join_xgb_dir}/{_join_xgb_ref_tag}_allowed_cls.csv',
+      genes_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_selected_genes.txt',
     output:
-      pred_f  = temp(f"{join_xgb_dir}/tmp_fulldata_predict_{_join_xgb_ref_tag}_{{batch}}.csv.gz")
+      pred_f  = temp(f"{join_xgb_dir}/tmp_fulldata_predict_{_join_xgb_ref_tag}_{{chunk}}.csv.gz")
     params:
+      batches = lambda wildcards: _get_join_prediction_chunks()[wildcards.chunk],
       ref_tag = _join_xgb_ref_tag
+    wildcard_constraints:
+      chunk   = r'chunk\d+'
     threads: 1
     retries: config['resources']['retries']
     resources:
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_predict', 'memory', attempt),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_predict', 'time', attempt)
     log:
-      f"{logs_dir}/join_train_xgboost_predict_{_join_xgb_ref_tag}_{{batch}}_{DATE_STAMP}.log"
+      f"{logs_dir}/join_train_xgboost_predict_{_join_xgb_ref_tag}_{{chunk}}_{DATE_STAMP}.log"
     benchmark:
-      f"{benchmark_dir}/join_train_xgboost_predict_{_join_xgb_ref_tag}_{{batch}}_{DATE_STAMP}.benchmark.txt"
+      f"{benchmark_dir}/join_train_xgboost_predict_{_join_xgb_ref_tag}_{{chunk}}_{DATE_STAMP}.benchmark.txt"
     conda:
       '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
-      python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_one_batch \
-        {wildcards.batch} batch {params.ref_tag} \
-        --adata_f   {input.adata_f} \
+      python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_batches \
+        batch {params.ref_tag} \
+        --batches   {params.batches} \
+        --adata_fs  {input.adata_fs} \
         --model_f   {input.model_f} \
         --cls_f     {input.cls_f} \
         --genes_f   {input.genes_f} \
@@ -1190,9 +1241,9 @@ if DO_TRAIN_XGB:
 
   rule join_train_xgboost_combine:
     input:
-      pred_fs          = expand(
-        f"{join_xgb_dir}/tmp_fulldata_predict_{_join_xgb_ref_tag}_{{batch}}.csv.gz",
-        batch=JOIN_BATCH_KEYS),
+      pred_fs          = lambda wildcards: expand(
+        f"{join_xgb_dir}/tmp_fulldata_predict_{_join_xgb_ref_tag}_{{chunk}}.csv.gz",
+        chunk=list(_get_join_prediction_chunks())),
 
 
       training_metadata_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_metadata.csv.gz',

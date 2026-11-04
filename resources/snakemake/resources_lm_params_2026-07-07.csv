@@ -73,8 +73,6 @@ memory,input.af_h5_f,3387.263,139719.161,run_cellbender,3v3,2048
 time,input.af_h5_f,2939.252,35470.44,run_cellbender,3v3,600
 memory,input.af_h5_f,2414.913,121269.302,run_cellbender,3v4,2048
 time,input.af_h5_f,609.719,60462.022,run_cellbender,3v4,600
-memory,n_smpls_pre_qc,-2130.834,147.213,run_celltypist,"",2048
-time,"",,,run_celltypist,"",600
 memory,"",,,run_decontx,"",2048
 time,"",,,run_decontx,"",600
 memory,n_smpls_pre_qc,10658.152,0,run_fgsea,"",2048
@@ -91,8 +89,6 @@ memory,input.af_h5_f,1291.05,48528.688,run_qc_one_run,3v3,2048
 time,input.af_h5_f,60.106,1680.912,run_qc_one_run,3v3,600
 memory,input.af_h5_f,3638.425,45985.942,run_qc_one_run,3v4,2048
 time,input.af_h5_f,408.692,0,run_qc_one_run,3v4,600
-memory,n_smpls_pre_qc,1171.937,17.957,run_scprocess_labeller,"",2048
-time,"",,,run_scprocess_labeller,"",600
 memory,"",,,save_alevin_hto_to_h5,"",2048
 time,"",,,save_alevin_hto_to_h5,"",600
 memory,raw_data_size,2265.283,289.095,save_alevin_to_h5,3v3,2048

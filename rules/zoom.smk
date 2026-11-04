@@ -160,7 +160,7 @@ rule zoom:
 
 
 
-localrules: zoom_make_tmp_pb_cells_df, zoom_make_hvg_df, zoom_merge_group_mean_var, zoom_merge_stats_for_std_variance, zoom_copy_train_xgboost_r
+localrules: zoom_assign_prediction_chunks, zoom_make_tmp_pb_cells_df, zoom_make_hvg_df, zoom_merge_group_mean_var, zoom_merge_stats_for_std_variance, zoom_copy_train_xgboost_r
 
 
 rule zoom_check_clusters:
@@ -1467,17 +1467,45 @@ rule zoom_train_xgboost_specs:
     """
 
 
-# Predict every project cell in one batch with the zoom's classifier; combine keeps zoom cells.
+# Group the project's batches into prediction chunks by cell count; shared by
+# every zoom's classifier evaluation.
+checkpoint zoom_assign_prediction_chunks:
+  input:
+    h5ads_yaml_f = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
+  output:
+    chunks_f     = f'{zoom_dir}/prediction_chunks_{FULL_TAG}_{DATE_STAMP}.csv'
+  log:
+    f'{logs_dir}/zoom/zoom_assign_prediction_chunks_{DATE_STAMP}.log'
+  conda:
+    '../envs/label_celltypes.yaml'
+  shell: """
+    exec &>> {log}
+    python3 {scprocess_dir}/scripts/label_celltypes.py assign_prediction_chunks \
+      --h5ads_yaml_f {input.h5ads_yaml_f} \
+      --chunks_f     {output.chunks_f}
+    """
+
+
+def _get_zoom_prediction_chunks():
+  return get_prediction_chunks(checkpoints.zoom_assign_prediction_chunks.get().output.chunks_f)
+
+
+# Predict every project cell with the zoom's classifier, in chunks of batches;
+# combine keeps zoom cells.
 rule zoom_train_xgboost_predict:
   input:
-    adata_f = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad',
-    model_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_xgboost_model.json',
-    cls_f   = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_allowed_cls.csv',
-    genes_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_selected_genes.txt',
+    adata_fs = lambda wildcards: [f'{int_dir}/anndata_cells_clean_{batch}_{FULL_TAG}_{DATE_STAMP}.h5ad'
+      for batch in _get_zoom_prediction_chunks()[wildcards.chunk]],
+    model_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_xgboost_model.json',
+    cls_f    = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_allowed_cls.csv',
+    genes_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_selected_genes.txt',
   output:
-    pred_f  = temp(f'{zoom_dir}/{{zoom_name}}/train_xgboost/tmp_fulldata_predict_{{ref_tag}}_{{batch}}.csv.gz')
+    pred_f  = temp(f'{zoom_dir}/{{zoom_name}}/train_xgboost/tmp_fulldata_predict_{{ref_tag}}_{{chunk}}.csv.gz')
   params:
+    batches   = lambda wildcards: _get_zoom_prediction_chunks()[wildcards.chunk],
     batch_var = BATCH_VAR
+  wildcard_constraints:
+    chunk = r'chunk\d+'
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -1486,29 +1514,30 @@ rule zoom_train_xgboost_predict:
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
       'zoom_train_xgboost_predict', 'time', attempt, csv_rule = 'train_xgboost_predict')
   log:
-    f'{logs_dir}/zoom/zoom_train_xgboost_predict_{{zoom_name}}_{{ref_tag}}_{{batch}}_{DATE_STAMP}.log'
+    f'{logs_dir}/zoom/zoom_train_xgboost_predict_{{zoom_name}}_{{ref_tag}}_{{chunk}}_{DATE_STAMP}.log'
   benchmark:
-    f'{benchmark_dir}/zoom/zoom_train_xgboost_predict_{{zoom_name}}_{{ref_tag}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/zoom/zoom_train_xgboost_predict_{{zoom_name}}_{{ref_tag}}_{{chunk}}_{DATE_STAMP}.benchmark.txt'
   conda:
     '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
-    python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_one_batch \
-      {wildcards.batch} {params.batch_var} {wildcards.ref_tag} \
-      --adata_f {input.adata_f} \
-      --model_f {input.model_f} \
-      --cls_f   {input.cls_f} \
-      --genes_f {input.genes_f} \
-      --pred_f  {output.pred_f}
+    python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_batches \
+      {params.batch_var} {wildcards.ref_tag} \
+      --batches  {params.batches} \
+      --adata_fs {input.adata_fs} \
+      --model_f  {input.model_f} \
+      --cls_f    {input.cls_f} \
+      --genes_f  {input.genes_f} \
+      --pred_f   {output.pred_f}
     """
 
 
 # Combine full-data calls for the zoom's integrated cells and evaluate each saved split.
 rule zoom_train_xgboost_combine:
   input:
-    pred_fs = expand(
-      f'{zoom_dir}/{{zoom_name}}/train_xgboost/tmp_fulldata_predict_{{ref_tag}}_{{batch}}.csv.gz',
-      batch = BATCHES, allow_missing = True),
+    pred_fs = lambda wildcards: expand(
+      f'{zoom_dir}/{wildcards.zoom_name}/train_xgboost/tmp_fulldata_predict_{wildcards.ref_tag}_{{chunk}}.csv.gz',
+      chunk = list(_get_zoom_prediction_chunks())),
     training_metadata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_metadata.csv.gz',
     integration_f       = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
   output:

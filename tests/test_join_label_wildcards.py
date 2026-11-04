@@ -33,7 +33,7 @@ class TestJoinLabelWildcards(unittest.TestCase):
 
   def test_underscore_models_remain_intact_in_all_join_label_patterns(self):
     patterns = [
-      "tmp_labels_{labeller}_model_{model}_csf_T_NK_join_2026-07-15_{batch}.csv.gz",
+      "tmp_labels_{labeller}_model_{model}_csf_T_NK_join_2026-07-15_{chunk}.csv.gz",
       "tmp_labels_{labeller}_model_{model}_csf_T_NK_join_2026-07-15_reused.csv.gz",
       "labels_{labeller}_model_{model}_csf_T_NK_join_2026-07-15.csv.gz",
       "cluster_names_for_shiny_{labeller}_{model}_csf_T_NK_join_0.5_2026-07-15.csv",
@@ -54,7 +54,7 @@ class TestJoinLabelWildcards(unittest.TestCase):
           filename = pattern.format(
             labeller=labeller,
             model=model,
-            batch="project_sample_1",
+            chunk="chunk001",
           )
           self.assert_wildcards(pattern, filename, labeller, model)
 
