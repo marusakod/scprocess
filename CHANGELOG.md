@@ -2,6 +2,11 @@
 
 ## Unreleased — planned 0.7.0
 
+- Fix the project index failing when a zoom classifier report exists: every
+  `*_zoom_*` page was parsed as a zoom report ending in a resolution, so
+  `SHORT_TAG_zoom_ZOOM_train_TAG.html` stopped the index render. The index now
+  lists project and zoom classifier training reports in a "Classifier training"
+  section.
 - Fix the labelling report ignoring the model's label specifications: the
   installed-model lookup matched every row of `xgboost_models.csv` (a
   data.table scoping error, since 0.4.0), so whenever more than one classifier
