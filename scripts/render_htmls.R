@@ -295,6 +295,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     label_celltypes_link = ""
     zoom_title           = ""
     zoom_links           = ""
+    train_title          = ""
+    train_links          = ""
     config_files_section = ""
 
     # get placeholder replacements for all htmls
@@ -334,8 +336,21 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       label_celltypes_link = sprintf("- Celltype labelling ([link](%s_label_celltypes.html))", short_tag)
     }
     
-    if(any(grepl(paste0(short_tag, '_zoom.*.html'), htmls))){
-      zoom_htmls  = htmls[grepl(paste0(short_tag, '_zoom.*.html'), htmls)]
+    # Classifier training reports, for the project or a zoom, e.g.
+    # mini_train_xgboost_brain.html or mini_zoom_neurons_train_xgboost_neurons.html
+    train_pattern = paste0('^', short_tag, '_(?:zoom_(.+)_)?train_(.+)\\.html$')
+    train_mat     = str_match(htmls, train_pattern)
+    train_htmls   = htmls[!is.na(train_mat[, 1])]
+    if (length(train_htmls)) {
+      train_mat   = train_mat[!is.na(train_mat[, 1]), , drop = FALSE]
+      train_names = ifelse(is.na(train_mat[, 2]), train_mat[, 3],
+        paste0(train_mat[, 2], ' zoom: ', train_mat[, 3]))
+      train_links = paste(sprintf("- %s ([link](%s))", train_names, train_htmls), collapse = "\n")
+      train_title = "## Classifier training"
+    }
+
+    zoom_htmls = setdiff(htmls[grepl(paste0(short_tag, '_zoom.*.html'), htmls)], train_htmls)
+    if (length(zoom_htmls)) {
       # extract zoom params
       pattern     = ".*?_zoom_(.+_\\d+(?:\\.\\d+)?)\\.html$"
       params_mat  = str_match(zoom_htmls, pattern)
@@ -446,6 +461,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
         label_celltypes_link= label_celltypes_link,
         zoom_title          = zoom_title, 
         zoom_links          = zoom_links,
+        train_title         = train_title,
+        train_links         = train_links,
         config_files_section = config_files_section
       ))
 
