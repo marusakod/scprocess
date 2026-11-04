@@ -776,6 +776,25 @@ def normalize_counts(X, scale_factor = 10000):
   return X_norm
 
 
+def select_model_features(normalized_counts, gene_ids, selected_genes):
+  """Return normalised counts in the model's feature order, one row per cell.
+
+  Model genes absent from the input become all-zero columns, e.g. input genes
+  [g1, g2, g3] and model genes [g3, g9, g1] give columns g3, zeros, g1. Stored
+  zeros are dropped, so absent and zero values are both missing to XGBoost.
+  """
+  import scipy.sparse as sp
+
+  # Pad with one empty column and point absent genes at it, then select once.
+  positions   = {gene: i for i, gene in enumerate(gene_ids)}
+  zero_column = normalized_counts.shape[1]
+  columns     = [positions.get(gene, zero_column) for gene in selected_genes]
+  padded      = sp.hstack([normalized_counts, sp.csr_matrix((normalized_counts.shape[0], 1))], format = 'csr')
+  model_counts = padded[:, columns].tocsr()
+  model_counts.eliminate_zeros()
+  return model_counts
+
+
 def _fit_xgboost(X_train, y_train, X_val, y_val, *, n_cores, seed, use_gpu,
   subsample, colsample_bytree, learning_rate, nrounds, early_stopping,
   feature_names = None):

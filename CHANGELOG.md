@@ -2,6 +2,11 @@
 
 ## Unreleased — planned 0.7.0
 
+- Speed up XGBoost prediction about tenfold: build the model's feature matrix
+  with one column selection instead of a per-gene loop (`select_model_features`,
+  shared by `label_celltypes` inference and training full-data prediction).
+  Predictions are identical (checked byte for byte on a Siletti batch: 124 s ->
+  12 s); the loop was ~90% of each prediction job.
 - Changes affecting results (scientific defaults): raise the XGBoost training
   caps to `max_genes: 5000` (from 3000), `pass1_nrounds: 1000` (from 300) and
   `pass2_nrounds: 2000` (from 500), for projects, joins and zooms. Early
