@@ -1143,6 +1143,14 @@ different classifiers never replace each other:
 `public/my_project_train_xgboost_my_classifier.html`. Review it before installing the classifier
 for use in other projects.
 
+Every training report also shows how accuracy changes at lower sequencing
+depth. Up to 200 cells per label that were not used for fitting, each with more
+than 2,000 UMIs, are randomly thinned to 250, 500, 1,000 and 2,000 UMIs and
+classified again; the report plots overall and per-label accuracy against depth
+and a confusion matrix at 500 UMIs. The cells and calls are saved as
+`XGBOOST_TAG_depth_evaluation.csv.gz` beside the model. If accuracy falls at the
+depths of the data you plan to classify, consider depth augmentation (below).
+
 ###### Input labels
 
 * `annots_f` (required): CSV or CSV.gz with a unique `cell_id` for each labelled

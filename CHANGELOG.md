@@ -2,6 +2,15 @@
 
 ## Unreleased — planned 0.7.0
 
+- Add accuracy at lower sequencing depth to every classifier training report
+  (projects, joins and zooms). A new rule per context
+  (`train_xgboost_depth_evaluation`, `join_train_xgboost_depth_evaluation`,
+  `zoom_train_xgboost_depth_evaluation`; `train_xgboost.py depth`) thins up to
+  200 unused cells per label with more than 2,000 UMIs to 250-2,000 UMIs and
+  classifies them with the final model, writing
+  `XGBOOST_TAG_depth_evaluation.csv.gz`. The report adds accuracy-by-depth,
+  a per-label heatmap and a 500-UMI confusion matrix. Fitted models are
+  unchanged; existing training reports re-render to add the section.
 - Speed up XGBoost prediction about tenfold: build the model's feature matrix
   with one column selection instead of a per-gene loop (`select_model_features`,
   shared by `label_celltypes` inference and training full-data prediction).

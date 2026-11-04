@@ -260,3 +260,61 @@ plot_top_xgboost_genes <- function(selected_genes_dt, cpms_dt, label_order = NUL
     labs(x = 'label', y = 'counts per million', size = '# cells')
   return(plot)
 }
+
+
+# Accuracy at lower sequencing depth
+
+# Cell groups in the depth evaluation, both unused in fitting, with fixed colours.
+XGBOOST_DEPTH_GROUPS = c(test = 'Test', remaining = 'Remaining cells')
+XGBOOST_DEPTH_GROUP_COLOURS = c(Test = '#7A5195', `Remaining cells` = '#EF5675', All = 'grey20')
+
+
+read_xgboost_depth_evaluation <- function(depth_evaluation_f) {
+
+  # One row per cell and depth; depth is a target UMI count or 'full'.
+  depth_dt = fread(depth_evaluation_f, colClasses = list(character = c('depth', 'label', 'predicted_label')))
+  if (!nrow(depth_dt)) return(depth_dt)
+
+  # Thinned depths in increasing order, then the original counts, e.g. 250, 500, ..., Full.
+  thinned = sort(as.integer(setdiff(unique(depth_dt$depth), 'full')))
+  depth_dt[, depth := factor(depth, levels = c(thinned, 'full'),
+    labels = c(format(thinned, big.mark = ',', trim = TRUE), 'Full'))]
+  depth_dt[, cell_group := XGBOOST_DEPTH_GROUPS[cell_group]]
+  depth_dt[, correct := label == predicted_label]
+  return(depth_dt)
+}
+
+
+plot_depth_accuracy <- function(depth_dt) {
+
+  # Accuracy over all evaluated cells and, when both are present, by cell group.
+  all_dt   = depth_dt[, .(accuracy = mean(correct), n_cells = .N), by = depth][, cell_group := 'All']
+  group_dt = depth_dt[, .(accuracy = mean(correct), n_cells = .N), by = .(depth, cell_group)]
+  plot_dt  = if (uniqueN(depth_dt$cell_group) > 1) rbind(all_dt, group_dt) else all_dt
+  plot = ggplot(plot_dt, aes(x = depth, y = accuracy, colour = cell_group, group = cell_group)) +
+    geom_line(linewidth = 0.8) + geom_point(size = 2) +
+    scale_colour_manual(values = XGBOOST_DEPTH_GROUP_COLOURS, name = NULL) +
+    scale_y_continuous(breaks = scales::pretty_breaks(), labels = scales::percent) +
+    expand_limits(y = c(min(0.5, min(plot_dt$accuracy)), 1)) +
+    theme_classic() +
+    labs(x = 'UMIs per cell', y = 'Accuracy')
+  return(plot)
+}
+
+
+plot_depth_accuracy_heatmap <- function(depth_dt, label_order) {
+
+  # One tile per label and depth: the fraction of that label's cells called correctly.
+  label_dt = depth_dt[, .(accuracy = mean(correct), n_cells = .N), by = .(label, depth)]
+  label_dt[, label := factor(label, levels = rev(intersect(label_order, unique(label))))]
+  plot = ggplot(label_dt, aes(x = depth, y = label, fill = accuracy)) +
+    geom_tile(colour = 'white') +
+    geom_text(aes(label = scales::percent(accuracy, accuracy = 1),
+      colour = accuracy < 0.6), size = 3, show.legend = FALSE) +
+    scale_colour_manual(values = c(`TRUE` = 'white', `FALSE` = 'black')) +
+    scale_fill_viridis_c(option = 'magma', limits = c(0, 1), breaks = scales::pretty_breaks(),
+      labels = scales::percent, name = 'Accuracy') +
+    theme_classic() + theme(axis.line = element_blank(), axis.ticks = element_blank()) +
+    labs(x = 'UMIs per cell', y = NULL)
+  return(plot)
+}

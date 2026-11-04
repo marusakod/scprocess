@@ -1218,6 +1218,43 @@ if DO_TRAIN_XGB:
       """
 
 
+  # Accuracy of the final model on unused cells thinned to fixed depths.
+  rule join_train_xgboost_depth_evaluation:
+    input:
+      training_metadata_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_metadata.csv.gz',
+      h5ads_yaml          = joint_h5ads_yaml_f,
+      model_f             = f'{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json',
+      cls_f               = f'{join_xgb_dir}/{_join_xgb_ref_tag}_allowed_cls.csv',
+      genes_f             = f'{join_xgb_dir}/{_join_xgb_ref_tag}_selected_genes.txt'
+    output:
+      depth_evaluation_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_depth_evaluation.csv.gz'
+    params:
+      seed = _join_xgb_cfg['seed']
+    threads: 4
+    retries: config['resources']['retries']
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_depth_evaluation', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_depth_evaluation', 'time', attempt)
+    log:
+      f"{logs_dir}/join_train_xgboost_depth_evaluation_{_join_xgb_ref_tag}_{DATE_STAMP}.log"
+    benchmark:
+      f"{benchmark_dir}/join_train_xgboost_depth_evaluation_{_join_xgb_ref_tag}_{DATE_STAMP}.benchmark.txt"
+    conda:
+      '../envs/label_celltypes.yaml'
+    shell: """
+      exec &>> {log}
+      python3 {scprocess_dir}/scripts/train_xgboost.py depth \
+        --training_metadata_f {input.training_metadata_f:q} \
+        --h5ads_yaml {input.h5ads_yaml:q} \
+        --model_f {input.model_f:q} \
+        --cls_f {input.cls_f:q} \
+        --genes_f {input.genes_f:q} \
+        --output_f {output.depth_evaluation_f:q} \
+        --seed {params.seed} \
+        --n_cores {threads}
+      """
+
+
   rule join_train_xgboost_specs:
     input:
       cls_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_allowed_cls.csv',
@@ -1263,7 +1300,8 @@ if DO_TRAIN_XGB:
       imp_f                = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv',
       pb_f                 = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad',
       label_counts_f       = f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_counts.csv',
-      fulldata_preds_f     = _join_xgb_fulldata_f
+      fulldata_preds_f     = _join_xgb_fulldata_f,
+      depth_evaluation_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_depth_evaluation.csv.gz'
     output:
       rmd_f         = f"{rmd_dir}/{JOIN_TAG}_train_{_join_xgb_ref_tag}.Rmd",
       html_f        = f"{docs_dir}/{JOIN_TAG}_train_{_join_xgb_ref_tag}.html"
@@ -1317,6 +1355,7 @@ if DO_TRAIN_XGB:
           pseudobulk_f    = '{params.pseudobulk_f}',
           label_counts_f         = '{params.label_counts_f}',
           fulldata_predictions_f = '{params.fulldata_predictions_f}',
+          depth_evaluation_f     = '{input.depth_evaluation_f}',
           integration_f          = '{params.integration_f}',
           min_cells              = '{params.min_cells}',
           n_cores                = '{threads}'

@@ -654,7 +654,8 @@ if TRAIN_XGB_PARAMS is not None:
       imp_f                = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_gene_importance.csv',
       pb_f                 = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_pseudobulk.h5ad',
       label_counts_f       = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_label_counts.csv',
-      fulldata_preds_f     = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_fulldata_predictions.csv.gz'
+      fulldata_preds_f     = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_fulldata_predictions.csv.gz',
+      depth_evaluation_f   = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_depth_evaluation.csv.gz'
     output:
       r_train_f     = f"{code_dir}/train_xgboost.R",
       rmd_f         = f"{rmd_dir}/{SHORT_TAG}_train_{TRAIN_XGB_PARAMS['xgboost_tag']}.Rmd",
@@ -708,6 +709,7 @@ if TRAIN_XGB_PARAMS is not None:
           pseudobulk_f    = '{params.pseudobulk_f}',
           label_counts_f         = '{params.label_counts_f}',
           fulldata_predictions_f = '{params.fulldata_predictions_f}',
+          depth_evaluation_f     = '{input.depth_evaluation_f}',
           integration_f          = '{params.integration_f}',
           min_cells              = '{params.min_cells}',
           n_cores                = '{threads}'

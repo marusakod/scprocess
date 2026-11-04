@@ -234,3 +234,38 @@ if TRAIN_XGB_PARAMS is not None:
         {input.pred_fs:q} --training_metadata_f {input.training_metadata_f:q} --integration_f {input.integration_f:q} \
         --output_f                          {output.fulldata_f:q}
       """
+
+
+  # Accuracy of the final model on unused cells thinned to fixed depths.
+  rule train_xgboost_depth_evaluation:
+    input:
+      training_metadata_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_metadata.csv.gz',
+      h5ads_yaml          = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
+      model_f             = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_xgboost_model.json',
+      cls_f               = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_allowed_cls.csv',
+      genes_f             = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_selected_genes.txt'
+    output:
+      depth_evaluation_f  = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_depth_evaluation.csv.gz'
+    params:
+      seed = TRAIN_XGB_PARAMS['seed']
+    threads: 4
+    retries: config['resources']['retries']
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'train_xgboost_depth_evaluation', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'train_xgboost_depth_evaluation', 'time', attempt)
+    log: f'{logs_dir}/train_xgboost/train_xgboost_depth_evaluation_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{DATE_STAMP}.log'
+    benchmark: f'{benchmark_dir}/train_xgboost/train_xgboost_depth_evaluation_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{DATE_STAMP}.benchmark.txt'
+    conda:
+      '../envs/label_celltypes.yaml'
+    shell: """
+      exec &>> {log}
+      python3 {scprocess_dir}/scripts/train_xgboost.py depth \
+        --training_metadata_f {input.training_metadata_f:q} \
+        --h5ads_yaml          {input.h5ads_yaml:q} \
+        --model_f             {input.model_f:q} \
+        --cls_f               {input.cls_f:q} \
+        --genes_f             {input.genes_f:q} \
+        --output_f            {output.depth_evaluation_f:q} \
+        --seed                {params.seed} \
+        --n_cores             {threads}
+      """

@@ -1533,6 +1533,45 @@ rule zoom_train_xgboost_combine:
     """
 
 
+# Accuracy of the final model on unused zoom cells thinned to fixed depths.
+rule zoom_train_xgboost_depth_evaluation:
+  input:
+    training_metadata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_metadata.csv.gz',
+    h5ads_yaml          = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
+    model_f             = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_xgboost_model.json',
+    cls_f               = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_allowed_cls.csv',
+    genes_f             = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_selected_genes.txt'
+  output:
+    depth_evaluation_f  = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_depth_evaluation.csv.gz'
+  params:
+    seed = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['seed']
+  threads: 4
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_train_xgboost_depth_evaluation', 'memory', attempt, csv_rule = 'train_xgboost_depth_evaluation'),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_train_xgboost_depth_evaluation', 'time', attempt, csv_rule = 'train_xgboost_depth_evaluation')
+  log:
+    f'{logs_dir}/zoom/zoom_train_xgboost_depth_evaluation_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.log'
+  benchmark:
+    f'{benchmark_dir}/zoom/zoom_train_xgboost_depth_evaluation_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.benchmark.txt'
+  conda:
+    '../envs/label_celltypes.yaml'
+  shell: """
+    exec &>> {log}
+    python3 {scprocess_dir}/scripts/train_xgboost.py depth \
+      --training_metadata_f {input.training_metadata_f:q} \
+      --h5ads_yaml {input.h5ads_yaml:q} \
+      --model_f {input.model_f:q} \
+      --cls_f {input.cls_f:q} \
+      --genes_f {input.genes_f:q} \
+      --output_f {output.depth_evaluation_f:q} \
+      --seed {params.seed} \
+      --n_cores {threads}
+    """
+
+
 # Standalone classifier report, separate from the zoom report.
 rule render_html_zoom_train_xgboost:
   input:
@@ -1544,6 +1583,7 @@ rule render_html_zoom_train_xgboost:
     pb_f                 = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_pseudobulk.h5ad',
     label_counts_f       = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_label_counts.csv',
     fulldata_preds_f     = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_fulldata_predictions.csv.gz',
+    depth_evaluation_f   = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_depth_evaluation.csv.gz',
     integration_f        = f'{zoom_dir}/{{zoom_name}}/integrated_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz',
     template_f           = str(scprocess_dir / 'resources/rmd_templates/train_xgboost.Rmd.template'),
     r_train_f            = f'{code_dir}/train_xgboost.R',
@@ -1589,6 +1629,7 @@ rule render_html_zoom_train_xgboost:
         pseudobulk_f           = '{input.pb_f}',
         label_counts_f         = '{input.label_counts_f}',
         fulldata_predictions_f = '{input.fulldata_preds_f}',
+        depth_evaluation_f     = '{input.depth_evaluation_f}',
         integration_f          = '{input.integration_f}',
         min_cells              = '{params.min_cells}',
         n_cores                = '{threads}'

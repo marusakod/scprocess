@@ -21,6 +21,16 @@ MIN_CLUSTER_MAJORITY_VOTE_CELLS = 10
 # thinning is reproducible and independent of XGBoost's own seeded sampling.
 DEPTH_AUGMENTATION_STREAM = 1
 
+# Depth evaluation for every training report: up to DEPTH_EVALUATION_CELLS_PER_LABEL
+# cells per label that were never used in fitting (test cells first, then remaining
+# development cells), each with more than DEPTH_EVALUATION_MIN_UMIS UMIs so that
+# every target depth (UMIs per cell) is a reduction. The same cells are thinned to
+# each depth with their own random stream, so curves compare depths, not cells.
+DEPTH_EVALUATION_UMIS            = [250, 500, 1000, 2000]
+DEPTH_EVALUATION_CELLS_PER_LABEL = 200
+DEPTH_EVALUATION_MIN_UMIS        = 2000
+DEPTH_EVALUATION_STREAM          = 2
+
 
 # Training metadata
 
@@ -1224,6 +1234,89 @@ def _write_evaluation(counts_df, prefix, label_column_name):
   print(summary_df, flush = True)
 
 
+# Accuracy at lower sequencing depth
+
+def evaluate_depths(training_metadata_f, h5ads_yaml, model_f, cls_f, genes_f, output_f,
+  n_cores, *, seed):
+  """Classify unused cells after thinning them to fixed depths; one row per cell and depth.
+
+  depth is 'full' for the original counts or a target in DEPTH_EVALUATION_UMIS.
+  cell_group is 'test' for held-out test cells and 'remaining' for development cells
+  not selected for fitting. An empty table means no eligible cells.
+  """
+  import xgboost as xgb
+
+  # training_metadata_df is cell-level; candidates are labelled cells never used to fit.
+  class_names = pl.read_csv(cls_f)['class'].to_list()
+  selected_genes = [line.strip() for line in Path(genes_f).read_text().splitlines() if line.strip()]
+  training_metadata_df = pl.read_csv(training_metadata_f, schema_overrides = {'label': pl.String})
+  candidates_df = (training_metadata_df
+    .filter(pl.col('label').is_in(class_names) & (
+      (pl.col('split') == 'test') |
+      (pl.col('split').is_in(['train', 'validation']) & ~pl.col('selected'))))
+    .with_columns(cell_group = pl.when(pl.col('split') == 'test').then(pl.lit('test')).otherwise(pl.lit('remaining'))))
+
+  # Read up to three times the target per label, test cells first, since some
+  # candidates are too shallow; the order within each group is seeded.
+  rng = np.random.default_rng([seed, DEPTH_EVALUATION_STREAM])
+  candidates_df = (candidates_df
+    .with_columns(draw = pl.Series(rng.random(candidates_df.height)))
+    .sort(['label', pl.col('cell_group') != 'test', 'draw'])
+    .group_by('label', maintain_order = True).head(3 * DEPTH_EVALUATION_CELLS_PER_LABEL))
+  if candidates_df.is_empty():
+    _write_depth_evaluation(None, output_f)
+    return
+  h5ad_lookup = yaml.safe_load(Path(h5ads_yaml).read_text())
+  raw_counts, _, gene_ids, _, cells_df = _load_training_expression(candidates_df, h5ad_lookup)
+
+  # Keep cells deep enough for every target, then up to the per-label limit in the
+  # seeded order (loading reorders cells by batch, so sort by the draw again).
+  cell_totals = np.asarray(raw_counts.sum(axis = 1)).ravel()
+  cells_df = (cells_df
+    .with_columns(n_umis_full = pl.Series(cell_totals), row = pl.int_range(pl.len()))
+    .filter(pl.col('n_umis_full') > DEPTH_EVALUATION_MIN_UMIS)
+    .sort(['label', pl.col('cell_group') != 'test', 'draw'])
+    .group_by('label', maintain_order = True).head(DEPTH_EVALUATION_CELLS_PER_LABEL))
+  if cells_df.is_empty():
+    _write_depth_evaluation(None, output_f)
+    return
+  raw_counts = raw_counts[cells_df['row'].to_numpy()].tocsr()
+  raw_counts.data = np.round(raw_counts.data)
+
+  # Thin the same cells to each target depth and classify every version.
+  model = xgb.Booster()
+  model.load_model(model_f)
+  model.set_param({'device': 'cpu', 'nthread': n_cores})
+  feature_names = [f'g{i}' for i in range(len(selected_genes))]
+  depth_tables  = []
+  for depth in DEPTH_EVALUATION_UMIS + ['full']:
+    if depth == 'full':
+      counts = raw_counts
+    else:
+      counts = _thin_counts(raw_counts, np.full(raw_counts.shape[0], float(depth)), rng)
+    model_counts = select_model_features(normalize_counts(counts), gene_ids.to_list(), selected_genes)
+    probs = model.predict(xgb.DMatrix(model_counts, feature_names = feature_names, nthread = n_cores))
+    depth_df = cells_df.select('cell_id', 'label', 'cell_group').with_columns(
+      depth           = pl.lit(str(depth)),
+      n_umis          = pl.Series(np.asarray(counts.sum(axis = 1)).ravel()),
+      predicted_label = pl.Series(np.asarray(class_names)[probs.argmax(axis = 1)]),
+      probability     = pl.Series(probs.max(axis = 1)))
+    depth_tables.append(depth_df)
+  _write_depth_evaluation(pl.concat(depth_tables), output_f)
+
+
+def _write_depth_evaluation(depth_evaluation_df, output_f):
+  # An empty, correctly typed table records that no cell was deep enough.
+  if depth_evaluation_df is None:
+    depth_evaluation_df = pl.DataFrame(schema = {'cell_id': pl.String, 'label': pl.String,
+      'cell_group': pl.String, 'depth': pl.String, 'n_umis': pl.Float64,
+      'predicted_label': pl.String, 'probability': pl.Float64})
+  depth_evaluation_df.write_csv(output_f, compression = 'gzip')
+  accuracy_df = depth_evaluation_df.group_by('depth', maintain_order = True).agg(
+    n_cells = pl.len(), accuracy = (pl.col('label') == pl.col('predicted_label')).mean())
+  print(accuracy_df, flush = True)
+
+
 # Model identity and label specifications
 
 def get_xgboost_model_info(model_f, name):
@@ -1402,6 +1495,14 @@ if __name__ == '__main__':
   for name in ('label_specs_f', 'coarse_label_specs_f'):
     specs.add_argument('--' + name)
 
+  # Accuracy of the final model on unused cells thinned to fixed depths.
+  depth = commands.add_parser('depth')
+  for name in ('training_metadata_f', 'h5ads_yaml', 'model_f', 'cls_f', 'genes_f', 'output_f'):
+    depth.add_argument('--' + name, required = True)
+
+  for name in ('n_cores', 'seed'):
+    depth.add_argument('--' + name, required = True, type = int)
+
   args    = vars(parser.parse_args())
   command = args.pop('command')
 
@@ -1417,5 +1518,7 @@ if __name__ == '__main__':
     fit_classifier(**args)
   elif command == 'combine':
     combine_predictions(**args)
-  else:
+  elif command == 'specs':
     write_label_specifications(**args)
+  else:
+    evaluate_depths(**args)

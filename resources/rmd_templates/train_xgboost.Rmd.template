@@ -33,6 +33,7 @@ model_card_f           = "${model_card_f}"
 pb_f                   = "${pseudobulk_f}"
 label_counts_f         = "${label_counts_f}"
 fulldata_predictions_f = "${fulldata_predictions_f}"
+depth_evaluation_f     = "${depth_evaluation_f}"
 integration_f          = "${integration_f}"
 min_cells              = as.integer("${min_cells}")
 n_cores                = as.integer("${n_cores}")
@@ -42,6 +43,8 @@ setDTthreads(n_cores)
 preds_dt = fread(predictions_f)
 gain_dt = fread(gain_f)
 feature_selection = read_xgboost_feature_selection(model_card_f)
+model_configuration = jsonlite::fromJSON(model_card_f)$configuration
+depth_dt = read_xgboost_depth_evaluation(depth_evaluation_f)
 int_dt = fread(integration_f, select = c('cell_id', 'UMAP1', 'UMAP2'))
 label_order = fread(label_counts_f)[order(-len)]$label
 style = read_xgboost_style(predictions_f, label_order)
@@ -212,6 +215,37 @@ for (coarse in c(FALSE, if (has_coarse) TRUE)) {
   }
 }
 ```
+
+## Accuracy at lower sequencing depth {.tabset}
+
+Classifiers trained on deeply sequenced cells can misclassify shallow cells, because marker genes go undetected and single reads of other genes appear highly expressed. To show how this classifier behaves, up to 200 cells per label that were never used for fitting (test cells first, otherwise remaining cells) and that have more than 2,000 UMIs are randomly thinned to fixed depths, keeping each read with equal probability, and classified again. The same cells are used at every depth, so differences reflect depth rather than cell composition.
+
+Accuracy that stays close to the full-depth value down to the depths of the data you plan to classify indicates a robust model. A steep fall at low depths means shallow cells will often be mislabelled; the heatmap and the confusion matrix show which labels lose accuracy and which labels absorb those cells. Thinning removes reads at random, so real shallow libraries can perform somewhat differently, and remaining cells come from the same donors and samples as the training cells. `r if (isTRUE(model_configuration$downsample_copies > 0)) sprintf("This model was trained with %d thinned %s of each training and validation cell, at %s to %s UMIs (\x60downsample_copies\x60, \x60downsample_min_umis\x60, \x60downsample_max_umis\x60).", model_configuration$downsample_copies, if (model_configuration$downsample_copies == 1) "copy" else "copies", format(model_configuration$downsample_min_umis, big.mark = ","), format(model_configuration$downsample_max_umis, big.mark = ",")) else "If accuracy falls at the depths you need, retrain with depth augmentation (\x60downsample_copies: 1\x60), choosing \x60downsample_min_umis\x60 and \x60downsample_max_umis\x60 to cover those depths."`
+
+```{r depth_accuracy_overall, fig.height=5, fig.width=8, results='asis'}
+if (nrow(depth_dt)) {
+  cat('\n\n### Overall\n\n')
+  print(plot_depth_accuracy(depth_dt))
+} else {
+  cat('No unused annotated cells had more than 2,000 UMIs, so accuracy at lower depth could not be estimated.\n\n')
+}
+```
+
+```{r depth_accuracy_labels, fig.height=max(4, 0.32 * length(label_order) + 1.5), fig.width=7, results='asis'}
+if (nrow(depth_dt)) {
+  cat('\n\n### By label\n\n')
+  print(plot_depth_accuracy_heatmap(depth_dt, label_order))
+}
+```
+
+```{r depth_confusion, fig.height=10, fig.width=12, results='asis'}
+if (nrow(depth_dt)) {
+  shallow_depth = levels(depth_dt$depth)[2]
+  cat('\n\n### Confusion matrix at', shallow_depth, 'UMIs\n\n')
+  print(plot_xgboost_confusion(depth_dt[depth == shallow_depth], label_order))
+}
+```
+
 
 ## Cumulative gain curve
 
