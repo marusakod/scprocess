@@ -140,32 +140,40 @@ if TRAIN_XGB_PARAMS is not None:
       """
 
 
-  # Apply the fitted model to every cell in each batch.
+  # Apply the fitted model to every cell, in chunks of batches grouped by cell count.
+  def _get_train_xgboost_chunks():
+    return get_prediction_chunks(checkpoints.assign_prediction_chunks.get().output.chunks_f)
+
   rule train_xgboost_predict:
     input:
-      adata_f = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad',
-      model_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_xgboost_model.json',
-      cls_f   = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_allowed_cls.csv',
-      genes_f = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_selected_genes.txt',
+      adata_fs = lambda wildcards: [f'{int_dir}/anndata_cells_clean_{batch}_{FULL_TAG}_{DATE_STAMP}.h5ad'
+        for batch in _get_train_xgboost_chunks()[wildcards.chunk]],
+      model_f  = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_xgboost_model.json',
+      cls_f    = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_allowed_cls.csv',
+      genes_f  = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_selected_genes.txt',
     output:
-      pred_f = temp(f'{xgb_dir}/tmp_fulldata_predict_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{{batch}}.csv.gz')
+      pred_f = temp(f'{xgb_dir}/tmp_fulldata_predict_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{{chunk}}.csv.gz')
     params:
+      batches   = lambda wildcards: _get_train_xgboost_chunks()[wildcards.chunk],
       ref_tag   = TRAIN_XGB_PARAMS['xgboost_tag'],
       batch_var = TRAIN_XGB_PARAMS.get('batch_var', BATCH_VAR)
+    wildcard_constraints:
+      chunk = r'chunk\d+'
     threads: 1
     retries: config['resources']['retries']
     resources:
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'train_xgboost_predict', 'memory', attempt),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'train_xgboost_predict', 'time', attempt)
-    log: f'{logs_dir}/train_xgboost/train_xgboost_predict_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{{batch}}_{DATE_STAMP}.log'
-    benchmark: f'{benchmark_dir}/train_xgboost/train_xgboost_predict_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{{batch}}_{DATE_STAMP}.benchmark.txt'
+    log: f'{logs_dir}/train_xgboost/train_xgboost_predict_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{{chunk}}_{DATE_STAMP}.log'
+    benchmark: f'{benchmark_dir}/train_xgboost/train_xgboost_predict_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{{chunk}}_{DATE_STAMP}.benchmark.txt'
     conda:
       '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
-      python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_one_batch \
-        {wildcards.batch} {params.batch_var} {params.ref_tag} \
-        --adata_f                           {input.adata_f} \
+      python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_batches \
+        {params.batch_var} {params.ref_tag} \
+        --batches                           {params.batches} \
+        --adata_fs                          {input.adata_fs} \
         --model_f                           {input.model_f} \
         --cls_f                             {input.cls_f} \
         --genes_f                           {input.genes_f} \
@@ -213,9 +221,9 @@ if TRAIN_XGB_PARAMS is not None:
   # Combine full-data calls and evaluate each saved split.
   rule train_xgboost_combine:
     input:
-      pred_fs = expand(
-        f'{xgb_dir}/tmp_fulldata_predict_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{{batch}}.csv.gz',
-        batch = BATCHES),
+      pred_fs = lambda wildcards: expand(
+        f'{xgb_dir}/tmp_fulldata_predict_{TRAIN_XGB_PARAMS["xgboost_tag"]}_{{chunk}}.csv.gz',
+        chunk = list(_get_train_xgboost_chunks())),
       training_metadata_f      = f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_metadata.csv.gz',
       integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     output:

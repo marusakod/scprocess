@@ -7,22 +7,23 @@ import polars as pl
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from label_celltypes import run_xgboost
+from label_celltypes import _run_xgboost_one_batch
 from train_xgboost import combine_predictions
 
 
 def test_empty_placeholder_needs_no_model(tmp_path):
+    # A zero-byte placeholder returns before the model or genes are used.
     path = tmp_path / 'excluded.h5ad'
     path.touch()
-    result = run_xgboost('excluded', 'sample_id', 'model', path,
-        'absent-model', 'absent-classes', 'absent-genes')
+    result = _run_xgboost_one_batch('excluded', 'sample_id', 'model', path,
+        model=None, model_info=None, class_names=[], selected_genes=[])
     assert result.height == 0
     assert result.schema['probability_naive'] == pl.Float64
     assert set(result.columns) == {'cell_id', 'predicted_label_naive',
         'probability_naive', 'labeller', 'sample_id', 'model', 'model_id', 'model_sha256'}
     with pytest.raises(FileNotFoundError):
-        run_xgboost('missing', 'sample_id', 'model', tmp_path / 'missing.h5ad',
-            'absent-model', 'absent-classes', 'absent-genes')
+        _run_xgboost_one_batch('missing', 'sample_id', 'model', tmp_path / 'missing.h5ad',
+            model=None, model_info=None, class_names=[], selected_genes=[])
 
 
 def test_header_only_batch_and_complete_membership(tmp_path):

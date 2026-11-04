@@ -2542,6 +2542,27 @@ def get_join_batch_sources(project_cfgs, project_ids, batch_keys, labeller, mode
   return fresh_batches, reuse_label_fs
 
 
+def get_prediction_chunks(chunks_f, batches = None):
+  """Batches predicted by each chunk, from the table written by assign_prediction_chunks.
+
+  With batches given (e.g. QC-passing batches), each chunk keeps only those, in
+  table order, and chunks left empty are dropped; batches absent from the table
+  have no H5AD to predict. E.g. chunks {chunk001: [a, b], chunk002: [c]} with
+  batches [a, c] give {chunk001: [a], chunk002: [c]}.
+  """
+  chunks_df = pl.read_csv(chunks_f, schema_overrides = {'batch': pl.String, 'chunk': pl.String})
+  if batches is not None:
+    chunks_df = chunks_df.filter(pl.col('batch').is_in([str(b) for b in batches]))
+  return {chunk: chunk_df['batch'].to_list()
+    for (chunk,), chunk_df in chunks_df.group_by('chunk', maintain_order = True)}
+
+
+def get_good_batches(qc_stats_f, batch_var):
+  """Batches that passed QC, from the get_qc_sample_statistics table."""
+  qc_df = pl.read_csv(qc_stats_f, schema_overrides = {batch_var: pl.String})
+  return qc_df.filter(pl.col(f'bad_{batch_var}') == False)[batch_var].to_list()
+
+
 def get_shiny_deploy_inputs(scprocess_dir):
   """Return files copied or read by the lightweight Shiny deploy step."""
   scprocess_dir = pathlib.Path(scprocess_dir)

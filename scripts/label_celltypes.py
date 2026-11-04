@@ -5,6 +5,11 @@ import polars as pl
 import gzip
 import requests
 
+# Prediction jobs process consecutive batches until adding the next batch would
+# exceed this many cells; a larger single batch forms its own chunk. Each job
+# loads the model once, so fewer, larger jobs avoid per-job start-up costs.
+PREDICTION_CHUNK_MAX_CELLS = 150_000
+
 
 def download_celltypist_models(models_f):
   # lazy import: only available in the celltypist conda env
@@ -64,22 +69,73 @@ def download_celltypist_models(models_f):
   return
 
 
-def run_celltypist(sel_batch, batch_var, model_name, adata_f):
+def assign_prediction_chunks(h5ads_yaml_f, chunks_f):
+  """Group batches into prediction chunks of up to PREDICTION_CHUNK_MAX_CELLS cells.
+
+  Batches keep their order in the H5AD YAML; zero-byte placeholders for failed
+  batches count as 0 cells. E.g. 100k, 40k, 30k and 200k cells give chunks
+  [chunk001: 100k + 40k], [chunk002: 30k], [chunk003: 200k]. Writes one row per batch.
+  """
+  import h5py
+  import yaml
+
+  with open(h5ads_yaml_f) as f:
+    h5ad_lookup = yaml.safe_load(f)
+
+  # Count cells from each H5AD's obs index without reading the matrix.
+  batches, n_cells = [], []
+  for batch, entry in h5ad_lookup.items():
+    h5ad_f = entry['path'] if isinstance(entry, dict) else entry
+    if pathlib.Path(h5ad_f).stat().st_size == 0:
+      batch_cells = 0
+    else:
+      with h5py.File(h5ad_f, 'r') as h5:
+        batch_cells = h5['obs'][h5['obs'].attrs['_index']].shape[0]
+    batches.append(str(batch))
+    n_cells.append(batch_cells)
+
+  # Start a new chunk when the next batch would take the current one over the
+  # cap; empty placeholders join the current chunk.
+  chunk_ids, chunk_idx, chunk_cells = [], 1, 0
+  for batch_cells in n_cells:
+    if chunk_cells > 0 and batch_cells > 0 and chunk_cells + batch_cells > PREDICTION_CHUNK_MAX_CELLS:
+      chunk_idx  += 1
+      chunk_cells = 0
+    chunk_cells += batch_cells
+    chunk_ids.append(f'chunk{chunk_idx:03d}')
+
+  chunks_df = pl.DataFrame({'batch': batches, 'n_cells': n_cells, 'chunk': chunk_ids})
+  chunks_df.write_csv(chunks_f)
+  print(f'Assigned {len(batches)} batches ({sum(n_cells)} cells) to {chunk_idx} prediction chunks', flush = True)
+
+
+def run_celltypist_batches(batches, batch_var, model_name, adata_fs):
+  """CellTypist calls for several batches, loading the model once."""
   # lazy imports: only available in the celltypist conda env, not scprocess_local
+  import celltypist
+
+  model = celltypist.models.Model.load(model_name + ".pkl")
+  pred_dfs = [_run_celltypist_one_batch(batch, batch_var, model_name, model, adata_f)
+    for batch, adata_f in zip(batches, adata_fs)]
+  return pl.concat(pred_dfs, how = 'vertical')
+
+
+def _run_celltypist_one_batch(sel_batch, batch_var, model_name, model, adata_f):
   import scanpy as sc
   import celltypist
 
   # read anndata
+  print(f'Predicting {sel_batch}', flush = True)
   adata = sc.read_h5ad(adata_f)
   adata.obs_names = adata.obs_names.to_list()
   adata.var_names = adata.var['symbol'].to_list()
-  
+
   # normalize
   sc.pp.normalize_total(adata)
   sc.pp.log1p(adata)
 
   # make predictions
-  predictions = celltypist.annotate(adata, model = model_name + ".pkl", majority_voting = False)
+  predictions = celltypist.annotate(adata, model = model, majority_voting = False)
 
   # turn into nice output
   pred_df = pl.from_pandas( predictions.predicted_labels.reset_index(names = "cell_id") ).rename({"predicted_labels": "predicted_label_naive"})
@@ -90,7 +146,7 @@ def run_celltypist(sel_batch, batch_var, model_name, adata_f):
         pl.exclude('cell_id')
     ).alias('probability_naive')
   ])
-  
+
   # join together
   pred_df = pred_df.join( probs_df, on = "cell_id" )
   pred_df = pred_df.with_columns(
@@ -102,33 +158,47 @@ def run_celltypist(sel_batch, batch_var, model_name, adata_f):
   return pred_df
 
 
-def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes_f):
-  # Failed/excluded batches can be represented by a zero-byte H5AD placeholder.
-  # Keep a typed, header-only prediction file so aggregation preserves the DAG.
-  if pathlib.Path(adata_f).stat().st_size == 0:
-    print(f"Skipping empty H5AD placeholder: {adata_f}", flush = True)
-    return pl.DataFrame(schema = {
-      'cell_id': pl.String, 'predicted_label_naive': pl.String,
-      'probability_naive': pl.Float64, 'labeller': pl.String,
-      batch_var: pl.String, 'model': pl.String,
-      'model_id': pl.String, 'model_sha256': pl.String,
-    })
-
+def run_xgboost_batches(batches, batch_var, model_name, adata_fs, model_f, cls_f, genes_f):
+  """XGBoost calls for several batches, loading the model once."""
   # Model and expression libraries are needed only for inference, not downloads.
-  import anndata
-  import scipy.sparse as sp
   import xgboost as xgb
-  from train_xgboost import normalize_counts, select_model_features, get_xgboost_model_info
+  from train_xgboost import get_xgboost_model_info
+
   model_info = get_xgboost_model_info(model_f, model_name)
   model = xgb.Booster()
   model.load_model(model_f)
 
   # Class and gene order are part of the saved model, not alphabetical order.
   class_names = pl.read_csv(cls_f)['class'].to_list()
-
   with open(genes_f, 'r') as f:
     selected_genes = [line.strip() for line in f if line.strip()]
 
+  pred_dfs = [_run_xgboost_one_batch(batch, batch_var, model_name, adata_f, model = model,
+    model_info = model_info, class_names = class_names, selected_genes = selected_genes)
+    for batch, adata_f in zip(batches, adata_fs)]
+  return pl.concat(pred_dfs, how = 'vertical')
+
+
+def _run_xgboost_one_batch(sel_batch, batch_var, model_name, adata_f, *, model, model_info,
+  class_names, selected_genes):
+  # Failed/excluded batches can be represented by a zero-byte H5AD placeholder;
+  # they contribute no rows.
+  pred_schema = {
+    'cell_id': pl.String, 'predicted_label_naive': pl.String,
+    'probability_naive': pl.Float64, 'labeller': pl.String,
+    batch_var: pl.String, 'model': pl.String,
+    'model_id': pl.String, 'model_sha256': pl.String,
+  }
+  if pathlib.Path(adata_f).stat().st_size == 0:
+    print(f"Skipping empty H5AD placeholder: {adata_f}", flush = True)
+    return pl.DataFrame(schema = pred_schema)
+
+  import anndata
+  import scipy.sparse as sp
+  import xgboost as xgb
+  from train_xgboost import normalize_counts, select_model_features
+
+  print(f'Predicting {sel_batch}', flush = True)
   adata = anndata.read_h5ad(adata_f)
   cell_ids = adata.obs_names.tolist()
   gene_ids = adata.var_names.tolist()
@@ -142,8 +212,7 @@ def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes
   normalized_counts = normalize_counts(raw_counts)
   model_counts      = select_model_features(normalized_counts, gene_ids, selected_genes)
 
-  n_genes    = len(selected_genes)
-  feat_names = [f"g{i}" for i in range(n_genes)]
+  feat_names = [f"g{i}" for i in range(len(selected_genes))]
   dmat = xgb.DMatrix(model_counts, feature_names = feat_names)
   # Report the most probable label and its score, without confidence filtering.
   probs = model.predict(dmat)
@@ -162,7 +231,7 @@ def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes
     pl.lit(model_info['model_sha256']).alias('model_sha256'),
   )
 
-  return pred_df
+  return pred_df.cast(pred_schema)
 
 
 def aggregate_predictions(pred_fs, int_f, hi_res_cl, min_cl_prop, batch_var, label_map_f = None):
@@ -324,8 +393,9 @@ def main():
   # define subparsers
   subparsers      = parser.add_subparsers(dest = 'subcommand', required = True)
   downloader_prsr = subparsers.add_parser('download_models')
-  typist_prsr     = subparsers.add_parser('celltypist_one_batch')
-  xgb_prsr        = subparsers.add_parser('xgboost_one_batch')
+  chunks_prsr     = subparsers.add_parser('assign_prediction_chunks')
+  typist_prsr     = subparsers.add_parser('celltypist_batches')
+  xgb_prsr        = subparsers.add_parser('xgboost_batches')
   agg_prsr        = subparsers.add_parser('aggregate_predictions')
   names_prsr      = subparsers.add_parser('save_cluster_names')
   extract_prsr    = subparsers.add_parser('extract_naive_predictions')
@@ -333,22 +403,26 @@ def main():
   # get arguments
   downloader_prsr.add_argument("models_f",type = str)  
   
-  # get arguments
-  typist_prsr.add_argument(  "batch",     type = str)
+  # prediction chunks: batches grouped by cell count
+  chunks_prsr.add_argument("--h5ads_yaml_f", type = str, required = True)
+  chunks_prsr.add_argument("--chunks_f",     type = str, required = True)
+
+  # celltypist: one model, several batches with matching H5ADs
   typist_prsr.add_argument(  "batch_var", type = str)
   typist_prsr.add_argument(  "model",     type = str)
-  typist_prsr.add_argument("--adata_f",   type = str)
-  typist_prsr.add_argument("--pred_f",    type = str)
+  typist_prsr.add_argument("--pred_f",    type = str, required = True)
+  typist_prsr.add_argument("--batches",   type = str, nargs = "+", required = True)
+  typist_prsr.add_argument("--adata_fs",  type = str, nargs = "+", required = True)
 
-  # get arguments for xgboost
-  xgb_prsr.add_argument(  "batch",     type = str)
+  # xgboost: one model, several batches with matching H5ADs
   xgb_prsr.add_argument(  "batch_var", type = str)
   xgb_prsr.add_argument(  "model",     type = str)
-  xgb_prsr.add_argument("--adata_f",   type = str)
   xgb_prsr.add_argument("--model_f",   type = str)
   xgb_prsr.add_argument("--cls_f",     type = str)
   xgb_prsr.add_argument("--genes_f",   type = str)
-  xgb_prsr.add_argument("--pred_f",    type = str)
+  xgb_prsr.add_argument("--pred_f",    type = str, required = True)
+  xgb_prsr.add_argument("--batches",   type = str, nargs = "+", required = True)
+  xgb_prsr.add_argument("--adata_fs",  type = str, nargs = "+", required = True)
 
   # get arguments
   agg_prsr.add_argument(  "pred_fs",      type = str, nargs = "+")
@@ -375,29 +449,23 @@ def main():
   # Parse the arguments
   args = parser.parse_args()
 
-  # create new project folder
-  if args.subcommand == "celltypist_one_batch":
-    # set up some locations
-    adata_f = pathlib.Path(args.adata_f)
+  # Dispatch the requested command.
+  if args.subcommand == "assign_prediction_chunks":
+    assign_prediction_chunks(args.h5ads_yaml_f, args.chunks_f)
 
-    # check that they exist
-    if not adata_f.is_file():
-      raise FileNotFoundError(f"adata_f is not a valid file:\n  {adata_f}")
-    
-    # run
-    pred_df = run_celltypist(args.batch, args.batch_var, args.model, args.adata_f)
+  elif args.subcommand in ("celltypist_batches", "xgboost_batches"):
+    # Batches and H5ADs are paired by position.
+    if len(args.batches) != len(args.adata_fs):
+      raise ValueError(f"Got {len(args.batches)} batches but {len(args.adata_fs)} H5AD files")
+    for adata_f in args.adata_fs:
+      if not pathlib.Path(adata_f).is_file():
+        raise FileNotFoundError(f"adata_f is not a valid file:\n  {adata_f}")
 
-    # save
-    with gzip.open(args.pred_f, 'wb') as f: 
-      pred_df.write_csv(f)
-
-  elif args.subcommand == "xgboost_one_batch":
-    adata_f = pathlib.Path(args.adata_f)
-    if not adata_f.is_file():
-      raise FileNotFoundError(f"adata_f is not a valid file:\n  {adata_f}")
-
-    pred_df = run_xgboost(args.batch, args.batch_var, args.model, args.adata_f,
-      args.model_f, args.cls_f, args.genes_f)
+    if args.subcommand == "celltypist_batches":
+      pred_df = run_celltypist_batches(args.batches, args.batch_var, args.model, args.adata_fs)
+    else:
+      pred_df = run_xgboost_batches(args.batches, args.batch_var, args.model, args.adata_fs,
+        args.model_f, args.cls_f, args.genes_f)
 
     with gzip.open(args.pred_f, 'wb') as f:
       pred_df.write_csv(f)
