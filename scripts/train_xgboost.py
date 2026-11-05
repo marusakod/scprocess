@@ -33,6 +33,11 @@ DEPTH_EVALUATION_CELLS_PER_LABEL = 200
 DEPTH_EVALUATION_MIN_UMIS        = 2000
 DEPTH_EVALUATION_STREAM          = 2
 
+# Candidates read per label, as a multiple of DEPTH_EVALUATION_CELLS_PER_LABEL,
+# because some are shallower than DEPTH_EVALUATION_MIN_UMIS once their counts are
+# read. A label still short of deep cells is evaluated on fewer than 200 cells.
+DEPTH_EVALUATION_CANDIDATE_FACTOR = 3
+
 # Genes kept in the report pseudobulk: those the training report plots, i.e. the
 # top genes by overall gain and the top genes by each label's gain in the final
 # model. The report template plots the same numbers of genes.
@@ -467,7 +472,8 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
   # its original's split. Outputs below use the original rows only.
   X_fit_train, y_fit_train, X_fit_validation, y_fit_validation = X_train, y_train, X_validation, y_validation
   n_train_augmented = n_validation_augmented = 0
-  if augmented_counts is not None:
+  has_depth_copies  = augmented_counts is not None
+  if has_depth_copies:
     gene_positions   = {gene: i for i, gene in enumerate(all_gene_ids)}
     augmented_counts = augmented_counts[:, [gene_positions[gene] for gene in gene_names]].tocsr()
     copy_is_train    = train_mask[augmented_source_rows]
@@ -510,10 +516,12 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
   gc.collect()
   X_train      = X_train[:, selected_gene_indices].tocsr()
   X_validation = X_validation[:, selected_gene_indices].tocsr()
-  if n_train_augmented + n_validation_augmented > 0:
+  if has_depth_copies:
     X_fit_train      = X_fit_train[:, selected_gene_indices].tocsr()
     X_fit_validation = X_fit_validation[:, selected_gene_indices].tocsr()
   else:
+    # Without copies, fit on the originals just subset to the selected genes
+    # (X_fit_* still point at the full-gene matrices).
     X_fit_train, X_fit_validation = X_train, X_validation
 
   # Pass 2 fits the final classifier on those genes, stopping on validation loss.
@@ -1300,13 +1308,14 @@ def evaluate_depths(training_metadata_f, h5ads_yaml, model_f, cls_f, genes_f, ou
       .otherwise(pl.col('split')))
     .with_columns(group_rank = pl.col('cell_group').replace_strict(group_rank, return_dtype = pl.Int32)))
 
-  # Read up to three times the target per label in rank order, since some candidates
-  # are too shallow; the order within each group is seeded.
+  # Read up to DEPTH_EVALUATION_CANDIDATE_FACTOR times the target per label in rank
+  # order, since some candidates are too shallow; the order within each group is seeded.
   rng = np.random.default_rng([seed, DEPTH_EVALUATION_STREAM])
   candidates_df = (candidates_df
     .with_columns(draw = pl.Series(rng.random(candidates_df.height)))
     .sort(['label', 'group_rank', 'draw'])
-    .group_by('label', maintain_order = True).head(3 * DEPTH_EVALUATION_CELLS_PER_LABEL))
+    .group_by('label', maintain_order = True)
+    .head(DEPTH_EVALUATION_CANDIDATE_FACTOR * DEPTH_EVALUATION_CELLS_PER_LABEL))
   if candidates_df.is_empty():
     _write_depth_evaluation(None, output_f)
     return

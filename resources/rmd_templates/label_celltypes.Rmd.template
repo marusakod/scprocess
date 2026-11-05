@@ -82,10 +82,10 @@ for (ii in seq_along(guess_f_ls)) {
   # one tab per labeller and model, with Labels / Grouped labels tabs inside
   views    = get_label_views(guesses_ls[[ ii ]], styles_ls[[ ii ]])
   int_tmp  = int_dt[, .(cell_id, hi_res_cl = get(hi_res_cl_ls[[ ii ]]) %>% fct_infreq)]
-  cat('### ', labeller_ls[[ ii ]], ', ', model_ls[[ ii ]], if (length(views) > 1) ' {.tabset}', '\n\n', sep = '')
+  cat_label_views_heading(paste0(labeller_ls[[ ii ]], ', ', model_ls[[ ii ]]), views, level = 3)
 
   for (view_name in names(views)) {
-    if (length(views) > 1) cat('#### ', view_name, '\n\n', sep = '')
+    cat_label_view_tab(view_name, views, level = 3)
     guesses_sel = views[[ view_name ]]$labels_dt[, .(cell_id, prediction = predicted_label_naive %>% factor)]
     confuse_dt  = calc_confuse_dt(guesses_sel, int_tmp, "prediction", "hi_res_cl", min_cl2_p = min_cl2_p)
     draw(plot_cluster_comparison_heatmap(confuse_dt, "prediction", hi_res_cl_ls[[ ii ]],
@@ -106,10 +106,10 @@ for (ii in seq_along(guess_f_ls)) {
   views    = get_label_views(guesses_ls[[ ii ]], styles_ls[[ ii ]])
   int_tmp  = int_dt[, .(cell_id, cluster = get(hi_res_cl_ls[[ ii ]]) %>% fct_infreq)]
   g_cl     = plot_umap_labels(int_dt, int_tmp, "high resolution\nharmony\ncluster", label_clusters = TRUE)
-  cat('### ', labeller_ls[[ ii ]], ', ', model_ls[[ ii ]], if (length(views) > 1) ' {.tabset}', '\n\n', sep = '')
+  cat_label_views_heading(paste0(labeller_ls[[ ii ]], ', ', model_ls[[ ii ]]), views, level = 3)
 
   for (view_name in names(views)) {
-    if (length(views) > 1) cat('#### ', view_name, '\n\n', sep = '')
+    cat_label_view_tab(view_name, views, level = 3)
     view    = views[[ view_name ]]
     g_pred  = plot_umap_labels(int_dt, view$labels_dt[, .(cell_id, cluster = predicted_label_agg)],
       "prediction\n(aggregated)", label_order = view$order, label_colours = view$colours)
@@ -127,10 +127,10 @@ Cell counts for each predicted label, before and after cluster voting, shown sep
 ```{r tbl_of_celltypes, results = "asis"}
 for (ii in seq_along(guess_f_ls)) {
   views = get_label_views(guesses_ls[[ ii ]], styles_ls[[ ii ]])
-  cat('### ', labeller_ls[[ ii ]], ', ', model_ls[[ ii ]], if (length(views) > 1) ' {.tabset}', '\n\n', sep = '')
+  cat_label_views_heading(paste0(labeller_ls[[ ii ]], ', ', model_ls[[ ii ]]), views, level = 3)
 
   for (view_name in names(views)) {
-    if (length(views) > 1) cat('#### ', view_name, '\n\n', sep = '')
+    cat_label_view_tab(view_name, views, level = 3)
     view = views[[ view_name ]]
     view$labels_dt %>% calc_labels_table(label_order = view$order) %>% kbl("html") %>% row_spec(row = 0, bold = TRUE) %>%
       kable_styling(bootstrap_options = "striped", full_width = FALSE, font_size = 12, position = "center") %>%

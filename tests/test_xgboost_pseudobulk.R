@@ -19,4 +19,9 @@ stopifnot(nrow(cpms_dt) == 4,
   nrow(cpms_dt[batch == 's2']) == 0,
   identical(sort(unique(cpms_dt$symbol)), c('G0', 'G2')),
   isTRUE(all.equal(cpms_dt[cluster == 'b' & symbol == 'G2', logcpm], log(5 / 27 * 1e6 + 10))))
-message('SUCCESS: classifier pseudobulk logCPMs use stored library sizes and keep labels')
+# Depth augmentation sentence for the report, with and without thinned copies
+stopifnot(identical(describe_depth_augmentation(list(downsample_copies = 1L,
+    downsample_min_umis = 300L, downsample_max_umis = 3000L)),
+    'This model was trained with depth augmentation (1 thinned copy per cell, 300 to 3,000 UMIs).'),
+  grepl('retrain with depth augmentation', describe_depth_augmentation(list(downsample_copies = 0L))))
+message('SUCCESS: classifier pseudobulk logCPMs use stored library sizes and keep labels; augmentation sentence')

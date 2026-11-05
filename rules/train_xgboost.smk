@@ -157,7 +157,7 @@ if TRAIN_XGB_PARAMS is not None:
     params:
       batches   = lambda wildcards: _get_train_xgboost_chunks()[wildcards.chunk],
       ref_tag   = TRAIN_XGB_PARAMS['xgboost_tag'],
-      batch_var = TRAIN_XGB_PARAMS.get('batch_var', BATCH_VAR)
+      batch_var = BATCH_VAR
     wildcard_constraints:
       chunk = r'chunk\d+'
     threads: 1

@@ -214,13 +214,17 @@ plot_gain_curve <- function(gain_dt, gain_threshold, n_selected_genes) {
 }
 
 
+# Pseudocount added to CPM before the natural log in the top-gene plots; the
+# logCPM values and the CPM axis breaks must use the same value.
+XGBOOST_PB_PSEUDO_COUNT = 10
+
 # Expression of the plotted genes for the top-gene plots. The pseudobulk h5ad has
 # one row per label and batch (obs: label, batch, n_cells, lib_size) and only the
 # genes the report plots. lib_size is the total count over all genes, so logCPMs
 # do not depend on which genes were kept. As for marker genes, batches with fewer
 # than min_cells cells of a label, or a low-outlier library size within that
 # label, are dropped. Returns one row per gene, label and batch.
-calc_xgboost_pseudobulk_logcpms <- function(pb_f, min_cells, pseudo_count = 10) {
+calc_xgboost_pseudobulk_logcpms <- function(pb_f, min_cells, pseudo_count = XGBOOST_PB_PSEUDO_COUNT) {
   pb        = read_h5ad(pb_f, as = 'SingleCellExperiment')
   obs_dt    = as.data.table(as.data.frame(colData(pb)))[, pb_id := colnames(pb)]
   obs_dt    = obs_dt[n_cells >= min_cells]
@@ -239,7 +243,7 @@ calc_xgboost_pseudobulk_logcpms <- function(pb_f, min_cells, pseudo_count = 10) 
 }
 
 plot_top_xgboost_genes <- function(selected_genes_dt, cpms_dt, label_order = NULL,
-  pseudo_count = 10, ncol = 2, nrow = NULL, label_colours = NULL) {
+  pseudo_count = XGBOOST_PB_PSEUDO_COUNT, ncol = 2, nrow = NULL, label_colours = NULL) {
 
   # selected_genes_dt has one row per gene; use the requested number of columns.
   if (is.null(nrow)) {
@@ -304,6 +308,24 @@ XGBOOST_DEPTH_GROUP_COLOURS = c(Test = '#7A5195', `Remaining cells` = '#EF5675',
 
 # Labels whose accuracy falls below this at any depth are highlighted in the by-label plot.
 XGBOOST_DEPTH_HIGHLIGHT_ACCURACY = 0.9
+
+# Depth (UMIs) of the confusion matrix; one of DEPTH_EVALUATION_UMIS in train_xgboost.py.
+XGBOOST_DEPTH_CONFUSION_UMIS = 500
+
+
+describe_depth_augmentation <- function(model_configuration) {
+
+  # One sentence for the report, e.g. 'This model was trained with depth
+  # augmentation (1 thinned copy per cell, 300 to 3,000 UMIs).'
+  n_copies = model_configuration$downsample_copies
+  if (!isTRUE(n_copies > 0)) {
+    return('If accuracy falls at the depths you need, retrain with depth augmentation (`downsample_copies: 1`).')
+  }
+  sprintf('This model was trained with depth augmentation (%d thinned %s per cell, %s to %s UMIs).',
+    n_copies, if (n_copies == 1) 'copy' else 'copies',
+    format(model_configuration$downsample_min_umis, big.mark = ','),
+    format(model_configuration$downsample_max_umis, big.mark = ','))
+}
 
 
 read_xgboost_depth_evaluation <- function(depth_evaluation_f) {

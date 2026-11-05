@@ -439,18 +439,12 @@ zoom_label_dt = report_lbls_df[cell_id %chin% int_dt$cell_id]
 # label specifications when exactly one installed model made the predictions
 zoom_label_models = unique(zoom_label_dt$model)
 zoom_label_style  = if (length(zoom_label_models) == 1) installed_label_style(zoom_label_models) else
-  list(order = NULL, colours = NULL, coarse_order = NULL, coarse_colours = NULL)
+  EMPTY_LABEL_STYLE
 zoom_label_views  = get_label_views(zoom_label_dt, zoom_label_style)
-zoom_view_heading = function(title) {
-  cat('#### ', title, if (length(zoom_label_views) > 1) ' {.tabset}', '\n\n', sep = '')
-}
-zoom_view_tab = function(view_name) {
-  if (length(zoom_label_views) > 1) cat('##### ', view_name, '\n\n', sep = '')
-}
 
-zoom_view_heading('Zoom clusters versus predicted cell types')
+cat_label_views_heading('Zoom clusters versus predicted cell types', zoom_label_views, level = 4)
 for (view_name in names(zoom_label_views)) {
-  zoom_view_tab(view_name)
+  cat_label_view_tab(view_name, zoom_label_views, level = 4)
   prediction_dt = zoom_label_views[[ view_name ]]$labels_dt[, .(cell_id, prediction = predicted_label_naive %>% factor)]
   confuse_dt = calc_confuse_dt(
     prediction_dt, zoom_cluster_dt, 'prediction', 'zoom_cluster',
@@ -465,7 +459,7 @@ for (view_name in names(zoom_label_views)) {
 ```
 
 ```{r plot_zoom_labels_over_umap, eval = do_label_celltypes, include = do_label_celltypes, fig.height = 5, fig.width = 12, results = 'asis'}
-zoom_view_heading('Predicted cell types over zoom UMAP')
+cat_label_views_heading('Predicted cell types over zoom UMAP', zoom_label_views, level = 4)
 
 # zoom clusters are numbered on the left UMAP because their colours can repeat
 g_cluster = plot_umap_labels(
@@ -475,7 +469,7 @@ g_cluster = plot_umap_labels(
   label_clusters = TRUE
 )
 for (view_name in names(zoom_label_views)) {
-  zoom_view_tab(view_name)
+  cat_label_view_tab(view_name, zoom_label_views, level = 4)
   view   = zoom_label_views[[ view_name ]]
   g_pred = plot_umap_labels(int_dt, view$labels_dt[, .(cell_id, cluster = predicted_label_agg)],
     'prediction\n(aggregated)', label_order = view$order, label_colours = view$colours)
@@ -485,9 +479,9 @@ for (view_name in names(zoom_label_views)) {
 ```
 
 ```{r table_zoom_label_totals, eval = do_label_celltypes, include = do_label_celltypes, results = 'asis'}
-zoom_view_heading('Totals for each predicted cell type')
+cat_label_views_heading('Totals for each predicted cell type', zoom_label_views, level = 4)
 for (view_name in names(zoom_label_views)) {
-  zoom_view_tab(view_name)
+  cat_label_view_tab(view_name, zoom_label_views, level = 4)
   view = zoom_label_views[[ view_name ]]
   view$labels_dt %>% calc_labels_table(label_order = view$order) %>% kbl('html') %>%
     row_spec(row = 0, bold = TRUE) %>%

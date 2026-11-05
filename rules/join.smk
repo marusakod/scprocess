@@ -1355,6 +1355,7 @@ if DO_TRAIN_XGB:
       coarse_label_specs_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_coarse_label_specs.csv',
       preds_f              = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
       imp_f                = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv',
+      label_imp_f          = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance_by_label.csv',
       pb_f                 = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad',
       label_counts_f       = f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_counts.csv',
       fulldata_preds_f     = _join_xgb_fulldata_f,
@@ -1375,7 +1376,7 @@ if DO_TRAIN_XGB:
       label_counts_f       = f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_counts.csv',
       fulldata_predictions_f = _join_xgb_fulldata_f,
       integration_f        = joint_integration_f,
-      min_cells            = _join_xgb_cfg.get('min_cells_expressed', 10),
+      min_cells            = _join_xgb_cfg['min_cells_expressed'],
     threads: 1
     retries: config['resources']['retries']
     resources:
@@ -1398,18 +1399,19 @@ if DO_TRAIN_XGB:
 
       Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \\
         render_html(
-          rule_name       = '$rule',
-          proj_dir        = '{params.proj_dir}',
-          temp_f          = '$template_f',
-          rmd_f           = '{output.rmd_f}',
-          your_name       = '{params.your_name}',
-          affiliation     = '{params.affiliation}',
-          short_tag       = '{params.short_tag}',
-          ref_tag         = '{params.ref_tag}',
-          predictions_f   = '{params.predictions_f}',
-          importance_f    = '{params.importance_f}',
-          model_card_f    = '{input.model_card_f}',
-          pseudobulk_f    = '{params.pseudobulk_f}',
+          rule_name              = '$rule',
+          proj_dir               = '{params.proj_dir}',
+          temp_f                 = '$template_f',
+          rmd_f                  = '{output.rmd_f}',
+          your_name              = '{params.your_name}',
+          affiliation            = '{params.affiliation}',
+          short_tag              = '{params.short_tag}',
+          ref_tag                = '{params.ref_tag}',
+          predictions_f          = '{params.predictions_f}',
+          importance_f           = '{params.importance_f}',
+          importance_by_label_f  = '{input.label_imp_f}',
+          model_card_f           = '{input.model_card_f}',
+          pseudobulk_f           = '{params.pseudobulk_f}',
           label_counts_f         = '{params.label_counts_f}',
           fulldata_predictions_f = '{params.fulldata_predictions_f}',
           depth_evaluation_f     = '{input.depth_evaluation_f}',

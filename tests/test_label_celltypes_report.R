@@ -41,4 +41,9 @@ stopifnot(identical(as.character(grouped_table[[1]]), c('Neuron', 'Glia')),
 many = paste0('cl', 1:(length(nice_cols) + 2))
 cols = xgboost_colours(many, c(cl2 = '#000000'))
 stopifnot(identical(unname(cols[length(nice_cols) + 1]), nice_cols[[1]]), cols[['cl2']] == '#000000')
-message('SUCCESS: installed label styles, grouped label tables and repeated palette')
+# Headings: a tabset with one tab per view only when there are grouped labels
+two = capture.output({ cat_label_views_heading('scprocess, m2', views, level = 3); cat_label_view_tab('Labels', views, level = 3) })
+one = capture.output({ cat_label_views_heading('scprocess, m2', views['Labels'], level = 3); cat_label_view_tab('Labels', views['Labels'], level = 3) })
+stopifnot(identical(two[nzchar(two)], c('### scprocess, m2 {.tabset}', '#### Labels')),
+  identical(one[nzchar(one)], '### scprocess, m2'))
+message('SUCCESS: installed label styles, grouped label tables, view headings and repeated palette')

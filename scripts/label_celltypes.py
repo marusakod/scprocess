@@ -193,6 +193,8 @@ def _run_xgboost_one_batch(sel_batch, batch_var, model_name, adata_f, *, model, 
     print(f"Skipping empty H5AD placeholder: {adata_f}", flush = True)
     return pl.DataFrame(schema = pred_schema)
 
+  # Inference libraries stay local: this script also runs in environments without
+  # them (e.g. aggregation). Python caches them after the first batch.
   import anndata
   import scipy.sparse as sp
   import xgboost as xgb

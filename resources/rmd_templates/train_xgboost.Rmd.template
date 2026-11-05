@@ -29,6 +29,7 @@ source('code/marker_genes.R')
 ```{r setup_input, include=FALSE}
 predictions_f          = "${predictions_f}"
 gain_f                 = "${importance_f}"
+label_gain_f           = "${importance_by_label_f}"
 model_card_f           = "${model_card_f}"
 pb_f                   = "${pseudobulk_f}"
 label_counts_f         = "${label_counts_f}"
@@ -220,7 +221,7 @@ for (coarse in c(FALSE, if (has_coarse) TRUE)) {
 
 Up to 200 cells per label with more than 2,000 UMIs are randomly thinned to fixed depths and classified again. **Accuracy** is the percentage of cells whose most probable predicted label matches their reference label. Cells not used for fitting are chosen first; labels with too few are topped up with fitted cells, whose accuracy is optimistic.
 
-**Overall** pools the cells not used for fitting. **By label** shows the percentage of each label's cells assigned to it; labels below 90% at any depth are named, and dashed lines include fitted cells. A robust model stays close to its full-depth accuracy down to the depths you plan to classify. `r if (isTRUE(model_configuration$downsample_copies > 0)) sprintf("This model was trained with depth augmentation (%d thinned %s per cell, %s to %s UMIs).", model_configuration$downsample_copies, if (model_configuration$downsample_copies == 1) "copy" else "copies", format(model_configuration$downsample_min_umis, big.mark = ","), format(model_configuration$downsample_max_umis, big.mark = ",")) else "If accuracy falls at the depths you need, retrain with depth augmentation (\x60downsample_copies: 1\x60)."`
+**Overall** pools the cells not used for fitting. **By label** shows the percentage of each label's cells assigned to it; labels below `r scales::percent(XGBOOST_DEPTH_HIGHLIGHT_ACCURACY)` at any depth are named, and dashed lines include fitted cells. A robust model stays close to its full-depth accuracy down to the depths you plan to classify. `r describe_depth_augmentation(model_configuration)`
 
 ```{r depth_accuracy_overall, fig.height=5, fig.width=8, results='asis'}
 if (nrow(depth_dt)) {
@@ -240,9 +241,14 @@ if (nrow(depth_dt)) {
 
 ```{r depth_confusion, fig.height=10, fig.width=12, results='asis'}
 if (nrow(depth_dt)) {
-  shallow_depth = levels(depth_dt$depth)[2]
-  cat('\n\n### Confusion matrix at', shallow_depth, 'UMIs\n\n')
-  print(plot_xgboost_confusion(depth_dt[depth == shallow_depth], label_order))
+  confusion_depth = format(XGBOOST_DEPTH_CONFUSION_UMIS, big.mark = ',')
+  cat('\n\n### Confusion matrix at', confusion_depth, 'UMIs\n\n')
+  if (confusion_depth %in% levels(depth_dt$depth)) {
+    cat('Calls for the same cells as the plots above, including the fitted cells that top up rare labels.\n\n')
+    print(plot_xgboost_confusion(depth_dt[depth == confusion_depth], label_order))
+  } else {
+    cat('No cells were evaluated at', confusion_depth, 'UMIs.\n\n')
+  }
 }
 ```
 
@@ -281,7 +287,6 @@ for (i in seq(1, nrow(top_genes_dt), by = per_page)) {
 Genes with the highest gain within each label's trees, which can include genes low in that label but high in labels it must be distinguished from. Brackets show the cumulative gain for that label.
 
 ```{r plot_top_genes_by_label, fig.height=8, fig.width=8, results='asis'}
-label_gain_f  = sub('_gene_importance.csv$', '_gene_importance_by_label.csv', gain_f)
 label_gain_dt = fread(label_gain_f)
 for (lbl in intersect(label_order, unique(label_gain_dt$label))) {
   cat('\n\n###', lbl, '\n\n')

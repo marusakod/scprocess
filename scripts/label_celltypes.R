@@ -85,11 +85,13 @@ calc_labels_table <- function(guesses_dt, label_order = NULL) {
   return(ns_dt)
 }
 
+# Style for predictions without label specifications: default order and colours.
+EMPTY_LABEL_STYLE = list(order = NULL, colours = NULL, coarse_order = NULL,
+  coarse_colours = NULL, mapping = character())
+
 installed_label_style <- function(model_name) {
   registry_f = file.path(Sys.getenv("SCPROCESS_DATA_DIR"), "xgboost", "xgboost_models.csv")
-  empty = list(order = NULL, colours = NULL, coarse_order = NULL,
-    coarse_colours = NULL, mapping = character())
-  if (!file.exists(registry_f)) return(empty)
+  if (!file.exists(registry_f)) return(EMPTY_LABEL_STYLE)
   registry = fread(registry_f, na.strings = c("", "NA"))
   # model_name must differ from the registry's model column: inside data.table
   # brackets, a bare `model` would mean the column itself and match every row.
@@ -97,7 +99,7 @@ installed_label_style <- function(model_name) {
   # Models without specification tables keep the report's existing defaults.
   has_specs = nrow(entry) == 1L && "label_specs_f" %in% names(entry) &&
     !is.na(entry$label_specs_f)
-  if (!has_specs) return(empty)
+  if (!has_specs) return(EMPTY_LABEL_STYLE)
 
   coarse_specs_f = ""
   if ("coarse_label_specs_f" %in% names(entry) && !is.na(entry$coarse_label_specs_f)) {
@@ -122,4 +124,16 @@ get_label_views <- function(guesses_dt, style) {
       order = style$coarse_order, colours = style$coarse_colours)
   }
   return(views)
+}
+
+
+# Report headings for one labeller's views at heading level `level`: the heading
+# becomes a tabset with one tab per view when there are grouped labels, e.g.
+# '### scprocess, human_cns {.tabset}' then '#### Labels' and '#### Grouped labels'.
+cat_label_views_heading <- function(title, views, level) {
+  cat(strrep('#', level), ' ', title, if (length(views) > 1) ' {.tabset}', '\n\n', sep = '')
+}
+
+cat_label_view_tab <- function(view_name, views, level) {
+  if (length(views) > 1) cat(strrep('#', level + 1), ' ', view_name, '\n\n', sep = '')
 }
