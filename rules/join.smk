@@ -15,7 +15,8 @@ scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 sys.path.append(str(scprocess_dir / 'scripts'))
 from scprocess_utils import (check_join_config, get_resources, prep_resource_params,
   get_join_project_parameters, get_join_source_labels_f, get_join_batch_sources,
-  get_paga_resolution, get_xgboost_spec_inputs, get_join_labeller_parameters)
+  get_paga_resolution, get_xgboost_spec_inputs, get_join_labeller_parameters,
+  get_prediction_chunks)
 
 # Prevent underscore-containing model names from being partially captured as the
 # labeller in join label, log, benchmark, and cluster-name file patterns.
