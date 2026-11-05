@@ -40,7 +40,7 @@ set-resources:
   #   slurm_partition: "batch_gpu"
   #   slurm_extra: "'--gpus=1'"
   #   qos: '3h'
-  # zoom_train_xgboost:
+  # zoom_train_xgboost_train:
   #   slurm_partition: "batch_gpu"
   #   slurm_extra: "'--gpus=1'"
   #   qos: '3h'

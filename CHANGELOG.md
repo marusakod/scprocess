@@ -28,6 +28,11 @@
   training. Copied profiles under `$SCPROCESS_DATA_DIR/profiles/` are not
   changed: check that their GPU entries match your `int_use_gpu` and `use_gpu`
   settings.
+- The zoom classifier fitting rule is renamed `zoom_train_xgboost_train`, to
+  match `train_xgboost_train` and `join_train_xgboost_train`. Rename the
+  resource keys `gb_zoom_train_xgboost`/`mins_zoom_train_xgboost` to
+  `gb_zoom_train_xgboost_train`/`mins_zoom_train_xgboost_train`, and any
+  `zoom_train_xgboost:` entry in copied profiles.
 - Unused environment files `celltypist.yaml`, `chem_detection.yaml`,
   `train_xgboost.yaml` and `xgboost_r.yaml` are removed.
 

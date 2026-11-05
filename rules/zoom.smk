@@ -1356,7 +1356,7 @@ rule zoom_train_xgboost_prepare:
     """
 
 
-rule zoom_train_xgboost:
+rule zoom_train_xgboost_train:
   input:
     training_metadata_f = f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_metadata.csv.gz',
     h5ads_yaml = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml',
@@ -1396,9 +1396,9 @@ rule zoom_train_xgboost:
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_train_xgboost', 'memory', attempt),
+      'zoom_train_xgboost_train', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_train_xgboost', 'time', attempt)
+      'zoom_train_xgboost_train', 'time', attempt)
   log:
     f'{logs_dir}/zoom/zoom_train_xgboost_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.log'
   benchmark:

@@ -29,7 +29,7 @@ set-resources:
   # uncomment for classifier training with train_xgboost.use_gpu: true
   # train_xgboost_train:
   #   slurm_extra: "'--gpus=1'"
-  # zoom_train_xgboost:
+  # zoom_train_xgboost_train:
   #   slurm_extra: "'--gpus=1'"
   # join_train_xgboost_train:
   #   slurm_extra: "'--gpus=1'"

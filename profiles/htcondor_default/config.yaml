@@ -31,6 +31,6 @@ htcondor-jobdir: .snakemake/htcondor
 #   join_integration
 #   run_cellbender
 #   train_xgboost_train
-#   zoom_train_xgboost
+#   zoom_train_xgboost_train
 #   join_train_xgboost_train
 

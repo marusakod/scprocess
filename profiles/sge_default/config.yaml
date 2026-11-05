@@ -37,7 +37,7 @@ sge-logdir: .snakemake/sge_logs
 #     sge_queue: gpu.q
 #   train_xgboost_train:
 #     sge_queue: gpu.q
-#   zoom_train_xgboost:
+#   zoom_train_xgboost_train:
 #     sge_queue: gpu.q
 #   join_train_xgboost_train:
 #     sge_queue: gpu.q

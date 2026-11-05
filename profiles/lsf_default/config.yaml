@@ -32,7 +32,7 @@ default-resources:
 #     lsf_extra: "-gpu 'num=1'"
 #   train_xgboost_train:
 #     lsf_extra: "-gpu 'num=1'"
-#   zoom_train_xgboost:
+#   zoom_train_xgboost_train:
 #     lsf_extra: "-gpu 'num=1'"
 #   join_train_xgboost_train:
 #     lsf_extra: "-gpu 'num=1'"
