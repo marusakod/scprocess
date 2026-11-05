@@ -457,7 +457,13 @@ must access the validated settings explicitly. A missing required value is a
 validation error, not permission to choose another default locally.
 
 Optional-feature checks may represent an inactive argument as absent/NULL;
-these must not choose an alternative active-analysis value. Conditional defaults
+these must not choose an alternative active-analysis value. Empty fallbacks
+such as `.get('your_name', '')`, `.get('label_specs_f') or ''` or `.get(key, [])`
+are permitted (user clarification, 2026-11-05), after checking that the empty
+value makes sense: the setting must be optional, and downstream code must treat
+the empty value as "not provided" rather than as an analysis setting. A literal
+or derived non-empty value, such as `.get('min_cells_expressed', 10)` or
+`.get('batch_var', BATCH_VAR)`, remains a prohibited fallback. Conditional defaults
 must remain conditional, with values defined in the schema. Generic lookups for
 optional sections and computed file paths are not parameter default definitions.
 Review existing local fallback defaults as findings in their own batches rather
