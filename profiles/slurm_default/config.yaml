@@ -9,10 +9,12 @@ jobs: 20
 default-resources:
   runtime: 3h
   mem_mb: 4096
-# Rules that can use a GPU. Integration and doublet classification use it when
-# int_use_gpu is true, classifier training when train_xgboost.use_gpu is true,
-# and CellBender always. Add your site's GPU partition (slurm_partition) and
-# QoS if required; see profiles/slurm_shpc for an example.
+# GPU requests. These entries request a GPU whenever the rule runs, so keep
+# them in line with your configs: integration and doublet classification use
+# a GPU only when integration.int_use_gpu is true (the default), CellBender
+# always, and classifier training only when train_xgboost.use_gpu is true (off
+# by default, so its entries are commented out). Add your site's GPU partition
+# (slurm_partition) and QoS if required; see profiles/slurm_shpc for an example.
 set-resources:
   run_integration:
     slurm_extra: "'--gpus=1'"
@@ -24,9 +26,10 @@ set-resources:
     slurm_extra: "'--gpus=1'"
   run_cellbender:
     slurm_extra: "'--gpus=1'"
-  train_xgboost_train:
-    slurm_extra: "'--gpus=1'"
-  zoom_train_xgboost:
-    slurm_extra: "'--gpus=1'"
-  join_train_xgboost_train:
-    slurm_extra: "'--gpus=1'"
+  # uncomment for classifier training with train_xgboost.use_gpu: true
+  # train_xgboost_train:
+  #   slurm_extra: "'--gpus=1'"
+  # zoom_train_xgboost:
+  #   slurm_extra: "'--gpus=1'"
+  # join_train_xgboost_train:
+  #   slurm_extra: "'--gpus=1'"

@@ -29,19 +29,22 @@ set-resources:
     # qos: '3h'
     qos: '1d'
     # runtime: 360
-  train_xgboost_train:
-    slurm_partition: "batch_gpu"
-    slurm_extra: "'--gpus=1'"
-    qos: '3h'
-  zoom_train_xgboost:
-    slurm_partition: "batch_gpu"
-    slurm_extra: "'--gpus=1'"
-    qos: '3h'
   join_integration:
     slurm_partition: "batch_gpu"
     slurm_extra: "'--gpus=1'"
     qos: '3h'
-  join_train_xgboost_train:
-    slurm_partition: "batch_gpu"
-    slurm_extra: "'--gpus=1'"
-    qos: '3h'
+  # GPU requests apply whenever a rule runs. Training entries are commented out
+  # because train_xgboost.use_gpu is off by default; uncomment them when it is
+  # true. Remove the integration entries if integration.int_use_gpu is false.
+  # train_xgboost_train:
+  #   slurm_partition: "batch_gpu"
+  #   slurm_extra: "'--gpus=1'"
+  #   qos: '3h'
+  # zoom_train_xgboost:
+  #   slurm_partition: "batch_gpu"
+  #   slurm_extra: "'--gpus=1'"
+  #   qos: '3h'
+  # join_train_xgboost_train:
+  #   slurm_partition: "batch_gpu"
+  #   slurm_extra: "'--gpus=1'"
+  #   qos: '3h'

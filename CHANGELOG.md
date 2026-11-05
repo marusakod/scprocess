@@ -2,6 +2,10 @@
 
 ## Unreleased — planned 0.7.0
 
+- Profile templates no longer request GPUs for classifier training by
+  default, matching `train_xgboost.use_gpu: false`. The training entries in
+  `slurm_default` and `slurm_shpc` are commented out; uncomment them when
+  training on GPU. Existing user profiles are not changed.
 - Fix the project index failing when a zoom classifier report exists: every
   `*_zoom_*` page was parsed as a zoom report ending in a resolution, so
   `SHORT_TAG_zoom_ZOOM_train_TAG.html` stopped the index render. The index now

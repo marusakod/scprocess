@@ -28,6 +28,9 @@ cluster-generic-cancel-cmd: qdel
 #
 # If only some rules should request GPUs, make a site-specific submit wrapper
 # that switches on {rule}, then set cluster-generic-submit-cmd to that wrapper.
+# Integration and doublet classification need a GPU only when
+# integration.int_use_gpu is true (the default), CellBender always, and
+# classifier training only when train_xgboost.use_gpu is true (off by default).
 # GPU candidate rules:
 #   run_integration
 #   classify_additional_doublets

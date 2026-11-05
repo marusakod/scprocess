@@ -747,7 +747,9 @@ Reports require the threshold metadata from the integration run.
     * `int_use_gpu`: use GPU acceleration for supported integration and
       clustering calculations; default `true`. A usable GPU allocation and
       software environment are required. If a GPU is requested but unavailable,
-      execution stops with an error; use `false` to request CPU processing.
+      execution stops with an error; use `false` to request CPU processing,
+      and remove the integration GPU requests from your profile so these jobs
+      do not wait for GPU nodes.
       Joins with multiple Harmony batch variables use CPU Harmony with
       GPU-accelerated neighbours, clustering and UMAP, and report this choice.
     * `int_sce_outs`: also save H5AD outputs as RDS files containing
@@ -1297,7 +1299,9 @@ model or recalculating predictions.
       count; defaults `100` and `5000`.
     * `seed`: random seed for reproducible cell selection and fitting;
       default `42`.
-    * `use_gpu`: use a GPU for training; default `false`.
+    * `use_gpu`: use a GPU for training; default `false`. The Slurm profile
+      templates leave the training GPU requests commented out; uncomment them
+      in your profile when you set this to `true`.
     * `xgboost_tag`: name used in model filenames. Supplied names receive the
       `xgboost_` prefix. If omitted, the prefix is `xgboost_{full_tag}` for a
       project or `xgboost_{join.name}` for a join.
