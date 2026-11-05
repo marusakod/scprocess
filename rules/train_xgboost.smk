@@ -140,10 +140,11 @@ if TRAIN_XGB_PARAMS is not None:
       """
 
 
-  # Apply the fitted model to every cell, in chunks of batches grouped by cell count.
+  # Batches in each prediction chunk, available once the chunk checkpoint has run
   def _get_train_xgboost_chunks():
     return get_prediction_chunks(checkpoints.assign_prediction_chunks.get().output.chunks_f)
 
+  # Apply the fitted model to every cell, in chunks of batches grouped by cell count.
   rule train_xgboost_predict:
     input:
       adata_fs = lambda wildcards: [f'{int_dir}/anndata_cells_clean_{batch}_{FULL_TAG}_{DATE_STAMP}.h5ad'

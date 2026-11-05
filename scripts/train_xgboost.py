@@ -546,12 +546,12 @@ def fit_classifier(training_metadata_f, h5ads_yaml, output_dir, n_cores, *, xgbo
     selected_genes      = selected_gene_names,
     gene_importance_df  = gene_importance_df,
     label_importance_df = label_importance_df,
-    output_dir         = output_path,
-    xgboost_tag        = xgboost_tag,
-    cells_df           = training_metadata_df,
-    X_train            = X_train,
-    X_val              = X_validation,
-    pseudobulk_adata   = pseudobulk_adata)
+    output_dir          = output_path,
+    xgboost_tag         = xgboost_tag,
+    cells_df            = training_metadata_df,
+    X_train             = X_train,
+    X_val               = X_validation,
+    pseudobulk_adata    = pseudobulk_adata)
 
   # Record fitting settings separately from display specifications.
   configuration = dict(
@@ -659,7 +659,7 @@ def _make_depth_augmented_counts(raw_counts, *, copies, min_umis, max_umis, seed
 
 
 def _thin_counts(counts_csr, target_umis, rng):
-  # Keep each read independently with probability target / cell total (one
+  # Keep each UMI independently with probability target / cell total (one
   # probability per row), so totals are binomial around the target and never larger.
   cell_totals  = np.asarray(counts_csr.sum(axis = 1)).ravel()
   keep_prob    = np.repeat(target_umis / cell_totals, np.diff(counts_csr.indptr))
@@ -813,11 +813,12 @@ def select_model_features(normalized_counts, gene_ids, selected_genes):
   import scipy.sparse as sp
 
   # Pad with one empty column and point absent genes at it, then select once.
-  positions   = {gene: i for i, gene in enumerate(gene_ids)}
-  zero_column = normalized_counts.shape[1]
-  columns     = [positions.get(gene, zero_column) for gene in selected_genes]
-  padded      = sp.hstack([normalized_counts, sp.csr_matrix((normalized_counts.shape[0], 1))], format = 'csr')
-  model_counts = padded[:, columns].tocsr()
+  input_gene_positions = {gene: i for i, gene in enumerate(gene_ids)}
+  zero_column          = normalized_counts.shape[1]
+  model_gene_columns   = [input_gene_positions.get(gene, zero_column) for gene in selected_genes]
+  counts_with_zero_col = sp.hstack([normalized_counts, sp.csr_matrix((normalized_counts.shape[0], 1))],
+    format = 'csr')
+  model_counts         = counts_with_zero_col[:, model_gene_columns].tocsr()
   model_counts.eliminate_zeros()
   return model_counts
 
@@ -1046,16 +1047,26 @@ def _compute_pseudobulk(X_raw, cell_lib_sizes, cells_df, gene_names, report_gene
   # batch. Labels stay in obs rather than becoming HDF5 keys, so names such as
   # 'Ependymal / ciliated' are stored unchanged. lib_size sums the cells' total
   # counts over all genes, so logCPMs do not depend on which genes are kept.
-  groups_df = (cells_df.select('label', 'batch').with_row_index('cell_idx')
-    .with_columns(lib_size = pl.Series(cell_lib_sizes),
+  groups_df = (cells_df
+    .select('label', 'batch')
+    .with_row_index('cell_idx')
+    .with_columns(
+      lib_size  = pl.Series(cell_lib_sizes),
       group_idx = pl.struct('label', 'batch').rank('dense').cast(pl.Int64) - 1))
-  pb_obs_df = (groups_df.group_by('group_idx').agg(pl.col('label').first(), pl.col('batch').first(),
-    n_cells = pl.len(), lib_size = pl.col('lib_size').sum()).sort('group_idx'))
+  pb_obs_df = (groups_df
+    .group_by('group_idx')
+    .agg(
+      pl.col('label').first(),
+      pl.col('batch').first(),
+      n_cells  = pl.len(),
+      lib_size = pl.col('lib_size').sum())
+    .sort('group_idx'))
 
   # Sum raw counts with a group-by-cell indicator matrix, e.g. cells [0, 1, 2]
   # in groups [1, 0, 1] give rows sum(cell 1) and sum(cells 0, 2).
-  indicator = sp.csr_matrix((np.ones(groups_df.height), (groups_df['group_idx'].to_numpy(),
-    groups_df['cell_idx'].to_numpy())), shape = (pb_obs_df.height, groups_df.height))
+  indicator = sp.csr_matrix(
+    (np.ones(groups_df.height), (groups_df['group_idx'].to_numpy(), groups_df['cell_idx'].to_numpy())),
+    shape = (pb_obs_df.height, groups_df.height))
   pb_counts = (indicator @ X_report).tocsr().astype(np.float32)
 
   obs_df = pb_obs_df.select('label', 'batch', 'n_cells', 'lib_size').to_pandas()
@@ -1274,13 +1285,15 @@ def evaluate_depths(training_metadata_f, h5ads_yaml, model_f, cls_f, genes_f, ou
   """
   import xgboost as xgb
 
+  # Model classes and genes, in the model's order
+  class_names    = pl.read_csv(cls_f)['class'].to_list()
+  selected_genes = [line.strip() for line in Path(genes_f).read_text().splitlines() if line.strip()]
+
   # training_metadata_df is cell-level; candidates are labelled cells of model labels,
   # ranked test, remaining (unused), validation, train (fitted).
-  class_names = pl.read_csv(cls_f)['class'].to_list()
-  selected_genes = [line.strip() for line in Path(genes_f).read_text().splitlines() if line.strip()]
   training_metadata_df = pl.read_csv(training_metadata_f, schema_overrides = {'label': pl.String})
-  group_rank = {'test': 0, 'remaining': 1, 'validation': 2, 'train': 3}
-  candidates_df = (training_metadata_df
+  group_rank           = {'test': 0, 'remaining': 1, 'validation': 2, 'train': 3}
+  candidates_df        = (training_metadata_df
     .filter(pl.col('label').is_in(class_names) & pl.col('split').is_in(['test', 'train', 'validation']))
     .with_columns(cell_group = pl.when(pl.col('split') == 'test').then(pl.lit('test'))
       .when(~pl.col('selected')).then(pl.lit('remaining'))
@@ -1311,7 +1324,9 @@ def evaluate_depths(training_metadata_f, h5ads_yaml, model_f, cls_f, genes_f, ou
   if cells_df.is_empty():
     _write_depth_evaluation(None, output_f)
     return
-  raw_counts = raw_counts[cells_df['row'].to_numpy()].tocsr()
+  # Round once so the full-depth and thinned versions start from the same integer
+  # counts; ambient correction (e.g. decontX) can leave fractional values.
+  raw_counts      = raw_counts[cells_df['row'].to_numpy()].tocsr()
   raw_counts.data = np.round(raw_counts.data)
 
   # Thin the same cells to each target depth and classify every version.

@@ -1226,13 +1226,14 @@ def get_zoom_parameters(config, zoom_schema_f, scdata_dir):
   return ZOOM_PARAMS
 
 
-def get_zooms_to_run(zoom_names, zoom_name):
+def get_zooms_to_run(defined_zooms, zoom_name):
   """Return the zoom names selected by --zoom, for projects and joins.
 
-  zoom_name None or 'all' selects every defined zoom, in config order;
+  defined_zooms holds the zoom names, or a dict keyed by them such as the zoom
+  parameters. zoom_name None or 'all' selects every defined zoom, in config order;
   otherwise only the named zoom, e.g. (['neurons', 'glia'], 'glia') -> ['glia'].
   """
-  zoom_names = list(zoom_names)
+  zoom_names = list(defined_zooms)
   if not zoom_names:
     raise ValueError("No zooms defined. Add zoom specification files to the 'zoom:' section of the config.")
 

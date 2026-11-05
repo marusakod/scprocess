@@ -13,13 +13,13 @@ from snakemake.utils import validate, min_version
 
 # import utils
 scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
-
-# optional zoom selected by `scprocess run -r zoom --zoom NAME`; absent runs all zooms
-ZOOM_NAME     = config.pop('zoom_name', None)
 sys.path.append(str(scprocess_dir / 'scripts'))
 from scprocess_utils import *
 from zoom import *
 
+# optional zoom selected by `scprocess run -r zoom --zoom NAME`; absent runs all
+# zooms. Remove it before the project config is validated.
+ZOOM_NAME       = config.pop('zoom_name', None)
 
 # define some things
 proj_schema_f   = scprocess_dir / "resources/schemas/config.schema.json"
@@ -42,6 +42,17 @@ LABELLER_PARAMS     = get_labeller_parameters(config, proj_schema_f, scdata_dir)
 # get zoom parameters
 ZOOM_PARAMS         = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
 ZOOMS               = get_zooms_to_run(ZOOM_PARAMS, ZOOM_NAME)
+
+# Keep report and training file patterns distinct, e.g. so that
+# X_fulldata_predictions.csv.gz cannot match {ref_tag}_predictions.csv.gz and
+# zoom_neurons_train_xgboost_x.html cannot match zoom_{zoom_name}_{mkr_sel_res}.html.
+# '(?!)' never matches, for projects whose zooms train no classifier.
+ZOOM_XGB_TAGS       = [ZOOM_PARAMS[zoom_name]['train_xgboost']['xgboost_tag']
+  for zoom_name in ZOOM_PARAMS if 'train_xgboost' in ZOOM_PARAMS[zoom_name]]
+
+wildcard_constraints:
+  mkr_sel_res = r'[0-9]+(\.[0-9]+)?',
+  ref_tag     = '|'.join(re.escape(tag) for tag in ZOOM_XGB_TAGS) or '(?!)'
 
 # unpack some variables that we use a lot
 PROJ_DIR        = config['project']['proj_dir']
@@ -118,16 +129,6 @@ zoom_cluster_names_fs = [
   for zoom_name in ZOOMS
   if ZOOM_PARAMS[zoom_name]['zoom']['save_cluster_names_file']
 ]
-
-# Keep report and training file patterns distinct, e.g. so that
-# X_fulldata_predictions.csv.gz cannot match {ref_tag}_predictions.csv.gz and
-# zoom_neurons_train_xgboost_x.html cannot match zoom_{zoom_name}_{mkr_sel_res}.html.
-# '(?!)' never matches, for projects whose zooms train no classifier.
-ZOOM_XGB_TAGS = [ZOOM_PARAMS[zoom_name]['train_xgboost']['xgboost_tag']
-  for zoom_name in ZOOM_PARAMS if 'train_xgboost' in ZOOM_PARAMS[zoom_name]]
-wildcard_constraints:
-  mkr_sel_res = r'[0-9]+(\.[0-9]+)?',
-  ref_tag     = '|'.join(re.escape(tag) for tag in ZOOM_XGB_TAGS) or '(?!)'
 
 rule zoom:
   input:
@@ -1593,13 +1594,13 @@ rule zoom_train_xgboost_depth_evaluation:
     exec &>> {log}
     python3 {scprocess_dir}/scripts/train_xgboost.py depth \
       --training_metadata_f {input.training_metadata_f:q} \
-      --h5ads_yaml {input.h5ads_yaml:q} \
-      --model_f {input.model_f:q} \
-      --cls_f {input.cls_f:q} \
-      --genes_f {input.genes_f:q} \
-      --output_f {output.depth_evaluation_f:q} \
-      --seed {params.seed} \
-      --n_cores {threads}
+      --h5ads_yaml          {input.h5ads_yaml:q} \
+      --model_f             {input.model_f:q} \
+      --cls_f               {input.cls_f:q} \
+      --genes_f             {input.genes_f:q} \
+      --output_f            {output.depth_evaluation_f:q} \
+      --seed                {params.seed} \
+      --n_cores             {threads}
     """
 
 

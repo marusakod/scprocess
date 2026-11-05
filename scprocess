@@ -546,8 +546,8 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun, zoom_
   # check a requested zoom exists before launching Snakemake
   if zoom_name is not None:
     zoom_schema_f = scprocess_dir / "resources/schemas/zoom.schema.json"
-    ZOOM_PARAMS   = scprocess_utils.get_zoom_parameters(config, zoom_schema_f, scdata_dir)
-    scprocess_utils.get_zooms_to_run(ZOOM_PARAMS, zoom_name)
+    zoom_params   = scprocess_utils.get_zoom_parameters(config, zoom_schema_f, scdata_dir)
+    scprocess_utils.get_zooms_to_run(zoom_params, zoom_name)
 
   # print which files will be processed
   print("starting scprocess")

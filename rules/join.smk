@@ -23,6 +23,8 @@ from scprocess_utils import (check_join_config, get_resources, prep_resource_par
 wildcard_constraints:
   labeller = "celltypist|scprocess"
 
+localrules: join_assign_prediction_chunks
+
 # setup
 scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
 join_schema_f = scprocess_dir / "resources/schemas/join.schema.json"
@@ -752,8 +754,6 @@ def _join_merge_labels_inputs(wildcards):
 
 # Group the joined batches into prediction chunks by cell count, for labelling
 # and classifier evaluation.
-localrules: join_assign_prediction_chunks
-
 checkpoint join_assign_prediction_chunks:
   input:
     h5ads_yaml_f = joint_h5ads_yaml_f
@@ -771,8 +771,10 @@ checkpoint join_assign_prediction_chunks:
     """
 
 
+# Batches in each prediction chunk, optionally only those listed in `batches`
 def _get_join_prediction_chunks(batches = None):
   return get_prediction_chunks(checkpoints.join_assign_prediction_chunks.get().output.chunks_f, batches)
+
 
 def _get_join_labelling_chunks(labeller, model):
   # Batches without reusable source-project labels, in chunks
@@ -781,6 +783,8 @@ def _get_join_labelling_chunks(labeller, model):
     model_sha256 = _get_labeller_entry(labeller, model).get('model_sha256'))
   return _get_join_prediction_chunks(fresh_batches)
 
+
+# Batches predicted by one labelling job
 def _get_join_chunk_batches(wildcards, labeller):
   return _get_join_labelling_chunks(labeller, wildcards.model)[wildcards.chunk]
 
@@ -1298,13 +1302,13 @@ if DO_TRAIN_XGB:
       exec &>> {log}
       python3 {scprocess_dir}/scripts/train_xgboost.py depth \
         --training_metadata_f {input.training_metadata_f:q} \
-        --h5ads_yaml {input.h5ads_yaml:q} \
-        --model_f {input.model_f:q} \
-        --cls_f {input.cls_f:q} \
-        --genes_f {input.genes_f:q} \
-        --output_f {output.depth_evaluation_f:q} \
-        --seed {params.seed} \
-        --n_cores {threads}
+        --h5ads_yaml          {input.h5ads_yaml:q} \
+        --model_f             {input.model_f:q} \
+        --cls_f               {input.cls_f:q} \
+        --genes_f             {input.genes_f:q} \
+        --output_f            {output.depth_evaluation_f:q} \
+        --seed                {params.seed} \
+        --n_cores             {threads}
       """
 
 

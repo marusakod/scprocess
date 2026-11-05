@@ -326,7 +326,8 @@ read_xgboost_depth_evaluation <- function(depth_evaluation_f) {
 xgboost_depth_y_scale <- function(accuracy) {
 
   # Fit the data but always show 100%, e.g. accuracies of 0.81-0.99 give 80%-100%.
-  # Labels drop trailing zeros, e.g. 94%, 100%, but 99.5% where breaks need it.
+  # Labels drop trailing zeros, e.g. 94%, 100%, but 99.5% where breaks need it
+  # (scales::percent's automatic precision would give 94.0%, 100.0%).
   percent_labels = function(x) paste0(format(x * 100, trim = TRUE, drop0trailing = TRUE), '%')
   list(scale_y_continuous(breaks = scales::pretty_breaks(), labels = percent_labels),
     expand_limits(y = c(min(accuracy), 1)))
@@ -361,7 +362,7 @@ plot_depth_accuracy_by_label <- function(depth_dt, label_colours,
   label_dt[, highlight := min(accuracy) < highlight_below, by = label]
   label_dt[, any_fitted := any(any_fitted), by = label]
   name_dt = label_dt[highlight == TRUE & as.integer(depth) == 1]
-  line_colours = c(xgboost_colours(sort(unique(label_dt[highlight == TRUE]$label)), label_colours))
+  line_colours = xgboost_colours(sort(unique(label_dt[highlight == TRUE]$label)), label_colours)
 
   plot = ggplot(label_dt, aes(x = depth, y = accuracy, group = label,
       linetype = ifelse(any_fitted, 'Includes fitted cells', 'Unused cells only'))) +
