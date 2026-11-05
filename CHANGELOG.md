@@ -2,148 +2,101 @@
 
 ## Unreleased — planned 0.7.0
 
-- Profile templates no longer request GPUs for classifier training by
-  default, matching `train_xgboost.use_gpu: false`. The training entries in
-  `slurm_default` and `slurm_shpc` are commented out; uncomment them when
-  training on GPU. Existing user profiles are not changed.
-- Fix the project index failing when a zoom classifier report exists: every
-  `*_zoom_*` page was parsed as a zoom report ending in a resolution, so
-  `SHORT_TAG_zoom_ZOOM_train_TAG.html` stopped the index render. The index now
-  lists project and zoom classifier training reports in a "Classifier training"
-  section.
-- Fix the labelling report ignoring the model's label specifications: the
-  installed-model lookup matched every row of `xgboost_models.csv` (a
-  data.table scoping error, since 0.4.0), so whenever more than one classifier
-  was installed, labels appeared in frequency order with generic colours. Also
-  fix the coarse totals table repeating the fine labels. The project labelling
-  and zoom label diagnostics now show **Labels** and **Grouped labels** tabs in
-  each section, in the model's order and colours, and number clusters on the
-  cluster UMAPs. Categorical colours repeat `nice_cols` once it runs out,
-  rather than switching to a default hue palette. Report changes only.
-- Fix project zooms without `hvg.hvg_exclude_from_file` failing at
-  `zoom_get_highly_variable_genes` (`hvgs.py: error: argument --exc_gs_f:
-  expected one argument`). Since `b468280` (first tagged in v0.2.2) the omitted
-  setting is passed as an empty value, but the rule still tested for `None`.
-  Zooms with an exclusion file, joined zooms and project HVGs were unaffected.
-- Predict cell labels in chunks of batches. Labelling (CellTypist and XGBoost)
-  and classifier full-data evaluation ran one job per batch, so large projects
-  spent most of their time starting jobs and loading models (598 jobs for the
-  Siletti atlas). A checkpoint (`assign_prediction_chunks`, and its zoom and
-  join versions) now groups batches by cell count, up to 150,000 cells per job,
-  and each job loads the model once. Rule names and resource keys are unchanged;
+### Breaking changes and migration
+
+- `--create-envs` moves from `scprocess run` to `scprocess setup --create-envs`.
+  It creates every rule environment once, without a project config or
+  reference data; with `-n` it now only lists them.
+- `scprocess run --zoom NAME` selects one zoom for `-r zoom`, `-r shiny` and
+  `-r train_xgboost`, as `scprocess join` does. With any other rule it is an
+  error, and unknown zoom names fail before Snakemake starts. `--zoom all`
+  equals omitting it; `-r train_xgboost --zoom all` is removed, so train one
+  zoom classifier at a time.
+- Classifiers train only on request (`-r train_xgboost`, plus `--zoom NAME`
+  for a zoom), never as part of `all`, `-r zoom` or the default join target.
+  Each classifier has its own report, `SHORT_TAG_train_XGBOOST_TAG.html`
+  (zooms: `SHORT_TAG_zoom_NAME_train_XGBOOST_TAG.html`), and zoom and join
+  reports no longer contain classifier sections. Existing
+  `*_train_xgboost.html` reports are left in place.
+- `label_celltypes.py` subcommands `celltypist_one_batch` and
+  `xgboost_one_batch` are replaced by `celltypist_batches` and
+  `xgboost_batches`.
+- `XGBOOST_TAG_pseudobulk.h5ad` has a new layout. The classifier report cannot
+  read files from earlier trainings; `-r train_xgboost` regenerates them.
+- Profile templates leave classifier-training GPU requests commented out,
+  because `train_xgboost.use_gpu` defaults to `false`; uncomment them for GPU
+  training. Copied profiles under `$SCPROCESS_DATA_DIR/profiles/` are not
+  changed: check that their GPU entries match your `int_use_gpu` and `use_gpu`
+  settings.
+- Unused environment files `celltypist.yaml`, `chem_detection.yaml`,
+  `train_xgboost.yaml` and `xgboost_r.yaml` are removed.
+
+### Changes affecting results
+
+- XGBoost training caps rise to `max_genes: 5000` (from 3000),
+  `pass1_nrounds: 1000` (from 300) and `pass2_nrounds: 2000` (from 500).
+  Fits that stopped early are unchanged; fits that reached a cap can select
+  more genes and train longer, taking up to several times as long. Set the
+  old values to reproduce earlier models.
+- Zoom classifier training now runs full-data prediction and evaluation, as
+  projects and joins already did, writing
+  `XGBOOST_TAG_fulldata_predictions.csv.gz` and per-split evaluation tables.
+  Zoom coarse evaluation now uses full-data predictions rather than validation
+  cells only. Fitted models are unchanged.
+- Report only: classifier top-gene plots scale each pseudobulk by its total
+  counts across all genes, rather than edgeR TMM over the stored genes.
+- Report only: labelling reports use the model's label order and colours,
+  which were ignored whenever more than one classifier was installed (see
+  Fixes).
+
+### Features
+
+- Optional depth augmentation for XGBoost training (`downsample_copies`,
+  `downsample_min_umis`, `downsample_max_umis`; projects, joins and project
+  zooms). Each training and validation cell gets thinned copies at random
+  depths between the two bounds, to improve accuracy on shallow cells. Off by
+  default (`downsample_copies: 0`), which gives the same models as before.
+- Every classifier report shows accuracy at lower sequencing depth: up to 200
+  unused cells per label with more than 2,000 UMIs are thinned to 250–2,000
+  UMIs and classified again (`XGBOOST_TAG_depth_evaluation.csv.gz`), with
+  overall and per-label accuracy and a 500-UMI confusion matrix.
+- Per-label gene importance (`XGBOOST_TAG_gene_importance_by_label.csv`) and a
+  "Top genes by label" report section; top-gene strips show the running
+  cumulative gain.
+- Labelling and classifier evaluation predict whole batches in chunks of up
+  to 150,000 cells, loading the model once per job (Siletti atlas: 22 jobs
+  instead of 598). Rule names and resource keys are unchanged; the
   `mins_run_celltypist` and `mins_run_scprocess_labeller` defaults rise from 8
-  to 30 minutes, and these two rules no longer use the resource-model CSV. The
-  `celltypist_one_batch`/`xgboost_one_batch` subcommands are replaced by
-  `celltypist_batches`/`xgboost_batches`. Predictions are unchanged.
-- Shrink the classifier report pseudobulk and fix it for labels containing `/`
-  (for example `Ependymal / ciliated`). `{tag}_pseudobulk.h5ad` stored one
-  dense layer of all selected genes per label, named after the label, so a `/`
-  split the name into nested HDF5 groups that could not be read (451 MB for the
-  5,000-gene Siletti model). It now has one row per label and batch (`label`,
-  `batch`, `n_cells`, `lib_size` in obs) and only the plotted genes: the top
-  100 by overall gain and the top 10 per label. Changes affecting results
-  (report only): top-gene plots now scale by each pseudobulk's total counts
-  across all genes, rather than edgeR TMM over the stored genes; the model is
-  unaffected. Older pseudobulk files are not read by the new report.
-- Add accuracy at lower sequencing depth to every classifier training report
-  (projects, joins and zooms). A new rule per context
-  (`train_xgboost_depth_evaluation`, `join_train_xgboost_depth_evaluation`,
-  `zoom_train_xgboost_depth_evaluation`; `train_xgboost.py depth`) thins up to
-  200 unused cells per label with more than 2,000 UMIs to 250-2,000 UMIs and
-  classifies them with the final model, writing
-  `XGBOOST_TAG_depth_evaluation.csv.gz`. Labels without enough unused cells
-  are topped up with validation and then training cells, marked as optimistic.
-  The report adds accuracy-by-depth (unused cells only), per-label accuracy
-  lines highlighting labels below 90%, and a 500-UMI confusion matrix. Fitted
-  models are unchanged; existing training reports re-render to add the section.
-- Add per-label gene importance to training: the final model's gain is summed
-  over each label's trees and saved as `XGBOOST_TAG_gene_importance_by_label.csv`;
-  the report gains a "Top genes by label" section. Top-gene strips now also show
-  the running cumulative gain.
-- Speed up XGBoost prediction about tenfold: build the model's feature matrix
-  with one column selection instead of a per-gene loop (`select_model_features`,
-  shared by `label_celltypes` inference and training full-data prediction).
-  Predictions are identical (checked byte for byte on a Siletti batch: 124 s ->
-  12 s); the loop was ~90% of each prediction job.
-- Changes affecting results (scientific defaults): raise the XGBoost training
-  caps to `max_genes: 5000` (from 3000), `pass1_nrounds: 1000` (from 300) and
-  `pass2_nrounds: 2000` (from 500), for projects, joins and zooms. Early
-  stopping on validation loss is unchanged, so fits that already stopped early
-  are unaffected; fits that reached a cap (e.g. the depth-augmented Siletti
-  candidate: 3,000 genes, best iterations 299/300 and 499/500) can select more
-  genes and train longer. Training time can increase up to several-fold for such
-  fits; set the old values explicitly to reproduce earlier models.
-- Name every classifier training report, its Rmd and its figure folder after
-  the model's `xgboost_tag` (`SHORT_TAG_train_XGBOOST_TAG.html`, and likewise
-  for zooms and joins), so that training a second classifier in the same
-  project or join no longer overwrites the first one's report. Report path
-  change: existing `*_train_xgboost.html` reports are left in place; the next
-  `-r train_xgboost` renders the report under the new name, reusing the saved
-  training outputs rather than refitting.
-- Add optional depth augmentation for XGBoost training (`train_xgboost`
-  `downsample_copies`, `downsample_min_umis`, `downsample_max_umis`; projects,
-  joins and project zooms). Each selected train/validation cell gets thinned
-  copies made by binomial thinning of its raw counts to a log-uniform target
-  depth, normalised with their own library size and used in both fitting
-  passes. The detection filter, predictions, pseudobulk, report and evaluation
-  use original cells only. Off by default (`downsample_copies: 0`), which gives
-  byte-identical models to the previous trainer. Enabling it changes fitted
-  models; it aims to improve accuracy on cells with few UMIs.
-- Make `--zoom` behave the same for projects and joins. `scprocess run -r zoom`
-  still runs every zoom; `scprocess run -r zoom --zoom NAME` now runs only that
-  zoom, matching `scprocess join -r zoom --zoom NAME`. `--zoom all` is
-  equivalent to omitting it.
-- Breaking CLI change: `scprocess run --zoom` with a rule other than `zoom`,
-  `shiny` or `train_xgboost` is now an error; it was previously ignored
-  silently. Unknown zoom names fail before Snakemake starts.
-- Breaking CLI change: move `--create-envs` from `scprocess run` to
-  `scprocess setup --create-envs`. It creates every rule environment once,
-  under the Conda prefix used by later project and join runs, without needing a
-  project config, a Cell Ranger link or reference data. `-n` now lists the
-  environments; Snakemake previously created them despite `-n`.
-- Remove unused environment files `celltypist.yaml`, `chem_detection.yaml`,
-  `train_xgboost.yaml` and `xgboost_r.yaml`. No rule used them: CellTypist,
-  XGBoost prediction and CPU training run in `label_celltypes.yaml`, and
-  chemistry detection runs in `alevin_fry.yaml`.
-- Give every XGBoost classifier its own report and train only on request.
-  Breaking/report changes: zoom and join reports no longer contain classifier
-  sections, and no longer depend on training outputs. `scprocess run -r zoom`
-  and the default `scprocess join` target therefore no longer train classifiers
-  configured in zoom specifications or join configs; use
-  `scprocess run -r train_xgboost --zoom NAME` or
-  `scprocess join -r train_xgboost`. Project zoom classifiers get a new report,
-  `public/SHORT_TAG_zoom_NAME_train_XGBOOST_TAG.html`.
-- Breaking CLI change: `scprocess run -r train_xgboost --zoom all` and the
-  `zoom_train_xgboost_all` rule are removed; train one zoom classifier at a time.
-- Changes affecting results: project zoom training now runs full-data
-  prediction and evaluation (`zoom_train_xgboost_predict`/`_combine`), as
-  projects and joins already did. `{tag}_fulldata_predictions.csv.gz` and the
-  per-split evaluation tables are new zoom outputs, and the zoom coarse label
-  evaluation (`specs`) now uses full-data predictions instead of
-  validation-only predictions. Fitted models are unchanged.
-- Request a GPU for `zoom_train_xgboost` in the `slurm_shpc` profile template,
-  as for project and join training. Zoom classifiers with `use_gpu: true`
-  previously ran on a CPU node and failed the GPU check. Existing copied
-  profiles under `$SCPROCESS_DATA_DIR/profiles/` need the same entry; project
-  training needs `train_xgboost_train` (not the `train_xgboost` target).
-- List every GPU-capable rule in the profile templates. `slurm_default` now
-  requests one GPU for doublet classification, project/zoom/join integration
-  and classifier training as well as integration and CellBender; the LSF, SGE,
-  PBS and HTCondor examples add `classify_additional_doublets`.
-- Fix the scprocess version recorded in driver logs
-  (`.log/scprocess/scprocess_*.log`). `git describe` ran in the current
-  directory, so runs started inside a project or join git repository (e.g.
-  workflowr) recorded that repository's version instead of scprocess's, and
-  runs started outside any git repository failed. The header now describes the
-  scprocess checkout and also records its full commit SHA. Existing logs from
-  git-tracked project directories may show the project's version; use the
-  checkout history to establish the scprocess code used for those runs.
-- Fix `zoom_create_hvg_matrix` depending on every zoom's temporary chunked
-  counts instead of only its own. Adding or rerunning one zoom previously made
-  every completed zoom's HVG matrix out of date, so Snakemake regenerated their
-  chunked counts and reran HVGs, PCA, integration and markers for all zooms
-  (for a three-zoom test project, 753 instead of 337 planned jobs). Each matrix
-  only ever read its own zoom's files, so results are unchanged.
+  to 30 minutes, and these rules no longer use the resource-model CSV.
+  Predictions are unchanged.
+- XGBoost prediction is about ten times faster, with identical predictions.
+- The classifier report pseudobulk keeps only the plotted genes (2.7 MB
+  instead of 451 MB for the Siletti model).
+- Labelling reports and zoom label diagnostics show **Labels** and **Grouped
+  labels** tabs, and cluster UMAPs are numbered.
+- The project index lists classifier training reports.
+
+### Fixes
+
+- Labelling reports ignored the model's label specifications whenever more
+  than one classifier was installed (since 0.4.0), and the grouped totals
+  table repeated the fine labels.
+- Classifier reports failed for labels containing `/`, such as
+  `Ependymal / ciliated`.
+- The project index failed when a zoom classifier report existed.
+- Project zooms without `hvg.hvg_exclude_from_file` failed at
+  `zoom_get_highly_variable_genes` (since v0.2.2).
+- Adding or rerunning one zoom made every other zoom's HVG matrix out of
+  date, rerunning their HVGs, integration and markers. Results are unchanged.
+- Driver logs recorded the version of the git repository in the current
+  directory instead of scprocess's. They now record the scprocess checkout's
+  `git describe` output and full commit SHA; older logs written from
+  git-tracked project directories may show the project's version.
+- Profile templates now list every GPU-capable rule; previously the SHPC
+  template made no GPU request for zoom classifier training, and
+  `slurm_default` covered only some rules.
+- Categorical report colours repeat `nice_cols` instead of switching to a
+  default hue palette.
 
 ## 0.6.0 — Unreleased development candidate
 

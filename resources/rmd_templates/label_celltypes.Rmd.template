@@ -73,7 +73,7 @@ for (i in seq_along(guesses_ls)) {
 Prediction of cell type labels is a two-step process: The labeller first assigns a predicted cell type to each individual cell.
 These cell-level predictions are then aggregated at the level of high-resolution clusters (a majority-voting approach is used, where the final, assigned label for a cluster is the most common predicted label among all the cells within it).
 
-The heatmap helps to assess whether this aggregation step seems sensible. Each cell on the heatmap shows the proportion of cells within a cluster (on the x-axis) that are assigned a specific predicted cell type in the first step (on the y-axis).
+The heatmap helps to assess whether this aggregation step seems sensible. Each cell on the heatmap shows the proportion of cells within a cluster (on the x-axis) that are assigned a specific predicted cell type in the first step (on the y-axis). A cluster split across several predicted types may be mixed or transitional, and its voted label should be checked.
 
 When the model groups its labels into broader classes, the **Grouped labels** tabs in each section show the same views for those groups.
 

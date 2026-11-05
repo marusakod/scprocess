@@ -264,7 +264,7 @@ plot_gain_curve(gain_dt, gain_threshold = feature_selection$gain_threshold,
 
 ## Top XGBoost genes {.tabset}
 
-Expression of the genes with the highest gain. Each dot is one batch, sized by its number of cells; counts are summed within each label and batch and shown as counts per million.
+Expression of the genes with the highest gain. Each dot is one batch, sized by its number of cells; counts are summed within each label and batch and shown as counts per million. Useful genes should show biologically plausible expression across batches rather than a pattern confined to one batch.
 
 ```{r load_cpms, include=FALSE}
 cpms_dt = calc_xgboost_pseudobulk_logcpms(pb_f, min_cells = min_cells)

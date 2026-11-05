@@ -1103,8 +1103,10 @@ rare populations within a cluster; inspect both views.
 
 Prediction runs in jobs of whole batches with up to 150,000 cells each, so each
 job loads the model once. If these jobs run out of memory or time, raise
-`gb_run_scprocess_labeller` and `mins_run_scprocess_labeller` (or the
-`run_celltypist` equivalents; `join_*` in joins) in the `resources` section.
+`gb_run_scprocess_labeller` and `mins_run_scprocess_labeller` (CellTypist:
+`gb_run_celltypist`, `mins_run_celltypist`) in the `resources` section. In joins
+the keys are `gb_join_scprocess_labeller`, `mins_join_scprocess_labeller`,
+`gb_join_celltypist` and `mins_join_celltypist`.
 
 
 ##### train_xgboost
