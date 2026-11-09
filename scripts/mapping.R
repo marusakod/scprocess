@@ -861,8 +861,9 @@ plot_knee_coordinates_pairwise <- function(knee_params, sample_var = 'sample_id'
   landmark = match.arg(landmark)
   variables = paste0(landmark, rep(1:2, each = 2), rep(c('_log10_umis', '_log10_rank'), 2))
   title = if (landmark == 'knee') 'Knee' else 'Shin'
-  labels = paste(title, c('1: UMIs', '1: rank', '2: UMIs', '2: rank'))
+  labels = paste(title, c('1: library size', '1: barcode rank', '2: library size', '2: barcode rank'))
   required = c(sample_var, variables)
+
   if (!all(required %in% names(knee_params))) stop('Missing ', landmark, ' coordinate columns')
   dt = as.data.table(knee_params)[, ..required]
   if (!nrow(dt) || anyDuplicated(dt[[sample_var]])) stop('Expected one coordinate row per run')
@@ -878,10 +879,9 @@ plot_knee_coordinates_pairwise <- function(knee_params, sample_var = 'sample_id'
   pairs[, parameter_source := factor(fifelse(run %in% custom_runs, 'Custom', 'Automatic'),
     levels = c('Automatic', 'Custom'))]
   setorder(pairs, parameter_source)
+
   ellipses = pairs[, .landmark_mcd_ellipse(x, y), by = .(x_metric, y_metric)]
-  n_ellipses = nrow(unique(ellipses[, .(x_metric, y_metric)]))
-  caption = 'Log-scaled axes with original units. Light grey contours: 95% robust MCD covariance ellipses.'
-  if (n_ellipses < 6L) caption = paste0(caption, '\nEllipses omitted where too few runs or singular covariance prevent estimation.')
+
   ggplot(pairs, aes(x, y)) +
     (if (nrow(ellipses)) geom_path(data = ellipses, aes(x, y), inherit.aes = FALSE,
       colour = '#BBBBBB', alpha = 0.6, linewidth = 0.4) else NULL) +
@@ -893,11 +893,11 @@ plot_knee_coordinates_pairwise <- function(knee_params, sample_var = 'sample_id'
     scale_x_continuous(breaks = .landmark_log_breaks, labels = .landmark_log_labels) +
     scale_y_continuous(breaks = .landmark_log_breaks, labels = .landmark_log_labels) +
     ggh4x::facetted_pos_scales(
-      x = list(grepl('2: UMIs$', x_metric) ~ scale_x_continuous(
+      x = list(grepl('2: library size$', x_metric) ~ scale_x_continuous(
         breaks = function(limits) .landmark_log_breaks(limits, dense = TRUE), labels = .landmark_log_labels)),
-      y = list(grepl('2: UMIs$', y_metric) ~ scale_y_continuous(
+      y = list(grepl('2: library size$', y_metric) ~ scale_y_continuous(
         breaks = function(limits) .landmark_log_breaks(limits, dense = TRUE), labels = .landmark_log_labels))) +
     theme_bw(base_size = 10) + theme(panel.grid = element_blank(), aspect.ratio = 1,
       strip.background = element_rect(fill = 'white'), legend.position = 'bottom') +
-    labs(x = NULL, y = NULL, caption = caption)
+    labs(x = NULL, y = NULL)
 }

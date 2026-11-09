@@ -2095,6 +2095,13 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
 
   # check that selected models are valid
   def _check_one_label_celltypes_parameters(entry):
+    # Capture the user's own YAML values before get_xgboost_model_paths (below)
+    # pre-populates entry['label_specs_f']/['coarse_label_specs_f'] from the
+    # XGBoost registry for scprocess entries, so we can tell "the user wrote
+    # this" apart from "this was already resolved from the registry".
+    user_label_specs_f        = entry.get('label_specs_f')
+    user_coarse_label_specs_f = entry.get('coarse_label_specs_f')
+
     # check that parameters for celltypist are ok
     if entry['labeller'] == 'celltypist':
       if not entry['model'] in mdls_typist:
@@ -2113,21 +2120,45 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
 
       get_xgboost_model_paths(entry, scdata_dir)
 
-    # resolve label_map_f
-    if 'label_map' in entry:
-      lm_path = _check_path_exists_in_project(entry['label_map'], config, what = "file")
-      entry['label_map_f'] = str(lm_path)
+    # resolve label_specs_f: explicit YAML value, else a celltypist default
+    # file, else whatever get_xgboost_model_paths already set (scprocess)
+    if user_label_specs_f is not None:
+      lm_path = _check_path_exists_in_project(user_label_specs_f, config, what = "file")
+      entry['label_specs_f'] = str(lm_path)
     elif entry['labeller'] == 'celltypist':
-      default_lm = scdata_dir / 'celltypist' / f"{entry['model']}_label_map.csv"
-      entry['label_map_f'] = str(default_lm) if default_lm.is_file() else ''
+      default_lm = scdata_dir / 'celltypist' / f"{entry['model']}_label_specs.csv"
+      entry['label_specs_f'] = str(default_lm) if default_lm.is_file() else ''
 
-    if 'label_map_f' not in entry:
-      entry['label_map_f'] = ''
+    if 'label_specs_f' not in entry:
+      entry['label_specs_f'] = ''
 
-    if entry['label_map_f'] != '':
-      lm_df = pl.read_csv(entry['label_map_f'], n_rows=5)
+    # resolve coarse_label_specs_f the same way
+    if user_coarse_label_specs_f is not None:
+      clm_path = _check_path_exists_in_project(user_coarse_label_specs_f, config, what = "file")
+      entry['coarse_label_specs_f'] = str(clm_path)
+    elif entry['labeller'] == 'celltypist':
+      default_clm = scdata_dir / 'celltypist' / f"{entry['model']}_coarse_label_specs.csv"
+      entry['coarse_label_specs_f'] = str(default_clm) if default_clm.is_file() else ''
+
+    if 'coarse_label_specs_f' not in entry:
+      entry['coarse_label_specs_f'] = ''
+
+    if entry['label_specs_f'] != '' or entry['coarse_label_specs_f'] != '':
       from train_xgboost import read_label_specs
-      read_label_specs(label_specs_f=entry['label_map_f'])
+      fine_specs, _ = read_label_specs(
+        label_specs_f = entry['label_specs_f'] or None,
+        coarse_label_specs_f = entry['coarse_label_specs_f'] or None)
+    else:
+      fine_specs = []
+
+    # label_map_f is the plain fine->coarse data-processing map consumed by
+    # aggregate_predictions (used by label_celltypes/zoom/join alike). For
+    # scprocess entries it was already derived from the registry above by
+    # get_xgboost_model_paths; derive it the same way for celltypist here:
+    # label_specs_f itself, but only if it actually carries a coarse mapping.
+    if entry['labeller'] == 'celltypist':
+      from train_xgboost import label_mapping
+      entry['label_map_f'] = entry['label_specs_f'] if label_mapping(fine_specs) else ''
 
     # add defaults
     for v in label_defaults:

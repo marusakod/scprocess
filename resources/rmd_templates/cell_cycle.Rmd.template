@@ -27,41 +27,36 @@ setDTthreads(${threads})
 ```
 
 ```{r load_inputs, include=FALSE}
-report_data <- load_cell_cycle_report_data(
+report_data = load_cell_cycle_report_data(
   scores_f = "${scores_f}", origin_f = "${origin_f}",
   sensitivity_f = "${sensitivity_f}", diagnostics_f = "${diagnostics_f}",
   ellipse_f = "${ellipse_f}", coldata_f = "${coldata_f}",
   marker_expression_f = "${marker_expression_f}")
 ```
 
-`tricycle` works by subsetting data to a set of known cell-cycle genes, then 
-projecting the cells into the first two principle components, `tricycle_pc1` 
-and `tricycle_pc2`. When cycling cells are present, this results in a 
-continuous "loop" of cells around an origin. We identify the location of the
-origin across QC-passed candidate singlets in the project, either by giving
-cells in crowded areas less weight, or by specifying the origin manually.
-We then calculate the cell-cycle position with reference to the origin, giving
+
+`tricycle` infers cell cycle position by projecting each cell's gene expression into a 2D reference
+embedding by using pre-calculated PCA loadings. When cycling cells are present, this results in a 
+continuous "loop" of cells around an origin. The origin can be specified manually or estimated from the data.
+Cell-cycle position is then calculated with reference to the origin, giving
 `tricycle_theta` which takes values $[0, 2\pi)$ in radians (i.e. 0 to 360 
 degrees).
 
 ## Expression around theta
 
-Expression was captured from the full run-level count matrices during
-tricycle projection, so all canonical markers are represented independently
-of HVG selection. Counts were library-size normalized to 10,000 and
-log-transformed. Expression is averaged in angular bins separately within each
-gene across all QC-passed cells. The lines are circular LOESS smooths of these
-bin means, weighted by their cell counts. Each nonzero smoothed gene curve is
-scaled so its fitted maximum is one. Colours group the canonical markers by
-their expected cell-cycle phase; CDKN1A is shown neutrally as a checkpoint
-diagnostic.
+For known cell cycle markers, expression is averaged across cells in angular bins around the origin.
+The right panel showes these averaged expressions as a function of theta.
+The lines are circular LOESS smooths of bin means, weighted by their cell counts.
+Colours group the canonical markers by their expected cell-cycle phase; CDKN1A (gene encoding p21 which acts as
+inhibitor of cyclin-dependent kinase complexes stopping cell cycle progression at the G1/S and G2/M transitions)
+is shown neutrally as a checkpoint diagnostic.
 
 The left panel provides the corresponding pooled tricycle projection coloured
 by theta. Grey radial lines mark tricycle's approximate phase boundaries:
 G1/G0 wraps from $1.75\pi$ through zero to $0.25\pi$, G1/S spans
 $0.25\pi$-$0.5\pi$, S spans $0.5\pi$-$\pi$, and G2/M spans
 $\pi$-$1.75\pi$. The grey vertical lines mark the same boundaries on the
-expression plot.
+expression plot (right panel).
 
 ```{r expression_curves, fig.height=6, fig.width=14}
 plot_cell_cycle_expression(report_data)
@@ -69,19 +64,11 @@ plot_cell_cycle_expression(report_data)
 
 ## Pooled projection and estimated origin
 
-These panels show the cell-cycle projection and the origin used to calculate
-theta. The left panel shows the density of all QC-passed cells; the right panel
-shows a density-equalized display sample. The black cross marks the chosen
+The panels show the cell-cycle projection and the origin used to calculate
+theta. The left panel shows cell density; the right panel shows downsampled cells such that density across the embedding is equal. The black cross marks the chosen
 origin, and the grey path shows how its estimate changes across target
-proportions. Grey radial lines mark the approximate phase boundaries described
-above. The vermilion ellipse and percentage outside it describe the dense blob;
-they do not classify cells as cycling or determine the origin. With a manual
-origin, the estimated alternatives are shown for comparison.
-
-Where cycling cells form a loop, assess the origin together with the
-phase-associated marker-expression patterns above. A dataset with few cycling
-cells may not show a clear loop, so an
-absent loop alone does not establish a failed analysis.
+proportions. Grey radial lines mark the phase boundaries described
+above. With a manual origin, the estimated alternatives are shown for comparison [text should the be different whether you select a manual origin or not?].
 
 Compare the alternatives in `cell_cycle.cyc_density_percentile_grid` before
 choosing `cell_cycle.cyc_density_percentile`. For example, `1.3` sets the density
@@ -131,14 +118,19 @@ predominantly non-cycling samples. The remaining values are still percentages
 of all QC-passed cells and are not renormalized.
 
 ```{r phase_proportions, fig.height=5, fig.width=6}
-phase_summary <- make_cell_cycle_phase_summary(report_data)
+phase_summary = make_cell_cycle_phase_summary(report_data)
 print(phase_summary$plot)
 knitr::kable(phase_summary$table, digits = 1,
   caption = 'Approximate non-G1/G0 phase percentages')
 ```
 
-## Estimation summary
 
-```{r estimation_summary}
-knitr::kable(t(report_data$origin), col.names = 'value')
+## R session info
+
+Details of the R package versions used are given below.
+
+<details>
+```{r session_info, include=TRUE, echo=TRUE, results="markup"}
+devtools::session_info()
 ```
+</details>

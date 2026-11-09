@@ -108,7 +108,7 @@ The configuration file template `config-test_project.yaml` was created in the `t
 
 ```yaml
 project:
-  proj_dir: /projects/site/pred/neurogenomics/users/kodermam/test_project
+  proj_dir: /absolute/path/to/test_project
   fastq_dir: data/fastqs
   full_tag: test_project
   short_tag:
@@ -123,7 +123,10 @@ qc:
   qc_max_splice: 0.75
 ```
 
-In addition to setting values for the required parameters, we will include the optional `metadata_vars` and `mkr_custom_genesets` parameters. The `metadata_vars` parameter allows us to specify additional metadata variables for visualization, while the `mkr_custom_genesets` parameter enables us to provide a file containing a list of marker genes associated with different cell types expected in our dataset. In this case, we only need to specify the name of the marker gene file, as the corresponding file `mouse_brain.csv` already exists in the `$SCPROCESS_DATA_DIR/marker_genes` directory.
+In addition to setting values for the required parameters, we will include the optional `metadata_vars`, `mkr_custom_genesets`and `labeller` parameters:
+* `metadata_vars` parameter allows us to specify additional metadata variables for visualization.
+* `mkr_custom_genesets` parameter enables us to provide a file containing a list of marker genes associated with different cell types expected in our dataset. In this case, we only need to specify the name of the marker gene file, as the corresponding file `mouse_brain.csv` already exists in the `$SCPROCESS_DATA_DIR/marker_genes` directory.
+* {{sc}} supports cell type annotation using various pretrained models. In this tutorial we will use the mouse whole brain classifier provided by CellTypist [@Xu2023-al],[@Dominguez_Conde2022_kd]. For this we need to set the value of the `labeller` parameter to `celltypist` and provide the name of the `model` we want to use.
 
 Note that `proj_dir` requires an absolute path, whereas `fastq_dir` and `sample_metadata` can use relative paths, since the raw data and sample metadata are stored within the project directory:
 
@@ -146,6 +149,9 @@ qc:
 marker_genes:
   mkr_custom_genesets:
     - name: mouse_brain
+label_celltypes:
+ - labeller: celltypist
+    model: Mouse_Whole_Brain
 ```
 
 ### Running {{sc}}
@@ -167,8 +173,10 @@ Consider adding a `-n` or `--dry-run` flag to this command to verify the setup a
     job                                      count
     -------------------------------------  -------
     all                                          1
+    calc_marker_hvgs                             1
     calculate_ambient_genes                      1
     check_qc_quality                             1
+    classify_additional_doublets                 1
     collect_chemistry_stats                      1
     create_doublets_hvg_matrix                   1
     create_hvg_matrix                            1
@@ -181,17 +189,23 @@ Consider adding a `-n` or `--dry-run` flag to this command to verify the setup a
     make_clean_h5ads                             4
     make_empty_pb_input_df                       1
     make_hvg_df                                  1
+    make_marker_pseudobulks                      1
     make_one_pb_cells                            4
     make_one_pb_empty                            4
     make_qc_thresholds_csv                       1
     make_runs_to_batches_df                      1
     make_tmp_csr_matrix                          1
     make_tmp_pb_cells_df                         1
+    merge_doublet_diagnostics                    1
     merge_pb_cells                               1
     merge_pb_empty                               1
     merge_qc                                     1
     merge_rowdata                                1
     merge_sample_std_var_stats                   1
+    pca_singlets_only                            1
+    pca_with_doublets                            1
+    prepare_marker_plot_data                     1
+    prepare_marker_pseudobulks                   1
     render_html_ambient                          1
     render_html_hvgs                             1
     render_html_integration                      1
@@ -205,62 +219,29 @@ Consider adding a `-n` or `--dry-run` flag to this command to verify the setup a
     run_marker_genes                             1
     run_qc_one_run                               4
     save_alevin_to_h5                            4
-    total                                       66
+    total                                       74
 
     Reasons:
         (check individual jobs above for details)
         input files updated by another job:
-            all, calculate_ambient_genes, check_qc_quality, collect_chemistry_stats, create_doublets_hvg_matrix, create_hvg_matrix, get_ambient_run_statistics, get_barcode_qc_metrics, get_highly_variable_genes, get_qc_sample_statistics, get_stats_for_std_variance_for_sample, make_clean_h5ad_paths_yaml, make_clean_h5ads, make_empty_pb_input_df, make_hvg_df, make_one_pb_cells, make_one_pb_empty, make_tmp_csr_matrix, make_tmp_pb_cells_df, merge_pb_cells, merge_pb_empty, merge_qc, merge_rowdata, merge_sample_std_var_stats, render_html_ambient, render_html_hvgs, render_html_integration, render_html_mapping, render_html_marker_genes, render_html_qc, run_decontx, run_fgsea, run_integration, run_marker_genes, run_qc_one_run, save_alevin_to_h5
+            all, calc_marker_hvgs, calculate_ambient_genes, check_qc_quality, classify_additional_doublets, collect_chemistry_stats, create_doublets_hvg_matrix, create_hvg_matrix, get_ambient_run_statistics, get_barcode_qc_metrics, get_highly_variable_genes, get_qc_sample_statistics, get_stats_for_std_variance_for_sample, make_clean_h5ad_paths_yaml, make_clean_h5ads, make_empty_pb_input_df, make_hvg_df, make_marker_pseudobulks, make_one_pb_cells, make_one_pb_empty, make_tmp_csr_matrix, make_tmp_pb_cells_df, merge_doublet_diagnostics, merge_pb_cells, merge_pb_empty, merge_qc, merge_rowdata, merge_sample_std_var_stats, pca_singlets_only, pca_with_doublets, prepare_marker_plot_data, prepare_marker_pseudobulks, render_html_ambient, render_html_hvgs, render_html_integration, render_html_mapping, render_html_marker_genes, render_html_qc, run_decontx, run_fgsea, run_integration, run_marker_genes, run_qc_one_run, save_alevin_to_h5
         output files have to be generated:
-            calculate_ambient_genes, check_qc_quality, collect_chemistry_stats, create_doublets_hvg_matrix, create_hvg_matrix, get_ambient_run_statistics, get_barcode_qc_metrics, get_highly_variable_genes, get_qc_sample_statistics, get_stats_for_std_variance_for_sample, make_clean_h5ad_paths_yaml, make_clean_h5ads, make_empty_pb_input_df, make_hvg_df, make_one_pb_cells, make_one_pb_empty, make_qc_thresholds_csv, make_runs_to_batches_df, make_tmp_csr_matrix, make_tmp_pb_cells_df, merge_pb_cells, merge_pb_empty, merge_qc, merge_rowdata, merge_sample_std_var_stats, render_html_ambient, render_html_hvgs, render_html_integration, render_html_mapping, render_html_marker_genes, render_html_qc, run_decontx, run_fgsea, run_integration, run_mapping, run_marker_genes, run_qc_one_run, save_alevin_to_h5
+            calc_marker_hvgs, calculate_ambient_genes, check_qc_quality, classify_additional_doublets, collect_chemistry_stats, create_doublets_hvg_matrix, create_hvg_matrix, get_ambient_run_statistics, get_barcode_qc_metrics, get_highly_variable_genes, get_qc_sample_statistics, get_stats_for_std_variance_for_sample, make_clean_h5ad_paths_yaml, make_clean_h5ads, make_empty_pb_input_df, make_hvg_df, make_marker_pseudobulks, make_one_pb_cells, make_one_pb_empty, make_qc_thresholds_csv, make_runs_to_batches_df, make_tmp_csr_matrix, make_tmp_pb_cells_df, merge_doublet_diagnostics, merge_pb_cells, merge_pb_empty, merge_qc, merge_rowdata, merge_sample_std_var_stats, pca_singlets_only, pca_with_doublets, prepare_marker_plot_data, prepare_marker_pseudobulks, render_html_ambient, render_html_hvgs, render_html_integration, render_html_mapping, render_html_marker_genes, render_html_qc, run_decontx, run_fgsea, run_integration, run_mapping, run_marker_genes, run_qc_one_run, save_alevin_to_h5
     This was a dry-run (flag -n). The order of jobs does not reflect the order of execution.
+    The run involves checkpoint jobs, which will result in alteration of the DAG of jobs (e.g. adding more jobs) after their completion.
     ```
-
-### Labelling cell types
-
-??? warning "Tutorial results may vary from your {{sc}} outputs"
-    
-    Modifying the default `mouse_2024` reference transcriptome settings in `scprocess_setup.yaml` may cause your {{sc}} outputs to differ slightly from the results in this tutorial. Furthermore, if `int_use_gpu` is `false` or a GPU is unavailable, Scanpy will be used for integration instead of RAPIDS-singlecell, which was used for generate results shown on this page.
-
-{{sc}} supports cell type annotation using various pretrained models. In this tutorial we will use the mouse whole brain classifier provided by CellTypist [@Xu2023-al],[@Dominguez_Conde2022_kd]. To specify the annotation model, add the highlighed lines to your configuration file:
-
-```yaml hl_lines="18 19 20"
-project:
-  proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
-  fastq_dir: data/fastqs
-  full_tag: test_project
-  short_tag: test
-  your_name: Testy McUser
-  affiliation: Unemployed
-  sample_metadata: data/metadata/test_project_metadata.csv
-  tenx_assay_type: poly_a
-  ref_txome: mouse_2024
-  date_stamp: "2026-01-01"
-  metadata_vars: [group]
-qc:
-  qc_max_mito: 0.1
-  qc_max_splice: 0.75
-marker_genes:
-  mkr_custom_genesets:
-    - name: mouse_brain
-label_celltypes:
-  - labeller: celltypist
-    model: Mouse_Whole_Brain
-```
-
-Cell type annotation can now be initiated using the following command:
-
-```bash
-scprocess run config-test_project.yaml -r label_celltypes
-```
 
 ### Zooming in 
 
-After label asignment, we can subcluster cell populations of interest using {{sc}}. To identify those populations we can inspect the `test_label_celltypes.html` report which should be located in the `public` directory.
+The zoom module in {{sc}} allows subclustering of cell populations of interest. To identify those populations we can inspect the `test_label_celltypes.html` report which should be located in the `public` directory.
 
 The report includes a UMAP plot displaying the predicted cell type annotations:
 
 ![labels_umap](assets/images/tutorial1_labels_umap.png)
+
+??? warning "Tutorial results may vary from your {{sc}} outputs"
+    
+    Modifying the default `mouse_2024` reference transcriptome settings in `scprocess_setup.yaml` may cause your {{sc}} outputs to differ slightly from the results in this tutorial. Furthermore, if `int_use_gpu` is `false` or a GPU is unavailable, Scanpy will be used for integration instead of RAPIDS-singlecell, which was used for generate results shown on this page.
 
 In this example, we will subcluster the populations labelled "327 Oligo NN" (oligodendrocytes) and "326 OPC NN" (oligodendrocyte precursor cells). 
 
@@ -283,21 +264,27 @@ In this example, we will subcluster the populations labelled "327 Oligo NN" (oli
     
     Link the subclustering YAML to your main project configuration file (`config-test_project.yaml`) by adding it to the `zoom` section:
 
-    ```yaml hl_lines="15 16"
+    ```yaml hl_lines="22 23"
     project:
       proj_dir: /absolute/path/to/test_project # replace with correct absolute path 
       fastq_dir: data/fastqs
       full_tag: test_project
       short_tag: test
-      your_name: Test McUser
+      your_name: Testy McUser
       affiliation: Unemployed
       sample_metadata: data/metadata/test_project_metadata.csv
       tenx_assay_type: poly_a
       ref_txome: mouse_2024
       date_stamp: "2026-01-01"
       metadata_vars: [group]
+    qc:
+      qc_max_mito: 0.1
+      qc_max_splice: 0.75
+    marker_genes:
+      mkr_custom_genesets:
+        - name: mouse_brain
     label_celltypes:
-      - labeller: "celltypist"
+      - labeller: celltypist
         model: Mouse_Whole_Brain
     zoom:
       - zoom_params_test_project-oligos_opcs.yaml
@@ -339,7 +326,7 @@ First we will create a new project directory where all outputs of {{sc}} will be
 # - multiplexing section
 scprocess newproj test_multiplexed_project  -s -c sc multiplex
 
-# change your working directory to test_project
+# change your working directory to test_multiplexed_project
 cd test_multiplexed_project
 ```
 
@@ -463,7 +450,7 @@ qc:
 
 In addition to setting the parameters already present in the template configuration file, we must also define additional parameters specific to the multiplexed nature of the dataset. These key parameters are highlighted below:
 
-```yaml hl_lines="3 11 12 13 14"
+```yaml hl_lines="3 12 13 14 15"
 project:
   proj_dir: /absolute/path/to/test_multiplexed_project
   fastq_dir: data/fastqs/rna 

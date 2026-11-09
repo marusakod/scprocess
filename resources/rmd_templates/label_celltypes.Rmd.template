@@ -44,6 +44,10 @@ model_ls        = str_split("${model_ls}", " ")[[ 1 ]]
 hi_res_cl_ls    = str_split("${hi_res_cl_ls}", " ")[[ 1 ]]
 min_cl_prop_ls  = str_split("${min_cl_prop_ls}", " ")[[ 1 ]] %>% as.numeric
 min_cl2_p       = 0.2
+
+# label display specs
+label_specs_f_ls        = str_split("${label_specs_f_ls}", " ")[[ 1 ]]
+coarse_label_specs_f_ls = str_split("${coarse_label_specs_f_ls}", " ")[[ 1 ]]
 ```
 
 ```{r load_umap, include = FALSE}
@@ -54,7 +58,8 @@ int_dt        = fread(int_f) %>% .[ (is_dbl == FALSE) & (in_dbl_cl == FALSE) ]
 # get predictions
 assert_that( all(sapply(guess_f_ls, file.exists)) )
 guesses_ls    = lapply(guess_f_ls, fread) %>% setNames(model_ls)
-styles_ls = lapply(seq_along(model_ls), function(i) installed_label_style(model_ls[[i]]))
+styles_ls = lapply(seq_along(model_ls), function(i)
+  read_xgboost_style(NULL, character(), label_specs_f_ls[[i]], coarse_label_specs_f_ls[[i]]))
 for (i in seq_along(guesses_ls)) {
   mapping = styles_ls[[i]]$mapping
   if (!length(mapping)) next

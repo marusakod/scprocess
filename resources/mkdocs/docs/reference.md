@@ -334,14 +334,6 @@ illustrative choices, rather than a complete list of defaults.
       n_run_mapping: 8
     ```
 
-Only one FASTQ source is allowed: use either `fastq_dir`, or `arv_uuids` with
-`arv_instance`. For Flex, replace `ref_txome` with `probe_set` and set
-`tenx_assay_type: flex`. Omit `train_xgboost` unless you intend to train a
-classifier; run that analysis with `-r train_xgboost`. The example keeps the
-original training labels: cluster majority voting is disabled unless explicitly
-requested. For independent testing, reserve test groups as described under
-[train_xgboost](#train_xgboost).
-
 #### Required parameters
 
 ##### project
@@ -489,25 +481,6 @@ sample_id:
 
 ##### qc
 
-Quality control removes cells with measurements that are unsuitable for the
-analysis. Common warning signs include very few detected RNA molecules or genes,
-or a high mitochondrial proportion. These measurements also vary between real
-cell types and between cells and nuclei, so review their distributions before
-choosing cutoffs. A low-RNA population should not be rejected solely because
-it differs from the most abundant cells.
-
-This stage also identifies **doublets**: droplets containing material from more
-than one cell. Individual doublet calls are made here; a later integration step
-can remove whole clusters enriched for these calls. Review both stages when
-assessing how many cells are retained.
-
-###### Filtering cells and samples
-
-UMIs count detected RNA molecules. Detected features usually correspond to
-genes. Minimum count and feature thresholds remove cells with little usable
-expression information; optional upper limits can flag unusually large
-libraries, although a high count alone does not establish that a cell is a doublet.
-
 * `qc_min_counts`, `qc_max_counts`: minimum and optional maximum UMIs per cell.
   Defaults `500` and `null` (no upper limit).
 * `qc_min_feats`, `qc_max_feats`: minimum and optional maximum detected features
@@ -519,61 +492,28 @@ libraries, although a high count alone does not establish that a cell is a doubl
   can differ between whole-cell and nucleus data.
 * `qc_min_cells`: minimum cells remaining in a sample after QC to retain that
   sample; default `100`.
+* `exclude_mito`: exclude mitochondrial genes from the expression matrix
+  used for subsequent analysis; default `true`. Mitochondrial content is
+  still measured for QC.
+* `dbl_clusters`: whether artificial doublets are generated using clusters.
+  Default `null` uses the installed scDblFinder default. `false` disables
+  cluster-based generation; `true` first clusters the cells and generates
+  artificial doublets between clusters. This can help identify mixtures of
+  distinct cell types, but small, biologically real populations also need
+  careful review.
+* `dbl_dbr_sd`: how strongly the expected doublet rate constrains the calling
+  threshold. Default `null` uses the installed scDblFinder default. Setting
+  `1` removes the expected-rate penalty, leaving the threshold determined by
+  classification of artificial doublets. Consider this when the expected
+  rate appears unsuitable for a sample; it can substantially change cell
+  retention.
+* `dbl_min_feats`: minimum detected features for a barcode to enter
+  scDblFinder; default `100`.
+* `dbl_min_counts`: additional minimum UMIs for entering scDblFinder;
+  default `0` disables this filter. Counts exclude rRNA and, when
+  `exclude_mito` is true, mitochondrial genes.
 
-Review the QC report's distributions and retained-cell counts by sample.
-Check whether a proposed cutoff removes a plausible cell population or affects
-one sample disproportionately. Count and feature limits include their boundary
-values; a configured maximum must be at least as large as the minimum.
-
-??? note "Which genes contribute to the measurements"
-
-    * `exclude_mito`: exclude mitochondrial genes from the expression matrix
-      used for subsequent analysis; default `true`. Mitochondrial content is
-      still measured for QC.
-    * The mitochondrial and splicing summaries are calculated from molecule
-      counts. Small count adjustments keep proportions away from exactly 0
-      and 1 for plotting and filtering on a logit scale.
-
-###### Identifying individual doublets
-
-`scDblFinder` compares observed cells with artificial doublets made by combining
-expression profiles. It assigns each cell a score and a singlet/doublet call.
-The calling threshold can differ between samples, so compare the scores,
-thresholds and call rates together. Scores and call rates alone do not establish
-whether a rare population is a genuine cell type or a doublet population.
-
-The QC report shows observed and artificial-doublet score distributions, with
-linear- and log-count histogram tabs and up to 20 samples per page. The
-integration report shows where doublet-enriched clusters lie among the other
-cells. Review both before changing the settings below.
-
-??? note "Changing scDblFinder settings"
-
-    * `dbl_clusters`: whether artificial doublets are generated using clusters.
-      Default `null` uses the installed scDblFinder default. `false` disables
-      cluster-based generation; `true` first clusters the cells and generates
-      artificial doublets between clusters. This can help identify mixtures of
-      distinct cell types, but small, biologically real populations also need
-      careful review.
-    * `dbl_dbr_sd`: how strongly the expected doublet rate constrains the calling
-      threshold. Default `null` uses the installed scDblFinder default. Setting
-      `1` removes the expected-rate penalty, leaving the threshold determined by
-      classification of artificial doublets. Consider this when the expected
-      rate appears unsuitable for a sample; it can substantially change cell
-      retention.
-    * `dbl_min_feats`: minimum detected features for a barcode to enter
-      scDblFinder; default `100`.
-    * `dbl_min_counts`: additional minimum UMIs for entering scDblFinder;
-      default `0` disables this filter. Counts exclude rRNA and, when
-      `exclude_mito` is true, mitochondrial genes.
-
-    The doublet-input filters act before calling doublets and are separate from
-    the final `qc_min_counts` and other QC thresholds. Changing them changes the
-    cells available to scDblFinder and can change its inferred doublet rate.
-    Final count and feature maxima are applied after scDblFinder has run.
-    Input filters, calling settings and any overrides are saved in the doublet
-    summaries. Changed calls can affect HVG selection and integration too.
-
+  
 ??? note "Changing the expected-rate setting for selected samples"
 
     A YAML file supplied through `project.custom_sample_params` can contain:
@@ -587,13 +527,6 @@ cells. Review both before changing the settings below.
         qc:
           dbl_dbr_sd: null
     ```
-
-    Unlisted samples inherit the project setting. Explicit `null` uses the
-    installed scDblFinder default, even if the project setting is numeric.
-    For HTO/custom multiplexing, doublet calling is performed per pool: use
-    `pool_id` instead. Sample-level `dbl_dbr_sd` overrides in these pooled
-    workflows are rejected.
-
 
 ##### pb_empties
 
@@ -622,20 +555,6 @@ cells. Review both before changing the settings below.
 
 ##### integration
 
-This stage groups cells with similar expression profiles and makes the UMAP
-used to explore the dataset. It first summarizes variation across selected
-genes using principal component analysis (**PCA**). It can then reduce
-differences associated with sample preparation or processing using **Harmony**,
-before finding clusters and calculating the UMAP.
-
-Clustering and the UMAP serve different purposes: clusters group cells using
-their expression relationships, while the UMAP displays those relationships
-in two dimensions. A visually separate island is not by itself evidence of a
-distinct cell type. Check marker expression and sample composition alongside
-the plot.
-
-###### Choosing which differences to correct
-
 * `int_embedding`: use `harmony` (default) to correct for the chosen batch
   variable, or `pca` to cluster without batch correction.
 * `int_batch_var`: the variable identifying batches for Harmony; default
@@ -644,36 +563,12 @@ the plot.
   [join configuration](#configuration-file_2).
 * `int_theta`: controls how strongly Harmony favours mixing batches;
   default `0.1`. Larger values encourage more mixing.
-
-Choose batch variables according to the experimental design. For example,
-sample preparation can introduce differences between libraries, but disease,
-region and treatment may also differ between those same libraries. Inspect
-known cell populations and their markers to check that correction has not
-removed the differences you want to study. Improved sample mixing alone does
-not establish that the correction is appropriate.
-
-###### Choosing clusters and reviewing the result
-
 * `int_n_dims`: number of principal components used to describe expression
   differences; default `50`.
 * `int_res_ls`: clustering resolutions to calculate; default
   `[0.1, 0.2, 0.5, 1, 2]`. Larger resolutions generally produce more, smaller
   clusters. Calculating several lets you compare broad cell classes with
-  finer subdivisions.
-
-The resolution used for marker-gene analysis is selected separately with
-`marker_genes.mkr_sel_res`. Review the UMAP coloured by sample, cluster, known
-markers and available cell-type labels. Look for expected populations,
-sample-specific groups, and clusters with poor QC or high doublet scores.
-Investigate unexpected groups before deciding whether to keep or remove them.
-
-###### Removing doublet-enriched clusters
-
-Some mixed-cell profiles remain difficult to identify one at a time. A
-preliminary clustering therefore checks for groups containing a high proportion
-of cells already labelled as doublets. Cells in clusters above the
-chosen cutoff are excluded before calculating the final integration.
-
+  finer subdivision.
 * `int_dbl_res`: resolution of this preliminary clustering; default `4`.
   It is separate from the resolutions used to examine the final cell populations.
 * `int_dbl_threshold_method`: `adaptive` (default) estimates the cutoff from
@@ -682,104 +577,44 @@ chosen cutoff are excluded before calculating the final integration.
   For example, `0.3` excludes clusters with **more than 30%** called doublets.
   It is required with `manual`, has no default, and must be omitted with
   `adaptive`.
-
-For a manual cutoff:
-
-```yaml
-integration:
-  int_dbl_threshold_method: manual
-  int_dbl_cl_prop: 0.3
-```
-
-Review the integration report's doublet proportions and cluster QC plots.
-Whole-cluster filtering can remove cells that were individually called
-singlets, so inspect the biological identity and size of affected clusters.
-It does not change the original scDblFinder calls. This cutoff is separate
-from the per-cell calling threshold and `qc.dbl_dbr_sd`.
-
-The applied cutoff and method are saved during integration and displayed in
-the report. Changing them requires rerunning preliminary classification and
-downstream integration; editing the configuration does not change saved results.
-Reports require the threshold metadata from the integration run.
-
-??? note "How the adaptive cluster cutoff is estimated"
-
-    Clusters below 50% doublets and clusters above 50% define two groups.
-    Clusters exactly at 50% are omitted from estimation. Each cluster contributes
-    equally, regardless of its cell count. On the corrected logit scale, the
-    median and scaled median absolute deviation (MAD; multiplier 1.4826) of each
-    group define the centre and standard deviation of a Gaussian component.
-    Mixing weights are the proportions of clusters in the two groups.
-
-    The cutoff is the crossing of the two weighted densities between their
-    centres, converted back to a doublet proportion. There is no 50% cap.
-    Estimation stops with an error if either group contains fewer than two
-    clusters, has zero MAD, or lacks a unique crossing between the centres.
-    Review the cluster proportions and choose a manual cutoff if the adaptive
-    estimate cannot be calculated or is unsuitable for the dataset.
-
-??? note "UMAP layout settings"
-
-    These settings change how cells are displayed and can usually be left at
-    their defaults.
-
-    * `int_umap_n_iter`: number of steps used to optimize the UMAP layout;
-      default `2000`. Applies to project, join and zoom analyses on CPU or GPU.
-      Projects use it for both preliminary and final UMAPs. Changing it requires
-      recalculating the embedding and affected downstream outputs, without
-      changing the requested PCA, Harmony or clustering settings.
-    * `int_use_paga`: use relationships between clusters to initialize the UMAP
-      through partition-based graph abstraction (PAGA); default `true`.
-    * `int_paga_cl_res`: clustering resolution used for PAGA; default `2` for
-      projects, joins and zooms. It must be present in `int_res_ls`. Omit this
-      setting if `int_use_paga` is `false`. It is independent of the marker
-      resolution, which defaults to `0.2`.
-
-??? note "Computing options and saved objects"
-
-    * `int_pca_method`: `bpcells` (default) reads normalized and scaled
-      expression from disk, avoiding the need to hold the full matrix in memory.
-      `scanpy` calculates PCA in memory on CPU or GPU.
-    * `int_use_gpu`: use GPU acceleration for supported integration and
-      clustering calculations; default `true`. A usable GPU allocation and
-      software environment are required. If a GPU is requested but unavailable,
-      execution stops with an error; use `false` to request CPU processing.
-      Joins with multiple Harmony batch variables use CPU Harmony with
-      GPU-accelerated neighbours, clustering and UMAP, and report this choice.
-    * `int_sce_outs`: also save H5AD outputs as RDS files containing
-      `SingleCellExperiment` objects; default `false`.
-
-    With BPCells, projects first calculate PCA using QC-passed cells together
-    with observed cells called doublets (`pca_with_doublets`), then for retained cells alone
-    (`pca_singlets_only`). Cell-cycle correction, if enabled, is fitted separately
-    at each stage. Regression tables record its summaries and gene coefficients.
+* `int_umap_n_iter`: number of steps used to optimize the UMAP layout;
+  default `2000`. Applies to project, join and zoom analyses on CPU or GPU.
+  Projects use it for both preliminary and final UMAPs. Changing it requires
+  recalculating the embedding and affected downstream outputs, without
+  changing the requested PCA, Harmony or clustering settings.
+* `int_use_paga`: use relationships between clusters to initialize the UMAP
+  through partition-based graph abstraction (PAGA); default `true`.
+* `int_paga_cl_res`: clustering resolution used for PAGA; default `2` for
+  projects, joins and zooms. It must be present in `int_res_ls`. Omit this
+  setting if `int_use_paga` is `false`. It is independent of the marker
+  resolution, which defaults to `0.2`.
+* `int_pca_method`: `bpcells` (default) reads normalized and scaled
+  expression from disk, avoiding the need to hold the full matrix in memory.
+  `scanpy` calculates PCA in memory on CPU or GPU.
+* `int_use_gpu`: use GPU acceleration for supported integration and
+  clustering calculations; default `true`. A usable GPU allocation and
+  software environment are required. If a GPU is requested but unavailable,
+  execution stops with an error; use `false` to request CPU processing.
+  Joins with multiple Harmony batch variables use CPU Harmony with
+  GPU-accelerated neighbours, clustering and UMAP, and report this choice.
+* `int_sce_outs`: also save H5AD outputs as RDS files containing
+  `SingleCellExperiment` objects; default `false`.
+* `int_cell_cycle_correction` has two options: `within_sample`: removes cell-cycle-associated differences between cells
+  within each sample, preserving each sample's average expression on the scale
+  used for PCA. Start here when you want to reduce cell-cycle structure before
+  Harmony integration. Differences between samples with more or fewer cycling
+  cells are retained at this step. `global`: also removes the predicted differences between sample averages
+  attributable to their different cell-cycle composition. Consider this when
+  those differences dominate the leading PCs. It does not remove all
+  differences between samples.
+* `int_cell_cycle_harmonics`: how flexibly the correction follows changes
+  around the cycle; `1` or `2`, default `2`.
+* `int_cell_cycle_ridge_lambda`: limits the strength of the fitted
+  correction; default `0.1`. Larger values reduce the correction.
 
 
+  
 ##### cell_cycle
-
-Use this analysis to examine where cells lie along the cell cycle and whether
-cell-cycle activity contributes to the structure of your dataset. It uses
-`tricycle`, which compares expression of cell-cycle genes with a fixed reference.
-Cycling cells can form a loop in the resulting plot. A cell's position around
-this loop gives its estimated cell-cycle position, `tricycle_theta`.
-
-Add the following block to estimate cell-cycle position and make the report:
-
-```yaml
-cell_cycle:
-  cyc_density_percentile: 1.3
-```
-
-Run `scprocess run CONFIG -r cell_cycle`. The report is saved as
-`public/{short_tag}_cell_cycle.html`. Leaving out the `cell_cycle` block disables
-this analysis. Adding it does **not** remove cell-cycle effects from clustering.
-
-###### Choosing and checking the centre of the loop
-
-Cell-cycle position is measured around a centre, called the **origin**. Many
-datasets contain a large group of non-cycling or G0/G1 cells and relatively few
-cells in S or G2/M. To avoid that dense group dominating the estimated centre,
-{{sc}} gives cells in less populated parts of the plot more weight.
 
 * `cyc_density_percentile` sets the density threshold for full weight and must
   be supplied, from `0` to `100`. For example, `1.3` uses the 1.3rd percentile
@@ -792,172 +627,20 @@ cells in S or G2/M. To avoid that dense group dominating the estimated centre,
 * `cyc_origin_manual` optionally sets the centre yourself, as `[PC1, PC2]` using
   the coordinates in the report. Keep `cyc_density_percentile` so that the estimated
   alternatives are still shown for comparison.
-
-Review the centre together with the expression of known cell-cycle markers.
-The report shows how the centre changes across alternative settings, marker
-expression around the loop, and results for each sample. A dataset with few
-cycling cells may have no clear loop. Approximate phase labels and percentages
-should therefore be interpreted alongside the marker plots, rather than as
-definitive measurements of proliferation.
-
-??? note "Additional plot and centre-estimation settings"
-
-    These settings can usually be left at their defaults.
-
-    * `cyc_density_percentile_grid`: alternative density percentiles shown in
-      the report; default `[0, 0.1, 0.3, 1, 3, 10, 100]`. Your selected value is
-      always included. Values are already on a percentage scale; use `1.3` for
-      the 1.3rd percentile, rather than `0.013`.
-    * `cyc_bandwidth_multiplier`: how broadly neighbouring cells are grouped
-      when estimating the density of cells in the plot; default `1`. Larger
-      values smooth over a wider area and can change the estimated centre.
-    * `cyc_kde_grid_size`: resolution of the grid used to estimate cell density;
-      default `500` bins per axis.
-    * `cyc_seed`: random seed for the subset displayed in the diagnostic plot;
-      default `20230308`. It does not change the centre or cell-cycle positions.
-
-    The reference ellipse and the percentage outside it describe the spread of
-    the cells. They do not determine the centre or identify cycling cells.
-    Phase-percentage plots omit G0/G1 to make the less abundant phases easier
-    to see.
-
-###### Removing cell-cycle effects from clustering
-
-Cell-cycle activity can separate otherwise similar cells into different
-clusters. If this obscures the cell types or states you want to study, you can
-remove the estimated cell-cycle contribution before PCA and clustering:
-
-```yaml
-cell_cycle:
-  cyc_density_percentile: 1.3
-integration:
-  int_pca_method: bpcells
-  int_cell_cycle_correction: within_sample
-```
-
-`int_cell_cycle_correction` has two options:
-
-* `within_sample`: removes cell-cycle-associated differences between cells
-  within each sample, preserving each sample's average expression on the scale
-  used for PCA. Start here when you want to reduce cell-cycle structure before
-  Harmony integration. Differences between samples with more or fewer cycling
-  cells are retained at this step.
-* `global`: also removes the predicted differences between sample averages
-  attributable to their different cell-cycle composition. Consider this when
-  those differences dominate the leading PCs. It does not remove all
-  differences between samples.
-
-Omit `int_cell_cycle_correction` to leave expression uncorrected. Correction
-requires cell-cycle estimates and `int_pca_method: bpcells`. It changes the
-expression used for PCA, clustering and UMAP, but leaves the count matrices
-used for differential expression and the estimated cell-cycle positions
-unchanged. Different clusters can nevertheless change which cells contribute
-to each pseudobulk.
-
-Compare corrected and uncorrected results using known markers, cell types,
-sample identities and experimental conditions. Better sample mixing alone
-does not establish a better result. If proliferation is part of the biological
-question, correction could remove information you want to retain.
-
-??? note "Correction settings and assumptions"
-
-    * `int_cell_cycle_harmonics`: how flexibly the correction follows changes
-      around the cycle; `1` or `2`, default `2`.
-    * `int_cell_cycle_ridge_lambda`: limits the strength of the fitted
-      correction; default `0.1`. Larger values reduce the correction.
-
-    Both belong in `integration` and are accepted only when
-    `int_cell_cycle_correction` is set. They can usually be left at their
-    defaults.
-
-    The model estimates a shared relationship between expression and cell-cycle
-    position using variation within samples. It assumes that this relationship
-    is sufficiently similar across samples. Other biological changes that
-    correlate with cell-cycle position can also be affected. Both correction
-    options use this same fit; they differ in whether predicted shifts between
-    sample averages are removed. Harmony cannot recover information already
-    lost during PCA, so the options need not give the same final clusters.
-
-    In projects, correction is fitted separately before preliminary and final
-    PCA. Project zooms fit it for their selected cells. Cells without a sample
-    assignment in HTO/custom data use their physical run for centring.
-
-??? note "Calculation details and saved outputs"
-
-    The species is inferred from `project.ref_txome` or `project.probe_set`.
-    Projections are calculated per physical run: `sample_id` for
-    non-multiplexed, Flex and OCM data; `pool_id` for HTO/custom data. All runs
-    use the same reference, and coordinates are centred once across the whole
-    project. The centre is estimated from QC-passed candidate singlets; known
-    doublets receive coordinates and positions but do not influence its estimate.
-
-    The density threshold is the requested percentile of the eligible cells'
-    density values, with linear interpolation between adjacent values. A cell's
-    weight is `min(1, density_threshold / cell_density)`. The centre is the
-    weighted mean of its coordinates. Percentile `0` uses the minimum density,
-    giving weights proportional to inverse density; percentile `100` uses the
-    maximum density, giving every cell weight 1. The saved summaries record the
-    threshold and the actual percentage of cells at full weight. Diagnostic
-    display samples use these weights as sampling probabilities, without
-    changing the fitted centre.
-    The reference ellipse uses minimum covariance determinant (MCD) and a 99%
-    boundary; the percentage outside is a diagnostic, not a cycling-cell estimate.
-
-    Saved results include:
-
-    * `tricycle_pc1` and `tricycle_pc2`: coordinates in the fixed cell-cycle
-      reference, after project-wide centring. These are different from the PCs
-      used for integration.
-    * `tricycle_theta`: position around the chosen centre in radians, from
-      `0` up to but excluding `2*pi` (equivalent to 0–360 degrees).
-
-    Coordinates and positions depend on project composition. Changing the
-    weighting or manual centre reuses the per-run projections, but requires
-    recalculating positions and dependent results.
-
-    Results are in `output/{short_tag}_cell_cycle/`; the report source is
-    `analysis/{short_tag}_cell_cycle.Rmd`. The report includes expression of
-    12 cell-cycle marker genes, read from the full count matrices independently
-    of HVG selection. Spliced, unspliced and ambiguous features for the same
-    symbol are summed before normalization. Missing genes are recorded in the
-    run summary and retained as zero-valued columns in
-    `tricycle_marker_expression_*.csv.gz`.
-
-    Correction summaries and gene coefficients are saved when correction is
-    enabled. Predicted changes in sample averages should be approximately zero
-    for `within_sample`. If cell-cycle composition needs to be accounted for
-    in a separate differential-expression analysis, use a model appropriate to
-    that comparison; circular positions require both sine and cosine terms,
-    rather than an ordinary average angle or mean sine alone.
-
-??? note "Cell-cycle resource settings"
-
-    Per-run projection uses `calculate_tricycle_projection_one_run`. Override
-    memory and runtime with `gb_calculate_tricycle_projection_one_run` and
-    `mins_calculate_tricycle_projection_one_run`.
-
-    Pooling and the reference ellipse each request 8 GB and 30 minutes by
-    default. Their resource keys are `gb_aggregate_tricycle`,
-    `mins_aggregate_tricycle`, `gb_estimate_tricycle_reference_ellipse` and
-    `mins_estimate_tricycle_reference_ellipse`.
+* `cyc_density_percentile_grid`: alternative density percentiles shown in
+  the report; default `[0, 0.1, 0.3, 1, 3, 10, 100]`. Your selected value is
+  always included. Values are already on a percentage scale; use `1.3` for
+  the 1.3rd percentile, rather than `0.013`.
+* `cyc_bandwidth_multiplier`: how broadly neighbouring cells are grouped
+  when estimating the density of cells in the plot; default `1`. Larger
+  values smooth over a wider area and can change the estimated centre.
+* `cyc_kde_grid_size`: resolution of the grid used to estimate cell density;
+  default `500` bins per axis.
+* `cyc_seed`: random seed for the subset displayed in the diagnostic plot;
+  default `20230308`. It does not change the centre or cell-cycle positions.
 
 
 ##### marker_genes
-
-Marker analysis asks **which genes distinguish each cluster from the other
-clusters**. Use these genes to help identify cell populations and investigate
-their biology. For example, several consistent astrocyte markers provide
-stronger support for an astrocyte annotation than a single highly expressed gene.
-
-For each cluster, {{sc}} sums counts separately within each sample. These
-sample-level expression profiles are called **pseudobulks**. The marker test
-compares each cluster with all remaining clusters, accounting for variation
-between samples. Projects, joins and zooms use the same edgeR.bp calculation.
-This comparison identifies cluster-associated genes; a treatment or disease
-comparison requires a separate differential-expression analysis with a model
-appropriate to the experimental design.
-
-###### Selecting the clusters and minimum cell counts
 
 * `mkr_sel_res`: clustering resolution used for marker analysis; default `0.2`.
   Choose one of the resolutions already calculated in `integration.int_res_ls`.
@@ -965,104 +648,38 @@ appropriate to the experimental design.
   default `100`.
 * `mkr_min_cells`: minimum cells in each cluster–sample pseudobulk for it to
   contribute to marker testing; default `10`.
-
-These minimums apply to marker analysis, rather than removing those cells from
-the integration. Small populations may have few eligible samples after
-filtering; inspect the sample contributions when interpreting their markers.
-
-###### Interpreting marker results
-
-A positive **log fold change** (`logFC`) means higher expression in the selected
-cluster than in the comparison group; a negative value means lower expression.
-The **false discovery rate** (`FDR`) is the P value adjusted for testing many
-genes. Inspect the size of the expression difference, its statistical support
-and the expression levels across samples together. A very small FDR does not
-necessarily make a gene a useful or specific biological marker.
-
-The report shows marker expression, sample-level pseudobulks and variable
-genes. Check whether markers agree with one another and whether the apparent
-difference is supported across samples rather than dominated by a single sample.
-The comparison is against the other clusters present in this analysis, so a
-marker list can change when the selected cell populations or clustering change.
-
 * `mkr_min_cpm_mkr`: minimum expression for selecting genes shown in marker
   plots; default `50` counts per million (CPM). This is an expression filter
   for the report, not a significance cutoff for the marker test.
 * `mkr_not_ok_re`: pattern matching gene types to omit from marker-expression
   plots; default `"(lincRNA|lncRNA|pseudogene|antisense)"`.
-
-###### Gene-set enrichment
-
-Gene-set enrichment analysis (**GSEA**) asks whether groups of related genes
-are concentrated towards the higher- or lower-expression end of a cluster's
-ranked marker results. It can help summarize biological processes, but an
-enriched gene set does not by itself establish that a pathway is activated.
-
 * `mkr_do_gsea`: run GSEA; default `true`.
 * `mkr_gsea_cut`: FDR cutoff used for GSEA results; default `0.1`.
-
-??? note "Additional GSEA settings"
-
-    * `mkr_min_cpm_go`: minimum expression for genes included in GSEA;
-      default `1` CPM.
-    * `mkr_max_zero_p`: maximum proportion of a cluster's pseudobulks with
-      zero counts when filtering genes for enrichment; default `0.5`. The zero
-      filter is not applied to genes with negative `logFC`.
-    * `mkr_gsea_var`: how genes are ranked. The default, `z_score`, uses a
-      z-score based on signed `log10(FDR)`, combining the direction and
-      statistical support of the difference. `logFC` ranks by fold change.
-
-??? note "Adding custom marker-gene panels"
-
-    `mkr_custom_genesets` supplies named gene panels for the report. Each entry
+* `mkr_min_cpm_go`: minimum expression for genes included in GSEA;
+  default `1` CPM.
+* `mkr_max_zero_p`: maximum proportion of a cluster's pseudobulks with
+  zero counts when filtering genes for enrichment; default `0.5`. The zero
+  filter is not applied to genes with negative `logFC`.
+* `mkr_gsea_var`: how genes are ranked. The default, `z_score`, uses a
+  z-score based on signed `log10(FDR)`, combining the direction and
+  statistical support of the difference. `logFC` ranks by fold change.
+* `mkr_custom_genesets` supplies named gene panels for the report. Each entry
     contains:
-
     * `name`: a unique name for the panel.
     * `file`: path to a CSV containing `label` (the marker category), and
       `symbol` and/or `ensembl_id`. If the path is omitted, {{sc}} looks for
       `$SCPROCESS_DATA_DIR/marker_genes/{name}.csv`.
-
-??? note "Normalization and variation between samples"
-
-    Counts are normalized using TMM to account for differences in library size
-    and RNA composition. Each cluster is compared with the remaining clusters
-    using an edgeR Treat test.
-
-    * `mkr_dispersion_use_clusters`: include cluster membership when estimating
-      variation between samples; default `true`. This separates systematic
-      expression differences between clusters from the variation being
-      estimated. `false` omits cluster membership from dispersion estimation.
-      Gene filtering, TMM normalization and the cluster-versus-rest tests keep
-      their existing designs. Changing this setting requires refitting markers
-      and updating reports, but not rebuilding counts or normalization tables.
-    * `mkr_adjust_project_id`: joins only; account for project-level differences
-      in both dispersion estimation and marker comparisons. Default `false`.
-      `true` adds `project_id` to these models and takes longer to fit. This
-      choice is independent of `mkr_dispersion_use_clusters`.
-
-    Variable genes in marker reports are ranked by variance of TMM-normalized
-    logCPM across eligible cluster–sample pseudobulks. Profiles containing only
-    one cell are excluded from this ranking; marker testing uses the separate
-    `mkr_min_cells` criterion.
-
-??? note "Files, resource settings and changes from earlier versions"
-
-    Pseudobulks are saved as `pb_*.bpcells` directories and read in blocks,
-    avoiding the need to load the full count matrix into memory. Preparation,
-    marker fitting and plot data are saved separately, so a failed stage can
-    resume without rebuilding the counts.
-
-    `resources.n_run_marker_genes` controls fitting CPUs for projects and
-    project zooms. Fitting memory and time use `gb_run_marker_genes` and
-    `mins_run_marker_genes`, or the corresponding `zoom_` rule names. Other
-    marker stages have separate [resource settings](#resources).
-
-    Since 0.5.0, projects and zooms use the same normalization, dispersion and
-    variability calculations as joins. Their pseudobulks are BPCells directories
-    rather than RDS objects; marker CSV names are unchanged. These methodological
-    changes can alter results relative to earlier project-marker calculations.
-    The former combined in-memory resource model is no longer used.
-
+* `mkr_dispersion_use_clusters`: include cluster membership when estimating
+  variation between samples; default `true`. This separates systematic
+  expression differences between clusters from the variation being
+  estimated. `false` omits cluster membership from dispersion estimation.
+  Gene filtering, TMM normalization and the cluster-versus-rest tests keep
+  their existing designs. Changing this setting requires refitting markers
+  and updating reports, but not rebuilding counts or normalization tables.
+* `mkr_adjust_project_id`: joins only; account for project-level differences
+  in both dispersion estimation and marker comparisons. Default `false`.
+  `true` adds `project_id` to these models and takes longer to fit. This
+  choice is independent of `mkr_dispersion_use_clusters`.
 
 ##### label_celltypes
 
@@ -1087,9 +704,13 @@ rare populations within a cluster; inspect both views.
   label to be assigned to the whole cluster. Default `0.5`; clusters below this threshold are
   labelled ambiguous.
 * `min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled. Default `100`.
-* `label_map`: path to a CSV file mapping fine-grained labels to coarse labels. Must contain columns
-  `label` and `coarse_label`. Should be absolute or relative to `proj_dir`. If not specified, {{sc}}
-  will use the default label map included with the classifier (if available).
+* `label_specs_f`: one row per label, in the desired display order. Required
+  column: `label`. Optional columns: `colour` and `coarse_label`. Should be
+  absolute or relative to `proj_dir`. If not specified, {{sc}} will use the
+  default label specification included with the classifier (if available).
+* `coarse_label_specs_f`: one row per coarse group, in its display order.
+  Required column: `coarse_label`; optional column: `coarse_colour`. This file
+  requires a coarse mapping in `label_specs_f`.
 * `save_cluster_names_file`: if `true`, generate a `cluster_names_for_shiny_*.csv` file mapping
   clusters (at the `marker_genes:mkr_sel_res` resolution) to predicted cell type names. This file
   can be used as the `annotation_csv` in the shiny config. Requires a `marker_genes` block to be
@@ -1098,186 +719,71 @@ rare populations within a cluster; inspect both views.
 
 ##### train_xgboost
 
-Use this analysis to train a classifier from cells you have already labelled,
-so that the same labels can be assigned to other datasets. For example, a
-classifier trained on a labelled brain atlas can predict cell types in a new
-brain study. Its usefulness depends on the quality of those labels and how
-well the training cells represent the cells you later want to classify.
+!!! info "Splitting input dataset into training, validation, and test sets"
+    
+    The partitioning of cells into training, validation, and test sets occurs at the group level i.e. all cells belonging to a specific group are assigned together to a single set.
+    
+    By default, groups correspond to individual samples (`sample_id`) or pools (`pool_id`), but they can also be mapped to any other metadata variable (such as a batch variable). For example, a metadata variable can optionally be used as `test_group_var`. In this case, all samples corresponding to `test_groups` serve as the test set, held out completely from model training and reserved for diagnostic plots and evaluation.
+    
+    Similarly, a metadata variable can be specified as `validation_group_var`. A designated fraction of its unique values (`validation_fraction`) is randomly selected, and all samples corresponding to those values form the validation set. Unlike test cells, validation cells directly influence model training (e.g., determining early stopping during boosting).
+    
+    Any remaining cells not allocated to the test or validation sets are used for training, with up to `train_cells_per_label` cells sampled per class.
 
-Training uses expression and integration results from a completed project,
-join or project zoom. Supply a table linking cell IDs to labels, then add a
-`train_xgboost` block. For example, if your metadata includes `donor_id`:
-
-```yaml
-train_xgboost:
-  annots_f: data/configs/cell-labels.csv
-  validation_group_var: donor_id
-  validation_fraction: 0.2
-  train_cells_per_label: 2000
-  validation_cells_per_label: 500
-```
-
-Run `scprocess run CONFIG -r train_xgboost`, or
-`scprocess join CONFIG -r train_xgboost` for a join. Review the resulting HTML
-report before installing the classifier for use in other projects.
-
-###### Input labels
-
-* `annots_f` (required): CSV or CSV.gz with a unique `cell_id` for each labelled
-  cell and a `label` column, such as `Astrocyte` or `Microglia`. The file can
-  also supply donor, region or other metadata used to choose cells. Values
-  shared with the integration metadata must agree. Relative paths are resolved
-  from the project folder.
-* `excluded_labels`: labels to leave out of training and the main evaluation;
-  default `[]`. For example, you might exclude an uncertain annotation rather
-  than teach the classifier that it is a distinct cell type.
-* `min_cells_per_label`: minimum number of eligible cells needed to retain a
-  label before sampling; default `20`. Labels with fewer cells are excluded.
-  This minimum does not by itself establish that a rare label has enough
-  examples for reliable classification.
-
-Original labels are kept unless you explicitly enable cluster majority voting,
-described below.
-
-###### Choosing cells for training and checking predictions
-
-Cells have different roles in the analysis:
-
-* **Training cells** teach the classifier the expression patterns associated
-  with each label.
-* **Validation cells** come from separate groups, such as donors or tissue
-  tubes. Their predictions are checked during training to decide when to stop.
-  Because these cells influence that decision, agreement with their labels can
-  overestimate performance on a new dataset.
-* **Test cells**, when requested, come from groups held out from both steps.
-  They provide a more independent check of predictions.
-* **Remaining cells** were not selected because of the limits on training and
-  validation cell numbers. They can share donors or samples with training
-  cells, so they are not an independent test.
-
-Choose groups that match the intended use. To assess predictions in new donors,
-keep whole donors together rather than separating cells from the same donor
-between training and validation.
-
-* `validation_group_var`: metadata column defining the groups to keep together,
-  for example `donor_id` or a tissue-tube identifier. By default it uses the
-  processing batch inherited from the project or join.
-* `validation_fraction`: fraction of groups assigned to validation; default
-  `0.2`. With ten donors, this initially selects two donors, not 20% of cells.
-  The final cell fraction depends on how many cells each donor contributes.
-* `test_group_var` and `test_groups`: column and values to hold out for testing.
-  For example, `test_group_var: donor_id` and `test_groups: [donor_3]` reserve
-  that donor. Supply both settings or neither. Test groups are selected first.
-* `train_cells_per_label` and `validation_cells_per_label`: maximum cells to
-  select per label after assigning groups; defaults `2000` and `500`. These
-  limits keep abundant labels from dominating simply through their cell counts.
-
-The report compares predicted and supplied labels, shows their distribution
-over the UMAP, and summarizes how often each label is recovered or confused
-with another. Examine rare labels and biologically plausible confusions,
-alongside the overall accuracy. Agreement on training cells is expected to
-be higher than agreement on genuinely new samples.
-
-??? note "Balancing regions, donors or other metadata"
-
-    * `validation_variable_combinations`: choose validation groups separately
-      within combinations of metadata values. For example, `[region, condition]`
-      can help represent each region/condition combination on both sides.
-      Every group must have one consistent combination of these values, and
-      enough groups must be available to split. Omit for a single overall split.
-    * `sampling_variable_combinations`: balance cell selection within each label
-      across combinations such as `[donor_id, region]`. This happens after group
-      assignment and separately for training and validation. Omit to give cells
-      within each label and assigned split an equal chance of selection.
-
-    `validation_fraction` is rounded down to a whole number of groups, with at
-    least one on each side where two or more groups are available. A combination
-    with only one group contributes none to validation. Whole groups can be
-    moved back to training to retain enough cells for rare labels, so inspect
-    the saved split counts rather than assuming the requested fraction was met.
-    Training stops with an error if no suitable validation groups remain.
-
-###### Label names, colours and coarse groups
-
-Two optional CSV files control how labels appear in reports:
-
-* `label_specs_f`: one row per label, in the desired display order. Required
-  column: `label`. Optional columns: `colour` and `coarse_label`.
-* `coarse_label_specs_f`: one row per coarse group, in its display order.
-  Required column: `coarse_label`; optional column: `coarse_colour`. This file
-  requires a coarse mapping in `label_specs_f`.
-
-For example, `Astrocyte` and `Bergmann glia` can both map to `Astroglia`.
-The classifier still predicts the original labels; the report can also compare
-the corresponding coarse groups. Each coarse group is a direct lookup from
-the predicted label. It does not combine probabilities or vote across cells.
-
-Include every model label in `label_specs_f`. If colours are supplied, give
-every label a hex colour code such as `#74C476`. Omit coarse mappings to show
-fine labels only, or omit both files to use the default display. Changing
-order, colours or coarse mappings updates the report without retraining the
-model or recalculating predictions.
-
-??? note "Replacing training labels by cluster majority vote"
-
-    This option can reduce inconsistent labels within a cluster, but can also
-    overwrite genuine rare cell types that share a cluster with more abundant
-    cells. Leave it off when preserving those distinctions is important.
-
-    * `cluster_majority_vote_resolution`: an already calculated clustering
-      resolution at which to take each cluster's most frequent training label.
-      Omit to keep the original labels.
-    * `cluster_majority_vote_min_purity`: minimum fraction of labelled training
-      cells that must agree before their label can be assigned to the cluster;
-      default `0.9`. For example, at least 90% must share the most frequent label.
-
-    At least ten training annotations are also needed per cluster. This is a
-    fixed minimum, not a configurable setting. Votes are determined from
-    training cells, keeping validation and test labels out of that decision.
-
-??? note "Gene selection and training settings"
-
-    The classifier is trained twice. The first fit considers all genes remaining
-    after filtering and identifies those most useful for distinguishing labels.
-    The second fits the final model using the selected genes. A gene's **gain**
-    measures its contribution to improving predictions during training; it is
-    not a statistical test of differential expression.
-
-    * `min_cells_expressed`: a gene must be detected in at least this many
-      training cells; default `10`.
-    * `gene_exclude_re`: pattern matching gene types to exclude; default
-      `"(lincRNA|lncRNA|pseudogene|antisense)"`. Excluding these features can help
-      when applying a model to assays that do not measure them, but does not
-      guarantee coverage of all selected genes in a new assay.
-    * `gain_threshold`: select genes accounting for this fraction of total
-      gain in the first fit; default `0.9` (90%).
-    * `min_genes`, `max_genes`: lower and upper limits on the selected gene
-      count; defaults `100` and `3000`.
-    * `seed`: random seed for reproducible cell selection and fitting;
-      default `42`.
-    * `use_gpu`: use a GPU for training; default `false`.
-    * `xgboost_tag`: name used in model filenames. Supplied names receive the
-      `xgboost_` prefix. If omitted, the prefix is `xgboost_{full_tag}` for a
-      project or `xgboost_{join.name}` for a join.
-
-    XGBoost builds predictions by successively adding decision trees. The
-    settings below control how it does this; most users can start with the
-    defaults. Validation predictions determine when to stop adding trees.
-
-    | Setting | Meaning | Default |
-    |---------|---------|---------|
-    | `pass1_subsample` | Fraction of training cells sampled for each round in the first fit | `0.632` |
-    | `pass1_colsample_bytree` | Fraction of genes considered for each tree in the first fit | `0.1` |
-    | `pass1_learning_rate` | How much each added tree changes predictions | `0.1` |
-    | `pass1_nrounds` | Maximum rounds in the first fit | `300` |
-    | `pass1_early_stopping` | Stop after this many rounds without improved validation performance | `10` |
-    | `pass2_colsample_bytree` | Fraction of selected genes considered for each tree in the final fit | `0.5` |
-    | `pass2_learning_rate` | How much each added tree changes predictions | `0.05` |
-    | `pass2_nrounds` | Maximum rounds in the final fit | `500` |
-    | `pass2_early_stopping` | Stop after this many rounds without improved validation performance | `10` |
-
-Once reviewed, the classifier can be
-[installed for use in other projects](#setup-xgboost).
+* `annots_f` (required): CSV file with a unique `cell_id` column and a `label`
+  column containing training labels. Can also supply other metadata columns (any
+  values shared with sample metadata must agree). Should be absolute or relative
+  to `proj_dir`.
+* `excluded_labels`: labels to leave out of training.
+* `min_cells_per_label`: minimum number of cells needed
+  to retain a label for training; default `20`. Labels with fewer cells are excluded.
+* `test_group_var`: metadata column corresponding to the variable with values that should be completely held out during training and validaton; should be supplied together with `test_groups`.
+* `test_groups`: values of `test_group_var`.
+* `validation_group_var`: metadata column defining the groups to keep together (validation data split is gonna be defined on these groups)
+  for validation. By default it uses the processing batch (batch_var?) inherited from the project or join.
+* `validation_fraction`: fraction of the groups assigned to validation set; default `0.2`. With ten samples, this initially selects two
+  samples (The final cell fraction depends on how many cells each sample contributes)
+* `validation_variable_combinations`: metadata columns (other than `validation_group_var` itself) whose combinations should each be represented
+  on both sides of the split. Without this, `validation_fraction` draws validation groups from the whole pool at once, which can by chance leave a
+  whole condition — e.g. a region or condition that only a few groups elong to — entirely out of validation. Listing `[region, condition]` instead
+  draws `validation_fraction` of the groups separately within each distinct `(region, condition)` combination, so every combination contributes to both
+  train and validation. Omit for a single, unstratified draw over all groups.
+* `sampling_variable_combinations`: balance cell selection within each label across combinations such as `[donor_id, region]`. This happens after group
+  assignment, separately for training and validation. Omit to give cells within each label and assigned split an equal chance of selection.
+* `train_cells_per_label`: maximum cells to select per label after assigning groups. default: 2000
+* `validation_cells_per_label`: maximum cells to select per label after assigning groups; default: 500.
+* `cluster_majority_vote_resolution`: an already calculated clustering
+  resolution at which to take each cluster's most frequent training label. Omit to keep the original labels.
+* `cluster_majority_vote_min_purity`: minimum fraction of labelled training cells that must agree before their label can be assigned to the cluster;
+  default `0.9`. For example, at least 90% must share the most frequent label. At least ten training annotations are also needed per cluster — a fixed
+  minimum, not a configurable setting. Votes are determined from training cells only, keeping validation and test labels out of that decision.
+* `min_cells_expressed`: a gene must be detected in at least this many training cells; default `10`.
+* `gene_exclude_re`: pattern matching gene types to exclude; default `"(lincRNA|lncRNA|pseudogene|antisense)"`.
+* `gain_threshold`: select genes accounting for this fraction of total gain in the first fit; default `0.9` (90%).
+* `min_genes`: lower limit on the selected gene count; default: 100
+* `max_genes`: upper limit on the selected gene count; default: 3000
+* `seed`: random seed for reproducibility; default `42`.
+* `use_gpu`: use a GPU for training; default `false`. 
+* `xgboost_tag`: name used in model filenames. If omitted, the file prefix is `xgboost_{full_tag}` for a
+  project or `xgboost_{join.name}` for a join.
+* `pass1_subsample`: fraction of training cells sampled for each round in the first fit. Default `0.632`. Reused for the second fit as well — there is no
+  separate `pass2_subsample`.
+* `pass1_colsample_bytree`: fraction of genes considered for each tree in the
+  first fit. Default `0.1`.
+* `pass1_learning_rate`: how much each added tree changes predictions in the
+  first fit. Default `0.1`.
+* `pass1_nrounds`: maximum rounds in the first fit. Default `300`.
+* `pass1_early_stopping`: stop the first fit after this many rounds without
+  improved validation performance. Default `10`.
+* `pass2_colsample_bytree`: fraction of genes considered for each tree in the
+  final fit, over just the genes selected after the first fit. Default `0.5`.
+* `pass2_learning_rate`: how much each added tree changes predictions in the
+  final fit. Default `0.05`.
+* `pass2_nrounds`: maximum rounds in the final fit. Default `500`.
+* `pass2_early_stopping`: stop the final fit after this many rounds without
+  improved validation performance. Default `10`.
+* `label_specs_f` (optional): one row per label, in the desired display order. Required column: `label`. Optional columns: `colour` and `coarse_label`.
+* `coarse_label_specs_f`: one row per coarse group, in its display order. Required column: `coarse_label`; optional column: `coarse_colour`. Requires a
+  coarse mapping in `label_specs_f`.
 
 
 ##### shiny
@@ -1324,33 +830,6 @@ Once reviewed, the classifier can be
     - an explicit colour list (array)
     - an object with optional `palette`, `colours`, and `values` keys (the `values` list controls
       level ordering; defaults to frequency order)
-
-Building a Shiny app has two stages. `build_shiny_data` (or
-`build_zoom_shiny_data`) performs the expensive H5AD reads, UMAP subsampling,
-BPCells writes, pseudobulking, and marker/GSEA preparation. The lightweight
-`configure_shiny_app` (or `configure_zoom_shiny_app`) copies the application
-template and writes `annotation.csv`, `home.md`, and `shinyconfig.yaml`. Running
-`scprocess ... -r shiny` targets the configuration stage and brings in the data
-stage only when its analytical inputs are stale. Changes to cluster names,
-order or colours, `app_title`, `email`, `keyword`, `default_gene`,
-`metadata_labels`, `metadata_combns`, `home_md`, `cluster_palette`, or
-`metadata_palettes` therefore do not rebuild the expression matrices.
-
-Changing `n_keep`, `metadata_vars`, clustering/marker resolution, sample
-metadata, integration outputs, H5ADs, markers, HVGs, or GSEA inputs rebuilds the
-Shiny data. Check the dry run before rebuilding a large app.
-
-The cluster UMAPs include a **Repel cluster labels** option. Repelled label
-positions are computed from the full UMAP during the app build: labels are moved
-into low-density space, given clearance from cells, and allocated globally so
-their numbered circles do not overlap one another. Rebuild the Shiny target to
-refresh these positions after changing the integration or clustering.
-
-The sample metadata CSV is an explicit input to the Shiny data stage. Editing
-descriptive values therefore marks the generated Shiny data for rebuilding. For a join, first
-run the normal join target so its joint sample metadata snapshot is refreshed, then
-run `scprocess join CONFIG -r shiny` to rebuild the app.
-
 
 ??? info "Supported colour palettes"
 

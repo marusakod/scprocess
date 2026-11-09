@@ -99,8 +99,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       plot_removed_txt = "Plots show what proportion of reads were removed from all barcodes called as cells."
       spl_umis_pl_txt = paste0("The plots show the relationship between the number of UMIs and the percentage of spliced reads, ", 
         "separated by sample, both before and after ambient RNA removal. Ambient RNA is typically characterized by a high proportion of spliced reads, ", 
-        "so changes can help assess ambient removal in nuclear preparations. ",
-        "Spliced proportions also vary by cell type; a change alone does not establish that removal was successful.")
+        "making the spliced percentage a useful metric for evaluating the effectiveness of an ambient RNA removal method. ", 
+        "By examining changes in spliced percentages, we can assess how well the method performed in reducing ambient RNA contamination.")
     } else{
       spl_umis_pl_txt = paste0(
         "The plot shows the relationship between the number of UMIs and the percentage of spliced reads, separated by sample. ",
@@ -232,7 +232,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
   } else if (sel_rule == 'label_celltypes') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp', 'threads',
-      'int_f', 'guess_f_ls', 'labeller_ls', 'model_ls', 'hi_res_cl_ls', 'min_cl_prop_ls')
+      'int_f', 'guess_f_ls', 'labeller_ls', 'model_ls', 'hi_res_cl_ls', 'min_cl_prop_ls',
+      'label_specs_f_ls', 'coarse_label_specs_f_ls')
 
     assert_that(all(req_names %in% add_args_names))
 

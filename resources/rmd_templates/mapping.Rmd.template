@@ -108,8 +108,7 @@ For each sample, barcodes are ranked in descending order based on their library 
 Typically, one can observe two plateaus in the barcode-rank curve: the first corresponds to droplets containing cells with high RNA content, while the second represents empty droplets containing ambient RNA. 
 Key transition points on the curve (shin and knee points), are annotated with horizontal lines.
 Two main parameters inferred by `scprocess` based on transition points are `expected_cells` and `empty_plateau_middle`.
-`empty_plateau_middle` should extend a few thousand barcodes into the second plateau. 
-A weak or absent empty-droplet plateau can make these estimates unreliable. Check the marked transition points against the curve and, where needed, specify custom mapping parameters before ambient RNA removal.
+`empty_plateau_middle` should extend a few thousand barcodes into the second plateau. The absence of a clear empty plateau indicates poor sample quality due to ambient RNA contamination.
 
 
 ### Ordered by slope ratio{.tabset}
@@ -151,18 +150,21 @@ for (i in 1:length(exp_tot_ratio_split_l) ) {
 }
 ```
 
+### Dotplot with diagnostic ratios
 
-### Pairwise landmark coordinates {.tabset}
+Both the slope ratio and the expected cells to empty droplets ratio are displayed in a dot plot, where each dot represents a sample.
+Outliers are labeled with their corresponding `r sample_var` values.
 
-Each point represents one run. The six upper-triangular panels compare UMI counts
-and barcode ranks for the first and second landmarks. Axes are logarithmic with
-labels in original units. Counts use saved values, including custom overrides;
-ranks use the droplet count nearest to each saved landmark.
-Orange triangles highlight runs with custom mapping parameters; grey circles
-show runs without overrides. Faint grey ellipses describe 95% robust covariance
-contours estimated robustly from log10 coordinates using `robustbase::covMcd()`. These describe the spread of runs, rather than uncertainty in the average position. Ellipses are omitted when fewer than five runs or
-singular covariance prevent estimation. Unusual positions should be checked
-against the barcode-rank curves; these diagnostics do not change filtering.
+```{r ambient_params_qc_dot, fig.height = 4, fig.width = 8}
+print(plot_amb_params_dotplot(rna_knee_params_df, sample_var = sample_var, scales = 'free'))
+```
+
+### Pairwise coordinates of curve transition points {.tabset}
+
+Each panel below compares the two coordinates of the knee or shin points (library size or barcode rank) across all samples in the project (each dot is a sample).
+The faint grey ellipses outline where most samples cluster (they're left out when there are too few samples, or the samples are too similar, to draw one meaningfully).
+Any outlier samples should ideally be inspected in the barcode-rank curve.
+
 
 ```{r landmark_custom_runs, include = FALSE}
 custom_mapping_runs = get_mapping_custom_runs("${custom_sample_params_f}", sample_var = sample_var)
@@ -181,16 +183,6 @@ print(plot_knee_coordinates_pairwise(rna_knee_params_df, sample_var = sample_var
 print(plot_knee_coordinates_pairwise(rna_knee_params_df, sample_var = sample_var,
   landmark = 'shin', custom_runs = custom_mapping_runs))
 ```
-
-### Dotplot with diagnostic ratios
-
-Both the slope ratio and the expected cells to empty droplets ratio are displayed in a dot plot, where each dot represents a sample.
-Outliers are labeled with their corresponding `r sample_var` values.
-
-```{r ambient_params_qc_dot, fig.height = 4, fig.width = 8}
-print(plot_amb_params_dotplot(rna_knee_params_df, sample_var = sample_var, scales = 'free'))
-```
-
 
 ## Library sizes and splice read proportions: comparison between cells and empty droplets across samples
 

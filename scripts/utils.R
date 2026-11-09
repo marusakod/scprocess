@@ -511,35 +511,114 @@ xgboost_colours <- function(labels, specified = NULL) {
   colours
 }
 
-read_xgboost_style <- function(predictions_f, labels, label_specs_f=NULL, coarse_label_specs_f=NULL) {
-  prefix = if (is.null(predictions_f)) "" else sub("_predictions.csv.gz$", "", predictions_f)
-  fine_f = if (!is.null(label_specs_f)) label_specs_f else paste0(prefix, "_label_specs.csv")
-  coarse_f = if (!is.null(coarse_label_specs_f)) coarse_label_specs_f else paste0(prefix, "_coarse_label_specs.csv")
-  fine = if (file.exists(fine_f)) fread(fine_f, na.strings=c("", "NA")) else data.table()
-  coarse = if (file.exists(coarse_f)) fread(coarse_f, na.strings=c("", "NA")) else data.table()
-  order = unique(c(if ("label" %in% names(fine)) fine$label else character(), as.character(labels)))
-  order = order[!is.na(order)]
-  colours = if (all(c("label","colour") %in% names(fine)))
-    setNames(fine[!is.na(colour)]$colour, fine[!is.na(colour)]$label) else NULL
-  mapping = if (all(c("label","coarse_label") %in% names(fine)))
-    setNames(fine[!is.na(coarse_label)]$coarse_label, fine[!is.na(coarse_label)]$label) else character()
-  coarse_order = unique(c(if ("coarse_label" %in% names(coarse)) coarse$coarse_label else character(), unname(mapping)))
-  coarse_colours = if (all(c("coarse_label","coarse_colour") %in% names(coarse)))
-    setNames(coarse[!is.na(coarse_colour)]$coarse_colour, coarse[!is.na(coarse_colour)]$coarse_label) else NULL
-  list(order=order, colours=xgboost_colours(order,colours), mapping=mapping,
-    coarse_order=coarse_order, coarse_colours=xgboost_colours(coarse_order,coarse_colours))
+read_xgboost_style <- function(predictions_f, labels, label_specs_f = NULL, coarse_label_specs_f = NULL) {
+  # Derive default spec file paths from the predictions file name, unless
+  # explicit paths were supplied.
+  if (is.null(predictions_f)) {
+    prefix = ""
+  } else {
+    prefix = sub("_predictions.csv.gz$", "", predictions_f)
+  }
+  if (is.null(label_specs_f)) {
+    label_specs_f = paste0(prefix, "_label_specs.csv")
+  }
+  if (is.null(coarse_label_specs_f)) {
+    coarse_label_specs_f = paste0(prefix, "_coarse_label_specs.csv")
+  }
+
+  # A missing spec file is not an error; it just means no explicit style.
+  if (file.exists(label_specs_f)) {
+    fine_specs = fread(label_specs_f, na.strings = c("", "NA"))
+  } else {
+    fine_specs = data.table()
+  }
+  if (file.exists(coarse_label_specs_f)) {
+    coarse_specs = fread(coarse_label_specs_f, na.strings = c("", "NA"))
+  } else {
+    coarse_specs = data.table()
+  }
+
+  # Fine-label display order: the spec file's own order first (so authors
+  # control it), then any labels actually present in the data that weren't
+  # listed, in the order they first appear. Duplicates and NAs are dropped.
+  if ("label" %in% names(fine_specs)) {
+    specified_labels = fine_specs$label
+  } else {
+    specified_labels = character()
+  }
+  fine_order = unique(c(specified_labels, as.character(labels)))
+  fine_order = fine_order[!is.na(fine_order)]
+
+  # Per-label colours, only for labels the spec file explicitly assigns one.
+  if (all(c("label", "colour") %in% names(fine_specs))) {
+    has_colour = fine_specs[!is.na(colour)]
+    fine_colours = setNames(has_colour$colour, has_colour$label)
+  } else {
+    fine_colours = NULL
+  }
+
+  # Fine-to-coarse mapping, only for labels the spec file explicitly groups.
+  if (all(c("label", "coarse_label") %in% names(fine_specs))) {
+    has_coarse = fine_specs[!is.na(coarse_label)]
+    fine_to_coarse = setNames(has_coarse$coarse_label, has_coarse$label)
+  } else {
+    fine_to_coarse = character()
+  }
+
+  # Coarse-group display order: the coarse spec file's own order first, then
+  # any coarse groups referenced by the fine-to-coarse mapping above.
+  if ("coarse_label" %in% names(coarse_specs)) {
+    specified_coarse_labels = coarse_specs$coarse_label
+  } else {
+    specified_coarse_labels = character()
+  }
+  coarse_order = unique(c(specified_coarse_labels, unname(fine_to_coarse)))
+
+  # Per-coarse-group colours, only for groups the spec file explicitly assigns one.
+  if (all(c("coarse_label", "coarse_colour") %in% names(coarse_specs))) {
+    has_coarse_colour = coarse_specs[!is.na(coarse_colour)]
+    coarse_colours = setNames(has_coarse_colour$coarse_colour, has_coarse_colour$coarse_label)
+  } else {
+    coarse_colours = NULL
+  }
+
+  # xgboost_colours() fills in a palette colour for any label/group left
+  # without an explicit one, so the returned colour vectors always cover
+  # the full order.
+  list(
+    order          = fine_order,
+    colours        = xgboost_colours(fine_order, fine_colours),
+    mapping        = fine_to_coarse,
+    coarse_order   = coarse_order,
+    coarse_colours = xgboost_colours(coarse_order, coarse_colours)
+  )
 }
 
 apply_xgboost_style <- function(data, style) {
-  order = unique(c(style$order, as.character(data$label), as.character(data$predicted_label)))
-  for (column in intersect(c("label","predicted_label"),names(data)))
-    set(data, j=column, value=factor(data[[column]],levels=order[!is.na(order)]))
+  # Fine-label factor levels: the style's own order first, then any labels
+  # actually present in the data that weren't listed, so nothing is dropped.
+  fine_order = unique(c(style$order, as.character(data$label), as.character(data$predicted_label)))
+  fine_order = fine_order[!is.na(fine_order)]
+  for (column in intersect(c("label", "predicted_label"), names(data))) {
+    set(data, j = column, value = factor(data[[column]], levels = fine_order))
+  }
+
+  # Only derive coarse columns if the style actually defines a fine->coarse mapping.
   if (length(style$mapping)) {
-    for (columns in list(c("label","coarse_true"),c("predicted_label","coarse_predicted"))) {
-      original = as.character(data[[columns[1]]])
-      value = unname(style$mapping[original])
-      value[is.na(value)] = original[is.na(value)]
-      set(data, j=columns[2], value=factor(value,levels=unique(c(style$coarse_order,value[!is.na(value)]))))
+    column_pairs = list(c("label", "coarse_true"), c("predicted_label", "coarse_predicted"))
+    for (columns in column_pairs) {
+      fine_column   = columns[1]
+      coarse_column = columns[2]
+      fine_values   = as.character(data[[fine_column]])
+      coarse_values = unname(style$mapping[fine_values])
+
+      # Labels with no entry in the mapping keep their original (fine) value
+      # instead of becoming missing.
+      unmapped = is.na(coarse_values)
+      coarse_values[unmapped] = fine_values[unmapped]
+
+      coarse_levels = unique(c(style$coarse_order, coarse_values[!is.na(coarse_values)]))
+      set(data, j = coarse_column, value = factor(coarse_values, levels = coarse_levels))
     }
   }
   data

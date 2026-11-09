@@ -117,22 +117,8 @@ print(g)
 
 ## Doublet proportions in clusters
 
-The plot shows the proportion of doublets for each cluster in relation to its
-cell count. Clusters above **`r sprintf('%.1f', dbl_cl_prop * 100)`%** are excluded.
-The thresholding method is **`r dbl_threshold$method`**.
-
-```{r doublet_threshold_details, results = 'asis'}
-if (dbl_threshold$method == 'adaptive') {
-  print(knitr::kable(data.frame(
-    group = c('Below 50%', 'Above 50%'),
-    clusters = c(dbl_threshold$n_low, dbl_threshold$n_high),
-    weight = c(dbl_threshold$weight_low, dbl_threshold$weight_high),
-    median_logit = c(dbl_threshold$median_logit_low, dbl_threshold$median_logit_high),
-    scaled_MAD_logit = c(dbl_threshold$scaled_mad_logit_low, dbl_threshold$scaled_mad_logit_high)), digits = 3))
-  cat('\nThe applied cutoff is the crossing between the two component centres, without a 50% cap. Clusters exactly at 50% are omitted from estimation: ', dbl_threshold$n_equal_50, '.\n')
-
-}
-```
+The plot shows the proportion of doublets for each cluster in relation to the total number of cells in that cluster. Clusters with a doublet proportion exceeding **`r sprintf('%.1f', dbl_cl_prop * 100)`%** are excluded from further analysis.
+The method for selecting a threshold is: **`r dbl_threshold$method`**.
 
 ```{r plot_doublet_clusters, fig.height = 4, fig.width = 6}
 ( plot_doublet_clusters(int_dbl, dbl_cl_prop) )
@@ -195,9 +181,6 @@ for (res in res_ls_pl) {
 ## Check QC metrics of clusters{.tabset}
 
 Distributions of QC metrics (library size, number of features, mitochondrial proportion, spliced proportion, and scDblFinder doublet score) are shown for each cluster across different resolution values.
-
-Doublet scores use a logit axis labelled with original score values. Exact zero
-and one scores are moved to 1e-12 and 1-1e-12 for plotting only.
 
 ```{r plot_qc_distns, fig.height = 10, fig.width = 10, results = 'asis'}
 for (res in res_ls) {

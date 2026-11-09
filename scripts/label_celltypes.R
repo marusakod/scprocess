@@ -77,21 +77,3 @@ calc_labels_table <- function(guesses_dt, label_order = NULL) {
   return(ns_dt)
 }
 
-installed_label_style <- function(model) {
-  registry_f = file.path(Sys.getenv("SCPROCESS_DATA_DIR"), "xgboost", "xgboost_models.csv")
-  empty = list(order = NULL, colours = NULL, coarse_order = NULL,
-    coarse_colours = NULL, mapping = character())
-  if (!file.exists(registry_f)) return(empty)
-  registry = fread(registry_f, na.strings = c("", "NA"))
-  entry = registry[registry$model == model]
-  # Models without specification tables keep the report's existing defaults.
-  has_specs = nrow(entry) == 1L && "label_specs_f" %in% names(entry) &&
-    !is.na(entry$label_specs_f)
-  if (!has_specs) return(empty)
-
-  coarse_specs_f = ""
-  if ("coarse_label_specs_f" %in% names(entry) && !is.na(entry$coarse_label_specs_f)) {
-    coarse_specs_f = entry$coarse_label_specs_f
-  }
-  read_xgboost_style(NULL, character(), entry$label_specs_f, coarse_specs_f)
-}
