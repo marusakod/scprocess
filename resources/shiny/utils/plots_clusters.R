@@ -104,6 +104,16 @@ cluster_umap_legend <- function(centroids, col_pal, device_size) {
     if (fits) break
   }
 
+  # Narrow the legend to the columns it needs. The width above is only the room
+  # available for fitting; keeping it would leave blank space to the right of a
+  # legend with short labels. Text width is estimated at 0.6 em per character, a
+  # little wider than the 0.52 em used for wrapping, to avoid clipping; the marker
+  # (0.12 in) and its offset to the text (0.15 in) come first, with 0.15 in spare.
+  longest_line = max(nchar(unlist(strsplit(wrapped, "\n", fixed = TRUE))))
+  needed_width = 0.12 + 0.15 + longest_line * font_size * 0.6 / 72 + 0.15
+  column_width = max(min(column_width, needed_width), 0.9 / n_columns)
+  legend_width = n_columns * column_width
+
   # Vertically centre the legend; all positions and sizes are in physical units.
   top = (device_size[2] + max(column_heights)) / 2 - 0.15
   y = numeric(n_labels)

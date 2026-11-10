@@ -25,6 +25,12 @@ stopifnot(small$n_columns == 1, small$font_size == 12,
           large$n_columns == 2, large$font_size < small$font_size,
           large$font_size >= 9, tall$n_columns == 1)
 
+# A legend that fits in fewer columns than the room allows takes only the width it
+# needs, e.g. 8 short labels in one column are far narrower than 45% of the device.
+stopifnot(small$width < 0.45 * 1000 / 72 / 2, small$width >= 0.9,
+          large$width <= 0.45 * 1000 / 72 + 1e-8,
+          tall$width < large$width)
+
 # Check legend order, palette alignment and bounds on the physical device.
 check_legend = function(legend, expected, device_size) {
   symbols = legend$grob$children[[2]]

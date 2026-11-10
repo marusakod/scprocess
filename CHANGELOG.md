@@ -90,6 +90,9 @@
 - Shiny gene and cluster UMAP panels stay square. Cluster legends adapt their
   font size and column count to the label count, wrapped names and display size,
   and are recalculated when the plot is resized.
+- Shiny cluster legends take only the width their columns need. A one-column
+  legend no longer reserves the width of two, which left blank space to its
+  right.
 - Labelling reports ignored the model's label specifications whenever more
   than one classifier was installed (since 0.4.0), and the grouped totals
   table repeated the fine labels.
