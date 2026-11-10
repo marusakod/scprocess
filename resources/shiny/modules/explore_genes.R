@@ -283,6 +283,6 @@ genesServer <- function(id, shared) {
         repel_pos  = shared$repel_pos,
         label_mode = label_mode
       )
-    })
+    }, execOnResize = TRUE)
   })
 }

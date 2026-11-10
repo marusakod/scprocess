@@ -114,7 +114,7 @@ clustersServer <- function(id, shared) {
           label_mode = label_mode
         )
       }
-    })
+    }, execOnResize = TRUE)
 
     # filtered markers table for selected cluster
     selected_cluster_mkrs_dt <- reactive({

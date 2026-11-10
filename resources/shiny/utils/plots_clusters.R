@@ -29,6 +29,7 @@ plot_cluster_umap <- function(umap_dt, col_pal, centroids,
     theme_classic() +
     labs(x = 'UMAP 1', y = 'UMAP 2') +
     theme(
+      aspect.ratio = 1,
       axis.text    = element_blank(),
       axis.ticks   = element_blank(),
       axis.title   = element_text(size = FONT_AXIS),
@@ -68,44 +69,67 @@ plot_cluster_umap <- function(umap_dt, col_pal, centroids,
                 size = 3.5, color = "white", fontface = "bold")
   }
 
-  # -- Legend panel: one row per cluster, circle + number + name ---------------
-  lgd_dt    = copy(centroids)[, .(cluster, label_num, text_color)]
-  x_circle  = 0
-  lgd_dt[, x_circle := x_circle]
-  lgd_dt[, y        := rev(seq_len(.N))]  # top-to-bottom order
+  # Size the legend on the active graphics device, independently of the UMAP.
+  device_size = grDevices::dev.size("in")
+  legend = cluster_umap_legend(centroids, col_pal, device_size)
+  patchwork::wrap_plots(
+    umap_p, patchwork::wrap_elements(full = legend$grob),
+    widths = grid::unit(c(1, legend$width), c("null", "in"))
+  )
+}
 
-  lgd_dark  = lgd_dt[text_color == "black"]
-  lgd_light = lgd_dt[text_color == "white"]
+# Keep specification order down columns. Wrapped labels contribute their full
+# line count when deciding whether one column fits at the current device size.
+cluster_umap_legend <- function(centroids, col_pal, device_size) {
+  n_labels = nrow(centroids)
+  font_size = max(9, min(12, round(12 - 0.06 * max(0, n_labels - 15))))
+  legend_width = max(1.5, device_size[1] * 0.45)
+  available_height = max(1, device_size[2] - 0.65)
+  labels = as.character(centroids$cluster)
 
-  n_cl          = nrow(lgd_dt)
-  max_name_chars = max(nchar(as.character(lgd_dt$cluster)))
-  x_label       = lgd_dt$x_circle[1] + 0.12
-  x_max         = x_label + max_name_chars * 0.042
-  legend_width  = max(1.6, min(2.6, max_name_chars / 14))
+  max_columns = max(1, min(n_labels, floor(legend_width / 1.4)))
+  fits = FALSE
+  for (font_size in seq(font_size, 9)) {
+    for (n_columns in seq_len(max_columns)) {
+      column_width = legend_width / n_columns
+      wrap_chars = max(8, floor((column_width - 0.35) * 72 / (font_size * 0.52)))
+      wrapped = stringr::str_wrap(labels, width = wrap_chars)
+      row_heights = pmax(0.20, (stringr::str_count(wrapped, "\\n") + 1) *
+                          font_size / 72 * 1.25) + 0.045
+      column = ceiling(seq_len(n_labels) / ceiling(n_labels / n_columns))
+      column_heights = tapply(row_heights, column, sum)
+      fits = max(column_heights) <= available_height
+      if (fits) break
+    }
+    if (fits) break
+  }
 
-  legend_p = ggplot(lgd_dt) +
-    geom_point(aes(x = x_circle, y = y, color = cluster),
-                shape = 16, size = 9) +
-    geom_text(data = lgd_dark,  aes(x = x_circle, y = y, label = label_num),
-              size = 3.5, color = "black", fontface = "bold") +
-    geom_text(data = lgd_light, aes(x = x_circle, y = y, label = label_num),
-              size = 3.5, color = "white", fontface = "bold") +
-    geom_text(aes(x = x_label, y = y, label = cluster),
-              hjust = 0, size = FONT_SMALL / .pt) +
-    scale_color_manual(values = col_pal, guide = 'none') +
-    scale_x_continuous(limits = c(-0.05, x_max)) +
-    coord_cartesian(clip = "off") +
-    # scale_y_continuous(limits = c(0.5, n_cl + 1.2)) +
-    theme_void() +
-    theme(
-      plot.margin = margin(5.5, 6, 5.5, 2),
-      plot.title = element_text(
-        face = "bold", size = 16, hjust = 0.1
-      )
-    ) +
-    labs( title = "cluster" )
-
-  patchwork::wrap_plots(umap_p, legend_p, widths = c(5, legend_width))
+  # Vertically centre the legend; all positions and sizes are in physical units.
+  top = (device_size[2] + max(column_heights)) / 2 - 0.15
+  y = numeric(n_labels)
+  for (i in unique(column)) {
+    rows = which(column == i)
+    y[rows] = top - cumsum(row_heights[rows]) + row_heights[rows] / 2
+  }
+  x = (column - 1) * column_width + 0.12
+  colours = unname(col_pal[labels])
+  children = list(
+    grid::textGrob("Cluster", x = grid::unit(0.02, "in"),
+                   y = grid::unit(top + 0.24, "in"), just = "left",
+                   gp = grid::gpar(fontsize = font_size + 1, fontface = "bold")),
+    grid::pointsGrob(x = grid::unit(x, "in"), y = grid::unit(y, "in"),
+                     pch = 21, size = grid::unit(0.18, "in"),
+                     gp = grid::gpar(fill = colours, col = colours)),
+    grid::textGrob(centroids$label_num, x = grid::unit(x, "in"),
+                   y = grid::unit(y, "in"),
+                   gp = grid::gpar(fontsize = min(8, font_size - 1),
+                                   col = centroids$text_color)),
+    grid::textGrob(wrapped, x = grid::unit(x + 0.15, "in"),
+                   y = grid::unit(y, "in"), just = "left",
+                   gp = grid::gpar(fontsize = font_size, lineheight = 1.25))
+  )
+  list(grob = grid::gTree(children = do.call(grid::gList, children)),
+       width = legend_width, n_columns = n_columns, font_size = font_size)
 }
 
 # PAGA graph: nodes sized by cell count, edges weighted by connectivity.

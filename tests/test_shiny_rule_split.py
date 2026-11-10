@@ -68,11 +68,8 @@ class TestShinyRuleSplit(unittest.TestCase):
 
   def test_cluster_overview_reserves_space_for_long_labels(self):
     module = (ROOT / "resources/shiny/modules/explore_genes.R").read_text()
-    plots = (ROOT / "resources/shiny/utils/plots_clusters.R").read_text()
     self.assertIn('column(width = 7, uiOutput(ns("get_cluster_overview_box")))', module)
-    self.assertIn("legend_width  = max(1.6, min(2.6, max_name_chars / 14))", plots)
-    self.assertIn('coord_cartesian(clip = "off")', plots)
-    self.assertIn("widths = c(5, legend_width)", plots)
+    # Legend wrapping and device geometry are checked by test_shiny_umap_layout.R.
     self.assertIn(
       "data_sentinel_f = f'{docs_dir}/shiny_zoom_{{zoom_name}}/.shiny_data_built_{DATE_STAMP}'",
       self.source,

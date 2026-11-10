@@ -83,6 +83,9 @@
 
 ### Fixes
 
+- Shiny gene and cluster UMAP panels stay square. Cluster legends adapt their
+  font size and column count to the label count, wrapped names and display size,
+  and are recalculated when the plot is resized.
 - Labelling reports ignored the model's label specifications whenever more
   than one classifier was installed (since 0.4.0), and the grouped totals
   table repeated the fine labels.

@@ -1416,6 +1416,10 @@ Changing `n_keep`, `metadata_vars`, clustering/marker resolution, sample
 metadata, integration outputs, H5ADs, markers, HVGs, or GSEA inputs rebuilds the
 Shiny data. Check the dry run before rebuilding a large app.
 
+Gene and cluster UMAP panels are square. The cluster legend stays to the right;
+its text size (9–12 pt) and number of columns adapt to the labels and plot size.
+Small label sets can use one column. Resizing the plot recalculates the legend.
+
 The cluster UMAPs include a **Repel cluster labels** option. Repelled label
 positions are computed from the full UMAP during the app build: labels are moved
 into low-density space, given clearance from cells, and allocated globally so

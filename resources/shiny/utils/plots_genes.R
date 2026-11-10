@@ -22,6 +22,7 @@ plot_gene_umap <- function(gene_umap_dt, gene, pal_name) {
       title = paste0("Selected gene: ", gene)
     ) +
     theme(
+      aspect.ratio       = 1,
       axis.text          = element_blank(),
       axis.ticks         = element_blank(),
       axis.title         = element_text(size = FONT_AXIS),
