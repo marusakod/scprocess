@@ -80,6 +80,10 @@
 - Labelling reports and zoom label diagnostics show **Labels** and **Grouped
   labels** tabs, and cluster UMAPs are numbered.
 - The project index lists classifier training reports.
+- The Shiny **Explore genes** dotplot has a **Minimum cells per dot** setting under
+  the advanced plotting options (default 10, as before). It replaces the fixed
+  10-cell cut-off that applied to cluster dots, and now also applies to sample
+  dots, so a sample with fewer cells than the setting is hidden.
 
 ### Fixes
 

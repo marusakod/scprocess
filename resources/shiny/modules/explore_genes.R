@@ -66,6 +66,13 @@ genesUI <- function(id) {
               label   = "Order by mean expression",
               value   = FALSE
             ),
+            numericInput(
+              inputId = ns("pb_min_cells"),
+              label   = "Minimum cells per dot",
+              value   = 10,
+              min     = 0,
+              step    = 1
+            ),
             p(strong("Subset data on...")),
             uiOutput(ns("gene_subset_picker"))
           )
@@ -185,12 +192,16 @@ genesServer <- function(id, shared) {
       if (input$pb_dots_choice == 'clusters') {
         meta          = copy(shared$cluster_meta)
         meta$gene_exp = get_row_from_h5(shared$cluster_pb_h5_f, gene_idx())
-        meta          = meta[n_cells >= 10, ]
       } else {
         meta          = copy(shared$sample_meta)
         meta$gene_exp = get_row_from_h5(shared$sample_pb_h5_f, gene_idx())
       }
-      meta
+
+      # drop dots made from too few cells (a dot is a cluster-sample or a sample
+      # pseudobulk); a blank or negative entry keeps every dot
+      min_cells = input$pb_min_cells
+      if (is.null(min_cells) || is.na(min_cells)) min_cells = 0
+      meta[n_cells >= min_cells, ]
     })
 
     # FDR annotations for dotplot (only when x-axis is cluster)
