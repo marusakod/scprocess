@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -36,6 +37,23 @@ class TestShinyRuleSplit(unittest.TestCase):
     self.assertNotIn("get_zoom_shiny_optional_inputs", data)
     self.assertIn("get_zoom_shiny_optional_inputs", configure)
     self.assertIn("deploy_inputs   = _shiny_deploy_inputs", configure)
+
+  def test_resource_lookups_name_defined_rules(self):
+    # get_resources() raises at job submission for an undefined rule name, which a
+    # dry run does not catch (e.g. the zoom data rule still naming build_zoom_shiny_app)
+    defined = set(re.findall(r"^rule (\w+):", self.source, flags=re.M))
+    looked_up = set(re.findall(r"get_resources\([^,]+, rules, input, '(\w+)'", self.source))
+    looked_up |= set(re.findall(r"_shiny_data_resource\('(\w+)'", self.source))
+    self.assertTrue(looked_up)
+    self.assertEqual(looked_up - defined, set())
+
+  def test_zoom_data_rule_keeps_old_resource_keys(self):
+    data = rule_block(
+      self.source, "build_zoom_shiny_data", "configure_zoom_shiny_app"
+    )
+    self.assertIn(
+      "_shiny_data_resource('build_zoom_shiny_data', 'build_zoom_shiny_app'", data
+    )
 
   def test_final_rules_depend_on_data_sentinels(self):
     self.assertIn(
