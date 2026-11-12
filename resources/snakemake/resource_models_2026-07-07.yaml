@@ -1,0 +1,335 @@
+# Fitted resource models: memory (MB) and time (seconds) predicted as
+#   intercept + slope * x, where x is given by model_var for each rule.
+# Hierarchy: rules > rule name > memory / time > chemistry group > fields.
+# Chemistry groups: all (same for every chemistry), 3v3, 3v4, flex, other.
+# 'other' covers every chemistry that is not 3v3, 3v4 or flex (5v1, 5v2, 5v3, multiome, ...)
+# and uses the 3v3 values. 'flex' (flexv1, flexv2) is PROVISIONAL: twice the 3v3 intercept
+# and slope, until values fitted on Flex data are available. A memory or time model with
+# chemistry-specific values lists all four groups. The zoom_* entries repeat the models of
+# the project rules they reuse (zoom_aggregate_labels uses the merge_labels model, etc.).
+# Source: resources_lm_params_2026-07-07.csv (benchmarks from ~96 projects; the CSV is in
+# the git history before this file was added); floors are in
+# resource_floors.yaml, which is maintained by hand.
+rules:
+  calculate_tricycle_projection_one_run:
+    memory:
+      all:
+        model_var: input.counts_h5_f
+        rq_intercept: 300.0
+        rq_slope: 24576.0
+  create_doublets_hvg_matrix:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 5434.922
+        rq_slope: 108.732
+  create_hvg_matrix:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 2678.516
+        rq_slope: 98.661
+  get_barcode_qc_metrics:
+    memory:
+      3v3:
+        model_var: input.af_h5_f
+        rq_intercept: 865.818
+        rq_slope: 46159.847
+      3v4:
+        model_var: input.af_h5_f
+        rq_intercept: 389.354
+        rq_slope: 46386.675
+      flex:
+        model_var: input.af_h5_f
+        rq_intercept: 1731.636
+        rq_slope: 92319.694
+      other:
+        model_var: input.af_h5_f
+        rq_intercept: 865.818
+        rq_slope: 46159.847
+  get_highly_variable_genes:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 273.329
+        rq_slope: 31.281
+  get_qc_sample_statistics:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 64.053
+        rq_slope: 22.557
+  get_stats_for_std_variance_for_sample:
+    memory:
+      all:
+        model_var: input.af_h5_f
+        rq_intercept: 310.198
+        rq_slope: 9279.022
+  make_clean_h5ads:
+    memory:
+      3v3:
+        model_var: input.af_h5_f
+        rq_intercept: 4310.429
+        rq_slope: 10258.961
+      3v4:
+        model_var: input.af_h5_f
+        rq_intercept: 3083.451
+        rq_slope: 10124.174
+      flex:
+        model_var: input.af_h5_f
+        rq_intercept: 8620.858
+        rq_slope: 20517.922
+      other:
+        model_var: input.af_h5_f
+        rq_intercept: 4310.429
+        rq_slope: 10258.961
+  make_one_pb_cells:
+    memory:
+      all:
+        model_var: input.af_h5_f
+        rq_intercept: 1325.138
+        rq_slope: 33339.312
+  make_one_pb_empty:
+    memory:
+      all:
+        model_var: input.af_h5_f
+        rq_intercept: 766.413
+        rq_slope: 39685.557
+  make_tmp_csr_matrix:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 19356.324
+        rq_slope: 305.729
+    time:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 25.2
+        rq_slope: 11.268
+  merge_labels:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 626.706
+        rq_slope: 45.726
+  merge_qc:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 876.934
+        rq_slope: 21.586
+  render_html_ambient:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 1645.408
+        rq_slope: 55.491
+    time:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 13.146
+        rq_slope: 16.14
+  render_html_integration:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 1696.479
+        rq_slope: 48.452
+    time:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 85.51
+        rq_slope: 4.637
+  render_html_label_celltypes:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 1155.869
+        rq_slope: 32.301
+  render_html_mapping:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 2274.314
+        rq_slope: 26.921
+    time:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 123.215
+        rq_slope: 26.476
+  render_html_marker_genes:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 4755.038
+        rq_slope: 94.419
+  render_html_qc:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 1605.29
+        rq_slope: 40.721
+  run_cellbender:
+    memory:
+      3v3:
+        model_var: input.af_h5_f
+        rq_intercept: 3387.263
+        rq_slope: 139719.161
+      3v4:
+        model_var: input.af_h5_f
+        rq_intercept: 2414.913
+        rq_slope: 121269.302
+      flex:
+        model_var: input.af_h5_f
+        rq_intercept: 6774.526
+        rq_slope: 279438.322
+      other:
+        model_var: input.af_h5_f
+        rq_intercept: 3387.263
+        rq_slope: 139719.161
+    time:
+      3v3:
+        model_var: input.af_h5_f
+        rq_intercept: 2939.252
+        rq_slope: 35470.44
+      3v4:
+        model_var: input.af_h5_f
+        rq_intercept: 609.719
+        rq_slope: 60462.022
+      flex:
+        model_var: input.af_h5_f
+        rq_intercept: 5878.504
+        rq_slope: 70940.88
+      other:
+        model_var: input.af_h5_f
+        rq_intercept: 2939.252
+        rq_slope: 35470.44
+  run_fgsea:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 10658.152
+        rq_slope: 0.0
+  run_integration:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 1732.912
+        rq_slope: 396.721
+  run_mapping:
+    memory:
+      all:
+        model_var: n_run_mapping
+        rq_intercept: 8314.08
+        rq_slope: 68.486
+    time:
+      all:
+        model_var: raw_data_size
+        rq_intercept: 1606.419
+        rq_slope: 294.193
+  run_qc_one_run:
+    memory:
+      3v3:
+        model_var: input.af_h5_f
+        rq_intercept: 1291.05
+        rq_slope: 48528.688
+      3v4:
+        model_var: input.af_h5_f
+        rq_intercept: 3638.425
+        rq_slope: 45985.942
+      flex:
+        model_var: input.af_h5_f
+        rq_intercept: 2582.1
+        rq_slope: 97057.376
+      other:
+        model_var: input.af_h5_f
+        rq_intercept: 1291.05
+        rq_slope: 48528.688
+    time:
+      3v3:
+        model_var: input.af_h5_f
+        rq_intercept: 60.106
+        rq_slope: 1680.912
+      3v4:
+        model_var: input.af_h5_f
+        rq_intercept: 408.692
+        rq_slope: 0.0
+      flex:
+        model_var: input.af_h5_f
+        rq_intercept: 120.212
+        rq_slope: 3361.824
+      other:
+        model_var: input.af_h5_f
+        rq_intercept: 60.106
+        rq_slope: 1680.912
+  save_alevin_to_h5:
+    memory:
+      3v3:
+        model_var: raw_data_size
+        rq_intercept: 2265.283
+        rq_slope: 289.095
+      3v4:
+        model_var: raw_data_size
+        rq_intercept: 6885.076
+        rq_slope: 327.776
+      flex:
+        model_var: raw_data_size
+        rq_intercept: 4530.566
+        rq_slope: 578.19
+      other:
+        model_var: raw_data_size
+        rq_intercept: 2265.283
+        rq_slope: 289.095
+  zoom_aggregate_labels:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 626.706
+        rq_slope: 45.726
+  zoom_create_hvg_matrix:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 2678.516
+        rq_slope: 98.661
+  zoom_get_highly_variable_genes:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 273.329
+        rq_slope: 31.281
+  zoom_get_stats_for_std_variance_for_sample:
+    memory:
+      all:
+        model_var: input.af_h5_f
+        rq_intercept: 310.198
+        rq_slope: 9279.022
+  zoom_make_one_pb_cells:
+    memory:
+      all:
+        model_var: input.af_h5_f
+        rq_intercept: 1325.138
+        rq_slope: 33339.312
+  zoom_make_tmp_csr_matrix:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 19356.324
+        rq_slope: 305.729
+    time:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 25.2
+        rq_slope: 11.268
+  zoom_run_fgsea:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 10658.152
+        rq_slope: 0.0
+  zoom_run_integration:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 1732.912
+        rq_slope: 396.721

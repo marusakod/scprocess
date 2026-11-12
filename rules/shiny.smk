@@ -36,7 +36,7 @@ if _is_join:
     JOIN_ZOOM_PARAMS = get_join_zoom_parameters(parent_config, config, zoom_spec)
   else:
     config = check_join_config(config, join_schema_f, scdata_dir)
-  RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, scprocess_dir)
+  RESOURCE_PARAMS = prep_resource_params(config, scprocess_dir)
 
   JOIN_NAME  = config['join']['name']
   PROJ_DIR   = pathlib.Path(config['join']['proj_dir'])
@@ -67,7 +67,7 @@ if _is_join:
 else:
   # --- validate and unpack normal project config ---
   config = check_config(config, schema_f, scdata_dir, scprocess_dir)
-  RESOURCE_PARAMS = prep_resource_params(config, schema_f, scprocess_dir)
+  RESOURCE_PARAMS = prep_resource_params(config, scprocess_dir)
 
   PROJ_DIR   = config['project']['proj_dir']
   FULL_TAG   = config['project']['full_tag']
@@ -157,18 +157,15 @@ def _zoom_metadata_vars_ls(zoom_name):
 
 
 def _shiny_data_resource(rule, old_rule, input, param, attempt):
-  # Retain existing config keys and model after the data/configure rule split: user
-  # values and schema defaults are still named after the old rule, e.g.
-  # gb_build_zoom_shiny_app -> gb_build_zoom_shiny_data.
+  # Retain existing config keys after the data/configure rule split: user values are still
+  # named after the old rule, e.g. gb_build_zoom_shiny_app -> gb_build_zoom_shiny_data.
   resource_params = dict(RESOURCE_PARAMS)
-  for section in ('user_vals', 'defaults'):
-    resource_params[section] = dict(RESOURCE_PARAMS[section])
-    for prefix in ('gb', 'mins'):
-      old_key = f'{prefix}_{old_rule}'
-      if old_key in resource_params[section]:
-        resource_params[section][f'{prefix}_{rule}'] = resource_params[section][old_key]
-  return get_resources(resource_params, rules, input, rule, param,
-                       attempt, csv_rule=old_rule)
+  resource_params['user_vals'] = dict(RESOURCE_PARAMS['user_vals'])
+  for prefix in ('gb', 'mins'):
+    old_key = f'{prefix}_{old_rule}'
+    if old_key in resource_params['user_vals']:
+      resource_params['user_vals'][f'{prefix}_{rule}'] = resource_params['user_vals'][old_key]
+  return get_resources(resource_params, rules, input, rule, param, attempt)
 
 # ---- aggregate rule: build all zoom shiny apps ----------------------------
 rule build_all_zoom_shiny_apps:

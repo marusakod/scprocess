@@ -1560,8 +1560,9 @@ resources:
 By default, many rules estimate resources from benchmarked input sizes or batch
 counts. The estimate is `max(floor, intercept + slope × input_size)`, with a
 rule-specific input measure. Five per-sample rules have separate estimates for
-10x v3 and v4 chemistry. Explicit settings override these estimates; rules
-without a fitted estimate use their schema defaults.
+10x v3 and v4 chemistry; other chemistries use the v3 estimate and Flex twice
+that. Explicit settings override these estimates; rules without a fitted
+estimate use a fixed amount.
 
 ??? note "Marker-gene resource names"
 
@@ -1581,9 +1582,10 @@ without a fitted estimate use their schema defaults.
 
 For the complete set of supported resource keys, consult
 `resources/schemas/config.schema.json`, `join.schema.json` or `zoom.schema.json`
-in your installed {{sc}} checkout. Use current rule names in cluster-profile
-overrides too. A dry run shows which rules are needed; inspect child-job logs
-to confirm the allocations actually requested.
+in your installed {{sc}} checkout; default amounts are in
+`resources/snakemake/resource_floors.yaml`. Use current rule names in
+cluster-profile overrides too. A dry run shows which rules are needed; inspect
+child-job logs to confirm the allocations actually requested.
 
 ## {{scjoin}} { #scprocess-join }
 

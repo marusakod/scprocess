@@ -535,7 +535,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun, zoom_
   RUNS                = list(RUN_PARAMS.keys())
   BATCH_PARAMS, BATCH_VAR, SAMPLES = scprocess_utils.get_batch_parameters(config, RUNS, scdata_dir)
   BATCHES             = list(BATCH_PARAMS.keys())
-  _                   = scprocess_utils.prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS, BATCHES)
+  _                   = scprocess_utils.prep_resource_params(config, scprocess_dir, LIB_PARAMS, BATCHES)
   _, _, _             = scprocess_utils.get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
   _                   = scprocess_utils.get_labeller_parameters(config, schema_f, scdata_dir)
   _                   = scprocess_utils.get_train_xgboost_parameters(config, schema_f)

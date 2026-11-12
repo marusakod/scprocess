@@ -2684,24 +2684,14 @@ def get_train_xgboost_targets(config, scprocess_dir, scdata_dir, zoom_name=None)
   return [html_f], proj_dir
 
 
-def prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS=None, BATCHES=None,
+def prep_resource_params(config, scprocess_dir, LIB_PARAMS=None, BATCHES=None,
                          RUNS_TO_LIBS=None, chem_stats_paths=None):
-  # add default resource values
-  schema      = _load_schema_file(schema_f)
-  defaults    = _get_default_config_from_schema(schema)
-  defaults    = defaults.get('resources', {})
-
-  # get user resource values
+  # user resource values: every gb_ / mins_ key in the config is an override of the
+  # model or floor, whatever its value
   user_vals   = config.get('resources', {}).copy()
-  # if same as default, remove from user vals
-  for n in list(user_vals):
-    if n in defaults:
-      if defaults[n] == user_vals[n]:
-        del user_vals[n]
 
-  # load resource model CSV
-  lm_f        = scprocess_dir / "resources/snakemake" / LM_PARAMS_FILENAME
-  lm_df       = pl.read_csv(lm_f)
+  # load fitted resource models and hand-maintained floors (validated on loading)
+  models, floors = _load_resource_models(scprocess_dir)
 
   # get sizes, n-batches (optional — not available for shiny/join standalone workflows)
   R1_sizes    = { lib: vals["mapping_af"]["R1_fs_size_gb"] for lib, vals in LIB_PARAMS.items() } if LIB_PARAMS else {}
@@ -2715,9 +2705,9 @@ def prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS=None, BATCH
 
   # make full dict of useful things
   RESOURCE_PARAMS = {}
-  RESOURCE_PARAMS["defaults"]               = defaults
   RESOURCE_PARAMS["user_vals"]              = user_vals
-  RESOURCE_PARAMS["lm_df"]                  = lm_df
+  RESOURCE_PARAMS["models"]                 = models
+  RESOURCE_PARAMS["floors"]                 = floors
   RESOURCE_PARAMS["R1_sizes"]               = R1_sizes
   RESOURCE_PARAMS["n_batches"]              = n_batches
   RESOURCE_PARAMS["n_run_mapping"]          = config.get('resources', {}).get('n_run_mapping', 8)
@@ -2729,37 +2719,38 @@ def prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS=None, BATCH
   return RESOURCE_PARAMS
 
 
-def get_resources(RESOURCE_PARAMS, rules, input, rule, param, attempt, run = None, csv_rule = None):
+def get_resources(RESOURCE_PARAMS, rules, input, rule, param, attempt, run = None):
   attempt_exp = 1.5
   if not hasattr(rules, rule):
     raise ValueError(f'rule {rule} is not defined.')
   param_name  = f'mins_{rule}' if param == 'time' else f'gb_{rule}'
-  lookup_rule = csv_rule if csv_rule is not None else rule
 
-  defaults    = RESOURCE_PARAMS['defaults']
   user_vals   = RESOURCE_PARAMS['user_vals']
 
-  # 1. user override takes priority (keyed by actual rule name)
+  # user override takes priority
   if param_name in user_vals:
     if param == 'memory':
       mem_mb    = user_vals[param_name] * MB_PER_GB
     else:
       time_min  = user_vals[param_name]
 
-  # 2. resource model CSV (keyed by lookup_rule to allow model reuse)
-  elif _rule_in_csv(RESOURCE_PARAMS, lookup_rule, param):
-    filt_df   = _get_csv_row(RESOURCE_PARAMS, lookup_rule, param, run)
-    mem_mb, time_min = _predict_from_csv(filt_df, RESOURCE_PARAMS, input, lookup_rule, param, run)
-
-  # 3. schema default fallback (for rules not in CSV)
-  elif param_name in defaults:
-    if param == 'memory':
-      mem_mb    = defaults[param_name] * MB_PER_GB
-    else:
-      time_min  = defaults[param_name]
-
   else:
-    raise KeyError(f'No resource model or schema default for {param_name}.')
+    floor = RESOURCE_PARAMS['floors'].get(rule, {}).get(param)
+    model = _get_resource_model(RESOURCE_PARAMS, rule, param, run)
+
+    # fitted model, never lower than the floor
+    if model is not None:
+      mem_mb, time_min = _predict_from_model(model, floor, RESOURCE_PARAMS, input, rule, param, run)
+
+    # no model: the floor is the request
+    elif floor is not None:
+      if param == 'memory':
+        mem_mb    = floor * MB_PER_GB
+      else:
+        time_min  = floor
+
+    else:
+      raise KeyError(f'No user value, resource model or floor for {param_name}.')
 
   if param == 'memory':
     mem_mb     *= attempt_exp**(attempt - 1)
@@ -2771,54 +2762,33 @@ def get_resources(RESOURCE_PARAMS, rules, input, rule, param, attempt, run = Non
   return param_val
 
 
-def _rule_in_csv(RESOURCE_PARAMS, rule, param):
-  lm_df = RESOURCE_PARAMS['lm_df']
-  return lm_df.filter((pl.col("param") == param) & (pl.col("rule") == rule)).shape[0] > 0
+def _get_resource_model(RESOURCE_PARAMS, rule, param, run):
+  # returns the fitted model (model_var, rq_intercept, rq_slope) for this rule and param,
+  # or None if there is none. A model that depends on chemistry has one entry per chemistry
+  # group; a model with a single 'all' entry applies to every chemistry.
+  rule_models = RESOURCE_PARAMS['models'].get(rule, {})
+  if param not in rule_models:
+    return None
+  chem_models = rule_models[param]
+  if 'all' in chem_models:
+    return chem_models['all']
+
+  if run is None:
+    raise ValueError(f"Rule '{rule}' has a chemistry-specific {param} model: pass the run.")
+  chemistry   = _resolve_run_chemistry(run, RESOURCE_PARAMS)
+  return chem_models[_get_chemistry_group(chemistry)]
 
 
-def _get_csv_row(RESOURCE_PARAMS, rule, param, run):
-  lm_df     = RESOURCE_PARAMS['lm_df']
-  rule_rows = lm_df.filter((pl.col("param") == param) & (pl.col("rule") == rule))
-  has_chem  = (rule_rows["chemistry"] != "").any()
-
-  if has_chem and run is not None:
-    chemistry     = _resolve_run_chemistry(run, RESOURCE_PARAMS)
-    chem_group    = _get_chemistry_group(chemistry)
-    chem_row      = rule_rows.filter(pl.col("chemistry") == chem_group)
-    if chem_row.shape[0] == 1:
-      return chem_row
-    generic_row   = rule_rows.filter(pl.col("chemistry") == "")
-    if generic_row.shape[0] == 1:
-      return generic_row
-    raise ValueError(f"No matching chemistry row for rule '{rule}', param '{param}', chemistry '{chem_group}'.")
-
-  generic_row = rule_rows.filter(pl.col("chemistry") == "")
-  if generic_row.shape[0] == 1:
-    return generic_row
-  if rule_rows.shape[0] == 1:
-    return rule_rows
-  raise ValueError(f"Ambiguous CSV rows for rule '{rule}', param '{param}'.")
-
-
-def _predict_from_csv(filt_df, RESOURCE_PARAMS, input, rule, param, run):
-  has_model = not filt_df["rq_slope"].is_null().all()
-  floor_val = filt_df["floor"].item()
+def _predict_from_model(model, floor, RESOURCE_PARAMS, input, rule, param, run):
+  # the model predicts MB (memory) or seconds (time); floors are GB or minutes
+  param_est = _estimate_resource_parameter(model, RESOURCE_PARAMS, input, rule, run)
   mem_mb    = None
   time_min  = None
 
-  if has_model:
-    param_est = _estimate_resource_parameter(filt_df, RESOURCE_PARAMS, input, rule, run)
-    param_est = max(floor_val, param_est)
-    if param == "memory":
-      mem_mb    = param_est
-    else:
-      time_s    = param_est
-      time_min  = time_s / 60
+  if param == "memory":
+    mem_mb    = max(floor * MB_PER_GB, param_est)
   else:
-    if param == "memory":
-      mem_mb    = floor_val
-    else:
-      time_min  = floor_val / 60
+    time_min  = max(floor, param_est / 60)
 
   return mem_mb, time_min
 
@@ -2835,10 +2805,10 @@ def _resolve_input_attr(input, attr):
   return None
 
 
-def _estimate_resource_parameter(filt_lm_df, RESOURCE_PARAMS, input, rule, run):
-  x_rq      = filt_lm_df['model_var'].item()
-  intercept = filt_lm_df['rq_intercept'].item()
-  slope     = filt_lm_df['rq_slope'].item()
+def _estimate_resource_parameter(model, RESOURCE_PARAMS, input, rule, run):
+  x_rq      = model['model_var']
+  intercept = model['rq_intercept']
+  slope     = model['rq_slope']
 
   if x_rq.startswith('input.'):
     input_attr  = x_rq.replace("input.", "")
@@ -2888,9 +2858,59 @@ def _resolve_run_chemistry(run, RESOURCE_PARAMS):
 
 
 def _get_chemistry_group(tenx_chemistry):
-  if tenx_chemistry == "3v4":
-    return "3v4"
-  return "3v3"
+  # chemistry group of the resource models: 3v3, 3v4, flex (flexv1, flexv2) or other,
+  # e.g. 5v3 -> other. 'other' is a named group, not an error: it holds every chemistry
+  # without its own values (5v1, 5v2, 5v3, multiome, ...).
+  if tenx_chemistry in ("3v3", "3v4"):
+    return tenx_chemistry
+  if tenx_chemistry.startswith("flex"):
+    return "flex"
+  return "other"
+
+
+def _load_resource_models(scprocess_dir):
+  # fitted models (rules > rule > memory/time > chemistry group > fields) and hand-maintained
+  # floors (rules > rule > memory/time; GB and minutes)
+  res_dir     = pathlib.Path(scprocess_dir) / "resources/snakemake"
+  with open(res_dir / RESOURCE_MODELS_FILENAME) as f:
+    models    = yaml.safe_load(f)['rules']
+  with open(res_dir / RESOURCE_FLOORS_FILENAME) as f:
+    floors    = yaml.safe_load(f)['rules']
+
+  _check_resource_models(models, floors)
+  return models, floors
+
+
+def _check_resource_models(models, floors):
+  for rule, rule_models in models.items():
+    for param, chem_models in rule_models.items():
+      where = f"resource models: rule '{rule}', {param}"
+      if param not in ('memory', 'time'):
+        raise ValueError(f"{where}: parameter must be 'memory' or 'time'.")
+
+      # one 'all' entry, or exactly one entry per chemistry group
+      groups  = set(chem_models)
+      if groups != {'all'} and groups != set(RESOURCE_CHEMISTRY_GROUPS):
+        raise ValueError(
+          f"{where}: expected 'all' or exactly the groups {list(RESOURCE_CHEMISTRY_GROUPS)}, "
+          f"found {sorted(groups)}.")
+      for group, model in chem_models.items():
+        if set(model) != set(RESOURCE_MODEL_FIELDS):
+          raise ValueError(f"{where}, {group}: expected fields {list(RESOURCE_MODEL_FIELDS)}.")
+
+      # every model needs a floor
+      if param not in floors.get(rule, {}):
+        raise ValueError(f"{where}: no floor in the resource floors file.")
+
+  # every floor is a positive number of GB (memory) or minutes (time); for a rule without a
+  # model it is the request itself
+  for rule, rule_floors in floors.items():
+    for param, floor in rule_floors.items():
+      where = f"resource floors: rule '{rule}', {param}"
+      if param not in ('memory', 'time'):
+        raise ValueError(f"{where}: parameter must be 'memory' or 'time'.")
+      if not isinstance(floor, (int, float)) or isinstance(floor, bool) or floor <= 0:
+        raise ValueError(f"{where}: floor must be a positive number.")
 
 
 ### helpers
@@ -2898,7 +2918,10 @@ def _get_chemistry_group(tenx_chemistry):
 # some useful global variables
 BYTES_PER_GB  = 1024**3
 MB_PER_GB     = 1024
-LM_PARAMS_FILENAME = "resources_lm_params_2026-07-07.csv"
+RESOURCE_MODELS_FILENAME  = "resource_models_2026-07-07.yaml"
+RESOURCE_FLOORS_FILENAME  = "resource_floors.yaml"
+RESOURCE_CHEMISTRY_GROUPS = ("3v3", "3v4", "flex", "other")
+RESOURCE_MODEL_FIELDS     = ("model_var", "rq_intercept", "rq_slope")
 
 # nice boolean values from yaml inputs
 def _safe_boolean(val):

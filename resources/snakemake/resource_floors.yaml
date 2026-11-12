@@ -1,0 +1,370 @@
+# Hand-maintained resource floors, in the units of the user overrides in the config:
+# memory in GB and time in minutes. For a rule with a fitted model in
+# resource_models_*.yaml the prediction is never lower than the floor; a rule without
+# a model requests exactly its floor. Floors are decisions, not fits, so a refit of
+# the models must not overwrite this file. Config 'resources:' values override them.
+# Hierarchy: rules > rule name > memory / time.
+rules:
+  aggregate_tricycle:
+    memory: 8
+    time: 30
+  build_hto_index:
+    memory: 4
+    time: 10
+  build_shiny_data:
+    memory: 16
+    time: 30
+  build_zoom_shiny_data:
+    memory: 16
+    time: 30
+  calc_marker_hvgs:
+    memory: 4
+    time: 15
+  calculate_ambient_genes:
+    memory: 2
+    time: 10
+  calculate_tricycle_projection_one_run:
+    memory: 2
+    time: 10
+  check_demux_ids:
+    memory: 4
+    time: 5
+  convert_h5ad_to_sce:
+    memory: 8
+    time: 5
+  create_doublets_hvg_matrix:
+    memory: 2
+    time: 10
+  create_hvg_matrix:
+    memory: 2
+    time: 10
+  estimate_tricycle_reference_ellipse:
+    memory: 8
+    time: 30
+  get_barcode_qc_metrics:
+    memory: 2
+    time: 10
+  get_estimated_variances:
+    memory: 8
+    time: 10
+  get_highly_variable_genes:
+    memory: 2
+    time: 10
+  get_mean_var_for_group:
+    memory: 8
+    time: 10
+  get_qc_sample_statistics:
+    memory: 2
+    time: 10
+  get_stats_for_std_variance_for_group:
+    memory: 8
+    time: 10
+  get_stats_for_std_variance_for_sample:
+    memory: 2
+    time: 10
+  join_build_bpcells_matrix:
+    memory: 16
+    time: 60
+  join_build_coldata:
+    memory: 4
+    time: 5
+  join_build_h5ads_yaml:
+    memory: 4
+    time: 5
+  join_build_matrix:
+    memory: 16
+    time: 30
+  join_build_qc:
+    memory: 4
+    time: 5
+  join_build_sample_metadata:
+    memory: 2
+    time: 5
+  join_calc_hvgs:
+    memory: 8
+    time: 30
+  join_celltypist:
+    memory: 16
+    time: 30
+  join_extract_labels:
+    memory: 4
+    time: 10
+  join_fgsea:
+    memory: 16
+    time: 30
+  join_integration:
+    memory: 16
+    time: 60
+  join_make_pseudobulks:
+    memory: 16
+    time: 60
+  join_marker_genes_calc:
+    memory: 16
+    time: 90
+  join_marker_genes_prep:
+    memory: 16
+    time: 60
+  join_marker_plot_data:
+    memory: 8
+    time: 30
+  join_merge_labels:
+    memory: 16
+    time: 10
+  join_pca:
+    memory: 16
+    time: 180
+  join_render_html:
+    memory: 16
+    time: 30
+  join_render_html_train_xgboost:
+    memory: 8
+    time: 15
+  join_scprocess_labeller:
+    memory: 16
+    time: 30
+  join_select_hvgs:
+    memory: 4
+    time: 10
+  join_train_xgboost_combine:
+    memory: 8
+    time: 30
+  join_train_xgboost_depth_evaluation:
+    memory: 8
+    time: 30
+  join_train_xgboost_predict:
+    memory: 8
+    time: 30
+  join_train_xgboost_prepare:
+    memory: 8
+    time: 10
+  join_train_xgboost_train:
+    memory: 32
+    time: 180
+  join_zoom_calculate_clipped_gene_count_statistics:
+    memory: 8
+    time: 60
+  join_zoom_calculate_raw_gene_count_statistics:
+    memory: 8
+    time: 60
+  join_zoom_fit_expected_gene_variances:
+    memory: 32
+    time: 60
+  join_zoom_prepare:
+    memory: 16
+    time: 30
+  join_zoom_rank_and_select_highly_variable_genes:
+    memory: 32
+    time: 30
+  make_clean_h5ads:
+    memory: 2
+    time: 5
+  make_hto_sce_objects:
+    memory: 8
+    time: 10
+  make_marker_pseudobulks:
+    memory: 8
+    time: 30
+  make_one_pb_cells:
+    memory: 2
+    time: 5
+  make_one_pb_empty:
+    memory: 2
+    time: 10
+  make_tmp_csr_matrix:
+    memory: 2
+    time: 10
+  merge_doublet_diagnostics:
+    memory: 4
+    time: 15
+  merge_labels:
+    memory: 2
+    time: 8
+  merge_pb_cells:
+    memory: 2
+    time: 5
+  merge_pb_empty:
+    memory: 2
+    time: 5
+  merge_qc:
+    memory: 2
+    time: 10
+  merge_rowdata:
+    memory: 2
+    time: 10
+  prepare_marker_plot_data:
+    memory: 4
+    time: 15
+  prepare_marker_pseudobulks:
+    memory: 8
+    time: 30
+  render_html_ambient:
+    memory: 2
+    time: 10
+  render_html_hvgs:
+    memory: 3
+    time: 3
+  render_html_integration:
+    memory: 2
+    time: 10
+  render_html_label_celltypes:
+    memory: 2
+    time: 5
+  render_html_mapping:
+    memory: 2
+    time: 10
+  render_html_marker_genes:
+    memory: 2
+    time: 10
+  render_html_multiplexing:
+    memory: 8
+    time: 5
+  render_html_qc:
+    memory: 2
+    time: 10
+  render_html_train_xgboost:
+    memory: 8
+    time: 15
+  render_html_zoom:
+    memory: 12
+    time: 20
+  render_html_zoom_train_xgboost:
+    memory: 8
+    time: 15
+  run_cell_calling:
+    memory: 8
+    time: 30
+  run_cellbender:
+    memory: 2
+    time: 10
+  run_celltypist:
+    memory: 8
+    time: 30
+  run_decontx:
+    memory: 8
+    time: 10
+  run_fgsea:
+    memory: 2
+    time: 30
+  run_integration:
+    memory: 2
+    time: 30
+  run_mapping:
+    memory: 2
+    time: 10
+  run_mapping_flex:
+    memory: 12
+    time: 180
+  run_mapping_hto:
+    memory: 12
+    time: 180
+  run_marker_genes:
+    memory: 8
+    time: 30
+  run_qc_one_run:
+    memory: 2
+    time: 10
+  run_scprocess_labeller:
+    memory: 8
+    time: 30
+  save_alevin_hto_to_h5:
+    memory: 8
+    time: 5
+  save_alevin_to_h5:
+    memory: 2
+    time: 10
+  train_xgboost_combine:
+    memory: 8
+    time: 30
+  train_xgboost_depth_evaluation:
+    memory: 8
+    time: 30
+  train_xgboost_predict:
+    memory: 8
+    time: 30
+  train_xgboost_prepare:
+    memory: 8
+    time: 10
+  train_xgboost_train:
+    memory: 32
+    time: 180
+  zoom_aggregate_labels:
+    memory: 2
+    time: 8
+  zoom_calc_marker_hvgs:
+    memory: 4
+    time: 15
+  zoom_calculate_ambient_genes:
+    memory: 8
+    time: 30
+  zoom_check_clusters:
+    memory: 4
+    time: 10
+  zoom_create_hvg_matrix:
+    memory: 2
+    time: 15
+  zoom_filter_cells_qc:
+    memory: 4
+    time: 10
+  zoom_get_estimated_variances:
+    memory: 4
+    time: 5
+  zoom_get_highly_variable_genes:
+    memory: 2
+    time: 10
+  zoom_get_mean_var_for_group:
+    memory: 8
+    time: 30
+  zoom_get_sample_statistics:
+    memory: 4
+    time: 5
+  zoom_get_stats_for_std_variance_for_group:
+    memory: 12
+    time: 30
+  zoom_get_stats_for_std_variance_for_sample:
+    memory: 2
+    time: 30
+  zoom_make_marker_pseudobulks:
+    memory: 8
+    time: 30
+  zoom_make_one_pb_cells:
+    memory: 2
+    time: 10
+  zoom_make_subsets:
+    memory: 8
+    time: 15
+  zoom_make_tmp_csr_matrix:
+    memory: 2
+    time: 10
+  zoom_merge_pb_cells:
+    memory: 5
+    time: 10
+  zoom_prepare_marker_plot_data:
+    memory: 4
+    time: 15
+  zoom_prepare_marker_pseudobulks:
+    memory: 8
+    time: 30
+  zoom_run_fgsea:
+    memory: 2
+    time: 60
+  zoom_run_integration:
+    memory: 2
+    time: 180
+  zoom_run_marker_genes:
+    memory: 16
+    time: 60
+  zoom_train_xgboost_combine:
+    memory: 8
+    time: 30
+  zoom_train_xgboost_depth_evaluation:
+    memory: 8
+    time: 30
+  zoom_train_xgboost_predict:
+    memory: 8
+    time: 30
+  zoom_train_xgboost_prepare:
+    memory: 8
+    time: 10
+  zoom_train_xgboost_train:
+    memory: 32
+    time: 180

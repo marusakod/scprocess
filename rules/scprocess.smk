@@ -78,7 +78,7 @@ chem_stats_paths = {
   lib: f'{af_dir}/{lib_pool_dir}af_{lib}/{af_rna_dir}chemistry_statistics.yaml'
   for lib in LIBS
 }
-RESOURCE_PARAMS = prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS, BATCHES,
+RESOURCE_PARAMS = prep_resource_params(config, scprocess_dir, LIB_PARAMS, BATCHES,
                                        RUNS_TO_LIBS, chem_stats_paths)
 
 # scripts

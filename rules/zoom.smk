@@ -36,7 +36,7 @@ RUNS                = list(RUN_PARAMS.keys())
 BATCH_PARAMS, BATCH_VAR, SAMPLES = get_batch_parameters(config, RUNS, scdata_dir)
 BATCHES             = list(BATCH_PARAMS.keys())
 RUNS_TO_BATCHES, RUNS_TO_SAMPLES, _ = get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
-RESOURCE_PARAMS     = prep_resource_params(config, proj_schema_f, scprocess_dir, LIB_PARAMS, BATCHES)
+RESOURCE_PARAMS     = prep_resource_params(config, scprocess_dir, LIB_PARAMS, BATCHES)
 LABELLER_PARAMS     = get_labeller_parameters(config, proj_schema_f, scdata_dir)
 
 # get zoom parameters
@@ -282,9 +282,9 @@ rule zoom_aggregate_labels:
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_aggregate_labels', 'memory', attempt, csv_rule = 'merge_labels'),
+      'zoom_aggregate_labels', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_aggregate_labels', 'time', attempt, csv_rule = 'merge_labels')
+      'zoom_aggregate_labels', 'time', attempt)
   log:
     f'{logs_dir}/zoom/zoom_aggregate_labels_{{zoom_name}}_{DATE_STAMP}.log'
   benchmark:
@@ -364,9 +364,9 @@ rule zoom_make_one_pb_cells:
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
-      'zoom_make_one_pb_cells', 'memory', attempt, wildcards.run, csv_rule = 'make_one_pb_cells'),
+      'zoom_make_one_pb_cells', 'memory', attempt, wildcards.run),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_make_one_pb_cells', 'time', attempt, wildcards.run, csv_rule = 'make_one_pb_cells')
+      'zoom_make_one_pb_cells', 'time', attempt, wildcards.run)
   benchmark:
     f'{benchmark_dir}/zoom/zoom_make_one_pb_cells_{{zoom_name}}_{{run}}_{DATE_STAMP}.benchmark.txt'
   log:
@@ -548,9 +548,9 @@ rule zoom_make_tmp_csr_matrix:
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
-      'zoom_make_tmp_csr_matrix', 'memory', attempt, csv_rule = 'make_tmp_csr_matrix'),
+      'zoom_make_tmp_csr_matrix', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_make_tmp_csr_matrix', 'time', attempt, csv_rule = 'make_tmp_csr_matrix')
+      'zoom_make_tmp_csr_matrix', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/zoom/zoom_make_tmp_csr_matrix_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   log:
@@ -588,9 +588,9 @@ rule zoom_get_stats_for_std_variance_for_sample:
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
-      'zoom_get_stats_for_std_variance_for_sample', 'memory', attempt, csv_rule = 'get_stats_for_std_variance_for_sample'),
+      'zoom_get_stats_for_std_variance_for_sample', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_get_stats_for_std_variance_for_sample', 'time', attempt, csv_rule = 'get_stats_for_std_variance_for_sample')
+      'zoom_get_stats_for_std_variance_for_sample', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/zoom/zoom_get_stats_for_std_variance_for_sample_{{zoom_name}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
   log:
@@ -668,12 +668,6 @@ rule zoom_merge_group_mean_var:
   output:
     mean_var_merged_f = temp(f'{zoom_dir}/{{zoom_name}}/means_variances_dt_{FULL_TAG}_{{zoom_name}}_{DATE_STAMP}.csv.gz')
   threads: 1
-  retries: config['resources']['retries']
-  resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
-      'zoom_merge_group_mean_var', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
-      'zoom_merge_group_mean_var', 'time', attempt)
   log:
     f'{logs_dir}/zoom/zoom_get_mean_var_for_group_{{zoom_name}}_{DATE_STAMP}.log'
   run:
@@ -802,9 +796,9 @@ rule zoom_get_highly_variable_genes:
     zoom_exc_ambient  = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['hvg']['hvg_exclude_ambient_genes']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
-      'zoom_get_highly_variable_genes', 'memory', attempt, csv_rule = 'get_highly_variable_genes'),
+      'zoom_get_highly_variable_genes', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_get_highly_variable_genes', 'time', attempt, csv_rule = 'get_highly_variable_genes')
+      'zoom_get_highly_variable_genes', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/zoom/zoom_get_highly_variable_genes_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   log:
@@ -855,9 +849,9 @@ rule zoom_create_hvg_matrix:
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
-      'zoom_create_hvg_matrix', 'memory', attempt, csv_rule = 'create_hvg_matrix'),
+      'zoom_create_hvg_matrix', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_create_hvg_matrix', 'time', attempt, csv_rule = 'create_hvg_matrix')
+      'zoom_create_hvg_matrix', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/zoom/zoom_create_hvg_matrix_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   log:
@@ -916,9 +910,9 @@ rule zoom_pca:
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_run_integration', 'memory', attempt, csv_rule = 'run_integration'),
+      'zoom_run_integration', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_run_integration', 'time', attempt, csv_rule = 'run_integration')
+      'zoom_run_integration', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/zoom/zoom_pca_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   log:
@@ -977,9 +971,9 @@ rule zoom_run_integration:
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
-      'zoom_run_integration', 'memory', attempt, csv_rule = 'run_integration'),
+      'zoom_run_integration', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_run_integration', 'time', attempt, csv_rule = 'run_integration')
+      'zoom_run_integration', 'time', attempt)
   benchmark: 
     f'{benchmark_dir}/zoom/zoom_run_integration_{{zoom_name}}_{DATE_STAMP}.benchmark.txt'
   log: 
@@ -1227,9 +1221,9 @@ rule zoom_run_fgsea:
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 
-      'zoom_run_fgsea', 'memory', attempt, csv_rule = 'run_fgsea'),
+      'zoom_run_fgsea', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_run_fgsea', 'time', attempt, csv_rule = 'run_fgsea')
+      'zoom_run_fgsea', 'time', attempt)
   benchmark:
     f'{benchmark_dir}/zoom/zoom_run_fgsea_{{zoom_name}}_{{mkr_sel_res}}_{DATE_STAMP}.benchmark.txt'
   log:
@@ -1329,8 +1323,10 @@ rule zoom_train_xgboost_prepare:
   threads: 1
   retries: config['resources']['retries']
   resources:
-    mem_mb = config['resources']['gb_train_xgboost_prepare'] * 1024,
-    runtime = config['resources']['mins_train_xgboost_prepare']
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_train_xgboost_prepare', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+      'zoom_train_xgboost_prepare', 'time', attempt)
   log: f'{zoom_dir}/{{zoom_name}}/train_xgboost/{{ref_tag}}_training_metadata.csv.gz' + '.log'
   conda: '../envs/label_celltypes.yaml'
   shell: """
@@ -1511,9 +1507,9 @@ rule zoom_train_xgboost_predict:
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_train_xgboost_predict', 'memory', attempt, csv_rule = 'train_xgboost_predict'),
+      'zoom_train_xgboost_predict', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_train_xgboost_predict', 'time', attempt, csv_rule = 'train_xgboost_predict')
+      'zoom_train_xgboost_predict', 'time', attempt)
   log:
     f'{logs_dir}/zoom/zoom_train_xgboost_predict_{{zoom_name}}_{{ref_tag}}_{{chunk}}_{DATE_STAMP}.log'
   benchmark:
@@ -1546,9 +1542,9 @@ rule zoom_train_xgboost_combine:
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_train_xgboost_combine', 'memory', attempt, csv_rule = 'train_xgboost_combine'),
+      'zoom_train_xgboost_combine', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_train_xgboost_combine', 'time', attempt, csv_rule = 'train_xgboost_combine')
+      'zoom_train_xgboost_combine', 'time', attempt)
   log:
     f'{logs_dir}/zoom/zoom_train_xgboost_combine_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.log'
   benchmark:
@@ -1581,9 +1577,9 @@ rule zoom_train_xgboost_depth_evaluation:
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_train_xgboost_depth_evaluation', 'memory', attempt, csv_rule = 'train_xgboost_depth_evaluation'),
+      'zoom_train_xgboost_depth_evaluation', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'zoom_train_xgboost_depth_evaluation', 'time', attempt, csv_rule = 'train_xgboost_depth_evaluation')
+      'zoom_train_xgboost_depth_evaluation', 'time', attempt)
   log:
     f'{logs_dir}/zoom/zoom_train_xgboost_depth_evaluation_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.log'
   benchmark:
@@ -1635,9 +1631,9 @@ rule render_html_zoom_train_xgboost:
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'render_html_zoom_train_xgboost', 'memory', attempt, csv_rule = 'render_html_train_xgboost'),
+      'render_html_zoom_train_xgboost', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
-      'render_html_zoom_train_xgboost', 'time', attempt, csv_rule = 'render_html_train_xgboost')
+      'render_html_zoom_train_xgboost', 'time', attempt)
   log:
     f'{logs_dir}/zoom/render_html_zoom_train_xgboost_{{zoom_name}}_{{ref_tag}}_{DATE_STAMP}.log'
   benchmark:

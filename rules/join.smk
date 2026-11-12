@@ -39,7 +39,7 @@ JOIN_REQUIRE_ALL_CELLS = '--require-all-cells' if JOIN_ZOOM_PARAMS else ''
 JOIN_RETAIN_METADATA = '--retain-metadata' if JOIN_ZOOM_PARAMS else ''
 
 # resource parameters (no ML model for join — uses schema defaults + user overrides)
-RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, scprocess_dir)
+RESOURCE_PARAMS = prep_resource_params(config, scprocess_dir)
 
 # ---------------------------------------------------------------------------
 # Project and derived parameters
@@ -1104,8 +1104,10 @@ if DO_TRAIN_XGB:
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb = config['resources']['gb_join_train_xgboost_prepare'] * 1024,
-      runtime = config['resources']['mins_join_train_xgboost_prepare']
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+        'join_train_xgboost_prepare', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+        'join_train_xgboost_prepare', 'time', attempt)
     log: f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_metadata.csv.gz' + '.log'
     conda: '../envs/label_celltypes.yaml'
     shell: """

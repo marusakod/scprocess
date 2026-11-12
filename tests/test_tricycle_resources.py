@@ -1,27 +1,17 @@
 from types import SimpleNamespace
 from pathlib import Path
 
-import polars as pl
 import pytest
 
 from scripts.scprocess_utils import get_resources, prep_resource_params
 
 
 def _resource_params(user_vals=None):
-  return {
-    "defaults": {},
-    "user_vals": user_vals or {},
-    "lm_df": pl.read_csv(
-      "resources/snakemake/resources_lm_params_2026-07-07.csv"
-    ),
-    "R1_sizes": {},
-    "n_batches": 100,
-    "n_run_mapping": 8,
-    "run_chemistries": {},
-    "RUNS_TO_LIBS": {},
-    "chem_stats_paths": {},
-    "_resolved_chemistries": {},
-  }
+  root = Path(__file__).resolve().parents[1]
+  params = prep_resource_params({}, root)
+  params["user_vals"] = user_vals or {}
+  params["n_batches"] = 100
+  return params
 
 
 def _rule_context(counts_h5_f):
@@ -68,6 +58,7 @@ def test_tricycle_runtime_and_user_overrides(tmp_path):
   counts_h5_f.write_bytes(b"small")
   rules, inputs = _rule_context(counts_h5_f)
 
+  # no fitted time model: the floor is the request
   assert get_resources(
     _resource_params(), rules, inputs,
     "calculate_tricycle_projection_one_run", "time", attempt=1,
@@ -90,16 +81,15 @@ def test_tricycle_runtime_and_user_overrides(tmp_path):
 
 @pytest.mark.parametrize('rule_name', [
   'aggregate_tricycle', 'estimate_tricycle_reference_ellipse'])
-def test_pooled_tricycle_resources_use_defaults_overrides_and_retries(rule_name):
+def test_pooled_tricycle_resources_use_floors_overrides_and_retries(rule_name):
   root = Path(__file__).resolve().parents[1]
-  schema_f = root / 'resources/schemas/config.schema.json'
   rules = SimpleNamespace(**{rule_name: object()})
   inputs = SimpleNamespace()
-  defaults = prep_resource_params({}, schema_f, root)
+  defaults = prep_resource_params({}, root)
   assert get_resources(defaults, rules, inputs, rule_name, 'memory', 1) == 8192
   assert get_resources(defaults, rules, inputs, rule_name, 'memory', 2) == 12288
   assert get_resources(defaults, rules, inputs, rule_name, 'time', 1) == 30
   overrides = prep_resource_params({'resources': {
-    f'gb_{rule_name}': 2, f'mins_{rule_name}': 5}}, schema_f, root)
+    f'gb_{rule_name}': 2, f'mins_{rule_name}': 5}}, root)
   assert get_resources(overrides, rules, inputs, rule_name, 'memory', 1) == 2048
   assert get_resources(overrides, rules, inputs, rule_name, 'time', 1) == 5

@@ -3,11 +3,13 @@ import unittest
 from pathlib import Path
 
 import jsonschema
+import yaml
 
 from scripts.scprocess_utils import _get_default_config_from_schema
 
 
-SCHEMA_DIR = Path(__file__).parents[1] / 'resources' / 'schemas'
+ROOT = Path(__file__).parents[1]
+SCHEMA_DIR = ROOT / 'resources' / 'schemas'
 
 
 class TestOptionalSectionDefaults(unittest.TestCase):
@@ -36,10 +38,13 @@ class TestOptionalSectionDefaults(unittest.TestCase):
         self.assertEqual(defaults['train_xgboost']['seed'], 42)
         self.assertFalse(defaults['train_xgboost']['use_gpu'])
 
-  def test_join_training_preparation_resources_have_defaults(self):
-    defaults = _get_default_config_from_schema(self.schemas['join'], {})
-    self.assertEqual(defaults['resources']['gb_join_train_xgboost_prepare'], 8)
-    self.assertEqual(defaults['resources']['mins_join_train_xgboost_prepare'], 10)
+  def test_join_training_preparation_resources_have_floors_and_config_keys(self):
+    floors = yaml.safe_load(
+      (ROOT / 'resources/snakemake/resource_floors.yaml').read_text())['rules']
+    self.assertEqual(floors['join_train_xgboost_prepare'], {'memory': 8, 'time': 10})
+    properties = self.schemas['join']['properties']['resources']['properties']
+    self.assertIn('gb_join_train_xgboost_prepare', properties)
+    self.assertIn('mins_join_train_xgboost_prepare', properties)
 
   def test_explicit_empty_train_xgboost_still_requires_annotations(self):
     for name, schema in self.schemas.items():

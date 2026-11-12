@@ -33,8 +33,10 @@ if TRAIN_XGB_PARAMS is not None:
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb  = config['resources']['gb_train_xgboost_prepare'] * 1024,
-      runtime = config['resources']['mins_train_xgboost_prepare']
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+        'train_xgboost_prepare', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+        'train_xgboost_prepare', 'time', attempt)
     log: f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_training_metadata.csv.gz.log'
     conda: '../envs/label_celltypes.yaml'
     shell: """

@@ -35,6 +35,15 @@
   `zoom_train_xgboost:` entry in copied profiles.
 - Unused environment files `celltypist.yaml`, `chem_detection.yaml`,
   `train_xgboost.yaml` and `xgboost_r.yaml` are removed.
+- Resource defaults no longer live in the schemas. Resource models are in
+  `resources/snakemake/resource_models_2026-07-07.yaml` (replacing the CSV)
+  and floors, or the fixed request of a rule without a model, in
+  `resources/snakemake/resource_floors.yaml`. A `gb_` or `mins_` value in the
+  config `resources:` section is always used as written; before, a value equal
+  to the schema default was discarded, so the model or floor was used instead
+  (for example `mins_run_integration: 30` gave 10 minutes). Configs that set
+  `gb_save_alevin_flex_to_h5` or `mins_save_alevin_flex_to_h5` now fail
+  validation: no rule uses them, since Flex mapping runs `save_alevin_to_h5`.
 
 ### Changes affecting results
 
@@ -48,6 +57,19 @@
   `XGBOOST_TAG_fulldata_predictions.csv.gz` and per-split evaluation tables.
   Zoom coarse evaluation now uses full-data predictions rather than validation
   cells only. Fitted models are unchanged.
+- Resource requests for chemistries other than 3v3 and 3v4 (3v2, 5v1, 5v2,
+  5v3, multiome) now use the 3v3 model (chemistry group `other`); Flex uses a
+  provisional `flex` group with twice the 3v3 intercept and slope, so its
+  fitted memory and time requests double. Before, `get_barcode_qc_metrics`,
+  `make_one_pb_cells`, `make_one_pb_empty` and `run_qc_one_run` used the 8 GB
+  or 10 minute schema default for these chemistries; requests fall for small
+  inputs and rise for large ones. 3v3 and 3v4 requests from the fitted models
+  are unchanged.
+- Rules whose resource-CSV row held only a floor (2 GB, 10 minutes) now request
+  their schema default, which that row used to override: for example
+  `mins_run_integration` 10 → 30, `mins_run_mapping_hto` 10 → 180 and
+  `gb_run_decontx` 2 → 8. 33 rule parameters change, most upwards, a few
+  downwards (`mins_convert_h5ad_to_sce` 10 → 5).
 - Report only: classifier top-gene plots scale each pseudobulk by its total
   counts across all genes, rather than edgeR TMM over the stored genes.
 - Report only: labelling reports use the model's label order and colours,
@@ -56,6 +78,13 @@
 
 ### Features
 
+- Resource models and floors are validated when loaded, and a test checks that
+  every `get_resources()` call has a model or floor. The
+  `train_xgboost_prepare` rules (project, zoom, join) now use `get_resources()`,
+  so their memory rises on retries like other rules. New config keys
+  `gb_zoom_train_xgboost_prepare` and `mins_zoom_train_xgboost_prepare`
+  (previously zooms used the project keys `gb_train_xgboost_prepare` and
+  `mins_train_xgboost_prepare`).
 - Optional depth augmentation for XGBoost training (`downsample_copies`,
   `downsample_min_umis`, `downsample_max_umis`; projects, joins and project
   zooms). Each training and validation cell gets thinned copies at random

@@ -172,14 +172,13 @@ def test_hvg_validation_preserves_absent_exclusion_key(tmp_path):
 
 
 def test_doublet_merge_resources_follow_schema_and_overrides():
-  schema = ROOT / 'resources/schemas/config.schema.json'
   name = 'merge_doublet_diagnostics'
   rules = SimpleNamespace(**{name: object()})
-  params = prep_resource_params({},schema,ROOT)
+  params = prep_resource_params({},ROOT)
   assert get_resources(params,rules,SimpleNamespace(),name,'memory',1) == 4096
   assert get_resources(params,rules,SimpleNamespace(),name,'memory',2) == 6144
   assert get_resources(params,rules,SimpleNamespace(),name,'time',1) == 15
-  params = prep_resource_params({'resources':{f'gb_{name}':1,f'mins_{name}':2}},schema,ROOT)
+  params = prep_resource_params({'resources':{f'gb_{name}':1,f'mins_{name}':2}},ROOT)
   assert get_resources(params,rules,SimpleNamespace(),name,'memory',1) == 1024
   assert get_resources(params,rules,SimpleNamespace(),name,'time',1) == 2
 
