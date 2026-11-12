@@ -94,12 +94,17 @@ r_scripts = [
 if config['multiplexing']['demux_type'] == "hto":
   r_scripts.append(code_dir + '/multiplexing.R')
 
-# alevin hto index outputs (optional)
-hto_index_outs = [
-  f'{af_dir}/hto.fa',
-  f'{af_dir}/t2g_hto.tsv',
-  f'{af_dir}/hto_index'
-  ] if config['multiplexing']['demux_type'] == "hto" else []
+# HTO / ADT features of each pool: the HTOs it uses and all ADTs (empty unless demux_type is hto)
+HTO_POOL_REFS = get_hto_pool_references(config, RUNS)
+
+# alevin hto index outputs, one index per pool (optional)
+hto_index_outs = expand(
+  [
+    f'{af_dir}/hto_ref/{{run}}/features.csv',
+    f'{af_dir}/hto_ref/{{run}}/hto.fa',
+    f'{af_dir}/hto_ref/{{run}}/t2g_hto.tsv',
+    f'{af_dir}/hto_ref/{{run}}/hto_index'
+  ], run = RUNS) if config['multiplexing']['demux_type'] == "hto" else []
 
 # alevin hto quantification outputs (optional)
 hto_af_outs = expand(

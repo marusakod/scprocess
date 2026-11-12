@@ -5,6 +5,7 @@ import os
 
 # set up
 import collections
+import itertools
 import tempfile
 import random
 import json
@@ -21,9 +22,24 @@ from queue import Queue
 import threading
 
 
+# HTO and ADT reads are always forward (R2 starts with the feature barcode), whatever the
+# orientation of the RNA reads: the RNA R2 of 5' kits is reverse (rc), which loses most feature reads
+HTO_EXPECTED_ORI = 'fw'
+
+# piscem index for the HTO / ADT features. Features are mapped on the full R2 read: with k=11 a
+# 15 bp feature tolerates a mismatch near either end, and k=7 is unusable once ADTs are in the
+# index (most reads share a 7-mer with several features). The minimizer length must be below k.
+HTO_KMER_LENGTH       = 11
+HTO_MINIMIZER_LENGTH  = 9
+
+
 def map_fastqs_to_counts(run, af_dir, demux_type, what, af_home_dir, where,
   R1_fs, R2_fs, threads, t2g_f, index_dir, wl_lu_f, arv_instance = None,
   af_chemistry = 'none', exp_ori = 'none', whitelist_f = 'none', lib_pool_dir = ''):
+  # feature reads are forward, not in the orientation of the RNA reads
+  if what == "hto":
+    exp_ori = HTO_EXPECTED_ORI
+
   # make output directory, in subdirectory if multiplexed with HTO
   out_dir   = f"{af_dir}/{lib_pool_dir}af_{run}"
   if demux_type == "hto":
@@ -556,6 +572,78 @@ def _get_r1_read_length(R1_fs):
   return len(seq)
 
 
+def build_hto_index(feature_ref_f, hto_ids, adt_ids, out_dir, af_home_dir, threads):
+  """Build the index of one pool: the HTOs the pool uses followed by all ADTs.
+
+  Writes features.csv (hto_id, sequence, feature_type 'hto' or 'adt'), hto.fa, t2g_hto.tsv and
+  the piscem index hto_index/ in out_dir. With ADTs, HTO and ADT reads are mapped in one joint
+  index, so that ADT reads are not assigned loosely to the HTOs.
+  """
+  os.makedirs(out_dir, exist_ok = True)
+  feat_ref_df = pl.read_csv(feature_ref_f)
+
+  # features of this pool, in reference order
+  features_df = _select_pool_features(feat_ref_df, hto_ids, adt_ids)
+  features_df.write_csv(f"{out_dir}/features.csv")
+  _warn_shared_kmers(features_df, HTO_KMER_LENGTH)
+
+  # FASTA and gene-to-transcript map (one 'gene' per feature)
+  fasta_f = f"{out_dir}/hto.fa"
+  with open(fasta_f, "w") as f:
+    for row in features_df.iter_rows(named = True):
+      f.write(f">{row['hto_id']}\n{row['sequence']}\n")
+  t2g_df  = features_df.select(pl.col("hto_id"), pl.col("hto_id").alias("gene_id"))
+  t2g_df.write_csv(f"{out_dir}/t2g_hto.tsv", separator = "\t", include_header = False)
+
+  # build piscem index via simpleaf
+  os.environ["ALEVIN_FRY_HOME"] = af_home_dir
+  subprocess.run(["simpleaf", "set-paths"])
+  subprocess.run([
+    "simpleaf", "index",
+    "--ref-seq", fasta_f,
+    "--output", f"{out_dir}/hto_index",
+    "--threads", f"{threads}",
+    "--kmer-length", f"{HTO_KMER_LENGTH}",
+    "--minimizer-length", f"{HTO_MINIMIZER_LENGTH}",
+    "--overwrite"
+  ], check = True)
+
+
+def _select_pool_features(feat_ref_df, hto_ids, adt_ids):
+  # one row per feature of the pool: HTOs first, then ADTs, each in feature reference order
+  missing = sorted(set(hto_ids + adt_ids) - set(feat_ref_df["hto_id"].to_list()))
+  if len(missing) > 0:
+    raise ValueError(f"Features not in the feature reference file: {missing}")
+
+  hto_df  = feat_ref_df.filter(pl.col("hto_id").is_in(hto_ids)).with_columns(feature_type = pl.lit("hto"))
+  adt_df  = feat_ref_df.filter(pl.col("hto_id").is_in(adt_ids)).with_columns(feature_type = pl.lit("adt"))
+  return pl.concat([hto_df, adt_df]).select("hto_id", "sequence", "feature_type")
+
+
+def _warn_shared_kmers(features_df, k):
+  # Features that share a k-mer can receive each other's reads. Warn, with the pairs, rather than
+  # stop the run: the closest pairs are the ones to look at.
+  too_short = features_df.filter(pl.col("sequence").str.len_chars() < k)["hto_id"].to_list()
+  if len(too_short) > 0:
+    raise ValueError(f"Features shorter than the {k}-mer length of the index: {too_short}")
+
+  # k-mer -> features containing it, e.g. 'ACGTACGTACG' -> ['Hashtag1', 'CD3']
+  kmer_features = collections.defaultdict(set)
+  for row in features_df.iter_rows(named = True):
+    seq = row["sequence"].upper()
+    for i in range(len(seq) - k + 1):
+      kmer_features[seq[i:i + k]].add(row["hto_id"])
+
+  # number of shared k-mers per pair of features
+  shared_counts = collections.Counter()
+  for feature_ids in kmer_features.values():
+    for pair in itertools.combinations(sorted(feature_ids), 2):
+      shared_counts[pair] += 1
+
+  for (id_a, id_b), n_shared in shared_counts.most_common(10):
+    warnings.warn(f"Features {id_a} and {id_b} share {n_shared} {k}-mer(s); reads may be assigned to either")
+
+
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   subparsers = parser.add_subparsers(dest='command', required=True)
@@ -579,6 +667,15 @@ if __name__ == "__main__":
   p_map.add_argument("--arv_instance", type=str, default=None)
   p_map.add_argument("--lib_pool_dir", type=str, default='')
 
+  # build the HTO / ADT index of one pool
+  p_idx = subparsers.add_parser('build_hto_index')
+  p_idx.add_argument("--feature_ref_f", type=str, required=True)
+  p_idx.add_argument("--hto_ids", type=str, required=True, help="comma-separated hto_id values")
+  p_idx.add_argument("--adt_ids", type=str, default="", help="comma-separated hto_id values of ADTs")
+  p_idx.add_argument("--out_dir", type=str, required=True)
+  p_idx.add_argument("--af_home_dir", type=str, required=True)
+  p_idx.add_argument("--threads", default=1, type=int)
+
   # map flex fastqs to counts
   p_flex = subparsers.add_parser('map_flex_fastqs_to_counts')
   p_flex.add_argument("run", type=str)
@@ -601,8 +698,8 @@ if __name__ == "__main__":
 
   if args.command == 'map_fastqs_to_counts':
     if args.what == 'hto':
-      t2g_f     = f"{args.af_dir}/t2g_hto.tsv"
-      index_dir = f"{args.af_dir}/hto_index"
+      t2g_f     = f"{args.af_dir}/hto_ref/{args.run}/t2g_hto.tsv"
+      index_dir = f"{args.af_dir}/hto_ref/{args.run}/hto_index"
     else:
       t2g_f     = f"{args.af_index_dir}/index/t2g_3col.tsv"
       index_dir = f"{args.af_index_dir}/index"
@@ -612,6 +709,12 @@ if __name__ == "__main__":
       R1_fs=args.R1_fs, R2_fs=args.R2_fs, threads=args.threads, af_chemistry=args.af_chemistry,
       exp_ori=args.exp_ori, wl_lu_f=args.wl_lu_f, whitelist_f=args.whitelist_f, t2g_f=t2g_f,
       index_dir=index_dir, arv_instance=args.arv_instance, lib_pool_dir=args.lib_pool_dir)
+
+  elif args.command == 'build_hto_index':
+    hto_ids = args.hto_ids.split(',')
+    adt_ids = args.adt_ids.split(',') if args.adt_ids != '' else []
+    build_hto_index(feature_ref_f=args.feature_ref_f, hto_ids=hto_ids, adt_ids=adt_ids,
+      out_dir=args.out_dir, af_home_dir=args.af_home_dir, threads=args.threads)
 
   elif args.command == 'map_flex_fastqs_to_counts':
     index_dir = f"{args.af_index_dir}/index"

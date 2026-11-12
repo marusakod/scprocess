@@ -1,61 +1,46 @@
 
-# build index for HTO mapping
+# build the HTO / ADT index of one pool: the HTOs the pool uses, plus all ADTs
 rule build_hto_index:
   input:
     feature_ref_f = config["multiplexing"]["feature_ref"]
   output:
-    hto_f       = f'{af_dir}/hto.fa',
-    t2g_f       = f'{af_dir}/t2g_hto.tsv',
-    hto_idx_dir = directory(f'{af_dir}/hto_index')
+    features_f  = f'{af_dir}/hto_ref/{{run}}/features.csv',
+    hto_f       = f'{af_dir}/hto_ref/{{run}}/hto.fa',
+    t2g_f       = f'{af_dir}/hto_ref/{{run}}/t2g_hto.tsv',
+    hto_idx_dir = directory(f'{af_dir}/hto_ref/{{run}}/hto_index')
   params:
-    af_home_dir = config['mapping_af']['alevin_fry_home']
-  threads: 8
+    af_home_dir = config['mapping_af']['alevin_fry_home'],
+    hto_ids     = lambda wildcards: ','.join(HTO_POOL_REFS[wildcards.run]['hto_ids']),
+    adt_ids     = lambda wildcards: ','.join(HTO_POOL_REFS[wildcards.run]['adt_ids'])
+  threads: 2
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_hto_index', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_hto_index', 'time', attempt)
   log:
-    f'{logs_dir}/hto/build_hto_index_{DATE_STAMP}.log'
+    f'{logs_dir}/hto/build_hto_index_{{run}}_{DATE_STAMP}.log'
   benchmark:
-    f'{benchmark_dir}/hto/build_hto_index_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/hto/build_hto_index_{{run}}_{DATE_STAMP}.benchmark.txt'
   conda:
     '../envs/alevin_fry.yaml'
   shell: """
     exec &>> {log}
 
-    export ALEVIN_FRY_HOME="{params.af_home_dir}"
-    cd {af_dir}
-
-    # create FASTA from feature ref CSV
-    awk -F "," '
-      NR == 1 {{
-        for (i = 1; i <= NF; i++) {{
-          if ($i == "hto_id") hto_id_col = i
-          if ($i == "sequence") seq_col = i
-        }}
-      }}
-      NR > 1 {{
-        print ">" $hto_id_col "\\n" $seq_col
-      }}' {input.feature_ref_f} > {output.hto_f}
-
-    # build piscem index via simpleaf
-    simpleaf index \
-      --ref-seq {output.hto_f} \
-      --output  hto_index \
-      --threads {threads} \
-      --kmer-length 7 \
-      --minimizer-length 6 \
-      --overwrite
-
-    # make gene-to-transcript mapping file
-    grep "^>" {output.hto_f} | sed 's/>//' | awk '{{print $1"\\t"$1;}}' > {output.t2g_f}
+    python3 {scprocess_dir}/scripts/mapping.py build_hto_index \
+      --feature_ref_f "{input.feature_ref_f}" \
+      --hto_ids       "{params.hto_ids}" \
+      --adt_ids       "{params.adt_ids}" \
+      --out_dir       "{af_dir}/hto_ref/{wildcards.run}" \
+      --af_home_dir   "{params.af_home_dir}" \
+      --threads       {threads}
     """
 
 
 # run mapping for HTO files
 rule run_mapping_hto:
   input: 
-    hto_idx_dir   = f'{af_dir}/hto_index',
+    hto_idx_dir   = f'{af_dir}/hto_ref/{{run}}/hto_index',
+    t2g_f         = f'{af_dir}/hto_ref/{{run}}/t2g_hto.tsv',
     chem_stats_f  = f'{af_dir}/af_{{run}}/{af_rna_dir}chemistry_statistics.yaml'
   output:
     fry_dir       = directory(f'{af_dir}/af_{{run}}/hto/af_quant/'),
@@ -72,8 +57,7 @@ rule run_mapping_hto:
     where         = lambda wildcards: LIB_PARAMS[wildcards.run]["multiplexing"]["where"],
     R1_fs         = lambda wildcards: LIB_PARAMS[wildcards.run]["multiplexing"]["R1_fs"],
     R2_fs         = lambda wildcards: LIB_PARAMS[wildcards.run]["multiplexing"]["R2_fs"],
-    af_chemistry  = lambda wildcards: LIB_PARAMS[wildcards.run]["multiplexing"]["af_chemistry"],
-    expected_ori  = "fw"
+    af_chemistry  = lambda wildcards: LIB_PARAMS[wildcards.run]["multiplexing"]["af_chemistry"]
   conda:
     '../envs/alevin_fry.yaml'
   threads: config['resources']['n_run_mapping']
@@ -93,9 +77,9 @@ rule run_mapping_hto:
     if [[ "{params.arv_instance}" != "" ]]; then
       ARV_ARG="--arv_instance {params.arv_instance}"
     fi
-    # get chemistry parameters from input yaml file
+    # get chemistry and whitelist from the RNA yaml file; feature reads are always forward,
+    # so the RNA orientation is not used
     AF_CHEMISTRY=$(grep "selected_af_chemistry:" {input.chem_stats_f} | sed 's/selected_af_chemistry: //')
-    EXP_ORI=$(grep "selected_ori:" {input.chem_stats_f} | sed 's/selected_ori: //')
     WHITELIST_F=$(grep "selected_hto_whitelist:" {input.chem_stats_f} | sed 's/selected_hto_whitelist: //')
 
     # run mapping
@@ -112,7 +96,6 @@ rule run_mapping_hto:
       --wl_lu_f         "{params.wl_lu_f}" \
       $ARV_ARG \
       --af_chemistry    $AF_CHEMISTRY \
-      --exp_ori         $EXP_ORI \
       --whitelist_f     $WHITELIST_F
     """
 
