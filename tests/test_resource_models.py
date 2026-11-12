@@ -70,9 +70,9 @@ def test_chemistry_specific_model_needs_a_run(tmp_path):
 
 
 def test_floor_applies_to_a_small_input(tmp_path):
-  rules = SimpleNamespace(run_qc_one_run=object())
+  rules = SimpleNamespace(run_doublet_id_one_run=object())
   params = _params({'run_a': '3v3'})
-  memory = get_resources(params, rules, _inputs(tmp_path, 0), 'run_qc_one_run', 'memory', 1, 'run_a')
+  memory = get_resources(params, rules, _inputs(tmp_path, 0), 'run_doublet_id_one_run', 'memory', 1, 'run_a')
   assert memory == 2048
 
 
@@ -149,14 +149,14 @@ def test_rule_without_a_model_requests_its_floor_and_scales_memory_with_retries(
 
 
 def test_user_value_equal_to_the_floor_is_honoured_over_the_model(tmp_path):
-  # run_qc_one_run time has a model with a 10 min floor; a user value of 10 is still an override
-  rules = SimpleNamespace(run_qc_one_run=object())
+  # run_doublet_id_one_run time has a model with a 10 min floor; a user value of 10 is still an override
+  rules = SimpleNamespace(run_doublet_id_one_run=object())
   inputs = _inputs(tmp_path, 5)
   params = _params({'run_a': '3v3'})
-  assert get_resources(params, rules, inputs, 'run_qc_one_run', 'time', 1, 'run_a') > 10
+  assert get_resources(params, rules, inputs, 'run_doublet_id_one_run', 'time', 1, 'run_a') > 10
 
-  params['user_vals'] = {'mins_run_qc_one_run': 10}
-  assert get_resources(params, rules, inputs, 'run_qc_one_run', 'time', 1, 'run_a') == 10
+  params['user_vals'] = {'mins_run_doublet_id_one_run': 10}
+  assert get_resources(params, rules, inputs, 'run_doublet_id_one_run', 'time', 1, 'run_a') == 10
 
 
 def test_a_rule_with_no_user_value_model_or_floor_is_an_error():

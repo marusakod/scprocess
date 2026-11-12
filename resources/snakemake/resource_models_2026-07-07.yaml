@@ -204,30 +204,7 @@ rules:
         model_var: input.af_h5_f
         rq_intercept: 2939.252
         rq_slope: 35470.44
-  run_fgsea:
-    memory:
-      all:
-        model_var: n_smpls_pre_qc
-        rq_intercept: 10658.152
-        rq_slope: 0.0
-  run_integration:
-    memory:
-      all:
-        model_var: n_smpls_pre_qc
-        rq_intercept: 1732.912
-        rq_slope: 396.721
-  run_mapping:
-    memory:
-      all:
-        model_var: n_run_mapping
-        rq_intercept: 8314.08
-        rq_slope: 68.486
-    time:
-      all:
-        model_var: raw_data_size
-        rq_intercept: 1606.419
-        rq_slope: 294.193
-  run_qc_one_run:
+  run_doublet_id_one_run:
     memory:
       3v3:
         model_var: input.af_h5_f
@@ -262,6 +239,29 @@ rules:
         model_var: input.af_h5_f
         rq_intercept: 60.106
         rq_slope: 1680.912
+  run_fgsea:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 10658.152
+        rq_slope: 0.0
+  run_integration:
+    memory:
+      all:
+        model_var: n_smpls_pre_qc
+        rq_intercept: 1732.912
+        rq_slope: 396.721
+  run_mapping:
+    memory:
+      all:
+        model_var: n_run_mapping
+        rq_intercept: 8314.08
+        rq_slope: 68.486
+    time:
+      all:
+        model_var: raw_data_size
+        rq_intercept: 1606.419
+        rq_slope: 294.193
   save_alevin_to_h5:
     memory:
       3v3:

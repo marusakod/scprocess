@@ -41,6 +41,9 @@ rules:
   estimate_tricycle_reference_ellipse:
     memory: 8
     time: 30
+  filter_qc_one_run:
+    memory: 2
+    time: 5
   get_barcode_qc_metrics:
     memory: 2
     time: 10
@@ -242,6 +245,9 @@ rules:
   run_decontx:
     memory: 8
     time: 10
+  run_doublet_id_one_run:
+    memory: 2
+    time: 10
   run_fgsea:
     memory: 2
     time: 30
@@ -260,9 +266,6 @@ rules:
   run_marker_genes:
     memory: 8
     time: 30
-  run_qc_one_run:
-    memory: 2
-    time: 10
   run_scprocess_labeller:
     memory: 8
     time: 30

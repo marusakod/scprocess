@@ -39,20 +39,20 @@ mito_labs   = c("0.01%", "0.1%", "1%", "10%", "50%", "90%", "99%", "99.9%")
 splice_brks = c(1e-4, 1e-3, 1e-2, 0.10, 0.50, 0.90, 0.99, 0.999) %>% qlogis
 splice_labs = c("0.01%", "0.1%", "1%", "10%", "50%", "90%", "99%", "99.9%")
 
-main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux_f,
-  gtf_dt_f, ambient_method, all_batches_str, rowdata_f, dbl_f, dbl_artificial_f,
-  dbl_summary_f, qc_f,
-  coldata_f, mito_str, exclude_mito, hard_min_counts, hard_min_feats, hard_max_mito,
-  run_var = "sample_id", demux_type = "none", batch_var = "sample_id", dbl_min_feats = 100,
+# Doublet identification for one run: loads the counts, adds annotations and metadata, runs
+# scDblFinder, and saves the doublet tables, the row data and the table of all cells with their
+# QC measures and doublet calls (coldata_dbl_f). Does not use the QC thresholds, so changing them
+# does not rerun this step; filter_qc_one_run applies them to coldata_dbl_f.
+main_doublet_id <- function(run_name, metadata_f, amb_yaml_f, run_stats_f, demux_f,
+  gtf_dt_f, ambient_method, rowdata_f, dbl_f, dbl_artificial_f, dbl_summary_f, coldata_dbl_f,
+  mito_str, exclude_mito, run_var = "sample_id", demux_type = "none", dbl_min_feats = 100,
   dbl_min_cells = 100, dbl_dbr_sd = NULL, dbl_clusters = NULL, dbl_min_counts = 0) {
   # check inputs
   exclude_mito  = as.logical(exclude_mito)
 
-  all_batches = str_split(all_batches_str, pattern = ',') %>% unlist()
-
   # check whether to exclude bc of cellbender
   exc_by_cb   = .was_excluded_by_cellbender(ambient_method, run_stats_f, run_var, run_name,
-    dbl_f, dbl_artificial_f, dbl_summary_f, qc_f, rowdata_f, coldata_f)
+    dbl_f, dbl_artificial_f, dbl_summary_f, rowdata_f, coldata_dbl_f)
   if (exc_by_cb)
     return(NULL)
 
@@ -85,33 +85,60 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
     sce, run_name, run_var, ambient_method, dbl_f, dbl_artificial_f,
     dbl_summary_f, min_feats = dbl_min_feats, min_cells = dbl_min_cells,
     dbl_dbr_sd = dbl_dbr_sd, dbl_clusters = dbl_clusters, min_counts = dbl_min_counts)
-  
+
   # add doublet info to coldata
   message('  adding doublet info to column data')
   sce         = .add_dbl_info(sce, dbl_dt, run_var, demux_type)
 
   # save rowdata
   rd          = rowData(sce) %>% as.data.table()
-  
+
   message('  saving row data')
   fwrite(rd, file = rowdata_f)
-  
-  # do qc filtering, save table with qc for all singlets, coldata for all cells, get sce object with only singlets that pass qc
+
+  # save the table of all cells: this is all that filtering needs, not the counts
+  message('  saving column data with doublet calls')
+  coldata_dt  = colData(sce) %>% as.data.table()
+  fwrite(coldata_dt, file = coldata_dbl_f, scipen = 50)
+
+  message('done!')
+
+  return(NULL)
+}
+
+# QC filtering for one run: applies the per-sample thresholds (cuts_f) and the hard limits to the
+# table of all cells with doublet calls (coldata_dbl_f, from main_doublet_id), and saves the QC
+# table for all singlets (qc_f) and the cell table with a 'keep' column (coldata_f).
+main_filter_qc <- function(run_name, cuts_f, coldata_dbl_f, qc_f, coldata_f,
+  hard_min_counts, hard_min_feats, hard_max_mito, run_var = "sample_id", demux_type = "none",
+  batch_var = "sample_id") {
+  # a run excluded by cellbender has an empty cell table: save empty results
+  if (file.size(coldata_dbl_f) == 0) {
+    message('  run ', run_name, ' has no cells table (excluded). Saving empty results files')
+    file.create(qc_f)
+    file.create(coldata_f)
+    message('done!')
+    return(NULL)
+  }
+
+  message('  loading cells table')
+  coldata_in  = fread(coldata_dbl_f)
+
+  # do qc filtering, save table with qc for all singlets, coldata for all cells
   message('  filtering cells')
-  tmp_ls      = .filter_qc(sce, cuts_f, batch_var, run_var, demux_type, hard_min_counts, hard_min_feats, hard_max_mito)
+  tmp_ls      = .filter_qc(coldata_in, cuts_f, batch_var, run_var, demux_type, hard_min_counts, hard_min_feats, hard_max_mito)
 
   message('  saving column and qc data')
   fwrite(tmp_ls$coldata_dt, file = coldata_f)
   fwrite(tmp_ls$qc_all, file = qc_f)
 
- 
   message('done!')
-   
+
   return(NULL)
 }
 
 .was_excluded_by_cellbender <- function(ambient_method, run_stats_f, run_var, run_name,
-  dbl_f, dbl_artificial_f, dbl_summary_f, qc_f, rowdata_f, coldata_f) {
+  dbl_f, dbl_artificial_f, dbl_summary_f, rowdata_f, coldata_dbl_f) {
   exc_by_cb   = FALSE
   if (ambient_method == 'cellbender') {
     message('  loading cellbender sample stats file')
@@ -122,9 +149,8 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
       file.create(dbl_f)
       file.create(dbl_artificial_f)
       file.create(dbl_summary_f)
-      file.create(qc_f)
       file.create(rowdata_f)
-      file.create(coldata_f)
+      file.create(coldata_dbl_f)
       message('done!')
     }
   }
@@ -546,9 +572,7 @@ main_qc <- function(run_name, metadata_f, cuts_f, amb_yaml_f, run_stats_f, demux
   return(dimred_dt)
 }
 
-.filter_qc <- function(sce, cuts_f, batch_var, run_var, demux_type, hard_min_counts, hard_min_feats, hard_max_mito) {
-  # store initial coldata
-  coldata_in  = colData(sce) %>% as.data.table()
+.filter_qc <- function(coldata_in, cuts_f, batch_var, run_var, demux_type, hard_min_counts, hard_min_feats, hard_max_mito) {
   cuts_dt     = fread(cuts_f)
   
   # restrict to singlets

@@ -44,6 +44,15 @@
   (for example `mins_run_integration: 30` gave 10 minutes). Configs that set
   `gb_save_alevin_flex_to_h5` or `mins_save_alevin_flex_to_h5` now fail
   validation: no rule uses them, since Flex mapping runs `save_alevin_to_h5`.
+- `run_qc_one_run` is split into `run_doublet_id_one_run` (loads the counts,
+  runs scDblFinder) and `filter_qc_one_run` (applies the QC thresholds). Rename
+  the resource keys `gb_run_qc_one_run` and `mins_run_qc_one_run` to
+  `gb_run_doublet_id_one_run` and `mins_run_doublet_id_one_run`; the new
+  `gb_filter_qc_one_run` and `mins_filter_qc_one_run` default to 2 GB and 5
+  minutes. A new kept file per run, `qc/coldata_dt_with_doublets_RUN_*.csv.gz`,
+  holds every cell with its QC measures and doublet calls. Existing QC results
+  rerun once; `tmp_qc_dt_*` and `tmp_coldata_dt_*` and the merged files are
+  unchanged.
 - HTO mapping builds one index per pool, `mapping/hto_ref/POOL/`, instead of
   the project-wide `hto.fa`, `t2g_hto.tsv` and `hto_index`. `build_hto_index`
   runs once per pool; the HTO mapping, counts and demultiplexing rerun.
@@ -75,7 +84,7 @@
   5v3, multiome) now use the 3v3 model (chemistry group `other`); Flex uses a
   provisional `flex` group with twice the 3v3 intercept and slope, so its
   fitted memory and time requests double. Before, `get_barcode_qc_metrics`,
-  `make_one_pb_cells`, `make_one_pb_empty` and `run_qc_one_run` used the 8 GB
+  `make_one_pb_cells`, `make_one_pb_empty` and `run_doublet_id_one_run` used the 8 GB
   or 10 minute schema default for these chemistries; requests fall for small
   inputs and rise for large ones. 3v3 and 3v4 requests from the fitted models
   are unchanged.
@@ -92,6 +101,15 @@
 
 ### Features
 
+- Changing a QC threshold (`qc_min_mito`, `qc_max_splice`, ...) now reruns only
+  the thresholds file, the per-run filtering and the merge: on 4 tonsil pools
+  (about 200,000 cells) 2 minutes and 20-second jobs, instead of the full QC
+  with scDblFinder (10 minutes, 17-24 GB per run). Doublet identification
+  reruns only when its own settings (`dbl_*`, `exclude_mito`) or inputs change.
+  Because the cell table is saved as CSV (15 significant digits), a cell
+  lying exactly on a threshold can fall on the other side compared with the
+  earlier in-memory filtering: 3 of 197,720 cells at `qc_max_splice: 0.97`
+  and `qc_min_splice: 0.75` in the test.
 - Optional `multiplexing: hto_id_regex` marks which rows of the HTO feature
   reference are HTOs by their `hto_id`; the other rows are ADTs. HTOs and ADTs
   are mapped together on one index per pool (the pool's HTOs plus all ADTs) and
