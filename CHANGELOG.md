@@ -56,8 +56,10 @@
   unchanged. The index uses k=11 (was 7) on the full R2 read and holds only the
   HTOs the pool uses (plus any ADTs), so unused hashtags no longer enter
   `HTODemux`. In the 5' test pool, whole-library mapping then gave 77%
-  singlets and 19% doublets. `gb_run_mapping_hto` rises from 12 to 32 GB: the
-  whole-library job peaked at 25 GB.
+  singlets and 19% doublets. `gb_run_mapping_hto` falls from 12 to 8 GB.
+  Of eight test pools, six peaked at 2.4-4.2 GB and two at 20-24 GB; those two
+  fail at 8, 12 and 18 GB and pass only on the fourth attempt (27 GB, with the
+  default 3 retries); set `gb_run_mapping_hto` to about 25 GB for such pools.
 
 - XGBoost training caps rise to `max_genes: 5000` (from 3000),
   `pass1_nrounds: 1000` (from 300) and `pass2_nrounds: 2000` (from 500).

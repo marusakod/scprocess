@@ -255,7 +255,7 @@ rules:
     memory: 12
     time: 180
   run_mapping_hto:
-    memory: 32
+    memory: 8
     time: 180
   run_marker_genes:
     memory: 8
