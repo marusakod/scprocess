@@ -267,7 +267,7 @@ Each `.smk` file is a self-contained Snakemake rule module. The core orchestrato
 | `render_htmls.smk` | HTML report generation from R Markdown |
 | `zoom.smk` | Project subclustering workflow for cell subsets; one Snakemake run covers all zooms, or only the zoom passed as `--config zoom_name=` by `scprocess run -r zoom --zoom NAME` |
 | `shiny.smk` | Builds Shiny data, then performs a lightweight app deployment/configuration into `public/shiny_*`; invoked via `-r shiny` |
-| `hto.smk` | Hashtag (multiplexing) demultiplexing; HTO index built with piscem via `simpleaf index` |
+| `hto.smk` | Hashtag (multiplexing) demultiplexing; one piscem index per pool (its HTOs plus all ADTs, k=11) via `mapping.py build_hto_index`, forward-orientation mapping, HTO and ADT count matrices |
 | `flex.smk` | Flex assay mapping (simpleaf multiplex-quant) |
 | `join.smk` | Join multiple scprocess projects for combined analysis (BPCells PCA → Harmony) |
 | `join_zoom.smk` | Joined zoom: selects source tables and HVGs, then includes `join.smk`; run per zoom by `scprocess join -r zoom` |
@@ -282,7 +282,7 @@ Python scripts are invoked by Snakemake rules using the `script:` directive. Key
 - `integration.py` — Scanpy-based integration: Harmony batch correction, optional GPU-accelerated RAPIDS, UMAP, Leiden clustering. Can start from precomputed PCA embeddings (`precomputed_pca_f`, written by the BPCells PCA rules).
 - `label_celltypes.py` — CellTypist and XGBoost-based cell type annotation. `assign_prediction_chunks` groups batches into chunks of up to `PREDICTION_CHUNK_MAX_CELLS` cells (run as a checkpoint in integration, zoom and join); `celltypist_batches`/`xgboost_batches` predict one chunk with one model load. `xgboost_batches` is also reused by `train_xgboost` for full-data evaluation.
 - `train_xgboost.py` — Train XGBoost cell type classifier. Planning, fitting, aggregation, model identity helpers and label specification export live in this single Python file. Training-only imports are local so setup/config checks remain lightweight. Optional label_specs_f/coarse_label_specs_f CSVs control mapping, ordering and colours; their separate specs stage reuses saved predictions. The file starts with planning, then count preparation, fitting, output writing and evaluation. CLI entry functions retain public names; internal helpers use leading underscores. normalize_counts is shared with inference. Rules pass named validated settings rather than config_json. CLI uses subparsers: `prepare` (cell splitting and selection), `train` (model training), `combine` (merge chunked predictions with annotations and split labels), `specs` (display tables and coarse evaluation) and `depth` (accuracy after thinning cells to fixed depths). Works in scprocess, join, and zoom contexts — in join, h5ad lookup keys are `{project_id}_{batch_var}`.
-- `mapping.py` — Chemistry auto-detection, simpleaf alignment, per-pool mapping. Main entry point is `map_fastqs_to_counts()`, which delegates to: `_resolve_fastq_paths()` (Arvados download or local path resolution), `_resolve_chemistry()` → `_autodetect_chemistry()` or `_validate_chemistry()` (chemistry/orientation detection), and `_write_chemistry_stats()` (saves results to YAML).
+- `mapping.py` — Chemistry auto-detection, simpleaf alignment, per-pool mapping. Main entry point is `map_fastqs_to_counts()`, which delegates to: `_resolve_fastq_paths()` (Arvados download or local path resolution), `_resolve_chemistry()` → `_autodetect_chemistry()` or `_validate_chemistry()` (chemistry/orientation detection), and `_write_chemistry_stats()` (saves results to YAML). The `build_hto_index` subcommand builds a pool's HTO/ADT index (`HTO_KMER_LENGTH`, `HTO_MINIMIZER_LENGTH`), and `HTO_EXPECTED_ORI` fixes the HTO/ADT orientation to `fw`.
 
 R scripts are invoked via `script:` directive or called in shell blocks:
 
@@ -418,7 +418,7 @@ For Flex and OCM, pool-level mapping output is split into per-sample h5 files at
 Subdirectories under `af_{sample_or_pool}/` depend on the assay type:
 
 - **Simple (no multiplexing)**: `af_{sample}/af_quant/`, `af_{sample}/af_counts_mat.h5` — no subdirectory
-- **HTO**: `af_{pool}/rna/af_quant/` and `af_{pool}/hto/af_quant/` — `rna/` subdirectory only exists to separate RNA from HTO outputs
+- **HTO**: `af_{pool}/rna/af_quant/` and `af_{pool}/hto/af_quant/` — `rna/` subdirectory only exists to separate RNA from HTO outputs. The pool's feature index is in `hto_ref/{pool}/` (`features.csv` with each feature's type `hto` or `adt`, `hto.fa`, `t2g_hto.tsv`, `hto_index/`). HTO counts are in `af_hto_counts_mat.h5` and, if `multiplexing.hto_id_regex` leaves ADT rows, ADT counts in `af_adt_counts_mat.h5`; HTO and ADT mapping is always `fw`, whatever the RNA orientation.
 - **Flex**: `pools/af_{pool}/flex/af_quant/` — under `pools/` prefix with `flex/` subdirectory
 
 Controlled by `af_rna_dir` in `scprocess.smk`: `'flex/'` for flex, `'rna/'` for HTO, `''` otherwise.

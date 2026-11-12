@@ -255,7 +255,7 @@ rules:
     memory: 12
     time: 180
   run_mapping_hto:
-    memory: 12
+    memory: 32
     time: 180
   run_marker_genes:
     memory: 8
@@ -266,6 +266,9 @@ rules:
   run_scprocess_labeller:
     memory: 8
     time: 30
+  save_alevin_adt_to_h5:
+    memory: 8
+    time: 5
   save_alevin_hto_to_h5:
     memory: 8
     time: 5

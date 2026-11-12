@@ -73,23 +73,17 @@ get_one_hto_sce <- function(sel_pool, sample_stats_f, amb_yaml_f, hto_mat_f, tra
   hto_counts = hto_counts[, keep_bcs]
   colnames(hto_counts) = paste(sel_pool, colnames(hto_counts), sep = ':')
 
-  # filter to expected HTOs for this pool
+  # the pool's index holds only the HTOs it uses, so the matrix rows should be exactly those
   meta_dt       = fread(sample_metadata_f)
   expected_htos = unique(meta_dt[pool_id == sel_pool, hto_id])
-  all_htos      = rownames(hto_counts)
-  unexpected    = setdiff(all_htos, expected_htos)
-
-  if (length(unexpected) > 0) {
-    low_signal = unexpected[apply(hto_counts[unexpected, , drop = FALSE], 1, median) < 1]
-    if (length(low_signal) > 0) {
-      message("  removing unexpected low-signal HTOs: ", paste(low_signal, collapse = ", "))
-      hto_counts = hto_counts[setdiff(all_htos, low_signal), , drop = FALSE]
-    }
+  if (!setequal(rownames(hto_counts), expected_htos)) {
+    stop("HTO counts for pool ", sel_pool, " have rows (",
+      paste(rownames(hto_counts), collapse = ", "), ") that differ from the hto_id values of the pool (",
+      paste(expected_htos, collapse = ", "), "); rerun the HTO mapping")
   }
 
   # check expected HTOs have sufficient signal
-  expected_present = intersect(expected_htos, rownames(hto_counts))
-  low_signal_expected = expected_present[apply(hto_counts[expected_present, , drop = FALSE], 1, median) < 1]
+  low_signal_expected = expected_htos[apply(hto_counts[expected_htos, , drop = FALSE], 1, median) < 1]
   if (length(low_signal_expected) > 0) {
     stop("expected HTOs for pool ", sel_pool, " have very low read counts: ",
       paste(low_signal_expected, collapse = ", "))

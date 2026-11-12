@@ -438,6 +438,11 @@ sample_id:
 * `arv_uuids`: list of Arvados UUIDs where HTO fastq files are located. Expects `arv_instance` to be
   defined. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
 * `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `hto`.
+  Each pool is mapped to an index of the `hto_id` values used in that pool, plus all ADTs.
+* `hto_id_regex`: regular expression for the `hto_id` values of the HTOs in `feature_ref`. Rows that do
+  not match are ADTs (antibody-derived tags), mapped together with the HTOs and saved as
+  `af_adt_counts_mat.h5` in the mapping output for each pool. Optional; by default every row is an HTO.
+  Used if `demux_type` is `hto`.
 * `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column
   `class` can be added with values `doublet`, `singlet` or `negative`. Required if `demux_type` is
   `custom`.

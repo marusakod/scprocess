@@ -44,8 +44,20 @@
   (for example `mins_run_integration: 30` gave 10 minutes). Configs that set
   `gb_save_alevin_flex_to_h5` or `mins_save_alevin_flex_to_h5` now fail
   validation: no rule uses them, since Flex mapping runs `save_alevin_to_h5`.
+- HTO mapping builds one index per pool, `mapping/hto_ref/POOL/`, instead of
+  the project-wide `hto.fa`, `t2g_hto.tsv` and `hto_index`. `build_hto_index`
+  runs once per pool; the HTO mapping, counts and demultiplexing rerun.
 
 ### Changes affecting results
+
+- HTO mapping always uses forward orientation. It took the orientation of the
+  RNA reads, which is reverse for 5' kits, and then lost most feature reads
+  (a 5' TotalSeqC test pool gave 87% doublets and 5.6% singlets); 3' kits are
+  unchanged. The index uses k=11 (was 7) on the full R2 read and holds only the
+  HTOs the pool uses (plus any ADTs), so unused hashtags no longer enter
+  `HTODemux`. In the 5' test pool, whole-library mapping then gave 77%
+  singlets and 19% doublets. `gb_run_mapping_hto` rises from 12 to 32 GB: the
+  whole-library job peaked at 25 GB.
 
 - XGBoost training caps rise to `max_genes: 5000` (from 3000),
   `pass1_nrounds: 1000` (from 300) and `pass2_nrounds: 2000` (from 500).
@@ -78,6 +90,14 @@
 
 ### Features
 
+- Optional `multiplexing: hto_id_regex` marks which rows of the HTO feature
+  reference are HTOs by their `hto_id`; the other rows are ADTs. HTOs and ADTs
+  are mapped together on one index per pool (the pool's HTOs plus all ADTs) and
+  split after quantification: HTO rows keep going to demultiplexing, ADT counts
+  are saved to `af_adt_counts_mat.h5` (new rule `save_alevin_adt_to_h5`, keys
+  `gb_`/`mins_save_alevin_adt_to_h5`) and are not yet used downstream. Without
+  the regex every row is an HTO, as before. The index build reports features
+  that share an 11-mer.
 - Resource models and floors are validated when loaded, and a test checks that
   every `get_resources()` call has a model or floor. The
   `train_xgboost_prepare` rules (project, zoom, join) now use `get_resources()`,

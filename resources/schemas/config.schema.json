@@ -359,6 +359,7 @@
         "gb_save_alevin_to_h5":          { "type": "integer" },
         "gb_make_hto_sce_objects":       { "type": "integer" },
         "gb_save_alevin_hto_to_h5":      { "type": "integer" },
+        "gb_save_alevin_adt_to_h5":      { "type": "integer" },
         "mins_build_hto_index":           { "type": "integer" },
         "mins_run_mapping":               { "type": "integer" },
         "mins_run_mapping_hto":           { "type": "integer" },
@@ -366,6 +367,7 @@
         "mins_save_alevin_to_h5":         { "type": "integer" },
         "mins_make_hto_sce_objects":      { "type": "integer" }, 
         "mins_save_alevin_hto_to_h5":     { "type": "integer" },
+        "mins_save_alevin_adt_to_h5":     { "type": "integer" },
 
         "gb_run_cellbender":              { "type": "integer" },
         "gb_run_decontx":                 { "type": "integer" }, 

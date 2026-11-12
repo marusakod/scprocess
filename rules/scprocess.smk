@@ -117,6 +117,12 @@ hto_af_outs = expand(
     f'{af_dir}/af_{{run}}/hto/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz'
   ], run = RUNS) if config['multiplexing']['demux_type'] == "hto" else []
 
+# ADT counts, if the feature reference has ADTs (hto_id_regex does not match every row)
+has_adts = any(len(refs['adt_ids']) > 0 for refs in HTO_POOL_REFS.values())
+adt_af_outs = expand(
+  f'{af_dir}/af_{{run}}/hto/af_adt_counts_mat.h5',
+  run = RUNS) if has_adts else []
+
 # seurat demultiplexing outputs (optional)
 hto_sce_fs = expand(
   f'{demux_dir}/sce_cells_htos_{{run}}_{FULL_TAG}_{DATE_STAMP}.rds',
@@ -211,6 +217,7 @@ rule all:
   input:
     hto_index_outs,
     hto_af_outs,
+    adt_af_outs,
     af_mapping_outs,
     expand(
       [
@@ -280,6 +287,7 @@ rule mapping:
   input:
     hto_index_outs,
     hto_af_outs,
+    adt_af_outs,
     af_mapping_outs,
     chem_stats_outs,
     f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',

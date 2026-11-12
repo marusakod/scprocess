@@ -100,9 +100,11 @@ rule run_mapping_hto:
     """
 
 
+# HTO counts: the HTO rows of the pool's index (with ADTs, the index is joint)
 rule save_alevin_hto_to_h5:
   input: 
-    fry_dir     = f'{af_dir}/af_{{run}}/hto/af_quant/'
+    fry_dir     = f'{af_dir}/af_{{run}}/hto/af_quant/',
+    features_f  = f'{af_dir}/hto_ref/{{run}}/features.csv'
   output: 
     h5_f        = f'{af_dir}/af_{{run}}/hto/af_hto_counts_mat.h5',
     knee_data_f = f'{af_dir}/af_{{run}}/hto/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz'
@@ -127,7 +129,38 @@ rule save_alevin_hto_to_h5:
         hto_mat     = 1, 
         run_var     = '{RUN_VAR}',
         h5_f        = '{output.h5_f}',
-        knee_data_f = '{output.knee_data_f}'
+        knee_data_f = '{output.knee_data_f}',
+        keep_features = get_pool_feature_ids('{input.features_f}', 'hto')
+      )"
+    """
+
+
+# ADT counts: the ADT rows of the pool's joint index (only requested if the reference has ADTs)
+rule save_alevin_adt_to_h5:
+  input: 
+    fry_dir     = f'{af_dir}/af_{{run}}/hto/af_quant/',
+    features_f  = f'{af_dir}/hto_ref/{{run}}/features.csv'
+  output: 
+    h5_f        = f'{af_dir}/af_{{run}}/hto/af_adt_counts_mat.h5'
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'save_alevin_adt_to_h5', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'save_alevin_adt_to_h5', 'time', attempt)
+  benchmark: 
+    f'{benchmark_dir}/hto/save_alevin_adt_to_h5_{{run}}_{DATE_STAMP}.benchmark.txt'
+  log: 
+    f'{logs_dir}/hto/save_alevin_adt_to_h5_{{run}}_{DATE_STAMP}.log'
+  conda: 
+    '../envs/rlibs.yaml'
+  shell: """
+    exec &>> {log}
+
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/mapping.R');
+      save_alevin_adt_h5(
+        fry_dir    = '{input.fry_dir}',
+        h5_f       = '{output.h5_f}',
+        features_f = '{input.features_f}'
       )"
     """
 
