@@ -116,3 +116,26 @@ def test_schema_rejects_an_empty_regex():
   with pytest.raises(jsonschema.ValidationError):
     _multiplexing_validator().validate({
       'demux_type': 'hto', 'feature_ref': 'f.csv', 'fastq_dir': 'fq', 'hto_id_regex': ''})
+
+
+@pytest.mark.parametrize('bad_id', ['Hashtag 1', 'Hashtag,1', 'Hashtag"1', "Hashtag'1", 'Hashtag$1', 'Hashtag;1', 'Hashtag(1)'])
+def test_feature_ids_with_whitespace_commas_quotes_or_shell_characters_are_an_error(tmp_path, bad_id):
+  config = _make_config(tmp_path)
+  feature_ref_f = Path(config['multiplexing']['feature_ref'])
+  feature_ref_df = pl.read_csv(feature_ref_f)
+  feature_ref_df = feature_ref_df.with_columns(
+    hto_id = pl.when(pl.col('hto_id') == 'CD19').then(pl.lit(bad_id)).otherwise(pl.col('hto_id')))
+  feature_ref_df.write_csv(feature_ref_f)
+  with pytest.raises(ValueError, match='whitespace, commas, quotes or shell characters'):
+    _check_multiplexing_parameters(config)
+
+
+@pytest.mark.parametrize('good_id', ['TotalSeqC_Hashtag_1', 'Hashtag-9', '1_CD184_CXCR4', 'CD307e.FCRL5', 'A:B'])
+def test_ordinary_feature_ids_are_accepted(tmp_path, good_id):
+  config = _make_config(tmp_path)
+  feature_ref_f = Path(config['multiplexing']['feature_ref'])
+  feature_ref_df = pl.read_csv(feature_ref_f)
+  feature_ref_df = feature_ref_df.with_columns(
+    hto_id = pl.when(pl.col('hto_id') == 'CD19').then(pl.lit(good_id)).otherwise(pl.col('hto_id')))
+  feature_ref_df.write_csv(feature_ref_f)
+  _check_multiplexing_parameters(config)

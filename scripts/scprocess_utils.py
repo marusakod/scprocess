@@ -656,6 +656,11 @@ def _check_multiplexing_parameters(config):
       raise ValueError("hto_id values in feature reference file not unique")
     hto_ids = feat_ref_df["hto_id"].to_list()
 
+    # hto_id values are passed to commands and file names: no whitespace, commas, quotes or shell characters
+    bad_ids = [ x for x in hto_ids if re.search(r"""[\s,'"`$\\;&|<>(){}*?!#]""", x) ]
+    if len(bad_ids) > 0:
+      raise ValueError(f"hto_id values in the feature reference file with whitespace, commas, quotes or shell characters: {bad_ids}")
+
     # check if all hto_id values in sample metadata match the ones in feature reference
     if not all(hto in hto_ids for hto in list(set(samples_df["hto_id"]))):
       raise ValueError("One or more hto_id values in sample_metadata don't match hto_id values in the feature reference file")
