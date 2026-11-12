@@ -592,6 +592,38 @@ def _check_lib_ids(lib_ids, lib_var):
 
 
 # check parameters for multiplexing
+def split_hto_adt_ids(feature_ids, hto_id_regex):
+  # feature ids matching the regex are HTOs, the others are ADTs; without a regex, all are HTOs
+  # e.g. ['Hashtag1', 'Hashtag2', 'CD3'] with '^Hashtag' -> (['Hashtag1', 'Hashtag2'], ['CD3'])
+  if not hto_id_regex:
+    return list(feature_ids), []
+
+  pattern   = re.compile(hto_id_regex)
+  hto_ids   = [ x for x in feature_ids if pattern.search(x) ]
+  adt_ids   = [ x for x in feature_ids if not pattern.search(x) ]
+  return hto_ids, adt_ids
+
+
+def get_hto_pool_references(config, pools):
+  # for each pool, the HTOs it uses (hto_id in the sample metadata) and every ADT of the feature
+  # reference, e.g. {'pool1': {'hto_ids': ['Hashtag1', 'Hashtag2'], 'adt_ids': ['CD3']}}
+  if config['multiplexing']['demux_type'] != 'hto':
+    return {}
+
+  feat_ref_df = pl.read_csv(config['multiplexing']['feature_ref'])
+  samples_df  = pl.read_csv(config['project']['sample_metadata'])
+  feature_ids = feat_ref_df['hto_id'].to_list()
+  _, adt_ids  = split_hto_adt_ids(feature_ids, config['multiplexing'].get('hto_id_regex', ''))
+
+  pool_refs   = {}
+  for pool in pools:
+    pool_hto_ids  = set(samples_df.filter(pl.col('pool_id') == pool)['hto_id'].to_list())
+    pool_refs[pool] = {
+      'hto_ids': [ x for x in feature_ids if x in pool_hto_ids ],
+      'adt_ids': adt_ids }
+  return pool_refs
+
+
 def _check_multiplexing_parameters(config):
   # load up samples
   samples_df  = pl.read_csv(config['project']['sample_metadata'])
@@ -627,6 +659,20 @@ def _check_multiplexing_parameters(config):
     # check if all hto_id values in sample metadata match the ones in feature reference
     if not all(hto in hto_ids for hto in list(set(samples_df["hto_id"]))):
       raise ValueError("One or more hto_id values in sample_metadata don't match hto_id values in the feature reference file")
+
+    # check the optional regex marking which feature reference rows are HTOs (the others are ADTs)
+    hto_id_regex  = config["multiplexing"].get("hto_id_regex", "")
+    if hto_id_regex:
+      try:
+        re.compile(hto_id_regex)
+      except re.error as err:
+        raise ValueError(f"hto_id_regex is not a valid regular expression: {err}")
+      matching_ids, _ = split_hto_adt_ids(hto_ids, hto_id_regex)
+      if len(matching_ids) == 0:
+        raise ValueError("hto_id_regex does not match any hto_id in the feature reference file")
+      not_matching = sorted(set(samples_df["hto_id"]) - set(matching_ids))
+      if len(not_matching) > 0:
+        raise ValueError(f"hto_id values in sample_metadata that do not match hto_id_regex: {not_matching}")
 
   elif config['multiplexing']['demux_type'] == 'custom':
     # check specified file is ok

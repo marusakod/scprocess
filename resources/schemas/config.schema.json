@@ -68,6 +68,7 @@
         "fastq_dir":        { "type": "string" },
         "arv_uuids":        { "type": "array", "items": {"type": "string", "pattern": "^arkau-[0-9a-z]{5}-[0-9a-z]{15}$"} },
         "feature_ref":      { "type": "string" },
+        "hto_id_regex":     { "type": "string", "minLength": 1 },
         "seurat_quantile":  { "type": "number", "default": 0.99, "exclusiveMinimum": 0, "exclusiveMaximum": 1},
         "demux_output":     { "type": "string" }
       },
@@ -88,6 +89,10 @@
          "else": {
             "not": { "required": ["feature_ref"] }
           }
+        },
+        {
+          "if": {"properties": {"demux_type": {"const": "hto" } } },
+          "else": { "not": { "required": ["hto_id_regex"] } }
         },
         {
           "if": {"properties": {"demux_type": {"const": "custom" } } },
