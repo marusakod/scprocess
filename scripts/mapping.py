@@ -595,7 +595,9 @@ def build_hto_index(feature_ref_f, hto_ids, adt_ids, out_dir, af_home_dir, threa
   t2g_df  = features_df.select(pl.col("hto_id"), pl.col("hto_id").alias("gene_id"))
   t2g_df.write_csv(f"{out_dir}/t2g_hto.tsv", separator = "\t", include_header = False)
 
-  # build piscem index via simpleaf
+  # build piscem index via simpleaf; piscem keeps temporary files in ./workdir.noindex, so each
+  # pool is built in its own directory (pools are built at the same time, and sharing one
+  # working directory corrupts the builds: "Constructing fmph::Function failed")
   os.environ["ALEVIN_FRY_HOME"] = af_home_dir
   subprocess.run(["simpleaf", "set-paths"])
   subprocess.run([
@@ -606,7 +608,7 @@ def build_hto_index(feature_ref_f, hto_ids, adt_ids, out_dir, af_home_dir, threa
     "--kmer-length", f"{HTO_KMER_LENGTH}",
     "--minimizer-length", f"{HTO_MINIMIZER_LENGTH}",
     "--overwrite"
-  ], check = True)
+  ], check = True, cwd = out_dir)
 
 
 def _select_pool_features(feat_ref_df, hto_ids, adt_ids):

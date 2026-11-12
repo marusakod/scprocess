@@ -48,7 +48,9 @@ def test_pool_features_reject_an_id_missing_from_the_reference(tmp_path):
 def test_build_hto_index_writes_the_reference_files_and_runs_simpleaf_index(tmp_path):
   out_dir = tmp_path / 'hto_ref' / 'pool1'
   commands = []
-  with patch.object(mapping.subprocess, 'run', side_effect=lambda cmd, **kw: commands.append(cmd)):
+  working_dirs = {}
+  with patch.object(mapping.subprocess, 'run', side_effect=lambda cmd, **kw: (
+      commands.append(cmd), working_dirs.update({cmd[1]: kw.get('cwd')}))):
     mapping.build_hto_index(_feature_ref_f(tmp_path), ['Hashtag-1', 'Hashtag-2'], ['CD3'],
       str(out_dir), '/af_home', 2)
 
@@ -63,6 +65,9 @@ def test_build_hto_index_writes_the_reference_files_and_runs_simpleaf_index(tmp_
   assert index_cmd[index_cmd.index('--minimizer-length') + 1] == '9'
   assert index_cmd[index_cmd.index('--ref-seq') + 1] == str(out_dir / 'hto.fa')
   assert index_cmd[index_cmd.index('--output') + 1] == str(out_dir / 'hto_index')
+
+  # piscem writes ./workdir.noindex: builds of different pools must not share a working directory
+  assert working_dirs['index'] == str(out_dir)
 
 
 def test_kmer_and_minimizer_lengths_are_consistent():
