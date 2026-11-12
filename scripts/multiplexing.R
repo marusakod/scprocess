@@ -45,9 +45,14 @@ get_one_hto_sce <- function(sel_pool, sample_stats_f, amb_yaml_f, hto_mat_f, tra
   yaml_data       = yaml::read_yaml(amb_yaml_f)
   bcs_f = yaml_data$bcs_f
 
-  # get file for barcode translation
-  bc_dict = trans_f %>% fread(header = FALSE) %>%
-    set_colnames(c("bc_hto", "bc_rna"))
+  # get file for barcode translation; 'none' means HTO and RNA barcodes are identical
+  if (trans_f == 'none') {
+    hto_bcs = colnames(.get_h5_mx(hto_mat_f, sel_s = ''))
+    bc_dict = data.table(bc_hto = hto_bcs, bc_rna = hto_bcs)
+  } else {
+    bc_dict = trans_f %>% fread(header = FALSE) %>%
+      set_colnames(c("bc_hto", "bc_rna"))
+  }
 
   # get all barcodes called as cells
   cell_bcs = bcs_f %>% fread(header = FALSE) %>%

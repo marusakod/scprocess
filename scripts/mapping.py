@@ -169,6 +169,13 @@ def _validate_chemistry(R1_fs, af_chemistry, exp_ori, whitelist_f, wl_lu_dt, wha
   chem_opts = (wl_lu_dt
     .filter(pl.col(f'{f_prefix}_barcodes_f') == os.path.basename(whitelist_f))
     .get_column('chemistry').to_list())
+
+  # 5' chemistries have no separate HTO whitelist: feature barcodes share the GEX whitelist
+  if len(chem_opts) == 0 and what == 'hto':
+    chem_opts = (wl_lu_dt
+      .filter(pl.col('gex_barcodes_f') == os.path.basename(whitelist_f))
+      .get_column('chemistry').to_list())
+
   if set(chem_opts) == set(['3v2', '5v1', '5v2']):
     sample_tenx_chemistry = '3v2' if exp_ori == "fw" else '5v1/5v2'
   else:
@@ -200,9 +207,11 @@ def _write_chemistry_stats(out_dir, run, chem, wl_lu_dt):
     .filter(pl.col("gex_barcodes_f") == os.path.basename(chem["whitelist_f"]))
     .get_column("hto_barcodes_f").to_list())
 
-  if trans_fs[0] is None:
-    trans_f         = ""
-    hto_whitelist_f = ""
+  # blank entries (None or "") mean the chemistry has no separate HTO whitelist or barcode
+  # translation (5' kits): HTO reads use the GEX whitelist, with no translation ("none")
+  if not trans_fs[0] or not hto_whitelist_fs[0]:
+    trans_f         = "none"
+    hto_whitelist_f = chem["whitelist_f"]
   else:
     wl_dir          = os.path.dirname(chem["whitelist_f"])
     trans_f         = f'{wl_dir}/{trans_fs[0]}'
