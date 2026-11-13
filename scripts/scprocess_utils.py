@@ -1067,10 +1067,10 @@ def _check_hvg_parameters(config):
 
   # check if any genes were specified to be excluded
   if 'hvg_exclude_from_file' in config['hvg']:
-    # check file exists
-    exc_f       = pathlib.Path(config['hvg']['hvg_exclude_from_file'])
-    if not exc_f.is_file():
-      raise FileNotFoundError("file specified in 'hvg_exclude_from_file' does not exist")
+    # check file exists; a relative path is taken from the project directory,
+    # and the resolved path is stored for the rules
+    exc_f       = _check_path_exists_in_project(config['hvg']['hvg_exclude_from_file'], config, what = "file")
+    config['hvg']['hvg_exclude_from_file'] = str(exc_f)
 
     # check file has correct columns
     exc_df      = pl.read_csv(exc_f)
