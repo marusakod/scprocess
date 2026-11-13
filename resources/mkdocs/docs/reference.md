@@ -1548,7 +1548,7 @@ calculation can use them.
 * `gb_[rule_name]`: memory requested for the entire job in GB, not per thread.
 * `mins_[rule_name]`: maximum runtime requested in minutes.
 * `n_[rule_name]`: CPU threads, for rules that expose this setting.
-* `retries`: number of retries after failure; default `3`. Requested memory is
+* `retries`: number of retries after failure; default `0`. Requested memory is
   multiplied by `1.5 ** (attempt - 1)`, where the first attempt is `1`.
 * `n_run_mapping`, `n_run_mapping_flex`: mapping threads for poly(A) and Flex
   data, respectively; both default to `8`.
