@@ -246,6 +246,8 @@
           "model":        { "type": "string" },
           "hi_res_cl":    { "type": "string", "default": "RNA_snn_res.2" },
           "min_cl_prop":  { "type": "number", "default": 0.5 },
+          "label_specs_f":        { "type": "string" },
+          "coarse_label_specs_f": { "type": "string" },
           "save_cluster_names_file": { "type": "boolean", "default": false }
         }
       }
@@ -283,8 +285,8 @@
         "test_groups": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
         "validation_group_var": {"type": "string", "minLength": 1, "default": "batch"},
         "validation_fraction": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1, "default": 0.2},
-        "validation_variable_combinations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "default": []},
-        "sampling_variable_combinations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "default": []},
+        "validation_balancing_groups": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "default": []},
+        "sampling_balancing_groups": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "default": []},
         "train_cells_per_label": {"type": "integer", "minimum": 1, "default": 2000},
         "validation_cells_per_label": {"type": "integer", "minimum": 1, "default": 500}
       },

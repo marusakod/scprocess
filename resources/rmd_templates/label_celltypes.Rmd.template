@@ -59,7 +59,7 @@ int_dt        = fread(int_f) %>% .[ (is_dbl == FALSE) & (in_dbl_cl == FALSE) ]
 assert_that( all(sapply(guess_f_ls, file.exists)) )
 guesses_ls    = lapply(guess_f_ls, fread) %>% setNames(model_ls)
 styles_ls = lapply(seq_along(model_ls), function(i)
-  read_xgboost_style(NULL, character(), label_specs_f_ls[[i]], coarse_label_specs_f_ls[[i]]))
+  resolve_label_style(NULL, character(), label_specs_f_ls[[i]], coarse_label_specs_f_ls[[i]]))
 for (i in seq_along(guesses_ls)) {
   mapping = styles_ls[[i]]$mapping
   if (!length(mapping)) next
@@ -114,7 +114,7 @@ for (ii in seq_along(guess_f_ls)) {
 
 ## Predicted cell types over UMAP{.tabset}
 
-The same UMAP is coloured by the cell-level predictions and by the labels assigned through high-resolution cluster voting. Each tab shows one labeller and model. Large changes between the two views can identify mixed clusters or uncertain predictions to review.
+The same UMAP is coloured by predicted cell lables and by cluster assignments. Each tab shows one labeller and model. 
 
 ```{r plot_preds_over_umap, fig.height = 5, fig.width = 12, results = 'asis'}
 for (ii in seq_along(guess_f_ls)) {

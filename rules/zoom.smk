@@ -1314,8 +1314,8 @@ rule zoom_train_xgboost_prepare:
     test_groups                      = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost'].get('test_groups', []),
     validation_group_var             = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['validation_group_var'],
     validation_fraction              = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['validation_fraction'],
-    validation_variable_combinations = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['validation_variable_combinations'],
-    sampling_variable_combinations   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['sampling_variable_combinations'],
+    validation_balancing_groups = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['validation_balancing_groups'],
+    sampling_balancing_groups   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['sampling_balancing_groups'],
     train_cells_per_label             = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['train_cells_per_label'],
     validation_cells_per_label        = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['validation_cells_per_label'],
     min_cells_per_label               = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['train_xgboost']['min_cells_per_label'],
@@ -1342,8 +1342,8 @@ rule zoom_train_xgboost_prepare:
       --test_groups {params.test_groups:q} \
       --validation_group_var {params.validation_group_var:q} \
       --validation_fraction {params.validation_fraction:q} \
-      --validation_variable_combinations {params.validation_variable_combinations:q} \
-      --sampling_variable_combinations {params.sampling_variable_combinations:q} \
+      --validation_balancing_groups {params.validation_balancing_groups:q} \
+      --sampling_balancing_groups {params.sampling_balancing_groups:q} \
       --train_cells_per_label {params.train_cells_per_label:q} \
       --validation_cells_per_label {params.validation_cells_per_label:q} \
       --min_cells_per_label {params.min_cells_per_label:q} \

@@ -465,7 +465,7 @@ xgb_gain_dt  = fread(xgb_importance_f)
 xgb_feature_selection = read_xgboost_feature_selection("${xgb_model_card_f}")
 xgb_dt       = merge(xgb_preds_dt, int_dt[, .(cell_id, UMAP1, UMAP2)],
   by = "cell_id", all.x = TRUE) %>% .[ !is.na(UMAP1) ]
-xgb_style = read_xgboost_style(xgb_predictions_f, sort(unique(xgb_dt$label)))
+xgb_style = resolve_label_style(xgb_predictions_f, sort(unique(xgb_dt$label)))
 xgb_dt = apply_xgboost_style(xgb_dt, xgb_style)
 xgb_has_coarse = length(xgb_style$mapping) > 0
 xgb_val_dt = xgb_dt[split == "validation"]

@@ -2095,13 +2095,6 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
 
   # check that selected models are valid
   def _check_one_label_celltypes_parameters(entry):
-    # Capture the user's own YAML values before get_xgboost_model_paths (below)
-    # pre-populates entry['label_specs_f']/['coarse_label_specs_f'] from the
-    # XGBoost registry for scprocess entries, so we can tell "the user wrote
-    # this" apart from "this was already resolved from the registry".
-    user_label_specs_f        = entry.get('label_specs_f')
-    user_coarse_label_specs_f = entry.get('coarse_label_specs_f')
-
     # check that parameters for celltypist are ok
     if entry['labeller'] == 'celltypist':
       if not entry['model'] in mdls_typist:
@@ -2120,45 +2113,7 @@ def get_labeller_parameters(config, schema_f, scdata_dir):
 
       get_xgboost_model_paths(entry, scdata_dir)
 
-    # resolve label_specs_f: explicit YAML value, else a celltypist default
-    # file, else whatever get_xgboost_model_paths already set (scprocess)
-    if user_label_specs_f is not None:
-      lm_path = _check_path_exists_in_project(user_label_specs_f, config, what = "file")
-      entry['label_specs_f'] = str(lm_path)
-    elif entry['labeller'] == 'celltypist':
-      default_lm = scdata_dir / 'celltypist' / f"{entry['model']}_label_specs.csv"
-      entry['label_specs_f'] = str(default_lm) if default_lm.is_file() else ''
-
-    if 'label_specs_f' not in entry:
-      entry['label_specs_f'] = ''
-
-    # resolve coarse_label_specs_f the same way
-    if user_coarse_label_specs_f is not None:
-      clm_path = _check_path_exists_in_project(user_coarse_label_specs_f, config, what = "file")
-      entry['coarse_label_specs_f'] = str(clm_path)
-    elif entry['labeller'] == 'celltypist':
-      default_clm = scdata_dir / 'celltypist' / f"{entry['model']}_coarse_label_specs.csv"
-      entry['coarse_label_specs_f'] = str(default_clm) if default_clm.is_file() else ''
-
-    if 'coarse_label_specs_f' not in entry:
-      entry['coarse_label_specs_f'] = ''
-
-    if entry['label_specs_f'] != '' or entry['coarse_label_specs_f'] != '':
-      from train_xgboost import read_label_specs
-      fine_specs, _ = read_label_specs(
-        label_specs_f = entry['label_specs_f'] or None,
-        coarse_label_specs_f = entry['coarse_label_specs_f'] or None)
-    else:
-      fine_specs = []
-
-    # label_map_f is the plain fine->coarse data-processing map consumed by
-    # aggregate_predictions (used by label_celltypes/zoom/join alike). For
-    # scprocess entries it was already derived from the registry above by
-    # get_xgboost_model_paths; derive it the same way for celltypist here:
-    # label_specs_f itself, but only if it actually carries a coarse mapping.
-    if entry['labeller'] == 'celltypist':
-      from train_xgboost import label_mapping
-      entry['label_map_f'] = entry['label_specs_f'] if label_mapping(fine_specs) else ''
+    get_label_specs_paths(entry, config, scdata_dir)
 
     # add defaults
     for v in label_defaults:
@@ -2208,12 +2163,14 @@ def get_join_labeller_parameters(config, schema_f, scdata_dir):
     elif entry['labeller'] == 'scprocess':
       get_xgboost_model_paths(entry = entry, scdata_dir = scdata_dir)
 
+    get_label_specs_paths(entry, config, scdata_dir)
+
   return labeller_entries
 
 
 def get_xgboost_model_paths(entry, scdata_dir):
   # Shared with setup/inference; keep model-specific imports local.
-  from train_xgboost import read_label_specs, label_mapping, get_xgboost_model_info
+  from train_xgboost import get_xgboost_model_info
 
   # The registry has one row per installed model; exactly one must match the request.
   model_name  = entry['model']
@@ -2231,28 +2188,62 @@ def get_xgboost_model_paths(entry, scdata_dir):
     if not pathlib.Path(file_path).is_file():
       raise FileNotFoundError(f"XGBoost file missing: {file_path}; rerun scprocess setup")
 
-  # Optional specification paths may be absent or empty in the registry.
-  entry['label_specs_f']        = model_record.get('label_specs_f') or ''
-  entry['coarse_label_specs_f'] = model_record.get('coarse_label_specs_f') or ''
-  entry['label_map_f']          = model_record.get('label_map_f') or ''
-  if entry['label_specs_f']:
-    classes_df  = pl.read_csv(entry['cls_f'])
-    class_names = classes_df['class'].to_list()
-    fine_specs, _ = read_label_specs(
-      label_specs_f        = entry['label_specs_f'],
-      coarse_label_specs_f = entry['coarse_label_specs_f'],
-      labels               = class_names)
-
-    # A style-only specification table must not enable coarse-label mapping.
-    label_map = label_mapping(fine_specs)
-    if label_map:
-      entry['label_map_f'] = entry['label_specs_f']
-    else:
-      entry['label_map_f'] = ''
-
   # Verify the installed files' checksums and attach the model identity.
   identity = get_xgboost_model_info(entry['model_f'], model_name)
   entry.update(identity)
+  return entry
+
+
+def get_label_specs_paths(entry, config, scdata_dir):
+
+  from train_xgboost import read_label_specs, label_mapping
+
+  scdata_dir = pathlib.Path(scdata_dir)
+  model      = entry['model']
+
+  if entry['labeller'] == 'celltypist':
+    default_dir            = scdata_dir / 'celltypist'
+    default_specs_f        = default_dir / f"{model}_label_specs.csv"
+    default_coarse_specs_f = default_dir / f"{model}_coarse_label_specs.csv"
+    allowed_cls_f          = default_dir / 'allowed_cls' / f"{model}_allowed_cls.csv"
+    class_names_f          = allowed_cls_f if allowed_cls_f.is_file() else None
+    legacy_label_map_f     = ''
+  else:  # scprocess
+    default_dir            = scdata_dir / 'xgboost' / model
+    default_specs_f        = default_dir / f"{model}_label_specs.csv"
+    default_coarse_specs_f = default_dir / f"{model}_coarse_label_specs.csv"
+    class_names_f          = entry.get('cls_f')
+    legacy_f               = default_dir / f"{model}_label_map.csv"
+    legacy_label_map_f     = str(legacy_f) if legacy_f.is_file() else ''
+
+  user_specs_f  = entry.get('label_specs_f') or None
+  user_coarse_f = entry.get('coarse_label_specs_f') or None
+
+  if user_specs_f is not None:
+    entry['label_specs_f'] = str(_check_path_exists_in_project(user_specs_f, config, what = "file"))
+  else:
+    entry['label_specs_f'] = str(default_specs_f) if default_specs_f.is_file() else ''
+
+  if user_coarse_f is not None:
+    entry['coarse_label_specs_f'] = str(_check_path_exists_in_project(user_coarse_f, config, what = "file"))
+  else:
+    entry['coarse_label_specs_f'] = str(default_coarse_specs_f) if default_coarse_specs_f.is_file() else ''
+
+  if entry['label_specs_f'] or entry['coarse_label_specs_f']:
+    class_names = pl.read_csv(class_names_f)['label'].to_list() if class_names_f else None
+    fine_specs, _ = read_label_specs(
+      label_specs_f        = entry['label_specs_f'] or None,
+      coarse_label_specs_f = entry['coarse_label_specs_f'] or None,
+      labels               = class_names)
+  else:
+    fine_specs = []
+
+  if entry['label_specs_f']:
+    # a style-only specification table must not enable coarse-label mapping.
+    entry['label_map_f'] = entry['label_specs_f'] if label_mapping(fine_specs) else ''
+  else:
+    entry['label_map_f'] = legacy_label_map_f
+
   return entry
 
 
@@ -3225,23 +3216,9 @@ def check_join_config(config, join_schema_f, scdata_dir):
           f"h5ads YAML not found for project '{pid}': {h5ads_f}\n"
           f"  scprocess integration must be completed for this project before running join.")
 
-  # validate label_celltypes models and resolve paths
-  lbl_cfg     = config.get('label_celltypes', [])
-  if lbl_cfg:
-    lbl_schema_props = join_schema['properties']['label_celltypes']['items']['properties']
-    for entry in lbl_cfg:
-      for key, prop in lbl_schema_props.items():
-        if key not in entry and 'default' in prop:
-          entry[key] = prop['default']
-
-    typist_ls_f = scdata_dir / 'celltypist/celltypist_models.csv'
-    mdls_typist = pl.read_csv(typist_ls_f)['model'].to_list() if typist_ls_f.is_file() else []
-    for entry in lbl_cfg:
-      if entry['labeller'] == 'celltypist':
-        if entry['model'] not in mdls_typist:
-          raise ValueError(f"CellTypist model '{entry['model']}' not found. Valid: {', '.join(mdls_typist)}")
-      elif entry['labeller'] == 'scprocess':
-        get_xgboost_model_paths(entry, scdata_dir)
+  # validate label_celltypes models and resolve label-spec paths
+  if config.get('label_celltypes'):
+    config['label_celltypes'] = get_join_labeller_parameters(config, join_schema_f, scdata_dir)
 
   # check that each metadata_var is present in at least one project's sample
   # metadata file. Unlike the standard pipeline (which requires all vars in a

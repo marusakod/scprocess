@@ -51,7 +51,7 @@ def download_celltypist_models(models_f):
     try:
       m = celltypist.models.Model.load(model = model_name + ".pkl")
       cls_path = cls_dir / f"{model_name}_allowed_cls.csv"
-      classes_df = pl.DataFrame({"class": sorted(m.cell_types.tolist())})
+      classes_df = pl.DataFrame({"label": sorted(m.cell_types.tolist())})
       classes_df.write_csv(cls_path)
       print(f"  Saved classes: {cls_path}")
     except Exception as e:
@@ -125,7 +125,7 @@ def run_xgboost(sel_batch, batch_var, model_name, adata_f, model_f, cls_f, genes
   model.load_model(model_f)
 
   # Class and gene order are part of the saved model, not alphabetical order.
-  class_names = pl.read_csv(cls_f)['class'].to_list()
+  class_names = pl.read_csv(cls_f)['label'].to_list()
 
   with open(genes_f, 'r') as f:
     selected_genes = [line.strip() for line in f if line.strip()]

@@ -79,7 +79,7 @@ plot_pred_true_umap <- function(predictions_dt, coarse = FALSE, label_colours = 
   if (is.null(labels)) {
     labels = sort(unique(plot_dt$label))
   }
-  label_cols = xgboost_colours(labels, label_colours)
+  label_cols = resolve_label_colours(labels, label_colours)
   plot = ggplot(plot_dt) +
     aes(x = UMAP1, y = UMAP2, colour = label) +
     geom_point(size = 0.3) +
@@ -101,7 +101,7 @@ plot_xgboost_prediction_umap <- function(predictions_dt, label_colours, coarse =
   plot = ggplot(predictions_dt) +
     aes(x = UMAP1, y = UMAP2, colour = .data[[label_col]]) +
     geom_point(size = 0.3) +
-    scale_colour_manual(values = xgboost_colours(labels, label_colours)) +
+    scale_colour_manual(values = resolve_label_colours(labels, label_colours)) +
     theme_classic() +
     theme(aspect.ratio = 1, axis.text = element_blank(), axis.ticks = element_blank()) +
     guides(colour = guide_legend(override.aes = list(size = 3))) +
@@ -144,7 +144,7 @@ plot_precision_recall <- function(metrics_dt, label_colours = NULL, zoom = FALSE
   # Use a shared lower limit so precision and recall remain directly comparable.
   lower = if (zoom) min(metrics_dt$Precision, metrics_dt$Recall, na.rm = TRUE) else 0
   if (lower == 1) lower = 0.99
-  label_cols = xgboost_colours(as.character(metrics_dt$Class), label_colours)
+  label_cols = resolve_label_colours(as.character(metrics_dt$Class), label_colours)
   plot = ggplot(metrics_dt) +
     aes(x = Recall, y = Precision, colour = Class, size = N) +
     geom_hline(yintercept = 1, colour = 'grey70', linetype = 'dashed') +
@@ -237,7 +237,7 @@ plot_top_xgboost_genes <- function(selected_genes_dt, cpms_dt, label_order = NUL
     labels = sort(unique(plot_dt$cluster))
   }
   plot_dt[, cluster := factor(cluster, levels = labels)]
-  label_cols = xgboost_colours(labels, label_colours)
+  label_cols = resolve_label_colours(labels, label_colours)
 
   # logcpm uses natural logs; show CPM labels using the same supplied pseudocount.
   cpm_breaks = c(0, 10, 20, 50, 1e2, 2e2, 5e2, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4)

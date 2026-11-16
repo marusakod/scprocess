@@ -23,7 +23,7 @@ MIN_CLUSTER_MAJORITY_VOTE_CELLS = 10
 def prepare_training_metadata(annots_f, integration_f, h5ads_yaml, batch_var, training_metadata_f, coverage_f, counts_f,
   *, is_join, excluded_labels, cluster_majority_vote_resolution,
   cluster_majority_vote_min_purity, test_group_var, test_groups, validation_group_var,
-  validation_fraction, validation_variable_combinations, sampling_variable_combinations,
+  validation_fraction, validation_balancing_groups, sampling_balancing_groups,
   train_cells_per_label, validation_cells_per_label, min_cells_per_label, seed):
 
   # Read cell/batch IDs, join project IDs and optional voting clusters from integration_f.
@@ -31,7 +31,7 @@ def prepare_training_metadata(annots_f, integration_f, h5ads_yaml, batch_var, tr
   # otherwise from integration_f.
   vote_res    = cluster_majority_vote_resolution
   vote_col    = f'RNA_snn_res.{float(vote_res):g}' if vote_res is not None else None
-  cols_needed = set(validation_variable_combinations + sampling_variable_combinations)
+  cols_needed = set(validation_balancing_groups + sampling_balancing_groups)
   cols_needed |= {v for v in [test_group_var, validation_group_var] if v}
 
   # training_metadata_df has one row per cell present in both input tables, in integration order.
@@ -45,13 +45,13 @@ def prepare_training_metadata(annots_f, integration_f, h5ads_yaml, batch_var, tr
     test_groups                      = test_groups,
     validation_group_var             = validation_group_var,
     validation_fraction              = validation_fraction,
-    validation_variable_combinations = validation_variable_combinations,
+    validation_balancing_groups = validation_balancing_groups,
     excluded_labels                  = excluded_labels,
     min_cells_per_label              = min_cells_per_label)
 
   training_metadata_df = _prepare_training_labels(training_metadata_df, labels_ok, excluded_labels, vote_col,
     cluster_majority_vote_min_purity)
-  training_metadata_df = _select_training_cells(training_metadata_df, rng, sampling_variable_combinations,
+  training_metadata_df = _select_training_cells(training_metadata_df, rng, sampling_balancing_groups,
     train_cells_per_label, validation_cells_per_label)
 
   # Record the explicit preparation settings alongside the selected-cell tables.
@@ -64,8 +64,8 @@ def prepare_training_metadata(annots_f, integration_f, h5ads_yaml, batch_var, tr
     test_groups                      = test_groups,
     validation_group_var             = validation_group_var,
     validation_fraction              = validation_fraction,
-    validation_variable_combinations = validation_variable_combinations,
-    sampling_variable_combinations   = sampling_variable_combinations,
+    validation_balancing_groups = validation_balancing_groups,
+    sampling_balancing_groups   = sampling_balancing_groups,
     train_cells_per_label            = train_cells_per_label,
     validation_cells_per_label       = validation_cells_per_label,
     min_cells_per_label              = min_cells_per_label,
@@ -152,7 +152,7 @@ def _check_training_batches(training_metadata_df, h5ads_yaml, batch_var, is_join
 
 
 def _assign_splits(training_metadata_df, rng, *, test_group_var, test_groups, validation_group_var,
-  validation_fraction, validation_variable_combinations, excluded_labels,
+  validation_fraction, validation_balancing_groups, excluded_labels,
   min_cells_per_label):
 
   # Reserve explicitly held-out groups for the independent test set.
@@ -173,21 +173,21 @@ def _assign_splits(training_metadata_df, rng, *, test_group_var, test_groups, va
   # Split whole validation_group_var units (e.g. tissue tubes), keeping their cells together.
   # No unit may have cells in both the held-out test set and the train/validation pool.
   # Each remaining unit must also have one consistent combination of the requested
-  # validation_variable_combinations values, so it belongs to exactly one sampling group.
+  # validation_balancing_groups values, so it belongs to exactly one sampling group.
   # Both filtered tables still have one row per cell; no aggregation occurs here.
   train_validation_df = training_metadata_df.filter(pl.col('split') != 'test')
   group_var           = validation_group_var
   test_df             = training_metadata_df.filter(pl.col('split') == 'test')
   if set(train_validation_df[group_var]) & set(test_df[group_var]):
     raise ValueError('Validation groups overlap the held-out test groups')
-  variables = validation_variable_combinations
+  variables = validation_balancing_groups
   if _missing_values(train_validation_df, [group_var] + variables):
     raise ValueError('Missing validation grouping/combination values')
 
   # group_units_df has one row per distinct (validation unit, metadata combination),
   # rather than per cell. The check below requires exactly one combination per unit.
   # For example,
-  # validation_group_var = 'tube_id' and validation_variable_combinations = ['donor', 'region']:
+  # validation_group_var = 'tube_id' and validation_balancing_groups = ['donor', 'region']:
   #   tube_id  donor  region
   #   tube1    d1     cortex
   #   tube2    d1     cortex
@@ -279,7 +279,7 @@ def _prepare_training_labels(training_metadata_df, labels_ok, excluded_labels, v
   return training_metadata_df
 
 
-def _select_training_cells(training_metadata_df, rng, sampling_variable_combinations,
+def _select_training_cells(training_metadata_df, rng, sampling_balancing_groups,
   train_cells_per_label, validation_cells_per_label):
 
   # training_metadata_df, eligible_df, label_split_cells_df and sample_df all have one row per cell here.
@@ -289,7 +289,7 @@ def _select_training_cells(training_metadata_df, rng, sampling_variable_combinat
   eligible_df   = training_metadata_df.filter(pl.col('split').is_in(['train', 'validation']))
   for label_split_cells_df in _sorted_groups(eligible_df, ['label', 'split']):
     cap       = train_cells_per_label if label_split_cells_df['split'][0] == 'train' else validation_cells_per_label
-    sample_df = _balanced_sample(label_split_cells_df, cap, sampling_variable_combinations, rng)
+    sample_df = _balanced_sample(label_split_cells_df, cap, sampling_balancing_groups, rng)
     selected_rows.extend(sample_df['_tmp_row_idx'].to_list())
   training_metadata_df = training_metadata_df.with_columns(pl.col('_tmp_row_idx').is_in(selected_rows).alias('selected')).drop('_tmp_row_idx')
 
@@ -772,7 +772,7 @@ def _save_outputs(model, class_names, selected_genes, gene_importance_df,
   print(f"  Model: {model_path}")
 
   cls_path   = out_dir / f"{xgboost_tag}_allowed_cls.csv"
-  classes_df = pl.DataFrame({"class": class_names})
+  classes_df = pl.DataFrame({"label": class_names})
   classes_df.write_csv(cls_path)
   print(f"  Classes: {cls_path}")
 
@@ -962,7 +962,7 @@ def write_label_specifications(cls_f, counts_f, predictions_f, output_dir, *,
   # One row per model class or training label; abundance sets the default order.
   classes_df      = pl.read_csv(cls_f)
   label_counts_df = pl.read_csv(counts_f)
-  class_names     = classes_df['class'].to_list()
+  class_names     = classes_df['label'].to_list()
   label_counts    = dict(label_counts_df.select('label', 'len').iter_rows())
   default_label_order = sorted(class_names,
     key = lambda label: (-label_counts.get(label, 0), label))
@@ -1233,8 +1233,8 @@ if __name__ == '__main__':
   for name in ('cluster_majority_vote_min_purity', 'validation_fraction'):
     prepare.add_argument('--' + name, required = True, type = float)
 
-  for name in ('excluded_labels', 'test_groups', 'validation_variable_combinations',
-    'sampling_variable_combinations'):
+  for name in ('excluded_labels', 'test_groups', 'validation_balancing_groups',
+    'sampling_balancing_groups'):
     prepare.add_argument('--' + name, nargs = '*', default = [])
 
   prepare.add_argument('--cluster_majority_vote_resolution',

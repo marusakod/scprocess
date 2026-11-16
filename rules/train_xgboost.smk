@@ -22,8 +22,8 @@ if TRAIN_XGB_PARAMS is not None:
       test_groups                      = TRAIN_XGB_PARAMS.get('test_groups', []),
       validation_group_var             = TRAIN_XGB_PARAMS['validation_group_var'],
       validation_fraction              = TRAIN_XGB_PARAMS['validation_fraction'],
-      validation_variable_combinations = TRAIN_XGB_PARAMS['validation_variable_combinations'],
-      sampling_variable_combinations   = TRAIN_XGB_PARAMS['sampling_variable_combinations'],
+      validation_balancing_groups = TRAIN_XGB_PARAMS['validation_balancing_groups'],
+      sampling_balancing_groups   = TRAIN_XGB_PARAMS['sampling_balancing_groups'],
       train_cells_per_label             = TRAIN_XGB_PARAMS['train_cells_per_label'],
       validation_cells_per_label        = TRAIN_XGB_PARAMS['validation_cells_per_label'],
       min_cells_per_label               = TRAIN_XGB_PARAMS['min_cells_per_label'],
@@ -52,8 +52,8 @@ if TRAIN_XGB_PARAMS is not None:
         --test_groups                       {params.test_groups:q} \
         --validation_group_var              {params.validation_group_var:q} \
         --validation_fraction               {params.validation_fraction:q} \
-        --validation_variable_combinations  {params.validation_variable_combinations:q} \
-        --sampling_variable_combinations    {params.sampling_variable_combinations:q} \
+        --validation_balancing_groups  {params.validation_balancing_groups:q} \
+        --sampling_balancing_groups    {params.sampling_balancing_groups:q} \
         --train_cells_per_label              {params.train_cells_per_label:q} \
         --validation_cells_per_label         {params.validation_cells_per_label:q} \
         --min_cells_per_label                {params.min_cells_per_label:q} \

@@ -44,7 +44,7 @@ gain_dt = fread(gain_f)
 feature_selection = read_xgboost_feature_selection(model_card_f)
 int_dt = fread(integration_f, select = c('cell_id', 'UMAP1', 'UMAP2'))
 label_order = fread(label_counts_f)[order(-len)]$label
-style = read_xgboost_style(predictions_f, label_order)
+style = resolve_label_style(predictions_f, label_order)
 label_order = style$order
 has_coarse = length(style$mapping) > 0
 ```

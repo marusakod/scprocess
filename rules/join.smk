@@ -1057,8 +1057,8 @@ if DO_TRAIN_XGB:
       test_groups                      = _join_xgb_cfg.get('test_groups', []),
       validation_group_var             = _join_xgb_cfg['validation_group_var'],
       validation_fraction              = _join_xgb_cfg['validation_fraction'],
-      validation_variable_combinations = _join_xgb_cfg['validation_variable_combinations'],
-      sampling_variable_combinations   = _join_xgb_cfg['sampling_variable_combinations'],
+      validation_balancing_groups = _join_xgb_cfg['validation_balancing_groups'],
+      sampling_balancing_groups   = _join_xgb_cfg['sampling_balancing_groups'],
       train_cells_per_label             = _join_xgb_cfg['train_cells_per_label'],
       validation_cells_per_label        = _join_xgb_cfg['validation_cells_per_label'],
       min_cells_per_label               = _join_xgb_cfg['min_cells_per_label'],
@@ -1085,8 +1085,8 @@ if DO_TRAIN_XGB:
         --test_groups {params.test_groups:q} \
         --validation_group_var {params.validation_group_var:q} \
         --validation_fraction {params.validation_fraction:q} \
-        --validation_variable_combinations {params.validation_variable_combinations:q} \
-        --sampling_variable_combinations {params.sampling_variable_combinations:q} \
+        --validation_balancing_groups {params.validation_balancing_groups:q} \
+        --sampling_balancing_groups {params.sampling_balancing_groups:q} \
         --train_cells_per_label {params.train_cells_per_label:q} \
         --validation_cells_per_label {params.validation_cells_per_label:q} \
         --min_cells_per_label {params.min_cells_per_label:q} \

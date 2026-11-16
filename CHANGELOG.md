@@ -2,6 +2,11 @@
 
 ## 0.6.0 — Unreleased development candidate
 
+- Rename `train_xgboost.validation_variable_combinations` to
+  `validation_balancing_groups` and `sampling_variable_combinations` to
+  `sampling_balancing_groups`, across project, zoom and join configs. Naming
+  only; behaviour is unchanged. No old-input alias is provided.
+
 - Update the shared Python rule environment from Python 3.10 to 3.12,
   including its ABI pin. Setup checksum verification uses hashlib.file_digest;
   Snakemake creates a new environment from the updated specification.
@@ -19,6 +24,19 @@
 - Require canonical `label` input columns and the optional `label_specs_f` /
   `coarse_label_specs_f` tables; remove the old training `label_map_f` interface.
   Coarse evaluation remains separate from model fitting.
+- Resolve `label_celltypes.label_specs_f`/`coarse_label_specs_f` the same way as
+  `marker_genes.mkr_custom_genesets`: default to the classifier's file under
+  `$SCPROCESS_DATA_DIR` when omitted, with an explicit value always taking
+  priority. Both `celltypist` and `scprocess` (XGBoost) classifiers now
+  validate the final file against the model's real class list, even when
+  the user overrides it. Join configs can now set these two keys, previously
+  rejected by the schema.
+- Rename the `class` column to `label` in every `{model}_allowed_cls.csv` file
+  (written for both XGBoost and CellTypist classifiers). Matches the `label`
+  column used everywhere else (`label_specs_f`, training annotations).
+  Existing installed `{model}_allowed_cls.csv` files still have the old
+  `class` header; re-run `scprocess setup` (CellTypist) or retrain (XGBoost)
+  to regenerate them. No old-input alias is provided.
 - Remove deprecated `user.profile`, `shiny.var_names` and former tricycle/
   join-zoom resource names. Use the current schema names.
 - Require saved doublet diagnostics and adaptive/manual integration threshold

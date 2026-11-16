@@ -26,8 +26,13 @@ plot_umap_labels <- function(umap_dt, clust_dt, name, label_order = NULL, label_
       cluster
       )] %>% .[, cluster := factor(cluster) %>% fct_infreq ]
 
-  if (!is.null(label_order))
-    plot_dt[, cluster := factor(as.character(cluster), levels = unique(c(label_order, levels(cluster))))]
+  # Keep the canonical relative order among labels actually present, rather
+  # than unioning in the full (possibly much larger) label_order -- otherwise
+  # colours get spread across every canonical label, not just the ones shown.
+  if (!is.null(label_order)) {
+    present_order = intersect(label_order, levels(plot_dt$cluster))
+    plot_dt[, cluster := factor(as.character(cluster), levels = unique(c(present_order, levels(cluster))))]
+  }
 
   # tweak if "ambiguous"
   if ("ambiguous" %in% levels(plot_dt$cluster) )
@@ -35,7 +40,7 @@ plot_umap_labels <- function(umap_dt, clust_dt, name, label_order = NULL, label_
 
   # define colours
   cl_lvls     = levels(plot_dt$cluster)
-  cl_cols     = xgboost_colours(cl_lvls, label_colours)
+  cl_cols     = resolve_label_colours(cl_lvls, label_colours)
   if ("ambiguous" %in% cl_lvls)
     cl_cols[[ "ambiguous" ]] = "grey"
 

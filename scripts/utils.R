@@ -500,7 +500,7 @@ plot_cluster_comparison_heatmap <- function(confuse_dt, cl1, cl2,
   return(hm_obj)
 }
 
-xgboost_colours <- function(labels, specified = NULL) {
+resolve_label_colours <- function(labels, specified = NULL) {
   labels = unique(as.character(labels))
   labels = labels[!is.na(labels)]
   palette = if (length(labels) <= length(nice_cols)) nice_cols[seq_along(labels)] else
@@ -511,9 +511,7 @@ xgboost_colours <- function(labels, specified = NULL) {
   colours
 }
 
-read_xgboost_style <- function(predictions_f, labels, label_specs_f = NULL, coarse_label_specs_f = NULL) {
-  # Derive default spec file paths from the predictions file name, unless
-  # explicit paths were supplied.
+resolve_label_style <- function(predictions_f, labels, label_specs_f = NULL, coarse_label_specs_f = NULL) {
   if (is.null(predictions_f)) {
     prefix = ""
   } else {
@@ -538,9 +536,6 @@ read_xgboost_style <- function(predictions_f, labels, label_specs_f = NULL, coar
     coarse_specs = data.table()
   }
 
-  # Fine-label display order: the spec file's own order first (so authors
-  # control it), then any labels actually present in the data that weren't
-  # listed, in the order they first appear. Duplicates and NAs are dropped.
   if ("label" %in% names(fine_specs)) {
     specified_labels = fine_specs$label
   } else {
@@ -557,7 +552,6 @@ read_xgboost_style <- function(predictions_f, labels, label_specs_f = NULL, coar
     fine_colours = NULL
   }
 
-  # Fine-to-coarse mapping, only for labels the spec file explicitly groups.
   if (all(c("label", "coarse_label") %in% names(fine_specs))) {
     has_coarse = fine_specs[!is.na(coarse_label)]
     fine_to_coarse = setNames(has_coarse$coarse_label, has_coarse$label)
@@ -565,8 +559,7 @@ read_xgboost_style <- function(predictions_f, labels, label_specs_f = NULL, coar
     fine_to_coarse = character()
   }
 
-  # Coarse-group display order: the coarse spec file's own order first, then
-  # any coarse groups referenced by the fine-to-coarse mapping above.
+
   if ("coarse_label" %in% names(coarse_specs)) {
     specified_coarse_labels = coarse_specs$coarse_label
   } else {
@@ -574,7 +567,7 @@ read_xgboost_style <- function(predictions_f, labels, label_specs_f = NULL, coar
   }
   coarse_order = unique(c(specified_coarse_labels, unname(fine_to_coarse)))
 
-  # Per-coarse-group colours, only for groups the spec file explicitly assigns one.
+
   if (all(c("coarse_label", "coarse_colour") %in% names(coarse_specs))) {
     has_coarse_colour = coarse_specs[!is.na(coarse_colour)]
     coarse_colours = setNames(has_coarse_colour$coarse_colour, has_coarse_colour$coarse_label)
@@ -582,28 +575,29 @@ read_xgboost_style <- function(predictions_f, labels, label_specs_f = NULL, coar
     coarse_colours = NULL
   }
 
-  # xgboost_colours() fills in a palette colour for any label/group left
-  # without an explicit one, so the returned colour vectors always cover
-  # the full order.
+  # Leave colours unfilled beyond what the spec file explicitly assigned.
+  # Auto-filling every canonical label here (rather than just the labels a
+  # given plot actually shows) would lock each plot's colours to its
+  # position in the full, often much larger, canonical order -- callers
+  # already auto-generate colours for whatever subset they plot via
+  # resolve_label_colours(), using these as explicit overrides only.
   list(
     order          = fine_order,
-    colours        = xgboost_colours(fine_order, fine_colours),
+    colours        = fine_colours,
     mapping        = fine_to_coarse,
     coarse_order   = coarse_order,
-    coarse_colours = xgboost_colours(coarse_order, coarse_colours)
+    coarse_colours = coarse_colours
   )
 }
 
 apply_xgboost_style <- function(data, style) {
-  # Fine-label factor levels: the style's own order first, then any labels
-  # actually present in the data that weren't listed, so nothing is dropped.
+ 
   fine_order = unique(c(style$order, as.character(data$label), as.character(data$predicted_label)))
   fine_order = fine_order[!is.na(fine_order)]
   for (column in intersect(c("label", "predicted_label"), names(data))) {
     set(data, j = column, value = factor(data[[column]], levels = fine_order))
   }
 
-  # Only derive coarse columns if the style actually defines a fine->coarse mapping.
   if (length(style$mapping)) {
     column_pairs = list(c("label", "coarse_true"), c("predicted_label", "coarse_predicted"))
     for (columns in column_pairs) {
@@ -612,8 +606,6 @@ apply_xgboost_style <- function(data, style) {
       fine_values   = as.character(data[[fine_column]])
       coarse_values = unname(style$mapping[fine_values])
 
-      # Labels with no entry in the mapping keep their original (fine) value
-      # instead of becoming missing.
       unmapped = is.na(coarse_values)
       coarse_values[unmapped] = fine_values[unmapped]
 

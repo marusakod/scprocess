@@ -29,9 +29,12 @@ def test_join_without_classifiers_needs_no_registry(tmp_path):
 
 def test_join_xgboost_defaults_without_celltypist_registry(tmp_path, monkeypatch):
   # Isolate registry lookup while checking defaults and the returned metadata.
+  # label_specs_f/coarse_label_specs_f/label_map_f are resolved separately by
+  # get_label_specs_paths, from entry['cls_f'] and files under scdata_dir --
+  # with none present under tmp_path, they should resolve to ''.
   def model_paths(entry, scdata_dir):
     assert scdata_dir == tmp_path
-    entry['label_map_f'] = 'labels.csv'
+    entry['cls_f'] = str(tmp_path / 'allowed_cls.csv')
 
   monkeypatch.setattr(scprocess_utils, 'get_xgboost_model_paths', model_paths)
   schema_f = Path(__file__).parents[1] / 'resources/schemas/join.schema.json'
@@ -42,4 +45,6 @@ def test_join_xgboost_defaults_without_celltypist_registry(tmp_path, monkeypatch
   assert labeller_entries[0]['hi_res_cl'] == 'RNA_snn_res.2'
   assert labeller_entries[0]['min_cl_prop'] == 0.5
   assert labeller_entries[0]['save_cluster_names_file'] is False
-  assert labeller_entries[0]['label_map_f'] == 'labels.csv'
+  assert labeller_entries[0]['label_specs_f'] == ''
+  assert labeller_entries[0]['coarse_label_specs_f'] == ''
+  assert labeller_entries[0]['label_map_f'] == ''

@@ -28,15 +28,15 @@ def frame():
 
 def cfg():
   return dict(test_group_var = 'donor', test_groups = ['d3'], validation_group_var = 'tube',
-    validation_fraction = .4, validation_variable_combinations = ['donor', 'project'],
+    validation_fraction = .4, validation_balancing_groups = ['donor', 'project'],
     min_cells_per_label = 5, excluded_labels = [], train_cells_per_label = 15,
-    validation_cells_per_label = 8, sampling_variable_combinations = ['donor', 'tube'], seed = 7,
+    validation_cells_per_label = 8, sampling_balancing_groups = ['donor', 'tube'], seed = 7,
     cluster_majority_vote_resolution = None, cluster_majority_vote_min_purity = .9)
 
 
 def assign(data, config):
   keys = ['test_group_var', 'test_groups', 'validation_group_var', 'validation_fraction',
-    'validation_variable_combinations', 'excluded_labels', 'min_cells_per_label']
+    'validation_balancing_groups', 'excluded_labels', 'min_cells_per_label']
   return training._assign_splits(data, np.random.default_rng(config['seed']), **{key: config[key] for key in keys})
 
 
@@ -269,7 +269,7 @@ def test_training_support_prefers_largest_unit_then_unit_id(a_cells, b_cells, ex
     'label': ['rare'] * (a_cells + b_cells + 2)})
   result_df, _, moved_groups = training._assign_splits(cells_df, FixedValidationSelection(),
     test_group_var = None, test_groups = [], validation_group_var = 'tube',
-    validation_fraction = .5, validation_variable_combinations = [],
+    validation_fraction = .5, validation_balancing_groups = [],
     excluded_labels = [], min_cells_per_label = 10)
   assert moved_groups == [{'label': 'rare', 'group': expected_unit}]
   assert result_df.filter(pl.col('tube') == expected_unit)['split'].unique().to_list() == ['train']

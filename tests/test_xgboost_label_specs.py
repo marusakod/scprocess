@@ -91,7 +91,7 @@ def test_relative_paths_remain_project_relative(tmp_path):
 
 def test_export_and_coarse_metrics_use_direct_mapping(tmp_path):
     fine=tmp_path/'fine.csv';fine.write_text('label,coarse_label\nb,Neuron\na,Neuron\n')
-    classes=tmp_path/'classes.csv';classes.write_text('class\na\nb\n')
+    classes=tmp_path/'classes.csv';classes.write_text('label\na\nb\n')
     counts=tmp_path/'counts.csv';counts.write_text('label,len\na,2\nb,2\n')
     predictions=tmp_path/'predictions.csv.gz'
     pd.DataFrame(dict(label=['a','b'],predicted_label=['b','a'],split=['test','test'],
@@ -104,7 +104,7 @@ def test_export_and_coarse_metrics_use_direct_mapping(tmp_path):
 
 
 def test_no_coarse_mapping_writes_empty_metrics(tmp_path):
-    classes=tmp_path/'classes.csv';classes.write_text('class\na\n')
+    classes=tmp_path/'classes.csv';classes.write_text('label\na\n')
     counts=tmp_path/'counts.csv';counts.write_text('label,len\na,1\n')
     write_label_specifications(classes, counts, 'unused', tmp_path, xgboost_tag='demo', label_specs_f=None, coarse_label_specs_f=None)
     assert pd.read_csv(tmp_path/'demo_coarse_evaluation.csv').empty
@@ -114,7 +114,7 @@ def test_no_coarse_mapping_writes_empty_metrics(tmp_path):
 def model_source(tmp_path):
     source=tmp_path/'source';source.mkdir()
     (source/'tag_xgboost_model.json').write_text('weights')
-    (source/'tag_allowed_cls.csv').write_text('class\na\nb\n')
+    (source/'tag_allowed_cls.csv').write_text('label\na\nb\n')
     (source/'tag_selected_genes.txt').write_text('g1\n')
     fine,coarse=tables(tmp_path)
     (source/'tag_label_specs.csv').write_bytes(fine.read_bytes())
@@ -194,7 +194,7 @@ def test_cli_optional_features_can_be_omitted(tmp_path):
   assert invalid.returncode != 0 and '--seed' in invalid.stderr
 
   classes = tmp_path / 'classes.csv'
-  classes.write_text('class\na\nb\n')
+  classes.write_text('label\na\nb\n')
   subprocess.run([sys.executable, str(ROOT / 'scripts/train_xgboost.py'), 'specs',
     '--cls_f', str(classes), '--counts_f', str(settings['counts_f']),
     '--predictions_f', str(tmp_path / 'unused.csv.gz'), '--output_dir', str(tmp_path),
