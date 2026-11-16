@@ -574,13 +574,7 @@ resolve_label_style <- function(predictions_f, labels, label_specs_f = NULL, coa
   } else {
     coarse_colours = NULL
   }
-
-  # Leave colours unfilled beyond what the spec file explicitly assigned.
-  # Auto-filling every canonical label here (rather than just the labels a
-  # given plot actually shows) would lock each plot's colours to its
-  # position in the full, often much larger, canonical order -- callers
-  # already auto-generate colours for whatever subset they plot via
-  # resolve_label_colours(), using these as explicit overrides only.
+  
   list(
     order          = fine_order,
     colours        = fine_colours,
