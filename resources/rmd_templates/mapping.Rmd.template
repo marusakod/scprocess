@@ -162,7 +162,7 @@ print(plot_amb_params_dotplot(rna_knee_params_df, sample_var = sample_var, scale
 ### Pairwise coordinates of curve transition points {.tabset}
 
 Each panel below compares the two coordinates of the knee or shin points (library size or barcode rank) across all samples in the project (each dot is a sample).
-The faint grey ellipses outline where most samples cluster (they're left out when there are too few samples, or the samples are too similar, to draw one meaningfully).
+The faint grey ellipses outline where most samples cluster (they are left out when there are too few samples, or the samples are too similar, to draw one meaningfully).
 Any outlier samples should ideally be inspected in the barcode-rank curve.
 
 
