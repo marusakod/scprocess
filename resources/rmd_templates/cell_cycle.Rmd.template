@@ -31,32 +31,17 @@ report_data = load_cell_cycle_report_data(
   scores_f = "${scores_f}", origin_f = "${origin_f}",
   sensitivity_f = "${sensitivity_f}", diagnostics_f = "${diagnostics_f}",
   ellipse_f = "${ellipse_f}", coldata_f = "${coldata_f}",
-  marker_expression_f = "${marker_expression_f}")
+  marker_expression_f = "${marker_expression_f}", species = "${species}")
 ```
 
 
-`tricycle` infers cell cycle position by projecting each cell's gene expression into a 2D reference
-embedding by using pre-calculated PCA loadings. When cycling cells are present, this results in a 
-continuous "loop" of cells around an origin. The origin can be specified manually or estimated from the data.
-Cell-cycle position is then calculated with reference to the origin, giving
-`tricycle_theta` which takes values $[0, 2\pi)$ in radians (i.e. 0 to 360 
-degrees).
+`tricycle` infers cell cycle position by projecting each cell's gene expression into a 2D reference embedding by using pre-calculated PCA loadings. When cycling cells are present, this results in a continuous "loop" of cells around an origin. The origin can be specified manually or estimated from the data. Cell-cycle position is then calculated with reference to the origin, giving `tricycle_theta` which takes values $[0, 2\pi)$ in radians (i.e. 0 to 360 degrees).
 
 ## Expression around theta
 
-For known cell cycle markers, expression is averaged across cells in angular bins around the origin.
-The right panel showes these averaged expressions as a function of theta.
-The lines are circular LOESS smooths of bin means, weighted by their cell counts.
-Colours group the canonical markers by their expected cell-cycle phase; CDKN1A (gene encoding p21 which acts as
-inhibitor of cyclin-dependent kinase complexes stopping cell cycle progression at the G1/S and G2/M transitions)
-is shown neutrally as a checkpoint diagnostic.
+For known cell cycle markers, expression is averaged across cells in angular bins around the origin. The right panel showes these averaged expressions as a function of theta. The lines are circular LOESS smooths of bin means, weighted by their cell counts. Colours group the canonical markers by their expected cell-cycle phase; CDKN1A (gene encoding p21 which acts as inhibitor of cyclin-dependent kinase complexes stopping cell cycle progression at the G1/S and G2/M transitions) is shown neutrally as a checkpoint diagnostic.
 
-The left panel provides the corresponding pooled tricycle projection coloured
-by theta. Grey radial lines mark tricycle's approximate phase boundaries:
-G1/G0 wraps from $1.75\pi$ through zero to $0.25\pi$, G1/S spans
-$0.25\pi$-$0.5\pi$, S spans $0.5\pi$-$\pi$, and G2/M spans
-$\pi$-$1.75\pi$. The grey vertical lines mark the same boundaries on the
-expression plot (right panel).
+The left panel provides the corresponding tricycle projection coloured by theta. Grey radial lines mark tricycle's approximate phase boundaries: G1/G0 wraps from $1.75\pi$ through zero to $0.25\pi$, G1/S spans $0.25\pi$-$0.5\pi$, S spans $0.5\pi$-$\pi$, and G2/M spans $\pi$-$1.75\pi$. The grey vertical lines mark the same boundaries on the expression plot (right panel).
 
 ```{r expression_curves, fig.height=6, fig.width=14}
 plot_cell_cycle_expression(report_data)
@@ -64,35 +49,17 @@ plot_cell_cycle_expression(report_data)
 
 ## Pooled projection and estimated origin
 
-The panels show the cell-cycle projection and the origin used to calculate
-theta. The left panel shows cell density; the right panel shows downsampled cells such that density across the embedding is equal. The black cross marks the chosen
-origin, and the grey path shows how its estimate changes across target
-proportions. Grey radial lines mark the phase boundaries described
-above. With a manual origin, the estimated alternatives are shown for comparison [text should the be different whether you select a manual origin or not?].
+${origin_method_txt}
 
-Compare the alternatives in `cell_cycle.cyc_density_percentile_grid` before
-choosing `cell_cycle.cyc_density_percentile`. For example, `1.3` sets the density
-threshold at the 1.3rd percentile across cells. Cells at or below that density
-receive full weight; denser cells receive less weight, in inverse proportion to
-their density. Tied densities can make the percentage at full weight larger
-than requested. At `0`, weights are proportional to inverse density; at `100`,
-every cell has equal weight. This setting does not specify the percentage of
-cycling cells or discard cells from the analysis. Alternatively, set
-`cell_cycle.cyc_origin_manual` to specify the origin coordinates manually.
+${origin_panels_txt}
 
 ```{r pooled_projection, fig.height=5.5, fig.width=11}
 plot_cell_cycle_pooled_projection(report_data)
 ```
 
-## Spatial marker expression
+## Marker expression over the projection
 
-Observed counts for the canonical cycling genes were captured from the full
-run-level matrices, library-size normalized to 10,000, and log-transformed.
-Each gene is
-coloured relative to its own 98th percentile among expressing cells, so colour
-intensity is comparable spatially within a gene but not between genes. Cells
-are drawn in a reproducibly randomized order. The facet title reports the
-number of cells with expression above zero.
+The expression of each canonical cycling gene is shown relative to its own 98th percentile among expressing cells (colours are only comparable within a gene, not between genes). The facet title reports the number of cells with expression above zero.
 
 ```{r spatial_expression, fig.height=8, fig.width=10}
 plot_cell_cycle_spatial_expression(report_data)
@@ -100,28 +67,34 @@ plot_cell_cycle_spatial_expression(report_data)
 
 ## Sample-level diagnostics {.tabset}
 
-Point size represents the capped inverse-density inclusion probability used by
-the origin estimator. Cells outside the dense non-cycling blob generally reach
-the maximum size of 2, while cells in the blob are drawn smaller. Theta remains
-encoded by colour.
+Each tab shows one sample. The left panel shows the tricycle projection for only the cells in that sample; point size reflects the same density-based weighting used to estimate the origin, so sparser (more likely cycling) cells are drawn larger, while cells in the dense non-cycling blob are drawn smaller. The right panel shows the density distribution of theta that can help estimate where in the cell cycle most of the cells in a sample fall.
 
 ```{r sample_diagnostics, fig.height=5, fig.width=10, results='asis'}
 render_cell_cycle_sample_diagnostics(report_data)
 ```
 
-## Approximate phase percentages by sample
+## Approximate phase percentages by sample {.tabset}
 
-Tricycle is designed to represent cell cycle continuously. For an approximate
-summary only, the plot uses the angular sectors introduced with the pooled
-projection above. G1/G0 is omitted because it dominates the percentages in
-predominantly non-cycling samples. The remaining values are still percentages
-of all QC-passed cells and are not renormalized.
+For each sample, the table and plots show the percentage of cells in each actively cycling phase (G1/S, S, G2/M); G1/G0 is excluded since it otherwise dominates the rest.
 
-```{r phase_proportions, fig.height=5, fig.width=6}
-phase_summary = make_cell_cycle_phase_summary(report_data)
-print(phase_summary$plot)
+```{r setup_phase_plot_size, include = FALSE}
+phase_summary  = make_cell_cycle_phase_summary(report_data)
+bar_h          = 0.4
+max_phase_h    = 12
+phase_h        = min((phase_summary$n_samples + 1) * bar_h, max_phase_h)
+```
+
+```{r phase_table}
 knitr::kable(phase_summary$table, digits = 1,
   caption = 'Approximate non-G1/G0 phase percentages')
+```
+
+```{r phase_proportions, fig.height=phase_h, fig.width=6, results='asis'}
+cat("### Absolute\n\n")
+print(phase_summary$plot)
+cat("\n\n### Percent\n\n")
+print(phase_summary$plot_relative)
+cat("\n\n")
 ```
 
 

@@ -170,10 +170,32 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
   } else if (sel_rule == 'cell_cycle') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp', 'threads',
       'scores_f', 'marker_expression_f', 'origin_f', 'sensitivity_f',
-      'diagnostics_f', 'ellipse_f', 'coldata_f')
+      'diagnostics_f', 'ellipse_f', 'coldata_f', 'species')
 
     assert_that(all(req_names %in% add_args_names))
-    params_ls = add_args[req_names]
+
+    origin_is_manual = fread(add_args[['origin_f']])[['origin_method']][1] == 'manual'
+
+    shared_intro_txt = paste0(
+      "Non-cycling cells typically form one dense cluster in the projection, while actively cycling cells are spread more thinly around the rest of the \"loop\". ",
+      "Left unweighted, that dense cluster can dominate a simple average and pull the origin estimate towards it rather than the loop's true centre.")
+
+    if (origin_is_manual) {
+      origin_method_txt = paste0(shared_intro_txt,
+        "")
+      origin_panels_txt = paste0(
+        "The left panel shows all QC-passed cells as a density heatmap, the black cross marking the manually chosen origin, ",
+        "and a grey path connecting the density-weighted origin estimates that would have resulted at each percentile in `cyc_density_percentile_grid`. ",
+        "The right panel shows downsampled cells, chosen so that density is roughly equal across the embedding, with the same manually chosen origin marked.")
+    } else {
+      origin_method_txt = paste0(shared_intro_txt, " To avoid this, cells are weighted in inverse proportion to their density before averaging their positions, with `cyc_density_percentile` setting where that boundary falls.")
+      origin_panels_txt = paste0(
+        "The left panel shows all QC-passed cells as a density heatmap, the black cross marking the chosen origin, ",
+        "and a grey path connecting the origin estimates obtained at each percentile in `cyc_density_percentile_grid`, showing how sensitive that choice is to this setting. ",
+        "The right panel shows downsampled cells, chosen so that density is roughly equal across the embedding, with the same chosen origin marked.")
+    }
+
+    params_ls = c(add_args[req_names], list(origin_method_txt = origin_method_txt, origin_panels_txt = origin_panels_txt))
 
   } else if (sel_rule == 'integration') {
     req_names = c('your_name', 'affiliation', 'short_tag', 

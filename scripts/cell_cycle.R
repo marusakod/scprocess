@@ -4,7 +4,7 @@ suppressPackageStartupMessages({
 
 
 load_cell_cycle_report_data <- function(scores_f, origin_f, sensitivity_f,
-  diagnostics_f, ellipse_f, coldata_f, marker_expression_f) {
+  diagnostics_f, ellipse_f, coldata_f, marker_expression_f, species = "human") {
 
   # Load saved outputs, retain QC-passed cells, and prepare shared plot inputs.
   scores <- fread(scores_f)
@@ -23,7 +23,7 @@ load_cell_cycle_report_data <- function(scores_f, origin_f, sensitivity_f,
   scores_qc[, approximate_phase := assign_approximate_cell_cycle_phase(tricycle_theta)]
   marker_expression <- read_cell_cycle_marker_expression(
     marker_expression_f, scores_qc)
-  marker_annotation <- cell_cycle_marker_annotation()
+  marker_annotation <- cell_cycle_marker_annotation(species)
   if (nrow(marker_expression)) {
     marker_expression <- merge(marker_expression, marker_annotation, by='gene')
     marker_expression[, gene := factor(gene, levels=marker_annotation[['gene']])]
@@ -59,7 +59,7 @@ load_cell_cycle_report_data <- function(scores_f, origin_f, sensitivity_f,
     'TOP2A'='#FEE6CE', 'CCNB1'='#FDD0A2', 'CDK1'='#FDAE6B',
     'TPX2'='#FD8D3C', 'SMC2'='#F16913', 'MKI67'='#D94801', 'UBE2C'='#8C2D04')
   gene_legend_labels <- setNames(
-    sprintf('%s · %s', marker_annotation[['marker_phase']], marker_annotation[['gene']]),
+    sprintf('%s · %s', marker_annotation[['marker_phase']], marker_annotation[['gene_label']]),
     marker_annotation[['gene']])
   density_percentile_levels <- as.character(sort(unique(origin_sensitivity[['density_percentile']])))
   origin_is_manual <- identical(origin[['origin_method']][1], 'manual')
@@ -123,6 +123,7 @@ plot_cell_cycle_expression <- function(report_data) {
       .cell_cycle_origin_layer(report_data$origin) +
       coord_equal(xlim=report_data$pc_x_limits, ylim=report_data$pc_y_limits, expand=FALSE) +
       theme_bw() +
+      theme(panel.grid=element_blank()) +
       labs(x='tricycle PC1', y='tricycle PC2')
 
     g_expression_curves <- ggplot() +
@@ -137,6 +138,7 @@ plot_cell_cycle_expression <- function(report_data) {
       scale_y_continuous(breaks=pretty_breaks()) +
       coord_cartesian(ylim=c(0, 1.05)) +
       theme_bw() +
+      theme(panel.grid=element_blank()) +
       labs(x=expression('tricycle theta / '*pi),
            y='pooled mean expression (curve maximum = 1)',
            colour='marker')
@@ -181,6 +183,7 @@ plot_cell_cycle_pooled_projection <- function(report_data) {
       guide=guide_legend(order=2, direction='horizontal', nrow=1)) +
     coord_equal(xlim=report_data$pc_x_limits, ylim=report_data$pc_y_limits, expand=FALSE) +
     theme_bw() +
+    theme(panel.grid=element_blank()) +
     labs(
       title='All QC-passed cells', x='tricycle PC1', y='tricycle PC2',
       subtitle=report_data$blob$label, caption=report_data$origin_caption)
@@ -193,6 +196,7 @@ plot_cell_cycle_pooled_projection <- function(report_data) {
     .cell_cycle_origin_layer(report_data$origin) +
     coord_equal(xlim=report_data$pc_x_limits, ylim=report_data$pc_y_limits, expand=FALSE) +
     theme_bw() +
+    theme(panel.grid=element_blank()) +
     labs(
       title=sprintf(
         'Display sample (%s of %s cells)',
@@ -215,7 +219,7 @@ plot_cell_cycle_spatial_expression <- function(report_data) {
       pmin(log_normalized_expression / max(cap, 1e-12), 1)
     }, by=gene]
     gene_summaries <- report_data$marker_expression[, .(
-      label=sprintf('%s (%s > 0)', gene[1], scales::comma(sum(log_normalized_expression > 0)))
+      label=sprintf('%s (%s > 0)', gene_label[1], scales::comma(sum(log_normalized_expression > 0)))
     ), by=gene]
     gene_labels <- setNames(gene_summaries[['label']], as.character(gene_summaries[['gene']]))
     set.seed(20230308)
@@ -228,7 +232,7 @@ plot_cell_cycle_spatial_expression <- function(report_data) {
       .cell_cycle_origin_layer(report_data$origin) +
       facet_wrap(~gene, ncol=4, labeller=as_labeller(gene_labels)) +
       scale_colour_viridis_c(option='magma', limits=c(0, 1),
-                             name='expression /\ngene q98') +
+                             name='gene expression') +
       coord_equal(xlim=report_data$pc_x_limits, ylim=report_data$pc_y_limits, expand=FALSE) +
       theme_bw() +
       theme(
@@ -258,7 +262,7 @@ render_cell_cycle_sample_diagnostics <- function(report_data) {
       scale_size_continuous(range=c(0.2, 2), limits=c(0, 1), guide='none') +
       .cell_cycle_origin_layer(report_data$origin) +
       coord_equal(xlim=report_data$pc_x_limits, ylim=report_data$pc_y_limits, expand=FALSE) +
-      theme_bw() + labs(x='tricycle PC1', y='tricycle PC2')
+      theme_bw() + theme(panel.grid=element_blank()) + labs(x='tricycle PC1', y='tricycle PC2')
     g_theta <- ggplot(sample_dt, aes(tricycle_theta / pi)) +
       geom_density(fill='steelblue', alpha=0.35) +
       scale_x_continuous(breaks=report_data$theta_breaks, labels=report_data$theta_labels, limits=c(0, 2)) +
@@ -274,20 +278,36 @@ make_cell_cycle_phase_summary <- function(report_data) {
   phase_dt[, percent_cells := 100 * n_cells / sum(n_cells), by=sample_id]
   cycling_phase_dt <- phase_dt[approximate_phase != 'G1/G0']
   cycling_phase_dt[, approximate_phase := droplevels(approximate_phase)]
+
   phase_plot <- ggplot(cycling_phase_dt, aes(percent_cells, sample_id, fill=approximate_phase)) +
-    geom_quasirandom(
-      shape=21, size=3, width=0.25, orientation='y', colour='grey20') +
+    geom_col(colour='grey20', linewidth=0.2) +
     scale_y_discrete(limits=rev) +
-    scale_x_log10(
-      breaks=c(0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100),
-      labels=label_number(suffix='%')) +
+    scale_x_continuous(
+      breaks=scales::pretty_breaks(), labels=label_number(suffix='%'),
+      expand=expansion(mult=c(0, 0.05))) +
     scale_fill_manual(values=report_data$phase_colours) + theme_bw() +
-    labs(x='percent of QC-passed cells (log scale)', y='sample',
+    theme(panel.grid=element_blank()) +
+    labs(x='percent of QC-passed cells', y='sample',
+         fill='approximate phase')
+
+  # Each sample's bar is rescaled to its own cycling fraction, so phases can be
+  # compared by relative share even when samples differ a lot in how many
+  # cells are cycling at all (shown separately in the "Absolute" tab).
+  phase_plot_relative <- ggplot(cycling_phase_dt, aes(percent_cells, sample_id, fill=approximate_phase)) +
+    geom_col(colour='grey20', linewidth=0.2, position='fill') +
+    scale_y_discrete(limits=rev) +
+    scale_x_continuous(
+      breaks=scales::pretty_breaks(), labels=label_percent(),
+      expand=expansion(mult=c(0, 0.02))) +
+    scale_fill_manual(values=report_data$phase_colours) + theme_bw() +
+    theme(panel.grid=element_blank()) +
+    labs(x='percent of cycling cells (G1/S + S + G2/M)', y='sample',
          fill='approximate phase')
 
   phase_table <- dcast(cycling_phase_dt, sample_id ~ approximate_phase,
     value.var = 'percent_cells', fill = 0)
-  list(plot = phase_plot, table = phase_table)
+  list(plot = phase_plot, plot_relative = phase_plot_relative, table = phase_table,
+    n_samples = uniqueN(cycling_phase_dt$sample_id))
 }
 
 
@@ -457,7 +477,7 @@ plot_cell_cycle_origin <- function(diagnostics, origin, sensitivity, blob, phase
       guide=guide_colourbar(order=2, direction='horizontal')) +
     scale_x_continuous(breaks=scales::pretty_breaks()) +
     scale_y_continuous(breaks=scales::pretty_breaks()) +
-    theme_bw() + labs(x='tricycle PC1', y='tricycle PC2')
+    theme_bw() + theme(panel.grid=element_blank()) + labs(x='tricycle PC1', y='tricycle PC2')
   full <- g + coord_equal(xlim=full_x, ylim=full_y, expand=FALSE) +
     labs(title='All QC-passed cells', subtitle=blob$label,
          caption=cell_cycle_origin_caption(origin))
@@ -497,13 +517,27 @@ read_cell_cycle_marker_expression <- function(marker_expression_f, scores_qc) {
 }
 
 
-cell_cycle_marker_annotation <- function() {
+cell_cycle_marker_annotation <- function(species = "human") {
+  gene <- c(
+    "CDKN1A",
+    "PCNA", "MCM4", "MCM5", "TYMS",
+    "TOP2A", "CCNB1", "CDK1", "TPX2", "SMC2", "MKI67", "UBE2C"
+  )
+  # Matching against the reference annotation is done case-insensitively
+  # (see .feature_symbols() in tricycle.R), so the canonical `gene` key above
+  # stays fixed; only the human-readable label follows mouse naming convention.
+  gene_label <- if (identical(species, "mouse")) {
+    c(
+      "Cdkn1a",
+      "Pcna", "Mcm4", "Mcm5", "Tyms",
+      "Top2a", "Ccnb1", "Cdk1", "Tpx2", "Smc2", "Mki67", "Ube2c"
+    )
+  } else {
+    gene
+  }
   data.table(
-    gene = c(
-      "CDKN1A",
-      "PCNA", "MCM4", "MCM5", "TYMS",
-      "TOP2A", "CCNB1", "CDK1", "TPX2", "SMC2", "MKI67", "UBE2C"
-    ),
+    gene = gene,
+    gene_label = gene_label,
     marker_phase = factor(
       rep(c("checkpoint", "S", "G2/M"), c(1L, 4L, 7L)),
       levels = c("checkpoint", "S", "G2/M")

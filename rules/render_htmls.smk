@@ -375,7 +375,8 @@ if CELL_CYCLE_ENABLED:
       affiliation = config['project']['affiliation'],
       short_tag   = config['project']['short_tag'],
       date_stamp  = config['project']['date_stamp'],
-      proj_dir    = config['project']['proj_dir']
+      proj_dir    = config['project']['proj_dir'],
+      species     = config['cell_cycle']['_species']
     threads: 1
     retries: config['resources']['retries']
     conda:
@@ -401,7 +402,7 @@ if CELL_CYCLE_ENABLED:
           marker_expression_f='{input.marker_expression_f}',
           origin_f='{input.origin_f}', sensitivity_f='{input.sensitivity_f}',
           diagnostics_f='{input.diagnostics_f}', ellipse_f='{input.ellipse_f}',
-          coldata_f='{input.coldata_f}')"
+          coldata_f='{input.coldata_f}', species='{params.species}')"
       """
 
 
