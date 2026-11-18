@@ -170,16 +170,11 @@ Any outlier samples should ideally be inspected in the barcode-rank curve.
 custom_mapping_runs = get_mapping_custom_runs("${custom_sample_params_f}", sample_var = sample_var)
 ```
 
-#### Knees
-
-```{r knee_coordinates_pairwise, fig.height = 8.2, fig.width = 8}
+```{r knee_shin_coordinates_pairwise, fig.height = 8.2, fig.width = 8, results = 'asis'}
+cat('#### Knees\n\n')
 print(plot_knee_coordinates_pairwise(rna_knee_params_df, sample_var = sample_var,
   landmark = 'knee', custom_runs = custom_mapping_runs))
-```
-
-#### Shins
-
-```{r shin_coordinates_pairwise, fig.height = 8.2, fig.width = 8}
+cat('\n\n#### Shins\n\n')
 print(plot_knee_coordinates_pairwise(rna_knee_params_df, sample_var = sample_var,
   landmark = 'shin', custom_runs = custom_mapping_runs))
 ```
