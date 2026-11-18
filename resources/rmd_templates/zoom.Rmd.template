@@ -136,101 +136,6 @@ if(!is.null(metadata_vars)){
 }
 ```
 
-```{r setup_zoom_qc, include = FALSE}
-# parse zoom QC thresholds (empty string means not set)
-.parse_zoom_thr = function(x) { x = trimws(x); if (x == "" || x == "None") NA_real_ else as.numeric(x) }
-zoom_qc = list(
-  qc_min_counts = .parse_zoom_thr(zoom_qc_min_counts),
-  qc_max_counts = .parse_zoom_thr(zoom_qc_max_counts),
-  qc_min_feats  = .parse_zoom_thr(zoom_qc_min_feats),
-  qc_max_feats  = .parse_zoom_thr(zoom_qc_max_feats),
-  qc_min_mito   = .parse_zoom_thr(zoom_qc_min_mito),
-  qc_max_mito   = .parse_zoom_thr(zoom_qc_max_mito),
-  qc_min_splice = .parse_zoom_thr(zoom_qc_min_splice),
-  qc_max_splice = .parse_zoom_thr(zoom_qc_max_splice)
-)
-has_zoom_qc = any(!is.na(unlist(zoom_qc)))
-
-# load pre-filter labels to identify cells before zoom QC
-sel_labels_vec  = str_split(zoom_sel_labels, ",")[[1]]
-pre_lbls_df     = fread(zoom_original_lbls_f)
-pre_cell_ids    = pre_lbls_df[ get(zoom_lbls_col) %chin% sel_labels_vec ]$cell_id
-
-# load post-filter labels
-post_lbls_df    = fread(zoom_lbls_f)
-post_cell_ids   = post_lbls_df[ get(zoom_lbls_col) %chin% sel_labels_vec ]$cell_id
-report_lbls_df  = fread(zoom_report_lbls_f)
-do_label_celltypes = nzchar(zoom_label_hi_res_cl) &&
-  all(c('predicted_label_naive', 'predicted_label_agg') %in% names(report_lbls_df))
-
-# load qc_all and subset to the zoom cells
-qc_all_dt       = fread(qc_f) %>% .[ keep == TRUE ]
-pre_qc_dt       = qc_all_dt[ cell_id %chin% pre_cell_ids ] %>% setnames(batch_var, "batch_var")
-post_qc_dt      = qc_all_dt[ cell_id %chin% post_cell_ids ] %>% setnames(batch_var, "batch_var")
-
-# build batch levels from metadata
-zoom_b_lvls     = meta_dt[[batch_var]] %>% intersect(unique(pre_qc_dt$batch_var))
-zoom_n_batches  = length(zoom_b_lvls)
-
-# build cuts_dt from zoom QC thresholds (same thresholds for all batches)
-zoom_cuts_rows = list()
-if (!is.na(zoom_qc$qc_min_counts) || !is.na(zoom_qc$qc_max_counts)) {
-  counts_min = if (!is.na(zoom_qc$qc_min_counts)) log10(zoom_qc$qc_min_counts) else -Inf
-  counts_max = if (!is.na(zoom_qc$qc_max_counts)) log10(zoom_qc$qc_max_counts) else Inf
-  zoom_cuts_rows = c(zoom_cuts_rows, lapply(zoom_b_lvls, function(b)
-    data.table(batch_var = b, qc_var = "log_counts", min = counts_min, max = counts_max)))
-}
-if (!is.na(zoom_qc$qc_min_feats) || !is.na(zoom_qc$qc_max_feats)) {
-  feats_min = if (!is.na(zoom_qc$qc_min_feats)) log10(zoom_qc$qc_min_feats) else -Inf
-  feats_max = if (!is.na(zoom_qc$qc_max_feats)) log10(zoom_qc$qc_max_feats) else Inf
-  zoom_cuts_rows = c(zoom_cuts_rows, lapply(zoom_b_lvls, function(b)
-    data.table(batch_var = b, qc_var = "log_feats", min = feats_min, max = feats_max)))
-}
-if (!is.na(zoom_qc$qc_min_mito) || !is.na(zoom_qc$qc_max_mito)) {
-  mito_min = if (!is.na(zoom_qc$qc_min_mito)) qlogis(zoom_qc$qc_min_mito) else -Inf
-  mito_max = if (!is.na(zoom_qc$qc_max_mito)) qlogis(zoom_qc$qc_max_mito) else Inf
-  zoom_cuts_rows = c(zoom_cuts_rows, lapply(zoom_b_lvls, function(b)
-    data.table(batch_var = b, qc_var = "logit_mito", min = mito_min, max = mito_max)))
-}
-if (!is.na(zoom_qc$qc_min_splice) || !is.na(zoom_qc$qc_max_splice)) {
-  splice_min = if (!is.na(zoom_qc$qc_min_splice)) qlogis(zoom_qc$qc_min_splice) else -Inf
-  splice_max = if (!is.na(zoom_qc$qc_max_splice)) qlogis(zoom_qc$qc_max_splice) else Inf
-  zoom_cuts_rows = c(zoom_cuts_rows, lapply(zoom_b_lvls, function(b)
-    data.table(batch_var = b, qc_var = "logit_spliced", min = splice_min, max = splice_max)))
-}
-zoom_cuts_dt = if (length(zoom_cuts_rows) > 0) rbindlist(zoom_cuts_rows) else
-  data.table(batch_var = character(), qc_var = character(), min = numeric(), max = numeric())
-
-zoom_violin_h = 0.4
-zoom_marg_h   = min((zoom_n_batches + 1) * zoom_violin_h, 12)
-```
-
-```{r zoom_qc_section, fig.height = zoom_marg_h, fig.width = 8, results = 'asis'}
-cat("## Zoom subset QC{.tabset}\n\n")
-if (has_zoom_qc) {
-  cat("Additional QC thresholds applied to the zoom subset before HVG detection and integration.\n\n")
-  n_pre  = nrow(pre_qc_dt)
-  n_post = nrow(post_qc_dt)
-  cat(sprintf("**%d / %d cells removed** (%d remaining).\n\n", n_pre - n_post, n_pre, n_post))
-
-  suppressWarnings({
-    cat("### Before zoom QC\n")
-    print(plot_qc_ranges_marginals(pre_qc_dt, zoom_b_lvls, qc_names, qc_lu, zoom_cuts_dt, batch_var))
-    cat("\n\n")
-    cat("### After zoom QC\n")
-    print(plot_qc_ranges_marginals(post_qc_dt, zoom_b_lvls, qc_names, qc_lu, zoom_cuts_dt, batch_var))
-    cat("\n\n")
-  })
-} else {
-  cat("No additional zoom-specific QC thresholds were applied.\n\n")
-  suppressWarnings({
-    cat("### QC distributions\n")
-    print(plot_qc_ranges_marginals(post_qc_dt, zoom_b_lvls, qc_names, qc_lu, zoom_cuts_dt, batch_var))
-    cat("\n\n")
-  })
-}
-```
-
 ```{r load_hvg_data, include = FALSE}
 cell_hvgs   = fread(cell_hvgs_f)
 edger_dt    = fread(empty_gs_f)
@@ -344,18 +249,99 @@ n_batches   = ncol(pb)
 heatmap_w   = (n_batches * unit_w + base_w) %>% min(max_w)
 ```
 
+```{r setup_zoom_qc, include = FALSE}
+# parse zoom QC thresholds (empty string means not set)
+.parse_zoom_thr = function(x) { x = trimws(x); if (x == "" || x == "None") NA_real_ else as.numeric(x) }
+zoom_qc = list(
+  qc_min_counts = .parse_zoom_thr(zoom_qc_min_counts),
+  qc_max_counts = .parse_zoom_thr(zoom_qc_max_counts),
+  qc_min_feats  = .parse_zoom_thr(zoom_qc_min_feats),
+  qc_max_feats  = .parse_zoom_thr(zoom_qc_max_feats),
+  qc_min_mito   = .parse_zoom_thr(zoom_qc_min_mito),
+  qc_max_mito   = .parse_zoom_thr(zoom_qc_max_mito),
+  qc_min_splice = .parse_zoom_thr(zoom_qc_min_splice),
+  qc_max_splice = .parse_zoom_thr(zoom_qc_max_splice)
+)
+has_zoom_qc = any(!is.na(unlist(zoom_qc)))
+
+# load pre-filter labels to identify cells before zoom QC
+sel_labels_vec  = str_split(zoom_sel_labels, ",")[[1]]
+pre_lbls_df     = fread(zoom_original_lbls_f)
+pre_cell_ids    = pre_lbls_df[ get(zoom_lbls_col) %chin% sel_labels_vec ]$cell_id
+
+# load post-filter labels
+post_lbls_df    = fread(zoom_lbls_f)
+post_cell_ids   = post_lbls_df[ get(zoom_lbls_col) %chin% sel_labels_vec ]$cell_id
+report_lbls_df  = fread(zoom_report_lbls_f)
+do_label_celltypes = nzchar(zoom_label_hi_res_cl) &&
+  all(c('predicted_label_naive', 'predicted_label_agg') %in% names(report_lbls_df))
+
+# load qc_all and subset to the zoom cells
+qc_all_dt       = fread(qc_f) %>% .[ keep == TRUE ]
+pre_qc_dt       = qc_all_dt[ cell_id %chin% pre_cell_ids ] %>% setnames(batch_var, "batch_var")
+post_qc_dt      = qc_all_dt[ cell_id %chin% post_cell_ids ] %>% setnames(batch_var, "batch_var")
+
+# build batch levels from metadata
+zoom_b_lvls     = meta_dt[[batch_var]] %>% intersect(unique(pre_qc_dt$batch_var))
+zoom_n_batches  = length(zoom_b_lvls)
+
+# build cuts_dt from zoom QC thresholds (same thresholds for all batches)
+zoom_qc_cut_rows = function(qc_var, raw_min, raw_max, transform, batch_levels) {
+  if (is.na(raw_min) && is.na(raw_max)) return(NULL)
+  bound = function(raw, default) if (is.na(raw)) default else transform(raw)
+  data.table(batch_var = batch_levels, qc_var = qc_var,
+    min = bound(raw_min, -Inf), max = bound(raw_max, Inf))
+}
+
+zoom_qc_metrics = list(
+  list(qc_var = "log_counts",    min = zoom_qc$qc_min_counts, max = zoom_qc$qc_max_counts, transform = log10),
+  list(qc_var = "log_feats",     min = zoom_qc$qc_min_feats,  max = zoom_qc$qc_max_feats,  transform = log10),
+  list(qc_var = "logit_mito",    min = zoom_qc$qc_min_mito,   max = zoom_qc$qc_max_mito,   transform = qlogis),
+  list(qc_var = "logit_spliced", min = zoom_qc$qc_min_splice, max = zoom_qc$qc_max_splice, transform = qlogis))
+
+zoom_cuts_dt = rbindlist(lapply(zoom_qc_metrics, function(m)
+  zoom_qc_cut_rows(m$qc_var, m$min, m$max, m$transform, zoom_b_lvls)))
+if (!nrow(zoom_cuts_dt))
+  zoom_cuts_dt = data.table(batch_var = character(), qc_var = character(), min = numeric(), max = numeric())
+
+zoom_violin_h = 0.4
+zoom_marg_h   = min((zoom_n_batches + 1) * zoom_violin_h, 12)
+```
+
+## Zoom subset QC{.tabset}
+
+```{r zoom_qc_section, fig.height = zoom_marg_h, fig.width = 8, results = 'asis'}
+if (has_zoom_qc) {
+  cat("${zoom_qc_note_txt}\n\n")
+  n_pre  = nrow(pre_qc_dt)
+  n_post = nrow(post_qc_dt)
+  cat(sprintf("**%d / %d cells removed** (%d remaining).\n\n", n_pre - n_post, n_pre, n_post))
+
+  suppressWarnings({
+    cat("### Before zoom QC\n")
+    print(plot_qc_ranges_marginals(pre_qc_dt, zoom_b_lvls, qc_names, qc_lu, zoom_cuts_dt, batch_var))
+    cat("\n\n")
+    cat("### After zoom QC\n")
+    print(plot_qc_ranges_marginals(post_qc_dt, zoom_b_lvls, qc_names, qc_lu, zoom_cuts_dt, batch_var))
+    cat("\n\n")
+  })
+} else {
+  cat("${zoom_qc_note_txt}\n\n")
+  suppressWarnings({
+    cat("### QC distributions\n")
+    print(plot_qc_ranges_marginals(post_qc_dt, zoom_b_lvls, qc_names, qc_lu, zoom_cuts_dt, batch_var))
+    cat("\n\n")
+  })
+}
+```
+
 ## HVG selection diagnostics
 
-Highly variable genes (HVGs) help determine which cells cluster together. Genes abundant in empty droplets can also appear variable across cells when ambient RNA differs between samples. Use these plots to check whether such genes dominate HVG selection before interpreting the integration.
+The selection of highly variable genes is a crucial step in the integration process and in identifying clusters in single cell experiments. However, contamination from ambient RNA can act as a significant confounding factor.  This section of the report provides plots to evaluate the influence of ambient RNA on the selection of highly variable genes and its potential impact on downstream analyses.
 
 ### Are highly variable genes "ambient" ?
 
-The plot shows the extent to which highly variable genes identified using the `Seurat` VST method may
-be influenced by ambient RNA. The x-axis represents the `log2fc` values derived from the ambient gene estimation
-step in `scprocess` (see `scprocess` documentation for more details), while the y-axis shows the
-trend-normalized variance calculated using the `Seurat` VST method. Each point represents a gene,
-annotated based on whether it is among the top HVGs and whether it is identified as ambient by the
-ambient gene detection step. Labelled genes are top 10 most variable.
+The plot shows the extent to which highly variable genes identified using the `Seurat` VST method may be influenced by ambient RNA. The x-axis represents the `log2fc` values derived from the ambient gene estimation step in `scprocess` (see `scprocess` documentation for more details), while the y-axis shows the trend-normalized variance calculated using the `Seurat` VST method. Each point represents a gene, annotated based on whether it is among the top HVGs and whether it is identified as ambient by the ambient gene detection step. Labelled genes are top 10 most variable.
 
 ```{r plot_std_var_vs_empty_log2fc, fig.height = 6, fig.width = 8}
 print(plot_hvg_stats_vs_empty_log2fc(cell_hvgs, edger_dt))
@@ -363,10 +349,7 @@ print(plot_hvg_stats_vs_empty_log2fc(cell_hvgs, edger_dt))
 
 ### Which genes are "ambient"?{.tabset}
 
-The plot shows the results of the `scprocess` ambient gene detection procedure. The y-axis
-is the `-log10` nominal p-value, with a dotted line indicating the threshold where the adjusted p-value
-is sufficiently small (< 0.01). Multiple plots are shown, each corresponding to a different
-minimum expression level filter applied to the ambient profiles.
+The plot shows the results of the `scprocess` ambient gene detection procedure. The y-axis is the `-log10` nominal p-value, with a dotted line indicating the threshold where the adjusted p-value is sufficiently small (< 0.01). Multiple plots are shown, each corresponding to a different minimum expression level filter applied to the ambient profiles.
 
 ```{r plot_ambient_gene_calculations, fig.height = 6, fig.width = 6, results = 'asis'}
 cpm_ls  = c(100, 50, 10, 0)
@@ -383,9 +366,7 @@ for (min_cpm in cpm_ls) {
 
 ### Which genes are variable across the ambient profiles?{.tabset}
 
-Examining how ambient genes vary across different samples can provide valuable insights.
-Such variation may highlight cases where certain samples require distinct treatment, for example,
-if case and control samples consistently exhibit different ambient profiles.
+Examining how ambient genes vary across different samples can provide valuable insights. Such variation may highlight cases where certain samples require distinct treatment, for example, if case and control samples consistently exhibit different ambient profiles.
 
 The heatmaps display the pseudobulk expression of various genes across the ambient profiles of each sample in the dataset.
 The genes shown are the top 40 selected based on the following criteria:
@@ -434,9 +415,9 @@ for (res in res_ls) {
 
 ```{r plot_zoom_labels_vs_clusters, eval = do_label_celltypes, include = do_label_celltypes, fig.height = 12, fig.width = 13, results = 'asis'}
 cat("### Input cell-type labels{.tabset}\n\n")
-cat("These diagnostics reuse the parent `label_celltypes` cell-level predictions for cells retained in the zoom analysis. Predictions are re-aggregated by majority vote using the zoom analysis high-resolution clusters (`", zoom_label_hi_res_cl, "`). No new cell-type prediction is performed.\n\n", sep = "")
-cat("Labels that do not reach 20% in any zoom cluster are combined into `Other`; percentages still use all cells in each zoom cluster as the denominator.\n\n")
-cat("#### Zoom clusters versus predicted cell types\n\n")
+cat("Project-level raw cell-type predictions were aggregated at the level of high-resolution zoom clusters. The tabs below show how well cell-type predictions align with zoom clusters. \n\n", sep = "")
+cat("#### Zoom clusters versus raw cell-type predictions\n\n")
+cat("Labels that are assigned to less than 20% of cells in any cluster are combined into a single `Other` class.\n\n")
 
 zoom_cluster_col = zoom_label_hi_res_cl
 zoom_cluster_dt = int_dt[, .(
@@ -480,7 +461,7 @@ cat("\n\n")
 ```
 
 ```{r plot_zoom_labels_over_umap, eval = do_label_celltypes, include = do_label_celltypes, fig.height = 5, fig.width = 12, results = 'asis'}
-cat("#### Predicted cell types over zoom UMAP{.tabset}\n\n")
+cat("#### Aggregated cell-types predictions over zoom UMAP{.tabset}\n\n")
 
 g_cluster = plot_umap_labels(
   int_dt,
@@ -596,16 +577,7 @@ for (meta_var in metadata_vars) {
 ## Marker genes
 
 To identify marker genes for each cluster (resolution: `r sel_res`), pseudobulk counts are generated by aggregating the expression values of cells
-within a specific cluster for each sample. Similarly, pseudobulk counts are generated for the remaining clusters
-by aggregating expression values separately for each sample. The resulting pseudobulk values for the target cluster
-are then compared to those of the remaining clusters using `edgeR`.
-
-Counts are normalised using TMM. By default, dispersion estimation accounts for
-differences between clusters when estimating variation between samples within a
-cluster. Setting `marker_genes.mkr_dispersion_use_clusters` to `false` omits
-cluster membership from dispersion estimation; marker tests still compare each
-cluster with the remaining clusters.
-The calculations use `edgeR` through the disk-backed `edger.bp` implementation.
+within a specific cluster for each sample. Similarly, pseudobulk counts are generated for the remaining clusters by aggregating expression values separately for each sample. The resulting pseudobulk values for the target cluster are then compared to those of the remaining clusters using `edgeR`.
 
 ### Heatmaps of marker genes{.tabset}
 
@@ -626,8 +598,8 @@ for (nn in names(mkrs_ls)) {
 ```
 
 ### Highly variable genes{.tabset}
-TMM-normalised pseudobulk log-CPM expression for the top 100 highly variable genes,
-ranked by their variance across eligible cluster-sample pseudobulks.
+
+Pseudobulk log-CPM expression values (TMM-normalised) for the top 100 highly variable genes are shown for each cluster.
 
 ```{r plot_hvgs_pb_hmny, fig.height = 8, fig.width = 8, results = "asis"}
 n_pages = 10
@@ -643,8 +615,7 @@ for (i in seq(1, n_pages * per_p, by = per_p)) {
 
 ### Top marker genes{.tabset}
 
-Normalized pseudobulk expression values of top 10 marker genes with FDR < 0.05 
-and a minimum expression of `r min_cpm_mkr` CPM are shown for each cluster.
+Normalized pseudobulk expression values of top 10 marker genes with FDR < 0.05 and a minimum expression of `r min_cpm_mkr` CPM are shown for each cluster.
 
 ```{r plot_top_markers_pb_min, fig.height = 8, fig.width = 8, results = "asis"}
 for (sel_cl in cl_ord) {

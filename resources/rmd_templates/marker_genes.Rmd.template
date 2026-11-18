@@ -227,8 +227,7 @@ for (nn in names(mkrs_ls)) {
 
 ### Highly variable genes{.tabset}
 
-Normalized pseudobulk expression values for top 100 highly variable genes are shown 
-for each cluster, in descending order of variance (variance calculated using `DESeq2::vst`).
+Pseudobulk log-CPM expression values (TMM-normalised) for the top 100 highly variable genes are shown for each cluster.
 
 ```{r plot_hvgs_pb_int, fig.height = 8, fig.width = 8, results = "asis"}
 n_pages = 10
@@ -244,8 +243,7 @@ for (i in seq(1, n_pages * per_p, by = per_p)) {
 
 ### Top marker genes{.tabset}
 
-Normalized pseudobulk expression values of top 10 marker genes with FDR < 0.05 
-and a minimum expression of `r min_cpm_mkr` CPM are shown for each cluster.
+Normalized pseudobulk expression values of top 10 marker genes with FDR < 0.05 and a minimum expression of `r min_cpm_mkr` CPM are shown for each cluster.
 
 ```{r plot_top_markers_pb_min, fig.height = 8, fig.width = 8, results = "asis"}
 for (sel_cl in cl_ord) {

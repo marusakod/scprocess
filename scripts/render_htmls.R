@@ -308,6 +308,19 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
     xgboost_txt_ls = get_xgboost_report_text(add_args[['do_xgboost']])
 
+    .parse_zoom_thr = function(x) { x = trimws(x); if (x == "" || x == "None") NA_real_ else as.numeric(x) }
+    zoom_qc_values = c(
+      add_args[['zoom_qc_min_counts']], add_args[['zoom_qc_max_counts']],
+      add_args[['zoom_qc_min_feats']],  add_args[['zoom_qc_max_feats']],
+      add_args[['zoom_qc_min_mito']],   add_args[['zoom_qc_max_mito']],
+      add_args[['zoom_qc_min_splice']], add_args[['zoom_qc_max_splice']])
+    has_zoom_qc = any(!is.na(sapply(zoom_qc_values, .parse_zoom_thr)))
+    zoom_qc_note_txt = if (has_zoom_qc) {
+      "Additional QC thresholds were applied to the zoom subset before HVG detection and integration."
+    } else {
+      "No additional zoom-specific QC thresholds were applied."
+    }
+
     params_ls = c(
       add_args[req_names],
       list(meta_bars_title = meta_bars_title,
@@ -315,7 +328,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
            meta_umap_title = meta_umap_title,
            meta_umap_txt   = meta_umap_txt,
            fgsea_title     = fgsea_title,
-           fgsea_txt       = fgsea_txt),
+           fgsea_txt       = fgsea_txt,
+           zoom_qc_note_txt = zoom_qc_note_txt),
       xgboost_txt_ls)
 
   } else if (sel_rule == 'join') {

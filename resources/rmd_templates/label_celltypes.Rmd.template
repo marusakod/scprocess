@@ -167,9 +167,10 @@ for (ii in seq_along(guess_f_ls)) {
 
   if (has_coarse) {
     cat('**Coarse labels**\n\n')
-    coarse_dt = copy(guesses_ls[[ ii ]])
-    setnames(coarse_dt, "coarse_predicted_label_agg", "predicted_label_agg", skip_absent = TRUE)
-    setnames(coarse_dt, "coarse_predicted_label_naive", "predicted_label_naive", skip_absent = TRUE)
+    coarse_dt = guesses_ls[[ ii ]][, .(
+      cell_id,
+      predicted_label_naive = coarse_predicted_label_naive,
+      predicted_label_agg   = coarse_predicted_label_agg)]
     coarse_dt %>% calc_labels_table(label_order=style$coarse_order) %>% kbl("html") %>% row_spec(row = 0, bold = TRUE) %>%
       kable_styling(bootstrap_options = "striped", full_width = FALSE, font_size = 12, position = "center") %>%
       scroll_box(width = "60%", height = "500px") %>% print
