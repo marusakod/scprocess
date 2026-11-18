@@ -149,7 +149,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     params_ls = add_args
 
   } else if (sel_rule == 'qc') {
-    req_names = c('your_name', 'affiliation', 'short_tag', 
+    req_names = c('your_name', 'affiliation', 'short_tag',
       'date_stamp', 'threads', 'metadata_f', 'qc_dt_f', 'cuts_f', 'batch_var',
       'doublet_real_f', 'doublet_artificial_f', 'doublet_summary_f', 'run_var',
       'min_cells', 'qc_hard_min_counts', 'qc_hard_min_feats', 'qc_hard_max_mito',

@@ -73,7 +73,7 @@ doublet_summary_table <- function(x) {
     artificial_doublets = n_artificial,
     called_doublets = n_called_doublet,
     called_doublets_pct = pct_called_doublet,
-    score_gt_0_5_pct = pct_score_gt_0_5,
+    score_gt_0.5_pct = pct_score_gt_0_5,
     threshold = calling_threshold,
     mean_score)]
   setnames(summary_table, 'run_id', x$run_var)
@@ -95,7 +95,9 @@ plot_doublet_overview <- function(x) {
       expand = expansion(mult = c(0, 0.05))) +
     labs(
       x = 'Eligible real cells', y = 'Cells called as doublets',
-      caption = 'Solid line shows the median quantile regression.') +
+      caption = paste(
+        'Eligible cells passed UMI and feature filters before scDblFinder scoring.',
+        'Solid line shows the median quantile regression.')) +
     theme_classic() +
     theme(plot.caption = element_text(colour = 'grey40', size = 8, hjust = 1))
 }
@@ -122,7 +124,7 @@ plot_doublet_thresholds <- function(x) {
       expand = expansion(mult = c(0, 0.05))) +
     labs(
       x = 'scDblFinder calling threshold',
-      y = 'Cells called as doublets') +
+      y = '% of cells called as doublets') +
     theme_classic()
 }
 
@@ -145,7 +147,7 @@ plot_doublet_histograms <- function(x, runs, log_y = FALSE, binwidth = 0.02) {
     geom_vline(
       data = threshold_dt, aes(xintercept = calling_threshold),
       colour = '#B2182B', linetype = 'dashed', linewidth = 0.4) +
-    facet_wrap(vars(run_id), ncol = 5, scales = 'free_y') +
+    facet_wrap(vars(run_id), ncol = 4, scales = 'free_y') +
     scale_x_continuous(limits = c(0, 1), breaks = pretty_breaks()) +
     labs(
       x = 'scDblFinder score', y = 'Real cells',
@@ -182,7 +184,7 @@ plot_doublet_densities <- function(x, runs, bandwidth = 0.01) {
       inherit.aes = FALSE, colour = 'grey45', linetype = 'dashed',
       linewidth = 0.4) +
     facet_wrap(
-      vars(run_id), ncol = 5, scales = 'free_y',
+      vars(run_id), ncol = 4, scales = 'free_y',
       labeller = labeller(run_id = as_labeller(run_labels))) +
     scale_colour_manual(values = c(
       'Called singlet' = '#4D4D4D',
@@ -208,12 +210,12 @@ doublet_run_labels <- function(x, runs) {
     as.character(label_dt$run_id))
 }
 
-split_doublet_runs <- function(x, page_size = 20L) {
+split_doublet_runs <- function(x, page_size = 12L) {
   split(x$run_levels, ceiling(seq_along(x$run_levels) / page_size))
 }
 
 doublet_page_height <- function(runs) {
-  1.2 + 2.2 * ceiling(length(runs) / 5)
+  1.2 + 2.2 * ceiling(length(runs) / 4)
 }
 
 render_doublet_pages <- function(x, pages, plot_fun, chunk_prefix,
@@ -235,53 +237,14 @@ render_doublet_pages <- function(x, pages, plot_fun, chunk_prefix,
   }
 }
 
-fit_doublet_score_beta <- function(scores) {
-  empty_fit = c(fitted_mean = NA_real_, fitted_variance = NA_real_, fitted_precision = NA_real_)
-  if (length(scores) < 3L || var(scores) == 0) return(empty_fit)
-  n = length(scores)
-
-  # Move endpoint scores inside (0, 1) so beta likelihoods remain finite.
-  adjusted = (scores * (n - 1) + 0.5) / n
-  mu = mean(adjusted)
-  concentration = mu * (1 - mu) / var(adjusted) - 1
-  if (!is.finite(concentration) || concentration <= 0) concentration = 2
-  start = log(pmax(c(mu * concentration, (1 - mu) * concentration), 0.05))
-
-  # Fit both positive beta parameters on the log scale.
-  sum_log = sum(log(adjusted))
-  sum_log_one_minus = sum(log1p(-adjusted))
-  objective = function(log_parameters) {
-    a = exp(log_parameters[1L])
-    b = exp(log_parameters[2L])
-    n * lbeta(a, b) - (a - 1) * sum_log - (b - 1) * sum_log_one_minus
-  }
-  fit = tryCatch(optim(start, objective, method = 'BFGS'), error = function(e) NULL)
-  if (is.null(fit) || fit$convergence != 0L) return(empty_fit)
-  parameters = exp(fit$par)
-  total = sum(parameters)
-  if (any(!is.finite(parameters)) || any(parameters <= 0) || !is.finite(total)) return(empty_fit)
-  c(fitted_mean = parameters[1L] / total,
-    fitted_variance = prod(parameters) / (total^2 * (total + 1)),
-    fitted_precision = total)
-}
-
 summarize_doublet_scores <- function(x) {
-  summary = x$real[, {
+  x$real[, {
     entropy = numeric(.N)
     interior = score > 0 & score < 1
     entropy[interior] = -(score[interior] * log2(score[interior]) +
       (1 - score[interior]) * log2(1 - score[interior]))
-    c(list(mean_binary_entropy = mean(entropy), n_cells = .N,
-      n_high_scores = sum(score > 0.5)), as.list(fit_doublet_score_beta(score)))
+    list(mean_binary_entropy = mean(entropy))
   }, by = run_id]
-  summary[, logit_high_score_prop := qlogis((n_high_scores + 0.5) / (n_cells + 1))]
-
-  # Flag sample-level outliers for display; this does not change doublet calls.
-  spread = mad(summary$logit_high_score_prop)
-  cutoff = if (is.finite(spread) && spread > 0)
-    median(summary$logit_high_score_prop) + 2 * spread else Inf
-  summary[, high_score_outlier := logit_high_score_prop > cutoff]
-  summary
 }
 
 plot_doublet_score_entropy <- function(x) {
@@ -301,24 +264,3 @@ plot_doublet_score_entropy <- function(x) {
       plot.caption = element_text(colour = 'grey40', size = 8, hjust = 1))
 }
 
-plot_doublet_beta_mean_precision <- function(x) {
-  fits = x$score_summary[is.finite(fitted_mean) & is.finite(fitted_precision)]
-  outliers = fits[high_score_outlier == TRUE]
-  omitted = nrow(x$score_summary) - nrow(fits)
-  caption = 'Maximum-likelihood beta fits; red labels flag unusually high fractions of scores above 0.5.'
-  if (omitted > 0) caption = paste(caption,
-    sprintf('%d sample(s) omitted because a beta fit was not estimable.', omitted))
-  ggplot(fits, aes(x = fitted_mean, y = fitted_precision)) +
-    geom_point(size = 2.2, alpha = 0.8, colour = 'grey30') +
-    geom_point(data = outliers, size = 2.4, colour = '#D7191C') +
-    ggrepel::geom_label_repel(data = outliers, aes(label = run_id),
-      seed = 1, size = 3, min.segment.length = 0,
-      box.padding = 0.35, point.padding = 0.25,
-      fill = alpha('white', 0.9), colour = 'grey20',
-      label.size = 0.15, max.overlaps = Inf) +
-    scale_x_continuous(breaks = pretty_breaks(), labels = label_number(accuracy = 0.01)) +
-    scale_y_continuous(breaks = pretty_breaks(), labels = label_number(accuracy = 0.01)) +
-    labs(x = 'Fitted beta mean', y = 'Fitted beta precision (alpha + beta)', caption = caption) +
-    theme_classic() +
-    theme(plot.caption = element_text(colour = 'grey40', size = 8, hjust = 1))
-}
