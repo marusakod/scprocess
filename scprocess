@@ -54,7 +54,7 @@ def _clean_conda_env(conda_prefix=None):
 
 
 # scprocess setup
-def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
+def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs, create_envs=False):
   print('doing some checks on inputs')
  
   # get scprocess_data_dir; should be defined in .bashrc
@@ -108,6 +108,11 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
     extraargs.append('--cores')
     extraargs.append(str(setup_cfg['user']['local_cores']))
 
+  # only create conda environments; no reference data or Cell Ranger needed
+  if create_envs:
+    _create_conda_envs(scprocess_dir, setup_cfg, extraargs, scdata_dir, log_f, dryrun)
+    return
+
   # get cellranger version
   if ranger_url == "":
     # setup was done already, look for version file
@@ -145,6 +150,34 @@ def run_setup(scprocess_dir, snakefile, ranger_url, dryrun, extraargs):
   print(f"\nlogging progress to: {log_f}")
   subprocess.run(final_cmd, check=True, shell = True, env = _clean_conda_env(),
     cwd=scdata_dir)
+
+def _create_conda_envs(scprocess_dir, setup_cfg, extraargs, scdata_dir, log_f, dryrun):
+  """Create all rule conda environments under the prefix used by project and join runs."""
+
+  # project and join runs use this prefix; matching it lets them reuse the envs
+  conda_prefix = scprocess_utils.get_conda_prefix(setup_cfg, scprocess_dir)
+
+  # Snakemake ignores -n with --conda-create-envs-only and creates the envs anyway,
+  # so a dry run only lists the environment rules
+  cmd_list     = ['snakemake',
+    "--snakefile", str(scprocess_dir / "rules/create_envs.smk"),
+    "--software-deployment-method", "conda",
+    *([] if dryrun else ["--conda-create-envs-only"]),
+    "--conda-prefix", str(conda_prefix),
+    *extraargs
+  ]
+
+  # run, logging as for the rest of setup
+  cmd_str      = " ".join(map(shlex.quote, map(str, cmd_list)))
+  strip_colors = "sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g'"
+  final_cmd    = f"set -o pipefail; script -q -e -c {shlex.quote(cmd_str)} /dev/null | tee /dev/stderr | {strip_colors} >> {log_f}"
+
+  print("creating scprocess conda environments")
+  print(f"\nsnakemake command:\n{cmd_str}")
+  print(f"\nlogging progress to: {log_f}")
+  subprocess.run(final_cmd, check=True, shell = True, env = _clean_conda_env(conda_prefix),
+    executable='/bin/bash', cwd=scdata_dir)
+
 
 # scprocess newproj
 def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
@@ -457,7 +490,7 @@ def new_join(sc_dir, name, where_path, create_config, project_configs):
 
 
 # scprocess run
-def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
+def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun, zoom_name=None):
   print('doing some checks on inputs')
 
   # housekeeping
@@ -502,13 +535,19 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   RUNS                = list(RUN_PARAMS.keys())
   BATCH_PARAMS, BATCH_VAR, SAMPLES = scprocess_utils.get_batch_parameters(config, RUNS, scdata_dir)
   BATCHES             = list(BATCH_PARAMS.keys())
-  _                   = scprocess_utils.prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS, BATCHES)
+  _                   = scprocess_utils.prep_resource_params(config, scprocess_dir, LIB_PARAMS, BATCHES)
   _, _, _             = scprocess_utils.get_runs_to_batches(config, RUNS, BATCHES, BATCH_VAR, LIBS)
   _                   = scprocess_utils.get_labeller_parameters(config, schema_f, scdata_dir)
   _                   = scprocess_utils.get_train_xgboost_parameters(config, schema_f)
 
   # check config is ok for the rule we want to run
   scprocess_utils.check_config_ok_for_rule(config, rule)
+
+  # check a requested zoom exists before launching Snakemake
+  if zoom_name is not None:
+    zoom_schema_f = scprocess_dir / "resources/schemas/zoom.schema.json"
+    zoom_params   = scprocess_utils.get_zoom_parameters(config, zoom_schema_f, scdata_dir)
+    scprocess_utils.get_zooms_to_run(zoom_params, zoom_name)
 
   # print which files will be processed
   print("starting scprocess")
@@ -520,6 +559,7 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
     "--snakefile", str(snakefile),
     "--configfile", str(config_path),
     "--config", f"scprocess_dir={str(scprocess_dir)}",
+    *([f"zoom_name={zoom_name}"] if zoom_name is not None else []),
     "--rerun-triggers", "mtime", "params", "--rerun-incomplete",
     "--show-failed-logs", "--printshellcmds", 
     "--software-deployment-method", "conda",
@@ -547,18 +587,18 @@ def run_scprocess(configfile, snakefile, rule, extraargs, doindex, dryrun):
   return
 
 
-def run_join_zooms(configfile, sc_dir, extraargs, dryrun, zoom_name=None, shiny=False):
-  """Run named zooms sequentially, sharing the parent's Snakemake lock/profile."""
+def run_join_zooms(configfile, sc_dir, extraargs, dryrun, zoom_name=None, rule='all'):
+  """Run all joined zooms, or only zoom_name, sequentially with the parent's profile.
+
+  rule is 'all' for the zoom workflow or 'configure_shiny_app' for its Shiny app.
+  """
   with open(configfile) as fh:
     config = yaml.safe_load(fh)
   specs = scprocess_utils.get_join_zoom_specs(config, sc_dir)
-  names = list(specs) if zoom_name in (None, 'all') else [zoom_name]
-  if not names or any(name not in specs for name in names):
-    raise ValueError(f'Unknown or missing joined zoom; available: {list(specs)}')
+  names = scprocess_utils.get_zooms_to_run(specs, zoom_name)
   for name in names:
     print(f'Joined zoom: {name}', flush=True)
-    run_join(configfile, sc_dir, extraargs.copy(), dryrun,
-      rule='configure_shiny_app' if shiny else 'all', zoom_name=name)
+    run_join(configfile, sc_dir, extraargs.copy(), dryrun, rule=rule, zoom_name=name)
 
 
 def run_join(configfile, sc_dir, extraargs, dryrun, rule="all", zoom_name=None):
@@ -723,21 +763,46 @@ def _get_main_log(config_path, log_dir, dryrun):
   log_f       = 'scprocess_dry_run.log' if dryrun else f"scprocess_run_{timestamp}.log"
   log_full_f  = log_dir /  log_f
   
-  # get git tag
-  git_version = subprocess.check_output(
-    ["git", "describe", "--tags", "--always", "--dirty"],
-    stderr=subprocess.DEVNULL
-  ).decode("utf-8").strip()
-      
+  # identify the scprocess code used, not the git repo of the current directory
+  git_version, git_commit = _get_scprocess_git_identity()
+
   log_header = (
       f"\n{'='*60}\n"
       f"RUN START:    {timestamp}\n"
       f"GIT VERSION:  {git_version}\n"
+      f"GIT COMMIT:   {git_commit}\n"
       f"CONFIG:       {config_path}\n"
       f"{'='*60}\n\n\n\n"
   )
 
   return log_full_f, log_header
+
+
+def _get_scprocess_git_identity():
+  """Return git describe output and full commit SHA for this scprocess checkout.
+
+  Runs git in the directory containing this file, so a project or join that is
+  itself a git (e.g. workflowr) repository does not change the result. Outside a
+  git checkout, e.g. a packaged install, both values are reported as unavailable
+  and the version comes from the VERSION file.
+  """
+  scprocess_dir = pathlib.Path(__file__).resolve().parent
+  try:
+    git_version = subprocess.check_output(
+      ["git", "-C", str(scprocess_dir), "describe", "--tags", "--always", "--dirty"],
+      stderr=subprocess.DEVNULL
+    ).decode("utf-8").strip()
+    git_commit  = subprocess.check_output(
+      ["git", "-C", str(scprocess_dir), "rev-parse", "HEAD"],
+      stderr=subprocess.DEVNULL
+    ).decode("utf-8").strip()
+  except (subprocess.CalledProcessError, FileNotFoundError):
+    version_f   = scprocess_dir / "VERSION"
+    version     = version_f.read_text().strip() if version_f.is_file() else "unknown"
+    git_version = f"{version} (not a git checkout)"
+    git_commit  = "unavailable"
+
+  return git_version, git_commit
 
 
 def _find_env_path_from_yaml(scprocess_dir, setup_cfg, source_yaml):
@@ -955,6 +1020,11 @@ if __name__ == '__main__':
       Extra snakamake arguments. Must be provided within quotes and use an equals sign.
       For example, to have a dryrun: -E="-n"
       ''')
+  setup_prsr.add_argument("--create-envs", action="store_true",
+    help = '''
+      Only create the conda environments used by scprocess workflows, without
+      downloading or building any reference data.
+      ''')
 
   # subparser for the 'plotknee' subcommand
   newprj_prsr = subparsers.add_parser('newproj', help="create new project folder with structure that scprocess expects")
@@ -991,8 +1061,10 @@ if __name__ == '__main__':
       Leave empty to run the whole workflow, or alternatively select the rule you want to run.
       ''')
   run_prsr.add_argument("--zoom", type = str, default = None, metavar = "ZOOM_NAME",
-    help = ("Used with -r shiny or -r train_xgboost. Target a zoom (subclustering) output. "
-            "Pass a zoom name (e.g. --zoom immune_cells) or 'all' to target every zoom."))
+    help = ("Used with -r zoom, -r shiny or -r train_xgboost. Pass a zoom (subclustering) name, "
+            "e.g. --zoom immune_cells, or 'all' (not for -r train_xgboost, which trains one "
+            "classifier at a time). Without --zoom, -r zoom runs every zoom, while -r shiny "
+            "and -r train_xgboost target the main project."))
   run_prsr.add_argument("-n", "--dry-run", action="store_true", 
     help = '''
       "Dry run" execution, i.e. snakemake will print out what it would do, but not actually do it.
@@ -1007,11 +1079,6 @@ if __name__ == '__main__':
       When an scprocess run is stopped before it is finished, the snakemake directory
       may be locked. If you get an error message saying that it is locked, use this
       option to unlock it, then run scprocess as normal.
-      ''')
-  run_prsr.add_argument("--create-envs", action="store_true",
-    help = '''
-      Only create the conda environments needed for the workflow, without
-      running any rules.
       ''')
   run_prsr.add_argument("--noindex", action='store_true', help = "")
 
@@ -1034,7 +1101,8 @@ if __name__ == '__main__':
     choices = ["all", "label_celltypes", "train_xgboost", "shiny", "zoom"],
     help = "Leave empty to run the whole workflow, or select a specific rule.")
   join_prsr.add_argument('--zoom', type=str,
-    help='With -r zoom or -r shiny, select a joined zoom by name (or all).')
+    help=("Used with -r zoom or -r shiny. Pass a joined zoom name or 'all'. Without --zoom, "
+          "-r zoom runs every joined zoom, while -r shiny targets the parent join."))
   join_prsr.add_argument("-n", "--dry-run", action = "store_true",
     help = '"Dry run": show what Snakemake would do without executing.')
   join_prsr.add_argument("--unlock", action = "store_true",
@@ -1066,7 +1134,7 @@ if __name__ == '__main__':
         extraargs.append("-np")
 
       # call bsub thing
-      run_setup(sc_dir, snakefile, args.rangerurl, args.dry_run, extraargs)
+      run_setup(sc_dir, snakefile, args.rangerurl, args.dry_run, extraargs, args.create_envs)
 
     elif args.subcommand == "newproj":
       # make new project directory
@@ -1096,6 +1164,10 @@ if __name__ == '__main__':
       else:
         rule    = args.rule
 
+      # --zoom selects a zoom only for rules with zoom outputs
+      if args.zoom is not None and rule not in ('zoom', 'shiny', 'train_xgboost'):
+        raise ValueError('--zoom requires -r zoom, -r shiny or -r train_xgboost')
+
       # select snakefile corresponding to workflow
       if rule == "zoom" or (rule == "train_xgboost" and args.zoom is not None):
         snakefile = sc_dir / "rules/zoom.smk"
@@ -1107,12 +1179,10 @@ if __name__ == '__main__':
       # sort out extra arguments
       extraargs   = []
       noindex     = args.noindex
-      doindex     = (not noindex) and (not args.dry_run) and (not args.unlock) and (not args.create_envs)
+      doindex     = (not noindex) and (not args.dry_run) and (not args.unlock)
       if args.unlock:
         extraargs.append("--unlock")
       else:
-        if args.create_envs:
-          extraargs.append("--conda-create-envs-only")
         if args.extraargs:
           extraargs.extend(shlex.split(args.extraargs[0]))
         if args.dry_run:
@@ -1136,8 +1206,9 @@ if __name__ == '__main__':
         targets, _ = scprocess_utils.get_train_xgboost_targets(config, sc_dir, scdata_dir, zoom_name=args.zoom)
         rule = targets
 
-      # call bsub thing
-      run_scprocess(args.configfile, snakefile, rule, extraargs, doindex, args.dry_run)
+      # call bsub thing; -r zoom --zoom NAME restricts zoom.smk to that zoom
+      zoom_name = args.zoom if args.rule == "zoom" else None
+      run_scprocess(args.configfile, snakefile, rule, extraargs, doindex, args.dry_run, zoom_name)
 
     # plot knee for selected sample
     elif args.subcommand == 'plotknee':
@@ -1152,11 +1223,15 @@ if __name__ == '__main__':
       elif args.extraargs:
         extraargs.extend(shlex.split(args.extraargs[0]))
 
+      # joined zooms do not support label_celltypes or train_xgboost sections
       if args.zoom is not None and args.rule not in ('zoom', 'shiny'):
-        raise ValueError('--zoom requires -r zoom or -r shiny')
-      if args.rule == 'zoom' or (args.rule == 'shiny' and args.zoom is not None):
+        raise ValueError('--zoom requires -r zoom or -r shiny; '
+          'joined zooms do not support label_celltypes or train_xgboost')
+      if args.rule == 'zoom':
+        run_join_zooms(args.configfile, sc_dir, extraargs, args.dry_run, zoom_name=args.zoom)
+      elif args.rule == 'shiny' and args.zoom is not None:
         run_join_zooms(args.configfile, sc_dir, extraargs, args.dry_run,
-          zoom_name=args.zoom, shiny=args.rule == 'shiny')
+          zoom_name=args.zoom, rule='configure_shiny_app')
       elif args.rule == "shiny":
         config_path = pathlib.Path(args.configfile).resolve()
         with open(config_path, "r") as f:

@@ -15,12 +15,15 @@ scprocess_dir = pathlib.Path(config.pop('scprocess_dir'))
 sys.path.append(str(scprocess_dir / 'scripts'))
 from scprocess_utils import (check_join_config, get_resources, prep_resource_params,
   get_join_project_parameters, get_join_source_labels_f, get_join_batch_sources,
-  get_paga_resolution, get_xgboost_spec_inputs, get_join_labeller_parameters)
+  get_paga_resolution, get_xgboost_spec_inputs, get_join_labeller_parameters,
+  get_prediction_chunks)
 
 # Prevent underscore-containing model names from being partially captured as the
 # labeller in join label, log, benchmark, and cluster-name file patterns.
 wildcard_constraints:
   labeller = "celltypist|scprocess"
+
+localrules: join_assign_prediction_chunks
 
 # setup
 scdata_dir    = pathlib.Path(os.getenv('SCPROCESS_DATA_DIR'))
@@ -36,7 +39,7 @@ JOIN_REQUIRE_ALL_CELLS = '--require-all-cells' if JOIN_ZOOM_PARAMS else ''
 JOIN_RETAIN_METADATA = '--retain-metadata' if JOIN_ZOOM_PARAMS else ''
 
 # resource parameters (no ML model for join — uses schema defaults + user overrides)
-RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, scprocess_dir)
+RESOURCE_PARAMS = prep_resource_params(config, scprocess_dir)
 
 # ---------------------------------------------------------------------------
 # Project and derived parameters
@@ -193,8 +196,8 @@ if DO_TRAIN_XGB:
     input:
       _join_xgb_model_f,
       _join_xgb_fulldata_f,
-      f"{rmd_dir}/{JOIN_TAG}_train_xgboost.Rmd",
-      f"{docs_dir}/{JOIN_TAG}_train_xgboost.html"
+      f"{rmd_dir}/{JOIN_TAG}_train_{_join_xgb_ref_tag}.Rmd",
+      f"{docs_dir}/{JOIN_TAG}_train_{_join_xgb_ref_tag}.html"
 
 
 rule join_select_hvgs:
@@ -742,65 +745,113 @@ def _join_merge_labels_inputs(wildcards):
     PROJECT_CFGS, JOIN_PROJECT_IDS, JOIN_BATCH_KEYS, wildcards.labeller, wildcards.model,
     model_sha256 = _get_labeller_entry(wildcards.labeller, wildcards.model).get('model_sha256'))
   pred_fs = expand(
-    f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz",
-    batch=fresh_batches, allow_missing=True)
+    f"{join_lbl_dir}/tmp_labels_{{labeller}}_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{chunk}}.csv.gz",
+    chunk=list(_get_join_labelling_chunks(wildcards.labeller, wildcards.model)), allow_missing=True)
   if reuse_label_fs:
     pred_fs.append(f"{join_lbl_dir}/tmp_labels_{wildcards.labeller}_model_{wildcards.model}_{JOIN_TAG}_{DATE_STAMP}_reused.csv.gz")
   return pred_fs
 
 
-rule join_celltypist:
-  """Run CellTypist on each batch h5ad for the join integration."""
+# Group the joined batches into prediction chunks by cell count, for labelling
+# and classifier evaluation.
+checkpoint join_assign_prediction_chunks:
   input:
-    adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad"
+    h5ads_yaml_f = joint_h5ads_yaml_f
   output:
-    pred_f  = temp(f"{join_lbl_dir}/tmp_labels_celltypist_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz")
+    chunks_f     = f"{join_int_dir}/prediction_chunks_{JOIN_TAG}_{DATE_STAMP}.csv"
+  log:
+    f"{logs_dir}/join_assign_prediction_chunks_{JOIN_TAG}_{DATE_STAMP}.log"
+  conda:
+    '../envs/label_celltypes.yaml'
+  shell: """
+    exec &>> {log}
+    python3 {scprocess_dir}/scripts/label_celltypes.py assign_prediction_chunks \
+      --h5ads_yaml_f {input.h5ads_yaml_f} \
+      --chunks_f     {output.chunks_f}
+    """
+
+
+# Batches in each prediction chunk, optionally only those listed in `batches`
+def _get_join_prediction_chunks(batches = None):
+  return get_prediction_chunks(checkpoints.join_assign_prediction_chunks.get().output.chunks_f, batches)
+
+
+def _get_join_labelling_chunks(labeller, model):
+  # Batches without reusable source-project labels, in chunks
+  fresh_batches, _ = get_join_batch_sources(
+    PROJECT_CFGS, JOIN_PROJECT_IDS, JOIN_BATCH_KEYS, labeller, model,
+    model_sha256 = _get_labeller_entry(labeller, model).get('model_sha256'))
+  return _get_join_prediction_chunks(fresh_batches)
+
+
+# Batches predicted by one labelling job
+def _get_join_chunk_batches(wildcards, labeller):
+  return _get_join_labelling_chunks(labeller, wildcards.model)[wildcards.chunk]
+
+
+rule join_celltypist:
+  """Run CellTypist on a chunk of batch h5ads for the join integration."""
+  input:
+    adata_fs = lambda wildcards: [f"{join_int_dir}/h5ads/{batch}.h5ad"
+      for batch in _get_join_chunk_batches(wildcards, 'celltypist')]
+  output:
+    pred_f   = temp(f"{join_lbl_dir}/tmp_labels_celltypist_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{chunk}}.csv.gz")
+  params:
+    batches  = lambda wildcards: _get_join_chunk_batches(wildcards, 'celltypist')
+  wildcard_constraints:
+    chunk    = r'chunk\d+'
   threads: 4
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_celltypist', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_celltypist', 'time', attempt)
   log:
-    f"{logs_dir}/join_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.log"
+    f"{logs_dir}/join_celltypist_{{model}}_{{chunk}}_{DATE_STAMP}.log"
   benchmark:
-    f"{benchmark_dir}/join_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt"
+    f"{benchmark_dir}/join_celltypist_{{model}}_{{chunk}}_{DATE_STAMP}.benchmark.txt"
   conda:
     '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
-    python3 {scprocess_dir}/scripts/label_celltypes.py celltypist_one_batch \
-      {wildcards.batch} sample_id {wildcards.model} \
-      --adata_f   {input.adata_f} \
+    python3 {scprocess_dir}/scripts/label_celltypes.py celltypist_batches \
+      sample_id {wildcards.model} \
+      --batches   {params.batches} \
+      --adata_fs  {input.adata_fs} \
       --pred_f    {output.pred_f}
     """
 
 
 rule join_scprocess_labeller:
-  """Run scprocess XGBoost labeller on each batch h5ad."""
+  """Run scprocess XGBoost labeller on a chunk of batch h5ads."""
   input:
-    adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad"
+    adata_fs = lambda wildcards: [f"{join_int_dir}/h5ads/{batch}.h5ad"
+      for batch in _get_join_chunk_batches(wildcards, 'scprocess')]
   output:
-    pred_f  = temp(f"{join_lbl_dir}/tmp_labels_scprocess_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{batch}}.csv.gz")
+    pred_f   = temp(f"{join_lbl_dir}/tmp_labels_scprocess_model_{{model}}_{JOIN_TAG}_{DATE_STAMP}_{{chunk}}.csv.gz")
   params:
-    model_f = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['model_f'],
-    cls_f   = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['cls_f'],
-    genes_f = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['genes_f']
+    batches  = lambda wildcards: _get_join_chunk_batches(wildcards, 'scprocess'),
+    model_f  = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['model_f'],
+    cls_f    = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['cls_f'],
+    genes_f  = lambda wildcards: _get_labeller_entry('scprocess', wildcards.model)['genes_f']
+  wildcard_constraints:
+    chunk    = r'chunk\d+'
   threads: 1
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_scprocess_labeller', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_scprocess_labeller', 'time', attempt)
   log:
-    f"{logs_dir}/join_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.log"
+    f"{logs_dir}/join_scprocess_labeller_{{model}}_{{chunk}}_{DATE_STAMP}.log"
   benchmark:
-    f"{benchmark_dir}/join_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt"
+    f"{benchmark_dir}/join_scprocess_labeller_{{model}}_{{chunk}}_{DATE_STAMP}.benchmark.txt"
   conda:
     '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
-    python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_one_batch \
-      {wildcards.batch} sample_id {wildcards.model} \
-      --adata_f   {input.adata_f} \
+    python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_batches \
+      sample_id {wildcards.model} \
+      --batches   {params.batches} \
+      --adata_fs  {input.adata_fs} \
       --model_f   {params.model_f} \
       --cls_f     {params.cls_f} \
       --genes_f   {params.genes_f} \
@@ -902,7 +953,6 @@ rule join_save_cluster_names:
 
 rule join_render_html:
   input:
-    xgb_specs = ([f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_specs.csv', f'{join_xgb_dir}/{_join_xgb_ref_tag}_coarse_label_specs.csv'] if DO_TRAIN_XGB else []),
     integration_f = joint_integration_f,
     qc_f          = joint_qc_f,
     sample_meta_f = joint_sample_meta_f,
@@ -912,8 +962,6 @@ rule join_render_html:
     fgsea_files   = [fgsea_bp_f, fgsea_cc_f, fgsea_mf_f] if DO_GSEA else [],
     label_files   = label_fs,
     cluster_names = cluster_names_fs,
-    xgb_files = ([f'{join_xgb_dir}/{_join_xgb_ref_tag}_model_card.json',
-      _join_xgb_fulldata_f, str(scprocess_dir / 'scripts/train_xgboost.R')] if DO_TRAIN_XGB else []),
     report_helper_f = str(scprocess_dir / "scripts/integration.R"),
     rmd_template_f = str(scprocess_dir / "resources/rmd_templates/join.Rmd.template")
   output:
@@ -955,13 +1003,7 @@ rule join_render_html:
     fgsea_go_mf_f    = fgsea_mf_f if DO_GSEA else '',
     proj_dir         = str(JOIN_DIR),
     scprocess_dir    = str(scprocess_dir),
-    date_stamp       = DATE_STAMP,
-    do_xgboost       = DO_TRAIN_XGB,
-    xgb_predictions_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz' if DO_TRAIN_XGB else '',
-    xgb_importance_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv' if DO_TRAIN_XGB else '',
-    xgb_model_card_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_model_card.json' if DO_TRAIN_XGB else '',
-    xgb_pseudobulk_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad' if DO_TRAIN_XGB else '',
-    xgb_min_cells     = _join_xgb_cfg.get('min_cells_expressed', 10) if DO_TRAIN_XGB else 10
+    date_stamp       = DATE_STAMP
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -1025,13 +1067,7 @@ rule join_render_html:
       fgsea_go_cc_f    = '{params.fgsea_go_cc_f}',
       fgsea_go_mf_f    = '{params.fgsea_go_mf_f}',
       scprocess_dir    = '{params.scprocess_dir}',
-      date_stamp       = '{params.date_stamp}',
-      do_xgboost       = '{params.do_xgboost}',
-      xgb_predictions_f = '{params.xgb_predictions_f}',
-      xgb_importance_f  = '{params.xgb_importance_f}',
-      xgb_model_card_f  = '{params.xgb_model_card_f}',
-      xgb_pseudobulk_f  = '{params.xgb_pseudobulk_f}',
-      xgb_min_cells     = '{params.xgb_min_cells}'
+      date_stamp       = '{params.date_stamp}'
     )"
     """
 
@@ -1068,8 +1104,10 @@ if DO_TRAIN_XGB:
     threads: 1
     retries: config['resources']['retries']
     resources:
-      mem_mb = config['resources']['gb_join_train_xgboost_prepare'] * 1024,
-      runtime = config['resources']['mins_join_train_xgboost_prepare']
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+        'join_train_xgboost_prepare', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input,
+        'join_train_xgboost_prepare', 'time', attempt)
     log: f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_metadata.csv.gz' + '.log'
     conda: '../envs/label_celltypes.yaml'
     shell: """
@@ -1105,6 +1143,7 @@ if DO_TRAIN_XGB:
       cls_f     = f'{join_xgb_dir}/{_join_xgb_ref_tag}_allowed_cls.csv',
       genes_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_selected_genes.txt',
       imp_f     = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv',
+      label_imp_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance_by_label.csv',
       preds_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
       pb_f      = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad',
       model_card_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_model_card.json',
@@ -1127,6 +1166,9 @@ if DO_TRAIN_XGB:
       pass2_learning_rate    = _join_xgb_cfg['pass2_learning_rate'],
       pass2_nrounds          = _join_xgb_cfg['pass2_nrounds'],
       pass2_early_stopping   = _join_xgb_cfg['pass2_early_stopping'],
+      downsample_copies      = _join_xgb_cfg['downsample_copies'],
+      downsample_min_umis    = _join_xgb_cfg['downsample_min_umis'],
+      downsample_max_umis    = _join_xgb_cfg['downsample_max_umis'],
     threads: 8
     retries: config['resources']['retries']
     resources:
@@ -1159,36 +1201,44 @@ if DO_TRAIN_XGB:
         --pass2_learning_rate {params.pass2_learning_rate:q} \
         --pass2_nrounds {params.pass2_nrounds:q} \
         --pass2_early_stopping {params.pass2_early_stopping:q} \
+        --downsample_copies {params.downsample_copies:q} \
+        --downsample_min_umis {params.downsample_min_umis:q} \
+        --downsample_max_umis {params.downsample_max_umis:q} \
         --output_dir {params.output_dir:q} \
         --n_cores {threads}
       """
 
   rule join_train_xgboost_predict:
     input:
-      adata_f = f"{join_int_dir}/h5ads/{{batch}}.h5ad",
-      model_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json',
-      cls_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_allowed_cls.csv',
-      genes_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_selected_genes.txt',
+      adata_fs = lambda wildcards: [f"{join_int_dir}/h5ads/{batch}.h5ad"
+        for batch in _get_join_prediction_chunks()[wildcards.chunk]],
+      model_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json',
+      cls_f    = f'{join_xgb_dir}/{_join_xgb_ref_tag}_allowed_cls.csv',
+      genes_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_selected_genes.txt',
     output:
-      pred_f  = temp(f"{join_xgb_dir}/tmp_fulldata_predict_{_join_xgb_ref_tag}_{{batch}}.csv.gz")
+      pred_f  = temp(f"{join_xgb_dir}/tmp_fulldata_predict_{_join_xgb_ref_tag}_{{chunk}}.csv.gz")
     params:
+      batches = lambda wildcards: _get_join_prediction_chunks()[wildcards.chunk],
       ref_tag = _join_xgb_ref_tag
+    wildcard_constraints:
+      chunk   = r'chunk\d+'
     threads: 1
     retries: config['resources']['retries']
     resources:
       mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_predict', 'memory', attempt),
       runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_predict', 'time', attempt)
     log:
-      f"{logs_dir}/join_train_xgboost_predict_{_join_xgb_ref_tag}_{{batch}}_{DATE_STAMP}.log"
+      f"{logs_dir}/join_train_xgboost_predict_{_join_xgb_ref_tag}_{{chunk}}_{DATE_STAMP}.log"
     benchmark:
-      f"{benchmark_dir}/join_train_xgboost_predict_{_join_xgb_ref_tag}_{{batch}}_{DATE_STAMP}.benchmark.txt"
+      f"{benchmark_dir}/join_train_xgboost_predict_{_join_xgb_ref_tag}_{{chunk}}_{DATE_STAMP}.benchmark.txt"
     conda:
       '../envs/label_celltypes.yaml'
     shell: """
       exec &>> {log}
-      python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_one_batch \
-        {wildcards.batch} batch {params.ref_tag} \
-        --adata_f   {input.adata_f} \
+      python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_batches \
+        batch {params.ref_tag} \
+        --batches   {params.batches} \
+        --adata_fs  {input.adata_fs} \
         --model_f   {input.model_f} \
         --cls_f     {input.cls_f} \
         --genes_f   {input.genes_f} \
@@ -1198,9 +1248,9 @@ if DO_TRAIN_XGB:
 
   rule join_train_xgboost_combine:
     input:
-      pred_fs          = expand(
-        f"{join_xgb_dir}/tmp_fulldata_predict_{_join_xgb_ref_tag}_{{batch}}.csv.gz",
-        batch=JOIN_BATCH_KEYS),
+      pred_fs          = lambda wildcards: expand(
+        f"{join_xgb_dir}/tmp_fulldata_predict_{_join_xgb_ref_tag}_{{chunk}}.csv.gz",
+        chunk=list(_get_join_prediction_chunks())),
 
 
       training_metadata_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_metadata.csv.gz',
@@ -1224,6 +1274,43 @@ if DO_TRAIN_XGB:
       python3 {scprocess_dir}/scripts/train_xgboost.py combine \
         {input.pred_fs:q} --training_metadata_f {input.training_metadata_f:q} --integration_f {input.integration_f:q} \
         --output_f {output.fulldata_f:q}
+      """
+
+
+  # Accuracy of the final model on unused cells thinned to fixed depths.
+  rule join_train_xgboost_depth_evaluation:
+    input:
+      training_metadata_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_training_metadata.csv.gz',
+      h5ads_yaml          = joint_h5ads_yaml_f,
+      model_f             = f'{join_xgb_dir}/{_join_xgb_ref_tag}_xgboost_model.json',
+      cls_f               = f'{join_xgb_dir}/{_join_xgb_ref_tag}_allowed_cls.csv',
+      genes_f             = f'{join_xgb_dir}/{_join_xgb_ref_tag}_selected_genes.txt'
+    output:
+      depth_evaluation_f  = f'{join_xgb_dir}/{_join_xgb_ref_tag}_depth_evaluation.csv.gz'
+    params:
+      seed = _join_xgb_cfg['seed']
+    threads: 4
+    retries: config['resources']['retries']
+    resources:
+      mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_depth_evaluation', 'memory', attempt),
+      runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'join_train_xgboost_depth_evaluation', 'time', attempt)
+    log:
+      f"{logs_dir}/join_train_xgboost_depth_evaluation_{_join_xgb_ref_tag}_{DATE_STAMP}.log"
+    benchmark:
+      f"{benchmark_dir}/join_train_xgboost_depth_evaluation_{_join_xgb_ref_tag}_{DATE_STAMP}.benchmark.txt"
+    conda:
+      '../envs/label_celltypes.yaml'
+    shell: """
+      exec &>> {log}
+      python3 {scprocess_dir}/scripts/train_xgboost.py depth \
+        --training_metadata_f {input.training_metadata_f:q} \
+        --h5ads_yaml          {input.h5ads_yaml:q} \
+        --model_f             {input.model_f:q} \
+        --cls_f               {input.cls_f:q} \
+        --genes_f             {input.genes_f:q} \
+        --output_f            {output.depth_evaluation_f:q} \
+        --seed                {params.seed} \
+        --n_cores             {threads}
       """
 
 
@@ -1270,12 +1357,14 @@ if DO_TRAIN_XGB:
       coarse_label_specs_f = f'{join_xgb_dir}/{_join_xgb_ref_tag}_coarse_label_specs.csv',
       preds_f              = f'{join_xgb_dir}/{_join_xgb_ref_tag}_predictions.csv.gz',
       imp_f                = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance.csv',
+      label_imp_f          = f'{join_xgb_dir}/{_join_xgb_ref_tag}_gene_importance_by_label.csv',
       pb_f                 = f'{join_xgb_dir}/{_join_xgb_ref_tag}_pseudobulk.h5ad',
       label_counts_f       = f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_counts.csv',
-      fulldata_preds_f     = _join_xgb_fulldata_f
+      fulldata_preds_f     = _join_xgb_fulldata_f,
+      depth_evaluation_f   = f'{join_xgb_dir}/{_join_xgb_ref_tag}_depth_evaluation.csv.gz'
     output:
-      rmd_f         = f"{rmd_dir}/{JOIN_TAG}_train_xgboost.Rmd",
-      html_f        = f"{docs_dir}/{JOIN_TAG}_train_xgboost.html"
+      rmd_f         = f"{rmd_dir}/{JOIN_TAG}_train_{_join_xgb_ref_tag}.Rmd",
+      html_f        = f"{docs_dir}/{JOIN_TAG}_train_{_join_xgb_ref_tag}.html"
     params:
       your_name            = config['join'].get('your_name', ''),
       affiliation          = config['join'].get('affiliation', ''),
@@ -1289,7 +1378,7 @@ if DO_TRAIN_XGB:
       label_counts_f       = f'{join_xgb_dir}/{_join_xgb_ref_tag}_label_counts.csv',
       fulldata_predictions_f = _join_xgb_fulldata_f,
       integration_f        = joint_integration_f,
-      min_cells            = _join_xgb_cfg.get('min_cells_expressed', 10),
+      min_cells            = _join_xgb_cfg['min_cells_expressed'],
     threads: 1
     retries: config['resources']['retries']
     resources:
@@ -1312,20 +1401,22 @@ if DO_TRAIN_XGB:
 
       Rscript --vanilla -e "source('{scprocess_dir}/scripts/render_htmls.R'); \\
         render_html(
-          rule_name       = '$rule',
-          proj_dir        = '{params.proj_dir}',
-          temp_f          = '$template_f',
-          rmd_f           = '{output.rmd_f}',
-          your_name       = '{params.your_name}',
-          affiliation     = '{params.affiliation}',
-          short_tag       = '{params.short_tag}',
-          ref_tag         = '{params.ref_tag}',
-          predictions_f   = '{params.predictions_f}',
-          importance_f    = '{params.importance_f}',
-          model_card_f    = '{input.model_card_f}',
-          pseudobulk_f    = '{params.pseudobulk_f}',
+          rule_name              = '$rule',
+          proj_dir               = '{params.proj_dir}',
+          temp_f                 = '$template_f',
+          rmd_f                  = '{output.rmd_f}',
+          your_name              = '{params.your_name}',
+          affiliation            = '{params.affiliation}',
+          short_tag              = '{params.short_tag}',
+          ref_tag                = '{params.ref_tag}',
+          predictions_f          = '{params.predictions_f}',
+          importance_f           = '{params.importance_f}',
+          importance_by_label_f  = '{input.label_imp_f}',
+          model_card_f           = '{input.model_card_f}',
+          pseudobulk_f           = '{params.pseudobulk_f}',
           label_counts_f         = '{params.label_counts_f}',
           fulldata_predictions_f = '{params.fulldata_predictions_f}',
+          depth_evaluation_f     = '{input.depth_evaluation_f}',
           integration_f          = '{params.integration_f}',
           min_cells              = '{params.min_cells}',
           n_cores                = '{threads}'

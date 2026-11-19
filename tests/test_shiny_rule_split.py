@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -37,6 +38,23 @@ class TestShinyRuleSplit(unittest.TestCase):
     self.assertIn("get_zoom_shiny_optional_inputs", configure)
     self.assertIn("deploy_inputs   = _shiny_deploy_inputs", configure)
 
+  def test_resource_lookups_name_defined_rules(self):
+    # get_resources() raises at job submission for an undefined rule name, which a
+    # dry run does not catch (e.g. the zoom data rule still naming build_zoom_shiny_app)
+    defined = set(re.findall(r"^rule (\w+):", self.source, flags=re.M))
+    looked_up = set(re.findall(r"get_resources\([^,]+, rules, input, '(\w+)'", self.source))
+    looked_up |= set(re.findall(r"_shiny_data_resource\('(\w+)'", self.source))
+    self.assertTrue(looked_up)
+    self.assertEqual(looked_up - defined, set())
+
+  def test_zoom_data_rule_keeps_old_resource_keys(self):
+    data = rule_block(
+      self.source, "build_zoom_shiny_data", "configure_zoom_shiny_app"
+    )
+    self.assertIn(
+      "_shiny_data_resource('build_zoom_shiny_data', 'build_zoom_shiny_app'", data
+    )
+
   def test_final_rules_depend_on_data_sentinels(self):
     self.assertIn(
       "data_sentinel_f = f'{_main_shiny_dir}/.shiny_data_built_{DATE_STAMP}'",
@@ -50,11 +68,8 @@ class TestShinyRuleSplit(unittest.TestCase):
 
   def test_cluster_overview_reserves_space_for_long_labels(self):
     module = (ROOT / "resources/shiny/modules/explore_genes.R").read_text()
-    plots = (ROOT / "resources/shiny/utils/plots_clusters.R").read_text()
     self.assertIn('column(width = 7, uiOutput(ns("get_cluster_overview_box")))', module)
-    self.assertIn("legend_width  = max(1.6, min(2.6, max_name_chars / 14))", plots)
-    self.assertIn('coord_cartesian(clip = "off")', plots)
-    self.assertIn("widths = c(5, legend_width)", plots)
+    # Legend wrapping and device geometry are checked by test_shiny_umap_layout.R.
     self.assertIn(
       "data_sentinel_f = f'{docs_dir}/shiny_zoom_{{zoom_name}}/.shiny_data_built_{DATE_STAMP}'",
       self.source,

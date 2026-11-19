@@ -14,31 +14,53 @@ def _get_labeller_entry(labeller, model):
     raise ValueError(f"Expected exactly one labeller entry for {labeller}/{model}, got {len(matches)}")
   return matches[0]
 
+# Labelling predicts QC-passing batches in chunks of up to
+# PREDICTION_CHUNK_MAX_CELLS cells, so each job loads the model once. Both
+# checkpoints must finish before the chunks are known.
+def _get_labelling_chunks():
+  qc_stats_f = checkpoints.get_qc_sample_statistics.get().output.qc_stats_f
+  chunks_f   = checkpoints.assign_prediction_chunks.get().output.chunks_f
+  return get_prediction_chunks(chunks_f, get_good_batches(qc_stats_f, BATCH_VAR))
+
+def _get_labelling_chunk_h5ads(wildcards):
+  return [f'{int_dir}/anndata_cells_clean_{batch}_{FULL_TAG}_{DATE_STAMP}.h5ad'
+    for batch in _get_labelling_chunks()[wildcards.chunk]]
+
+def _get_labelling_pred_fs(wildcards):
+  return expand(
+    f'{lbl_dir}/tmp_labels_{wildcards.labeller}_model_{wildcards.model}_{FULL_TAG}_{DATE_STAMP}_{{chunk}}.csv.gz',
+    chunk = list(_get_labelling_chunks()))
+
+
 # do labelling with celltypist
 rule run_celltypist:
   input:
-    adata_f       = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad'
+    adata_fs      = _get_labelling_chunk_h5ads
   output:
-    pred_f        = temp(f'{lbl_dir}/tmp_labels_celltypist_model_{{model}}_{FULL_TAG}_{DATE_STAMP}_{{batch}}.csv.gz')
+    pred_f        = temp(f'{lbl_dir}/tmp_labels_celltypist_model_{{model}}_{FULL_TAG}_{DATE_STAMP}_{{chunk}}.csv.gz')
   params:
+    batches       = lambda wildcards: _get_labelling_chunks()[wildcards.chunk],
     batch_var     = BATCH_VAR
+  wildcard_constraints:
+    chunk         = r'chunk\d+'
   threads: 4
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_celltypist', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_celltypist', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/label_celltypes/run_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/label_celltypes/run_celltypist_{{model}}_{{chunk}}_{DATE_STAMP}.benchmark.txt'
   log:
-    f'{logs_dir}/label_celltypes/run_celltypist_{{model}}_{{batch}}_{DATE_STAMP}.log'
+    f'{logs_dir}/label_celltypes/run_celltypist_{{model}}_{{chunk}}_{DATE_STAMP}.log'
   conda: 
     '../envs/label_celltypes.yaml'
   shell:"""
     exec &>> {log}
 
-    python3 {scprocess_dir}/scripts/label_celltypes.py celltypist_one_batch \
-      {wildcards.batch} {params.batch_var} {wildcards.model} \
-      --adata_f   {input.adata_f} \
+    python3 {scprocess_dir}/scripts/label_celltypes.py celltypist_batches \
+      {params.batch_var} {wildcards.model} \
+      --batches   {params.batches} \
+      --adata_fs  {input.adata_fs} \
       --pred_f    {output.pred_f}
     """
 
@@ -46,51 +68,44 @@ rule run_celltypist:
 # do labelling with xgboost
 rule run_scprocess_labeller:
   input:
-    adata_f   = f'{int_dir}/anndata_cells_clean_{{batch}}_{FULL_TAG}_{DATE_STAMP}.h5ad'
+    adata_fs  = _get_labelling_chunk_h5ads
   output:
-    pred_f    = temp(f'{lbl_dir}/tmp_labels_scprocess_model_{{model}}_{FULL_TAG}_{DATE_STAMP}_{{batch}}.csv.gz')
+    pred_f    = temp(f'{lbl_dir}/tmp_labels_scprocess_model_{{model}}_{FULL_TAG}_{DATE_STAMP}_{{chunk}}.csv.gz')
   params:
+    batches   = lambda wildcards: _get_labelling_chunks()[wildcards.chunk],
     model_f   = lambda wildcards: _get_labeller_entry("scprocess", wildcards.model)['model_f'],
     cls_f     = lambda wildcards: _get_labeller_entry("scprocess", wildcards.model)['cls_f'],
     genes_f   = lambda wildcards: _get_labeller_entry("scprocess", wildcards.model)['genes_f'],
     batch_var = BATCH_VAR
+  wildcard_constraints:
+    chunk     = r'chunk\d+'
   threads: 1
   retries: config['resources']['retries']
   resources:
     mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_scprocess_labeller', 'memory', attempt),
     runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_scprocess_labeller', 'time', attempt)
   benchmark:
-    f'{benchmark_dir}/label_celltypes/run_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/label_celltypes/run_scprocess_labeller_{{model}}_{{chunk}}_{DATE_STAMP}.benchmark.txt'
   log:
-    f'{logs_dir}/label_celltypes/run_scprocess_labeller_{{model}}_{{batch}}_{DATE_STAMP}.log'
+    f'{logs_dir}/label_celltypes/run_scprocess_labeller_{{model}}_{{chunk}}_{DATE_STAMP}.log'
   conda:
     '../envs/label_celltypes.yaml'
   shell: """
     exec &>> {log}
 
-    python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_one_batch \
-      {wildcards.batch} {params.batch_var} {wildcards.model} \
-      --adata_f   {input.adata_f} \
+    python3 {scprocess_dir}/scripts/label_celltypes.py xgboost_batches \
+      {params.batch_var} {wildcards.model} \
+      --batches   {params.batches} \
+      --adata_fs  {input.adata_fs} \
       --model_f   {params.model_f} \
       --cls_f     {params.cls_f} \
       --genes_f   {params.genes_f} \
       --pred_f    {output.pred_f}
     """
 
-# --- Merge per-batch predictions into final labels ---
-def _get_good_batch_labels(wildcards):
-  """Defer batch list resolution until the QC checkpoint completes."""
-  qc_stats_f = checkpoints.get_qc_sample_statistics.get().output.qc_stats_f
-  bad_var = 'bad_' + BATCH_VAR
-  good_batches = pl.read_csv(qc_stats_f).filter(pl.col(bad_var) == False)[BATCH_VAR].to_list()
-  return expand(
-    f'{lbl_dir}/tmp_labels_{wildcards.labeller}_model_{wildcards.model}_{FULL_TAG}_{DATE_STAMP}_{{batch}}.csv.gz',
-    batch = good_batches
-  )
-
 rule merge_labels:
   input:
-    pred_fs       = _get_good_batch_labels,
+    pred_fs       = _get_labelling_pred_fs,
     integration_f = f'{int_dir}/integrated_dt_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   output:
     pred_out_f    = f'{lbl_dir}/labels_{{labeller}}_model_{{model}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'

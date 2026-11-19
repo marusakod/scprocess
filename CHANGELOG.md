@@ -1,5 +1,193 @@
 # Changelog
 
+## Unreleased — planned 0.7.0
+
+### Breaking changes and migration
+
+- `--create-envs` moves from `scprocess run` to `scprocess setup --create-envs`.
+  It creates every rule environment once, without a project config or
+  reference data; with `-n` it now only lists them.
+- `scprocess run --zoom NAME` selects one zoom for `-r zoom`, `-r shiny` and
+  `-r train_xgboost`, as `scprocess join` does. With any other rule it is an
+  error, and unknown zoom names fail before Snakemake starts. `--zoom all`
+  equals omitting it; `-r train_xgboost --zoom all` is removed, so train one
+  zoom classifier at a time.
+- Classifiers train only on request (`-r train_xgboost`, plus `--zoom NAME`
+  for a zoom), never as part of `all`, `-r zoom` or the default join target.
+  Each classifier has its own report, `SHORT_TAG_train_XGBOOST_TAG.html`
+  (zooms: `SHORT_TAG_zoom_NAME_train_XGBOOST_TAG.html`), and zoom and join
+  reports no longer contain classifier sections. Existing
+  `*_train_xgboost.html` reports are left in place.
+- `label_celltypes.py` subcommands `celltypist_one_batch` and
+  `xgboost_one_batch` are replaced by `celltypist_batches` and
+  `xgboost_batches`.
+- `XGBOOST_TAG_pseudobulk.h5ad` has a new layout. The classifier report cannot
+  read files from earlier trainings; `-r train_xgboost` regenerates them.
+- Profile templates leave classifier-training GPU requests commented out,
+  because `train_xgboost.use_gpu` defaults to `false`; uncomment them for GPU
+  training. Copied profiles under `$SCPROCESS_DATA_DIR/profiles/` are not
+  changed: check that their GPU entries match your `int_use_gpu` and `use_gpu`
+  settings.
+- The zoom classifier fitting rule is renamed `zoom_train_xgboost_train`, to
+  match `train_xgboost_train` and `join_train_xgboost_train`. Rename the
+  resource keys `gb_zoom_train_xgboost`/`mins_zoom_train_xgboost` to
+  `gb_zoom_train_xgboost_train`/`mins_zoom_train_xgboost_train`, and any
+  `zoom_train_xgboost:` entry in copied profiles.
+- Unused environment files `celltypist.yaml`, `chem_detection.yaml`,
+  `train_xgboost.yaml` and `xgboost_r.yaml` are removed.
+- Resource defaults no longer live in the schemas. Resource models are in
+  `resources/snakemake/resource_models_2026-07-07.yaml` (replacing the CSV)
+  and floors, or the fixed request of a rule without a model, in
+  `resources/snakemake/resource_floors.yaml`. A `gb_` or `mins_` value in the
+  config `resources:` section is always used as written; before, a value equal
+  to the schema default was discarded, so the model or floor was used instead
+  (for example `mins_run_integration: 30` gave 10 minutes). Configs that set
+  `gb_save_alevin_flex_to_h5` or `mins_save_alevin_flex_to_h5` now fail
+  validation: no rule uses them, since Flex mapping runs `save_alevin_to_h5`.
+- `run_qc_one_run` is split into `run_doublet_id_one_run` (loads the counts,
+  runs scDblFinder) and `filter_qc_one_run` (applies the QC thresholds). Rename
+  the resource keys `gb_run_qc_one_run` and `mins_run_qc_one_run` to
+  `gb_run_doublet_id_one_run` and `mins_run_doublet_id_one_run`; the new
+  `gb_filter_qc_one_run` and `mins_filter_qc_one_run` default to 2 GB and 5
+  minutes. A new kept file per run, `qc/coldata_dt_with_doublets_RUN_*.csv.gz`,
+  holds every cell with its QC measures and doublet calls. Existing QC results
+  rerun once; `tmp_qc_dt_*` and `tmp_coldata_dt_*` and the merged files are
+  unchanged.
+- HTO mapping builds one index per pool, `mapping/hto_ref/POOL/`, instead of
+  the project-wide `hto.fa`, `t2g_hto.tsv` and `hto_index`. `build_hto_index`
+  runs once per pool; the HTO mapping, counts and demultiplexing rerun.
+
+### Changes affecting results
+
+- HTO mapping always uses forward orientation. It took the orientation of the
+  RNA reads, which is reverse for 5' kits, and then lost most feature reads
+  (a 5' TotalSeqC test pool gave 87% doublets and 5.6% singlets); 3' kits are
+  unchanged. The index uses k=11 (was 7) on the full R2 read and holds only the
+  HTOs the pool uses (plus any ADTs), so unused hashtags no longer enter
+  `HTODemux`. In the 5' test pool, whole-library mapping then gave 77%
+  singlets and 19% doublets. `gb_run_mapping_hto` falls from 12 to 8 GB.
+  Of eight test pools, six peaked at 2.4-4.2 GB and two at 20-24 GB; those two
+  fail at 8 GB (and at 12 and 18 GB if you set `retries: 3`; they would pass
+  on the fourth attempt at 27 GB). The default is `retries: 0`, so set
+  `gb_run_mapping_hto` to about 25 GB for such pools.
+
+- XGBoost training caps rise to `max_genes: 5000` (from 3000),
+  `pass1_nrounds: 1000` (from 300) and `pass2_nrounds: 2000` (from 500).
+  Fits that stopped early are unchanged; fits that reached a cap can select
+  more genes and train longer, taking up to several times as long. Set the
+  old values to reproduce earlier models.
+- `cluster_majority_vote_min_purity` default drops to `0.5` (from `0.9`). When
+  `cluster_majority_vote_resolution` is set, clusters now need only a
+  plurality rather than a strong majority of agreeing training labels before
+  cells are relabelled to the cluster's most frequent call; set `0.9` to
+  reproduce the old behaviour.
+- Zoom classifier training now runs full-data prediction and evaluation, as
+  projects and joins already did, writing
+  `XGBOOST_TAG_fulldata_predictions.csv.gz` and per-split evaluation tables.
+  Zoom coarse evaluation now uses full-data predictions rather than validation
+  cells only. Fitted models are unchanged.
+- Resource requests for chemistries other than 3v3 and 3v4 (3v2, 5v1, 5v2,
+  5v3, multiome) now use the 3v3 model (chemistry group `other`); Flex uses a
+  provisional `flex` group with twice the 3v3 intercept and slope, so its
+  fitted memory and time requests double. Before, `get_barcode_qc_metrics`,
+  `make_one_pb_cells`, `make_one_pb_empty` and `run_doublet_id_one_run` used the 8 GB
+  or 10 minute schema default for these chemistries; requests fall for small
+  inputs and rise for large ones. 3v3 and 3v4 requests from the fitted models
+  are unchanged.
+- Rules whose resource-CSV row held only a floor (2 GB, 10 minutes) now request
+  their schema default, which that row used to override: for example
+  `mins_run_integration` 10 → 30, `mins_run_mapping_hto` 10 → 180 and
+  `gb_run_decontx` 2 → 8. 33 rule parameters change, most upwards, a few
+  downwards (`mins_convert_h5ad_to_sce` 10 → 5).
+- Report only: classifier top-gene plots scale each pseudobulk by its total
+  counts across all genes, rather than edgeR TMM over the stored genes.
+- Report only: labelling reports use the model's label order and colours,
+  which were ignored whenever more than one classifier was installed (see
+  Fixes).
+
+### Features
+
+- Changing a QC threshold (`qc_min_mito`, `qc_max_splice`, ...) now reruns only
+  the thresholds file, the per-run filtering and the merge: on 4 tonsil pools
+  (about 200,000 cells) 2 minutes and 20-second jobs, instead of the full QC
+  with scDblFinder (10 minutes, 17-24 GB per run). Doublet identification
+  reruns only when its own settings (`dbl_*`, `exclude_mito`) or inputs change.
+  Because the cell table is saved as CSV (15 significant digits), a cell
+  lying exactly on a threshold can fall on the other side compared with the
+  earlier in-memory filtering: 3 of 197,720 cells at `qc_max_splice: 0.97`
+  and `qc_min_splice: 0.75` in the test.
+- Optional `multiplexing: hto_id_regex` marks which rows of the HTO feature
+  reference are HTOs by their `hto_id`; the other rows are ADTs. HTOs and ADTs
+  are mapped together on one index per pool (the pool's HTOs plus all ADTs) and
+  split after quantification: HTO rows keep going to demultiplexing, ADT counts
+  are saved to `af_adt_counts_mat.h5` (new rule `save_alevin_adt_to_h5`, keys
+  `gb_`/`mins_save_alevin_adt_to_h5`) and are not yet used downstream. Without
+  the regex every row is an HTO, as before. The index build reports features
+  that share an 11-mer.
+- Resource models and floors are validated when loaded, and a test checks that
+  every `get_resources()` call has a model or floor. The
+  `train_xgboost_prepare` rules (project, zoom, join) now use `get_resources()`,
+  so their memory rises on retries like other rules. New config keys
+  `gb_zoom_train_xgboost_prepare` and `mins_zoom_train_xgboost_prepare`
+  (previously zooms used the project keys `gb_train_xgboost_prepare` and
+  `mins_train_xgboost_prepare`).
+- Optional depth augmentation for XGBoost training (`downsample_copies`,
+  `downsample_min_umis`, `downsample_max_umis`; projects, joins and project
+  zooms). Each training and validation cell gets thinned copies at random
+  depths between the two bounds, to improve accuracy on shallow cells. Off by
+  default (`downsample_copies: 0`), which gives the same models as before.
+- Every classifier report shows accuracy at lower sequencing depth: up to 200
+  unused cells per label with more than 2,000 UMIs are thinned to 250–2,000
+  UMIs and classified again (`XGBOOST_TAG_depth_evaluation.csv.gz`), with
+  overall and per-label accuracy and a 500-UMI confusion matrix.
+- Per-label gene importance (`XGBOOST_TAG_gene_importance_by_label.csv`) and a
+  "Top genes by label" report section; top-gene strips show the running
+  cumulative gain.
+- Labelling and classifier evaluation predict whole batches in chunks of up
+  to 150,000 cells, loading the model once per job (Siletti atlas: 22 jobs
+  instead of 598). Rule names and resource keys are unchanged; the
+  `mins_run_celltypist` and `mins_run_scprocess_labeller` defaults rise from 8
+  to 30 minutes, and these rules no longer use the resource-model CSV.
+  Predictions are unchanged.
+- XGBoost prediction is about ten times faster, with identical predictions.
+- The classifier report pseudobulk keeps only the plotted genes (2.7 MB
+  instead of 451 MB for the Siletti model).
+- Labelling reports and zoom label diagnostics show **Labels** and **Grouped
+  labels** tabs, and cluster UMAPs are numbered.
+- The project index lists classifier training reports.
+- The Shiny **Explore genes** dotplot has a **Minimum cells per dot** setting under
+  the advanced plotting options (default 10, as before). It replaces the fixed
+  10-cell cut-off that applied to cluster dots, and now also applies to sample
+  dots, so a sample with fewer cells than the setting is hidden.
+
+### Fixes
+
+- Shiny gene and cluster UMAP panels stay square. Cluster legends adapt their
+  font size and column count to the label count, wrapped names and display size,
+  and are recalculated when the plot is resized.
+- Shiny cluster legends take only the width their columns need. A one-column
+  legend no longer reserves the width of two, which left blank space to its
+  right.
+- Labelling reports ignored the model's label specifications whenever more
+  than one classifier was installed (since 0.4.0), and the grouped totals
+  table repeated the fine labels.
+- Classifier reports failed for labels containing `/`, such as
+  `Ependymal / ciliated`.
+- The project index failed when a zoom classifier report existed.
+- Project zooms without `hvg.hvg_exclude_from_file` failed at
+  `zoom_get_highly_variable_genes` (since v0.2.2).
+- Adding or rerunning one zoom made every other zoom's HVG matrix out of
+  date, rerunning their HVGs, integration and markers. Results are unchanged.
+- Driver logs recorded the version of the git repository in the current
+  directory instead of scprocess's. They now record the scprocess checkout's
+  `git describe` output and full commit SHA; older logs written from
+  git-tracked project directories may show the project's version.
+- Profile templates now list every GPU-capable rule; previously the SHPC
+  template made no GPU request for zoom classifier training, and
+  `slurm_default` covered only some rules.
+- Categorical report colours repeat `nice_cols` instead of switching to a
+  default hue palette.
+
 ## 0.6.0 — Unreleased development candidate
 
 - Rename `train_xgboost.validation_variable_combinations` to

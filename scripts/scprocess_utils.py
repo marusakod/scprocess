@@ -592,6 +592,38 @@ def _check_lib_ids(lib_ids, lib_var):
 
 
 # check parameters for multiplexing
+def split_hto_adt_ids(feature_ids, hto_id_regex):
+  # feature ids matching the regex are HTOs, the others are ADTs; without a regex, all are HTOs
+  # e.g. ['Hashtag1', 'Hashtag2', 'CD3'] with '^Hashtag' -> (['Hashtag1', 'Hashtag2'], ['CD3'])
+  if not hto_id_regex:
+    return list(feature_ids), []
+
+  pattern   = re.compile(hto_id_regex)
+  hto_ids   = [ x for x in feature_ids if pattern.search(x) ]
+  adt_ids   = [ x for x in feature_ids if not pattern.search(x) ]
+  return hto_ids, adt_ids
+
+
+def get_hto_pool_references(config, pools):
+  # for each pool, the HTOs it uses (hto_id in the sample metadata) and every ADT of the feature
+  # reference, e.g. {'pool1': {'hto_ids': ['Hashtag1', 'Hashtag2'], 'adt_ids': ['CD3']}}
+  if config['multiplexing']['demux_type'] != 'hto':
+    return {}
+
+  feat_ref_df = pl.read_csv(config['multiplexing']['feature_ref'])
+  samples_df  = pl.read_csv(config['project']['sample_metadata'])
+  feature_ids = feat_ref_df['hto_id'].to_list()
+  _, adt_ids  = split_hto_adt_ids(feature_ids, config['multiplexing'].get('hto_id_regex', ''))
+
+  pool_refs   = {}
+  for pool in pools:
+    pool_hto_ids  = set(samples_df.filter(pl.col('pool_id') == pool)['hto_id'].to_list())
+    pool_refs[pool] = {
+      'hto_ids': [ x for x in feature_ids if x in pool_hto_ids ],
+      'adt_ids': adt_ids }
+  return pool_refs
+
+
 def _check_multiplexing_parameters(config):
   # load up samples
   samples_df  = pl.read_csv(config['project']['sample_metadata'])
@@ -624,9 +656,28 @@ def _check_multiplexing_parameters(config):
       raise ValueError("hto_id values in feature reference file not unique")
     hto_ids = feat_ref_df["hto_id"].to_list()
 
+    # hto_id values are passed to commands and file names: no whitespace, commas, quotes or shell characters
+    bad_ids = [ x for x in hto_ids if re.search(r"""[\s,'"`$\\;&|<>(){}*?!#]""", x) ]
+    if len(bad_ids) > 0:
+      raise ValueError(f"hto_id values in the feature reference file with whitespace, commas, quotes or shell characters: {bad_ids}")
+
     # check if all hto_id values in sample metadata match the ones in feature reference
     if not all(hto in hto_ids for hto in list(set(samples_df["hto_id"]))):
       raise ValueError("One or more hto_id values in sample_metadata don't match hto_id values in the feature reference file")
+
+    # check the optional regex marking which feature reference rows are HTOs (the others are ADTs)
+    hto_id_regex  = config["multiplexing"].get("hto_id_regex", "")
+    if hto_id_regex:
+      try:
+        re.compile(hto_id_regex)
+      except re.error as err:
+        raise ValueError(f"hto_id_regex is not a valid regular expression: {err}")
+      matching_ids, _ = split_hto_adt_ids(hto_ids, hto_id_regex)
+      if len(matching_ids) == 0:
+        raise ValueError("hto_id_regex does not match any hto_id in the feature reference file")
+      not_matching = sorted(set(samples_df["hto_id"]) - set(matching_ids))
+      if len(not_matching) > 0:
+        raise ValueError(f"hto_id values in sample_metadata that do not match hto_id_regex: {not_matching}")
 
   elif config['multiplexing']['demux_type'] == 'custom':
     # check specified file is ok
@@ -1016,10 +1067,10 @@ def _check_hvg_parameters(config):
 
   # check if any genes were specified to be excluded
   if 'hvg_exclude_from_file' in config['hvg']:
-    # check file exists
-    exc_f       = pathlib.Path(config['hvg']['hvg_exclude_from_file'])
-    if not exc_f.is_file():
-      raise FileNotFoundError("file specified in 'hvg_exclude_from_file' does not exist")
+    # check file exists; a relative path is taken from the project directory,
+    # and the resolved path is stored for the rules
+    exc_f       = _check_path_exists_in_project(config['hvg']['hvg_exclude_from_file'], config, what = "file")
+    config['hvg']['hvg_exclude_from_file'] = str(exc_f)
 
     # check file has correct columns
     exc_df      = pl.read_csv(exc_f)
@@ -1224,6 +1275,27 @@ def get_zoom_parameters(config, zoom_schema_f, scdata_dir):
     ZOOM_PARAMS   = {z['zoom']['name']: z for z in zoom_ls}
 
   return ZOOM_PARAMS
+
+
+def get_zooms_to_run(defined_zooms, zoom_name):
+  """Return the zoom names selected by --zoom, for projects and joins.
+
+  defined_zooms holds the zoom names, or a dict keyed by them such as the zoom
+  parameters. zoom_name None or 'all' selects every defined zoom, in config order;
+  otherwise only the named zoom, e.g. (['neurons', 'glia'], 'glia') -> ['glia'].
+  """
+  zoom_names = list(defined_zooms)
+  if not zoom_names:
+    raise ValueError("No zooms defined. Add zoom specification files to the 'zoom:' section of the config.")
+
+  # Snakemake --config may parse a numeric-looking name as a number.
+  if zoom_name is None or str(zoom_name) == 'all':
+    return zoom_names
+  zoom_name = str(zoom_name)
+  if zoom_name not in zoom_names:
+    raise ValueError(f"Zoom '{zoom_name}' not found in config. Available zooms: {', '.join(zoom_names)}")
+
+  return [zoom_name]
 
 
 def _warn_zoom_qc_thresholds(zoom_qc, main_qc, zoom_name):
@@ -2544,6 +2616,27 @@ def get_join_batch_sources(project_cfgs, project_ids, batch_keys, labeller, mode
   return fresh_batches, reuse_label_fs
 
 
+def get_prediction_chunks(chunks_f, batches = None):
+  """Batches predicted by each chunk, from the table written by assign_prediction_chunks.
+
+  With batches given (e.g. QC-passing batches), each chunk keeps only those, in
+  table order, and chunks left empty are dropped; batches absent from the table
+  have no H5AD to predict. E.g. chunks {chunk001: [a, b], chunk002: [c]} with
+  batches [a, c] give {chunk001: [a], chunk002: [c]}.
+  """
+  chunks_df = pl.read_csv(chunks_f, schema_overrides = {'batch': pl.String, 'chunk': pl.String})
+  if batches is not None:
+    chunks_df = chunks_df.filter(pl.col('batch').is_in([str(b) for b in batches]))
+  return {chunk: chunk_df['batch'].to_list()
+    for (chunk,), chunk_df in chunks_df.group_by('chunk', maintain_order = True)}
+
+
+def get_good_batches(qc_stats_f, batch_var):
+  """Batches that passed QC, from the get_qc_sample_statistics table."""
+  qc_df = pl.read_csv(qc_stats_f, schema_overrides = {batch_var: pl.String})
+  return qc_df.filter(pl.col(f'bad_{batch_var}') == False)[batch_var].to_list()
+
+
 def get_shiny_deploy_inputs(scprocess_dir):
   """Return files copied or read by the lightweight Shiny deploy step."""
   scprocess_dir = pathlib.Path(scprocess_dir)
@@ -2602,26 +2695,15 @@ def get_shiny_targets(config, scprocess_dir, scdata_dir, dryrun, zoom_name=None)
       os.makedirs(docs_dir / f"shiny_{app_tag}", exist_ok=True)
     return ["configure_shiny_app"], proj_dir
 
-  if zoom_name == "all":
-    zoom_schema_f = pathlib.Path(scprocess_dir) / "resources/schemas/zoom.schema.json"
-    ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
-    zoom_names = list(ZOOM_PARAMS.keys())
-    if not zoom_names:
-      raise ValueError("No zoom specs found in config. Add a 'zoom:' section to your config file.")
-    if not dryrun:
-      for zn in zoom_names:
-        os.makedirs(docs_dir / f"shiny_zoom_{zn}", exist_ok=True)
-    return ["build_all_zoom_shiny_apps"], proj_dir
-
   zoom_schema_f = pathlib.Path(scprocess_dir) / "resources/schemas/zoom.schema.json"
   ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
-  zoom_names = list(ZOOM_PARAMS.keys())
-  if zoom_name not in zoom_names:
-    raise ValueError(
-      f"Zoom '{zoom_name}' not found in config. "
-      f"Available zooms: {', '.join(zoom_names) if zoom_names else '(none)'}")
+  zoom_names = get_zooms_to_run(ZOOM_PARAMS, zoom_name)
   if not dryrun:
-    os.makedirs(docs_dir / f"shiny_zoom_{zoom_name}", exist_ok=True)
+    for zn in zoom_names:
+      os.makedirs(docs_dir / f"shiny_zoom_{zn}", exist_ok=True)
+
+  if zoom_name == "all":
+    return ["build_all_zoom_shiny_apps"], proj_dir
   return [str(docs_dir / f"shiny_zoom_{zoom_name}" / f".shiny_built_{date_stamp}")], proj_dir
 
 
@@ -2659,51 +2741,30 @@ def get_train_xgboost_targets(config, scprocess_dir, scdata_dir, zoom_name=None)
   if zoom_name is None:
     return ["train_xgboost"], proj_dir
 
+  # classifiers are trained one at a time, so a single named zoom is required
+  if zoom_name == "all":
+    raise ValueError("-r train_xgboost trains one classifier at a time; pass --zoom with a single zoom name.")
   zoom_schema_f = scprocess_dir / "resources/schemas/zoom.schema.json"
   ZOOM_PARAMS = get_zoom_parameters(config, zoom_schema_f, scdata_dir)
-  zoom_names = list(ZOOM_PARAMS.keys())
-
-  if zoom_name == "all":
-    if not zoom_names:
-      raise ValueError("No zoom specs found in config.")
-    zooms_with_xgb = [zn for zn in zoom_names if 'train_xgboost' in ZOOM_PARAMS[zn]]
-    if not zooms_with_xgb:
-      raise ValueError("No zooms have a train_xgboost section.")
-    return ["zoom_train_xgboost_all"], proj_dir
-
-  if zoom_name not in zoom_names:
-    raise ValueError(
-      f"Zoom '{zoom_name}' not found in config. "
-      f"Available zooms: {', '.join(zoom_names) if zoom_names else '(none)'}")
+  zoom_name   = get_zooms_to_run(ZOOM_PARAMS, zoom_name)[0]
   if 'train_xgboost' not in ZOOM_PARAMS[zoom_name]:
     raise ValueError(f"Zoom '{zoom_name}' does not have a train_xgboost section.")
 
-  ref_tag = ZOOM_PARAMS[zoom_name]['train_xgboost']['xgboost_tag']
+  # the zoom's standalone classifier report depends on every training output
   short_tag = config['project']['short_tag']
-  mkr_sel_res = ZOOM_PARAMS[zoom_name]['marker_genes']['mkr_sel_res']
-  model_f = str(proj_dir / f"output/{short_tag}_zoom/{zoom_name}/train_xgboost/{ref_tag}_xgboost_model.json")
-  html_f = str(proj_dir / f"public/{short_tag}_zoom_{zoom_name}_{mkr_sel_res}.html")
-  return [model_f, html_f], proj_dir
+  ref_tag   = ZOOM_PARAMS[zoom_name]['train_xgboost']['xgboost_tag']
+  html_f    = str(proj_dir / f"public/{short_tag}_zoom_{zoom_name}_train_{ref_tag}.html")
+  return [html_f], proj_dir
 
 
-def prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS=None, BATCHES=None,
+def prep_resource_params(config, scprocess_dir, LIB_PARAMS=None, BATCHES=None,
                          RUNS_TO_LIBS=None, chem_stats_paths=None):
-  # add default resource values
-  schema      = _load_schema_file(schema_f)
-  defaults    = _get_default_config_from_schema(schema)
-  defaults    = defaults.get('resources', {})
-
-  # get user resource values
+  # user resource values: every gb_ / mins_ key in the config is an override of the
+  # model or floor, whatever its value
   user_vals   = config.get('resources', {}).copy()
-  # if same as default, remove from user vals
-  for n in list(user_vals):
-    if n in defaults:
-      if defaults[n] == user_vals[n]:
-        del user_vals[n]
 
-  # load resource model CSV
-  lm_f        = scprocess_dir / "resources/snakemake" / LM_PARAMS_FILENAME
-  lm_df       = pl.read_csv(lm_f)
+  # load fitted resource models and hand-maintained floors (validated on loading)
+  models, floors = _load_resource_models(scprocess_dir)
 
   # get sizes, n-batches (optional — not available for shiny/join standalone workflows)
   R1_sizes    = { lib: vals["mapping_af"]["R1_fs_size_gb"] for lib, vals in LIB_PARAMS.items() } if LIB_PARAMS else {}
@@ -2717,9 +2778,9 @@ def prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS=None, BATCH
 
   # make full dict of useful things
   RESOURCE_PARAMS = {}
-  RESOURCE_PARAMS["defaults"]               = defaults
   RESOURCE_PARAMS["user_vals"]              = user_vals
-  RESOURCE_PARAMS["lm_df"]                  = lm_df
+  RESOURCE_PARAMS["models"]                 = models
+  RESOURCE_PARAMS["floors"]                 = floors
   RESOURCE_PARAMS["R1_sizes"]               = R1_sizes
   RESOURCE_PARAMS["n_batches"]              = n_batches
   RESOURCE_PARAMS["n_run_mapping"]          = config.get('resources', {}).get('n_run_mapping', 8)
@@ -2737,7 +2798,6 @@ def get_resources(RESOURCE_PARAMS, rules, input, rule, param, attempt, run = Non
     raise ValueError(f'rule {rule} is not defined.')
   param_name  = f'mins_{rule}' if param == 'time' else f'gb_{rule}'
 
-  defaults    = RESOURCE_PARAMS['defaults']
   user_vals   = RESOURCE_PARAMS['user_vals']
 
   # user override takes priority
@@ -2748,20 +2808,22 @@ def get_resources(RESOURCE_PARAMS, rules, input, rule, param, attempt, run = Non
       time_min  = user_vals[param_name]
 
   else:
-    filt_df = _get_csv_row(RESOURCE_PARAMS, rule, param, run) if _rule_in_csv(RESOURCE_PARAMS, rule, param) else None
+    floor = RESOURCE_PARAMS['floors'].get(rule, {}).get(param)
+    model = _get_resource_model(RESOURCE_PARAMS, rule, param, run)
 
-    if filt_df is not None:
-      mem_mb, time_min = _predict_from_csv(filt_df, RESOURCE_PARAMS, input, rule, param, run)
+    # fitted model, never lower than the floor
+    if model is not None:
+      mem_mb, time_min = _predict_from_model(model, floor, RESOURCE_PARAMS, input, rule, param, run)
 
-    # schema default fallback (for rules not in CSV, or an unresolved chemistry)
-    elif param_name in defaults:
+    # no model: the floor is the request
+    elif floor is not None:
       if param == 'memory':
-        mem_mb    = defaults[param_name] * MB_PER_GB
+        mem_mb    = floor * MB_PER_GB
       else:
-        time_min  = defaults[param_name]
+        time_min  = floor
 
     else:
-      raise KeyError(f'No resource model or schema default for {param_name}.')
+      raise KeyError(f'No user value, resource model or floor for {param_name}.')
 
   if param == 'memory':
     mem_mb     *= attempt_exp**(attempt - 1)
@@ -2773,57 +2835,33 @@ def get_resources(RESOURCE_PARAMS, rules, input, rule, param, attempt, run = Non
   return param_val
 
 
-def _rule_in_csv(RESOURCE_PARAMS, rule, param):
-  # Rows without a fitted model carry no floor and fall back to the schema default instead
-  lm_df = RESOURCE_PARAMS['lm_df']
-  rows  = lm_df.filter((pl.col("param") == param) & (pl.col("rule") == rule))
-  return rows.shape[0] > 0 and not rows["rq_slope"].is_null().all()
-
-
-def _get_csv_row(RESOURCE_PARAMS, rule, param, run):
-  lm_df     = RESOURCE_PARAMS['lm_df']
-  rule_rows = lm_df.filter((pl.col("param") == param) & (pl.col("rule") == rule))
-  has_chem  = (rule_rows["chemistry"] != "").any()
-
-  if has_chem and run is not None:
-    chemistry     = _resolve_run_chemistry(run, RESOURCE_PARAMS)
-    chem_group    = _get_chemistry_group(chemistry)
-    chem_row      = rule_rows.filter(pl.col("chemistry") == chem_group)
-    # A row can exist (e.g. as a documented placeholder) without a model.
-    # Only accept it as a match if it actually has one.
-    if chem_row.shape[0] == 1 and not chem_row["rq_slope"].is_null().all():
-      return chem_row
-    generic_row   = rule_rows.filter(pl.col("chemistry") == "")
-    if generic_row.shape[0] == 1 and not generic_row["rq_slope"].is_null().all():
-      return generic_row
+def _get_resource_model(RESOURCE_PARAMS, rule, param, run):
+  # returns the fitted model (model_var, rq_intercept, rq_slope) for this rule and param,
+  # or None if there is none. A model that depends on chemistry has one entry per chemistry
+  # group; a model with a single 'all' entry applies to every chemistry.
+  rule_models = RESOURCE_PARAMS['models'].get(rule, {})
+  if param not in rule_models:
     return None
+  chem_models = rule_models[param]
+  if 'all' in chem_models:
+    return chem_models['all']
 
-  generic_row = rule_rows.filter(pl.col("chemistry") == "")
-  if generic_row.shape[0] == 1:
-    return generic_row
-  if rule_rows.shape[0] == 1:
-    return rule_rows
-  raise ValueError(f"Ambiguous CSV rows for rule '{rule}', param '{param}'.")
+  if run is None:
+    raise ValueError(f"Rule '{rule}' has a chemistry-specific {param} model: pass the run.")
+  chemistry   = _resolve_run_chemistry(run, RESOURCE_PARAMS)
+  return chem_models[_get_chemistry_group(chemistry)]
 
 
-def _predict_from_csv(filt_df, RESOURCE_PARAMS, input, rule, param, run):
-  has_model = not filt_df["rq_slope"].is_null().all()
-  if not has_model:
-    raise ValueError(
-      f"Resolved resource-model row for rule '{rule}', param '{param}' has no "
-      "fitted model; check for a chemistry-specific row missing its model.")
-
-  floor_val = filt_df["floor"].item()
+def _predict_from_model(model, floor, RESOURCE_PARAMS, input, rule, param, run):
+  # the model predicts MB (memory) or seconds (time); floors are GB or minutes
+  param_est = _estimate_resource_parameter(model, RESOURCE_PARAMS, input, rule, run)
   mem_mb    = None
   time_min  = None
 
-  param_est = _estimate_resource_parameter(filt_df, RESOURCE_PARAMS, input, rule, run)
-  param_est = max(floor_val, param_est)
   if param == "memory":
-    mem_mb    = param_est
+    mem_mb    = max(floor * MB_PER_GB, param_est)
   else:
-    time_s    = param_est
-    time_min  = time_s / 60
+    time_min  = max(floor, param_est / 60)
 
   return mem_mb, time_min
 
@@ -2840,10 +2878,10 @@ def _resolve_input_attr(input, attr):
   return None
 
 
-def _estimate_resource_parameter(filt_lm_df, RESOURCE_PARAMS, input, rule, run):
-  x_rq      = filt_lm_df['model_var'].item()
-  intercept = filt_lm_df['rq_intercept'].item()
-  slope     = filt_lm_df['rq_slope'].item()
+def _estimate_resource_parameter(model, RESOURCE_PARAMS, input, rule, run):
+  x_rq      = model['model_var']
+  intercept = model['rq_intercept']
+  slope     = model['rq_slope']
 
   if x_rq.startswith('input.'):
     input_attr  = x_rq.replace("input.", "")
@@ -2893,10 +2931,59 @@ def _resolve_run_chemistry(run, RESOURCE_PARAMS):
 
 
 def _get_chemistry_group(tenx_chemistry):
+  # chemistry group of the resource models: 3v3, 3v4, flex (flexv1, flexv2) or other,
+  # e.g. 5v3 -> other. 'other' is a named group, not an error: it holds every chemistry
+  # without its own values (5v1, 5v2, 5v3, multiome, ...).
   if tenx_chemistry in ("3v3", "3v4"):
     return tenx_chemistry
-  # Unrecognised chemistry: no chemistry-specific row should match this.
-  return ""
+  if tenx_chemistry.startswith("flex"):
+    return "flex"
+  return "other"
+
+
+def _load_resource_models(scprocess_dir):
+  # fitted models (rules > rule > memory/time > chemistry group > fields) and hand-maintained
+  # floors (rules > rule > memory/time; GB and minutes)
+  res_dir     = pathlib.Path(scprocess_dir) / "resources/snakemake"
+  with open(res_dir / RESOURCE_MODELS_FILENAME) as f:
+    models    = yaml.safe_load(f)['rules']
+  with open(res_dir / RESOURCE_FLOORS_FILENAME) as f:
+    floors    = yaml.safe_load(f)['rules']
+
+  _check_resource_models(models, floors)
+  return models, floors
+
+
+def _check_resource_models(models, floors):
+  for rule, rule_models in models.items():
+    for param, chem_models in rule_models.items():
+      where = f"resource models: rule '{rule}', {param}"
+      if param not in ('memory', 'time'):
+        raise ValueError(f"{where}: parameter must be 'memory' or 'time'.")
+
+      # one 'all' entry, or exactly one entry per chemistry group
+      groups  = set(chem_models)
+      if groups != {'all'} and groups != set(RESOURCE_CHEMISTRY_GROUPS):
+        raise ValueError(
+          f"{where}: expected 'all' or exactly the groups {list(RESOURCE_CHEMISTRY_GROUPS)}, "
+          f"found {sorted(groups)}.")
+      for group, model in chem_models.items():
+        if set(model) != set(RESOURCE_MODEL_FIELDS):
+          raise ValueError(f"{where}, {group}: expected fields {list(RESOURCE_MODEL_FIELDS)}.")
+
+      # every model needs a floor
+      if param not in floors.get(rule, {}):
+        raise ValueError(f"{where}: no floor in the resource floors file.")
+
+  # every floor is a positive number of GB (memory) or minutes (time); for a rule without a
+  # model it is the request itself
+  for rule, rule_floors in floors.items():
+    for param, floor in rule_floors.items():
+      where = f"resource floors: rule '{rule}', {param}"
+      if param not in ('memory', 'time'):
+        raise ValueError(f"{where}: parameter must be 'memory' or 'time'.")
+      if not isinstance(floor, (int, float)) or isinstance(floor, bool) or floor <= 0:
+        raise ValueError(f"{where}: floor must be a positive number.")
 
 
 ### helpers
@@ -2904,7 +2991,10 @@ def _get_chemistry_group(tenx_chemistry):
 # some useful global variables
 BYTES_PER_GB  = 1024**3
 MB_PER_GB     = 1024
-LM_PARAMS_FILENAME = "resources_lm_params_2026-07-07.csv"
+RESOURCE_MODELS_FILENAME  = "resource_models_2026-07-07.yaml"
+RESOURCE_FLOORS_FILENAME  = "resource_floors.yaml"
+RESOURCE_CHEMISTRY_GROUPS = ("3v3", "3v4", "flex", "other")
+RESOURCE_MODEL_FIELDS     = ("model_var", "rq_intercept", "rq_slope")
 
 # nice boolean values from yaml inputs
 def _safe_boolean(val):
@@ -2990,6 +3080,13 @@ def _check_xgboost_group_columns(xgb, columns):
   # to the planning stage after the two tables have been joined.
   if xgb['min_genes'] > xgb['max_genes']:
     raise ValueError('min_genes must not exceed max_genes')
+  _check_xgboost_depth_augmentation(xgb)
+
+
+def _check_xgboost_depth_augmentation(xgb):
+  # Depth bounds matter only when thinned copies are requested.
+  if xgb['downsample_copies'] > 0 and xgb['downsample_min_umis'] >= xgb['downsample_max_umis']:
+    raise ValueError('train_xgboost: downsample_min_umis must be below downsample_max_umis')
 
 
 def _check_xgboost_label_files(xgb, project_dir):
@@ -3157,6 +3254,7 @@ def check_join_config(config, join_schema_f, scdata_dir):
 
     join_dir = pathlib.Path(config['join']['proj_dir'])
     _check_xgboost_label_files(xgb, join_dir)
+    _check_xgboost_depth_augmentation(xgb)
 
     # inject output_dir
     join_name = config['join']['name']

@@ -19,10 +19,18 @@ suppressPackageStartupMessages({
   return(row$oh1)
 }
 
-make_alevin_h5 <- function(fry_dir, h5_f, hto_mat = 0, probe_id = NULL) {
+make_alevin_h5 <- function(fry_dir, h5_f, hto_mat = 0, probe_id = NULL, keep_features = NULL) {
   if (hto_mat) {
     sce = loadFry(fry_dir)
     mat = counts(sce)
+
+    # HTO and ADT counts come from one joint index; keep only the requested features (rows)
+    if (!is.null(keep_features)) {
+      missing_features = setdiff(keep_features, rownames(mat))
+      if (length(missing_features) > 0)
+        stop("features not in the quantification: ", paste(missing_features, collapse = ", "))
+      mat = mat[keep_features, , drop = FALSE]
+    }
   } else {
     sce = loadFry(fry_dir, outputFormat = list(S = c("S"), U = c("U"), A = c("A")))
     mat = assayNames(sce) %>% lapply(function(n) {
@@ -111,15 +119,29 @@ save_alevin_h5_ambient_params <- function(run, fry_dir, h5_f, cb_yaml_f, knee_da
   close(con_obj)
 }
 
+# feature ids of one type ('hto' or 'adt') from the features.csv written with the pool's index
+get_pool_feature_ids <- function(features_f, sel_type) {
+  features_dt = fread(features_f)
+  features_dt[ feature_type == sel_type, hto_id ]
+}
+
+# save the ADT counts of a pool, quantified with the HTOs in one joint index
+save_alevin_adt_h5 <- function(fry_dir, h5_f, features_f) {
+  adt_ids = get_pool_feature_ids(features_f, 'adt')
+  make_alevin_h5(fry_dir, h5_f, hto_mat = 1, keep_features = adt_ids)
+  return(NULL)
+}
+
 save_alevin_h5_knee_params_df <- function(run, fry_dir, h5_f, knee_data_f,
   hto_mat = 0, run_var, knee1 = '', shin1 = '', knee2 = '', shin2 ='',
   exp_cells ='', total_included ='', low_count_thr ='', probe_id = NULL,
-  precomputed_mat = NULL) {
+  precomputed_mat = NULL, keep_features = NULL) {
 
   if (!is.null(precomputed_mat)) {
     mat = precomputed_mat
   } else {
-    mat = make_alevin_h5(fry_dir, h5_f, hto_mat = hto_mat, probe_id = probe_id)
+    mat = make_alevin_h5(fry_dir, h5_f, hto_mat = hto_mat, probe_id = probe_id,
+      keep_features = keep_features)
   }
 
   # convert custom knees, shins and cellbender params to integers

@@ -69,10 +69,10 @@ scprocess run /path/to/config-my_project.yaml -E "--max-threads 8"
     In a dry run, a workflow manager maps out the entire execution plan and displays a summary of the tasks to be performed without actually running any scripts or consuming computational resources. It serves as a safety check to ensure that all input files are accessible and that the job sequence aligns with your expectations before you commit to the full execution of the pipeline.
 
 
-The initial run of {{sc}} will take some time as the Conda environments are built. You can pre-build these environments without running the workflow by using the `--create-envs` flag:
+The initial run of {{sc}} will take some time as the Conda environments are built. You can pre-build all of these environments once, without running any workflow, using {{scsetup}}:
 
 ```bash
-scprocess run /path/to/config-my_project.yaml --create-envs
+scprocess setup --create-envs
 ```
 
 By default {{scrun}} will run rule `all` which includes all [core steps](introduction.md#core-pipeline-steps). The [optional steps](introduction.md#extended-functionality) (with the exception of gene set enrichment analysis) can run only after rule `all` is completed and have to be specifically requested.
@@ -158,7 +158,7 @@ The table below details supported rules for both commands and indicates whether 
 <tr><td><code>integration</code></td><td>✗</td></tr>
 <tr><td><code>marker_genes</code></td><td>✗</td></tr>
 <tr><td><code>label_celltypes</code></td><td>✗</td></tr>
-<tr><td><code>zoom</code></td><td>✗</td></tr>
+<tr><td><code>zoom</code></td><td>✓</td></tr>
 <tr><td><code>shiny</code></td><td>✓</td></tr>
 <tr><td><code>train_xgboost</code></td><td>✓</td></tr>
 <tr><td rowspan="5"><code>scprocess join</code></td><td><code>all</code></td><td>✗</td></tr>
@@ -171,23 +171,26 @@ The table below details supported rules for both commands and indicates whether 
 
 </div>
 
-For example, to analyse the zoom named `my_zoom` in a join configuration:
+For example, to analyse only the zoom named `my_zoom` in a project or join configuration:
 
 ```bash
+scprocess run config.yaml -r zoom --zoom my_zoom
 scprocess join config-join.yaml -r zoom --zoom my_zoom
 ```
 
 To build a Shiny app for that completed zoom:
 
 ```bash
+scprocess run config.yaml -r shiny --zoom my_zoom
 scprocess join config-join.yaml -r shiny --zoom my_zoom
 ```
 
 A few things worth noting from this table:
 
-* `run -r zoom` always runs every zoom listed in the project configuration; `--zoom` is not read in this case, even though it's accepted elsewhere for `run`. To single out one zoom's output, use `--zoom` with `-r shiny` or `-r train_xgboost` instead.
-* `join -r zoom` is the opposite: `--zoom <name>` runs just that one zoom, and omitting it runs every zoom listed in the join configuration.
-* `join -r shiny --zoom <name>` builds the app for that one joined zoom; omitting `--zoom` builds it for the parent join rather than for every zoom.
+* `-r zoom` behaves the same for `run` and `join`: omitting `--zoom` (or passing `--zoom all`) runs every zoom listed in the configuration, and `--zoom <name>` runs just that one.
+* `-r shiny --zoom <name>` builds the app for that one zoom, and `--zoom all` builds apps for every zoom. Omitting `--zoom` builds the app for the main project or parent join, not for its zooms.
+* `-r train_xgboost --zoom <name>` trains the classifier defined in that zoom's specification. It trains one classifier at a time, so `--zoom all` is not accepted. Each classifier has its own report; zoom and join reports do not include classifier results.
+* `--zoom` with any other rule is an error.
 * XGBoost classifiers can only be trained on a join's combined output, never on one of its individual zooms — `train_xgboost` has no zoom support for `join`.
 
 

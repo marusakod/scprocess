@@ -78,7 +78,7 @@ chem_stats_paths = {
   lib: f'{af_dir}/{lib_pool_dir}af_{lib}/{af_rna_dir}chemistry_statistics.yaml'
   for lib in LIBS
 }
-RESOURCE_PARAMS = prep_resource_params(config, schema_f, scprocess_dir, LIB_PARAMS, BATCHES,
+RESOURCE_PARAMS = prep_resource_params(config, scprocess_dir, LIB_PARAMS, BATCHES,
                                        RUNS_TO_LIBS, chem_stats_paths)
 
 # scripts
@@ -94,12 +94,17 @@ r_scripts = [
 if config['multiplexing']['demux_type'] == "hto":
   r_scripts.append(code_dir + '/multiplexing.R')
 
-# alevin hto index outputs (optional)
-hto_index_outs = [
-  f'{af_dir}/hto.fa',
-  f'{af_dir}/t2g_hto.tsv',
-  f'{af_dir}/hto_index'
-  ] if config['multiplexing']['demux_type'] == "hto" else []
+# HTO / ADT features of each pool: the HTOs it uses and all ADTs (empty unless demux_type is hto)
+HTO_POOL_REFS = get_hto_pool_references(config, RUNS)
+
+# alevin hto index outputs, one index per pool (optional)
+hto_index_outs = expand(
+  [
+    f'{af_dir}/hto_ref/{{run}}/features.csv',
+    f'{af_dir}/hto_ref/{{run}}/hto.fa',
+    f'{af_dir}/hto_ref/{{run}}/t2g_hto.tsv',
+    f'{af_dir}/hto_ref/{{run}}/hto_index'
+  ], run = RUNS) if config['multiplexing']['demux_type'] == "hto" else []
 
 # alevin hto quantification outputs (optional)
 hto_af_outs = expand(
@@ -111,6 +116,12 @@ hto_af_outs = expand(
     f'{af_dir}/af_{{run}}/hto/af_hto_counts_mat.h5',
     f'{af_dir}/af_{{run}}/hto/knee_plot_data_{{run}}_{DATE_STAMP}.csv.gz'
   ], run = RUNS) if config['multiplexing']['demux_type'] == "hto" else []
+
+# ADT counts, if the feature reference has ADTs (hto_id_regex does not match every row)
+has_adts = any(len(refs['adt_ids']) > 0 for refs in HTO_POOL_REFS.values())
+adt_af_outs = expand(
+  f'{af_dir}/af_{{run}}/hto/af_adt_counts_mat.h5',
+  run = RUNS) if has_adts else []
 
 # seurat demultiplexing outputs (optional)
 hto_sce_fs = expand(
@@ -206,6 +217,7 @@ rule all:
   input:
     hto_index_outs,
     hto_af_outs,
+    adt_af_outs,
     af_mapping_outs,
     expand(
       [
@@ -275,6 +287,7 @@ rule mapping:
   input:
     hto_index_outs,
     hto_af_outs,
+    adt_af_outs,
     af_mapping_outs,
     chem_stats_outs,
     f'{rmd_dir}/{SHORT_TAG}_mapping.Rmd',
@@ -401,8 +414,8 @@ if TRAIN_XGB_PARAMS is not None:
     input:
       f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_xgboost_model.json',
       f'{xgb_dir}/{TRAIN_XGB_PARAMS["xgboost_tag"]}_fulldata_predictions.csv.gz',
-      f'{rmd_dir}/{SHORT_TAG}_train_xgboost.Rmd',
-      f'{docs_dir}/{SHORT_TAG}_train_xgboost.html'
+      f'{rmd_dir}/{SHORT_TAG}_train_{TRAIN_XGB_PARAMS["xgboost_tag"]}.Rmd',
+      f'{docs_dir}/{SHORT_TAG}_train_{TRAIN_XGB_PARAMS["xgboost_tag"]}.html'
 
 # define rules that are needed
 include: "mapping.smk"

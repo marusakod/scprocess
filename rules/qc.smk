@@ -8,11 +8,6 @@ import numpy as np
 
 localrules: make_qc_thresholds_csv, check_qc_quality
 
-# mini wrapper function
-def get_all_batches_str(wildcards):
-  return ','.join(RUNS_TO_BATCHES[wildcards.run])
-
-
 rule make_qc_thresholds_csv:
   # BATCH_PARAMS already resolves metadata, exclusions and custom QC limits.
   # Track those values in params, not whole-file mtimes: changing a knee or
@@ -52,12 +47,13 @@ rule check_demux_ids:
     """
 
 
-rule run_qc_one_run:
+# doublet identification for one run; does not depend on the QC thresholds, so changing them
+# does not rerun it (filter_qc_one_run applies them)
+rule run_doublet_id_one_run:
   input:
     af_gtf_dt_f = config['mapping_af']['gene_info_f'],
     metadata_f  = config['project']['sample_metadata'],
     af_h5_f     = f'{af_dir}/af_{{run}}/{af_rna_dir}af_counts_mat.h5',
-    cuts_f      = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv',
     run_stats_f = f'{amb_dir}/ambient_run_statistics_{FULL_TAG}_{DATE_STAMP}.csv',
     amb_yaml_f  = f'{amb_dir}/ambient_{{run}}/ambient_{{run}}_{DATE_STAMP}_output_paths.yaml',
     demux_check = f'{qc_dir}/demux_ids_check_{FULL_TAG}_{DATE_STAMP}.ok' \
@@ -66,23 +62,17 @@ rule run_qc_one_run:
       if config['multiplexing']['demux_type'] == 'hto' else \
       config['multiplexing']['demux_output'] if config['multiplexing']['demux_type'] == 'custom' else []
   output:
-    qc_f             = temp(f'{qc_dir}/tmp_qc_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'),
-    coldata_f        = temp(f'{qc_dir}/tmp_coldata_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'),
+    coldata_dbl_f    = f'{qc_dir}/coldata_dt_with_doublets_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     rowdata_f        = temp(f'{qc_dir}/tmp_rowdata_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'),
     dbl_f            = f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_outputs_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     dbl_artificial_f = f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_artificial_doublets_{FULL_TAG}_{DATE_STAMP}.csv.gz',
     dbl_summary_f    = f'{dbl_dir}/dbl_{{run}}/scDblFinder_{{run}}_summary_{FULL_TAG}_{DATE_STAMP}.csv.gz'
   params:
-    all_batches_str = get_all_batches_str,
     mito_str        = config['mapping_af']['af_mito_str'],
     ambient_method  = config['ambient']['ambient_method'],
     exclude_mito    = config['qc']['exclude_mito'],
-    hard_min_counts = config['qc']['qc_hard_min_counts'],
-    hard_min_feats  = config['qc']['qc_hard_min_feats'],
-    hard_max_mito   = config['qc']['qc_hard_max_mito'],
     run_var         = RUN_VAR,
     demux_type      = config['multiplexing']['demux_type'],
-    batch_var       = BATCH_VAR,
     dbl_min_feats   = config['qc']['dbl_min_feats'],
     dbl_min_counts  = config['qc']['dbl_min_counts'],
     dbl_dbr_sd      = lambda wildcards: 'NULL' if RUN_PARAMS[wildcards.run]['qc']['dbl_dbr_sd'] is None else RUN_PARAMS[wildcards.run]['qc']['dbl_dbr_sd'],
@@ -90,46 +80,86 @@ rule run_qc_one_run:
   threads: 4
   retries: config['resources']['retries']
   resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_qc_one_run', 'memory', attempt, wildcards.run),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_qc_one_run', 'time', attempt, wildcards.run)
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_doublet_id_one_run', 'memory', attempt, wildcards.run),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'run_doublet_id_one_run', 'time', attempt, wildcards.run)
   benchmark:
-    f'{benchmark_dir}/qc/run_qc_{{run}}_{DATE_STAMP}.benchmark.txt'
+    f'{benchmark_dir}/qc/run_doublet_id_{{run}}_{DATE_STAMP}.benchmark.txt'
   log:
-    f'{logs_dir}/qc/run_qc_one_run_{{run}}_{DATE_STAMP}.log'
+    f'{logs_dir}/qc/run_doublet_id_one_run_{{run}}_{DATE_STAMP}.log'
   conda:
     '../envs/rlibs.yaml'
   shell: """
     exec &>> {log}
 
     Rscript --vanilla -e "source('{scprocess_dir}/scripts/SampleQC.R'); source('{scprocess_dir}/scripts/utils.R'); \
-      main_qc( \
+      main_doublet_id( \
         run_name         = '{wildcards.run}', \
         metadata_f       = '{input.metadata_f}', \
-        cuts_f           = '{input.cuts_f}', \
         amb_yaml_f       = '{input.amb_yaml_f}', \
         run_stats_f      = '{input.run_stats_f}', \
         demux_f          = '{input.demux_f}', \
         gtf_dt_f         = '{input.af_gtf_dt_f}', \
         ambient_method   = '{params.ambient_method}', \
-        all_batches_str  = '{params.all_batches_str}', \
         rowdata_f        = '{output.rowdata_f}', \
-        qc_f             = '{output.qc_f}', \
-        coldata_f        = '{output.coldata_f}', \
+        coldata_dbl_f    = '{output.coldata_dbl_f}', \
         dbl_f            = '{output.dbl_f}', \
         dbl_artificial_f = '{output.dbl_artificial_f}', \
         dbl_summary_f    = '{output.dbl_summary_f}', \
         mito_str         = '{params.mito_str}', \
         exclude_mito     = '{params.exclude_mito}', \
+        run_var          = '{params.run_var}', \
+        demux_type       = '{params.demux_type}', \
+        dbl_min_feats    = {params.dbl_min_feats}, \
+        dbl_min_counts   = {params.dbl_min_counts}, \
+        dbl_dbr_sd       = {params.dbl_dbr_sd}, \
+        dbl_clusters     = {params.dbl_clusters} \
+      )"
+    """
+
+
+# QC filtering for one run: applies the thresholds to the table of cells with doublet calls;
+# does not load the counts
+rule filter_qc_one_run:
+  input:
+    cuts_f        = f'{qc_dir}/qc_thresholds_by_{BATCH_VAR}_{FULL_TAG}_{DATE_STAMP}.csv',
+    coldata_dbl_f = f'{qc_dir}/coldata_dt_with_doublets_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'
+  output:
+    qc_f          = temp(f'{qc_dir}/tmp_qc_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz'),
+    coldata_f     = temp(f'{qc_dir}/tmp_coldata_dt_{{run}}_{FULL_TAG}_{DATE_STAMP}.csv.gz')
+  params:
+    hard_min_counts = config['qc']['qc_hard_min_counts'],
+    hard_min_feats  = config['qc']['qc_hard_min_feats'],
+    hard_max_mito   = config['qc']['qc_hard_max_mito'],
+    run_var         = RUN_VAR,
+    demux_type      = config['multiplexing']['demux_type'],
+    batch_var       = BATCH_VAR
+  threads: 1
+  retries: config['resources']['retries']
+  resources:
+    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'filter_qc_one_run', 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'filter_qc_one_run', 'time', attempt)
+  benchmark:
+    f'{benchmark_dir}/qc/filter_qc_{{run}}_{DATE_STAMP}.benchmark.txt'
+  log:
+    f'{logs_dir}/qc/filter_qc_one_run_{{run}}_{DATE_STAMP}.log'
+  conda:
+    '../envs/rlibs.yaml'
+  shell: """
+    exec &>> {log}
+
+    Rscript --vanilla -e "source('{scprocess_dir}/scripts/SampleQC.R'); source('{scprocess_dir}/scripts/utils.R'); \
+      main_filter_qc( \
+        run_name         = '{wildcards.run}', \
+        cuts_f           = '{input.cuts_f}', \
+        coldata_dbl_f    = '{input.coldata_dbl_f}', \
+        qc_f             = '{output.qc_f}', \
+        coldata_f        = '{output.coldata_f}', \
         hard_min_counts  = {params.hard_min_counts}, \
         hard_min_feats   = {params.hard_min_feats}, \
         hard_max_mito    = {params.hard_max_mito}, \
         run_var          = '{params.run_var}', \
         demux_type       = '{params.demux_type}', \
-        batch_var        = '{params.batch_var}', \
-        dbl_min_feats    = {params.dbl_min_feats},
-        dbl_min_counts   = {params.dbl_min_counts}, \
-        dbl_dbr_sd       = {params.dbl_dbr_sd}, \
-        dbl_clusters     = {params.dbl_clusters} \
+        batch_var        = '{params.batch_var}' \
       )"
     """
 

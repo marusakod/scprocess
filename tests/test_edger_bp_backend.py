@@ -51,7 +51,7 @@ class TestEdgerBpBackend(unittest.TestCase):
       'n_join_marker_genes_calc': 32, 'gb_join_marker_genes_calc': 64,
       'mins_join_marker_genes_calc': 720,
     }}
-    params = prep_resource_params(config, JOIN_SCHEMA, ROOT)
+    params = prep_resource_params(config, ROOT)
     rules = SimpleNamespace(join_marker_genes_prep=object(), join_marker_genes_calc=object())
     for rule, memory, minutes in [('join_marker_genes_prep', 24, 120),
                                   ('join_marker_genes_calc', 64, 720)]:

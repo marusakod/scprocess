@@ -186,7 +186,7 @@ run's calling settings, and unavailable artificial scores must not be invented.
 
 **scprocess** is a Snakemake pipeline for automated processing of single-cell and single-nuclei RNA-seq data from 10x Genomics technology. It orchestrates a series of bioinformatics steps from raw reads through QC, ambient RNA removal, dimensionality reduction, batch correction, and marker gene detection.
 
-Stack: Python 3.12 + R + Snakemake 9.8.1, with conda environments managed per rule.
+Stack: Python 3.12 + R + Snakemake (version pinned in `envs/scprocess_*.yaml`), with conda environments managed per rule.
 
 ## Common Commands
 
@@ -198,13 +198,20 @@ scprocess run <config.yaml>
 scprocess run <config.yaml> -n
 
 # Run a specific pipeline stage
-scprocess run <config.yaml> -r mapping|ambient|qc|hvg|integration|marker_genes|label_celltypes|zoom|shiny
+scprocess run <config.yaml> -r mapping|ambient|demux|qc|hvg|cell_cycle|integration|marker_genes|label_celltypes|train_xgboost|zoom|shiny
+
+# Run all zooms, or only one; --zoom also works with -r shiny
+scprocess run <config.yaml> -r zoom [--zoom <zoom_name>|all]
+scprocess run <config.yaml> -r shiny --zoom <zoom_name>|all
+
+# Train one classifier (never part of all, -r zoom or join all); own report each
+scprocess run <config.yaml> -r train_xgboost [--zoom <zoom_name>]
 
 # Unlock after an interrupted run
 scprocess run <config.yaml> --unlock
 
-# Create conda environments only (no execution)
-scprocess run <config.yaml> --create-envs
+# Create all rule conda environments only (no reference data, no workflow)
+scprocess setup --create-envs
 
 # Build Shiny app from completed pipeline outputs
 scprocess run <config.yaml> -r shiny
@@ -216,7 +223,17 @@ scprocess run <config.yaml> -r shiny -n
 scprocess plotknee <sample> -c <config.yaml>
 
 # Create new project directory scaffold
-scprocess newproj <name> -w <where> [-s] [-c sc|sn|multiplex]
+scprocess newproj <name> -w <where> [-s] [-c sc|sn|multiplex|flex ...]
+
+# Create a join project scaffold, optionally pre-filling projects (-p requires -c)
+scprocess newjoin <name> -w <where> [-c] [-p <project_config.yaml> ...]
+
+# Join several scprocess projects
+scprocess join <join.yaml> [-n] [--unlock] [-r all|label_celltypes|train_xgboost|shiny|zoom]
+
+# Run all joined zooms, or only one; build a joined zoom's Shiny app
+scprocess join <join.yaml> -r zoom [--zoom <zoom_name>|all]
+scprocess join <join.yaml> -r shiny --zoom <zoom_name>
 
 # Build docs site (in resources/mkdocs/)
 mkdocs serve  # local preview
@@ -227,7 +244,7 @@ mkdocs build  # build static site
 
 ### Entry Point
 
-`scprocess` (root-level executable) — a Python CLI dispatcher for `setup`, `newproj`, `run`, and `plotknee` subcommands. It constructs and invokes the appropriate `snakemake` command with the correct profile and flags.
+`scprocess` (root-level executable) — a Python CLI dispatcher for `setup`, `newproj`, `newjoin`, `run`, `plotknee` and `join` subcommands. It constructs and invokes the appropriate `snakemake` command with the correct profile and flags.
 
 ### Workflow Rules (`rules/`)
 
@@ -237,20 +254,23 @@ Each `.smk` file is a self-contained Snakemake rule module. The core orchestrato
 |-----------|---------------|
 | `scprocess.smk` | Core orchestrator; imports all modules |
 | `setup.smk` | Reference genome indexing |
+| `create_envs.smk` | Placeholder rule per conda env, used by `scprocess setup --create-envs`; its env list is checked against rule `conda:` directives by `tests/test_create_envs.py` |
 | `mapping.smk` | Read alignment via simpleaf (alevin-fry) |
 | `ambient.smk` | Ambient RNA removal (CellBender or DecontX) |
-| `qc.smk` | Cell QC, doublet detection (scDblFinder), filtering |
+| `qc.smk` | Cell QC: `run_doublet_id_one_run` (counts, scDblFinder, per-run cell table `coldata_dt_with_doublets_*`) then `filter_qc_one_run` (thresholds; reads only that table); merges |
 | `hvgs.smk` | Highly variable gene detection (chunk-wise VST) |
+| `tricycle.smk` | Cell-cycle scoring (fixed-reference tricycle projection, pooled phase estimation); `-r cell_cycle` |
 | `integration.smk` | Harmony batch correction, PCA/UMAP, clustering |
 | `marker_genes.smk` | Pseudobulk DE with edgeR + GSEA |
 | `label_celltypes.smk` | Cell type annotation (CellTypist or XGBoost); runs as part of `rule all` when configured |
-| `train_xgboost.smk` | Train custom XGBoost classifier from annotated data; per-batch full-data evaluation |
+| `train_xgboost.smk` | Train custom XGBoost classifier from annotated data; full-data evaluation in prediction chunks |
 | `render_htmls.smk` | HTML report generation from R Markdown |
-| `zoom.smk` | Subclustering workflow for cell subsets |
+| `zoom.smk` | Project subclustering workflow for cell subsets; one Snakemake run covers all zooms, or only the zoom passed as `--config zoom_name=` by `scprocess run -r zoom --zoom NAME` |
 | `shiny.smk` | Builds Shiny data, then performs a lightweight app deployment/configuration into `public/shiny_*`; invoked via `-r shiny` |
-| `hto.smk` | Hashtag (multiplexing) demultiplexing; HTO index built with piscem via `simpleaf index` |
+| `hto.smk` | Hashtag (multiplexing) demultiplexing; one piscem index per pool (its HTOs plus all ADTs, k=11) via `mapping.py build_hto_index`, forward-orientation mapping, HTO and ADT count matrices |
 | `flex.smk` | Flex assay mapping (simpleaf multiplex-quant) |
 | `join.smk` | Join multiple scprocess projects for combined analysis (BPCells PCA → Harmony) |
+| `join_zoom.smk` | Joined zoom: selects source tables and HVGs, then includes `join.smk`; run per zoom by `scprocess join -r zoom` |
 | `pb_empties.smk` | Pseudobulk ambient gene detection |
 
 ### Implementation Scripts (`scripts/`)
@@ -259,21 +279,22 @@ Python scripts are invoked by Snakemake rules using the `script:` directive. Key
 
 - `scprocess_utils.py` — Config loading, JSON Schema validation, parameter resolution, setup verification, FASTQ metadata caching. Central to all rule setup.
 - `hvgs.py` — Memory-efficient HVG detection: chunks the expression matrix and applies Seurat VST per chunk.
-- `integration.py` — Scanpy-based integration: Harmony batch correction, optional GPU-accelerated RAPIDS, UMAP, Leiden clustering. Supports pre-computed PCA embeddings via `--precomputed_pca_f` (used by BPCells join path).
-- `label_celltypes.py` — CellTypist and XGBoost-based cell type annotation. The `xgboost_one_batch` subcommand is also reused by `train_xgboost` for full-data evaluation.
-- `train_xgboost.py` — Train XGBoost cell type classifier. Planning, fitting, aggregation, model identity helpers and label specification export live in this single Python file. Training-only imports are local so setup/config checks remain lightweight. Optional label_specs_f/coarse_label_specs_f CSVs control mapping, ordering and colours; their separate specs stage reuses saved predictions. The file starts with planning, then count preparation, fitting, output writing and evaluation. CLI entry functions retain public names; internal helpers use leading underscores. normalize_counts is shared with inference. Rules pass named validated settings rather than config_json. CLI uses subparsers: `prepare` (cell splitting and selection), `train` (model training) and `combine` (merge per-batch predictions with annotations and split labels) and `specs` (display tables and coarse evaluation). Works in scprocess, join, and zoom contexts — in join, h5ad lookup keys are `{project_id}_{batch_var}`.
-- `mapping.py` — Chemistry auto-detection, simpleaf alignment, per-pool mapping. Main entry point is `map_fastqs_to_counts()`, which delegates to: `_resolve_fastq_paths()` (Arvados download or local path resolution), `_resolve_chemistry()` → `_autodetect_chemistry()` or `_validate_chemistry()` (chemistry/orientation detection), and `_write_chemistry_stats()` (saves results to YAML).
+- `integration.py` — Scanpy-based integration: Harmony batch correction, optional GPU-accelerated RAPIDS, UMAP, Leiden clustering. Can start from precomputed PCA embeddings (`precomputed_pca_f`, written by the BPCells PCA rules).
+- `label_celltypes.py` — CellTypist and XGBoost-based cell type annotation. `assign_prediction_chunks` groups batches into chunks of up to `PREDICTION_CHUNK_MAX_CELLS` cells (run as a checkpoint in integration, zoom and join); `celltypist_batches`/`xgboost_batches` predict one chunk with one model load. `xgboost_batches` is also reused by `train_xgboost` for full-data evaluation.
+- `train_xgboost.py` — Train XGBoost cell type classifier. Planning, fitting, aggregation, model identity helpers and label specification export live in this single Python file. Training-only imports are local so setup/config checks remain lightweight. Optional label_specs_f/coarse_label_specs_f CSVs control mapping, ordering and colours; their separate specs stage reuses saved predictions. The file starts with planning, then count preparation, fitting, output writing and evaluation. CLI entry functions retain public names; internal helpers use leading underscores. normalize_counts is shared with inference. Rules pass named validated settings rather than config_json. CLI uses subparsers: `prepare` (cell splitting and selection), `train` (model training), `combine` (merge chunked predictions with annotations and split labels), `specs` (display tables and coarse evaluation) and `depth` (accuracy after thinning cells to fixed depths). Works in scprocess, join, and zoom contexts — in join, h5ad lookup keys are `{project_id}_{batch_var}`.
+- `mapping.py` — Chemistry auto-detection, simpleaf alignment, per-pool mapping. Main entry point is `map_fastqs_to_counts()`, which delegates to: `_resolve_fastq_paths()` (Arvados download or local path resolution), `_resolve_chemistry()` → `_autodetect_chemistry()` or `_validate_chemistry()` (chemistry/orientation detection), and `_write_chemistry_stats()` (saves results to YAML). The `build_hto_index` subcommand builds a pool's HTO/ADT index (`HTO_KMER_LENGTH`, `HTO_MINIMIZER_LENGTH`), and `HTO_EXPECTED_ORI` fixes the HTO/ADT orientation to `fw`.
 
 R scripts are invoked via `script:` directive or called in shell blocks:
 
 - `mapping.R` — Converts alevin-fry output to per-sample h5 files; handles Flex (probe_id) and OCM (overhang) barcode splitting. For flex/OCM, the filtered matrix is passed in-memory via `precomputed_mat` to avoid h5 round-trip issues.
-- `SampleQC.R` — QC metric visualization and filtering.
+- `SampleQC.R` — QC metrics, doublet identification (`main_doublet_id`), filtering (`main_filter_qc`, on the per-run cell table from `main_doublet_id`; no counts) and QC visualization.
 - `marker_genes.R` — Marker report plotting and expression helpers shared with classifier reports.
 - `marker_genes_edger_bp.R` — The single edgeR.bp marker backend for projects, joins and zooms: BPCells pseudobulks, persisted TMM preparation, streamed fitting and compact report expression data.
 - `label_celltypes.R` — R-side cell labeling utilities.
 - `train_xgboost.R` — R plotting functions for the XGBoost training report: precision-recall plots, UMAP facets, gene importance dot plots, metrics tables.
 - `shiny.R` — Builds and deploys the Shiny app. `make_shiny_app_scprocess()` reads scprocess-format inputs (`integrated_dt`, per-batch h5ads, markers, HVGs, fgsea) and writes BPCells-backed app data. `configure_shiny_app_scprocess()` performs lightweight annotation, template, and `shinyconfig.yaml` updates without rebuilding matrices.
-- `join_pca.R` — BPCells disk-backed PCA for join workflow: converts the joint HDF5 counts once to persistent compressed `uint32` native BPCells storage, normalizes lazily (lib size → 1e4 → log1p), queues delayed per-gene centering/scaling, runs threaded `BPCells::svds()`, and writes PC scores to CSV.gz.
+- `bpcells_pca.R` — Shared BPCells streaming PCA (`run_bpcells_pca()`) used by project integration, zoom and join: lazy normalization (lib size → 1e4 → log1p), delayed per-gene centering/scaling with a cap of 10, threaded `BPCells::svds()`, PC scores written to CSV.gz.
+- `join_pca.R` — Join-specific BPCells steps: `write_join_bpcells_matrix()` converts the joint HDF5 counts once to persistent compressed `uint32` native BPCells storage, and `run_join_pca()` runs PCA on it using `bpcells_pca.R`.
 
 ### Configuration System
 
@@ -287,22 +308,32 @@ Both configs are validated against JSON Schemas in `resources/schemas/` via `jso
 - `resources/schemas/setup.schema.json` — setup config
 - `resources/schemas/zoom.schema.json` — zoom (subclustering) config
 - `resources/schemas/join.schema.json` — join config
+- `resources/schemas/join_zoom.schema.json` — joined zoom config
 - `resources/schemas/custom_sample_params.schema.json` — per-sample overrides
 
 ### Execution Profiles
 
-Snakemake profiles in `profiles/` define HPC-specific executor settings (job submission, GPU bindings, resource limits). Profiles: `slurm_default`, `lsf_default`, `slurm_shpc`.
+Snakemake profiles in `profiles/` define HPC-specific executor settings (job submission, GPU bindings, resource limits). Profiles: `slurm_default`, `slurm_shpc`, `lsf_default`, `pbs_default`, `sge_default`, `htcondor_default`. GPU entries are unconditional per-rule requests: integration/doublet classification and CellBender are active, classifier-training entries are commented out because `train_xgboost.use_gpu` defaults to false. Installed profiles are copies and never update automatically. A config-driven design is recorded in `../scprocess-design/gpu_placement_from_config.md`.
 
-Resource allocation for individual rules is predicted by linear models fitted on benchmark data from ~96 projects; parameters are stored in `resources/snakemake/resources_lm_params_2026-07-06.csv`. The prediction formula is `max(floor, intercept + slope × x)` where `x` is a rule-specific predictor (input file size, number of batches, etc.). Five per-sample rules (`save_alevin_to_h5`, `run_cellbender`, `get_barcode_qc_metrics`, `make_clean_h5ads`, `run_qc_one_run`) have separate model parameters for 10x v3 vs v4 chemistry. For auto-detected chemistry, the resolved chemistry is read from `chemistry_statistics.yaml` at resource-evaluation time. The CSV path is centralized via the `LM_PARAMS_FILENAME` constant in `scprocess_utils.py`.
+Resource allocation for individual rules is predicted by linear models fitted on benchmark data from ~96 projects. The fitted coefficients are in `resources/snakemake/resource_models_2026-07-07.yaml` (named by `RESOURCE_MODELS_FILENAME` in `scprocess_utils.py`), organised as rules > rule > memory/time > chemistry group > fields (`model_var`, `rq_intercept`, `rq_slope`). A prediction is `max(floor, intercept + slope × x)` where `x` is the rule-specific predictor (input file size, number of batches, etc.), memory in MB and time in seconds. Floors are decisions, not fits, so they live in the hand-maintained `resource_floors.yaml` (rules > rule > memory/time, in GB and minutes), which a refit must not overwrite. A rule without a model requests exactly its floor. The schemas have no resource defaults: a `gb_`/`mins_` key in the config is always a user override. The files are validated when loaded (`_check_resource_models`): a model has either one `all` entry or exactly the groups `3v3`, `3v4`, `flex` and `other`, every model needs a floor, and every floor is a positive number. `tests/test_resource_coverage.py` checks that every `get_resources()` call has a model or floor, that no model or floor is stale, and that rules do not read `config['resources']` directly (call `get_resources()` instead). The chemistry groups come from `_get_chemistry_group`: `3v3`, `3v4`, `flex` (flexv1, flexv2) and `other` (every other chemistry, using the 3v3 values). The `flex` models are provisional: twice the 3v3 intercept and slope (Will, 2026-11-12), until fitted on Flex data; floors do not depend on chemistry. Zoom rules whose project rule has a fitted model (`zoom_make_tmp_csr_matrix`, `zoom_run_integration`, ...) have their own explicit `zoom_*` entries that repeat the project model and floor. Chemistry-dependent models exist for `save_alevin_to_h5`, `run_cellbender`, `get_barcode_qc_metrics`, `make_clean_h5ads` and `run_doublet_id_one_run`, so these need a run. For auto-detected chemistry, the resolved chemistry is read from `chemistry_statistics.yaml` at resource-evaluation time.
+
+### Built-in classifiers
+
+Built-in XGBoost classifiers are defined by manifests in `resources/xgboost/*.json` (name, model ID, archive URL and checksums, file checksums). `scprocess setup` installs every built-in model into `$SCPROCESS_DATA_DIR/xgboost/{name}/` and tracks the manifest, so changing it reinstalls on the next setup. Custom models come from the setup config's `xgboost:` entries via `setup.py add_xgboost_classifier`, which copies `{ref_tag}_*` files under the installed name. `save_available_xgboost_csv` rebuilds `xgboost_models.csv`, the registry used by labelling. Will decided on 2026-11-05 that `human_cns` moves from `human_cns-v1` to `human_cns-v1.1` (depth-augmented weights, v1 display metadata with Ependymal / ciliated as its own coarse group), replacing v1 without keeping it installable; publication needs both maintainers' approval and a new Zenodo version before the manifest changes.
 
 ### Conda Environments
 
-Each rule specifies a `conda:` environment file from `envs/`. Key environments:
-- `envs/scprocess_local.yaml` — main environment (Python, scanpy, polars, h5py, etc.)
+Each rule specifies a `conda:` environment file from `envs/`; `rules/create_envs.smk` lists every rule environment:
+- `envs/scprocess_local.yaml` — main environment (Python, Snakemake, scanpy, polars, etc.; no h5py, so rules that read H5AD headers use `label_celltypes.yaml`); `scprocess_{slurm,lsf,pbs,sge}.yaml` are the same environment plus the scheduler's Snakemake executor plugin
 - `envs/alevin_fry.yaml` — alignment
 - `envs/rlibs.yaml` — R libraries (edgeR, fgsea, ggplot2)
+- `envs/rlibs_bpcells.yaml` — R libraries plus BPCells (edgeR.bp markers, join pseudobulks)
+- `envs/hvgs.yaml`, `envs/ambientr.yaml`, `envs/py_env.yaml` — HVG, ambient and general Python steps
 - `envs/integration.yaml` — GPU-compatible scanpy/rapids stack
-- `envs/bpcells_pca.yaml` — BPCells + irlba for disk-backed PCA (join workflow)
+- `envs/bpcells_pca.yaml` — BPCells for disk-backed PCA (integration, zoom and join)
+- `envs/label_celltypes.yaml` — CellTypist and XGBoost prediction, and CPU XGBoost training
+- `envs/train_xgboost_gpu.yaml` — GPU XGBoost training (`use_gpu: true`)
+- `envs/tricycle.yaml` — cell-cycle scoring
 - `envs/shiny.yaml` — Shiny app build environment (BPCells, zellkonverter, shiny, shinydashboard, ComplexHeatmap, Seurat, etc.)
 
 ### Shiny App (`resources/shiny/`)
@@ -311,7 +342,7 @@ Template files for the deployed Shiny app:
 - `app.R`, `constants.R` — entry point and shared constants
 - `utils/` — data I/O, colour palettes, plot helpers
 - `modules/` — four tab modules: `explore_genes.R`, `explore_clusters.R`, `explore_genesets.R`, `explore_prevalence.R`
-- `extdata/genesets/` — must be populated by the user with `transcription_factors_{human,mouse}.txt.gz` and `genes_go_pathways_{human,mouse}.txt.gz` (copied from the scjoin package)
+- `extdata/genesets/` — tracked `transcription_factors_{human,mouse}.txt.gz` and `genes_go_pathways_{human,mouse}.txt.gz` used by the gene-set tab
 
 The deployed app reads `shinyconfig.yaml` (written by `scripts/shiny.R`) to locate data files. Species is inferred from `ref_txome` (GRCh/hg → human; GRCm/mm → mouse).
 
@@ -320,9 +351,11 @@ The deployed app reads `shinyconfig.yaml` (written by `scripts/shiny.R`) to loca
 ```
 Raw FASTQ → simpleaf alignment → SCE (per sample)
 → Ambient RNA removal → Cell calling → Doublet detection
-→ QC filtering → HVG detection (VST)
-→ Harmony integration → PCA → UMAP → Leiden clustering
+→ QC filtering → HVG detection (VST) → [optional] cell-cycle scoring (tricycle)
+→ PCA → Harmony integration → UMAP → Leiden clustering
 → Marker genes (edgeR + GSEA) → HTML reports
+→ [optional] label_celltypes (CellTypist/XGBoost)
+→ [scprocess run -r zoom] → subclustered integration/markers per zoom
 → [scprocess run -r shiny] → BPCells matrix + shinyconfig.yaml → public/shiny/
 ```
 
@@ -385,7 +418,7 @@ For Flex and OCM, pool-level mapping output is split into per-sample h5 files at
 Subdirectories under `af_{sample_or_pool}/` depend on the assay type:
 
 - **Simple (no multiplexing)**: `af_{sample}/af_quant/`, `af_{sample}/af_counts_mat.h5` — no subdirectory
-- **HTO**: `af_{pool}/rna/af_quant/` and `af_{pool}/hto/af_quant/` — `rna/` subdirectory only exists to separate RNA from HTO outputs
+- **HTO**: `af_{pool}/rna/af_quant/` and `af_{pool}/hto/af_quant/` — `rna/` subdirectory only exists to separate RNA from HTO outputs. The pool's feature index is in `hto_ref/{pool}/` (`features.csv` with each feature's type `hto` or `adt`, `hto.fa`, `t2g_hto.tsv`, `hto_index/`). HTO counts are in `af_hto_counts_mat.h5` and, if `multiplexing.hto_id_regex` leaves ADT rows, ADT counts in `af_adt_counts_mat.h5`; HTO and ADT mapping is always `fw`, whatever the RNA orientation.
 - **Flex**: `pools/af_{pool}/flex/af_quant/` — under `pools/` prefix with `flex/` subdirectory
 
 Controlled by `af_rna_dir` in `scprocess.smk`: `'flex/'` for flex, `'rna/'` for HTO, `''` otherwise.
@@ -428,7 +461,13 @@ must access the validated settings explicitly. A missing required value is a
 validation error, not permission to choose another default locally.
 
 Optional-feature checks may represent an inactive argument as absent/NULL;
-these must not choose an alternative active-analysis value. Conditional defaults
+these must not choose an alternative active-analysis value. Empty fallbacks
+such as `.get('your_name', '')`, `.get('label_specs_f') or ''` or `.get(key, [])`
+are permitted (user clarification, 2026-11-05), after checking that the empty
+value makes sense: the setting must be optional, and downstream code must treat
+the empty value as "not provided" rather than as an analysis setting. A literal
+or derived non-empty value, such as `.get('min_cells_expressed', 10)` or
+`.get('batch_var', BATCH_VAR)`, remains a prohibited fallback. Conditional defaults
 must remain conditional, with values defined in the schema. Generic lookups for
 optional sections and computed file paths are not parameter default definitions.
 Review existing local fallback defaults as findings in their own batches rather
@@ -546,12 +585,12 @@ cell-cycle introduction and unrelated edits during review.
 - **Chunked processing**: HVG detection and some QC steps process data in chunks to handle datasets with millions of cells.
 - **Batch iteration**: Rules in `scprocess.smk` expand over `batches` defined in the project config, enabling parallel sample processing.
 - **HTML reports**: Rendered via `render_htmls.smk` from R Markdown templates in `resources/rmd_templates/`; generated at QC, integration, and marker gene stages.
-- **BPCells PCA for join**: The join workflow supports disk-backed PCA via BPCells (`int_pca_method: bpcells`, default) to handle datasets exceeding GPU memory. A separate rule converts the joint HDF5 count matrix to persistent compressed `uint32` native BPCells storage, which is copied to local `/tmp` for fast I/O. Per-gene centering/scaling stay lazy through BPCells operator transformations, and threaded `BPCells::svds()` performs the iterative SVD. The resulting PC embeddings are passed to Harmony on GPU.
+- **BPCells PCA**: Project integration and zoom use the shared streaming PCA in `bpcells_pca.R`. The join workflow uses it for disk-backed PCA (`int_pca_method: bpcells`, default) to handle datasets exceeding GPU memory. For joins, a separate rule converts the joint HDF5 count matrix to persistent compressed `uint32` native BPCells storage, which is copied to local `/tmp` for fast I/O. Per-gene centering/scaling stay lazy through BPCells operator transformations, and threaded `BPCells::svds()` performs the iterative SVD. The resulting PC embeddings are passed to Harmony on GPU.
 - **Join rule separation**: `join_build_matrix` (expensive, loads h5ads) is separate from `join_build_coldata` (lightweight, reads barcodes from HDF5). This means changing `metadata_vars` only reruns coldata + render, not the full matrix assembly. PCA reads library sizes directly from the matrix via `BPCells::colSums()`, independent of coldata.
 - **label_celltypes in rule all**: When a `label_celltypes` block is present in the config, its outputs are included in `rule all` automatically. The `save_cluster_names_file: true` option generates a `cluster_names_for_shiny_*.csv` at the `marker_genes:mkr_sel_res` resolution.
-- **QC checkpoint for label_celltypes**: `get_qc_sample_statistics` is a Snakemake `checkpoint` (not a regular rule). The `merge_labels` rule uses an input function (`_get_good_batch_labels`) that reads the checkpoint output to discover which batches passed QC. This allows label_celltypes to run in a single `scprocess run` invocation without requiring QC to have completed before DAG construction.
+- **Checkpoints for label_celltypes**: `get_qc_sample_statistics` and `assign_prediction_chunks` are Snakemake checkpoints. `_get_labelling_chunks()` in `label_celltypes.smk` reads both outputs to find the QC-passing batches and group them into prediction chunks, which `run_*` rules predict and `merge_labels` combines. This allows label_celltypes to run in a single `scprocess run` invocation without requiring QC to have completed before DAG construction. Zooms and joins have their own chunk checkpoints (`zoom_assign_prediction_chunks`, `join_assign_prediction_chunks`).
 - **FASTQ metadata caching**: `_get_fastqs()` writes per-library YAML cache files (`fastq_metadata_{lib}.yaml`) to the mapping output directory after resolving FASTQ files (from filesystem or Arvados). Subsequent runs load from cache, allowing FASTQ files to be deleted after mapping without breaking downstream rules. The `_check_fastq_dir_or_cache()` helper tolerates a missing `fastq_dir` when cached metadata exists.
 - **R environment isolation**: `_clean_conda_env()` in the CLI sets `R_LIBS_SITE=""`, `R_LIBS_USER=""`, `BASILISK_USE_SYSTEM_DIR=0`, and `BASILISK_EXTERNAL_DIR` to prevent conda R from loading system packages and to store basilisk Python envs alongside Snakemake conda envs. R scripts that use `zellkonverter` via parallel workers (e.g. `marker_genes.R`) pre-initialize the basilisk env before `bplapply` to avoid race conditions.
 - **Join label reuse**: The join workflow checks whether source projects already have label_celltypes outputs for the same labeller/model. If they do, naive predictions are extracted from the source labels instead of re-running celltypist/XGBoost — only projects without existing labels trigger fresh runs.
 - **Shiny as a rule**: Shiny is invoked via `scprocess run -r shiny` or `scprocess join -r shiny` (not a separate subcommand). `shiny.smk` separates expensive `build_*_shiny_data` rules from lightweight `configure_*_shiny_app` rules; the CLI targets configuration, which depends on data generation only when analytical inputs are stale.
-- **train_xgboost across contexts**: `train_xgboost` runs in three contexts (scprocess, join, zoom), each with different h5ad key construction. The preparation rules pass explicit is_join context: false for project/project zoom and true for join/joined zoom. Do not infer this from batch_var. Project H5AD keys match directly; joined keys are project-qualified, preserving already-qualified integration values. All shell blocks must use the `train` subcommand (`python3 scripts/train_xgboost.py train ...`). Full-data evaluation reuses `label_celltypes.py xgboost_one_batch` for per-batch prediction, with `combine` merging results and assigning train/validation/holdout/unlabeled split labels.
+- **train_xgboost across contexts**: `train_xgboost` runs in three contexts (scprocess, join, zoom), each with different h5ad key construction. It only runs when requested with `-r train_xgboost` (project or join) or `-r train_xgboost --zoom NAME` (one project zoom; no `all`), never as part of `all`, `-r zoom` or join `all`. Every classifier has its own standalone report rendered from `train_xgboost.Rmd.template` (`render_html_train_xgboost`, `render_html_zoom_train_xgboost`, `join_render_html_train_xgboost`); project, zoom and join reports must not depend on training outputs. All three contexts run full-data prediction and `combine` before `specs`, and a `depth` evaluation (`*_train_xgboost_depth_evaluation`) feeding the report. The preparation rules pass explicit is_join context: false for project/project zoom and true for join/joined zoom. Do not infer this from batch_var. Project H5AD keys match directly; joined keys are project-qualified, preserving already-qualified integration values. All shell blocks must use the `train` subcommand (`python3 scripts/train_xgboost.py train ...`). Full-data evaluation reuses `label_celltypes.py xgboost_batches` for chunked prediction, with `combine` merging results and assigning train/validation/holdout/unlabeled split labels.

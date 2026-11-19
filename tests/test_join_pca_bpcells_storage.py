@@ -2,6 +2,8 @@ import json
 import unittest
 from pathlib import Path
 
+import yaml
+
 
 ROOT = Path(__file__).parents[1]
 
@@ -43,11 +45,13 @@ class TestJoinPcaBpcellsStorage(unittest.TestCase):
     self.assertIn("pc_scores <- sweep(cell_vectors", self.script)
     self.assertIn("n_threads     =  {threads}", self.rules)
 
-  def test_schema_has_conversion_resources_and_longer_pca_default(self):
+  def test_schema_has_conversion_resources_and_floors_have_longer_pca_time(self):
     resources = self.schema["properties"]["resources"]["properties"]
     self.assertIn("gb_join_build_bpcells_matrix", resources)
     self.assertIn("mins_join_build_bpcells_matrix", resources)
-    self.assertEqual(resources["mins_join_pca"]["default"], 180)
+    floors = yaml.safe_load(
+      (ROOT / "resources/snakemake/resource_floors.yaml").read_text())["rules"]
+    self.assertEqual(floors["join_pca"]["time"], 180)
 
 
 if __name__ == "__main__":

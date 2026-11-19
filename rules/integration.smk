@@ -4,7 +4,7 @@ def get_run_for_one_batch(batch, RUNS_TO_BATCHES):
   sel_run   = [ run for run, run_batches in RUNS_TO_BATCHES.items() if batch in run_batches ]
   return sel_run
 
-localrules: make_clean_h5ad_paths_yaml
+localrules: make_clean_h5ad_paths_yaml, assign_prediction_chunks
 
 INT_PCA_METHOD                   = config['integration']['int_pca_method']
 PCA_WITH_DOUBLETS_F              = f'{int_dir}/preliminary_pca_{FULL_TAG}_{DATE_STAMP}.csv.gz'
@@ -389,6 +389,25 @@ rule make_clean_h5ad_paths_yaml:
       # write to yaml
       with open(output.h5ads_yaml_f, 'w') as f:
         yaml.dump(fs_dict, f, default_flow_style=False)
+
+
+# Group batches into prediction chunks by cell count; labelling and classifier
+# evaluation read this table once the clean H5ADs exist.
+checkpoint assign_prediction_chunks:
+  input:
+    h5ads_yaml_f = f'{int_dir}/h5ads_clean_paths_{FULL_TAG}_{DATE_STAMP}.yaml'
+  output:
+    chunks_f     = f'{int_dir}/prediction_chunks_{FULL_TAG}_{DATE_STAMP}.csv'
+  log:
+    f'{logs_dir}/integration/assign_prediction_chunks_{DATE_STAMP}.log'
+  conda:
+    '../envs/label_celltypes.yaml'
+  shell: """
+    exec &>> {log}
+    python3 {scprocess_dir}/scripts/label_celltypes.py assign_prediction_chunks \
+      --h5ads_yaml_f {input.h5ads_yaml_f} \
+      --chunks_f     {output.chunks_f}
+    """
 
 
 rule convert_h5ad_to_sce: 

@@ -21,12 +21,16 @@ htcondor-jobdir: .snakemake/htcondor
 # scheduler-specific plugins, so sites may need to add this through local
 # HTCondor submit transforms, a patched submit template, or wrapper policy.
 #
+# Integration and doublet classification need a GPU only when
+# integration.int_use_gpu is true (the default), CellBender always, and
+# classifier training only when train_xgboost.use_gpu is true (off by default).
 # GPU candidate rules:
 #   run_integration
+#   classify_additional_doublets
 #   zoom_run_integration
 #   join_integration
 #   run_cellbender
 #   train_xgboost_train
-#   zoom_train_xgboost
+#   zoom_train_xgboost_train
 #   join_train_xgboost_train
 

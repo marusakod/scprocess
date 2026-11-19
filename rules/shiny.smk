@@ -36,7 +36,7 @@ if _is_join:
     JOIN_ZOOM_PARAMS = get_join_zoom_parameters(parent_config, config, zoom_spec)
   else:
     config = check_join_config(config, join_schema_f, scdata_dir)
-  RESOURCE_PARAMS = prep_resource_params(config, join_schema_f, scprocess_dir)
+  RESOURCE_PARAMS = prep_resource_params(config, scprocess_dir)
 
   JOIN_NAME  = config['join']['name']
   PROJ_DIR   = pathlib.Path(config['join']['proj_dir'])
@@ -67,7 +67,7 @@ if _is_join:
 else:
   # --- validate and unpack normal project config ---
   config = check_config(config, schema_f, scdata_dir, scprocess_dir)
-  RESOURCE_PARAMS = prep_resource_params(config, schema_f, scprocess_dir)
+  RESOURCE_PARAMS = prep_resource_params(config, scprocess_dir)
 
   PROJ_DIR   = config['project']['proj_dir']
   FULL_TAG   = config['project']['full_tag']
@@ -156,8 +156,16 @@ def _zoom_metadata_vars_ls(zoom_name):
   return ZOOM_PARAMS[zoom_name].get('shiny', {}).get('metadata_vars', _metadata_vars_ls)
 
 
-def _main_shiny_data_resource(input, param, attempt):
-  return get_resources(RESOURCE_PARAMS, rules, input, 'build_shiny_data', param, attempt)
+def _shiny_data_resource(rule, old_rule, input, param, attempt):
+  # Retain existing config keys after the data/configure rule split: user values are still
+  # named after the old rule, e.g. gb_build_zoom_shiny_app -> gb_build_zoom_shiny_data.
+  resource_params = dict(RESOURCE_PARAMS)
+  resource_params['user_vals'] = dict(RESOURCE_PARAMS['user_vals'])
+  for prefix in ('gb', 'mins'):
+    old_key = f'{prefix}_{old_rule}'
+    if old_key in resource_params['user_vals']:
+      resource_params['user_vals'][f'{prefix}_{rule}'] = resource_params['user_vals'][old_key]
+  return get_resources(resource_params, rules, input, rule, param, attempt)
 
 # ---- aggregate rule: build all zoom shiny apps ----------------------------
 rule build_all_zoom_shiny_apps:
@@ -190,8 +198,8 @@ rule build_shiny_data:
     fgsea_go_mf_f     = lambda wildcards, input: getattr(input, 'fgsea_go_mf_f', ''),
   threads: 4
   resources:
-    mem_mb  = lambda wildcards, attempt, input: _main_shiny_data_resource(input, 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: _main_shiny_data_resource(input, 'time', attempt)
+    mem_mb  = lambda wildcards, attempt, input: _shiny_data_resource('build_shiny_data', 'build_shiny_app', input, 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: _shiny_data_resource('build_shiny_data', 'build_shiny_app', input, 'time', attempt)
   log:   f'{logs_dir}/shiny/build_shiny_data_{_main_app_tag}_{DATE_STAMP}.log'
   conda: '../envs/shiny.yaml'
   shell: """
@@ -320,8 +328,8 @@ rule build_zoom_shiny_data:
     fgsea_go_mf_f    = lambda wildcards, input: getattr(input, 'fgsea_go_mf_f', ''),
   threads: 4
   resources:
-    mem_mb  = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_zoom_shiny_app', 'memory', attempt),
-    runtime = lambda wildcards, attempt, input: get_resources(RESOURCE_PARAMS, rules, input, 'build_zoom_shiny_app', 'time', attempt)
+    mem_mb  = lambda wildcards, attempt, input: _shiny_data_resource('build_zoom_shiny_data', 'build_zoom_shiny_app', input, 'memory', attempt),
+    runtime = lambda wildcards, attempt, input: _shiny_data_resource('build_zoom_shiny_data', 'build_zoom_shiny_app', input, 'time', attempt)
   log:   f'{logs_dir}/shiny/build_zoom_shiny_data_{{zoom_name}}_{DATE_STAMP}.log'
   conda: '../envs/shiny.yaml'
   shell: """

@@ -45,9 +45,14 @@ get_one_hto_sce <- function(sel_pool, sample_stats_f, amb_yaml_f, hto_mat_f, tra
   yaml_data       = yaml::read_yaml(amb_yaml_f)
   bcs_f = yaml_data$bcs_f
 
-  # get file for barcode translation
-  bc_dict = trans_f %>% fread(header = FALSE) %>%
-    set_colnames(c("bc_hto", "bc_rna"))
+  # get file for barcode translation; 'none' means HTO and RNA barcodes are identical
+  if (trans_f == 'none') {
+    hto_bcs = colnames(.get_h5_mx(hto_mat_f, sel_s = ''))
+    bc_dict = data.table(bc_hto = hto_bcs, bc_rna = hto_bcs)
+  } else {
+    bc_dict = trans_f %>% fread(header = FALSE) %>%
+      set_colnames(c("bc_hto", "bc_rna"))
+  }
 
   # get all barcodes called as cells
   cell_bcs = bcs_f %>% fread(header = FALSE) %>%
@@ -68,23 +73,17 @@ get_one_hto_sce <- function(sel_pool, sample_stats_f, amb_yaml_f, hto_mat_f, tra
   hto_counts = hto_counts[, keep_bcs]
   colnames(hto_counts) = paste(sel_pool, colnames(hto_counts), sep = ':')
 
-  # filter to expected HTOs for this pool
+  # the pool's index holds only the HTOs it uses, so the matrix rows should be exactly those
   meta_dt       = fread(sample_metadata_f)
   expected_htos = unique(meta_dt[pool_id == sel_pool, hto_id])
-  all_htos      = rownames(hto_counts)
-  unexpected    = setdiff(all_htos, expected_htos)
-
-  if (length(unexpected) > 0) {
-    low_signal = unexpected[apply(hto_counts[unexpected, , drop = FALSE], 1, median) < 1]
-    if (length(low_signal) > 0) {
-      message("  removing unexpected low-signal HTOs: ", paste(low_signal, collapse = ", "))
-      hto_counts = hto_counts[setdiff(all_htos, low_signal), , drop = FALSE]
-    }
+  if (!setequal(rownames(hto_counts), expected_htos)) {
+    stop("HTO counts for pool ", sel_pool, " have rows (",
+      paste(rownames(hto_counts), collapse = ", "), ") that differ from the hto_id values of the pool (",
+      paste(expected_htos, collapse = ", "), "); rerun the HTO mapping")
   }
 
   # check expected HTOs have sufficient signal
-  expected_present = intersect(expected_htos, rownames(hto_counts))
-  low_signal_expected = expected_present[apply(hto_counts[expected_present, , drop = FALSE], 1, median) < 1]
+  low_signal_expected = expected_htos[apply(hto_counts[expected_htos, , drop = FALSE], 1, median) < 1]
   if (length(low_signal_expected) > 0) {
     stop("expected HTOs for pool ", sel_pool, " have very low read counts: ",
       paste(low_signal_expected, collapse = ", "))
@@ -143,25 +142,38 @@ get_hto_dt <- function(pool_sce) {
   return(pool_all)
 }
 
-hto_ridges <- function(sel_sample, proj_meta, hto_dt_ls) {
+hto_ridges <- function(sel_sample, proj_meta, hto_dt_ls, bw = 0.05) {
   # get the right pool dt
   smpl_meta = proj_meta %>%
     .[ sample_id == sel_sample ]
   pool = smpl_meta$pool_id %>% unique()
   hto_id_smpl = smpl_meta$hto_id %>% unique()
 
-  # get all htos in pool
+  # get the htos used in this pool, and all htos used anywhere in the project
   pool_htos = proj_meta %>%
     .[pool_id == pool, hto_id]
   pool_dt = hto_dt_ls[[pool]] %>%
-    .[guess == hto_id_smpl] 
+    .[guess == hto_id_smpl & hto_id %in% pool_htos]
 
-  cols  = MetBrewer::met.brewer( name = 'Renoir', n = length(pool_htos),
-    type = 'discrete' ) %>% setNames(sort(pool_htos))
-  pool_dt$hto_id = factor(pool_dt$hto_id, levels = names(cols))
+  # same rows and colours on every plot: all project htos, ordered by name then length
+  # (e.g. Hashtag-2 before Hashtag-10); htos not used in this pool get an empty row
+  all_htos = unique(proj_meta$hto_id)
+  all_htos = all_htos[order(nchar(all_htos), all_htos)]
+  cols  = MetBrewer::met.brewer( name = 'Renoir', n = length(all_htos),
+    type = 'discrete' ) %>% setNames(all_htos)
+  pool_dt$hto_id = factor(pool_dt$hto_id, levels = all_htos)
 
+  # ridge height is the density scaled to its maximum (ndensity), so every ridge has the same
+  # peak height and the ridges compare shapes; the default scales each ridge to have area 1.
+  # scale = 0.9 makes each peak 90% of the spacing between ridges, leaving some white space.
+  # bw is the fixed smoothing bandwidth in normalized-count units, the same for every ridge;
+  # smaller values are more jagged, larger values are smoother
   g = ggplot(pool_dt, aes(x = norm_count, y = hto_id %>% fct_rev, fill = hto_id)) +
-    geom_density_ridges(scale = 1, alpha = 0.8) +
+    geom_density_ridges(
+      aes(height = after_stat(ndensity)), stat = "density", scale = 0.9, bw = bw,
+      alpha = 0.8
+    ) +
+    scale_y_discrete(drop = FALSE) +
     theme_minimal() +
     labs(
       title = paste(sel_sample, hto_id_smpl, sep = ', '),

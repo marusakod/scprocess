@@ -178,24 +178,3 @@ def get_zoom_conditional_fgsea_files(ref_txome, zoom_dir, FULL_TAG, DATE_STAMP, 
     }
   else:
     return {}
-
-
-def get_zoom_conditional_xgboost_files(zoom_params, zoom_dir, zoom_name, code_dir):
-  if 'train_xgboost' in zoom_params:
-    ref_tag = zoom_params['train_xgboost']['xgboost_tag']
-    files = {
-      'xgb_preds_f':   f'{zoom_dir}/{zoom_name}/train_xgboost/{ref_tag}_predictions.csv.gz',
-      'xgb_imp_f':     f'{zoom_dir}/{zoom_name}/train_xgboost/{ref_tag}_gene_importance.csv',
-      'xgb_model_card_f': f'{zoom_dir}/{zoom_name}/train_xgboost/{ref_tag}_model_card.json',
-      'xgb_pb_f':      f'{zoom_dir}/{zoom_name}/train_xgboost/{ref_tag}_pseudobulk.h5ad',
-      'xgb_r_train_f': f'{code_dir}/train_xgboost.R',
-      'xgb_label_specs_f': f'{zoom_dir}/{zoom_name}/train_xgboost/{ref_tag}_label_specs.csv',
-      'xgb_coarse_label_specs_f': f'{zoom_dir}/{zoom_name}/train_xgboost/{ref_tag}_coarse_label_specs.csv',
-    }
-    # Track optional full-data calls when the embedded report can read them.
-    full_predictions_f = f'{zoom_dir}/{zoom_name}/train_xgboost/{ref_tag}_fulldata_predictions.csv.gz'
-    if pathlib.Path(full_predictions_f).is_file():
-      files['xgb_full_predictions_f'] = full_predictions_f
-    return files
-  else:
-    return {}

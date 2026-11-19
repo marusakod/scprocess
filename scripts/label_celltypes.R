@@ -9,7 +9,8 @@ suppressPackageStartupMessages({
 })
 
 
-plot_umap_labels <- function(umap_dt, clust_dt, name, label_order = NULL, label_colours = NULL) {
+plot_umap_labels <- function(umap_dt, clust_dt, name, label_order = NULL, label_colours = NULL,
+  label_clusters = FALSE) {
   # join umap and clusters
   assert_that(
     all(c('UMAP1', 'UMAP2') %in% names(umap_dt)),
@@ -57,6 +58,13 @@ plot_umap_labels <- function(umap_dt, clust_dt, name, label_order = NULL, label_
       axis.ticks = element_blank(), axis.text = element_blank() ) +
     labs( colour = name )
 
+  # Print each cluster's name at its median position, so that clusters sharing
+  # a repeated colour can still be told apart
+  if (label_clusters) {
+    centres_dt = plot_dt[, .(UMAP1 = median(UMAP1), UMAP2 = median(UMAP2)), by = cluster]
+    g = g + geom_text(data = centres_dt, aes(label = cluster), colour = 'black', size = 2.5)
+  }
+
   return(g)
 }
 
@@ -82,3 +90,24 @@ calc_labels_table <- function(guesses_dt, label_order = NULL) {
   return(ns_dt)
 }
 
+
+get_label_views <- function(guesses_dt, style) {
+  views = list(Labels = list(
+    labels_dt = guesses_dt[, .(cell_id, predicted_label_naive, predicted_label_agg)],
+    order = style$order, colours = style$colours))
+  if (all(c('coarse_predicted_label_naive', 'coarse_predicted_label_agg') %in% names(guesses_dt))) {
+    views[['Grouped labels']] = list(
+      labels_dt = guesses_dt[, .(cell_id, predicted_label_naive = coarse_predicted_label_naive,
+        predicted_label_agg = coarse_predicted_label_agg)],
+      order = style$coarse_order, colours = style$coarse_colours)
+  }
+  return(views)
+}
+
+cat_label_views_heading <- function(title, views, level) {
+  cat(strrep('#', level), ' ', title, if (length(views) > 1) ' {.tabset}', '\n\n', sep = '')
+}
+
+cat_label_view_tab <- function(view_name, views, level) {
+  if (length(views) > 1) cat(strrep('#', level + 1), ' ', view_name, '\n\n', sep = '')
+}

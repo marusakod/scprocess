@@ -9,6 +9,10 @@ This guide describes command-line options and YAML settings for setup, individua
 **Parameters**:
 
 * `-n`/`--dry-run` (optional): list the setup steps without running them.
+* `--create-envs` (optional): only create the Conda environments used by {{scrun}} and
+  {{scjoin}}, without downloading or building reference data. This reads `scprocess_setup.yaml`
+  for the cluster profile but does not need `--rangerurl`. With `-n`, list the environments
+  without creating them.
 * `-E`/`--extraargs` (optional): quoted Snakemake arguments, for example `-E="--cores 8"`.
 * `-c`/`--rangerurl`:  download link for Cell Ranger (v9.0.0 or higher) available on the [10x Genomics CellRanger download & installation page](https://www.10xgenomics.com/support/software/cell-ranger/downloads/previous-versions); required when Cell Ranger resources have not yet been installed.
 
@@ -105,7 +109,7 @@ xgboost:
     xgboost_tag: xgboost_my_classifier
 ```
 
-For installation from `src_dir`, `xgboost_tag` is the full filename prefix of the trained model; `name` is the identifier used after installation. Alternatively, supply `config: /path/to/config.yaml` (and an optional `name`) to locate the model from its training configuration. Optional `*_label_specs.csv` and `*_coarse_label_specs.csv` are copied with the weights.
+For installation from `src_dir`, `xgboost_tag` is the full filename prefix of the trained model; `name` is the identifier used after installation. Alternatively, supply `config: /path/to/config.yaml` (and an optional `name`) to locate the model from its training configuration. Optional `*_label_specs.csv` and `*_coarse_label_specs.csv` are copied with the weights; the labelling and zoom reports use them for label order and colours.
 
 ## {{scnew}}
 
@@ -156,7 +160,6 @@ scprocess newjoin <name> [-w <where>] [-p <config>...]
 
 * `configfile` (positional): path to a configuration YAML file.
 * `-n`/`--dry-run` (optional): list the analysis steps without executing them. Helpful for checking input files and parameters.
-* `--create-envs` (optional): only create the conda environments needed for the workflow, without running any rules.
 * `-E`/`--extraargs` (optional): list of additional arguments to pass to `Snakemake`. Refer to [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/executing/cli.html) for a detailed explanation of available command-line options.
 * `-r`/`--rule` (optional): Specifies which rule {{sc}} should run. The options are:
     + `all`: default; includes all [Core pipeline steps](introduction.md#core-pipeline-steps) plus `label_celltypes` (if configured).
@@ -172,7 +175,8 @@ scprocess newjoin <name> [-w <where>] [-p <config>...]
     + `train_xgboost`: train a custom `XGBoost` classifier from annotated data.
     + `zoom`: subclustering.
     + `shiny`: build an interactive Shiny app from pipeline outputs.
-* `--zoom` (optional): only used with `-r shiny`. Build the Shiny app for a zoom (subclustering) output. Pass a zoom name (e.g. `--zoom immune_cells`) or `all` to build apps for every zoom defined in the config.
+* `--zoom` (optional): with `-r zoom`, `-r shiny` or `-r train_xgboost`, select a zoom (subclustering) by name (e.g. `--zoom immune_cells`). With `-r zoom` or `-r shiny`, `all` selects every zoom defined in the config; `-r train_xgboost` trains one classifier at a time
+and needs a single zoom name. Without this option, `-r zoom` runs every zoom, while `-r shiny` and `-r train_xgboost` target the main project.
 
 
 ### configuration file
@@ -447,7 +451,9 @@ sample_id:
 * `fastq_dir`: path to directory containing HTO FASTQ files. Should be absolute or relative to `proj_dir`. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
 * `arv_uuids`: list of Arvados UUIDs where HTO fastq files are located. Expects `arv_instance` to be defined. If `demux_type` is `hto`, exactly one of `fastq_dir` and `arv_uuids` should be specified.
 * `feature_ref`: path to CSV file with columns `hto_id` and `sequence`. Required if `demux_type` is `hto`.
-* `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column `class` can be added with values `doublet`, `singlet` or `negative`. Required if `demux_type` is `custom`.
+  Each pool is mapped to an index of the `hto_id` values used in that pool, plus all ADTs.
+* `hto_id_regex`: regular expression for the `hto_id` values of the HTOs in `feature_ref`. Rows that do not match are ADTs (antibody-derived tags), mapped together with the HTOs and saved as `af_adt_counts_mat.h5` in the mapping output for each pool. Optional; by default every row is an HTO. Used if `demux_type` is `hto`.
+* `demux_output`: path to CSV file with columns `pool_id`, `sample_id`, `cell_id`. Optional column class` can be added with values `doublet`, `singlet` or `negative`. Required if `demux_type` is `custom`.
 * `seurat_quantile`: equivalent to the `positive.quantile` argument of the `Seurat::HTODemux` function (see [Seurat documentation](https://satijalab.org/seurat/reference/htodemux) for more details). Used if `demux_type` is `hto`.
 
 ##### ambient
@@ -535,7 +541,6 @@ sample_id:
 * `int_cell_cycle_ridge_lambda`: limits the strength of the fitted correction; default `0.1`. Larger values reduce the correction.
 
 
-
 ##### cell_cycle
 
 * `cyc_density_percentile` sets the density threshold for full weight and must be supplied, from `0` to `100`. For example, `1.3` uses the 1.3rd percentile of density across cells. Cells at or below that density receive full weight; cells in denser areas receive less weight. Tied densities can make the percentage at full weight larger than requested. Smaller percentiles give less populated areas more influence. At `0`, weights are proportional to inverse density; at `100`, every cell has equal weight. This is **not** the percentage of cycling cells or a filter that removes cells.
@@ -579,6 +584,13 @@ The report shows both per-cell predictions (naive labels) and labels assigned by
 * `coarse_label_specs_f`: one row per coarse group, in its display order. Required column: `coarse_label`; optional column: `coarse_colour`. This file requires a coarse mapping in `label_specs_f`. Resolved the same way as `label_specs_f`: an explicit value takes priority, otherwise {{sc}} looks for the matching `_coarse_label_specs.csv` under `$SCPROCESS_DATA_DIR`.
 * `save_cluster_names_file`: if `true`, generate a `cluster_names_for_shiny_*.csv` file mapping clusters (at the `marker_genes:mkr_sel_res` resolution) to predicted cell type names. This file can be used as the `annotation_csv` in the shiny config. Requires a `marker_genes` block to be configured. Default is `false`.
 
+Prediction runs in jobs of whole batches with up to 150,000 cells each, so each
+job loads the model once. If these jobs run out of memory or time, raise
+`gb_run_scprocess_labeller` and `mins_run_scprocess_labeller` (CellTypist:
+`gb_run_celltypist`, `mins_run_celltypist`) in the `resources` section. In joins
+the keys are `gb_join_scprocess_labeller`, `mins_join_scprocess_labeller`,
+`gb_join_celltypist` and `mins_join_celltypist`.
+
 
 ##### train_xgboost
 
@@ -593,8 +605,10 @@ The report shows both per-cell predictions (naive labels) and labels assigned by
     - **Training set:** All remaining cells are used for training, with up to `train_cells_per_label` cells sampled per class.
 
 * `annots_f` (required): CSV file with a unique `cell_id` column and a `label` column containing the training labels. It may also include other metadata columns, but any values shared with the `sample_metadata` must match. Should be absolute or relative to `proj_dir`. [**sould we allow other metadata variables in this file that are not in sample_metadata? - it just makes things more complicated**]
+* `label_specs_f` (optional): CSV file with one row per label, listed in the desired display order. Required column: `label`. Optional columns: `colour` and `coarse_label`.
+* `coarse_label_specs_f`: CSV file with one row per coarse group, listed in the desired display order. Required column: `coarse_label`. Optional column: `coarse_colour`. Requires a coarse mapping in `label_specs_f`.
 * `cluster_majority_vote_resolution`: a clustering resolution at which each cluster's most frequent training label is assigned to all cells in that cluster. Omit to keep the original labels.
-* `cluster_majority_vote_min_purity`: minimum fraction of labelled training cells that must share the most frequent label before it is assigned to the cluster. Default: `0.9`. [**Only training cells are used for the vote, so validation and test labels do not affect the decision.**]
+* `cluster_majority_vote_min_purity`: minimum fraction of labelled training cells that must share the most frequent label before it is assigned to the cluster. Default: `0.5`. [**Only training cells are used for the vote, so validation and test labels do not affect the decision.**]
 * `excluded_labels`: labels to exclude from training.
 * `min_cells_per_label`: minimum number of cells required to keep a label for training. Labels with fewer cells are excluded. Default: `20`.
 * `test_group_var`: metadata column that defines the values to hold out completely from training and validation. Must be supplied together with `test_groups`.
@@ -609,22 +623,23 @@ The report shows both per-cell predictions (naive labels) and labels assigned by
 * `gene_exclude_re`: regular expression matching gene types to exclude. Default: `"(lincRNA|lncRNA|pseudogene|antisense)"`.
 * `gain_threshold`: fraction of total gain from the first fit that the selected genes must account for. Default: `0.9` (90%).
 * `min_genes`: lower limit on the number of selected genes. Default: `100`.
-* `max_genes`: upper limit on the number of selected genes. Default: `3000`.
+* `max_genes`: upper limit on the number of selected genes. Default: `5000`.
 * `seed`: random seed for reproducibility. Default: `42`.
-* `use_gpu`: whether to train on a GPU. Default: `false`.
+* `use_gpu`: whether to train on a GPU. Default: `false`. 
 * `xgboost_tag`: name used in model filenames. If omitted, the file prefix is `xgboost_{full_tag}` for a project or `xgboost_{join.name}` for a join.
 * `pass1_subsample`: fraction of training cells sampled for each boosting round in the first fit. Default: `0.632`.
 * `pass1_colsample_bytree`: fraction of genes considered for each tree in the first fit. Default: `0.1`.
 * `pass1_learning_rate`: contribution of each added tree to the predictions in the first fit. Default: `0.1`.
-* `pass1_nrounds`: maximum number of boosting rounds in the first fit. Default: `300`.
+* `pass1_nrounds`: maximum number of boosting rounds in the first fit. Default: `1000`.
 * `pass1_early_stopping`: stop the first fit after this many rounds without improvement in validation performance. Default: `10`.
 * `pass2_colsample_bytree`: fraction of genes considered for each tree in the final fit. Only the genes selected after the first fit are considered. Default: `0.5`.
 * `pass2_learning_rate`: contribution of each added tree to the predictions in the final fit. Default: `0.05`.
-* `pass2_nrounds`: maximum number of boosting rounds in the final fit. Default: `500`.
+* `pass2_nrounds`: maximum number of boosting rounds in the final fit. Default: `2000`.
 * `pass2_early_stopping`: stop the final fit after this many rounds without improvement in validation performance. Default: `10`.
-* `label_specs_f` (optional): CSV file with one row per label, listed in the desired display order. Required column: `label`. Optional columns: `colour` and `coarse_label`.
-* `coarse_label_specs_f`: CSV file with one row per coarse group, listed in the desired display order. Required column: `coarse_label`. Optional column: `coarse_colour`. Requires a coarse mapping in `label_specs_f`.
-
+[**these need further review**]
+* `downsample_copies`: shallow copies per selected training and validation cell; default `0` (off). `1` is a good starting point.
+* `downsample_min_umis`: start of range of copy depths in UMIs; default: 300
+* `downsample_max_umis`: szatz or range of copy depths in UMIs; default: 3000
 
 ##### shiny
 
@@ -650,7 +665,39 @@ The report shows both per-cell predictions (naive labels) and labels assigned by
 * `metadata_palettes`: per-variable colour palette configuration. Each key is a metadata variable name; the value can be:
     - a palette name (string)
     - an explicit colour list (array)
-    - an object with optional `palette`, `colours`, and `values` keys (the `values` list controls level ordering; defaults to frequency order)
+    - an object with optional `palette`, `colours`, and `values` keys (the `values` list controls
+      level ordering; defaults to frequency order)
+
+Building a Shiny app has two stages. `build_shiny_data` (or
+`build_zoom_shiny_data`) performs the expensive H5AD reads, UMAP subsampling,
+BPCells writes, pseudobulking, and marker/GSEA preparation. The lightweight
+`configure_shiny_app` (or `configure_zoom_shiny_app`) copies the application
+template and writes `annotation.csv`, `home.md`, and `shinyconfig.yaml`. Running
+`scprocess ... -r shiny` targets the configuration stage and brings in the data
+stage only when its analytical inputs are stale. Changes to cluster names,
+order or colours, `app_title`, `email`, `keyword`, `default_gene`,
+`metadata_labels`, `metadata_combns`, `home_md`, `cluster_palette`, or
+`metadata_palettes` therefore do not rebuild the expression matrices.
+
+Changing `n_keep`, `metadata_vars`, clustering/marker resolution, sample
+metadata, integration outputs, H5ADs, markers, HVGs, or GSEA inputs rebuilds the
+Shiny data. Check the dry run before rebuilding a large app.
+
+Gene and cluster UMAP panels are square. The cluster legend stays to the right;
+its text size (9–12 pt) and number of columns adapt to the labels and plot size.
+Small label sets can use one column. Resizing the plot recalculates the legend.
+
+The cluster UMAPs include a **Repel cluster labels** option. Repelled label
+positions are computed from the full UMAP during the app build: labels are moved
+into low-density space, given clearance from cells, and allocated globally so
+their numbered circles do not overlap one another. Rebuild the Shiny target to
+refresh these positions after changing the integration or clustering.
+
+The sample metadata CSV is an explicit input to the Shiny data stage. Editing
+descriptive values therefore marks the generated Shiny data for rebuilding. For a join, first
+run the normal join target so its joint sample metadata snapshot is refreshed, then
+run `scprocess join CONFIG -r shiny` to rebuild the app.
+
 
 ??? info "Supported colour palettes"
 
@@ -731,7 +778,7 @@ Use this section to change CPU, memory or runtime requests for individual workfl
 * `gb_[rule_name]`: memory requested for the entire job in GB, not per thread.
 * `mins_[rule_name]`: maximum runtime requested in minutes.
 * `n_[rule_name]`: CPU threads, for rules that expose this setting.
-* `retries`: number of retries after failure; default `3`. Requested memory is multiplied by `1.5 ** (attempt - 1)`, where the first attempt is `1`.
+* `retries`: number of retries after failure; default `0`. Requested memory is multiplied by `1.5 ** (attempt - 1)`, where the first attempt is `1`.
 * `n_run_mapping`, `n_run_mapping_flex`: mapping threads for poly(A) and Flex data, respectively; both default to `8`.
 
 For example, to request 16 GB and one hour for project marker fitting:
@@ -743,7 +790,7 @@ resources:
   mins_run_marker_genes: 60
 ```
 
-By default, many rules estimate resources from benchmarked input sizes or batch counts. The estimate is `max(floor, intercept + slope × input_size)`, with a rule-specific input measure. Five per-sample rules have separate estimates for 10x v3 and v4 chemistry. Explicit settings override these estimates; rules without a fitted estimate use their schema defaults.
+By default, many rules estimate resources from benchmarked input sizes or batch counts. The estimate is `max(floor, intercept + slope × input_size)`, with a rule-specific input measure. Five per-sample rules have separate estimates for 10x v3 and v4 chemistry; other chemistries use the v3 estimate and Flex twice that. Explicit settings override these estimates; rules without a fitted estimate use a fixed amount.
 
 ??? note "Marker-gene resource names"
 
@@ -759,7 +806,7 @@ By default, many rules estimate resources from benchmarked input sizes or batch 
 
     Fitting CPUs are controlled by `n_run_marker_genes` for projects and project zooms, or `n_join_marker_genes_calc` for joins. Both default to `8`. Joined zooms use the join marker settings.
 
-For the complete set of supported resource keys, consult `resources/schemas/config.schema.json`, `join.schema.json` or `zoom.schema.json` in your installed {{sc}} checkout. Use current rule names in cluster-profile overrides too. A dry run shows which rules are needed; inspect child-job logs to confirm the allocations actually requested.
+For the complete set of supported resource keys, consult `resources/schemas/config.schema.json`, `join.schema.json` or `zoom.schema.json` in your installed {{sc}} checkout; default amounts are in `resources/snakemake/resource_floors.yaml`. Use current rule names in cluster-profile overrides too. A dry run shows which rules are needed; inspect child-job logs to confirm the allocations actually requested.
 
 ## {{scjoin}} { #scprocess-join }
 
