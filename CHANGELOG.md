@@ -56,6 +56,11 @@
 - HTO mapping builds one index per pool, `mapping/hto_ref/POOL/`, instead of
   the project-wide `hto.fa`, `t2g_hto.tsv` and `hto_index`. `build_hto_index`
   runs once per pool; the HTO mapping, counts and demultiplexing rerun.
+- `integration.int_pca_method` option `scanpy` is renamed `in_memory`: it
+  loads the full matrix into memory and computes PCA via scanpy (CPU) or
+  RAPIDS singlecell (GPU, if `int_use_gpu` is set), unlike the `bpcells`
+  option, which was already named for its own implementation rather than
+  what it does. Update any config using `int_pca_method: scanpy`.
 
 ### Changes affecting results
 
@@ -162,6 +167,11 @@
 
 ### Fixes
 
+- `resources.gb_build_zoom_shiny_data`/`mins_build_zoom_shiny_data` are now
+  valid config keys for both `scprocess run` and `scprocess join`. The
+  data/configure rule split left only the pre-split names
+  (`gb_build_zoom_shiny_app`/`mins_build_zoom_shiny_app`) in the schema, so
+  the current rule name couldn't be set directly; both names are accepted.
 - Shiny gene and cluster UMAP panels stay square. Cluster legends adapt their
   font size and column count to the label count, wrapped names and display size,
   and are recalculated when the plot is resized.

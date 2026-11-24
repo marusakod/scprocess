@@ -157,7 +157,7 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
         "and a grey path connecting the density-weighted origin estimates that would have resulted at each percentile in `cyc_density_percentile_grid`. ",
         "The right panel shows downsampled cells, chosen so that density is roughly equal across the embedding, with the same manually chosen origin marked.")
     } else {
-      origin_method_txt = paste0(shared_intro_txt, " To avoid this, cells are weighted in inverse proportion to their density before averaging their positions, with `cyc_density_percentile` setting where that boundary falls.")
+      origin_method_txt = paste0(shared_intro_txt, " To avoid this, dense regions are down-weighted in inverse proportion to their density before averaging cell positions, with `cyc_density_percentile` setting the density threshold below which cells receive full, equal weight.")
       origin_panels_txt = paste0(
         "The left panel shows all QC-passed cells as a density heatmap, the black cross marking the chosen origin, ",
         "and a grey path connecting the origin estimates obtained at each percentile in `cyc_density_percentile_grid`, showing how sensitive that choice is to this setting. ",

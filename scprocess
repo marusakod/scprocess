@@ -310,16 +310,19 @@ def new_proj(sc_dir, name, where_path, create_subdirs, create_config):
       else:
         integration_txt = ""
       
+      qc_max_mito   = 0.03 if is_flex else 0.1
+      qc_max_splice = 0.15 if is_flex else 0.99
+
       if "sc" in create_config:
-        qc_txt = """qc:
-          qc_max_mito: 0.1
+        qc_txt = f"""qc:
+          qc_max_mito: {qc_max_mito}
           qc_min_splice: 0.10
-          qc_max_splice: 0.99
+          qc_max_splice: {qc_max_splice}
         """
       if "sn" in create_config:
-        qc_txt = """qc:
-          qc_max_mito: 0.1
-          qc_max_splice: 0.75
+        qc_txt = f"""qc:
+          qc_max_mito: {qc_max_mito}
+          qc_max_splice: {0.15 if is_flex else 0.75}
         """
       if "multiplex" in create_config:
         demux_val = "flex" if is_flex else ""
@@ -474,8 +477,7 @@ def new_join(sc_dir, name, where_path, create_config, project_configs):
         f"projects:\n"
         f"{projects_block}\n"
       )
-      join_yaml_f = proj_dir / "configs" / f"join-{name}.yaml"
-      join_yaml_f.parent.mkdir(exist_ok=True)
+      join_yaml_f = proj_dir / f"join-{name}.yaml"
       join_yaml_f.write_text(join_yaml_txt)
 
       print(f"Edit join config     : {join_yaml_f}")

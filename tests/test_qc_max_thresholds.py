@@ -127,8 +127,35 @@ def test_zoom_sample_exclusions_apply_without_qc_thresholds(tmp_path):
     output_f=output_f,
     labels_col="label",
     sel_labels=["selected"],
-    batch_var="sample_id",
-    exclude_batches=["sample_a"],
+    exclude_sample_ids=["sample_a"],
+  )
+
+  kept = pl.read_csv(output_f)["cell_id"].to_list()
+  assert kept == ["b1"]
+
+
+def test_zoom_sample_and_pool_exclusions_both_apply(tmp_path):
+  labels_f = tmp_path / "labels.csv"
+  qc_f = tmp_path / "qc.csv.gz"
+  output_f = tmp_path / "filtered.csv.gz"
+
+  pl.DataFrame({
+    "cell_id": ["a1", "a2", "b1", "c1"],
+    "sample_id": ["sample_a", "sample_a", "sample_b", "sample_c"],
+    "pool_id": ["pool_1", "pool_1", "pool_1", "pool_2"],
+    "label": ["selected"] * 4,
+  }).write_csv(labels_f)
+  with gzip.open(qc_f, "wb") as handle:
+    pl.DataFrame({"cell_id": [], "keep": []}).write_csv(handle)
+
+  zoom.filter_zoom_labels_by_qc(
+    labels_f=labels_f,
+    qc_all_f=qc_f,
+    output_f=output_f,
+    labels_col="label",
+    sel_labels=["selected"],
+    exclude_sample_ids=["sample_a"],
+    exclude_pool_ids=["pool_2"],
   )
 
   kept = pl.read_csv(output_f)["cell_id"].to_list()

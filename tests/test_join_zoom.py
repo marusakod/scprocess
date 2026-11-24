@@ -285,7 +285,7 @@ def test_selection_errors(parent_fixture, failure):
         select_cells(cells, coldata, meta, labels, qc, spec['zoom'], spec['qc'], 2)
 
 
-@pytest.mark.parametrize('gpu,backend', [(False, 'bpcells'), (True, 'bpcells'), (False, 'scanpy')])
+@pytest.mark.parametrize('gpu,backend', [(False, 'bpcells'), (True, 'bpcells'), (False, 'in_memory')])
 def test_real_join_zoom_dag(parent_fixture, tmp_path, gpu, backend):
     parent, spec, scdata, config_f, *_ = parent_fixture
     parent['integration'].update(int_use_gpu=gpu, int_pca_method=backend)
@@ -474,10 +474,10 @@ def test_joined_zoom_resolves_cycle_correction(parent_fixture, mode, inherit):
     assert not Path(context['out_dir']).exists()
 
 
-def test_joined_zoom_rejects_cycle_correction_with_scanpy(parent_fixture):
+def test_joined_zoom_rejects_cycle_correction_with_in_memory(parent_fixture):
     parent, spec, scdata, config_f, *_ = parent_fixture
     spec['integration'] = {'int_cell_cycle_correction': 'global',
-                           'int_pca_method': 'scanpy'}
+                           'int_pca_method': 'in_memory'}
     config_f.with_name('zoom.yaml').write_text(yaml.safe_dump(spec))
     with pytest.raises(ValueError, match='requires int_pca_method: bpcells'):
         resolve_join_zoom_parameters(parent, 'neurons', ROOT, scdata)

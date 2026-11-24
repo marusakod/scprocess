@@ -58,11 +58,11 @@ class TestJoinIntegrationValidation(unittest.TestCase):
     self.assertNotIn('int_cell_cycle_correction', config['integration'])
     self.assertNotIn('int_cell_cycle_harmonics', config['integration'])
 
-  def test_cycle_regression_rejects_scanpy(self):
+  def test_cycle_regression_rejects_in_memory(self):
     with self.assertRaisesRegex(ValueError, 'bpcells'):
       _check_join_integration_parameters({'integration': {
         'int_batch_var': 'sample_id', 'int_theta': 0.1,
-        'int_cell_cycle_correction': 'global', 'int_pca_method': 'scanpy'}})
+        'int_cell_cycle_correction': 'global', 'int_pca_method': 'in_memory'}})
 
   def test_cycle_tuning_requires_correction(self):
     for key in ('int_cell_cycle_harmonics', 'int_cell_cycle_ridge_lambda'):

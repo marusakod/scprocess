@@ -229,8 +229,8 @@ rule zoom_filter_cells_qc:
     qc_max_mito   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_max_mito'),
     qc_min_splice = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_splice'),
     qc_max_splice = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_max_splice'),
-    batch_var     = BATCH_VAR,
-    exclude_batches = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom'].get('exclude', {}).get(BATCH_VAR, [])
+    exclude_sample_ids = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom'].get('exclude', {}).get('sample_id', []),
+    exclude_pool_ids   = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['zoom'].get('exclude', {}).get('pool_id', [])
   threads: 1
   retries: config['resources']['retries']
   resources:
@@ -258,8 +258,8 @@ rule zoom_filter_cells_qc:
         qc_max_mito   = params.qc_max_mito,
         qc_min_splice = params.qc_min_splice,
         qc_max_splice = params.qc_max_splice,
-        batch_var     = params.batch_var,
-        exclude_batches = params.exclude_batches
+        exclude_sample_ids = params.exclude_sample_ids,
+        exclude_pool_ids   = params.exclude_pool_ids
       )
 
 

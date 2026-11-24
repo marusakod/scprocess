@@ -1,15 +1,12 @@
 # Fitted resource models: memory (MB) and time (seconds) predicted as
-#   intercept + slope * x, where x is given by model_var for each rule.
-# Hierarchy: rules > rule name > memory / time > chemistry group > fields.
+# intercept + slope * x, where x is given by model_var for each rule.
+
 # Chemistry groups: all (same for every chemistry), 3v3, 3v4, flex, other.
 # 'other' covers every chemistry that is not 3v3, 3v4 or flex (5v1, 5v2, 5v3, multiome, ...)
-# and uses the 3v3 values. 'flex' (flexv1, flexv2) is PROVISIONAL: twice the 3v3 intercept
-# and slope, until values fitted on Flex data are available. A memory or time model with
-# chemistry-specific values lists all four groups. The zoom_* entries repeat the models of
+# and uses the 3v3 values. 'flex' (flexv1, flexv2) is PROVISIONAL: twice the 3v3 intercept and slope
+# A memory or time model with chemistry-specific values lists all four groups. The zoom_* entries repeat the models of
 # the project rules they reuse (zoom_aggregate_labels uses the merge_labels model, etc.).
-# Source: resources_lm_params_2026-07-07.csv (benchmarks from ~96 projects; the CSV is in
-# the git history before this file was added); floors are in
-# resource_floors.yaml, which is maintained by hand.
+
 rules:
   calculate_tricycle_projection_one_run:
     memory:
@@ -85,13 +82,37 @@ rules:
         rq_slope: 10258.961
   make_one_pb_cells:
     memory:
-      all:
+      3v3:
+        model_var: input.af_h5_f
+        rq_intercept: 1325.138
+        rq_slope: 33339.312
+      3v4:
+        model_var: input.af_h5_f
+        rq_intercept: 1325.138
+        rq_slope: 33339.312
+      flex:
+        model_var: input.af_h5_f
+        rq_intercept: 2650.276
+        rq_slope: 66678.624
+      other:
         model_var: input.af_h5_f
         rq_intercept: 1325.138
         rq_slope: 33339.312
   make_one_pb_empty:
     memory:
-      all:
+      3v3:
+        model_var: input.af_h5_f
+        rq_intercept: 766.413
+        rq_slope: 39685.557
+      3v4:
+        model_var: input.af_h5_f
+        rq_intercept: 766.413
+        rq_slope: 39685.557
+      flex:
+        model_var: input.af_h5_f
+        rq_intercept: 1532.826
+        rq_slope: 79371.114
+      other:
         model_var: input.af_h5_f
         rq_intercept: 766.413
         rq_slope: 39685.557
@@ -306,7 +327,19 @@ rules:
         rq_slope: 9279.022
   zoom_make_one_pb_cells:
     memory:
-      all:
+      3v3:
+        model_var: input.af_h5_f
+        rq_intercept: 1325.138
+        rq_slope: 33339.312
+      3v4:
+        model_var: input.af_h5_f
+        rq_intercept: 1325.138
+        rq_slope: 33339.312
+      flex:
+        model_var: input.af_h5_f
+        rq_intercept: 2650.276
+        rq_slope: 66678.624
+      other:
         model_var: input.af_h5_f
         rq_intercept: 1325.138
         rq_slope: 33339.312

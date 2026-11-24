@@ -617,7 +617,7 @@ def test_invalid_regression_backend_is_rejected():
   config = {
     'project': {'ref_txome': 'mouse_2024'},
     'integration': {
-      'int_pca_method': 'scanpy',
+      'int_pca_method': 'in_memory',
       'int_cell_cycle_correction': 'within_sample',
     },
     'cell_cycle': {'cyc_density_percentile': 1.3},
@@ -731,7 +731,7 @@ def test_empty_cell_cycle_block_remains_invalid_after_defaults():
     jsonschema.validate({'cyc_density_percentile': value}, schema['properties']['cell_cycle'])
 
 
-@pytest.mark.parametrize('backend', ['bpcells', 'scanpy'])
+@pytest.mark.parametrize('backend', ['bpcells', 'in_memory'])
 def test_phase_estimation_does_not_enable_correction(backend):
   from scripts.scprocess_utils import _check_cell_cycle_parameters, _get_default_config_from_schema
   schema = json.loads((ROOT / 'resources/schemas/config.schema.json').read_text())

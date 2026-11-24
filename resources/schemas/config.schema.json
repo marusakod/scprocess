@@ -179,7 +179,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "int_pca_method":   { "type": "string",   "default": "bpcells", "enum": ["bpcells", "scanpy"] },
+        "int_pca_method":   { "type": "string",   "default": "bpcells", "enum": ["bpcells", "in_memory"] },
         "int_use_gpu":      { "type": "boolean",  "default": true },
         "int_embedding":    { "type": "string",   "default": "harmony", "enum": ["harmony", "pca"] },
         "int_cl_method":    { "type": "string",   "default": "leiden", "enum": ["leiden"] },
@@ -554,6 +554,8 @@
         "mins_build_shiny_data":                         { "type": "integer" },
         "gb_build_zoom_shiny_app":                       { "type": "integer" },
         "mins_build_zoom_shiny_app":                     { "type": "integer" },
+        "gb_build_zoom_shiny_data":                      { "type": "integer" },
+        "mins_build_zoom_shiny_data":                    { "type": "integer" },
 
         "retries":                       { "type": "integer", "default": 0 }
       }

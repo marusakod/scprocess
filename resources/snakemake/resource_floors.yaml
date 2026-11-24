@@ -1,9 +1,8 @@
 # Hand-maintained resource floors, in the units of the user overrides in the config:
 # memory in GB and time in minutes. For a rule with a fitted model in
 # resource_models_*.yaml the prediction is never lower than the floor; a rule without
-# a model requests exactly its floor. Floors are decisions, not fits, so a refit of
-# the models must not overwrite this file. Config 'resources:' values override them.
-# Hierarchy: rules > rule name > memory / time.
+# a model requests exactly its floor.
+
 rules:
   aggregate_tricycle:
     memory: 8

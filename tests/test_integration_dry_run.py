@@ -20,8 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 @pytest.mark.parametrize('paga_resolution', [None, 2, 0.5])
 @pytest.mark.parametrize('backend,correction,estimate_phase', [
     ('bpcells', 'within_sample', True), ('bpcells', 'global', True),
-    ('bpcells', None, True), ('scanpy', None, True),
-    ('bpcells', None, False), ('scanpy', None, False),
+    ('bpcells', None, True), ('in_memory', None, True),
+    ('bpcells', None, False), ('in_memory', None, False),
 ])
 def test_integration_dag_and_effective_arguments(tmp_path, backend, correction, estimate_phase, paga_resolution):
     paga = paga_resolution is not None
