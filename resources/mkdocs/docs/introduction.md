@@ -36,7 +36,7 @@
 
 * #### QC filtering
 
-    In addition to removing doublets, {{sc}} filters out cells based on library size, feature counts, mitochondrial read proportions and spliced read proportions based on user-defined thresholds. The spliced proportion is a particularly informative metric in singlenuclei RNA-seq, as elevated levels may indicate residual cytoplasmic material [@Montserrat-Ayuso2024-bm].
+    In addition to removing doublets, {{sc}} filters out cells based on library size, feature counts, mitochondrial read proportions and spliced read proportions based on user-defined thresholds. The spliced proportion is a particularly informative metric in single nuclei RNA-seq, as elevated levels may indicate residual cytoplasmic material [@Montserrat-Ayuso2024-bm].
 
 * #### Generating pseudobulks from cells and empty droplets and ambient gene detection
 

@@ -185,15 +185,6 @@ scprocess run config.yaml -r shiny --zoom my_zoom
 scprocess join config-join.yaml -r shiny --zoom my_zoom
 ```
 
-A few things worth noting from this table:
-
-* `-r zoom` behaves the same for `run` and `join`: omitting `--zoom` (or passing `--zoom all`) runs every zoom listed in the configuration, and `--zoom <name>` runs just that one.
-* `-r shiny --zoom <name>` builds the app for that one zoom, and `--zoom all` builds apps for every zoom. Omitting `--zoom` builds the app for the main project or parent join, not for its zooms.
-* `-r train_xgboost --zoom <name>` trains the classifier defined in that zoom's specification. It trains one classifier at a time, so `--zoom all` is not accepted. Each classifier has its own report; zoom and join reports do not include classifier results.
-* `--zoom` with any other rule is an error.
-* XGBoost classifiers can only be trained on a join's combined output, never on one of its individual zooms — `train_xgboost` has no zoom support for `join`.
-
-
 ![workflow_chart](assets/images/scprocess_workflow_diagram_white_bg.png#only-light)
 ![workflow_chart](assets/images/scprocess_workflow_diagram_black_bg.png#only-dark)
 
@@ -207,14 +198,8 @@ The default parameters in the configuration file are suitable for running {{sc}}
 
 ### Setting parameters for ambient contamination removal
 
-#### Ambient method
-
-By default {{sc}} will use `DecontX`[@Yang2020-zz] for ambient RNA removal, which doesn't require GPU. If a GPU is available, we recommend using `CellBender`[@Fleming2023-cx] for ambient RNA decontamination as it was found to perform better than other related algorithms in a recent benchmark [@Janssen2023-te].
-
-#### Knee parameters
-
 ![empties_cells](assets/images/knee_plot_with_cells_and_empties.png)
-Both algorithms for ambient RNA decontamination available in {{sc}} estimate background noise from empty droplets. Therefore, correctly identifying the subset of barcodes corresponding to empty droplets is critical. In the barcode-rank "knee plot", where barcodes are ranked in descending order based on their library size, two distinct plateaus are typically observed: the first plateau represents droplets containing cells with high RNA content, while the second corresponds to empty droplets containing ambient RNA.
+Both algorithms for ambient RNA decontamination available in {{sc}} estimate background noise from empty droplets by default. Therefore, correctly identifying the subset of barcodes corresponding to empty droplets is critical. In the barcode-rank "knee plot", where barcodes are ranked in descending order based on their library size, two distinct plateaus are typically observed: the first plateau represents droplets containing cells with high RNA content, while the second corresponds to empty droplets containing ambient RNA.
 
 {{sc}} identifies the cell-containing and empty droplet populations by detecting key transition points on the barcode-rank curve — namely, the inflection and knee points. These points allow {{sc}} to infer the optimal parameters for both `DecontX` and `CellBender`. Additionally, {{sc}} uses these estimates to identify genes enriched in empty droplets.
 

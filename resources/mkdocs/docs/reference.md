@@ -175,7 +175,7 @@ This is an example config file for {{scrun}} with all parameters and their defau
 
 === "default values"
 
-    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12"
+    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12 13 14"
     project:
       proj_dir:
       fastq_dir: # should not be defined if arv_uuids is defined
@@ -187,11 +187,13 @@ This is an example config file for {{scrun}} with all parameters and their defau
       affiliation:
       date_stamp:
       sample_metadata:
+      tenx_assay_type: poly_a
       ref_txome:
+      probe_set:
+      tenx_chemistry: none
       metadata_vars:
       show_arv_uuids: true
       custom_sample_params:
-      tenx_chemistry:
       exclude:
         sample_id:
         pool_id:
@@ -200,27 +202,34 @@ This is an example config file for {{scrun}} with all parameters and their defau
       fastq_dir:
       arv_uuids:
       feature_ref:
+      hto_id_regex:
       demux_output:
+      seurat_quantile: 0.99
     ambient:
-      ambient_method: decontx
+      ambient_method: decontx_background
       cell_calling: barcodeRanks
       cb_version: v0.3.2
       cb_max_prop_kept: 0.9
-      cb_learning_rate:
+      cb_learning_rate: 0.0001
       cb_posterior_batch_size: 128
-      cb_empty_training_fraction:
+      cb_empty_training_fraction: 0.2
       cb_expected_cells:
       cb_total_droplets_included:
       cb_low_count_threshold:
     qc:
       qc_min_counts: 500
+      qc_max_counts:
       qc_min_feats: 300
+      qc_max_feats:
       qc_min_mito: 0
       qc_max_mito: 0.1
       qc_min_splice: 0
       qc_max_splice: 1
       qc_min_cells: 100
       dbl_min_feats: 100
+      dbl_min_counts: 0
+      dbl_dbr_sd:
+      dbl_clusters:
       exclude_mito: true
     pb_empties:
       ambient_genes_logfc_thr: 0
@@ -228,26 +237,41 @@ This is an example config file for {{scrun}} with all parameters and their defau
     hvg:
       hvg_method: sample
       hvg_n_hvgs: 2000
-      hvg_exclude_ambient_genes: True
-      hvg_exclude_from_file:
       hvg_chunk_size: 2000
+      hvg_exclude_ambient_genes: true
+      hvg_exclude_from_file:
       hvg_metadata_split_var:
     integration:
+      int_pca_method: bpcells
       int_use_gpu: true
       int_embedding: harmony
+      int_cl_method: leiden
       int_theta: 0.1
       int_batch_var: sample_id
       int_n_dims: 50
+      int_umap_n_iter: 2000
       int_dbl_res: 4
-      int_dbl_cl_prop: 0.5
+      int_dbl_cl_prop:
+      int_dbl_threshold_method: adaptive
       int_sce_outs: false
-      int_res_ls: [0.1, 0.2, 0.5, 1, 2]
       int_use_paga: true
       int_paga_cl_res: 2
+      int_cell_cycle_harmonics: 2
+      int_cell_cycle_ridge_lambda: 0.1
+      int_cell_cycle_correction:
+      int_res_ls: [0.1, 0.2, 0.5, 1, 2]
+    cell_cycle:
+      cyc_density_percentile:
+      cyc_density_percentile_grid: [0, 0.1, 0.3, 1, 3, 10, 100]
+      cyc_bandwidth_multiplier: 1.0
+      cyc_kde_grid_size: 500
+      cyc_seed: 20230308
+      cyc_origin_manual:
     marker_genes:
       mkr_sel_res: 0.2
       mkr_min_cl_size: 100
       mkr_min_cells: 10
+      mkr_dispersion_use_clusters: true
       mkr_not_ok_re: "(lincRNA|lncRNA|pseudogene|antisense)"
       mkr_min_cpm_mkr: 50
       mkr_min_cpm_go: 1
@@ -262,20 +286,74 @@ This is an example config file for {{scrun}} with all parameters and their defau
       - labeller:
         model:
         hi_res_cl: "RNA_snn_res.2"
-        min_pred: 0.8
         min_cl_prop: 0.5
         min_cl_size: 100
+        label_specs_f:
+        coarse_label_specs_f:
+        save_cluster_names_file: false
+    train_xgboost:
+      annots_f:
+      label_specs_f:
+      coarse_label_specs_f:
+      min_cells_per_label: 20
+      min_cells_expressed: 10
+      gene_exclude_re: "(lincRNA|lncRNA|pseudogene|antisense)"
+      seed: 42
+      use_gpu: false
+      pass1_subsample: 0.632
+      pass1_colsample_bytree: 0.1
+      pass1_learning_rate: 0.1
+      pass1_nrounds: 1000
+      pass1_early_stopping: 10
+      pass2_colsample_bytree: 0.5
+      pass2_learning_rate: 0.05
+      pass2_nrounds: 2000
+      pass2_early_stopping: 10
+      downsample_copies: 0
+      downsample_min_umis: 300
+      downsample_max_umis: 3000
+      gain_threshold: 0.9
+      min_genes: 100
+      max_genes: 5000
+      xgboost_tag:
+      excluded_labels: []
+      cluster_majority_vote_resolution:
+      cluster_majority_vote_min_purity: 0.5
+      test_group_var:
+      test_groups:
+      validation_group_var: batch
+      validation_fraction: 0.2
+      validation_balancing_groups: []
+      sampling_balancing_groups: []
+      train_cells_per_label: 2000
+      validation_cells_per_label: 500
     zoom:
     resources:
-      retries: 3
+      retries: 0
       n_run_mapping: 8
+      n_run_mapping_flex: 8
+      n_run_marker_genes: 8
+    shiny:
+      app_tag:
+      app_title:
+      email:
+      keyword: cells
+      default_gene:
+      n_keep: 30000
+      metadata_vars:
+      metadata_labels:
+      metadata_combns:
+      home_md:
+      annotation_csv:
+      cluster_palette:
+      metadata_palettes:
     ```
 
 === "placeholders"
 
-    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12"
+    ```yaml hl_lines="1 2 3 4 5 6 7 8 9 10 11 12 13 14"
     project:
-      proj_dir: /path/to/proj/directory 
+      proj_dir: /path/to/proj/directory
       fastq_dir: /path/to/directory/with/fastq/files
       arv_uuids: ["arkau-qr8st-1a2b3c4d5e6f7g8", "arkau-9v0wx-h9i8j7k6l5m4n3o", "arkau-z2y3x-p0q1r2s3t4u5v6w"]
       arv_instance: instance_name
@@ -285,7 +363,9 @@ This is an example config file for {{scrun}} with all parameters and their defau
       affiliation: where you work
       date_stamp: "2050-01-01"
       sample_metadata: /path/to/metadata.csv
+      tenx_assay_type: poly_a
       ref_txome: human_2024
+      probe_set: human_v1
       tenx_chemistry: 3v3
       metadata_vars: [var1, var2]
       show_arv_uuids: true
@@ -302,25 +382,34 @@ This is an example config file for {{scrun}} with all parameters and their defau
       fastq_dir: /path/to/directory/with/hto_fastq/files
       arv_uuids: ["arkau-qr8st-1a2b3c4d5e6f7g8", "arkau-9v0wx-h9i8j7k6l5m4n3o", "arkau-z2y3x-p0q1r2s3t4u5v6w"]
       feature_ref: /path/to/feature_ref.csv
+      hto_id_regex: "^HTO"
       demux_output: /path/to/demux_output.csv
+      seurat_quantile: 0.99
     ambient:
       ambient_method: cellbender
+      cell_calling: barcodeRanks
       cb_version: v0.3.2
-      cb_empty_training_fraction:
+      cb_max_prop_kept: 0.9
+      cb_learning_rate: 0.001
+      cb_posterior_batch_size: 128
+      cb_empty_training_fraction: 0.2
       cb_expected_cells: 10000
       cb_total_droplets_included: 20000
       cb_low_count_threshold: 5
-      cb_learning_rate: 0.001
-      cb_posterior_batch_size: 128
     qc:
       qc_min_counts: 500
+      qc_max_counts: 20000
       qc_min_feats: 300
+      qc_max_feats: 6000
       qc_min_mito: 0
       qc_max_mito: 0.1
       qc_min_splice: 0
       qc_max_splice: 1
       qc_min_cells: 100
       dbl_min_feats: 100
+      dbl_min_counts: 0
+      dbl_dbr_sd: 1
+      dbl_clusters: true
       exclude_mito: true
     pb_empties:
       ambient_genes_logfc_thr: 0
@@ -328,26 +417,41 @@ This is an example config file for {{scrun}} with all parameters and their defau
     hvg:
       hvg_method: sample
       hvg_n_hvgs: 2000
-      hvg_exclude_ambient_genes: True
-      hvg_exclude_from_file: /path/to/file/with/genes/to/exclude
       hvg_chunk_size: 2000
+      hvg_exclude_ambient_genes: true
+      hvg_exclude_from_file: /path/to/file/with/genes/to/exclude
       hvg_metadata_split_var: var1
     integration:
+      int_pca_method: bpcells
       int_use_gpu: true
       int_embedding: harmony
+      int_cl_method: leiden
       int_theta: 0.1
       int_batch_var: sample_id
       int_n_dims: 50
+      int_umap_n_iter: 2000
       int_dbl_res: 4
       int_dbl_cl_prop: 0.5
+      int_dbl_threshold_method: adaptive
       int_sce_outs: false
-      int_res_ls: [0.1, 0.2, 0.5, 1, 2]
       int_use_paga: true
       int_paga_cl_res: 2
+      int_cell_cycle_harmonics: 2
+      int_cell_cycle_ridge_lambda: 0.1
+      int_cell_cycle_correction: within_sample
+      int_res_ls: [0.1, 0.2, 0.5, 1, 2]
+    cell_cycle:
+      cyc_density_percentile: 1.3
+      cyc_density_percentile_grid: [0, 0.1, 0.3, 1, 3, 10, 100]
+      cyc_bandwidth_multiplier: 1.0
+      cyc_kde_grid_size: 500
+      cyc_seed: 20230308
+      cyc_origin_manual: [0.1, 0.2]
     marker_genes:
       mkr_sel_res: 0.2
       mkr_min_cl_size: 100
       mkr_min_cells: 10
+      mkr_dispersion_use_clusters: true
       mkr_not_ok_re: "(lincRNA|lncRNA|pseudogene|antisense)"
       mkr_min_cpm_mkr: 50
       mkr_min_cpm_go: 1
@@ -362,14 +466,47 @@ This is an example config file for {{scrun}} with all parameters and their defau
       - labeller: "scprocess"
         model: "human_cns"
         hi_res_cl: "RNA_snn_res.2"
-        min_pred: 0.8
         min_cl_prop: 0.5
         min_cl_size: 100
-    shiny:
-      app_tag: test_project
-      metadata_labels:
-        brainregion: "brain region"
-        condition: "treatment group"
+        label_specs_f: /path/to/label_specs.csv
+        coarse_label_specs_f: /path/to/coarse_label_specs.csv
+        save_cluster_names_file: true
+    train_xgboost:
+      annots_f: /path/to/annotations.csv.gz
+      label_specs_f: /path/to/label_specs.csv
+      coarse_label_specs_f: /path/to/coarse_label_specs.csv
+      min_cells_per_label: 20
+      min_cells_expressed: 10
+      gene_exclude_re: "(lincRNA|lncRNA|pseudogene|antisense)"
+      seed: 42
+      use_gpu: false
+      pass1_subsample: 0.632
+      pass1_colsample_bytree: 0.1
+      pass1_learning_rate: 0.1
+      pass1_nrounds: 1000
+      pass1_early_stopping: 10
+      pass2_colsample_bytree: 0.5
+      pass2_learning_rate: 0.05
+      pass2_nrounds: 2000
+      pass2_early_stopping: 10
+      downsample_copies: 0
+      downsample_min_umis: 300
+      downsample_max_umis: 3000
+      gain_threshold: 0.9
+      min_genes: 100
+      max_genes: 5000
+      xgboost_tag: my_classifier
+      excluded_labels: [unassigned]
+      cluster_majority_vote_resolution: "RNA_snn_res.2"
+      cluster_majority_vote_min_purity: 0.5
+      test_group_var: sample_id
+      test_groups: [sample1, sample2]
+      validation_group_var: batch [**how can this be**?]
+      validation_fraction: 0.2
+      validation_balancing_groups: [treatment]
+      sampling_balancing_groups: [treatment]
+      train_cells_per_label: 2000
+      validation_cells_per_label: 500
     zoom:
       - /path/to/cell_subset_1_zoom_params.yaml
       - /path/to/cell_subset_2_zoom_params.yaml
@@ -377,6 +514,25 @@ This is an example config file for {{scrun}} with all parameters and their defau
     resources:
       retries: 3
       n_run_mapping: 8
+      n_run_mapping_flex: 8
+      n_run_marker_genes: 8
+    shiny:
+      app_tag: test_project
+      app_title: My Project
+      email: me@example.com
+      keyword: cells
+      default_gene: Mog
+      n_keep: 20000
+      metadata_vars: [var1, var2]
+      metadata_labels:
+        brainregion: "brain region"
+        condition: "treatment group"
+      metadata_combns: [[var1, var2]]
+      home_md: /path/to/home.md
+      annotation_csv: /path/to/annotation.csv
+      cluster_palette: Set1
+      metadata_palettes:
+        condition: Dark2
     ```
 
 #### Required parameters
@@ -403,7 +559,7 @@ This is an example config file for {{scrun}} with all parameters and their defau
 
 * `tenx_chemistry`: 10x assay configuration. Accepted values are `3v2`, `3v3`, `3v4`, `5v1`, `5v2`, `5v3`, `multiome`, `flexv1` and `flexv2`. `multiome` refers only to gene expression data generated with the 10x multiome kit (ATACseq data is not supported). For Flex data, chemistry specification is redundant as chemistry is derived automatically based on `probe_set`. When not specified for polyA data, chemistry is auto-detected.
 * `metadata_vars`: a list of column names in the `sample_metadata` file to be used for visualizing the distribution of cell annotations across identified clusters and regions of the low-dimensional embedding.
-* `show_arv_uuids`: whether to display Arvados UUIDs (`arv_uuids`) in the configuration file details box on the index page. If `false`, UUIDs are replaced with "not shown". Defaults to `true`.
+* `show_arv_uuids`: whether to display Arvados UUIDs (`arv_uuids`) in the configuration file details box on the index page. If `false`, UUIDs are replaced with "not shown".
 * `exclude`: list of all samples that should be excluded from the analysis. Samples can be listed under `pool_id` (if multiplexed) or `sample_id`.
 * `custom_sample_params`: YAML file with optional custom parameters for each pool or sample (custom `tenx_chemistry`, custom `mapping`, custom `ambient` and custom `qc` parameters can be specified for each sample). For example:
 
@@ -439,7 +595,7 @@ sample_id:
 ##### multiplexing
 
 * `demux_type`: multiplexing approach used. Options are:
-    + `none` if experiment is not multiplexed (default);
+    + `none` if experiment is not multiplexed;
     + `hto` if hto-based demultiplexing of samples should be performed with {{sc}};
     + `ocm` if on-chip multiplexing was used. Requires an `ocm_id` column in sample metadata with values `OB1`-`OB4`.
     + `custom` if demultiplexing results will be used as input to {{sc}}; or
@@ -454,16 +610,16 @@ sample_id:
 ##### ambient
 
 * `ambient_method`: method for ambient RNA removal. Options are:
-    + `decontx_background` (default): runs [`DecontX`](https://bioconductor.org/packages/release/bioc/html/celda.html) with an estimated ambient RNA profile as input.
+    + `decontx_background`: runs [`DecontX`](https://bioconductor.org/packages/release/bioc/html/celda.html) with an estimated ambient RNA profile as input.
     + `decontx_cluster`: runs `DecontX` with a cluster-based background model.
     + `cellbender`: uses [CellBender](https://cellbender.readthedocs.io) for ambient RNA removal.
     + `none`: skips ambient RNA removal;
-* `cell_calling`: method for cell calling when `ambient_method` is `none`, `decontx_background`, or `decontx_cluster`. Options are `barcodeRanks` (default) and `emptyDrops`.
-* `cb_version`: CellBender version to use with `ambient_method: cellbender`; Options are `v0.3.2` (default), `v0.3.0` and `v0.2.0`.
-* `cb_max_prop_kept`: maximum proportion of droplets, relative to `--total-droplets-included`, that `cellbender` can call as cells. Default is `0.9`, meaning samples are excluded if `cellbender` calls more than 90% of `--total-droplets-included` droplets as cells. Applicable only if `ambient_method` is `cellbender`. For more information about the `--total-droplets-included` parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
-* `cb_learning_rate`: sets the `--learning-rate` `CellBender` parameter to the specified value; applicable only if `ambient_method` is `cellbender`. Default value is `0.0001`. For more information about this parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
-* `cb_empty_training_fraction`: sets the `--empty-drop-training-fraction` `CellBender` parameter to the specified value; applicable only if `ambient_method` is `cellbender`. Default value is `0.2`. Setting this to a lower value (e.g. 0.1 or 0.05) can help if `CellBender` jobs are failing on samples with very few cells. For more information about this parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
-* `cb_posterior_batch_size`: value of the `--posterior-batch-size` parameter; applicable only if `ambient_method` is `cellbender` and `cb_version` is `v0.3.2`. For more information about this parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html). Default `128`.
+* `cell_calling`: method for cell calling when `ambient_method` is `none`, `decontx_background`, or `decontx_cluster`. Options are `barcodeRanks` and `emptyDrops`.
+* `cb_version`: CellBender version to use with `ambient_method: cellbender`; Options are `v0.3.2`, `v0.3.0` and `v0.2.0`.
+* `cb_max_prop_kept`: maximum proportion of droplets, relative to `--total-droplets-included`, that `cellbender` can call as cells — samples are excluded if `cellbender` calls more than this proportion of `--total-droplets-included` droplets as cells. Applicable only if `ambient_method` is `cellbender`. For more information about the `--total-droplets-included` parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
+* `cb_learning_rate`: sets the `--learning-rate` `CellBender` parameter to the specified value; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
+* `cb_empty_training_fraction`: sets the `--empty-drop-training-fraction` `CellBender` parameter to the specified value; applicable only if `ambient_method` is `cellbender`. Setting this to a lower value (e.g. 0.1 or 0.05) can help if `CellBender` jobs are failing on samples with very few cells. For more information about this parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
+* `cb_posterior_batch_size`: value of the `--posterior-batch-size` parameter; applicable only if `ambient_method` is `cellbender` and `cb_version` is `v0.3.2`. For more information about this parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
 * `cb_expected_cells`: forces the `--expected-cells` `Cellbender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
 * `cb_total_droplets_included`: forces the `--total-droplets-included` `Cellbender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
 * `cb_low_count_threshold`: forces the `--low-count-threshold` `CellBender` parameter to be consistent across all samples; applicable only if `ambient_method` is `cellbender`. For more information about this parameter see [Cellbender documentation](https://cellbender.readthedocs.io/en/latest/reference/index.html).
@@ -471,26 +627,26 @@ sample_id:
 
 ##### qc
 
-* `qc_min_counts`: minimum number of UMIs per cell reqired to retain a cell. Default:`500`.
-* `qc_max_counts`: maximum number od UMIs per cell required to retain a cell. Default: `null` (no upper limit).
-* `qc_min_feats`: minimum number of detected features per cell required to retain a cell. Default: `300`.
-* `qc_max_feats`: maximum detected features per cell required to retain a cell. Default: `null` (no upper limit).
-* `qc_min_mito`: minimum proportion of mitochondrial reads required to retain a cell. Default: `0`.
-* `qc_max_mito`: maximum proportion of mitochondrial reads required to retain a cell. Default: `0.1`.
-* `qc_min_splice`: minimum proportion of spliced reads required to retain a cell. Default: `0`.
-* `qc_max_splice`: minimum proportion of spliced reads required to retain a cell. Default: `1`.
-* `qc_min_cells`: minimum cells remaining in a sample after QC to retain that sample; default `100`.
-* `exclude_mito`: boolean (default: `true`); whether to exclude mitochondrial genes or not.
-* `dbl_clusters`: whether artificial doublets are generated using cluster labels. Default (`null`) uses the `scDblFinder` default. `false` disables cluster-based generation; `true` first clusters the cells and generates artificial doublets between clusters.
-* `dbl_dbr_sd`: how strongly the expected doublet rate constrains the calling threshold. Default (`null`) uses the `scDblFinder` default. Setting `1` removes the expected-rate penalty, leaving the threshold determined by classification of artificial doublets.
-* `dbl_min_feats`: minimum number of features required for each barcode to be included in `scDblFinder` calculations.; Default: `100`.
-* `dbl_min_counts`: minimum number of UMIs required for each barcode to be included in `scDblFinder` calculations; default `0` disables this filter.
+* `qc_min_counts`: minimum number of UMIs per cell required to retain a cell.
+* `qc_max_counts`: maximum number of UMIs per cell required to retain a cell. No upper limit if unset.
+* `qc_min_feats`: minimum number of detected features per cell required to retain a cell.
+* `qc_max_feats`: maximum detected features per cell required to retain a cell. No upper limit if unset.
+* `qc_min_mito`: minimum proportion of mitochondrial reads required to retain a cell.
+* `qc_max_mito`: maximum proportion of mitochondrial reads required to retain a cell.
+* `qc_min_splice`: minimum proportion of spliced reads required to retain a cell.
+* `qc_max_splice`: maximum proportion of spliced reads required to retain a cell.
+* `qc_min_cells`: minimum cells remaining in a sample after QC to retain that sample.
+* `exclude_mito`: boolean; whether to exclude mitochondrial genes or not.
+* `dbl_clusters`: whether artificial doublets are generated using cluster labels. If unset, uses the `scDblFinder` default. `false` disables cluster-based generation; `true` first clusters the cells and generates artificial doublets between clusters.
+* `dbl_dbr_sd`: how strongly the expected doublet rate constrains the calling threshold. If unset, uses the `scDblFinder` default. Setting `1` removes the expected-rate penalty, leaving the threshold determined by classification of artificial doublets.
+* `dbl_min_feats`: minimum number of features required for each barcode to be included in `scDblFinder` calculations.
+* `dbl_min_counts`: minimum number of UMIs required for each barcode to be included in `scDblFinder` calculations; `0` disables this filter.
 
 
 ##### pb_empties
 
-* `ambient_genes_logfc_thr`: log-fold change (logFC) threshold used to filter the results of the `edgeR` differential expression test comparing empty droplets to cells. Default `0`.
-* `ambient_genes_fdr_thr`: false discovery rate (FDR) threshold used to filter the results of the `edgeR` differential expression test comparing empty droplets to cells. Default `0.01`.
+* `ambient_genes_logfc_thr`: log-fold change (logFC) threshold used to filter the results of the `edgeR` differential expression test comparing empty droplets to cells.
+* `ambient_genes_fdr_thr`: false discovery rate (FDR) threshold used to filter the results of the `edgeR` differential expression test comparing empty droplets to cells.
 
 ##### hvg
 
@@ -499,59 +655,58 @@ sample_id:
     + `all`: calculate highly variable genes across all cells in the dataset; and
     + `groups`: calculate highly variable genes for each sample group then calculate combined ranking across groups.
 * `hvg_metadata_split_var`: if `hvg_method` is `groups`, which variable in `sample_metadata` should be used to define sample groups.
-* `hvg_n_hvgs`: number of HVGs to use for PCA; Default: `2000`.
-* `hvg_exclude_ambient_genes`: if `true`, genes enriched in empty droplets relative to cells will be excluded from highly variable genes selection. Default: `true`.
+* `hvg_n_hvgs`: number of HVGs to use for PCA.
+* `hvg_exclude_ambient_genes`: if `true`, genes enriched in empty droplets relative to cells will be excluded from highly variable genes selection.
 * `hvg_exclude_from_file`: path to CSV file with genes to be excluded from HVGs. Should be absolute or relative to `proj_dir`. File should contain one column, named either `gene_id` or `symbol`. Values in the column should all be present in reference genome.
-* `hvg_chunk_size`: number of genes to use for each chunked matrix. Default: `2000`.
+* `hvg_chunk_size`: number of genes to use for each chunked matrix.
 
 
 ##### integration
 
-* `int_embedding`: use `harmony` (default) to correct for the chosen batch variable, or `pca` to skip batch correction.
-* `int_batch_var`: the variable identifying batches for `Harmony`; default is `sample_id`. If `demux_type` is set to either `hto` or `custom`, then `pool_id` is an alternative option.
-* `int_theta`: theta parameter for `Harmony` integration, controlling batch mixing; Default: `0.1`.
-* `int_n_dims`: number of principal components to use for downstream analysis; Default `50`.
-* `int_res_ls`: list of resolution values to use for clustering. Default: `[0.1, 0.2, 0.5, 1, 2]`.
-* `int_dbl_res`: clustering resolution for identification of additional doublets; Default:`4`. 
-* `int_dbl_threshold_method`: method for setting the cluster-level doublet threshol - clusters exceeding this proportion of doublets are removed. `adaptive` (default) estimates the cutoff automatically; `manual` uses a user-defined cutoff (`int_dbl_cl_prop`).
+* `int_embedding`: use `harmony` to correct for the chosen batch variable, or `pca` to skip batch correction.
+* `int_batch_var`: the variable identifying batches for `Harmony`. If `demux_type` is set to either `hto` or `custom`, then `pool_id` is an alternative option.
+* `int_theta`: theta parameter for `Harmony` integration, controlling batch mixing.
+* `int_n_dims`: number of principal components to use for downstream analysis.
+* `int_res_ls`: list of resolution values to use for clustering.
+* `int_dbl_res`: clustering resolution for identification of additional doublets.
+* `int_dbl_threshold_method`: method for setting the cluster-level doublet threshold - clusters exceeding this proportion of doublets are removed. `adaptive` estimates the cutoff automatically; `manual` uses a user-defined cutoff (`int_dbl_cl_prop`).
 * `int_dbl_cl_prop`: cutoff for the `manual` method. Required when `int_dbl_threshold_method` is `manual`. Should be omitted if `int_dbl_threshold_method` is `adaptive`.
-* `int_umap_n_iter`: number of steps used to optimize the UMAP layout; Default: `2000`.
-* `int_use_paga`: if `true`(default) enable Partition-based graph abstraction (PAGA) and initialize a UMAP using PAGA results.
-* `int_paga_cl_res`: clustering resolution for PAGA analysis. Must be a value listed in `int_res_ls`. Default is `2`. Only used when `int_use_paga` is `true`.
-* `int_pca_method`: `bpcells` (default) streams normalized, scaled expression data from disk for PCA. `in_memory` loads expression matrix into memory and computes PCA via `Scanpy` (CPU) or `RAPIDS-singlecell` (GPU, if `int_use_gpu` is set).
-* `int_use_gpu`: boolean (default: `true`); whether to use GPU acceleration (`RAPIDS-singlecell`). If GPU is not available, `Scanpy` will be used.
-* `int_sce_outs`: if `true` H5AD outputs will be converted to `SingleCellExperiment` objects and stored ad RDS files. Default: `false`.
+* `int_umap_n_iter`: number of steps used to optimize the UMAP layout.
+* `int_use_paga`: if `true`, enable Partition-based graph abstraction (PAGA) and initialize a UMAP using PAGA results.
+* `int_paga_cl_res`: clustering resolution for PAGA analysis. Must be a value listed in `int_res_ls`. Only used when `int_use_paga` is `true`.
+* `int_pca_method`: `bpcells` streams normalized, scaled expression data from disk for PCA. `in_memory` loads expression matrix into memory and computes PCA via `Scanpy` (CPU) or `RAPIDS-singlecell` (GPU, if `int_use_gpu` is set).
+* `int_use_gpu`: boolean; whether to use GPU acceleration (`RAPIDS-singlecell`). If GPU is not available, `Scanpy` will be used.
+* `int_sce_outs`: if `true` H5AD outputs will be converted to `SingleCellExperiment` objects and stored as RDS files.
 * `int_cell_cycle_correction`: (optional; omitted = no correction) removes cell-cycle-phase variation from the PCA input using each cell's `tricycle_theta` score. Both options remove phase variation *within* each sample. `within_sample` leaves each sample's average expression unchanged, so cycling-composition differences between samples remain for `Harmony` to resolve. `global` also removes the part of that between-sample average difference attributable to differing cell-cycle composition — use it only if that dominates the leading PCs.
-* `int_cell_cycle_harmonics`: number of sine/cosine pairs used to fit expression against cell-cycle phase; `1` fits a single wave around the cycle, `2` (default) adds a second harmonic so the fit can have two peaks and troughs per cycle, closer to how many cell-cycle genes actually behave.
-* `int_cell_cycle_ridge_lambda`: ridge penalty shrinking the fitted cell-cycle correction's coefficients (see `int_cell_cycle_harmonics`) toward zero; larger values give a weaker, more conservative correction, and also protect against a degenerate fit when a sample/group has too few cells to estimate it from reliably. `0` disables shrinkage. Default: `0.1`.
+* `int_cell_cycle_harmonics`: number of sine/cosine pairs used to fit expression against cell-cycle phase; `1` fits a single wave around the cycle, `2` adds a second harmonic so the fit can have two peaks and troughs per cycle, closer to how many cell-cycle genes actually behave.
+* `int_cell_cycle_ridge_lambda`: ridge penalty shrinking the fitted cell-cycle correction's coefficients (see `int_cell_cycle_harmonics`) toward zero; larger values give a weaker, more conservative correction, and also protect against a degenerate fit when a sample/group has too few cells to estimate it from reliably. `0` disables shrinkage.
 
 
 ##### cell_cycle
 
 * `cyc_density_percentile` (required): percentile (0–100) of cell density used as the cutoff for full weight. Cells at or below this density receive full weight, while cells in denser regions are down-weighted. At `0`, weights are proportional to inverse density; at `100`, every cell receives equal weight.
 * `cyc_origin_manual`: manually selected cell cycle origin.
-* `cyc_density_percentile_grid`: alternative density percentiles shown in the report; Default: `[0, 0.1, 0.3, 1, 3, 10, 100]`.
-* `cyc_bandwidth_multiplier`: positive multiplier controlling how broadly neighbouring cells are grouped when estimating the density of cells the projection; Default: `1`. 
-* `cyc_kde_grid_size`: positive integer specifying the number of grid bins per axis used to evaluate the 2D kernel density estimate across the projection. Default: `500` (`500` × `500` grid).
-* `cyc_seed`: random seed for generating diagnostic plots; default `20230308`.[**Change this default seed**?]
+* `cyc_density_percentile_grid`: alternative density percentiles shown in the report.
+* `cyc_bandwidth_multiplier`: positive multiplier controlling how broadly neighbouring cells are grouped when estimating the density of cells the projection.
+* `cyc_kde_grid_size`: positive integer specifying the number of grid bins per axis used to evaluate the 2D kernel density estimate across the projection (an N × N grid).
+* `cyc_seed`: random seed for generating diagnostic plots.[**Change this default seed**?]
 
 ##### marker_genes
 
-* `mkr_sel_res`: clustering resolution used for marker analysis; Must match one of the elements in `int_res_ls`. Default: `0.2`. 
-* `mkr_min_cl_size`: minimum number of cells required in a cluster to calculate marker genes for that cluster. Default: `100`.
-* `mkr_min_cells`: minimum number of cells required in a pseudobulk sample to include it in marker gene calculations. Default: `10`.
-* `mkr_min_cpm_mkr`: minimum expression in counts per million (CPM) for selecting genes shown in marker plots. Default: 50.
-* `mkr_not_ok_re`: pattern matching gene types to omit from marker-expression plots. Default: `"(lincRNA|lncRNA|pseudogene|antisense)"`.
-* `mkr_do_gsea`: boolean specifiying whether Gene Set Enrichment Analysis (GSEA) should be performed on marker genes. Default: `true`.
-* `mkr_gsea_cut`: false discovery rate (FDR) cutoff for GSEA. Default: `0.1`.
-* `mkr_min_cpm_go`: minimum CPM in a cluster required for a gene to be used in GSEA. Default: `1`. 
-* `mkr_max_zero_p`: maximum proportion of pseudobulk samples for a cluster that can have zero counts for a gene to be used in GSEA. Default: `0.5`.
-* `mkr_gsea_var`: the statistic used for ranking genes in GSEA. Choices are `z_score` (z-score based on signed `log10(FDR)`, the default) or `logFC` (log fold change).
+* `mkr_sel_res`: clustering resolution used for marker analysis; Must match one of the elements in `int_res_ls`.
+* `mkr_min_cl_size`: minimum number of cells required in a cluster to calculate marker genes for that cluster.
+* `mkr_min_cells`: minimum number of cells required in a pseudobulk sample to include it in marker gene calculations.
+* `mkr_min_cpm_mkr`: minimum expression in counts per million (CPM) for selecting genes shown in marker plots.
+* `mkr_not_ok_re`: pattern matching gene types to omit from marker-expression plots.
+* `mkr_do_gsea`: boolean specifying whether Gene Set Enrichment Analysis (GSEA) should be performed on marker genes.
+* `mkr_gsea_cut`: false discovery rate (FDR) cutoff for GSEA.
+* `mkr_min_cpm_go`: minimum CPM in a cluster required for a gene to be used in GSEA.
+* `mkr_max_zero_p`: maximum proportion of pseudobulk samples for a cluster that can have zero counts for a gene to be used in GSEA.
+* `mkr_gsea_var`: the statistic used for ranking genes in GSEA. Choices are `z_score` (z-score based on signed `log10(FDR)`) or `logFC` (log fold change).
 * `mkr_custom_genesets`: a list of custom marker gene sets, each defined by a unique name and associated file path.
     + `name`: a string representing the name of the marker gene set
     + `file`: path to CSV file containing a list of genes in the marker gene set. Must contain column `label` (marker gene category), and `symbol` and/or `ensembl_id`. If not speficied `scprocess` will look for file `$SCPROCESS_DATA_DIR/marker_genes/{name}.csv`
-* `mkr_dispersion_use_clusters`: boolean specifying whether to include cluster membership when estimating variation between samples. Default: `true`. [**Where is this parameter relevant??**]
-* `mkr_adjust_project_id`: for {{scjoin}} only; boolean specifying whether to account for project-level differences in both dispersion estimation and marker comparisons. Default: `false` [[**Also don't get what this is??**]]
+* `mkr_dispersion_use_clusters`: boolean specifying whether to include cluster membership when estimating variation between samples. [**Where is this parameter relevant??**]
 
 
 ##### label_celltypes
@@ -560,12 +715,12 @@ sample_id:
     + `celltypist` uses one of the models available in [`CellTypist`](https://www.celltypist.org/models) for annotation.
     + `scprocess`: uses an `XGBoost` classifier for cell type annotation.
 * `model`: determines the model to be used based on the selected `labeller`. For list of all available `CellTypist` models see `$SCPROCESS_DATA_DIR/celltypist/celltypist_models.csv`. For a list of all available `scprocess` classifiers see `$SCPROCESS_DATA_DIR/xgboost/xgboost_models.csv`.
-* `hi_res_cl`: name of a column containing high-resolution clustering results. It must follow the pattern `"RNA_snn_res.n"` where `n` should be replaced with one of the values in `int_res_ls`. Default is `"RNA_snn_res.2"`.
-* `min_cl_prop`: minimum fraction of a cluster sharing its most frequent predicted label for that label to be assigned to the whole cluster. Default `0.5`.
-* `min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled. Default: `100`.
+* `hi_res_cl`: name of a column containing high-resolution clustering results. It must follow the pattern `"RNA_snn_res.n"` where `n` should be replaced with one of the values in `int_res_ls`.
+* `min_cl_prop`: minimum fraction of a cluster sharing its most frequent predicted label for that label to be assigned to the whole cluster.
+* `min_cl_size`: minimum number of cells in a cluster required for that cluster to be labeled.
 * `label_specs_f`: CSV file with one row per label, listed in the desired display order. Required column: `label`. Optional columns: `colour` and `coarse_label`. Should be absolute or relative to `proj_dir`. If omitted, {{sc}} looks for `$SCPROCESS_DATA_DIR/celltypist/{model}_label_specs.csv` (if `labeller` is `celltypist`) or `$SCPROCESS_DATA_DIR/xgboost/{model}/{model}_label_specs.csv` (if `labeller` is `scprocess`);
 * `coarse_label_specs_f`: CSV file with one row per coarse group, listed in the desired display order. Required column: `coarse_label`. Optional column: `coarse_colour`. Requires a coarse mapping in `label_specs_f`. Resolved the same way as `label_specs_f`: an explicit value takes priority, otherwise {{sc}} looks for the matching `{model}_coarse_label_specs.csv` under `$SCPROCESS_DATA_DIR`.
-* `save_cluster_names_file`: boolean specifying whether to generate a `cluster_names_for_shiny_*.csv` file mapping clusters (at `mkr_sel_res` resolution) to predicted cell type names. This file can be used as the `annotation_csv` in the shiny config. Default: `false`.
+* `save_cluster_names_file`: boolean specifying whether to generate a `cluster_names_for_shiny_*.csv` file mapping clusters (at `mkr_sel_res` resolution) to predicted cell type names. This file can be used as the `annotation_csv` in the shiny config.
 
 
 ##### train_xgboost
@@ -584,47 +739,47 @@ sample_id:
 * `label_specs_f` (optional): CSV file with one row per label, listed in the desired display order. Required column: `label`. Optional columns: `colour` and `coarse_label`.
 * `coarse_label_specs_f`: CSV file with one row per coarse group, listed in the desired display order. Required column: `coarse_label`. Optional column: `coarse_colour`. Requires a coarse mapping in `label_specs_f`.
 * `cluster_majority_vote_resolution`: a clustering resolution at which each cluster's most frequent training label is assigned to all cells in that cluster. Omit to keep the original labels.
-* `cluster_majority_vote_min_purity`: minimum fraction of labelled training cells that must share the most frequent label before it is assigned to the cluster. Default: `0.5`. [**Only training cells are used for the vote, so validation and test labels do not affect the decision.**]
+* `cluster_majority_vote_min_purity`: minimum fraction of labelled training cells that must share the most frequent label before it is assigned to the cluster. [**Only training cells are used for the vote, so validation and test labels do not affect the decision.**]
 * `excluded_labels`: labels to exclude from training.
-* `min_cells_per_label`: minimum number of cells required to keep a label for training. Labels with fewer cells are excluded. Default: `20`.
+* `min_cells_per_label`: minimum number of cells required to keep a label for training. Labels with fewer cells are excluded.
 * `test_group_var`: metadata column that defines the values to hold out completely from training and validation. Must be supplied together with `test_groups`.
 * `test_groups`: values of `test_group_var`.
-* `validation_group_var`: metadata column that defines the groups kept together when splitting data for validation. Default: `int_batch_var`[**is this default correct**]
-* `validation_fraction`: fraction of groups assigned to the validation set. Default: `0.2`.
+* `validation_group_var`: metadata column that defines the groups kept together when splitting data for validation. [**How can the default be `batch`?**]
+* `validation_fraction`: fraction of groups assigned to the validation set.
 * `validation_balancing_groups`: metadata columns (other than `validation_group_var`) representing sample groups that should appear in both the validation and training sets. If multiple columns are given, every combination of their values is identified, and each combination is ensured to contribute to both sets.
-* `train_cells_per_label`: maximum number of cells selected per label after groups are assigned. Default: `2000`.
-* `validation_cells_per_label`: maximum number of cells selected per label after groups are assigned. Default: `500`.
+* `train_cells_per_label`: maximum number of cells selected per label after groups are assigned.
+* `validation_cells_per_label`: maximum number of cells selected per label after groups are assigned.
 * `sampling_balancing_groups`: if a label has more cells than `train_cells_per_label`, cell selection is balanced within that label across these metadata variables.
-* `min_cells_expressed`: minimum number of training cells in which a gene must be detected. Default: `10`.
-* `gene_exclude_re`: regular expression matching gene types to exclude. Default: `"(lincRNA|lncRNA|pseudogene|antisense)"`.
-* `gain_threshold`: fraction of total gain from the first fit that the selected genes must account for. Default: `0.9` (90%).
-* `min_genes`: lower limit on the number of selected genes. Default: `100`.
-* `max_genes`: upper limit on the number of selected genes. Default: `5000`.
-* `seed`: random seed for reproducibility. Default: `42`.
-* `use_gpu`: whether to train on a GPU. Default: `false`. 
+* `min_cells_expressed`: minimum number of training cells in which a gene must be detected.
+* `gene_exclude_re`: regular expression matching gene types to exclude.
+* `gain_threshold`: fraction of total gain from the first fit that the selected genes must account for.
+* `min_genes`: lower limit on the number of selected genes.
+* `max_genes`: upper limit on the number of selected genes.
+* `seed`: random seed for reproducibility.
+* `use_gpu`: whether to train on a GPU.
 * `xgboost_tag`: name used in model filenames. If omitted, the file prefix is `xgboost_{full_tag}` for a project or `xgboost_{join.name}` for a join.
-* `pass1_subsample`: fraction of training cells sampled for each boosting round in the first fit. Default: `0.632`.
-* `pass1_colsample_bytree`: fraction of genes considered for each tree in the first fit. Default: `0.1`.
-* `pass1_learning_rate`: contribution of each added tree to the predictions in the first fit. Default: `0.1`.
-* `pass1_nrounds`: maximum number of boosting rounds in the first fit. Default: `1000`.
-* `pass1_early_stopping`: stop the first fit after this many rounds without improvement in validation performance. Default: `10`.
-* `pass2_colsample_bytree`: fraction of genes considered for each tree in the final fit. Only the genes selected after the first fit are considered. Default: `0.5`.
-* `pass2_learning_rate`: contribution of each added tree to the predictions in the final fit. Default: `0.05`.
-* `pass2_nrounds`: maximum number of boosting rounds in the final fit. Default: `2000`.
-* `pass2_early_stopping`: stop the final fit after this many rounds without improvement in validation performance. Default: `10`.
+* `pass1_subsample`: fraction of training cells sampled for each boosting round in the first fit.
+* `pass1_colsample_bytree`: fraction of genes considered for each tree in the first fit.
+* `pass1_learning_rate`: contribution of each added tree to the predictions in the first fit.
+* `pass1_nrounds`: maximum number of boosting rounds in the first fit.
+* `pass1_early_stopping`: stop the first fit after this many rounds without improvement in validation performance.
+* `pass2_colsample_bytree`: fraction of genes considered for each tree in the final fit. Only the genes selected after the first fit are considered.
+* `pass2_learning_rate`: contribution of each added tree to the predictions in the final fit.
+* `pass2_nrounds`: maximum number of boosting rounds in the final fit.
+* `pass2_early_stopping`: stop the final fit after this many rounds without improvement in validation performance.
 [**these need further review**]
-* `downsample_copies`: shallow copies per selected training and validation cell; default `0` (off). `1` is a good starting point.
-* `downsample_min_umis`: start of range of copy depths in UMIs; default: 300
-* `downsample_max_umis`: szatz or range of copy depths in UMIs; default: 3000
+* `downsample_copies`: shallow copies per selected training and validation cell; `0` disables this. `1` is a good starting point.
+* `downsample_min_umis`: start of range of copy depths in UMIs.
+* `downsample_max_umis`: end of range of copy depths in UMIs.
 
 ##### shiny
 
 * `app_tag`: app identifier used for directory and file names. 
 * `app_title`: title displayed in the Shiny app header.
 * `email`: contact email shown in the app footer.
-* `keyword`: short word used in plot axis labels and descriptions (e.g. `"cells"`, `"nuclei"`). Default: `"cells"`.
+* `keyword`: short word used in plot axis labels and descriptions (e.g. `"cells"`, `"nuclei"`).
 * `default_gene`: gene symbol displayed by default in the "Explore Genes" tab.
-* `n_keep`: number of cells retained in the subsampled UMAP shown in the app. Default: `30000`.
+* `n_keep`: number of cells retained in the subsampled UMAP shown in the app.
 * `metadata_vars`: metadata variables to include in the app's plots. If not specified, project-level `metadata_vars` are used.
 * `metadata_labels`: display labels for metadata variables. Keys are column names, values are display labels. Variables not listed keep their column name as the label.
 * `metadata_combns`: list of metadata variable pairs to display as combined groupings. Each element should be a two-element list of variable names from `metadata_vars`.
@@ -667,10 +822,10 @@ Additional parameters include:
 * `model`: required if `labels_source` is `scprocess` or `celltypist`.
 * `sel_labels`: a list of all labels that define cell types/clusters to be included in subclustering (required).
 * `labels_col`: name of the column containing the labels used to select cells (required).
-* `save_subset_sces`: whether to create `RDS` files with `SingleCellExperiment` objects containing cells that have been assigned one of the values in `sel_labels`; Default: `false`.
-* `save_subset_anndata`: whether to create `H5AD` files containing cells that have been assigned one of the values in `sel_labels`; Default: `true`.
+* `save_subset_sces`: whether to create `RDS` files with `SingleCellExperiment` objects containing cells that have been assigned one of the values in `sel_labels`.
+* `save_subset_anndata`: whether to create `H5AD` files containing cells that have been assigned one of the values in `sel_labels`.
 * `custom_labels_f`: required if `labels_source` is set to `custom`; path to CSV file with columns `sample_id`, `cell_id` and `label`. Should be absolute or relative to `project_dir`. 
-* `save_cluster_names_file`: boolean specifying whether to generate a `cluster_names_for_shiny_*.csv` file mapping this zoom's clusters (at `mkr_sel_res` resolution) to predicted cell type names, for use as the `annotation_csv` in the `shiny` config. Default: `false`.
+* `save_cluster_names_file`: boolean specifying whether to generate a `cluster_names_for_shiny_*.csv` file mapping this zoom's clusters (at `mkr_sel_res` resolution) to predicted cell type names, for use as the `annotation_csv` in the `shiny` config.
 * `exclude`: samples or pools to drop from just the zoom's cell subset. 
 
 ```yaml
@@ -712,9 +867,9 @@ This section allows users to adjust the resource requirements for specific `Snak
 Additional parameters include:
 
 * `retries`: number of times to retry running a specific rule in {{scrun}} if it fails. For each attempt the initial memory requested for the rule is multiplied by `1.5**(attempt - 1)`. Useful for when {{scrun}} is ran on a [cluster](setup.md#cluster-setup).
-* `n_run_mapping`: number of threads requested for running the mapping step if `tenx_assay_type` is `polya`. Default is 8.
-* `n_run_mapping_flex`: number of threads requested for running the mapping step if `tenx_assay_type` is `flex`. Default is 8.
-* `n_run_marker_genes`: number of threads requested for rule `run_marker_genes`. Default is 8.
+* `n_run_mapping`: number of threads requested for running the mapping step if `tenx_assay_type` is `poly_a`.
+* `n_run_mapping_flex`: number of threads requested for running the mapping step if `tenx_assay_type` is `flex`.
+* `n_run_marker_genes`: number of threads requested for rule `run_marker_genes`.
 
 
 ??? note "Detailed information about resource parameters"
