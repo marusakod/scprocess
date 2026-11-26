@@ -54,6 +54,8 @@ zoom_report_lbls_f    = "${zoom_report_lbls_f}"
 zoom_original_lbls_f  = "${zoom_original_lbls_f}"
 zoom_lbls_col         = "${zoom_lbls_col}"
 zoom_label_hi_res_cl  = "${zoom_label_hi_res_cl}"
+zoom_label_specs_f    = "${zoom_label_specs_f}"
+zoom_coarse_label_specs_f = "${zoom_coarse_label_specs_f}"
 zoom_sel_labels       = "${zoom_sel_labels}"
 zoom_qc_min_counts    = "${zoom_qc_min_counts}"
 zoom_qc_max_counts    = "${zoom_qc_max_counts}"
@@ -405,9 +407,11 @@ for (res in res_ls) {
 }
 ```
 
+${zoom_label_section_title}
+
+${zoom_label_section_txt}
+
 ```{r plot_zoom_labels_vs_clusters, eval = do_label_celltypes, include = do_label_celltypes, fig.height = 12, fig.width = 13, results = 'asis'}
-cat("### Input cell-type labels{.tabset}\n\n")
-cat("Project-level raw cell-type predictions were aggregated at the level of high-resolution zoom clusters. The tabs below show how well cell-type predictions align with zoom clusters. \n\n", sep = "")
 cat("#### Zoom clusters versus raw cell-type predictions\n\n")
 cat("Labels that are assigned to less than 20% of cells in any cluster are combined into a single `Other` class.\n\n")
 
@@ -418,11 +422,15 @@ zoom_cluster_dt = int_dt[, .(
 )]
 zoom_label_dt = report_lbls_df[cell_id %chin% int_dt$cell_id]
 
-# Labels / Grouped labels tabs, ordered and coloured by the parent model's
-# label specifications when exactly one installed model made the predictions
-zoom_label_models = unique(zoom_label_dt$model)
-zoom_label_style  = if (length(zoom_label_models) == 1) installed_label_style(zoom_label_models) else
-  EMPTY_LABEL_STYLE
+zoom_label_style  = resolve_label_style(NULL, character(), zoom_label_specs_f, zoom_coarse_label_specs_f)
+if (length(zoom_label_style$mapping)) {
+  for (suffix in c("naive","agg")) {
+    original = zoom_label_dt[[paste0("predicted_label_",suffix)]]
+    value = unname(zoom_label_style$mapping[original])
+    value[is.na(value)] = original[is.na(value)]
+    set(zoom_label_dt, j = paste0("coarse_predicted_label_",suffix), value = value)
+  }
+}
 zoom_label_views  = get_label_views(zoom_label_dt, zoom_label_style)
 
 cat_label_views_heading('Zoom clusters versus predicted cell types', zoom_label_views, level = 4)

@@ -1708,6 +1708,16 @@ rule render_html_zoom:
         ZOOM_PARAMS, LABELLER_PARAMS, wildcards.zoom_name)['hi_res_cl']
       if ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_source'] in ['celltypist', 'scprocess']
       else ''),
+    zoom_label_specs_f    = lambda wildcards: (
+      get_zoom_labeller_entry(
+        ZOOM_PARAMS, LABELLER_PARAMS, wildcards.zoom_name).get('label_specs_f') or ''
+      if ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_source'] in ['celltypist', 'scprocess']
+      else ''),
+    zoom_coarse_label_specs_f = lambda wildcards: (
+      get_zoom_labeller_entry(
+        ZOOM_PARAMS, LABELLER_PARAMS, wildcards.zoom_name).get('coarse_label_specs_f') or ''
+      if ZOOM_PARAMS[wildcards.zoom_name]['zoom']['labels_source'] in ['celltypist', 'scprocess']
+      else ''),
     zoom_sel_labels        = lambda wildcards: ','.join(ZOOM_PARAMS[wildcards.zoom_name]['zoom']['sel_labels']),
     zoom_qc_min_counts    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_min_counts', ''),
     zoom_qc_max_counts    = lambda wildcards: ZOOM_PARAMS[wildcards.zoom_name]['qc'].get('qc_max_counts', ''),
@@ -1779,6 +1789,8 @@ rule render_html_zoom:
       zoom_original_lbls_f = '{params.zoom_original_lbls_f}',
       zoom_lbls_col     = '{params.zoom_lbls_col}',
       zoom_label_hi_res_cl = '{params.zoom_label_hi_res_cl}',
+      zoom_label_specs_f = '{params.zoom_label_specs_f}',
+      zoom_coarse_label_specs_f = '{params.zoom_coarse_label_specs_f}',
       zoom_sel_labels   = '{params.zoom_sel_labels}',
       zoom_qc_min_counts = '{params.zoom_qc_min_counts}',
       zoom_qc_max_counts = '{params.zoom_qc_max_counts}',

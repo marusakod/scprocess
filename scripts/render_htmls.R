@@ -235,7 +235,8 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
     req_names = c('your_name', 'affiliation', 'short_tag', 'date_stamp',
       'threads', 'zoom_dir', 'zoom_name', 'metadata_f', 'meta_vars_ls',
       'gtf_dt_f', 'qc_f', 'r_label_celltypes_f', 'zoom_lbls_f', 'zoom_report_lbls_f',
-      'zoom_original_lbls_f', 'zoom_lbls_col', 'zoom_label_hi_res_cl', 'zoom_sel_labels',
+      'zoom_original_lbls_f', 'zoom_lbls_col', 'zoom_label_hi_res_cl',
+      'zoom_label_specs_f', 'zoom_coarse_label_specs_f', 'zoom_sel_labels',
       'zoom_qc_min_counts', 'zoom_qc_max_counts', 'zoom_qc_min_feats', 'zoom_qc_max_feats',
       'zoom_qc_min_mito', 'zoom_qc_max_mito',
       'zoom_qc_min_splice', 'zoom_qc_max_splice',
@@ -275,6 +276,22 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
 
     xgboost_txt_ls = get_xgboost_report_text(add_args[['do_xgboost']])
 
+  
+    if (nzchar(add_args[['zoom_label_hi_res_cl']])) {
+      report_lbls_names = names(fread(add_args[['zoom_report_lbls_f']], nrows = 0))
+      do_label_celltypes = all(c('predicted_label_naive', 'predicted_label_agg') %in% report_lbls_names)
+    } else {
+      do_label_celltypes = FALSE
+    }
+    if (do_label_celltypes) {
+      zoom_label_section_title = "### Input cell-type labels{.tabset}"
+      zoom_label_section_txt   = paste0("Project-level raw cell-type predictions were aggregated at the level of",
+        " high-resolution zoom clusters. The tabs below show how well cell-type predictions align with zoom clusters.")
+    } else {
+      zoom_label_section_title = ""
+      zoom_label_section_txt   = ""
+    }
+
     .parse_zoom_thr = function(x) { x = trimws(x); if (x == "" || x == "None") NA_real_ else as.numeric(x) }
     zoom_qc_values = c(
       add_args[['zoom_qc_min_counts']], add_args[['zoom_qc_max_counts']],
@@ -296,7 +313,10 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
            meta_umap_txt   = meta_umap_txt,
            fgsea_title     = fgsea_title,
            fgsea_txt       = fgsea_txt,
-           zoom_qc_note_txt = zoom_qc_note_txt),
+           zoom_qc_note_txt = zoom_qc_note_txt,
+           do_label_celltypes = do_label_celltypes,
+           zoom_label_section_title = zoom_label_section_title,
+           zoom_label_section_txt   = zoom_label_section_txt),
       xgboost_txt_ls)
 
   } else if (sel_rule == 'join') {
@@ -305,14 +325,67 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       'int_res_ls', 'scprocess_dir', 'date_stamp', 'metadata_vars',
       'custom_mkr_names', 'custom_mkr_paths',
       'label_f_ls', 'labeller_ls', 'model_ls', 'hi_res_cl_ls', 'min_cl_prop_ls',
-      'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_cut',
+      'label_specs_f_ls', 'coarse_label_specs_f_ls',
+      'mkr_min_cpm_mkr', 'mkr_min_cells', 'mkr_gsea_cut', 'mkr_adjust_project_id',
       'integration_f', 'qc_f', 'sample_meta_f', 'mkrs_f', 'pb_hvgs_f',
       'pb_plot_data_f',
       'fgsea_go_bp_f', 'fgsea_go_cc_f', 'fgsea_go_mf_f')
 
     assert_that(all(req_names %in% add_args_names))
 
-    params_ls = as.list(add_args[req_names])
+    mkr_adjust_txt = if (as.logical(add_args[['mkr_adjust_project_id']])) {
+      "`project_id` was included in the model to account for project-level technical differences."
+    } else {
+      ""
+    }
+
+    do_gsea = all(nzchar(c(add_args[['fgsea_go_bp_f']], add_args[['fgsea_go_cc_f']], add_args[['fgsea_go_mf_f']])))
+    if (do_gsea) {
+      fgsea_title = "## GSEA characterisation of clusters{.tabset}"
+      fgsea_txt   = paste0("Gene Set Enrichment Analysis (GSEA) was performed on marker genes for each cluster, using log fold change as the ranking variable.",
+        " The top 10 pathways, grouped into five categories and selected based on a significance threshold of 0.05, are displayed for each cluster.")
+    } else {
+      fgsea_title = ""
+      fgsea_txt   = ""
+    }
+
+    do_labels = nzchar(add_args[['label_f_ls']])
+    if (do_labels) {
+      label_section_title = "## Cell type labelling{.tabset}"
+      label_section_txt   = paste0("Raw cell-type predictions were aggregated predictions were then",
+        " aggregated at the level of high-resolution clusters via majority voting. The tabs below show how well",
+        " cell-type predictions align with clusters as well as with individual source projects.")
+    } else {
+      label_section_title = ""
+      label_section_txt   = ""
+    }
+
+    cfg_metadata_vars = add_args[['metadata_vars']] %>%
+      str_split(pattern = " ") %>% unlist() %>% trimws()
+    cfg_metadata_vars = cfg_metadata_vars[cfg_metadata_vars != ""]
+    meta_dt_names     = names(fread(add_args[['sample_meta_f']], nrows = 0))
+    metadata_vars     = intersect(cfg_metadata_vars, meta_dt_names)
+    composition_vars  = unique(c('project_id', metadata_vars))
+
+    composition_vars_desc = c('project identity', metadata_vars) %>%
+      paste(collapse = ', ') %>% stri_replace_last_fixed(",", " and")
+    comp_bars_txt = paste0("For each cluster the proportion of cells coming from samples associated with",
+      " specific values of ", composition_vars_desc, " is shown.")
+    comp_umap_txt = paste0("The plot shows a binned UMAP with facets corresponding to specific values of ",
+      composition_vars_desc,
+      ", which allows the evaluation of whether cells sharing certain annotations are particularly abundant in some clusters.")
+
+    params_ls = c(
+      as.list(add_args[setdiff(req_names, 'metadata_vars')]),
+      list(metadata_vars    = paste(metadata_vars, collapse = " "),
+           composition_vars = paste(composition_vars, collapse = " "),
+           comp_bars_txt    = comp_bars_txt,
+           comp_umap_txt    = comp_umap_txt,
+           mkr_adjust_txt   = mkr_adjust_txt,
+           fgsea_title      = fgsea_title,
+           fgsea_txt        = fgsea_txt,
+           label_section_title = label_section_title,
+           label_section_txt   = label_section_txt))
 
   } else if (sel_rule == 'index') {
     req_names = c('your_name', 'affiliation', 'short_tag', 'docs_dir', 'full_tag', 'date_stamp', 'mkr_sel_res', 'config_f', 'show_arv_uuids')
@@ -376,8 +449,6 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       label_celltypes_link = sprintf("- Celltype labelling ([link](%s_label_celltypes.html))", short_tag)
     }
     
-    # Classifier training reports, for the project or a zoom, e.g.
-    # mini_train_xgboost_brain.html or mini_zoom_neurons_train_xgboost_neurons.html
     train_pattern = paste0('^', short_tag, '_(?:zoom_(.+)_)?train_(.+)\\.html$')
     train_mat     = str_match(htmls, train_pattern)
     train_htmls   = htmls[!is.na(train_mat[, 1])]
@@ -423,7 +494,6 @@ get_sub_ls <- function(rule = c('mapping', 'multiplexing', 'ambient', 'qc', 'hvg
       
       # Mask arv_uuids if show_arv_uuids is FALSE
       if (!add_args[['show_arv_uuids']]) {
-        # Replace arv_uuid values with "not shown" (handles arrays and single values)
         config_content = gsub('ar[a-z]{3}-[a-z0-9]{5}-[a-z0-9]{15}', 'not shown', config_content, ignore.case = FALSE)
       }
       

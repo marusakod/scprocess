@@ -863,7 +863,7 @@ def get_xgboost_source_files(parameters):
   tag = parameters['ref_tag']
   return [str(path) for path in directory.glob(f'{tag}_*') if path.is_file() and
     path.name.endswith(('xgboost_model.json','allowed_cls.csv','selected_genes.txt',
-      'label_map.csv','label_specs.csv','coarse_label_specs.csv'))]
+      'label_specs.csv','coarse_label_specs.csv'))]
 
 
 def get_xgboost_parameters(config):
@@ -885,9 +885,8 @@ def get_xgboost_parameters(config):
     for fname in required:
       if not os.path.isfile(os.path.join(src_dir, fname)):
         raise FileNotFoundError(f"Required xgboost file not found: {os.path.join(src_dir, fname)}")
-    has_label_map = os.path.isfile(os.path.join(src_dir, f'{ref_tag}_label_map.csv'))
     SETUP_LS.append({'name': name, 'ref_tag': ref_tag, 'src_dir': src_dir,
-                     'is_prebuilt': False, 'has_label_map': has_label_map})
+                     'is_prebuilt': False})
 
   setup_names = [s['name'] for s in SETUP_LS]
   if len(setup_names) != len(set(setup_names)):
@@ -992,7 +991,7 @@ def add_xgboost_classifier(scdata_dir, name, ref_tag, src_dir, is_prebuilt):
     for src_name, dst_name in file_pairs:
       shutil.copy2(os.path.join(src_dir, src_name), os.path.join(dest_dir, dst_name))
 
-    for suffix in ['label_map.csv','label_specs.csv','coarse_label_specs.csv']:
+    for suffix in ['label_specs.csv','coarse_label_specs.csv']:
       source = os.path.join(src_dir, f'{ref_tag}_{suffix}')
       if os.path.isfile(source):
         shutil.copy2(source, os.path.join(dest_dir, f'{name}_{suffix}'))
@@ -1002,7 +1001,7 @@ def add_xgboost_classifier(scdata_dir, name, ref_tag, src_dir, is_prebuilt):
     import json
     files = {f'{name}_{suffix}': sha256(os.path.join(dest_dir, f'{name}_{suffix}'))
       for suffix in ['xgboost_model.json', 'allowed_cls.csv', 'selected_genes.txt']}
-    for suffix in ['label_map.csv','label_specs.csv','coarse_label_specs.csv']:
+    for suffix in ['label_specs.csv','coarse_label_specs.csv']:
       path = os.path.join(dest_dir, f'{name}_{suffix}')
       if os.path.isfile(path):
         files[os.path.basename(path)] = sha256(path)
@@ -1083,7 +1082,6 @@ def save_available_xgboost_csv(csv_f, scdata_dir, names):
     model_f = os.path.join(xgb_dir, f'{name}_xgboost_model.json')
     cls_f   = os.path.join(xgb_dir, f'{name}_allowed_cls.csv')
     genes_f = os.path.join(xgb_dir, f'{name}_selected_genes.txt')
-    label_map_f = os.path.join(xgb_dir, f'{name}_label_map.csv')
     from train_xgboost import get_xgboost_model_info
     identity = get_xgboost_model_info(model_f, name)
     rows.append({
@@ -1092,7 +1090,6 @@ def save_available_xgboost_csv(csv_f, scdata_dir, names):
       'model_f':     model_f,
       'cls_f':       cls_f,
       'genes_f':     genes_f,
-      'label_map_f': label_map_f if os.path.isfile(label_map_f) else '',
       'label_specs_f': str(pathlib.Path(xgb_dir) / f'{name}_label_specs.csv') if os.path.isfile(os.path.join(xgb_dir,f'{name}_label_specs.csv')) else '',
       'coarse_label_specs_f': str(pathlib.Path(xgb_dir) / f'{name}_coarse_label_specs.csv') if os.path.isfile(os.path.join(xgb_dir,f'{name}_coarse_label_specs.csv')) else '',
     })

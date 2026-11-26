@@ -78,6 +78,8 @@ labeller_ls_str   = "${labeller_ls}"
 model_ls_str      = "${model_ls}"
 hi_res_cl_ls_str  = "${hi_res_cl_ls}"
 min_cl_prop_ls_str = "${min_cl_prop_ls}"
+label_specs_f_ls_str        = "${label_specs_f_ls}"
+coarse_label_specs_f_ls_str = "${coarse_label_specs_f_ls}"
 do_labels = label_f_ls_str != ""
 if (do_labels) {
   label_f_ls     = str_split(label_f_ls_str, " ")[[1]]
@@ -85,6 +87,8 @@ if (do_labels) {
   model_ls       = str_split(model_ls_str, " ")[[1]]
   hi_res_cl_ls   = str_split(hi_res_cl_ls_str, " ")[[1]]
   min_cl_prop_ls = str_split(min_cl_prop_ls_str, " ")[[1]] %>% as.numeric()
+  label_specs_f_ls        = str_split(label_specs_f_ls_str, " ")[[1]]
+  coarse_label_specs_f_ls = str_split(coarse_label_specs_f_ls_str, " ")[[1]]
   min_cl2_p      = 0.05
   lbl_threshold  = 0.05
 }
@@ -123,10 +127,8 @@ qc_melt = melt(qc_dt, id.vars = 'cell_id', measure.vars = qc_names,
 
 
 ```{r setup_sel_res, include=FALSE}
-cfg_metadata_vars = "${metadata_vars}" %>% str_split(" ") %>% unlist() %>% trimws()
-cfg_metadata_vars = cfg_metadata_vars[cfg_metadata_vars != ""]
-metadata_vars = intersect(cfg_metadata_vars, names(meta_dt))
-composition_vars = unique(c('project_id', metadata_vars))
+metadata_vars = "${metadata_vars}" %>% str_split(" ") %>% unlist() %>% trimws() %>% .[. != ""]
+composition_vars = "${composition_vars}" %>% str_split(" ") %>% unlist() %>% trimws() %>% .[. != ""]
 
 sel_cl_int_dt = copy(int_dt) %>%
   .[, cluster := get(paste0("RNA_snn_res.", sel_res)) %>% fct_infreq ] %>%
@@ -208,29 +210,28 @@ for (res in res_ls) {
 ```
 
 
-## Variable distributions over UMAP{.tabset}
+## Cluster splits by project and metadata variables{.tabset}
 
-The plot shows a binned UMAP with facets corresponding to specific values of project identity or metadata variables, which allows the evaluation of whether cells sharing certain annotations are particularly abundant in some clusters.
-
-```{r plot_composition_umap, fig.height=5, fig.width=8, results="asis"}
-for (cv in composition_vars) {
-  cat('###', cv, '\n')
-  print(plot_clusters_annotated_by_densities(sel_cl_int_dt, cv))
-  cat('\n\n')
-}
-```
-
-
-## Variable proportions per cluster{.tabset}
-
-Proportion of cells from each level of the variable within each cluster at
-resolution `r sel_res`.
+${comp_bars_txt}
 
 ```{r plot_composition_per_cluster, fig.height=5, fig.width=8, results="asis"}
 for (cv in composition_vars) {
   cat('###', cv, '\n')
   print(plot_clusters_by_metadata(meta_dt, sel_cl_int_dt,
     meta_vars = cv, cl_order = cl_ord))
+  cat('\n\n')
+}
+```
+
+
+## Project and metadata variables over UMAP{.tabset}
+
+${comp_umap_txt}
+
+```{r plot_composition_umap, fig.height=5, fig.width=8, results="asis"}
+for (cv in composition_vars) {
+  cat('###', cv, '\n')
+  print(plot_clusters_annotated_by_densities(sel_cl_int_dt, cv))
   cat('\n\n')
 }
 ```
@@ -258,8 +259,7 @@ for (res in res_ls_pl) {
 
 ## Cluster distribution across projects{.tabset}
 
-This plot visualizes the relationship between the entropy of clusters and the maximum proportion of cells from a single project within each cluster (higher values suggest that a cluster predominantly contains cells from a single project).
-Entropy measures how evenly distributed cells are across projects within each cluster—higher entropy indicates that cells from different projects are more evenly distributed, while lower entropy suggests that a cluster is dominated by cells from a small number of projects.
+This plot visualizes the relationship between the entropy of clusters and the maximum proportion of cells from a single project within each cluster.
 
 ```{r plot_entropy_projects, fig.height=5, fig.width=7, results="asis"}
 for (res in res_ls_pl) {
@@ -274,7 +274,7 @@ for (res in res_ls_pl) {
 
 ## QC metrics by cluster
 
-Distributions of QC metrics (library size, number of features, mitochondrial proportion, and spliced proportion) are shown for each cluster at the marker-gene resolution `r sel_res`. Clusters with fewer than 100 cells are omitted from this plot. Doublet scores use a logit axis with labels in the original score units; the axis range follows the data.
+Distributions of QC metrics (library size, number of features, mitochondrial proportion, spliced proportion and `scDblFinder` doublet score) are shown for each cluster at resolution `r sel_res`. Clusters with fewer than 100 cells are omitted from this plot.
 
 ```{r join_doublet_score_coverage, results="asis", echo=FALSE}
 if (!"doublet_score" %in% names(qc_dt) || anyNA(qc_dt$doublet_score)) {
@@ -293,16 +293,14 @@ suppressWarnings(print(plot_cluster_qc_distns(
 
 ## Marker genes
 
-Pseudobulk marker genes were identified at resolution `r sel_res` using `edgeR`.
-For each cluster, pseudobulk counts for cells in that cluster were compared against
-all other clusters. When `marker_genes.mkr_adjust_project_id` is enabled, the tests also account for differences between source projects. Otherwise the model includes only cluster membership.
-
-By default, dispersion estimation accounts for differences between clusters.
-Setting `marker_genes.mkr_dispersion_use_clusters` to `false` omits cluster
-membership from dispersion estimation, while retaining any requested project
-adjustment. Cluster-versus-rest marker tests are unchanged.
+Pseudobulk marker genes were identified at resolution `r sel_res` using `edgeR`. For each cluster, pseudobulk counts for cells in that cluster were compared against all other clusters. ${mkr_adjust_txt}
 
 ### Heatmaps of marker genes{.tabset}
+
+The resulting `log2` fold change values (calculated using `edgeR`) per cluster are shown for several genesets:
+
+- selected canonical marker genes, if specified in the config file;
+- the 50 most highly variable genes;
 
 ```{r plot_marker_heatmaps, fig.height=9, fig.width=10, results="asis"}
 for (nn in names(mkrs_ls)) {
@@ -316,8 +314,7 @@ for (nn in names(mkrs_ls)) {
 
 ### Highly variable genes{.tabset}
 
-TMM-normalised pseudobulk log-CPM expression for the top 100 highly variable genes,
-ranked by their variance across eligible cluster-sample pseudobulks.
+Pseudobulk log-CPM expression values (TMM-normalised) for the top 100 highly variable genes are shown for each cluster.
 
 ```{r plot_hvgs, fig.height=8, fig.width=8, results="asis"}
 n_pages = 10; per_p = 10; p = 1
@@ -332,7 +329,7 @@ for (i in seq(1, n_pages * per_p, by = per_p)) {
 
 ### Top marker genes per cluster{.tabset}
 
-Top 10 marker genes (FDR < 0.05, CPM ≥ `r min_cpm_mkr`) per cluster.
+Normalized pseudobulk expression values of top 10 marker genes with FDR < 0.05 and a minimum expression of `r min_cpm_mkr` CPM are shown for each cluster.
 
 ```{r plot_top_markers, fig.height=8, fig.width=8, results="asis"}
 for (sel_cl in cl_ord) {
@@ -343,9 +340,8 @@ for (sel_cl in cl_ord) {
 ```
 
 
-```{r gsea_section_header, eval=do_gsea, include=do_gsea, results="asis"}
-cat("## Gene set enrichment analysis{.tabset}\n\n")
-```
+${fgsea_title}
+${fgsea_txt}
 
 ```{r plot_gsea, eval=do_gsea, include=do_gsea, fig.height=12, fig.width=8, results="asis"}
 for (p in names(gsea_ls)) {
@@ -359,92 +355,105 @@ for (p in names(gsea_ls)) {
 ```
 
 
+${label_section_title}
+
+${label_section_txt}
+
 ```{r load_labels, eval=do_labels, include=FALSE}
 assert_that(all(sapply(label_f_ls, file.exists)))
 guesses_ls = lapply(label_f_ls, fread) %>% setNames(model_ls)
-```
-
-
-```{r label_section_header, eval=do_labels, include=do_labels, results="asis"}
-cat("## Cell type labelling{.tabset}\n\n")
-cat("Cell type labels were predicted using CellTypist. Per-cell predictions are\n",
-    "aggregated at the level of high-resolution clusters via majority voting.\n")
-```
-
-```{r label_heatmap_header, eval=do_labels, include=do_labels, results="asis"}
-cat("### Naive labels vs clusters and projects{.tabset}\n\n")
-cat("Rows are original per-cell naive predictions; columns are selected-resolution\n",
-    "clusters or projects. Missing labels are excluded. Labels below 5% in every\n",
-    "column are combined into Other using raw counts, before log pseudocounts.\n",
-    "Both axes are clustered. Both normalization views use log colors; printed\n",
-    "percentages use raw proportions and are shown only at 5% or above.\n\n")
+styles_ls = lapply(seq_along(model_ls), function(i)
+  resolve_label_style(NULL, character(), label_specs_f_ls[[i]], coarse_label_specs_f_ls[[i]]))
+for (i in seq_along(guesses_ls)) {
+  mapping = styles_ls[[i]]$mapping
+  if (!length(mapping)) next
+  for (suffix in c("naive","agg")) {
+    original = guesses_ls[[i]][[paste0("predicted_label_",suffix)]]
+    value = unname(mapping[original])
+    value[is.na(value)] = original[is.na(value)]
+    set(guesses_ls[[i]], j=paste0("coarse_predicted_label_",suffix), value=value)
+  }
+}
 ```
 
 ```{r plot_labels_heatmap, eval=do_labels, include=do_labels, fig.height=12, fig.width=13, results="asis"}
+cat("### Raw labels versus clusters and projects{.tabset}\n\n")
+cat("Labels that are assigned to less than 20% of cells in any cluster are combined into a single `Other` class.\n\n")
+
 comparison_vars = c(paste0('RNA_snn_res.', sel_res), 'project_id')
 comparison_titles = c(paste('Clusters (resolution', paste0(sel_res, ')')), 'Projects')
 for (jj in seq_along(comparison_vars)) {
   cat('####', comparison_titles[[jj]], '{.tabset}\n\n')
   for (ii in seq_along(label_f_ls)) {
     cat('#####', labeller_ls[[ii]], ',', model_ls[[ii]], '{.tabset}\n\n')
-    confuse_dt = prepare_join_label_comparison(guesses_ls[[ii]], int_dt,
-      comparison_vars[[jj]], min_cl2_p = min_cl2_p)
-    for (normalization in c('column', 'row')) {
-      view_title = if (normalization == 'row') 'Within cell types (rows sum to 1)'
-        else if (comparison_vars[[jj]] == 'project_id') 'Within projects (columns sum to 1)'
-        else 'Within clusters (columns sum to 1)'
-      cat('######', view_title, '\n\n')
-      draw(plot_join_label_comparison(confuse_dt, model_ls[[ii]],
-        comparison_titles[[jj]], normalization, lbl_threshold), merge_legend = TRUE)
-      cat('\n\n')
+    views = get_label_views(guesses_ls[[ii]], styles_ls[[ii]])
+    # a Labels/Grouped labels sub-tab is only inserted when there is a coarse
+    # view to show; otherwise the normalization tabs stay directly below
+    view_level = if (length(views) > 1) 6 else 5
+    for (view_name in names(views)) {
+      cat_label_view_tab(view_name, views, level = 5)
+      confuse_dt = prepare_join_label_comparison(views[[view_name]]$labels_dt, int_dt,
+        comparison_vars[[jj]], min_cl2_p = min_cl2_p)
+      for (normalization in c('column', 'row')) {
+        view_title = if (normalization == 'row') 'Within cell types (rows sum to 1)'
+          else if (comparison_vars[[jj]] == 'project_id') 'Within projects (columns sum to 1)'
+          else 'Within clusters (columns sum to 1)'
+        cat(strrep('#', view_level + 1), ' ', view_title, '\n\n', sep = '')
+        draw(plot_join_label_comparison(confuse_dt, model_ls[[ii]],
+          comparison_titles[[jj]], normalization, lbl_threshold), merge_legend = TRUE)
+        cat('\n\n')
+      }
     }
   }
 }
 ```
 
-```{r label_umap_header, eval=do_labels, include=do_labels, results="asis"}
-cat("### Predicted cell types over UMAP{.tabset}\n\n")
-```
-
 ```{r plot_labels_umap, eval=do_labels, include=do_labels, fig.height=5, fig.width=12, results="asis"}
+cat("### Aggregated cell-type predictions over UMAP{.tabset}\n\n")
+
 for (ii in seq_along(label_f_ls)) {
   this_labeller  = labeller_ls[[ii]]
   this_model     = model_ls[[ii]]
   this_hi_res_cl = hi_res_cl_ls[[ii]]
 
-  guesses_sel = guesses_ls[[ii]] %>%
-    .[, .(cell_id, prediction = predicted_label_agg %>% factor)]
-  int_tmp     = int_dt[, .(cell_id, UMAP1, UMAP2,
+  int_tmp = int_dt[, .(cell_id, UMAP1, UMAP2,
     hi_res_cl = get(this_hi_res_cl) %>% fct_infreq)]
-
-  g_cl   = plot_umap_labels(int_dt,
+  g_cl = plot_umap_labels(int_dt,
     int_tmp[, .(cell_id, cluster = hi_res_cl)], "high resolution\ncluster")
-  g_pred = plot_umap_labels(int_dt,
-    guesses_sel[, .(cell_id, cluster = prediction)], "prediction\n(aggregated)")
 
-  cat('####', this_labeller, ',', this_model, '\n')
-  print(g_cl + g_pred)
-  cat('\n\n')
+  views = get_label_views(guesses_ls[[ii]], styles_ls[[ii]])
+  cat_label_views_heading(paste0(this_labeller, ', ', this_model), views, level = 4)
+  for (view_name in names(views)) {
+    cat_label_view_tab(view_name, views, level = 4)
+    view   = views[[view_name]]
+    g_pred = plot_umap_labels(int_dt, view$labels_dt[, .(cell_id, cluster = predicted_label_agg)],
+      "prediction\n(aggregated)", label_order = view$order, label_colours = view$colours)
+    print(g_cl + g_pred)
+    cat('\n\n')
+  }
 }
-```
-
-```{r label_table_header, eval=do_labels, include=do_labels, results="asis"}
-cat("### Totals for each predicted cell type{.tabset}\n\n")
 ```
 
 ```{r tbl_labels, eval=do_labels, include=do_labels, results="asis"}
 library(kableExtra)
+cat("### Totals for each predicted cell type{.tabset}\n\n")
+
 for (ii in seq_along(label_f_ls)) {
   this_labeller = labeller_ls[[ii]]
   this_model    = model_ls[[ii]]
 
-  cat('####', this_labeller, ',', this_model, '\n')
-  guesses_ls[[ii]] %>% calc_labels_table %>% kbl("html") %>%
-    row_spec(row = 0, bold = TRUE) %>%
-    kable_styling(bootstrap_options = "striped", full_width = FALSE,
-      font_size = 12, position = "center") %>%
-    scroll_box(width = "60%", height = "500px") %>% print
-  cat('\n\n')
+  views = get_label_views(guesses_ls[[ii]], styles_ls[[ii]])
+  cat_label_views_heading(paste0(this_labeller, ', ', this_model), views, level = 4)
+  for (view_name in names(views)) {
+    cat_label_view_tab(view_name, views, level = 4)
+    view = views[[view_name]]
+    view$labels_dt %>% calc_labels_table(label_order = view$order) %>% kbl("html") %>%
+      row_spec(row = 0, bold = TRUE) %>%
+      kable_styling(bootstrap_options = "striped", full_width = FALSE,
+        font_size = 12, position = "center") %>%
+      scroll_box(width = "60%", height = "500px") %>% print
+    cat('\n\n')
+  }
 }
 ```
 

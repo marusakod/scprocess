@@ -2279,14 +2279,11 @@ def get_label_specs_paths(entry, config, scdata_dir):
     default_coarse_specs_f = default_dir / f"{model}_coarse_label_specs.csv"
     allowed_cls_f          = default_dir / 'allowed_cls' / f"{model}_allowed_cls.csv"
     class_names_f          = allowed_cls_f if allowed_cls_f.is_file() else None
-    legacy_label_map_f     = ''
   else:  # scprocess
     default_dir            = scdata_dir / 'xgboost' / model
     default_specs_f        = default_dir / f"{model}_label_specs.csv"
     default_coarse_specs_f = default_dir / f"{model}_coarse_label_specs.csv"
     class_names_f          = entry.get('cls_f')
-    legacy_f               = default_dir / f"{model}_label_map.csv"
-    legacy_label_map_f     = str(legacy_f) if legacy_f.is_file() else ''
 
   user_specs_f  = entry.get('label_specs_f') or None
   user_coarse_f = entry.get('coarse_label_specs_f') or None
@@ -2310,11 +2307,9 @@ def get_label_specs_paths(entry, config, scdata_dir):
   else:
     fine_specs = []
 
-  if entry['label_specs_f']:
-    # a style-only specification table must not enable coarse-label mapping.
-    entry['label_map_f'] = entry['label_specs_f'] if label_mapping(fine_specs) else ''
-  else:
-    entry['label_map_f'] = legacy_label_map_f
+  # a style-only specification table must not enable coarse-label mapping.
+  entry['label_map_f'] = (
+    entry['label_specs_f'] if entry['label_specs_f'] and label_mapping(fine_specs) else '')
 
   return entry
 
