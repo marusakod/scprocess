@@ -226,7 +226,7 @@ def extract_cellranger_resources(output_dir, whitelists_lu_f, ranger_url, ranger
   _extract_whitelists(tar_path, cr_wls_dict, sc_gex_wl_dict, output_dir, is_translation=False)
   _extract_whitelists(tar_path, translation_cr_wl_dict, translation_sc_wl_dict, output_dir, is_translation=True)
 
-  # extract hto whitelists from translation files (the second column of barcodes in the translation file corresponds to hto barcodes)
+  # extract hto whitelists from translation files (the first column of barcodes in the translation file corresponds to hto barcodes)
   print("Extracting hto whitelists")
   _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict, output_dir)
 
@@ -335,7 +335,7 @@ def _get_hto_wl_from_translation(sc_hto_wl_dict, translation_sc_wl_dict, output_
     
     translation_df = pl.read_csv(translation_f, has_header=False, separator= '\t')
 
-    translation_df.select(pl.col("column_1")).write_csv(
+    translation_df.select(translation_df.columns[0]).write_csv(
       hto_wl_f, include_header=False
       )
 
