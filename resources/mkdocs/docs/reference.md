@@ -188,8 +188,8 @@ This is an example config file for {{scrun}} with all parameters and their defau
       date_stamp:
       sample_metadata:
       tenx_assay_type: poly_a
-      ref_txome:
-      probe_set:
+      ref_txome: # should only be defined if tenx_assay_type is poly_a
+      probe_set: # should only be defined if tnex_assay_type is flex
       tenx_chemistry: none
       metadata_vars:
       show_arv_uuids: true
@@ -355,7 +355,7 @@ This is an example config file for {{scrun}} with all parameters and their defau
     project:
       proj_dir: /path/to/proj/directory
       fastq_dir: /path/to/directory/with/fastq/files
-      arv_uuids: ["arkau-qr8st-1a2b3c4d5e6f7g8", "arkau-9v0wx-h9i8j7k6l5m4n3o", "arkau-z2y3x-p0q1r2s3t4u5v6w"]
+      arv_uuids: ["instance_name1", "instance_name2", "instance_name3"]
       arv_instance: instance_name
       full_tag: test_project
       short_tag: test
@@ -380,7 +380,7 @@ This is an example config file for {{scrun}} with all parameters and their defau
     multiplexing:
       demux_type: hto
       fastq_dir: /path/to/directory/with/hto_fastq/files
-      arv_uuids: ["arkau-qr8st-1a2b3c4d5e6f7g8", "arkau-9v0wx-h9i8j7k6l5m4n3o", "arkau-z2y3x-p0q1r2s3t4u5v6w"]
+      arv_uuids: ["instance_name1", "instance_name2", "instance_name3"]
       feature_ref: /path/to/feature_ref.csv
       hto_id_regex: "^HTO"
       demux_output: /path/to/demux_output.csv
@@ -1096,7 +1096,7 @@ join:
   ref_txome: human_2024 # For Flex data, replace ref_txome with probe_set:
   your_name: Testy McUser
   affiliation: where you work
-  metadata_vars: [Condition, Sex, Region]
+  metadata_vars: [var1, var2, var3]
 projects:
   project_a:
     config: /path/to/config_a.yaml
