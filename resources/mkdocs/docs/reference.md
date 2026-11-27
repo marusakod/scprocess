@@ -660,6 +660,14 @@ sample_id:
 * `hvg_exclude_from_file`: path to CSV file with genes to be excluded from HVGs. Should be absolute or relative to `proj_dir`. File should contain one column, named either `gene_id` or `symbol`. Values in the column should all be present in reference genome.
 * `hvg_chunk_size`: number of genes to use for each chunked matrix.
 
+##### cell_cycle
+
+* `cyc_density_percentile` (required): percentile (0–100) of cell density used as the cutoff for full weight. Cells at or below this density receive full weight, while cells in denser regions are down-weighted. At `0`, weights are proportional to inverse density; at `100`, every cell receives equal weight.
+* `cyc_origin_manual`: manually selected cell cycle origin.
+* `cyc_density_percentile_grid`: alternative density percentiles shown in the report.
+* `cyc_bandwidth_multiplier`: positive multiplier controlling how broadly neighbouring cells are grouped when estimating the density of cells the projection.
+* `cyc_kde_grid_size`: positive integer specifying the number of grid bins per axis used to evaluate the 2D kernel density estimate across the projection (an N × N grid).
+* `cyc_seed`: random seed for generating diagnostic plots.[**Change this default seed**?]
 
 ##### integration
 
@@ -681,15 +689,6 @@ sample_id:
 * `int_cell_cycle_harmonics`: number of sine/cosine pairs used to fit expression against cell-cycle phase; `1` fits a single wave around the cycle, `2` adds a second harmonic so the fit can have two peaks and troughs per cycle, closer to how many cell-cycle genes actually behave.
 * `int_cell_cycle_ridge_lambda`: ridge penalty shrinking the fitted cell-cycle correction's coefficients (see `int_cell_cycle_harmonics`) toward zero; larger values give a weaker, more conservative correction, and also protect against a degenerate fit when a sample/group has too few cells to estimate it from reliably. `0` disables shrinkage.
 
-
-##### cell_cycle
-
-* `cyc_density_percentile` (required): percentile (0–100) of cell density used as the cutoff for full weight. Cells at or below this density receive full weight, while cells in denser regions are down-weighted. At `0`, weights are proportional to inverse density; at `100`, every cell receives equal weight.
-* `cyc_origin_manual`: manually selected cell cycle origin.
-* `cyc_density_percentile_grid`: alternative density percentiles shown in the report.
-* `cyc_bandwidth_multiplier`: positive multiplier controlling how broadly neighbouring cells are grouped when estimating the density of cells the projection.
-* `cyc_kde_grid_size`: positive integer specifying the number of grid bins per axis used to evaluate the 2D kernel density estimate across the projection (an N × N grid).
-* `cyc_seed`: random seed for generating diagnostic plots.[**Change this default seed**?]
 
 ##### marker_genes
 
